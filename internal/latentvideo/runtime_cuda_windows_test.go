@@ -52,8 +52,10 @@ func TestWanProductionRuntime(t *testing.T) {
 		t.Skip("integration excluded by -short: loads the real Wan denoiser and VAE")
 	}
 	generator, request, wantLatent := newWanRuntimeCase(t, "g3_denoise.json")
-	var firstMemory uint64
-	var warmCaptures uint64
+	// A request gives its denoiser's arena back before the decode (e62f57544, 4.09 GiB less at a person's size, in the
+	// same time), and the executor drops the graphs bound to memory it freed, so each request instantiates its step
+	// graphs again: after the warm-up a request captures as many graphs as the warm request did, and no more.
+	var firstMemory, previousInstantiations, previousUpdates, warmInstantiated, warmUpdated uint64
 	for run := range 3 {
 		var frames [][]float32
 		request.Sink = func(index int, frame []float32, height, width int) error {
@@ -68,18 +70,22 @@ func TestWanProductionRuntime(t *testing.T) {
 		if len(frames) != result.Decode.OutputFrames || len(frames) != 1 || result.WeightBytes == 0 {
 			t.Fatalf("run %d result=%+v frames=%d", run, result, len(frames))
 		}
-		captures := result.Execution.GraphInstantiations + result.Execution.GraphUpdates
-		if run == 0 {
+		instantiated, updated := result.Execution.GraphInstantiations-previousInstantiations, result.Execution.GraphUpdates-previousUpdates
+		previousInstantiations, previousUpdates = result.Execution.GraphInstantiations, result.Execution.GraphUpdates
+		t.Logf("request %d instantiated %d graphs and updated %d", run, instantiated, updated)
+		switch run {
+		case 0:
 			firstMemory = result.DecodeMemory.CurrentBytes
-		} else {
-			if result.DecodeMemory.CurrentBytes != firstMemory {
-				t.Fatalf("decoder residency grew: first=%d second=%d", firstMemory, result.DecodeMemory.CurrentBytes)
+		case 1:
+			warmInstantiated, warmUpdated = instantiated, updated
+		default:
+			if instantiated != warmInstantiated || updated != warmUpdated {
+				t.Fatalf("a steady request instantiated %d graphs and updated %d, want the warm request's %d and %d",
+					instantiated, updated, warmInstantiated, warmUpdated)
 			}
-			if run == 1 {
-				warmCaptures = captures
-			} else if captures != warmCaptures {
-				t.Fatalf("compiled graph recaptured after warmup: warm=%d steady=%d", warmCaptures, captures)
-			}
+		}
+		if result.DecodeMemory.CurrentBytes != firstMemory {
+			t.Fatalf("decoder residency grew: first=%d request %d=%d", firstMemory, run, result.DecodeMemory.CurrentBytes)
 		}
 	}
 }

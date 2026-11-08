@@ -3,30 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "wan-graph-recapture",
-      "title": "Wan's resident runtime replays its captured graph after warm-up instead of capturing it again",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 60,
-        "reason": "Estimate before the survey: find what changes the step graph's key between the warm-up and the steady requests."
-      },
-      "steps": [
-        {
-          "id": "replay",
-          "title": "TestWanProductionRuntime and TestWanLifecycleAcceptance pass: the steady requests capture no graph the warm-up captured",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags integration ./internal/latentvideo -count=1 -run '^(TestWanProductionRuntime|TestWanLifecycleAcceptance)$'",
-          "files": [
-            "internal/latentvideo",
-            "internal/sampling"
-          ],
-          "needs_card": true,
-          "rationale": "The measurement run at fdd4ab1ce failed TestWanProductionRuntime on 2026-11-08 with 'compiled graph recaptured after warmup: warm=6 steady=8', and TestWanLifecycleAcceptance's production-reference case beside it: a steady Wan request captured two graphs its warm-up had captured, so every request pays a capture.\n\nThe cause is found by the graphs' keys across the two requests, and fixed where a request's key changes.\n\nServes: first-output.\nDisappears: graph capture on a steady request.\nEvidence: the two tests pass on the card.\nBatch: device lane."
-        }
-      ]
-    },
-    {
       "id": "diffusion-memory-range",
       "title": "SimpleDiffusion's resident forward is held to the memory it measures",
       "owner": "master-lead",

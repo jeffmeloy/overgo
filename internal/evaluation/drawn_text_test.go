@@ -132,7 +132,7 @@ func TestDrawnTextSuiteAsksForTheTextItWasToldToDraw(t *testing.T) {
 	if _, err := BuildDrawnText(nil, images, "a judge"); err == nil {
 		t.Error("a suite was built that asks about no picture")
 	}
-	for _, count := range []int{0, listed + 1} {
+	for _, count := range []int{0, -1} {
 		if _, err := PickDrawnText(count, seed); err == nil {
 			t.Errorf("%d briefs were picked of %d", count, listed)
 		}

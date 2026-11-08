@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"slices"
+	"strconv"
 	"strings"
 
 	"overgo/internal/strictjson"
@@ -100,6 +101,62 @@ func drawnBriefs() ([]drawnBrief, error) {
 	return document.Briefs, nil
 }
 
+// drawnWordsJSON holds what written briefs are made of: places and months a title names, venues with their subjects and
+// the units of their three figures, and the sources small print cites.
+//
+//go:embed drawn_words.json
+var drawnWordsJSON []byte
+
+const (
+	// earliestYear and latestYear bound the year a written brief's small print states.
+	earliestYear, latestYear = 2015, 2025
+	// smallestFigure and largestFigure bound the figures a written brief's lines state, two to four digits.
+	smallestFigure, largestFigure = 10, 9999
+)
+
+// writtenBriefs writes count briefs from the word lists by rng: on 2026-11-08 the 20 held briefs capped a drawn-text
+// suite at 20 pictures, at most 20 pairs a paired test could read. Each names a place's venue in a month, its title
+// swapping the place for another and the month for another, three figures in the venue's units, and a year from a
+// source, so each holds what a held brief does and is checked as one is (nearTitles).
+func writtenBriefs(count int, rng *rand.Rand) ([]drawnBrief, error) {
+	var words struct {
+		Places []string `json:"places"`
+		Months []string `json:"months"`
+		Venues []struct {
+			Noun    string   `json:"noun"`
+			Subject string   `json:"subject"`
+			Lines   []string `json:"lines"`
+		} `json:"venues"`
+		Sources []string `json:"sources"`
+	}
+	if err := strictjson.DecodeBytes(drawnWordsJSON, &words); err != nil {
+		return nil, fmt.Errorf("evaluation: drawn-text words: %w", err)
+	}
+	two := func(list []string) (string, string) {
+		picked := rng.Perm(len(list))
+		return list[picked[0]], list[picked[1]]
+	}
+	briefs := make([]drawnBrief, count)
+	for index := range briefs {
+		venue := words.Venues[rng.IntN(len(words.Venues))]
+		place, otherPlace := two(words.Places)
+		month, otherMonth := two(words.Months)
+		brief := drawnBrief{
+			ID: fmt.Sprintf("written_%d", index), Subject: venue.Subject + " in " + month[:1] + strings.ToLower(month[1:]),
+			Title: place + " " + venue.Noun + " IN " + month, Swaps: [][]string{{place, otherPlace}, {month, otherMonth}},
+			Print: drawnLine{Before: "Source: " + words.Sources[rng.IntN(len(words.Sources))] + ", ", Number: strconv.Itoa(earliestYear + rng.IntN(latestYear-earliestYear+1))},
+		}
+		for _, unit := range venue.Lines {
+			brief.Lines = append(brief.Lines, drawnLine{Number: strconv.Itoa(smallestFigure + rng.IntN(largestFigure-smallestFigure+1)), After: unit})
+		}
+		if _, err := nearTitles(brief.Title, brief.Swaps); err != nil || len(brief.Lines) != nearTexts {
+			return nil, errors.Join(err, fmt.Errorf("evaluation: written brief %s does not hold what a brief holds", brief.ID))
+		}
+		briefs[index] = brief
+	}
+	return briefs, nil
+}
+
 // A question must not answer itself. Three texts each made by one change to
 // the text asked for point at it: it is the one text a single change away
 // from every other, and a judge shown a picture with no text in it found it
@@ -188,11 +245,19 @@ func PickDrawnText(count int, seed uint64) ([]TIFAItem, error) {
 	if err != nil {
 		return nil, err
 	}
-	if count <= 0 || count > len(briefs) {
-		return nil, fmt.Errorf("evaluation: a drawn-text suite draws between 1 and %d infographics, not %d", len(briefs), count)
+	if count <= 0 {
+		return nil, fmt.Errorf("evaluation: a drawn-text suite draws at least one infographic, not %d", count)
 	}
 	rng := rand.New(rand.NewPCG(seed, seed))
 	rng.Shuffle(len(briefs), func(left, right int) { briefs[left], briefs[right] = briefs[right], briefs[left] })
+	// The held briefs come first, so a suite of no more than them asks what it always asked; seeded code writes the rest.
+	if count > len(briefs) {
+		written, err := writtenBriefs(count-len(briefs), rng)
+		if err != nil {
+			return nil, err
+		}
+		briefs = append(briefs, written...)
+	}
 	back := func() bool { return rng.Uint64()&1 == 1 }
 	items := make([]TIFAItem, 0, count)
 	for _, brief := range briefs[:count] {

@@ -1,0 +1,17 @@
+{
+  "places": ["MAPLEWOOD", "HARBOURVIEW", "ELMSTEAD", "STONEBRIDGE", "FAIRHAVEN", "OAKRIDGE", "BRIARCLIFF", "WILLOWMERE", "ASHFORD", "LAKESIDE", "PINECREST", "HOLLOWAY"],
+  "months": ["JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"],
+  "venues": [
+    {"noun": "MARKET", "subject": "a farmers' market", "lines": [" stalls", " visitors a day", " kinds of apples"]},
+    {"noun": "MARATHON", "subject": "a city marathon", "lines": [" runners", " water stations", " volunteers"]},
+    {"noun": "ZOO", "subject": "a small zoo", "lines": [" animals", " keepers", " school visits"]},
+    {"noun": "OBSERVATORY", "subject": "a hilltop observatory", "lines": [" clear nights", " comets logged", " visitors"]},
+    {"noun": "ORCHARD", "subject": "a fruit orchard", "lines": [" trees", " crates picked", " pickers"]},
+    {"noun": "HARBOUR", "subject": "a fishing harbour", "lines": [" boats", " tonnes landed", " crew"]},
+    {"noun": "THEATRE", "subject": "a community theatre", "lines": [" performances", " seats sold", " actors"]},
+    {"noun": "GARDEN", "subject": "a botanical garden", "lines": [" species", " gardeners", " seed packets given"]},
+    {"noun": "SCHOOL", "subject": "a primary school", "lines": [" pupils", " teachers", " books read"]},
+    {"noun": "STATION", "subject": "a railway station", "lines": [" trains a day", " platforms", " passengers an hour"]}
+  ],
+  "sources": ["visitor counts", "council records", "staff survey", "annual report", "ticket office", "field notes", "parish newsletter", "logbook"]
+}

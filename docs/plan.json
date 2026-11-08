@@ -79,7 +79,7 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 2000,
+        "nodes": 1605,
         "reason": "Estimated after a survey of the code, at about twice what a first sketch of the steps counts, since this week's rows landed at two to six times the counts they were filed with (wan-few-step 300 -\u003e 1100, sampling-split 400 -\u003e 1700, umt5-resident 336 -\u003e 1750): the OCR model's projector path opened for the suite, a character score carried to the scorecard, and a brief writer over word and number lists."
       },
       "steps": [
@@ -113,17 +113,6 @@
           "depends_on": [
             "drawn-text-reading/reader"
           ]
-        },
-        {
-          "id": "briefs",
-          "title": "Seeded code writes drawn-text briefs from word and number lists, so a suite holds as many pictures as it asks for, the 20 held briefs first",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -count=1 -run '^TestDrawnBriefsAreWrittenBySeededCode$'",
-          "files": [
-            "internal/evaluation",
-            "cmd/evaluate"
-          ],
-          "rationale": "PickDrawnText refuses more briefs than drawn_briefs.json holds, which is 20 (internal/evaluation/drawn_text.go:191-193). Twenty pictures give a paired sign test (tensorstats.ExactPairedBinary) at most 20 cases that can differ. A brief is a title with two swappable words, three number lines and a line of small print (internal/evaluation/drawn_briefs.json). Seeded code can fill that shape from lists, as internal/evaluation/composed_cases.go fills TIFA's composed cases from composed_atoms.json. The 20 held briefs stay the first 20, so earlier readings remain comparable.\n\nServes: held-out-quality.\nDisappears: a suite capped at 20 pictures.\nEvidence: a seed writes the same briefs every time, two seeds write different ones, and a suite of 200 pictures draws.\nBatch: host lane."
         }
       ]
     },

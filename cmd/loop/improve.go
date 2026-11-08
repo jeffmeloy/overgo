@@ -153,13 +153,13 @@ func (w *improvement) movedSince() (last string, moved int, err error) {
 	return landingsThatMovedTheSurface(ctx, w.root, w.records, closure)
 }
 
+// FindingsToFile are the open findings no row names, which an empty plan files as rows before the measurement run
+// (loop.FindingsWorld).
+func (w *improvement) FindingsToFile() ([]string, error) { return findingsWaiting(w.root, w.plan) }
+
 // CycleWorthRunning says whether a cycle an empty plan would start has anything to do: it has when no cycle
 // has completed, something it measures moved since the last that did, or the last to publish was cut short.
 func (w *improvement) CycleWorthRunning() (bool, string, error) {
-	// The register's open P1 and P2 findings no row names come before the measurement run.
-	if waiting, err := findingsWaiting(w.root, w.plan); err != nil || len(waiting) != 0 {
-		return false, "file as rows the open findings no row names before the measurement run: " + strings.Join(waiting, "; "), err
-	}
 	if !w.watch {
 		return true, "the cycle is not gated on what moved", nil
 	}

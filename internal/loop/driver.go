@@ -114,10 +114,20 @@ type Outcome struct {
 	Reason      string
 	Invocations int
 	Parked      []string
+	// Findings are the open findings no row names that an empty plan waits to file (ReasonFindingsWaiting).
+	Findings []string
+}
+
+// FindingsWorld is the optional world extension that names the open findings no row names, which an empty plan files
+// as rows before its measurement run.
+type FindingsWorld interface {
+	FindingsToFile() ([]string, error)
 }
 
 const (
 	ReasonPlanComplete = "plan-complete"
+	// ReasonFindingsWaiting is an empty plan whose findings wait to be filed as rows.
+	reasonFindingsWaiting = "findings-waiting"
 	// ReasonWorkWaiting preserves eligible work while another worker owns its dispatch.
 	ReasonWorkWaiting = "work-ownership-waiting"
 	ReasonPaused      = "paused"
@@ -170,6 +180,14 @@ func Run(world World, config Config) (Outcome, error) {
 			return outcome, fmt.Errorf("loop: read plan: %w", err)
 		}
 		if !open {
+			// An empty plan with findings to file waits for them, named, before any measurement (SQA-271).
+			if findings, files := world.(FindingsWorld); files {
+				waiting, err := findings.FindingsToFile()
+				if err != nil || len(waiting) != 0 {
+					outcome.Reason, outcome.Findings = reasonFindingsWaiting, waiting
+					return outcome, err
+				}
+			}
 			added, err := improve(world)
 			if err != nil {
 				outcome.Reason = ReasonPlanComplete

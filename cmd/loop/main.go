@@ -281,8 +281,8 @@ func run(args []string) error {
 	// An empty plan runs the full scorecard and turns the gaps into the next rows.
 	world := &execWorld{config: loaded, promptPrefix: string(prompt), campaign: campaign, improvement: improvementFor(*repoPath)}
 	outcome, err := loop.Run(world, loaded.Config)
-	fmt.Printf("loop: %s after %d worker invocation(s); parked=%v; audit: the gate remains the sole commit path, workers cannot advance an unverified step\n",
-		outcome.Reason, outcome.Invocations, outcome.Parked)
+	fmt.Printf("loop: %s after %d worker invocation(s); parked=%v; findings to file=%v; audit: the gate remains the sole commit path, workers cannot advance an unverified step\n",
+		outcome.Reason, outcome.Invocations, outcome.Parked, outcome.Findings)
 	return err
 }
 

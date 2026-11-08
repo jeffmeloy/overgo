@@ -3,24 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "findings-wait",
-      "title": "A run whose empty plan has findings to file ends waiting for them, never as a completed plan, and the waiting cases count worker runs exactly",
-      "status": "open",
-      "budget": {
-        "nodes": 60,
-        "reason": "Estimate before the survey: internal/loop gains a findings-waiting reason that Run ends with, and cmd/loop/improve.go CycleWorthRunning reports findings to file as that answer instead of a plain not-worth-running."
-      },
-      "steps": [
-        {
-          "id": "wait",
-          "title": "The driver ends a run whose empty plan has findings to file as waiting for them, naming them",
-          "status": "open",
-          "verify": "go test ./internal/loop -count=1 -run '^TestARunEndsWaitingNeverCompleteWhileWorkIsHeldOrFindingsAwaitFiling$'",
-          "rationale": "SQA-271: with the plan empty and open P1 or P2 findings no row names, cmd/loop/improve.go CycleWorthRunning answers not worth running, internal/loop/driver.go improve files nothing, and Run ends ReasonPlanComplete with no worker run, reporting a finished plan while work waits; internal/loop/dispatch_wait_test.go also lets each held-work case run up to one worker where 0, 1 and 0 are exact.\n\nCycleWorthRunning reports findings to file as their own answer, and Run ends with a findings-waiting reason naming them; paused, budget and stop outcomes stay. The new test replaces TestARunThatFindsWorkWaitingSaysSo at exact counts and adds the empty plan with findings.\n\nServes: setup-steps; an unattended run says what it waits for.\nDisappears: plan-complete reported while findings wait.\nEvidence: an empty plan with findings ends findings-waiting with no measurement or worker run, and each held-work case runs exactly its workers.\nBatch: host lane."
-        }
-      ]
-    },
-    {
       "id": "cycle-fresh",
       "title": "Every cycle lane that runs go test runs its tests afresh, so a real-model pass is never replayed after its model or reference bytes change",
       "status": "open",

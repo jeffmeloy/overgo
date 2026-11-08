@@ -2,6 +2,7 @@ package loop
 
 import (
 	"fmt"
+	"slices"
 	"testing"
 
 	"overgo/internal/scorecard"
@@ -44,23 +45,43 @@ func (w *claimedAfterCycleWorld) Current() (Step, bool, error) {
 	return w.fakeWorld.Current()
 }
 
-// TestARunThatFindsWorkWaitingSaysSo holds a run that finds its work held by another worker to ending as waiting,
-// wherever it finds it: at the top of a round, when a worker exits, or after the cycle an emptied plan started; never as
-// a completed plan or an error, and with no row parked and no worker run for a held row.
-func TestARunThatFindsWorkWaitingSaysSo(t *testing.T) {
+// findingsWorld is an emptied plan whose register holds open findings no row names.
+type findingsWorld struct {
+	claimedAfterCycleWorld
+	waiting []string
+}
+
+func (w *findingsWorld) FindingsToFile() ([]string, error) { return w.waiting, nil }
+
+// TestARunEndsWaitingNeverCompleteWhileWorkIsHeldOrFindingsAwaitFiling holds a run that cannot go on to saying what it
+// waits for (SQA-271): an empty plan with open findings to file ended "plan complete" with nothing run. A run finding
+// its work held by another worker at the top of a round, when its worker exits, or after the cycle an emptied plan
+// started ends waiting with no row parked and exactly its workers run, 0, 1 and 0; and an empty plan with findings to
+// file ends waiting for them, naming them, with no measurement and no worker run.
+func TestARunEndsWaitingNeverCompleteWhileWorkIsHeldOrFindingsAwaitFiling(t *testing.T) {
 	t.Parallel()
-	for name, world := range map[string]interface {
-		World
-		calls() int
-	}{
-		"top of a round":    &waitingDispatchWorld{},
-		"a worker's exit":   &claimedAfterWorkerWorld{},
-		"after a cycle ran": &claimedAfterCycleWorld{improvingWorld: improvingWorld{published: &scorecard.Record{Commit: "b"}}},
-	} {
-		outcome, err := Run(world, Config{MaxAttemptsPerStep: 1, MaxInvocations: 2})
-		if err != nil || outcome.Reason != ReasonWorkWaiting || len(outcome.Parked) != 0 || world.calls() > 1 {
-			t.Errorf("%s: a run finding its work held ended %+v (%v) after %d worker run(s), want waiting", name, outcome, err, world.calls())
+	for name, held := range map[string]struct {
+		world interface {
+			World
+			calls() int
 		}
+		workers int
+	}{
+		"top of a round":    {&waitingDispatchWorld{}, 0},
+		"a worker's exit":   {&claimedAfterWorkerWorld{}, 1},
+		"after a cycle ran": {&claimedAfterCycleWorld{improvingWorld: improvingWorld{published: &scorecard.Record{Commit: "b"}}}, 0},
+	} {
+		outcome, err := Run(held.world, Config{MaxAttemptsPerStep: 1, MaxInvocations: 2})
+		if err != nil || outcome.Reason != ReasonWorkWaiting || len(outcome.Parked) != 0 || held.world.calls() != held.workers {
+			t.Errorf("%s: a run finding its work held ended %+v (%v) after %d worker run(s), want waiting after %d", name, outcome, err, held.world.calls(), held.workers)
+		}
+	}
+	waiting := []string{"SQA-271 (P2): Keep scheduled work under the existing supervisor's authority and budgets"}
+	findings := &findingsWorld{claimedAfterCycleWorld: claimedAfterCycleWorld{improvingWorld: improvingWorld{published: &scorecard.Record{Commit: "b"}}}, waiting: waiting}
+	outcome, err := Run(findings, Config{MaxAttemptsPerStep: 1, MaxInvocations: 2})
+	if err != nil || outcome.Reason != reasonFindingsWaiting || !slices.Equal(outcome.Findings, waiting) || findings.measured || findings.call != 0 {
+		t.Errorf("an empty plan with findings to file ended %+v (%v), measured %v, after %d worker run(s); want waiting for them, named, with nothing run",
+			outcome, err, findings.measured, findings.call)
 	}
 }
 

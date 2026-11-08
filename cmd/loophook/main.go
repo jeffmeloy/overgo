@@ -452,6 +452,13 @@ func runDoctrine(hookJSON string) {
 	}
 	if root, err := os.Getwd(); err == nil {
 		texts := memoryTexts(root)
+		if beyond := repoanalysis.MemoryBeyondPointer(texts); len(beyond) != 0 {
+			fmt.Println()
+			fmt.Println("Session memory beyond its pointer (rules belong in skill.md or code; sort these there):")
+			for _, entry := range beyond {
+				fmt.Println("  " + entry)
+			}
+		}
 		texts["doctrine"] = doctrineText
 		if dead := repoanalysis.DeadReferences(root, texts); len(dead) != 0 {
 			fmt.Println()

@@ -19,6 +19,7 @@ description: The rules for Overgo development, written as one logical statement 
 - push <=> a request to push, never the system's own initiative (check: cmd/loop TestPushPushesTheNamedCommitOnlyWhenAsked)
 - this file = the system's doctrine, and the plan holds rows and decisions alone (check: internal/plan TestThePlanHoldsNoRuleText)
 - rule text outside this file and AGENTS.md => refused, the session's start text pointing here alone (check: internal/repoanalysis TestRuleTextLivesOnlyInSkillAndThePointer)
+- session memory beyond its one pointer line => the session-start hook names it, for sorting into this file or code (check: internal/repoanalysis TestTheProjectKeepsNoSessionMemory)
 - doctrine = how the system works, which every session and the loop follow and correct on evidence (check: internal/repoanalysis TestRuleTextLivesOnlyInSkillAndThePointer)
 - doctrine != any person's preferences or rules (check: internal/repoanalysis TestRuleTextLivesOnlyInSkillAndThePointer, internal/plan TestControlVocabularyNamesNoPerson)
 - requests and models propose (check: internal/runrecord TestProposerEvaluatorDeciderAuthorityDomainsAndPriorGeneration)

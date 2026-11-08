@@ -1,27 +1,7 @@
 {
   "campaign": "Deliver multimodal Qwen3.8-Flash-Next UD-IQ4_XS and meet native Strata performance",
   "lane": "master-lead",
-  "items": [
-    {
-      "id": "one-rule-file",
-      "title": "skill.md and the pointer file are the only written rules: the plan's paragraphs go, one test refuses rule text elsewhere, and skill.md keeps only what code cannot hold",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 634,
-        "reason": "Estimate: mostly deletions of text and of the plan's paragraph code; paragraphs removes more production code than it adds, and the rule-text test is test code."
-      },
-      "steps": [
-        {
-          "id": "memory-off",
-          "title": "Session memory for this project stops growing back beyond its pointer",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestTheProjectKeepsNoSessionMemory$'",
-          "rationale": "Every Claude session is told to write memory by itself, so cut memory grows back. The project's .claude/settings.json turns Claude Code's auto memory off if a setting allows it; otherwise the session-start hook reports memory beyond its one pointer line. Which setting exists is to be confirmed in Claude Code's settings documentation first.\nServes: setup-steps.\nDisappears: rules regrowing in session memory.\nEvidence: the project's settings turn memory off, or the start hook reports memory beyond its pointer.\nBatch: host lane."
-        }
-      ]
-    }
-  ],
+  "items": [],
   "decisions": [
     {
       "id": "gemma-12b-bf16-download",

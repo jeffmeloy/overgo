@@ -1,9 +1,21 @@
 {
     "branch": "master",
     "candidate_review": {
-    "assessment": "Credit the landed note reduction and specific harness fix. Startup needs ownership before mutation; a printed app task is not equivalent to the budgeted supervisor.",
-    "current_review_order": ["SQA-316","SQA-315","SQA-271","SQA-337","SQA-338","SQA-322","SQA-318","SQA-283","SQA-331","SQA-335","SQA-336","SQA-277","SQA-266","SQA-328","SQA-325","SQA-330","SQA-257"],
-    "declined_candidates": ["No new recipe/scheduler layer for development supervision.","No claim that an app task delivered continuation from its prompt or a timestamp.","No blanket deletion of configured startup support solely because one host lacks worker sign-in."],
+    "assessment": "Three verified fixes closed; one arithmetic defect reduced to a minor output-label obligation. Existing startup consolidation pays for most of its new contention coverage; the complete fix still grows29 test nodes. Concurrent sampler landing adds a concrete -87-production-node reuse opportunity; its complete migration currently grows +1010 production/+743 test.",
+    "current_review_order": [
+        "Ownership and recovery fixes337/338",
+        "Known failed inference prerequisites335",
+        "Rate arithmetic336",
+        "Truthful waiting versus external supervision271",
+        "Existing note/stray consolidation334",
+        "Shared image/video cache and current sampling/stage-cache proposals",
+        "Concurrent committed sampler adapter reduction339"
+      ],
+    "declined_candidates": [
+        "Do not merge raw prompt-encoder rows with projected Wan conditioning merely because both cache text: different values, identities, ownership and lifetimes. No safe net reduction established.",
+        "Do not retire media.ConditioningCacheBounds or video call-count coverage as duplicates: one owns eviction/identity/value retention, the other proves real consumer reuse across seed/prompt/encoder changes.",
+        "Do not make the generic host walk in-place merely to save a buffer: UniPC explicitly disallows aliasing. RAE/SimpleDiffusion now allocate an extra sample buffer through Walk; that source cost warrants later caller-specific comparison, not a blanket aliasing change or an unmeasured memory claim."
+      ],
     "plan_review": {
         "draft": {
           "base": "404b66d4d88cd2a8c59f3ca5ce325901a569058f",
@@ -79,20 +91,20 @@
           "Only then add platform startup and retire displaced hooks; defer new policy/tool/telemetry frameworks."
         ]
       },
-    "plan_review_follow_up": "The new OwnersAct marker reuses existing dispatch and retains other-row progress. gate-retired still needs an explicit prerequisite demonstrating the actual replacement's authority/budgets/exit contract. Concurrent fall-through rendering is now consumed by the report reader, but execWorld.Current still ignores its Findings;271 retains the actual-dispatch obligation.",
-    "rank_basis": "Keep existing correctness priorities; add two concrete startup ownership/recovery issues after271. Consolidate execution-path evidence into271 and note follow-up into334.",
+    "plan_review_follow_up": "40fabb8d8 lands sampling-split/interface with +1010 production/+743 test AST. SQA-339 identifies two device callers that need no host sampler and can delete87 production nodes; the rest is capability growth pending actual further displacement. Preserve reference rounding, distinct UniPC state and executor lifetime. stage-cache/keys should reuse existing content identity/runtime/recovery owners and name displaced work; restart reuse remains planned. 3bc7ac364 retires gate-retired and keeps the Stop gate. fdd4ab1ce moves the GUI answer to history, not its unique requirements into implementation.",
+    "rank_basis": "Keep carried serious correctness priorities. Remove335/337/338 from active work, demote336 toP3 and last position;271 remains for the unverified external operating path, not its repaired waiting/startup defects. Untouched ranks are carried, not a fresh whole-system comparison. New339 is a bounded P3 reduction, with no claim that it outranks the carried correctness issues.",
     "working_notes_review": {
         "finding": "SQA-334",
-        "retained_owner": "Master-maintained docs/working_notes.json, advisory and tracked; plan/findings/runrecord retain authority.",
-        "scope": "One ignored GUI hand-off and its committed plan reference, with workbench_design.json checked as a legitimate consumer-owned counterexample.",
-        "plan_follow_up": "The previous draft's automation rows landed in ff3ff3346. This review does not re-audit their implementation or overwrite the earlier hash-bound plan assessment."
+        "retained_owner": "Current plan note/printPromptStep owner; no new register or duplicated dispatch authority recommended.",
+        "scope": "Ignored GUI hand-off remains17,580 bytes; prior answer retained in fdd4ab1ce history. Current note and stray fixture follow-up only.",
+        "plan_follow_up": "Preserve prior hash-bound plan review as history. Archiving an answer is not completing its requested work."
       }
   },
     "committed_plan": {
-    "git_blob": "0d04f5a1cc1010530ec64b2162abe93f8c3902da",
+    "git_blob": "77b129adcb4b0af8aa52f8005016ba6c4dbb8386",
     "path": "docs/plan.json",
-    "revision": "1c90b1ccb4aae306d0dce6736f9a006599333eff",
-    "sha256": "a02614e47d3702783c163c9c2150d411c9244839ec375a2433586d84ea5bf2e5",
+    "revision": "40fabb8d80603b3ff81a5c8dd3c31d7a3143fb9b",
+    "sha256": "a4fd2374cb6682e992c156528c63a8966b47243f67ecc18278ff5b6325928a96",
     "working_tree_status": "Committed plan at review pin; prior draft assessment retains its own snapshot identity. Current working plan edits excluded."
   },
     "findings": [
@@ -413,26 +425,71 @@
     },
     {
     "category": "automation-continuation",
-    "classification": "source-repairs-credited; scheduled-prompt-is-not-supervised-continuation",
-    "closure_criteria": ["Existing waiting cases require exactly 0/1/0 worker calls, preserving free-row and real-error behavior.","One ordinarily authorized retained execution links actual final exit/partial results to the next authorized dispatch or a truthful stop/budget/wait/failure outcome.","The chosen app/CLI execution path preserves deterministic budgets, active stop cancellation and exclusive ownership; hook retirement depends on that proof, not prompt strings or timestamps.","Known invalid setup is not retried unchanged; aliases and partial/numerical evidence remain.","An empty plan with an eligible finding cannot return plan-complete while no row was admitted: it reaches actual existing filing/dispatch or an explicit truthful wait."],
-    "comparison": "Reconcile one already-authorized real execution with the existing process/dispatch records; no SQA run. Extend no framework. Use the retained three-case table for the exact-count correction. Keep the app prompt test limited to what it proves. In the existing driver/dispatch fixture, follow an empty plan with one eligible finding through Current -> cycle trigger -> final outcome; assert a real admissible row/dispatch or a truthful wait, not just the output text.",
+    "classification": "waiting-and-startup-fixed; external-session-supervision-unverified",
+    "closure_criteria": [
+        "Retain exact0/1/0 waiting and truthful findings-waiting behavior.",
+        "One retained authorized execution establishes the chosen app/CLI path's actual exit/dispatch and stop/budget/ownership semantics; if the app path cannot provide them, keep the existing gated path and report that limit rather than claim unattended equivalence.",
+        "Do not retry unchanged invalid setup or retire the retained authority boundary on prompt/status evidence alone."
+      ],
+    "comparison": "Read one normal authorized execution's existing records; no SQA launch, scheduler probe or added suite. Existing native subprocess/active-stop/waiting tests remain the code-level owners.",
     "consolidates": [
         "SQA-258"
       ],
-    "displaced_surface": "The permissive >1 oracle becomes equality in the existing three rows. A successful supervision migration must delete its displaced prose loop/hook control, not leave two competing continuation owners; exact deletions beyond that depend on which executor is actually usable. Preserve alias SQA-258, partial results, numerical acceptance, stop/budget terminal outcomes and host work while device work waits. SQA-337 and SQA-338 separately own the concrete startup state mutations.",
-    "evidence": "Credit the earlier waiting/config repairs and new default configuration, logon task and stale-hold recovery. Retained 8ed63315f/2bf7ef3c8 explanations now report an actual failed prerequisite: two standalone workers took the hold but landed nothing because they were not signed in, and the owner declined that sign-in. The replacement -session-prompt prints a prose work-until-empty loop and returns before BeginCampaign/loop.Run; it reads neither configured budget, owns no active stop cancellation and records no worker exit. This does not establish that the external app's session is supervised equivalently. Its test checks strings; the new init fixture starts paused despite its landing-oriented name. The Windows task restarts failures, while Run returns nil for waiting/budget/park/stop, so that task alone does not supply a clean-exit continuation. No delivered app-task-to-landing evidence was read; a registered/printed task is not such evidence. Current gate-retired still has no explicit prerequisite proving the chosen replacement. Existing dispatch_wait_test still permits <=1 calls for all three cases instead of exact 0/1/0; no current duplicate worker is alleged. Concurrent 1c90b1ccb adds another source-established completion gap: empty-plan dispatch is Complete=true with Findings, but execWorld.Current ignores Findings and returns no work. CycleWorthRunning then refuses measurement because those findings are unfiled; loop.Run rereads the same complete dispatch and exits ReasonPlanComplete with no worker/filed row. The new fixture checks only filtering and the printed line. This path announces the next work but does not dispatch it; no real idle episode is claimed for the new code.",
-    "evidence_commit": "1c90b1ccb4aae306d0dce6736f9a006599333eff",
-    "expected_benefit": {"retained":"Earlier accepted driver/ownership-wait changes: -1,026 production/-583 test = -1,609 AST, schema -1, fixture files/bytes 0. New first-run/startup/app-schedule gates: +1,438 production/+1,101 test = +2,539; this growth has not demonstrated replacement of the existing control path. Counts are separate historical changes, not a net census.","test_cost":"Existing exact-count table estimate remains +21 test nodes, production 0, same three scenarios/setups. The duplicate paused-start fixture consolidation is counted only under SQA-338.","uncertainty":"No new application run or external scheduling probe. No safe net runtime/control-code saving established until the admitted executor and real handoff are demonstrated.","current_fall_through":"1c90b1ccb retained gate +566 production/+254 test; the emitted finding list does not yet cause a driver action. Budget an estimated +20..100 production/+40..120 test for a deciding existing flow-fixture extension and wiring; final cost unknown, no claimed saving. Reuse filing/dispatch, not a second scheduler."},
+    "displaced_surface": "The permissive waiting oracle and false plan-complete path are already gone. gate-retired is retired, not implemented; no hook deletion is recommended without an admitted replacement. Any later supervision consolidation must name and delete the displaced prose loop, preserving stops/budgets/partial results and alias258.",
+    "evidence": "82cba7649 repairs the empty-plan fall-through: Run returns findings-waiting with the eligible IDs before measurement, and the retained waiting table now requires exactly0/1/0 workers. Deferred/implemented triage filtering in 9f3917806/fc299967b prevents unnecessary re-filing. 3bc7ac364 explicitly retires driver-on/gate-retired because the standalone worker is not signed in; the existing Stop gate stays. Thus the unsafe hook-retirement proposal is no longer current. Startup takeover/recovery mutations are independently closed in337/338. The remaining gap is narrower: -session-prompt still returns before BeginCampaign/loop.Run and prints a work-until-empty procedure without consuming max_invocations or max_attempts_per_step or recording actual worker exit. The landing describes hourly app sessions as the working path, but this review read no delivered-session record proving equivalent limits/active-stop handling and final-exit continuation. The CLI supervisor's subprocess and stop coverage is retained; printed instructions and a status timestamp prove neither app delivery nor missing delivery.",
+    "evidence_commit": "40fabb8d80603b3ff81a5c8dd3c31d7a3143fb9b",
+    "expected_benefit": {
+        "landed": "Earlier driver/ownership consolidation -1026 production/-583 test AST; subsequent startup/app-schedule changes +1438 production/+1101 test. Historical distinct costs retained, not a current net census.",
+        "waiting_fix": "82cba7649 adds +66 production/+153 test, zero fixtures/schema/CUDA; same three waiting scenarios plus one empty-plan finding case. Startup corrections counted only under337/338.",
+        "remaining": "No safe net code/runtime saving established for external supervision until a retained run identifies the actual owner and removable duplicate. No new test/framework required to read that evidence."
+      },
     "id": "SQA-271",
-    "impact": "Prevents retiring a working continuation boundary on the strength of prompt/XML tests while the selected worker's known prerequisite remains unavailable.",
-    "likely_effort": "Small assertion and plan-dependency corrections; execution-owner closure needs retained ordinary-run evidence, with no SQA workload.",
-    "plan_coverage": "Current committed plan reconciled; hook retirement remains proposed. New OwnersAct decision support reuses existing dispatch and does not establish task delivery or supervision.",
-    "plan_references": ["unattended-driver first-start/ownership-wait landed","driver-on first-run/startup/stale-hold/app-schedule landed","driver-on/gate-retired, status, stop-clears","driver-on/fall-through 1c90b1ccb landed"],
-    "recommended_change": "Retain loop.Run, BeginCampaign, processcontrol and the real subprocess/stop tests as the supervision owners. Treat the app prompt as a launcher description until its actual executor preserves the same limits, stops, ownership and final-exit handoff; do not replace those contracts with prose or silently bypass them because the configured worker cannot authenticate. Resolve that known admission constraint before retrying the same worker or retiring hooks. Tie gate-retired to retained proof through existing Step.DependsOn. In the existing waiting table compare exact calls 0/1/0. Remove duplicated retry/choice/continuation instructions when the admitted execution owner supplies them; keep plan -prompt as the step description. No new scheduler, generic adapter or recovery framework is justified by this review. Wire the selected findings through the existing plan filing/admission owner into a real admissible row before redispatch; if that cannot yet be admitted, return truthful waiting instead of plan-complete. Keep the declared P1/P2 scope, verifier/budget/authority and existing once-only row identity. Remove the parallel print-only hand-off when the retained owner supplies the actual transition.",
+    "impact": "Separates verified driver repairs from an unverified external operating path and avoids redundant orchestration.",
+    "likely_effort": "First a retained execution comparison; implementation only if it demonstrates a concrete gap.",
+    "plan_coverage": "Current plan has no driver-on retirement step. Credit that retirement; do not request a dependency on a nonexistent row.",
+    "plan_references": [
+        "unattended-driver first-start/ownership-wait landed",
+        "findings-wait/wait 82cba7649",
+        "driver-on/gate-retired explicitly retired by3bc7ac364"
+      ],
+    "recommended_change": "Keep loop.Run, BeginCampaign, processcontrol and the existing Stop gate as the authority owners. Before treating the app path as an unattended replacement, reconcile one ordinarily authorized session's actual exit/next dispatch with its configured limits, stop and ownership records. Reuse that existing owner to remove duplicated prose continuation when possible; do not add a scheduler, adapter or recurring confidence run. Resolve the known standalone authentication admission constraint before another unchanged retry. Truthful findings-waiting is an accepted terminal result, not a request to add automatic filing machinery.",
     "severity": "P2",
-    "sources": [{"path":"internal/loop/driver.go","symbol":"Run: exact waiting, attempts, invocations, park and final-exit owner"},{"path":"internal/loop/dispatch_wait_test.go","symbol":"TestARunThatFindsWorkWaitingSaysSo still permits calls()>1"},{"path":"cmd/loop/main.go","symbol":"run: session-prompt returns before BeginCampaign/loop.Run; RunWorker supervises configured workers"},{"path":"cmd/loop/session_prompt.go","symbol":"writeSessionPrompt/sessionInstructions read name/environment but not invocation or attempt limits"},{"path":"cmd/loop/startup.go","symbol":"startupTaskXML: logon and failure restart, not clean waiting/budget continuation"},{"path":"cmd/loop/driver_start_test.go","symbol":"paused config startup"},{"path":"cmd/loop/init_config_test.go","symbol":"TestTheDriverLandsAStepThroughItsWorker starts paused; no worker or landing"},{"path":"cmd/loop/session_prompt_test.go","symbol":"printed text assertions; no dispatch/execution proof"},{"path":"cmd/loop/campaign_worker_test.go","symbol":"TestCampaignWorkerExitContinues retains actual subprocess-to-next-dispatch coverage"},{"path":"cmd/loop/campaign_stop_test.go","symbol":"TestCampaignActiveWorkerStop retains cancellation"},{"path":"docs/plan.json","symbol":"driver-on/gate-retired; status; stop-clears; existing Step.DependsOn"},{"path":"internal/plan/findings_fall_through.go","symbol":"FindingsToFile emits descriptions, not executable rows"},{"path":"cmd/loop/improve.go","symbol":"findingsWaiting/CycleWorthRunning suppress measurement while findings are unfiled"},{"path":"internal/plan/findings_fall_through_test.go","symbol":"TestDispatchFallsThroughToFindingsThenTheRun checks filtering/printed line, not driver transition"}],
+    "sources": [
+        {
+          "path": "internal/loop/driver.go",
+          "symbol": "Run: limits, truthful waiting, actual worker exit"
+        },
+        {
+          "path": "internal/loop/dispatch_wait_test.go",
+          "symbol": "TestARunEndsWaitingNeverCompleteWhileWorkIsHeldOrFindingsAwaitFiling"
+        },
+        {
+          "path": "cmd/loop/main.go",
+          "symbol": "session-prompt returns before campaign; RunWorker remains supervisor"
+        },
+        {
+          "path": "cmd/loop/session_prompt.go",
+          "symbol": "writeSessionPrompt/sessionInstructions"
+        },
+        {
+          "path": "cmd/loop/startup.go",
+          "symbol": "startupTaskXML logon/failure restart"
+        },
+        {
+          "path": "cmd/loop/campaign_worker_test.go",
+          "symbol": "TestCampaignWorkerExitContinues"
+        },
+        {
+          "path": "cmd/loop/campaign_stop_test.go",
+          "symbol": "TestCampaignActiveWorkerStop"
+        },
+        {
+          "path": "internal/plan/findings_fall_through.go",
+          "symbol": "FindingsToFile honors deferred/implemented triage"
+        }
+      ],
     "status": "open",
-    "title": "Keep scheduled work under the existing supervisor's authority and budgets"
+    "title": "Keep scheduled sessions within the existing supervisor's limits"
   },
     {
       "canonical_id": "SQA-271",
@@ -6662,32 +6719,312 @@
   },
     {
     "category": "development-context-consolidation",
-    "classification": "partially-resolved; note-fixture-merged-and-harness-counterexample-fixed",
+    "classification": "note-fixture-merged; answered-handoff-and-stray-fixture-remain",
     "closure_criteria": ["Retain the verified note and harness fixes without reintroducing duplicate fixtures.","Reconcile the already-answered GUI hand-off and retire it only after unique requirements are retained.","Either retire the unnecessary broad gate, or explicitly retain it and consolidate shared fixture work; count the chosen alternative once."],
     "comparison": "Use the existing mixed-file stray fixture for the moved harness case during ordinary implementation validation; no SQA test. Compare full post-migration AST/setup, and reconcile the GUI decision with actual retained requirements.",
     "displaced_surface": "Already gone: notes_shown_test.go and one plan setup. Remaining accepted-purpose migration: GUI hand-off/exemption after disposition. Conditional small reduction if the gate stays: remove TestTheHarnessDirectoryHoldsNoStray as a separate body/setup after moving the harness ignored path and assertion into the retained mixed-file fixture. Gate retirement is an alternative, not an additional saving.",
-    "evidence": "085a3ed2b removes notes_shown_test.go and moves all unique note assertions into TestNoteAppendsToARationale: -99 test AST, one fewer plan fixture, successful note applications six to five. Current selected file is 4,631 nodes versus the previous pair's 4,730. 763bdc735 fixes the specific harness-runtime false refusal by adding its directory to documentHomes; the earlier scheduled_tasks.json counterexample is closed. It adds +4 production/+95 test and another repository fixture, so those two follow-up landings net 0 AST overall. The ignored-document gate remains and implementation explicitly declines removing it. The original 17,580-byte GUI hand-off still stands, exempt from that gate. Contrary to the landing's description of awaiting the owner, gui-recommendations already has the answer to rank its nine recommendations into the plan; do not ask that question again.",
-    "evidence_commit": "1c90b1ccb4aae306d0dce6736f9a006599333eff",
-    "expected_benefit": {"landed":"Note pair 4,730 -> 4,631 test AST (-99), production 0, static fixtures 0, one fewer plan setup. Harness admission +4 production/+95 test offsets that count across these two follow-ups; correctness improved without claiming net AST reduction.","gate_alternative":"Retiring the complete gate now removes 242 production/328 test = 570 nodes including its rules call/refusal entry and harness addition, with no replacement framework. This recommendation remains disputed, not implemented or required to count the landed note saving.","fixture_merge":"If retained instead: strays_test.go 328 nodes; separate harness test 93. Move an estimated 25..45 nodes into the first fixture => 260..280 total, net -48..68 test, production 0. Remove one of three Git fixture setups (three init/add/commit calls) and one query. No new helper/static fixture. Do not add this saving to full gate removal.","notes_cost":"GUI hand-off 17,580 bytes remains; only count deletion after unique requirements are preserved. No timing or memory gain measured."},
+    "evidence": "Prior085a3ed2b removed notes_shown_test.go and merged its unique cases (-99 test AST);763bdc735 admitted the harness directory (+4 production/+95 test), net0 across those two follow-ups. At this pin strays_test.go remains329 nodes with a separate93-node harness test. The17,580-byte ignored GUI hand-off remains. fdd4ab1ce removes answered decisions from the live plan and records the gui-recommendations answer in Git; moving that answer to history does not itself rank or retire the nine unique GUI requirements. No replacement owner for those requirements was established in this bounded review.",
+    "evidence_commit": "40fabb8d80603b3ff81a5c8dd3c31d7a3143fb9b",
+    "expected_benefit": {
+        "landed": "Note pair4730->4631 test nodes(-99), one duplicate plan setup removed; harness+4 production/+95 test offsets it. No new timing/memory claim.",
+        "fixture_merge": "Current strays_test.go329; separate harness body93. Move estimated25..45 nodes into retained fixture =>261..281 total, net-48..68 test; production0, no helper/static fixture. Three Git fixture setups become two; one query disappears.",
+        "gate_alternative": "Full gate removal is an alternative: current strays.go231 plus existing call/refusal entries, strays_test.go329. Prior bounded complete estimate242 production/328 test is historical; recount caller entries before claiming a new complete total. Do not add it to fixture-merge savings.",
+        "notes_cost": "17,580 hand-off bytes remain; count deletion only after unique requirement disposition. fdd4ab1ce adds98 production/220 test for general answered-decision archival, not a saving attributed to this migration."
+      },
     "id": "SQA-334",
     "impact": "Credits a real test reduction and fixes while preventing an answered hand-off from remaining permanent and avoiding duplicate Git setup.",
     "likely_effort": "Small native-fixture merge; careful disposition of nine GUI requirements through existing plan/findings.",
-    "plan_references": ["stray-check/harness-home 763bdc735","stray-check/note-tests 085a3ed2b","decisions/gui-recommendations: answer already recorded"],
-    "recommended_change": "Keep the merged note fixture and harness admission fix. Reconcile the GUI hand-off against its recorded answer and current requirements, then remove the displaced file/exemption when unique requirements have owners; do not create another notes register. The reviewer's simpler alternative remains retiring the broad extension-based gate in favor of the existing plan writing/read path and cleanup authority; implementation has not accepted that alternative. If the gate is retained, merge its new harness case into TestALandingRefusesAStrayDocument's first repository fixture, retaining the ignored draft, unignored document, approved homes, empty result and refusal-mapping cases. Do not keep a third Git repository just to prove an additional allowed home.",
+    "plan_references": [
+        "stray-check/note-tests085a3ed2b",
+        "stray-check/harness-home763bdc735",
+        "answered-decisions/leave fdd4ab1ce retains gui-recommendations answer in Git"
+      ],
+    "recommended_change": "Keep the existing plan note/write/read owner; no new working-notes register. Use the recorded gui-recommendations answer to dispose of the nine requirements through current plan/findings, then remove the obsolete hand-off/exemption. If the ignored-document gate stays, move the harness allowed-home case into TestALandingRefusesAStrayDocument's first mixed-file fixture and delete the separate harness body/setup. Keep ignored draft/unignored file/approved homes/empty result/refusal mapping cases. Full gate retirement remains an alternative, not an additional saving or an implemented change.",
     "severity": "P3",
-    "sources": [{"path":"cmd/plan/plan_edits_test.go","symbol":"TestNoteAppendsToARationale now owns write/read/order/prefix/normalization/refusal coverage"},{"path":"cmd/plan/main.go","symbol":"existing stdin filing and printPromptStep note owner"},{"path":"internal/landing/strays.go","symbol":"documentHomes now admits the harness; ignored-file scan remains"},{"path":"internal/landing/strays_test.go","symbol":"TestALandingRefusesAStrayDocument and TestTheHarnessDirectoryHoldsNoStray share the same fixture/query contract"},{"path":"internal/landing/rules.go","symbol":"strayDocuments called on each landing"},{"path":"internal/landing/refusal.go","symbol":"stray-documents mapping"},{"path":"cmd/loop/leftovers.go","symbol":"retained held/unknown cleanup owner"},{"path":"docs/plan.json","symbol":"gui-recommendations already answered: rank into this plan"}],
+    "sources": [
+        {
+          "path": "cmd/plan/plan_edits_test.go",
+          "symbol": "TestNoteAppendsToARationale retains note behavior"
+        },
+        {
+          "path": "cmd/plan/main.go",
+          "symbol": "plan note/printPromptStep existing owner"
+        },
+        {
+          "path": "internal/landing/strays_test.go",
+          "symbol": "TestALandingRefusesAStrayDocument and TestTheHarnessDirectoryHoldsNoStray"
+        },
+        {
+          "path": "internal/landing/strays.go",
+          "symbol": "documentHomes/strayDocuments"
+        },
+        {
+          "path": "internal/landing/rules.go",
+          "symbol": "strayDocuments caller"
+        },
+        {
+          "path": "internal/landing/refusal.go",
+          "symbol": "stray-documents mapping"
+        },
+        {
+          "path": "docs/plan.json",
+          "symbol": "gui-recommendations answer now recorded byfdd4ab1ce"
+        }
+      ],
     "status": "open",
     "title": "Finish the answered notes migration; keep the landed test reduction"
   },
-    {"id":"SQA-335","status":"open","severity":"P2","category":"measurement-admission-and-recovery","classification":"source-established-prerequisite-failure-discarded","title":"Stop dependent measurements when their warm-up fails","evidence_commit":"fd4e8d7f5d4c2296281c91d31f9a4959ebbc435b","sources":[{"path":"cmd/recipe/inference_measure.go","symbol":"measureInference -> observeLengths/observeWarm -> observeRequest; observeInference closes the model before recordInference"},{"path":"internal/evaluation/exact.go","symbol":"Record/record preserve generator errors"},{"path":"internal/scorecard/scorecard.go","symbol":"servingByRecipe/readWarm/readLength/tally; firstOutputCell/throughputCell"},{"path":"internal/servingattempt/servingattempt.go","symbol":"RecordWholeOutput distinguishes cancellation; Record publishes failures"},{"path":"cmd/recipe/inference_measure_test.go","symbol":"servedFixture; TestInferenceMeasurementReadsLongerPrompts"},{"path":"internal/scorecard/warm_test.go","symbol":"TestSpeedIsReadWarmAtStatedLengths"}],"evidence":"Both observeLengths and observeWarm still print and discard preparation errors before running the dependent measured request. measureInference receives only the measured observations, so a failed preparation followed by success can disappear from durable failure evidence and leave a successful command. The cached-repeat path still sets SessionReused unconditionally. Credit ce5e533b5/ffb9f8a6b: longer-prompt SessionReused now requires warmErr == nil, its scorecard reader rejects non-reused samples, and throughEnd requests the full decode count. These repair attribution/short-decode problems, not the unnecessary dependent request or lost preparation failure. The Generator contract admits error-then-success; this is a source counterexample, not a new device reproduction. observeRequest also maps cancellation to OutcomeFailed despite the established cancelled-outcome contract. Existing fixtures cover successful preparation, including ContinueAfterEOG; retain those requirements.","recommended_change":"Use the existing observeRequest/recordInference/servingattempt owners. In both warm-up callers, retain a failed preparation's observation and cause, skip its dependent reading and propagate the failure through measureInference while preserving earlier observations and model-close errors. Stop subsequent work on cancellation, with OutcomeCancelled following the existing serving contract; do not retry unchanged failed setup in this measurement. Successful warm-up timings remain excluded. Preserve the distinction between a fresh long prompt and a repeated cached prompt; no new warm-up framework, retry manager or recipe layer. Extend the existing native measurement fixture with preparation-error and cancellation cases, counting calls and inspecting the retained outcome rather than relying on timing.","displaced_surface":"The two print-and-continue branches and their unconditional dependent requests disappear. Retain successful two-request protocols, context admission, prompt generation, token counts, model Close and publication after release. No test is retired: current warm/long ordering and scorecard-contract cases remain.","impact":"Prevents expensive work after a known failed prerequisite, avoids reporting a prepared reading without successful preparation, and preserves failure/cancellation evidence for recovery.","expected_benefit":{"baseline":"Current selected AST, comments included: inference_measure.go 2,752 nodes; observeLengths 233 and observeWarm 173. Earlier retained measurement fixture was 1,850 nodes before the full-decode additions; no current test-total claim. Parser-local bindings/manual callers checked; no package type/build proof.","cost":"Estimated correction +30..100 production nodes and +100..250 test nodes, including error propagation and one extension to the existing fixture. Full after counts are unmeasured; no net AST saving claimed. No new helper/framework, fixture files, gate phase or application run is needed for SQA.","runtime":"One dependent request is avoided for each failed preparation; cancellation stops later requests. No elapsed-time or memory saving measured. Necessary correctness coverage may grow."},"likely_effort":"Small change across the two preparation callers and existing recording/error flow; keep both numerical protocols explicit.","plan_references":["warm-speed/scorecard-warm, readme-table and full-decode landed; publication consumes these prepared measurements"],"closure_criteria":["A failed preparation cannot launch its dependent reading or publish that reading as a successful warm sample.","Original failure/cancellation and earlier valid observations survive publication; the model closes once and its close error remains visible.","The existing success fixture still proves fresh long-prompt order, cached repeat order, context limits and exact record counts; one native failure extension covers both callers without new timing thresholds."],"comparison":"During normal implementation validation use the existing servedFixture to fail preparation after the initial verified request; assert no dependent Generate call, preserved earlier results and the failed/cancelled outcome. Exercise both longer-prompt and cached-repeat paths in the same fixture. No SQA test or model run."},
-    {"id":"SQA-336","status":"open","severity":"P2","category":"measurement-rate-arithmetic","classification":"source-established-nominal-length-used-as-measured-work","title":"Calculate prompt-processing rates from actual tokens before aggregation","evidence_commit":"fd4e8d7f5d4c2296281c91d31f9a4959ebbc435b","sources":[{"path":"internal/scorecard/scorecard.go","symbol":"longPrompt -> servingSummary.readLength -> lengthCells; actual token count becomes a nominal length bucket"},{"path":"internal/scorecard/speed_table.go","symbol":"Record.SpeedTable divides evaluation.PromptLengths by the cell's elapsed time"},{"path":"cmd/validate/readme.go","symbol":"writeReadmeSpeed publishes newest.SpeedTable"},{"path":"cmd/recipe/inference_measure.go","symbol":"lengthPrompt targets no more than the requested tokens; observeRequest records actual InputTokens/CachedTokens"},{"path":"internal/scorecard/length_test.go","symbol":"TestALongerPromptIsTimedAsItsLengthAlone already admits short+1/long+1 tokens"},{"path":"internal/scorecard/speed_table_test.go","symbol":"TestTheSpeedTableReadsWarmCellsAlone constructs nominal-length cells directly"}],"evidence":"longPrompt intentionally accepts uncached token counts within one quarter of each target. readLength retains elapsed time but not that actual work count, and lengthCells sets Cell.Prompt to the bucket target. SpeedTable then computes target/time and labels it measured tok/s at an exact target length. Admitted source counterexample: one successful warmed 3,072-uncached-token request with 1,000ms prefill enters the 4,096 bucket and renders 4,096 tok/s, although its measured work rate is 3,072 tok/s (33.3% overstatement). The existing length fixture already accepts target+1, proving these cells are not exact-count records. lengthPrompt itself promises only no-more-than the target. No published row was reproduced or asserted to have this maximum error.","recommended_change":"Compute each observation's actual uncached-token/prefill-time rate where both facts already coexist in readLength, before the existing window/median aggregation. Carry the result through the existing Cell/metric representation to SpeedTable; do not infer work from a bucket label or divide a nominal count by a median duration from varying counts. Keep approximate length grouping for the existing latency contract, label its scope honestly, and preserve cold/stale exclusion, cache accounting, evidence identity and numerical acceptance. Until a record contains the required rate facts, omit that rate rather than manufacture it; reuse existing latency output. Extend an existing length/speed fixture through this producer-to-reader edge using a non-exact admitted token count, with no model run or new framework.","displaced_surface":"Remove SpeedTable's nominal-length division as the authority for pp and the assumption that a bin label is an observed count. Retain the length buckets, existing timing window, warm-only filtering, decode-rate cells, README generator and validation owner. No extra measurement, scheduler, threshold or configurable policy.","impact":"Prevents inaccurate performance claims and comparisons for admitted non-exact prompt lengths. Timing variability does not change the arithmetic requirement.","expected_benefit":{"baseline":"Selected parser AST: scorecard.go 7,939; speed_table.go 392 (SpeedTable 288); speed_table_test.go 311. Counts include comments and are source proxies.","cost":"Estimated +40..120 production and +60..180 test AST for preserving actual rate facts and extending an existing fixture; final total unmeasured. No net reduction claimed. No new fixture file, setup regime, benchmark or performance ratchet.","uncertainty":"Source-established arithmetic counterexample; no SQA execution or measured impact on current published rows."},"likely_effort":"Small change in existing measurement-summary and table owners, with legacy records left without invented rates.","plan_references":["warm-speed/readme-table (ce5e533b5)","warm-speed/measure (ad389b059)"],"closure_criteria":["A warmed non-exact-length observation yields its actual uncached-token rate, not the target bucket's numerator.","Rates are derived before aggregation and remain tied to the same eligible evidence/window; legacy cells with no rate facts do not acquire fabricated pp.","Existing cold/stale/cached-token and numerical-acceptance requirements remain; one native fixture extends existing owners."],"comparison":"Use the existing length fixture's recorded-observation path with a 3,072-token/1,000ms case and render the resulting table. Check the factual 3,072 tok/s and honest length label. Do not run new SQA workloads."},
-    {"id":"SQA-337","status":"open","severity":"P2","category":"automation-ownership","classification":"source-established-automatic-live-holder-overwrite","title":"Do not give every default worker permission to take a live checkout","evidence_commit":"1c90b1ccb4aae306d0dce6736f9a006599333eff","sources":[{"path":"cmd/loop/init_config.go","symbol":"defaultPrompt -> writeDefaultConfig -> loop_prompt.md"},{"path":"cmd/loop/main.go","symbol":"RunWorker prepends the configured prompt"},{"path":"cmd/loophook/main.go","symbol":"beginTurn -> holdWorktree(takeover=true) writes before checking a live holder"},{"path":"cmd/loophook/stale_hold_test.go","symbol":"TestAHoldWhoseProcessEndedIsTaken retains ordinary live/stale behavior"},{"path":"cmd/loophook/worktree_test.go","symbol":"explicit takeover and held-session fixtures"}],"evidence":"defaultPrompt unconditionally begins 'Take over this worktree.' beginTurn treats that prefix as authority to call holdWorktree with takeover=true; that branch overwrites the holder before checking its PID/liveness. BeginCampaign serializes other drivers, not an interactive session's WorktreeHolder. Thus an ordinary default driver start beside a live implementing session can replace its hold. 8ed63315f reports two real workers taking the hold and then failing authentication; no concurrent file corruption is claimed. Its new dead-process recovery already supplies the legitimate automatic reclamation path, but the default prompt bypasses it.","recommended_change":"Delete the takeover declaration from the generated default prompt and bring an already-generated exact default prompt into the same state through existing configuration maintenance. Let normal live/stale/unknown-holder admission decide whether the worker may use this checkout. Retain explicit user-requested takeover as a separate authority; do not remove dead-process recovery or weaken the guard. Do not add a scheduler, new lock or takeover option.","displaced_surface":"The 25-character 'Take over this worktree. ' prefix disappears from the default prompt; no new wrapper or behavior is needed. Explicit takeover and existing worktree tests remain. -init refuses existing files, so editing only the source constant does not repair already-generated prompts.","expected_benefit":{"production_ast_delta":0,"test_ast_delta":0,"cost":"A literal edit leaves AST count unchanged; existing live/stale/explicit-takeover coverage stays. No new test/helper/fixture is necessary for deleting this automatic grant. Configuration migration is a bounded update of the generated prefix, not a new migration mechanism.","uncertainty":"Admitted source counterexample plus retained worker takeover report; no SQA launch, concurrency experiment or measured runtime gain."},"impact":"Protects another worker's active checkout and changes from an automatically manufactured takeover instruction.","likely_effort":"Small prompt/config correction; retain the established ownership branches.","plan_references":["driver-on/first-run a523476be","driver-on/startup 584f47bc1","driver-on/stale-hold 8ed63315f"],"closure_criteria":["An ordinary generated worker prompt cannot select the explicit-takeover branch.","A live or unknown holder remains protected; a genuinely ended process can be reclaimed by the existing owner.","Existing generated-default configuration is reconciled without overwriting customized prompts or taking an active hold."],"comparison":"Trace the repaired default/configured prefix through beginTurn and retain the existing live/stale/explicit-owner cases. No SQA process run or new policy suite."},
-    {"id":"SQA-338","status":"open","severity":"P2","category":"automation-recovery","classification":"source-established-recovery-mutation-before-exclusive-admission","title":"Acquire campaign ownership before consuming a running-worker record","evidence_commit":"1c90b1ccb4aae306d0dce6736f9a006599333eff","sources":[{"path":"cmd/loop/main.go","symbol":"run invokes noteUncleanEnd before processcontrol.BeginCampaign"},{"path":"cmd/loop/startup.go","symbol":"keepRunning/noteUncleanEnd/dropRunning mutate driver_running.json and driver_unclean.log"},{"path":"internal/processcontrol/campaign.go","symbol":"BeginCampaign acquires loop_supervisor.lock and rejects a concurrent owner"},{"path":"cmd/loop/driver_start_test.go","symbol":"TestADriverStartsFromItsConfigAlone; retained startup/negative cases"},{"path":"cmd/loop/init_config_test.go","symbol":"TestTheDriverLandsAStepThroughItsWorker duplicates paused startup"},{"path":"cmd/loop/startup_test.go","symbol":"TestTheStartupTaskRunsTheDriverAtBoot retains genuine orphan recovery"}],"evidence":"A driver with a running worker has driver_running.json. A second valid driver invocation calls noteUncleanEnd first, which logs the active run as unclean and removes its record; only then does BeginCampaign reject the invocation because the first supervisor holds the lock. The task's IgnoreNew protects its own scheduled instances, not direct command invocations. This is a source-established admitted sequence, not an executed SQA reproduction. The current recovery fixture calls noteUncleanEnd directly and covers an orphan only. New init_config_test and existing driver_start_test both construct a temporary checkout, pause immediately, begin a campaign and check its name; neither launches a worker.","recommended_change":"Move orphan-record interpretation after successful BeginCampaign and its deferred release, using that existing ownership boundary. A refused second start must leave the active record and log untouched. Extend the existing config-start fixture with this one contention case, and retain startup_test's genuine-orphan case. Consolidate the default-init success/worker/prompt/no-clobber checks into TestADriverStartsFromItsConfigAlone and remove the duplicate paused-start body/file; retain missing-prompt/budgets/legacy-strategy refusals. Name the fixture for configuration/start admission, not a landing it never performs.","displaced_surface":"The pre-admission cleanup call moves under the existing campaign owner without a helper. Remove init_config_test.go only after moving its unique default-write and no-clobber cases; one duplicate temp checkout/paused campaign setup disappears. Keep startup XML encoding/user/privilege/restart checks, stop behavior and real subprocess continuation owners distinct.","expected_benefit":{"production_ast_delta":0,"baseline":"Selected main.go 2,442 and startup.go 880 AST. Startup fixtures: driver_start_test.go 258 + init_config_test.go 340 = 598 nodes; separate startup_test.go 556 remains.","test_cost":"Estimated merged existing start fixture 440..520 nodes before the new contention assertions; charge about40..90 for them =>480..610, net -118..+12 versus598. Full result unmeasured; correctness coverage may consume the saving. No new fixture file/helper; one duplicate checkout and successful paused campaign removed.","uncertainty":"No application execution or measured recovery failure. The production correction is ordering, not a new lock or recovery subsystem."},"impact":"Prevents a rejected start from erasing a live worker's recovery evidence or reporting a false unclean exit.","likely_effort":"Small call reorder and one retained native fixture extension, with duplicate setup consolidation.","plan_references":["driver-on/startup 584f47bc1","driver-on/first-run a523476be"],"closure_criteria":["While an existing campaign owns a running record, a second start is refused with both record and unclean log unchanged.","After the owner has actually ended, genuine orphan recovery still records its step and clears the stale record.","Default/no-clobber/negative-start cases survive under one fixture; include the added contention coverage in total costs."],"comparison":"During ordinary implementation validation, hold an existing BeginCampaign in the native start fixture, keep one running record, call run with the existing paused config, and inspect refusal plus unchanged bytes. Reuse the orphan test after releasing ownership. No SQA run."}
+    {
+    "category": "measurement-admission-and-recovery",
+    "classification": "verified-source-fix-with-retained-native-regression",
+    "evidence": "Closed at this pin by ebf0e249a. observeLengths and observeWarm now retain a failed preparation and return its cause without launching its dependent reading; cancellation returns OutcomeCancelled and ends subsequent work. measureInference preserves earlier observations, joins preparation/close/publication errors, and writes after observeInference closes the model. The existing servedFixture is reused by TestADependentMeasurementStopsWhenItsWarmUpFails for both preparation callers and cancellation; success/full-decode/context coverage remains. Retained landing records report a failing undo comparison (the old branch ran the dependent 4096-token request), followed by successful native checks and gate. No SQA application execution.",
+    "evidence_commit": "40fabb8d80603b3ff81a5c8dd3c31d7a3143fb9b",
+    "expected_benefit": {
+        "landed": "ebf0e249a: +117 production/+434 test AST; no schema, CUDA or fixture additions. Selected new failure fixture is 393 nodes; total test growth includes the existing fixture extension. Necessary correctness growth, not a code reduction.",
+        "runtime": "One dependent generation avoided for each failed preparation; cancellation stops later work. Elapsed time and memory benefit not measured.",
+        "retained": "Fresh long prompts and cached repeated prompts keep different protocols. Model release and store publication keep their existing owners; no new retries or orchestration."
+      },
+    "id": "SQA-335",
+    "plan_references": [
+        "warm-up-failure/stop-dependent ebf0e249a"
+      ],
+    "severity": "P2",
+    "sources": [
+        {
+          "path": "cmd/recipe/inference_measure.go",
+          "symbol": "measureInference, observeLengths, observeWarm, observeRequest, observeInference"
+        },
+        {
+          "path": "cmd/recipe/warm_up_failure_test.go",
+          "symbol": "TestADependentMeasurementStopsWhenItsWarmUpFails"
+        },
+        {
+          "path": "cmd/recipe/inference_measure_test.go",
+          "symbol": "servedFixture and retained success/lifetime/order coverage"
+        }
+      ],
+    "status": "resolved",
+    "title": "Stop dependent measurements when their warm-up fails"
+  },
+    {
+    "category": "measurement-rate-arithmetic",
+    "classification": "arithmetic-fixed; approximate-length-label-remains",
+    "closure_criteria": [
+        "The length header no longer asserts an exact observed count for an approximate bucket; corrected rates and missing-evidence behavior remain."
+      ],
+    "comparison": "Inspect the existing SpeedTable output/ordinary publication with the retained 3072-token case. No new SQA or model run.",
+    "displaced_surface": "The exact-length implication in the existing header disappears. The former nominal numerator is already deleted. Retain length grouping, window/median, numerical contracts and the current speed-rate fixture.",
+    "evidence": "cf0831375 fixes the material rate error: each observation's uncached count is divided by its own prefill time before the existing median; SpeedTable uses Cell.Rate and omits legacy cells without it. Its retained undo check rejects the old 4096 tok/s result for a 3072-token/1s prefill. Remaining scope is presentation: longPrompt still groups counts within one quarter of a target, but SpeedTable writes 'pp, 4,096-token prompt'. The admitted 3072-token case is therefore a correct rate under an overly exact length label. No current published row was reproduced.",
+    "evidence_commit": "40fabb8d80603b3ff81a5c8dd3c31d7a3143fb9b",
+    "expected_benefit": {
+        "landed": "cf0831375: +110 production/+245 test AST, zero schemas/fixtures/CUDA. Selected regression fixture223 nodes. Necessary arithmetic coverage, not a reduction.",
+        "remaining": "Literal header correction: estimated production/test AST delta0, fixtures0, setup0, gate phases0; no new assertion that merely restates the label.",
+        "uncertainty": "No new runtime or publication workload; retained source and landing evidence only."
+      },
+    "id": "SQA-336",
+    "impact": "Removes the residual misleading length claim; the numerical rate defect is fixed.",
+    "likely_effort": "One existing output-label edit.",
+    "plan_references": [
+        "actual-prompt-rate/rate cf0831375 landed"
+      ],
+    "recommended_change": "Change the existing SpeedTable header to state approximate prompt length (or length bucket), then let the ordinary README publisher carry it. Preserve the corrected per-observation rate and existing warm/stale/cache/legacy exclusions. No new field, measurement, abstraction or test is needed for this literal correction.",
+    "severity": "P3",
+    "sources": [
+        {
+          "path": "internal/scorecard/scorecard.go",
+          "symbol": "longPrompt admits +/-25% buckets; readLength calculates actual uncached rate before lengthCells aggregation"
+        },
+        {
+          "path": "internal/scorecard/speed_table.go",
+          "symbol": "Record.SpeedTable still labels nominal bucket as an exact N-token prompt"
+        },
+        {
+          "path": "internal/scorecard/speed_rate_test.go",
+          "symbol": "TestTheSpeedTableRatesAPromptByTheTokensItRead"
+        },
+        {
+          "path": "cmd/validate/readme.go",
+          "symbol": "writeReadmeSpeed publishes SpeedTable"
+        }
+      ],
+    "status": "open",
+    "title": "Label prompt-length buckets honestly after the rate correction"
+  },
+    {
+    "category": "automation-ownership",
+    "classification": "verified-default-authority-removal-and-legacy-config-refusal",
+    "evidence": "Closed at this pin by d76563f0f. The default prompt no longer declares takeover. run rejects any configured prompt opening with the shared guard.TakeoverDeclaration before BeginCampaign or worker dispatch and names the file/words to correct; therefore old generated prompts cannot continue bypassing holder admission. This is fail-fast reconciliation, not automatic rewriting of customized configuration. Existing explicit takeover and live/stale-holder behavior remain. Retained TestTheDriverRefusesAWorkerPromptThatDeclaresATakeover checks new defaults, a legacy declaration, and absence of a campaign; the landing records an undo failure and successful checks/gate. No SQA worker launch.",
+    "evidence_commit": "40fabb8d80603b3ff81a5c8dd3c31d7a3143fb9b",
+    "expected_benefit": {
+        "landed": "d76563f0f: +41 production/+228 test AST, zero schema/fixture/CUDA additions. The original zero-node literal-only estimate did not include legacy-config admission; actual necessary growth is charged.",
+        "displaced": "Automatic default takeover prefix removed; no new lock, scheduler or takeover option. Existing custom prompts are refused rather than overwritten.",
+        "runtime": "Prevents unauthorized checkout takeover before work; no elapsed/memory gain measured."
+      },
+    "id": "SQA-337",
+    "plan_references": [
+        "no-default-takeover/prompt d76563f0f"
+      ],
+    "severity": "P2",
+    "sources": [
+        {
+          "path": "cmd/loop/init_config.go",
+          "symbol": "defaultPrompt/writeDefaultConfig"
+        },
+        {
+          "path": "cmd/loop/main.go",
+          "symbol": "run rejects configured takeover before campaign"
+        },
+        {
+          "path": "internal/guard/guard.go",
+          "symbol": "TakeoverDeclaration shared with beginTurn"
+        },
+        {
+          "path": "cmd/loophook/main.go",
+          "symbol": "beginTurn retains explicit takeover and ordinary ownership"
+        },
+        {
+          "path": "cmd/loop/takeover_prompt_test.go",
+          "symbol": "TestTheDriverRefusesAWorkerPromptThatDeclaresATakeover"
+        }
+      ],
+    "status": "resolved",
+    "title": "Do not give every default worker permission to take a live checkout"
+  },
+    {
+    "category": "automation-recovery",
+    "classification": "verified-admission-order-and-completed-start-fixture-consolidation",
+    "evidence": "Closed by 491cc2ba8 and 1f6c999df. run acquires BeginCampaign and arranges Close before noteUncleanEnd; a refused concurrent start no longer consumes the live record. TestARefusedSecondDriverLeavesTheRunningRecordUntouched holds a real campaign and checks unchanged record bytes plus no unclean log; the retained undo comparison failed on the old ordering. TestADriverStartsFromItsDefaultConfiguration now owns default worker/prompt/budgets, paused startup/environment restoration, no-clobber and all former negative cases. init_config_test.go is deleted. Genuine orphan/XML tests remain separate. Both retained landing gates passed; SQA ran none.",
+    "evidence_commit": "40fabb8d80603b3ff81a5c8dd3c31d7a3143fb9b",
+    "expected_benefit": {
+        "landed": "Ordering: +0 production/+205 test AST. Fixture merge: +0 production/-176 test. Combined +0 production/+29 test; zero schemas, static fixtures or CUDA. Existing pair 598 -> merged422 + contention205 =627 nodes. Separate startup_test.go remains556.",
+        "setup": "One duplicate default/paused-start checkout disappears; one distinct contention checkout is added, so no net setup-count reduction across the complete fix. Two config owners become one; recovery coverage grows honestly.",
+        "displaced": "init_config_test.go and duplicate successful start body are gone; no new recovery/locking helper. Reordering preserves actual orphan cleanup after ownership.",
+        "runtime": "Protects live recovery evidence; no measured time or memory saving."
+      },
+    "id": "SQA-338",
+    "plan_references": [
+        "start-admission/order 491cc2ba8",
+        "start-admission/fixture 1f6c999df"
+      ],
+    "severity": "P2",
+    "sources": [
+        {
+          "path": "cmd/loop/main.go",
+          "symbol": "run: BeginCampaign -> defer Close -> noteUncleanEnd"
+        },
+        {
+          "path": "cmd/loop/start_order_test.go",
+          "symbol": "TestARefusedSecondDriverLeavesTheRunningRecordUntouched"
+        },
+        {
+          "path": "cmd/loop/driver_start_test.go",
+          "symbol": "TestADriverStartsFromItsDefaultConfiguration"
+        },
+        {
+          "path": "cmd/loop/startup_test.go",
+          "symbol": "TestTheStartupTaskRunsTheDriverAtBoot"
+        },
+        {
+          "path": "internal/processcontrol/campaign.go",
+          "symbol": "BeginCampaign exclusive admission"
+        }
+      ],
+    "status": "resolved",
+    "title": "Acquire campaign ownership before consuming a running-worker record"
+  },
+    {
+      "id": "SQA-339",
+      "status": "open",
+      "severity": "P3",
+      "category": "unnecessary-sampler-adaptation",
+      "classification": "source-established-removable-allocation-and-wrapper",
+      "title": "Read the existing device schedule without constructing a host sampler",
+      "evidence_commit": "40fabb8d80603b3ff81a5c8dd3c31d7a3143fb9b",
+      "sources": [
+        {
+          "path": "internal/latentimage/sampler.go",
+          "symbol": "FlowSchedule.sampler; CompileFlowSchedule"
+        },
+        {
+          "path": "internal/latentimage/nearest_schedule.go",
+          "symbol": "compileNearestGridFlowSchedule"
+        },
+        {
+          "path": "internal/latentimage/rotary_sampling_windows.go",
+          "symbol": "runRotarySampling -> schedule.sampler -> Delta"
+        },
+        {
+          "path": "internal/latentimage/runtime_cuda_windows.go",
+          "symbol": "Generator.integrate -> schedule.sampler -> Sigmas/Delta -> pipeline.Advance"
+        },
+        {
+          "path": "internal/sampling/flow_sampler.go",
+          "symbol": "NewFlowEuler copies schedules; neither device caller invokes Step"
+        },
+        {
+          "path": "internal/latentimage/sampler_test.go",
+          "symbol": "TestFlowScheduleReproducesG2Exactly"
+        },
+        {
+          "path": "internal/latentimage/nearest_schedule_test.go",
+          "symbol": "TestMOSSNearestGridScheduleReference; TestNearestGridScheduleHonorsCancellation"
+        }
+      ],
+      "evidence": "Concurrent40fabb8d8 adds FlowSchedule.sampler and sends two Windows device paths through it. Both already receive a validated FlowSchedule; neither calls the host sampler's Step. The adapter converts all deltas to float32 and NewFlowEuler copies both arrays, solely to read back the same knots/deltas. CompileFlowSchedule already rounds each delta to float32 before storing it as float64; the nearest-grid producer also retains its required float32 subtraction. The previous direct accesses in b1017bda therefore express the actual shared contract. Selected before/after AST confirms +87 production nodes for this three-file detour. The whole landing is +1010 production/+743 test, not a net consolidation. Retained gate lanes passed; its undo attempt failed compilation and explicitly supplies no assertion evidence.",
+      "recommended_change": "Delete FlowSchedule.sampler and its sampling import, and let runRotarySampling and Generator.integrate read their existing FlowSchedule again. Keep schedule production/validation in CompileFlowSchedule and compileNearestGridFlowSchedule, with device updates and cancellation/release in the present executors. Preserve the exact float32 rounding at the existing upload/update boundary. Keep FlowEuler/Walk for consumers that actually step through them; no replacement wrapper, option or interface.",
+      "displaced_surface": "One53-node conversion method, its import, two sampler-construction/error branches and proxy Sigmas/Delta reads disappear. Retained owner: FlowSchedule and its two existing producers. No schema/config/export or static fixture change; Windows/CUDA build boundaries remain. No test is deleted: shared host sampler coverage still has actual callers.",
+      "impact": "Avoids repeated host allocations and extra code in device paths that already own the schedule, without changing the sampler algorithm.",
+      "expected_benefit": {
+        "production": "Exact selected baseline: sampler.go242 + rotary_sampling_windows.go1327 + runtime_cuda_windows.go2353 =3922 AST at b1017bda; current297+1340+2372=4009. Restoring only their prior direct schedule access gives -87 production nodes including the wrapper/import/callers; final implementation count must confirm.",
+        "tests": "Test delta0; helpers/wrappers added0; fixtures0 files/bytes; setup executions0 change; no new gate phase. Existing schedule reference/cancellation and device numerical owners remain. No new trivial-reuse test needed.",
+        "runtime": "Each adapter call currently allocates three schedule backing arrays totaling16*S+8 bytes for S deltas, excluding object/allocator overhead: temporary float32 deltas plus copied float32 deltas and float64 knots. Those arrays and their repeated validation/copy scans disappear. This is a source allocation proxy, not measured peak memory or elapsed saving.",
+        "complete_change": "The retained40fabb8d8 gate reports +1010 production/+743 test across the complete sampler migration. This bounded -87 proposal would leave +923 production/+743 test for that landing's surface, all else unchanged; do not present the migration as net reduction or count future deletions now.",
+        "maintenance": "One typed schedule owner remains for the two actual device callers; host stepping contracts and unique numerical tests stay separate."
+      },
+      "likely_effort": "Small three-file deletion/reuse; no new abstraction.",
+      "plan_references": [
+        "sampling-split/interface 40fabb8d8 landed",
+        "sampling-split/presets and block-override remain planned"
+      ],
+      "closure_criteria": [
+        "Both existing device callers consume their validated FlowSchedule directly and FlowSchedule.sampler is absent.",
+        "Existing dynamic/nearest-grid rounding, cancellation, device lifetime and numerical coverage retain their owners.",
+        "Complete production/test/setup counts confirm the expected reduction with no substitute wrapper or fixtures."
+      ],
+      "comparison": "Compare the three current files with b1017bda's direct schedule reads and retain their existing reference/cancellation/device checks during ordinary implementation validation. SQA runs none. Do not relax UniPC's non-aliasing contract to remove buffers elsewhere."
+    }
   ],
     "gate_test_assessment": {
-    "assumptions": ["An unclean record may only be treated as orphaned after exclusive campaign admission.","A default-generated prompt is not explicit owner authorization to take a live checkout.","One external scheduler's IgnoreNew does not serialize direct driver invocations.","A GUI question with a recorded answer does not await the same answer again."],
-    "automation_sequence": "Resolve known worker admission first; establish actual supervised exit/continuation before hook retirement. Reuse campaign/hold owners before mutating shared state. Keep authority and budgets with executable owners.",
-    "fresh_ast": {"revision":"2bf7ef3c880e3f1f0794bbdcf425a4a16c049447","method":"Existing parser.ParseComments/ast.Inspect tool;12 selected committed files, local identifier resolution and manual callers. All selected blobs unchanged at final review pin.","files":[{"path":"cmd/loop/main.go","nodes":2442},{"path":"cmd/loop/init_config.go","nodes":267},{"path":"cmd/loop/startup.go","nodes":880},{"path":"cmd/loop/session_prompt.go","nodes":124},{"path":"cmd/loop/driver_start_test.go","nodes":258},{"path":"cmd/loop/init_config_test.go","nodes":340},{"path":"cmd/loop/startup_test.go","nodes":556},{"path":"cmd/loop/session_prompt_test.go","nodes":205},{"path":"internal/landing/strays_test.go","nodes":328},{"path":"internal/landing/strays.go","nodes":207},{"path":"cmd/plan/plan_edits_test.go","nodes":4631},{"path":"cmd/loophook/stale_hold_test.go","nodes":310}],"production_nodes":3920,"test_nodes":6628},
+    "assumptions": [
+        "Prompt buckets admit +/-25% of target; actual uncached-token rate is now computed before aggregation. Only the exact-length label remains misleading. Numerical arithmetic is independent of timing variation.",
+        "wanContextsHeld=1<<26 counts float32 values (256MiB) excluding explicitly kept prompts; supported cache caller lifetime, not a universal total-memory bound. Existing media cache and video reuse tests do not establish a workload memory or elapsed benefit.",
+        "The text-row cache keeps raw encoder output; Wan conditioning may project it. Similar caching structure alone does not justify merging their storage/lifetime contracts.",
+        "Concurrent sampler source preserves per-producer rounding, but adding a generic host wrapper around two existing device schedules adds copies rather than sharing a stepping operation. SQA-339 keeps the original typed descriptor; no new numerical/domain fallback."
+      ],
+    "automation_sequence": "Verified order: prompt/config admission -> exclusive campaign -> orphan recovery -> loop dispatch. An empty plan with eligible findings now ends truthfully waiting before measurement, exact workers0/1/0 retained. General app-session supervision remains unproved; hook retirement was withdrawn. No additional automation proposed.",
+    "fresh_ast": {
+        "revision": "40fabb8d80603b3ff81a5c8dd3c31d7a3143fb9b",
+        "method": "Existing external Go parser/ast.Inspect on selected git blobs with ParseComments; parser-local identifier resolution and manual caller tracing, no type/build claim.",
+        "files": {
+          "cmd/loop/driver_start_test.go": 422,
+          "cmd/loop/start_order_test.go": 205,
+          "cmd/loop/takeover_prompt_test.go": 228,
+          "cmd/loop/startup_test.go": 556,
+          "cmd/recipe/warm_up_failure_test.go": 393,
+          "internal/scorecard/speed_rate_test.go": 223,
+          "internal/landing/strays.go": 231,
+          "internal/landing/strays_test.go": 329,
+          "internal/media/conditioning_cache.go": 290,
+          "internal/media/conditioning_cache_test.go": 330,
+          "internal/latentvideo/text_cache_test.go": 221,
+          "internal/latentimage/sampler.go": 297,
+          "internal/latentimage/rotary_sampling_windows.go": 1340,
+          "internal/latentimage/runtime_cuda_windows.go": 2372,
+          "internal/sampling/flow_sampler.go": 743,
+          "internal/sampling/flow_sampler_test.go": 743
+        },
+        "deciding_comparisons": "338: old start fixture pair598 -> merged422 + contention205 =627 (+29 test); retained gate confirms-176 merge/+205 new case.334: separate harness body93 can move25..45 into existing mixed fixture, net-48..68 test, one fewer Git setup. Counts are structural proxies.339: three device schedule files3922->4009; deleting only the new conversion detour restores3922(-87 production), test0."
+      },
     "requested_growth_analysis": {
       "window": {
         "date": "2026-11-04",
@@ -6844,8 +7181,54 @@
       "interpretation": "repoanalysis+5825 is primarily new typed-walk/repeat-analysis machinery. typed_reach_test.go+4463 comprises357 nodes in TestTheReachWalkReadsTypes and4106 elsewhere; production_repeats_test.go+1395 has235 in its two tests and1160 elsewhere. Inference+4116 adds BF16/cache/prefetch/attention cases;landing+3510 adds authority and failed-publication/recovery checks;CUDA+2664 adds distinct operator/numerical paths;server+1730 andagentloop+1480 add request/mutation boundary checks. This is not evidence that all growth is necessary, but line/AST similarity alone supplies no safe wholesale deletion.",
       "retained_change_costs": "Two consolidation landings(2d59f642c exact folds andbb4fc706a parameter folds) remove744 production nodes but add1591 test nodes, net+847 across Go. Pilot retirementea8ed43a7 removes5926 production/9990 test nodes and one schema, while fixture bytes grow599; its test deletion is already included in the day's offsets and must not be subtracted twice. These retained gates are broader changes, not matched per-test performance comparisons."
     },
-    "retained_results": ["085a3ed2b note merge -99test;763bdc735 harness fix +4prod/+95test: total0nodes across these follow-ups, improved behavior.","a523476be/584f47bc1/2bf7ef3c8 startup/config/app prompt +1,438production/+1,101test. No replacement savings yet.","ec10b3388 owner-decision support +165production/+243test; no claim it solves continuation.","Native Go caching, existing campaign/process locks, supervisor, gate and partial-result owners retained; no SQA confidence runs.","1c90b1ccb findings fall-through +566production/+254test; no complete driver transition shown by its fixture."],
-    "tests": [{"classification":"retain; merge completed","owner":"TestNoteAppendsToARationale","requirement":"All unique prefix/order/normalization/non-note omission and refusal cases moved; -99nodes and one setup."},{"classification":"merge if gate retained","owner":"TestALandingRefusesAStrayDocument","requirement":"Move harness exemption into existing mixed-file fixture; preserve all distinct accepted/refused cases."},{"classification":"merge/extend","owner":"TestADriverStartsFromItsConfigAlone","requirement":"Move defaults/no-clobber from init_config_test, preserve negative startup, add one active-campaign recovery-record case."},{"classification":"retain","owner":"TestAHoldWhoseProcessEndedIsTaken and explicit takeover fixtures","requirement":"Live/unknown holder protection, stale reclaim and explicitly authorized takeover stay separate."},{"classification":"retain within actual scope","owner":"startup XML and session prompt fixtures","requirement":"Encoding/env/format checks do not prove delivery, landing or budgets; no new textual policy suite."}]
+    "retained_results": [
+        "ebf0e249a warm-up failure: +117 production/+434 test AST; retained undo failure and passed landing gate.",
+        "cf0831375 prompt rate: +110 production/+245 test; retained undo failure and passed gate. Existing README numbers await ordinary publication, not a new SQA run.",
+        "d76563f0f default authority: +41 production/+228 test; legacy config refusal and passed gate.",
+        "491cc2ba8 +0 production/+205 test and1f6c999df +0 production/-176 test; combined+29 test.",
+        "82cba7649 truthful findings waiting/exact calls: +66 production/+153 test; passed retained gate.",
+        "1586bdd08 shared image/video conditioning cache: +264 production/+253 test, no fixtures. Demonstrated shared callers; new reuse capability at positive cost, not net simplification.",
+        "40fabb8d8: +1010 production/+743 test AST; zero schema/CUDA/fixture additions. Retained device/webui/CUDA lanes passed and inference slice output-identical. Undo attempt failed compilation and is explicitly not behavioral proof. No SQA execution."
+      ],
+    "tests": [
+        {
+          "classification": "merge/remove completed",
+          "owner": "TestADriverStartsFromItsDefaultConfiguration",
+          "displaced": "init_config_test.go and duplicate paused-start body",
+          "retained": "Default worker/prompt/budgets/no-clobber, environment restoration and missing-prompt/budget/legacy refusals. New contention owner remains separate; net test growth29 charged under338."
+        },
+        {
+          "classification": "retain",
+          "owner": "TestARefusedSecondDriverLeavesTheRunningRecordUntouched; TestTheStartupTaskRunsTheDriverAtBoot; TestTheDriverRefusesAWorkerPromptThatDeclaresATakeover",
+          "reason": "Live concurrent-start refusal, genuine orphan/XML recovery and legacy prompt authority are distinct requirements; no removal supported."
+        },
+        {
+          "classification": "retain",
+          "owner": "TestADependentMeasurementStopsWhenItsWarmUpFails plus existing inference_measure success fixture",
+          "reason": "Both preparation callers and cancellation have real failure signals; success/order/context/full-decode/lifetime coverage remains. Full+434 test growth charged."
+        },
+        {
+          "classification": "retain/simplify",
+          "owner": "TestTheSpeedTableRatesAPromptByTheTokensItRead and existing warm/stale table coverage",
+          "reason": "Actual uncached rate and missing-token evidence are necessary. Remaining approximate-header edit needs no new test or assertion."
+        },
+        {
+          "classification": "merge",
+          "owner": "TestALandingRefusesAStrayDocument",
+          "displaced": "Separate TestTheHarnessDirectoryHoldsNoStray body and repository setup",
+          "retained": "Move harness ignored allowed-home case; keep draft/unignored file/approved homes/empty scan/refusal mapping. Estimate-48..68 test nodes, no helper/fixtures."
+        },
+        {
+          "classification": "retain",
+          "owner": "TestConditioningCacheBounds and TestAVideoRequestThatChangesOnlyItsSeedEncodesNoText",
+          "reason": "Policy-bound unit coverage and consumer call counts are distinct. Seed-only reuse, negative prompt, returning prompt and changed encoder remain. No timing threshold."
+        },
+        {
+          "classification": "retain",
+          "owner": "TestEverySamplerStepsThroughOneInterface; TestFlowScheduleReproducesG2Exactly; TestMOSSNearestGridScheduleReference; TestNearestGridScheduleHonorsCancellation",
+          "reason": "Host sampler/guider behavior and schedule producer numerical/cancellation contracts stay. SQA-339 removes device-only adaptation, not these requirements. The743-node new host test is charged as growth; existing device goldens remain."
+        }
+      ]
   },
     "hygiene_assessment": "No hygiene finding. Scratch analysis is outside the repository; concrete correctness and production/test cost take priority.",
     "implementation_review": {
@@ -8377,7 +8760,12 @@
     "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
-    "limitations": ["No implementation, application tests, workloads, services, scheduling changes, agents or worker messages. Existing external Go parser inspected12 selected committed files; parser-local identifier links/manual callers only, no package type-check/build claim.","No external app-task execution/installation evidence read and no SQA authentication probe. Retained commit accounts are attributed; source counterexamples do not claim observed corruption.","Current status/main/landing pace worktree edits excluded. No broad recurring census or new abstraction proposed."],
+    "limitations": [
+      "No implementation, application tests, services, workloads, benchmarks, profiles, agents, worker messages or scheduling changes. Only the existing external Go AST reader ran against16 selected committed files (11 unchanged original samples plus5 sampler files).",
+      "AST includes comments and parser-local identifier links; cross-package callers traced manually. No package type-check/build, runtime performance or fresh device/numerical validation is claimed. Retained gate results are attributed to their implementation commits.",
+      "The other carried findings retain prior evidence; they were not freshly audited. Initial sampler worktree edits were excluded, then reviewed as committed40fabb8d8 when it landed. No claim of whole-tree coverage.",
+      "No delivered external app-session record was inspected. Source repairs and recorded status do not establish unattended supervision. No safe additional cache or recipe abstraction reduction established."
+    ],
     "master_lead_triage": {
     "at": "2026-11-08",
     "head": "518fa52f417f796df399da65d208a61290fe5635",
@@ -9237,24 +9625,20 @@
       }
     }
   },
-    "next_finding_number": 339,
+    "next_finding_number": 340,
     "publication_context": {
-    "assessment": "Preserve other staged/worktree changes; reconcile concurrent source/report before writing.",
-    "checked_head": "1c90b1ccb4aae306d0dce6736f9a006599333eff",
-    "publication": "Existing locks/hooks, only docs/sqa_findings.json; no production gate."
+    "assessment": "Reread current master/report and worker dirt immediately before report-only publication; preserve unrelated staged/worktree bytes.",
+    "checked_head": "40fabb8d80603b3ff81a5c8dd3c31d7a3143fb9b",
+    "publication": "Existing repository ownership locks/hooks; only docs/sqa_findings.json, no production gate."
   },
     "ranked_active_finding_ids": [
     "SQA-316",
     "SQA-315",
     "SQA-271",
-    "SQA-337",
-    "SQA-338",
     "SQA-322",
     "SQA-318",
     "SQA-283",
     "SQA-331",
-    "SQA-335",
-    "SQA-336",
     "SQA-277",
     "SQA-266",
     "SQA-328",
@@ -9286,34 +9670,80 @@
     "SQA-247",
     "SQA-262",
     "SQA-317",
-    "SQA-334"
+    "SQA-339",
+    "SQA-334",
+    "SQA-336"
   ],
     "repository": "C:\\Users\\jeffm\\overgo",
     "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
-    "review_notes": ["Preserve prior closure evidence, stable aliases and all owner/unknown fields; no implementation by SQA.","Re-read concurrent report/code and obtain existing landing ownership before path-limited publication."],
-    "reviewed_at": "2026-11-07T22:51:38Z",
-    "reviewed_master": "1c90b1ccb4aae306d0dce6736f9a006599333eff",
+    "review_notes": [
+      "Source conclusions formed before reading current rankings/owner triage.",
+      "Retained historical closure evidence, stable aliases and implementation-owned/unknown fields preserved. Report-only SQA; this chat has prior implementation involvement."
+    ],
+    "reviewed_at": "2026-11-08T15:49:35Z",
+    "reviewed_master": "40fabb8d80603b3ff81a5c8dd3c31d7a3143fb9b",
     "schema_version": 2,
-    "scope": ["Committed master 1c90b1ccb4aae306d0dce6736f9a006599333eff; AGENTS.md/skill.md and committed plan read before reconciliation. Concurrent defaults and fall-through landings inspected; selected startup/notes source unchanged.","Bounded rotation: default config -> worker prompt/hold; startup -> campaign admission -> recovery record; scheduled prompt versus actual supervisor; note/stray fixtures. Existing measurement335/336 source unchanged.","This chat previously implemented Overgo; this is follow-up report-only SQA, not independent third-party review."],
+    "scope": [
+      "Committed master 40fabb8d80603b3ff81a5c8dd3c31d7a3143fb9b; repository guidance and committed plan read before reconciliation. Concurrent sampler landing inspected before publication.",
+      "Bounded follow-up: campaign admission/recovery/default config -> worker/waiting outcomes; inference preparation -> close/publication -> scorecard rate; image/video conditioning cache owners; plan notes/GUI hand-off and duplicate stray fixtures. Six existing findings rechecked; one bounded new reduction. Concurrent follow-up adds the two device-schedule callers and their retained producers.",
+      "This chat previously implemented Overgo changes. This is follow-up report-only SQA, not an independent third-party review."
+    ],
     "sqa_response": {
-    "assessment": "165 stable IDs:43 canonical open,116 resolved,4 deferred,2 consolidated aliases. New337/338; update271/334 with retained costs and completed sub-obligations.",
+    "assessment": "166 stable IDs:41 canonical open,119 resolved,4 deferred,2 consolidated aliases. Close335/337/338, narrow336 toP3, credit271 repairs/retired hook-removal proposal, update334, add339 for87 removable production AST in the concurrent sampler landing.",
     "consolidated_findings": [],
     "deferred_findings": [],
-    "evidence": "Notes merge landed (-99nodes); harness counterexample fixed. The default prompt can still overwrite a live hold and pre-lock recovery cleanup can consume another supervisor's active record. App prompt strings do not prove the supervisor's budgets/stop contract. The newly landed finding list also exits the driver as plan-complete without filing or dispatching its announced work.",
-    "implementation_response_context": {"reviewed_commit":"dea7d30a88afa10e35ef04c7a70700b74f0ab03e","current_triage_head":"d8ffb58661d55ac50a0006c5b9507dcab2fa9589","status":"Implementation-owned/unknown fields preserved raw-exact; landing explanations credited and distinguished from runtime proof."},
-    "new_findings": ["SQA-337","SQA-338"],
-    "partially_addressed_findings": ["SQA-334"],
-    "priority_changes": ["Concrete startup ownership/recovery failures rank with existing supervision obligations."],
-    "recommendation": "Remove automatic takeover, admit campaign ownership before recovery cleanup, merge duplicate startup/stray setup and finish the already-answered hand-off migration.",
+    "evidence": [
+        "40fabb8d80603b3ff81a5c8dd3c31d7a3143fb9b committed source, with unchanged original review files and concurrent sampler follow-up",
+        "ebf0e249a",
+        "cf0831375",
+        "d76563f0f",
+        "491cc2ba8",
+        "1f6c999df",
+        "82cba7649",
+        "3bc7ac364",
+        "fdd4ab1ce",
+        "Selected16-file AST/manual caller review",
+        "40fabb8d8"
+      ],
+    "implementation_response_context": {
+        "reviewed_commit": "40fabb8d80603b3ff81a5c8dd3c31d7a3143fb9b",
+        "current_triage_head": "518fa52f417f796df399da65d208a61290fe5635",
+        "status": "Current owner triage reviewed; implemented335/337/338 independently rechecked and closed.271 retains only the external-path gap;336 retains only the label. Implementation-owned/unknown fields preserved raw-exact; no owner status rewritten."
+      },
+    "new_findings": [
+        "SQA-339"
+      ],
+    "partially_addressed_findings": [
+        "SQA-271",
+        "SQA-334",
+        "SQA-336"
+      ],
+    "priority_changes": [
+        "SQA-335/337/338 leave active work after verified fixes.",
+        "SQA-336 P2->P3: measured-rate arithmetic fixed; only approximate length label remains."
+      ],
+    "recommendation": "Keep the landed admission/recovery fixes. Finish the one output-label edit; merge the remaining stray/harness fixture using its existing owner and dispose of the answered GUI hand-off. Validate future recipe/sampler consolidation by actual displaced code and full cost, not an attractive abstraction. Remove the two device paths' host-sampler conversion detour under339; keep their existing validated schedules.",
     "refactor": {
       "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
       "history_path": "docs/sqa_findings.json",
       "layout": "Full canonical open/deferred; compact resolved closure sources/revision/costs; explicit aliases, including aliases to closed canonical findings. Prior narratives remain in Git."
     },
     "reopened_findings": [],
-    "resolved_findings": [],
-    "reviewed_master": "1c90b1ccb4aae306d0dce6736f9a006599333eff",
-    "uncertainty": "No new application execution. Two admitted source sequences, not observed concurrent corruption. Current335/336 affected blobs unchanged.",
-    "updated_findings": ["SQA-271","SQA-334"]
+    "resolved_findings": [
+        "SQA-335",
+        "SQA-337",
+        "SQA-338"
+      ],
+    "reviewed_master": "40fabb8d80603b3ff81a5c8dd3c31d7a3143fb9b",
+    "uncertainty": "No SQA tests/workloads or measured speed/memory benefit.339's allocation count is source-derived; complete sampler migration remains net growth. External app supervision remains unverified. Untouched findings carry their original evidence.",
+    "updated_findings": [
+        "SQA-271",
+        "SQA-334",
+        "SQA-335",
+        "SQA-336",
+        "SQA-337",
+        "SQA-338",
+        "SQA-339"
+      ]
   }
   }

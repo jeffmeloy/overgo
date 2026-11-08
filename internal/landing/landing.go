@@ -122,10 +122,12 @@ type landing struct {
 	// on the device, and turnLet says the lanes must take it again before anything is published (takeTurnBack).
 	turn    func() error
 	turnLet bool
-	// tree is the worktree of its own the candidate is checked out in, where every stage after format and fix reads
-	// it (checkOut), and treeHeld gives the worktree back for the next landing.
-	tree     string
-	treeHeld func() error
+	// tree is the worktree of its own the candidate is checked out in, where the generators derive from it and every
+	// stage after format and fix reads it (checkOut); treeHolds is the candidate it holds, and treeHeld gives the
+	// worktree back for the next landing.
+	tree      string
+	treeHolds string
+	treeHeld  func() error
 	// planned is the plan the candidate holds and advanced is it with the
 	// landed steps removed. terms is the plan the change is judged by,
 	// counts the candidate's rows' counts, read before the landed steps leave
@@ -665,10 +667,10 @@ func (l *landing) fix(ctx context.Context) error {
 				return err
 			}
 		}
-		// What the source derives is regenerated, as go fix is applied, not
-		// refused for a landing again after.
-		for _, generator := range l.generators() {
-			if _, err := l.run(ctx, generator.environment, "go", generator.arguments...); err != nil {
+		// What the source derives is regenerated from the candidate (derive), as go fix is applied, not refused for a
+		// landing again after.
+		if generators := l.generators(); len(generators) != 0 {
+			if err := l.derive(ctx, generators); err != nil {
 				return err
 			}
 		}

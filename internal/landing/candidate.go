@@ -11,6 +11,7 @@ import (
 	"strconv"
 
 	"overgo/internal/clioptions"
+	"overgo/internal/dataroot"
 	"overgo/internal/gitauthority"
 	"overgo/internal/processlock"
 )
@@ -27,11 +28,26 @@ var folderStages = []string{spaceClass, "format", "fix"}
 // folder, which holds more than the commit. The worktree is kept in the checkout's process state from one landing to
 // the next, as the cycle's checkout is (cmd/loop), since go build and go test key what they cache by a package's
 // directory: a worktree under a new name would build and test everything again. A landing takes the first one no other
-// landing or preflight holds, and gives it back as it ends (Run).
+// landing or preflight holds, and gives it back as it ends (Run). A candidate taken again, once the generators derived
+// from it (derive), moves the worktree to it.
 func (l *landing) checkOut(ctx context.Context) error {
-	if l.tree != "" {
+	if l.tree == "" {
+		if err := l.takeTree(); err != nil {
+			return err
+		}
+	}
+	if l.treeHolds == l.candidate {
 		return nil
 	}
+	if err := l.moveTree(ctx, l.tree); err != nil {
+		return err
+	}
+	l.treeHolds = l.candidate
+	return nil
+}
+
+// takeTree takes the first kept worktree no other landing or preflight holds.
+func (l *landing) takeTree() error {
 	if err := processlock.EnsureStateDirectory(l.Repo); err != nil {
 		return err
 	}
@@ -44,11 +60,7 @@ func (l *landing) checkOut(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		l.treeHeld = lock.Close
-		if err := l.moveTree(ctx, tree); err != nil {
-			return err
-		}
-		l.tree = tree
+		l.tree, l.treeHeld = tree, lock.Close
 		return nil
 	}
 }
@@ -81,6 +93,48 @@ func (l *landing) moveTree(ctx context.Context, tree string) error {
 		}
 		if err := os.Remove(filepath.Join(tree, filepath.FromSlash(string(name)))); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return err
+		}
+	}
+	// The machine's data roots are the checkout's, in a file git ignores, so a check that reads a model resolves it in
+	// the worktree as it does there.
+	roots, err := os.ReadFile(filepath.Join(l.Repo, dataroot.ConfigFile))
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(tree, dataroot.ConfigFile), roots, clioptions.PrivateFileMode)
+}
+
+// derive runs the generators over the candidate, in the worktree the stages read it in, and writes what they derive
+// into the checkout, which the next capture takes: on 2026-11-08 the API manifest, regenerated from the folder, carried
+// the identity of a file the commit left out, and the commit's own test refused it.
+func (l *landing) derive(ctx context.Context, generators []generator) error {
+	if err := l.shipSet(ctx); err != nil {
+		return err
+	}
+	if err := l.checkOut(ctx); err != nil {
+		return err
+	}
+	for _, generator := range generators {
+		if _, err := l.runIn(ctx, l.tree, generator.environment, "go", generator.arguments...); err != nil {
+			return err
+		}
+		for _, name := range generator.writes {
+			derived, err := os.ReadFile(filepath.Join(l.tree, filepath.FromSlash(name)))
+			if errors.Is(err, fs.ErrNotExist) {
+				continue
+			}
+			if err != nil {
+				return err
+			}
+			if held, _ := os.ReadFile(filepath.Join(l.Repo, filepath.FromSlash(name))); bytes.Equal(held, derived) {
+				continue
+			}
+			if err := os.WriteFile(filepath.Join(l.Repo, filepath.FromSlash(name)), derived, clioptions.OutputFileMode); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

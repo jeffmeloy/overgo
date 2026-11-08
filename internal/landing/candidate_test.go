@@ -2,6 +2,8 @@ package landing
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -41,5 +43,35 @@ func TestTheChecksReadTheCommitNotTheFolder(t *testing.T) {
 	if trees := fixture.git("worktree", "list", "--porcelain"); strings.Count(trees, "worktree ") != 2 ||
 		!strings.Contains(trees, processlock.StateDirectory+"/"+candidateCheckout+"0") {
 		t.Fatalf("the worktrees are\n%s\nwant the checkout and the one both runs read, kept in its process state", trees)
+	}
+}
+
+// TestTheGeneratorsDeriveFromTheCommit holds what the fix stage regenerates to the commit's source: on 2026-11-08 the
+// API manifest regenerated from the folder carried the identity of a file the commit left out, and the commit's own
+// test refused it. The repository's manifest command derives the manifest from a file outside the step's files that the
+// folder holds changed; the manifest the commit takes, and the checkout keeps, is derived from that file as the commit
+// holds it, and the worktree it was derived in resolves the machine's data roots as the checkout does.
+func TestTheGeneratorsDeriveFromTheCommit(t *testing.T) {
+	t.Parallel()
+	fixture := newRowFixture(t, map[string]string{
+		"cmd/api-manifest/main.go": "package main\n\nimport \"os\"\n\nfunc main() {\n\tsource, _ := os.ReadFile(\"internal/y/y.go\")\n\tos.WriteFile(\"docs/api_manifest.json\", source, 0o644)\n}\n",
+		"cmd/x/x.go":               "package main\n\nfunc main() {}\n",
+		"internal/y/y.go":          "package y\n",
+		"docs/api_manifest.json":   "package y\n",
+		".gitignore":               "local-models.json\n",
+	})
+	editPlan(t, fixture, func(document *plan.Plan) { document.Items[0].Steps[0].Files = []string{"cmd/x"} })
+	fixture.git("add", "-A")
+	fixture.git("commit", "-q", "-m", "a step that lists its files")
+	fixture.write("local-models.json", "{\"models\": \"elsewhere\"}\n")
+	fixture.write("cmd/x/x.go", "package main\n\nfunc main() { println() }\n")
+	fixture.write("internal/y/y.go", "package y\n\nfunc y() {}\n")
+	l := fixture.candidate()
+	testcheck.NoError(t, l.fix(t.Context()))
+	if derived := fixture.git("show", l.candidate+":docs/api_manifest.json"); derived != "package y" || fixture.read("docs/api_manifest.json") != "package y\n" {
+		t.Fatalf("the commit takes the manifest %q and the checkout keeps %q, want both derived from the commit's internal/y/y.go", derived, fixture.read("docs/api_manifest.json"))
+	}
+	if roots, err := os.ReadFile(filepath.Join(l.tree, "local-models.json")); err != nil || string(roots) != fixture.read("local-models.json") {
+		t.Fatalf("the worktree's data roots are %q, %v, want the checkout's", roots, err)
 	}
 }

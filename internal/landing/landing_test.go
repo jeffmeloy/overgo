@@ -41,6 +41,12 @@ func (f *sliceFixture) candidateOf(reference string) *landing {
 	f.t.Helper()
 	l := &landing{Options: Options{Repo: f.repo, Ref: reference, Message: []byte("change"), Log: io.Discard},
 		scratch: f.t.TempDir(), details: map[string]string{}}
+	// A stage that took a worktree for the candidate gives it back, as a landing does as it ends.
+	f.t.Cleanup(func() {
+		if l.treeHeld != nil {
+			testcheck.NoError(f.t, l.treeHeld())
+		}
+	})
 	if err := l.parents(f.t.Context()); err != nil {
 		f.t.Fatal(err)
 	}

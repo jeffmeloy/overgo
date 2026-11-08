@@ -46,6 +46,9 @@ type Step struct {
 	// driver runs it and lands the record with no worker.
 	Run    string `json:"run,omitzero"`
 	Record string `json:"record,omitzero"`
+	// Files, of a code step, are the files and directories its change may write; its landing refuses a change outside
+	// them. A step that lists none may write anywhere a landing admits.
+	Files []string `json:"files,omitempty"`
 	// Campaign detail carried from the merged design record (owner directive
 	// 2026-08-16: one plan document). Rationale says why the row exists;
 	// DependsOn declares ordering the queue must respect; Capabilities name

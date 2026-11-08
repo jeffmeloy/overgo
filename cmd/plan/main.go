@@ -88,11 +88,12 @@ func main() {
 	verifyCmd := flag.String("vcmd", "", "with -add or -addstep: the step's verify command (a shell command that exits 0 iff accepted)")
 	runCmd := flag.String("run", "", "with -addstep: a run step's command, which the driver runs with no worker; -record names the file it writes, which -vcmd reads")
 	record := flag.String("record", "", "with -addstep -run: the file the run step's command writes")
+	files := flag.String("files", "", "with -addstep: the files and directories, comma-separated, a code step's change may write; its landing refuses a change outside them")
 	role := flag.String("role", "", "lane role for dispatch (default OVERGO_AUTOMATION_ROLE, then unassigned)")
 	worker := flag.String("worker", "", "stable session identity a stop is scoped by (default OVERGO_AUTOMATION_WORKER)")
 	handled, err := commanddoc.Plan.Command.ParseCommandLine(flag.CommandLine, os.Stdout)
 	if err == nil && !handled {
-		err = run(cli{runCmd: *runCmd, record: *record, clearsWhen: *clearsWhen, resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, next: *next, prompt: *prompt, verify: *verify, status: *status, decisions: *decisions, answer: *answer, doctrine: *doctrine, reserved: *reserved, add: *add, setverify: *setverify, stop: *stop, title: *title, class: *class, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker,
+		err = run(cli{runCmd: *runCmd, record: *record, files: *files, clearsWhen: *clearsWhen, resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, next: *next, prompt: *prompt, verify: *verify, status: *status, decisions: *decisions, answer: *answer, doctrine: *doctrine, reserved: *reserved, add: *add, setverify: *setverify, stop: *stop, title: *title, class: *class, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker,
 			from: *from, setcount: *setcount, nodes: *nodes, reason: *reason, addstep: *addstep, note: *note, paragraph: *paragraph, rationaleFile: *rationaleFile, show: *show, retire: *retire}, flag.Args())
 	}
 	clioptions.MainNamed("plan", func() error { return err })
@@ -108,7 +109,7 @@ type cli struct {
 	setcount, addstep, note, show, retire        bool
 	paragraph                                    bool
 	from, reason, rationaleFile, clearsWhen      string
-	runCmd, record                               string
+	runCmd, record, files                        string
 	nodes                                        int
 }
 
@@ -475,7 +476,8 @@ func editPlan(role string, c cli, args []string, did string) error {
 		case c.setcount:
 			row.Budget.Nodes, row.Budget.Reason = c.nodes, words
 		case c.addstep:
-			row.Steps = slices.Insert(row.Steps, step, plan.Step{ID: stepID, Title: c.title, Status: plan.StatusOpen, Verify: c.verifyCmd, Run: c.runCmd, Record: c.record, Rationale: words})
+			row.Steps = slices.Insert(row.Steps, step, plan.Step{ID: stepID, Title: c.title, Status: plan.StatusOpen, Verify: c.verifyCmd, Run: c.runCmd, Record: c.record,
+				Files: strings.Fields(strings.ReplaceAll(c.files, ",", " ")), Rationale: words})
 		case c.note:
 			rationale := &row.Steps[step].Rationale
 			cut := strings.LastIndex(*rationale, rationaleClosing)
@@ -647,6 +649,9 @@ func printPromptStep(it plan.Item, st plan.Step, decided []string, output io.Wri
 	fmt.Fprintf(output, "TASK %s/%s\n%s\nVERIFY %s\n", it.ID, st.ID, st.Title, verify)
 	if st.Run != "" {
 		fmt.Fprintf(output, "RUN %s, which writes %s; then land the record, editing no code\n", st.Run, st.Record)
+	}
+	if len(st.Files) != 0 {
+		fmt.Fprintf(output, "FILES %s: the change writes these and nothing else\n", strings.Join(st.Files, commandWordSeparator))
 	}
 	for paragraph := range strings.SplitSeq(st.Rationale, paragraphBreak) {
 		if note, noted := strings.CutPrefix(paragraph, notePrefix); noted {

@@ -479,6 +479,9 @@ func (l *landing) row(ctx context.Context) error {
 			return fmt.Errorf("land: %s cannot leave the plan: %w", row, err)
 		}
 	}
+	if err := l.inScope(named); err != nil {
+		return err
+	}
 	// The message says the retirements, so the plan the commit publishes holds them no more.
 	l.advanced.Retired, l.planned = nil, data
 	l.composed, err = l.compose(ctx, before, document, named)

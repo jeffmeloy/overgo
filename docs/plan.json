@@ -49,25 +49,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "step-kinds",
-      "title": "Run steps run without a model, and a code step lists the files it may change",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 5,
-        "reason": "Estimate before the survey: a step kind and its fields in internal/plan, the driver's run path, filing checks and the landing's scope check; a step raises it with its measured figure."
-      },
-      "steps": [
-        {
-          "id": "scope",
-          "title": "A code step lists the files it may change, and its landing refuses a change outside them",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestALandingStaysInsideItsStepsFiles$'",
-          "rationale": "A worker should change only what its step names: on Nov 7 a helper's side effect rewrote the trunk's hook setting, and a weak model wanders further. A code step lists the files and packages it may change; its landing refuses a change outside that list, and the refusal prints the paths. Tests and fixtures inside the list may change, so a consolidation can merge tests, as SQA-332 asks: the acceptance requirements and numerical limits stay with the existing checks, not with frozen test bytes. A step filed without a list keeps today's admission.\nServes: failure-rate; model calls per landing.\nDisappears: changes outside the work a step names.\nEvidence: a landing whose step lists cmd/x refuses a change to internal/y and prints it; a change inside its list, tests included, lands.\nBatch: host lane."
-        }
-      ]
-    },
-    {
       "id": "worker-tools",
       "title": "The worker gets six typed tools and no shell, and a failed step moves to a stronger worker before it is set aside",
       "owner": "master-lead",

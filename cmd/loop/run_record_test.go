@@ -41,7 +41,7 @@ func TestARunRecordsItsEnd(t *testing.T) {
 	improver.measure = func(_ string, filed func() error) error {
 		return measurePhases(filepath.Join(t.TempDir(), cycleStateFile), "commit|store|obligations", io.Discard, filed, run, func(environment []string, arguments ...string) error {
 			switch strings.Join(arguments, " ") {
-			case "-run -cells":
+			case "-run -cells -reached":
 				runs++
 				for _, variable := range environment {
 					if record, found := strings.CutPrefix(variable, clioptions.MeasurementRunEnvironment+"="); found {

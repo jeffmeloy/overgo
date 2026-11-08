@@ -539,7 +539,7 @@ func measurePhases(statePath, key string, report io.Writer, published func() err
 	}
 	remeasured := !state.Cells
 	if remeasured {
-		state.Cells = phase("cells", "-run", "-cells")
+		state.Cells = phase("cells", "-run", "-cells", "-reached")
 		remember()
 	} else {
 		run.credited("cells")

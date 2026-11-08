@@ -49,25 +49,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "card-dispatch",
-      "title": "Steps that don't need the graphics card are worked while a run holds it, and a change re-measures only what it reaches",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 32,
-        "reason": "Estimate before the survey: a step field and a dispatch rule in internal/plan, and the re-measured set computed from the change; a step raises it with its measured figure."
-      },
-      "steps": [
-        {
-          "id": "remeasure",
-          "title": "The cells and models a change re-measures are computed from what it changed",
-          "status": "open",
-          "verify": "go test ./internal/loop -count=1 -run '^TestAChangeRemeasuresOnlyTheCellsItReaches$'",
-          "rationale": "The owner: measure only what a change can move, not every model each time. Today the lead picks the models fit to validate a change. The set becomes code: the packages the change touched, the cells and models whose measured path reads them, nothing else.\nServes: setup-steps; throughput of the work, fewer runs per change.\nDisappears: the lead choosing which models to measure.\nEvidence: a change to one model family's loader re-measures that family's cells alone; a change no cell reads re-measures none.\nBatch: host lane."
-        }
-      ]
-    },
-    {
       "id": "one-rule-file",
       "title": "skill.md and the pointer file are the only written rules: the plan's paragraphs go, one test refuses rule text elsewhere, and skill.md keeps only what code cannot hold",
       "owner": "master-lead",

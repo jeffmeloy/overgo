@@ -58,7 +58,7 @@ func TestCycleReportsWhatItCreditedAndEachPhaseWall(t *testing.T) {
 // leaves the others' numbers sound. The cycle's error names the check that failed.
 func TestChecksRunBeforeTheCells(t *testing.T) {
 	t.Parallel()
-	const preflight, lanes, cells, publish = "-run -preflight", "-run -lanes", "-run -cells", "-scorecard -publish"
+	const preflight, lanes, cells, publish = "-run -preflight", "-run -lanes", "-run -cells -reached", "-scorecard -publish"
 	for failing, want := range map[string][]string{
 		preflight: {preflight, lanes, cells, publish, "filed"},
 		lanes:     {preflight, lanes},
@@ -91,7 +91,7 @@ func TestInterruptedCycleResumesAtItsFirstUnpassedPhase(t *testing.T) {
 		err := measurePhases(state, key, io.Discard, nil, nil, validate)
 		return ran, err
 	}
-	const preflight, lanes, cells, publish = "-run -preflight", "-run -lanes", "-run -cells", "-scorecard -publish"
+	const preflight, lanes, cells, publish = "-run -preflight", "-run -lanes", "-run -cells -reached", "-scorecard -publish"
 	for _, step := range []struct {
 		name, key, fail string
 		want            []string
@@ -215,7 +215,7 @@ func TestTheGapsAreFiledOnceTheScorecardPublishes(t *testing.T) {
 		}
 		return nil
 	}
-	const preflight, lanes, cells, publish = "-run -preflight", "-run -lanes", "-run -cells", "-scorecard -publish"
+	const preflight, lanes, cells, publish = "-run -preflight", "-run -lanes", "-run -cells -reached", "-scorecard -publish"
 	for _, step := range []struct {
 		name, key, fail string
 		want            []string

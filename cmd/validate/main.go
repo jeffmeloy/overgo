@@ -67,6 +67,7 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	cellsOnly := flags.Bool("cells", false, "with -run: execute only the cells the scorecard waits on, leaving the cycle lanes to -run -lanes, so a cycle runs its checks before its cells")
 	preflight := flags.Bool("preflight", false, "with -run: run each cell the scorecard waits on only to where its measurement begins (clioptions.PreflightEnvironment), so what would refuse a cell is known before any is measured; measures nothing and runs no lane")
 	lanesOnly := flags.Bool("lanes", false, "with -run: execute only the cycle lanes, which go test's cache replays for the packages no change reached")
+	reached := flags.Bool("reached", false, "with -run -cells or a dry run: measure only the cells whose measured path reads a file changed since the commit the newest scorecard record measured; with no record, every cell")
 	inventory := flags.String("inventory", "", "comma-separated model roots: report each directory beneath them as activated, registered, unregistered or not a model, with the commands that would advance it; loads no model")
 	onboardPath := flags.String("onboard", "", "a model directory or GGUF: convert a Hugging Face directory, register, record and replay an exact suite, activate, and run the long-form guard, in one command")
 	draftOf := flags.String("draft", "", "a model GGUF the library has activated: register the draft layer GGUF beside it, replay the library's validation prompts speculatively through it, and activate it when the trunk keeps its share of the drafts; records nothing of the model's own")
@@ -327,6 +328,13 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 		if listed {
 			plan = plan.Chosen(chosen, compared)
 		}
+	}
+	if *reached {
+		chosen, err := reachedCells(ctx, *root, compared, registered)
+		if err != nil {
+			return err
+		}
+		plan = plan.Chosen(chosen, compared)
 	}
 	if *smokeModel != "" {
 		named, err := modelNamed(ctx, store, *smokeModel, *cellValidation)

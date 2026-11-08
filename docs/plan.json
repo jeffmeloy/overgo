@@ -108,30 +108,6 @@
       ]
     },
     {
-      "id": "measure-says",
-      "title": "A measured request prints the cell it recorded, and a measuring step's landing states it",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 250,
-        "reason": "Estimate: recipe measure's printed headline from the observation it publishes, and the landing's message reading a measuring step's printed result."
-      },
-      "steps": [
-        {
-          "id": "headline",
-          "title": "recipe measure prints the time and memory it recorded, at the preset it ran, as its last line",
-          "status": "open",
-          "verify": "go test ./cmd/recipe -count=1 -run '^TestAMeasuredRequestPrintsWhatItRecorded$'",
-          "files": [
-            "cmd/recipe",
-            "internal/servingattempt",
-            "internal/runrecord"
-          ],
-          "rationale": "The student's time at a person's size (about 30 s for 81 frames at 832 x 480, against the base's 374 s) is recorded in the store, and no commit message or README line states it: recipe measure prints its stage ledger and the clip's bytes, not the cell it recorded. A measuring step should print the number it recorded, so its session and its landing can state it.\n\nServes: first-output read where it is measured.\nDisappears: a measurement recorded and stated nowhere.\nEvidence: a measured request's last line names the cell, its value and preset, as published.\nBatch: host lane."
-        }
-      ]
-    },
-    {
       "id": "sampling-split",
       "title": "Sampling splits into noise, sigma table, step function and guider, with hooks before and after the guidance combine, so each model's presets are data",
       "owner": "master-lead",

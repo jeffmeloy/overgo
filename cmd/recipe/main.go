@@ -477,7 +477,7 @@ func attemptCapability(
 	input string,
 	userSize bool,
 	stages *processmeasure.Stages,
-) (any, artifact.ID, error) {
+) (any, runrecord.ServingObservation, error) {
 	started := time.Now()
 	begin, _ := processmeasure.Counter()
 	output, err := capability.Execute(ctx, store, path, selected, input)
@@ -490,7 +490,7 @@ func attemptCapability(
 		Load: measured.Load, Decode: measured.Decode, OutputTokens: measured.OutputTokens,
 		PeakDeviceBytes: peak, PeakMeasured: peakMeasured, UserSize: userSize, Preset: media.PresetOf(measured.Output), Stages: stagedParts(stages, end-begin), Cause: err,
 	})
-	return output, recorded.ID, errors.Join(err, recordErr)
+	return output, recorded, errors.Join(err, recordErr)
 }
 
 // unnamedPart names the part of a request's wall that no stage names.
@@ -581,7 +581,7 @@ func measureCapability(repository, path string, task recipe.Task, capability med
 	ctx, stages := processmeasure.WithDeviceStages(capabilityruntime.FreshRun(ctx), driver.StagePeakBytes, driver.ResetStagePeakBytes)
 	clock := processmeasure.NewStopwatch()
 	output, attempt, err := attemptCapability(ctx, store, path, modelID, task, selected, capability, request, userSize, stages)
-	if err = errors.Join(err, handoffAttempt(attempt)); err != nil {
+	if err = errors.Join(err, handoffAttempt(attempt.ID)); err != nil {
 		return err
 	}
 	// Where the measured request's time and device memory went goes beside its
@@ -593,7 +593,28 @@ func measureCapability(repository, path string, task recipe.Task, capability med
 			fmt.Fprintf(os.Stderr, "recipe: its parts are no division of it: %v\n", err)
 		}
 	}
+	// The cell the request recorded is its last line, so whoever measured can state it.
+	fmt.Fprintln(os.Stderr, recordedLine(attempt))
 	return json.NewEncoder(os.Stdout).Encode(capabilityruntime.Unwrap(output))
+}
+
+// gibibyte is the unit a recorded peak of device memory is stated in.
+const gibibyte = 1 << 30
+
+// recordedLine says what a measured request recorded: the observation, its time, the preset a picture or clip ran, its
+// peak device memory, and whether it was at the size a person asks for.
+func recordedLine(observation runrecord.ServingObservation) string {
+	parts := []string{fmt.Sprintf("recipe: recorded %s: %.1f s", observation.ID, time.Duration(observation.MeasuredNS).Seconds())}
+	if observation.Preset != (media.Preset{}) {
+		parts = append(parts, observation.Preset.String())
+	}
+	if peak := observation.Resources.PeakDeviceBytes; peak > 0 {
+		parts = append(parts, fmt.Sprintf("peak %.2f GiB on the card", float64(peak)/gibibyte))
+	}
+	if observation.UserSize {
+		parts = append(parts, "at a person's size")
+	}
+	return strings.Join(parts, ", ")
 }
 
 // verifiedRequest is the request the activation's accepted verification ran,

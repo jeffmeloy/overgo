@@ -142,6 +142,8 @@ func ResolveDispatch(ctx context.Context, root string, request DispatchRequest) 
 	if document.parked, err = readParked(repository, head); err != nil {
 		return Dispatch{}, err
 	}
+	run, recorded := ReadMeasurementRun(repository)
+	document.cardHeld = recorded && run.HoldsTheCard()
 	dispatch, err := selectDispatch(document, role, request.Reference)
 	if err != nil {
 		return Dispatch{}, err
@@ -206,7 +208,7 @@ func dispatchPriority(document Plan, role string) ([]Ref, error) {
 		}
 		visited[ref.String()] = true
 		if ready[ref.String()] {
-			if eligible(item) && !slices.Contains(document.parked, ref.String()) {
+			if eligible(item) && !slices.Contains(document.parked, ref.String()) && !(document.cardHeld && step.NeedsCard) {
 				ordered = append(ordered, ref)
 			}
 			return
@@ -249,7 +251,7 @@ func selectDispatch(document Plan, role, reference string) (Dispatch, error) {
 	}
 	awaiting := awaitingDecision(document)
 	if item, step, open := Current(document, role); open && !awaiting[item.ID] && reference == "" &&
-		!slices.Contains(document.parked, item.ID+"/"+step.ID) {
+		!slices.Contains(document.parked, item.ID+"/"+step.ID) && !(document.cardHeld && step.NeedsCard) {
 		// Preserve the empty-rung dispatch until the rung is given steps.
 		return DispatchOf(document, role), nil
 	}
@@ -394,10 +396,17 @@ func holdingDecision(document Plan, item string) (Decision, bool) {
 
 // parkedNote says which rows wait for a commit.
 func parkedNote(document Plan) []string {
-	if len(document.parked) == 0 {
-		return nil
+	var notes []string
+	if len(document.parked) != 0 {
+		notes = append(notes, "parked until a commit: "+strings.Join(document.parked, ", "))
 	}
-	return []string{"parked until a commit: " + strings.Join(document.parked, ", ")}
+	// Steps that need the card wait while a run holds it, said, so an empty dispatch is not read as an empty plan.
+	if document.cardHeld && slices.ContainsFunc(document.Items, func(item Item) bool {
+		return item.Status == StatusOpen && slices.ContainsFunc(item.Steps, func(step Step) bool { return step.NeedsCard && step.Status == StatusOpen })
+	}) {
+		notes = append(notes, "the measurement run holds the graphics card, which the steps left need")
+	}
+	return notes
 }
 
 // holds says why a holding decision holds its rows.

@@ -89,11 +89,12 @@ func main() {
 	runCmd := flag.String("run", "", "with -addstep: a run step's command, which the driver runs with no worker; -record names the file it writes, which -vcmd reads")
 	record := flag.String("record", "", "with -addstep -run: the file the run step's command writes")
 	files := flag.String("files", "", "with -addstep: the files and directories, comma-separated, a code step's change may write; its landing refuses a change outside them")
+	needsCard := flag.Bool("needs-card", false, "with -addstep: the step's work needs the graphics card, so dispatch passes over it while a measurement run holds the card")
 	role := flag.String("role", "", "lane role for dispatch (default OVERGO_AUTOMATION_ROLE, then unassigned)")
 	worker := flag.String("worker", "", "stable session identity a stop is scoped by (default OVERGO_AUTOMATION_WORKER)")
 	handled, err := commanddoc.Plan.Command.ParseCommandLine(flag.CommandLine, os.Stdout)
 	if err == nil && !handled {
-		err = run(cli{runCmd: *runCmd, record: *record, files: *files, clearsWhen: *clearsWhen, resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, next: *next, prompt: *prompt, verify: *verify, status: *status, decisions: *decisions, answer: *answer, doctrine: *doctrine, reserved: *reserved, add: *add, setverify: *setverify, stop: *stop, title: *title, class: *class, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker,
+		err = run(cli{needsCard: *needsCard, runCmd: *runCmd, record: *record, files: *files, clearsWhen: *clearsWhen, resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, next: *next, prompt: *prompt, verify: *verify, status: *status, decisions: *decisions, answer: *answer, doctrine: *doctrine, reserved: *reserved, add: *add, setverify: *setverify, stop: *stop, title: *title, class: *class, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker,
 			from: *from, setcount: *setcount, nodes: *nodes, reason: *reason, addstep: *addstep, note: *note, paragraph: *paragraph, rationaleFile: *rationaleFile, show: *show, retire: *retire}, flag.Args())
 	}
 	clioptions.MainNamed("plan", func() error { return err })
@@ -107,7 +108,7 @@ type cli struct {
 	stop, move, retitle, json                    bool
 	title, class, before, verifyCmd, role        string
 	setcount, addstep, note, show, retire        bool
-	paragraph                                    bool
+	paragraph, needsCard                         bool
 	from, reason, rationaleFile, clearsWhen      string
 	runCmd, record, files                        string
 	nodes                                        int
@@ -477,7 +478,7 @@ func editPlan(role string, c cli, args []string, did string) error {
 			row.Budget.Nodes, row.Budget.Reason = c.nodes, words
 		case c.addstep:
 			row.Steps = slices.Insert(row.Steps, step, plan.Step{ID: stepID, Title: c.title, Status: plan.StatusOpen, Verify: c.verifyCmd, Run: c.runCmd, Record: c.record,
-				Files: strings.Fields(strings.ReplaceAll(c.files, ",", " ")), Rationale: words})
+				Files: strings.Fields(strings.ReplaceAll(c.files, ",", " ")), NeedsCard: c.needsCard, Rationale: words})
 		case c.note:
 			rationale := &row.Steps[step].Rationale
 			cut := strings.LastIndex(*rationale, rationaleClosing)

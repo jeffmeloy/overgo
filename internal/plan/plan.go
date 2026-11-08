@@ -49,6 +49,9 @@ type Step struct {
 	// Files, of a code step, are the files and directories its change may write; its landing refuses a change outside
 	// them. A step that lists none may write anywhere a landing admits.
 	Files []string `json:"files,omitempty"`
+	// NeedsCard says the step's work needs the graphics card: while a measurement run holds it, dispatch passes over the
+	// step for one that does not.
+	NeedsCard bool `json:"needs_card,omitzero"`
 	// Campaign detail carried from the merged design record (owner directive
 	// 2026-08-16: one plan document). Rationale says why the row exists;
 	// DependsOn declares ordering the queue must respect; Capabilities name
@@ -140,6 +143,9 @@ type Plan struct {
 	Retired []Retirement `json:"retired,omitempty"`
 	// parked are the rows dispatch passes over at this commit (ParkRow); they are the worktree's state, not the plan's.
 	parked []string
+	// cardHeld says a measurement run holds the graphics card at this reading (MeasurementRun.HoldsTheCard): the
+	// machine's state, not the plan's.
+	cardHeld bool
 }
 
 // Retirement is a step, or a row with every step it had, removed without landing, as item/step or item, and why.

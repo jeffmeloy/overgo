@@ -54,17 +54,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 200,
+        "nodes": 32,
         "reason": "Estimate before the survey: a step field and a dispatch rule in internal/plan, and the re-measured set computed from the change; a step raises it with its measured figure."
       },
       "steps": [
-        {
-          "id": "needs-card",
-          "title": "A step says whether it needs the card, and dispatch hands out only those that don't while a run holds it",
-          "status": "open",
-          "verify": "go test ./internal/plan -count=1 -run '^TestDispatchSkipsCardStepsWhileARunHoldsTheCard$'",
-          "rationale": "On Oct 31 the measurement run held the card from 1:55 AM to 11:00 AM and the lead sat idle for 4.9 hours with a card landing queued. one-home/host-lanes (97eae76d6) already lets a landing that needs no card skip the card's queue. What is left: each step carries a typed needs-card field, today the prose \"Batch: host lane\", and while a measurement run holds the card dispatch hands out only steps that do not need it.\nServes: setup-steps; idle hours a week; landings a day.\nDisappears: waiting on the card with host work open.\nEvidence: with the run's hold recorded, dispatch skips a card step for the next host step.\nBatch: host lane."
-        },
         {
           "id": "remeasure",
           "title": "The cells and models a change re-measures are computed from what it changed",

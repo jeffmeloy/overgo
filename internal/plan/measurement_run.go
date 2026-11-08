@@ -126,6 +126,12 @@ func ReadMeasurementRun(root string) (MeasurementRun, bool) {
 	return run, !run.Started.IsZero()
 }
 
+// HoldsTheCard says the run is measuring now, holding the graphics card: it has not ended and its process lives. On
+// Oct 31 the run held the card from 1:55 AM to 11:00 AM while the lead sat idle with host work open.
+func (run MeasurementRun) HoldsTheCard() bool {
+	return run.Ended.IsZero() && processcontrol.ProcessAlive(run.Process)
+}
+
 // Wall is how long the phase named took in the run, and whether it ended there.
 func (run MeasurementRun) Wall(name string) (time.Duration, bool) {
 	for _, phase := range run.Phases {

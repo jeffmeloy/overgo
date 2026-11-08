@@ -3,24 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "actual-prompt-rate",
-      "title": "The README speed table rates prompt processing by the uncached tokens each request read over its prefill time, not by its length bucket",
-      "status": "open",
-      "budget": {
-        "nodes": 100,
-        "reason": "Estimate before the survey: internal/scorecard/scorecard.go readLength keeps each observation's uncached-token rate and lengthCells carries its median as a cell, and internal/scorecard/speed_table.go SpeedTable prints that cell instead of dividing the bucket length."
-      },
-      "steps": [
-        {
-          "id": "rate",
-          "title": "readLength keeps each observation's uncached-token rate, and SpeedTable prints the median of those rates",
-          "status": "open",
-          "verify": "go test ./internal/scorecard -count=1 -run '^TestTheSpeedTableRatesAPromptByTheTokensItRead$'",
-          "rationale": "SQA-336: internal/scorecard/scorecard.go readLength keeps a length bucket's prefill time but not the tokens read, and internal/scorecard/speed_table.go SpeedTable divides the bucket length by that time, so a 3,072-uncached-token request prefilled in 1,000 ms in the 4,096 bucket renders 4,096 tok/s, a third above its measured rate, which cmd/validate/readme.go publishes.\n\nreadLength computes each observation's uncached tokens, InputTokens less CachedTokens, over its prefill time before the window's median; lengthCells carries that rate and SpeedTable prints it, and a record without token counts prints none. Buckets, warm-only and stale filtering stay.\n\nServes: throughput; the published prompt-processing rate is the one measured.\nDisappears: the bucket length used as measured work.\nEvidence: that 3,072-token, 1,000 ms request renders 3,072 tok/s, and a cell without token counts renders unread.\nBatch: host lane."
-        }
-      ]
-    },
-    {
       "id": "composite-identity",
       "title": "A composite is published under the model identity its file's bytes hold now, never under a remembered claim",
       "status": "open",

@@ -110,6 +110,9 @@ type Cell struct {
 	// read at a longer prompt was timed at (Row.Lengths); zero for every other
 	// cell.
 	Prompt int `json:"prompt,omitzero"`
+	// Rate, of a time to prefill at a longer prompt, is the prompt tokens read uncached per second, the median of the
+	// attempts the time is read from; zero where their records hold no token counts.
+	Rate float64 `json:"rate,omitzero"`
 	// Newest is when the newest attempt a serving timing or memory cell reads
 	// started, in nanoseconds since the epoch: a cell whose newest attempt
 	// started before the previous record was published was not measured since
@@ -817,6 +820,8 @@ type servingSample struct {
 	attempt artifact.ID
 	started int64
 	took    [timingCount]float64
+	// rate, of a reading at a longer prompt, is the prompt tokens it read uncached per second of its prefill.
+	rate float64
 }
 
 // half is the quantile that is a median, and the share of a normal reading's two tails on one side.
@@ -880,6 +885,10 @@ func (summary *servingSummary) readLength(length int, observation runrecord.Serv
 	}
 	sample := servingSample{attempt: observation.ID, started: observation.StartedUnixNS}
 	sample.took[timingFirstOutput] = milliseconds(observation.Hardware[at].ElapsedNS)
+	// The work a prefill did is the tokens it read and no cache answered, not its prompt's length bucket (SQA-336).
+	if uncached := observation.Usage.InputTokens - min(observation.Usage.CachedTokens, observation.Usage.InputTokens); uncached > 0 {
+		sample.rate = float64(uncached) / time.Duration(observation.Hardware[at].ElapsedNS).Seconds()
+	}
 	read.window = append(read.window, sample)
 }
 
@@ -962,6 +971,15 @@ func lengthCells(task recipe.Task, observed *servingSummary) []Cell {
 	for _, length := range evaluation.PromptLengths {
 		at, read := freshPrompt(length), observed.lengths[length]
 		if cell, measured := read.timed(timingFirstOutput, "ms", lengthFirstMetric(length), "serving time to prefill "+at+", the median of the newest attempts"); measured {
+			var rates []float64
+			for _, sample := range read.window {
+				if sample.rate > 0 {
+					rates = append(rates, sample.rate)
+				}
+			}
+			if len(rates) > 0 {
+				cell.Rate = median(rates)
+			}
 			cell.Prompt = length
 			cells = append(cells, cell)
 			if read.peakDeviceBytes != 0 {

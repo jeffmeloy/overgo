@@ -2,6 +2,7 @@ package scorecard
 
 import (
 	"testing"
+	"time"
 
 	"overgo/internal/evaluation"
 	"overgo/internal/recipe"
@@ -17,7 +18,7 @@ func TestTheSpeedTableReadsWarmCellsAlone(t *testing.T) {
 	t.Parallel()
 	short, long := evaluation.PromptLengths[0], evaluation.PromptLengths[1]
 	length := func(prompt int, ms float64, measure string) Cell {
-		return Cell{Value: ms, Unit: "ms", Prompt: prompt, Contract: Contract{Metric: measure}}
+		return Cell{Value: ms, Unit: "ms", Prompt: prompt, Rate: float64(prompt) / time.Duration(ms*float64(time.Millisecond)).Seconds(), Contract: Contract{Metric: measure}}
 	}
 	rate := func(value float64, measure string) map[metric.Name]Cell {
 		return map[metric.Name]Cell{metric.Throughput: {Value: value, Unit: "tok/s", Contract: Contract{Metric: measure}}}

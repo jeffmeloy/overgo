@@ -3,27 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "start-admission",
-      "title": "A driver start takes the campaign lock before it reads a running worker's record, and one fixture holds what a start admits",
-      "status": "open",
-      "budget": {
-        "nodes": 10,
-        "reason": "Estimate before the survey: the noteUncleanEnd call moves below processcontrol.BeginCampaign in cmd/loop/main.go run; the fixture step changes test code alone."
-      },
-      "steps": [
-        {
-          "id": "fixture",
-          "title": "One start-admission fixture holds the default configuration, its prompt, no-clobber and the refusals, and init_config_test.go goes",
-          "status": "open",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestADriverStartsFromItsDefaultConfiguration$'",
-          "rationale": "SQA-338: cmd/loop/init_config_test.go TestTheDriverLandsAStepThroughItsWorker and cmd/loop/driver_start_test.go TestADriverStartsFromItsConfigAlone each build a checkout, pause at once, begin a campaign and check its name; neither runs a worker or lands a step, whatever the first's name says.\n\nThe default-write, worker-command, prompt and second -init checks join the missing-prompt, missing-budget and strategy refusals in one fixture named for start admission, and init_config_test.go with its duplicate paused setup goes; subprocess continuation and stop stay with their own tests.\n\nServes: setup-steps; one fixture says what a driver start admits.\nDisappears: init_config_test.go and its duplicate paused-start setup.\nEvidence: the merged fixture holds -init's defaults, a refused second -init, the config's name on the campaign and each malformed config refused.\nBatch: host lane.",
-          "depends_on": [
-            "start-admission/order"
-          ]
-        }
-      ]
-    },
-    {
       "id": "findings-wait",
       "title": "A run whose empty plan has findings to file ends waiting for them, never as a completed plan, and the waiting cases count worker runs exactly",
       "status": "open",

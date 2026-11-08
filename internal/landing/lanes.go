@@ -298,19 +298,11 @@ func HoldLaneTurn(work func() error) error {
 
 // letGo frees the checkout while the lanes wait for a lane turn another holds, a measurement run's above all: on
 // 2026-10-30 a landing waited on the run's turn for hours, and as a landing ships the checkout's dirty tree, no other
-// row could be edited until it landed. The candidate the host stages passed is checked out in a worktree of its own,
-// where the lanes, the row's check and the scorecard read it, and the commit publishes it whatever the checkout holds
-// by then (settled). A turn that is free is taken over the checkout as before, and a merge keeps its checkout.
-func (l *landing) letGo(ctx context.Context) error {
+// row could be edited until it landed. The stages read the candidate in a worktree of its own (checkOut), and the
+// commit publishes it whatever the checkout holds by then (settled), so only the commit turn is left to give up. A turn
+// that is free is taken as before, and a merge keeps its commit turn.
+func (l *landing) letGo() error {
 	if held, err := processcontrol.ResourceTransactionHeld(laneTurn); err != nil || !held || len(l.merging) > 0 {
-		return err
-	}
-	tree := filepath.Join(l.scratch, "tree")
-	if _, err := l.git(ctx, "worktree", "add", "--detach", "--no-checkout", tree, l.head); err != nil {
-		return err
-	}
-	l.tree = tree
-	if _, err := l.runIn(ctx, tree, gitauthority.RepositoryEnvironment(), "git", gitauthority.WriterArguments("read-tree", "-u", "--reset", l.candidate)...); err != nil {
 		return err
 	}
 	// The wait is the device's and no other commit's, so the commit turn goes free for it: on 2026-10-30 a report-only
@@ -322,7 +314,7 @@ func (l *landing) letGo(ctx context.Context) error {
 			return err
 		}
 	}
-	fmt.Fprintf(l.Log, "land: the lane turn is held, so the lanes wait on the change as it stood, in %s: the checkout is free\n", tree)
+	fmt.Fprintf(l.Log, "land: the lane turn is held, so the lanes wait on the change as it stood, in %s: the checkout is free\n", l.tree)
 	return nil
 }
 
@@ -430,7 +422,7 @@ func (l *landing) lanes(ctx context.Context) error {
 	}
 	beside, shared := splitLanes(reached)
 	if len(shared) > 0 {
-		if err := l.letGo(ctx); err != nil {
+		if err := l.letGo(); err != nil {
 			return err
 		}
 		fmt.Fprintln(l.Log, "land: lanes wait for the host's lane turn")

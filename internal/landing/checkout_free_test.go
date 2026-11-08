@@ -25,7 +25,8 @@ func (f freedLog) Write(p []byte) (int, error) {
 // turn, as a measurement run does for hours. The landing lets the checkout go once its host stages pass: the lead
 // then changes the file the landing ships and edits another, and lets the turn go. The lane ran on the change as it
 // stood, whose test the lead's change would fail; the commit is that change, not the checkout as it then stood; the
-// lead's two edits are left uncommitted as edited; and the worktree the lanes read is gone.
+// lead's two edits are left uncommitted as edited; and the worktree the stages read is kept in the checkout's process
+// state, for the next landing.
 func TestALandingWaitingOnARunLeavesTheCheckoutFree(t *testing.T) {
 	// Serial: it names the lane turn and the lanes the tests take, not the host's own.
 	turn, gated := laneTurn, lanes
@@ -76,8 +77,9 @@ func TestALandingWaitingOnARunLeavesTheCheckoutFree(t *testing.T) {
 	if status := fixture.git("status", "--porcelain"); strings.Count(status, "\n") != 1 || !strings.Contains(status, "docs/notes.txt") || !strings.Contains(status, "internal/p/p.go") {
 		t.Fatalf("the checkout's uncommitted work = %q, want the lead's two edits alone", status)
 	}
-	if trees := fixture.git("worktree", "list", "--porcelain"); strings.Count(trees, "worktree ") != 1 {
-		t.Fatalf("the worktree the lanes read was left:\n%s", trees)
+	if trees := fixture.git("worktree", "list", "--porcelain"); strings.Count(trees, "worktree ") != 2 ||
+		!strings.Contains(trees, processlock.StateDirectory+"/"+candidateCheckout+"0") {
+		t.Fatalf("the worktrees are\n%s\nwant the checkout and the one the stages read, kept in its process state", trees)
 	}
 }
 

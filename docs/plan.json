@@ -8,24 +8,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 1166,
+        "nodes": 858,
         "reason": "Estimate at the campaign's measured rate: the landing's capture and its tree-change check scoped to the steps' files, its stages run on the candidate in a worktree of its own, and the guard's rule for another session's writes, each with its test."
       },
       "steps": [
-        {
-          "id": "candidate-checks",
-          "title": "The gate's stages read the commit being made, in a worktree of its own, so the reader check, the stray-documents rule and every test judge the commit and not the folder",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestTheChecksReadTheCommitNotTheFolder$'",
-          "files": [
-            "internal/landing",
-            "internal/repoanalysis"
-          ],
-          "rationale": "The reader check (internal/repoanalysis TestEveryTrackedFileHasAReader) lists the checkout's documents, untracked ones included, and the stray-documents rule (internal/landing/strays.go) its ignored ones, so a file outside the commit refused it. The landing already reads the candidate in a worktree of its own once it lets the checkout go (letGo); its stages do so always, and the stray rule names what it finds outside the commit rather than refusing.\n\nServes: setup-steps.\nDisappears: a check that judges a file the commit does not hold.\nEvidence: an untracked document and an ignored one beside the change refuse nothing, are named, and a document the commit adds without a reader is still refused.\nBatch: host lane.",
-          "depends_on": [
-            "landing-scope/scoped-commit"
-          ]
-        },
         {
           "id": "guard-checkout",
           "title": "The guard refuses a write into the lead's checkout from any other session, a new file included",

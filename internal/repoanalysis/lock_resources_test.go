@@ -20,16 +20,17 @@ import (
 // that source. Locks the code takes by a resource's name, through processcontrol, share the one file named by
 // resource_shared_windows.go.
 var lockResources = map[string]string{
-	"gate.lock":                         "a checkout's plan and its publication to the trunk",
-	"landing_turn.lock":                 "the trunk, one landing's commit at a time across the worktrees",
-	"stop.lock":                         "a checkout's stop record",
-	"loop_supervisor.lock":              "a worktree's one loop supervisor and its stop endpoint",
-	"removal.lock":                      "the removal of leftovers and its receipt",
-	"overgodb.lock":                     "nothing any longer: an older store's lock file, which a clone leaves behind",
-	"cmd/loop/improve.go:.lock":         "the measurement cycle's checkout and its state",
-	"internal/hfhub/download.go:.lock":  "one file a download writes",
-	"internal/overgodb/backup.go:.lock": "a store backup's destination",
-	"internal/overgodb/store.go:.lock":  "one store's journal, segments and checkpoints",
+	"gate.lock":                           "a checkout's plan and its publication to the trunk",
+	"landing_turn.lock":                   "the trunk, one landing's commit at a time across the worktrees",
+	"stop.lock":                           "a checkout's stop record",
+	"loop_supervisor.lock":                "a worktree's one loop supervisor and its stop endpoint",
+	"removal.lock":                        "the removal of leftovers and its receipt",
+	"overgodb.lock":                       "nothing any longer: an older store's lock file, which a clone leaves behind",
+	"cmd/loop/improve.go:.lock":           "the measurement cycle's checkout and its state",
+	"internal/hfhub/download.go:.lock":    "one file a download writes",
+	"internal/landing/candidate.go:.lock": "one worktree a landing's stages read its candidate in",
+	"internal/overgodb/backup.go:.lock":   "a store backup's destination",
+	"internal/overgodb/store.go:.lock":    "one store's journal, segments and checkpoints",
 	"internal/processcontrol/resource_shared_windows.go:.lock": "a machine-wide resource by its name: the card, the quiet machine",
 }
 

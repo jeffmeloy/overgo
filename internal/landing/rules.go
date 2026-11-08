@@ -25,12 +25,14 @@ import (
 // rules compares the changed files with HEAD: no bytes a record pins move,
 // no new style finding, no new inline policy number, no new legacy form go fix
 // leaves, no new export without a consumer, no CUDA-gated test no lane runs,
-// no ignored document left outside its homes (strayDocuments), and, for a
-// consolidation, no more production code than its count. Each refusal prints
-// the edit that clears it. It says what the change adds of each kind of
-// written code, which the landed rows' counts take.
+// and, for a consolidation, no more production code than its count. Each
+// refusal prints the edit that clears it. It reads the candidate (checkOut),
+// and names an ignored document the checkout holds outside its homes
+// (strayDocuments) without refusing: git ignores it, so no commit holds it, and
+// on 2026-11-08 another session's document stopped every landing. It says what
+// the change adds of each kind of written code, which the landed rows' counts take.
 func (l *landing) rules(ctx context.Context) error {
-	stale, err := stalePins(l.Repo, l.paths)
+	stale, err := stalePins(l.stageRoot(), l.paths)
 	if err != nil {
 		return err
 	}
@@ -50,7 +52,7 @@ func (l *landing) rules(ctx context.Context) error {
 		return err
 	}
 	findings = append(findings, exports...)
-	uncovered, err := uncoveredCUDATests(l.Repo)
+	uncovered, err := uncoveredCUDATests(l.stageRoot())
 	if err != nil {
 		return err
 	}
@@ -63,7 +65,7 @@ func (l *landing) rules(ctx context.Context) error {
 	}
 	if len(strays) != 0 {
 		named, _ := rows(l.Ref)
-		findings = append(findings, strayRefusal(strays, named[0].item))
+		fmt.Fprintln(l.Log, "land: "+strayNote(strays, named[0].item))
 	}
 	// A row's growth is measured and recorded, its count taking it; only a consolidation, which must shrink, is held to
 	// its count.
@@ -151,7 +153,7 @@ func (l *landing) outsideGo(ctx context.Context) string {
 			continue
 		}
 		before, absent := gitauthority.Query(ctx, l.Repo, "show", l.builtOn()+":"+cmp.Or(entry.OriginalPath, entry.Path))
-		after, gone := os.ReadFile(filepath.Join(l.Repo, filepath.FromSlash(entry.Path)))
+		after, gone := os.ReadFile(filepath.Join(l.stageRoot(), filepath.FromSlash(entry.Path)))
 		if kernel {
 			lines += bytes.Count(after, []byte("\n")) - bytes.Count(before, []byte("\n"))
 			entryPoints += bytes.Count(after, []byte(kernelEntry)) - bytes.Count(before, []byte(kernelEntry))
@@ -189,7 +191,7 @@ func (l *landing) changedSource(ctx context.Context) (gosyntax.Snapshot, gosynta
 	}
 	var names []string
 	for directory := range directories {
-		entries, err := os.ReadDir(filepath.Join(l.Repo, filepath.FromSlash(directory)))
+		entries, err := os.ReadDir(filepath.Join(l.stageRoot(), filepath.FromSlash(directory)))
 		if errors.Is(err, fs.ErrNotExist) {
 			continue
 		}
@@ -202,7 +204,7 @@ func (l *landing) changedSource(ctx context.Context) (gosyntax.Snapshot, gosynta
 			}
 		}
 	}
-	candidate, err := gosyntax.LoadGo(l.Repo, names)
+	candidate, err := gosyntax.LoadGo(l.stageRoot(), names)
 	if err != nil {
 		return gosyntax.Snapshot{}, gosyntax.Snapshot{}, err
 	}
@@ -352,7 +354,7 @@ const modulePath = "overgo"
 // package exists for other packages' tests, so their selections count.
 func (l *landing) newUnconsumedExports(base, candidate gosyntax.Snapshot) ([]string, error) {
 	existing := exportedNames(base)
-	corpus := sync.OnceValues(func() (gosyntax.Snapshot, error) { return gosyntax.DiscoverGo(l.Repo, "cmd", "internal") })
+	corpus := sync.OnceValues(func() (gosyntax.Snapshot, error) { return gosyntax.DiscoverGo(l.stageRoot(), "cmd", "internal") })
 	// support holds, per directory, whether its package is test support:
 	// every production file outside it that imports it is in a test-support
 	// package, and none is a main package. Go's imports are acyclic; a

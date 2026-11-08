@@ -122,10 +122,10 @@ type landing struct {
 	// on the device, and turnLet says the lanes must take it again before anything is published (takeTurnBack).
 	turn    func() error
 	turnLet bool
-	// tree is the worktree of its own the candidate is checked out in once the landing lets the checkout go while
-	// its lanes wait for a turn another holds (letGo), where the stages from the lanes on read it; empty while they
-	// read the checkout.
-	tree string
+	// tree is the worktree of its own the candidate is checked out in, where every stage after format and fix reads
+	// it (checkOut), and treeHeld gives the worktree back for the next landing.
+	tree     string
+	treeHeld func() error
 	// planned is the plan the candidate holds and advanced is it with the
 	// landed steps removed. terms is the plan the change is judged by,
 	// counts the candidate's rows' counts, read before the landed steps leave
@@ -164,11 +164,11 @@ func Run(ctx context.Context, options Options) (landed string, err error) {
 	}
 	defer os.RemoveAll(scratch)
 	l := &landing{Options: options, scratch: scratch, details: map[string]string{}}
-	// The worktree the candidate was checked out in, if the checkout was let go, goes before the scratch it is in.
+	// The worktree the stages read the candidate in is kept for the next landing, and given back.
 	defer func() {
-		if l.tree != "" {
-			if _, removed := l.git(context.WithoutCancel(ctx), "worktree", "remove", "--force", l.tree); removed != nil {
-				fmt.Fprintf(options.Log, "land: the worktree %s the lanes read is left: %v\n", l.tree, removed)
+		if l.treeHeld != nil {
+			if released := l.treeHeld(); released != nil {
+				fmt.Fprintf(options.Log, "land: the worktree %s the stages read is still held: %v\n", l.tree, released)
 			}
 		}
 	}()
@@ -244,6 +244,11 @@ func Run(ctx context.Context, options Options) (landed string, err error) {
 		checks = slices.Insert(checks, 0, check{spaceClass, l.space, true})
 	}
 	for _, check := range checks {
+		if readsCandidate(check.name) {
+			if err := l.checkOut(ctx); err != nil {
+				return "", fmt.Errorf("%scandidate worktree: %w", stagePrefix, err)
+			}
+		}
 		started := time.Now()
 		l.spent.Outcome = check.name
 		err := check.run(ctx)
@@ -699,7 +704,7 @@ func (l *landing) generators() []generator {
 }
 
 func (l *landing) vet(ctx context.Context) error {
-	_, err := l.run(ctx, nil, "go", "vet", "-tags", checkedTags, "./...")
+	_, err := l.runIn(ctx, l.stageRoot(), nil, "go", "vet", "-tags", checkedTags, "./...")
 	return err
 }
 
@@ -720,7 +725,7 @@ var invariantPackages = []string{"./internal/repoanalysis", "./internal/commandd
 // has: a tree without them, a fixture's, has no invariant to hold.
 func (l *landing) invariants(ctx context.Context) error {
 	held := slices.DeleteFunc(slices.Clone(invariantPackages), func(pattern string) bool {
-		_, err := os.Stat(filepath.Join(l.Repo, filepath.FromSlash(pattern)))
+		_, err := os.Stat(filepath.Join(l.stageRoot(), filepath.FromSlash(pattern)))
 		return err != nil
 	})
 	if len(held) == 0 {
@@ -732,7 +737,7 @@ func (l *landing) invariants(ctx context.Context) error {
 // goTest runs the tests of packages and says which of them ran rather than
 // replayed, under the stage's name.
 func (l *landing) goTest(ctx context.Context, stage string, packages ...string) error {
-	output, err := l.run(ctx, nil, "go", append([]string{"test", "-json", "-timeout=0"}, packages...)...)
+	output, err := l.runIn(ctx, l.stageRoot(), nil, "go", append([]string{"test", "-json", "-timeout=0"}, packages...)...)
 	if err != nil {
 		if summary := testevidence.FailureSummary(output); summary != "" {
 			return fmt.Errorf("failed tests/packages: %s", summary)
@@ -837,32 +842,16 @@ func (l *landing) addedChecksFail(ctx context.Context) error {
 // regularFile is the Git mode the advanced plan is staged with.
 const regularFile = "100644"
 
-// settled holds the commit to the candidate the checks passed. While the stages read the checkout, its working tree
-// must still be the candidate. Once the landing let the checkout go (letGo), the stages read the candidate in a
-// worktree of its own, and the commit publishes it whatever the checkout holds by then, which is left as edited.
+// settled holds the commit to the candidate the checks passed, which the stages read in a worktree of its own
+// (checkOut): the commit publishes it whatever the checkout holds by then, which is left as edited.
 func (l *landing) settled(ctx context.Context) error {
-	if l.tree != "" {
-		_, err := l.staged(ctx, "read-tree", l.candidate)
-		return err
-	}
-	now, err := l.capture(ctx)
-	if err != nil {
-		return err
-	}
-	if now != l.candidate {
-		changed, err := gitauthority.Query(ctx, l.Repo, "diff-tree", "-r", "--name-only", l.candidate, now)
-		if err != nil {
-			return err
-		}
-		return fmt.Errorf("land: the tree changed during the landing: %s; land again once it is settled",
-			strings.ReplaceAll(strings.TrimSpace(string(changed)), "\n", ", "))
-	}
-	return nil
+	_, err := l.staged(ctx, "read-tree", l.candidate)
+	return err
 }
 
 // commit publishes the candidate the checks passed, its plan advanced past
-// the row, onto the HEAD the landing found. The working tree must still be
-// the candidate unless the checkout was let go (settled), and HEAD moves by
+// the row, onto the HEAD the landing found. What the checkout holds by then
+// stays out of it (settled), and HEAD moves by
 // one compare-and-set, so a refusal writes nothing: the plan keeps its row
 // and any edit made meanwhile. Only a landed commit advances the working
 // plan, and only while that plan is still the candidate's; a plan edited

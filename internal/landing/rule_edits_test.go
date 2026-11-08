@@ -46,10 +46,6 @@ func TestEveryRuleRefusalFixesOrPrintsItsEdit(t *testing.T) {
 	export.write("internal/p/p.go", emptyPackage+"\n// Exported is the fixture's export.\nfunc Exported() string { return \"\" }\n")
 	cleared(export, refused(export, "has no consumer"), ", or land")
 
-	stray := newRowFixture(t, map[string]string{".gitignore": "notes.json\n"})
-	stray.write("notes.json", "{}\n")
-	cleared(stray, refused(stray, "notes.json"), "\x00")
-
 	pinned := newRowFixture(t, map[string]string{"a.txt": "base\n"})
 	digest := sha256.Sum256([]byte("base\n"))
 	pinned.write("docs/verification/a-coverage.json", `{"inputs": {"a.txt": "`+hex.EncodeToString(digest[:])+`"}}`+"\n")

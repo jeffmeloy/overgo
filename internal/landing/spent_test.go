@@ -26,7 +26,7 @@ func (w firstWrite) Write(data []byte) (int, error) {
 
 // TestLandingRecordsItsWaitsByCause holds each run of the gate to a record,
 // in its checkout's process state, of where its time went. A preflight that
-// passes, one a stage refuses, a landing whose tree moves under it and a
+// passes, one a stage refuses, a landing whose trunk moves under it and a
 // landing that lands each leave one: how the run ended, how long the tree was
 // blocked, and the time of each stage that ran. The waits are recorded by what
 // was waited for: a landing that finds a timed measurement running records
@@ -34,7 +34,7 @@ func (w firstWrite) Write(data []byte) (int, error) {
 func TestLandingRecordsItsWaitsByCause(t *testing.T) {
 	ctx := t.Context()
 	fixture := newRowFixture(t, map[string]string{"a.txt": "base\n", "internal/p/p.go": "// Package p is the fixture.\npackage p\n"})
-	fixture.commitPlan(rowPlan(0, [2]string{"do", "true"}, [2]string{"refused", "false"}, [2]string{"moved", "echo moved > a.txt"}))
+	fixture.commitPlan(rowPlan(0, [2]string{"do", "true"}, [2]string{"refused", "false"}, [2]string{"moved", "git -C \"$(git rev-parse --path-format=absolute --git-common-dir)/..\" commit --allow-empty -q -m moved"}))
 	message := []byte("Change the fixture\n\nCause: the fixture needs a change.\nPredicted effect: first-output holds.\n")
 	recorded := func() []spent {
 		t.Helper()

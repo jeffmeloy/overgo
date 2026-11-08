@@ -6756,7 +6756,7 @@
   },
     {
     "category": "development-context-consolidation",
-    "classification": "note-fixture-merged; answered-handoff-and-stray-fixture-remain",
+    "classification": "note-fixture-merged; stray-fixture-merged by landing-scope/candidate-checks, whose rules stage names a stray document and no longer refuses one; answered-handoff-remains",
     "closure_criteria": ["Retain the verified note and harness fixes without reintroducing duplicate fixtures.","Reconcile the already-answered GUI hand-off and retire it only after unique requirements are retained.","Either retire the unnecessary broad gate, or explicitly retain it and consolidate shared fixture work; count the chosen alternative once."],
     "comparison": "Use the existing mixed-file stray fixture for the moved harness case during ordinary implementation validation; no SQA test. Compare full post-migration AST/setup, and reconcile the GUI decision with actual retained requirements.",
     "displaced_surface": "Already gone: notes_shown_test.go and one plan setup. Remaining accepted-purpose migration: GUI hand-off/exemption after disposition. Conditional small reduction if the gate stays: remove TestTheHarnessDirectoryHoldsNoStray as a separate body/setup after moving the harness ignored path and assertion into the retained mixed-file fixture. Gate retirement is an alternative, not an additional saving.",

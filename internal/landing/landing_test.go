@@ -213,34 +213,20 @@ func TestLandingFixRegeneratesTheAPIManifest(t *testing.T) {
 }
 
 // TestLandingPublishesTheCheckedCandidate holds the commit to the candidate
-// the checks validated: files changed after the candidate is taken are
-// refused and named with HEAD where it was, an edit made while the commit
-// publishes cannot enter it, and the commit holds the candidate's bytes and
-// its plan advanced past the row, onto the HEAD the landing found.
+// the checks validated: a file changed or added after the candidate is taken,
+// or while the commit publishes, stays out of it, left as edited, and the
+// commit holds the candidate's bytes and its plan advanced past the row, onto
+// the HEAD the landing found.
 func TestLandingPublishesTheCheckedCandidate(t *testing.T) {
 	t.Parallel()
 	fixture := newRowFixture(t, map[string]string{"a.txt": "base\n"})
-	original := fixture.read(plan.Path)
 	fixture.write("a.txt", "checked\n")
 	l := fixture.candidate()
 	if !slices.Equal(l.verifiers, []string{"true"}) {
 		t.Fatalf("the row's checks = %q, want the candidate plan's", l.verifiers)
 	}
-
 	fixture.write("a.txt", "edited after the candidate\n")
 	fixture.write("b.txt", "added after the candidate\n")
-	fixture.write(plan.Path, strings.Replace(original, `"verify": "true"`, `"verify": "false"`, 1))
-	_, err := l.commit(t.Context())
-	if err == nil || !strings.Contains(err.Error(), "a.txt") || !strings.Contains(err.Error(), "b.txt") || !strings.Contains(err.Error(), plan.Path) {
-		t.Fatalf("a tree changed after the candidate was taken landed, or the refusal does not name its paths: %v", err)
-	}
-	if now := fixture.git("rev-parse", "HEAD"); now != l.head {
-		t.Fatalf("a refused landing moved HEAD to %s", now)
-	}
-
-	fixture.write(plan.Path, original)
-	fixture.write("a.txt", "checked\n")
-	testcheck.NoError(t, os.Remove(filepath.Join(fixture.repo, "b.txt")))
 	fixture.hook("echo late > a.txt\n")
 	commit, err := l.commit(t.Context())
 	if err != nil {
@@ -255,8 +241,8 @@ func TestLandingPublishesTheCheckedCandidate(t *testing.T) {
 	if published, err := plan.Parse([]byte(fixture.git("cat-file", "blob", commit+":"+plan.Path))); err != nil || len(published.Items) != 0 {
 		t.Fatalf("the landed plan = %+v, %v; want the row advanced", published.Items, err)
 	}
-	if status := fixture.git("status", "--porcelain"); status != "M a.txt" {
-		t.Fatalf("status after the landing = %q, want only the late edit, uncommitted", status)
+	if status := fixture.git("status", "--porcelain"); status != "M a.txt\n?? b.txt" {
+		t.Fatalf("status after the landing = %q, want the late edit and the added file alone, uncommitted", status)
 	}
 }
 

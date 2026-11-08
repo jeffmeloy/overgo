@@ -40,7 +40,6 @@ var stageRules = []struct{ name, phrase string }{
 	{"legacy-forms", "new sync.Once"},
 	{"exports", "has no consumer outside its package"},
 	{"cuda-lanes", "has CUDA-gated tests that no lane runs"},
-	{"stray-documents", "an ignored document outside its homes"},
 	{"count", "production syntax nodes, and the consolidation"},
 }
 

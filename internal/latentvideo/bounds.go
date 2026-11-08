@@ -27,15 +27,29 @@ func profileControlBounds(profile Profile, config DenoiserConfig) map[string]con
 }
 
 // ControlBounds resolves the profile and the denoiser config of the model
-// at directory and derives the request's bounds from them.
+// at directory and derives the request's bounds from them. A student's
+// frames move by a whole chunk of its policy, the latent frames it denoises
+// together, and its configuration is its base's.
 func ControlBounds(directory string) (map[string]controlBound, error) {
 	profile, err := ResolveProfile(directory)
 	if err != nil {
 		return nil, err
 	}
+	chunk := tensor.SingletonExtent
+	if IsWanStudent(directory) {
+		student, err := resolveWanStudent(directory)
+		if err != nil {
+			return nil, err
+		}
+		directory, chunk = student.base, student.policy.FramesPerChunk
+	}
 	config, err := LoadDenoiserConfig(directory, profile.Policy)
 	if err != nil {
 		return nil, err
 	}
-	return profileControlBounds(profile, config), nil
+	bounds := profileControlBounds(profile, config)
+	frames := bounds["frames"]
+	frames.Step *= chunk
+	bounds["frames"] = frames
+	return bounds, nil
 }

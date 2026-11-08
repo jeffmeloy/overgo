@@ -54,6 +54,13 @@ func TextPipelineIdentity(ctx context.Context, store artifact.Repository, modelD
 	if IsLiveEdit(modelDirectory) {
 		modelDirectory, _ = LiveEditArtifacts(modelDirectory)
 	}
+	if IsWanStudent(modelDirectory) {
+		student, err := resolveWanStudent(modelDirectory)
+		if err != nil {
+			return "", err
+		}
+		modelDirectory = student.base
+	}
 	var names *discovery.Memo
 	if store != nil {
 		names = discovery.LoadMemo(ctx, store)

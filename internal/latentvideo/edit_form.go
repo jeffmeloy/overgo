@@ -387,9 +387,9 @@ func ResolveClipRequest(ctx context.Context, reader artifact.Reader, modelDirect
 }
 
 // chunkCausalCondition is the condition a chunk-causal checkpoint, an editor or a student, runs a prompt under: the
-// prompt's text context and the policy's chunking and schedule, its sigmas compiled for its timesteps. The prompt is
-// encoded by the base model's text encoder and projected by the checkpoint's own projection, which its training moved
-// from the base model's: a context projected by the base's is not the one the checkpoint was trained to read.
+// prompt's text context and the policy's schedule (chunkCausalSchedule). The prompt is encoded by the base model's text
+// encoder and projected by the checkpoint's own projection, which its training moved from the base model's: a context
+// projected by the base's is not the one the checkpoint was trained to read.
 func chunkCausalCondition(ctx context.Context, wanDirectory, checkpointPath string, policy editPolicy, profile Profile, prompt string) (ReferenceEditCondition, error) {
 	base, err := LoadDenoiserConfig(wanDirectory, profile.Policy)
 	if err != nil {
@@ -407,12 +407,20 @@ func chunkCausalCondition(ctx context.Context, wanDirectory, checkpointPath stri
 	if err != nil {
 		return ReferenceEditCondition{}, err
 	}
+	condition, err := chunkCausalSchedule(policy, profile)
+	condition.TextContext = conditioning.Context
+	return condition, err
+}
+
+// chunkCausalSchedule is the policy's chunking and schedule as a condition holds them, its sigmas compiled for its
+// timesteps, and no text.
+func chunkCausalSchedule(policy editPolicy, profile Profile) (ReferenceEditCondition, error) {
 	sigmas, err := sampling.CompileEditFlowSigmas(sampling.EditFlowConfig{
 		InferenceSteps: policy.InferenceSteps, TrainTimesteps: profile.Policy.NumTrainTimesteps,
 		Shift: policy.Shift, SigmaMin: policy.SigmaMin, SigmaMax: policy.SigmaMax, ExtraStep: policy.ExtraStep, Warp: policy.WarpDenoisingStep,
 	}, policy.DenoisingTimesteps)
 	return ReferenceEditCondition{
-		TextContext: conditioning.Context, FramesPerChunk: policy.FramesPerChunk, LocalAttention: policy.LocalAttentionFrames,
+		FramesPerChunk: policy.FramesPerChunk, LocalAttention: policy.LocalAttentionFrames,
 		Timesteps: policy.DenoisingTimesteps, Sigmas: sigmas, ContextTimestep: policy.ContextTimestep, Warp: policy.WarpDenoisingStep,
 	}, err
 }

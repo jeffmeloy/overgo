@@ -120,6 +120,17 @@ func ResolveProfile(modelDirectory string) (Profile, error) {
 	if err != nil {
 		return Profile{}, err
 	}
+	// A student generates under its own policy from its base's configuration.
+	if IsWanStudent(modelDirectory) {
+		student, err := resolveWanStudent(modelDirectory)
+		if err != nil {
+			return Profile{}, err
+		}
+		if profile, err = studentProfile(profile, student.policy); err != nil {
+			return Profile{}, err
+		}
+		modelDirectory = student.base
+	}
 	config, err := LoadDenoiserConfig(modelDirectory, profile.Policy)
 	if err != nil {
 		return Profile{}, err

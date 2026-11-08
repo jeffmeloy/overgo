@@ -255,7 +255,7 @@ func (r *LiveEditRuntime) Generate(ctx context.Context, request ReferenceEditReq
 	if err == nil {
 		r.runs++
 		video.ResidentRun = r.runs
-		video.Preset = media.Preset{Width: video.Width, Height: video.Height, Frames: video.Frames, Steps: len(condition.Timesteps), Sampler: "chunk-causal flow"}
+		video.Preset = media.Preset{Width: video.Width, Height: video.Height, Frames: video.Frames, Steps: len(condition.Timesteps), Sampler: chunkCausalSampler}
 	}
 	return video, err
 }

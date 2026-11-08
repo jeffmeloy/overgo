@@ -19,7 +19,7 @@ import (
 func videoCapability() Capability {
 	// Both read the base model's text encoder and tokenizer, which no
 	// inventory holds, so their answers are kept under those files too.
-	wan := capabilityruntime.Reading(sessionExecutor(wanSessions()), latentvideo.TextPipelineIdentity)
+	wan := capabilityruntime.Reading(generationExecutor(sessionExecutor(wanSessions()), sessionExecutor(studentSessions())), latentvideo.TextPipelineIdentity)
 
 	edit := capabilityruntime.Reading(editExecutor(editSessions()), latentvideo.TextPipelineIdentity)
 	oscillator := capabilityruntime.JSONScalar[oscillatorimage.VideoRequest, *oscillatorimage.Model, oscillatorimage.EncodedVideo](
@@ -55,6 +55,34 @@ func wanSessions() (*wanDirector, error) {
 			return runtime.Reset(ctx, request)
 		},
 		latentvideo.RegisterWanRuntime,
+	)
+}
+
+// generationExecutor serves a text-to-video request by the model it names: a few-step student of Wan through its own
+// sessions, any other Wan model through the base's.
+func generationExecutor(wan, student capabilityruntime.Executor) capabilityruntime.Executor {
+	return func(ctx context.Context, store artifact.Repository, path string, selection modelrecipe.CapabilityEvidenceSelection, input string) (any, error) {
+		if latentvideo.IsWanStudent(path) {
+			return student(ctx, store, path, selection, input)
+		}
+		return wan(ctx, store, path, selection, input)
+	}
+}
+
+// studentDirector directs sessions of a few-step student of Wan.
+type studentDirector = capabilityruntime.ModelSessionDirector[latentvideo.WanRequest, *latentvideo.WanStudentRuntime, latentvideo.EncodedVideo]
+
+// studentSessions makes a director of student sessions. A session is compiled for a clip's geometry and serves any
+// prompt and seed; a request of another geometry is refused at its reset, and another session loads for it.
+func studentSessions() (*studentDirector, error) {
+	return capabilityruntime.NewModelSessionDirector[latentvideo.WanRequest, *latentvideo.WanStudentRuntime, latentvideo.EncodedVideo](
+		"video-gen", imageDevice, imageSessionCapacity,
+		latentvideo.ValidateWanRequestForm,
+		latentvideo.LoadWanStudentRuntime,
+		func(ctx context.Context, runtime *latentvideo.WanStudentRuntime, request latentvideo.WanRequest) error {
+			return runtime.Reset(ctx, request)
+		},
+		latentvideo.RegisterWanStudentRuntime,
 	)
 }
 
@@ -110,36 +138,33 @@ func editExecutor(director *editDirector, err error) capabilityruntime.Executor 
 }
 
 func resolveVideoSource(ctx context.Context, path string) (Source, error) {
+	generation := func(modelID, profileID artifact.ID) (recipe.Definition, error) {
+		return modelrecipe.GenerationDefinition(modelrecipe.ModuleLatentVideoPrepare, modelID, profileID)
+	}
+	if latentvideo.IsWanStudent(path) {
+		// A student is the base's DiT distilled: it reads its own weights and the base's configuration and
+		// autoencoder, and generates from words alone, as the base does.
+		wan, checkpoint, err := latentvideo.WanStudentArtifacts(path)
+		if err != nil {
+			return Source{}, err
+		}
+		return compositeSource(path, sharedDirectory(path, wan), []modelartifact.FileSpec{
+			{Path: checkpoint, Name: "student/weights", Role: artifact.ComponentWeights},
+			{Path: filepath.Join(wan, "config.json"), Name: "wan/config", Role: artifact.ComponentConfig},
+			{Path: latentvideo.AutoencoderWeights(wan), Name: "wan/vae", Role: artifact.ComponentWeights},
+		}, profiledDefinition(path, generation))
+	}
 	if latentvideo.IsLiveEdit(path) {
 		wan := filepath.Join(filepath.Dir(path), "Wan2.1-T2V-1.3B")
 		// The edit composite genuinely spans two sibling repositories --
 		// the LiveEdit weights and the Wan denoiser they condition on --
-		// so the inventory roots at their common parent. The capability
-		// resolves only from the LiveEdit directory, so that is recorded
-		// beside the root; the identity is the components' alone.
-		inventory, err := modelartifact.FromFiles(filepath.Dir(path), []modelartifact.FileSpec{
+		// so the inventory roots at their common parent.
+		return compositeSource(path, filepath.Dir(path), []modelartifact.FileSpec{
 			{Path: filepath.Join(path, "ar-forcing_002000.pt"), Name: "liveedit/weights", Role: artifact.ComponentWeights},
 			{Path: filepath.Join(wan, "config.json"), Name: "wan/config", Role: artifact.ComponentConfig},
 			{Path: filepath.Join(wan, "diffusion_pytorch_model.safetensors"), Name: "wan/weights", Role: artifact.ComponentWeights},
 			{Path: latentvideo.AutoencoderWeights(wan), Name: "wan/vae", Role: artifact.ComponentWeights},
-		})
-		if err == nil {
-			var own artifact.Location
-			own, err = artifact.CanonicalLocalLocation(inventory.Manifest.ID, artifact.LocationDirectory, path)
-			inventory.Locations = append(inventory.Locations, own)
-		}
-		return Source{Inventory: inventory, Define: func(modelID artifact.ID) (recipe.Definition, []artifact.Content, error) {
-			profile, err := latentvideo.ResolveProfile(wan)
-			if err != nil {
-				return recipe.Definition{}, nil, err
-			}
-			content, err := profile.Content()
-			if err != nil {
-				return recipe.Definition{}, nil, err
-			}
-			definition, err := modelrecipe.ReferenceVideoEditDefinition(modelID, profile.ID)
-			return definition, []artifact.Content{content}, err
-		}}, err
+		}, profiledDefinition(wan, modelrecipe.ReferenceVideoEditDefinition))
 	}
 	if latentvideo.IsWan(path) {
 		inventory, err := modelartifact.FromFiles(path, []modelartifact.FileSpec{
@@ -147,20 +172,51 @@ func resolveVideoSource(ctx context.Context, path string) (Source, error) {
 			{Path: filepath.Join(path, "diffusion_pytorch_model.safetensors"), Name: "denoiser/weights", Role: artifact.ComponentWeights},
 			{Path: latentvideo.AutoencoderWeights(path), Name: "vae/weights", Role: artifact.ComponentWeights},
 		})
-		return Source{Inventory: inventory, Define: func(modelID artifact.ID) (recipe.Definition, []artifact.Content, error) {
-			profile, err := latentvideo.ResolveProfile(path)
-			if err != nil {
-				return recipe.Definition{}, nil, err
-			}
-			content, err := profile.Content()
-			if err != nil {
-				return recipe.Definition{}, nil, err
-			}
-			definition, err := modelrecipe.GenerationDefinition(modelrecipe.ModuleLatentVideoPrepare, modelID, profile.ID)
-			return definition, []artifact.Content{content}, err
-		}}, err
+		return Source{Inventory: inventory, Define: profiledDefinition(path, generation)}, err
 	}
 	return resolveDeclaredVideoSource(ctx, path)
+}
+
+// compositeSource inventories a model whose files span its own directory and its base's, rooted at root, which holds
+// both. The capability resolves only from the model's own directory, so that is recorded beside the root; the
+// identity is the components' alone.
+func compositeSource(path, root string, specs []modelartifact.FileSpec, define func(artifact.ID) (recipe.Definition, []artifact.Content, error)) (Source, error) {
+	inventory, err := modelartifact.FromFiles(root, specs)
+	if err == nil {
+		var own artifact.Location
+		own, err = artifact.CanonicalLocalLocation(inventory.Manifest.ID, artifact.LocationDirectory, path)
+		inventory.Locations = append(inventory.Locations, own)
+	}
+	return Source{Inventory: inventory, Define: define}, err
+}
+
+// sharedDirectory is the deepest directory holding both paths: a student and its base may sit in different models
+// directories.
+func sharedDirectory(left, right string) string {
+	directory := filepath.Dir(left)
+	for directory != filepath.Dir(directory) {
+		if relative, err := filepath.Rel(directory, right); err == nil && filepath.IsLocal(relative) {
+			break
+		}
+		directory = filepath.Dir(directory)
+	}
+	return directory
+}
+
+// profiledDefinition defines a model by the video profile the directory resolves to, published beside it.
+func profiledDefinition(directory string, define func(modelID, profileID artifact.ID) (recipe.Definition, error)) func(artifact.ID) (recipe.Definition, []artifact.Content, error) {
+	return func(modelID artifact.ID) (recipe.Definition, []artifact.Content, error) {
+		profile, err := latentvideo.ResolveProfile(directory)
+		if err != nil {
+			return recipe.Definition{}, nil, err
+		}
+		content, err := profile.Content()
+		if err != nil {
+			return recipe.Definition{}, nil, err
+		}
+		definition, err := define(modelID, profile.ID)
+		return definition, []artifact.Content{content}, err
+	}
 }
 
 // deviceReconstruction keeps a Wan autoencoder resident on the device and

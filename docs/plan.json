@@ -8,8 +8,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 447,
-        "reason": "causal-t2v took 653 of the 300 estimated: the edit runtime gains a student with no source channels (no source encoder, its tensors held to the base DiT's), a warped schedule (Self-Forcing's warp_denoising_step, which LiveEdit's pipeline leaves out, read by the network as fractional timesteps), and the condition both share moved out of the clip request; measured adds the student's serving cells, about 450 more."
+        "nodes": 1072,
+        "reason": "served counted 1878 against the 447 left: the student is served as its own text-to-video model (its directory, base and profile resolved, a runtime of its own beside Wan's under the same generation module, the video source resolution reshaped so LiveEdit, Wan and the student share its inventory and definition helpers); measured adds the cells' check, about 400 more."
       },
       "steps": [
         {

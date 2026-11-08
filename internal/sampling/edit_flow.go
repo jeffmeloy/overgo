@@ -7,7 +7,10 @@ import (
 	"overgo/internal/checked"
 )
 
-// EditFlowConfig bounds compilation of a shifted flow-matching schedule.
+// EditFlowConfig bounds compilation of a shifted flow-matching schedule. Warp names a requested timestep t by the
+// schedule's own entry t places from its end, a final zero after it, as Self-Forcing's warp_denoising_step reads its
+// denoising_step_list (pipeline/causal_inference.py: timesteps[1000 - list]); without it a requested timestep takes the
+// sigma of the schedule's timestep nearest it, as LiveEdit's pipeline, which leaves the warp out, does.
 type EditFlowConfig struct {
 	InferenceSteps int
 	TrainTimesteps int
@@ -15,6 +18,7 @@ type EditFlowConfig struct {
 	SigmaMin       float32
 	SigmaMax       float32
 	ExtraStep      bool
+	Warp           bool
 }
 
 // CompileEditFlowSigmas compiles requested source-order timesteps from a
@@ -38,7 +42,8 @@ func CompileEditFlowSigmas(config EditFlowConfig, requested []int64) ([]float32,
 	if config.ExtraStep {
 		count--
 	}
-	sigmas := make([]float32, count)
+	// The warped schedule ends in a zero after its last entry.
+	sigmas := make([]float32, count, count+1)
 	timesteps := make([]float32, count)
 	for index := range count {
 		raw := float32(float64(config.SigmaMax) + float64(index)*float64(config.SigmaMin-config.SigmaMax)/float64(linspace-1))
@@ -47,6 +52,14 @@ func CompileEditFlowSigmas(config EditFlowConfig, requested []int64) ([]float32,
 	}
 	selected := make([]float32, len(requested))
 	for requestIndex, target := range requested {
+		if config.Warp {
+			place := int64(config.TrainTimesteps) - target
+			if !checked.NonNegativeInt64(place) || !checked.AtMostInt64(place, int64(count)) {
+				return nil, errors.New("sampling: a warped timestep lies outside the schedule")
+			}
+			selected[requestIndex] = append(sigmas, 0)[place]
+			continue
+		}
 		best := 0
 		distance := math.Abs(float64(timesteps[0]) - float64(target))
 		for index := 1; index < len(timesteps); index++ {

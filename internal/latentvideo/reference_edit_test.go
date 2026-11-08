@@ -23,7 +23,7 @@ func TestLiveEditReferenceParity(t *testing.T) {
 	plan := testcheck.Must(compileEditPlan(
 		editModelConfig{PatchSize: [3]int{1, 2, 2}, InputChannels: 8, Dim: 12, TextLength: 7, Layers: 2, TrainSteps: 1000},
 		LatentGeometry{Channels: 4, LatentFrames: 7, LatentHeight: 6, LatentWidth: 10},
-		4, 3, 3, []int64{1000, 500, 0},
+		4, 3, 3, []float64{1000, 500, 0},
 	))(t)
 	if !reflect.DeepEqual(plan.ChunkFrames, []int{3, 3, 1}) || plan.TokensPerFrame != 15 || plan.SelfAttentionTokens != 45 || plan.CrossAttentionTokens != 7 || plan.DenoiserCalls != 12 {
 		t.Fatalf("plan=%+v", plan)
@@ -33,7 +33,7 @@ func TestLiveEditReferenceParity(t *testing.T) {
 		samplerPlan := editPlan{
 			Latent:         LatentGeometry{Channels: 1, LatentFrames: 3, LatentHeight: 1, LatentWidth: 1},
 			SourceChannels: 2, InputChannels: 3, TokensPerFrame: 1,
-			ChunkFrames: []int{2, 1}, Timesteps: []int64{1000, 500}, DenoiserCalls: 6, ContextRefreshCalls: 2,
+			ChunkFrames: []int{2, 1}, Timesteps: []float64{1000, 500}, DenoiserCalls: 6, ContextRefreshCalls: 2,
 		}
 		noise := [][]float32{{10, 11}, {12}}
 		noiseCall := 0

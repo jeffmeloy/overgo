@@ -74,9 +74,11 @@ func CompileReferenceEditCheckpoint(path string, base DenoiserConfig) (reference
 		return plan, fmt.Errorf("reference edit checkpoint: incompatible patch embedding %v; names=%v", patch.Shape, sample)
 	}
 	inputChannels := patchShape[tensor.SingletonExtent]
+	// A LiveEdit editor reads a source clip's latent beside the noise, as many channels again; a text-to-video student
+	// (Self-Forcing) reads the noise alone.
 	sourceChannels := inputChannels - base.InDim
-	if !checked.Equal(sourceChannels, base.InDim) {
-		return plan, fmt.Errorf("reference edit checkpoint: input=%d source=%d, want source=%d", inputChannels, sourceChannels, base.InDim)
+	if !checked.Equal(sourceChannels, base.InDim) && checked.Nonzero(sourceChannels) {
+		return plan, fmt.Errorf("reference edit checkpoint: input=%d source=%d, want source=%d or none", inputChannels, sourceChannels, base.InDim)
 	}
 	if !checked.Equal(len(layers), base.NumLayers) {
 		return plan, fmt.Errorf("reference edit checkpoint: input=%d source=%d layers=%d, want source=%d layers=%d", inputChannels, sourceChannels, len(layers), base.InDim, base.NumLayers)
@@ -126,6 +128,11 @@ func findTensor(metas []pytorchzip.TensorMeta, name string) (pytorchzip.TensorMe
 		}
 	}
 	return pytorchzip.TensorMeta{}, false
+}
+
+// student says the checkpoint generates from text alone, reading no source clip.
+func (p referenceEditCheckpoint) student() bool {
+	return !checked.Nonzero(p.SourceChannels)
 }
 
 // Binding: immutable named checkpoint binding.

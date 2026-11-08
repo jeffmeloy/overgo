@@ -29,7 +29,9 @@ type ReferenceEditRuntimeConfig struct {
 	Timesteps                    []int64
 	Sigmas                       []float32
 	ContextTimestep              int64
-	Layers, DeviceOrdinal        int
+	// Warp has the network read each step's sigma of the training timesteps (ReferenceEditCondition.Warp).
+	Warp                  bool
+	Layers, DeviceOrdinal int
 	// CodecLibrary has the autoencoder convolve a clip large enough to repay
 	// it through cuDNN, on a machine that has it (libraryRoute).
 	CodecLibrary bool
@@ -79,6 +81,13 @@ func NewReferenceEditRuntime(config ReferenceEditRuntimeConfig) (runtime *refere
 	if err != nil {
 		return nil, err
 	}
+	// A student reads no source clip and is the base model's DiT distilled, on the base's text encoder and
+	// autoencoder, so every tensor of it is held to the base's before anything binds.
+	if checkpoint.student() {
+		if err := matchesWanDiT(config.EditCheckpoint, config.WanDirectory); err != nil {
+			return nil, err
+		}
+	}
 	vaeCheckpoint := AutoencoderWeights(config.WanDirectory)
 	catalog, err := pytorchzip.ReadCatalog(vaeCheckpoint)
 	if err != nil {
@@ -108,11 +117,15 @@ func NewReferenceEditRuntime(config ReferenceEditRuntimeConfig) (runtime *refere
 	if latent.LatentFrames > config.LocalAttentionFrames+config.FramesPerChunk {
 		return nil, errors.New("reference edit runtime: sliding history window is not compiled")
 	}
+	timesteps, err := editNetworkTimesteps(config.Timesteps, config.Sigmas, config.Warp, checkpoint.Config.Policy.NumTrainTimesteps)
+	if err != nil {
+		return nil, err
+	}
 	editPlan, err := compileEditPlan(editModelConfig{
 		PatchSize: checkpoint.Config.PatchSize, InputChannels: checkpoint.Config.InDim,
 		Dim: checkpoint.Config.Dim, TextLength: checkpoint.Config.TextLen,
 		Layers: checkpoint.Config.NumLayers, TrainSteps: checkpoint.Config.Policy.NumTrainTimesteps,
-	}, latent, checkpoint.SourceChannels, config.FramesPerChunk, config.LocalAttentionFrames, config.Timesteps)
+	}, latent, checkpoint.SourceChannels, config.FramesPerChunk, config.LocalAttentionFrames, timesteps)
 	if err != nil {
 		return nil, err
 	}
@@ -136,7 +149,9 @@ func NewReferenceEditRuntime(config ReferenceEditRuntimeConfig) (runtime *refere
 			runtime = nil
 		}
 	}()
-	runtime.encoder, err = newVAEEncoderCUDASession(vaeCheckpoint, encoderGraph, config.DeviceOrdinal)
+	if !checkpoint.student() {
+		runtime.encoder, err = newVAEEncoderCUDASession(vaeCheckpoint, encoderGraph, config.DeviceOrdinal)
+	}
 	if err == nil {
 		runtime.denoiser, err = newReferenceEditDenoiserCUDASession(
 			context.Background(), checkpoint, chunkGeometry, config.Layers,
@@ -151,7 +166,9 @@ func NewReferenceEditRuntime(config ReferenceEditRuntimeConfig) (runtime *refere
 		return runtime, err
 	}
 	if runtime.decoder, err = NewVAEDecoderCUDASession(vaeCheckpoint, decoderPlan, config.DeviceOrdinal); err == nil && config.CodecLibrary {
-		runtime.encoder.codec.adoptLibrary(libraryClipValues)
+		if runtime.encoder != nil {
+			runtime.encoder.codec.adoptLibrary(libraryClipValues)
+		}
 		runtime.decoder.adoptLibrary(libraryClipValues)
 	}
 	return runtime, err
@@ -168,8 +185,11 @@ func (r *referenceEditRuntime) Run(ctx context.Context, textContext []float32, s
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.encoder == nil || r.denoiser == nil || r.decoder == nil || sink == nil {
+	if r.encoder == nil && !r.checkpoint.student() || r.denoiser == nil || r.decoder == nil || sink == nil {
 		return result, errors.New("reference edit runtime: closed or missing sink")
+	}
+	if r.checkpoint.student() && !checked.Empty(source) {
+		return result, errors.New("reference edit runtime: a text-to-video student reads no source clip")
 	}
 	if ctx == nil {
 		ctx = context.Background()
@@ -206,20 +226,10 @@ func (r *referenceEditRuntime) Run(ctx context.Context, textContext []float32, s
 	} else if err := noise.Advance(len(initialNoise)); err != nil {
 		return result, err
 	}
-	encoded := processmeasure.Stage(ctx, "source clip encoded")
-	fingerprint := sha256.Sum256(driver.Bytes(source))
-	sourceLatent, sourceStats := r.sourceLatent, r.sourceStats
-	if sourceLatent == nil || fingerprint != r.sourceFingerprint {
-		sourceLatent, sourceStats, err = r.encoder.Encode(ctx, r.sourcePlan, source)
-		if err = errors.Join(err, r.encoder.codec.releaseWorkspace(ctx)); err != nil {
-			return result, err
-		}
-		r.sourceFingerprint, r.sourceLatent, r.sourceStats = fingerprint, sourceLatent, sourceStats
-	} else {
-		sourceStats.CacheHit = true
-		sourceStats.WallSeconds = float64(tensor.FirstOffset)
+	sourceLatent, sourceStats, err := r.encodeSource(ctx, source)
+	if err != nil {
+		return result, err
 	}
-	encoded()
 	result.Source = sourceStats
 	denoiseStarted := time.Now()
 	result.Latent, result.Sampler, err = runEditSampler(ctx, editSamplerRequest{
@@ -227,7 +237,7 @@ func (r *referenceEditRuntime) Run(ctx context.Context, textContext []float32, s
 		Sigmas: r.config.Sigmas, ContextTimestep: r.config.ContextTimestep, Arithmetic: editBF16,
 		Denoise: func(ctx context.Context, step editStep, combined, flow []float32) error {
 			defer processmeasure.Stage(ctx, "denoising pass")()
-			headE, blockE, err := CompileTimestepConditioning([]float64{float64(step.Timestep)}, r.denoiser.cold.timestepWeights)
+			headE, blockE, err := CompileTimestepConditioning([]float64{step.Timestep}, r.denoiser.cold.timestepWeights)
 			if err != nil {
 				return err
 			}
@@ -273,6 +283,28 @@ func (r *referenceEditRuntime) Run(ctx context.Context, textContext []float32, s
 		result.DecoderMemory, err = r.decoder.MemoryStats()
 	}
 	return result, errors.Join(err, r.decoder.releaseWorkspace(ctx))
+}
+
+// encodeSource gives the source clip's latent and what encoding it took: the latent held when the clip is the one
+// last encoded, and none for a student, which reads no source.
+func (r *referenceEditRuntime) encodeSource(ctx context.Context, source []float32) ([]float32, sourceEncodeStats, error) {
+	if r.checkpoint.student() {
+		return nil, sourceEncodeStats{}, nil
+	}
+	defer processmeasure.Stage(ctx, "source clip encoded")()
+	fingerprint := sha256.Sum256(driver.Bytes(source))
+	if r.sourceLatent != nil && fingerprint == r.sourceFingerprint {
+		stats := r.sourceStats
+		stats.CacheHit = true
+		stats.WallSeconds = float64(tensor.FirstOffset)
+		return r.sourceLatent, stats, nil
+	}
+	latent, stats, err := r.encoder.Encode(ctx, r.sourcePlan, source)
+	if err = errors.Join(err, r.encoder.codec.releaseWorkspace(ctx)); err != nil {
+		return nil, stats, err
+	}
+	r.sourceFingerprint, r.sourceLatent, r.sourceStats = fingerprint, latent, stats
+	return latent, stats, nil
 }
 
 type editNoiseStream struct {

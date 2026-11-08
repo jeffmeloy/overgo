@@ -4,7 +4,6 @@ package latentvideo
 
 import (
 	"context"
-	"math"
 	"os"
 	"path/filepath"
 	"testing"
@@ -112,17 +111,4 @@ func BenchmarkWanRealArtifactLeadership(b *testing.B) {
 			b.Fatalf("Wan production peak %d exceeds %d", peak, wanOvergoPeakCeiling)
 		}
 	}
-}
-
-func latentAgreement(got, want []float32) (cosine, normalizedRMS float64) {
-	var dot, gotNorm, wantNorm, deltaNorm float64
-	for index := range want {
-		g, w := float64(got[index]), float64(want[index])
-		dot += g * w
-		gotNorm += g * g
-		wantNorm += w * w
-		delta := g - w
-		deltaNorm += delta * delta
-	}
-	return dot / math.Sqrt(gotNorm*wantNorm), math.Sqrt(deltaNorm / wantNorm)
 }

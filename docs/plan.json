@@ -8,26 +8,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 300,
-        "reason": "Estimate before the survey: a text-to-video form of the reference-edit runtime with no source channels, the student's profile and its import; the chunked sampler, the VAE and umT5 exist."
+        "nodes": 447,
+        "reason": "causal-t2v took 653 of the 300 estimated: the edit runtime gains a student with no source channels (no source encoder, its tensors held to the base DiT's), a warped schedule (Self-Forcing's warp_denoising_step, which LiveEdit's pipeline leaves out, read by the network as fractional timesteps), and the condition both share moved out of the clip request; measured adds the student's serving cells, about 450 more."
       },
       "steps": [
-        {
-          "id": "causal-t2v",
-          "title": "The student generates 81 frames at 832 x 480 through LiveEdit's chunked sampler without source channels, held to a golden of its upstream inference",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestSelfForcingMatchesItsUpstreamGolden$'",
-          "files": [
-            "internal/latentvideo",
-            "internal/sampling",
-            "fixtures/selfforcing"
-          ],
-          "needs_card": true,
-          "rationale": "LiveEdit already runs Wan 1.3B as a chunk-causal four-step student: timesteps 1000/750/500/250, shift 5, three-latent-frame chunks, a 21-frame window (internal/latentvideo/edit_profiles.json), and LiveEdit is built on the Self-Forcing codebase. Self-Forcing's own configuration is the same schedule over 21 latent frames at 480 x 832 (configs/self_forcing_dmd.yaml).\n\nA text-to-video form of the reference-edit runtime runs the student's weights with no source channels. The golden is recorded once by the upstream inference from the ignored Python place, as overgo's other goldens are.\n\nNote: Worked 2026-11-08 (wan-few-step/import): Self-Forcing is registered (model:sha256:a2649ee1..., tensor-inventory:sha256:bcd96213..., 825 tensors, licence README.md Apache-2.0). Its tensor check matchesWanDiT sits in internal/latentvideo/self_forcing_model_test.go because nothing loaded the student yet; the student's load path calls it before any weight binds and moves it into production.\n\nServes: first-output.\nDisappears: nothing; the 50-step path stays.\nEvidence: final latents agree with the golden above a floor set from the first measured run less a margin, as internal/adaptiveparity holds Krea.\nBatch: device lane.",
-          "depends_on": [
-            "wan-few-step/import"
-          ]
-        },
         {
           "id": "measured",
           "title": "The student's user-size cell and its held-out quality on Wan's 128-clip suite are recorded beside the 50-step base's",
@@ -39,7 +23,7 @@
             "internal/latentvideo"
           ],
           "needs_card": true,
-          "rationale": "The expected gain is arithmetic: network work falls from about 28 PFLOP to about 1 PFLOP a clip, so a first build should land near 60 to 80 s against 374 s, lower once umT5 and the decode move. One survey found no published comparison of 4-step against 50-step 1.3B beyond the Self-Forcing paper's own, so the cost in quality is read here. Guidance 1 also drops the negative prompt, which guidance-ops/nag restores.\n\nServes: first-output, held-out-quality.\nDisappears: nothing.\nEvidence: the student has its own user-size and quality cells, compared with the base's by a per-case sign test.\nBatch: device lane.",
+          "rationale": "The expected gain is arithmetic: network work falls from about 28 PFLOP to about 1 PFLOP a clip, so a first build should land near 60 to 80 s against 374 s, lower once umT5 and the decode move. One survey found no published comparison of 4-step against 50-step 1.3B beyond the Self-Forcing paper's own, so the cost in quality is read here. Guidance 1 also drops the negative prompt, which guidance-ops/nag restores.\n\nNote: Worked 2026-11-08 (wan-few-step/causal-t2v): NewReferenceEditRuntime runs self_forcing_dmd.pt with no source channels under its own edit_profiles.json policy (warp_denoising_step true: timesteps 1000/937.5/833.3/625), and chunkCausalCondition gives its condition through its own text projection. 81 frames at 832 x 480 denoise in 11.5 s and decode in 8.0 s on the card, with the umT5 encoder on the host. Serving it needs its own profile and capability, and its base: Self-Forcing sits in overgo_data/models and Wan2.1-T2V-1.3B in adaptive_new/models, so LiveEditArtifacts' beside-it layout does not find the base.\n\nServes: first-output, held-out-quality.\nDisappears: nothing.\nEvidence: the student has its own user-size and quality cells, compared with the base's by a per-case sign test.\nBatch: device lane.",
           "depends_on": [
             "wan-few-step/causal-t2v",
             "media-user-size/user-size"

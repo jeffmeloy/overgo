@@ -222,7 +222,7 @@ func LoadLiveEditRuntime(ctx context.Context, store artifact.Reader, path string
 		Policy: profile.Policy, LatentStats: profile.LatentStats,
 		Source:         SourceVideoShape{Channels: source.Channels, Frames: source.Frames, Height: source.Height, Width: source.Width},
 		FramesPerChunk: condition.FramesPerChunk, LocalAttentionFrames: condition.LocalAttention,
-		Timesteps: condition.Timesteps, Sigmas: condition.Sigmas, ContextTimestep: condition.ContextTimestep,
+		Timesteps: condition.Timesteps, Sigmas: condition.Sigmas, ContextTimestep: condition.ContextTimestep, Warp: condition.Warp,
 		Layers: base.NumLayers, DeviceOrdinal: device.DefaultOrdinal(), CodecLibrary: true,
 	})
 	if err != nil {

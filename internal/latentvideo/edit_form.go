@@ -25,12 +25,14 @@ import (
 //go:embed edit_profiles.json
 var editPolicyCatalogJSON []byte
 
-// editPolicy declares the reference-edit schedule a LiveEdit checkpoint
-// runs under: the causal chunking, the denoising timesteps, and the flow
-// schedule their sigmas compile from, and the size of the clips the editor
-// was trained to change. The catalog restates the upstream few-step
-// configuration (LiveEdit/configs/wan_mm-ar-forcing-local.yaml), whose latent
-// of 60 by 104 is a clip of 480 by 832.
+// editPolicy declares the chunk-causal schedule a checkpoint runs under: the
+// causal chunking, the denoising timesteps, and the flow schedule their sigmas
+// compile from, and the size of the clips the editor was trained to change or
+// the student to generate. The catalog restates each upstream few-step
+// configuration, LiveEdit's (LiveEdit/configs/wan_mm-ar-forcing-local.yaml)
+// and Self-Forcing's (configs/self_forcing_dmd.yaml over
+// configs/default_config.yaml), whose latent of 60 by 104 is a clip of 480 by
+// 832.
 type editPolicy struct {
 	Checkpoint           string  `json:"checkpoint"`
 	FramesPerChunk       int     `json:"frames_per_chunk"`
@@ -44,6 +46,9 @@ type editPolicy struct {
 	ContextTimestep      int64   `json:"context_timestep"`
 	SourceWidth          int     `json:"source_width"`
 	SourceHeight         int     `json:"source_height"`
+	// WarpDenoisingStep is the upstream warp_denoising_step as its pipeline reads it: Self-Forcing's warps its steps,
+	// and LiveEdit's pipeline leaves the warp out although its configuration names it.
+	WarpDenoisingStep bool `json:"warp_denoising_step"`
 }
 
 // The reference layout of a LiveEdit model directory: the edit checkpoint
@@ -62,11 +67,17 @@ func LiveEditArtifacts(modelDirectory string) (wanDirectory, checkpoint string) 
 // resolveEditPolicy reads the declared policy for the checkpoint a LiveEdit
 // directory carries, refusing an absent checkpoint or an undeclared one.
 func resolveEditPolicy(modelDirectory string) (editPolicy, error) {
+	_, checkpoint := LiveEditArtifacts(modelDirectory)
+	return checkpointEditPolicy(checkpoint)
+}
+
+// checkpointEditPolicy reads the declared policy for a chunk-causal checkpoint, an editor's or a text-to-video
+// student's, by its file's name, refusing an absent checkpoint or an undeclared one.
+func checkpointEditPolicy(checkpoint string) (editPolicy, error) {
 	var catalog []editPolicy
 	if err := strictjson.DecodeBytes(editPolicyCatalogJSON, &catalog); err != nil {
 		return editPolicy{}, fmt.Errorf("latent video: decode edit policy catalog: %w", err)
 	}
-	_, checkpoint := LiveEditArtifacts(modelDirectory)
 	for _, policy := range catalog {
 		if policy.Checkpoint != filepath.Base(checkpoint) {
 			continue
@@ -365,41 +376,43 @@ func ResolveClipRequest(ctx context.Context, reader artifact.Reader, modelDirect
 	if err := policy.admitLatentFrames(volume.Frames); err != nil {
 		return ReferenceEditRequest{}, err
 	}
-	base, err := LoadDenoiserConfig(wanDirectory, profile.Policy)
+	_, checkpointPath := LiveEditArtifacts(modelDirectory)
+	condition, err := chunkCausalCondition(ctx, wanDirectory, checkpointPath, policy, profile, request.Prompt)
 	if err != nil {
 		return ReferenceEditRequest{}, err
 	}
-	// The prompt is encoded by the base model's text encoder and projected by
-	// the edit checkpoint's own projection, which its training moved from the
-	// base model's: a context projected by the base's is not the one the edit
-	// denoiser was trained to read.
-	_, checkpointPath := LiveEditArtifacts(modelDirectory)
+	condition.Seed, condition.Format = request.Seed, request.Format
+	resolved := ReferenceEditRequest{Condition: condition, Source: source}
+	return resolved, ValidateReferenceEditRequest(resolved)
+}
+
+// chunkCausalCondition is the condition a chunk-causal checkpoint, an editor or a student, runs a prompt under: the
+// prompt's text context and the policy's chunking and schedule, its sigmas compiled for its timesteps. The prompt is
+// encoded by the base model's text encoder and projected by the checkpoint's own projection, which its training moved
+// from the base model's: a context projected by the base's is not the one the checkpoint was trained to read.
+func chunkCausalCondition(ctx context.Context, wanDirectory, checkpointPath string, policy editPolicy, profile Profile, prompt string) (ReferenceEditCondition, error) {
+	base, err := LoadDenoiserConfig(wanDirectory, profile.Policy)
+	if err != nil {
+		return ReferenceEditCondition{}, err
+	}
 	checkpoint, err := CompileReferenceEditCheckpoint(checkpointPath, base)
 	if err != nil {
-		return ReferenceEditRequest{}, err
+		return ReferenceEditCondition{}, err
 	}
 	projection, projectionBytes, err := checkpoint.loadTextProjection()
 	if err != nil {
-		return ReferenceEditRequest{}, err
+		return ReferenceEditCondition{}, err
 	}
-	conditioning, err := textConditioningWithWeights(ctx, WanTextConditioningSpec(wanDirectory, base.TextLen), request.Prompt, projection, projectionBytes)
+	conditioning, err := textConditioningWithWeights(ctx, WanTextConditioningSpec(wanDirectory, base.TextLen), prompt, projection, projectionBytes)
 	if err != nil {
-		return ReferenceEditRequest{}, err
+		return ReferenceEditCondition{}, err
 	}
 	sigmas, err := sampling.CompileEditFlowSigmas(sampling.EditFlowConfig{
 		InferenceSteps: policy.InferenceSteps, TrainTimesteps: profile.Policy.NumTrainTimesteps,
-		Shift: policy.Shift, SigmaMin: policy.SigmaMin, SigmaMax: policy.SigmaMax, ExtraStep: policy.ExtraStep,
+		Shift: policy.Shift, SigmaMin: policy.SigmaMin, SigmaMax: policy.SigmaMax, ExtraStep: policy.ExtraStep, Warp: policy.WarpDenoisingStep,
 	}, policy.DenoisingTimesteps)
-	if err != nil {
-		return ReferenceEditRequest{}, err
-	}
-	resolved := ReferenceEditRequest{
-		Condition: ReferenceEditCondition{
-			TextContext: conditioning.Context, FramesPerChunk: policy.FramesPerChunk, LocalAttention: policy.LocalAttentionFrames,
-			Timesteps: policy.DenoisingTimesteps, Sigmas: sigmas, ContextTimestep: policy.ContextTimestep, Seed: request.Seed,
-			Format: request.Format,
-		},
-		Source: source,
-	}
-	return resolved, ValidateReferenceEditRequest(resolved)
+	return ReferenceEditCondition{
+		TextContext: conditioning.Context, FramesPerChunk: policy.FramesPerChunk, LocalAttention: policy.LocalAttentionFrames,
+		Timesteps: policy.DenoisingTimesteps, Sigmas: sigmas, ContextTimestep: policy.ContextTimestep, Warp: policy.WarpDenoisingStep,
+	}, err
 }

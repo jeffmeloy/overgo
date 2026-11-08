@@ -32,7 +32,7 @@ type editPlan struct {
 	InputChannels        int
 	TokensPerFrame       int
 	ChunkFrames          []int
-	Timesteps            []int64
+	Timesteps            []float64
 	SelfAttentionTokens  int
 	CrossAttentionTokens int
 	DenoiserCalls        int
@@ -40,9 +40,9 @@ type editPlan struct {
 }
 
 // compileEditPlan: shape-derived chunk and bounded-cache authority.
-func compileEditPlan(config editModelConfig, latent LatentGeometry, sourceChannels, framesPerChunk, localAttentionFrames int, timesteps []int64) (editPlan, error) {
+func compileEditPlan(config editModelConfig, latent LatentGeometry, sourceChannels, framesPerChunk, localAttentionFrames int, timesteps []float64) (editPlan, error) {
 	plan := editPlan{Latent: latent, SourceChannels: sourceChannels}
-	if !checked.PositiveInts(latent.Channels, latent.LatentFrames, latent.LatentHeight, latent.LatentWidth, sourceChannels, framesPerChunk) {
+	if !checked.PositiveInts(latent.Channels, latent.LatentFrames, latent.LatentHeight, latent.LatentWidth, framesPerChunk) || !checked.NonNegativeInts(sourceChannels) {
 		return plan, errors.New("reference edit plan: incomplete geometry")
 	}
 	inputChannels, ok := checked.AddInt(latent.Channels, sourceChannels)
@@ -67,8 +67,8 @@ func compileEditPlan(config editModelConfig, latent LatentGeometry, sourceChanne
 		return plan, errors.New("reference edit plan: incomplete geometry")
 	}
 	for _, timestep := range timesteps {
-		if !checked.NonNegativeInt64(timestep) || checked.PositiveInts(config.TrainSteps) && !checked.AtMostInt64(timestep, int64(config.TrainSteps)) {
-			return plan, fmt.Errorf("reference edit plan: timestep %d outside schedule", timestep)
+		if !checked.NonNegativeFinite64(timestep) || checked.PositiveInts(config.TrainSteps) && timestep > float64(config.TrainSteps) {
+			return plan, fmt.Errorf("reference edit plan: timestep %g outside schedule", timestep)
 		}
 	}
 	tokens, err := checkedProduct(grid[tensor.SingletonExtent], grid[tensor.PairedExtent])
@@ -93,7 +93,7 @@ func compileEditPlan(config editModelConfig, latent LatentGeometry, sourceChanne
 		return plan, err
 	}
 	plan.CrossAttentionTokens = config.TextLength
-	plan.Timesteps = append([]int64(nil), timesteps...)
+	plan.Timesteps = append([]float64(nil), timesteps...)
 	plan.ContextRefreshCalls = len(plan.ChunkFrames)
 	plan.DenoiserCalls, err = checkedProduct(len(plan.ChunkFrames), len(timesteps)+1)
 	return plan, err
@@ -114,8 +114,24 @@ type editStep struct {
 	Frames         int
 	StartToken     int
 	EndToken       int
-	Timestep       int64
+	Timestep       float64
 	AdvanceHistory bool
+}
+
+// editNetworkTimesteps are the timesteps the network reads at each step: the requested ones, or under a warp each
+// step's sigma of the training timesteps, which is what the warped schedule's own timesteps are (sampling.EditFlowConfig).
+func editNetworkTimesteps(requested []int64, sigmas []float32, warp bool, trainTimesteps int) ([]float64, error) {
+	if !checked.Equal(len(requested), len(sigmas)) {
+		return nil, errors.New("reference edit: the timesteps and their sigmas differ in count")
+	}
+	timesteps := make([]float64, len(requested))
+	for index, timestep := range requested {
+		timesteps[index] = float64(timestep)
+		if warp {
+			timesteps[index] = float64(sigmas[index] * float32(trainTimesteps))
+		}
+	}
+	return timesteps, nil
 }
 
 // runEditSchedule: chunk-outer, timestep-inner LiveEdit order.
@@ -140,7 +156,7 @@ func runEditSchedule(ctx context.Context, plan editPlan, contextTimestep int64, 
 			}
 			calls++
 		}
-		if err := visit(ctx, editStep{Pass: editContextRefresh, Chunk: chunk, Step: len(plan.Timesteps), StartFrame: startFrame, Frames: frames, StartToken: startToken, EndToken: endToken, Timestep: contextTimestep}); err != nil {
+		if err := visit(ctx, editStep{Pass: editContextRefresh, Chunk: chunk, Step: len(plan.Timesteps), StartFrame: startFrame, Frames: frames, StartToken: startToken, EndToken: endToken, Timestep: float64(contextTimestep)}); err != nil {
 			return err
 		}
 		calls++
@@ -236,9 +252,12 @@ func runEditSampler(ctx context.Context, request editSamplerRequest) ([]float32,
 			activeChunk = step.Chunk
 		}
 		copy(combinedChunk, currentChunk)
+		// A student reads the noise alone, so its chunk carries no source channels after the noise's.
 		sourceChunk := combinedChunk[elements:]
-		if err := media.CopyPlanarFrames(sourceChunk, step.Frames, tensor.FirstOffset, request.Source, latent.LatentFrames, step.StartFrame, plan.SourceChannels, step.Frames, spatial); err != nil {
-			return err
+		if checked.Nonzero(plan.SourceChannels) {
+			if err := media.CopyPlanarFrames(sourceChunk, step.Frames, tensor.FirstOffset, request.Source, latent.LatentFrames, step.StartFrame, plan.SourceChannels, step.Frames, spatial); err != nil {
+				return err
+			}
 		}
 		if err := request.Denoise(ctx, step, combinedChunk, workChunk); err != nil {
 			return err

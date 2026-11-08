@@ -498,7 +498,10 @@ type ReferenceEditCondition struct {
 	Timesteps       []int64   `json:"timesteps"`
 	Sigmas          []float32 `json:"sigmas"`
 	ContextTimestep int64     `json:"context_timestep"`
-	Seed            int64     `json:"seed"`
+	// Warp has the network read each step's sigma of the training timesteps rather than the step's timestep
+	// (sampling.EditFlowConfig).
+	Warp bool  `json:"warp,omitempty"`
+	Seed int64 `json:"seed"`
 	// Format rides in the condition because the edit recipe reads only its condition and its source.
 	Format ClipFormat `json:"format,omitzero"`
 }

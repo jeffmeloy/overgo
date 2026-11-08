@@ -41,29 +41,6 @@
       ]
     },
     {
-      "id": "plan-step-files",
-      "title": "A step's file list is corrected through the plan tool before its work begins, so a step missing a file is fixed once and not refused at its landing",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 250,
-        "reason": "Estimate: one plan flag that replaces an open step's files with a reason, recorded like a count change, and its test."
-      },
-      "steps": [
-        {
-          "id": "setfiles",
-          "title": "go run ./cmd/plan -setfiles -files a,b -reason r \u003citem\u003e \u003cstep\u003e replaces an open step's file list",
-          "status": "open",
-          "verify": "go test ./cmd/plan -count=1 -run '^TestAStepsFilesAreSetWithAReason$'",
-          "files": [
-            "cmd/plan",
-            "internal/plan"
-          ],
-          "rationale": "Four steps of the image-video campaign were re-filed for missing files (preset-record, person-size, stage-times, composed, served, presets twice), each by adding a step and retiring the old one, because no plan tool changes a step's files; the same files keep coming up, the chain that carries a timing from the run to its record and the scorecard (internal/media, internal/capabilityruntime, internal/servingattempt, internal/runrecord, cmd/recipe, internal/scorecard). The owner (2026-11-08): fix the remaining entries' estimates and file lists in one pass. A plan-only landing sets the files, so the next change is judged by them.\n\nServes: setup-steps.\nDisappears: a re-filing per refused step.\nEvidence: the flag replaces an open step's files and records why; a done step or an unknown one is refused.\nBatch: host lane."
-        }
-      ]
-    },
-    {
       "id": "liveedit-card-text",
       "title": "LiveEdit encodes its instruction on the card, as Wan and the student do, and its clip is timed again",
       "owner": "master-lead",

@@ -324,7 +324,7 @@ func TestSetCountWritesTheCountAndItsReason(t *testing.T) {
 	requireRefused(t, refusing, written, "not found", "-setcount", "-nodes", "120", "-reason", "No row named.")
 	requireRefused(t, refusing, written, "absent.txt", "-setcount", "-nodes", "120", "-rationale-file", filepath.Join(refusing, "absent.txt"), "grows")
 	requireOffered(t, refusing, "-setcount", "running no check: -setcount -nodes <n> -reason <why> <item-id>", "in place of -reason: a file that holds the edit's words",
-		"0, the default: it may not grow; below zero: it must shrink", "with -setcount, -addstep, -note or -retire: the edit's words")
+		"0, the default: it may not grow; below zero: it must shrink", "with -setcount, -setfiles, -addstep, -note or -retire: the edit's words")
 }
 
 // TestAddStepInsertsBeforeAnother holds plan -addstep to putting an open step,
@@ -559,4 +559,33 @@ func TestRetireRemovesARowOrAStep(t *testing.T) {
 	requireRefused(t, refusing, written, "not found", "-retire", "-reason", reason, "work/")
 	requireOffered(t, refusing, "-retire", "-retire -reason <why> <item-id>[/<step-id>]",
 		"A landing completes an open step by its check and records it in a Landed-Row trailer; a retirement runs no check, and the plan records it with its reason until the next landing's message says it")
+}
+
+// TestAStepsFilesAreSetWithAReason holds plan -setfiles to correcting an open step's file list before its work
+// begins: on 2026-11-08 four steps of the image-video campaign were refused at their landing for a file their list
+// left out and re-filed, each by a step added and the old one retired, because no tool changed a step's files. It
+// replaces the step's files, notes why in its reasoning before the closing lines, and leaves every other step and row
+// as they were; it refuses a step the row lacks, a row with no step named, an empty list and a change with no reason.
+func TestAStepsFilesAreSetWithAReason(t *testing.T) {
+	t.Parallel()
+	open := openStep("do")
+	open.Files, open.Rationale = []string{"internal/media"}, "Why it exists.\n\nServes: setup-steps."
+	held := plan.Plan{Items: []plan.Item{{ID: "row", Title: "Row", Status: plan.StatusOpen, Steps: []plan.Step{openStep("first"), open}}}}
+	root, _ := editFixture(t, held)
+	output, err := planCommand(t, root, "-setfiles", "-files", "internal/media, cmd/recipe,internal/scorecard", "-reason", "The timing chain carries its cell.", "row", "do")
+	if err != nil || !strings.HasPrefix(output, "row/do: files set to internal/media, cmd/recipe, internal/scorecard; next: ") {
+		t.Fatalf("plan -setfiles: %v\n%s", err, output)
+	}
+	step := editedPlan(t, root).Items[0].Steps[1]
+	if !slices.Equal(step.Files, []string{"internal/media", "cmd/recipe", "internal/scorecard"}) ||
+		step.Rationale != "Why it exists.\n\nNote: files set to internal/media, cmd/recipe, internal/scorecard: The timing chain carries its cell.\n\nServes: setup-steps." {
+		t.Fatalf("the step reads files %v and reasoning %q", step.Files, step.Rationale)
+	}
+	requireNoCheckRan(t, root)
+	refusing, written := editFixture(t, held)
+	const usage = "plan -setfiles -files <a,b> -reason <why> <item-id> <step-id>"
+	requireRefused(t, refusing, written, usage, "-setfiles", "-files", "cmd/plan", "row")
+	requireRefused(t, refusing, written, usage, "-setfiles", "-files", " , ", "-reason", "No files.", "row", "do")
+	requireRefused(t, refusing, written, usage, "-setfiles", "-files", "cmd/plan", "row", "do")
+	requireRefused(t, refusing, written, "not found", "-setfiles", "-files", "cmd/plan", "-reason", "No such step.", "row", "absent")
 }

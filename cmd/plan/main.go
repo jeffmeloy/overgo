@@ -64,11 +64,12 @@ func main() {
 	from := flag.String("from", "", "with -add: a plan-shaped JSON document, or - to read it from standard input so a draft needs no file; every row and decision of it is filed, a row it assigns to no role assigned to -role, an id the plan holds is refused, and no row the plan holds changes")
 	setcount := flag.Bool("setcount", false, "set what a row may still add and why, running no check: -setcount -nodes <n> -reason <why> <item-id>")
 	nodes := flag.Int("nodes", 0, "with -setcount: the production syntax nodes the row may still add (0, the default: it may not grow; below zero: it must shrink)")
-	reason := flag.String("reason", "", "with -setcount, -addstep, -note or -retire: the edit's words, why the row grows, the step's reasoning or why the work will not be done")
+	reason := flag.String("reason", "", "with -setcount, -setfiles, -addstep, -note or -retire: the edit's words, why the row grows, why a step's files change, the step's reasoning or why the work will not be done")
 	rationaleFile := flag.String("rationale-file", "", "in place of -reason: a file that holds the edit's words")
 	addstep := flag.Bool("addstep", false, "add an open step to a row, last unless -before names a step: -addstep -title <t> -vcmd <cmd> -rationale-file <file> [-before <step-id>] <item-id> <step-id>")
 	note := flag.Bool("note", false, "add a working note to a step's reasoning, before its closing Serves lines, which -prompt shows with the step: -note -rationale-file <file> <item-id> <step-id>")
 	show := flag.Bool("show", false, "print one row whole, with each step's check, what it awaits and the reasoning -prompt leaves out: -show <item-id>")
+	setfiles := flag.Bool("setfiles", false, "replace an open step's files and say why, running no check, so the change that does the step is judged by them: -setfiles -files <a,b> -reason <why> <item-id> <step-id>")
 	retire := flag.Bool("retire", false, "remove a row, or one step, that will not be worked: -retire -reason <why> <item-id>[/<step-id>]. A landing completes an open step by its check and records it in a Landed-Row trailer; a retirement runs no check, and the plan records it with its reason until the next landing's message says it")
 	move := flag.Bool("move", false, "re-rank an open item: -move <item-id> [-before <id>] (default: top of the plan)")
 	retitle := flag.Bool("retitle", false, "re-scope an open item and its single step: -retitle <item-id> -title <t>")
@@ -86,14 +87,14 @@ func main() {
 	verifyCmd := flag.String("vcmd", "", "with -add or -addstep: the step's verify command (a shell command that exits 0 iff accepted)")
 	runCmd := flag.String("run", "", "with -addstep: a run step's command, which the driver runs with no worker; -record names the file it writes, which -vcmd reads")
 	record := flag.String("record", "", "with -addstep -run: the file the run step's command writes")
-	files := flag.String("files", "", "with -addstep: the files and directories, comma-separated, a code step's change may write; its landing refuses a change outside them")
+	files := flag.String("files", "", "with -addstep or -setfiles: the files and directories, comma-separated, a code step's change may write; its landing refuses a change outside them")
 	needsCard := flag.Bool("needs-card", false, "with -addstep: the step's work needs the graphics card, so dispatch passes over it while a measurement run holds the card")
 	role := flag.String("role", "", "lane role for dispatch (default OVERGO_AUTOMATION_ROLE, then unassigned)")
 	worker := flag.String("worker", "", "stable session identity a stop is scoped by (default OVERGO_AUTOMATION_WORKER)")
 	handled, err := commanddoc.Plan.Command.ParseCommandLine(flag.CommandLine, os.Stdout)
 	if err == nil && !handled {
 		err = run(cli{needsCard: *needsCard, runCmd: *runCmd, record: *record, files: *files, clearsWhen: *clearsWhen, resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, next: *next, prompt: *prompt, verify: *verify, status: *status, decisions: *decisions, answer: *answer, doctrine: *doctrine, reserved: *reserved, add: *add, setverify: *setverify, stop: *stop, title: *title, class: *class, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker,
-			from: *from, setcount: *setcount, nodes: *nodes, reason: *reason, addstep: *addstep, note: *note, rationaleFile: *rationaleFile, show: *show, retire: *retire}, flag.Args())
+			from: *from, setcount: *setcount, setfiles: *setfiles, nodes: *nodes, reason: *reason, addstep: *addstep, note: *note, rationaleFile: *rationaleFile, show: *show, retire: *retire}, flag.Args())
 	}
 	clioptions.MainNamed("plan", func() error { return err })
 }
@@ -106,6 +107,7 @@ type cli struct {
 	stop, move, retitle, json                    bool
 	title, class, before, verifyCmd, role        string
 	setcount, addstep, note, show, retire        bool
+	setfiles                                     bool
 	needsCard                                    bool
 	from, reason, rationaleFile, clearsWhen      string
 	runCmd, record, files                        string
@@ -168,6 +170,8 @@ func run(c cli, args []string) error {
 		})
 	case c.setcount:
 		return editPlan(role, c, args, fmt.Sprintf("count set to %d nodes", c.nodes))
+	case c.setfiles:
+		return editPlan(role, c, args, "files set to "+strings.Join(strings.Fields(strings.ReplaceAll(c.files, ",", " ")), ", "))
 	case c.addstep:
 		return editPlan(role, c, args, "step added")
 	case c.note:
@@ -431,6 +435,7 @@ const (
 // editUsage is what the edits of a row or a step take.
 const editUsage = `usage, with every flag before the names, where Go's flag parsing stops:
   plan -setcount -nodes <n> -reason <why> <item-id>
+  plan -setfiles -files <a,b> -reason <why> <item-id> <step-id>
   plan -addstep -title <title> -vcmd <cmd> -rationale-file <file> [-before <step-id>] <item-id> <step-id>
   plan -note -rationale-file <file> <item-id> <step-id>
   plan -retire -reason <why> <item-id>[/<step-id>]
@@ -457,7 +462,8 @@ func editPlan(role string, c cli, args []string, did string) error {
 		words = strings.TrimSpace(string(text))
 	}
 	itemID, stepID, named := strings.Cut(reference, "/")
-	if words == "" || c.note && !named || c.setcount && named || c.addstep && strings.TrimSpace(c.title) == "" {
+	files := strings.Fields(strings.ReplaceAll(c.files, ",", " "))
+	if words == "" || (c.note || c.setfiles) && !named || c.setcount && named || c.addstep && strings.TrimSpace(c.title) == "" || c.setfiles && len(files) == 0 {
 		return errors.New(editUsage)
 	}
 	if c.retire {
@@ -477,16 +483,18 @@ func editPlan(role string, c cli, args []string, did string) error {
 		switch {
 		case c.setcount:
 			row.Budget.Nodes, row.Budget.Reason = c.nodes, words
+		case c.setfiles:
+			// A step's files change before its work begins: the change that does it is judged by the ones it began with.
+			if row.Steps[step].Status != plan.StatusOpen {
+				return document, fmt.Errorf("plan: %s is %s, and only an open step's files are set", reference, row.Steps[step].Status)
+			}
+			row.Steps[step].Files = files
+			addNote(&row.Steps[step].Rationale, "files set to "+strings.Join(files, ", ")+": "+words)
 		case c.addstep:
 			row.Steps = slices.Insert(row.Steps, step, plan.Step{ID: stepID, Title: c.title, Status: plan.StatusOpen, Verify: c.verifyCmd, Run: c.runCmd, Record: c.record,
-				Files: strings.Fields(strings.ReplaceAll(c.files, ",", " ")), NeedsCard: c.needsCard, Rationale: words})
+				Files: files, NeedsCard: c.needsCard, Rationale: words})
 		case c.note:
-			rationale := &row.Steps[step].Rationale
-			cut := strings.LastIndex(*rationale, rationaleClosing)
-			if cut < 0 {
-				cut = len(*rationale)
-			}
-			*rationale = strings.TrimSpace((*rationale)[:cut] + paragraphBreak + notePrefix + strings.TrimPrefix(words, notePrefix) + (*rationale)[cut:])
+			addNote(&row.Steps[step].Rationale, words)
 		case c.retire && named && len(row.Steps) > 1:
 			row.Steps = slices.Delete(row.Steps, step, step+1)
 		case c.retire:
@@ -498,6 +506,15 @@ func editPlan(role string, c cli, args []string, did string) error {
 		}
 		return document, nil
 	})
+}
+
+// addNote adds a working note to a step's reasoning, before its closing Serves lines.
+func addNote(rationale *string, words string) {
+	cut := strings.LastIndex(*rationale, rationaleClosing)
+	if cut < 0 {
+		cut = len(*rationale)
+	}
+	*rationale = strings.TrimSpace((*rationale)[:cut] + paragraphBreak + notePrefix + strings.TrimPrefix(words, notePrefix) + (*rationale)[cut:])
 }
 
 // printRow prints one row whole: its count with the reason, and each step's

@@ -3,24 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "deferred-findings",
-      "title": "A finding the lead's triage defers to the next full run's record no longer holds that run back, so the run that decides it can start",
-      "status": "open",
-      "budget": {
-        "nodes": 60,
-        "reason": "Estimate before the survey: internal/plan/findings_fall_through.go readFindings also reads master_lead_triage, and FindingsToFile passes over a finding whose triage action is deferred."
-      },
-      "steps": [
-        {
-          "id": "pass-over",
-          "title": "FindingsToFile passes over a finding whose master_lead_triage action is deferred",
-          "status": "open",
-          "verify": "go test ./internal/plan -count=1 -run '^TestAFindingDeferredToTheRunsRecordLetsTheRunStart$'",
-          "rationale": "SQA-266: its deciding evidence, each cycle lane package's wall and peak (run-once/run-wall), comes only from the next full measurement run, and .overgo-runtime/lane_walls.json still reads {}; internal/plan/findings_fall_through.go FindingsToFile holds that run until a row names every open P1 and P2 finding, and a row filed for this one keeps the plan from emptying, so the run that would decide it never starts.\n\nFindingsToFile reads master_lead_triage and passes over a finding whose action is deferred; it stays open, and the lead files its step from the run's record. No row is revived and no selector, cache or scheduler is added.\n\nServes: setup-steps; the measurement run that decides SQA-266 starts with no hand edit.\nDisappears: a deferred finding holding back the run that supplies its evidence.\nEvidence: a register with one open deferred P2 finding and one open untriaged P2 finding names only the untriaged one.\nBatch: host lane."
-        }
-      ]
-    },
-    {
       "id": "claim-whole-file",
       "title": "A claim's test-file evidence without a named symbol binds the whole file, and the same-file reach graph that missed init goes",
       "class": "consolidation",

@@ -26,8 +26,12 @@ type openFinding struct {
 	} `json:"sources"`
 }
 
-// findingOpen is the status of a finding the reviewer has not closed.
-const findingOpen = "open"
+// findingOpen is the status of a finding the reviewer has not closed, and triageDeferred the lead's triage of one whose
+// deciding evidence the next measurement run records.
+const (
+	findingOpen    = "open"
+	triageDeferred = "deferred"
+)
 
 // readFindings reads the register's findings. It holds more, its reviewer's fields among them, so it is read for the
 // fields openFinding holds alone.
@@ -66,8 +70,20 @@ func FindingsToFile(document Plan, register []byte) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	// A finding the lead deferred to the run's record waits for that run, and so never holds it back (SQA-266).
+	var triage struct {
+		Triage struct {
+			Findings map[string]struct {
+				Action string `json:"action"`
+			} `json:"findings"`
+		} `json:"master_lead_triage"`
+	}
+	if err := json.Unmarshal(register, &triage); err != nil {
+		return nil, err
+	}
 	findings = slices.DeleteFunc(findings, func(finding openFinding) bool {
-		return finding.Status != findingOpen || !slices.Contains(fallThroughSeverities, finding.Severity) || namedByARow(document, finding.ID)
+		return finding.Status != findingOpen || !slices.Contains(fallThroughSeverities, finding.Severity) || namedByARow(document, finding.ID) ||
+			triage.Triage.Findings[finding.ID].Action == triageDeferred
 	})
 	slices.SortStableFunc(findings, func(a, b openFinding) int {
 		return cmp.Compare(slices.Index(fallThroughSeverities, a.Severity), slices.Index(fallThroughSeverities, b.Severity))

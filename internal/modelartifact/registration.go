@@ -26,10 +26,10 @@ type modelRegistration struct {
 	Components       []FileSpec            `json:"components,omitempty"`
 	License          struct {
 		Path      string      `json:"path"`
-		Artifact  artifact.ID `json:"artifact"`
+		Artifact  artifact.ID `json:"artifact,omitzero"`
 		SPDX      string      `json:"spdx"`
 		MediaType string      `json:"media_type"`
-	} `json:"license"`
+	} `json:"license,omitzero"`
 }
 
 // PrepareRegistration verifies a bounded source declaration and every physical
@@ -73,13 +73,17 @@ func PrepareRegistration(ctx context.Context, root, declaration string) (artifac
 		}
 		batch.Artifacts = append(batch.Artifacts, part.Artifacts...)
 		batch.Contents = append(batch.Contents, part.Contents...)
-		if !slices.ContainsFunc(batch.Contents, func(content artifact.Content) bool { return content.Descriptor.ID == license.Descriptor.ID }) {
-			batch.Contents = append(batch.Contents, license)
+		depends := []artifact.ID{specID}
+		if license.Descriptor.ID.Valid() {
+			if !slices.ContainsFunc(batch.Contents, func(content artifact.Content) bool { return content.Descriptor.ID == license.Descriptor.ID }) {
+				batch.Contents = append(batch.Contents, license)
+			}
+			depends = append(depends, license.Descriptor.ID)
 		}
 		batch.Manifests = append(batch.Manifests, part.Manifests...)
 		batch.Locations = append(batch.Locations, part.Locations...)
 		batch.Lineage = append(batch.Lineage, part.Lineage...)
-		batch.Lineage = append(batch.Lineage, artifact.DependencyLineage(inventory.Manifest.ID, specID, license.Descriptor.ID)...)
+		batch.Lineage = append(batch.Lineage, artifact.DependencyLineage(inventory.Manifest.ID, depends...)...)
 	}
 	return batch, nil
 }
@@ -91,7 +95,7 @@ func registrationInventory(ctx context.Context, root string, specification model
 		return empty, noLicense, err
 	}
 	if specification.Model.Kind() != artifact.KindModel || specification.TensorInventory.Kind() != artifact.KindTensorInventory ||
-		!gitauthority.ValidObjectID(specification.SourceCommit) || specification.SourceRepository == "" || specification.License.SPDX == "" {
+		!gitauthority.ValidObjectID(specification.SourceCommit) || specification.SourceRepository == "" {
 		return empty, noLicense, errors.New("incomplete identity or source declaration")
 	}
 	directory := filepath.Join(root, filepath.FromSlash(specification.Directory))
@@ -149,6 +153,11 @@ func registrationInventory(ctx context.Context, root string, specification model
 	}
 	if inventory.Manifest.ID != specification.Model || inventory.TensorInventory.ID != specification.TensorInventory {
 		return empty, noLicense, errors.New("model or tensor inventory differs from declaration")
+	}
+	// No model is ever distributed, so a licence binds only its local use: it is recorded where the model ships one,
+	// and a model that ships none registers without.
+	if specification.License.Path == "" {
+		return inventory, noLicense, ctx.Err()
 	}
 	licensePath := filepath.Join(directory, filepath.FromSlash(specification.License.Path))
 	contained, err = pathidentity.Contains(directory, licensePath)

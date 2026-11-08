@@ -2,7 +2,7 @@
   "bomFormat": "CycloneDX",
   "components": [
     {
-      "bom-ref": "component:nvidia-cuda-driver-api",
+      "bom-ref": "component:nvidia-cublas",
       "licenses": [
         {
           "license": {
@@ -10,12 +10,47 @@
           }
         }
       ],
-      "name": "NVIDIA CUDA Driver API",
+      "name": "NVIDIA cuBLAS",
+      "properties": [
+        {
+          "name": "overgo:provided-by",
+          "value": "the machine; overgo ships none of it"
+        },
+        {
+          "name": "overgo:loads",
+          "value": "cublas64_12.dll, cublasLt64_12.dll"
+        }
+      ],
+      "scope": "required",
+      "type": "framework",
+      "version": "12"
+    },
+    {
+      "bom-ref": "component:nvidia-cuda-driver",
+      "licenses": [
+        {
+          "license": {
+            "name": "NVIDIA Software License Agreement"
+          }
+        }
+      ],
+      "name": "NVIDIA CUDA driver",
+      "properties": [
+        {
+          "name": "overgo:provided-by",
+          "value": "the machine; overgo ships none of it"
+        },
+        {
+          "name": "overgo:loads",
+          "value": "nvcuda.dll, nvml.dll"
+        }
+      ],
+      "scope": "required",
       "type": "framework",
       "version": "13.2-compatible"
     },
     {
-      "bom-ref": "component:nvidia-cuda-toolkit",
+      "bom-ref": "component:nvidia-cudnn",
       "licenses": [
         {
           "license": {
@@ -23,547 +58,20 @@
           }
         }
       ],
-      "name": "NVIDIA CUDA Toolkit",
+      "name": "NVIDIA cuDNN",
+      "properties": [
+        {
+          "name": "overgo:provided-by",
+          "value": "the machine; overgo ships none of it"
+        },
+        {
+          "name": "overgo:loads",
+          "value": "cudnn64_9.dll"
+        }
+      ],
+      "scope": "optional",
       "type": "framework",
-      "version": "12.9.86"
-    },
-    {
-      "bom-ref": "file:internal/cuda/kernel/ops_f32.ptx",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "c8e53a5ba4df879da92b76354f1e46c9c448214313e97bc3781e62976e146021"
-        }
-      ],
-      "name": "internal/cuda/kernel/ops_f32.ptx",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:internal/cuda/kernel/ops_native.ptx",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "ad5e65d99fdc41d367e0fb9ce84e49b1d515e0abeadc15822f54e10fefb03883"
-        }
-      ],
-      "name": "internal/cuda/kernel/ops_native.ptx",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:internal/cuda/kernel/strata_native.ptx",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "340c2ba09deddf93cc556578a364ee0e7ad0816136a569f96fc3c506c3ead954"
-        }
-      ],
-      "name": "internal/cuda/kernel/strata_native.ptx",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:internal/cuda/kernel/strata_qsa.ptx",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "9ed6ba014378718d8c5469335f00ee87a617eb2e1695feaa80e4aa4e0a80e090"
-        }
-      ],
-      "name": "internal/cuda/kernel/strata_qsa.ptx",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:internal/cuda/kernel/torch_cuda_randn.ptx",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "e0a682f3821e61e9be8aa13192986c38010b60d588c027887a07e2681118df59"
-        }
-      ],
-      "name": "internal/cuda/kernel/torch_cuda_randn.ptx",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:internal/cuda/kernel/vector_add.ptx",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "f0c6eedbbae221be3342bbbb8f782e5413c84515f362cca533905f7f9510c974"
-        }
-      ],
-      "name": "internal/cuda/kernel/vector_add.ptx",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:internal/quant/iq_tables_generated.go",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "693d1e3c47a7861b58bc8ef5fc41bf4132c97ac848e81782ecd7fedd67b71a41"
-        }
-      ],
-      "licenses": [
-        {
-          "license": {
-            "name": "MIT"
-          }
-        }
-      ],
-      "name": "internal/quant/iq_tables_generated.go",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:kernels/cuda/attention_row.cuh",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "1e410fa687644c5365e1a0da8fe84a53d6c98fc28f3391a3f4b6d6ec4114129b"
-        }
-      ],
-      "name": "kernels/cuda/attention_row.cuh",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:kernels/cuda/bf16_pack.cuh",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "f3487b850730ecb7787cd7ed94787e6de37fd3e0c6aea9e12a4c8026e5488a5c"
-        }
-      ],
-      "name": "kernels/cuda/bf16_pack.cuh",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:kernels/cuda/iq_tables_generated.cuh",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "e40dee7da7aed613de7b1c291aa8dd10a9be046db10fdb00077bf4072e5d64e7"
-        }
-      ],
-      "licenses": [
-        {
-          "license": {
-            "name": "MIT"
-          }
-        }
-      ],
-      "name": "kernels/cuda/iq_tables_generated.cuh",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:kernels/cuda/ops_f32.cu",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "0ac2e90aecf219dad8af52eefc9579cf20cd91fd3e6e1b1cb58516d4edceb1b8"
-        }
-      ],
-      "name": "kernels/cuda/ops_f32.cu",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:kernels/cuda/ops_f32_activations.cuh",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "19ba415467651ae6db1a3a8c6b7c75bb591670abcef84270f5a5a1fce2c8daf6"
-        }
-      ],
-      "name": "kernels/cuda/ops_f32_activations.cuh",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:kernels/cuda/ops_f32_attention.cuh",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "87ae91ff4ef9f0405f9e5a1e6413938bbf51548977c0366cf54d5d4d9f5afbe2"
-        }
-      ],
-      "name": "kernels/cuda/ops_f32_attention.cuh",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:kernels/cuda/ops_f32_common.cuh",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "221b5257d563f925d043bdf446fa36fb73bedfc55328b08ac77946fef0e7d02b"
-        }
-      ],
-      "name": "kernels/cuda/ops_f32_common.cuh",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:kernels/cuda/ops_f32_elementwise.cuh",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "befcbdea18b1f265b8b813c8fded219af7ec612f380c423a14e0a48aeec6d6e9"
-        }
-      ],
-      "name": "kernels/cuda/ops_f32_elementwise.cuh",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:kernels/cuda/ops_f32_experts.cuh",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "6ba6d5c97b16d28d42d9eab79441b7ea191fb2c5098d0c9009e86c0b40812573"
-        }
-      ],
-      "name": "kernels/cuda/ops_f32_experts.cuh",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:kernels/cuda/ops_f32_norms.cuh",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "9d38ad98f76ace7387a98bcc18b34aadd98cebb449df7994feeb3a4f1dfcb645"
-        }
-      ],
-      "name": "kernels/cuda/ops_f32_norms.cuh",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:kernels/cuda/ops_f32_quant.cuh",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "e0c6f9661663ee42738fb64ca765e8322b3a8ab2c01a91f3889c2fe5ba10fdb1"
-        }
-      ],
-      "name": "kernels/cuda/ops_f32_quant.cuh",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:kernels/cuda/ops_f32_recurrent.cuh",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "9425e014f4001b5f1181d6a6a8eca764c216fb7d26e8edd2d1d47083233fa4d9"
-        }
-      ],
-      "name": "kernels/cuda/ops_f32_recurrent.cuh",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:kernels/cuda/ops_f32_routing.cuh",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "f8842842c89f8a9f8b607fe87bb835558afc71e94f61116ce401ae3d1d602472"
-        }
-      ],
-      "name": "kernels/cuda/ops_f32_routing.cuh",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:kernels/cuda/ops_f32_rows.cuh",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "6dd16e3e906ae39dbc8942dcd2f15486eb009d46422f4cac2c9dac87c9907b34"
-        }
-      ],
-      "name": "kernels/cuda/ops_f32_rows.cuh",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:kernels/cuda/ops_f32_selection.cuh",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "b0d6528204531a2fe5ffdf2a5caf8d7e62c5bf1efb44c659769a8f8ce6251c24"
-        }
-      ],
-      "name": "kernels/cuda/ops_f32_selection.cuh",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:kernels/cuda/ops_f32_tail.cuh",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "a23a3a694a1706326d391e31beb73288ff63bd0720837bdaa23da125b59ece27"
-        }
-      ],
-      "name": "kernels/cuda/ops_f32_tail.cuh",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:kernels/cuda/ops_f32_unary.cuh",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "07021c9a269c9718e7b82b451c7536eba0860161b5f8020847a19ce767be7001"
-        }
-      ],
-      "name": "kernels/cuda/ops_f32_unary.cuh",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:kernels/cuda/ops_f32_vae.cuh",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "c63d3c3a6e08350b0c7d18176bace4ab09fbe0aa840226f8c321b548b3b52365"
-        }
-      ],
-      "name": "kernels/cuda/ops_f32_vae.cuh",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:kernels/cuda/ops_f32_vision.cuh",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "45c13e554a52b2359432b55874a9e93205773f2eda91186d262f5886139f34bd"
-        }
-      ],
-      "name": "kernels/cuda/ops_f32_vision.cuh",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:kernels/cuda/ops_native.cu",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "32a34f957349446ed78c8941904a5db827e99e8e44b50a10c3a8c40cb53631df"
-        }
-      ],
-      "name": "kernels/cuda/ops_native.cu",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:kernels/cuda/strata_fused_gr.cuh",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "c124b6a8f3a6c197ae4076814bd3432411641de9dec7f5d253d8a294330714d4"
-        }
-      ],
-      "name": "kernels/cuda/strata_fused_gr.cuh",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:kernels/cuda/strata_gdn.cuh",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "c857bc89129026a8b9811622ce6ace48bd48d83ecebccf04e30da7a6fdd97cb8"
-        }
-      ],
-      "name": "kernels/cuda/strata_gdn.cuh",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:kernels/cuda/strata_iq_experts.cuh",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "4a665a9f536f240aabc9b6131693321d8ad21bc61c090f8ac30bfec6a2cb4922"
-        }
-      ],
-      "name": "kernels/cuda/strata_iq_experts.cuh",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:kernels/cuda/strata_mtp.cuh",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "2b0e93a957faae9c164462e97e627d2bd5b57eca429ba090215325795e5e76b0"
-        }
-      ],
-      "name": "kernels/cuda/strata_mtp.cuh",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:kernels/cuda/strata_native.cu",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "88d58ab2963874e35968d2d1ad74fc64f1e853eadc2a1e0bc669a6182795e0d3"
-        }
-      ],
-      "name": "kernels/cuda/strata_native.cu",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:kernels/cuda/strata_native_bf16.cuh",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "5dc29b94d7326d6b79d182629b2f21b92196c6156415ccf5cf84e07f74af297a"
-        }
-      ],
-      "name": "kernels/cuda/strata_native_bf16.cuh",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:kernels/cuda/strata_native_gr_postops.cuh",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "64bebbc7d8e21ee5834f8626238c5dd0cb8d3f0205f3dde375b756c7b8bdd06e"
-        }
-      ],
-      "name": "kernels/cuda/strata_native_gr_postops.cuh",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:kernels/cuda/strata_native_mmvq.cuh",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "8bc5b3dcea59b0269c3829185ab32914c27add77b1f1ec383f5147107e2561ff"
-        }
-      ],
-      "name": "kernels/cuda/strata_native_mmvq.cuh",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:kernels/cuda/strata_native_moe.cuh",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "d97eabdd14729bba35e6b12eaba174f64e7eda0f0fd1c2d9c1061ed9f3ac88ee"
-        }
-      ],
-      "name": "kernels/cuda/strata_native_moe.cuh",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:kernels/cuda/strata_native_ple.cuh",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "321e13ee746d057a4f285a103ac3b931f980e8e2192eae9b3af60002c6ccaf26"
-        }
-      ],
-      "name": "kernels/cuda/strata_native_ple.cuh",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:kernels/cuda/strata_native_qsa.cuh",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "3a2c660a78aa1e20a4c7767bd1d64ae5f78630bd796490c3f1a615a0977c3c09"
-        }
-      ],
-      "name": "kernels/cuda/strata_native_qsa.cuh",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:kernels/cuda/strata_native_router.cuh",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "efa078f8345fdcc9912baea5e7d64153332cd5412a1cf4dc95770b760f5561a4"
-        }
-      ],
-      "name": "kernels/cuda/strata_native_router.cuh",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:kernels/cuda/strata_prompt_gr.cuh",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "1171ad47e217a476b8983de7821584514120c1a012ce2059bed21e03240a4a05"
-        }
-      ],
-      "name": "kernels/cuda/strata_prompt_gr.cuh",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:kernels/cuda/strata_qsa.cu",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "9b2da6e1a03619b8cfa3512f7c2c642165fadf41eb060bfe8ae8156c0d3cba02"
-        }
-      ],
-      "name": "kernels/cuda/strata_qsa.cu",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:kernels/cuda/strata_qsa_native.cuh",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "31e953c5fe326693a222b8cd36779bf28b519c6208ef3ad242878dbe195f47f3"
-        }
-      ],
-      "name": "kernels/cuda/strata_qsa_native.cuh",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:kernels/cuda/strata_round_elementwise.cuh",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "eda09d601ff9faa7bb7b7bc62f24aab90ec123024e18d5afaeee163b7bff1590"
-        }
-      ],
-      "name": "kernels/cuda/strata_round_elementwise.cuh",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:kernels/cuda/strata_sampler.cuh",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "088e300497f296197145f7505a3e441786aad3abc3fed44646d9134f35bfed4f"
-        }
-      ],
-      "name": "kernels/cuda/strata_sampler.cuh",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:kernels/cuda/torch_cuda_randn.cu",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "03ade7f25eb5924fbc086538c17bad5a38c94b78b7fa6d8585852a9d33a360db"
-        }
-      ],
-      "name": "kernels/cuda/torch_cuda_randn.cu",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:kernels/cuda/vector_add.cu",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "7fa0eddf7b06b367f1bb2f72e8f0325eb6b00f790a860d0ccad032461e2da9e2"
-        }
-      ],
-      "name": "kernels/cuda/vector_add.cu",
-      "type": "file"
-    },
-    {
-      "bom-ref": "file:kernels/manifest.json",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "77b7d015352f7134a95e28fe1f40d1c11bade40e41c69276a0cf5d8e4e06fb45"
-        }
-      ],
-      "name": "kernels/manifest.json",
-      "type": "file"
-    },
-    {
-      "bom-ref": "pkg:golang/github.com/d4l3k/messagediff@v1.2.2-0.20190829033028-7e0a312ae40b",
-      "name": "github.com/d4l3k/messagediff",
-      "purl": "pkg:golang/github.com/d4l3k/messagediff@v1.2.2-0.20190829033028-7e0a312ae40b",
-      "type": "library",
-      "version": "v1.2.2-0.20190829033028-7e0a312ae40b"
+      "version": "9"
     },
     {
       "bom-ref": "pkg:golang/github.com/dlclark/regexp2/v2@v2.5.2",
@@ -575,6 +83,12 @@
         }
       ],
       "name": "github.com/dlclark/regexp2/v2",
+      "properties": [
+        {
+          "name": "overgo:notice",
+          "value": "licenses/regexp2-MIT.txt"
+        }
+      ],
       "purl": "pkg:golang/github.com/dlclark/regexp2/v2@v2.5.2",
       "type": "library",
       "version": "v2.5.2"
@@ -589,23 +103,15 @@
         }
       ],
       "name": "github.com/icza/bitio",
+      "properties": [
+        {
+          "name": "overgo:notice",
+          "value": "licenses/bitio-Apache-2.0.txt"
+        }
+      ],
       "purl": "pkg:golang/github.com/icza/bitio@v1.1.0",
       "type": "library",
       "version": "v1.1.0"
-    },
-    {
-      "bom-ref": "pkg:golang/github.com/icza/mighty@v0.0.0-20180919140131-cfd07d671de6",
-      "name": "github.com/icza/mighty",
-      "purl": "pkg:golang/github.com/icza/mighty@v0.0.0-20180919140131-cfd07d671de6",
-      "type": "library",
-      "version": "v0.0.0-20180919140131-cfd07d671de6"
-    },
-    {
-      "bom-ref": "pkg:golang/github.com/jszwec/csvutil@v1.10.0",
-      "name": "github.com/jszwec/csvutil",
-      "purl": "pkg:golang/github.com/jszwec/csvutil@v1.10.0",
-      "type": "library",
-      "version": "v1.10.0"
     },
     {
       "bom-ref": "pkg:golang/github.com/mewkiz/flac@v1.0.14",
@@ -617,6 +123,12 @@
         }
       ],
       "name": "github.com/mewkiz/flac",
+      "properties": [
+        {
+          "name": "overgo:notice",
+          "value": "licenses/Unlicense.txt"
+        }
+      ],
       "purl": "pkg:golang/github.com/mewkiz/flac@v1.0.14",
       "type": "library",
       "version": "v1.0.14"
@@ -631,6 +143,12 @@
         }
       ],
       "name": "github.com/mewkiz/pkg",
+      "properties": [
+        {
+          "name": "overgo:notice",
+          "value": "licenses/Unlicense.txt"
+        }
+      ],
       "purl": "pkg:golang/github.com/mewkiz/pkg@v0.0.0-20250417130911-3f050ff8c56d",
       "type": "library",
       "version": "v0.0.0-20250417130911-3f050ff8c56d"
@@ -645,30 +163,15 @@
         }
       ],
       "name": "github.com/mewpkg/term",
+      "properties": [
+        {
+          "name": "overgo:notice",
+          "value": "licenses/Unlicense.txt"
+        }
+      ],
       "purl": "pkg:golang/github.com/mewpkg/term@v0.0.0-20241026122259-37a80af23985",
       "type": "library",
       "version": "v0.0.0-20241026122259-37a80af23985"
-    },
-    {
-      "bom-ref": "pkg:golang/github.com/pkg/errors@v0.9.1",
-      "name": "github.com/pkg/errors",
-      "purl": "pkg:golang/github.com/pkg/errors@v0.9.1",
-      "type": "library",
-      "version": "v0.9.1"
-    },
-    {
-      "bom-ref": "pkg:golang/golang.org/x/image@v0.23.0",
-      "name": "golang.org/x/image",
-      "purl": "pkg:golang/golang.org/x/image@v0.23.0",
-      "type": "library",
-      "version": "v0.23.0"
-    },
-    {
-      "bom-ref": "pkg:golang/golang.org/x/net@v0.38.0",
-      "name": "golang.org/x/net",
-      "purl": "pkg:golang/golang.org/x/net@v0.38.0",
-      "type": "library",
-      "version": "v0.38.0"
     },
     {
       "bom-ref": "pkg:golang/stdlib@1.26",
@@ -688,66 +191,14 @@
   "dependencies": [
     {
       "dependsOn": [
-        "component:nvidia-cuda-driver-api",
-        "component:nvidia-cuda-toolkit",
-        "file:internal/cuda/kernel/ops_f32.ptx",
-        "file:internal/cuda/kernel/ops_native.ptx",
-        "file:internal/cuda/kernel/strata_native.ptx",
-        "file:internal/cuda/kernel/strata_qsa.ptx",
-        "file:internal/cuda/kernel/torch_cuda_randn.ptx",
-        "file:internal/cuda/kernel/vector_add.ptx",
-        "file:internal/quant/iq_tables_generated.go",
-        "file:kernels/cuda/attention_row.cuh",
-        "file:kernels/cuda/bf16_pack.cuh",
-        "file:kernels/cuda/iq_tables_generated.cuh",
-        "file:kernels/cuda/ops_f32.cu",
-        "file:kernels/cuda/ops_f32_activations.cuh",
-        "file:kernels/cuda/ops_f32_attention.cuh",
-        "file:kernels/cuda/ops_f32_common.cuh",
-        "file:kernels/cuda/ops_f32_elementwise.cuh",
-        "file:kernels/cuda/ops_f32_experts.cuh",
-        "file:kernels/cuda/ops_f32_norms.cuh",
-        "file:kernels/cuda/ops_f32_quant.cuh",
-        "file:kernels/cuda/ops_f32_recurrent.cuh",
-        "file:kernels/cuda/ops_f32_routing.cuh",
-        "file:kernels/cuda/ops_f32_rows.cuh",
-        "file:kernels/cuda/ops_f32_selection.cuh",
-        "file:kernels/cuda/ops_f32_tail.cuh",
-        "file:kernels/cuda/ops_f32_unary.cuh",
-        "file:kernels/cuda/ops_f32_vae.cuh",
-        "file:kernels/cuda/ops_f32_vision.cuh",
-        "file:kernels/cuda/ops_native.cu",
-        "file:kernels/cuda/strata_fused_gr.cuh",
-        "file:kernels/cuda/strata_gdn.cuh",
-        "file:kernels/cuda/strata_iq_experts.cuh",
-        "file:kernels/cuda/strata_mtp.cuh",
-        "file:kernels/cuda/strata_native.cu",
-        "file:kernels/cuda/strata_native_bf16.cuh",
-        "file:kernels/cuda/strata_native_gr_postops.cuh",
-        "file:kernels/cuda/strata_native_mmvq.cuh",
-        "file:kernels/cuda/strata_native_moe.cuh",
-        "file:kernels/cuda/strata_native_ple.cuh",
-        "file:kernels/cuda/strata_native_qsa.cuh",
-        "file:kernels/cuda/strata_native_router.cuh",
-        "file:kernels/cuda/strata_prompt_gr.cuh",
-        "file:kernels/cuda/strata_qsa.cu",
-        "file:kernels/cuda/strata_qsa_native.cuh",
-        "file:kernels/cuda/strata_round_elementwise.cuh",
-        "file:kernels/cuda/strata_sampler.cuh",
-        "file:kernels/cuda/torch_cuda_randn.cu",
-        "file:kernels/cuda/vector_add.cu",
-        "file:kernels/manifest.json",
-        "pkg:golang/github.com/d4l3k/messagediff@v1.2.2-0.20190829033028-7e0a312ae40b",
+        "component:nvidia-cublas",
+        "component:nvidia-cuda-driver",
+        "component:nvidia-cudnn",
         "pkg:golang/github.com/dlclark/regexp2/v2@v2.5.2",
         "pkg:golang/github.com/icza/bitio@v1.1.0",
-        "pkg:golang/github.com/icza/mighty@v0.0.0-20180919140131-cfd07d671de6",
-        "pkg:golang/github.com/jszwec/csvutil@v1.10.0",
         "pkg:golang/github.com/mewkiz/flac@v1.0.14",
         "pkg:golang/github.com/mewkiz/pkg@v0.0.0-20250417130911-3f050ff8c56d",
         "pkg:golang/github.com/mewpkg/term@v0.0.0-20241026122259-37a80af23985",
-        "pkg:golang/github.com/pkg/errors@v0.9.1",
-        "pkg:golang/golang.org/x/image@v0.23.0",
-        "pkg:golang/golang.org/x/net@v0.38.0",
         "pkg:golang/stdlib@1.26"
       ],
       "ref": "pkg:golang/overgo"

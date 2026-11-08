@@ -15,7 +15,7 @@ type SpeakerProfile struct {
 	Version       uint16                  `json:"version"`
 	Model         artifact.ID             `json:"model"`
 	Inventory     artifact.ID             `json:"inventory"`
-	License       artifact.ID             `json:"license"`
+	License       artifact.ID             `json:"license,omitzero"`
 	Frontend      audiodsp.FrontendConfig `json:"frontend"`
 	MaximumOffset float32                 `json:"maximum_offset"`
 	Encoder       Declaration             `json:"encoder"`
@@ -48,7 +48,7 @@ func (b SpeakerBoundary) validate() error {
 var speakerProfileCodec = artifact.JSONDocumentCodec("speaker activity profile", artifact.KindProfile,
 	"application/vnd.overgo.speaker-activity-profile+json", "overgo/speaker-activity-profile/v1",
 	func(p *SpeakerProfile) error {
-		if p == nil || p.Version != artifact.InitialDocumentVersion || p.Model.Kind() != artifact.KindModel || p.Inventory.Kind() != artifact.KindTensorInventory || p.License.Kind() != artifact.KindFile ||
+		if p == nil || p.Version != artifact.InitialDocumentVersion || p.Model.Kind() != artifact.KindModel || p.Inventory.Kind() != artifact.KindTensorInventory || p.License.Valid() && p.License.Kind() != artifact.KindFile ||
 			!checked.PositiveFinite64(float64(p.MaximumOffset)) || p.Activity.Bands != int(p.Frontend.Geometry.FeatureBins) || p.Activity.MaxFrames <= 0 || p.Encoder.FeedbackAfter != 0 || len(p.Encoder.Blocks) == 0 || len(p.Activity.Blocks) == 0 {
 			return errors.New("speaker activity: incomplete profile")
 		}
@@ -78,8 +78,11 @@ func NewSpeakerProfile(profile SpeakerProfile) (SpeakerProfile, error) {
 	return speakerProfileCodec.NewInitial(profile)
 }
 
-// Lineage binds this profile to the exact model, inventory and license evidence.
+// Lineage binds this profile to the exact model and inventory, and to the licence the model ships, where it ships one.
 func (p SpeakerProfile) Lineage() []artifact.Lineage {
+	if !p.License.Valid() {
+		return artifact.DependencyLineage(p.ID, p.Model, p.Inventory)
+	}
 	return artifact.DependencyLineage(p.ID, p.Model, p.Inventory, p.License)
 }
 

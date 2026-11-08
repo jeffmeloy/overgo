@@ -1,45 +1,63 @@
+// Command sbom writes and checks SBOM.cdx.json: the third-party code the build compiles in and what its binaries load.
+// No model is ever distributed, and code ported or generated into overgo is overgo's own, so neither is a component:
+// the SBOM lists the Go standard library, the third-party Go modules the packages compile in, each with its licence,
+// and NVIDIA's driver and the CUDA libraries the binaries load, as external requirements the machine provides.
 package main
 
 import (
-	"bytes"
-	"cmp"
-	"crypto/sha256"
-	"encoding/hex"
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"slices"
-	"sort"
 	"strings"
 
 	"overgo/internal/clioptions"
+	"overgo/internal/gosource"
 )
 
 const (
 	projectVersion = "0.1.0"
 	sbomPath       = "SBOM.cdx.json"
-	kernelManifest = "kernels/manifest.json"
+	// goVersion is the language version go.mod declares, the standard library the build compiles in.
+	goVersion = "1.26"
 )
 
-type kernelInventory struct {
-	Modules []struct {
-		Source             string `json:"source"`
-		Asset              string `json:"asset"`
-		SourceDependencies []struct {
-			Path string `json:"path"`
-		} `json:"sourceDependencies"`
-	} `json:"modules"`
+// moduleLicenses are the licences of the third-party modules the build compiles in, as each module's own licence file
+// states. A compiled-in module not named here is refused, so a dependency enters the build with its licence or not at
+// all.
+var moduleLicenses = map[string]string{
+	"github.com/dlclark/regexp2/v2": "MIT",
+	"github.com/icza/bitio":         "Apache-2.0",
+	"github.com/mewkiz/flac":        "Unlicense",
+	"github.com/mewkiz/pkg":         "Unlicense",
+	"github.com/mewpkg/term":        "Unlicense",
 }
 
-type module struct {
-	Path    string
-	Version string
-	Main    bool
+// moduleNotices are the notices in licenses/ of the third-party modules the build compiles in, which go with its
+// binaries (cmd/release): flac and its helpers share the Unlicense.
+var moduleNotices = map[string]string{
+	"github.com/dlclark/regexp2/v2": "regexp2-MIT.txt",
+	"github.com/icza/bitio":         "bitio-Apache-2.0.txt",
+	"github.com/mewkiz/flac":        "Unlicense.txt",
+	"github.com/mewkiz/pkg":         "Unlicense.txt",
+	"github.com/mewpkg/term":        "Unlicense.txt",
+}
+
+// requirement is a library the machine provides and the binaries load: none ships with overgo.
+type requirement struct {
+	name, version, license, scope string
+	files                         []string
+}
+
+// requirements are what the binaries load from NVIDIA: the driver and its management library always, cuBLAS for the
+// device's matrix products, and cuDNN where it is installed, for the convolutions that repay it.
+var requirements = []requirement{
+	{name: "NVIDIA CUDA driver", version: "13.2-compatible", license: "NVIDIA Software License Agreement", scope: "required", files: []string{"nvcuda.dll", "nvml.dll"}},
+	{name: "NVIDIA cuBLAS", version: "12", license: "NVIDIA Software License Agreement", scope: "required", files: []string{"cublas64_12.dll", "cublasLt64_12.dll"}},
+	{name: "NVIDIA cuDNN", version: "9", license: "NVIDIA Software License Agreement", scope: "optional", files: []string{"cudnn64_9.dll"}},
 }
 
 func main() {
@@ -53,7 +71,7 @@ func run() error {
 	if flag.NArg() != 0 || *check && *update {
 		return errors.New("usage: sbom [-check|-update]")
 	}
-	data, err := generate(".")
+	data, err := generate(".", moduleLicenses)
 	if err != nil {
 		return err
 	}
@@ -64,65 +82,42 @@ func run() error {
 	)
 }
 
-func generate(root string) ([]byte, error) {
-	modules, err := listModules(root)
+// generate is the SBOM of the packages of root, each compiled-in module's licence read from licenses.
+func generate(root string, licenses map[string]string) ([]byte, error) {
+	modules, err := compiledModules(root)
 	if err != nil {
 		return nil, err
 	}
-	kernelFiles, err := usedKernelFiles(root)
-	if err != nil {
-		return nil, err
-	}
-	components := []map[string]any{
-		component("framework", "Go standard library", "1.26", "BSD-3-Clause", "pkg:golang/stdlib@1.26"),
-		component("framework", "NVIDIA CUDA Driver API", "13.2-compatible", "NVIDIA Software License Agreement", ""),
-		component("framework", "NVIDIA CUDA Toolkit", "12.9.86", "NVIDIA Software License Agreement", ""),
-	}
-	dependsOn := []string{
-		"pkg:golang/stdlib@1.26",
-		"component:nvidia-cuda-driver-api",
-		"component:nvidia-cuda-toolkit",
-	}
+	standard := "pkg:golang/stdlib@" + goVersion
+	components := []map[string]any{component("framework", "Go standard library", goVersion, "BSD-3-Clause", standard)}
+	dependsOn := []string{standard}
 	for _, item := range modules {
-		if item.Main {
-			continue
+		license, known := licenses[item.path]
+		if !known {
+			return nil, fmt.Errorf("sbom: the build compiles in %s, whose licence is not declared; add it to moduleLicenses from the module's licence file", item.path)
 		}
-		version := item.Version
-		version = cmp.Or(version, "unknown")
-		purl := "pkg:golang/" + item.Path + "@" + version
-		license := moduleLicense(item.Path)
-		components = append(components, component("library", item.Path, version, license, purl))
+		notice, noted := moduleNotices[item.path]
+		if !noted {
+			return nil, fmt.Errorf("sbom: the build compiles in %s, which has no notice in licenses/; add its licence file there and to moduleNotices", item.path)
+		}
+		purl := "pkg:golang/" + item.path + "@" + item.version
+		entry := component("library", item.path, item.version, license, purl)
+		entry["properties"] = []map[string]string{{"name": "overgo:notice", "value": "licenses/" + notice}}
+		components = append(components, entry)
 		dependsOn = append(dependsOn, purl)
 	}
-	for _, path := range kernelFiles {
-		data, readErr := os.ReadFile(filepath.Join(root, filepath.FromSlash(path)))
-		if readErr != nil {
-			return nil, readErr
-		}
-		sum := sha256.Sum256(data)
-		ref := "file:" + path
-		license := ""
-		if path == "internal/quant/iq_tables_generated.go" ||
-			path == "kernels/cuda/iq_tables_generated.cuh" {
-			license = "MIT"
-		}
-		entry := map[string]any{
-			"type":    "file",
-			"name":    path,
-			"bom-ref": ref,
-			"hashes": []map[string]string{{
-				"alg":     "SHA-256",
-				"content": hex.EncodeToString(sum[:]),
-			}},
-		}
-		if license != "" {
-			entry["licenses"] = []map[string]any{{"license": map[string]string{"name": license}}}
+	for _, library := range requirements {
+		entry := component("framework", library.name, library.version, library.license, "")
+		entry["scope"] = library.scope
+		entry["properties"] = []map[string]string{
+			{"name": "overgo:provided-by", "value": "the machine; overgo ships none of it"},
+			{"name": "overgo:loads", "value": strings.Join(library.files, ", ")},
 		}
 		components = append(components, entry)
-		dependsOn = append(dependsOn, ref)
+		dependsOn = append(dependsOn, fmt.Sprint(entry["bom-ref"]))
 	}
-	sort.Slice(components, func(i, j int) bool {
-		return fmt.Sprint(components[i]["bom-ref"]) < fmt.Sprint(components[j]["bom-ref"])
+	slices.SortFunc(components, func(left, right map[string]any) int {
+		return strings.Compare(fmt.Sprint(left["bom-ref"]), fmt.Sprint(right["bom-ref"]))
 	})
 	slices.Sort(dependsOn)
 	document := map[string]any{
@@ -149,54 +144,6 @@ func generate(root string) ([]byte, error) {
 	return append(output, '\n'), nil
 }
 
-func usedKernelFiles(root string) ([]string, error) {
-	raw, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(kernelManifest)))
-	if err != nil {
-		return nil, err
-	}
-	var inventory kernelInventory
-	if err := json.Unmarshal(raw, &inventory); err != nil {
-		return nil, fmt.Errorf("sbom: decode kernel manifest: %w", err)
-	}
-	paths := map[string]struct{}{
-		kernelManifest:                          {},
-		"internal/quant/iq_tables_generated.go": {},
-	}
-	for _, module := range inventory.Modules {
-		for _, path := range []string{module.Source, module.Asset} {
-			if path == "" {
-				return nil, errors.New("sbom: kernel manifest has empty source or asset")
-			}
-			paths[path] = struct{}{}
-		}
-		for _, dependency := range module.SourceDependencies {
-			if dependency.Path == "" {
-				return nil, errors.New("sbom: kernel manifest has empty source dependency")
-			}
-			paths[dependency.Path] = struct{}{}
-		}
-	}
-	var result []string
-	for path := range paths {
-		result = append(result, path)
-	}
-	slices.Sort(result)
-	return result, nil
-}
-
-func moduleLicense(path string) string {
-	switch path {
-	case "github.com/dlclark/regexp2/v2":
-		return "MIT"
-	case "github.com/icza/bitio":
-		return "Apache-2.0"
-	case "github.com/mewkiz/flac", "github.com/mewkiz/pkg", "github.com/mewpkg/term":
-		return "Unlicense"
-	default:
-		return ""
-	}
-}
-
 func component(kind, name, version, license, purl string) map[string]any {
 	ref := purl
 	if ref == "" {
@@ -212,26 +159,26 @@ func component(kind, name, version, license, purl string) map[string]any {
 	return result
 }
 
-func listModules(root string) ([]module, error) {
-	command := exec.Command("go", "list", "-m", "-json", "all")
-	command.Dir = root
-	output, err := command.Output()
+// module is a third-party module the build compiles in, at the version it builds.
+type module struct {
+	path, version string
+}
+
+// compiledModules are the third-party modules the packages of root compile in: those the package graph reaches from
+// them, tests aside (gosource.ListGraph), which is what a binary holds. go list -m all lists the whole module graph,
+// modules no package compiles in among them. A package of a third-party module carries its version; the standard
+// library carries no module, and overgo's own packages no version.
+func compiledModules(root string) ([]module, error) {
+	graph, err := gosource.ListGraph(context.Background(), root, true, "./...")
 	if err != nil {
-		return nil, fmt.Errorf("sbom: go list modules: %w", err)
+		return nil, fmt.Errorf("sbom: the compiled packages: %w", err)
 	}
-	decoder := json.NewDecoder(bytes.NewReader(output))
-	var result []module
-	for {
-		var item module
-		if err := decoder.Decode(&item); errors.Is(err, io.EOF) {
-			break
-		} else if err != nil {
-			return nil, err
+	var modules []module
+	for _, pkg := range graph {
+		if pkg.Module != nil && pkg.Module.Version != "" && !slices.Contains(modules, module{pkg.Module.Path, pkg.Module.Version}) {
+			modules = append(modules, module{pkg.Module.Path, pkg.Module.Version})
 		}
-		result = append(result, item)
 	}
-	if len(result) == 0 {
-		return nil, errors.New("sbom: module list is empty")
-	}
-	return result, nil
+	slices.SortFunc(modules, func(left, right module) int { return strings.Compare(left.path, right.path) })
+	return modules, nil
 }

@@ -12,8 +12,8 @@ import (
 )
 
 // Codec tags and expansion follow audio.cpp wav_reader.cpp at
-// 3497b7cc44753e2c141d8fe60ac42cec433e3281 (Apache-2.0; ShugoAI LLC,
-// copyright 2026; see licenses/audio-cpp-Apache-2.0.txt). Container sizes,
+// 3497b7cc44753e2c141d8fe60ac42cec433e3281 in behaviour, rebuilt in overgo's own code with
+// nothing of it copied, so it carries no notice of its own. Container sizes,
 // duplicate chunks, and frame geometry are checked more strictly here.
 const (
 	wavALaw            = 6

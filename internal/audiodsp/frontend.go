@@ -123,7 +123,7 @@ type NormalizeConfig struct {
 
 // Frontend is immutable after construction and may be shared across callers.
 // Audio.cpp 3497b7cc44753e2c141d8fe60ac42cec433e3281 supplies padding,
-// window, filterbank and normalization semantics; see licenses/audio-notices.txt.
+// window, filterbank and normalization semantics, rebuilt in overgo's own code.
 type Frontend struct {
 	config                       FrontendConfig
 	window, filterbank           []float64

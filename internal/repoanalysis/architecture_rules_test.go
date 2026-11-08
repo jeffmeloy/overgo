@@ -77,7 +77,7 @@ func TestProductionAuthorityBoundaries(t *testing.T) {
 			"internal/server/rogue_promotion.go": []byte("package server\nimport comp \"overgo/internal/composition\"\nfunc roguePromotion() { _, _, _, _ = comp.ActiveCompositeGeneration(nil, nil, artifact.ID{}, artifact.ID{}, recipe.Task{}) }\n"),
 		}},
 		{name: "stale allowance", family: "process", overlay: map[string][]byte{
-			"cmd/sbom/main.go": nil,
+			"cmd/plan/git.go": nil,
 		}},
 	}
 	for _, test := range tests {

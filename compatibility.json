@@ -13,7 +13,7 @@
      "path": "internal/speechrecognition/activity.go",
      "contains": "func LoadSpeakerActivity(",
      "role": "source",
-     "identity": "file:sha256:334679b6892d0e67cc02454e9b953ee6b7c9d391485818f529081c9a07bd4f30"
+     "identity": "file:sha256:0fb1bea153c5c6b96b8c7eb3101d1133c8bdcadcb18ecbe8ddf97867e9de17f5"
     },
     {
      "path": "internal/audioparity/speaker_numerical_test.go",
@@ -1306,13 +1306,13 @@
      "contains": "func createArchive(",
      "path": "cmd/release/main.go",
      "role": "source",
-     "identity": "file:sha256:bc5939b87b731f2ca7ef3a215a699ce5bbd0ad99d19e97657abbfa93c13646a1"
+     "identity": "file:sha256:2fcdb0682cb5cfeba090539373c9ddd5971415049c3abc1a5c93c34bd89edc4f"
     },
     {
      "contains": "func TestCreateArchiveIsDeterministic(",
      "path": "cmd/release/main_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:6db3b89415a5cba4099b20c92b584416d53f81894f328c668afd79749c267107"
+     "identity": "evidence:sha256:f0db5c449dae22edd9791a742857cbbad3012e450babb64d57b556b239e96517"
     }
    ],
    "id": "reproducible-release",

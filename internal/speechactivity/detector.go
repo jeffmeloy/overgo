@@ -50,13 +50,18 @@ func LoadDetector(ctx context.Context, repository artifact.Repository, definitio
 	if err != nil || expected.ID != definition.ID {
 		return nil, errors.Join(errors.New("speech activity: recipe topology differs"), err)
 	}
+	// A licence the model ships is a recorded dependency; a model that ships none has none.
+	var licensed []artifact.ID
+	if profile.License.Valid() {
+		licensed = []artifact.ID{profile.License}
+	}
 	for _, binding := range []struct {
 		child   artifact.ID
 		parents []artifact.ID
 	}{
 		{definition.ID, []artifact.ID{profile.Model, profile.ID, profile.Inventory}},
-		{profile.ID, []artifact.ID{profile.Model, profile.Inventory, profile.License}},
-		{profile.Model, []artifact.ID{profile.License}},
+		{profile.ID, append([]artifact.ID{profile.Model, profile.Inventory}, licensed...)},
+		{profile.Model, licensed},
 	} {
 		parents, err := repository.Parents(ctx, binding.child)
 		if err != nil {
@@ -71,13 +76,7 @@ func LoadDetector(ctx context.Context, repository artifact.Repository, definitio
 			}
 		}
 	}
-	license, found, err := artifact.ReadContent(ctx, repository, profile.License)
-	if err != nil || !found || len(license.Data) == 0 {
-		return nil, errors.Join(errors.New("speech activity: license content absent"), err)
-	}
-	if err := license.Validate(); err != nil {
-		return nil, err
-	}
+	// No model is ever distributed, so its licence binds only its local use, and loading reads none.
 	inventory, err := modelartifact.ReinspectFiles(ctx, repository, profile.Model)
 	if err != nil || inventory.TensorInventory.ID != profile.Inventory {
 		return nil, errors.Join(errors.New("speech activity: physical tensor identity differs"), err)

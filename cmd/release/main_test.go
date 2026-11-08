@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestReleaseCommandsIncludeDiffusion holds the release to commands that
@@ -166,6 +168,24 @@ func TestCreateArchiveRejectsUnsafePath(t *testing.T) {
 	for _, name := range []string{`..\bad`, "../bad", "/absolute"} {
 		if _, err := createArchive([]archiveEntry{{Name: name, Data: []byte("x")}}); err == nil {
 			t.Fatalf("unsafe archive path %q was accepted", name)
+		}
+	}
+}
+
+// TestAReleaseCarriesItsNotices holds a release to the notices its binaries' compiled-in code requires go with them:
+// on 2026-11-08 releaseDocuments named neither LICENSE nor licenses/, and MIT and Apache notices must go with binaries.
+// A release's files hold LICENSE and every file of licenses/.
+func TestAReleaseCarriesItsNotices(t *testing.T) {
+	t.Parallel()
+	root := filepath.Join("..", "..")
+	files := testcheck.Must(releaseFiles(root))(t)
+	notices := testcheck.Must(os.ReadDir(filepath.Join(root, "licenses")))(t)
+	if !slices.Contains(files, "LICENSE") || len(notices) == 0 {
+		t.Fatalf("a release holds %v, with no LICENSE or no notices", files)
+	}
+	for _, notice := range notices {
+		if !slices.Contains(files, "licenses/"+notice.Name()) {
+			t.Fatalf("a release holds %v, without licenses/%s", files, notice.Name())
 		}
 	}
 }

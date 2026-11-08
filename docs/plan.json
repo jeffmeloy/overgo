@@ -3,70 +3,51 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "licence-scope",
-      "title": "No model is ever distributed, and the SBOM, the release and licenses/ name only the third-party code the build compiles in or copies",
+      "id": "landing-scope",
+      "title": "A landing commits only what its steps list and judges only the commit it makes, and no other session writes into the lead's checkout",
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 600,
-        "reason": "Estimate: the SBOM generator's module source and entries, the release's document list, five licence refusals relaxed to records, and the notice files' check; each step is small and none touches the timing chain."
+        "nodes": 1500,
+        "reason": "Estimate at the campaign's measured rate: the landing's capture and its tree-change check scoped to the steps' files, its stages run on the candidate in a worktree of its own, and the guard's rule for another session's writes, each with its test."
       },
       "steps": [
         {
-          "id": "sbom",
-          "title": "The SBOM lists the Go standard library, the third-party modules the build compiles in, each with its licence, and NVIDIA's driver and the CUDA libraries the binaries load as external requirements",
+          "id": "scoped-commit",
+          "title": "A landing stages only its steps' listed files, the plan, the findings register and what the build regenerates, and names every other changed path in its output without committing it",
           "status": "open",
-          "verify": "go test ./cmd/sbom -count=1 -run '^TestTheSBOMListsWhatTheBuildCompilesIn$'",
+          "verify": "go test ./internal/landing -count=1 -run '^TestALandingCommitsOnlyItsStepsFiles$'",
           "files": [
-            "cmd/sbom",
-            "SBOM.cdx.json"
+            "internal/landing",
+            "cmd/loop"
           ],
-          "rationale": "The owner (2026-11-08): no model is ever distributed, and the SBOM lists only the third-party code the build compiles in. SBOM.cdx.json holds 61 entries, 23 KB: cmd/sbom reads modules from go list -m all (cmd/sbom/main.go:216), which lists six modules no package compiles in (messagediff, mighty, csvutil, pkg/errors, x/image, x/net), and it lists overgo's own kernel and PTX files and licence tags on the two llama.cpp tables, though code ported or generated into overgo is overgo's own and no component.\n\nThe modules come from what the packages compile (go list -deps): today regexp2, flac, mewkiz/pkg, mewpkg/term and bitio, each with its licence, and the check refuses a compiled-in module with none. The external requirements are what the binaries load: NVIDIA's driver (nvcuda.dll, nvml.dll), cuBLAS and cuBLASLt 12, and cuDNN 9 where installed. The CI check and the release check stay.\n\nServes: the owner's distribution rule.\nDisappears: six modules nothing compiles in, overgo's own files listed as components, and a module listed without its licence.\nEvidence: the generated SBOM lists exactly the compiled-in modules with licences, the standard library and the loaded NVIDIA libraries, and a compiled-in module with no licence is refused.\nBatch: host lane."
+          "rationale": "The owner (2026-11-08): each step lists the files it may change and the landing refuses a change outside them (internal/landing/scope.go), so the landing knows exactly what belongs in its commit, yet it captures the whole folder (capture: git add -A). On 2026-11-08 a review session's untracked docs/extreme_refactor_plan.md stopped every landing for forty minutes: the tree changed during the landing, then the reader check, then the stray-documents rule.\n\nThe capture starts from the trunk and stages only the dirty paths inside the named steps' files, the plan, the findings register and the generators' writes; any other changed or untracked path is left as it is and named in the landing's output, and a later change to it does not move the candidate. A step with no file list keeps today's whole-tree capture.\n\nServes: setup-steps.\nDisappears: a landing stopped or widened by another session's files.\nEvidence: a landing over a checkout holding an unlisted file commits the step's files alone, names the other, and leaves it where it was; a step with no list commits the tree as before.\nBatch: host lane."
         },
         {
-          "id": "release-notices",
-          "title": "A release bundles LICENSE and licenses/ beside its binaries",
+          "id": "candidate-checks",
+          "title": "The gate's stages read the commit being made, in a worktree of its own, so the reader check, the stray-documents rule and every test judge the commit and not the folder",
           "status": "open",
-          "verify": "go test ./cmd/release -count=1 -run '^TestAReleaseCarriesItsNotices$'",
+          "verify": "go test ./internal/landing -count=1 -run '^TestTheChecksReadTheCommitNotTheFolder$'",
           "files": [
-            "cmd/release"
+            "internal/landing",
+            "internal/repoanalysis"
           ],
-          "rationale": "MIT and Apache notices must go with binaries, and releaseDocuments (cmd/release/main.go:45) lists neither LICENSE nor licenses/.\n\nServes: the owner's distribution rule.\nDisappears: binaries released without the notices their compiled-in code requires.\nEvidence: a release archive holds LICENSE and every file of licenses/.\nBatch: host lane."
-        },
-        {
-          "id": "model-licences",
-          "title": "A model's licence is recorded where it ships one, and no model is refused for lacking one",
-          "status": "open",
-          "verify": "go test ./internal/modelartifact ./cmd/recipe ./internal/audioparity ./internal/speechactivity ./internal/speechrecognition -count=1 -run '^TestAModelWithoutALicenceIsServed$'",
-          "files": [
-            "internal/modelartifact",
-            "cmd/recipe",
-            "internal/audioparity",
-            "internal/speechactivity",
-            "internal/speechrecognition"
-          ],
-          "rationale": "No model is ever distributed, so a model's licence binds only its local use: registration records one when the model ships one and never refuses a model without one (internal/modelartifact/registration.go:94, cmd/recipe/spec_assemble.go:136); the audio reference model loses its Apache-2.0-only rule (internal/audioparity/election.go:348); and the speech activity detector and the speaker model load when their licence file is missing (internal/speechactivity/detector.go:74, internal/speechrecognition/speaker.go:43). The krea-derivatives decision is answered for local use, so krea-loras runs.\n\nServes: setup-steps.\nDisappears: a model refused for a licence file the owner never distributes.\nEvidence: a model with no licence registers, its record naming none, and the detector, the speaker model and the audio reference load without one; a model that ships one has it recorded.\nBatch: host lane."
-        },
-        {
-          "id": "notices",
-          "title": "licenses/ holds notices only for what overgo copies: the compiled-in modules, the tables copied verbatim and units ported literally",
-          "status": "open",
-          "verify": "go test ./cmd/sbom -count=1 -run '^TestEveryNoticeIsOfWhatOvergoCopies$'",
-          "files": [
-            "licenses",
-            "cmd/sbom",
-            "internal/media",
-            "internal/audiodsp",
-            "internal/speechrecognition",
-            "internal/tokenizer",
-            "internal/hfbpe",
-            "internal/strataspec",
-            "internal/cuda"
-          ],
-          "rationale": "licenses/ holds notices for third-party Go modules compiled into the binaries (regexp2, MIT, and bitio, Apache-2.0, have none today; flac and its helpers are covered by Unlicense.txt), data copied verbatim (the llama.cpp IQ tables, llama.cpp-MIT.txt; the Unicode NFC table, Unicode-LICENSE.txt), and any unit ported literally under skill.md:340. A port that rebuilds the behaviour from overgo's own code needs none: the notice files whose ports all do so go, audio-notices.txt saying its audio.cpp ports reproduce behaviour, and colibri-Apache-2.0.txt, which no code cites, goes. Each remaining notice is read against the code that cites it (Strata's, RxBrain's), and the code's comments name only the notices that stay.\n\nServes: the owner's distribution rule.\nDisappears: notices for code overgo does not copy, and compiled-in modules without one.\nEvidence: every file of licenses/ is the notice of a compiled-in module, a copied table or a literal port that names it, and every compiled-in module has one.\nBatch: host lane.",
+          "rationale": "The reader check (internal/repoanalysis TestEveryTrackedFileHasAReader) lists the checkout's documents, untracked ones included, and the stray-documents rule (internal/landing/strays.go) its ignored ones, so a file outside the commit refused it. The landing already reads the candidate in a worktree of its own once it lets the checkout go (letGo); its stages do so always, and the stray rule names what it finds outside the commit rather than refusing.\n\nServes: setup-steps.\nDisappears: a check that judges a file the commit does not hold.\nEvidence: an untracked document and an ignored one beside the change refuse nothing, are named, and a document the commit adds without a reader is still refused.\nBatch: host lane.",
           "depends_on": [
-            "licence-scope/sbom"
+            "landing-scope/scoped-commit"
           ]
+        },
+        {
+          "id": "guard-checkout",
+          "title": "The guard refuses a write into the lead's checkout from any other session, a new file included",
+          "status": "open",
+          "verify": "go test ./internal/guard -count=1 -run '^TestTheGuardKeepsOtherSessionsOutOfTheLeadsCheckout$'",
+          "files": [
+            "internal/guard",
+            "cmd/guard",
+            "cmd/loophook"
+          ],
+          "rationale": "The guard refuses a declared review session's edits and a session's in a worktree another holds (internal/guard reviewVerdict), by the path a Write or Edit names. A session that declared nothing, and a shell command that writes a file, reach the lead's checkout: docs/extreme_refactor_plan.md arrived that way. The checkout's holder is the lead; any other session's write into it, a new file included and a shell redirection among them, is refused with the way to a worktree of its own, and scratch paths the repository ignores stay any session's.\n\nServes: setup-steps.\nDisappears: another session's file in the lead's checkout.\nEvidence: a write into the held checkout by another session is refused by file path and by shell redirection, and the holder's own and any ignored path are allowed.\nBatch: host lane."
         }
       ]
     },
@@ -190,8 +171,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": -77,
-        "reason": "interface counted 1010 against the 400 estimated: the flow sampler interface, its Euler and guider, and the four host loops (Wan's UniPC, RAE's Euler, SimpleDiffusion's) rewritten as walks with the device loops reading their deltas from it, each loop counted whole; presets and block-override add about 700 more."
+        "nodes": 500,
+        "reason": "named-presets came in at 767 of 690 (presets beside each profile, the page's preset control, guidance 1 skipping the unconditioned pass); block-override, MOSS's layer skip made a generic hook, is about 500 at the campaign's rate."
       },
       "steps": [
         {

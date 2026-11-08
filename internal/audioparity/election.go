@@ -48,11 +48,11 @@ type FileBinding struct {
 	MediaType string      `json:"media_type"`
 }
 
-// LicenseBinding binds the declared license to the exact model-card bytes carrying it.
+// LicenseBinding binds the declared license to the exact model-card bytes carrying it, where the model ships one.
 type LicenseBinding struct {
 	SPDX     string      `json:"spdx"`
 	URL      string      `json:"url"`
-	Document artifact.ID `json:"document"`
+	Document artifact.ID `json:"document,omitzero"`
 }
 
 // DatasetBinding identifies the exact corpus shard used by the election.
@@ -103,7 +103,7 @@ type Election struct {
 	Model          artifact.Manifest       `json:"model"`
 	ModelSource    SourceIdentity          `json:"model_source"`
 	Files          []FileBinding           `json:"files"`
-	License        LicenseBinding          `json:"license"`
+	License        LicenseBinding          `json:"license,omitzero"`
 	Dataset        DatasetBinding          `json:"dataset"`
 	Runtime        ReferenceRuntime        `json:"runtime"`
 	Normalizations []string                `json:"normalizations"`
@@ -345,7 +345,8 @@ func canonicalizeElection(election *Election) error {
 	for _, file := range election.Files {
 		licenseBound = licenseBound || file.Role == "license" && file.Artifact == election.License.Document
 	}
-	if election.License.SPDX != "Apache-2.0" || strings.TrimSpace(election.License.URL) == "" || !licenseBound {
+	// No model is ever distributed, so the reference model's licence is recorded, whatever it is, where it ships one.
+	if election.License.Document.Valid() && !licenseBound {
 		return errors.New("audio parity: invalid license binding")
 	}
 	if err := validateDataset(election.Dataset); err != nil {

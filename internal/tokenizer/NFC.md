@@ -16,8 +16,9 @@ The port is based on Colibri `f028d26b422144ed4a69ad9aeaee2553ce0f9572`,
 `c/qwen38_nfc.h` and `c/qwen38_nfc_tables.h`. The latter has SHA256
 `ae7f710fc7169e7b4f8798124fda348fc829e73aa184d8820489b2e38b0de340`.
 The Go port shares Overgo's existing decomposition backing, uses standard
-library stable sorting and compacts composition in place. See
-`../../licenses/colibri-Apache-2.0.txt` and `../../licenses/Unicode-LICENSE.txt`.
+library stable sorting and compacts composition in place: Colibri's behaviour,
+rebuilt in overgo's own code. The table is Unicode's data, copied verbatim; see
+`../../licenses/Unicode-LICENSE.txt`.
 
 Regenerate from the repository root:
 

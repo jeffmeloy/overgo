@@ -42,8 +42,12 @@ var releaseCommands = []string{
 	"tokenize",
 }
 
+// releaseDocuments go into a release beside its binaries; a directory goes as every file it holds. LICENSE and
+// licenses/ are the notices the binaries' compiled-in code requires go with them.
 var releaseDocuments = []string{
 	"VERSION",
+	"LICENSE",
+	"licenses",
 	"README.md",
 	"docs/COMPATIBILITY.md",
 	"docs/TRAINING_COMPATIBILITY.md",
@@ -191,7 +195,11 @@ func buildArchive(root string) ([]byte, error) {
 		}
 		entries = append(entries, archiveEntry{Name: path.Join("bin", name+".exe"), Data: data, Mode: 0o755})
 	}
-	for _, name := range releaseDocuments {
+	documents, err := releaseFiles(root)
+	if err != nil {
+		return nil, err
+	}
+	for _, name := range documents {
 		data, readErr := os.ReadFile(filepath.Join(root, filepath.FromSlash(name)))
 		if readErr != nil {
 			return nil, readErr
@@ -211,6 +219,25 @@ func buildArchive(root string) ([]byte, error) {
 	})
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Name < entries[j].Name })
 	return createArchive(entries)
+}
+
+// releaseFiles are the files releaseDocuments name under root, a directory's in its order of names.
+func releaseFiles(root string) ([]string, error) {
+	var files []string
+	for _, name := range releaseDocuments {
+		entries, err := os.ReadDir(filepath.Join(root, filepath.FromSlash(name)))
+		if err != nil {
+			// A name no directory holds is a file of its own.
+			files = append(files, name)
+			continue
+		}
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				files = append(files, path.Join(name, entry.Name()))
+			}
+		}
+	}
+	return files, nil
 }
 
 func readReleaseVersion(root string) (string, error) {

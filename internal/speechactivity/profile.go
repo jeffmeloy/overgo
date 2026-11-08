@@ -14,7 +14,7 @@ type Profile struct {
 	Version   uint16                  `json:"version"`
 	Model     artifact.ID             `json:"model"`
 	Inventory artifact.ID             `json:"inventory"`
-	License   artifact.ID             `json:"license"`
+	License   artifact.ID             `json:"license,omitzero"`
 	Frontend  audiodsp.FrontendConfig `json:"frontend"`
 	Network   Declaration             `json:"network"`
 	Offline   *OfflineConfig          `json:"offline,omitzero"`
@@ -25,7 +25,7 @@ type Profile struct {
 var profileCodec = artifact.JSONDocumentCodec("speech activity profile", artifact.KindProfile,
 	"application/vnd.overgo.speech-activity-profile+json", "overgo/speech-activity-profile/v1",
 	func(p *Profile) error {
-		if p.Version != artifact.InitialDocumentVersion || p.Model.Kind() != artifact.KindModel || p.Inventory.Kind() != artifact.KindTensorInventory || p.License.Kind() != artifact.KindFile ||
+		if p.Version != artifact.InitialDocumentVersion || p.Model.Kind() != artifact.KindModel || p.Inventory.Kind() != artifact.KindTensorInventory || p.License.Valid() && p.License.Kind() != artifact.KindFile ||
 			(p.Offline == nil) == (p.Streaming == nil) || len(p.Network.Blocks) == 0 || len(p.Network.Dense) == 0 {
 			return errors.New("speech activity: incomplete profile")
 		}

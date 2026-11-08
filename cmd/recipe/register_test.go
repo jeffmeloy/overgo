@@ -26,10 +26,10 @@ type modelRegistration struct {
 	Components       []modelartifact.FileSpec `json:"components,omitempty"`
 	License          struct {
 		Path      string      `json:"path"`
-		Artifact  artifact.ID `json:"artifact"`
+		Artifact  artifact.ID `json:"artifact,omitzero"`
 		SPDX      string      `json:"spdx"`
 		MediaType string      `json:"media_type"`
-	} `json:"license"`
+	} `json:"license,omitzero"`
 }
 
 func TestModelRegistrationIsAtomicIdempotentAndInactive(t *testing.T) {

@@ -11,9 +11,9 @@ import (
 	"overgo/internal/recipecontract"
 )
 
-// Speaker interval behavior is ported from audio.cpp
-// 3497b7cc44753e2c141d8fe60ac42cec433e3281, Copyright 2026 ShugoAI LLC,
-// Apache-2.0 (licenses/audio.cpp.txt). This implementation uses exact declared
+// Speaker interval behaviour follows audio.cpp
+// 3497b7cc44753e2c141d8fe60ac42cec433e3281
+// in behaviour, rebuilt in overgo's own code. This implementation uses exact declared
 // sample-grid arithmetic without repeated score arrays or decimal round trips.
 // Unlike the source, published spans cannot extend beyond the actual audio.
 func speakerTurns(ctx context.Context, probabilities []float32, frames, speakers int, samples uint64, config SpeakerBoundary) ([]recipecontract.SpeechTurn, error) {

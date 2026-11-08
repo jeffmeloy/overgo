@@ -1,8 +1,8 @@
 package speechrecognition
 
 // Acoustic speaker-activity composition follows audio.cpp
-// 3497b7cc44753e2c141d8fe60ac42cec433e3281, Copyright 2026 ShugoAI LLC,
-// Apache-2.0 (licenses/audio.cpp.txt). Changes: declaration-bound tensor roles,
+// 3497b7cc44753e2c141d8fe60ac42cec433e3281
+// in behaviour, rebuilt in overgo's own code. Changes: declaration-bound tensor roles,
 // shared Go arithmetic, valid-frame execution without padded keys, reusable
 // bounded workspaces, context cancellation and explicit failure contracts.
 

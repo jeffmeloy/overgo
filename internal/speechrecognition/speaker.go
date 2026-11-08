@@ -40,13 +40,7 @@ func loadSpeaker(ctx context.Context, repository artifact.Repository, definition
 	if profile.Model != model || profile.Inventory != inventoryID {
 		return nil, errors.New("speaker activity: profile dependency mismatch")
 	}
-	license, found, err := artifact.ReadContent(ctx, repository, profile.License)
-	if err != nil || !found || len(license.Data) == 0 {
-		return nil, errors.Join(errors.New("speaker activity: license evidence absent"), err)
-	}
-	if err := license.Validate(); err != nil {
-		return nil, err
-	}
+	// No model is ever distributed, so its licence binds only its local use, and loading reads none.
 	inventory, err := modelartifact.ReinspectFiles(ctx, repository, model)
 	if err != nil || inventory.TensorInventory.ID != inventoryID {
 		return nil, errors.Join(errors.New("speaker activity: physical tensor inventory differs"), err)

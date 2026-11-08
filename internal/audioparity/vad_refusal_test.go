@@ -18,13 +18,16 @@ func verifyVADArtifactRefusals(t *testing.T) {
 	t.Parallel()
 	reference, store, _ := loadVADReference(t)
 	l := newVADLifecycle(t, store, reference.Models[0], false)
-	for _, name := range []string{"missing-license", "tensor-identity", "numeric-budget"} {
+	// No model is ever distributed, so the detector loads whatever its licence: one whose licence file is missing is
+	// admitted (the owner's rule, 2026-11-08).
+	t.Run("missing-license", func(t *testing.T) {
+		testcheck.Must(speechactivity.LoadDetector(t.Context(), &vadFaultRepository{Repository: l.store, hidden: l.profile.License}, l.recipe, vadReferenceBytes))(t)
+	})
+	for _, name := range []string{"tensor-identity", "numeric-budget"} {
 		t.Run(name, func(t *testing.T) {
 			fault := &vadFaultRepository{Repository: l.store}
 			budget := uint64(vadReferenceBytes)
 			switch name {
-			case "missing-license":
-				fault.hidden = l.profile.License
 			case "tensor-identity":
 				fault.manifestDrift = true
 			case "numeric-budget":

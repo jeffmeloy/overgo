@@ -50,10 +50,10 @@ type registrationDeclaration struct {
 	SourceReceipt    *hfrepo.SourceReceipt `json:"source_receipt,omitempty"`
 	License          struct {
 		Path      string      `json:"path"`
-		Artifact  artifact.ID `json:"artifact"`
+		Artifact  artifact.ID `json:"artifact,omitzero"`
 		SPDX      string      `json:"spdx"`
 		MediaType string      `json:"media_type"`
-	} `json:"license"`
+	} `json:"license,omitzero"`
 }
 
 // undeclaredLicenses are card values that name no license.
@@ -117,11 +117,12 @@ func assembleRegistration(ctx context.Context, root, directory, spdx string, sou
 	}
 	declared.Model, declared.TensorInventory = inventory.Manifest.ID, inventory.TensorInventory.ID
 	declared.License.SPDX = spdx
-	if spdx == "" {
-		card, err := artifact.ReadContentFile(filepath.Join(path, modelCardFile))
-		if err != nil {
-			return nil, err
-		}
+	// A model with no card declares no licence identifier of its own.
+	card, err := artifact.ReadContentFile(filepath.Join(path, modelCardFile))
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
+	if spdx == "" && err == nil {
 		if declared.SourceReceipt != nil {
 			id, err := artifact.IdentifyBytes(artifact.KindFile, card)
 			if err != nil {
@@ -133,10 +134,13 @@ func assembleRegistration(ctx context.Context, root, directory, spdx string, sou
 		}
 		declared.License.SPDX = cardLicense(card)
 	}
-	if slices.Contains(undeclaredLicenses, strings.ToLower(declared.License.SPDX)) {
-		return nil, fmt.Errorf("assemble %s: the model card declares no license identifier (%q); review the license and pass one", directory, declared.License.SPDX)
-	}
+	// No model is ever distributed, so a licence binds only its local use: one is recorded where the model ships one,
+	// and a model that ships none registers without. A card is a licence only where it declares one.
+	undeclared := slices.Contains(undeclaredLicenses, strings.ToLower(declared.License.SPDX))
 	for _, name := range licenseFiles {
+		if name == modelCardFile && undeclared {
+			continue
+		}
 		data, err := artifact.ReadContentFile(filepath.Join(path, name))
 		if errors.Is(err, os.ErrNotExist) {
 			continue
@@ -156,7 +160,8 @@ func assembleRegistration(ctx context.Context, root, directory, spdx string, sou
 		}
 		return json.Marshal(declared)
 	}
-	return nil, fmt.Errorf("assemble %s: %w", directory, errors.New("no license file or model card to bind the license to"))
+	declared.License.SPDX = ""
+	return json.Marshal(declared)
 }
 
 // cardLicense returns the license the model card's front matter declares.

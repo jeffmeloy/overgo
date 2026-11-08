@@ -3,29 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "file-lists",
-      "title": "A landing that leaves out a file its change needs says which and adds it with one command, and a renamed test's citations follow it",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 447,
-        "reason": "Estimated after a survey of the code, at about twice what a first sketch of the steps counts, since this week's rows landed at two to six times the counts they were filed with (wan-few-step 300 -\u003e 1100, sampling-split 400 -\u003e 1700, umt5-resident 336 -\u003e 1750): the left-out paths joined to a failing stage's message, and a rename read from the diff and written through the fix stage."
-      },
-      "steps": [
-        {
-          "id": "citations",
-          "title": "A change that renames a test rewrites each skill.md and README.md line citing the old name in the landing's fix stage, and prints the lines when the rename is ambiguous",
-          "status": "open",
-          "verify": "go test ./internal/landing ./internal/repoanalysis -count=1 -run '^TestARenamedTestsCitationsFollowIt$'",
-          "files": [
-            "internal/landing",
-            "internal/repoanalysis"
-          ],
-          "rationale": "skill_lines_test.go:62 and DeadReferences (internal/repoanalysis/dead_references.go:28-70) refuse a citation of a test that no file declares, and no code maps a rename back to the lines that cite it. landing-scope/scoped-commit failed at the invariants stage because skill.md:48 cited TestALandingStaysInsideItsStepsFiles after the change renamed it TestALandingCommitsOnlyItsStepsFiles, and it was re-filed as commit-scope with skill.md in its files.\n\nA change that removes one test and adds one in the same file is a rename the diff shows. The fix stage (internal/landing/landing.go:668-674) rewrites the citing lines, and the scope admits what it wrote as it admits the generators' outputs (scope.go:46-48). Where more than one test was removed or added, the landing prints each citing line and the candidates.\n\nServes: setup-steps.\nDisappears: a gate run refused for a citation the change itself made stale.\nEvidence: a fixture change renaming a cited test lands with the citation rewritten, and one removing two tests prints both citing lines.\nBatch: host lane."
-        }
-      ]
-    },
-    {
       "id": "count-history",
       "title": "A new step's count is filed from what landed steps listing the same directories counted, with a session's own figure written beside it",
       "owner": "master-lead",

@@ -672,6 +672,10 @@ func (l *landing) fix(ctx context.Context) error {
 				return err
 			}
 		}
+		// A renamed test's citations follow it (followRenames), as go fix is applied.
+		if err := l.followRenames(ctx); err != nil {
+			return err
+		}
 		// What the source derives is regenerated from the candidate (derive), as go fix is applied, not refused for a
 		// landing again after.
 		if generators := l.generators(); len(generators) != 0 {

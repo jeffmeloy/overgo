@@ -6,11 +6,11 @@ description: The rules for Overgo development, written as one logical statement 
 # Intent
 
 - overgo = one Go-native system that serves, trains, evaluates and composes models on consumer hardware (check: internal/repoanalysis TestRSIRuntimeIsGoOnly, internal/repoanalysis TestPythonLivesOnlyInItsIgnoredPlace)
-- purpose = recursive self-improvement through its own inference and training, unattended up to a judged candidate: a person chooses what runs and what training starts from
+- purpose = recursive self-improvement through its own inference and training, unattended up to a judged candidate: a person chooses what runs and what training starts from (check: internal/loop TestCycleFilesDeclinesAndAcceptsNothing)
 - a trained model = a model of its own beside its base, never in its place: its base recorded, its scorecard row read against the base's, and no model is a default (check: internal/scorecard TestATrainedModelsRowReadsAgainstItsBase)
-- goal = improvement in what the system serves = the scorecard (`go run ./cmd/validate -scorecard`)
+- goal = improvement in what the system serves = the scorecard (`go run ./cmd/validate -scorecard`) (check: cmd/validate TestScorecardHasNoUnexplainedCell)
 - scorecard columns = `first-output`, `throughput`, `held-out-quality`, `failure-rate`, `load-time`, `peak-device-memory`, `setup-steps` (check: cmd/validate TestScorecardRowsEveryServableModel, cmd/validate TestScorecardHasNoUnexplainedCell)
-- loop = measure -> find the gap -> train or change -> judge on held-out data
+- loop = measure -> find the gap -> train or change -> judge on held-out data (check: internal/loop TestCycleFilesDeclinesAndAcceptsNothing, cmd/loop TestTheGapsAreFiledOnceTheScorecardPublishes)
 - progress = each scorecard cell compared with its previous measurement (check: internal/scorecard TestEarlierIsEachCellsNewestEarlierMeasurement, cmd/loop TestCycleComparesWithTheNewestEarlierScorecardWithoutAMain, cmd/validate TestScheduledScorecardPublishesDeltas)
 - never a "passed" state (check: internal/repoanalysis TestRootDocumentsNameOnlyWhatTheTreeHolds, internal/plan TestLivePlanRejectsRetainedCompletionState)
 - `go run ./cmd/loop -improve` = measure -> publish the scorecard -> file each regression as a row (check: cmd/loop TestTheGapsAreFiledOnceTheScorecardPublishes, internal/loop TestCycleFilesDeclinesAndAcceptsNothing, cmd/loop TestScorecardGapsBecomeProposals)
@@ -19,30 +19,29 @@ description: The rules for Overgo development, written as one logical statement 
 - push <=> a request to push, never the system's own initiative (check: cmd/loop TestPushPushesTheNamedCommitOnlyWhenAsked)
 - this file = the system's doctrine, and the plan holds rows and decisions alone (check: internal/plan TestThePlanHoldsNoRuleText)
 - rule text outside this file and AGENTS.md => refused, the session's start text pointing here alone (check: internal/repoanalysis TestRuleTextLivesOnlyInSkillAndThePointer)
-- doctrine = how the system works, which every session and the loop follow and correct on evidence
+- doctrine = how the system works, which every session and the loop follow and correct on evidence (check: internal/repoanalysis TestRuleTextLivesOnlyInSkillAndThePointer)
 - doctrine != any person's preferences or rules (check: internal/repoanalysis TestRuleTextLivesOnlyInSkillAndThePointer, internal/plan TestControlVocabularyNamesNoPerson)
 - requests and models propose (check: internal/runrecord TestProposerEvaluatorDeciderAuthorityDomainsAndPriorGeneration)
 - goals, budgets and stops = inputs the system follows (the plan's intent, resource ceilings, a recorded stop) and never sets itself (check: internal/plan TestAStopIsTheOwnersOrAnOutsideNeed, internal/landing TestChangeIsJudgedByTheTermsItStartedWith, cmd/loop TestPersistentLoopStop)
 - executable policy admits and activates (check: internal/agenttool TestCandidateCatalogStagesVerifiesAndActivatesExactly, internal/runrecord TestProposerEvaluatorDeciderAuthorityDomainsAndPriorGeneration)
-- OvergoDB holds state
+- OvergoDB holds state (check: internal/overgodb TestProjectionPublicationIsAtomic)
 - the plan holds implementation (check: internal/plan TestSinglePlanAuthority)
-- framework = the gate + the held-out scorecard + the cycle
+- framework = the gate + the held-out scorecard + the cycle (check: cmd/gate TestSmallGateLandsAChange, internal/loop TestCycleFilesDeclinesAndAcceptsNothing)
 - the framework catches regressions and broken code (check: cmd/gate TestSmallGateLandsAChange, internal/loop TestCycleFilesDeclinesAndAcceptsNothing)
-- bold change => write the test that would have caught its failure -> let the framework judge
+- bold change => write the test that would have caught its failure -> let the framework judge (check: internal/landing TestTheLandingUndoesItsChangeAndTheCheckFails)
 - refused landing = information != failure (check: internal/landing TestRecoveryDrills)
 - ambition governs the code and never the system's boundaries (check: internal/landing TestChangeIsJudgedByTheTermsItStartedWith, cmd/loop TestPushPushesTheNamedCommitOnlyWhenAsked)
 - boundaries = scope, run budgets, stops, pushes and downloads, which the system follows and never changes (check: cmd/loop TestPushPushesTheNamedCommitOnlyWhenAsked, internal/plan TestAStopIsTheOwnersOrAnOutsideNeed, internal/landing TestChangeIsJudgedByTheTermsItStartedWith)
 - a row's count = a declared estimate != a limit => a change may raise it with a reason, and raising it or changing a row's check writes old and new in the commit (check: internal/landing TestAChangedCheckOrCountIsWrittenInTheCommit)
 - simpler implementation > larger one (check: internal/landing TestItemsGrowthIsChargedAcrossItsLandings, internal/landing TestWrittenCodeIsCountedByKind)
-- ambition = size of the gain != size of the change
 
 ## Terms
 
 A term used in this file is plain English or is defined here.
 
-- lead = the session that holds the main checkout, ranks the plan and keeps the doctrine current
-- session = one running agent
-- row = one unit of work in `docs/plan.json`
+- lead = the session that holds the main checkout, ranks the plan and keeps the doctrine current (check: cmd/loophook TestOnlyAnImplementingSessionTakesTheHold, cmd/loophook TestAHoldWhoseProcessEndedIsTaken)
+- session = one running agent (check: cmd/loophook TestOnlyAnImplementingSessionTakesTheHold)
+- row = one unit of work in `docs/plan.json` (check: internal/plan TestSinglePlanAuthority)
 - step = one landing's worth of a row, with its check (`verify`) (check: internal/plan TestOpenStepRequiresVerifier, internal/landing TestLandingCompletesSeveralSteps)
 - run step = a step naming a command (`-run`) and the record it writes (`-record`) => the driver runs it and lands the record with no worker (check: internal/loop TestARunStepRunsWithoutAWorker)
 - code step lists its files (`-files`) => its landing refuses a change outside them, printing the paths (check: internal/landing TestALandingStaysInsideItsStepsFiles)
@@ -50,14 +49,14 @@ A term used in this file is plain English or is defined here.
 - a step its worker cannot pass => the next worker in loop.json's list takes it, and after the last it is set aside with a finding (check: internal/loop TestAStepMovesUpTheWorkersBeforeItIsSetAside)
 - a measurement run holds the graphics card => dispatch hands out only steps that do not need it (`-needs-card`), and says so when only those are left (check: internal/plan TestDispatchSkipsCardStepsWhileARunHoldsTheCard)
 - a measurement run's cells => those whose measured path reads a file changed since the last measured commit (`validate -reached`), none when no cell reads the change (check: internal/loop TestAChangeRemeasuresOnlyTheCellsItReaches)
-- gate = the automated checks a commit must pass
-- landing = a commit made through the gate
-- lane = one of the gate's longer test runs (device, browser, cuda)
-- cycle = the full measurement run (`go run ./cmd/loop -improve`)
-- cell = one model, task and measure on the scorecard
-- home = the one package that holds a mechanic
-- leftover = a file that a run, a build or a session wrote and that no later work reads
-- place = a directory where leftovers accumulate
+- gate = the automated checks a commit must pass (check: cmd/gate TestSmallGateLandsAChange)
+- landing = a commit made through the gate (check: cmd/gate TestSmallGateLandsAChange)
+- lane = one of the gate's longer test runs (device, browser, cuda) (check: internal/landing TestAHostLaneRunsOutsideTheLaneTurn)
+- cycle = the full measurement run (`go run ./cmd/loop -improve`) (check: cmd/loop TestTheGapsAreFiledOnceTheScorecardPublishes)
+- cell = one model, task and measure on the scorecard (check: cmd/validate TestScorecardHasNoUnexplainedCell)
+- home = the one package that holds a mechanic (check: internal/repoanalysis TestRepeatedProductionBodiesStayUnderTheirCeiling)
+- leftover = a file that a run, a build or a session wrote and that no later work reads (check: cmd/loop TestLeftoversListsEveryDeclaredPlaceWithItsRule)
+- place = a directory where leftovers accumulate (check: cmd/loop TestLeftoversListsEveryDeclaredPlaceWithItsRule)
 
 A line of this file reads by this notation, and cites the tests that hold its rule as `(check: <package> <test>, ...)`.
 
@@ -76,7 +75,7 @@ A line of this file reads by this notation, and cites the tests that hold its ru
 
 ## Writing
 
-- a rule = code => it cites the tests that fail when it is broken, or it goes (check: internal/landing TestEveryRuleCitesItsCheck)
+- a rule = code => it cites the tests that fail when it is broken, or it goes (check: internal/repoanalysis TestEverySkillLineOutsideJudgementCitesItsCheck)
 - a rule no code can hold -> the Judgement section, saying why no code holds it (check: internal/landing TestAJudgementLineSaysWhyNoCodeHoldsIt)
 - a semicolon never joins two clauses of a rule, because it hides their relation (check: internal/landing TestTheDoctrineHoldsItsOwnForm)
 - history (a date, a commit id) -> the commit message, never the doctrine (check: internal/landing TestTheDoctrineHoldsItsOwnForm)
@@ -340,3 +339,4 @@ A rule no code can hold stands here, each line saying why, so what the system le
 - a port adopts the reference's structure as the general one where it is better > fitting the reference's mechanism into ours => port the unit literally -> prove it costs here what it costs in the reference, because which structure is better is read from both
 - hand step = system defect -> file the row, fix the system and use its path, because a step done by hand leaves nothing the system reads
 - parts proved apart != the path proved => one real model through the whole path before claiming it, because which path a claim rests on is read from the claim
+- ambition = size of the gain != size of the change, because no check weighs what a change gains against how large it is

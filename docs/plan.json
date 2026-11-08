@@ -13,13 +13,6 @@
       },
       "steps": [
         {
-          "id": "skill-sort",
-          "title": "Every skill.md line outside Judgement names the check that holds it, and the rest move to code, data or a command's help",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestEverySkillLineOutsideJudgementCitesItsCheck$'",
-          "rationale": "skill.md is 330 lines in 19 sections. Each line gets one verdict: already enforced (it cites its check, and the refusal prints the fix); could be enforced (a step is filed whose test enforces it, and the line goes when it lands); needs judgement (one line in Judgement); a fact (into the store, a config file or a command's help); no longer true (deleted). Owner decisions go to the plan's decisions as data. The review session sorts session memory the same way; the lead does the repo.\nServes: setup-steps; a weaker model holds the whole guidance.\nDisappears: skill.md lines that no check holds outside Judgement.\nEvidence: every line outside Judgement cites a check that exists.\nBatch: host lane."
-        },
-        {
           "id": "memory-off",
           "title": "Session memory for this project stops growing back beyond its pointer",
           "status": "open",

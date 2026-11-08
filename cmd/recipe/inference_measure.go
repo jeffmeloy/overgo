@@ -147,10 +147,17 @@ func measureInference(ctx context.Context, repository, path string, open func(co
 	}
 	var lengths []runrecord.ServingObservation
 	var policy modelrecipe.RuntimePolicy
+	// A failed preparation is published with the readings before it, after the model closes, and fails the run.
+	var prepared error
 	observation, result, cause := observeInference(ctx, open, requests[0], os.Stderr, func(loaded servedModel) {
 		policy = loaded.RuntimePolicy()
-		lengths = append(observeLengths(ctx, loaded, os.Stderr), observeWarm(ctx, loaded, os.Stderr)...)
+		lengths, prepared = observeLengths(ctx, loaded, os.Stderr)
+		if ctx.Err() == nil {
+			warm, warmErr := observeWarm(ctx, loaded, os.Stderr)
+			lengths, prepared = append(lengths, warm...), errors.Join(prepared, warmErr)
+		}
 	})
+	cause = errors.Join(cause, prepared)
 	store, err := overgodb.Open(repository)
 	if err != nil {
 		return result, artifact.ID{}, errors.Join(cause, err)
@@ -190,9 +197,12 @@ const (
 // tokenizer, opened by a line that names its size and reading, so no prompt
 // begins as another did and a prefix cache gives none of it. A length the
 // model cannot read is said and left out; a request that fails is a failed
-// attempt.
-func observeLengths(ctx context.Context, model servedModel, said io.Writer) []runrecord.ServingObservation {
+// attempt. An unmeasured reading that fails is kept as the failed attempt it
+// was, its size's measured reading is not taken, and the failure is returned
+// (SQA-335); one cancelled ends the readings.
+func observeLengths(ctx context.Context, model servedModel, said io.Writer) ([]runrecord.ServingObservation, error) {
 	var observed []runrecord.ServingObservation
+	var failed error
 	context := int(model.ModelProperties().ContextLength)
 	for _, length := range evaluation.PromptLengths {
 		if context != 0 && length+lengthTokens > context {
@@ -209,9 +219,14 @@ func observeLengths(ctx context.Context, model servedModel, said io.Writer) []ru
 			continue
 		}
 		fmt.Fprintf(said, "recipe: a fresh %d-token prompt, read once unmeasured and then measured on another\n", length)
-		_, _, warmErr := observeRequest(ctx, throughEnd{model}, evaluation.ExactCase{Name: fmt.Sprintf("warm-up-%d", length), Prompt: warming, MaxTokens: lengthTokens}, io.Discard)
+		warm, _, warmErr := observeRequest(ctx, throughEnd{model}, evaluation.ExactCase{Name: fmt.Sprintf("warm-up-%d", length), Prompt: warming, MaxTokens: lengthTokens}, io.Discard)
 		if warmErr != nil {
-			fmt.Fprintf(said, "recipe: the unmeasured %d-token prompt failed: %v\n", length, warmErr)
+			fmt.Fprintf(said, "recipe: the unmeasured %d-token prompt failed, so its reading is not taken: %v\n", length, warmErr)
+			observed, failed = append(observed, warm), errors.Join(failed, fmt.Errorf("recipe: the unmeasured %d-token prompt: %w", length, warmErr))
+			if warm.Outcome == runrecord.OutcomeCancelled {
+				return observed, failed
+			}
+			continue
 		}
 		observation, _, err := observeRequest(ctx, throughEnd{model}, evaluation.ExactCase{Name: fmt.Sprintf("prompt-%d", length), Prompt: prompt, MaxTokens: lengthTokens}, said)
 		if err != nil {
@@ -219,10 +234,10 @@ func observeLengths(ctx context.Context, model servedModel, said io.Writer) []ru
 		}
 		// A reading whose size was read once before is timed again on the loaded model, which the scorecard's
 		// longer-prompt cells read alone.
-		observation.SessionReused = warmErr == nil
+		observation.SessionReused = true
 		observed = append(observed, observation)
 	}
-	return observed
+	return observed, failed
 }
 
 // throughEnd is a loaded model whose generation continues past its end of
@@ -254,28 +269,31 @@ const (
 // prompt read through the cache the first left, and its rate the warm decode's.
 // The first readies the decode's graphs and records nothing. A prompt the model
 // cannot build is said and no attempt returned; a request that fails is a
-// failed attempt. Both generate their whole warmTokens (throughEnd).
-func observeWarm(ctx context.Context, model servedModel, said io.Writer) []runrecord.ServingObservation {
+// failed attempt. Both generate their whole warmTokens (throughEnd). A first
+// request that fails is kept as the failed attempt it was, the second is not
+// made, and the failure is returned (SQA-335).
+func observeWarm(ctx context.Context, model servedModel, said io.Writer) ([]runrecord.ServingObservation, error) {
 	if context := int(model.ModelProperties().ContextLength); context != 0 && warmPromptTokens+warmTokens > context {
 		fmt.Fprintf(said, "recipe: no warm request: the context holds %d tokens\n", context)
-		return nil
+		return nil, nil
 	}
 	prompt, err := lengthPrompt(model, warmPromptTokens, measuredOpening)
 	if err != nil {
 		fmt.Fprintf(said, "recipe: no warm request: %v\n", err)
-		return nil
+		return nil, nil
 	}
 	request := evaluation.ExactCase{Name: "warm", Prompt: prompt, MaxTokens: warmTokens}
 	fmt.Fprintf(said, "recipe: a request of %d tokens, then the same again on the loaded model\n", warmTokens)
-	if _, _, err := observeRequest(ctx, throughEnd{model}, request, io.Discard); err != nil {
-		fmt.Fprintf(said, "recipe: the first warm request failed: %v\n", err)
+	if first, _, err := observeRequest(ctx, throughEnd{model}, request, io.Discard); err != nil {
+		fmt.Fprintf(said, "recipe: the first warm request failed, so the warm reading is not taken: %v\n", err)
+		return []runrecord.ServingObservation{first}, fmt.Errorf("recipe: the first warm request: %w", err)
 	}
 	observation, _, err := observeRequest(ctx, throughEnd{model}, request, said)
 	if err != nil {
 		fmt.Fprintf(said, "recipe: the warm request failed: %v\n", err)
 	}
 	observation.SessionReused = true
-	return []runrecord.ServingObservation{observation}
+	return []runrecord.ServingObservation{observation}, nil
 }
 
 // lengthPrompt is the longest of Strata's word lists, opened by a line naming
@@ -396,7 +414,11 @@ func observeRequest(ctx context.Context, model servedModel, request evaluation.E
 	total := generation.walls.Elapsed(generation.clock)
 	fmt.Fprintf(said, "recipe: from the request's start, the prompt was evaluated at %s, device memory was sampled at %s and the first token came at %s\n",
 		time.Duration(generation.evaluated), time.Duration(generation.sampled), time.Duration(generation.first))
-	if err != nil {
+	switch {
+	case err != nil && ctx.Err() != nil:
+		// A request its caller stopped is cancelled, not failed.
+		observation.Outcome = runrecord.OutcomeCancelled
+	case err != nil:
 		observation.Outcome, observation.Failure = runrecord.OutcomeFailed, generationFailed
 	}
 	prefill := min(generation.prefill, total)

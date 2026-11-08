@@ -1,7 +1,264 @@
 {
   "campaign": "Deliver multimodal Qwen3.8-Flash-Next UD-IQ4_XS and meet native Strata performance",
   "lane": "master-lead",
-  "items": [],
+  "items": [
+    {
+      "id": "actual-prompt-rate",
+      "title": "The README speed table rates prompt processing by the uncached tokens each request read over its prefill time, not by its length bucket",
+      "status": "open",
+      "budget": {
+        "nodes": 100,
+        "reason": "Estimate before the survey: internal/scorecard/scorecard.go readLength keeps each observation's uncached-token rate and lengthCells carries its median as a cell, and internal/scorecard/speed_table.go SpeedTable prints that cell instead of dividing the bucket length."
+      },
+      "steps": [
+        {
+          "id": "rate",
+          "title": "readLength keeps each observation's uncached-token rate, and SpeedTable prints the median of those rates",
+          "status": "open",
+          "verify": "go test ./internal/scorecard -count=1 -run '^TestTheSpeedTableRatesAPromptByTheTokensItRead$'",
+          "rationale": "SQA-336: internal/scorecard/scorecard.go readLength keeps a length bucket's prefill time but not the tokens read, and internal/scorecard/speed_table.go SpeedTable divides the bucket length by that time, so a 3,072-uncached-token request prefilled in 1,000 ms in the 4,096 bucket renders 4,096 tok/s, a third above its measured rate, which cmd/validate/readme.go publishes.\n\nreadLength computes each observation's uncached tokens, InputTokens less CachedTokens, over its prefill time before the window's median; lengthCells carries that rate and SpeedTable prints it, and a record without token counts prints none. Buckets, warm-only and stale filtering stay.\n\nServes: throughput; the published prompt-processing rate is the one measured.\nDisappears: the bucket length used as measured work.\nEvidence: that 3,072-token, 1,000 ms request renders 3,072 tok/s, and a cell without token counts renders unread.\nBatch: host lane."
+        }
+      ]
+    },
+    {
+      "id": "composite-identity",
+      "title": "A composite is published under the model identity its file's bytes hold now, never under a remembered claim",
+      "status": "open",
+      "budget": {
+        "nodes": 0,
+        "reason": "Estimate before the survey: one call replaced and the discovery import removed in cmd/seam-align/publish.go textModel, about 10 nodes fewer."
+      },
+      "steps": [
+        {
+          "id": "verified-model",
+          "title": "seam-align's textModel resolves its model through ResolveActiveGGUF, which hashes the file, instead of the catalog memo's claim",
+          "status": "open",
+          "verify": "go test ./cmd/seam-align -count=1 -run '^TestACompositeIsPublishedUnderTheModelIdentityItsBytesHold$'",
+          "rationale": "SQA-331: cmd/seam-align/publish.go textModel resolves its model with ResolveClaimedGGUF and discovery.LoadMemo's Claim, which returns a remembered digest when size and modification time match, then discards the claims Take returns; a GGUF whose payload changed with size and time kept is published under its old identity, and TestAJudgedBridgePublishesAnInactiveComposite, starting from an empty store, never meets a remembered claim.\n\ntextModel calls modelrecipe.ResolveActiveGGUF(ctx, store, path), which hashes the file, and the discovery import goes; refusal before registration and idempotent inactive publication stay.\n\nServes: failure-rate; a composite cannot cite an identity its model's bytes no longer hold.\nDisappears: the memo shortcut in publication.\nEvidence: with the tiny model's inventory remembered and its payload changed, size and time kept, textModel returns the identity of the bytes now.\nBatch: host lane."
+        }
+      ]
+    },
+    {
+      "id": "tool-replay-guard",
+      "title": "A tool workflow run again under its key with changed call arguments is refused before any tool runs, naming the node",
+      "status": "open",
+      "budget": {
+        "nodes": 150,
+        "reason": "Estimate before the survey: internal/workflowruntime/tool_workflow.go ExecuteToolWorkflow reads the operation's existing receipts through runrecord.ResolveStageReceipt and compares each recorded call-port binding with the current call's content ID before ExecuteProgram."
+      },
+      "steps": [
+        {
+          "id": "refuse-changed",
+          "title": "ExecuteToolWorkflow compares each current call with the call its operation's recorded receipt holds, and refuses a change",
+          "status": "open",
+          "verify": "go test ./internal/workflowruntime -count=1 -run '^TestAToolWorkflowRefusesChangedArgumentsUnderAKeyThatRan$'",
+          "rationale": "SQA-328: internal/workflowruntime/tool_workflow.go ExecuteToolWorkflow names its operation by ExecutionID(definition.ID, key) alone, and runtime.go planReplay and recoverStage reuse completed receipts by operation and node without comparing their recorded calls, so the same key run again with item=B after item=A completed publishes a successful run binding B's inputs to A's outputs with no tool invoked.\n\nBefore ExecuteProgram, ExecuteToolWorkflow reads the operation's existing receipts through runrecord.ResolveStageReceipt, v1 included, and refuses, naming the node, a call whose content ID differs from the recorded binding or whose binding cannot be read. The same call still replays and resumes.\n\nServes: failure-rate; a workflow result answers the arguments it was given.\nDisappears: recovered outputs attached to changed calls.\nEvidence: in the HTTP store fixture, item=B under A's key is refused with no transport call, and item=A still replays.\nBatch: host lane."
+        }
+      ]
+    },
+    {
+      "id": "fuzz-discovery",
+      "title": "The scheduled fuzz job fails when finding or listing a fuzz package fails, instead of reporting every target clean",
+      "status": "open",
+      "budget": {
+        "nodes": 0,
+        "reason": "Estimate before the survey: two command assignments in scripts/fuzz-smoke.sh; no production Go changes."
+      },
+      "steps": [
+        {
+          "id": "fail-listing",
+          "title": "scripts/fuzz-smoke.sh assigns its package discovery and each go test -list result before filtering, so a failed producer ends it nonzero",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestTheFuzzJobFailsWhenAPackageCannotBeListed$'",
+          "rationale": "SQA-318: scripts/fuzz-smoke.sh runs go test -list '^Fuzz' in a pipeline ending || true over directories from an unchecked command substitution, so a fuzz package that fails to build lists nothing, the count stays above zero from the others, and the scheduled job prints all targets clean and exits 0; internal/repoanalysis/fuzz_job_test.go reads the script's text, not its exit.\n\nDiscovery and each listing are assigned to variables before grep filters them, || true kept only around the grep, so set -euo pipefail ends the script on a failed producer; the zero-target refusal and -fuzz selection stay. The test runs the script under bash with a stub go first on PATH.\n\nServes: failure-rate; an unbuildable fuzz package fails the scheduled job.\nDisappears: the || true that hid listing failures.\nEvidence: with one package's listing failing after another listed, the script exits nonzero with no all-clean line.\nBatch: host lane."
+        }
+      ]
+    },
+    {
+      "id": "no-default-takeover",
+      "title": "The driver's worker prompt never declares a worktree takeover, so a default worker cannot take a live session's hold",
+      "status": "open",
+      "budget": {
+        "nodes": 40,
+        "reason": "Estimate before the survey: the declaration leaves cmd/loop/init_config.go defaultPrompt, and cmd/loop/main.go run refuses a configured prompt that opens with it, naming the file and the words to delete."
+      },
+      "steps": [
+        {
+          "id": "prompt",
+          "title": "The default worker prompt opens without the takeover declaration, and the driver refuses a configured prompt that opens with it",
+          "status": "open",
+          "verify": "go test ./cmd/loop -count=1 -run '^TestTheDriverRefusesAWorkerPromptThatDeclaresATakeover$'",
+          "rationale": "SQA-337: cmd/loop/init_config.go defaultPrompt opens \"Take over this worktree.\", RunWorker puts it before every dispatched prompt, and cmd/loophook beginTurn reads that opening as a declared takeover, overwriting the holder before checking whether its process lives; .overgo-runtime/loop_prompt.md, from an earlier -init, opens with it too.\n\ndefaultPrompt loses the declaration, and run refuses, before any campaign begins, a configured prompt that opens with it, naming the file and the words to delete, so no prompt file is rewritten. Live, stale and unknown holders stay with beginTurn; a session's own typed takeover stays.\n\nServes: setup-steps; a driver started beside a working session leaves its hold alone.\nDisappears: the takeover declaration in every worker prompt.\nEvidence: -init's prompt opens with no takeover, and a config whose prompt opens with one is refused, file named, no campaign begun.\nBatch: host lane."
+        }
+      ]
+    },
+    {
+      "id": "start-admission",
+      "title": "A driver start takes the campaign lock before it reads a running worker's record, and one fixture holds what a start admits",
+      "status": "open",
+      "budget": {
+        "nodes": 10,
+        "reason": "Estimate before the survey: the noteUncleanEnd call moves below processcontrol.BeginCampaign in cmd/loop/main.go run; the fixture step changes test code alone."
+      },
+      "steps": [
+        {
+          "id": "order",
+          "title": "run reads the running record only after BeginCampaign succeeds, so a refused second start leaves the record and the unclean log untouched",
+          "status": "open",
+          "verify": "go test ./cmd/loop -count=1 -run '^TestARefusedSecondDriverLeavesTheRunningRecordUntouched$'",
+          "rationale": "SQA-338: cmd/loop/main.go run calls noteUncleanEnd before processcontrol.BeginCampaign, so a second driver started beside one whose worker runs logs that live run as unclean in driver_unclean.log and removes driver_running.json, and only then is refused by loop_supervisor.lock; the startup task's IgnoreNew covers its own instances, not a direct start.\n\nnoteUncleanEnd moves after a successful BeginCampaign, under its deferred release; a genuine orphan is still logged and cleared by the next admitted start, as TestTheStartupTaskRunsTheDriverAtBoot holds.\n\nServes: setup-steps; a refused start never erases a working run's recovery record.\nDisappears: recovery state changed before admission.\nEvidence: with a campaign held and a running record kept, a second start is refused and the record and the unclean log keep their bytes.\nBatch: host lane."
+        },
+        {
+          "id": "fixture",
+          "title": "One start-admission fixture holds the default configuration, its prompt, no-clobber and the refusals, and init_config_test.go goes",
+          "status": "open",
+          "verify": "go test ./cmd/loop -count=1 -run '^TestADriverStartsFromItsDefaultConfiguration$'",
+          "rationale": "SQA-338: cmd/loop/init_config_test.go TestTheDriverLandsAStepThroughItsWorker and cmd/loop/driver_start_test.go TestADriverStartsFromItsConfigAlone each build a checkout, pause at once, begin a campaign and check its name; neither runs a worker or lands a step, whatever the first's name says.\n\nThe default-write, worker-command, prompt and second -init checks join the missing-prompt, missing-budget and strategy refusals in one fixture named for start admission, and init_config_test.go with its duplicate paused setup goes; subprocess continuation and stop stay with their own tests.\n\nServes: setup-steps; one fixture says what a driver start admits.\nDisappears: init_config_test.go and its duplicate paused-start setup.\nEvidence: the merged fixture holds -init's defaults, a refused second -init, the config's name on the campaign and each malformed config refused.\nBatch: host lane.",
+          "depends_on": [
+            "start-admission/order"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "findings-wait",
+      "title": "A run whose empty plan has findings to file ends waiting for them, never as a completed plan, and the waiting cases count worker runs exactly",
+      "status": "open",
+      "budget": {
+        "nodes": 60,
+        "reason": "Estimate before the survey: internal/loop gains a findings-waiting reason that Run ends with, and cmd/loop/improve.go CycleWorthRunning reports findings to file as that answer instead of a plain not-worth-running."
+      },
+      "steps": [
+        {
+          "id": "wait",
+          "title": "The driver ends a run whose empty plan has findings to file as waiting for them, naming them",
+          "status": "open",
+          "verify": "go test ./internal/loop -count=1 -run '^TestARunEndsWaitingNeverCompleteWhileWorkIsHeldOrFindingsAwaitFiling$'",
+          "rationale": "SQA-271: with the plan empty and open P1 or P2 findings no row names, cmd/loop/improve.go CycleWorthRunning answers not worth running, internal/loop/driver.go improve files nothing, and Run ends ReasonPlanComplete with no worker run, reporting a finished plan while work waits; internal/loop/dispatch_wait_test.go also lets each held-work case run up to one worker where 0, 1 and 0 are exact.\n\nCycleWorthRunning reports findings to file as their own answer, and Run ends with a findings-waiting reason naming them; paused, budget and stop outcomes stay. The new test replaces TestARunThatFindsWorkWaitingSaysSo at exact counts and adds the empty plan with findings.\n\nServes: setup-steps; an unattended run says what it waits for.\nDisappears: plan-complete reported while findings wait.\nEvidence: an empty plan with findings ends findings-waiting with no measurement or worker run, and each held-work case runs exactly its workers.\nBatch: host lane."
+        }
+      ]
+    },
+    {
+      "id": "cycle-fresh",
+      "title": "Every cycle lane that runs go test runs its tests afresh, so a real-model pass is never replayed after its model or reference bytes change",
+      "status": "open",
+      "budget": {
+        "nodes": 10,
+        "reason": "Estimate before the survey: -count=1 joins the models and needle-reference commands in internal/landing/lanes.go cycleLanes, and two comments stop claiming the cache replays only unchanged inputs."
+      },
+      "steps": [
+        {
+          "id": "count-once",
+          "title": "The models and needle-reference cycle lanes run go test with -count=1, as every other go test cycle lane does",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestEveryCycleLaneThatRunsGoTestRunsAfresh$'",
+          "rationale": "SQA-315: internal/landing/lanes.go cycleLanes runs the models and needle-reference lanes without -count=1, and cmd/validate cycleSuites and acquire pass those arguments on; go test keys its cache only on inputs inside the module, so a pass that opened OVERGO_SINGLE_PASS_GGUF or the needle reference fixture through dataroot is replayed after those external bytes change.\n\nBoth commands gain -count=1, as audio and sequences have, and the cycleLanes and cycleSuites comments stop saying the cache replays only what nothing changed. The new test reads every cycle lane whose verb is test, so a lane added later is held too.\n\nServes: held-out-quality; a cycle's real-model evidence reads the model bytes it names.\nDisappears: replayed real-model passes over changed external inputs.\nEvidence: every go test cycle lane's arguments carry -count=1, and a lane without it is named.\nBatch: host lane."
+        }
+      ]
+    },
+    {
+      "id": "recipe-state",
+      "title": "A held-out reading, a serving attempt and a training observation carry the verification state of the recipe and task that ran",
+      "status": "open",
+      "budget": {
+        "nodes": 150,
+        "reason": "Estimate before the survey: internal/modelrecipe gains one reading of a recipe's state, its own task's state and not verified unless that task's active definition is the recipe; internal/evaluation/campaign.go publishSuccess, internal/servingattempt Record and internal/trainingworkflow Observer.finish call it."
+      },
+      "steps": [
+        {
+          "id": "held-out",
+          "title": "An evaluation campaign publishes its reading under the state of its own recipe and task",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -count=1 -run '^TestAHeldOutReadingCarriesTheStateOfTheRecipeThatRan$'",
+          "rationale": "SQA-283: internal/evaluation/campaign.go publishSuccess reads modelrecipe.ReadModelState for recipe.TaskInference whatever task the campaign runs and discards the returned Activation; an active speech-only model with no inference alias publishes not verified, internal/scorecard earned drops that reading from its verified row, and a candidate recipe borrows the active recipe's verified state.\n\nmodelrecipe gains one reading of a recipe's state: its own task's state, not verified unless that task's active definition is the recipe. publishSuccess uses it with campaign.identity.Recipe; store errors and legacy records stay as they are.\n\nServes: held-out-quality; a verified row keeps the readings its own recipe earned.\nDisappears: the hard-coded inference task and a borrowed activation's state.\nEvidence: through publication, a non-inference recipe with no inference alias publishes verified, and a candidate beside an active recipe not verified.\nBatch: host lane."
+        },
+        {
+          "id": "serving",
+          "title": "A serving attempt and a training observation are recorded under the state of the recipe that ran",
+          "status": "open",
+          "verify": "go test ./internal/servingattempt -count=1 -run '^TestAServingAttemptCarriesTheStateOfTheRecipeThatRan$'",
+          "rationale": "SQA-283: internal/servingattempt/servingattempt.go Record and internal/trainingworkflow/session_observation.go Observer.finish read ReadModelState for the model and task at publication and ignore the returned Activation, so an attempt by a candidate recipe is stamped with the active recipe's state.\n\nBoth recorders use the recipe-state reading the held-out step added, with the observation's own Recipe; an attempt whose recipe is not the active one is recorded not verified, and a store that cannot say leaves the state empty, as now.\n\nServes: failure-rate; an attempt carries the state of the recipe that served it.\nDisappears: the model-wide state stamped on another recipe's attempt.\nEvidence: an attempt recorded for a candidate recipe beside a verified active one carries not verified, and one for the active recipe carries verified.\nBatch: host lane.",
+          "depends_on": [
+            "recipe-state/held-out"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "e4b-quality-owed",
+      "title": "Each E4B dataset-quality cell measured on an earlier definition is reported as owed on the definition E4B serves, so coverage never reads it as current acceptance",
+      "status": "open",
+      "budget": {
+        "nodes": 120,
+        "reason": "Estimate before the survey: cmd/validate/media_coverage.go collectModalityProtocols reads the model's active inference definition once and writes an owed gap, naming both definitions, for a quality cell measured on another."
+      },
+      "steps": [
+        {
+          "id": "owed",
+          "title": "The coverage projection marks a quality cell whose definition is not its model's served one as owed there, naming both definitions",
+          "status": "open",
+          "verify": "go test ./cmd/validate -count=1 -run '^TestAQualityCellMeasuredOnAnEarlierDefinitionIsOwedOnTheServedOne$'",
+          "rationale": "SQA-277: six E4B dataset-quality cells in docs/verification/e4b-validation.json keep recipe d6ba6736 and commit 1b7ac581, as the external adapter that measured them is not in this repository, while the 24 protocol and resource cells name the served definition; cmd/validate/media_coverage.go collectModalityProtocols gives every frozen cell one generic gap, so coverage does not say which modality-quality results are owed.\n\nFor a quality cell whose ModelDefinition is not the active inference definition, collectModalityProtocols writes a gap naming both definitions, so the six read as owed; nothing is re-run, and re-measuring them waits on the adapter.\n\nServes: held-out-quality; coverage says which E4B modality results hold on the served definition.\nDisappears: a historical quality cell read as current acceptance.\nEvidence: a fixture quality cell from an earlier definition is projected owed with both named, and one from the served definition is not.\nBatch: host lane."
+        }
+      ]
+    },
+    {
+      "id": "deferred-findings",
+      "title": "A finding the lead's triage defers to the next full run's record no longer holds that run back, so the run that decides it can start",
+      "status": "open",
+      "budget": {
+        "nodes": 60,
+        "reason": "Estimate before the survey: internal/plan/findings_fall_through.go readFindings also reads master_lead_triage, and FindingsToFile passes over a finding whose triage action is deferred."
+      },
+      "steps": [
+        {
+          "id": "pass-over",
+          "title": "FindingsToFile passes over a finding whose master_lead_triage action is deferred",
+          "status": "open",
+          "verify": "go test ./internal/plan -count=1 -run '^TestAFindingDeferredToTheRunsRecordLetsTheRunStart$'",
+          "rationale": "SQA-266: its deciding evidence, each cycle lane package's wall and peak (run-once/run-wall), comes only from the next full measurement run, and .overgo-runtime/lane_walls.json still reads {}; internal/plan/findings_fall_through.go FindingsToFile holds that run until a row names every open P1 and P2 finding, and a row filed for this one keeps the plan from emptying, so the run that would decide it never starts.\n\nFindingsToFile reads master_lead_triage and passes over a finding whose action is deferred; it stays open, and the lead files its step from the run's record. No row is revived and no selector, cache or scheduler is added.\n\nServes: setup-steps; the measurement run that decides SQA-266 starts with no hand edit.\nDisappears: a deferred finding holding back the run that supplies its evidence.\nEvidence: a register with one open deferred P2 finding and one open untriaged P2 finding names only the untriaged one.\nBatch: host lane."
+        }
+      ]
+    },
+    {
+      "id": "claim-whole-file",
+      "title": "A claim's test-file evidence without a named symbol binds the whole file, and the same-file reach graph that missed init goes",
+      "class": "consolidation",
+      "status": "open",
+      "budget": {
+        "nodes": -450,
+        "reason": "Estimate before the survey: cmd/validate/claims.go loses reachedDeclarations (423 nodes), declaredNames (100) and the _test.go branch of evidencePayload, about 546 by the finding's parse; 450 is the shrink owed, leaving margin."
+      },
+      "steps": [
+        {
+          "id": "whole-file",
+          "title": "A no-symbol test-file claim binds the file's normalized bytes, so a change to its init moves the claim",
+          "status": "open",
+          "verify": "go test ./cmd/validate -count=1 -run '^TestATestFileClaimMovesWhenTheFilesInitChanges$'",
+          "rationale": "SQA-316: cmd/validate/claims.go evidencePayload binds a _test.go proof with no Symbol to reachedDeclarations, a same-file graph rooted at the declarations holding proof.Contains and followed by identifier names; init is no root, so a func init assigning a variable the named test reads changes what it observes while the claim's identity stays, and reverifyClaims never reruns it.\n\nevidencePayload uses canonicalEvidence for every proof without a Symbol; reachedDeclarations and declaredNames go, and TestAClaimBindsTheTestItNames becomes the new whole-file test. Moved claims are rebound by go run ./cmd/validate -claims -run, never by hand.\n\nServes: held-out-quality; a published claim stays bound to the test bytes that verified it.\nDisappears: about 540 production nodes of same-file reach analysis.\nEvidence: changing the fixture's init assignment from 3 to 4 moves the no-symbol test-file identity.\nBatch: host lane."
+        }
+      ]
+    },
+    {
+      "id": "one-draft-verdict",
+      "title": "The open's measured draft verdict is the one decision on whether a model drafts through its own next-token layer by default, and the kept-share refusal goes",
+      "class": "consolidation",
+      "status": "open",
+      "budget": {
+        "nodes": -80,
+        "reason": "Estimate before the survey: internal/inference loses observeOwnDrafts (84 nodes), its constant block (14), the two Runner tally fields and the window's call; 80 is the shrink owed."
+      },
+      "steps": [
+        {
+          "id": "verdict",
+          "title": "Default drafting through a model's own next-token layer is decided by the open's measured verdict alone",
+          "status": "open",
+          "verify": "go test ./internal/inference -count=1 -run '^TestTheOpensDraftVerdictIsTheOneDefaultDraftingDecision$'",
+          "rationale": "SQA-257: two rules decide default drafting through a model's own next-token layer: internal/inference/nextn_device_speculation.go observeOwnDrafts refuses it once fewer than one in ten of 48 drafts were kept, and JudgeOwnDrafts, recorded per model, build and card by internal/modelcli/draft_verdict.go, refuses it where drafting decodes slower; that file's readings show the kept share does not decide the rate, Qwen3.5-4B keeping half its drafts yet decoding 57 tok/s drafted against 95 plainly.\n\nobserveOwnDrafts, its tallies and constants and TestOwnDraftsRefusedWhereFewAreKept go; the measured verdict is the one default decision, and a request that asks to speculate still drafts.\n\nServes: throughput; a served model drafts by default exactly where drafting decodes faster.\nDisappears: the kept-share refusal, its tallies, constants and test.\nEvidence: judgeDrafts decides over recorded rates, and Runner holds no kept-share tally.\nBatch: host lane."
+        }
+      ]
+    }
+  ],
   "decisions": [
     {
       "id": "gemma-12b-bf16-download",

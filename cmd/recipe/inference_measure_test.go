@@ -48,6 +48,8 @@ type servedFixture struct {
 	stall   time.Duration
 	stalled time.Duration
 	context uint32
+	// fail, given, says for each request whether it fails, and with what, before it generates.
+	fail func(ctx context.Context, prompt string) error
 }
 
 // ModelProperties reports the fixture's context.
@@ -73,9 +75,14 @@ func tick(t *testing.T, since time.Duration) time.Duration {
 
 // Generate answers servedOutput a piece per token after evaluating the prompt,
 // each step taking a tick of the clock.
-func (fixture *servedFixture) Generate(_ context.Context, prompt string, options inference.GenerateOptions) ([]tokenizer.TokenID, string, error) {
+func (fixture *servedFixture) Generate(ctx context.Context, prompt string, options inference.GenerateOptions) ([]tokenizer.TokenID, string, error) {
 	fixture.prompts = append(fixture.prompts, prompt)
 	fixture.through = append(fixture.through, options.ContinueAfterEOG)
+	if fixture.fail != nil {
+		if err := fixture.fail(ctx, prompt); err != nil {
+			return nil, "", err
+		}
+	}
 	if fixture.stall > 0 {
 		waited := tick(fixture.t, 0)
 		fixture.stalled = tick(fixture.t, waited+fixture.stall) - waited

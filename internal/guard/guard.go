@@ -13,15 +13,14 @@ package guard
 
 import (
 	"cmp"
-	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 
-	"overgo/internal/gitauthority"
 	"overgo/internal/processlock"
 )
 
@@ -56,11 +55,12 @@ var sourceExtensions = []string{"cu", "cuh", "go", "json", "jsonl", "md", "py", 
 const payloadDepth = 4
 
 // ToolCall is the harness PreToolUse payload subset the guard judges: the
-// session the call is made in, a shell tool's command, and the file an
-// editing tool writes.
+// session the call is made in and the directory it works in, a shell tool's
+// command, and the file an editing tool writes.
 type ToolCall struct {
 	ToolName  string `json:"tool_name"`
 	Session   string `json:"session_id"`
+	Directory string `json:"cwd"`
 	ToolInput struct {
 		Command  string `json:"command"`
 		Path     string `json:"file_path"`
@@ -135,41 +135,64 @@ func removal(command string) bool {
 
 // reviewVerdict refuses what a session that changes nothing here may not do,
 // and allows the rest. A session that declared itself a review session (its
-// state says so) lands nothing, removes no leftover and edits no file the
+// state says so) lands nothing, removes no leftover and writes no file the
 // repository tracks or would track, so it has no work of its own for the stop
 // gate to hold it to, and nothing here that is its own to remove.
-// Neither does an implementing session in a worktree another implementing
-// session holds (its state names the holder): a landing takes the checkout's
-// whole tree, so its files would join the holder's commit, and it is sent to
-// a worktree of its own. A file outside the checkout, or one the repository
-// ignores, is scratch and is any session's to write.
+// Neither does any session in a checkout another session holds, whether its
+// state named the holder as its turn began or the hold names another session
+// that still runs (heldBy): a landing takes the checkout's changes, so its
+// files would join the holder's commit, and on 2026-11-08 a document another
+// session wrote into the lead's checkout stopped every landing. It is sent to
+// a worktree of its own. What a call writes is the file a Write or Edit names
+// and those a shell command writes (written); a session working elsewhere is
+// refused a write into the trunk's checkout while another session holds it.
+// A file outside the checkout, or one the repository ignores, is scratch and
+// is any session's to write.
 func reviewVerdict(call ToolCall, root string) string {
+	if call.Session == "" {
+		return ""
+	}
 	var state struct {
 		Review bool
 		Holder string
 	}
-	data, _ := os.ReadFile(filepath.Join(root, processlock.StateDirectory, SessionState(call.Session)))
-	if call.Session == "" || json.Unmarshal(data, &state) != nil || !state.Review && state.Holder == "" {
-		return ""
+	if data, err := os.ReadFile(filepath.Join(root, processlock.StateDirectory, SessionState(call.Session))); err == nil && json.Unmarshal(data, &state) != nil {
+		state.Review, state.Holder = false, ""
 	}
+	state.Holder = cmp.Or(state.Holder, heldBy(root, call.Session))
 	session, instead := "a review session", "report what it found (go run ./cmd/finding)"
 	if !state.Review {
 		session, instead = "a session in a worktree session "+state.Holder+" holds", "work in a worktree of its own (git worktree add)"
 	}
-	if Landing(call.ToolInput.Command) {
+	kept := state.Review || state.Holder != ""
+	if kept && Landing(call.ToolInput.Command) {
 		return session + " lands nothing here; " + instead
 	}
-	if removal(call.ToolInput.Command) {
+	if kept && removal(call.ToolInput.Command) {
 		return session + " removes nothing here; " + instead
 	}
-	relative, err := filepath.Rel(root, cmp.Or(call.ToolInput.Path, root))
-	if err != nil || relative == "." || !filepath.IsLocal(relative) {
-		return ""
+	trunk := sync.OnceValue(func() string { return trunkCheckout(root) })
+	for _, path := range written(call, root) {
+		if relative, inside := within(root, path); inside {
+			if !kept {
+				continue
+			}
+			if refusal := trackedWrite(root, relative, session, instead); refusal != "" {
+				return refusal
+			}
+			continue
+		}
+		relative, inside := within(trunk(), path)
+		if !inside || trunk() == root {
+			continue
+		}
+		if holder := heldBy(trunk(), call.Session); holder != "" {
+			if refusal := trackedWrite(trunk(), relative, "a session beside the checkout session "+holder+" holds", "work in a worktree of its own (git worktree add)"); refusal != "" {
+				return refusal
+			}
+		}
 	}
-	if _, ignored := gitauthority.Query(context.Background(), root, "check-ignore", "-q", relative); ignored == nil {
-		return ""
-	}
-	return session + " edits no file the repository tracks (" + filepath.ToSlash(relative) + "); " + instead + ", or write to a scratch path"
+	return ""
 }
 
 // Verdict judges one tool call. Empty string allows; otherwise the deny
@@ -313,24 +336,31 @@ func referencePath(path string) bool {
 	return slices.Contains(strings.FieldsFunc(path, func(r rune) bool { return r == '/' || r == '\\' }), referenceTree)
 }
 
-// writesReference says a command writes into the reference tree: it sends output there, or a program that deletes,
-// moves, creates, edits in place or copies onto what it names names a path there. Reading the tree is any session's.
+// writesReference says a command writes into the reference tree (writes). Reading the tree is any session's.
 func writesReference(run shellCommand) bool {
-	if slices.ContainsFunc(run.sinks, referencePath) {
-		return true
-	}
+	return slices.ContainsFunc(writes(run), referencePath)
+}
+
+// writes are the paths a command writes: those it sends output to, and those a program that deletes, moves, creates,
+// edits in place or copies onto what it names names, each as the shell reads it and as it was written. A copy writes
+// only the last path it names.
+func writes(run shellCommand) []string {
+	targets := slices.Clone(run.sinks)
 	if len(run.words) == 0 {
-		return false
+		return targets
 	}
-	program, targets := programName(run.words[0].text), run.words[1:]
+	program, named := programName(run.words[0].text), run.words[1:]
 	switch {
-	case slices.Contains(copyVerbs, program) && len(targets) > 0:
-		targets = targets[len(targets)-1:]
-	case program == "sed" && slices.ContainsFunc(targets, func(current word) bool { return strings.HasPrefix(current.text, "-i") }):
+	case slices.Contains(copyVerbs, program) && len(named) > 0:
+		named = named[len(named)-1:]
+	case program == "sed" && slices.ContainsFunc(named, func(current word) bool { return strings.HasPrefix(current.text, "-i") }):
 	case !slices.Contains(protectedVerbs, program) && !slices.Contains(creatingVerbs, program):
-		return false
+		return targets
 	}
-	return slices.ContainsFunc(targets, func(current word) bool { return referencePath(current.text) || referencePath(current.spelled) })
+	for _, current := range named {
+		targets = append(targets, current.text, current.spelled)
+	}
+	return targets
 }
 
 // invokesPowerShell says a command names PowerShell outside a quotation.

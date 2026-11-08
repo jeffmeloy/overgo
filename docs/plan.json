@@ -3,30 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "landing-scope",
-      "title": "A landing commits only what its steps list and judges only the commit it makes, and no other session writes into the lead's checkout",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 858,
-        "reason": "Estimate at the campaign's measured rate: the landing's capture and its tree-change check scoped to the steps' files, its stages run on the candidate in a worktree of its own, and the guard's rule for another session's writes, each with its test."
-      },
-      "steps": [
-        {
-          "id": "guard-checkout",
-          "title": "The guard refuses a write into the lead's checkout from any other session, a new file included",
-          "status": "open",
-          "verify": "go test ./internal/guard -count=1 -run '^TestTheGuardKeepsOtherSessionsOutOfTheLeadsCheckout$'",
-          "files": [
-            "internal/guard",
-            "cmd/guard",
-            "cmd/loophook"
-          ],
-          "rationale": "The guard refuses a declared review session's edits and a session's in a worktree another holds (internal/guard reviewVerdict), by the path a Write or Edit names. A session that declared nothing, and a shell command that writes a file, reach the lead's checkout: docs/extreme_refactor_plan.md arrived that way. The checkout's holder is the lead; any other session's write into it, a new file included and a shell redirection among them, is refused with the way to a worktree of its own, and scratch paths the repository ignores stay any session's.\n\nServes: setup-steps.\nDisappears: another session's file in the lead's checkout.\nEvidence: a write into the held checkout by another session is refused by file path and by shell redirection, and the holder's own and any ignored path are allowed.\nBatch: host lane."
-        }
-      ]
-    },
-    {
       "id": "liveedit-card-text",
       "title": "LiveEdit encodes its instruction on the card, as Wan and the student do, and its clip is timed again",
       "owner": "master-lead",

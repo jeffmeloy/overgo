@@ -82,6 +82,7 @@ func run() error {
 	userSize := flags.Bool("user-size", false, "measure: run the verified request at the size a person asks for: the model's own defaults in place of the size its verification stated")
 	input := flags.String("input", "", "task input as JSON; - reads standard input (verify, run)")
 	inputFile := flags.String("input-file", "", "a file holding the task input, in place of -input (verify, run)")
+	recorded := flags.Bool("recorded", false, "re-verify a model whose active inference recipe this build no longer derives, on the exact suite its accepted verification ran, read from the store, and activate the recipe this build derives once every case passes (verify -task inference, no -input)")
 	reverify := flags.Bool("reverify", false, "re-verify the model's active projection recipe on the verification this run records; refused when the code derives another recipe (verify -task projection)")
 	protocol := flags.Bool("protocol", false, "the input lists protocol cases sent through the serving handlers, each with its expected answer, in place of an exact suite; the verification is published only when every case is accepted and the closed runtime leaves no device bytes (verify -task inference)")
 	alias := flags.String("alias", "", "OvergoDB model alias (run)")
@@ -108,6 +109,9 @@ func run() error {
 	if *reverify && (verb != "verify" || recipe.Task(*task) != recipe.TaskProjection) {
 		return errors.New("-reverify re-verifies a projection recipe: it goes with verify -task projection")
 	}
+	if *recorded && (verb != "verify" || recipe.Task(*task) != recipe.TaskInference || strings.TrimSpace(*input) != "") {
+		return errors.New("-recorded re-verifies an inference recipe on the suite the store recorded: it goes with verify -task inference and no -input")
+	}
 	roots, err := dataroot.ResolveCurrent()
 	if err != nil {
 		return err
@@ -133,6 +137,14 @@ func run() error {
 	}
 	switch verb {
 	case "verify":
+		if *recorded {
+			sessionOverride, sessionErr := parseSessionOverride(*sessionFlag)
+			residency, residencyErr := parseResidency(*residencyFlag)
+			if err := errors.Join(sessionErr, residencyErr); err != nil {
+				return err
+			}
+			return reverifyRecorded(repository, path, sessionOverride, residency)
+		}
 		if selectedTask == recipe.TaskInference || selectedTask == recipe.TaskProjection {
 			rawInput, inputErr := readInput(*input)
 			if inputErr != nil {

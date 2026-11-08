@@ -245,14 +245,15 @@ func run(args []string) error {
 			return err
 		}
 	}
-	if err := noteUncleanEnd(loopWorktree, time.Now(), os.Stdout); err != nil {
-		return err
-	}
 	campaign, err := processcontrol.BeginCampaign(loopWorktree, strings.TrimSpace(loaded.Name))
 	if err != nil {
 		return err
 	}
 	defer campaign.Close()
+	// Only an admitted start reads the last run's record: a refused one never erases a working run's (SQA-338).
+	if err := noteUncleanEnd(loopWorktree, time.Now(), os.Stdout); err != nil {
+		return err
+	}
 	// The worker and every gate inside it act under the config's name.
 	priorWorker, workerPresent := os.LookupEnv(plan.AutomationWorkerEnvironment)
 	if err := os.Setenv(plan.AutomationWorkerEnvironment, strings.TrimSpace(loaded.Name)); err != nil {

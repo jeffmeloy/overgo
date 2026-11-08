@@ -12,13 +12,6 @@
       },
       "steps": [
         {
-          "id": "order",
-          "title": "run reads the running record only after BeginCampaign succeeds, so a refused second start leaves the record and the unclean log untouched",
-          "status": "open",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestARefusedSecondDriverLeavesTheRunningRecordUntouched$'",
-          "rationale": "SQA-338: cmd/loop/main.go run calls noteUncleanEnd before processcontrol.BeginCampaign, so a second driver started beside one whose worker runs logs that live run as unclean in driver_unclean.log and removes driver_running.json, and only then is refused by loop_supervisor.lock; the startup task's IgnoreNew covers its own instances, not a direct start.\n\nnoteUncleanEnd moves after a successful BeginCampaign, under its deferred release; a genuine orphan is still logged and cleared by the next admitted start, as TestTheStartupTaskRunsTheDriverAtBoot holds.\n\nServes: setup-steps; a refused start never erases a working run's recovery record.\nDisappears: recovery state changed before admission.\nEvidence: with a campaign held and a running record kept, a second start is refused and the record and the unclean log keep their bytes.\nBatch: host lane."
-        },
-        {
           "id": "fixture",
           "title": "One start-admission fixture holds the default configuration, its prompt, no-clobber and the refusals, and init_config_test.go goes",
           "status": "open",

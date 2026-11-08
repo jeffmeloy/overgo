@@ -16,8 +16,22 @@ import (
 	"overgo/internal/plan"
 	"overgo/internal/recipe"
 	"overgo/internal/scorecard"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
+
+// TestAPhaseInTheCycleCheckoutReachesTheRunRecord holds the record a cycle gives its phases to the one it keeps: on
+// 2026-11-08 the run at fdd4ab1ce named it relative to the main checkout, ".", and each phase, run by go -C in the
+// cycle checkout, found no record there, so the failures, packages and digests it recorded were lost and the
+// publication could not read the run's failed evaluations.
+func TestAPhaseInTheCycleCheckoutReachesTheRunRecord(t *testing.T) {
+	t.Parallel()
+	kept := testcheck.Must(filepath.Abs(plan.MeasurementRunPath(loopWorktree)))(t)
+	given := (&runRecorder{root: loopWorktree}).environment()
+	if want := clioptions.MeasurementRunEnvironment + "=" + kept; !slices.Equal(given, []string{want}) {
+		t.Fatalf("a run kept at %q gives its phases %q, want %q", loopWorktree, given, want)
+	}
+}
 
 // TestARunRecordsItsEnd runs two improvement cycles and reads the record each
 // keeps of itself (plan.MeasurementRun): its commit and process, each phase as

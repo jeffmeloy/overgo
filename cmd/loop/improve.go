@@ -90,12 +90,17 @@ func (r *runRecorder) phase(name string) func(passed bool) {
 }
 
 // environment is what a phase's validate is given to record its failures in this run's record; none where no record
-// is kept.
+// is kept. A phase runs in the cycle checkout, so the record is named by its absolute path: a relative one names a
+// file there that no one keeps, and where no absolute path can be had, no record is named.
 func (r *runRecorder) environment() []string {
 	if r == nil {
 		return nil
 	}
-	return []string{clioptions.MeasurementRunEnvironment + "=" + plan.MeasurementRunPath(r.root)}
+	record, err := filepath.Abs(plan.MeasurementRunPath(r.root))
+	if err != nil {
+		return nil
+	}
+	return []string{clioptions.MeasurementRunEnvironment + "=" + record}
 }
 
 // credited records the phase named as one an interrupted run's credit stood for.

@@ -23,10 +23,7 @@ func (l *landing) inScope(named []ref) error {
 		listed = append(listed, step.Files...)
 	}
 	outside := slices.DeleteFunc(slices.Clone(l.written), func(path string) bool {
-		return path == plan.Path || path == findingsRegister || slices.ContainsFunc(listed, func(entry string) bool {
-			entry = strings.TrimSuffix(entry, "/")
-			return path == entry || strings.HasPrefix(path, entry+"/")
-		})
+		return path == plan.Path || path == findingsRegister || plan.Lists(listed, path)
 	})
 	if len(outside) == 0 {
 		return nil

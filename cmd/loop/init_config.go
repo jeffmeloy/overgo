@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"overgo/internal/dataroot"
 	"overgo/internal/jsonfile"
@@ -25,9 +26,26 @@ const (
 )
 
 // defaultWorker is Claude Code given the prompt on its standard input, so a long prompt is passed once and meets no
-// command-line limit, accepting its edits and allowed the repository's tools; its permissions are not bypassed, and
-// the repository's guard and hooks apply to it as to any session.
-var defaultWorker = []string{"claude", "-p", "--permission-mode", "acceptEdits", "--allowedTools", "Bash Edit Write Read Grep Glob"}
+// command-line limit, with no built-in tool and the six the driver serves it alone (workerTools); its permissions are
+// not bypassed, and the repository's hooks apply to it as to any session.
+var defaultWorker = []string{"claude", "-p", "--permission-mode", "acceptEdits", "--tools", "", "--strict-mcp-config", "--mcp-config", toolServer,
+	"--allowedTools", allowedTools()}
+
+// toolPrefix opens the name a session gives each tool of the server named overgo, and toolServer configures that
+// server: go run ./cmd/loop -tools, in the checkout the worker starts in.
+const (
+	toolPrefix = "mcp__overgo__"
+	toolServer = `{"mcpServers": {"overgo": {"command": "go", "args": ["run", "./cmd/loop", "-tools"]}}}`
+)
+
+// allowedTools names the worker's tools as its session knows them.
+func allowedTools() string {
+	var names []string
+	for _, tool := range workerTools("", nil) {
+		names = append(names, toolPrefix+tool.name)
+	}
+	return strings.Join(names, " ")
+}
 
 // defaultPrompt opens every worker's prompt: the declaration that takes the main checkout's hold, since the driver's
 // worker is its implementing session, what the worker is for, where the written guidance is, and that it never stops

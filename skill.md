@@ -45,6 +45,7 @@ A term used in this file is plain English or is defined here.
 - step = one landing's worth of a row, with its check (`verify`) (check: internal/plan TestOpenStepRequiresVerifier, internal/landing TestLandingCompletesSeveralSteps)
 - run step = a step naming a command (`-run`) and the record it writes (`-record`) => the driver runs it and lands the record with no worker (check: internal/loop TestARunStepRunsWithoutAWorker)
 - code step lists its files (`-files`) => its landing refuses a change outside them, printing the paths (check: internal/landing TestALandingStaysInsideItsStepsFiles)
+- the driver's worker => six tools and no shell (`go run ./cmd/loop -tools`), its edits held to its step's files (check: cmd/loop TestTheWorkerHasOnlyItsTools)
 - gate = the automated checks a commit must pass
 - landing = a commit made through the gate
 - lane = one of the gate's longer test runs (device, browser, cuda)

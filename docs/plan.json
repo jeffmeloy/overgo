@@ -54,17 +54,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 400,
+        "nodes": -827,
         "reason": "Estimate before the survey: a tool server for the worker and the worker list in cmd/loop and internal/loop; a step raises it with its measured figure."
       },
       "steps": [
-        {
-          "id": "tools",
-          "title": "The worker reads, edits within its list, runs its test, runs a package's tests, reads its step and runs an approved probe, and nothing else",
-          "status": "open",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestTheWorkerHasOnlyItsTools$'",
-          "rationale": "The guard exists to catch shell mistakes: heredocs with backslashes, force deletes, piped landings, paths into the model folder. On Nov 7 a helper agent started in its own repo copy rewrote core.hooksPath and stopped the loop for an hour. A worker with no shell has nothing to trip.\nThe driver serves the worker six tools: read a file; edit a file in the step's list; run the step's test; run a package's tests; show the step's context; run an approved probe from a list kept in the repo (format-loader's timing probe is one). The worker runs with only these: no shell, no git, no helper agents.\nServes: failure-rate; model calls per landing.\nDisappears: shell use by the worker, and the guard rules it needed.\nEvidence: the worker's session lists exactly the six tools, and an edit outside the list is refused.\nBatch: host lane."
-        },
         {
           "id": "workers",
           "title": "loop.json lists workers cheapest first, a step moves up after its attempts, and after the last it is set aside with a finding",

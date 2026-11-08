@@ -599,6 +599,14 @@ func exactPlanItem(document Plan, itemID string) (Item, bool) {
 	return Item{}, false
 }
 
+// Lists says a step's Files hold path: one names it, or a directory above it.
+func Lists(files []string, path string) bool {
+	return slices.ContainsFunc(files, func(entry string) bool {
+		entry = strings.TrimSuffix(entry, "/")
+		return path == entry || strings.HasPrefix(path, entry+"/")
+	})
+}
+
 // ExactStep is the step itemID/stepID of the plan, and whether the plan holds it.
 func ExactStep(document Plan, itemID, stepID string) (Step, bool) {
 	item, _ := exactPlanItem(document, itemID)

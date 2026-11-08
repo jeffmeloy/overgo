@@ -121,6 +121,7 @@ func run(args []string) error {
 	improveOnce := flags.Bool("improve", false, "run one improvement cycle now if one is due (HandStartDue says why when none is), as an emptied plan does: measure the scorecard, judge each cell against what its earlier readings held, and file the declines and the other gaps as rows")
 	statusView := flags.Bool("status", false, "read the state of the work in this checkout, the dispatched step, the last commit, the decisions waiting for an answer and the week's pace, keep it in the process state as status.json and print it; runs nothing")
 	sessionPrompt := flags.Bool("session-prompt", false, "print the instructions a session the Claude app's scheduled task starts follows, with the environment its commands run in from loop.json; runs nothing")
+	toolsServer := flags.Bool("tools", false, "serve the worker its six tools over the Model Context Protocol on standard input and output: read, edit within the step's files, run its check, run a package's tests, show the step and run an approved probe")
 	startup := flags.Bool("install-startup", false, "register a Windows scheduled task that runs go run ./cmd/loop in this checkout at the user's logon and again after it fails; replaces a task of its name")
 	initialize := flags.Bool("init", false, "write the driver's machine configuration, loop.json and its worker's prompt, into the checkout's process state from the defaults the repository holds; writes over neither")
 	pushCommit := flags.String("push", "", "the owner's command: push the named commit to origin's main, fast-forward only; refused from a worker's environment and without -confirm-push")
@@ -206,6 +207,8 @@ func run(args []string) error {
 	switch {
 	case *initialize:
 		return writeDefaultConfig(*configPath, os.Stdout)
+	case *toolsServer:
+		return serveTools(os.Stdin, os.Stdout, workerTools(loopWorktree, stepFiles))
 	case *sessionPrompt:
 		return writeSessionPrompt(*configPath, os.Stdout)
 	case *statusView:
@@ -307,13 +310,26 @@ func (w *execWorld) Current() (loop.Step, bool, error) {
 	if dispatch.Waiting != "" {
 		return loop.Step{}, false, fmt.Errorf("%w: %s", loop.ErrWorkWaiting, dispatch.Waiting)
 	}
-	// A run step's command and record are the plan's, read beside the dispatch.
+	step, err := dispatchedStep(dispatch)
+	return loop.Step{Item: dispatch.Item, ID: dispatch.Step, Run: step.Run, Record: step.Record}, err == nil, err
+}
+
+// dispatchedStep is the dispatched step as the plan holds it, its command, record and files among it, which the
+// dispatch line does not carry.
+func dispatchedStep(dispatch plan.Dispatch) (plan.Step, error) {
 	document, err := plan.Load("")
-	if err != nil {
-		return loop.Step{}, false, err
-	}
 	step, _ := plan.ExactStep(document, dispatch.Item, dispatch.Step)
-	return loop.Step{Item: dispatch.Item, ID: dispatch.Step, Run: step.Run, Record: step.Record}, true, nil
+	return step, err
+}
+
+// stepFiles are the files the dispatched step lists, which the worker's edits stay inside.
+func stepFiles() ([]string, error) {
+	dispatch, err := dispatched()
+	if err != nil {
+		return nil, err
+	}
+	step, err := dispatchedStep(dispatch)
+	return step.Files, err
 }
 
 // dispatched is the plan's current row, as data: the prose line is never parsed back.

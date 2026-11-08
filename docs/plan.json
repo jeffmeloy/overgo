@@ -3,24 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "tool-replay-guard",
-      "title": "A tool workflow run again under its key with changed call arguments is refused before any tool runs, naming the node",
-      "status": "open",
-      "budget": {
-        "nodes": 150,
-        "reason": "Estimate before the survey: internal/workflowruntime/tool_workflow.go ExecuteToolWorkflow reads the operation's existing receipts through runrecord.ResolveStageReceipt and compares each recorded call-port binding with the current call's content ID before ExecuteProgram."
-      },
-      "steps": [
-        {
-          "id": "refuse-changed",
-          "title": "ExecuteToolWorkflow compares each current call with the call its operation's recorded receipt holds, and refuses a change",
-          "status": "open",
-          "verify": "go test ./internal/workflowruntime -count=1 -run '^TestAToolWorkflowRefusesChangedArgumentsUnderAKeyThatRan$'",
-          "rationale": "SQA-328: internal/workflowruntime/tool_workflow.go ExecuteToolWorkflow names its operation by ExecutionID(definition.ID, key) alone, and runtime.go planReplay and recoverStage reuse completed receipts by operation and node without comparing their recorded calls, so the same key run again with item=B after item=A completed publishes a successful run binding B's inputs to A's outputs with no tool invoked.\n\nBefore ExecuteProgram, ExecuteToolWorkflow reads the operation's existing receipts through runrecord.ResolveStageReceipt, v1 included, and refuses, naming the node, a call whose content ID differs from the recorded binding or whose binding cannot be read. The same call still replays and resumes.\n\nServes: failure-rate; a workflow result answers the arguments it was given.\nDisappears: recovered outputs attached to changed calls.\nEvidence: in the HTTP store fixture, item=B under A's key is refused with no transport call, and item=A still replays.\nBatch: host lane."
-        }
-      ]
-    },
-    {
       "id": "fuzz-discovery",
       "title": "The scheduled fuzz job fails when finding or listing a fuzz package fails, instead of reporting every target clean",
       "status": "open",

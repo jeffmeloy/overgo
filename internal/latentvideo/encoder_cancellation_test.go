@@ -28,7 +28,7 @@ func TestTextConditioningCancellationBeforeIO(t *testing.T) {
 	if _, err := textConditioningWithWeights(ctx, TextConditioningSpec{}, "prompt", projectionWeights{}, 0); !errors.Is(err, context.Canceled) {
 		t.Fatal("text conditioning attempted I/O after cancellation", err)
 	}
-	if _, _, err := promptContexts(ctx, TextConditioningSpec{}, WanRequest{}); !errors.Is(err, context.Canceled) {
+	if _, err := promptContexts(ctx, TextConditioningSpec{}, []string{"", ""}); !errors.Is(err, context.Canceled) {
 		t.Fatal("prompt pair attempted I/O after cancellation", err)
 	}
 	if _, _, _, err := RawTextRows(ctx, TextConditioningSpec{}, "prompt"); !errors.Is(err, context.Canceled) {

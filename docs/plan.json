@@ -8,7 +8,7 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 600,
+        "nodes": 336,
         "reason": "Estimate before the survey: the encoder's blocks on device programs (T5 with relative position buckets), a resident lifetime beside the DiT, and latentimage's conditioning cache moved to code video shares."
       },
       "steps": [
@@ -27,18 +27,6 @@
           "depends_on": [
             "media-user-size/stages"
           ]
-        },
-        {
-          "id": "cache",
-          "title": "Text conditioning for video is cached by encoder identity and text, so a request that changes only its seed encodes no text",
-          "status": "open",
-          "verify": "go test ./internal/latentvideo -count=1 -run '^TestAVideoRequestThatChangesOnlyItsSeedEncodesNoText$'",
-          "files": [
-            "internal/latentvideo",
-            "internal/latentimage",
-            "internal/media"
-          ],
-          "rationale": "latentimage keeps an LRU of text-encoder outputs on the host (internal/latentimage/conditioning_cache.go), so an image request that changes only its seed loads no encoder; video has no such cache, and Wan encodes its long standard negative prompt every request.\n\nOne cache, keyed by encoder identity and text, serves image and video; the empty and standard negative prompts are permanent entries.\n\nNote: Filed 2026-11-08: the Wan runtime already memoizes one prompt pair's contexts under the bytes of its text pipeline (internal/latentvideo/wan_form.go, wanConditioning), so a request that changes only its seed encodes no text today, and the check must fail at HEAD on what this step adds: one cache image and video share, holding more than one pair, with the empty and standard negative prompts kept, in place of latentimage's LRU and the video memo.\n\nServes: first-output on repeated prompts.\nDisappears: latentimage's own copy of the cache.\nEvidence: a second video request differing only in seed runs no text encoder.\nBatch: host lane."
         }
       ]
     },

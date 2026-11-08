@@ -21,7 +21,7 @@ import (
 type rotaryGeneration struct {
 	runtime            *graphruntime.ResidentSession
 	conditioner        *modelConditioner
-	conditioned        conditioningCache
+	conditioned        media.ConditioningCache
 	transformer        TransformerSpec
 	decoder            *VAEProgram
 	latent             *residentLatent
@@ -79,7 +79,7 @@ func loadRotaryGenerator(ctx context.Context, root string, profile Profile, requ
 	if !ok {
 		return nil, errors.Join(errors.New("rotary image: conditioning cache limit overflows"), runtime.Close(context.WithoutCancel(ctx)))
 	}
-	g := &Generator{profile: profile, modelDir: root, shape: LatentShape{ZDim: channels, Height: height, Width: width}, rotary: &rotaryGeneration{runtime: runtime, conditioner: conditioner, conditioned: conditioningCache{limit: limit}, transformer: spec, decoder: vae}}
+	g := &Generator{profile: profile, modelDir: root, shape: LatentShape{ZDim: channels, Height: height, Width: width}, rotary: &rotaryGeneration{runtime: runtime, conditioner: conditioner, conditioned: media.ConditioningCache{Limit: limit, Kept: []string{""}}, transformer: spec, decoder: vae}}
 	if err = g.configureRotary(ctx, request); err == nil {
 		err = admitPicture(ctx, runtime, height*width, spec.Hidden)
 	}
@@ -179,7 +179,7 @@ func (g *Generator) prepareRotary(ctx context.Context, request Request) (_ *Gene
 	var embeddings [][]float32
 	var missing []int
 	for index, prompt := range prompts {
-		if cached, ok := g.rotary.conditioned.lookup(prompt); ok && g.observe == nil {
+		if cached, ok := g.rotary.conditioned.Lookup("", prompt); ok && g.observe == nil {
 			hidden[index] = cached
 			continue
 		}
@@ -196,7 +196,7 @@ func (g *Generator) prepareRotary(ctx context.Context, request Request) (_ *Gene
 		}
 		for position, index := range missing {
 			hidden[index] = encoded[position]
-			g.rotary.conditioned.store(prompts[index], encoded[position])
+			g.rotary.conditioned.Store("", prompts[index], encoded[position])
 			if g.observe == nil {
 				continue
 			}

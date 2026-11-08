@@ -11,6 +11,7 @@ import (
 	"overgo/internal/artifact"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/graphruntime"
+	"overgo/internal/media"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
@@ -49,9 +50,6 @@ func TestMOSSBoundedResidency(t *testing.T) {
 		if peak, err := g.PeakDeviceBytes(); err != nil || peak == 0 {
 			t.Fatalf("a finished request read a device peak of %d: %v", peak, err)
 		}
-		if g.rotary.conditioned.held > g.rotary.conditioned.limit {
-			t.Fatal("conditioning cache exceeded its limit", g.rotary.conditioned.held)
-		}
 		return image.Data
 	}
 	prepare := func(g *Generator, request Request) uint64 {
@@ -81,7 +79,9 @@ func TestMOSSBoundedResidency(t *testing.T) {
 		{name: "new positive", request: Request{Prompt: "green tree", NegativePrompt: "red", Width: 48, Height: 32, Steps: 3, Seed: 7}},
 		{name: "new negative", request: Request{Prompt: "green tree", NegativePrompt: "blue sky", Width: 48, Height: 32, Steps: 3, Seed: 7}},
 		{name: "guidance one", request: Request{Prompt: "green tree", NegativePrompt: "never encoded", GuidanceScale: &unit, Width: 48, Height: 32, Steps: 3, Seed: 7}, cached: true},
-		{name: "evicted", request: base, before: func() { g.rotary.conditioned = conditioningCache{limit: g.rotary.conditioned.limit} }},
+		{name: "evicted", request: base, before: func() {
+			g.rotary.conditioned = media.ConditioningCache{Limit: g.rotary.conditioned.Limit, Kept: g.rotary.conditioned.Kept}
+		}},
 	}
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {

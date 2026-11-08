@@ -5,9 +5,11 @@ import (
 	"errors"
 	"math"
 	"path/filepath"
+	"slices"
 
 	"overgo/internal/artifact"
 	"overgo/internal/discovery"
+	"overgo/internal/media"
 	"overgo/internal/overgodb"
 	"overgo/internal/processmeasure"
 	"overgo/internal/sampling"
@@ -147,17 +149,19 @@ func (request WanRequest) withGeneration(policy generationPolicy) WanRequest {
 	return request
 }
 
-// wanConditioning memoizes the contexts of one prompt pair under the bytes
-// they were made from, so a replayed or repeated request does not stream the
-// encoder again, and one that follows a changed encoder or tokenizer does.
+// wanContextsHeld is how many context values the Wan text cache holds beside its kept prompts: about thirty contexts
+// of 512 tokens at umT5's 4,096, a quarter of a gigabyte of host memory.
+const wanContextsHeld = 1 << 26
+
+// wanConditioning keeps prompts' contexts in the shared text cache (media.ConditioningCache) under the bytes they were
+// made from, so a repeated prompt, or the standard negative prompt beside a new one, does not stream the CPU encoder
+// again, and a prompt after a changed encoder or tokenizer does.
 type wanConditioning struct {
-	prompt, negative, content string
-	cond, uncond              []float32
+	cache media.ConditioningCache
 }
 
-// contexts gives a prompt-form request's contexts: the memo's when the
-// prompts and the pipeline's bytes are the ones it was made from, and
-// otherwise the pipeline's own, which the memo then holds.
+// contexts gives a prompt-form request's contexts: the cache's for each prompt it holds under the pipeline's bytes,
+// and the pipeline's own for the others, which the cache then holds.
 func (memo *wanConditioning) contexts(ctx context.Context, spec TextConditioningSpec, request WanRequest) (cond, uncond []float32, err error) {
 	naming := processmeasure.Stage(ctx, "text pipeline named")
 	content, _, err := spec.content(false, nil)
@@ -165,30 +169,66 @@ func (memo *wanConditioning) contexts(ctx context.Context, spec TextConditioning
 	if err != nil {
 		return nil, nil, err
 	}
-	if memo.cond == nil || memo.prompt != request.Prompt || memo.negative != request.NegativePrompt || memo.content != content {
-		cond, uncond, err := promptContexts(ctx, spec, request)
-		if err != nil {
-			return nil, nil, err
-		}
-		*memo = wanConditioning{prompt: request.Prompt, negative: request.NegativePrompt, content: content, cond: cond, uncond: uncond}
+	contexts, err := memo.recall(content, []string{request.Prompt, request.NegativePrompt}, func(prompts []string) ([][]float32, error) {
+		return promptContexts(ctx, spec, prompts)
+	})
+	if err != nil {
+		return nil, nil, err
 	}
-	return memo.cond, memo.uncond, nil
+	return contexts[0], contexts[1], nil
 }
 
-// promptContexts derives the conditional and unconditional contexts of a
-// prompt-form request through the model's text pipeline, reading the
-// projection once for both branches.
-func promptContexts(ctx context.Context, spec TextConditioningSpec, request WanRequest) (cond, uncond []float32, err error) {
+// recall gives each prompt's context under the encoder: the cache's where it holds one, and otherwise what encode
+// makes of the prompts it does not hold, in one pass, which the cache then holds. The empty and the standard negative
+// prompts are kept.
+func (memo *wanConditioning) recall(encoder string, prompts []string, encode func([]string) ([][]float32, error)) ([][]float32, error) {
+	if memo.cache.Limit == 0 {
+		memo.cache = media.ConditioningCache{Limit: wanContextsHeld, Kept: []string{"", referenceNegativePrompt}}
+	}
+	contexts := make([][]float32, len(prompts))
+	var missing []string
+	for index, prompt := range prompts {
+		if held, ok := memo.cache.Lookup(encoder, prompt); ok {
+			contexts[index] = held
+		} else if !slices.Contains(missing, prompt) {
+			missing = append(missing, prompt)
+		}
+	}
+	if len(missing) == 0 {
+		return contexts, nil
+	}
+	encoded, err := encode(missing)
+	if err != nil {
+		return nil, err
+	}
+	for index, prompt := range prompts {
+		if contexts[index] == nil {
+			contexts[index] = encoded[slices.Index(missing, prompt)]
+		}
+	}
+	for position, prompt := range missing {
+		memo.cache.Store(encoder, prompt, encoded[position])
+	}
+	return contexts, nil
+}
+
+// promptContexts derives the contexts of prompts through the model's text pipeline, reading the projection once for
+// all of them.
+func promptContexts(ctx context.Context, spec TextConditioningSpec, prompts []string) ([][]float32, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	weights, sourceBytes, err := loadProjectionWeights(spec.ProjectionDir)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	conditioned, err := textConditioningsWithWeights(ctx, spec, weights, sourceBytes, request.Prompt, request.NegativePrompt)
+	conditioned, err := textConditioningsWithWeights(ctx, spec, weights, sourceBytes, prompts...)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	return conditioned[0].Context, conditioned[1].Context, nil
+	contexts := make([][]float32, len(conditioned))
+	for index, result := range conditioned {
+		contexts[index] = result.Context
+	}
+	return contexts, nil
 }

@@ -51,7 +51,7 @@ type ResidentImagePipeline struct {
 	// conditioned keeps the fused text of the session's recent prompts on the
 	// host, and conditioningUpload places one on the device again for a prompt
 	// met again, which then places neither the text encoder nor the fusion.
-	conditioned        conditioningCache
+	conditioned        media.ConditioningCache
 	conditioningUpload *graphruntime.ResidentProgram
 	conditioningInput  *tensor.Tensor
 	conditioningOutput *tensor.Tensor
@@ -118,7 +118,7 @@ func NewResidentImagePipeline(
 	if !ok {
 		return nil, errors.New("resident image pipeline: conditioning cache limit overflows")
 	}
-	pipeline.conditioned = conditioningCache{limit: limit}
+	pipeline.conditioned = media.ConditioningCache{Limit: limit}
 	pipeline.conditioningInput, pipeline.conditioningOutput, err = conditioningUploadGraph(fusion)
 	if err != nil {
 		return nil, err
@@ -408,7 +408,7 @@ func (p *ResidentImagePipeline) Recondition(
 // keeps for it, placed from the host, else the one the text encoder and the
 // fusion make, which the session then keeps.
 func (p *ResidentImagePipeline) recall(ctx context.Context, prompt string, embedRows []float32) (*ResidentConditioning, error) {
-	if fused, kept := p.conditioned.lookup(prompt); kept {
+	if fused, kept := p.conditioned.Lookup("", prompt); kept {
 		outputs, err := p.runtime.Retain(ctx, p.conditioningUpload, map[*tensor.Tensor]reference.Value{
 			p.conditioningInput: {Shape: p.conditioningInput.Shape, Data: fused},
 		}, nil)
@@ -438,7 +438,7 @@ func (p *ResidentImagePipeline) keep(ctx context.Context, prompt string, conditi
 	if err != nil {
 		return errors.Join(fmt.Errorf("resident image pipeline: keep conditioning: %w", err), conditioning.outputs.Release(ctx))
 	}
-	p.conditioned.store(prompt, fused.Data)
+	p.conditioned.Store("", prompt, fused.Data)
 	return nil
 }
 
@@ -796,7 +796,7 @@ func (p *ResidentImagePipeline) Close(ctx context.Context) error {
 	err := errors.Join(releaseErr, p.runtime.Close(ctx))
 	p.runtime = nil
 	p.bridge, p.fusion, p.timestep, p.denoiser, p.upload, p.conditioningUpload = nil, nil, nil, nil, nil, nil
-	p.conditioned = conditioningCache{}
+	p.conditioned = media.ConditioningCache{}
 	p.vaeBridge, p.vae = nil, nil
 	return err
 }

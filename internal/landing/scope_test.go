@@ -1,7 +1,9 @@
 package landing
 
 import (
+	"bytes"
 	"io"
+	"slices"
 	"strings"
 	"testing"
 
@@ -9,17 +11,23 @@ import (
 	"overgo/internal/testcheck"
 )
 
-// TestALandingStaysInsideItsStepsFiles holds a step that lists its files to them: on Nov 7 a helper's side effect
-// rewrote the trunk's hook setting, outside any step's work. A change to a file the step does not list is refused,
-// the refusal printing the path; a change inside the list, its tests included, with the plan beside it, is taken; and
-// a step that lists nothing takes any change.
-func TestALandingStaysInsideItsStepsFiles(t *testing.T) {
+// TestALandingCommitsOnlyItsStepsFiles holds a landing to the files its steps list: on 2026-11-08 another session's
+// untracked document in the lead's checkout stopped every landing for forty minutes, since a landing took the whole
+// folder though each step names what it may change. A landing of a step that lists its files commits those, its tests
+// among them, with the plan; a changed file and an untracked one the step does not list stay where they are, outside
+// the commit, and the landing names them; and a step that lists nothing takes the whole tree as before.
+func TestALandingCommitsOnlyItsStepsFiles(t *testing.T) {
 	t.Parallel()
-	taken := func(fixture *sliceFixture) error {
+	taken := func(fixture *sliceFixture) (*landing, string) {
 		t.Helper()
-		l := &landing{Options: Options{Repo: fixture.repo, Ref: "row/do", Log: io.Discard}, scratch: t.TempDir(), details: map[string]string{}}
+		var output bytes.Buffer
+		l := &landing{Options: Options{Repo: fixture.repo, Ref: "row/do", Log: &output}, scratch: t.TempDir(), details: map[string]string{}}
 		testcheck.NoError(t, l.parents(t.Context()))
-		return l.shipSet(t.Context())
+		testcheck.NoError(t, l.shipSet(t.Context()))
+		return l, output.String()
+	}
+	committed := func(fixture *sliceFixture, l *landing) []string {
+		return strings.Fields(fixture.git("ls-tree", "-r", "--name-only", l.candidate))
 	}
 	fixture := newRowFixture(t, map[string]string{"cmd/x/x.go": "package main\n", "internal/y/y.go": "package y\n"})
 	editPlan(t, fixture, func(document *plan.Plan) { document.Items[0].Steps[0].Files = []string{"cmd/x"} })
@@ -27,24 +35,35 @@ func TestALandingStaysInsideItsStepsFiles(t *testing.T) {
 	fixture.git("commit", "-q", "-m", "a step that lists its files")
 
 	fixture.write("cmd/x/x.go", "package main\n\nfunc main() {}\n")
-	fixture.write("internal/y/y.go", "package y\n\nfunc y() {}\n")
-	if err := taken(fixture); err == nil || !strings.Contains(err.Error(), "internal/y/y.go") || strings.Contains(err.Error(), "cmd/x/x.go,") {
-		t.Fatalf("a change outside the step's files ended as %v, want it refused printing internal/y/y.go alone", err)
-	}
-	fixture.git("checkout", "-q", "HEAD", "--", "internal/y/y.go")
 	fixture.write("cmd/x/x_test.go", "package main\n")
+	fixture.write("internal/y/y.go", "package y\n\nfunc y() {}\n")
+	fixture.write("docs/another_sessions_plan.md", "# not this step's\n")
 	editPlan(t, fixture, func(document *plan.Plan) { document.Items[0].Steps[0].Rationale = "noted" })
-	testcheck.NoError(t, taken(fixture))
+	l, output := taken(fixture)
+	files := committed(fixture, l)
+	if !slices.Contains(files, "cmd/x/x_test.go") || slices.Contains(files, "docs/another_sessions_plan.md") ||
+		fixture.git("show", l.candidate+":internal/y/y.go") != "package y" || fixture.git("show", l.candidate+":cmd/x/x.go") != "package main\n\nfunc main() {}" {
+		t.Fatalf("the commit holds %v, want the step's files changed and nothing else", files)
+	}
+	if !strings.Contains(output, "outside the commit") || !strings.Contains(output, "internal/y/y.go") || !strings.Contains(output, "docs/another_sessions_plan.md") {
+		t.Fatalf("the landing said\n%s\nwant the paths it left out named", output)
+	}
+	if fixture.read("docs/another_sessions_plan.md") != "# not this step's\n" || fixture.read("internal/y/y.go") != "package y\n\nfunc y() {}\n" {
+		t.Fatal("a path outside the commit was changed")
+	}
 
 	open := newRowFixture(t, map[string]string{"internal/y/y.go": "package y\n"})
 	open.write("internal/y/y.go", "package y\n\nfunc y() {}\n")
-	testcheck.NoError(t, taken(open))
+	if l, _ := taken(open); open.git("show", l.candidate+":internal/y/y.go") != "package y\n\nfunc y() {}" {
+		t.Fatal("a step that lists nothing did not take the whole tree")
+	}
 }
 
 // TestALandingTakesWhatItsGeneratorsDerive holds the scope to the change's own work: on 2026-11-08
 // media-user-size/preset-record added exported names, the landing regenerated docs/api_manifest.json from them, and
 // the scope refused the manifest the landing had written itself. A file a generator of the repository derives is taken
-// beside the step's files; the same file in a repository with no such generator is a hand's change, and refused.
+// beside the step's files; the same file in a repository with no such generator is no part of the step, and stays
+// outside the commit.
 func TestALandingTakesWhatItsGeneratorsDerive(t *testing.T) {
 	t.Parallel()
 	for _, generated := range []bool{true, false} {
@@ -60,8 +79,9 @@ func TestALandingTakesWhatItsGeneratorsDerive(t *testing.T) {
 		fixture.write("docs/api_manifest.json", "{\"binaries\": []}\n")
 		l := &landing{Options: Options{Repo: fixture.repo, Ref: "row/do", Log: io.Discard}, scratch: t.TempDir(), details: map[string]string{}}
 		testcheck.NoError(t, l.parents(t.Context()))
-		if err := l.shipSet(t.Context()); (err == nil) != generated {
-			t.Errorf("with the manifest's generator %t, a change beside the manifest ended as %v, want it taken only where the generator is", generated, err)
+		testcheck.NoError(t, l.shipSet(t.Context()))
+		if taken := fixture.git("show", l.candidate+":docs/api_manifest.json") != "{}"; taken != generated {
+			t.Errorf("with the manifest's generator %t, the manifest was taken %t, want it taken only where the generator is", generated, taken)
 		}
 	}
 }

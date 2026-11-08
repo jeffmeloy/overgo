@@ -89,8 +89,12 @@ type landing struct {
 	entries []repoanalysis.DirtyPath
 	paths   []string
 	// written are the paths the change itself wrote, before the format and fix stages rewrote any (undo).
-	written  []string
-	measured []string
+	written []string
+	// scope is what the commit may hold (commitScope), nil for the whole tree; scoped says it was read, and leftNamed
+	// that the paths it leaves out were named.
+	scope             []string
+	scoped, leftNamed bool
+	measured          []string
 	// details say what a stage measured beyond its time: the packages the
 	// test stage ran rather than replayed, what the scorecard slice found.
 	details map[string]string
@@ -337,13 +341,21 @@ func (l *landing) builtOn() string { return cmp.Or(l.head, "HEAD") }
 // not hold is refused: a new root belongs in a change of its own.
 func (l *landing) shipSet(ctx context.Context) error {
 	var err error
+	if !l.scoped {
+		if l.scope, err = l.commitScope(ctx); err != nil {
+			return err
+		}
+		l.scoped = true
+	}
 	if l.candidate, err = l.capture(ctx); err != nil {
 		return err
 	}
-	entries, err := dirtyTree(ctx, l.Repo)
+	changed, err := dirtyTree(ctx, l.Repo)
 	if err != nil {
 		return err
 	}
+	entries, left := inside(l.scope, changed)
+	l.nameLeft(left)
 	l.paths = nil
 	for _, entry := range entries {
 		l.paths = append(l.paths, entry.Path)
@@ -384,11 +396,30 @@ func (l *landing) planOnly() bool {
 }
 
 // capture writes the working tree, as git add -A stages it, through the
-// landing's private index and returns its tree. The index the checkout's own
-// git commands use is neither read nor written.
+// landing's private index and returns its tree; a scoped landing stages only
+// the changed paths its scope holds, so whatever else the checkout holds stays
+// as it stands and outside the commit. The index the checkout's own git
+// commands use is neither read nor written.
 func (l *landing) capture(ctx context.Context) (string, error) {
-	if _, err := l.staged(ctx, "add", "-A"); err != nil {
-		return "", err
+	arguments := []string{"add", "-A"}
+	if l.scope != nil {
+		changed, err := dirtyTree(ctx, l.Repo)
+		if err != nil {
+			return "", err
+		}
+		held, _ := inside(l.scope, changed)
+		arguments = append(arguments, "--")
+		for _, entry := range held {
+			arguments = append(arguments, entry.Path)
+			if entry.OriginalPath != "" {
+				arguments = append(arguments, entry.OriginalPath)
+			}
+		}
+	}
+	if !slices.Equal(arguments, []string{"add", "-A", "--"}) {
+		if _, err := l.staged(ctx, arguments...); err != nil {
+			return "", err
+		}
 	}
 	tree, err := l.staged(ctx, "write-tree")
 	return strings.TrimSpace(tree), err
@@ -478,9 +509,6 @@ func (l *landing) row(ctx context.Context) error {
 		if l.advanced, err = plan.Advance(l.advanced, row.item, row.step); err != nil {
 			return fmt.Errorf("land: %s cannot leave the plan: %w", row, err)
 		}
-	}
-	if err := l.inScope(named); err != nil {
-		return err
 	}
 	// The message says the retirements, so the plan the commit publishes holds them no more.
 	l.advanced.Retired, l.advanced.Answered, l.planned = nil, nil, data

@@ -8,21 +8,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 1500,
+        "nodes": 1166,
         "reason": "Estimate at the campaign's measured rate: the landing's capture and its tree-change check scoped to the steps' files, its stages run on the candidate in a worktree of its own, and the guard's rule for another session's writes, each with its test."
       },
       "steps": [
-        {
-          "id": "scoped-commit",
-          "title": "A landing stages only its steps' listed files, the plan, the findings register and what the build regenerates, and names every other changed path in its output without committing it",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestALandingCommitsOnlyItsStepsFiles$'",
-          "files": [
-            "internal/landing",
-            "cmd/loop"
-          ],
-          "rationale": "The owner (2026-11-08): each step lists the files it may change and the landing refuses a change outside them (internal/landing/scope.go), so the landing knows exactly what belongs in its commit, yet it captures the whole folder (capture: git add -A). On 2026-11-08 a review session's untracked docs/extreme_refactor_plan.md stopped every landing for forty minutes: the tree changed during the landing, then the reader check, then the stray-documents rule.\n\nThe capture starts from the trunk and stages only the dirty paths inside the named steps' files, the plan, the findings register and the generators' writes; any other changed or untracked path is left as it is and named in the landing's output, and a later change to it does not move the candidate. A step with no file list keeps today's whole-tree capture.\n\nServes: setup-steps.\nDisappears: a landing stopped or widened by another session's files.\nEvidence: a landing over a checkout holding an unlisted file commits the step's files alone, names the other, and leaves it where it was; a step with no list commits the tree as before.\nBatch: host lane."
-        },
         {
           "id": "candidate-checks",
           "title": "The gate's stages read the commit being made, in a worktree of its own, so the reader check, the stray-documents rule and every test judge the commit and not the folder",

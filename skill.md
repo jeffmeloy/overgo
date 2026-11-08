@@ -45,7 +45,7 @@ A term used in this file is plain English or is defined here.
 - row = one unit of work in `docs/plan.json` (check: internal/plan TestSinglePlanAuthority)
 - step = one landing's worth of a row, with its check (`verify`) (check: internal/plan TestOpenStepRequiresVerifier, internal/landing TestLandingCompletesSeveralSteps)
 - run step = a step naming a command (`-run`) and the record it writes (`-record`) => the driver runs it and lands the record with no worker (check: internal/loop TestARunStepRunsWithoutAWorker)
-- code step lists its files (`-files`) => its landing refuses a change outside them, printing the paths (check: internal/landing TestALandingStaysInsideItsStepsFiles)
+- code step lists its files (`-files`) => its landing commits only them, the plan and what the build regenerates, and names every other changed path, left as it stands (check: internal/landing TestALandingCommitsOnlyItsStepsFiles)
 - the driver's worker => six tools and no shell (`go run ./cmd/loop -tools`), its edits held to its step's files (check: cmd/loop TestTheWorkerHasOnlyItsTools)
 - a step its worker cannot pass => the next worker in loop.json's list takes it, and after the last it is set aside with a finding (check: internal/loop TestAStepMovesUpTheWorkersBeforeItIsSetAside)
 - a measurement run holds the graphics card => dispatch hands out only steps that do not need it (`-needs-card`), and says so when only those are left (check: internal/plan TestDispatchSkipsCardStepsWhileARunHoldsTheCard)

@@ -50,8 +50,8 @@ func allowedTools() string {
 // defaultPrompt opens every worker's prompt: what the worker is for, where the written guidance is, and that it never
 // stops to ask. It takes no hold by its words (guard.TakeoverDeclaration): a working session's hold sends the worker
 // away. The plan's prompt for the dispatched step follows it.
-const defaultPrompt = "You are the overgo driver's worker, in the repository's main checkout. Work the one step below until it is " +
-	"committed through go run ./cmd/loop -land <item>/<step>, and end there. skill.md is the written " +
+const defaultPrompt = "You are the overgo driver's worker, in the repository's main checkout. Work the one step below until its " +
+	"check passes, and end there: the driver lands it through the gate. skill.md is the written " +
 	"guidance. A command that refuses says what to do: do it and keep going, and never stop to ask.\n"
 
 // writeDefaultConfig writes the driver's default configuration at path and its worker's prompt beside it, the worker

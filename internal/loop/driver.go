@@ -44,6 +44,13 @@ type CommandWorld interface {
 	RunCommand(step Step) (tail string, err error)
 }
 
+// LandingWorld is the optional world extension that lands a worker's step itself once its check passes, as it lands a
+// run step (CommandWorld): a worker of overgo's own works with the six tools of cmd/loop -tools, none of which lands,
+// and was asked to land all the same. What it returns is said as a worker's tail is.
+type LandingWorld interface {
+	Land(step Step) (tail string, err error)
+}
+
 func (s Step) Key() string { return s.Item + "/" + s.ID }
 
 // World is what the driver observes and drives. Implementations shell out to
@@ -133,6 +140,8 @@ const (
 	ReasonPaused      = "paused"
 	ReasonBudget      = "invocation-budget-exhausted"
 	ReasonParked      = "step-parked"
+	// feedbackFailure is how much of a failure, a check's or a refused landing's, the next attempt's feedback carries.
+	feedbackFailure = 2000
 )
 
 // CycleTrigger is the optional world extension that gates the improvement cycle an
@@ -295,12 +304,19 @@ func Run(world World, config Config) (Outcome, error) {
 			return outcome, fmt.Errorf("loop: verify: %w", err)
 		}
 		if failure == "" {
-			// Verifier green but not committed: the next attempt's feedback
-			// says exactly that, so the worker finishes through the gate.
+			// Verifier green but not committed: a world that lands lands it, and the plan read next says whether it
+			// advanced; another's worker is told, so it finishes through the gate.
 			feedback = "verifier already passes; commit through the gate and advance: " + step.Key()
+			if lander, lands := world.(LandingWorld); lands {
+				landed, err := lander.Land(step)
+				feedback = "the check passes and the landing of " + step.Key() + " refused it:\n" + truncate(landed, feedbackFailure)
+				if err != nil {
+					feedback += "\n" + err.Error()
+				}
+			}
 			continue
 		}
-		feedback = "attempt " + fmt.Sprint(attempts) + " verify failure:\n" + truncate(failure, 2000) +
+		feedback = "attempt " + fmt.Sprint(attempts) + " verify failure:\n" + truncate(failure, feedbackFailure) +
 			"\nworker tail:\n" + truncate(tail, 1000)
 	}
 }

@@ -133,23 +133,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 3500,
+        "nodes": 3398,
         "reason": "Estimated after a survey of the code, at about twice what a first sketch of the steps counts, since this week's rows landed at two to six times the counts they were filed with (wan-few-step 300 -\u003e 1100, sampling-split 400 -\u003e 1700, umt5-resident 336 -\u003e 1750): the driver landing a worker's passed step, a worker loop over the six tools and overgo's chat route, a replay of landed steps from their parent commits, and the ordering from the replay's results."
       },
       "steps": [
-        {
-          "id": "lands",
-          "title": "The driver lands a worker's step once its check passes, as it lands a run step, and the worker's prompt no longer asks it to run a command its six tools cannot",
-          "status": "open",
-          "verify": "go test ./internal/loop ./cmd/loop -count=1 -run '^TestTheDriverLandsAWorkersPassedStep$'",
-          "files": [
-            "internal/loop",
-            "cmd/loop",
-            "internal/landing",
-            "skill.md"
-          ],
-          "rationale": "The default prompt tells the worker to commit through go run ./cmd/loop -land (cmd/loop/init_config.go:53-55). But the worker starts with --tools \"\" and only the six tools of cmd/loop -tools (read_file, edit_file, run_check, run_tests, show_step, run_probe; cmd/loop/tools.go:55-115), none of which lands. The driver lands only a run step itself (RunCommand, cmd/loop/main.go:444-462) and otherwise waits for the worker to land (internal/loop/driver.go:50-51, 293-299). So a worker with no shell cannot finish a code step. On this machine .overgo-runtime/loop.json still grants the worker Bash and Edit, which is how a step lands today.\n\nServes: setup-steps; model calls per landing.\nDisappears: a worker asked to do what its tools cannot.\nEvidence: a fixture worker that only edits and passes its check sees its step landed by the driver.\nBatch: host lane."
-        },
         {
           "id": "local",
           "title": "cmd/loop's local worker sends the step's prompt and the six tools to overgo's own chat route and runs each tool call the model makes, and Qwen3.8-27B-UD-Q6_K passes a fixture step with it",

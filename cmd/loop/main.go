@@ -457,6 +457,12 @@ func (w *execWorld) RunCommand(step loop.Step) (string, error) {
 	if strings.TrimSpace(string(written)) == "" {
 		return out, fmt.Errorf("loop: %s ran and left its record %s as it was", step.Key(), step.Record)
 	}
+	return w.Land(step)
+}
+
+// Land lands a step whose check passes through the gate, whose landing writes the message: a run step its command
+// worked, or a worker's (loop.LandingWorld), whose tools land nothing.
+func (w *execWorld) Land(step loop.Step) (string, error) {
 	landed, err := landRow(&execRowWorld{}, step.Key(), "")
 	return landed.Detail, err
 }

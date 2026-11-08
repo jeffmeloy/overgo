@@ -46,8 +46,9 @@ type Step struct {
 	// driver runs it and lands the record with no worker.
 	Run    string `json:"run,omitzero"`
 	Record string `json:"record,omitzero"`
-	// Files, of a code step, are the files and directories its change may write; its landing refuses a change outside
-	// them. A step that lists none may write anywhere a landing admits.
+	// Files, of a code step, are the files and directories its change may write: its landing commits only them, the plan
+	// and what the build regenerates, and a refused one names a changed path it left out with the plan -setfiles command
+	// that lists it. A step that lists none may write anywhere a landing admits.
 	Files []string `json:"files,omitempty"`
 	// NeedsCard says the step's work needs the graphics card: while a measurement run holds it, dispatch passes over the
 	// step for one that does not.

@@ -8,23 +8,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 700,
+        "nodes": 447,
         "reason": "Estimated after a survey of the code, at about twice what a first sketch of the steps counts, since this week's rows landed at two to six times the counts they were filed with (wan-few-step 300 -\u003e 1100, sampling-split 400 -\u003e 1700, umt5-resident 336 -\u003e 1750): the left-out paths joined to a failing stage's message, and a rename read from the diff and written through the fix stage."
       },
       "steps": [
-        {
-          "id": "left-out",
-          "title": "When a landing's checks fail on a commit that left changed paths out, the failure names those paths and prints the plan -setfiles command that adds them",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestAFailedLandingNamesThePathsItLeftOut$'",
-          "files": [
-            "internal/landing",
-            "cmd/loop",
-            "cmd/plan",
-            "internal/plan"
-          ],
-          "rationale": "Seven steps were retired and re-filed on 2026-11-08 because their files left out a directory the change needed: media-user-size/user-size (internal/mediacapability, cmd/recipe), media-user-size/stages (cmd/recipe, internal/servingattempt, internal/runrecord), media-user-size/preset (the record chain to the scorecard), sampling-split/presets (internal/mediacapability, internal/server), quality-instruments/hard-cases and licence-scope/sbom (internal/repoanalysis), and landing-scope/scoped-commit (skill.md). Each cost a retire, a re-file and a second gate run. Since c405298f9 a landing commits only its steps' files and since 0ad3c1b65 its checks judge that commit in a worktree of its own, so a needed file the step did not list now shows as a failing test, not a refusal naming the file. The landing already prints what it left out (internal/landing/scope.go:68) before its checks run, but it does not join the two when a check fails. The comments at internal/plan/plan.go:49-50 and cmd/plan/main.go:90 still say a landing refuses a change outside the list.\n\nWhen a stage fails and the landing left changed paths out, the failure names them and prints the one command that lists them, so landing again takes them.\n\nServes: setup-steps; model calls per landing.\nDisappears: a retired and re-filed step for a short file list.\nEvidence: a fixture landing whose test needs a file it left out fails with that path and the plan -setfiles command, and lands after the command runs.\nBatch: host lane."
-        },
         {
           "id": "citations",
           "title": "A change that renames a test rewrites each skill.md and README.md line citing the old name in the landing's fix stage, and prints the lines when the rename is ambiguous",

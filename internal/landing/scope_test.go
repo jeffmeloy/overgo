@@ -85,3 +85,30 @@ func TestALandingTakesWhatItsGeneratorsDerive(t *testing.T) {
 		}
 	}
 }
+
+// TestAFailedLandingNamesThePathsItLeftOut holds a landing that left out what its change needs to saying so: on
+// 2026-11-08 seven steps were retired and filed again because their lists left out a directory the change needed, and
+// since a landing commits only its steps' files such a change fails a check that names no path. A change to cmd/x calls
+// a function it adds to internal/y, which the step does not list: the refusal names internal/y/y.go and the plan
+// -setfiles command that lists internal/y, and once the plan lists it the change lands with it.
+func TestAFailedLandingNamesThePathsItLeftOut(t *testing.T) {
+	t.Parallel()
+	// The module is overgo's, whose import paths the rule that an export has a consumer reads.
+	fixture := newRowFixture(t, map[string]string{"go.mod": "module overgo\n\ngo 1.26\n", "cmd/x/x.go": "package main\n\nfunc main() {}\n", "internal/y/y.go": "package y\n"})
+	editPlan(t, fixture, func(document *plan.Plan) { document.Items[0].Steps[0].Files = []string{"cmd/x"} })
+	fixture.git("add", "-A")
+	fixture.git("commit", "-q", "-m", "a step that lists its files")
+	fixture.write("internal/y/y.go", "package y\n\n// Name is what x prints.\nfunc Name() string { return \"y\" }\n")
+	fixture.write("cmd/x/x.go", "package main\n\nimport \"overgo/internal/y\"\n\nfunc main() { println(y.Name()) }\n")
+	message := []byte("Change the fixture\n\nCause: the fixture needs a change.\nPredicted effect: first-output holds.\n")
+	_, err := Run(t.Context(), Options{Repo: fixture.repo, Ref: "row/do", Message: message, Log: io.Discard, Preflight: true})
+	command := `go run ./cmd/plan -setfiles -files cmd/x,internal/y -reason "the change needs internal/y" row do`
+	if err == nil || !strings.Contains(err.Error(), "left out internal/y/y.go") || !strings.Contains(err.Error(), command) {
+		t.Fatalf("the landing ended as %v, want it refused naming internal/y/y.go and %s", err, command)
+	}
+	editPlan(t, fixture, func(document *plan.Plan) { document.Items[0].Steps[0].Files = []string{"cmd/x", "internal/y"} })
+	landed := testcheck.Must(Run(t.Context(), Options{Repo: fixture.repo, Ref: "row/do", Message: message, Log: io.Discard}))(t)
+	if !strings.Contains(fixture.git("show", landed+":internal/y/y.go"), "func Name") {
+		t.Fatal("once the plan listed internal/y, the landing did not take it")
+	}
+}

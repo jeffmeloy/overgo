@@ -90,9 +90,10 @@ type landing struct {
 	paths   []string
 	// written are the paths the change itself wrote, before the format and fix stages rewrote any (undo).
 	written []string
-	// scope is what the commit may hold (commitScope), nil for the whole tree; scoped says it was read, and leftNamed
-	// that the paths it leaves out were named.
+	// scope is what the commit may hold (commitScope), nil for the whole tree; scoped says it was read, left the changed
+	// paths it leaves out, and leftNamed that they were named (nameLeft).
 	scope             []string
+	left              []string
 	scoped, leftNamed bool
 	measured          []string
 	// details say what a stage measured beyond its time: the packages the
@@ -215,8 +216,12 @@ func Run(ctx context.Context, options Options) (landed string, err error) {
 	if err := l.parents(ctx); err != nil {
 		return "", err
 	}
-	// refused adds, to the refusal of a change brought up to a trunk whose plan moved its rows' terms, what moved.
+	// refused adds, to a refusal, the paths the commit left out and the command that lists them (leftOut), and, to the
+	// refusal of a change brought up to a trunk whose plan moved its rows' terms, what moved.
 	refused := func(err error) error {
+		if note := l.leftOut(); note != "" {
+			err = fmt.Errorf("%w\n%s", err, note)
+		}
 		if l.moved == "" {
 			return err
 		}

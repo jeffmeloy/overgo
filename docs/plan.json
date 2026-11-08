@@ -3,24 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "no-default-takeover",
-      "title": "The driver's worker prompt never declares a worktree takeover, so a default worker cannot take a live session's hold",
-      "status": "open",
-      "budget": {
-        "nodes": 40,
-        "reason": "Estimate before the survey: the declaration leaves cmd/loop/init_config.go defaultPrompt, and cmd/loop/main.go run refuses a configured prompt that opens with it, naming the file and the words to delete."
-      },
-      "steps": [
-        {
-          "id": "prompt",
-          "title": "The default worker prompt opens without the takeover declaration, and the driver refuses a configured prompt that opens with it",
-          "status": "open",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestTheDriverRefusesAWorkerPromptThatDeclaresATakeover$'",
-          "rationale": "SQA-337: cmd/loop/init_config.go defaultPrompt opens \"Take over this worktree.\", RunWorker puts it before every dispatched prompt, and cmd/loophook beginTurn reads that opening as a declared takeover, overwriting the holder before checking whether its process lives; .overgo-runtime/loop_prompt.md, from an earlier -init, opens with it too.\n\ndefaultPrompt loses the declaration, and run refuses, before any campaign begins, a configured prompt that opens with it, naming the file and the words to delete, so no prompt file is rewritten. Live, stale and unknown holders stay with beginTurn; a session's own typed takeover stays.\n\nServes: setup-steps; a driver started beside a working session leaves its hold alone.\nDisappears: the takeover declaration in every worker prompt.\nEvidence: -init's prompt opens with no takeover, and a config whose prompt opens with one is refused, file named, no campaign begun.\nBatch: host lane."
-        }
-      ]
-    },
-    {
       "id": "start-admission",
       "title": "A driver start takes the campaign lock before it reads a running worker's record, and one fixture holds what a start admits",
       "status": "open",

@@ -76,6 +76,10 @@ type ToolCall struct {
 // open for a session, so the file is the holding, and its creation is atomic.
 const WorktreeHolder = "implementing_session"
 
+// TakeoverDeclaration opens, in lower case, the message of a session that takes a worktree from the session that
+// holds it, when that session is gone or its work here is this one's to continue. No worker prompt opens with it.
+const TakeoverDeclaration = "take over this worktree"
+
 // HoldText is the hold file's content for session: the session, and on the next line the process its Claude Code
 // runs as, by which a later session knows whether the holder still runs.
 func HoldText(session string, process int) string {

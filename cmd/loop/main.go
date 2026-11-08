@@ -60,6 +60,7 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
 	"overgo/internal/gitauthority"
+	"overgo/internal/guard"
 	"overgo/internal/jsonfile"
 	"overgo/internal/loop"
 	"overgo/internal/plan"
@@ -233,6 +234,11 @@ func run(args []string) error {
 	prompt, err := os.ReadFile(filepath.Join(filepath.Dir(*configPath), loaded.Prompt))
 	if err != nil {
 		return fmt.Errorf("load prompt: %w", err)
+	}
+	// A worker takes no hold by its prompt: one that opened with the takeover overwrote a working session's (SQA-337).
+	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(string(prompt))), guard.TakeoverDeclaration) {
+		return fmt.Errorf("loop: the worker prompt %s opens with %q, which takes a working session's hold; delete those words and start again",
+			loaded.Prompt, guard.TakeoverDeclaration)
 	}
 	for name, value := range loaded.Environment {
 		if err := os.Setenv(name, value); err != nil {

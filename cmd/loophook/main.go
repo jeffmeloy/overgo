@@ -331,10 +331,8 @@ func recordImplementer(session string) {
 	}
 }
 
-// takeoverDeclaration opens the message of a session that takes a worktree
-// from the session that holds it, when that session is gone or its work here
-// is this one's to continue.
-const takeoverDeclaration = "take over this worktree"
+// takeoverDeclaration opens the message of a session that takes a worktree from the session that holds it.
+const takeoverDeclaration = guard.TakeoverDeclaration
 
 // stateFileMode is the mode of a file the hooks keep in a worktree's process
 // state: the session's own, readable by the account that runs it alone.

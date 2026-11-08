@@ -33,10 +33,10 @@ func audioSources(t *testing.T, root string) gosource.Snapshot {
 	t.Helper()
 	paths := map[string]bool{}
 	for _, patterns := range [][]string{
-		{"-deps", "-test", "./internal/audioparity"},
-		{"-deps", "./cmd/evaluate", "./cmd/recipe"},
+		{"-test", "./internal/audioparity"},
+		{"./cmd/evaluate", "./cmd/recipe"},
 	} {
-		selection := testcheck.Must(gosource.HostBuildSelection(root, patterns...))(t)
+		selection := testcheck.Must(gosource.HostBuildClosure(root, patterns...))(t)
 		for path, selected := range selection.Files {
 			if selected {
 				paths[path] = true

@@ -14,7 +14,6 @@ import (
 	"io"
 	"maps"
 	"os"
-	"path"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -455,9 +454,8 @@ func canonicalEvidence(data []byte) []byte {
 }
 
 func evidencePayload(proof evidence, data []byte) ([]byte, error) {
-	if proof.Symbol == "" && strings.HasSuffix(proof.Path, "_test.go") {
-		return reachedDeclarations(proof, data)
-	}
+	// Evidence that names no symbol binds the whole file, a test file's among them: a same-file reach missed what a
+	// file's init sets for the test it names (SQA-316).
 	if proof.Symbol == "" {
 		return canonicalEvidence(data), nil
 	}
@@ -493,103 +491,6 @@ func evidencePayload(proof evidence, data []byte) ([]byte, error) {
 		return nil, err
 	}
 	return canonicalEvidence(normalized.Bytes()), nil
-}
-
-// reachedDeclarations is what a test file's evidence binds: the file's declarations whose source holds the evidence's
-// text, the declarations and imports of the same file they name, and so on, each formatted without its comments, in
-// the file's order. A change to another test of the file leaves it as it was; a change to what the bound test runs
-// there moves it.
-func reachedDeclarations(proof evidence, data []byte) ([]byte, error) {
-	files := token.NewFileSet()
-	// Parsed without its comments, which change nothing a test runs.
-	parsed, err := parser.ParseFile(files, proof.Path, data, 0)
-	if err != nil {
-		return nil, err
-	}
-	// The file's units are its import specs and its other declarations, each with the names it declares.
-	var units []ast.Node
-	declares := map[string][]int{}
-	for _, declaration := range parsed.Decls {
-		if general, ok := declaration.(*ast.GenDecl); ok && general.Tok == token.IMPORT {
-			for _, spec := range general.Specs {
-				imported := spec.(*ast.ImportSpec)
-				name := path.Base(strings.Trim(imported.Path.Value, `"`))
-				if imported.Name != nil {
-					name = imported.Name.Name
-				}
-				declares[name] = append(declares[name], len(units))
-				units = append(units, imported)
-			}
-			continue
-		}
-		for _, name := range declaredNames(declaration) {
-			declares[name] = append(declares[name], len(units))
-		}
-		units = append(units, declaration)
-	}
-	reached := map[int]bool{}
-	var pending []int
-	for index, unit := range units {
-		start, end := files.Position(unit.Pos()).Offset, files.Position(unit.End()).Offset
-		if _, isImport := unit.(*ast.ImportSpec); !isImport && bytes.Contains(data[start:end], []byte(proof.Contains)) {
-			reached[index] = true
-			pending = append(pending, index)
-		}
-	}
-	if len(pending) == 0 {
-		return nil, fmt.Errorf("no declaration holds %q", proof.Contains)
-	}
-	for len(pending) > 0 {
-		index := pending[len(pending)-1]
-		pending = pending[:len(pending)-1]
-		ast.Inspect(units[index], func(node ast.Node) bool {
-			if ident, ok := node.(*ast.Ident); ok {
-				for _, other := range declares[ident.Name] {
-					if !reached[other] {
-						reached[other] = true
-						pending = append(pending, other)
-					}
-				}
-			}
-			return true
-		})
-	}
-	var payload bytes.Buffer
-	for index, unit := range units {
-		if !reached[index] {
-			continue
-		}
-		if payload.Len() > 0 {
-			payload.WriteString("\n\n")
-		}
-		if err := format.Node(&payload, files, unit); err != nil {
-			return nil, err
-		}
-	}
-	return canonicalEvidence(payload.Bytes()), nil
-}
-
-// declaredNames are the names a top-level declaration declares: a function's or a method's, or a declaration's types,
-// constants and variables.
-func declaredNames(declaration ast.Decl) []string {
-	switch typed := declaration.(type) {
-	case *ast.FuncDecl:
-		return []string{typed.Name.Name}
-	case *ast.GenDecl:
-		var names []string
-		for _, spec := range typed.Specs {
-			switch declared := spec.(type) {
-			case *ast.TypeSpec:
-				names = append(names, declared.Name.Name)
-			case *ast.ValueSpec:
-				for _, name := range declared.Names {
-					names = append(names, name.Name)
-				}
-			}
-		}
-		return names
-	}
-	return nil
 }
 
 func (tier evidenceTier) valid() bool {

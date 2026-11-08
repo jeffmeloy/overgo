@@ -3,25 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "claim-whole-file",
-      "title": "A claim's test-file evidence without a named symbol binds the whole file, and the same-file reach graph that missed init goes",
-      "class": "consolidation",
-      "status": "open",
-      "budget": {
-        "nodes": -450,
-        "reason": "Estimate before the survey: cmd/validate/claims.go loses reachedDeclarations (423 nodes), declaredNames (100) and the _test.go branch of evidencePayload, about 546 by the finding's parse; 450 is the shrink owed, leaving margin."
-      },
-      "steps": [
-        {
-          "id": "whole-file",
-          "title": "A no-symbol test-file claim binds the file's normalized bytes, so a change to its init moves the claim",
-          "status": "open",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestATestFileClaimMovesWhenTheFilesInitChanges$'",
-          "rationale": "SQA-316: cmd/validate/claims.go evidencePayload binds a _test.go proof with no Symbol to reachedDeclarations, a same-file graph rooted at the declarations holding proof.Contains and followed by identifier names; init is no root, so a func init assigning a variable the named test reads changes what it observes while the claim's identity stays, and reverifyClaims never reruns it.\n\nevidencePayload uses canonicalEvidence for every proof without a Symbol; reachedDeclarations and declaredNames go, and TestAClaimBindsTheTestItNames becomes the new whole-file test. Moved claims are rebound by go run ./cmd/validate -claims -run, never by hand.\n\nServes: held-out-quality; a published claim stays bound to the test bytes that verified it.\nDisappears: about 540 production nodes of same-file reach analysis.\nEvidence: changing the fixture's init assignment from 3 to 4 moves the no-symbol test-file identity.\nBatch: host lane."
-        }
-      ]
-    },
-    {
       "id": "one-draft-verdict",
       "title": "The open's measured draft verdict is the one decision on whether a model drafts through its own next-token layer by default, and the kept-share refusal goes",
       "class": "consolidation",

@@ -13,6 +13,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/latentimage"
+	"overgo/internal/media"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/strictjson"
 	"overgo/internal/torchrng"
@@ -190,9 +191,16 @@ func (g *Generator) prepare(ctx context.Context, request Request) (samplePlan, e
 	return samplePlan{noise: noise, label: request.Class, steps: cmp.Or(request.Steps, g.steps)}, nil
 }
 
+// sampledLatent is a sampled latent and the grid points that drew it.
+type sampledLatent struct {
+	latent []float32
+	steps  int
+}
+
 // integrate samples the plan's latent.
-func (g *Generator) integrate(ctx context.Context, plan samplePlan) ([]float32, error) {
-	return g.model.sample(ctx, plan.noise, plan.label, plan.steps, g.guidance)
+func (g *Generator) integrate(ctx context.Context, plan samplePlan) (sampledLatent, error) {
+	latent, err := g.model.sample(ctx, plan.noise, plan.label, plan.steps, g.guidance)
+	return sampledLatent{latent: latent, steps: plan.steps}, err
 }
 
 // signedSpan is the width of [-1, 1], the range the image encoding reads;
@@ -200,11 +208,11 @@ func (g *Generator) integrate(ctx context.Context, plan samplePlan) ([]float32, 
 const signedSpan = 2
 
 // decode turns a sampled latent into its PNG.
-func (g *Generator) decode(ctx context.Context, latent []float32) (latentimage.EncodedImage, error) {
+func (g *Generator) decode(ctx context.Context, sampled sampledLatent) (latentimage.EncodedImage, error) {
 	if err := ctx.Err(); err != nil {
 		return latentimage.EncodedImage{}, err
 	}
-	pixels, err := g.decoder.decode(latent)
+	pixels, err := g.decoder.decode(sampled.latent)
 	if err != nil {
 		return latentimage.EncodedImage{}, err
 	}
@@ -212,5 +220,7 @@ func (g *Generator) decode(ctx context.Context, latent []float32) (latentimage.E
 		pixels[index] = signedSpan*value - 1
 	}
 	side := g.decoder.grid * g.decoder.patch
-	return latentimage.EncodePlanarPNG(pixels, side, side)
+	image, err := latentimage.EncodePlanarPNG(pixels, side, side)
+	image.Preset = media.Preset{Width: side, Height: side, Steps: sampled.steps, Guidance: float64(g.guidance), Sampler: "Euler", Shift: g.model.shift()}
+	return image, err
 }

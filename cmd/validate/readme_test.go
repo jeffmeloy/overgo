@@ -8,10 +8,13 @@ import (
 	"testing"
 	"time"
 
+	"overgo/internal/artifact"
+	"overgo/internal/media"
 	"overgo/internal/recipe"
 	"overgo/internal/scorecard"
 	"overgo/internal/scorecard/metric"
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 )
 
 // TestTheReadmeTableIsWrittenFromTheScorecard holds the README's speed table to the newest scorecard record beside the
@@ -60,5 +63,27 @@ func TestTheReadmeTableIsWrittenFromTheScorecard(t *testing.T) {
 	}
 	if err := run("-check"); err == nil {
 		t.Fatal("-check alone was admitted")
+	}
+}
+
+// TestAMediaCellRecordsThePresetItRan holds the README's generated pictures and clips to the newest record: -readme
+// writes, after the speed table, each image or video row's time with the preset its attempts ran, so no hand types a
+// size or a step count beside a time.
+func TestAMediaCellRecordsThePresetItRan(t *testing.T) {
+	t.Parallel()
+	root, store := t.TempDir(), filepath.Join(t.TempDir(), "overgodb-store")
+	readme := filepath.Join(root, readmeFile)
+	testcheck.NoError(t, os.WriteFile(readme, []byte(readmeSpeedBegin+"\n"+readmeSpeedEnd+"\n"), readmeMode))
+	row := scorecard.Row{Name: "Wan", Task: recipe.TaskVideoGen, Cells: map[metric.Name]scorecard.Cell{}}
+	for _, column := range metric.Columns {
+		row.Cells[column] = scorecard.Cell{Reason: "a fixture measures nothing"}
+	}
+	row.Cells[metric.FirstOutput] = scorecard.Cell{Value: 13_000, Unit: "ms", Source: testutil.ArtifactID(t, artifact.KindEvidence, "clip attempt"),
+		Preset: media.Preset{Width: 32, Height: 16, Frames: 21, Steps: 2, Guidance: 5, Sampler: "flow UniPC", Shift: 5}}
+	testcheck.Must(scorecard.Publish(scorecard.Directory(store), time.Date(2026, time.November, 8, 12, 0, 0, 0, time.UTC), scorecard.Record{Rows: []scorecard.Row{row}}))(t)
+	testcheck.NoError(t, runArgs(t.Context(), []string{"-root", root, "-repo", store, "-readme"}, io.Discard))
+	want := "| Wan | 13.0 s (32 x 16, 21 frames, 2 steps, flow UniPC, guidance 5, shift 5) | — |\n" + readmeSpeedEnd
+	if written := string(testcheck.Must(os.ReadFile(readme))(t)); !strings.Contains(written, want) {
+		t.Fatalf("the README after -readme =\n%s\nwant the clip's time with its preset:\n%s", written, want)
 	}
 }

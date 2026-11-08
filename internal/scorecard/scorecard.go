@@ -18,6 +18,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/discovery"
 	"overgo/internal/evaluation"
+	"overgo/internal/media"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
@@ -118,6 +119,9 @@ type Cell struct {
 	// started before the previous record was published was not measured since
 	// it (Record.Unmeasured). Zero for every other cell.
 	Newest int64 `json:"newest_unix_ns,omitzero"`
+	// Preset is what the attempts a generated picture's or clip's timing or memory reads ran: its size, steps, guidance,
+	// sampler and shift. None for every other cell.
+	Preset media.Preset `json:"preset,omitzero"`
 	// allowed and unjudged are a reference's alone (Reference) and are never
 	// published: how far, in the cell's unit, a later reading may stand worse
 	// than the reference's value, and why nothing is judged against it, said
@@ -735,6 +739,8 @@ type servingSummary struct {
 	// environment is where the measured attempt ran, or the latest while none has succeeded: a serving value
 	// is read under it, and a baseline measured under another, or naming none, is Unknown, not a change.
 	environment artifact.ID
+	// preset is what the measured attempt ran, which an attempt that joins its window ran too.
+	preset media.Preset
 	// window is the measured attempt and, after it, the next older ones that timed their load under its
 	// environment, recentAttempts at most: an attempt under another environment is no repeat of it.
 	window []servingSample
@@ -931,11 +937,11 @@ func (summary *servingSummary) readUserSize(observation runrecord.ServingObserva
 	if summary.userSize == nil {
 		summary.userSize = &servingSummary{
 			measured: observation.ID, recipe: observation.Recipe, environment: observation.Environment,
-			peakDeviceBytes: observation.Resources.PeakDeviceBytes,
+			peakDeviceBytes: observation.Resources.PeakDeviceBytes, preset: observation.Preset,
 		}
 	}
 	read := summary.userSize
-	if len(read.window) >= recentAttempts || observation.Environment != read.environment {
+	if len(read.window) >= recentAttempts || observation.Environment != read.environment || observation.Preset != read.preset {
 		return
 	}
 	sample := servingSample{attempt: observation.ID, started: observation.StartedUnixNS}
@@ -1004,7 +1010,8 @@ func observedPeak(observation runrecord.ServingObservation) uint64 {
 // cell is a value read from source, an attempt of the summary's window or
 // its latest, as label says.
 func (summary *servingSummary) cell(source artifact.ID, value float64, unit, metric, label string) Cell {
-	return Cell{Value: value, Unit: unit, Label: label, Source: source, Environment: summary.environment, Contract: Contract{Metric: metric, Origin: originServing, Scope: summary.recipe}}
+	return Cell{Value: value, Unit: unit, Label: label, Source: source, Environment: summary.environment, Preset: summary.preset,
+		Contract: Contract{Metric: metric, Origin: originServing, Scope: summary.recipe}}
 }
 
 // servingByRecipe reads every serving observation, newest first, into one
@@ -1080,7 +1087,7 @@ func servingByRecipe(ctx context.Context, store *overgodb.Store) (map[artifact.I
 		if observation.Outcome != runrecord.OutcomeSucceeded || summary.loaded && len(summary.window) >= recentAttempts {
 			return nil
 		}
-		measured := servingSummary{measured: observation.ID, environment: observation.Environment, lengths: summary.lengths, warm: summary.warm, userSize: summary.userSize}
+		measured := servingSummary{measured: observation.ID, environment: observation.Environment, preset: observation.Preset, lengths: summary.lengths, warm: summary.warm, userSize: summary.userSize}
 		timings := servingSample{attempt: observation.ID, started: observation.StartedUnixNS}
 		for _, sample := range observation.Hardware {
 			if sample.Stage == runrecord.ServingHardwarePrefill {
@@ -1106,7 +1113,8 @@ func servingByRecipe(ctx context.Context, store *overgodb.Store) (map[artifact.I
 		// The newest success stands until an older one that timed its load is found: that one is the
 		// measurement and opens the window, and the older ones past it only join it.
 		if summary.loaded || summary.measured.Valid() && !measured.loaded {
-			if summary.loaded && measured.loaded && observation.Environment == summary.environment {
+			// An attempt of another preset is no repeat of the measured one, as one under another environment is not.
+			if summary.loaded && measured.loaded && observation.Environment == summary.environment && observation.Preset == summary.preset {
 				summary.window = append(summary.window, timings)
 			}
 			return nil
@@ -1199,6 +1207,10 @@ func firstOutputCell(task recipe.Task, benchmark evaluation.BenchmarkSummary, be
 		return benchmarkCell(benchmark.FirstTokenMS, "ms", "time to first token, median", benchmark)
 	}
 	if cell, measured := observed.timed(timingWholeOutput, "ms", "time to the whole output", "serving time to the whole output, the median of the newest measured attempts"); measured {
+		// A generated picture's or clip's time says what it is a time of only with the preset it ran.
+		if (task == recipe.TaskImageGen || task == recipe.TaskVideoGen) && !cell.Preset.Ran() {
+			return gap("its measured attempt recorded no preset, the size and steps it ran, so it is measured again")
+		}
 		return cell
 	}
 	return gap("no benchmark time to first token and no serving prefill sample")

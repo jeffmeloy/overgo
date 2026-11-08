@@ -18,9 +18,14 @@ const (
 // minimumSteps is the fewest grid points a sample needs: a start and an end.
 const minimumSteps = 2
 
+// shift is the reference's timestep shift for the DiT's latent: the square root of its size over shiftBase.
+func (m *diffusionTransformer) shift() float64 {
+	return math.Sqrt(float64(m.latent*m.grid*m.grid) / shiftBase)
+}
+
 // timeGrid is the reference's shifted sampling grid of steps points.
 func (m *diffusionTransformer) timeGrid(steps int) []float32 {
-	shift := math.Sqrt(float64(m.latent*m.grid*m.grid) / shiftBase)
+	shift := m.shift()
 	grid := make([]float32, steps)
 	for index := range steps {
 		t := 1 - lastTime*float64(index)/float64(steps-1)

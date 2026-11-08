@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/evaluation"
+	"overgo/internal/media"
 	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
@@ -53,7 +54,7 @@ func TestServingCountsWhatUsersHit(t *testing.T) {
 	const peak, wholeOutputNS = 3 << 20, 2_000_000
 	observe("fixed", runrecord.ServingObservation{Outcome: runrecord.OutcomeFailed, Failure: "execution_failed", StartedUnixNS: 1, MeasuredNS: 1})
 	observe("success", runrecord.ServingObservation{Outcome: runrecord.OutcomeSucceeded, StartedUnixNS: 2, MeasuredNS: wholeOutputNS,
-		Resources: runrecord.ServingResources{PeakDeviceBytes: peak}})
+		Resources: runrecord.ServingResources{PeakDeviceBytes: peak}, Preset: media.Preset{Width: 64, Height: 64, Steps: 2, Sampler: "flow Euler"}})
 	interrupt := observe("interrupt", runrecord.ServingObservation{Outcome: runrecord.OutcomeFailed, Failure: "execution_failed", StartedUnixNS: 3, MeasuredNS: 1})
 	observe("user", runrecord.ServingObservation{Outcome: runrecord.OutcomeFailed, Failure: "execution_failed", StartedUnixNS: 4, MeasuredNS: 1})
 	observe("never", runrecord.ServingObservation{Recipe: never, Outcome: runrecord.OutcomeFailed, Failure: "execution_failed", StartedUnixNS: 1, MeasuredNS: 1})

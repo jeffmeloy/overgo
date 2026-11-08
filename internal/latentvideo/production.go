@@ -179,7 +179,12 @@ type EncodedVideo struct {
 	FPS           int    `json:"fps"`
 	ChangedPixels int    `json:"changed_pixels"`
 	ResidentRun   int    `json:"resident_run"`
+	// Preset is what the generation that made the clip ran; a clip decoded from its bytes holds none.
+	Preset media.Preset `json:"preset,omitzero"`
 }
+
+// RanPreset is the preset the clip was made at (media.PresetOf).
+func (video EncodedVideo) RanPreset() media.Preset { return video.Preset }
 
 // VideoContent is the artifact a clip is published as, under the contract of
 // its media type.

@@ -6,6 +6,7 @@ import (
 	"math"
 
 	"overgo/internal/artifact"
+	"overgo/internal/media"
 	"overgo/internal/recipe"
 )
 
@@ -87,6 +88,9 @@ type ServingObservation struct {
 	Failure       string                  `json:"failure,omitzero"`
 	// UserSize marks an attempt at the size a person asks for, beside the small request a model's cells time.
 	UserSize bool `json:"user_size,omitzero"`
+	// Preset is what a generated picture or clip ran: its size, steps, guidance, sampler and shift. A record from before
+	// this field, and an attempt that generates no picture or clip, holds none.
+	Preset media.Preset `json:"preset,omitzero"`
 	// CodeCommit is the commit the attempt ran (RunningCommit). A record from before this field holds none.
 	CodeCommit string `json:"code_commit,omitzero"`
 	// Policy is the runtime policy the attempt ran under, the model's declared sampling overlaid on the catalog's, which the

@@ -14,6 +14,7 @@ import (
 	"overgo/internal/capabilityruntime"
 	"overgo/internal/discovery"
 	"overgo/internal/hfrepo"
+	"overgo/internal/media"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/operation"
 	"overgo/internal/overgodb"
@@ -404,7 +405,7 @@ func (workspace *storeGenerationWorkspace) observe(ctx context.Context, model, r
 		// The server's process holds other models, so the executor's own peak is the attempt's, and a zero of it is a
 		// measurement only where the session's meter was read: a model with no meter, a failed read and a stored answer
 		// leave the peak absent, which the scorecard must not read as a model that runs on the host.
-		PeakDeviceBytes: measured.PeakDeviceBytes, PeakMeasured: cause == nil && measured.PeakMeasured, Cause: cause,
+		PeakDeviceBytes: measured.PeakDeviceBytes, PeakMeasured: cause == nil && measured.PeakMeasured, Preset: media.PresetOf(measured.Output), Cause: cause,
 	})
 }
 

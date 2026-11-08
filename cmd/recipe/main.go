@@ -19,6 +19,7 @@ import (
 	"overgo/internal/cuda/driver"
 	"overgo/internal/dataroot"
 	"overgo/internal/gguf"
+	"overgo/internal/media"
 	"overgo/internal/mediacapability"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelintake"
@@ -485,7 +486,7 @@ func attemptCapability(
 	recorded, recordErr := servingattempt.RecordWholeOutput(context.WithoutCancel(ctx), store, servingattempt.WholeOutput{
 		Model: modelID, Recipe: selected.Activation.Definition.ID, Run: measured.Run, Task: task, Started: started, Wall: end - begin,
 		Load: measured.Load, Decode: measured.Decode, OutputTokens: measured.OutputTokens,
-		PeakDeviceBytes: peak, PeakMeasured: peakMeasured, UserSize: userSize, Cause: err,
+		PeakDeviceBytes: peak, PeakMeasured: peakMeasured, UserSize: userSize, Preset: media.PresetOf(measured.Output), Cause: err,
 	})
 	return output, recorded.ID, errors.Join(err, recordErr)
 }

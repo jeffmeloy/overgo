@@ -8,32 +8,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 400,
-        "reason": "Estimate before the survey: the media cell record gains typed preset fields and four stage times, the protocol one user-size case per generator, and the README's media rows print the preset from the record."
+        "nodes": 515,
+        "reason": "The preset step measured 985 nodes: a typed preset set by seven generators, carried through the attempt record and the scorecard, and a README generation table written from the record; user-size and stages are estimated at about 250 each."
       },
       "steps": [
-        {
-          "id": "preset-record",
-          "title": "A media cell records the size, frames, steps, guidance, sampler and shift it ran, and the README's media rows print them from the record",
-          "status": "open",
-          "verify": "go test ./internal/scorecard ./cmd/validate -count=1 -run '^TestAMediaCellRecordsThePresetItRan$'",
-          "files": [
-            "internal/media",
-            "internal/capabilityruntime",
-            "internal/servingattempt",
-            "internal/runrecord",
-            "cmd/recipe",
-            "internal/server",
-            "internal/scorecard",
-            "cmd/validate",
-            "internal/latentvideo",
-            "internal/latentimage",
-            "internal/diffusionimage",
-            "internal/rae",
-            "README.md"
-          ],
-          "rationale": "The Wan cell times 21 frames at 32 x 16 in 2 steps (13.0 s); the user's request, 81 frames at 832 x 480 in 50 steps, was last timed by hand at fcda318af (6 min 14 s, 2026-09-12). The Krea (14.3 s) and SenseNova (13.3 s) cells record no size or step count. At those sizes the network does almost no work, so no row of this plan could show its gain in a cell, and the README records the preset behind no image or video row.\n\nEvery media cell carries its preset as typed fields; the README's media rows print them from the newest record.\n\nThe preset travels from the generator that resolved it through the measured envelope (internal/capabilityruntime), the serving attempt (internal/servingattempt, cmd/recipe, internal/server) and the observation (internal/runrecord) to the scorecard, and its type is internal/media's, which the record already imports.\n\nServes: first-output; every later row's gain is read at a known preset.\nDisappears: a media time with no size or step count behind it.\nEvidence: a media cell recorded without its preset is refused, and the README row prints the preset of the newest record.\nBatch: host lane."
-        },
         {
           "id": "user-size",
           "title": "Each generator gains a user-size cell: Wan at 832 x 480 x 81 frames in 50 steps, LiveEdit at 81 frames, Krea-2-Turbo, MOSS-Image-SFT and SenseNova at 1024 x 1024",

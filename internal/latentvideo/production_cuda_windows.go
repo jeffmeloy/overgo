@@ -162,6 +162,8 @@ func (r *WanRuntime) Generate(ctx context.Context, request WanRequest) (EncodedV
 	if err == nil {
 		r.runs++
 		video.ResidentRun = r.runs
+		video.Preset = media.Preset{Width: request.Width, Height: request.Height, Frames: request.Frames, Steps: request.Steps,
+			Guidance: request.GuideScale, Sampler: "flow UniPC", Shift: request.Shift}
 	}
 	return video, err
 }
@@ -252,6 +254,7 @@ func (r *LiveEditRuntime) Generate(ctx context.Context, request ReferenceEditReq
 	if err == nil {
 		r.runs++
 		video.ResidentRun = r.runs
+		video.Preset = media.Preset{Width: video.Width, Height: video.Height, Frames: video.Frames, Steps: len(condition.Timesteps), Sampler: "chunk-causal flow"}
 	}
 	return video, err
 }

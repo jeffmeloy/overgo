@@ -284,6 +284,8 @@ func (g *Generator) decodeRotary(ctx context.Context) (result EncodedImage, err 
 	if err != nil {
 		return result, err
 	}
+	result.Preset = media.Preset{Width: g.request.Width, Height: g.request.Height, Steps: g.request.Steps, Guidance: float64(state.guidance),
+		Sampler: "flow Euler", Shift: g.profile.Rotary.Shift}
 	if err = ctx.Err(); err != nil {
 		return EncodedImage{}, err
 	}

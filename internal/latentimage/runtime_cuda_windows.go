@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"path/filepath"
 
 	"overgo/internal/artifact"
@@ -359,7 +360,10 @@ func (g *Generator) decode(ctx context.Context, session *Generator) (EncodedImag
 		return EncodedImage{}, err
 	}
 	g.completed = true
-	return encodePNG(pixels, height, width)
+	image, err := encodePNG(pixels, height, width)
+	image.Preset = media.Preset{Width: g.request.Width, Height: g.request.Height, Steps: g.request.Steps, Sampler: "flow Euler",
+		Shift: math.Exp(g.request.DynamicShiftMu)}
+	return image, err
 }
 
 func (g *Generator) Close(ctx context.Context) error {

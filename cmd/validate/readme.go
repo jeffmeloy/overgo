@@ -42,7 +42,7 @@ func writeReadmeSpeed(root, records string, check bool, output io.Writer) error 
 	if !opened || !closed {
 		return fmt.Errorf("validate: %s holds no speed table between the lines %q and %q", path, readmeSpeedBegin, readmeSpeedEnd)
 	}
-	written := before + readmeSpeedBegin + "\n" + newest.SpeedTable() + readmeSpeedEnd + after
+	written := before + readmeSpeedBegin + "\n" + newest.SpeedTable() + newest.GenerationTable() + readmeSpeedEnd + after
 	if check {
 		if written != text {
 			return fmt.Errorf("validate: %s's speed table is not what %s gives; write it with go run ./cmd/validate -readme", path, newest.Name)

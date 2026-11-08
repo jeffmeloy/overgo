@@ -67,7 +67,7 @@ func (generator *ResidentGenerator) prepare(ctx context.Context, request Request
 func (generator *ResidentGenerator) integrate(ctx context.Context, plan samplePlan) (sampleFeatures, error) {
 	request := plan.request
 	pixels, err := generator.forward.Sample(ctx, request.Steps, request.Seed)
-	return sampleFeatures{pixels: pixels, height: request.Height, width: request.Width}, err
+	return sampleFeatures{pixels: pixels, height: request.Height, width: request.Width, steps: request.Steps}, err
 }
 
 func (generator *ResidentGenerator) decode(ctx context.Context, features sampleFeatures) (latentimage.EncodedImage, error) {

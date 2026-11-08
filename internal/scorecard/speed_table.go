@@ -66,6 +66,32 @@ func (record Record) SpeedTable() string {
 	return table.String()
 }
 
+// GenerationTable is the README's table of the record's generated pictures and clips, after its speed table: one line
+// for each image or video row whose time to the whole output names the preset it ran, that time with its preset, and
+// its time at the size a person asks for with that preset where one was read. A record measured before its attempts
+// kept their presets gives no table.
+func (record Record) GenerationTable() string {
+	timed := func(cell Cell) string {
+		return fmt.Sprintf("%.1f s (%s)", time.Duration(cell.Value*float64(time.Millisecond)).Seconds(), cell.Preset)
+	}
+	var lines strings.Builder
+	for _, row := range record.Rows {
+		first := row.Cells[metric.FirstOutput]
+		if row.Task != recipe.TaskImageGen && row.Task != recipe.TaskVideoGen || row.Stale != "" || !first.Preset.Ran() {
+			continue
+		}
+		sized := unreadSpeed
+		if at := slices.IndexFunc(row.Warm, func(cell Cell) bool { return cell.Contract.Metric == userSizeTimeMetric && cell.Preset.Ran() }); at >= 0 {
+			sized = timed(row.Warm[at])
+		}
+		fmt.Fprintf(&lines, "| %s | %s | %s |\n", row.Name, timed(first), sized)
+	}
+	if lines.Len() == 0 {
+		return ""
+	}
+	return "\n| Model | time to the whole output | at the size a person asks for |\n| --- | --- | --- |\n" + lines.String()
+}
+
 // thousands writes a count with a comma between each group of three digits.
 func thousands(count int) string {
 	digits := strconv.Itoa(count)

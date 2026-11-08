@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/latentimage"
+	"overgo/internal/media"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/workflowruntime"
 )
@@ -19,9 +20,10 @@ type Request struct {
 
 type samplePlan struct{ request Request }
 
+// sampleFeatures are a sampled picture's pixels with its size and the Euler steps that drew it.
 type sampleFeatures struct {
-	pixels        []float32
-	height, width int
+	pixels               []float32
+	height, width, steps int
 }
 
 func ValidateRequest(request Request) error {
@@ -51,14 +53,16 @@ func (m *Model) prepare(ctx context.Context, request Request) (samplePlan, error
 func (m *Model) integrate(ctx context.Context, plan samplePlan) (sampleFeatures, error) {
 	request := plan.request
 	pixels, err := m.Sample(ctx, 1, request.Height, request.Width, request.Steps, request.Seed)
-	return sampleFeatures{pixels: pixels, height: request.Height, width: request.Width}, err
+	return sampleFeatures{pixels: pixels, height: request.Height, width: request.Width, steps: request.Steps}, err
 }
 
 func (m *Model) decode(ctx context.Context, features sampleFeatures) (latentimage.EncodedImage, error) {
 	if err := ctx.Err(); err != nil {
 		return latentimage.EncodedImage{}, err
 	}
-	return latentimage.EncodePlanarPNG(features.pixels, features.height, features.width)
+	image, err := latentimage.EncodePlanarPNG(features.pixels, features.height, features.width)
+	image.Preset = media.Preset{Width: features.width, Height: features.height, Steps: features.steps, Sampler: "Euler"}
+	return image, err
 }
 
 type runtimeBinding interface {

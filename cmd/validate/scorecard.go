@@ -282,6 +282,15 @@ func scorecardMoves(previous, current scorecard.Record) []string {
 	return moved
 }
 
+// presetText is what a generated picture's or clip's time was a time of, after it: its preset where its attempts
+// recorded one, and nothing for any other cell.
+func presetText(column metric.Name, cell scorecard.Cell) string {
+	if column != metric.FirstOutput || !cell.Preset.Ran() {
+		return ""
+	}
+	return " (" + cell.Preset.String() + ")"
+}
+
 // promptText names the prompt a longer prompt's first output was read at,
 // and nothing for every other cell.
 func promptText(cell scorecard.Cell) string {
@@ -321,7 +330,7 @@ func printScorecard(ctx context.Context, rows []scorecard.Row, root string, outp
 		for _, column := range metric.Columns {
 			cell := row.Cells[column]
 			var text strings.Builder
-			text.WriteString(cellText(column, cell))
+			text.WriteString(cellText(column, cell) + presetText(column, cell))
 			// A chat model's first output and peak memory at its longer prompts follow its own.
 			for _, length := range row.LengthCells(column) {
 				text.WriteString(fmt.Sprintf("; %s at %d tokens", cellText(column, length), length.Prompt))
@@ -329,7 +338,7 @@ func printScorecard(ctx context.Context, rows []scorecard.Row, root string, outp
 			// A video model's reading at the size a person asks for follows the small request's.
 			for _, sized := range row.Measured(column) {
 				if sized.AtUserSize() {
-					text.WriteString(fmt.Sprintf("; %s at the size a person asks for", cellText(column, sized)))
+					text.WriteString(fmt.Sprintf("; %s at the size a person asks for%s", cellText(column, sized), presetText(column, sized)))
 				}
 			}
 			table.WriteString(" " + text.String() + " |")

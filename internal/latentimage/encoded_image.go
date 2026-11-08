@@ -16,7 +16,12 @@ type EncodedImage struct {
 	Width     int     `json:"width"`
 	Minimum   float32 `json:"minimum"`
 	Maximum   float32 `json:"maximum"`
+	// Preset is what the generation that drew the picture ran; a picture decoded from its bytes holds none.
+	Preset media.Preset `json:"preset,omitzero"`
 }
+
+// RanPreset is the preset the picture was drawn at (media.PresetOf).
+func (image EncodedImage) RanPreset() media.Preset { return image.Preset }
 
 var encodedPNGContract = artifact.DocumentContract{
 	Kind: artifact.KindOutput, MediaType: media.PNGMediaType, Schema: "overgo.encoded-image.png.v1",

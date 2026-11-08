@@ -3,30 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "count-history",
-      "title": "A new step's count is filed from what landed steps listing the same directories counted, with a session's own figure written beside it",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 600,
-        "reason": "Estimated after a survey of the code, at about twice what a first sketch of the steps counts, since this week's rows landed at two to six times the counts they were filed with (wan-few-step 300 -\u003e 1100, sampling-split 400 -\u003e 1700, umt5-resident 336 -\u003e 1750): reading counted nodes and count changes from landing messages in Git, and using them in -add and -addstep."
-      },
-      "steps": [
-        {
-          "id": "derived",
-          "title": "plan -add and -addstep set a new step's count from the counted nodes of landed steps listing the same directories, read from the landing messages in Git, and -nodes records the session's figure beside it with its reason",
-          "status": "open",
-          "verify": "go test ./cmd/plan ./internal/plan -count=1 -run '^TestANewStepsCountComesFromItsDirectoriesHistory$'",
-          "files": [
-            "cmd/plan",
-            "internal/plan",
-            "internal/landing"
-          ],
-          "rationale": "No code proposes a count. A landing counts the nodes a change adds (internal/landing/rules.go:72) and writes \"production +N nodes of the M its row may add\" (rules.go:80) and each count change as a Changed-Count trailer (internal/landing/terms.go:29). Counts filed by hand ran far under what landed: wan-few-step 300 -\u003e 1100 -\u003e 2950, quality-instruments 300 -\u003e 2000, umt5-resident 336 -\u003e 1750, sampling-split 400 -\u003e 1700, hf-hub-files 25 -\u003e 120. On 2026-11-08 the lead raised all 24 media rows about threefold by hand (bb3e392b1). About 110 count changes since 2026-11-02 sit in Git, and that history is what a count can be read from.\n\nServes: setup-steps.\nDisappears: counts raised by hand row after row.\nEvidence: a fixture history gives a new step in the same directories the median counted nodes of their landed steps, and -nodes writes both figures.\nBatch: host lane."
-        }
-      ]
-    },
-    {
       "id": "judge-instrument",
       "title": "The judge model is a repeatable instrument: it answers the same way twice, its answers are kept and replayed by what they depend on, and it judges only with current evidence",
       "owner": "master-lead",

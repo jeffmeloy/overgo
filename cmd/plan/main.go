@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -60,10 +61,10 @@ func main() {
 	answer := flag.Bool("answer", false, "record the answer to a decision: -answer <decision-id> -title <one of its options>")
 	reserved := flag.Bool("reserved", false, "mark a decision whose answer is an act no session takes (a store migration, deleting a model or data, activating or publishing a model, a push), so its rows wait for that answer while the others run: -reserved <decision-id>")
 	doctrine := flag.Bool("doctrine", false, "mark a decision as changing a standing rule, so its rows wait for the answer: -doctrine <decision-id>")
-	add := flag.Bool("add", false, "inject a new top-priority task owned by -role: -add <item-id> -title <t> [-before <id>] [-vcmd <cmd>]; or file a document's rows: -add -from <document> [-before <id>]")
+	add := flag.Bool("add", false, "inject a new top-priority task owned by -role: -add <item-id> -title <t> [-before <id>] [-vcmd <cmd>] [-files <a,b> [-nodes <n>]]; or file a document's rows: -add -from <document> [-before <id>]")
 	from := flag.String("from", "", "with -add: a plan-shaped JSON document, or - to read it from standard input so a draft needs no file; every row and decision of it is filed, a row it assigns to no role assigned to -role, an id the plan holds is refused, and no row the plan holds changes")
 	setcount := flag.Bool("setcount", false, "set what a row may still add and why, running no check: -setcount -nodes <n> -reason <why> <item-id>")
-	nodes := flag.Int("nodes", 0, "with -setcount: the production syntax nodes the row may still add (0, the default: it may not grow; below zero: it must shrink)")
+	nodes := flag.Int("nodes", 0, "with -setcount: the production syntax nodes the row may still add (0, the default: it may not grow; below zero: it must shrink); with -add or -addstep: the session's own figure, written beside the count the landings of the step's -files give, and the count where none did")
 	reason := flag.String("reason", "", "with -setcount, -setfiles, -addstep, -note or -retire: the edit's words, why the row grows, why a step's files change, the step's reasoning or why the work will not be done")
 	rationaleFile := flag.String("rationale-file", "", "in place of -reason: a file that holds the edit's words")
 	addstep := flag.Bool("addstep", false, "add an open step to a row, last unless -before names a step: -addstep -title <t> -vcmd <cmd> -rationale-file <file> [-before <step-id>] <item-id> <step-id>")
@@ -87,7 +88,7 @@ func main() {
 	verifyCmd := flag.String("vcmd", "", "with -add or -addstep: the step's verify command (a shell command that exits 0 iff accepted)")
 	runCmd := flag.String("run", "", "with -addstep: a run step's command, which the driver runs with no worker; -record names the file it writes, which -vcmd reads")
 	record := flag.String("record", "", "with -addstep -run: the file the run step's command writes")
-	files := flag.String("files", "", "with -addstep or -setfiles: the files and directories, comma-separated, a code step's change may write; its landing commits only them and names a changed path it left out")
+	files := flag.String("files", "", "with -add, -addstep or -setfiles: the files and directories, comma-separated, a code step's change may write; its landing commits only them and names a changed path it left out")
 	needsCard := flag.Bool("needs-card", false, "with -addstep: the step's work needs the graphics card, so dispatch passes over it while a measurement run holds the card")
 	role := flag.String("role", "", "lane role for dispatch (default OVERGO_AUTOMATION_ROLE, then unassigned)")
 	worker := flag.String("worker", "", "stable session identity a stop is scoped by (default OVERGO_AUTOMATION_WORKER)")
@@ -182,9 +183,9 @@ func run(c cli, args []string) error {
 		return printRow(os.Stdout, document, strings.Join(args, "/"))
 	case c.add:
 		if len(args) != 1 || strings.TrimSpace(c.title) == "" {
-			return errors.New("usage: plan -add <item-id> -title <title> [-before <id>] [-vcmd <verify>]")
+			return errors.New("usage: plan -add <item-id> -title <title> [-before <id>] [-vcmd <verify>] [-files <a,b> [-nodes <n>]]")
 		}
-		return addItem(commandWorktree, args[0], c.title, c.class, c.before, c.verifyCmd, role)
+		return addItem(commandWorktree, args[0], c, role)
 	case c.move:
 		if len(args) != 1 {
 			return errors.New("usage: plan -move <item-id> [-before <id>]")
@@ -264,14 +265,51 @@ func withPlanMutation(root string, mutate func(plan.Plan) error) (err error) {
 // before `before` (or at the top of the plan when empty). This is the mechanical
 // "inject a task" operation -- a merge, a fix, or any requested work becomes
 // a first-class dispatched/verified/advanced task without hand-editing plan.json.
-func addItem(root, id, title, class, before, verifyCmd, role string) error {
+// A step given -files is counted from what landings in them counted (filedCount).
+func addItem(root, id string, c cli, role string) error {
 	return mutatePlan(root, role, "added item "+id+" (step do)", func(document plan.Plan) (plan.Plan, error) {
-		updated, err := insertItem(document, id, title, class, before, verifyCmd)
-		if err == nil && role != worklease.UnassignedRole {
-			updated.Items[slices.IndexFunc(updated.Items, itemNamed(id))].Owner = role
+		updated, err := insertItem(document, id, c.title, c.class, c.before, c.verifyCmd)
+		if err != nil {
+			return updated, err
 		}
-		return updated, err
+		row := &updated.Items[slices.IndexFunc(updated.Items, itemNamed(id))]
+		if role != worklease.UnassignedRole {
+			row.Owner = role
+		}
+		if files := listedFiles(c.files); len(files) > 0 {
+			row.Steps[0].Files = files
+			nodes, reason := filedCount(root, files, c.nodes)
+			row.Budget = plan.Budget{Nodes: nodes, Reason: "Filed from history: " + reason}
+		}
+		return updated, nil
 	})
+}
+
+// historyDepth is how many of the trunk's latest commits a count is read from.
+const historyDepth = 500
+
+// filedCount is the count a new step that lists files is filed with: the median of what the landings that changed
+// them counted, read from the trunk's latest commits (plan.HistoryCount), or the session's figure where none did; the
+// reason names both. A root that is no repository has no history.
+func filedCount(root string, files []string, figure int) (int, string) {
+	var history []plan.LandedCount
+	if log, err := commandInput(root, nil, "git", "log", "-n", strconv.Itoa(historyDepth), "--format=%B%x00"); err == nil {
+		for message := range strings.SplitSeq(string(log), "\x00") {
+			if landed, counted := plan.ReadLandedCount(message); counted {
+				history = append(history, landed)
+			}
+		}
+	}
+	nodes, landings := plan.HistoryCount(history, files)
+	if landings == 0 {
+		nodes = figure
+	}
+	return nodes, plan.HistoryReason(nodes, landings, figure, files)
+}
+
+// listedFiles are the files a -files flag lists, comma- or space-separated.
+func listedFiles(flag string) []string {
+	return strings.Fields(strings.ReplaceAll(flag, ",", " "))
 }
 
 // moveItem changes item order through the shared mutation home.
@@ -462,7 +500,7 @@ func editPlan(role string, c cli, args []string, did string) error {
 		words = strings.TrimSpace(string(text))
 	}
 	itemID, stepID, named := strings.Cut(reference, "/")
-	files := strings.Fields(strings.ReplaceAll(c.files, ",", " "))
+	files := listedFiles(c.files)
 	if words == "" || (c.note || c.setfiles) && !named || c.setcount && named || c.addstep && strings.TrimSpace(c.title) == "" || c.setfiles && len(files) == 0 {
 		return errors.New(editUsage)
 	}
@@ -493,6 +531,12 @@ func editPlan(role string, c cli, args []string, did string) error {
 		case c.addstep:
 			row.Steps = slices.Insert(row.Steps, step, plan.Step{ID: stepID, Title: c.title, Status: plan.StatusOpen, Verify: c.verifyCmd, Run: c.runCmd, Record: c.record,
 				Files: files, NeedsCard: c.needsCard, Rationale: words})
+			// A step that lists its files adds to the row's count what landings in them counted (filedCount).
+			if len(files) > 0 {
+				nodes, reason := filedCount(commandWorktree, files, c.nodes)
+				row.Budget.Nodes += nodes
+				row.Budget.Reason = strings.TrimSpace(fmt.Sprintf("%s Step %s: %+d (%s).", row.Budget.Reason, stepID, nodes, reason))
+			}
 		case c.note:
 			addNote(&row.Steps[step].Rationale, words)
 		case c.retire && named && len(row.Steps) > 1:

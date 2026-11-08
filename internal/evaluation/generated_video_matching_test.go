@@ -60,7 +60,7 @@ func TestGeneratedVideoMatchingAsksWhichCaptionAClipWasDrawnFrom(t *testing.T) {
 			}
 		}
 	}
-	suite := testcheck.Must(BuildGeneratedVideoMatching(items, videos, "judge-a"))(t)
+	suite := testcheck.Must(BuildGeneratedVideoMatching(items, nil, videos, "judge-a"))(t)
 	if _, err := CompileGeneratedAnswer(suite); err != nil || suite.Judge != "judge-a" || len(suite.Cases) != 5*generatedVideoRounds {
 		t.Fatalf("suite = %d cases judged by %q (%v), want %d judged by judge-a that compile", len(suite.Cases), suite.Judge, err, 5*generatedVideoRounds)
 	}
@@ -69,10 +69,10 @@ func TestGeneratedVideoMatchingAsksWhichCaptionAClipWasDrawnFrom(t *testing.T) {
 		!strings.HasSuffix(suite.Cases[1].Name, items[0].ID+"/1") {
 		t.Fatalf("second case = %s %q answering %v", suite.Cases[1].Name, suite.Cases[1].Prompt, suite.Cases[1].Answers)
 	}
-	if _, err := BuildGeneratedVideoMatching(items, map[string]string{}, "judge-a"); err == nil {
+	if _, err := BuildGeneratedVideoMatching(items, nil, map[string]string{}, "judge-a"); err == nil {
 		t.Error("a suite was built for captions with no clip")
 	}
-	if _, err := BuildGeneratedVideoMatching(items, videos, ""); err == nil {
+	if _, err := BuildGeneratedVideoMatching(items, nil, videos, ""); err == nil {
 		t.Error("a suite was built with no judge named")
 	}
 	if _, err := PickVideoCaptions(spec.Captions, 500, 17); err == nil {

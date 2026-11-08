@@ -329,8 +329,9 @@ func writeDrawnText(ctx context.Context, model, repository, judge, directory, ou
 	return writeSuite(out, suite, len(suite.Cases), "drawn-text")
 }
 
-// writeVidGenClips draws the clips of -cases VidGen captions and writes the suite that
-// asks the judge which of four captions each shows.
+// writeVidGenClips draws the clips of -cases VidGen captions and of the captions composed
+// beside them, and writes the suite that asks the judge which of four captions each picked
+// one shows and what each composed one holds.
 func writeVidGenClips(ctx context.Context, captions, model, repository, judge, directory, out, settings string, cases int, seed uint64) error {
 	commit, err := runrecord.ExecutableCodeCommit(".")
 	if err != nil {
@@ -340,23 +341,41 @@ func writeVidGenClips(ctx context.Context, captions, model, repository, judge, d
 	if err != nil {
 		return err
 	}
-	items, err := evaluation.PickVideoCaptions(captions, cases, seed)
+	items, composed, prompts, err := vidGenCaptions(captions, cases, seed)
 	if err != nil {
 		return err
-	}
-	prompts := make([]renderPrompt, len(items))
-	for index, item := range items {
-		prompts[index] = renderPrompt{ID: item.ID, Prompt: item.Caption}
 	}
 	clips, err := renderMedia(ctx, repository, model, recipe.TaskVideoGen, directory, prompts, changes, commit)
 	if err != nil {
 		return err
 	}
-	suite, err := evaluation.BuildGeneratedVideoMatching(items, clips, filepath.Base(judge))
+	suite, err := evaluation.BuildGeneratedVideoMatching(items, composed, clips, filepath.Base(judge))
 	if err != nil {
 		return err
 	}
 	return writeSuite(out, suite, len(suite.Cases), "generated-video caption-matching")
+}
+
+// vidGenCaptions picks -cases VidGen captions by seed and composes one caption for each
+// composedShare of them (evaluation.ComposeTIFA), as a picture suite does, and returns the
+// prompts a video model draws: the picked captions, then the composed ones.
+func vidGenCaptions(captions string, cases int, seed uint64) ([]evaluation.VideoCaptionItem, []evaluation.TIFAItem, []renderPrompt, error) {
+	items, err := evaluation.PickVideoCaptions(captions, cases, seed)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	composed, err := evaluation.ComposeTIFA(max(cases/composedShare, 1), seed)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	var prompts []renderPrompt
+	for _, item := range items {
+		prompts = append(prompts, renderPrompt{ID: item.ID, Prompt: item.Caption})
+	}
+	for _, item := range composed {
+		prompts = append(prompts, renderPrompt{ID: item.ID, Prompt: item.Caption})
+	}
+	return items, composed, prompts, nil
 }
 
 const (

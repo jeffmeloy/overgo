@@ -3,27 +3,130 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "video-judge",
-      "title": "The generated-video judge scores probabilities on harder cases, and Wan's base and its four-step student are judged at the same settings, so the student's quality says something",
+      "id": "file-lists",
+      "title": "A landing that leaves out a file its change needs says which and adds it with one command, and a renamed test's citations follow it",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 700,
+        "reason": "Estimated after a survey of the code, at about twice what a first sketch of the steps counts, since this week's rows landed at two to six times the counts they were filed with (wan-few-step 300 -\u003e 1100, sampling-split 400 -\u003e 1700, umt5-resident 336 -\u003e 1750): the left-out paths joined to a failing stage's message, and a rename read from the diff and written through the fix stage."
+      },
+      "steps": [
+        {
+          "id": "left-out",
+          "title": "When a landing's checks fail on a commit that left changed paths out, the failure names those paths and prints the plan -setfiles command that adds them",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestAFailedLandingNamesThePathsItLeftOut$'",
+          "files": [
+            "internal/landing",
+            "cmd/loop",
+            "cmd/plan",
+            "internal/plan"
+          ],
+          "rationale": "Seven steps were retired and re-filed on 2026-11-08 because their files left out a directory the change needed: media-user-size/user-size (internal/mediacapability, cmd/recipe), media-user-size/stages (cmd/recipe, internal/servingattempt, internal/runrecord), media-user-size/preset (the record chain to the scorecard), sampling-split/presets (internal/mediacapability, internal/server), quality-instruments/hard-cases and licence-scope/sbom (internal/repoanalysis), and landing-scope/scoped-commit (skill.md). Each cost a retire, a re-file and a second gate run. Since c405298f9 a landing commits only its steps' files and since 0ad3c1b65 its checks judge that commit in a worktree of its own, so a needed file the step did not list now shows as a failing test, not a refusal naming the file. The landing already prints what it left out (internal/landing/scope.go:68) before its checks run, but it does not join the two when a check fails. The comments at internal/plan/plan.go:49-50 and cmd/plan/main.go:90 still say a landing refuses a change outside the list.\n\nWhen a stage fails and the landing left changed paths out, the failure names them and prints the one command that lists them, so landing again takes them.\n\nServes: setup-steps; model calls per landing.\nDisappears: a retired and re-filed step for a short file list.\nEvidence: a fixture landing whose test needs a file it left out fails with that path and the plan -setfiles command, and lands after the command runs.\nBatch: host lane."
+        },
+        {
+          "id": "citations",
+          "title": "A change that renames a test rewrites each skill.md and README.md line citing the old name in the landing's fix stage, and prints the lines when the rename is ambiguous",
+          "status": "open",
+          "verify": "go test ./internal/landing ./internal/repoanalysis -count=1 -run '^TestARenamedTestsCitationsFollowIt$'",
+          "files": [
+            "internal/landing",
+            "internal/repoanalysis"
+          ],
+          "rationale": "skill_lines_test.go:62 and DeadReferences (internal/repoanalysis/dead_references.go:28-70) refuse a citation of a test that no file declares, and no code maps a rename back to the lines that cite it. landing-scope/scoped-commit failed at the invariants stage because skill.md:48 cited TestALandingStaysInsideItsStepsFiles after the change renamed it TestALandingCommitsOnlyItsStepsFiles, and it was re-filed as commit-scope with skill.md in its files.\n\nA change that removes one test and adds one in the same file is a rename the diff shows. The fix stage (internal/landing/landing.go:668-674) rewrites the citing lines, and the scope admits what it wrote as it admits the generators' outputs (scope.go:46-48). Where more than one test was removed or added, the landing prints each citing line and the candidates.\n\nServes: setup-steps.\nDisappears: a gate run refused for a citation the change itself made stale.\nEvidence: a fixture change renaming a cited test lands with the citation rewritten, and one removing two tests prints both citing lines.\nBatch: host lane."
+        }
+      ]
+    },
+    {
+      "id": "count-history",
+      "title": "A new step's count is filed from what landed steps listing the same directories counted, with a session's own figure written beside it",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 600,
+        "reason": "Estimated after a survey of the code, at about twice what a first sketch of the steps counts, since this week's rows landed at two to six times the counts they were filed with (wan-few-step 300 -\u003e 1100, sampling-split 400 -\u003e 1700, umt5-resident 336 -\u003e 1750): reading counted nodes and count changes from landing messages in Git, and using them in -add and -addstep."
+      },
+      "steps": [
+        {
+          "id": "derived",
+          "title": "plan -add and -addstep set a new step's count from the counted nodes of landed steps listing the same directories, read from the landing messages in Git, and -nodes records the session's figure beside it with its reason",
+          "status": "open",
+          "verify": "go test ./cmd/plan ./internal/plan -count=1 -run '^TestANewStepsCountComesFromItsDirectoriesHistory$'",
+          "files": [
+            "cmd/plan",
+            "internal/plan",
+            "internal/landing"
+          ],
+          "rationale": "No code proposes a count. A landing counts the nodes a change adds (internal/landing/rules.go:72) and writes \"production +N nodes of the M its row may add\" (rules.go:80) and each count change as a Changed-Count trailer (internal/landing/terms.go:29). Counts filed by hand ran far under what landed: wan-few-step 300 -\u003e 1100 -\u003e 2950, quality-instruments 300 -\u003e 2000, umt5-resident 336 -\u003e 1750, sampling-split 400 -\u003e 1700, hf-hub-files 25 -\u003e 120. On 2026-11-08 the lead raised all 24 media rows about threefold by hand (bb3e392b1). About 110 count changes since 2026-11-02 sit in Git, and that history is what a count can be read from.\n\nServes: setup-steps.\nDisappears: counts raised by hand row after row.\nEvidence: a fixture history gives a new step in the same directories the median counted nodes of their landed steps, and -nodes writes both figures.\nBatch: host lane."
+        }
+      ]
+    },
+    {
+      "id": "judge-instrument",
+      "title": "The judge model is a repeatable instrument: it answers the same way twice, its answers are kept and replayed by what they depend on, and it judges only with current evidence",
       "owner": "master-lead",
       "status": "open",
       "budget": {
         "nodes": 1200,
-        "reason": "Estimate from quality-instruments, which needed about this for images: the video suite's soft score and composed cases, the base judged at the student's settings, and a comparison that states its verdict; the renders run hours on the card."
+        "reason": "Estimated after a survey of the code, at about twice what a first sketch of the steps counts, since this week's rows landed at two to six times the counts they were filed with (wan-few-step 300 -\u003e 1100, sampling-split 400 -\u003e 1700, umt5-resident 336 -\u003e 1750): a repeat test through the judge's projector, answers keyed and stored beside the reuse the other suites have, and a re-verification before a stale judge opens."
       },
       "steps": [
         {
-          "id": "soft-video",
-          "title": "The generated-video suite scores the judge's probability of the right caption beside the binary count, and gains harder cases, so no served video model scores at its ceiling",
+          "id": "repeatable",
+          "title": "Qwen3.8-27B judges a frozen set of 32 image and 32 video cases twice at one commit and gives the same letters, its soft shares within a tolerance declared first",
           "status": "open",
-          "verify": "go test ./internal/evaluation ./cmd/evaluate -count=1 -run '^TestTheVideoSuiteScoresProbabilitiesOnHarderCases$'",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/evaluate -count=1 -run '^TestTheJudgeAnswersTheSameTwice$'",
+          "files": [
+            "cmd/evaluate",
+            "internal/evaluation",
+            "internal/projector",
+            "internal/inference",
+            "internal/cuda",
+            "kernels/cuda"
+          ],
+          "needs_card": true,
+          "rationale": "A paired comparison counts wins and losses case by case (skill.md:257). A judge that answers differently from run to run turns ties into wins and losses that no change made. Repeated tokens are held for Qwen3.5-9B serving (qwen35_9b_serving_smoke_test.go:151-155) and repeated media bytes for Krea (TestServedPictureKeepsItsSession), but never for the judge through its projector. Some kernels accumulate with atomicAdd (kernels/cuda/ops_f32_elementwise.cuh:691), whose order of addition can vary from run to run.\n\nServes: held-out-quality; every judged comparison's verdict.\nDisappears: a win or loss the judge made up.\nEvidence: two runs of the judge on the frozen cases give the same letters and soft shares within the declared tolerance.\nBatch: device lane."
+        },
+        {
+          "id": "replay",
+          "title": "A generated-media judgement keeps each answer under the judge's identity, the media's digest and the question, and a later run on the same inputs replays it instead of asking",
+          "status": "open",
+          "verify": "go test ./internal/evaluation ./cmd/evaluate -count=1 -run '^TestAJudgedAnswerIsReplayedForTheSameInputs$'",
           "files": [
             "internal/evaluation",
             "cmd/evaluate",
             "internal/scorecard"
           ],
-          "rationale": "wan-few-step/measured judged the Self-Forcing student 0.898 against its base's 0.914 on 128 cases, and 59 of the 64 clips tied: 2 wins, 3 losses, tail 0.81. The video caption-matching suite is at its ceiling, the problem quality-instruments fixed for images with Soft-TIFA and composed cases. The same instruments carry over: the judge's probability of the right caption, and cases whose distractors differ in one detail.\n\nServes: held-out-quality for every video generator.\nDisappears: a video comparison where nearly every clip ties.\nEvidence: the suite's soft score separates two clips of one caption the binary count ties, and its harder cases leave no served video model at its ceiling.\nBatch: host lane."
+          "rationale": "evaluateGeneratedAnswer asks every case on every run (internal/evaluation/generated_answer.go:176-186). The multiple-choice, instruction-rule and sampled-answer suites already reuse answers keyed by everything an answer depends on (internal/evaluation/observation.go:60-104, held by TestAnswersOutliveOnlyTheCommitsThatLeaveTheirCodeUnchanged). A judged question costs about 27 s for TIFA images (3b20a6e87) and about 6.3 s for video (the Wan student's run on 2026-11-08), so the 415-question TIFA suite takes about three hours of the card. A reference model's outputs do not change between comparisons. video-judge/same-settings judges Wan's base, and every later preset, eight-bit or step-cache candidate is compared with the same reference, so the reference's answers need asking only once.\n\nServes: setup-steps; card hours per comparison.\nDisappears: the reference's media judged again for each candidate.\nEvidence: a second judged run on unchanged media asks the judge nothing and scores the same, and a changed picture is asked again.\nBatch: host lane.",
+          "depends_on": [
+            "judge-instrument/repeatable"
+          ]
         },
+        {
+          "id": "current",
+          "title": "A judged run opens its judge only with current verification evidence, re-verifying it first when the build no longer compiles the profile it was verified against",
+          "status": "open",
+          "verify": "go test ./cmd/evaluate ./internal/modelcli -count=1 -run '^TestAJudgeWithStaleEvidenceIsVerifiedBeforeItJudges$'",
+          "files": [
+            "cmd/evaluate",
+            "internal/modelcli",
+            "internal/modelrecipe"
+          ],
+          "rationale": "noteModelState prints that a model's evidence is out of date, \"verified against an architecture profile this build no longer compiles\", and runs all the same (internal/modelcli/model.go:284-293, internal/modelrecipe/model_state.go:89-91). The Wan student's 0.898 on 2026-11-08 was judged after that note. A score from an instrument whose own verification is stale is bound to no verified build (skill.md:172; finding SQA-315).\n\nServes: held-out-quality.\nDisappears: a score from a judge whose verification the build no longer holds.\nEvidence: a fixture judge with stale evidence is re-verified before it answers, and its answers record the new verification.\nBatch: host lane."
+        }
+      ]
+    },
+    {
+      "id": "video-judge",
+      "title": "The generated-video judge scores probabilities on harder cases, and Wan's base and its four-step student are judged at the same settings, so the student's quality says something",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 999,
+        "reason": "Estimate from quality-instruments, which needed about this for images: the video suite's soft score and composed cases, the base judged at the student's settings, and a comparison that states its verdict; the renders run hours on the card."
+      },
+      "steps": [
         {
           "id": "same-settings",
           "title": "Wan's 50-step base and its four-step student are drawn and judged at the student's settings, 81 frames at 832 x 480, on the harder suite, and the comparison states its verdict",
@@ -66,6 +169,174 @@
           "rationale": "MOSS's profile skips layer 22 on the negative branch (negative_skip: [22]), which is skip-layer guidance at no extra pass. Made generic over DiT blocks and attention context, the same hook carries skip-layer guidance on Wan (arXiv 2403.17377) and NAG's attention-space guidance on every model.\n\nServes: setup-steps for guidance-ops.\nDisappears: MOSS's special case.\nEvidence: MOSS's negative branch runs through the generic hook with its golden unchanged, and a Wan pass with a chosen block set to identity differs only from that block on.\nBatch: host lane.",
           "depends_on": [
             "sampling-split/interface"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "media-screen",
+      "title": "Image embeddings screen a media change in minutes: each case's output is compared with the reference path's, and each clip's frames with their neighbours",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 1800,
+        "reason": "Estimated after a survey of the code, at about twice what a first sketch of the steps counts, since this week's rows landed at two to six times the counts they were filed with (wan-few-step 300 -\u003e 1100, sampling-split 400 -\u003e 1700, umt5-resident 336 -\u003e 1750): a screen command over vitencoder's card path with a floor read from a second seed, and a frame-to-frame measure carried to the video cells."
+      },
+      "steps": [
+        {
+          "id": "pair-screen",
+          "title": "cmd/evaluate -screen embeds a candidate path's outputs and the reference path's at the same prompts and seeds with webssl-dino300m on the card, and fails the cases where the candidate lies farther from the reference than a second seed of the same prompt does",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/evaluate -count=1 -run '^TestTheScreenFailsACandidateThatLostItsPrompt$'",
+          "files": [
+            "cmd/evaluate",
+            "internal/evaluation",
+            "internal/vitencoder",
+            "internal/tensorstats"
+          ],
+          "needs_card": true,
+          "rationale": "internal/vitencoder embeds on the card (vitencoder.Card, internal/vitencoder/card.go:17-33; 1024 dimensions for webssl-dino300m). Its only metric today is retrieval over real frames (internal/evaluation/image_retrieval.go:120-164). No embedding compares two generated images, and FD-DINOv2 (rae-small-models/fd-dinov2) compares distributions, not cases. The fast-path rows (eight-bit-attention, w8a8-gemm, step-cache, light-vae, video-decode-overlap) change values beyond any golden's tolerance, so each is admitted by a judged paired comparison (skill.md:257). That costs the renders plus 6 to 27 s a question.\n\nThe floor needs no chosen constant. Two seeds of one prompt are two valid outputs, so a candidate output farther from its reference than another seed has lost what the prompt asked. The screen counts those cases with tensorstats.ExactPairedBinary, and only a candidate it passes goes to the judged comparison. The fast-path rows can name it in their checks.\n\nServes: setup-steps; card hours per fast-path change.\nDisappears: a broken fast path found only after hours of rendering and judging.\nEvidence: on a fixture, a candidate with a corrupted step fails the screen and one that rounds differently passes.\nBatch: device lane."
+        },
+        {
+          "id": "clip-consistency",
+          "title": "Every generated or edited clip records the similarity of each frame's embedding to the next, its mean and lowest, beside its judged score, its floor read from the same measure over the source clips the suite's captions describe",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/evaluate ./internal/scorecard -count=1 -run '^TestAClipRecordsItsFrameToFrameSimilarity$'",
+          "files": [
+            "cmd/evaluate",
+            "internal/evaluation",
+            "internal/vitencoder",
+            "internal/scorecard",
+            "cmd/validate",
+            "README.md"
+          ],
+          "needs_card": true,
+          "rationale": "The video judge asks two questions a clip about its content (internal/evaluation/generated_video_matching.go:127-195). Nothing measures how a clip moves, and no Go file measures flicker or change from frame to frame. LiveEdit and the Wan student generate in chunks of three latent frames. long-video's rolling window and video-decode-overlap's chunked decode join chunks. A seam or flicker shows as a clip's lowest neighbour similarity, which no caption question sees. The VidGen source clips hold real motion for each caption, so the floor is read from data, not chosen.\n\nServes: held-out-quality for every video generator and editor.\nDisappears: a seam between chunks that no measure sees.\nEvidence: a fixture clip with one frame repeated and one replaced shows both in its lowest similarity, and the video cells carry the measure.\nBatch: device lane."
+        }
+      ]
+    },
+    {
+      "id": "drawn-text-reading",
+      "title": "Unlimited-OCR reads the text each image generator draws, and the drawn-text suite scores the characters it read back, over briefs written by seeded code",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 2000,
+        "reason": "Estimated after a survey of the code, at about twice what a first sketch of the steps counts, since this week's rows landed at two to six times the counts they were filed with (wan-few-step 300 -\u003e 1100, sampling-split 400 -\u003e 1700, umt5-resident 336 -\u003e 1750): the OCR model's projector path opened for the suite, a character score carried to the scorecard, and a brief writer over word and number lists."
+      },
+      "steps": [
+        {
+          "id": "reader",
+          "title": "cmd/evaluate reads an image's text with Unlimited-OCR through projector.DeepSeekOCRRunner, recording its model and projector identities with what it read",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/evaluate -count=1 -run '^TestUnlimitedOCRReadsAPictureForTheSuite$'",
+          "files": [
+            "cmd/evaluate",
+            "internal/projector",
+            "internal/evaluation",
+            "docs/verification"
+          ],
+          "needs_card": true,
+          "rationale": "Unlimited-OCR's vision path exists (internal/projector/deepseekocr.go:41, registered at internal/projector/prompt.go:295). Only TestUnlimitedOCRProductionParity holds it (internal/adaptiveparity/unlimited_ocr_windows_test.go:55-175: an exact 200-token prefix, row coordinates within 1 and an edit distance of at most 1 per row), and that test opens the projector directly. The served row is text -\u003e text (README.md:137). docs/verification/text-vision-coverage.json:66 says document recognition is not claimed, and compatibility.json holds it pending-fixture. Qwen3.8-27B can read text through its projector, but it is the suite's judge. A separate reader keeps the reading and the judging two instruments, and a dedicated OCR model reads more cheaply than a 27B judge's 27 s a question.\n\nServes: held-out-quality for every image generator.\nDisappears: an OCR vision path no command runs.\nEvidence: the reader reads the parity test's page within that test's bounds, and a drawn-text picture's reading records the reader's identities.\nBatch: device lane."
+        },
+        {
+          "id": "char-score",
+          "title": "The drawn-text suite scores each picture by the share of its brief's characters the reader read back, title, three lines and small print, beside the judge's choice and soft share, and the scorecard reads it",
+          "status": "open",
+          "verify": "go test ./internal/evaluation ./cmd/evaluate ./internal/scorecard -count=1 -run '^TestDrawnTextScoresTheCharactersReadBack$'",
+          "files": [
+            "internal/evaluation",
+            "cmd/evaluate",
+            "internal/scorecard",
+            "cmd/validate",
+            "README.md"
+          ],
+          "rationale": "The suite asks the judge which of four near texts a picture holds (internal/evaluation/drawn_text.go:20, with near titles at :116 and near numbers at :151). SenseNova scores 100 of 100, the whole suite (README.md:143), so no change to SenseNova can show a gain there, and a picture with one wrong letter in its small print scores the same as one with none. The score is one minus the edit distance over the length of the brief's text, per picture. It is computed by code once the reader has read. Krea and MOSS draw text too, so the score applies to every image generator.\n\nServes: held-out-quality for every image generator.\nDisappears: a text-drawing suite at its ceiling.\nEvidence: a fixture picture with one character wrong scores below one with none, and the scorecard's drawn-text cell carries the character score.\nBatch: host lane.",
+          "depends_on": [
+            "drawn-text-reading/reader"
+          ]
+        },
+        {
+          "id": "briefs",
+          "title": "Seeded code writes drawn-text briefs from word and number lists, so a suite holds as many pictures as it asks for, the 20 held briefs first",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -count=1 -run '^TestDrawnBriefsAreWrittenBySeededCode$'",
+          "files": [
+            "internal/evaluation",
+            "cmd/evaluate"
+          ],
+          "rationale": "PickDrawnText refuses more briefs than drawn_briefs.json holds, which is 20 (internal/evaluation/drawn_text.go:191-193). Twenty pictures give a paired sign test (tensorstats.ExactPairedBinary) at most 20 cases that can differ. A brief is a title with two swappable words, three number lines and a line of small print (internal/evaluation/drawn_briefs.json). Seeded code can fill that shape from lists, as internal/evaluation/composed_cases.go fills TIFA's composed cases from composed_atoms.json. The 20 held briefs stay the first 20, so earlier readings remain comparable.\n\nServes: held-out-quality.\nDisappears: a suite capped at 20 pictures.\nEvidence: a seed writes the same briefs every time, two seeds write different ones, and a suite of 200 pictures draws.\nBatch: host lane."
+        }
+      ]
+    },
+    {
+      "id": "local-worker",
+      "title": "One of overgo's own models works plan steps as the driver's first worker, the Claude worker taking what it cannot pass, by a pass rate measured on steps that already landed",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 3500,
+        "reason": "Estimated after a survey of the code, at about twice what a first sketch of the steps counts, since this week's rows landed at two to six times the counts they were filed with (wan-few-step 300 -\u003e 1100, sampling-split 400 -\u003e 1700, umt5-resident 336 -\u003e 1750): the driver landing a worker's passed step, a worker loop over the six tools and overgo's chat route, a replay of landed steps from their parent commits, and the ordering from the replay's results."
+      },
+      "steps": [
+        {
+          "id": "lands",
+          "title": "The driver lands a worker's step once its check passes, as it lands a run step, and the worker's prompt no longer asks it to run a command its six tools cannot",
+          "status": "open",
+          "verify": "go test ./internal/loop ./cmd/loop -count=1 -run '^TestTheDriverLandsAWorkersPassedStep$'",
+          "files": [
+            "internal/loop",
+            "cmd/loop",
+            "internal/landing",
+            "skill.md"
+          ],
+          "rationale": "The default prompt tells the worker to commit through go run ./cmd/loop -land (cmd/loop/init_config.go:53-55). But the worker starts with --tools \"\" and only the six tools of cmd/loop -tools (read_file, edit_file, run_check, run_tests, show_step, run_probe; cmd/loop/tools.go:55-115), none of which lands. The driver lands only a run step itself (RunCommand, cmd/loop/main.go:444-462) and otherwise waits for the worker to land (internal/loop/driver.go:50-51, 293-299). So a worker with no shell cannot finish a code step. On this machine .overgo-runtime/loop.json still grants the worker Bash and Edit, which is how a step lands today.\n\nServes: setup-steps; model calls per landing.\nDisappears: a worker asked to do what its tools cannot.\nEvidence: a fixture worker that only edits and passes its check sees its step landed by the driver.\nBatch: host lane."
+        },
+        {
+          "id": "local",
+          "title": "cmd/loop's local worker sends the step's prompt and the six tools to overgo's own chat route and runs each tool call the model makes, and Qwen3.8-27B-UD-Q6_K passes a fixture step with it",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/loop -count=1 -run '^TestALocalModelWorksAFixtureStep$'",
+          "files": [
+            "cmd/loop",
+            "internal/server",
+            "internal/inference",
+            "cmd/server"
+          ],
+          "needs_card": true,
+          "rationale": "overgo serves /v1/chat/completions and /v1/messages with tools (internal/server/routes.go:48-57, internal/server/anthropic_tools.go), constraining a call to the tool grammar for GGUF templates that use \u003cfunction=...\u003e or \u003ctool_call\u003e (internal/inference/chat_tool_grammar.go:39-49), as the Qwen GGUFs do. The six tools already live in cmd/loop/tools.go, and the driver's config gives each worker its own command and environment (cmd/loop/main.go:81-97). Nothing connects a worker to overgo's server today. A worker of overgo's own needs only the step's prompt and the six tools, not a client prompt written for Claude and resent every turn.\n\nServes: model calls per landing; the loop runs on overgo's own inference.\nDisappears: a driver whose every worker is an outside service.\nEvidence: a fixture step with a one-line fix and its failing test is passed by Qwen3.8-27B-UD-Q6_K through the local worker.\nBatch: device lane.",
+          "depends_on": [
+            "local-worker/lands"
+          ]
+        },
+        {
+          "id": "replay",
+          "title": "Steps that landed since 2026-11-01 with one Go test as their check are replayed, each from its parent commit in a worktree of its own, recording each worker's passes, attempts, tool calls and wall per step",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/loop -count=1 -run '^TestLandedStepsReplayForAWorker$'",
+          "files": [
+            "cmd/loop",
+            "internal/loop",
+            "internal/evaluation"
+          ],
+          "needs_card": true,
+          "rationale": "No harness runs a local model as an agent on tasks and scores it. BindAgentTrajectoryPlan (internal/evaluation/plan.go:198-213, called from cmd/loop/evidence.go:136-180) binds trajectories and names ten scorers that nothing computes. The nearest scored suite is single function calls (internal/evaluation/function_call.go, where needle scores 0.255 on 400). A landed step is a task with a known answer: its parent commit, its plan step and its check, which must fail at the parent (skill.md:121) and passed at the landing. Replaying them measures each worker on overgo's own work, on the same steps: Qwen3.8-27B-UD-Q6_K, Qwen3.5-9B-Q8_0 and the Claude worker.\n\nServes: model calls per landing.\nDisappears: a worker ranked with no measurement.\nEvidence: the replay records, per worker and step, pass or fail by the step's own check, with attempts, tool calls and wall.\nBatch: device lane.",
+          "depends_on": [
+            "local-worker/local"
+          ]
+        },
+        {
+          "id": "ladder",
+          "title": "loop.json's default workers list puts the local model first for the kinds of step where its replayed pass rate makes its attempts, plus the Claude worker's on its failures, take less wall than the Claude worker alone, and the Claude worker after it",
+          "status": "open",
+          "verify": "go test ./cmd/loop ./internal/loop -count=1 -run '^TestTheLocalWorkerGoesFirstWhereItsReplayPays$'",
+          "files": [
+            "cmd/loop",
+            "internal/loop"
+          ],
+          "rationale": "The driver already ranks workers cheapest first and moves a step it cannot pass, with its failures, to the next (internal/loop/driver.go:32-34 and 220-224; skill.md:50). It was written because overgo is to run on a much weaker model. What is missing is the measurement of where a weaker model pays. A step's kind is the top directory of its listed files and whether it needs the card. The ordering follows from the replay's pass rates and walls, with no threshold chosen by hand.\n\nServes: model calls per landing.\nDisappears: a strong worker spent on steps a local model passes.\nEvidence: given replay records, the default config orders the workers per kind by expected wall, and a kind with no local passes keeps the Claude worker first.\nBatch: host lane.",
+          "depends_on": [
+            "local-worker/replay"
           ]
         }
       ]

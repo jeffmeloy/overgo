@@ -11,7 +11,7 @@ import (
 
 const (
 	generatedVideoSource = "vidgen-1m/generated-video-caption-matching"
-	generatedVideoSchema = "overgo/vidgen-generated-video-caption-matching/v2"
+	generatedVideoSchema = "overgo/vidgen-generated-video-caption-matching/v3"
 	// generatedVideoQuestion asks which of the captions a clip drawn from one of them shows.
 	generatedVideoQuestion = "Which description matches the video?\n%s\nAnswer with the letter only."
 	// generatedVideoRounds is how many questions a clip is asked, each with its own distractors:
@@ -164,12 +164,17 @@ func lettered(options []string) string {
 	return strings.Join(listing, "\n")
 }
 
-// BuildGeneratedVideoMatching builds the held-out suite that asks a judge which of four
-// captions a clip drawn from one of them shows: one case for each question of each
-// caption, naming the clip by its file name, which videos maps the caption's identity
-// to, answered by the letter of the caption it was drawn from. The judge is named in the
+// BuildGeneratedVideoMatching builds the held-out suite that asks a judge about clips drawn
+// from captions, each named by its file name, which videos maps the caption's identity to:
+// which of four captions a clip drawn from a picked one shows, answered by the letter of the
+// caption it was drawn from, and each question about a clip drawn from a composed caption
+// (ComposeTIFA), whose choices differ from its answer in one detail, a count, a colour or a
+// place. Every case is a choice among letters, grouped by its clip, so the suite scores the
+// judge's probability of the right letter beside its accuracy (SoftMetric): on 2026-11-08
+// 59 of 64 clips tied when Wan's student was judged beside its base, and composed cases keep
+// a served model off the ceiling the picked captions alone reach. The judge is named in the
 // suite, since the score depends on it.
-func BuildGeneratedVideoMatching(items []VideoCaptionItem, videos map[string]string, judge string) (GeneratedAnswerSuite, error) {
+func BuildGeneratedVideoMatching(items []VideoCaptionItem, composed []TIFAItem, videos map[string]string, judge string) (GeneratedAnswerSuite, error) {
 	if strings.TrimSpace(judge) == "" {
 		return GeneratedAnswerSuite{}, errors.New("evaluation: a suite of questions about clips names its judge")
 	}
@@ -188,8 +193,11 @@ func BuildGeneratedVideoMatching(items []VideoCaptionItem, videos map[string]str
 				Prompt:    mediaPrompt(MediaVideo, name, fmt.Sprintf(generatedVideoQuestion, lettered(question.Options))),
 				MaxTokens: captionAnswerTokens,
 				Answers:   []string{string(captionLetters[question.Answer])},
+				Choices:   strings.Split(captionLetters[:len(question.Options)], ""), Group: item.ID,
 			})
 		}
 	}
-	return suite, nil
+	questions, err := questionCases(generatedVideoSource, MediaVideo, composed, videos)
+	suite.Cases = append(suite.Cases, questions...)
+	return suite, err
 }

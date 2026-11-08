@@ -104,10 +104,20 @@ func buildPictureQuestions(source, schema string, items []TIFAItem, images map[s
 		Kind: GeneratedAnswerKind, Schema: schema, Source: source, Judge: judge,
 		Transforms: []string{TransformTrimSpace, transformLowercase},
 	}
+	cases, err := questionCases(source, MediaImage, items, images)
+	suite.Cases = cases
+	return suite, err
+}
+
+// questionCases are one case for each question about what each item's caption drew, a picture or a clip named by its
+// file in drawn: the question's choices lettered, its answer the right one's letter, and the item its group, whose
+// cases a soft share takes together.
+func questionCases(source string, kind MediaKind, items []TIFAItem, drawn map[string]string) ([]GeneratedAnswerCase, error) {
+	var cases []GeneratedAnswerCase
 	for _, item := range items {
-		name, drawn := images[item.ID]
-		if !drawn {
-			return GeneratedAnswerSuite{}, fmt.Errorf("evaluation: caption %s has no picture", item.ID)
+		name, found := drawn[item.ID]
+		if !found {
+			return nil, fmt.Errorf("evaluation: caption %s has no %s drawn", item.ID, kind)
 		}
 		for number, question := range item.Questions {
 			var listing, letters []string
@@ -115,14 +125,14 @@ func buildPictureQuestions(source, schema string, items []TIFAItem, images map[s
 				listing = append(listing, fmt.Sprintf("%c. %s", tifaLetters[position], choice))
 				letters = append(letters, string(tifaLetters[position]))
 			}
-			suite.Cases = append(suite.Cases, GeneratedAnswerCase{
+			cases = append(cases, GeneratedAnswerCase{
 				Name:      fmt.Sprintf("%s/%s/%d", source, item.ID, number),
-				Prompt:    mediaPrompt(MediaImage, name, fmt.Sprintf("%s\n%s\nAnswer with the letter only.", question.Question, strings.Join(listing, "\n"))),
+				Prompt:    mediaPrompt(kind, name, fmt.Sprintf("%s\n%s\nAnswer with the letter only.", question.Question, strings.Join(listing, "\n"))),
 				MaxTokens: tifaAnswerTokens,
 				Answers:   []string{string(tifaLetters[slices.Index(question.Choices, question.Answer)])},
 				Choices:   letters, Group: item.ID,
 			})
 		}
 	}
-	return suite, nil
+	return cases, nil
 }

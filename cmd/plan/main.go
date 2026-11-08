@@ -151,13 +151,18 @@ func run(c cli, args []string) error {
 		// holds is edited: what awaits a filed row is the document's to say. A
 		// row the document assigns to no role is the filing role's, as a row
 		// -add enters is: dispatch takes a role's own rows before any row of no
-		// role, so one filed among them would be worked after every one.
+		// role, so one filed among them would be worked after every one. A plan
+		// holding no open row has finished its campaign, so the document's
+		// campaign, when it names one, names the plan's goal from here.
 		if role != worklease.UnassignedRole {
 			for index := range filed.Items {
 				filed.Items[index].Owner = cmp.Or(filed.Items[index].Owner, role)
 			}
 		}
 		return mutatePlan(commandWorktree, role, "filed the rows and decisions of "+source, func(document plan.Plan) (plan.Plan, error) {
+			if filed.Campaign != "" && !slices.ContainsFunc(document.Items, func(item plan.Item) bool { return item.Status != plan.StatusDone }) {
+				document.Campaign = filed.Campaign
+			}
 			document.Decisions = append(document.Decisions, filed.Decisions...)
 			return insertRows(document, c.before, filed.Items...)
 		})

@@ -20,8 +20,8 @@ const composeRegister = `{"findings": [
 // TestTheLandingWritesItsOwnMessage lands a change with no message: from Oct 31 to Nov 7, 168 of 263 refused commit
 // attempts were a hand-written message's sections and figures. The commit's message holds the step's title, its cause
 // and what it serves from the plan, the files changed and the test added, the step retired with why and the count set,
-// and the open finding that cites a changed file, not one that cites none or is resolved; the published plan keeps no
-// retirement. The lead's words, when given, follow the title and keep the sections they hold.
+// and the campaign the plan now names, and the open finding that cites a changed file, not one that cites none or is
+// resolved; the published plan keeps no retirement. The lead's words, when given, follow the title and keep the sections they hold.
 func TestTheLandingWritesItsOwnMessage(t *testing.T) {
 	t.Parallel()
 	fixture := newRowFixture(t, map[string]string{"p/p.go": "// Package p is a fixture.\npackage p\n", findingsRegister: composeRegister})
@@ -37,6 +37,7 @@ func TestTheLandingWritesItsOwnMessage(t *testing.T) {
 	fixture.write("p/p_test.go", "package p\n\nimport \"testing\"\n\nfunc TestNew(t *testing.T) { t.Parallel() }\n")
 	editPlan(t, fixture, func(document *plan.Plan) {
 		document.Items = document.Items[:1]
+		document.Campaign = "the fixture's next campaign"
 		document.Items[0].Budget = plan.Budget{Nodes: 40, Reason: "the fixture grows"}
 		document.Retired = []plan.Retirement{{Row: "later/do", Reason: "the fixture needs it no more"}}
 	})
@@ -54,7 +55,7 @@ func TestTheLandingWritesItsOwnMessage(t *testing.T) {
 	body := fixture.git("log", "-1", "--format=%B")
 	for _, want := range []string{"row/do: the fixture's step\n", causeSection + "\n- A fixture needs a landing.", "p/p.go", "tests added: TestNew",
 		"later/do retired: the fixture needs it no more", "row's count is set to 40 nodes from 0: the fixture grows",
-		"SQA-1 (P2): a finding on p; cites p/p.go", predictedSection + "\n- failure-rate."} {
+		"the campaign is now: the fixture's next campaign", "SQA-1 (P2): a finding on p; cites p/p.go", predictedSection + "\n- failure-rate."} {
 		if !strings.Contains(body, want) {
 			t.Errorf("the landing's own message lacks %q:\n%s", want, body)
 		}

@@ -1,5 +1,6 @@
 [
   {
+    "default_size": 2048,
     "default_steps": 8,
     "pipeline": "Krea2Pipeline",
     "prompt": {

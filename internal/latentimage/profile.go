@@ -91,6 +91,9 @@ type catalogProfile struct {
 	TimestepFrequencyBase float64       `json:"timestep_frequency_base"`
 	Prompt                textTemplate  `json:"prompt"`
 	Rotary                *rotaryPolicy `json:"rotary,omitempty"`
+	// DefaultSize is a flow model's side, as its publisher draws it when asked for nothing else; a rotary model's is
+	// its policy's. It is no part of a recipe's profile, so stating it moves no recipe.
+	DefaultSize int `json:"default_size,omitempty"`
 }
 
 type schedulerProfile struct {
@@ -166,6 +169,21 @@ func ResolveProfile(modelDir string) (Profile, error) {
 			BaseShift: scheduler.BaseShift, MaxShift: scheduler.MaxShift,
 		},
 	})
+}
+
+// PersonSize is the side of the square picture a person gets from the model in directory by asking for nothing else,
+// as its publisher draws it: a rotary model's default size, or a flow model's catalog one (Krea-2-Turbo's official
+// example draws 2048 x 2048); zero where neither states one.
+func PersonSize(directory string) (int, error) {
+	var index modelIndex
+	if err := readJSON(filepath.Join(directory, "model_index.json"), &index); err != nil {
+		return 0, err
+	}
+	catalog, err := lookupCatalogProfile(index.ClassName)
+	if err != nil || catalog.Rotary == nil {
+		return catalog.DefaultSize, err
+	}
+	return catalog.Rotary.DefaultSize, nil
 }
 
 func lookupCatalogProfile(pipeline string) (catalogProfile, error) {

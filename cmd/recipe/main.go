@@ -516,7 +516,7 @@ func devicePeak(process uint64, measured capabilityruntime.Measured, cause error
 // verification ran, so the scorecard measures the model the way its users
 // meet it, and prints the output. Its fresh operation runs the model even
 // when verification already retained the identical request's output. With
-// userSize the request is the one a person's would be (userSizeRequest), and a
+// userSize the request is the one a person's would be (mediacapability.PersonRequest), and a
 // model whose verification states no size has none to measure.
 func measureCapability(repository, path string, task recipe.Task, capability mediacapability.Capability, userSize bool) error {
 	ctx := context.Background()
@@ -539,7 +539,11 @@ func measureCapability(repository, path string, task recipe.Task, capability med
 		return err
 	}
 	if userSize {
-		sized, smaller, err := userSizeRequest(request)
+		stages := selected.Program.Stages()
+		if len(stages) == 0 {
+			return fmt.Errorf("recipe: %s's program has no stage to read a person's request through", path)
+		}
+		sized, smaller, err := mediacapability.PersonRequest(stages[0].Module.ID, path, request)
 		if err != nil {
 			return err
 		}
@@ -568,26 +572,6 @@ func measureCapability(repository, path string, task recipe.Task, capability med
 		}
 	}
 	return json.NewEncoder(os.Stdout).Encode(capabilityruntime.Unwrap(output))
-}
-
-// requestSize is what a verification states to keep its request small, which a request that leaves it out takes from the
-// model's own defaults, the size a person gets by asking for nothing else.
-var requestSize = []string{"frames", "width", "height", "steps"}
-
-// userSizeRequest is a verified request at the size a person asks for, and whether the verification stated a size to lift.
-func userSizeRequest(request string) (string, bool, error) {
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal([]byte(request), &fields); err != nil {
-		return "", false, fmt.Errorf("recipe: the verified request: %w", err)
-	}
-	stated := false
-	for _, name := range requestSize {
-		_, held := fields[name]
-		stated = stated || held
-		delete(fields, name)
-	}
-	sized, err := json.Marshal(fields)
-	return string(sized), stated, err
 }
 
 // verifiedRequest is the request the activation's accepted verification ran,

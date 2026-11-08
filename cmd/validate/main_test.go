@@ -20,8 +20,8 @@ func TestKindValidation(t *testing.T) {
 	if got := len(kindValidation(recipe.TaskInference)); got != 5 {
 		t.Fatalf("inference cells=%d want 5", got)
 	}
-	if got := len(kindValidation(recipe.TaskImageGen)); got != 1 {
-		t.Fatalf("image-gen cells=%d want 1", got)
+	if got := len(kindValidation(recipe.TaskImageGen)); got != 2 {
+		t.Fatalf("image-gen cells=%d want 2, its proof and a person's size", got)
 	}
 	if got := kindValidation(recipe.TaskGeneration); len(got) != 1 || got[0] != "specialized-proof" {
 		t.Fatalf("generation cells=%+v want one specialized proof", got)

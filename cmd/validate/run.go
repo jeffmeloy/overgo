@@ -41,9 +41,13 @@ const (
 // ceiling on a pass; a benchmark with no measured wall is ordered by it.
 const benchmarkBudget = 6 * time.Hour
 
-// videoUserSize is the cell that times a video model's request at the size a person asks for: 81 frames at 832 by 480 for
-// Wan, about six minutes, where its proof times a small request.
-const videoUserSize = "video-user-size"
+// videoUserSize and imageUserSize are the cells that time a model's request at the size a person asks for, the page's
+// defaults (mediacapability.PersonRequest), where its proof times a small one: 81 frames at 832 by 480 for Wan, about
+// six minutes; 2048 by 2048 for Krea-2-Turbo and SenseNova, 1024 by 1024 for MOSS-Image-SFT.
+const (
+	videoUserSize = "video-user-size"
+	imageUserSize = "image-user-size"
+)
 
 // reacquireCommand builds the command that re-acquires one validation cell's
 // evidence into store, the one store this command selected and read, so the
@@ -94,7 +98,7 @@ func reacquireCommand(cell ModelValidation, store string) (string, []string, err
 			return "", nil, errors.New("a capability measurement needs the model's registered directory, or a served model's weights file")
 		}
 		return "go", []string{"run", "./cmd/recipe", "measure", "-repo", store, "-task", string(cell.Kind), path}, nil
-	case videoUserSize:
+	case videoUserSize, imageUserSize:
 		// A person's request, beside the small one its proof times, on the directory that proof reads.
 		if cell.Directory == "" {
 			return "", nil, errors.New("a capability measurement needs the model's registered directory")
@@ -425,7 +429,7 @@ func cellEnvironment(validation string, environment []string) []string {
 // benchmarks, the guards and the lanes read answers and memory, which a busy machine does not change.
 func timedValidation(validation string) bool {
 	switch validation {
-	case trainingProof, projectionProof, servingValidation, "image-proof", "video-proof", videoUserSize, "speech-proof", "vqa-proof", "specialized-proof":
+	case trainingProof, projectionProof, servingValidation, "image-proof", "video-proof", videoUserSize, imageUserSize, "speech-proof", "vqa-proof", "specialized-proof":
 		return true
 	}
 	return false

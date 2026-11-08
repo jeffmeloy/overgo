@@ -60,5 +60,9 @@ func TestMOSSImageGenerationContract(t *testing.T) {
 		if c.Name == "negative_prompt" || c.Name == "guidance_scale" || c.Name == "prompt_mode" {
 			t.Fatal("unsupported override offered for another profile", c)
 		}
+		// Krea-2-Turbo's page offers the size its publisher draws, 2048 by 2048.
+		if (c.Name == "width" || c.Name == "height") && (c.Bounds == nil || c.Bounds.Default != 2048) {
+			t.Fatal("the flow profile offers no publisher size", c)
+		}
 	}
 }

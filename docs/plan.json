@@ -36,28 +36,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 515,
+        "nodes": 184,
         "reason": "The preset step measured 985 nodes: a typed preset set by seven generators, carried through the attempt record and the scorecard, and a README generation table written from the record; user-size and stages are estimated at about 250 each."
       },
       "steps": [
-        {
-          "id": "user-size",
-          "title": "Each generator gains a user-size cell: Wan at 832 x 480 x 81 frames in 50 steps, LiveEdit at 81 frames, Krea-2-Turbo, MOSS-Image-SFT and SenseNova at 1024 x 1024",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/validate -count=1 -run '^TestEveryGeneratorHasAUserSizeCell$'",
-          "files": [
-            "cmd/validate",
-            "docs/image_video_protocol.json",
-            "internal/latentvideo",
-            "internal/latentimage",
-            "internal/diffusionimage"
-          ],
-          "needs_card": true,
-          "rationale": "The smoke cells measure fixed costs (text encoder, load, launch): the 14.1 s Wan cell and the 10.5 s LiveEdit cell say nothing of an 832 x 480 clip. The retained protocol keeps one 832 x 480 Wan review case, drawn by hand.\n\nOne user-size case per generator runs beside its smoke case, as any cell does. The Wan case adds about 6 minutes of card time to a cycle, LiveEdit's about 1.5 minutes, each image case under 2 minutes.\n\nNote: Filed 2026-11-08: video models already hold a user-size cell (e360c6cb6, 2026-11-02, cmd/validate videoUserSize): go run ./cmd/recipe measure -user-size drops the verified request's frames, width, height and steps so the model's own defaults run, and the README prints it \"at the size a person asks for\". What this step adds is the image generators' cell, Krea-2-Turbo, MOSS-Image-SFT and SenseNova at 1024 x 1024, and the test that every generator holds one.\n\nServes: first-output and peak-device-memory at the size users ask for.\nDisappears: the hand-drawn review case as the only full-size number.\nEvidence: each generator's protocol lists a user-size case, and a cycle that skips it is refused.\nBatch: device lane.",
-          "depends_on": [
-            "media-user-size/preset"
-          ]
-        },
         {
           "id": "stages",
           "title": "A user-size cell splits its time into text encoding, source encoding, denoising and decoding",
@@ -98,7 +80,7 @@
             "internal/modelrecipe",
             "local-models.json"
           ],
-          "rationale": "The Wan profile spends 100 network passes a clip: 50 steps, each with a conditional and an unconditioned pass. Self-Forcing (arXiv 2506.08009, Apache-2.0) distils this exact model to four passes a three-latent-frame chunk and reports VBench 84.31 against its 50-step teacher's 84.26. self_forcing_dmd.pt is 5.68 GB, the size of the local F32 Wan DiT, so it is very likely a whole replacement DiT reusing the local umT5 and VAE; its tensors are unchecked. Every model is kept: the student is added beside the 50-step base, which stays served.\n\ncmd/hf-hub fetches it with a receipt (decision self-forcing-download), and the store reads its tensor names and shapes and refuses a mismatch.\n\nServes: setup-steps.\nDisappears: nothing.\nEvidence: the checkpoint's tensors name- and shape-match Wan 1.3B's DiT, and the store lists it with its hash, source and licence.\nBatch: host lane."
+          "rationale": "The Wan profile spends 100 network passes a clip: 50 steps, each with a conditional and an unconditioned pass. Self-Forcing (arXiv 2506.08009, Apache-2.0) distils this exact model to four passes a three-latent-frame chunk and reports VBench 84.31 against its 50-step teacher's 84.26. self_forcing_dmd.pt is 5.68 GB, the size of the local F32 Wan DiT, so it is very likely a whole replacement DiT reusing the local umT5 and VAE; its tensors are unchecked. Every model is kept: the student is added beside the 50-step base, which stays served.\n\ncmd/hf-hub fetches it with a receipt (decision self-forcing-download), and the store reads its tensor names and shapes and refuses a mismatch.\n\nNote: Worked 2026-11-08: self_forcing_dmd.pt is at overgo_data/models/Self-Forcing/checkpoints, its SHA-256 checked, its receipt at overgo_data/models/Self-Forcing.source.json (go run ./cmd/hf-hub download -files). latentvideo.MatchesWanDiT and TestSelfForcingIsAWan13BDiT are written, in tmp/wan-few-step as .go.txt: all 825 tensors, the trainer's 'model.' prefix aside, match Wan2.1-T2V-1.3B's DiT in name and shape, and LiveEdit's checkpoint is refused at its 32-channel patch embedding. What remains is the registration modeltest.Directory reads: the directory holds no config.json for recipe inspect, so it registers by recipe register -spec, its licence the model card's (README.md, Apache-2.0), fetched beside the checkpoint, and its model and tensor-inventory identities declared.\n\nServes: setup-steps.\nDisappears: nothing.\nEvidence: the checkpoint's tensors name- and shape-match Wan 1.3B's DiT, and the store lists it with its hash, source and licence.\nBatch: host lane."
         },
         {
           "id": "causal-t2v",

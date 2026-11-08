@@ -3,25 +3,24 @@ package latentimage
 import (
 	"errors"
 	"overgo/internal/checked"
+	"overgo/internal/sampling"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 )
 
 type rotarySamplingSpec struct {
-	schedule    FlowSchedule
-	guidance    float32
-	skip        []int
-	start, stop float64
+	schedule FlowSchedule
+	guidance float32
+	// override is what the negative branch changes of the transformer's blocks (sampling.BlockOverride).
+	override sampling.BlockOverride
 }
 
 func (s rotarySamplingSpec) validate(layers int) error {
-	if !checked.NonNegativeFinite32(s.guidance) || !checked.UnitInterval64(s.start) || !checked.UnitInterval64(s.stop) || s.start > s.stop || s.schedule.Steps <= 0 || len(s.schedule.Timesteps) != s.schedule.Steps || len(s.schedule.Deltas) != s.schedule.Steps {
-		return errors.New("rotary sampling: invalid guidance, skip interval or schedule")
+	if !checked.NonNegativeFinite32(s.guidance) || s.schedule.Steps <= 0 || len(s.schedule.Timesteps) != s.schedule.Steps || len(s.schedule.Deltas) != s.schedule.Steps {
+		return errors.New("rotary sampling: invalid guidance or schedule")
 	}
-	for _, index := range s.skip {
-		if !checked.ValidIndex(index, layers) {
-			return errors.New("rotary sampling: skip index outside transformer depth")
-		}
+	if err := s.override.Validate(layers); err != nil {
+		return err
 	}
 	for i, time := range s.schedule.Timesteps {
 		if !checked.Finite32(float32(time)) || !checked.Finite32(float32(s.schedule.Deltas[i])) || s.schedule.Deltas[i] > 0 {
@@ -31,9 +30,10 @@ func (s rotarySamplingSpec) validate(layers int) error {
 	return nil
 }
 
-func (s rotarySamplingSpec) skipped(step int) bool {
-	fraction := float64(step) / float64(s.schedule.Steps)
-	return len(s.skip) > 0 && s.start <= fraction && fraction < s.stop
+// negativeOverride is the block override a rotary profile's negative branch carries: the blocks it skips over the whole
+// schedule (MOSS's block 22).
+func (r rotaryPolicy) negativeOverride() sampling.BlockOverride {
+	return sampling.BlockOverride{Blocks: r.NegativeSkip, Stop: 1}
 }
 
 type flowGuidanceProgram struct {

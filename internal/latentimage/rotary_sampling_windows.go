@@ -160,9 +160,9 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 			defer pos.outputs.Release(context.WithoutCancel(ctx))
 			pointers := []driver.DevicePtr{current.value.Pointer, pos.value.Pointer}
 			if step.negative != nil {
-				name, skip := "negative", []int(nil)
-				if settings.skipped(index) {
-					name, skip = "negative-skipped", settings.skip
+				name, skip := "negative", settings.override.At(index, settings.schedule.Steps)
+				if len(skip) > 0 {
+					name = "negative-skipped"
 				}
 				v, e := load(name, negative, skip)
 				if e != nil {

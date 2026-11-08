@@ -61,7 +61,7 @@ func verifyMOSSTrajectory(ctx context.Context, runtime *graphruntime.ResidentSes
 	if e != nil {
 		return e
 	}
-	settings := rotarySamplingSpec{schedule: schedule, guidance: float32(guidance), skip: []int{mossNativeNegativeSkip}, stop: 1}
+	settings := rotarySamplingSpec{schedule: schedule, guidance: float32(guidance), override: rotaryPolicy{NegativeSkip: []int{mossNativeNegativeSkip}}.negativeOverride()}
 	read := func(key string) ([]float32, error) {
 		value, ok := source.Tensors[key]
 		if !ok {

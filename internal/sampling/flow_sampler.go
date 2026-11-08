@@ -118,6 +118,8 @@ type Guider struct {
 	Float32 bool
 	Before  func(conditional, unconditional []float32) error
 	After   func(guided []float32) error
+	// Override is what the unconditioned branch changes of the model's blocks (BlockOverride).
+	Override BlockOverride
 }
 
 // unguided is the scale at which the guided output is the conditional one.

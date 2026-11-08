@@ -109,7 +109,7 @@ func (g *Generator) configureRotary(ctx context.Context, request Request) error 
 	if request.GuidanceScale != nil {
 		guidance = *request.GuidanceScale
 	}
-	settings := rotarySamplingSpec{schedule: schedule, guidance: guidance, skip: g.profile.Rotary.NegativeSkip, stop: 1}
+	settings := rotarySamplingSpec{schedule: schedule, guidance: guidance, override: g.profile.Rotary.negativeOverride()}
 	if err = settings.validate(g.rotary.transformer.Layers); err != nil {
 		return err
 	}
@@ -229,7 +229,7 @@ func (g *Generator) integrateRotary(ctx context.Context) (*Generator, error) {
 	if err != nil {
 		return nil, err
 	}
-	settings := rotarySamplingSpec{schedule: g.schedule, guidance: g.rotary.guidance, skip: g.profile.Rotary.NegativeSkip, stop: 1}
+	settings := rotarySamplingSpec{schedule: g.schedule, guidance: g.rotary.guidance, override: g.profile.Rotary.negativeOverride()}
 	result, err := runRotarySampling(ctx, g.rotary.runtime, g.modelDir, g.rotary.transformer, g.shape.Height, g.shape.Width, initial, g.rotary.positive, g.rotary.negative, settings, g.observe)
 	if err != nil {
 		return nil, err

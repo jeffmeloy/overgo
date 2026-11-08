@@ -32,33 +32,6 @@
       ]
     },
     {
-      "id": "sampling-split",
-      "title": "Sampling splits into noise, sigma table, step function and guider, with hooks before and after the guidance combine, so each model's presets are data",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 500,
-        "reason": "named-presets came in at 767 of 690 (presets beside each profile, the page's preset control, guidance 1 skipping the unconditioned pass); block-override, MOSS's layer skip made a generic hook, is about 500 at the campaign's rate."
-      },
-      "steps": [
-        {
-          "id": "block-override",
-          "title": "MOSS's negative-branch layer skip becomes a block-override hook any DiT's guider can use",
-          "status": "open",
-          "verify": "go test ./internal/sampling ./internal/latentimage -count=1 -run '^TestMossLayerSkipIsTheGenericBlockOverride$'",
-          "files": [
-            "internal/sampling",
-            "internal/latentimage",
-            "internal/latentvideo"
-          ],
-          "rationale": "MOSS's profile skips layer 22 on the negative branch (negative_skip: [22]), which is skip-layer guidance at no extra pass. Made generic over DiT blocks and attention context, the same hook carries skip-layer guidance on Wan (arXiv 2403.17377) and NAG's attention-space guidance on every model.\n\nServes: setup-steps for guidance-ops.\nDisappears: MOSS's special case.\nEvidence: MOSS's negative branch runs through the generic hook with its golden unchanged, and a Wan pass with a chosen block set to identity differs only from that block on.\nBatch: host lane.",
-          "depends_on": [
-            "sampling-split/interface"
-          ]
-        }
-      ]
-    },
-    {
       "id": "media-screen",
       "title": "Image embeddings screen a media change in minutes: each case's output is compared with the reference path's, and each clip's frames with their neighbours",
       "owner": "master-lead",

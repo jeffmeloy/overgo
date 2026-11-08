@@ -3,35 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "wan-few-step",
-      "title": "Wan2.1-T2V-1.3B gains a four-step Self-Forcing student, served as its own model on LiveEdit's chunk-causal path",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 1072,
-        "reason": "served counted 1878 against the 447 left: the student is served as its own text-to-video model (its directory, base and profile resolved, a runtime of its own beside Wan's under the same generation module, the video source resolution reshaped so LiveEdit, Wan and the student share its inventory and definition helpers); measured adds the cells' check, about 400 more."
-      },
-      "steps": [
-        {
-          "id": "measured",
-          "title": "The student's user-size cell and its held-out quality on Wan's 128-clip suite are recorded beside the 50-step base's",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/validate -count=1 -run '^TestTheWanStudentHasItsOwnCells$'",
-          "files": [
-            "cmd/validate",
-            "docs/image_video_protocol.json",
-            "internal/latentvideo"
-          ],
-          "needs_card": true,
-          "rationale": "The expected gain is arithmetic: network work falls from about 28 PFLOP to about 1 PFLOP a clip, so a first build should land near 60 to 80 s against 374 s, lower once umT5 and the decode move. One survey found no published comparison of 4-step against 50-step 1.3B beyond the Self-Forcing paper's own, so the cost in quality is read here. Guidance 1 also drops the negative prompt, which guidance-ops/nag restores.\n\nNote: Worked 2026-11-08 (wan-few-step/causal-t2v): NewReferenceEditRuntime runs self_forcing_dmd.pt with no source channels under its own edit_profiles.json policy (warp_denoising_step true: timesteps 1000/937.5/833.3/625), and chunkCausalCondition gives its condition through its own text projection. 81 frames at 832 x 480 denoise in 11.5 s and decode in 8.0 s on the card, with the umT5 encoder on the host. Serving it needs its own profile and capability, and its base: Self-Forcing sits in overgo_data/models and Wan2.1-T2V-1.3B in adaptive_new/models, so LiveEditArtifacts' beside-it layout does not find the base.\n\nServes: first-output, held-out-quality.\nDisappears: nothing.\nEvidence: the student has its own user-size and quality cells, compared with the base's by a per-case sign test.\nBatch: device lane.",
-          "depends_on": [
-            "wan-few-step/causal-t2v",
-            "media-user-size/user-size"
-          ]
-        }
-      ]
-    },
-    {
       "id": "sampling-split",
       "title": "Sampling splits into noise, sigma table, step function and guider, with hooks before and after the guidance combine, so each model's presets are data",
       "owner": "master-lead",

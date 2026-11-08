@@ -171,7 +171,7 @@ func checkImageVideoDefinitions(ctx context.Context, store *overgodb.Store, valu
 		}
 	}
 	want := map[artifact.ID]recipe.Status{}
-	for _, inactive := range slices.Concat(value.Inactive, pending.Inactive) {
+	for _, inactive := range slices.Concat(value.Inactive, pending.inactive()) {
 		if _, duplicate := want[inactive.Recipe]; duplicate || inactive.Status == recipe.StatusActive {
 			return errors.New("media inventory: duplicate or active entry in inactive inventory")
 		}

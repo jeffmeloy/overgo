@@ -18,16 +18,22 @@ import (
 	"overgo/internal/testutil"
 )
 
-// mediaPending lists the media capabilities and inactive media recipes that
-// another lane put into the shared store before the frozen image-video
-// inventory recorded them. The inventory's acceptance sets exactly these
-// aside, under the finding that names them, until their owner freezes them.
+// mediaPending lists the media capabilities and inactive media recipes put
+// into the shared store before the frozen image-video inventory recorded
+// them, each addition under the finding that names it. The inventory's
+// acceptance sets exactly these aside until their owner freezes them.
 type mediaPending struct {
+	Additions []mediaAddition `json:"additions"`
+}
+
+// mediaAddition is one lane's capabilities and inactive recipes the
+// inventory has not frozen yet, with why and whose freezing them is.
+type mediaAddition struct {
 	Finding  string               `json:"finding"`
 	Owner    string               `json:"owner"`
 	Reason   string               `json:"reason"`
 	Cells    []mediaPendingCell   `json:"cells"`
-	Inactive []imageVideoInactive `json:"inactive"`
+	Inactive []imageVideoInactive `json:"inactive,omitempty"`
 }
 
 type mediaPendingCell struct {
@@ -41,15 +47,36 @@ func loadMediaPending(root string) (mediaPending, error) {
 	if err := jsonfile.DecodeStrict(filepath.Join(root, "cmd/validate/testdata/media_pending.json"), &value); err != nil {
 		return value, err
 	}
-	if value.Finding == "" || value.Owner == "" || value.Reason == "" {
-		return value, errors.New("media pending: an addition names its finding, owner and reason")
+	for _, addition := range value.Additions {
+		if addition.Finding == "" || addition.Owner == "" || addition.Reason == "" {
+			return value, errors.New("media pending: an addition names its finding, owner and reason")
+		}
 	}
 	return value, nil
 }
 
+// listed gathers what every addition lists.
+func listed[T any](p mediaPending, of func(mediaAddition) []T) []T {
+	var all []T
+	for _, addition := range p.Additions {
+		all = append(all, of(addition)...)
+	}
+	return all
+}
+
+// cells are every addition's pending capabilities.
+func (p mediaPending) cells() []mediaPendingCell {
+	return listed(p, func(addition mediaAddition) []mediaPendingCell { return addition.Cells })
+}
+
+// inactive are every addition's pending inactive recipes.
+func (p mediaPending) inactive() []imageVideoInactive {
+	return listed(p, func(addition mediaAddition) []imageVideoInactive { return addition.Inactive })
+}
+
 // pends reports whether the capability is a pending addition.
 func (p mediaPending) pends(model artifact.ID, task recipe.Task, definition artifact.ID) bool {
-	return slices.Contains(p.Cells, mediaPendingCell{Model: model, Task: task, Recipe: definition})
+	return slices.Contains(p.cells(), mediaPendingCell{Model: model, Task: task, Recipe: definition})
 }
 
 // censusModels removes the pending capabilities from census entries.
@@ -96,7 +123,7 @@ func TestMediaPendingAdditions(t *testing.T) {
 	if err != nil || truncated {
 		t.Fatalf("live registered catalog: truncated=%t: %v", truncated, err)
 	}
-	for _, cell := range pending.Cells {
+	for _, cell := range pending.cells() {
 		if !slices.Contains(inventory.Tasks, cell.Task) {
 			t.Errorf("pending %s/%s is not a media task", cell.Model, cell.Task)
 		}
@@ -113,7 +140,7 @@ func TestMediaPendingAdditions(t *testing.T) {
 			t.Errorf("pending %s/%s is no longer served as listed; remove or correct it", cell.Model, cell.Task)
 		}
 	}
-	for _, inactive := range pending.Inactive {
+	for _, inactive := range pending.inactive() {
 		if slices.ContainsFunc(inventory.Inactive, func(frozen imageVideoInactive) bool { return frozen.Recipe == inactive.Recipe }) {
 			t.Errorf("pending inactive %s is frozen now; remove it from media_pending.json", inactive.Recipe)
 		}

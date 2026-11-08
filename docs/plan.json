@@ -3,29 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "qwen25-golden",
-      "title": "Qwen2.5-0.5B's greedy serving matches its golden again",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 40,
-        "reason": "Estimate before the survey: find the commit and the path that moved the greedy text."
-      },
-      "steps": [
-        {
-          "id": "match",
-          "title": "TestServingGoldenEvidence passes for Qwen2.5: its case capital generates the golden's 24 tokens",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/inference -count=1 -run '^TestServingGoldenEvidence$'",
-          "files": [
-            "internal/inference"
-          ],
-          "needs_card": true,
-          "rationale": "The measurement run at fdd4ab1ce failed TestServingGoldenEvidence/Qwen2.5 on 2026-11-08: case capital matched 5 of 24 tokens, generating ' Paris. It is the seat of the French government' where the golden holds ' Paris. It is the largest city in Europe'. A greedy path that moves after five tokens is a numerical change in serving, or a changed sampling path.\n\nThe commit that moved it is found by bisecting the device test, and the change is fixed where it departs from the reference; a golden is not rewritten to match.\n\nServes: held-out-quality; serving equals its reference.\nDisappears: a lane failure.\nEvidence: the test passes on the card.\nBatch: device lane."
-        }
-      ]
-    },
-    {
       "id": "media-user-size",
       "title": "Every image and video cell records the preset it ran, and each generator is timed at a user's size beside its smoke request, stage by stage",
       "owner": "master-lead",

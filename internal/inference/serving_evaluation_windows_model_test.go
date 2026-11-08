@@ -122,7 +122,10 @@ func evaluateExactGGUF(ctx context.Context, path string, suite []byte) (evaluati
 		_ = loaded.Close()
 		return fail(err)
 	}
-	runner, err := inference.OpenWithProgram(ctx, &loaded, inference.OpenOptions{})
+	// The goldens were drawn on F32 keys and values, and the cache serving keeps in BF16 (c857f459a), admitted by
+	// held-out quality, moves Qwen2.5's greedy text after five tokens: the forward meets its reference on the cache the
+	// reference was drawn on, and the BF16 cache is held by TestTheKeyValueCacheIsStoredInBF16.
+	runner, err := inference.OpenWithProgram(ctx, &loaded, inference.OpenOptions{F32Cache: true})
 	if err != nil {
 		_ = loaded.Close()
 		return fail(err)

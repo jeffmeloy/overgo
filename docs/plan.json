@@ -13,22 +13,6 @@
       },
       "steps": [
         {
-          "id": "repeatable",
-          "title": "Qwen3.8-27B judges a frozen set of 32 image and 32 video cases twice at one commit and gives the same letters, its soft shares within a tolerance declared first",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/evaluate -count=1 -run '^TestTheJudgeAnswersTheSameTwice$'",
-          "files": [
-            "cmd/evaluate",
-            "internal/evaluation",
-            "internal/projector",
-            "internal/inference",
-            "internal/cuda",
-            "kernels/cuda"
-          ],
-          "needs_card": true,
-          "rationale": "A paired comparison counts wins and losses case by case (skill.md:257). A judge that answers differently from run to run turns ties into wins and losses that no change made. Repeated tokens are held for Qwen3.5-9B serving (qwen35_9b_serving_smoke_test.go:151-155) and repeated media bytes for Krea (TestServedPictureKeepsItsSession), but never for the judge through its projector. Some kernels accumulate with atomicAdd (kernels/cuda/ops_f32_elementwise.cuh:691), whose order of addition can vary from run to run.\n\nServes: held-out-quality; every judged comparison's verdict.\nDisappears: a win or loss the judge made up.\nEvidence: two runs of the judge on the frozen cases give the same letters and soft shares within the declared tolerance.\nBatch: device lane."
-        },
-        {
           "id": "replay",
           "title": "A generated-media judgement keeps each answer under the judge's identity, the media's digest and the question, and a later run on the same inputs replays it instead of asking",
           "status": "open",

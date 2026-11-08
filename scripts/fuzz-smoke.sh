@@ -11,8 +11,13 @@ case "$duration" in
 esac
 cd "$(dirname "$0")/.."
 count=0
-for directory in $(grep -rl --include='*_test.go' '^func Fuzz' cmd internal | xargs -n1 dirname | sort -u); do
-  for name in $(go test -list '^Fuzz' "./$directory" | grep '^Fuzz' || true); do
+# Each producer is read into a variable before anything filters it, so one that fails ends the script (set -e) and a
+# package that cannot be listed fails the job; grep's own exit of 1 says only that it matched nothing.
+files=$(grep -rl --include='*_test.go' '^func Fuzz' cmd internal) || [ $? -eq 1 ]
+directories=$(printf '%s\n' $files | xargs -r -n1 dirname | sort -u)
+for directory in $directories; do
+  listed=$(go test -list '^Fuzz' "./$directory")
+  for name in $(printf '%s\n' "$listed" | grep '^Fuzz' || true); do
     echo "[fuzz] ./$directory $name ($duration)"
     go test "./$directory" "-run=^$" "-fuzz=^${name}\$" "-fuzztime=$duration"
     count=$((count + 1))

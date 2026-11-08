@@ -3,24 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "fuzz-discovery",
-      "title": "The scheduled fuzz job fails when finding or listing a fuzz package fails, instead of reporting every target clean",
-      "status": "open",
-      "budget": {
-        "nodes": 0,
-        "reason": "Estimate before the survey: two command assignments in scripts/fuzz-smoke.sh; no production Go changes."
-      },
-      "steps": [
-        {
-          "id": "fail-listing",
-          "title": "scripts/fuzz-smoke.sh assigns its package discovery and each go test -list result before filtering, so a failed producer ends it nonzero",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestTheFuzzJobFailsWhenAPackageCannotBeListed$'",
-          "rationale": "SQA-318: scripts/fuzz-smoke.sh runs go test -list '^Fuzz' in a pipeline ending || true over directories from an unchecked command substitution, so a fuzz package that fails to build lists nothing, the count stays above zero from the others, and the scheduled job prints all targets clean and exits 0; internal/repoanalysis/fuzz_job_test.go reads the script's text, not its exit.\n\nDiscovery and each listing are assigned to variables before grep filters them, || true kept only around the grep, so set -euo pipefail ends the script on a failed producer; the zero-target refusal and -fuzz selection stay. The test runs the script under bash with a stub go first on PATH.\n\nServes: failure-rate; an unbuildable fuzz package fails the scheduled job.\nDisappears: the || true that hid listing failures.\nEvidence: with one package's listing failing after another listed, the script exits nonzero with no all-clean line.\nBatch: host lane."
-        }
-      ]
-    },
-    {
       "id": "no-default-takeover",
       "title": "The driver's worker prompt never declares a worktree takeover, so a default worker cannot take a live session's hold",
       "status": "open",

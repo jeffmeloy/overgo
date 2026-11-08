@@ -115,6 +115,8 @@ func TestCodecRouteTrainsADecoderOrNamesTheMissingOperator(t *testing.T) {
 	})
 	t.Run("the bridge of the representation autoencoder takes a step", func(t *testing.T) {
 		pair, _ := installedBridgedPair(t, work, 2)
+		// The route records its step in a store it is given, which opening alone no longer starts (c4af5a1b6).
+		testcheck.NoError(t, testcheck.Must(overgodb.Create(filepath.Join(work, "store")))(t).Close())
 		testcheck.NoError(t, runRoute(t.Context(), append(required, "-pair", pair)))
 		if checkpoint := recordedBridgeCheckpoint(t, filepath.Join(work, "store"), filepath.Join(work, "out")); checkpoint.Optimizer.Step != 1 {
 			t.Fatalf("the checkpoint is at step %d, want the one step taken", checkpoint.Optimizer.Step)

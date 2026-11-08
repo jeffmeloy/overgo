@@ -172,7 +172,7 @@ func soakPrompt(repeats int) string {
 // evaluation domains admit text, the model every pass runs first.
 func soakModelPath(t *testing.T, ctx context.Context, store *overgodb.Store) string {
 	t.Helper()
-	entries := testcheck.Must(discovery.ServableWithMemo(ctx, store, 256, nil))(t)
+	entries := testcheck.Must(discovery.ServableWithMemo(ctx, store, discovery.CatalogBound, nil))(t)
 	type sized struct {
 		path  string
 		bytes int64

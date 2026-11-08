@@ -3,6 +3,76 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "wan-graph-recapture",
+      "title": "Wan's resident runtime replays its captured graph after warm-up instead of capturing it again",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 60,
+        "reason": "Estimate before the survey: find what changes the step graph's key between the warm-up and the steady requests."
+      },
+      "steps": [
+        {
+          "id": "replay",
+          "title": "TestWanProductionRuntime and TestWanLifecycleAcceptance pass: the steady requests capture no graph the warm-up captured",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags integration ./internal/latentvideo -count=1 -run '^(TestWanProductionRuntime|TestWanLifecycleAcceptance)$'",
+          "files": [
+            "internal/latentvideo",
+            "internal/sampling"
+          ],
+          "needs_card": true,
+          "rationale": "The measurement run at fdd4ab1ce failed TestWanProductionRuntime on 2026-11-08 with 'compiled graph recaptured after warmup: warm=6 steady=8', and TestWanLifecycleAcceptance's production-reference case beside it: a steady Wan request captured two graphs its warm-up had captured, so every request pays a capture.\n\nThe cause is found by the graphs' keys across the two requests, and fixed where a request's key changes.\n\nServes: first-output.\nDisappears: graph capture on a steady request.\nEvidence: the two tests pass on the card.\nBatch: device lane."
+        }
+      ]
+    },
+    {
+      "id": "diffusion-memory-range",
+      "title": "SimpleDiffusion's resident forward is held to the memory it measures",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 30,
+        "reason": "Estimate before the survey: the growth is either a real allocation to remove or a range to remeasure."
+      },
+      "steps": [
+        {
+          "id": "range",
+          "title": "TestRealResidentForwardLeadership passes: the resident forward's static and peak memory are within the range its evidence holds",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/diffusionimage -count=1 -run '^TestRealResidentForwardLeadership$'",
+          "files": [
+            "internal/diffusionimage"
+          ],
+          "needs_card": true,
+          "rationale": "The measurement run at fdd4ab1ce failed TestRealResidentForwardLeadership on 2026-11-08: 'resident memory static=407325964 peak=605365760 exceeds evidence range' (388 MiB static, 577 MiB peak).\n\nWhat grew is found by the forward's allocation ledger against the commit the range was measured at; an allocation that serves nothing is removed, and a range is moved only by a measurement that says why.\n\nServes: peak-device-memory.\nDisappears: a lane failure.\nEvidence: the test passes on the card.\nBatch: device lane."
+        }
+      ]
+    },
+    {
+      "id": "qwen25-golden",
+      "title": "Qwen2.5-0.5B's greedy serving matches its golden again",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 40,
+        "reason": "Estimate before the survey: find the commit and the path that moved the greedy text."
+      },
+      "steps": [
+        {
+          "id": "match",
+          "title": "TestServingGoldenEvidence passes for Qwen2.5: its case capital generates the golden's 24 tokens",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/inference -count=1 -run '^TestServingGoldenEvidence$'",
+          "files": [
+            "internal/inference"
+          ],
+          "needs_card": true,
+          "rationale": "The measurement run at fdd4ab1ce failed TestServingGoldenEvidence/Qwen2.5 on 2026-11-08: case capital matched 5 of 24 tokens, generating ' Paris. It is the seat of the French government' where the golden holds ' Paris. It is the largest city in Europe'. A greedy path that moves after five tokens is a numerical change in serving, or a changed sampling path.\n\nThe commit that moved it is found by bisecting the device test, and the change is fixed where it departs from the reference; a golden is not rewritten to match.\n\nServes: held-out-quality; serving equals its reference.\nDisappears: a lane failure.\nEvidence: the test passes on the card.\nBatch: device lane."
+        }
+      ]
+    },
+    {
       "id": "media-user-size",
       "title": "Every image and video cell records the preset it ran, and each generator is timed at a user's size beside its smoke request, stage by stage",
       "owner": "master-lead",
@@ -73,17 +143,6 @@
           "rationale": "Binary TIFA reads 0.94 for Krea-2-Turbo and 100 of 100 for SenseNova, at or near the ceiling, so a fewer-pass preset could lower quality unseen. Soft-TIFA (GenEval 2, arXiv 2512.16853) agrees with people at 94.5 AUROC against TIFA's 91.6 and needs only the answer probability the Qwen3.8-27B judge already computes; no download.\n\nThe judge reads the right answer's probability, and a prompt scores the geometric mean over its questions; the binary count is kept for continuity.\n\nServes: held-out-quality; every fewer-pass preset below is admitted on it.\nDisappears: a quality reading that cannot fall because it sits at the ceiling.\nEvidence: fixture answer probabilities give the expected geometric mean, and a confident wrong answer lowers it below the binary score.\nBatch: host lane."
         },
         {
-          "id": "original-prompt",
-          "title": "A rewritten or enhanced prompt's image is scored against the user's original prompt",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -count=1 -run '^TestARewrittenPromptIsScoredAgainstTheOriginal$'",
-          "files": [
-            "internal/evaluation",
-            "cmd/evaluate"
-          ],
-          "rationale": "Rewriting prompts alone raised Flux.1-dev's human-judged GenEval to 95.3% (GenEval 2), so a prompt expander scored against its own rewrite measures the rewrite, not the picture's fidelity to the request.\n\nA case keeps the user's prompt; the questions come from it whatever text conditioned the model.\n\nServes: held-out-quality; prompt-expander is judged by it.\nDisappears: scoring against a prompt the user did not write.\nEvidence: a case conditioned on a rewrite is scored by the original's questions, and one scored by the rewrite's is refused.\nBatch: host lane."
-        },
-        {
           "id": "hard-cases",
           "title": "The image suites gain composed cases of 3 to 10 atoms, so no served image model scores at the ceiling",
           "status": "open",
@@ -136,7 +195,29 @@
             "internal/latentimage",
             "internal/media"
           ],
-          "rationale": "latentimage keeps an LRU of text-encoder outputs on the host (internal/latentimage/conditioning_cache.go), so an image request that changes only its seed loads no encoder; video has no such cache, and Wan encodes its long standard negative prompt every request.\n\nOne cache, keyed by encoder identity and text, serves image and video; the empty and standard negative prompts are permanent entries.\n\nServes: first-output on repeated prompts.\nDisappears: latentimage's own copy of the cache.\nEvidence: a second video request differing only in seed runs no text encoder.\nBatch: host lane."
+          "rationale": "latentimage keeps an LRU of text-encoder outputs on the host (internal/latentimage/conditioning_cache.go), so an image request that changes only its seed loads no encoder; video has no such cache, and Wan encodes its long standard negative prompt every request.\n\nOne cache, keyed by encoder identity and text, serves image and video; the empty and standard negative prompts are permanent entries.\n\nNote: Filed 2026-11-08: the Wan runtime already memoizes one prompt pair's contexts under the bytes of its text pipeline (internal/latentvideo/wan_form.go, wanConditioning), so a request that changes only its seed encodes no text today, and the check must fail at HEAD on what this step adds: one cache image and video share, holding more than one pair, with the empty and standard negative prompts kept, in place of latentimage's LRU and the video memo.\n\nServes: first-output on repeated prompts.\nDisappears: latentimage's own copy of the cache.\nEvidence: a second video request differing only in seed runs no text encoder.\nBatch: host lane."
+        }
+      ]
+    },
+    {
+      "id": "hf-hub-files",
+      "title": "hf-hub downloads the files a decision names, not the whole repository",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 25,
+        "reason": "A flag that passes exact paths to hfhub.DownloadRequest.Files, which the library already honours."
+      },
+      "steps": [
+        {
+          "id": "flag",
+          "title": "go run ./cmd/hf-hub download -files a,b downloads and receipts those paths alone",
+          "status": "open",
+          "verify": "go test ./cmd/hf-hub -count=1 -run '^TestADownloadTakesTheFilesItNames$'",
+          "files": [
+            "cmd/hf-hub"
+          ],
+          "rationale": "On 2026-11-08 decision self-forcing-download named one checkpoint, self_forcing_dmd.pt (5.68 GB), of gdhe17/Self-Forcing, which holds seven checkpoints and 45 GB; cmd/hf-hub download takes the whole repository, though hfhub.DownloadRequest.Files limits a download to exact paths. The image and video plan's other downloads (Real-ESRGAN, FlashVSR, DWPose, DiTDH-XL) are single files of larger repositories too.\n\nA -files flag passes the paths, and the receipt names those files alone.\n\nServes: setup-steps; each decided download fetches what was decided.\nDisappears: a download of files no decision named.\nEvidence: a download naming one file of a fixture repository fetches and receipts that file alone.\nBatch: host lane."
         }
       ]
     },
@@ -947,7 +1028,7 @@
             "internal/server"
           ],
           "needs_card": true,
-          "rationale": "Every model's authors ship an LLM prompt expander: Wan's prompt extend, Krea's prompt enhance, MOSS's enhancer and SenseNova's enhance. overgo serves Qwen3.5-9B and Qwen3.8 itself, so the toggle needs no download. It stays off for MOSS layout prompts, where the enhancer can drop the boxes.\n\nServes: held-out-quality, scored against the original prompt.\nDisappears: nothing.\nEvidence: an enhanced request's prompt is rewritten by the served model and its picture is scored against the user's original.\nBatch: device lane.",
+          "rationale": "Every model's authors ship an LLM prompt expander: Wan's prompt extend, Krea's prompt enhance, MOSS's enhancer and SenseNova's enhance. overgo serves Qwen3.5-9B and Qwen3.8 itself, so the toggle needs no download. It stays off for MOSS layout prompts, where the enhancer can drop the boxes.\n\nNote: Filed 2026-11-08: quality-instruments/original-prompt is folded into this step: nothing rewrites a prompt before it, so a case scored against the original the user wrote, and one scored against the rewrite refused, are first testable here, where the rewrite exists.\n\nServes: held-out-quality, scored against the original prompt.\nDisappears: nothing.\nEvidence: an enhanced request's prompt is rewritten by the served model and its picture is scored against the user's original.\nBatch: device lane.",
           "depends_on": [
             "quality-instruments/original-prompt"
           ]

@@ -5,11 +5,14 @@ package latentimage
 import (
 	"bytes"
 	"os"
-	cudatest "overgo/internal/cuda/testutil"
-	"overgo/internal/testcheck"
-	"overgo/internal/testutil"
 	"path/filepath"
 	"testing"
+
+	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/dataroot"
+	"overgo/internal/testcheck"
+	"overgo/internal/testskip"
+	"overgo/internal/testutil"
 )
 
 func TestMOSSRotaryRefinementCheckpoint(t *testing.T) {
@@ -48,9 +51,10 @@ func verifyMOSSModelStage(t *testing.T, stage string) {
 	t.Helper()
 	cudatest.Require(t)
 	modelRoot := testutil.ModelArtifactDir(t, "MOSS-Image-SFT-797fa8e678b4f")
-	referenceRoot := os.Getenv("OVERGO_MOSS_REFERENCE_DIR")
-	if referenceRoot == "" {
-		t.Fatal("OVERGO_MOSS_REFERENCE_DIR must name the frozen MOSS reference directory")
+	// The frozen reference the checkpoint's goldens were drawn from stands beside the store, as every reference does.
+	referenceRoot := filepath.Join(testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t).References(), "moss-image", "goldens-797fa8e678b4f")
+	if _, err := os.Stat(referenceRoot); err != nil {
+		testskip.NotApplicable(t, "no frozen MOSS reference is at "+referenceRoot)
 	}
 	var report bytes.Buffer
 	err := VerifyMOSSTransformer(t.Context(), modelRoot, referenceRoot, filepath.Join("..", "..", "fixtures", "moss"), stage, &report)

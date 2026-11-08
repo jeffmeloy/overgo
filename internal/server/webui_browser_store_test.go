@@ -28,7 +28,8 @@ func prepareBrowserJourneyStore(ctx context.Context, source, destination string)
 		return err
 	}
 	defer store.Close()
-	entries, truncated, err := discovery.CapabilityCatalog(ctx, store, laneCatalogLimit, discovery.LoadMemo(ctx, store))
+	// The data root's catalog is copied whole, past the 256 models it held on 2026-10-31 (discovery.CatalogBound).
+	entries, truncated, err := discovery.CapabilityCatalog(ctx, store, discovery.CatalogBound, discovery.LoadMemo(ctx, store))
 	if err != nil || truncated {
 		return errors.Join(errors.New("browser fixture: incomplete source catalog"), err)
 	}
@@ -121,7 +122,8 @@ func prepareBrowserJourneyStore(ctx context.Context, source, destination string)
 	}); err != nil {
 		return err
 	}
-	private, err := overgodb.OpenContext(ctx, destination)
+	// The destination is a store of the journey's own, which opening alone no longer starts (c4af5a1b6).
+	private, err := overgodb.Create(destination)
 	if err != nil {
 		return err
 	}

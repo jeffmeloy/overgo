@@ -22,6 +22,7 @@ import (
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/scorecard/metric"
@@ -352,7 +353,10 @@ type Row struct {
 	Heldout      []Cell               `json:"heldout,omitempty"`
 	Lengths      []Cell               `json:"lengths,omitempty"`
 	Warm         []Cell               `json:"warm,omitempty"`
-	Succeeds     []artifact.ID        `json:"succeeds,omitempty"`
+	// Stages are where the newest attempt at the size a person asks for spent its wall: each part its path names and
+	// what none names, which sum to it. None for a row whose attempts were timed at no person's size.
+	Stages   []processmeasure.Part `json:"stages,omitempty"`
+	Succeeds []artifact.ID         `json:"succeeds,omitempty"`
 	// MeasuredOnce is a trained model whose one measurement finished: no run measures it again, so its readings stand.
 	MeasuredOnce bool `json:"measured_once,omitempty"`
 	// Stale says why the activation behind the row cannot be trusted, or why it is not measured.
@@ -520,7 +524,7 @@ func build(ctx context.Context, store *overgodb.Store, entries []discovery.Catal
 			observed := serving[capability.Recipe]
 			row.Cells[metric.FirstOutput] = firstOutputCell(capability.Task, benchmark, measured, observed)
 			row.Lengths = lengthCells(capability.Task, observed)
-			row.Warm = userSizeCells(observed)
+			row.Warm, row.Stages = userSizeCells(observed), userSizeStages(observed)
 			row.Cells[metric.Throughput] = throughputCell(capability.Task, benchmark, measured, observed)
 			row.Cells[metric.Quality], row.Heldout = qualityCell(capability.Task, earned(index.EvaluationsByRecipe[capability.Recipe], entry.State), descriptors)
 			if record, found := heldout[capability.Recipe]; found {
@@ -745,8 +749,10 @@ type servingSummary struct {
 	// environment is where the measured attempt ran, or the latest while none has succeeded: a serving value
 	// is read under it, and a baseline measured under another, or naming none, is Unknown, not a change.
 	environment artifact.ID
-	// preset is what the measured attempt ran, which an attempt that joins its window ran too.
+	// preset is what the measured attempt ran, which an attempt that joins its window ran too, and stages where its
+	// wall went.
 	preset media.Preset
+	stages []processmeasure.Part
 	// window is the measured attempt and, after it, the next older ones that timed their load under its
 	// environment, recentAttempts at most: an attempt under another environment is no repeat of it.
 	window []servingSample
@@ -943,7 +949,7 @@ func (summary *servingSummary) readUserSize(observation runrecord.ServingObserva
 	if summary.userSize == nil {
 		summary.userSize = &servingSummary{
 			measured: observation.ID, recipe: observation.Recipe, environment: observation.Environment,
-			peakDeviceBytes: observation.Resources.PeakDeviceBytes, preset: observation.Preset,
+			peakDeviceBytes: observation.Resources.PeakDeviceBytes, preset: observation.Preset, stages: observation.Stages,
 		}
 	}
 	read := summary.userSize
@@ -953,6 +959,14 @@ func (summary *servingSummary) readUserSize(observation runrecord.ServingObserva
 	sample := servingSample{attempt: observation.ID, started: observation.StartedUnixNS}
 	sample.took[timingWholeOutput] = milliseconds(observation.MeasuredNS)
 	read.window = append(read.window, sample)
+}
+
+// userSizeStages are where the newest attempt at the size a person asks for spent its wall, where one was timed.
+func userSizeStages(observed *servingSummary) []processmeasure.Part {
+	if observed == nil || observed.userSize == nil {
+		return nil
+	}
+	return observed.userSize.stages
 }
 
 // userSizeCells are a row's time and peak memory at the size a person asks for, where its attempts read them.

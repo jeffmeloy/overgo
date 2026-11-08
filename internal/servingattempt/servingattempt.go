@@ -16,6 +16,7 @@ import (
 	"overgo/internal/finding"
 	"overgo/internal/media"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 )
@@ -46,6 +47,8 @@ type WholeOutput struct {
 	UserSize bool
 	// Preset is what a generation ran (ServingObservation.Preset).
 	Preset media.Preset
+	// Stages are the walls of the request's named parts and what none names (ServingObservation.Stages).
+	Stages []processmeasure.Part
 	Cause  error
 }
 
@@ -74,7 +77,7 @@ func RecordWholeOutput(ctx context.Context, store artifact.Repository, attempt W
 		Version: artifact.InitialDocumentVersion, Model: attempt.Model, Recipe: attempt.Recipe, Environment: environment.ID,
 		Run: attempt.Run, Task: attempt.Task, Outcome: runrecord.OutcomeSucceeded, StartedUnixNS: attempt.Started.UnixNano(),
 		MeasuredNS: uint64(max(attempt.Wall, 0)), Resources: runrecord.ServingResources{PeakDeviceBytes: attempt.PeakDeviceBytes},
-		Usage: runrecord.ServingUsage{OutputTokens: attempt.OutputTokens}, UserSize: attempt.UserSize, Preset: attempt.Preset,
+		Usage: runrecord.ServingUsage{OutputTokens: attempt.OutputTokens}, UserSize: attempt.UserSize, Preset: attempt.Preset, Stages: attempt.Stages,
 	}
 	if attempt.Load > 0 {
 		observation.Phases = []runrecord.PhaseMetric{{Phase: runrecord.PhaseLoad, DurationNS: uint64(attempt.Load)}}

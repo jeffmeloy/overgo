@@ -450,7 +450,7 @@ func executeCapability(
 			return err
 		}
 	}
-	output, _, err := attemptCapability(ctx, store, path, modelID, task, selected, capability, input, false)
+	output, _, err := attemptCapability(ctx, store, path, modelID, task, selected, capability, input, false, nil)
 	if err != nil {
 		return err
 	}
@@ -464,7 +464,8 @@ func executeCapability(
 // page's generation, with the load its executor measured as the attempt's
 // load phase, the device memory the process peaked at as the attempt's, and
 // the tokens a token-decoding model gave with the wall of their decode, the
-// attempt's decode phase.
+// attempt's decode phase, and, where stages hold the request's ledger, the walls of
+// its named parts with what none names (stagedParts).
 func attemptCapability(
 	ctx context.Context,
 	store *overgodb.Store,
@@ -475,6 +476,7 @@ func attemptCapability(
 	capability mediacapability.Capability,
 	input string,
 	userSize bool,
+	stages *processmeasure.Stages,
 ) (any, artifact.ID, error) {
 	started := time.Now()
 	begin, _ := processmeasure.Counter()
@@ -486,9 +488,29 @@ func attemptCapability(
 	recorded, recordErr := servingattempt.RecordWholeOutput(context.WithoutCancel(ctx), store, servingattempt.WholeOutput{
 		Model: modelID, Recipe: selected.Activation.Definition.ID, Run: measured.Run, Task: task, Started: started, Wall: end - begin,
 		Load: measured.Load, Decode: measured.Decode, OutputTokens: measured.OutputTokens,
-		PeakDeviceBytes: peak, PeakMeasured: peakMeasured, UserSize: userSize, Preset: media.PresetOf(measured.Output), Cause: err,
+		PeakDeviceBytes: peak, PeakMeasured: peakMeasured, UserSize: userSize, Preset: media.PresetOf(measured.Output), Stages: stagedParts(stages, end-begin), Cause: err,
 	})
 	return output, recorded.ID, errors.Join(err, recordErr)
+}
+
+// unnamedPart names the part of a request's wall that no stage names.
+const unnamedPart = "(no part names)"
+
+// stagedParts are the named parts of a request of wall, and what of it none names as one more: none where no ledger
+// was kept, or where its parts overlapped and so divide nothing.
+func stagedParts(stages *processmeasure.Stages, wall time.Duration) []processmeasure.Part {
+	if stages == nil {
+		return nil
+	}
+	parts, err := stages.Parts()
+	if err != nil {
+		return nil
+	}
+	unnamed := wall
+	for _, part := range parts {
+		unnamed -= part.Wall
+	}
+	return append(parts, processmeasure.Part{Name: unnamedPart, Wall: max(unnamed, 0), Times: 1})
 }
 
 // processDevicePeak reads the device memory the process has peaked at; a
@@ -558,7 +580,7 @@ func measureCapability(repository, path string, task recipe.Task, capability med
 	}
 	ctx, stages := processmeasure.WithDeviceStages(capabilityruntime.FreshRun(ctx), driver.StagePeakBytes, driver.ResetStagePeakBytes)
 	clock := processmeasure.NewStopwatch()
-	output, attempt, err := attemptCapability(ctx, store, path, modelID, task, selected, capability, request, userSize)
+	output, attempt, err := attemptCapability(ctx, store, path, modelID, task, selected, capability, request, userSize, stages)
 	if err = errors.Join(err, handoffAttempt(attempt)); err != nil {
 		return err
 	}

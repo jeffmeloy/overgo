@@ -31,36 +31,6 @@
       ]
     },
     {
-      "id": "media-user-size",
-      "title": "Every image and video cell records the preset it ran, and each generator is timed at a user's size beside its smoke request, stage by stage",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 184,
-        "reason": "The preset step measured 985 nodes: a typed preset set by seven generators, carried through the attempt record and the scorecard, and a README generation table written from the record; user-size and stages are estimated at about 250 each."
-      },
-      "steps": [
-        {
-          "id": "stages",
-          "title": "A user-size cell splits its time into text encoding, source encoding, denoising and decoding",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo ./internal/latentimage -count=1 -run '^TestAGenerationRecordsItsStageTimes$'",
-          "files": [
-            "internal/latentvideo",
-            "internal/latentimage",
-            "internal/diffusionimage",
-            "internal/scorecard",
-            "cmd/validate"
-          ],
-          "needs_card": true,
-          "rationale": "LiveEdit takes about 88 s a clip against its paper's 7.89 s at 4 NFE (arXiv 2606.26740). Its network work is about 1 PFLOP, 12 to 15 s at overgo's measured rate, so about 70 s lies in the CPU umT5 encoder and the VAE encode and decode, which no record separates.\n\nA generation records its stage times beside its total.\n\nServes: first-output; it says which of umt5-resident, video-decode-overlap or the attention and matrix kernels a model needs first.\nDisappears: generation time read only as a total.\nEvidence: a user-size cell holds four stage times that sum to its total within 1%.\nBatch: device lane.",
-          "depends_on": [
-            "media-user-size/user-size"
-          ]
-        }
-      ]
-    },
-    {
       "id": "wan-few-step",
       "title": "Wan2.1-T2V-1.3B gains a four-step Self-Forcing student, served as its own model on LiveEdit's chunk-causal path",
       "owner": "master-lead",

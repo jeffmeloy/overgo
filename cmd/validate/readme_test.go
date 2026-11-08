@@ -82,7 +82,7 @@ func TestAMediaCellRecordsThePresetItRan(t *testing.T) {
 		Preset: media.Preset{Width: 32, Height: 16, Frames: 21, Steps: 2, Guidance: 5, Sampler: "flow UniPC", Shift: 5}}
 	testcheck.Must(scorecard.Publish(scorecard.Directory(store), time.Date(2026, time.November, 8, 12, 0, 0, 0, time.UTC), scorecard.Record{Rows: []scorecard.Row{row}}))(t)
 	testcheck.NoError(t, runArgs(t.Context(), []string{"-root", root, "-repo", store, "-readme"}, io.Discard))
-	want := "| Wan | 13.0 s (32 x 16, 21 frames, 2 steps, flow UniPC, guidance 5, shift 5) | — |\n" + readmeSpeedEnd
+	want := "| Wan | 13.0 s (32 x 16, 21 frames, 2 steps, flow UniPC, guidance 5, shift 5) | — | — |\n" + readmeSpeedEnd
 	if written := string(testcheck.Must(os.ReadFile(readme))(t)); !strings.Contains(written, want) {
 		t.Fatalf("the README after -readme =\n%s\nwant the clip's time with its preset:\n%s", written, want)
 	}

@@ -16,6 +16,7 @@ import (
 	"overgo/internal/hfbpe"
 	"overgo/internal/media"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/processmeasure"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
@@ -287,7 +288,10 @@ func (g *Generator) Reset(ctx context.Context, request Request) error {
 	return nil
 }
 
+// prepare, integrate and decode are a picture request's three stages, each named in its ledger (processmeasure.Stage):
+// its prompt encoded and its noise drawn, its latent denoised, and its picture decoded.
 func (g *Generator) prepare(ctx context.Context, request Request) (*Generator, error) {
+	defer processmeasure.Stage(ctx, "picture prompt encoded")()
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -330,6 +334,7 @@ func (g *Generator) prepare(ctx context.Context, request Request) (*Generator, e
 }
 
 func (g *Generator) integrate(ctx context.Context, session *Generator) (*Generator, error) {
+	defer processmeasure.Stage(ctx, "picture denoised")()
 	if g == nil || session != g || !g.prepared || g.integrated {
 		return nil, errors.New("latent image: integration session is unavailable")
 	}
@@ -346,6 +351,7 @@ func (g *Generator) integrate(ctx context.Context, session *Generator) (*Generat
 }
 
 func (g *Generator) decode(ctx context.Context, session *Generator) (EncodedImage, error) {
+	defer processmeasure.Stage(ctx, "picture decoded")()
 	if g == nil || session != g || !g.integrated {
 		return EncodedImage{}, errors.New("latent image: decode session is unavailable")
 	}

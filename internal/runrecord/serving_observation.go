@@ -7,6 +7,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/media"
+	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
 )
 
@@ -91,6 +92,9 @@ type ServingObservation struct {
 	// Preset is what a generated picture or clip ran: its size, steps, guidance, sampler and shift. A record from before
 	// this field, and an attempt that generates no picture or clip, holds none.
 	Preset media.Preset `json:"preset,omitzero"`
+	// Stages are where a measured request's wall went: each part its path names (processmeasure.Stage), and what none
+	// names as one more, so they sum to it. A record from before this field, and an attempt no ledger timed, holds none.
+	Stages []processmeasure.Part `json:"stages,omitempty"`
 	// CodeCommit is the commit the attempt ran (RunningCommit). A record from before this field holds none.
 	CodeCommit string `json:"code_commit,omitzero"`
 	// Policy is the runtime policy the attempt ran under, the model's declared sampling overlaid on the catalog's, which the

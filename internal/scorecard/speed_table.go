@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"overgo/internal/evaluation"
+	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
 	"overgo/internal/scorecard/metric"
 )
@@ -68,8 +69,8 @@ func (record Record) SpeedTable() string {
 
 // GenerationTable is the README's table of the record's generated pictures and clips, after its speed table: one line
 // for each image or video row whose time to the whole output names the preset it ran, that time with its preset, and
-// its time at the size a person asks for with that preset where one was read. A record measured before its attempts
-// kept their presets gives no table.
+// its time at the size a person asks for with that preset where one was read, and where that time went (Row.Stages).
+// A record measured before its attempts kept their presets gives no table.
 func (record Record) GenerationTable() string {
 	timed := func(cell Cell) string {
 		return fmt.Sprintf("%.1f s (%s)", time.Duration(cell.Value*float64(time.Millisecond)).Seconds(), cell.Preset)
@@ -80,16 +81,38 @@ func (record Record) GenerationTable() string {
 		if row.Task != recipe.TaskImageGen && row.Task != recipe.TaskVideoGen || row.Stale != "" || !first.Preset.Ran() {
 			continue
 		}
-		sized := unreadSpeed
+		sized, went := unreadSpeed, unreadSpeed
 		if at := slices.IndexFunc(row.Warm, func(cell Cell) bool { return cell.Contract.Metric == userSizeTimeMetric && cell.Preset.Ran() }); at >= 0 {
-			sized = timed(row.Warm[at])
+			sized, went = timed(row.Warm[at]), stagesText(row.Stages)
 		}
-		fmt.Fprintf(&lines, "| %s | %s | %s |\n", row.Name, timed(first), sized)
+		fmt.Fprintf(&lines, "| %s | %s | %s | %s |\n", row.Name, timed(first), sized, went)
 	}
 	if lines.Len() == 0 {
 		return ""
 	}
-	return "\n| Model | time to the whole output | at the size a person asks for |\n| --- | --- | --- |\n" + lines.String()
+	return "\n| Model | time to the whole output | at the size a person asks for | where it went |\n| --- | --- | --- | --- |\n" + lines.String()
+}
+
+// stageShare is the share of a request's wall, one part in stageShare, a part takes at least to be named where its
+// time went.
+const stageShare = 20
+
+// stagesText is where a request's wall went: its parts of a stageShare-th of it or more, in the order they ended.
+func stagesText(stages []processmeasure.Part) string {
+	var wall time.Duration
+	for _, part := range stages {
+		wall += part.Wall
+	}
+	var named []string
+	for _, part := range stages {
+		if wall > 0 && part.Wall*stageShare >= wall {
+			named = append(named, fmt.Sprintf("%s %.1f s", part.Name, part.Wall.Seconds()))
+		}
+	}
+	if len(named) == 0 {
+		return unreadSpeed
+	}
+	return strings.Join(named, ", ")
 }
 
 // thousands writes a count with a comma between each group of three digits.

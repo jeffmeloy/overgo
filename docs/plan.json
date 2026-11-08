@@ -1,5 +1,1484 @@
 {
-  "campaign": "Deliver multimodal Qwen3.8-Flash-Next UD-IQ4_XS and meet native Strata performance",
+  "campaign": "Image and video generation: fewer network passes, cheaper passes, and the ComfyUI capabilities worth having, each measured at a user's size",
   "lane": "master-lead",
-  "items": []
+  "items": [
+    {
+      "id": "media-user-size",
+      "title": "Every image and video cell records the preset it ran, and each generator is timed at a user's size beside its smoke request, stage by stage",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 400,
+        "reason": "Estimate before the survey: the media cell record gains typed preset fields and four stage times, the protocol one user-size case per generator, and the README's media rows print the preset from the record."
+      },
+      "steps": [
+        {
+          "id": "preset-record",
+          "title": "A media cell records the size, frames, steps, guidance, sampler and shift it ran, and the README's media rows print them from the record",
+          "status": "open",
+          "verify": "go test ./internal/scorecard ./cmd/validate -count=1 -run '^TestAMediaCellRecordsThePresetItRan$'",
+          "files": [
+            "internal/media",
+            "internal/capabilityruntime",
+            "internal/servingattempt",
+            "internal/runrecord",
+            "cmd/recipe",
+            "internal/server",
+            "internal/scorecard",
+            "cmd/validate",
+            "internal/latentvideo",
+            "internal/latentimage",
+            "internal/diffusionimage",
+            "internal/rae",
+            "README.md"
+          ],
+          "rationale": "The Wan cell times 21 frames at 32 x 16 in 2 steps (13.0 s); the user's request, 81 frames at 832 x 480 in 50 steps, was last timed by hand at fcda318af (6 min 14 s, 2026-09-12). The Krea (14.3 s) and SenseNova (13.3 s) cells record no size or step count. At those sizes the network does almost no work, so no row of this plan could show its gain in a cell, and the README records the preset behind no image or video row.\n\nEvery media cell carries its preset as typed fields; the README's media rows print them from the newest record.\n\nThe preset travels from the generator that resolved it through the measured envelope (internal/capabilityruntime), the serving attempt (internal/servingattempt, cmd/recipe, internal/server) and the observation (internal/runrecord) to the scorecard, and its type is internal/media's, which the record already imports.\n\nServes: first-output; every later row's gain is read at a known preset.\nDisappears: a media time with no size or step count behind it.\nEvidence: a media cell recorded without its preset is refused, and the README row prints the preset of the newest record.\nBatch: host lane."
+        },
+        {
+          "id": "user-size",
+          "title": "Each generator gains a user-size cell: Wan at 832 x 480 x 81 frames in 50 steps, LiveEdit at 81 frames, Krea-2-Turbo, MOSS-Image-SFT and SenseNova at 1024 x 1024",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/validate -count=1 -run '^TestEveryGeneratorHasAUserSizeCell$'",
+          "files": [
+            "cmd/validate",
+            "docs/image_video_protocol.json",
+            "internal/latentvideo",
+            "internal/latentimage",
+            "internal/diffusionimage"
+          ],
+          "needs_card": true,
+          "rationale": "The smoke cells measure fixed costs (text encoder, load, launch): the 14.1 s Wan cell and the 10.5 s LiveEdit cell say nothing of an 832 x 480 clip. The retained protocol keeps one 832 x 480 Wan review case, drawn by hand.\n\nOne user-size case per generator runs beside its smoke case, as any cell does. The Wan case adds about 6 minutes of card time to a cycle, LiveEdit's about 1.5 minutes, each image case under 2 minutes.\n\nNote: Filed 2026-11-08: video models already hold a user-size cell (e360c6cb6, 2026-11-02, cmd/validate videoUserSize): go run ./cmd/recipe measure -user-size drops the verified request's frames, width, height and steps so the model's own defaults run, and the README prints it \"at the size a person asks for\". What this step adds is the image generators' cell, Krea-2-Turbo, MOSS-Image-SFT and SenseNova at 1024 x 1024, and the test that every generator holds one.\n\nServes: first-output and peak-device-memory at the size users ask for.\nDisappears: the hand-drawn review case as the only full-size number.\nEvidence: each generator's protocol lists a user-size case, and a cycle that skips it is refused.\nBatch: device lane.",
+          "depends_on": [
+            "media-user-size/preset"
+          ]
+        },
+        {
+          "id": "stages",
+          "title": "A user-size cell splits its time into text encoding, source encoding, denoising and decoding",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo ./internal/latentimage -count=1 -run '^TestAGenerationRecordsItsStageTimes$'",
+          "files": [
+            "internal/latentvideo",
+            "internal/latentimage",
+            "internal/diffusionimage",
+            "internal/scorecard",
+            "cmd/validate"
+          ],
+          "needs_card": true,
+          "rationale": "LiveEdit takes about 88 s a clip against its paper's 7.89 s at 4 NFE (arXiv 2606.26740). Its network work is about 1 PFLOP, 12 to 15 s at overgo's measured rate, so about 70 s lies in the CPU umT5 encoder and the VAE encode and decode, which no record separates.\n\nA generation records its stage times beside its total.\n\nServes: first-output; it says which of umt5-resident, video-decode-overlap or the attention and matrix kernels a model needs first.\nDisappears: generation time read only as a total.\nEvidence: a user-size cell holds four stage times that sum to its total within 1%.\nBatch: device lane.",
+          "depends_on": [
+            "media-user-size/user-size"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "quality-instruments",
+      "title": "The picture judge scores Soft-TIFA against the user's original prompt, on cases hard enough to stay off the ceiling",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 300,
+        "reason": "Estimate before the survey: the judge reads the right answer's probability, a prompt's score becomes a geometric mean, a case keeps its original prompt beside any rewrite, and the caption suites gain composed cases of 3 to 10 atoms."
+      },
+      "steps": [
+        {
+          "id": "soft-tifa",
+          "title": "TIFA scores the judge's probability of the right answer, a prompt scoring the geometric mean over its questions, beside the binary count",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -count=1 -run '^TestSoftTIFAScoresTheProbabilityOfTheRightAnswer$'",
+          "files": [
+            "internal/evaluation",
+            "cmd/evaluate",
+            "internal/scorecard"
+          ],
+          "rationale": "Binary TIFA reads 0.94 for Krea-2-Turbo and 100 of 100 for SenseNova, at or near the ceiling, so a fewer-pass preset could lower quality unseen. Soft-TIFA (GenEval 2, arXiv 2512.16853) agrees with people at 94.5 AUROC against TIFA's 91.6 and needs only the answer probability the Qwen3.8-27B judge already computes; no download.\n\nThe judge reads the right answer's probability, and a prompt scores the geometric mean over its questions; the binary count is kept for continuity.\n\nServes: held-out-quality; every fewer-pass preset below is admitted on it.\nDisappears: a quality reading that cannot fall because it sits at the ceiling.\nEvidence: fixture answer probabilities give the expected geometric mean, and a confident wrong answer lowers it below the binary score.\nBatch: host lane."
+        },
+        {
+          "id": "original-prompt",
+          "title": "A rewritten or enhanced prompt's image is scored against the user's original prompt",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -count=1 -run '^TestARewrittenPromptIsScoredAgainstTheOriginal$'",
+          "files": [
+            "internal/evaluation",
+            "cmd/evaluate"
+          ],
+          "rationale": "Rewriting prompts alone raised Flux.1-dev's human-judged GenEval to 95.3% (GenEval 2), so a prompt expander scored against its own rewrite measures the rewrite, not the picture's fidelity to the request.\n\nA case keeps the user's prompt; the questions come from it whatever text conditioned the model.\n\nServes: held-out-quality; prompt-expander is judged by it.\nDisappears: scoring against a prompt the user did not write.\nEvidence: a case conditioned on a rewrite is scored by the original's questions, and one scored by the rewrite's is refused.\nBatch: host lane."
+        },
+        {
+          "id": "hard-cases",
+          "title": "The image suites gain composed cases of 3 to 10 atoms, so no served image model scores at the ceiling",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -count=1 -run '^TestImageSuitesHoldCasesOfThreeToTenAtoms$'",
+          "files": [
+            "internal/evaluation",
+            "cmd/evaluate",
+            "fixtures"
+          ],
+          "rationale": "SenseNova scores 100 of 100 on its infographic suite, the suite's ceiling, and its 8-step LoRA is known to repeat text; GenEval 2 keeps strong models off the ceiling with prompts of 3 to 10 atoms (objects, counts, colours, positions, text).\n\nThe caption suites gain cases composed from their own atoms, frozen like any held-out case.\n\nServes: held-out-quality.\nDisappears: a suite no served model can score below.\nEvidence: each image suite holds composed cases of 3 to 10 atoms, frozen by hash.\nBatch: host lane.",
+          "depends_on": [
+            "quality-instruments/soft-tifa"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "umt5-resident",
+      "title": "Wan's umT5 text encoder runs on the card, loaded once, and video conditioning is cached by content",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 600,
+        "reason": "Estimate before the survey: the encoder's blocks on device programs (T5 with relative position buckets), a resident lifetime beside the DiT, and latentimage's conditioning cache moved to code video shares."
+      },
+      "steps": [
+        {
+          "id": "device",
+          "title": "umT5 encodes on the card, its states within a tolerance declared first of the host encoder's",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestUMT5EncodesOnTheCardAsTheHostDoes$'",
+          "files": [
+            "internal/latentvideo",
+            "internal/cuda",
+            "kernels"
+          ],
+          "needs_card": true,
+          "rationale": "umT5 is an 11.4 GB BF16 checkpoint streamed from its PyTorch archive block by block and computed on the CPU (internal/latentvideo/encoder.go): about 1.4 s plus 0.065 s a token, about 4.7 s for a 50-token prompt, paid by every Wan and LiveEdit request before the card starts.\n\nThe encoder's weights stay resident beside the DiT (the card holds both: Wan peaks at 3.6 GiB), loaded once over PCIe in about a second. The tolerance is written before the change, as the production-precision answer (2026-10-09) requires.\n\nServes: first-output for Wan, LiveEdit and every Wan-family model below.\nDisappears: the per-request CPU encode.\nEvidence: conditioning states for the golden prompts match the host encoder within the declared tolerance, and a user-size cell's text stage falls below 0.1 s.\nBatch: device lane.",
+          "depends_on": [
+            "media-user-size/stages"
+          ]
+        },
+        {
+          "id": "cache",
+          "title": "Text conditioning for video is cached by encoder identity and text, so a request that changes only its seed encodes no text",
+          "status": "open",
+          "verify": "go test ./internal/latentvideo -count=1 -run '^TestAVideoRequestThatChangesOnlyItsSeedEncodesNoText$'",
+          "files": [
+            "internal/latentvideo",
+            "internal/latentimage",
+            "internal/media"
+          ],
+          "rationale": "latentimage keeps an LRU of text-encoder outputs on the host (internal/latentimage/conditioning_cache.go), so an image request that changes only its seed loads no encoder; video has no such cache, and Wan encodes its long standard negative prompt every request.\n\nOne cache, keyed by encoder identity and text, serves image and video; the empty and standard negative prompts are permanent entries.\n\nServes: first-output on repeated prompts.\nDisappears: latentimage's own copy of the cache.\nEvidence: a second video request differing only in seed runs no text encoder.\nBatch: host lane."
+        }
+      ]
+    },
+    {
+      "id": "wan-few-step",
+      "title": "Wan2.1-T2V-1.3B gains a four-step Self-Forcing student, served as its own model on LiveEdit's chunk-causal path",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 300,
+        "reason": "Estimate before the survey: a text-to-video form of the reference-edit runtime with no source channels, the student's profile and its import; the chunked sampler, the VAE and umT5 exist."
+      },
+      "steps": [
+        {
+          "id": "import",
+          "title": "The Self-Forcing DMD checkpoint enters the store with its receipt, its tensors checked against Wan 1.3B's DiT",
+          "status": "open",
+          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestSelfForcingIsAWan13BDiT$'",
+          "files": [
+            "internal/latentvideo",
+            "internal/modelrecipe",
+            "local-models.json"
+          ],
+          "rationale": "The Wan profile spends 100 network passes a clip: 50 steps, each with a conditional and an unconditioned pass. Self-Forcing (arXiv 2506.08009, Apache-2.0) distils this exact model to four passes a three-latent-frame chunk and reports VBench 84.31 against its 50-step teacher's 84.26. self_forcing_dmd.pt is 5.68 GB, the size of the local F32 Wan DiT, so it is very likely a whole replacement DiT reusing the local umT5 and VAE; its tensors are unchecked. Every model is kept: the student is added beside the 50-step base, which stays served.\n\ncmd/hf-hub fetches it with a receipt (decision self-forcing-download), and the store reads its tensor names and shapes and refuses a mismatch.\n\nServes: setup-steps.\nDisappears: nothing.\nEvidence: the checkpoint's tensors name- and shape-match Wan 1.3B's DiT, and the store lists it with its hash, source and licence.\nBatch: host lane."
+        },
+        {
+          "id": "causal-t2v",
+          "title": "The student generates 81 frames at 832 x 480 through LiveEdit's chunked sampler without source channels, held to a golden of its upstream inference",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestSelfForcingMatchesItsUpstreamGolden$'",
+          "files": [
+            "internal/latentvideo",
+            "internal/sampling",
+            "fixtures/selfforcing"
+          ],
+          "needs_card": true,
+          "rationale": "LiveEdit already runs Wan 1.3B as a chunk-causal four-step student: timesteps 1000/750/500/250, shift 5, three-latent-frame chunks, a 21-frame window (internal/latentvideo/edit_profiles.json), and LiveEdit is built on the Self-Forcing codebase. Self-Forcing's own configuration is the same schedule over 21 latent frames at 480 x 832 (configs/self_forcing_dmd.yaml).\n\nA text-to-video form of the reference-edit runtime runs the student's weights with no source channels. The golden is recorded once by the upstream inference from the ignored Python place, as overgo's other goldens are.\n\nServes: first-output.\nDisappears: nothing; the 50-step path stays.\nEvidence: final latents agree with the golden above a floor set from the first measured run less a margin, as internal/adaptiveparity holds Krea.\nBatch: device lane.",
+          "depends_on": [
+            "wan-few-step/import"
+          ]
+        },
+        {
+          "id": "measured",
+          "title": "The student's user-size cell and its held-out quality on Wan's 128-clip suite are recorded beside the 50-step base's",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/validate -count=1 -run '^TestTheWanStudentHasItsOwnCells$'",
+          "files": [
+            "cmd/validate",
+            "docs/image_video_protocol.json",
+            "internal/latentvideo"
+          ],
+          "needs_card": true,
+          "rationale": "The expected gain is arithmetic: network work falls from about 28 PFLOP to about 1 PFLOP a clip, so a first build should land near 60 to 80 s against 374 s, lower once umT5 and the decode move. One survey found no published comparison of 4-step against 50-step 1.3B beyond the Self-Forcing paper's own, so the cost in quality is read here. Guidance 1 also drops the negative prompt, which guidance-ops/nag restores.\n\nServes: first-output, held-out-quality.\nDisappears: nothing.\nEvidence: the student has its own user-size and quality cells, compared with the base's by a per-case sign test.\nBatch: device lane.",
+          "depends_on": [
+            "wan-few-step/causal-t2v",
+            "media-user-size/user-size"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sampling-split",
+      "title": "Sampling splits into noise, sigma table, step function and guider, with hooks before and after the guidance combine, so each model's presets are data",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 400,
+        "reason": "Estimate before the survey: one interface over the three per-model loops, the guider with its hooks, and presets read from each profiles.json; the loops' duplicated stepping goes, paying part of it back."
+      },
+      "steps": [
+        {
+          "id": "interface",
+          "title": "Wan's flow UniPC, the flow-Euler image models and RAE's Euler step through one sampler interface, every media golden unchanged",
+          "status": "open",
+          "verify": "go test ./internal/sampling -count=1 -run '^TestEverySamplerStepsThroughOneInterface$'",
+          "files": [
+            "internal/sampling",
+            "internal/latentimage",
+            "internal/latentvideo",
+            "internal/rae",
+            "internal/diffusionimage"
+          ],
+          "needs_card": true,
+          "rationale": "overgo runs three per-model samplers: flow UniPC for Wan (internal/sampling/unipc.go), FlowMatchEuler for Krea, MOSS and SenseNova (internal/latentimage/profiles.json), and RAE's Euler over its shifted grid (internal/rae/generation.go). A guidance change or a new schedule is written once per loop. ComfyUI splits sampling into NOISE, SIGMAS, SAMPLER and GUIDER, with hooks at the conditional batch and before and after the guidance combine, which makes each guidance trick one small function. The design is taken from its description; ComfyUI's GPL-3.0 source is never read or ported.\n\nOne interface carries noise, sigma table, step function and guider; the three loops become its implementations.\n\nServes: setup-steps; guidance-ops, step-cache and moss-ultra-sections each write one function instead of three.\nDisappears: the three loops' duplicated stepping.\nEvidence: a synthetic velocity model steps identically through each sampler before and after; the gate's device lane re-reads every media golden unchanged.\nBatch: device lane."
+        },
+        {
+          "id": "presets",
+          "title": "A request names a preset from its model's profile, the authors' recipe as reference and every other preset an addition, and guidance 1 runs no unconditioned pass",
+          "status": "open",
+          "verify": "go test ./internal/latentimage ./internal/latentvideo -count=1 -run '^TestARequestRunsTheNamedPresetOfItsProfile$'",
+          "files": [
+            "internal/latentimage",
+            "internal/latentvideo",
+            "internal/rae",
+            "internal/sampling"
+          ],
+          "rationale": "Each profile holds one recipe, the authors'. The other recipes worth serving differ only in data: MOSS's 25-step preset at guidance 2.5 (docs.comfy.org MOSS tutorial), Wan's model-card shift of 8 against the reference script's 5 overgo runs, Krea's 4-step draft. A request with no preset runs the reference preset, which the goldens hold.\n\nPresets are named entries of a profile; guidance 1 skips the unconditioned pass in the guider.\n\nServes: setup-steps; every preset row below adds data, not code.\nDisappears: a recipe change that needs code.\nEvidence: a request naming a preset runs its steps, sampler, shift and guidance; one naming none runs the reference; guidance 1 makes one network call a step.\nBatch: host lane.",
+          "depends_on": [
+            "sampling-split/interface"
+          ]
+        },
+        {
+          "id": "block-override",
+          "title": "MOSS's negative-branch layer skip becomes a block-override hook any DiT's guider can use",
+          "status": "open",
+          "verify": "go test ./internal/sampling ./internal/latentimage -count=1 -run '^TestMossLayerSkipIsTheGenericBlockOverride$'",
+          "files": [
+            "internal/sampling",
+            "internal/latentimage",
+            "internal/latentvideo"
+          ],
+          "rationale": "MOSS's profile skips layer 22 on the negative branch (negative_skip: [22]), which is skip-layer guidance at no extra pass. Made generic over DiT blocks and attention context, the same hook carries skip-layer guidance on Wan (arXiv 2403.17377) and NAG's attention-space guidance on every model.\n\nServes: setup-steps for guidance-ops.\nDisappears: MOSS's special case.\nEvidence: MOSS's negative branch runs through the generic hook with its golden unchanged, and a Wan pass with a chosen block set to identity differs only from that block on.\nBatch: host lane.",
+          "depends_on": [
+            "sampling-split/interface"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "guidance-ops",
+      "title": "CFG-Zero*, the guidance interval, APG and NAG are guider functions written from their papers, each a preset admitted per model by its held-out suite",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 450,
+        "reason": "Estimate before the survey: four guider functions of tens of lines each, NAG's attention-context path, and their presets."
+      },
+      "steps": [
+        {
+          "id": "cfg-zero-interval",
+          "title": "CFG-Zero* and a guidance interval run on Wan's 50-step path, MOSS and SenseNova, with a shift sweep on Wan, each read against its suite",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo ./internal/latentimage -count=1 -run '^TestCFGZeroAndTheGuidanceIntervalAreGuiderPresets$'",
+          "files": [
+            "internal/sampling",
+            "internal/latentvideo",
+            "internal/latentimage"
+          ],
+          "needs_card": true,
+          "rationale": "CFG-Zero* (arXiv 2503.18886, Apache-2.0) rescales the unconditioned prediction by its optimal projection and zeroes the first steps; it raised Wan 1.3B's VBench total from 80.52 to 80.91 at no cost. A guidance interval (arXiv 2404.07724) applies guidance only in the middle of the noise range and drops the unconditioned pass elsewhere, about 15 to 20 of MOSS's 100 passes. Wan's shift is 5 here (the reference script) and 8 to 12 on the model card, so a sweep of 3 to 12 is a cheap quality reading. MOSS's negative branch skips layer 22, so every change is re-read on its suite.\n\nEach lands as a named preset; the reference presets are unchanged.\n\nServes: held-out-quality, first-output.\nDisappears: nothing.\nEvidence: each preset's per-case sign test against its model's reference on its suite is recorded, and only a preset that does not lower quality is offered.\nBatch: device lane.",
+          "depends_on": [
+            "sampling-split/presets",
+            "quality-instruments/soft-tifa"
+          ]
+        },
+        {
+          "id": "apg",
+          "title": "APG replaces the guidance combine for MOSS and SenseNova as a preset",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestAPGIsAGuiderPresetForMossAndSenseNova$'",
+          "files": [
+            "internal/sampling",
+            "internal/latentimage"
+          ],
+          "needs_card": true,
+          "rationale": "MOSS and SenseNova guide at 3 to 4. APG (Sadat et al., 2024) splits the guidance delta into parallel and orthogonal parts, clamps its norm and adds momentum, cutting oversaturation at no extra pass; on DiT-XL/2 it took FID from 19.14 to 9.34 at guidance 4. It is written from the paper, never from ComfyUI's node.\n\nServes: held-out-quality.\nDisappears: nothing.\nEvidence: the preset's sign test against each model's reference is recorded.\nBatch: device lane.",
+          "depends_on": [
+            "sampling-split/presets",
+            "quality-instruments/soft-tifa"
+          ]
+        },
+        {
+          "id": "nag",
+          "title": "NAG restores negative prompts at guidance 1 on Krea-2-Turbo and the Wan student",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage ./internal/latentvideo -count=1 -run '^TestNAGAppliesANegativePromptAtGuidanceOne$'",
+          "files": [
+            "internal/sampling",
+            "internal/latentimage",
+            "internal/latentvideo"
+          ],
+          "needs_card": true,
+          "rationale": "Krea-2-Turbo runs without guidance and the Wan student at guidance 1, so neither honours a negative prompt; raising guidance on Turbo over-cooks it. NAG (arXiv 2505.21179; MIT code) extrapolates in attention space with L1 normalisation: ImageReward rose from 1.029 to 1.099 on Flux-Schnell and from 0.944 to 1.118 on SD3.5-Large-Turbo, at 43 to 87% more time. Krea's published settings are phi 4.0, tau 2.5, alpha 0.25.\n\nServes: held-out-quality; a capability the distilled models lack.\nDisappears: nothing.\nEvidence: a negative prompt changes the attention context only through NAG, and the preset's sign test is recorded.\nBatch: device lane.",
+          "depends_on": [
+            "sampling-split/block-override",
+            "quality-instruments/soft-tifa"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "comfy-recorder",
+      "title": "A ComfyUI recorder runs a saved workflow in ComfyUI's own process and records each section's settings, sigmas, latents and images as goldens, first the MOSS Ultra workflow",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 900,
+        "reason": "Estimate before the survey: graph flattening (subgraphs, Set/Get links, bypassed nodes), the API client for a local ComfyUI process, the recording nodes, and strict fixtures."
+      },
+      "steps": [
+        {
+          "id": "request",
+          "title": "The recorder turns MOSS_IMAGE_ULTRA_WORKFLOW.json into ComfyUI's API request: its 24 subgraphs flattened, Set/Get links resolved, bypassed nodes dropped, widget values named from /object_info",
+          "status": "open",
+          "verify": "go test ./cmd/comfy-reference -count=1 -run '^TestTheUltraWorkflowFlattensToItsAPIRequest$'",
+          "files": [
+            "cmd/comfy-reference",
+            "fixtures/comfy"
+          ],
+          "rationale": "The owner decided on 2026-11-05 that the golden for MOSS Ultra is ComfyUI running C:/Users/jeffm/Downloads/Moss/MOSS_IMAGE_ULTRA_WORKFLOW.json on the files in its own install. The workflow is a saved UI graph, not an API request.\n\nA Go command copies the workflow into fixtures with its hash and builds the API request: subgraphs flattened, KJNodes' Set/Get links resolved, bypassed nodes dropped, each node's widgets_values mapped to input names from ComfyUI's /object_info, one section switched on at a time. It adds only recording nodes: SaveLatent after each sampler, PreviewAny on a BasicScheduler carrying the section's schedule so sigmas are recorded as numbers, and the workflow's own prompt-used outputs. ComfyUI is GPL-3.0; it runs as a separate process and overgo reads only its HTTP answers (the GPL FAQ treats pipes and sockets as communication between separate programs); no ComfyUI source is read or ported.\n\nServes: setup-steps; every comparison of moss-ultra rests on it, and the next workflow reuses it.\nDisappears: hand-built ComfyUI references.\nEvidence: the fixture workflow flattens to an API request whose node set and inputs equal the expected ones, and a workflow with an unresolvable link is refused.\nBatch: host lane."
+        },
+        {
+          "id": "record",
+          "title": "Each section and prompt mode is recorded at 1024 x 576 on the install's own files, ComfyUI listening on the machine only with API nodes and the manager's network checks off",
+          "status": "open",
+          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/comfy-reference -count=1 -run '^TestTheUltraRecordingsAgreeAndParseStrictly$'",
+          "files": [
+            "cmd/comfy-reference",
+            "fixtures/comfy",
+            "cmd/hf-hub"
+          ],
+          "needs_card": true,
+          "rationale": "Each recording names the workflow's hash, the commits of ComfyUI and each custom-node pack, each model file's SHA-256, the seed, size, final prompts and sigmas, the final latent, the decoded and sharpened images, time per step and peak card memory. The small fixture goes to fixtures/comfy/moss-ultra/; latents and images go to overgo_data/references/comfy/moss-ultra/.\n\nThe depth section runs the workflow's own depth step: before its first recording, cmd/hf-hub downloads depth_anything_v2_vits.pth (99.2 MB, Apache-2.0, decided 2026-11-05) with a receipt and hard-links it where comfyui_controlnet_aux reads it, so ComfyUI stays offline; the depth map is a golden of its own. The workflow is recorded as saved, defects included: its 50-step row runs on Base without the SFT LoRA, its turbo row runs er_sde with bong_tangent, its 50-step image to image runs at denoise 1.0. The workflow's own size (16:9 at 3 MP) is recorded once, for the speed comparison.\n\nServes: setup-steps.\nDisappears: nothing.\nEvidence: a second recording agrees with the first above a measured floor, and every fixture parses strictly.\nBatch: device lane; a recording runs only while no device test holds the card.",
+          "depends_on": [
+            "comfy-recorder/request"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "moss-ultra-import",
+      "title": "The MOSS Ultra workflow's six model files serve in overgo as published: Base in ComfyUI's 8-bit ConvRot format, the abliterated Qwen3.5-9B encoder, the Flux2 VAE and three adapters",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 700,
+        "reason": "Estimate before the survey: a local import by hard link with receipts, the ConvRot decode at load, the fused qkv split, and the encoder's name mapping and template."
+      },
+      "steps": [
+        {
+          "id": "import",
+          "title": "A local import hard-links the six files into overgo_data/models with receipts, the transformer, encoder and VAE as one recipe and the three LoRAs as its adapters",
+          "status": "open",
+          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/modelrecipe -count=1 -run '^TestTheUltraRecipeListsItsSixFilesByHash$'",
+          "files": [
+            "internal/modelrecipe",
+            "internal/discovery",
+            "local-models.json"
+          ],
+          "rationale": "The files are in ComfyUI_windows_portable/ComfyUI/models: diffusion_models/moss_image_base_int8_convrot.safetensors (5.41 GB, MOSS-Image Base, Apache-2.0), text_encoders/Qwen3.5-9B-abliterated_int8_convrot.safetensors (9.47 GB, licence not checked), vae/flux2-vae_small.safetensors (0.25 GB, Apache-2.0, not byte-identical to overgo's MOSS VAE), loras/8-steps-dmd2-lora.safetensors (1.19 GB, kohya rank 128 F32, Apache-2.0), loras/moss_image_sft.safetensors (0.29 GB, SFT minus Base, licence not stated) and loras/moss-control.safetensors (0.31 GB, PEFT rank 64 with a replacement video_embedder, Apache-2.0). The owner's instruction covers local use; publishing beyond that needs the two unchecked licences read.\n\nA local import hard-links each file into overgo_data/models; its receipt names the source path, the origin address from the workflow's notes, the licence and the SHA-256. No copy, conversion or download. The architecture is read from the tensor shapes and checked against MOSS's published configuration: 42 layers, width 3072, 24 heads, 128 latent channels.\n\nServes: setup-steps.\nDisappears: nothing.\nEvidence: the store lists the recipe with all six hashes and refuses a file whose hash has changed.\nBatch: host lane.",
+          "depends_on": [
+            "comfy-recorder/record"
+          ]
+        },
+        {
+          "id": "convrot",
+          "title": "ConvRot int8 weights decode at load through per-row scales and the inverse 256-wide Hadamard rotation to the bf16 path, bit-equal to comfy_kitchen's decode, and the fused qkv splits",
+          "status": "open",
+          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestConvRotDecodesAsComfyKitchenDoes$'",
+          "files": [
+            "internal/latentimage",
+            "internal/tensor",
+            "fixtures/comfy"
+          ],
+          "rationale": "The Base transformer and the encoder store I8 weights with an F32 scale per row and a normalised Hadamard rotation in groups of 256 columns; a small JSON on every tensor (comfy_quant) names the format; q, k and v are fused into proj.qkv [9216, 3072]. The format comes from comfy_kitchen 0.2.40 in the install's Python, which is Apache-2.0, so its eager reference may be followed with a notice.\n\nEach weight is rebuilt at load into the bf16 path overgo runs, and proj.qkv is split into q, k and v. The reference decode is recorded once by a golden script from the ignored Python place. Computing in 8 bits is w8a8-gemm/int8-convrot.\n\nServes: setup-steps.\nDisappears: nothing.\nEvidence: decoded tensors of both the transformer and the encoder equal comfy_kitchen's dequantize_int8_convrot_weight to the bit.\nBatch: host lane.",
+          "depends_on": [
+            "moss-ultra-import/import"
+          ]
+        },
+        {
+          "id": "encoder",
+          "title": "The abliterated Qwen3.5-9B conditions MOSS under the workflow's template, and its language-model head serves the same file as a chat model",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestTheUltraEncoderConditionsAsComfyUIDoes$'",
+          "files": [
+            "internal/latentimage",
+            "internal/inference",
+            "internal/modelrecipe"
+          ],
+          "needs_card": true,
+          "rationale": "It is the Qwen3.5 architecture overgo's MOSS encoder runs, under a model. prefix (model.language_model., model.visual., lm_head), so the names map. Conditioning is the last layer's states under the template \u003c|im_start|\u003euser ... \u003c|im_end|\u003e \u003c|im_start|\u003eassistant \u003cthink\u003e. Its language-model head lets the same file serve prompt mode 2 as a chat model through overgo's LLM serving: one file, two uses.\n\nServes: setup-steps.\nDisappears: nothing.\nEvidence: token IDs and conditioning states for the golden prompts equal those ComfyUI produces, recorded by the golden script.\nBatch: device lane.",
+          "depends_on": [
+            "moss-ultra-import/convrot"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "media-lora",
+      "title": "Media adapters load in kohya, PEFT and full-difference formats and apply unmerged at run time, with a strength per request",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 700,
+        "reason": "Estimate before the survey: three adapter readers with name mapping onto fused and widened layers, a low-rank side product in the image and video blocks, and the eight-step MOSS preset."
+      },
+      "steps": [
+        {
+          "id": "formats",
+          "title": "A patched weight equals ComfyUI's for one tensor of each format, including adapters landing on slices of a fused qkv and a replaced input layer",
+          "status": "open",
+          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestEachAdapterFormatPatchesAsComfyUIDoes$'",
+          "files": [
+            "internal/latentimage",
+            "internal/media",
+            "fixtures/comfy"
+          ],
+          "rationale": "The workflow's adapters come in three formats: kohya lora_down/lora_up scaled by alpha over rank, PEFT lora_A/lora_B with alpha in the file's metadata, and full diff/diff_b deltas for norms and biases. Names drop the diffusion_model. prefix; adapters on q, k and v land on slices of a fused qkv; the control adapter's full video_embedder widens the input layer from 128 to 384 channels. How ComfyUI applies a LoRA to an 8-bit weight (decode, add and re-encode, or a separate low-rank pass) decides how exact overgo can be, so one patched weight per format is recorded by the golden script first.\n\nServes: setup-steps.\nDisappears: nothing.\nEvidence: patched weights equal ComfyUI's for one tensor of each format.\nBatch: host lane.",
+          "depends_on": [
+            "moss-ultra-import/convrot"
+          ]
+        },
+        {
+          "id": "unmerged",
+          "title": "Adapters run unmerged, y = xW + s(xA)B with the low-rank branch at the adapter's precision, so strength changes per request without rewriting weights",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestAnUnmergedAdapterMatchesItsMergedWeight$'",
+          "files": [
+            "internal/latentimage",
+            "internal/latentvideo",
+            "internal/media",
+            "internal/cuda",
+            "kernels"
+          ],
+          "needs_card": true,
+          "rationale": "overgo serves image adapters merged (docs/MOSS_IMAGE.md). The DMD LoRAs warn that merging into BF16 discards most of the distillation, because the delta is near BF16's rounding step, so the eight-step adapters need an unmerged path kept at their own precision. ComfyUI's ModelPatcher records patches per key with a backup and shares one module between clones; the shape is taken from that description, not its code.\n\nServes: setup-steps; media-lora/moss-eight-step, krea-loras, sensenova-fast and moss-ultra-sections/depth-control apply adapters through it.\nDisappears: merging as the only way to serve an adapter.\nEvidence: at strength 1 an unmerged adapter's output matches the same adapter merged at F32 within a declared tolerance, and a second strength needs no reload.\nBatch: device lane.",
+          "depends_on": [
+            "media-lora/formats"
+          ]
+        },
+        {
+          "id": "moss-eight-step",
+          "title": "MOSS-Image-SFT gains an eight-step preset with the local DMD2 adapter at guidance 1, read on its 415-question suite",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestMossEightStepPresetRunsTheDMDAdapter$'",
+          "files": [
+            "internal/latentimage"
+          ],
+          "needs_card": true,
+          "rationale": "MOSS's 50-step denoise takes 63.4 s at 1024 x 1024, one step 1.176 s (docs/MOSS_IMAGE.md). The Kromoss 8-steps-dmd2-lora (rank 128, F32, Apache-2.0) is already on disk in the ComfyUI install and imported by moss-ultra-import, so no download. It was trained on Base, not SFT, and no TIFA, GenEval or ImageReward number exists for any MOSS distillation: about 63.4 s down to 5 to 6 s of denoising by arithmetic, quality unknown.\n\nServes: first-output, held-out-quality.\nDisappears: nothing; the 50-step reference stays.\nEvidence: the preset runs eight steps at guidance 1 with the adapter unmerged, and its sign test against the reference on the 415-question suite is recorded.\nBatch: device lane.",
+          "depends_on": [
+            "media-lora/unmerged",
+            "sampling-split/presets",
+            "quality-instruments/soft-tifa"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "moss-ultra-sections",
+      "title": "overgo runs every section of the MOSS Ultra workflow: bong_tangent, beta57 and request sigmas, ER-SDE, image to image, depth estimation and control, prompt modes 2 and 3, and the finishing steps",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 1500,
+        "reason": "Estimate before the survey: three schedules, the ER-SDE step, the denoise rule, a DPT depth head on vitencoder, depth control, the enhancer and layout logic as typed Go, sharpening and size rounding."
+      },
+      "steps": [
+        {
+          "id": "schedules",
+          "title": "bong_tangent, beta57 and a request's own sigma list are named schedules, bong_tangent's sigmas equal to the recorded ones at 8 and 50 steps and at denoise 0.72",
+          "status": "open",
+          "verify": "go test ./internal/sampling -count=1 -run '^TestBongTangentEqualsTheRecordedSigmas$'",
+          "files": [
+            "internal/sampling",
+            "internal/latentimage"
+          ],
+          "rationale": "The owner decided on 2026-11-05 that bong_tangent becomes a named schedule. It is built from its formula, not translated from RES4LYF's Python: two arctangent segments, from 1.0 to 0.5 and from 0.5 to 0.0, joined near the step pivot; pivots 0.6 and slopes 0.2, the slopes scaled by steps / 40; steps + 2 points with the joining point counted once; no flow shift, so MOSS's shift of 5 does not apply. Its provenance note names RES4LYF and its licence, AGPL-3.0 with a clause against use in a commercial AI image service without the author's licence, which binds overgo if it is ever offered as such a service. beta57 is the beta schedule at alpha 0.5, beta 0.7, from its paper. A request may carry its own sigmas, as ComfyUI's custom sigmas allow.\n\nServes: setup-steps for the turbo and image-to-image sections.\nDisappears: nothing.\nEvidence: bong_tangent's sigmas equal the recorded ones exactly at 8 and 50 steps and at the image-to-image denoise of 0.72.\nBatch: host lane.",
+          "depends_on": [
+            "comfy-recorder/record",
+            "sampling-split/interface"
+          ]
+        },
+        {
+          "id": "er-sde",
+          "title": "ER-SDE (three-stage) is written from arXiv 2309.06169, its fresh noise drawn as torch's CUDA generator draws it",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/sampling ./internal/torchrng -count=1 -run '^TestERSDEDrawsNoiseAsTorchDoes$'",
+          "files": [
+            "internal/sampling",
+            "internal/torchrng",
+            "internal/latentimage"
+          ],
+          "needs_card": true,
+          "rationale": "The workflow's turbo row and ComfyUI's MOSS template (25 steps at guidance 2.5) use er_sde, which in ComfyUI is a GPL implementation of a public paper, so overgo writes it from the paper. Its fresh noise each step comes from torch's CUDA generator seeded from the request; overgo's internal/torchrng already reproduces CUDA Philox draws for Krea and SenseNova, so what remains is the order of consecutive draws from one generator. MOSS's 25-step preset lands as data once this exists.\n\nServes: first-output (the 25-step preset halves MOSS's passes), held-out-quality.\nDisappears: nothing.\nEvidence: noise draws equal torch's for the golden shapes, and the turbo section meets its latent floor.\nBatch: device lane.",
+          "depends_on": [
+            "moss-ultra-sections/schedules"
+          ]
+        },
+        {
+          "id": "img2img",
+          "title": "Image to image follows ComfyUI's denoise rule: a schedule for steps / denoise keeping its last steps + 1 values, started from noise times sigma0 plus (1 - sigma0) times the encoded latent",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestImageToImageMeetsItsSectionFloor$'",
+          "files": [
+            "internal/latentimage",
+            "internal/media"
+          ],
+          "needs_card": true,
+          "rationale": "The source is resized to the canvas (lanczos, centre crop) and encoded with the workflow's VAE; the MOSS VAE file holds the encoder (106 encoder tensors, checked locally), so no download.\n\nServes: a capability MOSS lacks.\nDisappears: nothing.\nEvidence: the image-to-image section's final latent meets its golden floor.\nBatch: device lane.",
+          "depends_on": [
+            "moss-ultra-sections/schedules"
+          ]
+        },
+        {
+          "id": "depth",
+          "title": "Depth Anything V2 Small runs on internal/vitencoder with a DPT head, its depth map within one 8-bit level of the recorded one",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/vitencoder -count=1 -run '^TestDepthMapIsWithinOneLevelOfTheRecordedOne$'",
+          "files": [
+            "internal/vitencoder",
+            "internal/pytorchzip",
+            "internal/media"
+          ],
+          "needs_card": true,
+          "rationale": "The owner decided on 2026-11-05 that the workflow's depth estimator is built in overgo. depth_anything_v2_vits.pth is read with internal/pytorchzip. Its encoder is DINOv2 ViT-S/14 without registers, so its options are added to internal/vitencoder and no second ViT is written; the DPT head is written from the Depth Anything V2 paper and its Apache-2.0 code. Pre- and post-processing follow the workflow's DepthAnythingV2Preprocessor from comfyui_controlnet_aux (Apache-2.0): resolution 512, a size that is a multiple of 14, scaling to 8 bits, white for near.\n\nServes: a capability of its own, depth from any image, which vace-control's depth mode reuses.\nDisappears: nothing.\nEvidence: overgo's depth map is within one 8-bit level of the recorded one.\nBatch: device lane.",
+          "depends_on": [
+            "comfy-recorder/record"
+          ]
+        },
+        {
+          "id": "depth-control",
+          "title": "Depth control concatenates the VAE-encoded, normalised map times strength to the noise channels for the first half of sigma, through the control adapter's widened input layer",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestDepthControlMeetsItsSectionFloor$'",
+          "files": [
+            "internal/latentimage"
+          ],
+          "needs_card": true,
+          "rationale": "The map comes from overgo's depth estimator or from an image the request supplies; it is encoded with the VAE, given the Flux2 latent normalisation, resized bilinearly to the latent size, and concatenated as [zeros | depth] x strength to the noise channels for the first 50% of sigma.\n\nServes: a capability MOSS lacks.\nDisappears: nothing.\nEvidence: the depth section meets its golden floor.\nBatch: device lane.",
+          "depends_on": [
+            "moss-ultra-sections/depth",
+            "media-lora/unmerged"
+          ]
+        },
+        {
+          "id": "prompt-modes",
+          "title": "Prompt mode 2's enhancer and mode 3's boxes run as typed Go, the cleaned negative and the layout string equal to ComfyUI's",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestPromptModesTwoAndThreeEqualTheRecordedStrings$'",
+          "files": [
+            "internal/latentimage",
+            "internal/workflowruntime"
+          ],
+          "needs_card": true,
+          "rationale": "The recorder reads the enhancer's system prompts and request templates out of the workflow file as data. Sampling follows the workflow: temperature 0.7, top-k 20, top-p 0.8, presence penalty 1.5, seed 0, thinking off. The 450-word test with one retry, the negative written from the final positive, the photo-or-other choice and the negative clean-up are Go string code, not regular expressions. Mode 3 converts 0 to 1000 boxes to centred-pixel yxyx layout JSON, which overgo already validates.\n\nServes: capabilities MOSS lacks.\nDisappears: nothing.\nEvidence: given the same generated text, the cleaned negative equals ComfyUI's string exactly; the generated text is held token for token under greedy decoding; sampled text is compared only through the image; mode 3's layout equals the recorded string.\nBatch: device lane.",
+          "depends_on": [
+            "moss-ultra-import/encoder"
+          ]
+        },
+        {
+          "id": "finishing",
+          "title": "Sharpening (radius 1, sigma 0.6, amount 0.7) is within one 8-bit level of the recorded image, and the aspect-and-megapixel size rounds to exactly the recorded width and height",
+          "status": "open",
+          "verify": "go test ./internal/media -count=1 -run '^TestFinishingMatchesTheRecordedImage$'",
+          "files": [
+            "internal/media",
+            "internal/latentimage"
+          ],
+          "rationale": "The workflow sharpens its output and sizes its canvas from an aspect ratio and a megapixel count rounded to 32.\n\nServes: setup-steps for moss-ultra-compare.\nDisappears: nothing.\nEvidence: the sharpened image is within one 8-bit level of the recorded one, and every recorded size is reproduced exactly.\nBatch: host lane.",
+          "depends_on": [
+            "comfy-recorder/record"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "moss-ultra-compare",
+      "title": "overgo on the Ultra workflow's models is held to the golden per section, and overgo's MOSS-Image-SFT runs the same sections as a measured band",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 250,
+        "reason": "Estimate before the survey: per-section agreement on the adaptiveparity shape, the speed cells, and six workbench presets as data."
+      },
+      "steps": [
+        {
+          "id": "golden-floor",
+          "title": "Each section and prompt mode's final latent and image agree with the golden above a floor, and the workflow-size run records time per step, total and peak memory against ComfyUI's",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/adaptiveparity -count=1 -run '^TestUltraSectionsHoldTheirGoldenFloors$'",
+          "files": [
+            "internal/adaptiveparity",
+            "fixtures/comfy",
+            "cmd/validate"
+          ],
+          "needs_card": true,
+          "rationale": "Agreement is in dB over squares, the shape internal/adaptiveparity already uses for Krea (fixtures/krea/own_picture.json): a floor set from the first measured run less a margin. Once, at the workflow's own size, overgo and ComfyUI are timed on the same card and recorded as media cells.\n\nServes: held-out-quality (agreement), first-output and peak-device-memory against ComfyUI on the same files.\nDisappears: nothing.\nEvidence: one device test per section, broken below its floor.\nBatch: device lane.",
+          "depends_on": [
+            "moss-ultra-sections/img2img",
+            "moss-ultra-sections/er-sde",
+            "moss-ultra-sections/depth-control",
+            "moss-ultra-sections/prompt-modes",
+            "moss-ultra-sections/finishing",
+            "media-lora/unmerged"
+          ]
+        },
+        {
+          "id": "sft-band",
+          "title": "MOSS-Image-SFT with the official encoder runs every section, DMD2 and the control adapter applied to it, its agreement with the golden recorded as a band",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/adaptiveparity -count=1 -run '^TestServedMossCompletesEveryUltraSection$'",
+          "files": [
+            "internal/adaptiveparity",
+            "internal/latentimage"
+          ],
+          "needs_card": true,
+          "rationale": "The owner's plan of 2026-11-05 keeps the golden on the workflow's models and adds a separate check that the model overgo already serves works in the workflow. Mode 2's enhancer runs on a served Qwen3.5-9B. The weights differ, and the 50-step golden is Base without SFT, so agreement is reported as a band, not held to the golden's floor.\n\nServes: held-out-quality for the served model.\nDisappears: nothing.\nEvidence: every section and mode completes on SFT, with its band recorded.\nBatch: device lane.",
+          "depends_on": [
+            "moss-ultra-compare/golden-floor"
+          ]
+        },
+        {
+          "id": "workbench",
+          "title": "Six workbench presets, one per section, take their values from the recorded settings, with sampler, schedule, denoise, adapter, depth preview, size, box editor, enhance, A/B and sharpen controls",
+          "status": "open",
+          "verify": "go test ./internal/server -count=1 -run '^TestTheWorkbenchOffersTheUltraPresets$'",
+          "files": [
+            "internal/server",
+            "fixtures/comfy"
+          ],
+          "rationale": "The workflow review (C:/Users/jeffm/Downloads/MOSS workflow review.md) lists the controls a user needs to run the sections from overgo's workbench. The presets are read from the recorded settings as data.\n\nServes: setup-steps for a user.\nDisappears: nothing.\nEvidence: the workbench lists six presets whose values equal the recorded settings, each offering the listed controls.\nBatch: host lane.",
+          "depends_on": [
+            "moss-ultra-compare/golden-floor"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "eight-bit-attention",
+      "title": "An 8-bit flash-attention kernel for sm_89, INT8 QK and FP8 PV with two-level FP16 accumulation, served as an opt-in preset per model and admitted by its held-out suite",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 400,
+        "reason": "Estimate before the survey: the kernel's binding, quantisation of Q and K, and the presets in Go; the kernel itself is CUDA source, counted in lines."
+      },
+      "steps": [
+        {
+          "id": "kernel",
+          "title": "The kernel's output is within a tolerance declared first of the FP32 attention reference over the shapes Wan, Krea, MOSS and SenseNova use",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test -tags modeltest ./internal/cuda/executor -count=1 -run '^TestEightBitAttentionMatchesTheReferenceWithinItsTolerance$'",
+          "files": [
+            "kernels",
+            "internal/cuda"
+          ],
+          "needs_card": true,
+          "rationale": "SageAttention2's algorithm (arXiv 2411.10958; SageAttention2++ arXiv 2505.21136; Apache-2.0): Q and K quantised to INT8 per thread with K smoothed by its mean, P and V in FP8 with FP16 accumulation in two levels, written in FlashAttention-2-style mma.sync for sm_89. FlashAttention-3 is Hopper-only and SageAttention3 is Blackwell FP4, so neither applies. About 3x the attention kernel on a 4090; the 4090 D has 114 SMs to the 4090's 128, so about 0.89 of that.\n\nServes: first-output.\nDisappears: nothing.\nEvidence: the kernel's output is within the declared tolerance of the FP32 reference over each model's shapes.\nBatch: device lane."
+        },
+        {
+          "id": "wan",
+          "title": "Wan's 50-step path and the student run with 8-bit attention as a preset, read on the user-size cell and the 128-clip suite by a per-case sign test",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestWanEightBitAttentionPresetIsReadAgainstItsSuite$'",
+          "files": [
+            "internal/latentvideo",
+            "internal/cuda"
+          ],
+          "needs_card": true,
+          "rationale": "Self-attention is about 70% of a 32,760-token Wan pass, so the kernel's gain mostly reaches the clip: an estimated 1.5 to 1.9x end to end. A community measurement of Wan 2.1 on a 4090 went from 33.40 s an iteration with SDPA to 18.22 with SageAttention2 at FP16 accumulation. Field reports are mixed: one 4090 user saw no gain and another found it degrades Wan 2.2, so it is admitted only on the suite.\n\nServes: first-output.\nDisappears: nothing.\nEvidence: the preset's user-size time and its sign test against the reference on the 128-clip suite are recorded.\nBatch: device lane.",
+          "depends_on": [
+            "eight-bit-attention/kernel",
+            "media-user-size/user-size"
+          ]
+        },
+        {
+          "id": "images",
+          "title": "Krea-2-Turbo at 2048 x 2048, MOSS and SenseNova gain the 8-bit attention preset, each read on its suite",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestImageEightBitAttentionPresetsAreReadAgainstTheirSuites$'",
+          "files": [
+            "internal/latentimage",
+            "internal/cuda"
+          ],
+          "needs_card": true,
+          "rationale": "Attention is about 34% of Krea's FLOPs at 2048 x 2048, about 47% of MOSS's 552.8 s run at that size, and about 16% of SenseNova's over its prefix and image span.\n\nServes: first-output at large sizes.\nDisappears: nothing.\nEvidence: each preset's time and sign test are recorded.\nBatch: device lane.",
+          "depends_on": [
+            "eight-bit-attention/kernel",
+            "quality-instruments/soft-tifa"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "w8a8-gemm",
+      "title": "FP8 and INT8 W8A8 matrix products with fused epilogues, weights quantized at load from the published files, first on Krea-2-Turbo",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 500,
+        "reason": "Estimate before the survey: load-time quantisation with per-channel scales, per-token activation scales, the Hadamard-rotated INT8 path, and the presets; kernels are CUDA source, counted in lines."
+      },
+      "steps": [
+        {
+          "id": "fp8",
+          "title": "An FP8 E4M3 W8A8 product with per-channel weight scales and per-token activation scales is within a declared tolerance of BF16",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test -tags modeltest ./internal/cuda/executor -count=1 -run '^TestFP8W8A8MatchesBF16WithinItsTolerance$'",
+          "files": [
+            "kernels",
+            "internal/cuda"
+          ],
+          "needs_card": true,
+          "rationale": "On a GeForce Ada card BF16 with FP32 accumulation runs at 165 TFLOPS, FP8 E4M3 with FP32 accumulation at 330, and INT8 at about 560 TOPS measured with cuBLASLt. overgo already serves gemma-4-12B in native FP8, so FP8 kernels it already has are reused where they fit. Models are served from their tensors as published, so FP8 weights are made at load from the published BF16 files and never stored as a converted copy.\n\nServes: first-output and peak-device-memory for the presets below.\nDisappears: nothing.\nEvidence: the product is within the declared tolerance of BF16 over each model's linear shapes.\nBatch: device lane."
+        },
+        {
+          "id": "krea",
+          "title": "Krea-2-Turbo gains an FP8 preset, an estimated 1.6 to 1.8x a step and peak memory from 25.0 to about 15 GiB, read on its 415-prompt suite",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestKreaFP8PresetIsReadAgainstItsSuite$'",
+          "files": [
+            "internal/latentimage",
+            "internal/cuda"
+          ],
+          "needs_card": true,
+          "rationale": "Krea is a 12B single-stream DiT (28 layers, width 6144, GQA 48/12 heads, gated FFN 16384); linear layers are about 89% of its FLOPs at 1024 x 1024. FP8 alone gave FLUX.1-dev 1.96x end to end on an Ada L20. ComfyUI recommends its fp8-scaled Krea build for most users and warns that its fast FP8 paths can degrade quality, so the suite is the gate. FP8 Krea also lets Krea and MOSS stay resident together.\n\nServes: first-output, peak-device-memory.\nDisappears: nothing; the BF16 reference stays.\nEvidence: the preset's user-size time, peak memory and sign test against the reference are recorded.\nBatch: device lane.",
+          "depends_on": [
+            "w8a8-gemm/fp8",
+            "media-user-size/user-size",
+            "quality-instruments/soft-tifa"
+          ]
+        },
+        {
+          "id": "int8-convrot",
+          "title": "MOSS Base's ConvRot weights compute in INT8, activations rotated by the same Hadamard groups and quantized per row, held to the decoded BF16 result within a declared tolerance",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestConvRotComputesInEightBits$'",
+          "files": [
+            "kernels",
+            "internal/cuda",
+            "internal/latentimage"
+          ],
+          "needs_card": true,
+          "rationale": "moss-ultra-import decodes ConvRot weights to BF16 at load. Computing in 8 bits keeps the file's 5.41 GB on the card instead of about 10.8 GB and runs at INT8's rate, twice FP8's FP32-accumulate rate on GeForce.\n\nServes: first-output, peak-device-memory.\nDisappears: nothing.\nEvidence: the INT8 product is within the declared tolerance of the decoded BF16 result, and the Ultra sections still meet their floors.\nBatch: device lane.",
+          "depends_on": [
+            "w8a8-gemm/fp8",
+            "moss-ultra-import/convrot"
+          ]
+        },
+        {
+          "id": "others",
+          "title": "MOSS-Image-SFT, SenseNova's generation tower and Wan's linears gain the FP8 preset, each read on its suite",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage ./internal/latentvideo -count=1 -run '^TestFP8PresetsAreReadAgainstTheirSuites$'",
+          "files": [
+            "internal/latentimage",
+            "internal/latentvideo",
+            "internal/cuda"
+          ],
+          "needs_card": true,
+          "rationale": "Estimated about 1.5 to 1.7x a step for MOSS; about 1.6x a pass for SenseNova's generation tower, whose 35 GB of BF16 weights fall to about 17.5 GB with both towers resident; only 1.1 to 1.3x for Wan at full size, where attention dominates.\n\nServes: first-output, peak-device-memory.\nDisappears: nothing.\nEvidence: each preset's time, peak memory and sign test are recorded.\nBatch: device lane.",
+          "depends_on": [
+            "w8a8-gemm/krea"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "step-cache",
+      "title": "The 50-step models skip steps by MagCache's magnitude ratio, and LiveEdit recomputes attention only where its edit changed the latent, each a preset admitted by its suite",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 350,
+        "reason": "Estimate before the survey: a residual cache with an accumulated error bound in the sampler interface, and LiveEdit's token mask in its attention."
+      },
+      "steps": [
+        {
+          "id": "magcache",
+          "title": "MagCache skips steps on Wan's 50-step path, MOSS, SenseNova and RAE where its accumulated error estimate stays under a declared bound",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo ./internal/latentimage -count=1 -run '^TestMagCacheSkipsOnlyUnderItsErrorBound$'",
+          "files": [
+            "internal/sampling",
+            "internal/latentvideo",
+            "internal/latentimage",
+            "internal/rae"
+          ],
+          "needs_card": true,
+          "rationale": "MagCache (arXiv 2506.09045, Apache-2.0) reuses the last residual while the residual magnitude ratio predicts little error: Wan 1.3B went from about 189 s to 68 s on an A800, and 2.10 to 2.68x across video DiTs; First-Block Cache gave 1.55 to 1.91x on FLUX on an Ada L20. Caches exploit similarity between adjacent steps, which few-step students lack, so the cache is not offered on Krea, LiveEdit or the Wan student and never stacked on distillation.\n\nServes: first-output.\nDisappears: nothing.\nEvidence: the cache skips only steps whose accumulated estimate stays under the bound, and each preset's time and sign test are recorded.\nBatch: device lane.",
+          "depends_on": [
+            "sampling-split/interface",
+            "media-user-size/user-size",
+            "quality-instruments/soft-tifa"
+          ]
+        },
+        {
+          "id": "liveedit-mask",
+          "title": "LiveEdit recomputes self-attention only for tokens whose source and edited latents differ, its feed-forward kept dense, read on its 64-clip suite",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestLiveEditMaskCacheKeepsTheFeedForwardDense$'",
+          "files": [
+            "internal/latentvideo"
+          ],
+          "needs_card": true,
+          "rationale": "LiveEdit's paper (arXiv 2606.26740) prunes 70% of spatial tokens from self-attention at small cost: dynamic degree 0.282 to 0.256, imaging quality 0.720 to 0.708, text alignment 0.265 to 0.270. Caching the feed-forward too collapses quality, so it stays dense. overgo's latentvideo has no such path.\n\nServes: first-output.\nDisappears: nothing.\nEvidence: the masked preset recomputes attention only for changed tokens, and its sign test on the 64-clip suite is recorded.\nBatch: device lane.",
+          "depends_on": [
+            "media-user-size/stages"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "video-decode-overlap",
+      "title": "The causal video VAE decodes chunk k on a second stream while chunk k + 1 denoises",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 250,
+        "reason": "Estimate before the survey: a second stream and an event per chunk in the chunked runtime; the causal VAE's per-chunk feature cache exists."
+      },
+      "steps": [
+        {
+          "id": "overlap",
+          "title": "Decoding overlaps denoising chunk by chunk, the output bytes unchanged",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestDecodeOverlapsDenoisingChunkByChunk$'",
+          "files": [
+            "internal/latentvideo",
+            "internal/cuda"
+          ],
+          "needs_card": true,
+          "rationale": "LiveEdit pays the VAE twice, encode and decode, and the Wan student decodes the same way chunk by chunk. The causal VAE keeps a per-chunk feature cache, so chunk k can decode while chunk k + 1 denoises, hiding most of the decode behind the network. The kernels are unchanged, so the frames are bit-identical.\n\nServes: first-output for LiveEdit and the Wan student.\nDisappears: decode time added after the last denoise.\nEvidence: the frames are bit-identical to the sequential decode, and the user-size cell's decode stage shrinks.\nBatch: device lane.",
+          "depends_on": [
+            "media-user-size/stages"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "light-vae",
+      "title": "LightVAE decodes final video and TAEW2.1 previews steps, each its own model beside the Wan VAE",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 300,
+        "reason": "Estimate before the survey: two decoder configurations of the existing Wan VAE code paths, their imports, and a preview hook."
+      },
+      "steps": [
+        {
+          "id": "decoders",
+          "title": "LightVAE and TAEW2.1 decode Wan latents, LightVAE read against the Wan VAE on its 128-clip reconstruction suite",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestLightVAEIsReadAgainstTheWanVAE$'",
+          "files": [
+            "internal/latentvideo",
+            "internal/modelrecipe",
+            "local-models.json"
+          ],
+          "needs_card": true,
+          "rationale": "lightx2v's LightVAE (Apache-2.0) is the Wan VAE pruned by 75% and distilled: on an H100 it encodes in 1.50 s against 4.17 s and decodes in 2.07 s against 5.46 s, rated close to official. TAEW2.1 (MIT, about 0.02 GB) decodes far faster with visible loss of detail, so it serves step previews only. Every model is kept: the Wan VAE stays the reference decoder. Their sizes are read before download (decision light-vae-download).\n\nServes: first-output (encode and decode count twice for LiveEdit), and previews.\nDisappears: nothing.\nEvidence: LightVAE's PSNR on the 128-clip suite and its decode time are recorded beside the Wan VAE's 41.4 dB.\nBatch: device lane.",
+          "depends_on": [
+            "video-decode-overlap/overlap"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "stage-cache",
+      "title": "Every media stage's output is keyed by operation, version, constants and inputs in the store, and step previews come from a Latent2RGB projection fitted to overgo's own decodes",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 500,
+        "reason": "Estimate before the survey: a content key over each stage's inputs in the store, the pre-decode latent as a stored stage, and a fitted 3 x C projection per latent format."
+      },
+      "steps": [
+        {
+          "id": "keys",
+          "title": "Text conditioning, an encoded source video, a sigma table and the latent before decode are stored under content keys and survive a restart, so a changed decode or preview size never denoises again",
+          "status": "open",
+          "verify": "go test ./internal/media -count=1 -run '^TestAChangedDecodeReusesTheStoredLatent$'",
+          "files": [
+            "internal/media",
+            "internal/latentvideo",
+            "internal/latentimage",
+            "internal/overgodb"
+          ],
+          "rationale": "ComfyUI keys each node's output by its class, its change marker and its sorted inputs with every ancestor appended in a fixed order, so editing one input reruns only what follows it (taken from its description, not its code). overgo can go further: its Philox counter noise and pinned kernels make a stage's output a function of its inputs, so hits persist across restarts in the content-addressed store, which ComfyUI cannot do.\n\nServes: first-output on re-runs.\nDisappears: re-denoising to change a decode, tiling or preview size.\nEvidence: a second request differing only in decode settings runs no denoising step, and a restart keeps the hit.\nBatch: host lane.",
+          "depends_on": [
+            "umt5-resident/cache"
+          ]
+        },
+        {
+          "id": "latent2rgb",
+          "title": "Each latent format's 3 x C preview projection is fitted by least squares to overgo's own VAE decodes, and the workbench shows a preview each step",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/media -count=1 -run '^TestFittedLatentPreviewTracksTheDecode$'",
+          "files": [
+            "internal/media",
+            "internal/server",
+            "internal/latentvideo",
+            "internal/latentimage"
+          ],
+          "needs_card": true,
+          "rationale": "ComfyUI's step previews are a linear projection of the latent by per-format factors plus a bias, frame 0 for video. overgo fits its own projection against its own decodes, which needs no download and raises no licence question.\n\nServes: perceived first-output in the workbench.\nDisappears: waiting for the decode to see anything.\nEvidence: the fitted projection's preview correlates with the full decode above a recorded floor for each latent format.\nBatch: device lane."
+        }
+      ]
+    },
+    {
+      "id": "prompt-expander",
+      "title": "Local Qwen models rewrite prompts for Wan, Krea and SenseNova and turn casual requests into MOSS's layout JSON, each scored against the user's original",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 250,
+        "reason": "Estimate before the survey: an enhance toggle per generator calling a served Qwen model with each author's expansion template, and the layout planner's schema prompt."
+      },
+      "steps": [
+        {
+          "id": "rewrite",
+          "title": "An enhance toggle rewrites a Wan, Krea or SenseNova prompt through a served Qwen model, off for MOSS layout prompts",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/workflowruntime -count=1 -run '^TestTheEnhancerRewritesThroughAServedQwen$'",
+          "files": [
+            "internal/workflowruntime",
+            "internal/server"
+          ],
+          "needs_card": true,
+          "rationale": "Every model's authors ship an LLM prompt expander: Wan's prompt extend, Krea's prompt enhance, MOSS's enhancer and SenseNova's enhance. overgo serves Qwen3.5-9B and Qwen3.8 itself, so the toggle needs no download. It stays off for MOSS layout prompts, where the enhancer can drop the boxes.\n\nServes: held-out-quality, scored against the original prompt.\nDisappears: nothing.\nEvidence: an enhanced request's prompt is rewritten by the served model and its picture is scored against the user's original.\nBatch: device lane.",
+          "depends_on": [
+            "quality-instruments/original-prompt"
+          ]
+        },
+        {
+          "id": "layout",
+          "title": "A casual request becomes a valid MOSS layout through a served Qwen model",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/workflowruntime -count=1 -run '^TestACasualRequestBecomesAValidMossLayout$'",
+          "files": [
+            "internal/workflowruntime",
+            "internal/latentimage"
+          ],
+          "needs_card": true,
+          "rationale": "MOSS's paper (arXiv 2610.23374) describes an agentic prompt-enhancement module that turns a request into its JSON layout schema, which overgo already validates.\n\nServes: a layout mode from casual requests.\nDisappears: hand-written layout JSON as the only way to use it.\nEvidence: casual requests produce layouts the existing validator accepts.\nBatch: device lane.",
+          "depends_on": [
+            "prompt-expander/rewrite"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sensenova-edit",
+      "title": "SenseNova V3 edits images from the weights on disk, and its text prefix's key-value cache is kept across requests",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 600,
+        "reason": "Estimate before the survey: a prefix cache keyed by prompt, source images entering as pixel patches, an image-guidance branch, and a judged edit suite."
+      },
+      "steps": [
+        {
+          "id": "prefix-cache",
+          "title": "A repeated prompt and the empty negative prompt reuse their prefix key-value cache",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestSenseNovaReusesItsPrefixCache$'",
+          "files": [
+            "internal/latentimage",
+            "internal/sensenovarecipe"
+          ],
+          "needs_card": true,
+          "rationale": "SenseNova's generation reads a fixed text prefix whose key-value cache the understanding tower fills (its inference_infra notes). A repeated prompt and the empty negative prompt can keep theirs.\n\nServes: first-output on repeats.\nDisappears: prefill on a repeated prompt.\nEvidence: a repeated request fills no prefix, and its output is bit-identical.\nBatch: device lane."
+        },
+        {
+          "id": "edit",
+          "title": "SenseNova V3 edits text, content, style and layout from source images through an image-guidance branch, scored by a judged edit suite",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage ./internal/evaluation -count=1 -run '^TestSenseNovaEditsThroughItsImageGuidance$'",
+          "files": [
+            "internal/latentimage",
+            "internal/sensenovarecipe",
+            "internal/evaluation"
+          ],
+          "needs_card": true,
+          "rationale": "V3's editing is already in its weights: its card reports GEdit-Bench 7.89 and WeEdit 5.89, first among open models, with image guidance 1.0 and sides that are multiples of 32. SenseNova has no VAE, so the source image enters as pixel patches through the same patch embedding, and the engine adds an image-guidance branch.\n\nServes: a capability overgo lacks, with no download.\nDisappears: nothing.\nEvidence: edits run through the image-guidance branch, and the judged edit suite records V3's score.\nBatch: device lane.",
+          "depends_on": [
+            "quality-instruments/soft-tifa"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "image-edit",
+      "title": "Krea-2-Turbo runs image to image, and Krea and MOSS inpaint and outpaint, through their local VAE encoders",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 400,
+        "reason": "Estimate before the survey: Krea's VAE encoder on the Wan encoder kernels, and mask blending per step in the image sampler."
+      },
+      "steps": [
+        {
+          "id": "krea-encoder",
+          "title": "Krea's Qwen-Image VAE encodes through the Wan encoder kernels, held to a golden of its encoder",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestKreaVAEEncodesAsItsReferenceDoes$'",
+          "files": [
+            "internal/latentimage",
+            "internal/latentvideo",
+            "fixtures/krea"
+          ],
+          "needs_card": true,
+          "rationale": "Krea's VAE file holds its encoder (84 encoder tensors, checked locally) in a Wan-2.1-style causal 3D configuration, and is 507.6 MB, the size of Wan2.1_VAE.pth, which overgo already encodes with for LiveEdit (EncodeSourceVideo in internal/latentvideo/source_codec.go). The Wan encoder kernels very likely apply; this is unverified.\n\nServes: setup-steps for image to image and inpainting on Krea.\nDisappears: nothing.\nEvidence: the encoded latent agrees with a golden of Krea's own encoder above a floor.\nBatch: device lane."
+        },
+        {
+          "id": "inpaint",
+          "title": "Krea runs image to image, and Krea and MOSS inpaint and outpaint by noising the source and blending the mask at each step",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestInpaintKeepsTheUnmaskedRegion$'",
+          "files": [
+            "internal/latentimage",
+            "internal/sampling"
+          ],
+          "needs_card": true,
+          "rationale": "Both models were trained for generation, not editing, so SDEdit-style noising and per-step mask blending give moderate quality; it is offered as a capability with its quality recorded, not as an editing model.\n\nServes: capabilities Krea and MOSS lack, with no download.\nDisappears: nothing.\nEvidence: the unmasked region's latent stays within a declared tolerance of the source, and a judged edit score is recorded.\nBatch: device lane.",
+          "depends_on": [
+            "image-edit/krea-encoder",
+            "moss-ultra-sections/img2img"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "rae-small-models",
+      "title": "RAE and SimpleDiffusion run their whole sampler as one CUDA graph with a multistep solver, and RAE reports FD-DINOv2 beside FID",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 400,
+        "reason": "Estimate before the survey: graph capture of the sampler loop, fused norm, activation and RoPE launches, batched images, DPM-Solver++ 2M in the sampler interface, and FD-DINOv2 on the native DINOv2."
+      },
+      "steps": [
+        {
+          "id": "fd-dinov2",
+          "title": "RAE's quality reading reports FD-DINOv2 beside FID",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/rae ./internal/evaluation -count=1 -run '^TestRAEReportsFDDinoBesideFID$'",
+          "files": [
+            "internal/rae",
+            "internal/evaluation",
+            "internal/vitencoder"
+          ],
+          "needs_card": true,
+          "rationale": "Inception features under-rate diffusion models (Stein et al., arXiv 2306.04675), and DINOv2 is already native in overgo, so FD-DINOv2 costs no download.\n\nServes: held-out-quality for RAE.\nDisappears: FID as RAE's only reading.\nEvidence: RAE's record holds both distances on the same samples.\nBatch: device lane."
+        },
+        {
+          "id": "graph",
+          "title": "The RAE and SimpleDiffusion samplers run as one captured CUDA graph with fused norm, activation and RoPE kernels and several images a batch",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/rae ./internal/diffusionimage -count=1 -run '^TestTheSmallSamplersRunAsOneGraph$'",
+          "files": [
+            "internal/rae",
+            "internal/diffusionimage",
+            "internal/cuda",
+            "kernels"
+          ],
+          "needs_card": true,
+          "rationale": "RAE's DiT-DH-XL works on 256 tokens a 256 x 256 image, and SimpleDiffusion runs in 0.85 s at 0.56 GB: both are bound by kernel launches and fixed overhead, not FLOPs, so quantisation would not help them.\n\nServes: first-output.\nDisappears: per-step launch overhead.\nEvidence: the captured sampler's output is bit-identical to the launched one, and its time is recorded.\nBatch: device lane."
+        },
+        {
+          "id": "solver",
+          "title": "DPM-Solver++ 2M runs RAE and SimpleDiffusion at 10 to 20 passes, read at equal passes against the 50-step Euler ODE",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/rae -count=1 -run '^TestMultistepSolverIsReadAtEqualPasses$'",
+          "files": [
+            "internal/sampling",
+            "internal/rae",
+            "internal/diffusionimage"
+          ],
+          "needs_card": true,
+          "rationale": "At low pass counts deterministic multistep solvers beat Euler: DPM-Solver++ 2M reaches FID 4.31 at 10 NFE on VP ImageNet-256 (arXiv 2404.14507). The solver comes from k-diffusion (MIT). That evidence is from other models, so it is compared at equal passes on overgo's own reading.\n\nServes: first-output, held-out-quality.\nDisappears: nothing; the reference preset stays.\nEvidence: the solver preset's FID and FD-DINOv2 at 10 and 20 passes are recorded beside the 50-step reference.\nBatch: device lane.",
+          "depends_on": [
+            "sampling-split/interface",
+            "rae-small-models/fd-dinov2"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "rae-autoguidance",
+      "title": "RAE samples DiTDH-XL guided by the local DiTDH-S at scale 1.5, plain guidance applied only inside an interval",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 200,
+        "reason": "Estimate before the survey: a second model inside the guider, which sampling-split provides, and the XL checkpoint's import."
+      },
+      "steps": [
+        {
+          "id": "autoguidance",
+          "title": "DiTDH-XL with DiTDH-S epoch 20 as its AutoGuidance guide reaches its paper's quality on RAE's reading",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/rae -count=1 -run '^TestRAEAutoGuidanceIsReadAgainstItsPaper$'",
+          "files": [
+            "internal/rae",
+            "internal/sampling",
+            "local-models.json"
+          ],
+          "needs_card": true,
+          "rationale": "RAE is served with no guidance. Its served recipe names the DiTDH-S epoch-20 checkpoint (internal/rae/recipes/sampler.json), which is the paper's default AutoGuidance guide; the paper's best result pairs it with DiTDH-XL at scale 1.5: gFID 1.51 to 1.13 at 256 x 256 (arXiv 2510.11690). The paper also finds plain guidance helps RAE only inside an interval, and from step 1 it raises FID. DiTDH-XL is downloaded once its size and licence are read (decision rae-xl-download).\n\nServes: held-out-quality.\nDisappears: nothing; the unguided recipe stays.\nEvidence: the guided preset's FID and FD-DINOv2 are recorded beside the unguided recipe's.\nBatch: device lane.",
+          "depends_on": [
+            "sampling-split/interface",
+            "rae-small-models/fd-dinov2"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "long-video",
+      "title": "LiveEdit edits past 81 frames through a rolling window and offers an offline bidirectional mode from its local checkpoint, and Wan generates long clips through context windows",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 400,
+        "reason": "Estimate before the survey: a sink-and-recent window with window-relative RoPE, the bidirectional checkpoint's profile, and overlapping context windows with a fused blend."
+      },
+      "steps": [
+        {
+          "id": "rolling",
+          "title": "LiveEdit edits clips longer than 81 frames through a window of 3 sink and 9 recent frames with window-relative RoPE",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestLiveEditEditsPastItsTrainingLength$'",
+          "files": [
+            "internal/latentvideo"
+          ],
+          "needs_card": true,
+          "rationale": "LiveEdit's released code runs long videos through a rolling window of 3 sink frames and 9 recent frames. Quality degrades past the training length, so it is measured on clips beyond 81 frames.\n\nServes: a capability overgo lacks, with no download.\nDisappears: the 81-frame limit.\nEvidence: a clip longer than 81 frames edits through the window, and its judged score is recorded by length.\nBatch: device lane."
+        },
+        {
+          "id": "offline",
+          "title": "LiveEdit's bidirectional checkpoint serves an offline quality mode, read on the 64-clip suite against the causal student",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestLiveEditOfflineModeIsReadAgainstTheStudent$'",
+          "files": [
+            "internal/latentvideo",
+            "local-models.json"
+          ],
+          "needs_card": true,
+          "rationale": "All three LiveEdit checkpoints are on disk (5.68 GB each). bid-diffusion_009200.pt edits the whole clip at about 25 times the student's cost (197 against 7.89 in the paper's stage table); the paper publishes no quality comparison between the stages, so the mode is measured.\n\nServes: held-out-quality where time does not matter.\nDisappears: nothing.\nEvidence: the offline mode's score and time on the 64-clip suite are recorded beside the causal student's.\nBatch: device lane."
+        },
+        {
+          "id": "wan-windows",
+          "title": "Wan generates clips of any length through context windows of 81 frames overlapping by 30, blended across the overlap",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestWanGeneratesThroughContextWindows$'",
+          "files": [
+            "internal/latentvideo",
+            "internal/sampling"
+          ],
+          "needs_card": true,
+          "rationale": "ComfyUI's WanContextWindowsManual runs context 81 (4n + 1) with overlap 30 and a pyramid blend, and one wrapper reports 1,025 frames under 5 GB on the 1.3B model. It is written from that description.\n\nServes: a capability overgo lacks.\nDisappears: the 81-frame limit for generation.\nEvidence: a clip longer than 81 frames generates through windows, and its judged score is recorded by length.\nBatch: device lane.",
+          "depends_on": [
+            "sampling-split/interface"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "wan-i2v",
+      "title": "Wan generates from a first frame and from first and last frames through Wan2.1-Fun-V1.1-1.3B-InP, with an open-CLIP ViT-H/14 image encoder",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 800,
+        "reason": "Estimate before the survey: a ViT-H/14 configuration of vitencoder, the InP model's widened patch embedding on LiveEdit's precedent, and its frame conditioning."
+      },
+      "steps": [
+        {
+          "id": "vit-h",
+          "title": "open-CLIP ViT-H/14 encodes images on internal/vitencoder, held to its reference",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/vitencoder -count=1 -run '^TestViTH14EncodesAsItsReferenceDoes$'",
+          "files": [
+            "internal/vitencoder",
+            "fixtures"
+          ],
+          "needs_card": true,
+          "rationale": "Official image to video for Wan exists only at 14B. Wan2.1-Fun-V1.1-1.3B-InP fills the gap: about 3.1 GB of transformer plus the 4.77 GB open-CLIP ViT-H/14, both Apache-2.0 (decision wan-i2v-download). The ViT is close to the DINOv2 path vitencoder serves.\n\nServes: setup-steps.\nDisappears: nothing.\nEvidence: image embeddings agree with a golden of the reference encoder above a floor.\nBatch: device lane."
+        },
+        {
+          "id": "i2v",
+          "title": "The InP model generates from a first frame and from first and last frames, reusing the local umT5 and VAE",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestWanFunGeneratesFromItsFrames$'",
+          "files": [
+            "internal/latentvideo",
+            "local-models.json"
+          ],
+          "needs_card": true,
+          "rationale": "Judging by matching file names and sizes, the Fun model reuses the local umT5 and VAE (unverified). overgo already has the parts it builds on: the Wan VAE encoder and LiveEdit's widened patch embedding.\n\nServes: the most-requested missing video mode.\nDisappears: nothing.\nEvidence: generations from a first frame and from two frames agree with an upstream golden above a floor, and a judged score is recorded.\nBatch: device lane.",
+          "depends_on": [
+            "wan-i2v/vit-h"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vace-control",
+      "title": "VACE-1.3B controls Wan by reference, mask, depth and pose, its depth from overgo's depth estimator",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 900,
+        "reason": "Estimate before the survey: the VACE module's context blocks beside the Wan DiT, its inputs for reference, mask, extension, depth and pose, and a DWPose port."
+      },
+      "steps": [
+        {
+          "id": "module",
+          "title": "VACE-1.3B's module runs on Wan 1.3B for reference, mask inpaint and outpaint, and extension",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestVACEModuleMatchesItsUpstreamGolden$'",
+          "files": [
+            "internal/latentvideo",
+            "local-models.json"
+          ],
+          "needs_card": true,
+          "rationale": "VACE-1.3B (Apache-2.0) adds reference, mask, extension and control modes to Wan 1.3B; its module is 1.47 GB (decision vace-download). Its annotators each carry their own licence: Depth-Anything-V2-Large is non-commercial, so depth comes from overgo's own Small estimator.\n\nServes: new video capabilities.\nDisappears: nothing.\nEvidence: each mode agrees with an upstream golden above a floor.\nBatch: device lane."
+        },
+        {
+          "id": "control",
+          "title": "VACE's depth mode takes overgo's depth estimator and its pose mode DWPose",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestVACEFollowsDepthAndPose$'",
+          "files": [
+            "internal/latentvideo",
+            "internal/vitencoder",
+            "internal/media"
+          ],
+          "needs_card": true,
+          "rationale": "moss-ultra-sections/depth builds depth from any image; VACE's depth mode reuses it per frame. DWPose (Apache-2.0, 0.13 to 0.41 GB a file) supplies pose.\n\nServes: new video capabilities.\nDisappears: nothing.\nEvidence: depth- and pose-controlled clips agree with upstream goldens above a floor.\nBatch: device lane.",
+          "depends_on": [
+            "vace-control/module",
+            "moss-ultra-sections/depth"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "video-finishing",
+      "title": "Real-ESRGAN upscales images, RIFE doubles a clip's frame rate, and FlashVSR upscales video in one step",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 1200,
+        "reason": "Estimate before the survey: three small networks (an RRDB upscaler, an optical-flow interpolator, and FlashVSR's projection and decoder on the Wan DiT and VAE overgo runs)."
+      },
+      "steps": [
+        {
+          "id": "esrgan",
+          "title": "Real-ESRGAN upscales SimpleDiffusion's 256 x 256 output and MOSS's images by 4, held to its reference",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/media -count=1 -run '^TestRealESRGANUpscalesAsItsReferenceDoes$'",
+          "files": [
+            "internal/media",
+            "local-models.json"
+          ],
+          "needs_card": true,
+          "rationale": "Real-ESRGAN (BSD-3) makes SimpleDiffusion's 256 x 256 output a usable size and adds 2 to 4 times the pixels to MOSS. SUPIR, CodeFormer and RMBG-2.0 are non-commercial and are not used.\n\nServes: a capability overgo lacks.\nDisappears: nothing.\nEvidence: upscaled images agree with a golden of the reference above a floor.\nBatch: device lane."
+        },
+        {
+          "id": "rife",
+          "title": "RIFE interpolates a 16 fps clip to 32 fps",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/media -count=1 -run '^TestRIFEInterpolatesAsItsReferenceDoes$'",
+          "files": [
+            "internal/media",
+            "local-models.json"
+          ],
+          "needs_card": true,
+          "rationale": "RIFE (MIT code) runs 2x interpolation at 720p above 30 fps on a 2080 Ti; Wan and LiveEdit output 16 fps. The weights' licence and size are read before download (decision finishing-downloads). GIMM-VFI is S-Lab non-commercial and is not used.\n\nServes: smoother motion for well under a second a clip.\nDisappears: nothing.\nEvidence: interpolated frames agree with a golden of the reference above a floor.\nBatch: device lane."
+        },
+        {
+          "id": "flashvsr",
+          "title": "FlashVSR v1.1 upscales Wan and LiveEdit clips in one step on the Wan DiT and VAE overgo runs",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestFlashVSRMatchesItsUpstreamGolden$'",
+          "files": [
+            "internal/latentvideo",
+            "local-models.json"
+          ],
+          "needs_card": true,
+          "rationale": "FlashVSR (Apache-2.0) is in the Wan2.1 lineage: a DMD DiT (5.68 GB), an LQ projection (0.58 GB) and a TC decoder (0.19 GB), 6.45 GB new, its Wan VAE already local; about 17 fps at 768 x 1408 on an A100. SeedVR2 is the deferred alternative, a new model family.\n\nServes: higher-resolution video.\nDisappears: nothing.\nEvidence: upscaled clips agree with an upstream golden above a floor.\nBatch: device lane.",
+          "depends_on": [
+            "video-decode-overlap/overlap"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "krea-pack",
+      "title": "Krea-2-Turbo gains seed-variance noise, attention-value prompt weighting and a best-of-4 preset picked by one judge and reported by another",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 350,
+        "reason": "Estimate before the survey: noise on a fraction of text-embedding values early in sampling, a per-token attention-value scale (also for MOSS), and a search preset."
+      },
+      "steps": [
+        {
+          "id": "seed-variance",
+          "title": "A seed-variance preset noises a fraction of Krea's text-embedding values in the first fifth of steps",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestSeedVarianceWidensKreasSamples$'",
+          "files": [
+            "internal/latentimage"
+          ],
+          "needs_card": true,
+          "rationale": "Distilled Krea-2-Turbo gives little variety across seeds. SeedVarianceEnhancer (MIT-0) noises a fraction of the text-embedding values in about the first 20% of steps.\n\nServes: held-out-quality (variety at equal fidelity).\nDisappears: nothing.\nEvidence: samples across seeds differ more under the preset, and its sign test on the 415-prompt suite is recorded.\nBatch: device lane.",
+          "depends_on": [
+            "sampling-split/presets"
+          ]
+        },
+        {
+          "id": "prompt-weighting",
+          "title": "A token's weight in a Krea or MOSS prompt scales its attention value, written from that one-sentence description",
+          "status": "open",
+          "verify": "go test ./internal/latentimage -count=1 -run '^TestAPromptWeightScalesItsTokensAttentionValue$'",
+          "files": [
+            "internal/latentimage"
+          ],
+          "rationale": "KJNodes' Krea and MOSS prompt-weighting patches are GPL-3.0 and are not read; the idea, scaling a token's attention value by its weight, is one sentence, so overgo writes it from that with a clean-room provenance note.\n\nServes: a capability users expect.\nDisappears: nothing.\nEvidence: a weighted token's attention value is scaled by its weight and no other value changes.\nBatch: host lane."
+        },
+        {
+          "id": "best-of-n",
+          "title": "A best-of-4 preset picks with one judge and reports with a different one",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage ./internal/evaluation -count=1 -run '^TestBestOfFourPicksAndReportsWithDifferentJudges$'",
+          "files": [
+            "internal/latentimage",
+            "internal/evaluation"
+          ],
+          "needs_card": true,
+          "rationale": "Krea is the cheapest place for search: four samples cost 32 passes, about one 30-step image. On FLUX, verifier search raised a DrawBench score from 84.29 to 88.18 (arXiv 2501.09732), and the same work shows a single verifier overfits, so the picker and the reporter must differ.\n\nServes: held-out-quality at 4x time.\nDisappears: nothing.\nEvidence: the preset picks by one judge, its suite score comes from another, and both are recorded.\nBatch: device lane.",
+          "depends_on": [
+            "quality-instruments/soft-tifa"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "krea-loras",
+      "title": "Krea-2-Turbo gains a 4-step draft preset with its LoRA and a 0.3-denoise refine pass, under the decision on Krea's licence",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 150,
+        "reason": "Estimate before the survey: presets as data on media-lora's unmerged path, and the LoRA's import."
+      },
+      "steps": [
+        {
+          "id": "draft",
+          "title": "A 4-step draft at 1 MP with the 4-step LoRA, and a refine pass of 4 steps at denoise 0.3, read on the 415-prompt suite",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestKreaDraftAndRefinePresetsAreRead$'",
+          "files": [
+            "internal/latentimage",
+            "local-models.json"
+          ],
+          "needs_card": true,
+          "rationale": "Community presets run Krea-2-Turbo at 4 steps with a 4-step LoRA at 1 MP, and refine a first pass at denoise 0.3 with the turbo LoRA at 0.2. The LoRAs are Krea derivatives under the Krea 2 Community License, whose reading is open (decision krea-derivatives).\n\nServes: first-output (half the passes), held-out-quality for the refine.\nDisappears: nothing.\nEvidence: each preset's time and sign test against the 8-step reference are recorded.\nBatch: device lane.",
+          "depends_on": [
+            "media-lora/unmerged",
+            "moss-ultra-sections/img2img",
+            "quality-instruments/soft-tifa"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sensenova-fast",
+      "title": "SenseNova V3 gains an eight-step preset with the Infographic 8-step LoRA at guidance 1, read on the hard infographic cases for repeated text",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 100,
+        "reason": "Estimate before the survey: a preset as data on media-lora's unmerged path, and the LoRA's import."
+      },
+      "steps": [
+        {
+          "id": "eight-step",
+          "title": "The 8-step preset runs SenseNova V3 at guidance 1 with the LoRA unmerged, its score and repeated-text rate recorded beside the 50-step reference",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestSenseNovaEightStepPresetIsRead$'",
+          "files": [
+            "internal/latentimage",
+            "internal/sensenovarecipe",
+            "local-models.json"
+          ],
+          "needs_card": true,
+          "rationale": "SenseNova ships 8-step LoRAs of 0.4B parameters at guidance 1, about 12x fewer passes than its 50-step reference with guidance. The Infographic one is documented against SenseNova-U1-8B-MoT-Infographic, not V3, shows galleries only, and its authors warn on V2 that it may reduce aesthetics or cause blurry or repeated text, which is a real failure for infographics. Its size and licence are read before download (decision sensenova-lora-download).\n\nServes: first-output, held-out-quality.\nDisappears: nothing.\nEvidence: the preset's score on the hard infographic cases and its repeated-text rate are recorded beside the reference.\nBatch: device lane.",
+          "depends_on": [
+            "media-lora/unmerged",
+            "quality-instruments/hard-cases"
+          ]
+        }
+      ]
+    }
+  ],
+  "decisions": [
+    {
+      "id": "eight-bit-paths",
+      "question": "May an 8-bit attention or matrix-product path, or a step-skipping cache, be served as its own opt-in preset, admitted by a per-case sign test on the model's held-out suite rather than by agreement with the float32 reference? The production-precision answer (2026-10-09) allows a difference within a tolerance declared first, held to the model's own code at the precision that code uses; 8-bit attention, FP8 and INT8 products and skipped steps change values beyond any tolerance a float32 reference can hold, so they can only be judged by held-out quality. The reference preset of every model stays unchanged.",
+      "options": [
+        "Admit them as opt-in presets judged by a per-case sign test on the model's held-out suite",
+        "Hold every served path to a declared tolerance of the float32 reference"
+      ],
+      "recommendation": "Admit them as opt-in presets judged by a per-case sign test on the model's held-out suite",
+      "blocks": [
+        "eight-bit-attention",
+        "w8a8-gemm",
+        "step-cache"
+      ],
+      "asked": "2026-11-08",
+      "doctrine": true
+    },
+    {
+      "id": "krea-derivatives",
+      "question": "Krea's 4-step and edit LoRAs are derivatives under the Krea 2 Community License, and two readings of it disagree: Krea's licensing page was read as allowing commercial use below US$1M of company revenue with mandatory content filtering (section 4.2) and derivatives named Krea with a NOTICE file, while a 2026-06 news summary calls it non-commercial and research-only. How is Krea used?",
+      "options": [
+        "Use Krea and its LoRAs locally only: no content filter, nothing distributed",
+        "Read the licence's current text and, where it allows, build the section 4.2 content filter for commercial serving",
+        "Use no Krea derivative"
+      ],
+      "recommendation": "Use Krea and its LoRAs locally only: no content filter, nothing distributed",
+      "blocks": [
+        "krea-loras"
+      ],
+      "asked": "2026-11-08",
+      "owners_act": true
+    }
+  ]
 }

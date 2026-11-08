@@ -10,9 +10,9 @@ import (
 
 // inScope refuses a change that writes outside the files its landed steps list: on Nov 7 a helper's side effect
 // rewrote the trunk's hook setting, and a weaker model wanders further. A listed directory holds everything under it,
-// tests and fixtures among them; the plan and the findings register are every change's to write; a step that lists
-// nothing keeps the admission every change has. The list is the terms' the change started with, so a change cannot
-// widen its own.
+// tests and fixtures among them; the plan and the findings register are every change's to write, and so is what the
+// repository's generators derive from it, which the landing writes itself; a step that lists nothing keeps the
+// admission every change has. The list is the terms' the change started with, so a change cannot widen its own.
 func (l *landing) inScope(named []ref) error {
 	var listed []string
 	for _, row := range named {
@@ -22,8 +22,12 @@ func (l *landing) inScope(named []ref) error {
 		}
 		listed = append(listed, step.Files...)
 	}
+	derived := []string{plan.Path, findingsRegister}
+	for _, generator := range l.generators() {
+		derived = append(derived, generator.writes...)
+	}
 	outside := slices.DeleteFunc(slices.Clone(l.written), func(path string) bool {
-		return path == plan.Path || path == findingsRegister || plan.Lists(listed, path)
+		return slices.Contains(derived, path) || plan.Lists(listed, path)
 	})
 	if len(outside) == 0 {
 		return nil

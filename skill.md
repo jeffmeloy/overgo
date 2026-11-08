@@ -17,7 +17,7 @@ description: The rules for Overgo development, written as one logical statement 
 - `master` takes landings (check: internal/landing TestWorktreeCandidateIsIntegratedOntoTheTrunk, internal/landing TestTrunkCheckoutFollowsWithItsOwnChangesKept)
 - local `main` = GitHub staging, which nothing reads (check: cmd/loop TestCycleComparesWithTheNewestEarlierScorecardWithoutAMain, cmd/loop TestPushPushesTheNamedCommitOnlyWhenAsked)
 - push <=> a request to push, never the system's own initiative (check: cmd/loop TestPushPushesTheNamedCommitOnlyWhenAsked)
-- this file and the plan's standing paragraphs = the system's doctrine
+- this file = the system's doctrine, and the plan holds rows and decisions alone (check: internal/plan TestThePlanHoldsNoRuleText)
 - doctrine = how the system works, which every session and the loop follow and correct on evidence
 - doctrine != any person's preferences or rules (check: cmd/loophook TestDoctrineNamesNoPerson, internal/plan TestControlVocabularyNamesNoPerson)
 - requests and models propose (check: internal/runrecord TestProposerEvaluatorDeciderAuthorityDomainsAndPriorGeneration)
@@ -302,7 +302,7 @@ A line of this file reads by this notation, and cites the tests that hold its ru
 | Surface | Holds |
 | --- | --- |
 | [skill.md](skill.md) | The system's doctrine. Sole root agent-instruction document |
-| [docs/plan.json](docs/plan.json) | Rows, dependencies, acceptance and open work, and its paragraphs: standing rules every session reads, and rules that bind one campaign |
+| [docs/plan.json](docs/plan.json) | Rows, dependencies, acceptance and open work, and the decisions the code applies |
 | OvergoDB | Artifacts, lineage, runs, decisions, findings, receipts (`go run ./cmd/overgodb query`) |
 | [compatibility.json](compatibility.json) | Model and capability verification contracts |
 | [kernels/manifest.json](kernels/manifest.json) | Kernel ABI, source and binary identities |

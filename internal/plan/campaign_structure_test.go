@@ -42,17 +42,13 @@ func campaignStructuralViolations(document Plan) []string {
 }
 
 // TestStructuralCampaignPolicy holds that the campaign policy is enforced by
-// structure, not doctrine prose: a campaign that keeps every historical doctrine
-// phrase but breaks a protected invariant still fails, while rewording the
-// doctrine without changing policy passes.
+// structure, with no prose in the plan: a campaign that breaks a protected
+// invariant fails.
 func TestStructuralCampaignPolicy(t *testing.T) {
 	t.Parallel()
-	// The doctrine phrases the tests used to pin, retained verbatim so a break
-	// cannot hide behind them.
-	const pinnedDoctrine = "capability freeze enforced by structure; a check records UNAVAILABLE rather than a pass; a step's machine check is set with plan -setverify"
 	validCampaign := func() Plan {
 		return Plan{
-			Campaign: "Integrated validation", Doctrine: []Paragraph{{Governs: governsStanding, Text: pinnedDoctrine}},
+			Campaign: "Integrated validation",
 			Items: []Item{{ID: "row", Title: "Row", Status: StatusOpen, Steps: []Step{
 				{ID: "do", Title: "Do", Status: StatusOpen, Verify: "go test ./x -run '^TestX$'"},
 			}}},
@@ -60,11 +56,6 @@ func TestStructuralCampaignPolicy(t *testing.T) {
 	}
 	if v := campaignStructuralViolations(validCampaign()); len(v) != 0 {
 		t.Fatalf("valid campaign reported violations: %v", v)
-	}
-	reworded := validCampaign()
-	reworded.Doctrine[0].Text = "entirely different wording that keeps the same structural policy"
-	if v := campaignStructuralViolations(reworded); len(v) != 0 {
-		t.Fatalf("rewording the doctrine changed the policy verdict: %v", v)
 	}
 	for name, mutate := range map[string]func(*Plan){
 		"forbidden capability expansion": func(p *Plan) { p.Items[0].Steps[0].Capabilities = []string{"new-orchestration-framework"} },

@@ -163,7 +163,7 @@ func openStep(id string) plan.Step {
 func TestAddFilesEveryRowOfADocument(t *testing.T) {
 	t.Parallel()
 	held := plan.Plan{
-		Campaign: "held campaign", Doctrine: []plan.Paragraph{{Governs: "standing", Text: "held doctrine"}},
+		Campaign: "held campaign",
 		Items: []plan.Item{
 			{ID: "earlier", Title: "Earlier", Status: plan.StatusOpen, Steps: []plan.Step{openStep("do")}},
 			{ID: "campaign-closeout", Title: "Close out", Status: plan.StatusOpen, Steps: []plan.Step{
@@ -173,7 +173,7 @@ func TestAddFilesEveryRowOfADocument(t *testing.T) {
 		Decisions: []plan.Decision{{ID: "held-question", Question: "Which?", Options: []string{"a", "b"}, Recommendation: "a", Asked: "2026-10-01"}},
 	}
 	filed := plan.Plan{
-		Campaign: "an amendment", Doctrine: []plan.Paragraph{{Governs: "standing", Text: "the amendment's own doctrine"}},
+		Campaign: "an amendment",
 		Items: []plan.Item{
 			{ID: "filed-first", Title: "First filed", Owner: "master-lead", Status: plan.StatusOpen,
 				Budget: plan.Budget{Nodes: 40, Reason: "It adds a listing."},
@@ -210,8 +210,8 @@ func TestAddFilesEveryRowOfADocument(t *testing.T) {
 	if rendered(t, after.Decisions) != rendered(t, append(held.Decisions, filed.Decisions...)) {
 		t.Fatalf("decisions after filing = %s", rendered(t, after.Decisions))
 	}
-	if after.Campaign != held.Campaign || !reflect.DeepEqual(after.Doctrine, held.Doctrine) {
-		t.Fatalf("filing took the document's campaign or doctrine: %q, %+v", after.Campaign, after.Doctrine)
+	if after.Campaign != held.Campaign {
+		t.Fatalf("filing took the document's campaign: %q", after.Campaign)
 	}
 	requireNoCheckRan(t, root)
 
@@ -559,43 +559,4 @@ func TestRetireRemovesARowOrAStep(t *testing.T) {
 	requireRefused(t, refusing, written, "not found", "-retire", "-reason", reason, "work/")
 	requireOffered(t, refusing, "-retire", "-retire -reason <why> <item-id>[/<step-id>]",
 		"A landing completes an open step by its check and records it in a Landed-Row trailer; a retirement runs no check, and the plan records it with its reason until the next landing's message says it")
-}
-
-// TestParagraphRewritesAStandingParagraph holds plan -paragraph to replacing the text of one standing paragraph of
-// the doctrine with a file's, numbered as the plan holds them, and to removing it for an empty file; nothing else of
-// the plan changes. A campaign's paragraph, an index the doctrine lacks or is not, and a missing file are refused.
-func TestParagraphRewritesAStandingParagraph(t *testing.T) {
-	t.Parallel()
-	held := plan.Plan{Doctrine: []plan.Paragraph{
-		{Governs: "standing", Text: "A rule no check holds."}, {Governs: "campaign", Text: "The campaign's own."},
-		{Governs: "standing", Text: "A rule that goes."},
-	}, Items: []plan.Item{{ID: "work", Title: "Work", Status: plan.StatusOpen, Steps: []plan.Step{openStep("do")}}}}
-	root, _ := editFixture(t, held)
-	write := func(name, content string) string {
-		t.Helper()
-		path := filepath.Join(t.TempDir(), name)
-		testcheck.NoError(t, os.WriteFile(path, []byte(content), 0o600))
-		return path
-	}
-	const cited = "A rule a check holds (check: cmd/plan TestParagraphRewritesAStandingParagraph)."
-	rule, empty := write("rule.txt", "\n"+cited+"\n"), write("empty.txt", "\n")
-	for _, edit := range [][]string{{rule, "0"}, {empty, "2"}} {
-		if output, err := planCommand(t, root, "-paragraph", "-rationale-file", edit[0], edit[1]); err != nil || !strings.HasPrefix(output, "paragraph "+edit[1]+" rewritten; next: ") {
-			t.Fatalf("plan -paragraph %v: %v\n%s", edit, err, output)
-		}
-	}
-	want := held
-	want.Doctrine = []plan.Paragraph{{Governs: "standing", Text: cited}, held.Doctrine[1]}
-	if after := editedPlan(t, root); rendered(t, after) != rendered(t, want) {
-		t.Fatalf("plan after two rewrites:\n%s\nwant\n%s", rendered(t, after), rendered(t, want))
-	}
-	requireNoCheckRan(t, root)
-
-	refusing, written := editFixture(t, held)
-	requireRefused(t, refusing, written, "is not a standing paragraph", "-paragraph", "-rationale-file", rule, "1")
-	requireRefused(t, refusing, written, "is not a standing paragraph", "-paragraph", "-rationale-file", rule, "3")
-	requireRefused(t, refusing, written, "is not an index", "-paragraph", "-rationale-file", rule, "first")
-	requireRefused(t, refusing, written, "usage: plan -paragraph", "-paragraph", "0")
-	requireRefused(t, refusing, written, "absent.txt", "-paragraph", "-rationale-file", filepath.Join(refusing, "absent.txt"), "0")
-	requireOffered(t, refusing, "-paragraph", "rewrite a standing paragraph of the doctrine")
 }

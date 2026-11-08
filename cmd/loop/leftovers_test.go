@@ -677,7 +677,7 @@ func TestTmpEntryBelongsToAnOpenRowOrIsFinished(t *testing.T) {
 	// reasoning names a scratch folder, which holds nothing since the plan is a work record.
 	savePlan := func(checkout string, rows ...string) {
 		t.Helper()
-		document := plan.Plan{Campaign: "hygiene", Doctrine: []plan.Paragraph{{Governs: "standing", Text: "the plan of a fixture"}}, Lane: "master-lead"}
+		document := plan.Plan{Campaign: "hygiene", Lane: "master-lead"}
 		for _, row := range rows {
 			document.Items = append(document.Items, plan.Item{ID: row, Title: "a row of the fixture", Status: plan.StatusOpen, Steps: []plan.Step{{
 				ID: "do", Title: "its one step", Status: plan.StatusOpen, Verify: "go version", Rationale: "its probes lie under tmp/landed-row/x",
@@ -1129,7 +1129,7 @@ func TestLeftoversDeletesOnlyWhatItsTableMarksFinished(t *testing.T) {
 		`runs: D:\data\experiments\kept\runs\order-1`,
 		"",
 	}, "\n"))
-	document := plan.Plan{Campaign: "hygiene", Doctrine: []plan.Paragraph{{Governs: "standing", Text: "the plan of a fixture"}}, Lane: "master-lead"}
+	document := plan.Plan{Campaign: "hygiene", Lane: "master-lead"}
 	document.Items = []plan.Item{{ID: "open-row", Title: "a row of the fixture", Status: plan.StatusOpen, Steps: []plan.Step{{
 		ID: "do", Title: "its one step", Status: plan.StatusOpen, Verify: "go version", Rationale: "a row that is still open",
 	}}}}
@@ -1609,7 +1609,7 @@ func TestCommitClearsWhatNothingHolds(t *testing.T) {
 	// savePlan writes the working plan of the trunk's checkout: the rows named, each open.
 	savePlan := func(rows ...string) {
 		t.Helper()
-		document := plan.Plan{Campaign: "hygiene", Doctrine: []plan.Paragraph{{Governs: "standing", Text: "the plan of a fixture"}}, Lane: "master-lead"}
+		document := plan.Plan{Campaign: "hygiene", Lane: "master-lead"}
 		for _, row := range rows {
 			document.Items = append(document.Items, plan.Item{ID: row, Title: "a row of the fixture", Status: plan.StatusOpen, Steps: []plan.Step{{
 				ID: "do", Title: "its one step", Status: plan.StatusOpen, Verify: "go version", Rationale: "a row that is still open",

@@ -1,51 +1,5 @@
 {
   "campaign": "Deliver multimodal Qwen3.8-Flash-Next UD-IQ4_XS and meet native Strata performance",
-  "paragraphs": [
-    {
-      "governs": "standing",
-      "text": "The scorecard's gaps generate the work (check: cmd/loop TestScorecardGapsBecomeProposals, cmd/loop TestTheGapsAreFiledOnceTheScorecardPublishes, cmd/loop TestADeclineBecomesTheRowTheLoopWorks). Progress is each scorecard cell against its previous measurement, not a count of landings (check: internal/scorecard TestEarlierIsEachCellsNewestEarlierMeasurement, cmd/loop TestCycleComparesWithTheNewestEarlierScorecardWithoutAMain). There is no passed state (check: cmd/gate TestCompletionAuthorityGone, internal/plan TestLivePlanRejectsRetainedCompletionState)."
-    },
-    {
-      "governs": "standing",
-      "text": "One run serves every obligation whose identity and contract match, written once as one record with many readers (check: cmd/loop TestMeasurementRunsNoCaseAgainAfterAnUnrelatedCommit, internal/evaluation TestEvaluationAtAnUnchangedPlanReusesItsCampaign, internal/capabilityruntime TestStoredResultIsReusedOnlyUnderItsOwnIdentity). A run never judges what it produced (check: internal/runrecord TestProposerEvaluatorDeciderAuthorityDomainsAndPriorGeneration, internal/trainingworkflow TestHeldoutRunTrainsOnlyOnTrainingRecords, internal/runrecord TestTrainingDecisionWithholdsPromotionUntilEvaluation). Every contract a comparison reads and every retained protocol is a cell of its model, which a full run measures when it is given the model (check: cmd/validate TestEveryComparedContractHasACell, cmd/validate TestCycleRunsWhatPromotionCompares, cmd/validate TestAFullRunMeasuresTheModelsItWasGiven)."
-    },
-    {
-      "governs": "standing",
-      "text": "The gate's verdict depends only on the tree, and suites that load real models, read the live store or sweep the device run in the cycle's lanes by build tag, never the gate's (check: internal/landing TestReachInvariants, internal/landing TestLaneSelectionUsesTheLaneBuildContext, internal/landing TestAudioLaneOptsIntoTheStoreAcceptance). The cycle measures at the commit it began at, in its own checkout (check: cmd/loop TestCycleRunsInItsOwnCheckout). A landing's cost is read from its diff, the lanes it reaches through its test binaries' closure and the pinned media it stales (check: internal/landing TestLaneReachSkipsOtherPackagesTests, internal/landing TestPreflightNamesPinnedBytes). A move of a model's own identity puts its cases again (check: internal/evaluation TestAnswersOutliveOnlyTheCommitsThatLeaveTheirCodeUnchanged, internal/inferencesurface TestEvaluationIdentityIsItsModelsWithTheSourcesThatAskIt). A cycle starts once the measured surface moved (check: cmd/loop TestLoopStartsACycleWhenTheMeasuredSurfaceMoved). Dependency work is verified through its test closure and the guard surface, which stops at overgodb and runrecord (check: internal/inferencesurface TestSurfaceCoversEmbeddedInputsAndModules, internal/inferencesurface TestSurfaceInvariants). A suite moved out of the gate still reaches a cycle lane (check: internal/landing TestReachInvariants, internal/trainingworkflow TestEveryRetiredLifecycleFailureIsStillCaught). The landing scorecard reports and never refuses (check: internal/landing TestLandingMeasuresTheScorecardSlice). The gate writes the numbers a landing message carries (check: internal/landing TestLanesMeasurementLine, internal/landing TestLandingSaysWhatAChangeAddsOfEachKind)."
-    },
-    {
-      "governs": "standing",
-      "text": "Before a landing the preflight runs the cheap stages alone, format, fix, vet, rules, invariants and the step's check (check: internal/landing TestPreflightRunsTheCheapStagesOnly, internal/landing TestGeneratorsAreThoseTheRepositoryHas)."
-    },
-    {
-      "governs": "standing",
-      "text": "Each structural boundary is pinned as a row of its kind's invariant table (check: internal/landing TestReachInvariants, internal/inferencesurface TestSurfaceInvariants). The gate writes each landing's lanes skipped, lane walls, and packages executed and cached (check: internal/landing TestLanesMeasurementLine, internal/landing TestRanPackagesNamesOnlyWhatRan). No fixed timer comes back, nor the deleted baselines and tracking records (check: internal/repoanalysis TestNoFixedTimers, cmd/gate TestClosureLedgerGone, cmd/gate TestGateRecordsGone)."
-    },
-    {
-      "governs": "standing",
-      "text": "A journey is timed from action to usable result, with loading, waiting, execution and display apart (check: cmd/recipe TestMeasurementSeparatesLoadPrefillAndVisibleOutput, internal/server TestWebUIBrowserShowsTheFirstTokenTime, internal/server TestCancelledDownloadHoldsItsSlotUntilItFinishes). One gate run serves every step it lands (check: internal/landing TestLandingCompletesSeveralSteps). Validation and reuse are scoped by actual dependencies, and one that cannot be named keeps the wider scope (check: internal/inferencesurface TestCapabilityIdentityMovesOnlyWithItsOwnSources, internal/capabilityruntime TestStoredResultIsReusedOnlyUnderItsOwnIdentity, cmd/validate TestBenchmarkDoesNotReuseUnknownExecution)."
-    },
-    {
-      "governs": "standing",
-      "text": "A full measurement run continues only at the commit it began at (check: cmd/loop TestUnfinishedCycleContinuesAtItsOwnCommit, cmd/loop TestInterruptedCycleResumesAtItsFirstUnpassedPhase). Landings go on beside a run, waiting only for the device turn, with the checkout free (check: internal/landing TestALandingBesideARunWaitsOnlyForTheDevice, internal/landing TestALandingWaitingOnARunLeavesTheCheckoutFree)."
-    },
-    {
-      "governs": "standing",
-      "text": "The repository tracks no Python, and its runtime is Go (check: internal/repoanalysis TestPythonLivesOnlyInItsIgnoredPlace, internal/repoanalysis TestRSIRuntimeIsGoOnly). A row's acceptance is fixed before its code, every open step having a check and a change judged by the check its row held before it (check: internal/plan TestOpenStepRequiresVerifier, internal/landing TestChangeIsJudgedByTheTermsItStartedWith). A reader of a record form the store holds stays while the store holds it (check: internal/runrecord TestStageReceiptOfTheEarlierFormIsRead, internal/runrecord TestRetiredGateAliasesAtRest). A pilot not accepted leaves the served path, and its record is kept and read (check: cmd/train TestTheRewardPilotIsRetired, cmd/training-objective TestTheRewardPilotIsRetired, internal/evaluation TestInstructionPilotRecordIsTheAcceptanceItNames, cmd/train TestProposalRetirementPreservesTrainingAndEvidence)."
-    },
-    {
-      "governs": "standing",
-      "text": "A change grows production code no more than its row's count, read from the commit it builds on, so a consolidation pays for what it adds with what it deletes, and an item's count covers all its landings (check: internal/landing TestItemsGrowthIsChargedAcrossItsLandings, internal/landing TestChangeIsJudgedByTheTermsItStartedWith). A count is raised with a reason of its own (check: internal/landing TestLandingRaisesItsOwnCount, cmd/plan TestSetCountWritesTheCountAndItsReason). Test code, fixtures, record schemas and CUDA source are reported with each landing and not refused (check: internal/landing TestLandingSaysWhatAChangeAddsOfEachKind, internal/landing TestWrittenCodeIsCountedByKind). A new export has a consumer outside its package (check: internal/landing TestExportUseCountsConsumers)."
-    },
-    {
-      "governs": "standing",
-      "text": "A stored result is reused only under unchanged identity of code, model, recipe, data, settings and request, and a fresh request always runs (check: internal/capabilityruntime TestStoredResultIsReusedOnlyUnderItsOwnIdentity, internal/capabilityruntime TestFreshRunExecutesWhatAnIdenticalRequestStored, cmd/validate TestResumedRunStartsAgainACellWhoseWeightsChanged). Eligibility is kept apart from selection, observations from scores, and choosing records from confirming ones (check: internal/trainingworkflow TestSelectionNeverRestoresEligibility, internal/evaluation TestScoringFixRunsNoCaseAgain, internal/evaluation TestConfirmationIsChargedBeforeThePromotionPartIsRead)."
-    },
-    {
-      "governs": "standing",
-      "text": "An experiment's acceptance is frozen before it trains, from the store's cases and never from its arms (check: internal/evaluation TestInstructionAcceptanceBindsProtocolGroupsAndComparisons, internal/evaluation TestHeldOutPoolIsSizedForItsDeclaredGain)."
-    }
-  ],
   "lane": "master-lead",
   "items": [
     {
@@ -54,17 +8,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 50,
-        "reason": "Estimate: mostly deletions of text and of the plan's paragraph code; the one test is test code."
+        "nodes": 634,
+        "reason": "Estimate: mostly deletions of text and of the plan's paragraph code; paragraphs removes more production code than it adds, and the rule-text test is test code."
       },
       "steps": [
-        {
-          "id": "paragraphs",
-          "title": "The plan holds rows and decisions only: its eleven standing paragraphs go",
-          "status": "open",
-          "verify": "go test ./internal/plan -count=1 -run '^TestThePlanHoldsNoRuleText$'",
-          "rationale": "docs/plan.json holds 11 standing paragraphs (8 KB) that sessions read as rules; each names the checks that hold it. They go, with the code that keeps them (plan -paragraph and the paragraph type), and internal/plan/doctrine_test.go changes with them. Decisions stay as data the code applies.\nServes: setup-steps; one place for written rules.\nDisappears: the plan's paragraphs and their code.\nEvidence: the plan's document holds campaign, lane, rows and decisions only.\nBatch: host lane."
-        },
         {
           "id": "rule-text",
           "title": "One test refuses rule text outside skill.md and AGENTS.md, and rule copies nothing reads go",

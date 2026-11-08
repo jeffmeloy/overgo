@@ -52,7 +52,7 @@ func TestCloseoutRefusesFinishedLeftovers(t *testing.T) {
 	gitFixture(t, repo, "config", "core.autocrlf", "false")
 	write("repo/.gitignore", "/bin/\n/tmp/\n")
 	write("repo/docs/verification/run-record.txt", "outputs: read once from experiments/done.\n")
-	document := plan.Plan{Campaign: "hygiene", Doctrine: []plan.Paragraph{{Governs: "standing", Text: "the plan of a fixture"}}, Lane: "master-lead",
+	document := plan.Plan{Campaign: "hygiene", Lane: "master-lead",
 		Items: []plan.Item{{ID: "open-row", Title: "a row of the fixture", Status: plan.StatusOpen, Steps: []plan.Step{{
 			ID: "do", Title: "its one step", Status: plan.StatusOpen, Verify: "go version", Rationale: "the fixture's open row",
 		}}}}}

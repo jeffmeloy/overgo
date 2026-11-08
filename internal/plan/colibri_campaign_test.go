@@ -13,17 +13,13 @@ import (
 func assertColibriCampaign(t *testing.T, document Plan) {
 	t.Helper()
 	testcheck.NoError(t, Validate(document))
-	// A lane's plan may still hold its doctrine as one string; either form is searched.
-	var doctrine strings.Builder
-	doctrine.WriteString(document.DoctrineBefore)
-	for _, paragraph := range document.Doctrine {
-		doctrine.WriteString("\n" + paragraph.Text)
-	}
+	// A lane's plan holds its doctrine as one string or as paragraphs, read as an earlier plan's; either form is searched.
+	doctrine := string(document.DoctrineBefore) + string(document.ParagraphsBefore)
 	for _, decision := range []string{
 		"first-parent-target", "end-to-end", "held-out", "common components",
 		"caller-declared budgets", "no completion credit", "cmd/gate",
 	} {
-		if !strings.Contains(doctrine.String(), decision) {
+		if !strings.Contains(doctrine, decision) {
 			t.Errorf("Colibri doctrine omits %q", decision)
 		}
 	}

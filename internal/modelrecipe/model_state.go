@@ -34,6 +34,21 @@ type ModelState struct {
 	Reason       string
 }
 
+// ReadRecipeState reads the state of the recipe recipeID for modelID: the state of its own task, and not verified unless
+// that task's active definition is this recipe, so a reading names the state of the recipe that ran and no other's
+// (SQA-283). A recipe the store cannot read, or a store that fails to answer, returns an error.
+func ReadRecipeState(ctx context.Context, store artifact.Reader, modelID, recipeID artifact.ID) (ModelState, error) {
+	definition, err := recipe.RequireDefinition(ctx, store, recipeID)
+	if err != nil {
+		return ModelState{}, err
+	}
+	activation, state, err := ReadModelState(ctx, store, modelID, definition.Task)
+	if err == nil && activation.Definition.ID != recipeID {
+		return ModelState{Verification: StateNotVerified}, nil
+	}
+	return state, err
+}
+
 // ReadModelState reads modelID's state for task from what the store records, with the activation that state rests on: it
 // is whole when the state is StateVerified or StateOutOfDate, and holds only the Definition the alias names when the
 // state is StateBroken and that recipe can still be read. A record that cannot be trusted is a state and not a failure,

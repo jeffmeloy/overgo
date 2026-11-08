@@ -7,17 +7,10 @@
       "title": "A held-out reading, a serving attempt and a training observation carry the verification state of the recipe and task that ran",
       "status": "open",
       "budget": {
-        "nodes": 150,
+        "nodes": 67,
         "reason": "Estimate before the survey: internal/modelrecipe gains one reading of a recipe's state, its own task's state and not verified unless that task's active definition is the recipe; internal/evaluation/campaign.go publishSuccess, internal/servingattempt Record and internal/trainingworkflow Observer.finish call it."
       },
       "steps": [
-        {
-          "id": "held-out",
-          "title": "An evaluation campaign publishes its reading under the state of its own recipe and task",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -count=1 -run '^TestAHeldOutReadingCarriesTheStateOfTheRecipeThatRan$'",
-          "rationale": "SQA-283: internal/evaluation/campaign.go publishSuccess reads modelrecipe.ReadModelState for recipe.TaskInference whatever task the campaign runs and discards the returned Activation; an active speech-only model with no inference alias publishes not verified, internal/scorecard earned drops that reading from its verified row, and a candidate recipe borrows the active recipe's verified state.\n\nmodelrecipe gains one reading of a recipe's state: its own task's state, not verified unless that task's active definition is the recipe. publishSuccess uses it with campaign.identity.Recipe; store errors and legacy records stay as they are.\n\nServes: held-out-quality; a verified row keeps the readings its own recipe earned.\nDisappears: the hard-coded inference task and a borrowed activation's state.\nEvidence: through publication, a non-inference recipe with no inference alias publishes verified, and a candidate beside an active recipe not verified.\nBatch: host lane."
-        },
         {
           "id": "serving",
           "title": "A serving attempt and a training observation are recorded under the state of the recipe that ran",

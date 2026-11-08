@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 
 	"overgo/internal/artifact"
 	"overgo/internal/evaluation"
@@ -13,6 +14,7 @@ import (
 	"overgo/internal/modelcli"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/processcontrol"
 	"overgo/internal/projector"
 	"overgo/internal/recipe"
 	"overgo/internal/tokenizer"
@@ -82,6 +84,15 @@ func openJudgedSession(ctx context.Context, store *overgodb.Store, value manifes
 		if err != nil {
 			return nil, nil, err
 		}
+		// The judge answers only on current evidence, which the parent re-verified where it could (currentJudges).
+		if err := currentJudges(ctx, []modelRequest{request}, func(ctx context.Context, _ string) (modelrecipe.ModelState, error) {
+			_, state, err := modelrecipe.ReadModelState(ctx, store, judge, recipe.TaskInference)
+			return state, err
+		}, func(context.Context, string) error {
+			return errors.New("a worker re-verifies no judge: the run's parent does, before any worker opens one")
+		}); err != nil {
+			return nil, nil, err
+		}
 		reserve, bind := modelcli.ModelReserve(ctx)
 		vision, err := projector.OpenActiveSession(ctx, store, judge, request.Projector, projector.OpenOptions{CUDA: true, DeviceOrdinal: value.Device, MemoryReserve: reserve})
 		if err != nil {
@@ -117,4 +128,59 @@ func openJudgedSession(ctx context.Context, store *overgodb.Store, value manifes
 // answered before about the same media.
 func keepJudgedAnswers(campaign *evaluation.Campaign) *evaluation.Campaign {
 	return evaluation.AnsweredBy[inference.Runner](campaign.WithPrompting(evaluation.PromptingChatTemplate))
+}
+
+// currentJudges re-verifies, before any judged session opens, each vision-language judge the models name whose evidence
+// is out of date (recipe verify -recorded), and refuses one whose verification is not current after it: a score from a
+// judge whose verification the build no longer holds is bound to no verified build (SQA-315), and the Wan student's
+// 0.898 on 2026-11-08 was judged after the note that said so. A judge named twice is read once.
+func currentJudges(ctx context.Context, models []modelRequest, state func(context.Context, string) (modelrecipe.ModelState, error), reverify func(context.Context, string) error) error {
+	var read []string
+	for _, request := range models {
+		if request.Judge == "" || request.Projector == "" || slices.Contains(read, request.Judge) {
+			continue
+		}
+		read = append(read, request.Judge)
+		current, err := state(ctx, request.Judge)
+		if err == nil && current.Verification == modelrecipe.StateOutOfDate {
+			fmt.Fprintf(os.Stderr, "evaluate: the judge %s holds evidence out of date; re-verifying it on its recorded suite\n", request.Judge)
+			if err = reverify(ctx, request.Judge); err == nil {
+				current, err = state(ctx, request.Judge)
+			}
+		}
+		if err != nil {
+			return fmt.Errorf("evaluate: the judge %s: %w", request.Judge, err)
+		}
+		if current.Verification != modelrecipe.StateVerified {
+			return fmt.Errorf("evaluate: the judge %s is %s (%s); a judged run opens its judge only with current verification evidence: go run ./cmd/recipe verify -task inference -recorded %s",
+				request.Judge, current.Verification, current.Reason, request.Judge)
+		}
+	}
+	return nil
+}
+
+// judgeState reads a judge's verification in the store at repository, without loading its weights.
+func judgeState(repository string) func(context.Context, string) (modelrecipe.ModelState, error) {
+	return func(ctx context.Context, path string) (modelrecipe.ModelState, error) {
+		store, err := overgodb.OpenReadOnly(repository)
+		if err != nil {
+			return modelrecipe.ModelState{}, err
+		}
+		state, err := modelcli.CurrentState(ctx, store, path, recipe.TaskInference)
+		return state, errors.Join(err, store.Close())
+	}
+}
+
+// reverifyJudge re-verifies a judge into the store at repository on the suite its accepted verification ran.
+func reverifyJudge(repository string) func(context.Context, string) error {
+	return func(ctx context.Context, path string) error {
+		receipt, err := processcontrol.Run(ctx, processcontrol.Command{
+			Path: "go", Args: []string{"run", "./cmd/recipe", "verify", "-task", string(recipe.TaskInference), "-recorded", "-repo", repository, path},
+			Stdout: os.Stderr, Stderr: os.Stderr,
+		})
+		if err == nil && receipt.ExitCode != 0 {
+			err = fmt.Errorf("recipe verify -recorded exited with status %d", receipt.ExitCode)
+		}
+		return err
+	}
 }

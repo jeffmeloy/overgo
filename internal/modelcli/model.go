@@ -19,6 +19,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/processmeasure"
+	"overgo/internal/recipe"
 	"overgo/internal/tensor"
 )
 
@@ -302,6 +303,17 @@ func ExpertProfilePath(path string) string { return path + ".experts.strp" }
 func ModelReserve(ctx context.Context) (reserve func(bytes uint64) error, bind func(*inference.Runner)) {
 	var served atomic.Pointer[inference.Runner]
 	return func(bytes uint64) error { return served.Load().ReserveDeviceMemory(ctx, bytes) }, served.Store
+}
+
+// CurrentState is the verification an open of the model at path would note (noteModelState), read without loading its
+// weights: the state the store records of its active recipe for task.
+func CurrentState(ctx context.Context, store *overgodb.Store, path string, task recipe.Task) (modelrecipe.ModelState, error) {
+	model, _, err := ResolveModel(ctx, store, path)
+	if err != nil {
+		return modelrecipe.ModelState{}, err
+	}
+	_, state, err := modelrecipe.ReadModelState(ctx, store, model, task)
+	return state, err
 }
 
 // ResolveModel names the model at path as the store resolves it, through its identity memo and without loading its

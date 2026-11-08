@@ -394,6 +394,9 @@ func run() error {
 	if err := catalogBenchmarks(context.Background(), compiled); err != nil {
 		return err
 	}
+	if err := currentJudges(context.Background(), compiled.Models, judgeState(compiled.Repository), reverifyJudge(compiled.Repository)); err != nil {
+		return err
+	}
 	executable, err := os.Executable()
 	if err != nil {
 		return err

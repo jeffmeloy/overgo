@@ -49,25 +49,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "worker-tools",
-      "title": "The worker gets six typed tools and no shell, and a failed step moves to a stronger worker before it is set aside",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": -827,
-        "reason": "Estimate before the survey: a tool server for the worker and the worker list in cmd/loop and internal/loop; a step raises it with its measured figure."
-      },
-      "steps": [
-        {
-          "id": "workers",
-          "title": "loop.json lists workers cheapest first, a step moves up after its attempts, and after the last it is set aside with a finding",
-          "status": "open",
-          "verify": "go test ./internal/loop -count=1 -run '^TestAStepMovesUpTheWorkersBeforeItIsSetAside$'",
-          "rationale": "overgo is to run on a much weaker model, but some steps need a strong one: this week's missing attention gates (the comparison at cosine 0.20) and the 1e21 gradient from a zero start. loop.json lists workers in order, cheapest first; after a step's attempt limit it goes to the next worker with the refusals so far; after the last, it is set aside with a finding for the filing role, and the driver takes the next step. No one waits.\nServes: failure-rate; model calls per landing; landings a day.\nDisappears: a hard step blocking the plan or a question to the owner.\nEvidence: a step the first fake worker cannot pass lands through the second; one neither passes is set aside with a finding and the next step runs.\nBatch: host lane."
-        }
-      ]
-    },
-    {
       "id": "card-dispatch",
       "title": "Steps that don't need the graphics card are worked while a run holds it, and a change re-measures only what it reaches",
       "owner": "master-lead",

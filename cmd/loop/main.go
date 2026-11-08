@@ -80,6 +80,9 @@ const (
 type config struct {
 	// Worker is the command each dispatched prompt goes to, as {prompt} in its arguments and on its standard input.
 	Worker []string `json:"worker"`
+	// Workers are the stronger workers, in order, a step goes to after Worker spends its attempts on it, each written
+	// as Worker is; after the last the step is set aside with a finding.
+	Workers [][]string `json:"workers,omitempty"`
 	// Name is the worker's stable identity: the campaign records it, and the worker's landings are held to the step
 	// dispatch names for it.
 	Name string `json:"name"`
@@ -294,6 +297,8 @@ type execWorld struct {
 	config       config
 	promptPrefix string
 	campaign     *processcontrol.Campaign
+	// level is the worker the next runs go to: 0 for Worker, then each of Workers in turn (loop.LadderWorld).
+	level int
 }
 
 func (w *execWorld) Current() (loop.Step, bool, error) {
@@ -355,6 +360,12 @@ func (w *execWorld) Prompt(loop.Step) (string, error) {
 	return planCommand("-prompt")
 }
 
+// Workers counts the workers a step can go to: Worker, then each of Workers.
+func (w *execWorld) Workers() int { return 1 + len(w.config.Workers) }
+
+// UseWorker sends the next runs to the worker at level.
+func (w *execWorld) UseWorker(level int) { w.level = level }
+
 func (w *execWorld) RunWorker(step loop.Step, prompt, feedback string) (string, error) {
 	text := prompt
 	if w.promptPrefix != "" {
@@ -363,8 +374,12 @@ func (w *execWorld) RunWorker(step loop.Step, prompt, feedback string) (string, 
 	if feedback != "" {
 		text += "\n\nPREVIOUS ATTEMPT FEEDBACK (fix this, then commit through the gate):\n" + feedback
 	}
-	arguments := make([]string, len(w.config.Worker)-1)
-	for index, argument := range w.config.Worker[1:] {
+	worker := w.config.Worker
+	if w.level > 0 {
+		worker = w.config.Workers[w.level-1]
+	}
+	arguments := make([]string, len(worker)-1)
+	for index, argument := range worker[1:] {
 		arguments[index] = strings.ReplaceAll(argument, "{prompt}", text)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -397,7 +412,7 @@ func (w *execWorld) RunWorker(step loop.Step, prompt, feedback string) (string, 
 		return "", err
 	}
 	receipt, err := processcontrol.Run(ctx, processcontrol.Command{
-		Path:   w.config.Worker[0],
+		Path:   worker[0],
 		Args:   arguments,
 		Env:    workerEnvironment(loopEnvironment()),
 		Stdin:  strings.NewReader(text),

@@ -29,6 +29,14 @@ type Step struct {
 	Record string
 }
 
+// LadderWorld is the optional world extension whose workers stand in a list, cheapest first: overgo is to run on a much
+// weaker model, and some steps need a strong one. A step that spends its attempts with one worker goes to the next,
+// carrying its failures, and is set aside only after the last; UseWorker names the worker the next runs go to.
+type LadderWorld interface {
+	Workers() int
+	UseWorker(level int)
+}
+
 // CommandWorld is the optional world extension that works a run step with no worker: much of the plan's work is a
 // measurement to run and wait for, which a model adds nothing to. It runs the step's command, requires the record the
 // step names written, and lands it through the gate; what it returns is said as a worker's tail is.
@@ -138,6 +146,8 @@ func Run(world World, config Config) (Outcome, error) {
 	outcome := Outcome{}
 	attempts := 0
 	progress, observesProgress := world.(ProgressWorld)
+	ladder, climbs := world.(LadderWorld)
+	level := 0
 	var lastKey, feedback string
 	for {
 		if world.Paused() {
@@ -184,7 +194,16 @@ func Run(world World, config Config) (Outcome, error) {
 			return outcome, nil
 		}
 		if step.Key() != lastKey {
-			lastKey, attempts, feedback = step.Key(), 0, ""
+			lastKey, attempts, feedback, level = step.Key(), 0, "", 0
+			if climbs {
+				ladder.UseWorker(level)
+			}
+		}
+		// A step the worker could not pass goes to the next, stronger worker, its failures with it.
+		if attempts >= config.MaxAttemptsPerStep && climbs && level+1 < ladder.Workers() {
+			level, attempts = level+1, 0
+			ladder.UseWorker(level)
+			feedback = fmt.Sprintf("a stronger worker takes %s after %d attempts; the last failure:\n%s", step.Key(), config.MaxAttemptsPerStep, feedback)
 		}
 		if attempts >= config.MaxAttemptsPerStep {
 			reason := fmt.Sprintf("loop: %s made no plan progress in %d worker attempts; last verify failure: %s",

@@ -136,8 +136,13 @@ func record(ctx context.Context, generator Generator, name, prompt string, optio
 	var generated strings.Builder
 	promptTokens := 0
 	started := processmeasure.NewStopwatch()
+	// What the caller reads of each token, a choice's first logits, it still reads.
+	read := options.OnToken
 	options.OnToken = func(event inference.TokenEvent) error {
 		generated.WriteString(event.Piece)
+		if read != nil {
+			return read(event)
+		}
 		return nil
 	}
 	options.OnPromptEvaluated = func(result inference.PromptEvaluation) {
@@ -174,12 +179,17 @@ func producingRun(generator Generator) artifact.ID {
 // recordInstruction applies declared conversation framing once before recording
 // generated instruction answers. Raw generators retain their original prompt.
 func recordInstruction(ctx context.Context, generator Generator, name, prompt string, maxTokens int) (ExactResult, error) {
-	if chat, ok := generator.(chatChoiceRuntime); ok {
-		framed, err := chat.ShapeChatPrompt(prompt)
-		if err != nil {
-			return ExactResult{}, err
-		}
-		prompt = framed
+	prompt, err := shapeInstruction(generator, prompt)
+	if err != nil {
+		return ExactResult{}, err
 	}
 	return Record(ctx, generator, name, prompt, maxTokens)
+}
+
+// shapeInstruction frames a prompt as the runtime's chat template frames an instruction, where the runtime has one.
+func shapeInstruction(generator Generator, prompt string) (string, error) {
+	if chat, ok := generator.(chatChoiceRuntime); ok {
+		return chat.ShapeChatPrompt(prompt)
+	}
+	return prompt, nil
 }

@@ -227,10 +227,15 @@ func compileSuite(data []byte, authorities ExactAuthorities) (CompiledSuite, err
 				return suiteResult{Report: report.ID, Metrics: accuracyMetrics(report.Accuracy, nil)}, err
 			})
 	case GeneratedAnswerKind:
-		return compileKind(data, envelope, authorities, CompileGeneratedAnswer, bindGeneratedAnswer, accuracyMetrics(0, nil),
+		// A suite of choices declares its soft share beside its accuracy.
+		var source GeneratedAnswerSuite
+		if err := strictjson.DecodeBytes(data, &source); err != nil {
+			return CompiledSuite{}, err
+		}
+		return compileKind(data, envelope, authorities, CompileGeneratedAnswer, bindGeneratedAnswer, generatedAnswerMetrics(source, 0, 0),
 			func(ctx context.Context, repository artifact.Repository, runtime Runtime, compiled generatedAnswerPlan, plan Plan) (suiteResult, error) {
 				report, err := evaluateGeneratedAnswer(ctx, repository, runtime, compiled, plan)
-				return suiteResult{Report: report.ID, Metrics: accuracyMetrics(report.Accuracy, nil)}, err
+				return suiteResult{Report: report.ID, Metrics: generatedAnswerMetrics(compiled.suite, report.Accuracy, report.Soft)}, err
 			})
 	case GroupedChoiceKind:
 		var source GroupedChoiceSuite

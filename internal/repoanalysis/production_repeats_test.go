@@ -31,7 +31,7 @@ const parameterLeast = 3
 // copy of each, among bodies that differ in a value or more and at most parameterLeast: what
 // compact-production/param-folds-outside left, repeats over different types or report fields, which a helper would
 // not shorten.
-const parameterCeiling = 1945
+const parameterCeiling = 1917
 
 // surfaceRepeatCeiling and surfaceParameterCeiling are the most syntax nodes the production bodies inside the inference
 // surface may repeat beyond one copy of each, alike and differing in at most parameterLeast values: what

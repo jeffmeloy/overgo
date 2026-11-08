@@ -40,6 +40,12 @@ type GeneratedAnswerCase struct {
 	Prompt    string   `json:"prompt"`
 	MaxTokens int      `json:"max_tokens"`
 	Answers   []string `json:"answers"`
+	// Choices are what a case is a choice among, one of them its answer, where it is one: the judge's probability of
+	// each is read from its first generated token (recordChoice). A suite's cases are all choices or none.
+	Choices []string `json:"choices,omitempty"`
+	// Group names what a case asks about, the caption its picture was drawn from, whose cases a soft share takes the
+	// geometric mean of (softShare); a case with none is a group of its own.
+	Group string `json:"group,omitzero"`
 }
 
 type GeneratedAnswerSuite struct {
@@ -68,6 +74,8 @@ type generatedAnswerObservation struct {
 	Prompt    int         `json:"prompt_tokens"`
 	Generated int         `json:"generated_tokens"`
 	Producer  artifact.ID `json:"producer,omitzero"`
+	// Probability is the judge's probability of a choice's right answer among its choices.
+	Probability *float64 `json:"probability,omitempty"`
 }
 
 type generatedAnswerReport struct {
@@ -77,6 +85,8 @@ type generatedAnswerReport struct {
 	Dataset      artifact.ID                  `json:"dataset"`
 	Observations []generatedAnswerObservation `json:"observations"`
 	Accuracy     float64                      `json:"accuracy"`
+	// Soft is a suite of choices' soft share (SoftMetric), beside its accuracy.
+	Soft float64 `json:"soft,omitzero"`
 }
 
 func CompileGeneratedAnswer(suite GeneratedAnswerSuite) (generatedAnswerPlan, error) {
@@ -110,6 +120,9 @@ func CompileGeneratedAnswer(suite GeneratedAnswerSuite) (generatedAnswerPlan, er
 		names[testCase.Name] = struct{}{}
 		if slices.Contains(testCase.Answers, "") {
 			return generatedAnswerPlan{}, errors.New("evaluation: empty generated answer")
+		}
+		if (len(testCase.Choices) > 0) != suite.choices() || suite.choices() && rightChoice(*testCase, suite.Transforms) < 0 {
+			return generatedAnswerPlan{}, fmt.Errorf("evaluation: case %q is not one choice among its choices as every case of the suite is", testCase.Name)
 		}
 	}
 	identity, dataset, split, err := suiteIdentities(suite, suite.Cases)
@@ -159,8 +172,18 @@ func evaluateGeneratedAnswer(
 	var producers []artifact.ID
 	correct := 0
 	progress := trackProgress(ctx, compiled.suite.Source, len(compiled.suite.Cases))
+	var probabilities []float64
 	for index, testCase := range compiled.suite.Cases {
-		result, err := recordInstruction(ctx, generator, testCase.Name, testCase.Prompt, testCase.MaxTokens)
+		var result ExactResult
+		var probability *float64
+		var err error
+		if compiled.suite.choices() {
+			var chance float64
+			result, chance, err = recordChoice(ctx, generator, testCase, rightChoice(testCase, compiled.suite.Transforms))
+			probability, probabilities = &chance, append(probabilities, chance)
+		} else {
+			result, err = recordInstruction(ctx, generator, testCase.Name, testCase.Prompt, testCase.MaxTokens)
+		}
 		if err != nil {
 			return generatedAnswerReport{}, err
 		}
@@ -178,7 +201,7 @@ func evaluateGeneratedAnswer(
 		report.Observations[index] = generatedAnswerObservation{
 			Name: testCase.Name, Raw: result.Text, Scored: scored, Accepted: accepted,
 			Prompt: result.PromptTokens, Generated: result.GeneratedTokens,
-			Producer: result.Producer,
+			Producer: result.Producer, Probability: probability,
 		}
 		if producer := report.Observations[index].Producer; producer.Valid() {
 			producers = append(producers, producer)
@@ -186,6 +209,9 @@ func evaluateGeneratedAnswer(
 		progress.hit(accepted)
 	}
 	report.Accuracy = float64(correct) / float64(len(report.Observations))
+	if compiled.suite.choices() {
+		report.Soft = softShare(compiled.suite.Cases, probabilities)
+	}
 	if math.IsNaN(report.Accuracy) || math.IsInf(report.Accuracy, 0) {
 		return generatedAnswerReport{}, errors.New("evaluation: generated-answer accuracy is not finite")
 	}

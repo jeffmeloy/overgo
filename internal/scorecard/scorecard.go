@@ -87,6 +87,9 @@ type Cell struct {
 	// where it has none, as a judged generation has: there another model answers
 	// about what this one drew.
 	Constant *float64 `json:"constant,omitempty"`
+	// Soft is a share of choices' soft share beside it (evaluation.SoftMetric): how sure the judge was of the right
+	// answers, which falls where a share at its ceiling cannot. Nil where the suite scores none.
+	Soft *float64 `json:"soft,omitempty"`
 	// Compared names the test that compares the path a request takes with a
 	// reference output, for a held-out quality that path produced, and
 	// Uncompared says why no such comparison is made where one was decided
@@ -146,6 +149,9 @@ func (c Cell) QualityText() string {
 	}
 	if c.Base != nil {
 		text += fmt.Sprintf(" vs base %.4g", *c.Base)
+	}
+	if c.Soft != nil {
+		text += fmt.Sprintf(", soft %.4g", *c.Soft)
 	}
 	if c.Cases > 0 {
 		text += fmt.Sprintf(" on %d cases", c.Cases)
@@ -1494,9 +1500,13 @@ func qualityCell(task recipe.Task, summaries []evaluation.EvalSummary, descripto
 			if descriptor.Kind == "" {
 				ranked = 0
 			}
+			var soft *float64
+			if value, scored := summary.Metrics[evaluation.SoftMetric]; scored && name == shareMetric {
+				soft = &value
+			}
 			measured = append(measured, heldout{cases: ranked, first: first[measure(summary.Suite)], built: built[summary.Suite], cell: Cell{
 				Value: value, Label: label, Source: summary.Record, Direction: summary.Directions[name],
-				CodeCommit: commit, Environment: summary.Environment, Cases: cases, Noise: noise, Constant: constant, Measure: measure(summary.Suite), Unread: summary.Unread,
+				CodeCommit: commit, Environment: summary.Environment, Cases: cases, Noise: noise, Constant: constant, Soft: soft, Measure: measure(summary.Suite), Unread: summary.Unread,
 				Contract: Contract{Metric: name, Origin: originEvaluation, Suite: summary.Suite, Protocol: summary.Prompting, Comparison: summary.Comparison},
 			}})
 		}

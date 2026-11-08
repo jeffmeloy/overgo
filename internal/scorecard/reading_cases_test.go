@@ -2,6 +2,7 @@ package scorecard
 
 import (
 	"math"
+	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -31,6 +32,27 @@ func TestHeldoutReadingSaysHowManyAnswersNamedNoOption(t *testing.T) {
 	unread, _ := qualityCell(recipe.TaskInference, []evaluation.EvalSummary{summary}, suite)
 	if unread.Unread != 9 || unread.QualityText() != "0.25 ±0.054 on 64 cases, 9 of them answered with no option named and counted wrong, a constant answer scores 0.1 (accuracy, suite (chat-template))" {
 		t.Fatalf("a reading nine of whose answers named no option reads %q", unread.QualityText())
+	}
+}
+
+// TestASoftShareIsReadBesideItsAccuracy holds a suite of choices' reading to both its shares: the soft share its record
+// carries (evaluation.SoftMetric) is stated beside the binary one, which stays the reading's value; a reading with no
+// soft share states none.
+func TestASoftShareIsReadBesideItsAccuracy(t *testing.T) {
+	t.Parallel()
+	summary := evaluation.EvalSummary{
+		Suite: "tifa", Prompting: "judged", Record: testutil.ArtifactID(t, artifact.KindEvaluation, "soft"),
+		Metrics:    map[string]float64{"accuracy": 0.75, evaluation.SoftMetric: 0.5467},
+		Directions: map[string]runrecord.Direction{"accuracy": runrecord.DirectionMaximize, evaluation.SoftMetric: runrecord.DirectionMaximize},
+	}
+	suite := map[string]evaluation.SuiteDescriptor{"tifa": {Kind: "generated-answer", Source: "tifa", Cases: 4}}
+	cell, _ := qualityCell(recipe.TaskInference, []evaluation.EvalSummary{summary}, suite)
+	if cell.Value != 0.75 || cell.Soft == nil || *cell.Soft != 0.5467 || !strings.Contains(cell.QualityText(), "0.75 ±0.22, soft 0.5467 on 4 cases") {
+		t.Fatalf("a reading of choices reads %v soft %v as %q, want 0.75 with soft 0.5467 beside it", cell.Value, cell.Soft, cell.QualityText())
+	}
+	delete(summary.Metrics, evaluation.SoftMetric)
+	if bare, _ := qualityCell(recipe.TaskInference, []evaluation.EvalSummary{summary}, suite); bare.Soft != nil || strings.Contains(bare.QualityText(), "soft") {
+		t.Fatalf("a reading with no soft share reads %q", bare.QualityText())
 	}
 }
 

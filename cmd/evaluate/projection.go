@@ -45,6 +45,23 @@ func (projectionRuntime) ScoreContinuations(context.Context, string, []string) (
 	return nil, errors.New("evaluate: a projection evaluation scores generated answers, not continuation likelihoods")
 }
 
+// ChoiceTokens names the one token each choice is generated as, so the logits of an answer's first token give the
+// probability of each; a choice of more than one token is refused.
+func (r projectionRuntime) ChoiceTokens(choices []string) ([]tokenizer.TokenID, error) {
+	tokens := make([]tokenizer.TokenID, len(choices))
+	for index, choice := range choices {
+		encoded, err := r.runner.TokenizeSamplingText(choice)
+		if err != nil {
+			return nil, err
+		}
+		if len(encoded) != 1 {
+			return nil, fmt.Errorf("evaluate: choice %q is %d tokens, where its probability is read from one", choice, len(encoded))
+		}
+		tokens[index] = encoded[0]
+	}
+	return tokens, nil
+}
+
 // Generate asks the question of the video or image the prompt names.
 func (r projectionRuntime) Generate(ctx context.Context, prompt string, options inference.GenerateOptions) ([]tokenizer.TokenID, string, error) {
 	kind, name, question, named := evaluation.ParseMediaPrompt(prompt)

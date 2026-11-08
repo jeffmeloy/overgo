@@ -254,6 +254,11 @@ func renderMedia(ctx context.Context, repository, path string, task recipe.Task,
 	return names, save()
 }
 
+// composedShare is how many captions a picture suite picks for each it composes of 3 to 10 atoms beside them
+// (evaluation.ComposeTIFA, evaluation.ComposeDrawnText): the picked ones keep the measure the suite had, and the
+// composed ones keep it off a ceiling a served model reached.
+const composedShare = 4
+
 // writeTIFAImages draws the pictures of -cases TIFA captions and writes the suite
 // that asks the judge about them.
 func writeTIFAImages(ctx context.Context, questions, model, repository, judge, directory, out, settings string, cases int, seed uint64) error {
@@ -269,6 +274,11 @@ func writeTIFAImages(ctx context.Context, questions, model, repository, judge, d
 	if err != nil {
 		return err
 	}
+	composed, err := evaluation.ComposeTIFA(max(cases/composedShare, 1), seed)
+	if err != nil {
+		return err
+	}
+	items = append(items, composed...)
 	prompts := make([]renderPrompt, len(items))
 	for index, item := range items {
 		prompts[index] = renderPrompt{ID: item.ID, Prompt: item.Caption}
@@ -299,6 +309,11 @@ func writeDrawnText(ctx context.Context, model, repository, judge, directory, ou
 	if err != nil {
 		return err
 	}
+	composed, err := evaluation.ComposeDrawnText(max(cases/composedShare, 1), seed)
+	if err != nil {
+		return err
+	}
+	items = append(items, composed...)
 	prompts := make([]renderPrompt, len(items))
 	for index, item := range items {
 		prompts[index] = renderPrompt{ID: item.ID, Prompt: item.Caption}

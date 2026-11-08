@@ -110,15 +110,17 @@ func buildPictureQuestions(source, schema string, items []TIFAItem, images map[s
 			return GeneratedAnswerSuite{}, fmt.Errorf("evaluation: caption %s has no picture", item.ID)
 		}
 		for number, question := range item.Questions {
-			var listing []string
+			var listing, letters []string
 			for position, choice := range question.Choices {
 				listing = append(listing, fmt.Sprintf("%c. %s", tifaLetters[position], choice))
+				letters = append(letters, string(tifaLetters[position]))
 			}
 			suite.Cases = append(suite.Cases, GeneratedAnswerCase{
 				Name:      fmt.Sprintf("%s/%s/%d", source, item.ID, number),
 				Prompt:    mediaPrompt(MediaImage, name, fmt.Sprintf("%s\n%s\nAnswer with the letter only.", question.Question, strings.Join(listing, "\n"))),
 				MaxTokens: tifaAnswerTokens,
 				Answers:   []string{string(tifaLetters[slices.Index(question.Choices, question.Answer)])},
+				Choices:   letters, Group: item.ID,
 			})
 		}
 	}

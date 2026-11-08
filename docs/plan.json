@@ -3,93 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "media-user-size",
-      "title": "Every image and video cell records the preset it ran, and each generator is timed at a user's size beside its smoke request, stage by stage",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 515,
-        "reason": "The preset step measured 985 nodes: a typed preset set by seven generators, carried through the attempt record and the scorecard, and a README generation table written from the record; user-size and stages are estimated at about 250 each."
-      },
-      "steps": [
-        {
-          "id": "user-size",
-          "title": "Each generator gains a user-size cell: Wan at 832 x 480 x 81 frames in 50 steps, LiveEdit at 81 frames, Krea-2-Turbo, MOSS-Image-SFT and SenseNova at 1024 x 1024",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/validate -count=1 -run '^TestEveryGeneratorHasAUserSizeCell$'",
-          "files": [
-            "cmd/validate",
-            "docs/image_video_protocol.json",
-            "internal/latentvideo",
-            "internal/latentimage",
-            "internal/diffusionimage"
-          ],
-          "needs_card": true,
-          "rationale": "The smoke cells measure fixed costs (text encoder, load, launch): the 14.1 s Wan cell and the 10.5 s LiveEdit cell say nothing of an 832 x 480 clip. The retained protocol keeps one 832 x 480 Wan review case, drawn by hand.\n\nOne user-size case per generator runs beside its smoke case, as any cell does. The Wan case adds about 6 minutes of card time to a cycle, LiveEdit's about 1.5 minutes, each image case under 2 minutes.\n\nNote: Filed 2026-11-08: video models already hold a user-size cell (e360c6cb6, 2026-11-02, cmd/validate videoUserSize): go run ./cmd/recipe measure -user-size drops the verified request's frames, width, height and steps so the model's own defaults run, and the README prints it \"at the size a person asks for\". What this step adds is the image generators' cell, Krea-2-Turbo, MOSS-Image-SFT and SenseNova at 1024 x 1024, and the test that every generator holds one.\n\nServes: first-output and peak-device-memory at the size users ask for.\nDisappears: the hand-drawn review case as the only full-size number.\nEvidence: each generator's protocol lists a user-size case, and a cycle that skips it is refused.\nBatch: device lane.",
-          "depends_on": [
-            "media-user-size/preset"
-          ]
-        },
-        {
-          "id": "stages",
-          "title": "A user-size cell splits its time into text encoding, source encoding, denoising and decoding",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo ./internal/latentimage -count=1 -run '^TestAGenerationRecordsItsStageTimes$'",
-          "files": [
-            "internal/latentvideo",
-            "internal/latentimage",
-            "internal/diffusionimage",
-            "internal/scorecard",
-            "cmd/validate"
-          ],
-          "needs_card": true,
-          "rationale": "LiveEdit takes about 88 s a clip against its paper's 7.89 s at 4 NFE (arXiv 2606.26740). Its network work is about 1 PFLOP, 12 to 15 s at overgo's measured rate, so about 70 s lies in the CPU umT5 encoder and the VAE encode and decode, which no record separates.\n\nA generation records its stage times beside its total.\n\nServes: first-output; it says which of umt5-resident, video-decode-overlap or the attention and matrix kernels a model needs first.\nDisappears: generation time read only as a total.\nEvidence: a user-size cell holds four stage times that sum to its total within 1%.\nBatch: device lane.",
-          "depends_on": [
-            "media-user-size/user-size"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "quality-instruments",
-      "title": "The picture judge scores Soft-TIFA against the user's original prompt, on cases hard enough to stay off the ceiling",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 300,
-        "reason": "Estimate before the survey: the judge reads the right answer's probability, a prompt's score becomes a geometric mean, a case keeps its original prompt beside any rewrite, and the caption suites gain composed cases of 3 to 10 atoms."
-      },
-      "steps": [
-        {
-          "id": "soft-tifa",
-          "title": "TIFA scores the judge's probability of the right answer, a prompt scoring the geometric mean over its questions, beside the binary count",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -count=1 -run '^TestSoftTIFAScoresTheProbabilityOfTheRightAnswer$'",
-          "files": [
-            "internal/evaluation",
-            "cmd/evaluate",
-            "internal/scorecard"
-          ],
-          "rationale": "Binary TIFA reads 0.94 for Krea-2-Turbo and 100 of 100 for SenseNova, at or near the ceiling, so a fewer-pass preset could lower quality unseen. Soft-TIFA (GenEval 2, arXiv 2512.16853) agrees with people at 94.5 AUROC against TIFA's 91.6 and needs only the answer probability the Qwen3.8-27B judge already computes; no download.\n\nThe judge reads the right answer's probability, and a prompt scores the geometric mean over its questions; the binary count is kept for continuity.\n\nServes: held-out-quality; every fewer-pass preset below is admitted on it.\nDisappears: a quality reading that cannot fall because it sits at the ceiling.\nEvidence: fixture answer probabilities give the expected geometric mean, and a confident wrong answer lowers it below the binary score.\nBatch: host lane."
-        },
-        {
-          "id": "hard-cases",
-          "title": "The image suites gain composed cases of 3 to 10 atoms, so no served image model scores at the ceiling",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -count=1 -run '^TestImageSuitesHoldCasesOfThreeToTenAtoms$'",
-          "files": [
-            "internal/evaluation",
-            "cmd/evaluate",
-            "fixtures"
-          ],
-          "rationale": "SenseNova scores 100 of 100 on its infographic suite, the suite's ceiling, and its 8-step LoRA is known to repeat text; GenEval 2 keeps strong models off the ceiling with prompts of 3 to 10 atoms (objects, counts, colours, positions, text).\n\nThe caption suites gain cases composed from their own atoms, frozen like any held-out case.\n\nServes: held-out-quality.\nDisappears: a suite no served model can score below.\nEvidence: each image suite holds composed cases of 3 to 10 atoms, frozen by hash.\nBatch: host lane.",
-          "depends_on": [
-            "quality-instruments/soft-tifa"
-          ]
-        }
-      ]
-    },
-    {
       "id": "umt5-resident",
       "title": "Wan's umT5 text encoder runs on the card, loaded once, and video conditioning is cached by content",
       "owner": "master-lead",
@@ -148,6 +61,54 @@
             "cmd/hf-hub"
           ],
           "rationale": "On 2026-11-08 decision self-forcing-download named one checkpoint, self_forcing_dmd.pt (5.68 GB), of gdhe17/Self-Forcing, which holds seven checkpoints and 45 GB; cmd/hf-hub download takes the whole repository, though hfhub.DownloadRequest.Files limits a download to exact paths. The image and video plan's other downloads (Real-ESRGAN, FlashVSR, DWPose, DiTDH-XL) are single files of larger repositories too.\n\nA -files flag passes the paths, and the receipt names those files alone.\n\nServes: setup-steps; each decided download fetches what was decided.\nDisappears: a download of files no decision named.\nEvidence: a download naming one file of a fixture repository fetches and receipts that file alone.\nBatch: host lane."
+        }
+      ]
+    },
+    {
+      "id": "media-user-size",
+      "title": "Every image and video cell records the preset it ran, and each generator is timed at a user's size beside its smoke request, stage by stage",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 515,
+        "reason": "The preset step measured 985 nodes: a typed preset set by seven generators, carried through the attempt record and the scorecard, and a README generation table written from the record; user-size and stages are estimated at about 250 each."
+      },
+      "steps": [
+        {
+          "id": "user-size",
+          "title": "Each generator gains a user-size cell: Wan at 832 x 480 x 81 frames in 50 steps, LiveEdit at 81 frames, Krea-2-Turbo, MOSS-Image-SFT and SenseNova at 1024 x 1024",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/validate -count=1 -run '^TestEveryGeneratorHasAUserSizeCell$'",
+          "files": [
+            "cmd/validate",
+            "docs/image_video_protocol.json",
+            "internal/latentvideo",
+            "internal/latentimage",
+            "internal/diffusionimage"
+          ],
+          "needs_card": true,
+          "rationale": "The smoke cells measure fixed costs (text encoder, load, launch): the 14.1 s Wan cell and the 10.5 s LiveEdit cell say nothing of an 832 x 480 clip. The retained protocol keeps one 832 x 480 Wan review case, drawn by hand.\n\nOne user-size case per generator runs beside its smoke case, as any cell does. The Wan case adds about 6 minutes of card time to a cycle, LiveEdit's about 1.5 minutes, each image case under 2 minutes.\n\nNote: Filed 2026-11-08: video models already hold a user-size cell (e360c6cb6, 2026-11-02, cmd/validate videoUserSize): go run ./cmd/recipe measure -user-size drops the verified request's frames, width, height and steps so the model's own defaults run, and the README prints it \"at the size a person asks for\". What this step adds is the image generators' cell, Krea-2-Turbo, MOSS-Image-SFT and SenseNova at 1024 x 1024, and the test that every generator holds one.\n\nServes: first-output and peak-device-memory at the size users ask for.\nDisappears: the hand-drawn review case as the only full-size number.\nEvidence: each generator's protocol lists a user-size case, and a cycle that skips it is refused.\nBatch: device lane.",
+          "depends_on": [
+            "media-user-size/preset"
+          ]
+        },
+        {
+          "id": "stages",
+          "title": "A user-size cell splits its time into text encoding, source encoding, denoising and decoding",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo ./internal/latentimage -count=1 -run '^TestAGenerationRecordsItsStageTimes$'",
+          "files": [
+            "internal/latentvideo",
+            "internal/latentimage",
+            "internal/diffusionimage",
+            "internal/scorecard",
+            "cmd/validate"
+          ],
+          "needs_card": true,
+          "rationale": "LiveEdit takes about 88 s a clip against its paper's 7.89 s at 4 NFE (arXiv 2606.26740). Its network work is about 1 PFLOP, 12 to 15 s at overgo's measured rate, so about 70 s lies in the CPU umT5 encoder and the VAE encode and decode, which no record separates.\n\nA generation records its stage times beside its total.\n\nServes: first-output; it says which of umt5-resident, video-decode-overlap or the attention and matrix kernels a model needs first.\nDisappears: generation time read only as a total.\nEvidence: a user-size cell holds four stage times that sum to its total within 1%.\nBatch: device lane.",
+          "depends_on": [
+            "media-user-size/user-size"
+          ]
         }
       ]
     },

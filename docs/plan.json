@@ -1,27 +1,7 @@
 {
   "campaign": "Deliver multimodal Qwen3.8-Flash-Next UD-IQ4_XS and meet native Strata performance",
   "lane": "master-lead",
-  "items": [
-    {
-      "id": "one-draft-verdict",
-      "title": "The open's measured draft verdict is the one decision on whether a model drafts through its own next-token layer by default, and the kept-share refusal goes",
-      "class": "consolidation",
-      "status": "open",
-      "budget": {
-        "nodes": -80,
-        "reason": "Estimate before the survey: internal/inference loses observeOwnDrafts (84 nodes), its constant block (14), the two Runner tally fields and the window's call; 80 is the shrink owed."
-      },
-      "steps": [
-        {
-          "id": "verdict",
-          "title": "Default drafting through a model's own next-token layer is decided by the open's measured verdict alone",
-          "status": "open",
-          "verify": "go test ./internal/inference -count=1 -run '^TestTheOpensDraftVerdictIsTheOneDefaultDraftingDecision$'",
-          "rationale": "SQA-257: two rules decide default drafting through a model's own next-token layer: internal/inference/nextn_device_speculation.go observeOwnDrafts refuses it once fewer than one in ten of 48 drafts were kept, and JudgeOwnDrafts, recorded per model, build and card by internal/modelcli/draft_verdict.go, refuses it where drafting decodes slower; that file's readings show the kept share does not decide the rate, Qwen3.5-4B keeping half its drafts yet decoding 57 tok/s drafted against 95 plainly.\n\nobserveOwnDrafts, its tallies and constants and TestOwnDraftsRefusedWhereFewAreKept go; the measured verdict is the one default decision, and a request that asks to speculate still drafts.\n\nServes: throughput; a served model drafts by default exactly where drafting decodes faster.\nDisappears: the kept-share refusal, its tallies, constants and test.\nEvidence: judgeDrafts decides over recorded rates, and Runner holds no kept-share tally.\nBatch: host lane."
-        }
-      ]
-    }
-  ],
+  "items": [],
   "decisions": [
     {
       "id": "gemma-12b-bf16-download",

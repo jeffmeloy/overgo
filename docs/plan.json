@@ -3,31 +3,197 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "licence-scope",
+      "title": "No model is ever distributed, and the SBOM, the release and licenses/ name only the third-party code the build compiles in or copies",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 600,
+        "reason": "Estimate: the SBOM generator's module source and entries, the release's document list, five licence refusals relaxed to records, and the notice files' check; each step is small and none touches the timing chain."
+      },
+      "steps": [
+        {
+          "id": "sbom",
+          "title": "The SBOM lists the Go standard library, the third-party modules the build compiles in, each with its licence, and NVIDIA's driver and the CUDA libraries the binaries load as external requirements",
+          "status": "open",
+          "verify": "go test ./cmd/sbom -count=1 -run '^TestTheSBOMListsWhatTheBuildCompilesIn$'",
+          "files": [
+            "cmd/sbom",
+            "SBOM.cdx.json"
+          ],
+          "rationale": "The owner (2026-11-08): no model is ever distributed, and the SBOM lists only the third-party code the build compiles in. SBOM.cdx.json holds 61 entries, 23 KB: cmd/sbom reads modules from go list -m all (cmd/sbom/main.go:216), which lists six modules no package compiles in (messagediff, mighty, csvutil, pkg/errors, x/image, x/net), and it lists overgo's own kernel and PTX files and licence tags on the two llama.cpp tables, though code ported or generated into overgo is overgo's own and no component.\n\nThe modules come from what the packages compile (go list -deps): today regexp2, flac, mewkiz/pkg, mewpkg/term and bitio, each with its licence, and the check refuses a compiled-in module with none. The external requirements are what the binaries load: NVIDIA's driver (nvcuda.dll, nvml.dll), cuBLAS and cuBLASLt 12, and cuDNN 9 where installed. The CI check and the release check stay.\n\nServes: the owner's distribution rule.\nDisappears: six modules nothing compiles in, overgo's own files listed as components, and a module listed without its licence.\nEvidence: the generated SBOM lists exactly the compiled-in modules with licences, the standard library and the loaded NVIDIA libraries, and a compiled-in module with no licence is refused.\nBatch: host lane."
+        },
+        {
+          "id": "release-notices",
+          "title": "A release bundles LICENSE and licenses/ beside its binaries",
+          "status": "open",
+          "verify": "go test ./cmd/release -count=1 -run '^TestAReleaseCarriesItsNotices$'",
+          "files": [
+            "cmd/release"
+          ],
+          "rationale": "MIT and Apache notices must go with binaries, and releaseDocuments (cmd/release/main.go:45) lists neither LICENSE nor licenses/.\n\nServes: the owner's distribution rule.\nDisappears: binaries released without the notices their compiled-in code requires.\nEvidence: a release archive holds LICENSE and every file of licenses/.\nBatch: host lane."
+        },
+        {
+          "id": "model-licences",
+          "title": "A model's licence is recorded where it ships one, and no model is refused for lacking one",
+          "status": "open",
+          "verify": "go test ./internal/modelartifact ./cmd/recipe ./internal/audioparity ./internal/speechactivity ./internal/speechrecognition -count=1 -run '^TestAModelWithoutALicenceIsServed$'",
+          "files": [
+            "internal/modelartifact",
+            "cmd/recipe",
+            "internal/audioparity",
+            "internal/speechactivity",
+            "internal/speechrecognition"
+          ],
+          "rationale": "No model is ever distributed, so a model's licence binds only its local use: registration records one when the model ships one and never refuses a model without one (internal/modelartifact/registration.go:94, cmd/recipe/spec_assemble.go:136); the audio reference model loses its Apache-2.0-only rule (internal/audioparity/election.go:348); and the speech activity detector and the speaker model load when their licence file is missing (internal/speechactivity/detector.go:74, internal/speechrecognition/speaker.go:43). The krea-derivatives decision is answered for local use, so krea-loras runs.\n\nServes: setup-steps.\nDisappears: a model refused for a licence file the owner never distributes.\nEvidence: a model with no licence registers, its record naming none, and the detector, the speaker model and the audio reference load without one; a model that ships one has it recorded.\nBatch: host lane."
+        },
+        {
+          "id": "notices",
+          "title": "licenses/ holds notices only for what overgo copies: the compiled-in modules, the tables copied verbatim and units ported literally",
+          "status": "open",
+          "verify": "go test ./cmd/sbom -count=1 -run '^TestEveryNoticeIsOfWhatOvergoCopies$'",
+          "files": [
+            "licenses",
+            "cmd/sbom",
+            "internal/media",
+            "internal/audiodsp",
+            "internal/speechrecognition",
+            "internal/tokenizer",
+            "internal/hfbpe",
+            "internal/strataspec",
+            "internal/cuda"
+          ],
+          "rationale": "licenses/ holds notices for third-party Go modules compiled into the binaries (regexp2, MIT, and bitio, Apache-2.0, have none today; flac and its helpers are covered by Unlicense.txt), data copied verbatim (the llama.cpp IQ tables, llama.cpp-MIT.txt; the Unicode NFC table, Unicode-LICENSE.txt), and any unit ported literally under skill.md:340. A port that rebuilds the behaviour from overgo's own code needs none: the notice files whose ports all do so go, audio-notices.txt saying its audio.cpp ports reproduce behaviour, and colibri-Apache-2.0.txt, which no code cites, goes. Each remaining notice is read against the code that cites it (Strata's, RxBrain's), and the code's comments name only the notices that stay.\n\nServes: the owner's distribution rule.\nDisappears: notices for code overgo does not copy, and compiled-in modules without one.\nEvidence: every file of licenses/ is the notice of a compiled-in module, a copied table or a literal port that names it, and every compiled-in module has one.\nBatch: host lane.",
+          "depends_on": [
+            "licence-scope/sbom"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "plan-step-files",
+      "title": "A step's file list is corrected through the plan tool before its work begins, so a step missing a file is fixed once and not refused at its landing",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 250,
+        "reason": "Estimate: one plan flag that replaces an open step's files with a reason, recorded like a count change, and its test."
+      },
+      "steps": [
+        {
+          "id": "setfiles",
+          "title": "go run ./cmd/plan -setfiles -files a,b -reason r \u003citem\u003e \u003cstep\u003e replaces an open step's file list",
+          "status": "open",
+          "verify": "go test ./cmd/plan -count=1 -run '^TestAStepsFilesAreSetWithAReason$'",
+          "files": [
+            "cmd/plan",
+            "internal/plan"
+          ],
+          "rationale": "Four steps of the image-video campaign were re-filed for missing files (preset-record, person-size, stage-times, composed, served, presets twice), each by adding a step and retiring the old one, because no plan tool changes a step's files; the same files keep coming up, the chain that carries a timing from the run to its record and the scorecard (internal/media, internal/capabilityruntime, internal/servingattempt, internal/runrecord, cmd/recipe, internal/scorecard). The owner (2026-11-08): fix the remaining entries' estimates and file lists in one pass. A plan-only landing sets the files, so the next change is judged by them.\n\nServes: setup-steps.\nDisappears: a re-filing per refused step.\nEvidence: the flag replaces an open step's files and records why; a done step or an unknown one is refused.\nBatch: host lane."
+        }
+      ]
+    },
+    {
+      "id": "liveedit-card-text",
+      "title": "LiveEdit encodes its instruction on the card, as Wan and the student do, and its clip is timed again",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 200,
+        "reason": "Estimate: the edit condition's text spec on the card, its test against the host encoder, and one measured request; umt5-resident built the card encoder."
+      },
+      "steps": [
+        {
+          "id": "card",
+          "title": "LiveEdit's instruction is encoded on the card, its context within the encoder's declared tolerance of the host's, and a served edit is measured again",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestLiveEditEncodesItsInstructionOnTheCard$'",
+          "files": [
+            "internal/latentvideo",
+            "internal/mediacapability",
+            "cmd/recipe",
+            "internal/scorecard"
+          ],
+          "needs_card": true,
+          "rationale": "umt5-resident switched the card encoder on for Wan (production_cuda_windows.go:61) and the student (wan_student_cuda_windows.go:63) and closed without LiveEdit's path, whose condition still encodes on the host (edit_form.go:406). LiveEdit is the model whose 88 s clip was mostly time outside the network: about 62 s in the host text encoder on the stage-times record.\n\nServes: first-output for LiveEdit.\nDisappears: LiveEdit's host text encoder.\nEvidence: LiveEdit's condition encodes on the card within the encoder's declared tolerance of the host, and a measured edit records its parts, the text encoder's among them.\nBatch: device lane."
+        }
+      ]
+    },
+    {
+      "id": "video-judge",
+      "title": "The generated-video judge scores probabilities on harder cases, and Wan's base and its four-step student are judged at the same settings, so the student's quality says something",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 1200,
+        "reason": "Estimate from quality-instruments, which needed about this for images: the video suite's soft score and composed cases, the base judged at the student's settings, and a comparison that states its verdict; the renders run hours on the card."
+      },
+      "steps": [
+        {
+          "id": "soft-video",
+          "title": "The generated-video suite scores the judge's probability of the right caption beside the binary count, and gains harder cases, so no served video model scores at its ceiling",
+          "status": "open",
+          "verify": "go test ./internal/evaluation ./cmd/evaluate -count=1 -run '^TestTheVideoSuiteScoresProbabilitiesOnHarderCases$'",
+          "files": [
+            "internal/evaluation",
+            "cmd/evaluate",
+            "internal/scorecard"
+          ],
+          "rationale": "wan-few-step/measured judged the Self-Forcing student 0.898 against its base's 0.914 on 128 cases, and 59 of the 64 clips tied: 2 wins, 3 losses, tail 0.81. The video caption-matching suite is at its ceiling, the problem quality-instruments fixed for images with Soft-TIFA and composed cases. The same instruments carry over: the judge's probability of the right caption, and cases whose distractors differ in one detail.\n\nServes: held-out-quality for every video generator.\nDisappears: a video comparison where nearly every clip ties.\nEvidence: the suite's soft score separates two clips of one caption the binary count ties, and its harder cases leave no served video model at its ceiling.\nBatch: host lane."
+        },
+        {
+          "id": "same-settings",
+          "title": "Wan's 50-step base and its four-step student are drawn and judged at the student's settings, 81 frames at 832 x 480, on the harder suite, and the comparison states its verdict",
+          "status": "open",
+          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/validate -count=1 -run '^TestTheWanStudentIsJudgedBesideItsBase$'",
+          "files": [
+            "cmd/validate",
+            "cmd/evaluate",
+            "internal/evaluation",
+            "internal/scorecard"
+          ],
+          "needs_card": true,
+          "rationale": "The base's 0.914 was judged at 17 frames, 416 x 240 and 20 steps, the student's 0.898 at 81 frames, 832 x 480 and 4 steps, and the check passed whatever the result. The base is drawn at the student's settings (about 6 h of the card at 374 s a clip for 64 clips) and both are judged on the soft, harder suite; the check states the comparison's verdict and holds that the two ran the same settings, so a student is not evidence for anything until this lands.\n\nServes: held-out-quality for the Wan student.\nDisappears: a comparison across settings, and a check that passes whatever the result.\nEvidence: both quality cells rest on the same captions at the same size and frames, and the paired comparison states its verdict.\nBatch: device lane.",
+          "depends_on": [
+            "video-judge/soft-video"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "measure-says",
+      "title": "A measured request prints the cell it recorded, and a measuring step's landing states it",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 250,
+        "reason": "Estimate: recipe measure's printed headline from the observation it publishes, and the landing's message reading a measuring step's printed result."
+      },
+      "steps": [
+        {
+          "id": "headline",
+          "title": "recipe measure prints the time and memory it recorded, at the preset it ran, as its last line",
+          "status": "open",
+          "verify": "go test ./cmd/recipe -count=1 -run '^TestAMeasuredRequestPrintsWhatItRecorded$'",
+          "files": [
+            "cmd/recipe",
+            "internal/servingattempt",
+            "internal/runrecord"
+          ],
+          "rationale": "The student's time at a person's size (about 30 s for 81 frames at 832 x 480, against the base's 374 s) is recorded in the store, and no commit message or README line states it: recipe measure prints its stage ledger and the clip's bytes, not the cell it recorded. A measuring step should print the number it recorded, so its session and its landing can state it.\n\nServes: first-output read where it is measured.\nDisappears: a measurement recorded and stated nowhere.\nEvidence: a measured request's last line names the cell, its value and preset, as published.\nBatch: host lane."
+        }
+      ]
+    },
+    {
       "id": "sampling-split",
       "title": "Sampling splits into noise, sigma table, step function and guider, with hooks before and after the guidance combine, so each model's presets are data",
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 690,
+        "nodes": -77,
         "reason": "interface counted 1010 against the 400 estimated: the flow sampler interface, its Euler and guider, and the four host loops (Wan's UniPC, RAE's Euler, SimpleDiffusion's) rewritten as walks with the device loops reading their deltas from it, each loop counted whole; presets and block-override add about 700 more."
       },
       "steps": [
-        {
-          "id": "presets",
-          "title": "A request names a preset from its model's profile, the authors' recipe as reference and every other preset an addition, and guidance 1 runs no unconditioned pass",
-          "status": "open",
-          "verify": "go test ./internal/latentimage ./internal/latentvideo -count=1 -run '^TestARequestRunsTheNamedPresetOfItsProfile$'",
-          "files": [
-            "internal/latentimage",
-            "internal/latentvideo",
-            "internal/rae",
-            "internal/sampling"
-          ],
-          "rationale": "Each profile holds one recipe, the authors'. The other recipes worth serving differ only in data: MOSS's 25-step preset at guidance 2.5 (docs.comfy.org MOSS tutorial), Wan's model-card shift of 8 against the reference script's 5 overgo runs, Krea's 4-step draft. A request with no preset runs the reference preset, which the goldens hold.\n\nPresets are named entries of a profile; guidance 1 skips the unconditioned pass in the guider.\n\nServes: setup-steps; every preset row below adds data, not code.\nDisappears: a recipe change that needs code.\nEvidence: a request naming a preset runs its steps, sampler, shift and guidance; one naming none runs the reference; guidance 1 makes one network call a step.\nBatch: host lane.",
-          "depends_on": [
-            "sampling-split/interface"
-          ]
-        },
         {
           "id": "block-override",
           "title": "MOSS's negative-branch layer skip becomes a block-override hook any DiT's guider can use",
@@ -51,8 +217,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 450,
-        "reason": "Estimate before the survey: four guider functions of tens of lines each, NAG's attention-context path, and their presets."
+        "nodes": 1200,
+        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
       },
       "steps": [
         {
@@ -113,8 +279,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 900,
-        "reason": "Estimate before the survey: graph flattening (subgraphs, Set/Get links, bypassed nodes), the API client for a local ComfyUI process, the recording nodes, and strict fixtures."
+        "nodes": 1500,
+        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
       },
       "steps": [
         {
@@ -147,13 +313,68 @@
       ]
     },
     {
+      "id": "video-decode-overlap",
+      "title": "The causal video VAE decodes chunk k on a second stream while chunk k + 1 denoises",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 800,
+        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
+      },
+      "steps": [
+        {
+          "id": "overlap",
+          "title": "Decoding overlaps denoising chunk by chunk, the output bytes unchanged",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestDecodeOverlapsDenoisingChunkByChunk$'",
+          "files": [
+            "internal/latentvideo",
+            "internal/cuda"
+          ],
+          "needs_card": true,
+          "rationale": "LiveEdit pays the VAE twice, encode and decode, and the Wan student decodes the same way chunk by chunk. The causal VAE keeps a per-chunk feature cache, so chunk k can decode while chunk k + 1 denoises, hiding most of the decode behind the network. The kernels are unchanged, so the frames are bit-identical.\n\nServes: first-output for LiveEdit and the Wan student.\nDisappears: decode time added after the last denoise.\nEvidence: the frames are bit-identical to the sequential decode, and the user-size cell's decode stage shrinks.\nBatch: device lane.",
+          "depends_on": [
+            "media-user-size/stages"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "light-vae",
+      "title": "LightVAE decodes final video and TAEW2.1 previews steps, each its own model beside the Wan VAE",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 1000,
+        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
+      },
+      "steps": [
+        {
+          "id": "decoders",
+          "title": "LightVAE and TAEW2.1 decode Wan latents, LightVAE read against the Wan VAE on its 128-clip reconstruction suite",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestLightVAEIsReadAgainstTheWanVAE$'",
+          "files": [
+            "internal/latentvideo",
+            "internal/modelrecipe",
+            "local-models.json"
+          ],
+          "needs_card": true,
+          "rationale": "lightx2v's LightVAE (Apache-2.0) is the Wan VAE pruned by 75% and distilled: on an H100 it encodes in 1.50 s against 4.17 s and decodes in 2.07 s against 5.46 s, rated close to official. TAEW2.1 (MIT, about 0.02 GB) decodes far faster with visible loss of detail, so it serves step previews only. Every model is kept: the Wan VAE stays the reference decoder. Their sizes are read before download (decision light-vae-download).\n\nServes: first-output (encode and decode count twice for LiveEdit), and previews.\nDisappears: nothing.\nEvidence: LightVAE's PSNR on the 128-clip suite and its decode time are recorded beside the Wan VAE's 41.4 dB.\nBatch: device lane.",
+          "depends_on": [
+            "video-decode-overlap/overlap"
+          ]
+        }
+      ]
+    },
+    {
       "id": "moss-ultra-import",
       "title": "The MOSS Ultra workflow's six model files serve in overgo as published: Base in ComfyUI's 8-bit ConvRot format, the abliterated Qwen3.5-9B encoder, the Flux2 VAE and three adapters",
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 700,
-        "reason": "Estimate before the survey: a local import by hard link with receipts, the ConvRot decode at load, the fused qkv split, and the encoder's name mapping and template."
+        "nodes": 2000,
+        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
       },
       "steps": [
         {
@@ -210,8 +431,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 700,
-        "reason": "Estimate before the survey: three adapter readers with name mapping onto fused and widened layers, a low-rank side product in the image and video blocks, and the eight-step MOSS preset."
+        "nodes": 2100,
+        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
       },
       "steps": [
         {
@@ -271,8 +492,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 1500,
-        "reason": "Estimate before the survey: three schedules, the ER-SDE step, the denoise rule, a DPT depth head on vitencoder, depth control, the enhancer and layout logic as typed Go, sharpening and size rounding."
+        "nodes": 4000,
+        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
       },
       "steps": [
         {
@@ -389,8 +610,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 250,
-        "reason": "Estimate before the survey: per-section agreement on the adaptiveparity shape, the speed cells, and six workbench presets as data."
+        "nodes": 800,
+        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
       },
       "steps": [
         {
@@ -451,8 +672,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 400,
-        "reason": "Estimate before the survey: the kernel's binding, quantisation of Q and K, and the presets in Go; the kernel itself is CUDA source, counted in lines."
+        "nodes": 1200,
+        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
       },
       "steps": [
         {
@@ -507,8 +728,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 500,
-        "reason": "Estimate before the survey: load-time quantisation with per-channel scales, per-token activation scales, the Hadamard-rotated INT8 path, and the presets; kernels are CUDA source, counted in lines."
+        "nodes": 1500,
+        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
       },
       "steps": [
         {
@@ -581,8 +802,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 350,
-        "reason": "Estimate before the survey: a residual cache with an accumulated error bound in the sampler interface, and LiveEdit's token mask in its attention."
+        "nodes": 1000,
+        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
       },
       "steps": [
         {
@@ -621,68 +842,13 @@
       ]
     },
     {
-      "id": "video-decode-overlap",
-      "title": "The causal video VAE decodes chunk k on a second stream while chunk k + 1 denoises",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 250,
-        "reason": "Estimate before the survey: a second stream and an event per chunk in the chunked runtime; the causal VAE's per-chunk feature cache exists."
-      },
-      "steps": [
-        {
-          "id": "overlap",
-          "title": "Decoding overlaps denoising chunk by chunk, the output bytes unchanged",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestDecodeOverlapsDenoisingChunkByChunk$'",
-          "files": [
-            "internal/latentvideo",
-            "internal/cuda"
-          ],
-          "needs_card": true,
-          "rationale": "LiveEdit pays the VAE twice, encode and decode, and the Wan student decodes the same way chunk by chunk. The causal VAE keeps a per-chunk feature cache, so chunk k can decode while chunk k + 1 denoises, hiding most of the decode behind the network. The kernels are unchanged, so the frames are bit-identical.\n\nServes: first-output for LiveEdit and the Wan student.\nDisappears: decode time added after the last denoise.\nEvidence: the frames are bit-identical to the sequential decode, and the user-size cell's decode stage shrinks.\nBatch: device lane.",
-          "depends_on": [
-            "media-user-size/stages"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "light-vae",
-      "title": "LightVAE decodes final video and TAEW2.1 previews steps, each its own model beside the Wan VAE",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 300,
-        "reason": "Estimate before the survey: two decoder configurations of the existing Wan VAE code paths, their imports, and a preview hook."
-      },
-      "steps": [
-        {
-          "id": "decoders",
-          "title": "LightVAE and TAEW2.1 decode Wan latents, LightVAE read against the Wan VAE on its 128-clip reconstruction suite",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestLightVAEIsReadAgainstTheWanVAE$'",
-          "files": [
-            "internal/latentvideo",
-            "internal/modelrecipe",
-            "local-models.json"
-          ],
-          "needs_card": true,
-          "rationale": "lightx2v's LightVAE (Apache-2.0) is the Wan VAE pruned by 75% and distilled: on an H100 it encodes in 1.50 s against 4.17 s and decodes in 2.07 s against 5.46 s, rated close to official. TAEW2.1 (MIT, about 0.02 GB) decodes far faster with visible loss of detail, so it serves step previews only. Every model is kept: the Wan VAE stays the reference decoder. Their sizes are read before download (decision light-vae-download).\n\nServes: first-output (encode and decode count twice for LiveEdit), and previews.\nDisappears: nothing.\nEvidence: LightVAE's PSNR on the 128-clip suite and its decode time are recorded beside the Wan VAE's 41.4 dB.\nBatch: device lane.",
-          "depends_on": [
-            "video-decode-overlap/overlap"
-          ]
-        }
-      ]
-    },
-    {
       "id": "stage-cache",
       "title": "Every media stage's output is keyed by operation, version, constants and inputs in the store, and step previews come from a Latent2RGB projection fitted to overgo's own decodes",
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 500,
-        "reason": "Estimate before the survey: a content key over each stage's inputs in the store, the pre-decode latent as a stored stage, and a fitted 3 x C projection per latent format."
+        "nodes": 1500,
+        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
       },
       "steps": [
         {
@@ -723,8 +889,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 250,
-        "reason": "Estimate before the survey: an enhance toggle per generator calling a served Qwen model with each author's expansion template, and the layout planner's schema prompt."
+        "nodes": 750,
+        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
       },
       "steps": [
         {
@@ -765,8 +931,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 600,
-        "reason": "Estimate before the survey: a prefix cache keyed by prompt, source images entering as pixel patches, an image-guidance branch, and a judged edit suite."
+        "nodes": 1800,
+        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
       },
       "steps": [
         {
@@ -805,8 +971,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 400,
-        "reason": "Estimate before the survey: Krea's VAE encoder on the Wan encoder kernels, and mask blending per step in the image sampler."
+        "nodes": 1200,
+        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
       },
       "steps": [
         {
@@ -846,8 +1012,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 400,
-        "reason": "Estimate before the survey: graph capture of the sampler loop, fused norm, activation and RoPE launches, batched images, DPM-Solver++ 2M in the sampler interface, and FD-DINOv2 on the native DINOv2."
+        "nodes": 1200,
+        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
       },
       "steps": [
         {
@@ -902,8 +1068,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 200,
-        "reason": "Estimate before the survey: a second model inside the guider, which sampling-split provides, and the XL checkpoint's import."
+        "nodes": 600,
+        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
       },
       "steps": [
         {
@@ -931,8 +1097,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 400,
-        "reason": "Estimate before the survey: a sink-and-recent window with window-relative RoPE, the bidirectional checkpoint's profile, and overlapping context windows with a fused blend."
+        "nodes": 1200,
+        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
       },
       "steps": [
         {
@@ -981,8 +1147,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 800,
-        "reason": "Estimate before the survey: a ViT-H/14 configuration of vitencoder, the InP model's widened patch embedding on LiveEdit's precedent, and its frame conditioning."
+        "nodes": 2400,
+        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
       },
       "steps": [
         {
@@ -1020,8 +1186,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 900,
-        "reason": "Estimate before the survey: the VACE module's context blocks beside the Wan DiT, its inputs for reference, mask, extension, depth and pose, and a DWPose port."
+        "nodes": 2700,
+        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
       },
       "steps": [
         {
@@ -1061,8 +1227,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 1200,
-        "reason": "Estimate before the survey: three small networks (an RRDB upscaler, an optical-flow interpolator, and FlashVSR's projection and decoder on the Wan DiT and VAE overgo runs)."
+        "nodes": 3600,
+        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
       },
       "steps": [
         {
@@ -1112,8 +1278,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 350,
-        "reason": "Estimate before the survey: noise on a fraction of text-embedding values early in sampling, a per-token attention-value scale (also for MOSS), and a search preset."
+        "nodes": 900,
+        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
       },
       "steps": [
         {
@@ -1163,8 +1329,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 150,
-        "reason": "Estimate before the survey: presets as data on media-lora's unmerged path, and the LoRA's import."
+        "nodes": 450,
+        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
       },
       "steps": [
         {
@@ -1192,8 +1358,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 100,
-        "reason": "Estimate before the survey: a preset as data on media-lora's unmerged path, and the LoRA's import."
+        "nodes": 300,
+        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
       },
       "steps": [
         {
@@ -1214,39 +1380,6 @@
           ]
         }
       ]
-    }
-  ],
-  "decisions": [
-    {
-      "id": "eight-bit-paths",
-      "question": "May an 8-bit attention or matrix-product path, or a step-skipping cache, be served as its own opt-in preset, admitted by a per-case sign test on the model's held-out suite rather than by agreement with the float32 reference? The production-precision answer (2026-10-09) allows a difference within a tolerance declared first, held to the model's own code at the precision that code uses; 8-bit attention, FP8 and INT8 products and skipped steps change values beyond any tolerance a float32 reference can hold, so they can only be judged by held-out quality. The reference preset of every model stays unchanged.",
-      "options": [
-        "Admit them as opt-in presets judged by a per-case sign test on the model's held-out suite",
-        "Hold every served path to a declared tolerance of the float32 reference"
-      ],
-      "recommendation": "Admit them as opt-in presets judged by a per-case sign test on the model's held-out suite",
-      "blocks": [
-        "eight-bit-attention",
-        "w8a8-gemm",
-        "step-cache"
-      ],
-      "asked": "2026-11-08",
-      "doctrine": true
-    },
-    {
-      "id": "krea-derivatives",
-      "question": "Krea's 4-step and edit LoRAs are derivatives under the Krea 2 Community License, and two readings of it disagree: Krea's licensing page was read as allowing commercial use below US$1M of company revenue with mandatory content filtering (section 4.2) and derivatives named Krea with a NOTICE file, while a 2026-06 news summary calls it non-commercial and research-only. How is Krea used?",
-      "options": [
-        "Use Krea and its LoRAs locally only: no content filter, nothing distributed",
-        "Read the licence's current text and, where it allows, build the section 4.2 content filter for commercial serving",
-        "Use no Krea derivative"
-      ],
-      "recommendation": "Use Krea and its LoRAs locally only: no content filter, nothing distributed",
-      "blocks": [
-        "krea-loras"
-      ],
-      "asked": "2026-11-08",
-      "owners_act": true
     }
   ]
 }

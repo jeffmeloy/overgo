@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
@@ -94,6 +96,9 @@ type catalogProfile struct {
 	// DefaultSize is a flow model's side, as its publisher draws it when asked for nothing else; a rotary model's is
 	// its policy's. It is no part of a recipe's profile, so stating it moves no recipe.
 	DefaultSize int `json:"default_size,omitempty"`
+	// Presets are the model's other recipes beside the authors', each named, which a request may name: no part of a
+	// recipe's profile either.
+	Presets map[string]imagePreset `json:"presets,omitempty"`
 }
 
 type schedulerProfile struct {
@@ -184,6 +189,39 @@ func PersonSize(directory string) (int, error) {
 		return catalog.DefaultSize, err
 	}
 	return catalog.Rotary.DefaultSize, nil
+}
+
+// imagePreset is a named recipe's steps and guidance, each filling a request that leaves it unset.
+type imagePreset struct {
+	Steps    int      `json:"steps,omitzero"`
+	Guidance *float32 `json:"guidance_scale,omitempty"`
+}
+
+// PresetNames are the presets the catalog declares for the model in directory, in order, for a page to offer.
+func PresetNames(directory string) ([]string, error) {
+	var index modelIndex
+	if err := readJSON(filepath.Join(directory, "model_index.json"), &index); err != nil {
+		return nil, err
+	}
+	catalog, err := lookupCatalogProfile(index.ClassName)
+	return slices.Sorted(maps.Keys(catalog.Presets)), err
+}
+
+// presetOf is the preset the catalog names for the model in directory.
+func presetOf(directory, name string) (imagePreset, error) {
+	var index modelIndex
+	if err := readJSON(filepath.Join(directory, "model_index.json"), &index); err != nil {
+		return imagePreset{}, err
+	}
+	catalog, err := lookupCatalogProfile(index.ClassName)
+	if err != nil {
+		return imagePreset{}, err
+	}
+	preset, declared := catalog.Presets[name]
+	if !declared {
+		return imagePreset{}, fmt.Errorf("latent image: %s declares no preset %q", index.ClassName, name)
+	}
+	return preset, nil
 }
 
 func lookupCatalogProfile(pipeline string) (catalogProfile, error) {

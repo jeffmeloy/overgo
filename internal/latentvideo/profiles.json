@@ -24,6 +24,11 @@
       "shift": 5,
       "guide_scale": 6,
       "seed": 31
+    },
+    "presets": {
+      "model-card": {
+        "shift": 8
+      }
     }
   }
 ]

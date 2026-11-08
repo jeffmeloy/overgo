@@ -120,15 +120,27 @@ type Guider struct {
 	After   func(guided []float32) error
 }
 
+// unguided is the scale at which the guided output is the conditional one.
+const unguided = 1
+
+// Unconditional says whether the guider reads an unconditional output: at a scale of one the guided output is the
+// conditional one, so a model runs no unconditioned pass for it.
+func (g Guider) Unconditional() bool { return g.Scale != unguided }
+
 // Combine writes the guided output into out, which may be either output it reads: each element is read before it is
-// written.
+// written. A guider that reads no unconditional output passes the conditional one through, and is given none.
 func (g Guider) Combine(out, conditional, unconditional []float32) error {
 	if g.Before != nil {
 		if err := g.Before(conditional, unconditional); err != nil {
 			return err
 		}
 	}
-	if g.Float32 {
+	if !g.Unconditional() {
+		if !checked.Equal(len(out), len(conditional)) {
+			return fmt.Errorf("guidance: buffer lengths %d/%d differ", len(out), len(conditional))
+		}
+		copy(out, conditional)
+	} else if g.Float32 {
 		if !checked.Equal(len(out), len(conditional)) || !checked.Equal(len(out), len(unconditional)) {
 			return fmt.Errorf("guidance: buffer lengths %d/%d/%d differ", len(out), len(conditional), len(unconditional))
 		}

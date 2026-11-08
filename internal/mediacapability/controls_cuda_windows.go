@@ -35,6 +35,11 @@ func imageControls(directory string, controls []Control) ([]Control, error) {
 	if err != nil {
 		return nil, err
 	}
+	presets, err := latentimage.PresetNames(directory)
+	if err != nil {
+		return nil, err
+	}
+	controls = offerPresets(controls, presets)
 	if profile.Rotary == nil {
 		// A flow model offers the side its publisher draws (latentimage.PersonSize).
 		side, err := latentimage.PersonSize(directory)

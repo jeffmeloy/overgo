@@ -14,9 +14,11 @@ import (
 	"image/color/palette"
 	"image/draw"
 	"image/gif"
+	"maps"
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sync"
 
 	"overgo/internal/artifact"
@@ -100,18 +102,70 @@ type generationPolicy struct {
 	Seed       uint64  `json:"seed"`
 }
 
-// declaredProfile is the supported Wan profile as the catalog declares it,
-// before any artifact is read against it.
-func declaredProfile() (Profile, error) {
-	var catalog []Profile
+// profileEntry is the catalog's Wan profile and its presets: the profile is the authors' recipe, which a recipe binds,
+// and each preset another recipe of the same model named beside it, which a request may name. The presets are no part
+// of the profile a recipe binds, so stating one moves no recipe.
+type profileEntry struct {
+	Profile
+	Presets map[string]generationPolicy `json:"presets,omitempty"`
+}
+
+// declaredEntry is the supported Wan profile and its presets as the catalog declares them, before any artifact is read
+// against them.
+func declaredEntry() (profileEntry, error) {
+	var catalog []profileEntry
 	if err := strictjson.DecodeBytes(videoProfileCatalogJSON, &catalog); err != nil {
-		return Profile{}, fmt.Errorf("latent video: decode profile catalog: %w", err)
+		return profileEntry{}, fmt.Errorf("latent video: decode profile catalog: %w", err)
 	}
-	profileSource, ok := checked.First(catalog)
+	entry, ok := checked.First(catalog)
 	if !ok {
-		return Profile{}, errors.New("latent video: profile catalog is empty")
+		return profileEntry{}, errors.New("latent video: profile catalog is empty")
 	}
-	return videoProfileCodec.New(profileSource)
+	return entry, nil
+}
+
+// declaredProfile is the supported Wan profile as the catalog declares it.
+func declaredProfile() (Profile, error) {
+	entry, err := declaredEntry()
+	if err != nil {
+		return Profile{}, err
+	}
+	return videoProfileCodec.New(entry.Profile)
+}
+
+// complete fills what a request leaves unset: from the preset it names, then from the profile's generation, the
+// authors' recipe.
+func (p Profile) complete(request WanRequest) (WanRequest, error) {
+	request, err := request.withPreset()
+	return request.withGeneration(p.Generation), err
+}
+
+// PresetNames are the presets the model in directory may be asked for, in order, for a page to offer: the Wan
+// profile's, and none of a student's, whose schedule its distillation fixed.
+func PresetNames(directory string) ([]string, error) {
+	if IsWanStudent(directory) {
+		return nil, nil
+	}
+	entry, err := declaredEntry()
+	return slices.Sorted(maps.Keys(entry.Presets)), err
+}
+
+// withPreset fills what a request leaves unset from the preset it names, and clears the name, so a request naming a
+// preset and one stating its values are one request. A request naming none is the authors' recipe, its profile's.
+func (request WanRequest) withPreset() (WanRequest, error) {
+	if request.Preset == "" {
+		return request, nil
+	}
+	entry, err := declaredEntry()
+	if err != nil {
+		return WanRequest{}, err
+	}
+	preset, declared := entry.Presets[request.Preset]
+	if !declared {
+		return WanRequest{}, fmt.Errorf("latent video: the profile declares no preset %q", request.Preset)
+	}
+	request.Preset = ""
+	return request.withGeneration(preset), nil
 }
 
 // ResolveProfile validates the artifact against the supported Wan profile.
@@ -462,20 +516,22 @@ func (s *gifEncoder) Finish() (EncodedVideo, error) {
 // policy, so a page composes it from typed controls and the runtime
 // resolves the rest through the model's own text pipeline.
 type WanRequest struct {
-	Frames         int                       `json:"frames"`
-	Width          int                       `json:"width"`
-	Height         int                       `json:"height"`
-	Steps          int                       `json:"steps"`
-	Shift          float64                   `json:"shift"`
-	GuideScale     float64                   `json:"guide_scale"`
-	Prompt         string                    `json:"prompt,omitzero"`
-	NegativePrompt string                    `json:"negative_prompt,omitzero"`
-	Seed           uint64                    `json:"seed,omitzero"`
-	Format         ClipFormat                `json:"format,omitzero"`
-	CondContext    []float32                 `json:"cond_context,omitempty"`
-	UncondContext  []float32                 `json:"uncond_context,omitempty"`
-	InitialSample  []float32                 `json:"initial_sample,omitempty"`
-	Noise          sampling.CounterNoisePlan `json:"noise,omitzero"`
+	Frames         int     `json:"frames"`
+	Width          int     `json:"width"`
+	Height         int     `json:"height"`
+	Steps          int     `json:"steps"`
+	Shift          float64 `json:"shift"`
+	GuideScale     float64 `json:"guide_scale"`
+	Prompt         string  `json:"prompt,omitzero"`
+	NegativePrompt string  `json:"negative_prompt,omitzero"`
+	Seed           uint64  `json:"seed,omitzero"`
+	// Preset names a recipe of the profile's presets, its values filling what the request leaves unset.
+	Preset        string                    `json:"preset,omitzero"`
+	Format        ClipFormat                `json:"format,omitzero"`
+	CondContext   []float32                 `json:"cond_context,omitempty"`
+	UncondContext []float32                 `json:"uncond_context,omitempty"`
+	InitialSample []float32                 `json:"initial_sample,omitempty"`
+	Noise         sampling.CounterNoisePlan `json:"noise,omitzero"`
 }
 
 func validateWanRequest(request WanRequest) error {

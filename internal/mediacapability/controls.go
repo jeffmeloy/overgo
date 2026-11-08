@@ -3,6 +3,7 @@ package mediacapability
 import (
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -148,8 +149,26 @@ var controlProviders = map[recipe.ModuleID]func(string, []Control) ([]Control, e
 			bounds[name] = Bounds{Default: bound.Default, Step: bound.Step, Rate: bound.Rate}
 		}
 		applyBounds(controls, bounds)
-		return controls, nil
+		presets, err := latentvideo.PresetNames(directory)
+		return offerPresets(controls, presets), err
 	},
+}
+
+// presetControl is the request field that names a recipe of the model's presets.
+const presetControl = "preset"
+
+// offerPresets gives the preset control the model's declared presets as its choices, a tuning control beside the
+// authors' recipe, and removes it from a model that declares none.
+func offerPresets(controls []Control, presets []string) []Control {
+	if len(presets) == 0 {
+		return slices.DeleteFunc(controls, func(c Control) bool { return c.Name == presetControl })
+	}
+	for index := range controls {
+		if controls[index].Name == presetControl {
+			controls[index].Choices, controls[index].Advanced = presets, true
+		}
+	}
+	return controls
 }
 
 // applyBounds binds each declared bound to the control of its name.

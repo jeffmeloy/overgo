@@ -3,7 +3,6 @@ package latentvideo
 import (
 	"testing"
 
-	"overgo/internal/strictjson"
 	"overgo/internal/tensor"
 	"overgo/internal/testcheck"
 )
@@ -13,9 +12,7 @@ import (
 // times the patch size gives the step per axis, and the sample rate rides
 // the frame count.
 func TestProfileControlBoundsFollowTheStrides(t *testing.T) {
-	var catalog []Profile
-	testcheck.NoError(t, strictjson.DecodeBytes(videoProfileCatalogJSON, &catalog))
-	profile := catalog[tensor.FirstOffset]
+	profile := testcheck.Must(declaredProfile())(t)
 	var config DenoiserConfig
 	config.Policy = profile.Policy
 	config.PatchSize[tensor.FirstOffset], config.PatchSize[tensor.SingletonExtent], config.PatchSize[tensor.PairedExtent] = 1, 2, 2

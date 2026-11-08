@@ -165,12 +165,16 @@ func TestMOSSImageGenerationContract(t *testing.T) {
 		t.Fatal("activation not offered", listed, err)
 	}
 	controls := listed[0].Controls
-	if len(controls) != 8 {
+	if len(controls) != 9 {
 		t.Fatal("unsupported controls offered", controls)
 	}
 	for _, c := range controls {
 		if c.Name == "guidance_scale" && (!c.Advanced || c.Bounds == nil || c.Bounds.Default != 3) {
 			t.Fatal("guidance declaration lost", c)
+		}
+		// The page offers the model's own presets beside the authors' recipe.
+		if c.Name == "preset" && (!c.Advanced || len(c.Choices) != 1 || c.Choices[0] != "comfy-tutorial") {
+			t.Fatal("MOSS's presets are not offered", c)
 		}
 	}
 	for _, prompt := range []string{"  blue cube\n", "<objects>\nblue cube (0, 0, 16, 16)\n</objects>"} {

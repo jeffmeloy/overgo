@@ -814,9 +814,12 @@ func (p *DenoiserProgram) DenoiseWithBackend(backend denoiseBackend, request Den
 		if err != nil {
 			return nil, fmt.Errorf("denoise step %d conditional branch: %w", i, err)
 		}
-		uncondOut, err := branch(uncondContext)
-		if err != nil {
-			return nil, fmt.Errorf("denoise step %d unconditional branch: %w", i, err)
+		// At guidance 1 the guided output is the conditional one, so the unconditioned pass is not run.
+		var uncondOut []float32
+		if guider.Unconditional() {
+			if uncondOut, err = branch(uncondContext); err != nil {
+				return nil, fmt.Errorf("denoise step %d unconditional branch: %w", i, err)
+			}
 		}
 		if err := guider.Combine(guided, condOut, uncondOut); err != nil {
 			return nil, err

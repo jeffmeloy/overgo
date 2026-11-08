@@ -45,7 +45,9 @@ func LoadWanRuntime(ctx context.Context, store artifact.Repository, path string,
 	if err != nil {
 		return nil, err
 	}
-	request = request.withGeneration(profile.Generation)
+	if request, err = profile.complete(request); err != nil {
+		return nil, err
+	}
 	config, err := LoadDenoiserConfig(path, profile.Policy)
 	if err != nil {
 		return nil, err
@@ -98,7 +100,10 @@ func (r *WanRuntime) resolve(ctx context.Context, request WanRequest) (WanReques
 	if err := ctx.Err(); err != nil {
 		return WanRequest{}, err
 	}
-	request = request.withGeneration(r.profile.Generation)
+	request, err := r.profile.complete(request)
+	if err != nil {
+		return WanRequest{}, err
+	}
 	if !request.PromptForm() {
 		return request, validateWanRequest(request)
 	}
@@ -107,7 +112,6 @@ func (r *WanRuntime) resolve(ctx context.Context, request WanRequest) (WanReques
 	if err := pass.taken(ctx); err != nil {
 		return WanRequest{}, err
 	}
-	var err error
 	if request.CondContext, request.UncondContext, err = r.memo.contexts(ctx, r.text, request); err != nil {
 		return WanRequest{}, err
 	}
@@ -125,7 +129,10 @@ func (r *WanRuntime) Reset(_ context.Context, request WanRequest) error {
 	if r == nil || r.generator == nil {
 		return errors.New("latent video: Wan runtime is closed")
 	}
-	request = request.withGeneration(r.profile.Generation)
+	request, err := r.profile.complete(request)
+	if err != nil {
+		return err
+	}
 	geometry := r.generator.Geometry()
 	volume, err := media.DownsampledVolume(request.Frames, request.Height, request.Width, r.profile.Policy.VAEStride)
 	if err != nil {

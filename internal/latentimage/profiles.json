@@ -2,6 +2,11 @@
   {
     "default_size": 2048,
     "default_steps": 8,
+    "presets": {
+      "draft": {
+        "steps": 4
+      }
+    },
     "pipeline": "Krea2Pipeline",
     "prompt": {
       "max_tokens": 512,
@@ -20,6 +25,12 @@
   },
   {
     "default_steps": 50,
+    "presets": {
+      "comfy-tutorial": {
+        "steps": 25,
+        "guidance_scale": 2.5
+      }
+    },
     "pipeline": "MOSSImagePipeline",
     "prompt": {
       "enable_thinking": true,

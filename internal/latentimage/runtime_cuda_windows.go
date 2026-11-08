@@ -38,6 +38,8 @@ type Request struct {
 	Seed              int64      `json:"seed"`
 	DynamicShiftMu    float64    `json:"mu,omitzero"`
 	NumTrainTimesteps int        `json:"num_train_timesteps,omitzero"`
+	// Preset names a recipe of the model's catalog presets, its steps and guidance filling what the request leaves unset.
+	Preset string `json:"preset,omitzero"`
 }
 
 type Generator struct {
@@ -95,6 +97,10 @@ func ValidateRequest(request Request) error {
 
 func LoadGenerator(ctx context.Context, modelDir string, profile Profile, request Request) (*Generator, error) {
 	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	request, err := request.withPreset(modelDir)
+	if err != nil {
 		return nil, err
 	}
 	if err := ValidateRequest(request); err != nil {
@@ -247,7 +253,14 @@ func (g *Generator) Reset(ctx context.Context, request Request) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if g != nil && g.rotary != nil {
+	if g == nil {
+		return errors.New("latent image: resident session is unavailable")
+	}
+	request, err := request.withPreset(g.modelDir)
+	if err != nil {
+		return err
+	}
+	if g.rotary != nil {
 		return g.resetRotary(ctx, request)
 	}
 	if request.NegativePrompt != "" || request.GuidanceScale != nil || request.PromptMode == promptLayout {
@@ -295,7 +308,14 @@ func (g *Generator) prepare(ctx context.Context, request Request) (*Generator, e
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if g != nil && g.rotary != nil {
+	if g == nil {
+		return nil, errors.New("latent image: generation session is unavailable")
+	}
+	request, err := request.withPreset(g.modelDir)
+	if err != nil {
+		return nil, err
+	}
+	if g.rotary != nil {
 		return g.prepareRotary(ctx, request)
 	}
 	if g == nil || g.pipeline == nil || request.withPolicy(g.profile.Sampling, g.pipeline.Denoiser.GH*g.pipeline.Denoiser.GW, g.spec.Distilled) != g.request || g.prepared {
@@ -307,7 +327,7 @@ func (g *Generator) prepare(ctx context.Context, request Request) (*Generator, e
 		}
 	}
 	var latent []float32
-	err := g.pipeline.runtime.Do(ctx, func(state *device.State) error {
+	err = g.pipeline.runtime.Do(ctx, func(state *device.State) error {
 		var seedErr error
 		latent, seedErr = SeededInitLatent(
 			torchrng.NewStream(g.request.Seed), state, g.shape, InitNoiseMix,
@@ -417,4 +437,25 @@ func RegisterRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, gene
 		modelrecipe.ModuleLatentImageDecode, generator.decode,
 		PNGContent,
 	)
+}
+
+// withPreset fills what a request leaves unset from the preset it names in its model's catalog, and clears the name,
+// so a request naming a preset and one stating its values are one request. A request naming none is the authors'
+// recipe, its profile's.
+func (r Request) withPreset(directory string) (Request, error) {
+	if r.Preset == "" {
+		return r, nil
+	}
+	preset, err := presetOf(directory, r.Preset)
+	if err != nil {
+		return Request{}, err
+	}
+	if r.Steps == 0 {
+		r.Steps = preset.Steps
+	}
+	if r.GuidanceScale == nil {
+		r.GuidanceScale = preset.Guidance
+	}
+	r.Preset = ""
+	return r, nil
 }

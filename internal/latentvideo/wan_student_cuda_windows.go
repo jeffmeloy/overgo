@@ -86,12 +86,12 @@ func LoadWanStudentRuntime(ctx context.Context, store artifact.Repository, path 
 	}, nil
 }
 
-// admit refuses a request the student does not run as it asks: one with no prompt, or with steps, a shift or guidance
-// other than the student's own, which its distillation fixed.
+// admit refuses a request the student does not run as it asks: one with no prompt, one naming a preset, or with steps,
+// a shift or guidance other than the student's own, which its distillation fixed.
 func (r *WanStudentRuntime) admit(request WanRequest) error {
 	generation := r.profile.Generation
-	if !request.PromptForm() {
-		return errors.New("latent video: a few-step student is asked by prompt")
+	if !request.PromptForm() || request.Preset != "" {
+		return errors.New("latent video: a few-step student is asked by prompt and declares no preset")
 	}
 	if !checked.Equal(request.Steps, generation.Steps) || !checked.Equal(request.Shift, generation.Shift) || !checked.Equal(request.GuideScale, generation.GuideScale) {
 		return fmt.Errorf("latent video: the student runs %d steps at shift %g unguided, asked %d at shift %g with guidance %g",

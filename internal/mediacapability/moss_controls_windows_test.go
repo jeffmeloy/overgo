@@ -23,15 +23,15 @@ func TestMOSSImageGenerationContract(t *testing.T) {
 	for _, c := range controls {
 		held[c.Name] = c
 	}
-	for _, name := range []string{"prompt", "prompt_mode", "negative_prompt", "width", "height", "steps", "seed", "guidance_scale"} {
+	for _, name := range []string{"prompt", "prompt_mode", "negative_prompt", "width", "height", "steps", "seed", "guidance_scale", "preset"} {
 		if _, ok := held[name]; !ok {
 			t.Fatal("missing supported control", name)
 		}
 	}
-	if len(held) != 8 || held["guidance_scale"].Type != ControlNumber || len(held["prompt_mode"].Choices) != 2 || held["prompt_mode"].Help == "" {
+	if len(held) != 9 || len(held["preset"].Choices) != 1 || held["preset"].Choices[0] != "comfy-tutorial" || held["guidance_scale"].Type != ControlNumber || len(held["prompt_mode"].Choices) != 2 || held["prompt_mode"].Help == "" {
 		t.Fatal("unsupported controls", held)
 	}
-	for _, name := range []string{"negative_prompt", "steps", "seed", "guidance_scale"} {
+	for _, name := range []string{"negative_prompt", "steps", "seed", "guidance_scale", "preset"} {
 		if !held[name].Secondary() || held[name].Required {
 			t.Fatal("optional tuning control is not secondary", name)
 		}

@@ -106,7 +106,7 @@ func Record(ctx context.Context, store artifact.Repository, observation runrecor
 		observation.Environment = run.Environment
 	}
 	// A store that cannot say leaves the attempt without a state: a record of what ran stands without one.
-	if _, state, err := modelrecipe.ReadModelState(ctx, store, observation.Model, observation.Task); err == nil {
+	if state, err := modelrecipe.ReadRecipeState(ctx, store, observation.Model, observation.Recipe); err == nil {
 		observation.Verification = string(state.Verification)
 	}
 	observation.CodeCommit = runrecord.RunningCommit()

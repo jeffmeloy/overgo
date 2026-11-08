@@ -3,27 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "recipe-state",
-      "title": "A held-out reading, a serving attempt and a training observation carry the verification state of the recipe and task that ran",
-      "status": "open",
-      "budget": {
-        "nodes": 67,
-        "reason": "Estimate before the survey: internal/modelrecipe gains one reading of a recipe's state, its own task's state and not verified unless that task's active definition is the recipe; internal/evaluation/campaign.go publishSuccess, internal/servingattempt Record and internal/trainingworkflow Observer.finish call it."
-      },
-      "steps": [
-        {
-          "id": "serving",
-          "title": "A serving attempt and a training observation are recorded under the state of the recipe that ran",
-          "status": "open",
-          "verify": "go test ./internal/servingattempt -count=1 -run '^TestAServingAttemptCarriesTheStateOfTheRecipeThatRan$'",
-          "rationale": "SQA-283: internal/servingattempt/servingattempt.go Record and internal/trainingworkflow/session_observation.go Observer.finish read ReadModelState for the model and task at publication and ignore the returned Activation, so an attempt by a candidate recipe is stamped with the active recipe's state.\n\nBoth recorders use the recipe-state reading the held-out step added, with the observation's own Recipe; an attempt whose recipe is not the active one is recorded not verified, and a store that cannot say leaves the state empty, as now.\n\nServes: failure-rate; an attempt carries the state of the recipe that served it.\nDisappears: the model-wide state stamped on another recipe's attempt.\nEvidence: an attempt recorded for a candidate recipe beside a verified active one carries not verified, and one for the active recipe carries verified.\nBatch: host lane.",
-          "depends_on": [
-            "recipe-state/held-out"
-          ]
-        }
-      ]
-    },
-    {
       "id": "e4b-quality-owed",
       "title": "Each E4B dataset-quality cell measured on an earlier definition is reported as owed on the definition E4B serves, so coverage never reads it as current acceptance",
       "status": "open",

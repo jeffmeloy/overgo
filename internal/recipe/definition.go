@@ -41,6 +41,11 @@ func RequireDefinition(ctx context.Context, reader artifact.Reader, id artifact.
 	return definitionCodec.Require(ctx, reader, id)
 }
 
+// ReadDefinition reads the definition id names, and whether the store holds it: an absent one is no error.
+func ReadDefinition(ctx context.Context, reader artifact.Reader, id artifact.ID) (Definition, bool, error) {
+	return definitionCodec.Read(ctx, reader, id)
+}
+
 func decodeDefinition(content []byte, definition *Definition) error {
 	var body definitionBody
 	if err := strictjson.DecodeBytes(content, &body); err != nil {

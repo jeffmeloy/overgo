@@ -36,11 +36,12 @@ type ModelState struct {
 
 // ReadRecipeState reads the state of the recipe recipeID for modelID: the state of its own task, and not verified unless
 // that task's active definition is this recipe, so a reading names the state of the recipe that ran and no other's
-// (SQA-283). A recipe the store cannot read, or a store that fails to answer, returns an error.
+// (SQA-283). A recipe the store does not hold is no task's active one, so not verified; a store that fails to answer
+// returns an error.
 func ReadRecipeState(ctx context.Context, store artifact.Reader, modelID, recipeID artifact.ID) (ModelState, error) {
-	definition, err := recipe.RequireDefinition(ctx, store, recipeID)
-	if err != nil {
-		return ModelState{}, err
+	definition, held, err := recipe.ReadDefinition(ctx, store, recipeID)
+	if err != nil || !held {
+		return ModelState{Verification: StateNotVerified}, err
 	}
 	activation, state, err := ReadModelState(ctx, store, modelID, definition.Task)
 	if err == nil && activation.Definition.ID != recipeID {

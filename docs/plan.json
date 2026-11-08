@@ -3,24 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "e4b-quality-owed",
-      "title": "Each E4B dataset-quality cell measured on an earlier definition is reported as owed on the definition E4B serves, so coverage never reads it as current acceptance",
-      "status": "open",
-      "budget": {
-        "nodes": 120,
-        "reason": "Estimate before the survey: cmd/validate/media_coverage.go collectModalityProtocols reads the model's active inference definition once and writes an owed gap, naming both definitions, for a quality cell measured on another."
-      },
-      "steps": [
-        {
-          "id": "owed",
-          "title": "The coverage projection marks a quality cell whose definition is not its model's served one as owed there, naming both definitions",
-          "status": "open",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestAQualityCellMeasuredOnAnEarlierDefinitionIsOwedOnTheServedOne$'",
-          "rationale": "SQA-277: six E4B dataset-quality cells in docs/verification/e4b-validation.json keep recipe d6ba6736 and commit 1b7ac581, as the external adapter that measured them is not in this repository, while the 24 protocol and resource cells name the served definition; cmd/validate/media_coverage.go collectModalityProtocols gives every frozen cell one generic gap, so coverage does not say which modality-quality results are owed.\n\nFor a quality cell whose ModelDefinition is not the active inference definition, collectModalityProtocols writes a gap naming both definitions, so the six read as owed; nothing is re-run, and re-measuring them waits on the adapter.\n\nServes: held-out-quality; coverage says which E4B modality results hold on the served definition.\nDisappears: a historical quality cell read as current acceptance.\nEvidence: a fixture quality cell from an earlier definition is projected owed with both named, and one from the served definition is not.\nBatch: host lane."
-        }
-      ]
-    },
-    {
       "id": "deferred-findings",
       "title": "A finding the lead's triage defers to the next full run's record no longer holds that run back, so the run that decides it can start",
       "status": "open",

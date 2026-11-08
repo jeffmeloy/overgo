@@ -479,6 +479,34 @@ type acceptedMediaCase struct {
 }
 
 // Only declarations already pinned by an accepted coverage document enter this view.
+// owedQuality is the gap of a quality cell measured on a model definition other than the one its model serves (SQA-277):
+// owed on the served one, both named. A cell on the served definition, a cell that is no quality cell, or a model whose
+// served definition is not known has none.
+func owedQuality(cell modelValidationCell, served artifact.ID) string {
+	if !strings.HasPrefix(cell.Name, "quality/") || !served.Valid() || cell.ModelDefinition == served {
+		return ""
+	}
+	return fmt.Sprintf("Owed on the served model definition %s: measured on %s, an earlier definition, by an adapter this repository does not hold; no current performance claim.",
+		served, cell.ModelDefinition)
+}
+
+// servedDefinition is the model definition the active inference recipe of model binds, of the models accepted; zero
+// where none is read.
+func servedDefinition(ctx context.Context, reader artifact.Reader, accepted []acceptedModel, model artifact.ID) artifact.ID {
+	for _, candidate := range accepted {
+		for _, cell := range candidate.Cells {
+			if candidate.Model != model || cell.Task != recipe.TaskInference {
+				continue
+			}
+			if definition, held, err := recipe.ReadDefinition(ctx, reader, cell.Recipe); err == nil && held {
+				served, _ := definition.PrimaryDependency(recipe.DependencyDefinition)
+				return served
+			}
+		}
+	}
+	return artifact.ID{}
+}
+
 func collectModalityProtocols(ctx context.Context, reader artifact.Reader, data []byte, accepted []acceptedModel, models map[artifact.ID][]modalityProtocolProjection) error {
 	var header struct {
 		Model         json.RawMessage
@@ -503,12 +531,14 @@ func collectModalityProtocols(ctx context.Context, reader artifact.Reader, data 
 		if err := json.Unmarshal(data, &spec); err != nil {
 			return err
 		}
+		served := servedDefinition(ctx, reader, accepted, model)
 		for _, cell := range spec.Cells {
 			parts := strings.Split(cell.Name, "/")
 			if len(parts) != 3 {
 				return errors.New("coverage: invalid modality protocol name")
 			}
-			value := modalityProtocolProjection{Name: cell.Name, InputMode: parts[1], Source: cmp.Or(cell.CodeCommit, spec.CodeCommit), Recipe: cell.Recipe, Plan: cell.Plan, Evidence: []artifact.ID{cell.Evidence}}
+			value := modalityProtocolProjection{Name: cell.Name, InputMode: parts[1], Source: cmp.Or(cell.CodeCommit, spec.CodeCommit), Recipe: cell.Recipe, Plan: cell.Plan, Evidence: []artifact.ID{cell.Evidence},
+				Gap: owedQuality(cell, served)}
 			if strings.HasPrefix(cell.Name, "protocol/") {
 				if err := checkProtocolValidationCell(ctx, reader, spec, cell); err != nil {
 					return err
@@ -542,7 +572,7 @@ func collectModalityProtocols(ctx context.Context, reader artifact.Reader, data 
 	for _, value := range values {
 		value.SourceKind = "frozen declaration"
 		value.Unit = cmp.Or(value.Unit, "examples")
-		value.Gap = "Retained protocol; case counts are unavailable in the supported structured report. No current performance claim."
+		value.Gap = cmp.Or(value.Gap, "Retained protocol; case counts are unavailable in the supported structured report. No current performance claim.")
 		value.RepairOwner = "modality-verification/experiment-resume"
 		if value.Recorded != nil {
 			value.Gap = "Native protocol case accepted at the recorded source; no current performance claim."

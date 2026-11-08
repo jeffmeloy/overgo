@@ -1,6 +1,34 @@
 {
     "branch": "master",
     "candidate_review": {
+    "architectural_target": {
+  "ownership": "sqa_reviewer",
+  "status": "active_until_verified_refactor_completion",
+  "path": "docs/extreme_refactor_plan.md",
+  "document_sha256": "3382adec2744ef67c22643935b84a8bec7ff8db803d4b9f131af9f927f361965",
+  "document_reference_revision": "ce49882729168afb824472b77bcaf859493879f9",
+  "document_state": "Owner-requested working document; currently uncommitted. This reference does not assert it is part of the reviewed master.",
+  "purpose": "Standing architectural target for bounded SQA until the complete refactor is verified.",
+  "priorities": [
+    "Format-independent model loading and binding, retaining native tensor storage, required transforms and exact identity.",
+    "Existing shared execution/resource owners and recipes that replace orchestration; admit prerequisites early and recover valid completed work.",
+    "Thin CLI/API/workbench paths and supervised development execution with retained authority, stops and budgets.",
+    "Net removal across production Go, tests, fixtures/setup and automation; preserve numerical, security, data-loss and recovery contracts."
+  ],
+  "first_slice": "One supported model family, GGUF and safetensors, one shared binding/execution path, with displaced mandatory conversion/container-emulation paths removed.",
+  "review_use": "Read the current target alongside committed code and the executable plan. Record evidence-backed progress, conflicts and useful reductions through existing canonical findings; distinguish a measured improvement from a proposed architectural benefit. Do not invent findings to enforce the design, duplicate the backlog, or recommend a rewrite merely for conformity.",
+  "authority": "Design target only. docs/plan.json remains dispatch authority; implementation acceptance, supervision and landing remain with their existing owners.",
+  "completion": "Keep active until supported capabilities have migrated or been explicitly retired, displaced paths and temporary adapters are removed, public/data/numerical/recovery contracts are verified, and complete implementation/test/setup/runtime costs support completion. No deadline or savings quota.",
+  "related_canonical_findings": [
+    "SQA-271",
+    "SQA-266",
+    "SQA-325",
+    "SQA-328",
+    "SQA-331",
+    "SQA-339"
+  ],
+  "adoption_scope": "Target added at the owner's request. Existing reviewed_master, reviewed_at, findings, ranks, closure evidence and every implementation-owned/unknown field remain unchanged; no fresh implementation review is claimed."
+},
     "assessment": "Three verified fixes closed; one arithmetic defect reduced to a minor output-label obligation. Existing startup consolidation pays for most of its new contention coverage; the complete fix still grows29 test nodes. Concurrent sampler landing adds a concrete -87-production-node reuse opportunity; its complete migration currently grows +1010 production/+743 test.",
     "current_review_order": [
         "Ownership and recovery fixes337/338",

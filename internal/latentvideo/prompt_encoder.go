@@ -42,6 +42,46 @@ type promptEncoder struct {
 	recent []string
 	// passes counts the passes made over the checkpoint.
 	passes int
+	// card is the encoder resident on the card, opened the first time a spec asks for it and held.
+	card cardEncoder
+}
+
+// cardEncoder encodes one sequence of attended tokens on the card into its final rows, as the host pass encodes them.
+type cardEncoder interface {
+	encode(ctx context.Context, tokens []int) ([]float32, error)
+}
+
+// openCardEncoder opens the checkpoint's encoder on the card under its plan, where a card runs here.
+var openCardEncoder = func(string, encoderPlan) (cardEncoder, error) {
+	return nil, errors.New("latent video: no card encodes the text here")
+}
+
+// onCard encodes sequences on the card, the rows up to the last token each mask keeps, as encodeSequencesStreamed
+// encodes them on the host; a mask that leaves a token out before its last is refused, since the card attends to every
+// token it is given.
+func (e *promptEncoder) onCard(ctx context.Context, sequences []encoderSequence) ([][]float32, encoderStats, error) {
+	stats := encoderStats{Engine: "card", Layers: e.plan.Config.Layers, OutputDim: e.plan.Config.Dim}
+	if e.card == nil {
+		card, err := openCardEncoder(e.checkpoint, e.plan)
+		if err != nil {
+			return nil, stats, err
+		}
+		e.card = card
+	}
+	encoded := make([][]float32, len(sequences))
+	for index, sequence := range sequences {
+		kept := slices.Index(append(slices.Clone(sequence.mask), 0), 0)
+		if kept == 0 || slices.Contains(sequence.mask[kept:], 1) {
+			return nil, stats, errors.New("latent video: the card encodes a sequence of attended tokens and no other")
+		}
+		rows, err := e.card.encode(ctx, sequence.tokens[:kept])
+		if err != nil {
+			return nil, stats, err
+		}
+		encoded[index], stats.TokenRows = rows, stats.TokenRows+kept
+	}
+	stats.OutputRows = stats.TokenRows
+	return encoded, stats, nil
 }
 
 // promptEncoderKey names a text encoder by what a prompt's rows depend on:
@@ -198,13 +238,19 @@ func encodePrompts(ctx context.Context, spec TextConditioningSpec, prompts ...st
 	}
 	if len(missing) > 0 {
 		run := processmeasure.Stage(ctx, "text encoder run")
-		encoded, passed, err := encodeSequencesStreamed(ctx, encoder.checkpoint, encoder.plan, sequences)
+		encode := func() ([][]float32, encoderStats, error) {
+			encoder.passes++
+			return encodeSequencesStreamed(ctx, encoder.checkpoint, encoder.plan, sequences)
+		}
+		if spec.Card {
+			encode = func() ([][]float32, encoderStats, error) { return encoder.onCard(ctx, sequences) }
+		}
+		encoded, passed, err := encode()
 		run()
 		if err != nil {
 			return nil, 0, passed, err
 		}
 		stats = passed
-		encoder.passes++
 		for index, prompt := range missing {
 			encoder.rows[prompt] = encoded[index]
 			if shared && prompt == spec.Common {

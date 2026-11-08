@@ -3,34 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "umt5-resident",
-      "title": "Wan's umT5 text encoder runs on the card, loaded once, and video conditioning is cached by content",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 336,
-        "reason": "Estimate before the survey: the encoder's blocks on device programs (T5 with relative position buckets), a resident lifetime beside the DiT, and latentimage's conditioning cache moved to code video shares."
-      },
-      "steps": [
-        {
-          "id": "device",
-          "title": "umT5 encodes on the card, its states within a tolerance declared first of the host encoder's",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestUMT5EncodesOnTheCardAsTheHostDoes$'",
-          "files": [
-            "internal/latentvideo",
-            "internal/cuda",
-            "kernels"
-          ],
-          "needs_card": true,
-          "rationale": "umT5 is an 11.4 GB BF16 checkpoint streamed from its PyTorch archive block by block and computed on the CPU (internal/latentvideo/encoder.go): about 1.4 s plus 0.065 s a token, about 4.7 s for a 50-token prompt, paid by every Wan and LiveEdit request before the card starts.\n\nThe encoder's weights stay resident beside the DiT (the card holds both: Wan peaks at 3.6 GiB), loaded once over PCIe in about a second. The tolerance is written before the change, as the production-precision answer (2026-10-09) requires.\n\nServes: first-output for Wan, LiveEdit and every Wan-family model below.\nDisappears: the per-request CPU encode.\nEvidence: conditioning states for the golden prompts match the host encoder within the declared tolerance, and a user-size cell's text stage falls below 0.1 s.\nBatch: device lane.",
-          "depends_on": [
-            "media-user-size/stages"
-          ]
-        }
-      ]
-    },
-    {
       "id": "wan-few-step",
       "title": "Wan2.1-T2V-1.3B gains a four-step Self-Forcing student, served as its own model on LiveEdit's chunk-causal path",
       "owner": "master-lead",

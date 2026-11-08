@@ -39,6 +39,10 @@ type TextConditioningSpec struct {
 	Common    string
 	Kept      artifact.Repository
 	KeptUnder string
+	// Card encodes the prompts on the card, the encoder resident there from the first prompt on (umt5Device), where the
+	// host streams the checkpoint for every new prompt. The rows agree with the host's as two BF16 engines do
+	// (goldenCrossEngineMaxTolerance).
+	Card bool
 }
 
 // textConditioningResult: the projected SequenceLength x Dim context.

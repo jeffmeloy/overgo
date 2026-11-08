@@ -56,6 +56,7 @@ func LoadWanRuntime(ctx context.Context, store artifact.Repository, path string,
 		return nil, errors.New("latent video: unsupported production precision")
 	}
 	text := WanTextConditioningSpec(path, config.TextLen)
+	text.Card = true
 	if identity, counted := inferencesurface.Execution(reflect.TypeFor[WanRuntime]().PkgPath()); counted {
 		text.Common, text.Kept, text.KeptUnder = referenceNegativePrompt, store, identity
 	}

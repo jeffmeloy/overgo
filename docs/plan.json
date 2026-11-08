@@ -37,24 +37,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 1800,
+        "nodes": 240,
         "reason": "Estimated after a survey of the code, at about twice what a first sketch of the steps counts, since this week's rows landed at two to six times the counts they were filed with (wan-few-step 300 -\u003e 1100, sampling-split 400 -\u003e 1700, umt5-resident 336 -\u003e 1750): a screen command over vitencoder's card path with a floor read from a second seed, and a frame-to-frame measure carried to the video cells."
       },
       "steps": [
-        {
-          "id": "pair-screen",
-          "title": "cmd/evaluate -screen embeds a candidate path's outputs and the reference path's at the same prompts and seeds with webssl-dino300m on the card, and fails the cases where the candidate lies farther from the reference than a second seed of the same prompt does",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/evaluate -count=1 -run '^TestTheScreenFailsACandidateThatLostItsPrompt$'",
-          "files": [
-            "cmd/evaluate",
-            "internal/evaluation",
-            "internal/vitencoder",
-            "internal/tensorstats"
-          ],
-          "needs_card": true,
-          "rationale": "internal/vitencoder embeds on the card (vitencoder.Card, internal/vitencoder/card.go:17-33; 1024 dimensions for webssl-dino300m). Its only metric today is retrieval over real frames (internal/evaluation/image_retrieval.go:120-164). No embedding compares two generated images, and FD-DINOv2 (rae-small-models/fd-dinov2) compares distributions, not cases. The fast-path rows (eight-bit-attention, w8a8-gemm, step-cache, light-vae, video-decode-overlap) change values beyond any golden's tolerance, so each is admitted by a judged paired comparison (skill.md:257). That costs the renders plus 6 to 27 s a question.\n\nThe floor needs no chosen constant. Two seeds of one prompt are two valid outputs, so a candidate output farther from its reference than another seed has lost what the prompt asked. The screen counts those cases with tensorstats.ExactPairedBinary, and only a candidate it passes goes to the judged comparison. The fast-path rows can name it in their checks.\n\nServes: setup-steps; card hours per fast-path change.\nDisappears: a broken fast path found only after hours of rendering and judging.\nEvidence: on a fixture, a candidate with a corrupted step fails the screen and one that rounds differently passes.\nBatch: device lane."
-        },
         {
           "id": "clip-consistency",
           "title": "Every generated or edited clip records the similarity of each frame's embedding to the next, its mean and lowest, beside its judged score, its floor read from the same measure over the source clips the suite's captions describe",

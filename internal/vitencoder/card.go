@@ -123,6 +123,16 @@ func (c *Card) Tokens(ctx context.Context, image []byte) ([]float32, error) {
 	return finite(out[c.tokens].Data)
 }
 
+// Embed is the picture's class token after the final norm, the pooled image embedding the encoder's Embed gives.
+func (c *Card) Embed(ctx context.Context, image []byte) ([]float32, error) {
+	tokens, err := c.Tokens(ctx, image)
+	if err != nil {
+		return nil, err
+	}
+	hidden := c.encoder.geometry.Hidden
+	return tokens[:hidden:hidden], nil
+}
+
 // Shape is the encoder's: the side of its square input, the side of its patch grid and the width of each token.
 func (c *Card) Shape() (input, grid, hidden int) { return c.encoder.Shape() }
 

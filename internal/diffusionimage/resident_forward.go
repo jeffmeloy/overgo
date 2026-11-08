@@ -154,7 +154,12 @@ func (forward *ResidentForward) Sample(ctx context.Context, steps int, seed int6
 	for index := range pixels {
 		pixels[index] = float32(rng.NormFloat64())
 	}
-	delta := float32(1) / float32(steps)
+	// The device runs the walk's update itself, every interval the same, so it is given the first one.
+	sampler, err := autonomousFlow(steps)
+	if err != nil {
+		return nil, err
+	}
+	delta := sampler.Delta(tensor.FirstOffset)
 	initial, err := forward.session.Retain(ctx, forward.upload, map[*tensor.Tensor]reference.Value{
 		forward.input: {Shape: forward.input.Shape, Data: nchwToGraphImage(pixels, forward.image.channels, forward.image.height, forward.image.width)},
 		forward.delta: {Shape: forward.delta.Shape, Data: []float32{delta}},
@@ -172,7 +177,7 @@ func (forward *ResidentForward) Sample(ctx context.Context, steps int, seed int6
 	if !stateOK || !intervalOK {
 		return nil, errors.New("diffusionimage: sampling inputs are unavailable")
 	}
-	for range steps {
+	for range len(sampler.Sigmas()) - 1 {
 		next, err := forward.session.Retain(ctx, forward.sampling, nil, []driver.DevicePtr{state.Pointer, interval.Pointer})
 		if err != nil {
 			return nil, err

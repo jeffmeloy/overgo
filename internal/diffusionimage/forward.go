@@ -7,6 +7,7 @@ import (
 	"math/rand"
 
 	"overgo/internal/hostmath"
+	"overgo/internal/sampling"
 )
 
 // conv2dValidStride: NCHW Conv2d, square kernel, no padding — patch
@@ -528,26 +529,31 @@ func (m *Model) Sample(ctx context.Context, b, imgH, imgW, steps int, seed int64
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if steps <= 0 {
-		return nil, fmt.Errorf("diffusionimage sample: steps %d", steps)
+	sampler, err := autonomousFlow(steps)
+	if err != nil {
+		return nil, err
 	}
 	rng := rand.New(rand.NewSource(seed))
 	x := make([]float32, b*m.Cfg.InChannels*imgH*imgW)
 	for i := range x {
 		x[i] = float32(rng.NormFloat64())
 	}
-	dt := float32(1) / float32(steps)
-	for range steps {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		v, err := m.Forward(x, b, imgH, imgW)
-		if err != nil {
-			return nil, err
-		}
-		for i := range x {
-			x[i] += v[i] * dt
-		}
+	return sampling.Walk(ctx, sampler, x, func(_ int, x []float32) ([]float32, error) {
+		return m.Forward(x, b, imgH, imgW)
+	})
+}
+
+// autonomousFlow is the reference's walk from noise at time zero to the
+// picture at one in steps equal intervals, each a float32 one over steps.
+func autonomousFlow(steps int) (*sampling.FlowEuler, error) {
+	if steps <= 0 {
+		return nil, fmt.Errorf("diffusionimage sample: steps %d", steps)
 	}
-	return x, nil
+	knots := make([]float64, steps+1)
+	deltas := make([]float32, steps)
+	for step := range deltas {
+		knots[step+1] = float64(step+1) / float64(steps)
+		deltas[step] = float32(1) / float32(steps)
+	}
+	return sampling.NewFlowEuler(knots, deltas)
 }

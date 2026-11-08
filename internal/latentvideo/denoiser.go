@@ -9,6 +9,7 @@
 package latentvideo
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -752,7 +753,7 @@ func (p *DenoiserProgram) Denoise(run graphruntime.Runner, request DenoiseReques
 	return p.DenoiseWithBackend(graphRunnerBackend{program: p, run: run}, request)
 }
 
-// DenoiseWithBackend: the guided UniPC trajectory over one execution engine.
+// DenoiseWithBackend: the guided UniPC trajectory over one execution engine, walked by the flow sampler interface.
 func (p *DenoiserProgram) DenoiseWithBackend(backend denoiseBackend, request DenoiseRequest) (denoiseResult, error) {
 	var result denoiseResult
 	elements := p.Geometry.Elements()
@@ -771,23 +772,36 @@ func (p *DenoiserProgram) DenoiseWithBackend(backend denoiseBackend, request Den
 			return result, fmt.Errorf("denoise: initial sample has %d elements, need %d", len(request.InitialSample), elements)
 		}
 		copy(sample, request.InitialSample)
-	} else if err := sampling.FillCounterNormalNoise(sample, request.Noise); err != nil {
+	} else if err := request.Noise.Fill(sample); err != nil {
 		return result, err
 	}
 	condContext, uncondContext, err := backend.ProjectBranchContexts(request.CondContext, request.UncondContext)
 	if err != nil {
 		return result, err
 	}
-	next := make([]float32, elements)
+	guider := sampling.Guider{Scale: request.GuideScale}
 	guided := make([]float32, elements)
-	for i, timestep := range timesteps {
+	// stepped observes the sample a step reached.
+	stepped := func(step int, sample []float32) {
+		if request.TraceSteps {
+			result.Steps[step].SampleOut = append([]float32(nil), sample...)
+		}
+		if request.StepHook != nil {
+			request.StepHook(step, timesteps[step])
+		}
+	}
+	latent, err := sampling.Walk(context.Background(), sampler, sample, func(i int, sample []float32) ([]float32, error) {
+		if i > 0 {
+			stepped(i-1, sample)
+		}
+		timestep := timesteps[i]
 		headE, blockE, err := CompileTimestepConditioning([]float64{float64(timestep)}, p.timestepWeights)
 		if err != nil {
-			return result, err
+			return nil, err
 		}
 		patchTokens, err := p.PatchifyLatent(sample)
 		if err != nil {
-			return result, err
+			return nil, err
 		}
 		branch := func(context any) ([]float32, error) {
 			patches, err := backend.ForwardHead(patchTokens, blockE, headE, context)
@@ -798,36 +812,29 @@ func (p *DenoiserProgram) DenoiseWithBackend(backend denoiseBackend, request Den
 		}
 		condOut, err := branch(condContext)
 		if err != nil {
-			return result, fmt.Errorf("denoise step %d conditional branch: %w", i, err)
+			return nil, fmt.Errorf("denoise step %d conditional branch: %w", i, err)
 		}
 		uncondOut, err := branch(uncondContext)
 		if err != nil {
-			return result, fmt.Errorf("denoise step %d unconditional branch: %w", i, err)
+			return nil, fmt.Errorf("denoise step %d unconditional branch: %w", i, err)
 		}
-		if err := sampling.GuideInto(guided, condOut, uncondOut, request.GuideScale); err != nil {
-			return result, err
+		if err := guider.Combine(guided, condOut, uncondOut); err != nil {
+			return nil, err
 		}
-		var trace denoiseStepTrace
 		if request.TraceSteps {
-			trace = denoiseStepTrace{
+			result.Steps = append(result.Steps, denoiseStepTrace{
 				Timestep:   timestep,
 				SampleIn:   append([]float32(nil), sample...),
 				CondOutput: condOut, UncondOutput: uncondOut,
 				ModelOutput: append([]float32(nil), guided...),
-			}
+			})
 		}
-		if err := sampler.Step(next, sample, guided); err != nil {
-			return result, err
-		}
-		sample, next = next, sample
-		if request.TraceSteps {
-			trace.SampleOut = append([]float32(nil), sample...)
-			result.Steps = append(result.Steps, trace)
-		}
-		if request.StepHook != nil {
-			request.StepHook(i, timestep)
-		}
+		return guided, nil
+	})
+	if err != nil {
+		return result, err
 	}
-	result.Latent = sample
+	stepped(len(timesteps)-1, latent)
+	result.Latent = latent
 	return result, nil
 }

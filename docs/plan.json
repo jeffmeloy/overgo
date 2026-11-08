@@ -8,25 +8,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 400,
-        "reason": "Estimate before the survey: one interface over the three per-model loops, the guider with its hooks, and presets read from each profiles.json; the loops' duplicated stepping goes, paying part of it back."
+        "nodes": 690,
+        "reason": "interface counted 1010 against the 400 estimated: the flow sampler interface, its Euler and guider, and the four host loops (Wan's UniPC, RAE's Euler, SimpleDiffusion's) rewritten as walks with the device loops reading their deltas from it, each loop counted whole; presets and block-override add about 700 more."
       },
       "steps": [
-        {
-          "id": "interface",
-          "title": "Wan's flow UniPC, the flow-Euler image models and RAE's Euler step through one sampler interface, every media golden unchanged",
-          "status": "open",
-          "verify": "go test ./internal/sampling -count=1 -run '^TestEverySamplerStepsThroughOneInterface$'",
-          "files": [
-            "internal/sampling",
-            "internal/latentimage",
-            "internal/latentvideo",
-            "internal/rae",
-            "internal/diffusionimage"
-          ],
-          "needs_card": true,
-          "rationale": "overgo runs three per-model samplers: flow UniPC for Wan (internal/sampling/unipc.go), FlowMatchEuler for Krea, MOSS and SenseNova (internal/latentimage/profiles.json), and RAE's Euler over its shifted grid (internal/rae/generation.go). A guidance change or a new schedule is written once per loop. ComfyUI splits sampling into NOISE, SIGMAS, SAMPLER and GUIDER, with hooks at the conditional batch and before and after the guidance combine, which makes each guidance trick one small function. The design is taken from its description; ComfyUI's GPL-3.0 source is never read or ported.\n\nOne interface carries noise, sigma table, step function and guider; the three loops become its implementations.\n\nServes: setup-steps; guidance-ops, step-cache and moss-ultra-sections each write one function instead of three.\nDisappears: the three loops' duplicated stepping.\nEvidence: a synthetic velocity model steps identically through each sampler before and after; the gate's device lane re-reads every media golden unchanged.\nBatch: device lane."
-        },
         {
           "id": "presets",
           "title": "A request names a preset from its model's profile, the authors' recipe as reference and every other preset an addition, and guidance 1 runs no unconditioned pass",

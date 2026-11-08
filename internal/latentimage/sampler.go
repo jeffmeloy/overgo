@@ -14,6 +14,7 @@ import (
 
 	"overgo/internal/checked"
 	"overgo/internal/hostmath"
+	"overgo/internal/sampling"
 	"overgo/internal/tensor"
 )
 
@@ -26,6 +27,15 @@ type FlowSchedule struct {
 	Sigmas            []float64 // Steps+1 knots, descending, terminal 0
 	Timesteps         []float64 // Steps entries, sigma_current*N
 	Deltas            []float64 // Steps entries, float32-rounded Sigmas[i+1]-Sigmas[i]
+}
+
+// sampler is the schedule's Euler walk: its knots and its deltas, each a float32 as the device stores it.
+func (s FlowSchedule) sampler() (*sampling.FlowEuler, error) {
+	deltas := make([]float32, len(s.Deltas))
+	for step, delta := range s.Deltas {
+		deltas[step] = float32(delta)
+	}
+	return sampling.NewFlowEuler(s.Sigmas, deltas)
 }
 
 // CompileFlowSchedule derives knots from declared extents and mu.

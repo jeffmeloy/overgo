@@ -117,6 +117,10 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 		}
 	}
 	forwardIndex := 0
+	sampler, e := settings.schedule.sampler()
+	if e != nil {
+		return nil, e
+	}
 	for index, time := range settings.schedule.Timesteps {
 		if e := ctx.Err(); e != nil {
 			return nil, e
@@ -171,7 +175,7 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 				defer neg.outputs.Release(context.WithoutCancel(ctx))
 				pointers = append(pointers, neg.value.Pointer)
 			}
-			next, e := runtime.Retain(ctx, update, map[*tensor.Tensor]reference.Value{step.delta: {Shape: step.delta.Shape, Data: []float32{float32(settings.schedule.Deltas[index])}}}, pointers)
+			next, e := runtime.Retain(ctx, update, map[*tensor.Tensor]reference.Value{step.delta: {Shape: step.delta.Shape, Data: []float32{sampler.Delta(index)}}}, pointers)
 			if e != nil {
 				return e
 			}

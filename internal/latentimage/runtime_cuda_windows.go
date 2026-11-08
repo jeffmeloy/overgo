@@ -341,8 +341,14 @@ func (g *Generator) integrate(ctx context.Context, session *Generator) (*Generat
 	if g.rotary != nil {
 		return g.integrateRotary(ctx)
 	}
-	for step := range g.schedule.Steps {
-		if err := g.pipeline.Advance(ctx, g.schedule.Sigmas[step], g.schedule.Deltas[step]); err != nil {
+	// The device runs each Euler update itself, so it is given the walk's knot and delta.
+	sampler, err := g.schedule.sampler()
+	if err != nil {
+		return nil, err
+	}
+	sigmas := sampler.Sigmas()
+	for step := range len(sigmas) - 1 {
+		if err := g.pipeline.Advance(ctx, sigmas[step], float64(sampler.Delta(step))); err != nil {
 			return nil, err
 		}
 	}

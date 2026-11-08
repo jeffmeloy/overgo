@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"math"
 	"slices"
+
+	"overgo/internal/sampling"
 )
 
 // The reference's sampling grid runs from pure noise at one to a thousandth
@@ -36,36 +38,37 @@ func (m *diffusionTransformer) timeGrid(steps int) []float32 {
 
 // sample integrates the DiT's velocity for a class from channel-first noise
 // by Euler over the shifted grid of steps points and returns the latent it
-// reaches. Above a guidance scale of one, each step's velocity is pushed
-// away from the null class's by that scale, as the reference's
-// forward_with_cfg does; at one the class velocity alone drives the step.
+// reaches, each step's delta the change of the float32 grid. Above a guidance
+// scale of one, each step's velocity is pushed away from the null class's by
+// that scale in float32, as the reference's forward_with_cfg does; at one the
+// class velocity alone drives the step.
 func (m *diffusionTransformer) sample(ctx context.Context, noise []float32, label, steps int, guidance float32) ([]float32, error) {
 	if steps < minimumSteps {
 		return nil, fmt.Errorf("rae: a sample needs at least %d grid points, got %d", minimumSteps, steps)
 	}
 	grid := m.timeGrid(steps)
-	latent := slices.Clone(noise)
-	for index := range steps - 1 {
-		if err := ctx.Err(); err != nil {
-			return nil, err
+	knots := make([]float64, steps)
+	deltas := make([]float32, steps-1)
+	for index, knot := range grid {
+		knots[index] = float64(knot)
+		if index > 0 {
+			deltas[index-1] = knot - grid[index-1]
 		}
+	}
+	sampler, err := sampling.NewFlowEuler(knots, deltas)
+	if err != nil {
+		return nil, err
+	}
+	guider := sampling.Guider{Scale: float64(guidance), Float32: true}
+	return sampling.Walk(ctx, sampler, slices.Clone(noise), func(index int, latent []float32) ([]float32, error) {
 		velocity, err := m.velocity(latent, grid[index], label)
+		if err != nil || guidance <= 1 {
+			return velocity, err
+		}
+		unconditional, err := m.velocity(latent, grid[index], m.classes)
 		if err != nil {
 			return nil, err
 		}
-		if guidance > 1 {
-			unconditional, err := m.velocity(latent, grid[index], m.classes)
-			if err != nil {
-				return nil, err
-			}
-			for position, value := range unconditional {
-				velocity[position] = value + guidance*(velocity[position]-value)
-			}
-		}
-		step := grid[index+1] - grid[index]
-		for position, value := range velocity {
-			latent[position] += step * value
-		}
-	}
-	return latent, nil
+		return velocity, guider.Combine(velocity, velocity, unconditional)
+	})
 }

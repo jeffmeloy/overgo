@@ -114,12 +114,15 @@ func testNames(source []byte) []string {
 	return names
 }
 
-// planChanges are what a change does to the plan beside landing its steps: the steps it retires and why, the counts it
-// sets and why, and the steps it files.
+// planChanges are what a change does to the plan beside landing its steps: the steps it retires and why, the decisions
+// answered with their questions, the counts it sets and why, and the steps it files.
 func planChanges(before, document plan.Plan) []string {
 	var changes []string
 	for _, retired := range document.Retired {
 		changes = append(changes, retired.Row+" retired: "+retired.Reason)
+	}
+	for _, answered := range document.Answered {
+		changes = append(changes, "decision "+answered.ID+" answered: "+answered.Question+" Answer: "+answered.Answer)
 	}
 	for _, item := range document.Items {
 		at := slices.IndexFunc(before.Items, func(held plan.Item) bool { return held.ID == item.ID })

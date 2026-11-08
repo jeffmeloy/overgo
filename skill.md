@@ -17,7 +17,7 @@ description: The rules for Overgo development, written as one logical statement 
 - `master` takes landings (check: internal/landing TestWorktreeCandidateIsIntegratedOntoTheTrunk, internal/landing TestTrunkCheckoutFollowsWithItsOwnChangesKept)
 - local `main` = GitHub staging, which nothing reads (check: cmd/loop TestCycleComparesWithTheNewestEarlierScorecardWithoutAMain, cmd/loop TestPushPushesTheNamedCommitOnlyWhenAsked)
 - push <=> a request to push, never the system's own initiative (check: cmd/loop TestPushPushesTheNamedCommitOnlyWhenAsked)
-- this file = the system's doctrine, and the plan holds rows and decisions alone (check: internal/plan TestThePlanHoldsNoRuleText)
+- this file = the system's doctrine, and the plan holds rows and open decisions alone (check: internal/plan TestThePlanHoldsNoRuleText, internal/plan TestThePlanHoldsNoAnsweredDecision)
 - rule text outside this file and AGENTS.md => refused, the session's start text pointing here alone (check: internal/repoanalysis TestRuleTextLivesOnlyInSkillAndThePointer)
 - session memory beyond its one pointer line => the session-start hook names it, for sorting into this file or code (check: internal/repoanalysis TestTheProjectKeepsNoSessionMemory)
 - doctrine = how the system works, which every session and the loop follow and correct on evidence (check: internal/repoanalysis TestRuleTextLivesOnlyInSkillAndThePointer)

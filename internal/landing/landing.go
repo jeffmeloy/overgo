@@ -483,7 +483,7 @@ func (l *landing) row(ctx context.Context) error {
 		return err
 	}
 	// The message says the retirements, so the plan the commit publishes holds them no more.
-	l.advanced.Retired, l.planned = nil, data
+	l.advanced.Retired, l.advanced.Answered, l.planned = nil, nil, data
 	l.composed, err = l.compose(ctx, before, document, named)
 	return err
 }

@@ -121,6 +121,9 @@ type Plan struct {
 	// Retired are the steps plan -retire removed since the last landing, each with why: the next landing says them in
 	// its message and publishes the plan without them.
 	Retired []Retirement `json:"retired,omitempty"`
+	// Answered are the decisions answered since the last landing: the plan's save moves an answer here from Decisions,
+	// and the next landing states each in its message and publishes the plan without it, so git keeps the record.
+	Answered []Decision `json:"answered,omitempty"`
 	// parked are the rows dispatch passes over at this commit (ParkRow); they are the worktree's state, not the plan's.
 	parked []string
 	// cardHeld says a measurement run holds the graphics card at this reading (MeasurementRun.HoldsTheCard): the
@@ -226,6 +229,13 @@ func parsePlan(data []byte, validate func(Plan) error) (Plan, error) {
 // Save writes the plan back to path (Path when empty).
 func Save(path string, d Plan) error {
 	d.ParagraphsBefore, d.DoctrineBefore = nil, nil
+	// An answered decision decides nothing more: every reader passes over it, so it waits for the next landing's message.
+	for _, decision := range d.Decisions {
+		if decision.Answer != "" {
+			d.Answered = append(d.Answered, decision)
+		}
+	}
+	d.Decisions = slices.DeleteFunc(slices.Clone(d.Decisions), func(decision Decision) bool { return decision.Answer != "" })
 	if err := Validate(d); err != nil {
 		return err
 	}

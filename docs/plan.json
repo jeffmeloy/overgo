@@ -3,32 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "liveedit-card-text",
-      "title": "LiveEdit encodes its instruction on the card, as Wan and the student do, and its clip is timed again",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 200,
-        "reason": "Estimate: the edit condition's text spec on the card, its test against the host encoder, and one measured request; umt5-resident built the card encoder."
-      },
-      "steps": [
-        {
-          "id": "card",
-          "title": "LiveEdit's instruction is encoded on the card, its context within the encoder's declared tolerance of the host's, and a served edit is measured again",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestLiveEditEncodesItsInstructionOnTheCard$'",
-          "files": [
-            "internal/latentvideo",
-            "internal/mediacapability",
-            "cmd/recipe",
-            "internal/scorecard"
-          ],
-          "needs_card": true,
-          "rationale": "umt5-resident switched the card encoder on for Wan (production_cuda_windows.go:61) and the student (wan_student_cuda_windows.go:63) and closed without LiveEdit's path, whose condition still encodes on the host (edit_form.go:406). LiveEdit is the model whose 88 s clip was mostly time outside the network: about 62 s in the host text encoder on the stage-times record.\n\nServes: first-output for LiveEdit.\nDisappears: LiveEdit's host text encoder.\nEvidence: LiveEdit's condition encodes on the card within the encoder's declared tolerance of the host, and a measured edit records its parts, the text encoder's among them.\nBatch: device lane."
-        }
-      ]
-    },
-    {
       "id": "video-judge",
       "title": "The generated-video judge scores probabilities on harder cases, and Wan's base and its four-step student are judged at the same settings, so the student's quality says something",
       "owner": "master-lead",
@@ -214,10 +188,16 @@
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestDecodeOverlapsDenoisingChunkByChunk$'",
           "files": [
             "internal/latentvideo",
-            "internal/cuda"
+            "internal/cuda",
+            "internal/media",
+            "internal/capabilityruntime",
+            "internal/servingattempt",
+            "internal/runrecord",
+            "cmd/recipe",
+            "internal/scorecard"
           ],
           "needs_card": true,
-          "rationale": "LiveEdit pays the VAE twice, encode and decode, and the Wan student decodes the same way chunk by chunk. The causal VAE keeps a per-chunk feature cache, so chunk k can decode while chunk k + 1 denoises, hiding most of the decode behind the network. The kernels are unchanged, so the frames are bit-identical.\n\nServes: first-output for LiveEdit and the Wan student.\nDisappears: decode time added after the last denoise.\nEvidence: the frames are bit-identical to the sequential decode, and the user-size cell's decode stage shrinks.\nBatch: device lane.",
+          "rationale": "LiveEdit pays the VAE twice, encode and decode, and the Wan student decodes the same way chunk by chunk. The causal VAE keeps a per-chunk feature cache, so chunk k can decode while chunk k + 1 denoises, hiding most of the decode behind the network. The kernels are unchanged, so the frames are bit-identical.\n\nNote: files set to internal/latentvideo, internal/cuda, internal/media, internal/capabilityruntime, internal/servingattempt, internal/runrecord, cmd/recipe, internal/scorecard: a measuring step records its time through the timing chain the owner named (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard), so its landing may write there\n\nServes: first-output for LiveEdit and the Wan student.\nDisappears: decode time added after the last denoise.\nEvidence: the frames are bit-identical to the sequential decode, and the user-size cell's decode stage shrinks.\nBatch: device lane.",
           "depends_on": [
             "media-user-size/stages"
           ]
@@ -242,10 +222,16 @@
           "files": [
             "internal/latentvideo",
             "internal/modelrecipe",
-            "local-models.json"
+            "local-models.json",
+            "internal/media",
+            "internal/capabilityruntime",
+            "internal/servingattempt",
+            "internal/runrecord",
+            "cmd/recipe",
+            "internal/scorecard"
           ],
           "needs_card": true,
-          "rationale": "lightx2v's LightVAE (Apache-2.0) is the Wan VAE pruned by 75% and distilled: on an H100 it encodes in 1.50 s against 4.17 s and decodes in 2.07 s against 5.46 s, rated close to official. TAEW2.1 (MIT, about 0.02 GB) decodes far faster with visible loss of detail, so it serves step previews only. Every model is kept: the Wan VAE stays the reference decoder. Their sizes are read before download (decision light-vae-download).\n\nServes: first-output (encode and decode count twice for LiveEdit), and previews.\nDisappears: nothing.\nEvidence: LightVAE's PSNR on the 128-clip suite and its decode time are recorded beside the Wan VAE's 41.4 dB.\nBatch: device lane.",
+          "rationale": "lightx2v's LightVAE (Apache-2.0) is the Wan VAE pruned by 75% and distilled: on an H100 it encodes in 1.50 s against 4.17 s and decodes in 2.07 s against 5.46 s, rated close to official. TAEW2.1 (MIT, about 0.02 GB) decodes far faster with visible loss of detail, so it serves step previews only. Every model is kept: the Wan VAE stays the reference decoder. Their sizes are read before download (decision light-vae-download).\n\nNote: files set to internal/latentvideo, internal/modelrecipe, local-models.json, internal/media, internal/capabilityruntime, internal/servingattempt, internal/runrecord, cmd/recipe, internal/scorecard: a measuring step records its time through the timing chain the owner named (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard), so its landing may write there\n\nServes: first-output (encode and decode count twice for LiveEdit), and previews.\nDisappears: nothing.\nEvidence: LightVAE's PSNR on the 128-clip suite and its decode time are recorded beside the Wan VAE's 41.4 dB.\nBatch: device lane.",
           "depends_on": [
             "video-decode-overlap/overlap"
           ]
@@ -580,10 +566,16 @@
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestWanEightBitAttentionPresetIsReadAgainstItsSuite$'",
           "files": [
             "internal/latentvideo",
-            "internal/cuda"
+            "internal/cuda",
+            "internal/media",
+            "internal/capabilityruntime",
+            "internal/servingattempt",
+            "internal/runrecord",
+            "cmd/recipe",
+            "internal/scorecard"
           ],
           "needs_card": true,
-          "rationale": "Self-attention is about 70% of a 32,760-token Wan pass, so the kernel's gain mostly reaches the clip: an estimated 1.5 to 1.9x end to end. A community measurement of Wan 2.1 on a 4090 went from 33.40 s an iteration with SDPA to 18.22 with SageAttention2 at FP16 accumulation. Field reports are mixed: one 4090 user saw no gain and another found it degrades Wan 2.2, so it is admitted only on the suite.\n\nServes: first-output.\nDisappears: nothing.\nEvidence: the preset's user-size time and its sign test against the reference on the 128-clip suite are recorded.\nBatch: device lane.",
+          "rationale": "Self-attention is about 70% of a 32,760-token Wan pass, so the kernel's gain mostly reaches the clip: an estimated 1.5 to 1.9x end to end. A community measurement of Wan 2.1 on a 4090 went from 33.40 s an iteration with SDPA to 18.22 with SageAttention2 at FP16 accumulation. Field reports are mixed: one 4090 user saw no gain and another found it degrades Wan 2.2, so it is admitted only on the suite.\n\nNote: files set to internal/latentvideo, internal/cuda, internal/media, internal/capabilityruntime, internal/servingattempt, internal/runrecord, cmd/recipe, internal/scorecard: a measuring step records its time through the timing chain the owner named (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard), so its landing may write there\n\nServes: first-output.\nDisappears: nothing.\nEvidence: the preset's user-size time and its sign test against the reference on the 128-clip suite are recorded.\nBatch: device lane.",
           "depends_on": [
             "eight-bit-attention/kernel",
             "media-user-size/user-size"
@@ -596,10 +588,16 @@
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestImageEightBitAttentionPresetsAreReadAgainstTheirSuites$'",
           "files": [
             "internal/latentimage",
-            "internal/cuda"
+            "internal/cuda",
+            "internal/media",
+            "internal/capabilityruntime",
+            "internal/servingattempt",
+            "internal/runrecord",
+            "cmd/recipe",
+            "internal/scorecard"
           ],
           "needs_card": true,
-          "rationale": "Attention is about 34% of Krea's FLOPs at 2048 x 2048, about 47% of MOSS's 552.8 s run at that size, and about 16% of SenseNova's over its prefix and image span.\n\nServes: first-output at large sizes.\nDisappears: nothing.\nEvidence: each preset's time and sign test are recorded.\nBatch: device lane.",
+          "rationale": "Attention is about 34% of Krea's FLOPs at 2048 x 2048, about 47% of MOSS's 552.8 s run at that size, and about 16% of SenseNova's over its prefix and image span.\n\nNote: files set to internal/latentimage, internal/cuda, internal/media, internal/capabilityruntime, internal/servingattempt, internal/runrecord, cmd/recipe, internal/scorecard: a measuring step records its time through the timing chain the owner named (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard), so its landing may write there\n\nServes: first-output at large sizes.\nDisappears: nothing.\nEvidence: each preset's time and sign test are recorded.\nBatch: device lane.",
           "depends_on": [
             "eight-bit-attention/kernel",
             "quality-instruments/soft-tifa"
@@ -636,10 +634,16 @@
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestKreaFP8PresetIsReadAgainstItsSuite$'",
           "files": [
             "internal/latentimage",
-            "internal/cuda"
+            "internal/cuda",
+            "internal/media",
+            "internal/capabilityruntime",
+            "internal/servingattempt",
+            "internal/runrecord",
+            "cmd/recipe",
+            "internal/scorecard"
           ],
           "needs_card": true,
-          "rationale": "Krea is a 12B single-stream DiT (28 layers, width 6144, GQA 48/12 heads, gated FFN 16384); linear layers are about 89% of its FLOPs at 1024 x 1024. FP8 alone gave FLUX.1-dev 1.96x end to end on an Ada L20. ComfyUI recommends its fp8-scaled Krea build for most users and warns that its fast FP8 paths can degrade quality, so the suite is the gate. FP8 Krea also lets Krea and MOSS stay resident together.\n\nServes: first-output, peak-device-memory.\nDisappears: nothing; the BF16 reference stays.\nEvidence: the preset's user-size time, peak memory and sign test against the reference are recorded.\nBatch: device lane.",
+          "rationale": "Krea is a 12B single-stream DiT (28 layers, width 6144, GQA 48/12 heads, gated FFN 16384); linear layers are about 89% of its FLOPs at 1024 x 1024. FP8 alone gave FLUX.1-dev 1.96x end to end on an Ada L20. ComfyUI recommends its fp8-scaled Krea build for most users and warns that its fast FP8 paths can degrade quality, so the suite is the gate. FP8 Krea also lets Krea and MOSS stay resident together.\n\nNote: files set to internal/latentimage, internal/cuda, internal/media, internal/capabilityruntime, internal/servingattempt, internal/runrecord, cmd/recipe, internal/scorecard: a measuring step records its time through the timing chain the owner named (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard), so its landing may write there\n\nServes: first-output, peak-device-memory.\nDisappears: nothing; the BF16 reference stays.\nEvidence: the preset's user-size time, peak memory and sign test against the reference are recorded.\nBatch: device lane.",
           "depends_on": [
             "w8a8-gemm/fp8",
             "media-user-size/user-size",
@@ -671,10 +675,16 @@
           "files": [
             "internal/latentimage",
             "internal/latentvideo",
-            "internal/cuda"
+            "internal/cuda",
+            "internal/media",
+            "internal/capabilityruntime",
+            "internal/servingattempt",
+            "internal/runrecord",
+            "cmd/recipe",
+            "internal/scorecard"
           ],
           "needs_card": true,
-          "rationale": "Estimated about 1.5 to 1.7x a step for MOSS; about 1.6x a pass for SenseNova's generation tower, whose 35 GB of BF16 weights fall to about 17.5 GB with both towers resident; only 1.1 to 1.3x for Wan at full size, where attention dominates.\n\nServes: first-output, peak-device-memory.\nDisappears: nothing.\nEvidence: each preset's time, peak memory and sign test are recorded.\nBatch: device lane.",
+          "rationale": "Estimated about 1.5 to 1.7x a step for MOSS; about 1.6x a pass for SenseNova's generation tower, whose 35 GB of BF16 weights fall to about 17.5 GB with both towers resident; only 1.1 to 1.3x for Wan at full size, where attention dominates.\n\nNote: files set to internal/latentimage, internal/latentvideo, internal/cuda, internal/media, internal/capabilityruntime, internal/servingattempt, internal/runrecord, cmd/recipe, internal/scorecard: a measuring step records its time through the timing chain the owner named (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard), so its landing may write there\n\nServes: first-output, peak-device-memory.\nDisappears: nothing.\nEvidence: each preset's time, peak memory and sign test are recorded.\nBatch: device lane.",
           "depends_on": [
             "w8a8-gemm/krea"
           ]
@@ -700,10 +710,16 @@
             "internal/sampling",
             "internal/latentvideo",
             "internal/latentimage",
-            "internal/rae"
+            "internal/rae",
+            "internal/media",
+            "internal/capabilityruntime",
+            "internal/servingattempt",
+            "internal/runrecord",
+            "cmd/recipe",
+            "internal/scorecard"
           ],
           "needs_card": true,
-          "rationale": "MagCache (arXiv 2506.09045, Apache-2.0) reuses the last residual while the residual magnitude ratio predicts little error: Wan 1.3B went from about 189 s to 68 s on an A800, and 2.10 to 2.68x across video DiTs; First-Block Cache gave 1.55 to 1.91x on FLUX on an Ada L20. Caches exploit similarity between adjacent steps, which few-step students lack, so the cache is not offered on Krea, LiveEdit or the Wan student and never stacked on distillation.\n\nServes: first-output.\nDisappears: nothing.\nEvidence: the cache skips only steps whose accumulated estimate stays under the bound, and each preset's time and sign test are recorded.\nBatch: device lane.",
+          "rationale": "MagCache (arXiv 2506.09045, Apache-2.0) reuses the last residual while the residual magnitude ratio predicts little error: Wan 1.3B went from about 189 s to 68 s on an A800, and 2.10 to 2.68x across video DiTs; First-Block Cache gave 1.55 to 1.91x on FLUX on an Ada L20. Caches exploit similarity between adjacent steps, which few-step students lack, so the cache is not offered on Krea, LiveEdit or the Wan student and never stacked on distillation.\n\nNote: files set to internal/sampling, internal/latentvideo, internal/latentimage, internal/rae, internal/media, internal/capabilityruntime, internal/servingattempt, internal/runrecord, cmd/recipe, internal/scorecard: a measuring step records its time through the timing chain the owner named (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard), so its landing may write there\n\nServes: first-output.\nDisappears: nothing.\nEvidence: the cache skips only steps whose accumulated estimate stays under the bound, and each preset's time and sign test are recorded.\nBatch: device lane.",
           "depends_on": [
             "sampling-split/interface",
             "media-user-size/user-size",
@@ -923,10 +939,16 @@
             "internal/rae",
             "internal/diffusionimage",
             "internal/cuda",
-            "kernels"
+            "kernels",
+            "internal/media",
+            "internal/capabilityruntime",
+            "internal/servingattempt",
+            "internal/runrecord",
+            "cmd/recipe",
+            "internal/scorecard"
           ],
           "needs_card": true,
-          "rationale": "RAE's DiT-DH-XL works on 256 tokens a 256 x 256 image, and SimpleDiffusion runs in 0.85 s at 0.56 GB: both are bound by kernel launches and fixed overhead, not FLOPs, so quantisation would not help them.\n\nServes: first-output.\nDisappears: per-step launch overhead.\nEvidence: the captured sampler's output is bit-identical to the launched one, and its time is recorded.\nBatch: device lane."
+          "rationale": "RAE's DiT-DH-XL works on 256 tokens a 256 x 256 image, and SimpleDiffusion runs in 0.85 s at 0.56 GB: both are bound by kernel launches and fixed overhead, not FLOPs, so quantisation would not help them.\n\nNote: files set to internal/rae, internal/diffusionimage, internal/cuda, kernels, internal/media, internal/capabilityruntime, internal/servingattempt, internal/runrecord, cmd/recipe, internal/scorecard: a measuring step records its time through the timing chain the owner named (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard), so its landing may write there\n\nServes: first-output.\nDisappears: per-step launch overhead.\nEvidence: the captured sampler's output is bit-identical to the launched one, and its time is recorded.\nBatch: device lane."
         },
         {
           "id": "solver",
@@ -1004,10 +1026,16 @@
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestLiveEditOfflineModeIsReadAgainstTheStudent$'",
           "files": [
             "internal/latentvideo",
-            "local-models.json"
+            "local-models.json",
+            "internal/media",
+            "internal/capabilityruntime",
+            "internal/servingattempt",
+            "internal/runrecord",
+            "cmd/recipe",
+            "internal/scorecard"
           ],
           "needs_card": true,
-          "rationale": "All three LiveEdit checkpoints are on disk (5.68 GB each). bid-diffusion_009200.pt edits the whole clip at about 25 times the student's cost (197 against 7.89 in the paper's stage table); the paper publishes no quality comparison between the stages, so the mode is measured.\n\nServes: held-out-quality where time does not matter.\nDisappears: nothing.\nEvidence: the offline mode's score and time on the 64-clip suite are recorded beside the causal student's.\nBatch: device lane."
+          "rationale": "All three LiveEdit checkpoints are on disk (5.68 GB each). bid-diffusion_009200.pt edits the whole clip at about 25 times the student's cost (197 against 7.89 in the paper's stage table); the paper publishes no quality comparison between the stages, so the mode is measured.\n\nNote: files set to internal/latentvideo, local-models.json, internal/media, internal/capabilityruntime, internal/servingattempt, internal/runrecord, cmd/recipe, internal/scorecard: a measuring step records its time through the timing chain the owner named (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard), so its landing may write there\n\nServes: held-out-quality where time does not matter.\nDisappears: nothing.\nEvidence: the offline mode's score and time on the 64-clip suite are recorded beside the causal student's.\nBatch: device lane."
         },
         {
           "id": "wan-windows",
@@ -1225,10 +1253,16 @@
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestKreaDraftAndRefinePresetsAreRead$'",
           "files": [
             "internal/latentimage",
-            "local-models.json"
+            "local-models.json",
+            "internal/media",
+            "internal/capabilityruntime",
+            "internal/servingattempt",
+            "internal/runrecord",
+            "cmd/recipe",
+            "internal/scorecard"
           ],
           "needs_card": true,
-          "rationale": "Community presets run Krea-2-Turbo at 4 steps with a 4-step LoRA at 1 MP, and refine a first pass at denoise 0.3 with the turbo LoRA at 0.2. The LoRAs are Krea derivatives under the Krea 2 Community License, whose reading is open (decision krea-derivatives).\n\nServes: first-output (half the passes), held-out-quality for the refine.\nDisappears: nothing.\nEvidence: each preset's time and sign test against the 8-step reference are recorded.\nBatch: device lane.",
+          "rationale": "Community presets run Krea-2-Turbo at 4 steps with a 4-step LoRA at 1 MP, and refine a first pass at denoise 0.3 with the turbo LoRA at 0.2. The LoRAs are Krea derivatives under the Krea 2 Community License, whose reading is open (decision krea-derivatives).\n\nNote: files set to internal/latentimage, local-models.json, internal/media, internal/capabilityruntime, internal/servingattempt, internal/runrecord, cmd/recipe, internal/scorecard: a measuring step records its time through the timing chain the owner named (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard), so its landing may write there\n\nServes: first-output (half the passes), held-out-quality for the refine.\nDisappears: nothing.\nEvidence: each preset's time and sign test against the 8-step reference are recorded.\nBatch: device lane.",
           "depends_on": [
             "media-lora/unmerged",
             "moss-ultra-sections/img2img",

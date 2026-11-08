@@ -388,8 +388,9 @@ func ResolveClipRequest(ctx context.Context, reader artifact.Reader, modelDirect
 
 // chunkCausalCondition is the condition a chunk-causal checkpoint, an editor or a student, runs a prompt under: the
 // prompt's text context and the policy's schedule (chunkCausalSchedule). The prompt is encoded by the base model's text
-// encoder and projected by the checkpoint's own projection, which its training moved from the base model's: a context
-// projected by the base's is not the one the checkpoint was trained to read.
+// encoder on the card, as Wan's is, and projected by the checkpoint's own projection, which its training moved from
+// the base model's: a context projected by the base's is not the one the checkpoint was trained to read. On the host
+// the encoder streamed its 11 GB checkpoint for each new instruction, about 62 s of LiveEdit's 88 s clip.
 func chunkCausalCondition(ctx context.Context, wanDirectory, checkpointPath string, policy editPolicy, profile Profile, prompt string) (ReferenceEditCondition, error) {
 	base, err := LoadDenoiserConfig(wanDirectory, profile.Policy)
 	if err != nil {
@@ -403,7 +404,9 @@ func chunkCausalCondition(ctx context.Context, wanDirectory, checkpointPath stri
 	if err != nil {
 		return ReferenceEditCondition{}, err
 	}
-	conditioning, err := textConditioningWithWeights(ctx, WanTextConditioningSpec(wanDirectory, base.TextLen), prompt, projection, projectionBytes)
+	text := WanTextConditioningSpec(wanDirectory, base.TextLen)
+	text.Card = true
+	conditioning, err := textConditioningWithWeights(ctx, text, prompt, projection, projectionBytes)
 	if err != nil {
 		return ReferenceEditCondition{}, err
 	}

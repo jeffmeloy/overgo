@@ -39,7 +39,7 @@
         ],
         "adoption_scope": "Supersedes the absent repository-document reference at the owner's request; current external SHA is verified. Does not alter the executable plan."
       },
-    "assessment": "Shared worker tools reduce independent implementations, but347 leaves mutation admission permissive and348 infers fallback cost from marginal means. Fix existing owners;315 verified closed.345 remains the larger conditional deletion opportunity.",
+    "assessment": "Calibration improves within existing campaign, media and scorecard owners; the duplicate mixed-format device check is gone. Semantic acceptance and source-extrema limits remain; no overall code shrinkage or complete architectural migration established.",
     "ast_surface_review": {
         "revision": "9bd406acafb89c44a439722419f1f7e85e71f691",
         "architectural_target": "Fewer independent product entry points and dependency owners; retain process isolation and existing compiled/runtime/development authority.",
@@ -55,38 +55,38 @@
         "cost": "Concrete parsed duplicate migrations total22production and150test AST removed; unimplemented estimates only. Three directories can disappear through349/351; command movement and all retained semantic constants must be charged. No overall refactor completion claimed."
       },
     "current_review_order": [
-        "Guidance/plan/architecture target",
-        "Shared tool admission and callers",
-        "Concurrent replay/ladder and retained evidence",
-        "Selected AST/full costs",
+        "Guidance, committed plan and architecture target",
+        "Calibration, evidence and scorecard callers",
+        "Concurrent stillness source/retained result",
+        "Selected AST and exact closure costs",
         "Owner reconciliation"
       ],
     "declined_candidates": [
-        "HTTP/native model/replay/driver fixtures have distinct contracts; no safe blanket merge.",
-        "No new recipe/scheduler layer justified; dispatch, stops, budgets and landing keep current owners.",
-        "No demonstrated format-neutral migration, memory gain or safe new net deletion in this sample."
+        "No blanket merge of content and fidelity assertions: same media setup, different questions and acceptance contracts. Both still generate their own media and open sessions; no net replacement or independent-selector preservation proved in this sample.",
+        "Keep the new grouped-output store-path fixture: it verifies actual comparison behavior, including duplicated questions, rather than an implementation mirror.",
+        "No new recipe layer justified by these calibration tests; keep existing execution/numerical owners."
       ],
     "media_follow_up": {
-        "architectural_progress": "MP4 writer reused by oscillator; default format filled at intake so old omitted-format requests retain GIF identity; media.OpensAsMP4 shared. Render manifests retain encoding and refuse mixed formats before embedding. failureTally moves together through measured-summary replacement, policy joins share repeatedBy. Cache position owner distinguishes continuation from an unrelated first chunk. Calibration shares openProjectionInto and isolates answer records; Close retains model/projector/store ownership. Undo visibility uses the existing landing message/log and trailer, with no reporting framework; shared setup text still repeats setup execution (355).",
-        "remaining": "340 untouched numeric defaults still override presets;346 motion locator now resolves a render key but observations remain unbound to consumed content/instrument.342 source-extrema acceptance is still unsupported.349..353 remain recommendations. No new codec framework or scheduler warranted.",
+        "architectural_progress": "Mixed-format refusal now has one host fixture (354 closed). Calibration reuses the existing projection session/campaign and common answering helpers, with isolated records and established Close ownership. Scorecard comparison now reads the existing dataset's media groups instead of treating each question as independent. Stillness extends the existing motion record/display without a new runtime.",
+        "remaining": "342 stays open: diagnostic source extrema and selected fidelity sensitivity do not validate semantic rejection or generic motion quality.346 observation identity is untouched;340 numeric preset overrides unchanged.355 still duplicates caught/unbuilt repository setup.349..353 retain the earlier structural reductions; no binaries or directories disappeared this interval.",
         "plan_recommendations": [
           {
-            "rows": "judge-calibration/fidelity,stillness,independent,clustered,user-size",
+            "rows": "judge-calibration/independent,user-size",
             "finding": "SQA-342",
-            "recommendation": "Keep medium-level pairing and separate content/fidelity identity; retain instrument sensitivity limitations. Source extrema alone are diagnostics; compare admitted static/slow valid outputs before enforcing stillness. No detected base/student difference is not equivalence. Reuse campaign/paired/render owners, keep numerical acceptance independent of timing."
+            "recommendation": "Use the same bound media and questions for judge comparison; report disagreement and uncertainty, not second-judge agreement as ground truth. Admit evidence at the actual resolved request's size/frames/format through current request/compiler owners. Keep fidelity and content identity separate; no second recipe/scheduler."
+          },
+          {
+            "rows": "judge-calibration/stillness (landed)",
+            "finding": "SQA-342",
+            "recommendation": "Keep source-relative motion descriptive; a stationary source can make the maximum1 and hide a freeze. A sample maximum is not a universal acceptance bound."
           },
           {
             "rows": "undo-evidence/boundary; loop-proof/mutants,costs,demonstrated",
             "finding": "SQA-355",
-            "recommendation": "Visible evidence disclosure now landed; preserve it and merge duplicated setup through355. Boundary assertion evidence remains pending: complete it through the existing undo owner before multiplying broad gate executions. Start from the smallest existing-boundary counterexample; reuse retained replay/gate records for identity and costs. No second runner, ledger, scheduler or recurring mutation workload."
-          },
-          {
-            "rows": "mp4-clips/render (landed)",
-            "finding": "SQA-354",
-            "recommendation": "Keep format refusal in its existing host fixture; remove the late historical-output dependency from the device test."
+            "recommendation": "Complete boundary assertion evidence through the existing undo owner before multiplying gate runs. Merge message checks into caught/unbuilt setups; reuse retained replay/gate records and costs. No second ledger or runner."
           }
         ],
-        "cost": "Seven landings+1825production/+5807test AST (+7632total); measured fixes/observations, not shrinkage.354 removes46test nodes and355 removes48 with2fewer repository/verify setups. No claim to eliminate required media runs."
+        "cost": "bc77ee5e7 +0 production/+607 test;3cc685278 +503/+902;5c5113e7f +125/+584: total+628/+2093=+2721 AST.354's achieved44-node deletion is included.355's separate48-node/two-setup proposal remains unimplemented."
       },
     "plan_review": {
         "draft": {
@@ -168,16 +168,16 @@
           "Delete345 duplicate compiler, merge343/344 native setup, move322 verifier earlier."
         ]
       },
-    "plan_review_follow_up": "27-row plan now begins judge-calibration/fidelity; sensitivity and undo-evidence/visible landed. undo-evidence/boundary and loop-proof remain current. Reuse existing checks/results before multiplying device or gate work.",
-    "rank_basis": "Existing correctness/recovery priority retained.354/355 join practical setup/duplication reductions;342 remains open with narrowed calibration claims.",
+    "plan_review_follow_up": "Committed plan now starts judge-calibration/independent,user-size. Fidelity/clustered/stillness landed; undo-evidence/boundary and loop-proof remain. Keep sample/identity limits visible and reuse existing runtime/gate owners.",
+    "rank_basis": "Correctness/recovery ranking retained. Remove verified354 from active work;342 remains open with bounded calibration progress.355 remains the smallest measured setup consolidation.",
     "refactor_target_progress": {
         "status": "active; completion not established",
         "document_availability": "Downloads target exists, unchanged SHA; no repository document added.",
         "retained_reference_sha256": "fe13a4bd47c8c41ea6dbf766c0acf3dc41ab7dab0c6d8bd926863313d4f34395",
-        "progress": "MCP/local reuse schema/callTool; replay reuses editor, planverify and process supervision. servedWorkerModel shares actual-model setup.315's fresh cycle arguments verified. Prior report integrated.",
-        "conflicts": "347 absent arguments can become whole-file writes;348 ignores correlated fallback costs.342..346 and322 remain. Shared code alone is not sufficient admission or a net saving.",
-        "next_useful_reductions": "Repair347/348 inside callTool/localFirst. Retain315. Continue345 compiler deletion and343/344 native setup consolidation; account honestly for346 binding growth.",
-        "cost": "Two worker landings+4041production/+2295test, static fixture category0.347 estimated+130..270 and348+90..240 disjoint corrections, no savings booked.315 three-landing cost+88production/+260test."
+        "progress": "This slice consolidates mixed-format refusal in its host owner, reuses campaign/session helpers and fixes the comparison unit inside the scorecard. No new recipe/runtime/scheduler. Earlier format-independent and tool-owner migrations remain separately tracked.",
+        "conflicts": "342's semantic acceptance remains unsupported;346 media observation binding is untouched. Sharing helper text does not remove the two calibration fixtures' repeated media generation/session setup; no safe complete replacement cost established here.",
+        "next_useful_reductions": "355 removes two duplicate repository/verify setups;349/351 remove unnecessary command/package boundaries;345 removes the duplicate ComfyUI compiler. Preserve current correctness/identity repairs first.",
+        "cost": "bc77ee5e7 +0 production/+607 test;3cc685278 +503/+902;5c5113e7f +125/+584: total+628/+2093=+2721 AST.354's achieved44-node deletion is included.355's separate48-node/two-setup proposal remains unimplemented."
       },
     "working_notes_review": {
         "finding": "SQA-334",
@@ -187,10 +187,10 @@
       }
   },
     "committed_plan": {
-    "git_blob": "3c3f589635a24d91ece44493a2d3b3aa6119856c",
+    "git_blob": "9b249b949fe4ab2fe139542d182c1ecee3381741",
     "path": "docs/plan.json",
-    "revision": "3fa9b882a8329afe54e219db47f75857369c89cf",
-    "sha256": "1fb06e50c6f7e97ae616ca94650cf6a75653e0da0bcf6e562a09841c25d1e056",
+    "revision": "5c5113e7f5432e9d2af1e26f5b9592d8c555011c",
+    "sha256": "daed6cd4ba69a2fd6b522fae373806bc423220de2a3bc5811d9965295c83a192",
     "working_tree_status": "Committed plan at review pin; prior draft assessment retains its own snapshot identity. Current working plan edits excluded."
   },
     "findings": [
@@ -7174,44 +7174,40 @@
     },
     {
     "category": "evaluation-contract",
-    "classification": "semantic-proxy-remains-uncalibrated; retained-judge-sensitivity-narrows-quality-claim",
+    "classification": "semantic-proxy-remains-uncalibrated; fidelity-and-grouped-comparison-progress",
     "closure_criteria": [
         "Semantic screen has no unsupported prompt-loss rejection/mandatory admission; finite/input/identity checks and concrete diagnostic consumers remain.",
         "Source minima/maxima and higher similarity are not presented as universal motion quality. Any adopted stillness acceptance has a task-grounded contract and retained valid/invalid evidence.",
         "Judge sensitivity and grouped sample limitations accompany quality comparisons; content/fidelity meanings and historical identities remain separate. No unqualified equivalence claim from a nonsignificant result.",
         "Reuse existing numerical, media, campaign and recovery owners; count complete code/test/setup costs and retire only displaced, unneeded paths."
       ],
-    "comparison": "Reuse retained32-case screen and motion fixtures only for their actual perturbations. Retain the new12picture/10clip calibration results without rerunning. Compare planned stillness admission against an allowed static/slow composition and the requested motion semantics; otherwise report the metric. Pair by medium, preserve frozen/blur/noise observations, and distinguish failure to detect a difference from equivalence. No SQA workload or new test.",
+    "comparison": "Reuse the retained calibration and grouped-output fixture. For the stillness claim, trace a stationary source (mean1), the same generated clip under a changed unrelated source, and an allowed static/slow composition through Metrics; distinguish diagnostic values from acceptance. Any new native boundary coverage belongs in the existing motion fixture during implementation, not a new SQA workload. Keep content and fidelity comparisons separate and pair by medium.",
     "displaced_surface": "Remove Screen.Passed/Tail/Level's semantic admission role and printScreen's prompt-loss failure; retain finite/input/identity checks. If the screen has no diagnostic consumer, retire its CLI/policy/device fixture together. Card.Embed and evaluation.Cosine now have a second real consumer in clip motion and must remain with that owner; do not count their deletion. Retain motion's neighbour observations and its corrected local-repeat fixture; remove only the unjustified universal acceptance/quality claims, not measured evidence.",
-    "evidence": "The existing pair screen still rejects on Candidate>Reseeded embedding distance, with a retained32-case fixture comparing same-clip frame/pixel perturbations against unrelated clips; this does not establish prompt correctness for valid alternative compositions. Its finite/input/identity checks are useful and remain. The existing motion fixture already acknowledged that a repeat need not lower global minimum; a frozen clip has adjacent similarity1. The source minimum remains an unsupported universal quality bound. New retained evidence: b6656118e calibrates Qwen3.8 on12 pictures and10 clips, grouped by output, with unchanged versions re-encoded alike and answers isolated from production scorecards. Prompt swaps scored lower/higher/tied11/0/1 for pictures and8/0/2 for clips; blurred pictures11/0/1; noise pictures1/1/10 and clips0/0/10; blurred clips3/0/7; frozen clips1/0/9. This is evidence of the selected caption-question instrument's limited sensitivity, not broad fidelity equivalence. The earlier80-clip base/student comparison14188bb91 reports8student wins,9losses,63ties at matched81frames/832x480/GIF; its nonsignificant result cannot establish equivalence in sharpness, noise or motion. The current stillness plan proposes a ceiling from the most-still source clip. That catches a perfect freeze only if the observed ceiling is below1, and can reject a valid generated static/slow composition permitted by the same caption. This is a source/domain counterexample, not a measured false-rejection rate.",
-    "evidence_commit": "3fa9b882a8329afe54e219db47f75857369c89cf",
+    "evidence": "The pair screen still rejects Candidate>Reseeded embedding distance; its retained 32-case frame/pixel-versus-unrelated-clip fixture does not establish prompt correctness for valid alternative compositions. Keep finite/input/identity checks. Retained b6656118e content-question calibration found weak noise/frozen/blurred-video sensitivity; the matched 80-clip student/base result (8 wins,9 losses,63 ties) did not establish equivalence. bc77ee5e7 now asks fidelity directly: blurred and noised pictures each 12 lower/0 higher/0 tied; blurred,noised,frozen clips each 9/0/1, at the predeclared one-sided 0.05 test. These are 12 selected pictures and 10 clips, not calibrated production fidelity cells. 3cc685278 improves scorecard comparisons through CaseMedia/pairedByOutput: 3 degraded pictures of10 count as3 losses (tail0.125), not6 independent question losses (0.0156); doubling questions leaves the verdict unchanged. 5c5113e7f adds StillerThanSourcesMetric to existing motion records/display. Its retained four-source fixture reports means0.9294,0.9803,0.9872 and a frozen1.0000 against maximum source0.9950. Source extrema still do not establish allowed motion: an admitted stationary source with mean1 makes the strict >ceiling test miss every perfect freeze; changing an unrelated source can change the same generated clip's classification. A static/slow composition can also legitimately exceed sampled source motion. These are domain/predicate counterexamples, not measured failure rates. Current consumers record/display the metric; no new production admission gate was found.",
+    "evidence_commit": "5c5113e7f5432e9d2af1e26f5b9592d8c555011c",
     "expected_benefit": {
         "measured_baseline": "Historical pair-screen landing+1560production/+789test=2349AST. Clip motion reuses evaluation.Cosine: cmd/evaluate/screen1152->1093 (-59nodes); current former screen slice2290 including shared entrypoints. Clip landing+1586production/+1504test includes that consolidation and is overall growth. Both landings together+3146production/+2293test. No static fixtures added by either.",
         "minimum_change": "Diagnostic/acceptance separation estimated production-40..90AST, test0..25 with actual distance/refusal coverage retained: current former screen slice2290->2175..2250, estimated net40..115. No replacement compiled, no new helper/schema/fixture/setup.",
         "larger_deletion": "Full screen deletion is conditional on absent required diagnostic use. Current shared Card.Embed and Cosine serve motion and are retained; any standalone estimates must subtract them and account for CLI changes. It is an alternative to minimal correction, never additive.",
         "setup": "The current device fixture decodes32 source clips, opens one encoder, makes4 temporary render directories with128PNG files, and embeds192 images across the two candidates, including repeated reference/reseeded embeddings. Minimal correction retains that cost; retiring the unused path removes it. No rerun by SQA; native Go caching remains credited.",
         "retained_results": "f49359db3: model verification62.47s; broad lane25m25.582s with CUDA4executed/15cached; scorecard unavailable because card reserved. Successful walls are not measured waste. Counterfactual did not compile, so no behavioral undo evidence. ae199b5b9 explicitly observed a repeat that global minimum missed; model verify64.999s and lane26m7.594s are bounded successful walls, not general motion evidence.",
-        "uncertainty": "Real valid-generation false rejection and missed semantic errors remain unmeasured. The source predicate and frozen-clip counterexample are sufficient to withhold the universal acceptance claim without running new workloads."
+        "uncertainty": "Fidelity sensitivity is bounded to the selected12 pictures/10clips; four-source stillness does not establish a universal domain. CaseMedia missing/unreadable metadata falls back to case-level pairing; whether that is reachable for otherwise admissible media evidence was not established in this bounded review. No new defect asserted from that hypothesis.",
+        "current_review": "Three calibration landings: +628 production/+2093 test AST total, including SQA354's achieved -44 test nodes. Static fixture category0 does not count generated media or model setup. Current calibration file2909, stillness test584 and output-pairing test902 nodes. No overall shrinkage or measured recurring runtime saving established."
       },
     "id": "SQA-342",
     "impact": "Prevents an extra gate from rejecting valid fast paths or presenting frozen video as temporally correct. Architectural benefit is one acceptance authority and fewer compulsory passes, rather than another quality framework.",
     "likely_effort": "Small separation of diagnostic output from acceptance; larger deletion only if no actual diagnostic consumer needs the path. SQA changes no code or plan.",
-    "plan_coverage": "Both media-screen steps remain landed; the new sensitivity calibration is now landed and narrows the judge's claim. Keep its existing isolated session/campaign owner and grouped comparisons. Current stillness/fidelity/independent/clustered/user-size work belongs in this same calibration discussion, not a duplicate SQA backlog. A source-derived stillness ceiling remains a proposal, not a verified fix of the semantic bound.",
+    "plan_coverage": "fidelity, clustered and stillness landed in bc77ee5e7/3cc685278/5c5113e7f; independent and user-size remain in the committed plan. The fidelity experiment is test-only; clustered repairs the sample unit; stillness adds a source-relative diagnostic. None closes the existing semantic-screen acceptance obligation. All stay in this canonical calibration finding.",
     "plan_references": [
-        "media-screen/pair-screen",
-        "media-screen/clip-consistency",
-        "video-judge/same-settings",
+        "media-screen/pair-screen and clip-consistency",
+        "video-judge/same-settings 14188bb91",
         "judge-calibration/sensitivity b6656118e",
-        "video-judge/same-settings14188bb91",
-        "judge-calibration/stillness,fidelity,independent,clustered,user-size at b6656118ea866b701e49a253042a817a9cbb3ffb"
+        "judge-calibration/fidelity bc77ee5e7; clustered 3cc685278; stillness 5c5113e7f",
+        "judge-calibration/independent,user-size at 5c5113e7f5432e9d2af1e26f5b9592d8c555011c"
       ],
-    "recommended_change": "Keep the existing unsupported semantic-loss rejection out of admission; preserve concrete diagnostics and identity/numeric checks. Reuse the existing campaign, output grouping and ExactPairedBinary owners for the current calibration plan. Retain the measured sensitivity limitations instead of promoting prompt adherence or no detected difference to overall quality/equivalence. For stillness, keep source extrema diagnostic unless the task's motion requirement and retained valid/invalid examples justify an acceptance bound; frozen=1 alone is not general calibration. Do not introduce a new threshold-search framework or duplicate judge workflow. Keep fidelity questions separate from content questions and preserve historical measurement identity.",
+    "recommended_change": "Keep unsupported embedding prompt-loss rejection out of admission; retain diagnostics and numeric/identity validation. Credit medium-level pairing and retain separate content/fidelity meanings and historical identities. Use existing campaign, media compiler and ExactPairedBinary owners. Keep stiller-than-sources descriptive unless a task-grounded motion contract and valid/invalid retained examples justify acceptance; do not optimize a generic quality claim against a sample maximum. The selected fidelity result justifies further instrument use, not broad equivalence or automatic activation. Retain the existing direct questions when suitable; no threshold-search framework, second workflow or recurring calibration suite.",
     "severity": "P2",
     "sources": [
-        {
-          "path": "docs/plan.json",
-          "symbol": "media-screen/pair-screen and clip-consistency; proposed consumers eight-bit-attention, w8a8-gemm, step-cache, light-vae, video-decode-overlap"
-        },
         {
           "path": "internal/evaluation/image_retrieval.go",
           "symbol": "ImageEmbedder, nearestSameGroup: retrieval labels are the metric's actual contract"
@@ -7246,11 +7242,31 @@
         },
         {
           "path": "docs/plan.json",
-          "symbol": "judge-calibration/fidelity,stillness,independent,clustered,user-size at b6656118ea866b701e49a253042a817a9cbb3ffb"
+          "symbol": "judge-calibration/independent,user-size; current work retains existing owners"
         },
         {
           "path": "cmd/evaluate/judge_calibration_windows_model_test.go",
-          "symbol": "TestTheJudgeScoresDegradedOutputsLower; grouped output observations; isolated answer store"
+          "symbol": "TestTheJudgeScoresDegradedOutputsLower; TestTheJudgeSeesFidelityWhenAsked; openCalibration; lowerAt"
+        },
+        {
+          "path": "internal/evaluation/evidence_index.go",
+          "symbol": "CaseMedia; scoredReport"
+        },
+        {
+          "path": "internal/scorecard/record.go",
+          "symbol": "pairedByOutput; judgeQuality"
+        },
+        {
+          "path": "internal/scorecard/output_pairing_test.go",
+          "symbol": "TestAQualityVerdictCountsMediaNotQuestions"
+        },
+        {
+          "path": "cmd/evaluate/stillness_windows_model_test.go",
+          "symbol": "TestAFrozenClipReadsAsTooStill"
+        },
+        {
+          "path": "internal/scorecard/scorecard.go",
+          "symbol": "Motion; readMotion; QualityText"
         }
       ],
     "status": "open",
@@ -7809,47 +7825,30 @@
       "comparison": "Compare signatures and NaN/Inf predicate plus the three callers; retain existing native validation coverage when adopted."
     },
     {
-      "id": "SQA-354",
-      "status": "open",
-      "severity": "P2",
-      "category": "duplicate-device-test-and-late-fixture-dependency",
-      "classification": "source-established-redundant-contract; fresh-host-counterexample-not-executed",
-      "title": "Keep mixed-format refusal in its host fixture and remove the late historical-directory dependency",
-      "evidence_commit": "3fa9b882a8329afe54e219db47f75857369c89cf",
-      "sources": [
+    "category": "duplicate-device-test-and-late-fixture-dependency",
+    "classification": "verified-deletion-with-retained-host-owner",
+    "evidence": "Closed by bc77ee5e766b, rechecked at 5c5113e7f5432e9d2af1e26f5b9592d8c555011c. The device test no longer reads self-forcing-generated-832 or repeats screenPaths format refusal. Its two real MP4 renders, byte identity, FFmpeg/request/run provenance, decoding and motion assertions remain. The unchanged host fixture retains the mixed-format guard before embedding with its own manifests and a nil encoder. Source and complete-file AST establish the deletion; SQA ran no application test.",
+    "evidence_commit": "5c5113e7f5432e9d2af1e26f5b9592d8c555011c",
+    "expected_benefit": {
+        "comparison": "Actual complete AST: device 707->663 (-44 test nodes), host 442 unchanged; pair 1149->1105. Earlier -46 candidate estimate differed by two comment nodes. Production, imports/helpers, static fixture bytes, binaries/directories and gate phases unchanged.",
+        "setup": "Historical-output prerequisite and up to three repeated manifest reads removed. Two generated clips and one encoder/motion integration remain; no claim that the whole device run disappears.",
+        "closure_revision": "bc77ee5e766b; verified at 5c5113e7f5432e9d2af1e26f5b9592d8c555011c"
+      },
+    "id": "SQA-354",
+    "severity": "P2",
+    "sources": [
         {
           "path": "cmd/evaluate/render_mp4_windows_model_test.go",
-          "symbol": "TestARenderedClipIsAnMP4TheJudgeReads final earlier/screenPaths block"
+          "symbol": "TestARenderedClipIsAnMP4TheJudgeReads; bc77ee5e766b removes final historical-directory check"
         },
         {
           "path": "cmd/evaluate/render_format_test.go",
-          "symbol": "TestARenderKeepsItsClipsInOneFormat; nil-encoder mixed-format case"
-        },
-        {
-          "path": "cmd/evaluate/screen.go",
-          "symbol": "screenPaths; readScreenDraws"
+          "symbol": "TestARenderKeepsItsClipsInOneFormat; unchanged nil-encoder mixed-format refusal"
         }
       ],
-      "evidence": "The new windows&&modeltest fixture first generates two Self-Forcing MP4 clips, checks their content/provenance and decoding, loads an image encoder and measures motion. Only then it requires the local historical VidGen/self-forcing-generated-832 directory to repeat the mixed GIF/MP4 refusal. screenPaths reads that reference's rendered.json before the format guard. A correctly provisioned model/FFmpeg/VidGen-caption host without that earlier experiment directory therefore fails after the expensive work for a missing file rather than the expected one-format refusal. No runtime failure was reproduced by SQA. The same format guard is already exercised by TestARenderKeepsItsClipsInOneFormat using its own tiny manifests and a nil encoder, proving refusal before embedding.",
-      "recommended_change": "Delete the final earlier variable and screenPaths refusal block from the device fixture and correct its comment. Retain the existing host fixture as the one owner of that guard. Keep actual two-clip render, byte-addressed names, FFmpeg identity/arguments, decoder dimensions/frame count, original run/request provenance and motion integration in the device test. No new fixture or preflight scan is needed for a dependency that disappears.",
-      "displaced_surface": "One copied assertion and its dependency on a previous local rendering experiment disappear. No historical clips are deleted. Windows/modeltest/CUDA admission, model and encoder lifetime, format controls, byte identity and numerical observation coverage remain under their existing owners.",
-      "impact": "Prevents an unrelated missing historical directory from failing an expensive integration run; reduces test surface and local setup obligations.",
-      "expected_benefit": {
-        "comparison": "Complete in-memory AST candidate: render_mp4_windows_model_test.go707->661 (-46test nodes), host render_format_test.go442 unchanged; pair1149->1103. Production, helpers/imports, static fixtures/bytes, binaries/directories and gate phases unchanged.",
-        "setup": "Two required generated clips, one encoder load and motion measurements remain. Remove up to3 redundant manifest reads and the historical-directory prerequisite; do not claim the entire model run as saved. No application tests or new workloads executed."
-      },
-      "likely_effort": "Delete two statements and stale comment only.",
-      "plan_references": [
-        "mp4-clips/render b3b33a5ce",
-        "Downloads extreme_refactor_plan.md: existing owners, fewer setup obligations and full migration cost"
-      ],
-      "plan_coverage": "Existing native host guard already owns the exact contract; no new plan row or test authorized by SQA.",
-      "closure_criteria": [
-        "Device test no longer reads self-forcing-generated-832 to test mixed-format refusal; all real MP4/provenance/decode/motion assertions remain.",
-        "Host fixture still refuses differing formats with nil encoder, and complete two-file AST is smaller without a replacement helper/setup path."
-      ],
-      "comparison": "Compare the two screenPaths assertions and order of readScreenDraws/format guard. The existing host case retains the entire removed contract; no new test or SQA run required."
-    },
+    "status": "resolved",
+    "title": "Keep mixed-format refusal in its host fixture and remove the late historical-directory dependency"
+  },
     {
       "id": "SQA-355",
       "status": "open",
@@ -7898,57 +7897,36 @@
     "assumptions": "40replies/4096tokens/24000resultbytes explicit limits, not capability calibration.348 failure/cost correlation defeats marginal averaging. Small replay samples and model name alone do not establish full execution comparability.",
     "automation_sequence": "Existing driver retains attempts/stops/landing.347 validates before mutations;348 uses current records/config.322 verifier still follows broad tests/lanes. Replay baseline classifies any check error as a task; effect of setup errors on comparable evidence remains a limit, not proof every compile failure is invalid.",
     "fresh_ast": {
-        "revision": "3fa9b882a8329afe54e219db47f75857369c89cf",
-        "method": "Existing external parser:14files3356065ae,2b6656118e,3at3fa9b882a; concurrent diffs verify earlier selected files unchanged.19total, comments/local links, no package types/execution.",
-        "selected_counts": "render3229/formatTest442/MP4modelTest707/screen1133/media_inputs1002/motion717; MP4encoder1007/defaultTest474/formatTest1983; runner_projected2051/positionTest210; scorecard8527/failureTest1535/policyTest494; projection1294/calibrationTest2258. Landing5436/undo715/undoTest501.",
-        "comparison": "354 full two-file1149->1103(-46test);355 undoTest501->453(-48test),6->4repository/verify setups. External review-20261109-0751 ast/concurrent-ast/undo-ast and duplicate-cost/undo-cost results; no repository utility added.",
-        "limits": "Complete landed costs below are retained gate footers, not selected-file totals."
+        "revision": "5c5113e7f5432e9d2af1e26f5b9592d8c555011c",
+        "method": "Existing external Go parser on nine selected committed files, ParseComments/local links; source caller/lifetime tracing. No package-wide type checking or application execution. Reused prior full-tree scan at9bd406aca.",
+        "selected_counts": "render_mp4 model test663;render_format test442;calibration test2909;stillness test584;clip_motion681;evidence_index3843;output_pairing test902;scorecard record5589;scorecard8564.",
+        "comparison": "354 actual pair1149->1105 (-44 test AST), required device setup retained.355 prior full-file501->453 (-48) and6->4 setups reused after verifying undo paths unchanged. No new broad boilerplate percentage or binary inventory run.",
+        "limits": "Selected counts are complete-file sizes, not entire-landing deltas. Full landed costs come from retained gate footers. External review-20261109-0954/ast.json retains detail."
       },
     "media_follow_up": {
         "landings": [
           {
-            "commit": "39a259405",
-            "production_ast": 1029,
-            "test_ast": 1220
-          },
-          {
-            "commit": "ca3494218",
-            "production_ast": 115,
-            "test_ast": 809
-          },
-          {
-            "commit": "14188bb91",
+            "commit": "bc77ee5e7",
             "production_ast": 0,
-            "test_ast": 0,
-            "note": "plan-only run-step landing; its test changes already charged in39a259405"
+            "test_ast": 607
           },
           {
-            "commit": "b3b33a5ce",
-            "production_ast": 402,
-            "test_ast": 1149
+            "commit": "3cc685278",
+            "production_ast": 503,
+            "test_ast": 902
           },
           {
-            "commit": "3356065ae",
-            "production_ast": 73,
-            "test_ast": 210
-          },
-          {
-            "commit": "b6656118e",
-            "production_ast": 55,
-            "test_ast": 2258
-          },
-          {
-            "commit": "3fa9b882a",
-            "production_ast": 151,
-            "test_ast": 161
+            "commit": "5c5113e7f",
+            "production_ast": 125,
+            "test_ast": 584
           }
         ],
-        "total_production_ast": 1825,
-        "total_test_ast": 5807,
-        "total_ast": 7632,
-        "interpretation": "Correctness/capability/calibration/visibility growth, not net reduction. Gate fixtures category0 excludes dynamic generated media and installed corpora.354/355 together suggest94test AST deletion and2fewer repository/verify setups; no broad saving established.",
-        "tests": "RETAIN host format/intake/legacy identity; real MP4 encode/provenance/roundtrip and motion integration; scorecard store-path failure/policy windows; projected chunk geometry including first-chunk refusal; isolated calibration grouped by medium. REMOVE only354's duplicate mixed-format tail. Numerical tests across distinct formats/lifetimes are not redundant. No new safe consolidation established inside the2258node calibration fixture. MERGE355 message assertions into existing caught/unbuilt cases and REMOVE its duplicated test entry; retain all four undo cases.",
-        "retained_results": "14188bb91:80clips/237questions, student0.814/base0.806,8wins9losses63ties, matched81frames832x480GIF. b6656118e:12pictures/10clips, prompt swap and blurred-picture sensitivity; noise/frozen/blurred-video weak. Gate verification13m57.84s is successful cost, not measured waste. No-undo evidence disclosed in commit; no SQA rerun."
+        "total_production_ast": 628,
+        "total_test_ast": 2093,
+        "total_ast": 2721,
+        "interpretation": "Calibration/correctness growth, not net reduction. Includes354's achieved44-test-node deletion. Gate fixtures category0 excludes generated media, installed corpora and setup executions.",
+        "tests": "RETAIN host format guard and real MP4 provenance/roundtrip/motion. REMOVE achieved354's duplicated tail. RETAIN content/fidelity questions as distinct measured claims and their common campaign/answer helpers. RETAIN output-pairing store fixture with2/4questions and3/6changed media. RETAIN four-clip stillness instrument check within its scope; do not treat it as general quality calibration. MERGE proposed355's message assertions into existing caught/unbuilt cases; REMOVE its duplicate entry after migration. No new tests run or created.",
+        "retained_results": "bc77: fidelity pictures12/0/0, clips9/0/1 lower/higher/tied; verification13m43.696s.3cc: output grouping10media,3losses tail0.125,6losses0.0156; duplication invariant.5c: four-source means0.9294,0.9803,0.9872,0.9950; frozen1.0000; verification5m26.221s. Successful walls are costs, not measured waste. No SQA rerun."
       },
     "requested_growth_analysis": {
       "window": {
@@ -9774,9 +9752,9 @@
   },
     "limitations": [
       "This chat previously implemented Overgo changes; follow-up SQA, not independent third-party review.",
-      "No application tests, models/devices, services, benchmarks, profiles, gates, agents/messages, plan/skill edits or pushes. Existing external parser and an in-memory deletion comparison only.",
-      "Selected AST uses parser-local links and concrete same-package caller tracing, not package-wide types/execution.354 is an admitted clean-host counterexample, not a run incident;354/355 cost candidates were parsed in memory only. Retained implementation results not independently rerun.",
-      "Latest source/check results do not establish full refactor completion or net shrinkage. Full-tree duplication percentages remain those measured at9bd406aca; no repeat census."
+      "No application tests, models/devices, services, benchmarks, profiles, gates, agents/messages, plan/skill edits or pushes. Standard-library selected-file parser only.",
+      "AST has parser-local links, not package/type resolution. Retained implementation results were not independently rerun. Stillness counterexamples follow admitted source values/predicate, not measured incidents; metadata fallback remains an unproved hypothesis.",
+      "Full-tree duplication/binary/directory figures remain at their retained revisions. No overall net shrinkage or completed architectural refactor established."
     ],
     "master_lead_triage": {
     "at": "2026-11-08",
@@ -10639,10 +10617,10 @@
   },
     "next_finding_number": 356,
     "publication_context": {
-    "assessment": "Re-read master/report/owners immediately before report-only publication; unrelated active landing/undo edits excluded.",
-    "checked_head": "3fa9b882a8329afe54e219db47f75857369c89cf",
-    "concurrent_changes": "Master3356065ae->b6656118e->3fa9b882a. Read projection/calibration/plan and landing/undo/test deltas, parsed5additional selected files; earlier14unchanged. Final owner/report/code re-read guards publication.",
-    "current_pin": "3fa9b882a8329afe54e219db47f75857369c89cf",
+    "assessment": "Re-read committed code, report and owner fields before publication; active plan/landing/undo edits preserved and excluded from committed evidence.",
+    "checked_head": "5c5113e7f5432e9d2af1e26f5b9592d8c555011c",
+    "concurrent_changes": "Initial3cc685278 advanced to5c5113e7f; complete stillness source/test/plan and retained results reconciled and parsed. Active uncommitted undo boundary draft now merges message assertions while adding refusal/reason coverage;355 remains open at the pin, and its older estimate must be remeasured after landing. Final guards reject a changed pin/report.",
+    "current_pin": "5c5113e7f5432e9d2af1e26f5b9592d8c555011c",
     "publication": "Use the existing report-only hook exception for a standalone commit when landing ownership permits. If busy, a validated report-only checkout write may remain pending; do not stage unrelated files, advance HEAD or disturb workers.",
     "report_only": "Only docs/sqa_findings.json; existing hooks and landing/gate ownership, unrelated index/worktree preserved."
   },
@@ -10667,7 +10645,6 @@
     "SQA-341",
     "SQA-330",
     "SQA-344",
-    "SQA-354",
     "SQA-355",
     "SQA-349",
     "SQA-351",
@@ -10707,50 +10684,52 @@
     "repository": "C:\\Users\\jeffm\\overgo",
     "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
     "review_notes": [
-      "Provisional MP4/screen/cache conclusions preceded existing rankings.354 has a precise retained host owner, so no replacement test is requested.",
-      "Reconciled concurrent calibration into342 and undo visibility into355; disclosure is progress, not completed assertion evidence. No duplicate plan authority or general workload.",
-      "Keep prior full AST results at their exact pin; this review only parses selected changed/related files."
+      "The prior354 estimate was46nodes; actual landed deletion is44 including revised comments. No saved device run claimed.",
+      "342 consolidates all current calibration progress without retiring its distinct semantic-admission requirements. Unsupported metadata-fallback concerns were not promoted to a new defect.",
+      "Reuse exact prior AST/binary/directory evidence; no recurring census or new review framework.",
+      "Concurrent undo boundary draft was inspected only to avoid conflicting publication; it is not a committed355 closure or an achieved48-node saving."
     ],
-    "reviewed_at": "2026-11-09T08:05:43Z",
-    "reviewed_master": "3fa9b882a8329afe54e219db47f75857369c89cf",
+    "reviewed_at": "2026-11-09T10:03:58Z",
+    "reviewed_master": "5c5113e7f5432e9d2af1e26f5b9592d8c555011c",
     "schema_version": 2,
     "scope": [
-      "Committed master 3fa9b882a8329afe54e219db47f75857369c89cf; current27-row plan and unchanged skill/Downloads architecture target read. Bounded MP4 intake/render/consumer, scorecard failure/policy windows, projected-prompt cache and undo-evidence ownership review.",
-      "Concurrent3356065ae->b6656118e sensitivity and3fa9b882a undo visibility landings reconciled from source, tests, retained records and plan.19selected Go files parsed across exact pins; unchanged files reused. Provisional conclusions preceded rankings; prior full-tree AST retained.",
-      "Rechecked touched340 (numeric preset form still unchanged),342 (new calibration evidence, open),346 (MP4 locator improvement does not bind motion/OCR observations), and existing structural349..353 against unchanged source paths. No blanket closure."
+      "Committed master 5c5113e7f5432e9d2af1e26f5b9592d8c555011c; read committed plan, repository guidance and unchanged Downloads architecture target. Bounded media calibration -> evidence dataset -> scorecard comparison/display, related render fixture and session ownership.",
+      "Reconciled concurrent stillness landing5c5113e7f after initial3cc685278 pin. Nine selected Go files parsed; prior full-tree AST and unchanged structural findings reused. Provisional source conclusions preceded rankings.",
+      "Rechecked342 and354 against committed source/retained verification;355 and349..353 paths unchanged. Working plan edits excluded; no blanket closure."
     ],
     "sqa_response": {
-    "assessment": "182stable IDs:56open,120resolved,4deferred,2aliases. Update342, add354/355; no closure or alias this review.",
+    "assessment": "182 stable IDs:55 open,121 resolved,4 deferred,2 aliases. Close354; update342 with fidelity, grouped-comparison and stillness progress. No new finding or alias.",
     "consolidated_findings": [],
     "deferred_findings": [],
     "evidence": [
-        "3fa9b882a8329afe54e219db47f75857369c89cf",
-        "Seven retained landings39a259405..3fa9b882a",
-        "19selected AST files; complete354/355 candidates; unchanged Downloads target"
+        "5c5113e7f5432e9d2af1e26f5b9592d8c555011c",
+        "bc77ee5e7/3cc685278/5c5113e7f source and retained gate records",
+        "Nine selected AST files; prior full scan and unchanged355 candidate retained"
       ],
     "implementation_response_context": {
-        "reviewed_commit": "3fa9b882a8329afe54e219db47f75857369c89cf",
+        "reviewed_commit": "5c5113e7f5432e9d2af1e26f5b9592d8c555011c",
         "current_triage_head": "518fa52f417f796df399da65d208a61290fe5635",
-        "status": "Both owner blocks and unknown fields raw-exact. No closure response for340/342/346 or new354/355."
+        "status": "Owner blocks and unknown fields preserved raw-exact.354 closure follows committed implementation/source;342 remains partly addressed, not closed."
       },
-    "new_findings": [
-        "SQA-354",
-        "SQA-355"
+    "new_findings": [],
+    "partially_addressed_findings": [
+        "SQA-342"
       ],
-    "partially_addressed_findings": [],
     "priority_changes": [
-        "Keep342 calibrated acceptance concern active;354/355 remove duplicated late setup and gate fixture work."
+        "Remove354 from active ranking; preserve existing correctness/recovery priority."
       ],
-    "recommendation": "Retain correctness/identity and visible evidence fixes; remove354's late historical dependency and merge355's repeated fixture execution. Keep calibration claims bounded.",
+    "recommendation": "Credit the achieved deletion and comparison repair. Retain fidelity limits and keep source-extrema motion descriptive. Next small reduction remains355's duplicated repository setup.",
     "refactor": {
       "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
       "history_path": "docs/sqa_findings.json",
       "layout": "Full canonical open/deferred; compact resolved closure sources/revision/costs; explicit aliases, including aliases to closed canonical findings. Prior narratives remain in Git."
     },
     "reopened_findings": [],
-    "resolved_findings": [],
-    "reviewed_master": "3fa9b882a8329afe54e219db47f75857369c89cf",
-    "uncertainty": "Source and retained evidence only; no model/device reproduction. Planned stillness admission unimplemented; no measured false-rejection rate. No full refactor completion/net shrinkage established.",
+    "resolved_findings": [
+        "SQA-354"
+      ],
+    "reviewed_master": "5c5113e7f5432e9d2af1e26f5b9592d8c555011c",
+    "uncertainty": "Retained evidence only, not independent execution. No calibrated general motion bound, whole-system shrinkage or full refactor completion established.",
     "updated_findings": [
         "SQA-342"
       ]

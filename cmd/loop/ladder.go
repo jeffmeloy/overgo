@@ -48,47 +48,65 @@ func (w *execWorld) StartLevel(step loop.Step) int {
 	return 1
 }
 
-// localFirst are the kinds of step the local worker should take first, read from replay records: those where its
-// expected wall, its own attempts plus the strong worker's on the share of steps it fails, is below the strong worker's
-// alone. A kind the local worker passed none of, or the strong worker was not replayed on, stays with the strong worker.
+// localFirst are the kinds of step the local worker should take first, read from replay records: those where the
+// ladder's wall on the steps both workers were replayed on is below the strong worker's alone on the same steps. A kind
+// the local worker passed none of, or holding a step the strong worker was not replayed on, stays with the strong
+// worker.
 func localFirst(records []replayRecord, local, strong string) []string {
-	type tally struct {
-		passed, tasks int
-		wall          int64
-	}
-	byKind := map[string]map[string]*tally{}
-	for _, record := range records {
-		if record.Skipped != "" || record.Worker != local && record.Worker != strong {
-			continue
-		}
-		if byKind[record.Kind] == nil {
-			byKind[record.Kind] = map[string]*tally{}
-		}
-		counted := byKind[record.Kind][record.Worker]
-		if counted == nil {
-			counted = &tally{}
-			byKind[record.Kind][record.Worker] = counted
-		}
-		counted.tasks++
-		counted.wall += record.WallMS
-		if record.Passed {
-			counted.passed++
-		}
-	}
 	var kinds []string
-	for kind, workers := range byKind {
-		weak, strongest := workers[local], workers[strong]
-		if weak == nil || strongest == nil || weak.passed == 0 {
-			continue
-		}
-		strongWall := float64(strongest.wall) / float64(strongest.tasks)
-		failing := 1 - float64(weak.passed)/float64(weak.tasks)
-		if float64(weak.wall)/float64(weak.tasks)+failing*strongWall < strongWall {
+	for kind, spent := range cascades(records, local, strong) {
+		if !spent.unmatched && spent.passed > 0 && spent.ladder < spent.alone {
 			kinds = append(kinds, kind)
 		}
 	}
 	slices.Sort(kinds)
 	return kinds
+}
+
+// cascade is what one kind of step cost on the steps both workers were replayed on: the ladder's wall, the local
+// worker's and the strong worker's on the steps the local worker failed, against the strong worker's alone.
+type cascade struct {
+	ladder, alone int64
+	steps, passed int
+	// unmatched is a step the local worker was replayed on and the strong worker was not, which leaves the kind with
+	// no comparison.
+	unmatched bool
+}
+
+// cascades reads the replay records by kind of step, each step matched by its reference and the commit it landed on
+// with each worker's last record of it, so a step's cost is set against the same step's. Averages over the steps
+// apart put the local worker first where it failed the hard steps, the strong worker's long ones (SQA-348). A step
+// either worker skipped counts neither way.
+func cascades(records []replayRecord, local, strong string) map[string]*cascade {
+	type task struct{ kind, step, landed string }
+	last := map[string]map[task]replayRecord{local: {}, strong: {}}
+	for _, record := range records {
+		if record.Skipped != "" || last[record.Worker] == nil {
+			continue
+		}
+		last[record.Worker][task{record.Kind, record.Step, record.Landed}] = record
+	}
+	byKind := map[string]*cascade{}
+	for at, weak := range last[local] {
+		if byKind[at.kind] == nil {
+			byKind[at.kind] = &cascade{}
+		}
+		spent := byKind[at.kind]
+		strongest, matched := last[strong][at]
+		if !matched {
+			spent.unmatched = true
+			continue
+		}
+		spent.steps++
+		spent.ladder += weak.WallMS
+		spent.alone += strongest.WallMS
+		if weak.Passed {
+			spent.passed++
+		} else {
+			spent.ladder += strongest.WallMS
+		}
+	}
+	return byKind
 }
 
 // readReplayRecords reads the replay records at path, none where there is no file.

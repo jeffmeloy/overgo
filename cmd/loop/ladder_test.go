@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -23,9 +24,13 @@ func TestTheLocalWorkerGoesFirstWhereItsReplayPays(t *testing.T) {
 	t.Parallel()
 	const local = "Qwen3.8-27B-UD-Q6_K.gguf"
 	var records []replayRecord
+	// Each worker's records of a kind are its steps in order, so the two workers' nth records of a kind are one step.
+	steps := map[string]int{}
 	add := func(worker, kind string, passed bool, wall int64, times int) {
 		for range times {
-			records = append(records, replayRecord{Worker: worker, Kind: kind, Passed: passed, Attempts: 1, WallMS: wall})
+			step := kind + "/" + strconv.Itoa(steps[worker+" "+kind])
+			steps[worker+" "+kind]++
+			records = append(records, replayRecord{Worker: worker, Kind: kind, Step: step, Landed: "c0" + step, Passed: passed, Attempts: 1, WallMS: wall})
 		}
 	}
 	add(local, "internal", true, 100_000, 3)

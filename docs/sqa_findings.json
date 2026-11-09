@@ -40,6 +40,20 @@
         "adoption_scope": "Supersedes the absent repository-document reference at the owner's request; current external SHA is verified. Does not alter the executable plan."
       },
     "assessment": "Shared worker tools reduce independent implementations, but347 leaves mutation admission permissive and348 infers fallback cost from marginal means. Fix existing owners;315 verified closed.345 remains the larger conditional deletion opportunity.",
+    "ast_surface_review": {
+        "revision": "9bd406acafb89c44a439722419f1f7e85e71f691",
+        "architectural_target": "Fewer independent product entry points and dependency owners; retain process isolation and existing compiled/runtime/development authority.",
+        "progress": "Existing gguf dispatcher has already displaced nine standalone commands; clioptions already centralizes50 command shells. Count these owners as progress, not opportunities for a replacement framework.",
+        "conflicts": "Two remaining model-file binaries and a package of scalar aliases still add structural surface.125 local executable outputs accumulate under report-only lifetime classification.",
+        "next_useful_reductions": [
+          "349 fold two command entry points into existing gguf",
+          "351 delete unnecessary extent dependency",
+          "352 merge only equivalent routing graph cases",
+          "353 use checked.Finite32",
+          "350 reuse existing build/scratch/leftovers lifetime"
+        ],
+        "cost": "Concrete parsed duplicate migrations total22production and150test AST removed; unimplemented estimates only. Three directories can disappear through349/351; command movement and all retained semantic constants must be charged. No overall refactor completion claimed."
+      },
     "current_review_order": [
         "Guidance/plan/architecture target",
         "Shared tool admission and callers",
@@ -133,7 +147,7 @@
         ]
       },
     "plan_review_follow_up": "All local-worker steps landed.25-row plan begins video-judge/same-settings, guidance-ops (newguider), comfy-recorder/record.347/348 remain recommendations for existing owners.",
-    "rank_basis": "347 data-loss admission first;348 beside evidence/selection policies; verified315 removed. Other ranks retained.",
+    "rank_basis": "Existing correctness/recovery ranks retained. New349/351/352/353/350 placed with structural reductions after current admission/identity issues; no defect closed based on a clone score.",
     "refactor_target_progress": {
         "status": "active; completion not established",
         "document_availability": "Downloads target exists, unchanged SHA; no repository document added.",
@@ -153,7 +167,7 @@
     "committed_plan": {
     "git_blob": "6e045b97942b32d949dfddf57993d7711f363e7b",
     "path": "docs/plan.json",
-    "revision": "5870231cc38839bd1a4d8e2ea28a7c582d5922ac",
+    "revision": "9bd406acafb89c44a439722419f1f7e85e71f691",
     "sha256": "79b3c61eaac721dc60b110c026589f6cccc2a9b77a828200eb9b1e8b233ed3d8",
     "working_tree_status": "Committed plan at review pin; prior draft assessment retains its own snapshot identity. Current working plan edits excluded."
   },
@@ -7549,18 +7563,228 @@
         "Absent/ambiguous/incomparable evidence cannot promote a worker; existing budgets/authority remain.",
         "Existing fixture preserves distinct cases; total replacement cost is recorded."
       ]
+    },
+    {
+      "id": "SQA-349",
+      "status": "open",
+      "severity": "P3",
+      "category": "command-surface-consolidation",
+      "classification": "source-and-static-AST-reviewed; implementation-not-run",
+      "title": "Fold model-info and tokenize into the existing model-file command",
+      "evidence_commit": "9bd406acafb89c44a439722419f1f7e85e71f691",
+      "plan_references": [
+        "docs/plan.json at 9bd406acafb89c44a439722419f1f7e85e71f691; no dispatch row added",
+        "C:/Users/jeffm/Downloads/extreme_refactor_plan.md: product interfaces, dependency direction and complete migration cost"
+      ],
+      "plan_coverage": "Recommendation only; current plan retains dispatch authority.",
+      "sources": [
+        {
+          "path": "cmd/model-info/main.go",
+          "symbol": "run, main"
+        },
+        {
+          "path": "cmd/tokenize/main.go",
+          "symbol": "run, main"
+        },
+        {
+          "path": "cmd/gguf/main.go",
+          "symbol": "subcommands, runSubcommand"
+        },
+        {
+          "path": "cmd/gguf/main_test.go",
+          "symbol": "TestGGUFSubcommandsReplaceTheirCommands"
+        },
+        {
+          "path": "cmd/release/main.go",
+          "symbol": "releaseCommands, buildArchive"
+        }
+      ],
+      "evidence": "There are62 command directories but14 release executables. model-info (137 production AST) and tokenize (219) have no test files and both open a GGUF for a bounded read-only inspection. The existing gguf dispatcher already migrated nine former commands and supports11 subcommands. model-info additionally calls model.ReadWeights: gguf inspect is not equivalent. Tracked command references found in the historical guard corpus are fixtures, not live invocations.",
+      "recommended_change": "Move these two handlers behind existing gguf subcommands, using its FlagSet/clioptions owner, then delete cmd/model-info and cmd/tokenize and their release entries. Update actual invocations and the existing API manifest through its generator. Preserve model-info weight validation and pretty spec JSON; tokenizer model/pre/IDs/pieces, BOS/EOS and parse-special flags. Explicitly account for command spelling, error prefixes, usage/flag exit behavior and release compatibility; do not leave permanent forwarding binaries.",
+      "displaced_surface": "Two executable entry points and directories; retain both operations under cmd/gguf. Extend formerCommands in the existing subcommand fixture, retaining tokenizer/model native coverage and the historical guard corpus. No new dispatcher, schema or helper.",
+      "impact": "Fewer product binaries and build/link invocations; behavior stays with current readers/executors. Preserve server, supervisor, gate and device isolation; this is not a proposal for one process.",
+      "expected_benefit": {
+        "components": "cmd directories62->60; release executables14->12 (14.3% fewer), build invocations14->12 per archive or28->24 in reproducibility mode. Test-bearing directory count unchanged.",
+        "cost": "356 existing production AST moves, not356 saved. Removing mains versus adding FlagSet adapters/registrations and existing-fixture rows leaves net AST and archive-byte change unestablished. Include enlarged gguf linkage, API regeneration and migration cost; no benchmark/build executed. Fixture bytes and setup workload need not increase."
+      },
+      "likely_effort": "Small coordinated CLI/release migration; verify external command compatibility before retiring old names.",
+      "closure_criteria": [
+        "Both operations work through existing gguf owner, including weight validation and tokenization flags/output; old directories/release entries disappear.",
+        "Existing replacement-command fixture holds both cases. Compare complete production/test/API/release costs and actual release output; no shim binaries or new framework."
+      ],
+      "comparison": "Inspect both current handlers against their migrated bodies and existing command fixture. Implementation can use its normal targeted checks; SQA ran no application tests or release build."
+    },
+    {
+      "id": "SQA-350",
+      "status": "open",
+      "severity": "P3",
+      "category": "binary-output-lifetime",
+      "classification": "observed-accumulation; reclaimable-subset-not-established",
+      "title": "Give build outputs a lifetime through the existing leftovers owner",
+      "evidence_commit": "9bd406acafb89c44a439722419f1f7e85e71f691",
+      "plan_references": [
+        "docs/plan.json at 9bd406acafb89c44a439722419f1f7e85e71f691; no dispatch row added",
+        "C:/Users/jeffm/Downloads/extreme_refactor_plan.md: product interfaces, dependency direction and complete migration cost"
+      ],
+      "plan_coverage": "Recommendation only; current plan retains dispatch authority.",
+      "sources": [
+        {
+          "path": "cmd/loop/leftovers.go",
+          "symbol": "places bin/tmp rows; executables; facts.citations; locatedUnder; scratchEntries"
+        },
+        {
+          "path": "cmd/loop/leftovers_test.go",
+          "symbol": "TestLeftoversListsEveryDeclaredPlaceWithItsRule; TestLeftoversDeletesOnlyWhatItsTableMarksFinished"
+        },
+        {
+          "path": "bin/",
+          "symbol": "read-only local file metadata, not committed source"
+        }
+      ],
+      "evidence": "Local bin contains125 .exe files totaling3168474112 bytes (2.95GiB), including16 evaluate-<revision>.exe files and former standalone GGUF/database tools whose source entry points were already removed. No content hashing, liveness census or deletability claim was made. Existing bin classification uses tracked citations and actionReport; this correctly cannot prove an unmentioned binary unused. Existing tmp/<row> lifetime already checks plan/source/store ownership.",
+      "recommended_change": "First stop placing one-off probes and renamed rebuilds indefinitely in bin: reuse existing commands/modes and the existing task-scoped scratch lifetime. Keep canonical ordinary outputs, and retain revision-specific outputs only while a run, recovery/evidence identity or supported deployment requires them. Reconcile old command outputs through existing leftovers/process/plan/store owners. Do not simply switch the bin row to deletion based on Git citations; active processes, local configuration and retained evidence must be considered, with unknown ownership kept.",
+      "displaced_surface": "Unneeded historical outputs and recurring ad-hoc build/manual cleanup work, once their last consumer is established. Keep required pinned binaries and process separation. No new registry, cache, scheduler, recurring scan or replacement cleanup command.",
+      "impact": "Targets accumulated disk/build surface without discarding reproducible recovery inputs.",
+      "expected_benefit": {
+        "inventory_only": "125 executables/3168474112 bytes is inventory, not recoverable space. No safe byte saving or production AST reduction is established.",
+        "complete_cost": "Prefer using existing scratch classification unchanged. If binary classification needs behavior growth, account for that code plus the smallest extension of the existing leftovers fixture; keep live, referenced, unknown and historical-evidence cases. Native Go build caching remains the compilation cache."
+      },
+      "likely_effort": "Bounded owner/reference reconciliation before any retirement; new cleanup behavior may require modest growth.",
+      "closure_criteria": [
+        "Ordinary and temporary build destinations have existing owners; no new independent cleanup mechanism.",
+        "Retired outputs have no live/recovery/evidence consumer; retained identities remain reproducible. Report actual remaining files/bytes and full source/test cost, never inventory as savings."
+      ],
+      "comparison": "Trace a superseded model-file executable and an active revision-pinned evaluator through current owners. Classify one removable and one retained example before generalizing. This review removed nothing."
+    },
+    {
+      "id": "SQA-351",
+      "status": "open",
+      "severity": "P3",
+      "category": "unnecessary-dependency-removal",
+      "classification": "source-and-static-AST-reviewed; implementation-not-run",
+      "title": "Remove the global package of numeric aliases",
+      "evidence_commit": "9bd406acafb89c44a439722419f1f7e85e71f691",
+      "plan_references": [
+        "docs/plan.json at 9bd406acafb89c44a439722419f1f7e85e71f691; no dispatch row added",
+        "C:/Users/jeffm/Downloads/extreme_refactor_plan.md: product interfaces, dependency direction and complete migration cost"
+      ],
+      "plan_coverage": "Recommendation only; current plan retains dispatch authority.",
+      "sources": [
+        {
+          "path": "internal/extent/extent.go",
+          "symbol": "FirstOffset, SingletonExtent, PairedExtent, TripleExtent"
+        },
+        {
+          "path": "cmd/plan/main.go; internal/gguf/{hash,imatrix,quantize}.go; internal/overgodb/documents.go; internal/safetensors/{rows,source}.go; internal/seriesforecast/{backward,forward,load,native}.go",
+          "symbol": "all11 production importers"
+        },
+        {
+          "path": "internal/webuilane/census_test.go",
+          "symbol": "only test importer"
+        }
+      ],
+      "evidence": "extent owns no validation or behavior: four untyped integer constants0,1,2,3, confirmed with go/types. Twelve source files depend on it. Uses include zero offsets, unit arithmetic, GGUF quantization version, hash lane positions, matrix ranks, safetensors offset pairs, value/mask pairs and QKV counts: equal values do not make these one contract.",
+      "recommended_change": "Use ordinary0/1 for language identities and remove the global aliases. Keep meaningful2/3 format/version/rank/layout names with their actual package owners (reuse existing domain constants first), then delete internal/extent and all imports. Preserve quantizationVersion=2, tensor axes, QKV/value-mask layout, rounding and bounds/overflow checks exactly. Do not replace domain meaning with new universal number helpers or weaken literal admission.",
+      "displaced_surface": "One dependency-only package/directory and12 imports. Tests retain every geometry, format, boundary and forecast case; no new helper/test needed for equivalent constants.",
+      "impact": "Clearer dependency direction and fewer global names; no runtime speed or numerical improvement claimed.",
+      "expected_benefit": {
+        "upper_bound": "Complete in-memory literal-substitution comparison, including deleted25-node package: production -261 AST, test -12. This is an upper bound before any required domain-local named constants; it is not a booked net saving.",
+        "cost": "179 internal directories->178; no test executable removed because extent has no tests. Count added/reused local constant declarations/comments before claiming final production reduction; fixture bytes, setup executions, wrappers, gates and dependencies otherwise unchanged."
+      },
+      "likely_effort": "Small cross-file cleanup; retain semantic constant names rather than mechanical replacement of every2/3.",
+      "closure_criteria": [
+        "extent package/imports absent; all supported numerical/format values and validation unchanged under their real owners.",
+        "Complete AST including local declarations is lower; no new test fixture, wrapper or package replaces extent. Actual after-cost supersedes the literal upper bound."
+      ],
+      "comparison": "Compare the12 complete importing files plus extent before/after; verify quantization version, matrix/offset count, XXH lanes, QKV and value/mask layout explicitly. Static analysis only in SQA."
+    },
+    {
+      "id": "SQA-352",
+      "status": "open",
+      "severity": "P3",
+      "category": "test-body-consolidation",
+      "classification": "source-and-static-AST-reviewed; implementation-not-run",
+      "title": "Keep both MoE selection-bias cases in one graph fixture",
+      "evidence_commit": "9bd406acafb89c44a439722419f1f7e85e71f691",
+      "plan_references": [
+        "docs/plan.json at 9bd406acafb89c44a439722419f1f7e85e71f691; no dispatch row added",
+        "C:/Users/jeffm/Downloads/extreme_refactor_plan.md: product interfaces, dependency direction and complete migration cost"
+      ],
+      "plan_coverage": "Recommendation only; current plan retains dispatch authority.",
+      "sources": [
+        {
+          "path": "internal/tensor/tensor_test.go",
+          "symbol": "TestBuilderSigmoidMoEWithSelectionBias:338; TestBuilderSoftmaxMoEWithSelectionBias:412"
+        },
+        {
+          "path": "internal/tensor/tensor.go",
+          "symbol": "MoERouting, MoEOptions, builder graph admission"
+        }
+      ],
+      "evidence": "Each test declaration has182 AST nodes, body172. They differ only in routing enum and diagnostic label; both construct the same six inputs and assert selected routing, SiLU activation and seven graph inputs. Adjacent limited-clamp, fused-gate/up and ungated tests have distinct contracts.",
+      "recommended_change": "Merge this pair into one existing-file test with two routing subtests and a fresh Builder for each. Retain identical shapes, selection bias, TopK2, normalization, scale1.5, divisor1 and all current assertions. Include routing in failures. Keep the adjacent clamp/fused/ungated and numerical tests separate; add no generalized fixture library.",
+      "displaced_surface": "One copied graph-construction/assertion body and one test entry point disappear; both enum cases remain. Runtime setup stays two graph builds, not one.",
+      "impact": "Less test maintenance while preserving graph admission coverage; no numerical execution contract is combined.",
+      "expected_benefit": {
+        "comparison": "Whole tensor_test.go8071->7921 AST (-150) in a parsed in-memory candidate including two subtests and the added fmt import. Final diagnostic/name choices may adjust count.",
+        "complete_cost": "Production0; helpers0; fixtures/bytes0; two setup executions retained; packages/binaries/gates unchanged. No application test was written, compiled or run."
+      },
+      "likely_effort": "Small local merge.",
+      "closure_criteria": [
+        "Both routing cases and every original assertion remain in one fixture with isolated Builders.",
+        "Complete test-file AST falls after all table/subtest/import costs; no unrelated test disappears."
+      ],
+      "comparison": "Compare the two original bodies and merged subtests; keep native tensor checks when implemented. Trivial consolidation needs no additional test or SQA execution."
+    },
+    {
+      "id": "SQA-353",
+      "status": "open",
+      "severity": "P3",
+      "category": "duplicate-validation-removal",
+      "classification": "source-and-static-AST-reviewed; implementation-not-run",
+      "title": "Reuse the existing finite-float validator in the Qwen projector",
+      "evidence_commit": "9bd406acafb89c44a439722419f1f7e85e71f691",
+      "plan_references": [
+        "docs/plan.json at 9bd406acafb89c44a439722419f1f7e85e71f691; no dispatch row added",
+        "C:/Users/jeffm/Downloads/extreme_refactor_plan.md: product interfaces, dependency direction and complete migration cost"
+      ],
+      "plan_coverage": "Recommendation only; current plan retains dispatch authority.",
+      "sources": [
+        {
+          "path": "internal/hfgguf/qwen35_projector.go",
+          "symbol": "finiteFloat32:144; validateQwen35VisionConfig; resolveQwen35VisionRope"
+        },
+        {
+          "path": "internal/checked/checked.go",
+          "symbol": "Finite32:27"
+        }
+      ],
+      "evidence": "The local function and checked.Finite32 are the same20-node body and float32 signature: reject NaN and either infinity after exact float64 conversion. Three calls validate processor mean/std and rope theta. checked has no application dependency back to hfgguf. math must remain for square-root geometry elsewhere in the file.",
+      "recommended_change": "Replace the three calls with checked.Finite32 and delete finiteFloat32; add the checked import, retain math. Preserve positive std/theta checks, missing-theta default and existing errors. Reuse the established validation owner; no new API/helper/test.",
+      "displaced_surface": "One30-node local declaration; three selector calls and one import are charged. Existing projector/configuration fixtures retain supported and rejected values.",
+      "impact": "One fewer numerical-validation implementation, no behavior change.",
+      "expected_benefit": {
+        "comparison": "Whole qwen35_projector.go1483->1461 AST (-22 production) including added import/selectors. Test/fixture/setup/binary/gate/migration scaffolding delta0; checked owner unchanged.",
+        "uncertainty": "Static source/AST equivalence; no application compilation or runtime speed claim."
+      },
+      "likely_effort": "Trivial reuse.",
+      "closure_criteria": [
+        "Local validator absent, all three callers use checked.Finite32, domain checks and defaults unchanged.",
+        "Complete production file is smaller; no new fixture or wrapper."
+      ],
+      "comparison": "Compare signatures and NaN/Inf predicate plus the three callers; retain existing native validation coverage when adopted."
     }
   ],
     "gate_test_assessment": {
     "assumptions": "40replies/4096tokens/24000resultbytes explicit limits, not capability calibration.348 failure/cost correlation defeats marginal averaging. Small replay samples and model name alone do not establish full execution comparability.",
     "automation_sequence": "Existing driver retains attempts/stops/landing.347 validates before mutations;348 uses current records/config.322 verifier still follows broad tests/lanes. Replay baseline classifies any check error as a task; effect of setup errors on comparable evidence remains a limit, not proof every compile failure is invalid.",
     "fresh_ast": {
-        "revision": "5870231cc38839bd1a4d8e2ea28a7c582d5922ac",
-        "method": "Existing external parser of11selected committed files; comments/local links, no package types or execution.",
-        "current_files": 11,
-        "selected_counts": "tools1210/test428; local688/HTTPtest391/modeltest635; ladder605/test537; replay2163/test78/modeltest447; cycle_fresh_test91.",
-        "reused": "Unchanged342..346 source/AST; complete landing costs kept separate.",
-        "limits": "Proposed costs are estimates, not parsed alternatives."
+        "revision": "9bd406acafb89c44a439722419f1f7e85e71f691",
+        "scope": "Requested full static scan plus complete-file in-memory comparisons; no native tests or builds.",
+        "production_ast": 2387420,
+        "test_ast": 2392252,
+        "selected_comparisons": "Qwen1483->1461; tensor8071->7921; extent literal-only upper bound -261production/-12test before semantic local constants.",
+        "method": "Detailed reproducible scope, counts, hashes and limitations in surface_reduction_analysis."
       },
     "requested_growth_analysis": {
       "window": {
@@ -7719,6 +7943,113 @@
       "retained_change_costs": "Two consolidation landings(2d59f642c exact folds andbb4fc706a parameter folds) remove744 production nodes but add1591 test nodes, net+847 across Go. Pilot retirementea8ed43a7 removes5926 production/9990 test nodes and one schema, while fixture bytes grow599; its test deletion is already included in the day's offsets and must not be subtracted twice. These retained gates are broader changes, not matched per-test performance comparisons."
     },
     "retained_results": "3239: Qwen fixture8replies/10calls/200.8s including build/load.5870231: real recipe-repairs replay failed,40replies (39reads/1check/noedit),677.7s. Known-answer replay passed226.1s (worker3.3s); test-only task skipped. No Claude replay; live config unchanged. Local/replay undo compilation failures are not behavioral evidence; ladder undo failed an assertion.315 retained4a8f75953 undo named missing freshness. No SQA runs.",
+    "surface_reduction_analysis": {
+        "request": "Explicit one-time repository-wide static AST/command/directory/boilerplate analysis; not a recurring census requirement.",
+        "revision": "9bd406acafb89c44a439722419f1f7e85e71f691",
+        "method": "Parsed all4628 tracked Go blobs at the pin, all build/platform variants, with go/parser+go/ast. Comments included in size. Generated and testdata separated.22907 top-level functions/methods; repeated bodies>=20nodes, parser-linked local variables normalized and import aliases mapped to paths. Excess copies beyond one counted; closures are within enclosing bodies, not double-counted.",
+        "counts": {
+          "files": 4628,
+          "functions": 22907,
+          "production_ast": 2387420,
+          "test_ast": 2392252,
+          "generated_ast": 27030,
+          "testdata_ast": 530,
+          "go_directories": 241,
+          "command_directories": 62,
+          "internal_directories": 179,
+          "test_bearing_directories": 202,
+          "release_executables": 14,
+          "command_production_ast": 275075
+        },
+        "duplication": [
+          {
+            "kind": "production",
+            "exact_excess_nodes": 244,
+            "exact_percent": 0.01022,
+            "parameter_candidate_excess_nodes": 2702,
+            "parameter_candidate_percent": 0.113177
+          },
+          {
+            "kind": "test",
+            "exact_excess_nodes": 1050,
+            "exact_percent": 0.043892,
+            "parameter_candidate_excess_nodes": 2708,
+            "parameter_candidate_percent": 0.113199
+          }
+        ],
+        "boilerplate": {
+          "production_simple_error_guard_nodes": 38531,
+          "production_percent": 1.613918,
+          "test_simple_error_guard_nodes": 2068,
+          "test_percent": 0.086446,
+          "one_call_cli_shells": 50,
+          "cli_shell_nodes": 797,
+          "cli_shell_percent_of_production": 0.033383,
+          "cli_shell_percent_of_command_code": 0.289739,
+          "interpretation": "These are recognizable idioms, not removable duplicated requirements. Guards include only direct err!=nil/simple return (no initializer/else/calls); CLI shells already delegate to clioptions. Keep error/cancellation propagation; no must/panic wrapper or generic command framework."
+        },
+        "largest_clusters": [
+          {
+            "sites": "dataset.HashFile / modelartifact.fileSHA256",
+            "excess_body_nodes": 56,
+            "disposition": "Candidate only: raw SHA contract needs reconciliation with existing artifact identity/domain semantics; do not introduce a dataset dependency into model loading."
+          },
+          {
+            "sites": "hfgguf.metadata / testutil.Metadata / testutil.GGUFScalar",
+            "excess_body_nodes": 42,
+            "disposition": "Separate production and fixture ownership; no safe total reduction established."
+          },
+          {
+            "sites": "e4btrain.gradientL2 / optimizer.GradientL2; evaluation.finiteValues / inference.finiteProjectedFloats",
+            "excess_body_nodes_each": 28,
+            "disposition": "Static leads only; ownership/ordering/caller migration not established."
+          },
+          {
+            "sites": "model-build.completedStages / trainingworkflow.completedChainStages",
+            "excess_body_nodes": 124,
+            "disposition": "Same receipt-count helper but distinct replay-key fixtures; sharing must count exported helper/dependency cost. Retain cases pending owner choice."
+          },
+          {
+            "sites": "hostmath.checkVectorBackwardFD / testutil.checkVectorBackwardFD",
+            "excess_body_nodes": 99,
+            "disposition": "Retain numerical tests; testutil owns a separate windowed-backward oracle. Same helper syntax does not justify dropping either oracle or exporting a fixture framework."
+          },
+          {
+            "sites": "tensor sigmoid/softmax selection-bias graph pair",
+            "excess_body_nodes": 172,
+            "disposition": "SQA-352: confirmed merge, full-file hypothetical reduction150test AST."
+          },
+          {
+            "sites": "hfgguf.finiteFloat32 / checked.Finite32",
+            "excess_body_nodes": 20,
+            "disposition": "SQA-353: confirmed existing-owner reuse, complete-file reduction22production AST."
+          },
+          {
+            "sites": "typed clone/Close bodies; CUDA BF16/F16 and host/reference constructors",
+            "disposition": "Retain distinct element types, deep/shallow copy contracts, platform lifetime and numeric acceptance. Similar shape alone is insufficient."
+          }
+        ],
+        "limits": "This is a whole-function structural diagnostic, not total semantic duplication or all boilerplate. Small bodies, repeated fragments and duplicated workflows can be missed; matches may have different types/contracts. Near-copy groups permit<=3 differing values/names and overlap exact diagnostics: do not add percentages. Production includes non-_test.go test support. Directory/test-bearing counts include all build variants and do not mean202 test executables are built per run. No package-wide type/build execution. Only extent constants were go/types-checked; concrete callers/signatures manually traced. Existing repoanalysis type-aware repeat gates use different admission/thresholds and their ceilings are not measured repository percentages.",
+        "retained_artifacts": {
+          "location": "C:\\Users\\jeffm\\AppData\\Local\\Temp\\overgo-sqa-ast-7d8573a8f57a42e9aa2d8d83a0c3d08a\\review-20261109-ast-surface",
+          "files": [
+            "surface.go",
+            "surface.json",
+            "packages.json",
+            "extent-cost.go",
+            "extent-cost.json",
+            "dup-cost.go",
+            "dup-cost.json"
+          ],
+          "purpose": "External scratch evidence only; source/results hashes recorded separately. No new repository analysis command, dependency or recurring workload.",
+          "sha256": {
+            "analyzer": "b6ee6285ea9df64db96f6d5d26333221032de88573a6e51a29a0d2a206d60fd3",
+            "result": "ee8a007d7344455c4a14f2b8407aab2d1aad8b67b5905371d5a05661158d92f9"
+          }
+        },
+        "cost_conclusion": "Measured simple duplicate candidates -22production/-150test AST, not a claim that overall duplication is only those nodes. Command consolidation targets2fewer binaries and dirs; extent targets1fewer directory with up-to261production/12test nodes before semantic constants. No broad package merge or binary-byte saving established. Moving356 command nodes is not a code saving.",
+        "test_disposition": "MERGE SQA-352 pair only. SIMPLIFY existing GGUF command fixture by extending replacement rows, not new harnesses; retain all tokenizer/model cases. RETAIN numerical dtype/oracle, clamp/fused/ungated, leftovers live/unknown/recovery, extent geometry/bounds and Qwen validation cases. REMOVE only the displaced test body/entry point after its two cases have a retained owner; no test package or required case retired."
+      },
     "tests": [
         {
           "classification": "extend existing",
@@ -9278,11 +9609,10 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
     "limitations": [
-      "Prior Overgo implementation involvement in this chat: follow-up SQA, not independent third-party review.",
-      "No tests, services, model/device workloads, benchmarks, profiles, agents/messages, plan/skill changes or pushes. Existing external parser only.",
-      "AST counts comments/local links, without package types/build execution.347/348 are source/arithmetic counterexamples; no incident or reproduction claimed. Repair costs estimated; no new safe net reduction established.",
-      "Replay known-answer fixture checks harness operation, not worker capability. Actual local model failed one replay; no Claude replay/live default change reported.",
-      "Preserve owner/unknown fields and unrelated work; respect landing publication ownership."
+      "This chat previously implemented Overgo changes; this is follow-up SQA, not independent third-party review.",
+      "No application tests, builds, services, workloads, benchmarks, profiles, agents/messages, plan/skill edits or pushes. Standard-library scratch parsers executed outside the repository.",
+      "Whole-function structural duplication is a conservative diagnostic, not a total semantic-duplication percentage. Generated/build-tag/test-support classification and symbol/type limits are explicit in gate_test_assessment.surface_reduction_analysis.",
+      "Local bin metadata is not committed evidence or a deletion authorization. No reclaimable-byte estimate or broad package-merger saving established. Current MP4/evaluation worktree edits excluded."
     ],
     "master_lead_triage": {
     "at": "2026-11-08",
@@ -10143,14 +10473,14 @@
       }
     }
   },
-    "next_finding_number": 349,
+    "next_finding_number": 354,
     "publication_context": {
-    "assessment": "Re-read current master/report/owner fields immediately before publication. Preserve unrelated guidance/API edits. Only docs/sqa_findings.json changes under existing landing/gate ownership.",
-    "checked_head": "5870231cc38839bd1a4d8e2ea28a7c582d5922ac",
-    "concurrent_changes": "Master advanced3239->5870231, integrating pending report. Re-read changed tool/replay/config/driver sources and current plan. Guidance edits excluded.",
-    "current_pin": "5870231cc38839bd1a4d8e2ea28a7c582d5922ac",
+    "assessment": "Re-read committed master, worktree paths, report and owner blocks immediately before report-only publication; active MP4/evaluation implementation remains untouched.",
+    "checked_head": "9bd406acafb89c44a439722419f1f7e85e71f691",
+    "concurrent_changes": "Master stayed at9bd406aca. Working MP4/evaluation/plan/compatibility edits grew during review; none changes the pinned candidates, none included or staged.",
+    "current_pin": "9bd406acafb89c44a439722419f1f7e85e71f691",
     "publication": "Use the existing report-only hook exception for a standalone commit when landing ownership permits. If busy, a validated report-only checkout write may remain pending; do not stage unrelated files, advance HEAD or disturb workers.",
-    "report_only": "Only docs/sqa_findings.json authorized; existing hooks/ownership retained."
+    "report_only": "Only docs/sqa_findings.json authorized; existing hooks and landing/gate ownership retained."
   },
     "ranked_active_finding_ids": [
     "SQA-347",
@@ -10173,6 +10503,11 @@
     "SQA-341",
     "SQA-330",
     "SQA-344",
+    "SQA-349",
+    "SQA-351",
+    "SQA-352",
+    "SQA-353",
+    "SQA-350",
     "SQA-257",
     "SQA-303",
     "SQA-285",
@@ -10206,54 +10541,53 @@
     "repository": "C:\\Users\\jeffm\\overgo",
     "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
     "review_notes": [
-      "Provisional shared-tool conclusions preceded rankings. Concurrent replay changes retain the admission defect.",
-      "315 implemented response now verified; previous open wording stale. Prior342..346 integrated by5870231; no duplicate IDs.",
-      "Architecture target remains active guidance, not dispatch authority."
+      "Provisional duplication and architecture conclusions preceded reading prior rankings; matched against current findings before allocating349..353.",
+      "No overlapping existing canonical obligation found for these five distinct owners/contracts. Largest shape matches were not automatically declared redundant.",
+      "The explicit full scan is retained for reuse; periodic SQA should return to bounded follow-ups, not repeat a census."
     ],
-    "reviewed_at": "2026-11-09T03:58:21Z",
-    "reviewed_master": "5870231cc38839bd1a4d8e2ea28a7c582d5922ac",
+    "reviewed_at": "2026-11-09T05:16:08Z",
+    "reviewed_master": "9bd406acafb89c44a439722419f1f7e85e71f691",
     "schema_version": 2,
     "scope": [
-      "Committed master 5870231cc38839bd1a4d8e2ea28a7c582d5922ac; current25-row plan reread after concurrent replay/ladder landing. Guidance and Downloads target SHA256fe13a4bd47c8c41ea6dbf766c0acf3dc41ab7dab0c6d8bd926863313d4f34395 unchanged.",
-      "Bounded worker schema/adapters -> edit authority -> replay -> default ordering -> existing driver/landing. Fresh AST on11selected final-pin files. No application execution.",
-      "Prior342..346 report integrated by5870231.315 closure checked against its retained fix and touched lane owner;271/322/334 remain. Reuse unchanged prior evidence; no new format-loader/database/GUI census. Uncommitted guidance excluded."
+      "Explicit user-requested one-time AST, executable, directory and boilerplate review of all4628 tracked Go files at 9bd406acafb89c44a439722419f1f7e85e71f691. Committed plan blob6e045b97942b32d949dfddf57993d7711f363e7b; current25-row plan read.",
+      "Concrete follow-up: model-info/tokenize -> existing gguf/release; bin -> leftovers/scratch lifetime; all extent imports; tensor selection-bias tests; Qwen validation -> checked. Source/import/caller and retained fixture analysis, not runtime execution.",
+      "Prior report/status/owner responses re-read after provisional conclusions; existing canonical findings kept, five distinct deletion/lifetime obligations added. Downloads architecture target SHA256fe13a4bd47c8c41ea6dbf766c0acf3dc41ab7dab0c6d8bd926863313d4f34395 remains active."
     ],
     "sqa_response": {
-    "assessment": "175stable IDs:49open,120resolved,4deferred,2aliases. Add347/348, close315;342..346 now committed via5870231.",
+    "assessment": "180stable IDs:54open,120resolved,4deferred,2aliases. Add349..353 after explicit static surface analysis; all existing findings and implementation dispositions retained.",
     "consolidated_findings": [],
     "deferred_findings": [],
     "evidence": [
-        "5870231cc38839bd1a4d8e2ea28a7c582d5922ac",
-        "3239 worker;5870231 replay/ladder;4a8f75953 freshness closure",
-        "11selected AST files; unchanged target SHA"
+        "9bd406acafb89c44a439722419f1f7e85e71f691",
+        "Full static scan4628files; external analyzer/result SHA256 in surface_reduction_analysis",
+        "Selected complete-file AST candidates and actual CLI/release/leftovers contracts; Downloads target unchanged"
       ],
     "implementation_response_context": {
-        "reviewed_commit": "5870231cc38839bd1a4d8e2ea28a7c582d5922ac",
+        "reviewed_commit": "9bd406acafb89c44a439722419f1f7e85e71f691",
         "current_triage_head": "518fa52f417f796df399da65d208a61290fe5635",
-        "status": "315 owner response verified. Both owner blocks remain raw-exact; no responses to347/348.271 app-session contract distinct."
+        "status": "Both owner blocks and all unknown fields preserved raw-exact. No prior response covers349..353; no existing obligation retired."
       },
     "new_findings": [
-        "SQA-347",
-        "SQA-348"
+        "SQA-349",
+        "SQA-350",
+        "SQA-351",
+        "SQA-352",
+        "SQA-353"
       ],
     "partially_addressed_findings": [],
     "priority_changes": [
-        "347 mutation admission first;348 worker-cost policy;315 removed after closure."
+        "Keep correctness/recovery ahead of surface cleanup; no ranking promotion based solely on duplicated syntax."
       ],
-    "recommendation": "Repair shared admission and paired fallback comparison; retain freshness and concrete deletion targets.",
+    "recommendation": "Reduce binaries/directories through current owners; merge proven duplicates only. Keep failure propagation, numerical/platform differences and retained evidence; do not build another abstraction to make syntax alike.",
     "refactor": {
       "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
       "history_path": "docs/sqa_findings.json",
       "layout": "Full canonical open/deferred; compact resolved closure sources/revision/costs; explicit aliases, including aliases to closed canonical findings. Prior narratives remain in Git."
     },
     "reopened_findings": [],
-    "resolved_findings": [
-        "SQA-315"
-      ],
-    "reviewed_master": "5870231cc38839bd1a4d8e2ea28a7c582d5922ac",
-    "uncertainty": "Source/arithmetic only; no live damage or slower deployment observed. No safe new reduction established.",
-    "updated_findings": [
-        "SQA-315"
-      ]
+    "resolved_findings": [],
+    "reviewed_master": "9bd406acafb89c44a439722419f1f7e85e71f691",
+    "uncertainty": "No runtime execution or package-wide type check. Conservative whole-function counts understate unmeasured fragments/workflows and can still match unlike contracts. Confirmed migrations are static estimates; binary reclamation and final CLI/extent cost not established.",
+    "updated_findings": []
   }
   }

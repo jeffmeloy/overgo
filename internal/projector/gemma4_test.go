@@ -221,16 +221,32 @@ func TestPreprocessGemma4ImagePatchOrder(t *testing.T) {
 	}
 }
 
-func TestGemma4ResizeTargetMatchesPinnedDynamicResize(t *testing.T) {
-	spec := gemma4Spec{
-		TeacherPatch: 16, PoolKernel: 3, ModelPatch: 48, PatchWidth: 48 * 48 * 3,
-		Hidden: 3840, PositionCount: 1120, MaxImageTokens: 280, MaxVideoTokens: 70,
-		LayerNormEpsilon: 1e-5, RMSNormEpsilon: 1e-6,
-	}
-	height, width, err := gemma4ResizeTarget(480, 832, spec)
-	testcheck.NoError(t, err)
-	if height != 480 || width != 816 || height/spec.ModelPatch*width/spec.ModelPatch != 170 {
-		t.Fatalf("target = %dx%d tokens=%d", width, height, height/spec.ModelPatch*width/spec.ModelPatch)
+// TestGemma4ResizesAsItsProcessorDoes holds gemma-4-12B-it's picture and frame sizes to its publisher's processor:
+// each target is what transformers 5.14.1's gemma4_unified get_aspect_ratio_preserving_size gives (patch 16, pooled by
+// 3), at the picture budget of 280 soft tokens and the clip frame budget of 70, a small picture enlarged to fill it.
+// The rounding it replaces drew a 256-pixel picture in 25 soft tokens and an 832 x 480 frame in 170, where the
+// processor draws 256 and 264 (2026-11-09).
+func TestGemma4ResizesAsItsProcessorDoes(t *testing.T) {
+	for _, example := range []struct{ height, width, tokens, wantHeight, wantWidth int }{
+		{256, 256, 280, 768, 768},
+		{480, 832, 280, 576, 1056},
+		{480, 832, 70, 288, 528},
+		{720, 1280, 280, 576, 1056},
+		{1024, 1024, 280, 768, 768},
+		{20, 2000, 280, 48, 8016},
+		{3000, 40, 70, 3360, 48},
+		{100, 4, 280, 3984, 144},
+	} {
+		spec := gemma4Spec{
+			TeacherPatch: 16, PoolKernel: 3, ModelPatch: 48, PatchWidth: 48 * 48 * 3,
+			Hidden: 3840, PositionCount: 1120, MaxImageTokens: example.tokens, MaxVideoTokens: 70,
+			LayerNormEpsilon: 1e-5, RMSNormEpsilon: 1e-6,
+		}
+		height, width, err := gemma4ResizeTarget(example.height, example.width, spec)
+		if err != nil || height != example.wantHeight || width != example.wantWidth {
+			t.Errorf("a %dx%d picture at %d soft tokens is drawn at %dx%d (%v), want the processor's %dx%d",
+				example.width, example.height, example.tokens, width, height, err, example.wantWidth, example.wantHeight)
+		}
 	}
 }
 

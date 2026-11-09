@@ -202,20 +202,32 @@ func preprocessGemma4Image(source image.Image, spec gemma4Spec) (gemma4Image, er
 	return gemma4Image{PixelValues: pixels, Positions: positions, GridH: gridH, GridW: gridW}, nil
 }
 
+// gemma4ResizeTarget is the size a picture or a clip's frame is drawn at, as Gemma 4's own processor sizes it
+// (transformers gemma4_unified get_aspect_ratio_preserving_size, the publisher's reference for the checkpoint): scaled up
+// or down, its aspect kept, to the largest size whose sides are whole model patches and whose patches fit the
+// soft-token budget. A side that rounds to nothing is one model patch, the other its aspect's whole multiple of the
+// patch, at most the budget's length. The rounding to the nearest patch with no enlargement it replaces drew a
+// 256-pixel picture in 25 soft tokens where the processor draws it in 256 (2026-11-09).
 func gemma4ResizeTarget(height, width int, spec gemma4Spec) (int, int, error) {
 	if height <= 0 || width <= 0 {
 		return 0, 0, fmt.Errorf("projector: invalid image geometry %dx%d", width, height)
 	}
-	align := spec.ModelPatch
-	round := func(value float64) int { return int(math.Round(value/float64(align))) * align }
-	floor := func(value float64) int { return int(math.Floor(value/float64(align))) * align }
-	resizedH := max(align, round(float64(height)))
-	resizedW := max(align, round(float64(width)))
-	maxPixels := spec.MaxImageTokens * align * align
-	if resizedH*resizedW > maxPixels {
-		beta := math.Sqrt(float64(height*width) / float64(maxPixels))
-		resizedH = max(align, floor(float64(height)/beta))
-		resizedW = max(align, floor(float64(width)/beta))
+	side := spec.ModelPatch
+	budget := spec.MaxImageTokens * side * side
+	factor := math.Sqrt(float64(budget) / float64(height*width))
+	resizedH := int(math.Floor(factor*float64(height)/float64(side))) * side
+	resizedW := int(math.Floor(factor*float64(width)/float64(side))) * side
+	longest := spec.MaxImageTokens * side
+	switch {
+	case resizedH == 0 && resizedW == 0:
+		return 0, 0, fmt.Errorf("projector: a %dx%d image has no side of one %d-pixel patch", width, height, side)
+	case resizedH == 0:
+		resizedH, resizedW = side, min(width/height*side, longest)
+	case resizedW == 0:
+		resizedH, resizedW = min(height/width*side, longest), side
+	}
+	if resizedH*resizedW > budget {
+		return 0, 0, fmt.Errorf("projector: a %dx%d image drawn at %dx%d passes its %d soft tokens", width, height, resizedW, resizedH, spec.MaxImageTokens)
 	}
 	return resizedH, resizedW, nil
 }

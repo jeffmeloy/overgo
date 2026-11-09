@@ -1,6 +1,7 @@
 package scorecard
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -152,5 +153,41 @@ func TestAVideoIsReadAtTheSizeAPersonAsksFor(t *testing.T) {
 	}
 	if len(memoryCells) != 1 || memoryCells[0].Value != sizedPeak || !memoryCells[0].AtUserSize() {
 		t.Fatalf("the memory column holds %+v, want the person's request", memoryCells)
+	}
+}
+
+// TestAFailureRateSurvivesItsMeasuredAttempt reads the failure history above through the store and servingByRecipe,
+// where the newest success that timed its load replaces the recipe's summary: eight failures and then one success, all
+// under one commit, read as 8 failed of 9 attempts. On 2026-11-09 the replacement dropped the commit of that success,
+// so every older failure read as fixed and the recipe read 0 failed of 1 (the owner's review); tally alone, which the
+// test above reads, never met the replacement.
+func TestAFailureRateSurvivesItsMeasuredAttempt(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	store := overgodbtest.Open(t, t.TempDir())
+	model := testutil.ArtifactID(t, artifact.KindModel, "intermittent model")
+	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "intermittent recipe")
+	environment := testutil.ArtifactID(t, artifact.KindEvidence, "intermittent environment")
+	testcheck.Must(store.Commit(ctx, artifact.Batch{Key: "intermittent/authorities", Artifacts: []artifact.Descriptor{{ID: model}, {ID: recipeID}, {ID: environment}}}))(t)
+	const commit, failed = "3333", 8
+	attempt := func(started int64, outcome runrecord.Outcome) {
+		t.Helper()
+		observation := runrecord.ServingObservation{
+			Model: model, Recipe: recipeID, Environment: environment, Task: recipe.TaskInference, Outcome: outcome,
+			StartedUnixNS: started, MeasuredNS: 1, CodeCommit: commit, Phases: []runrecord.PhaseMetric{{Phase: runrecord.PhaseLoad, DurationNS: 1}},
+		}
+		if outcome == runrecord.OutcomeFailed {
+			observation.Failure = "generation_failed"
+		}
+		published := testcheck.Must(runrecord.NewServingObservation(observation))(t)
+		testcheck.Must(store.Commit(ctx, testcheck.Must(published.Batch(fmt.Sprintf("intermittent/%d", started)))(t)))(t)
+	}
+	for started := range int64(failed) {
+		attempt(started+1, runrecord.OutcomeFailed)
+	}
+	attempt(failed+1, runrecord.OutcomeSucceeded)
+	summary := testcheck.Must(servingByRecipe(ctx, store))(t)[recipeID]
+	if summary == nil || summary.failures != failed || summary.attempts != failed+1 || !summary.measured.Valid() {
+		t.Fatalf("eight failures and one success under one commit read as %+v, want 8 failed of 9 attempts", summary)
 	}
 }

@@ -3,38 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "scorecard-integrity",
-      "title": "The scorecard keeps every failure a recipe's attempts recorded and reads each timing under one runtime policy, so an unreliable or slower model does not read as healthy",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 150,
-        "reason": "Both defects are located (internal/scorecard/scorecard.go servingByRecipe's summary replacement and its window joins) and each fix is a few lines and a test through the store; written and checked on 2026-11-09 before filing."
-      },
-      "steps": [
-        {
-          "id": "failures",
-          "title": "A recipe failing on and off under one commit keeps every failure through servingByRecipe's replacement of its summary by the newest measured success, read through the store: eight failures then one success read 8 failed of 9",
-          "status": "open",
-          "verify": "go test ./internal/scorecard -count=1 -run '^TestAFailureRateSurvivesItsMeasuredAttempt$'",
-          "files": [
-            "internal/scorecard"
-          ],
-          "rationale": "Serves: failures, for every served recipe.\n\nDisappears: the field-by-field copy of a summary's counts when a measured success replaces it, which dropped fixedBy.\n\nEvidence: the owner's review (2026-11-09) reproduced it through the store: eight failures and one success at one commit read 0 failed of 1 attempt, where 8 of 9 failed, because tally() set fixedBy and the replacement in servingByRecipe built a new summary without it, so every older failure read as superseded. TestFailureRateCountsTheAttemptsOfItsWindow passed because it calls tally() alone. The tally becomes one embedded value (failureTally) that the replacement carries whole, and the new test reads the history through the store; with fixedBy dropped again it reads 0 of 1.\n\nBatch: host lane."
-        },
-        {
-          "id": "policy",
-          "title": "A serving timing's window joins only attempts run under the runtime policy of the attempt that opens it, its cell names that policy, a decline across a policy change names both, and a reference's allowance reads its own policy's readings",
-          "status": "open",
-          "verify": "go test ./internal/scorecard -count=1 -run '^TestATimingIsReadUnderOneRuntimePolicy$'",
-          "files": [
-            "internal/scorecard"
-          ],
-          "rationale": "Serves: first-output, throughput, load and peak-memory cells of every chat and media row.\n\nDisappears: windows that joined attempts by environment and preset alone.\n\nEvidence: serving observations record Policy because a model's declared sampling changes without its recipe (runrecord.ServingObservation.Policy), and the windows ignored it. The owner's synthetic case: two older attempts at 100 tokens a second under policy A and the newest at 1 under policy B read 100; with the partition it reads 1 under B, and against A's 100 it is a decline whose verdict names both policies. A reading from before cells named a policy joins a reference's readings, or every serving reference would stand unjudged for its window after the field came.\n\nBatch: host lane."
-        }
-      ]
-    },
-    {
       "id": "video-judge",
       "title": "The generated-video judge scores probabilities on harder cases, and Wan's base and its four-step student are judged at the same settings, so the student's quality says something",
       "owner": "master-lead",

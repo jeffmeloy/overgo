@@ -299,7 +299,10 @@ func readingsOf(earlier []Record, row Row, cell Cell, read func(Row) Cell, count
 			continue
 		}
 		one := read(record.Rows[at])
-		if one.Measured() && counts(one) && one.Contract.measures(cell.Contract) && one.Environment == cell.Environment && one.Direction == cell.Direction && (!one.Source.Valid() || !slices.Contains(seen[one.Source], one.Value)) {
+		// A reading under another runtime policy is another population; one from before cells named a policy is of
+		// none known and joins, or every serving reference would stand unjudged for its window after the field came.
+		samePolicy := !one.Policy.Valid() || one.Policy == cell.Policy
+		if one.Measured() && counts(one) && one.Contract.measures(cell.Contract) && one.Environment == cell.Environment && samePolicy && one.Direction == cell.Direction && (!one.Source.Valid() || !slices.Contains(seen[one.Source], one.Value)) {
 			readings = append(readings, one)
 			if one.Source.Valid() {
 				seen[one.Source] = append(seen[one.Source], one.Value)
@@ -580,6 +583,11 @@ func holds(column metric.Name, then, now Cell) (Verdict, string) {
 			max(then.allowed, unread(min(math.Abs(now.Value), math.Abs(then.Value)))), now.Label)
 		if now.Contract.Scope != then.Contract.Scope {
 			why += fmt.Sprintf("; measured under %s, the reference under %s", now.Contract.Scope, then.Contract.Scope)
+		}
+		// A changed runtime policy is compared with the one it replaced, and named, so the decline reads as the
+		// policy's where it is.
+		if now.Policy != then.Policy {
+			why += fmt.Sprintf("; run under policy %s, the reference under %s", now.Policy, then.Policy)
 		}
 		if then.borrowed != "" {
 			why += "; " + then.borrowed

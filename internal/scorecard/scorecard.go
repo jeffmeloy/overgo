@@ -46,12 +46,16 @@ type Cell struct {
 	Base  *float64 `json:"base,omitempty"`
 	// AgainstBase is a trained model's base's reading of the same cell, shown beside it and judged by no gap: the owner
 	// chooses what runs and what training starts from.
-	AgainstBase   *float64    `json:"against_base,omitempty"`
-	Unit          string      `json:"unit,omitzero"`
-	Label         string      `json:"label,omitzero"`
-	Source        artifact.ID `json:"source,omitzero"`
-	CodeCommit    string      `json:"code_commit,omitzero"`
-	Environment   artifact.ID `json:"environment,omitzero"`
+	AgainstBase *float64    `json:"against_base,omitempty"`
+	Unit        string      `json:"unit,omitzero"`
+	Label       string      `json:"label,omitzero"`
+	Source      artifact.ID `json:"source,omitzero"`
+	CodeCommit  string      `json:"code_commit,omitzero"`
+	Environment artifact.ID `json:"environment,omitzero"`
+	// Policy is the runtime policy a serving cell's attempts ran under, none for a record from before it or a cell of
+	// another origin. A reading under one policy is compared with its predecessor under another, its verdict naming
+	// both, and the earlier readings that set a reference's allowance are its own policy's.
+	Policy        artifact.ID `json:"policy,omitzero"`
 	Reason        string      `json:"reason,omitzero"`
 	NotApplicable bool        `json:"not_applicable,omitzero"`
 	// Proposed marks a held-out quality that is not applicable only because its
@@ -785,21 +789,24 @@ func verifiedNames(ctx context.Context, store *overgodb.Store) (map[artifact.ID]
 // deviceSampled says that attempt sampled its device memory at its finish,
 // so a peak of zero is what it measured. Its timings are read from window.
 type servingSummary struct {
-	attempts, failures, cancelled    int
-	succeeded, loaded, deviceSampled bool
-	// fixedBy is the commit of the newest success, which a failure older than it ran the same code as or was fixed by.
-	fixedBy                  string
+	failureTally
+	loaded, deviceSampled    bool
 	peakDeviceBytes          uint64
 	latest, measured, recipe artifact.ID
 	// environment is where the measured attempt ran, or the latest while none has succeeded: a serving value
 	// is read under it, and a baseline measured under another, or naming none, is Unknown, not a change.
 	environment artifact.ID
+	// policy is the runtime policy the measured attempt ran under (runrecord.ServingObservation.Policy), which an
+	// attempt that joins its window ran under too: a sampling policy changes without its recipe, and a median of two
+	// policies' attempts is neither's (on 2026-11-09 two older attempts at 100 tokens a second under one policy outvoted
+	// the newest at 1 under another, the owner's review).
+	policy artifact.ID
 	// preset is what the measured attempt ran, which an attempt that joins its window ran too, and stages where its
 	// wall went.
 	preset media.Preset
 	stages []processmeasure.Part
 	// window is the measured attempt and, after it, the next older ones that timed their load under its
-	// environment, recentAttempts at most: an attempt under another environment is no repeat of it.
+	// environment and policy, recentAttempts at most: an attempt under another is no repeat of it.
 	window []servingSample
 	// lengths reads, by each of evaluation.PromptLengths, the successes whose prompt was of about that
 	// length: the newest, under whose environment its window is, and the next older ones under it.
@@ -808,6 +815,17 @@ type servingSummary struct {
 	userSize *servingSummary
 	// warm reads, the same way, the successes timed again on the model they had loaded and served.
 	warm *servingSummary
+}
+
+// failureTally is what a recipe's attempts, read newest first, say of how it fails (tally). It is the recipe's, not the
+// measured attempt's, so a summary a newer measurement replaces carries it over whole: on 2026-11-09 the replacement
+// copied the counts field by field and dropped fixedBy, so eight failures under the commit of the one success that
+// followed them read as fixed, 0 failed of 1 attempt where 8 of 9 failed (the owner's review).
+type failureTally struct {
+	attempts, failures, cancelled int
+	succeeded                     bool
+	// fixedBy is the commit of the newest success, which a failure older than it ran the same code as or was fixed by.
+	fixedBy string
 }
 
 // failureWindow is how many of a recipe's newest attempts its failure rate reads: the readings a cell is judged over
@@ -819,7 +837,7 @@ const failureWindow = referenceWindow
 // a fix closes its row with its first success while a recipe failing on and off under one commit reads as failing. A
 // record that names no commit says nothing of its code, and its failures leave at the newest success. A cancelled attempt
 // is neither success nor failure.
-func (summary *servingSummary) tally(observation runrecord.ServingObservation) bool {
+func (summary *failureTally) tally(observation runrecord.ServingObservation) bool {
 	full := summary.attempts >= failureWindow
 	switch observation.Outcome {
 	case runrecord.OutcomeSucceeded:
@@ -940,10 +958,10 @@ func (summary *servingSummary) readLength(length int, observation runrecord.Serv
 	}
 	read := summary.lengths[length]
 	if read == nil {
-		read = &servingSummary{measured: observation.ID, recipe: observation.Recipe, environment: observation.Environment, peakDeviceBytes: observedPeak(observation)}
+		read = &servingSummary{measured: observation.ID, recipe: observation.Recipe, environment: observation.Environment, policy: observation.Policy, peakDeviceBytes: observedPeak(observation)}
 		summary.lengths[length] = read
 	}
-	if len(read.window) >= recentAttempts || observation.Environment != read.environment {
+	if len(read.window) >= recentAttempts || !read.repeatedBy(observation) {
 		return
 	}
 	sample := servingSample{attempt: observation.ID, started: observation.StartedUnixNS}
@@ -960,10 +978,10 @@ func (summary *servingSummary) readLength(length int, observation runrecord.Serv
 // its prompt's read through the cache, and its rate its decode's.
 func (summary *servingSummary) readWarm(observation runrecord.ServingObservation) {
 	if summary.warm == nil {
-		summary.warm = &servingSummary{measured: observation.ID, recipe: observation.Recipe, environment: observation.Environment}
+		summary.warm = &servingSummary{measured: observation.ID, recipe: observation.Recipe, environment: observation.Environment, policy: observation.Policy}
 	}
 	read := summary.warm
-	if len(read.window) >= recentAttempts || observation.Environment != read.environment {
+	if len(read.window) >= recentAttempts || !read.repeatedBy(observation) {
 		return
 	}
 	sample := servingSample{attempt: observation.ID, started: observation.StartedUnixNS}
@@ -993,12 +1011,12 @@ func (summary *servingSummary) warmTimed(timing int, unit, metric string) (Cell,
 func (summary *servingSummary) readUserSize(observation runrecord.ServingObservation) {
 	if summary.userSize == nil {
 		summary.userSize = &servingSummary{
-			measured: observation.ID, recipe: observation.Recipe, environment: observation.Environment,
+			measured: observation.ID, recipe: observation.Recipe, environment: observation.Environment, policy: observation.Policy,
 			peakDeviceBytes: observation.Resources.PeakDeviceBytes, preset: observation.Preset, stages: observation.Stages,
 		}
 	}
 	read := summary.userSize
-	if len(read.window) >= recentAttempts || observation.Environment != read.environment || observation.Preset != read.preset {
+	if len(read.window) >= recentAttempts || !read.repeatedBy(observation) || observation.Preset != read.preset {
 		return
 	}
 	sample := servingSample{attempt: observation.ID, started: observation.StartedUnixNS}
@@ -1072,10 +1090,16 @@ func observedPeak(observation runrecord.ServingObservation) uint64 {
 	return peak
 }
 
+// repeatedBy says an older attempt is a repeat of the one that opened the summary's window, so it joins the median:
+// it ran under the same environment and the same runtime policy.
+func (summary *servingSummary) repeatedBy(observation runrecord.ServingObservation) bool {
+	return observation.Environment == summary.environment && observation.Policy == summary.policy
+}
+
 // cell is a value read from source, an attempt of the summary's window or
 // its latest, as label says.
 func (summary *servingSummary) cell(source artifact.ID, value float64, unit, metric, label string) Cell {
-	return Cell{Value: value, Unit: unit, Label: label, Source: source, Environment: summary.environment, Preset: summary.preset,
+	return Cell{Value: value, Unit: unit, Label: label, Source: source, Environment: summary.environment, Policy: summary.policy, Preset: summary.preset,
 		Contract: Contract{Metric: metric, Origin: originServing, Scope: summary.recipe}}
 }
 
@@ -1152,7 +1176,7 @@ func servingByRecipe(ctx context.Context, store *overgodb.Store) (map[artifact.I
 		if observation.Outcome != runrecord.OutcomeSucceeded || summary.loaded && len(summary.window) >= recentAttempts {
 			return nil
 		}
-		measured := servingSummary{measured: observation.ID, environment: observation.Environment, preset: observation.Preset, lengths: summary.lengths, warm: summary.warm, userSize: summary.userSize}
+		measured := servingSummary{measured: observation.ID, environment: observation.Environment, policy: observation.Policy, preset: observation.Preset, lengths: summary.lengths, warm: summary.warm, userSize: summary.userSize}
 		timings := servingSample{attempt: observation.ID, started: observation.StartedUnixNS}
 		for _, sample := range observation.Hardware {
 			if sample.Stage == runrecord.ServingHardwarePrefill {
@@ -1179,13 +1203,12 @@ func servingByRecipe(ctx context.Context, store *overgodb.Store) (map[artifact.I
 		// measurement and opens the window, and the older ones past it only join it.
 		if summary.loaded || summary.measured.Valid() && !measured.loaded {
 			// An attempt of another preset is no repeat of the measured one, as one under another environment is not.
-			if summary.loaded && measured.loaded && observation.Environment == summary.environment && observation.Preset == summary.preset {
+			if summary.loaded && measured.loaded && summary.repeatedBy(observation) && observation.Preset == summary.preset {
 				summary.window = append(summary.window, timings)
 			}
 			return nil
 		}
-		measured.attempts, measured.failures, measured.cancelled = summary.attempts, summary.failures, summary.cancelled
-		measured.succeeded, measured.latest, measured.recipe = true, summary.latest, summary.recipe
+		measured.failureTally, measured.latest, measured.recipe = summary.failureTally, summary.latest, summary.recipe
 		measured.window = []servingSample{timings}
 		*summary = measured
 		return nil

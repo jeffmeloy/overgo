@@ -75,7 +75,7 @@ func TestServingCountsWhatUsersHit(t *testing.T) {
 	if cell := failureCell(summary); cell.Value != 0.5 || cell.Label != "1 failed and 0 cancelled of the newest 2 attempts" || cell.Contract.Origin != originServing || cell.Contract.Scope != recipeID {
 		t.Fatalf("failure cell = %+v, want one failure in two attempts, scoped to the recipe's serving attempts", cell)
 	}
-	if cell := failureCell(&servingSummary{attempts: 2, failures: 2}); cell.Value != 1 || cell.Label != "2 failed and 0 cancelled of the newest 2 attempts, and none succeeded" {
+	if cell := failureCell(&servingSummary{failureTally: failureTally{attempts: 2, failures: 2}}); cell.Value != 1 || cell.Label != "2 failed and 0 cancelled of the newest 2 attempts, and none succeeded" {
 		t.Fatalf("failure cell of a recipe that never succeeded = %+v, want every attempt failed", cell)
 	}
 	if cell := firstOutputCell(recipe.TaskImageGen, none, false, summary); cell.Value != milliseconds(wholeOutputNS) || cell.Unit != "ms" {

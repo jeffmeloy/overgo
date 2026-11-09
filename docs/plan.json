@@ -3,30 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "judge-calibration",
-      "title": "The media judges are shown to measure what they are used for: they score deliberately degraded outputs lower, a judge of another family ranks the same cases alike, a verdict counts media and not the questions asked of each, and a preset is admitted at the size a person asks for",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 615,
-        "reason": "Estimated from a survey: the judged suites, the paired exact test and the render path exist (cmd/evaluate render.go, internal/evaluation, internal/scorecard record.go judgeQuality); the degradations, a second judge's run and the medium pairing are new code with two card tests. Step owner-words: +255 (255, the median of what 12 landings that changed internal/plan/plan.go, cmd/plan/main.go, cmd/plan/answer_test.go counted). Step published-tower: +0 (no landing changed internal/gemma4convert, internal/projector, internal/hfconvert, internal/gguf). Step vision-judge: +395 (395, the median of what 9 landings that changed cmd/evaluate, internal/projector, internal/evaluation counted). Step published-names: +535 (535, the median of what 1 landings that changed internal/gemma4convert counted). Step processor-resize: +0 (no landing changed internal/projector/gemma4.go, internal/projector/gemma4_test.go). Step gemma-suite: +0 (no landing changed cmd/recipe/gemma_projection_fixtures_model_test.go, docs/verification/fixtures/gemma-4-12b)."
-      },
-      "steps": [
-        {
-          "id": "user-size",
-          "title": "A generation preset is admitted only by a suite drawn at the size, frames and format a person asks for, the person's request read from the page's controls (mediacapability.PersonRequest), and a suite drawn smaller is refused as its evidence",
-          "status": "open",
-          "verify": "go test ./internal/evaluation ./cmd/evaluate -count=1 -run '^TestAPresetIsAdmittedOnlyAtAPersonsSize$'",
-          "files": [
-            "internal/evaluation",
-            "cmd/evaluate",
-            "internal/mediacapability"
-          ],
-          "rationale": "Serves: held-out-quality and first-output for every media generator.\n\nDisappears: presets judged at a verification smoke's size.\n\nEvidence: the owner's review asks whether an improvement persists at the resolution and workload a person uses. The Wan student was first read at 81 frames and 832 x 480 against a base at 17 frames and 416 x 240; video-judge/same-settings fixed that one comparison by hand. The rule belongs where a preset is admitted.\n\nBatch: host lane.\n\nNote: 2026-11-09: no preset is admitted by a suite yet: a profile declares its presets and the page offers them (mediacapability offerPresets), and the first admission is guidance-ops/cfg-zero-interval's per-preset sign test. This step is that admission's rule, so it is built with that test: the render it reads is drawn at a person's request (mediacapability.PersonRequest) unless -render-set names another size, and a render drawn smaller is refused as a preset's evidence. Its check names ./internal/evaluation and ./cmd/evaluate, so a test of its name is written in each, or the check is narrowed by a landing before it."
-        }
-      ]
-    },
-    {
       "id": "second-judge",
       "title": "gemma-4-12B-it, served from its published directory, judges the media suites beside Qwen3.8-27B, and the two judges' rankings agree",
       "owner": "master-lead",
@@ -86,7 +62,7 @@
             "internal/loop"
           ],
           "needs_card": true,
-          "rationale": "Serves: setup-steps.\n\nDisappears: a worker ladder chosen by replay pass rates alone.\n\nEvidence: local-worker/replay records each worker's passes, attempts and wall per replayed step; this step is the forward test the owner's review asks for, with costs and failures counted.\n\nBatch: device lane."
+          "rationale": "Serves: setup-steps.\n\nDisappears: a worker ladder chosen by replay pass rates alone.\n\nEvidence: local-worker/replay records each worker's passes, attempts and wall per replayed step; this step is the forward test the owner's review asks for, with costs and failures counted.\n\nBatch: device lane.\n\nNote: 2026-11-09 run 1 (tmp/loop-proof/demonstration-2026-11-09-run1.log): at 28 ms a token the local worker passed fuzz-discovery/fail-listing unaided, 1 attempt, 18 calls, 105 s, then repeated four searches (repeat-guard landed since). The Claude worker's replays exited 'Not logged in': the claude CLI's login on this machine has lapsed, which the owner renews (claude, then /login); until then the matched comparison has no Claude side and the run is not repeated."
         }
       ]
     },
@@ -171,21 +147,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 1853,
+        "nodes": 1294,
         "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard). Step guider: +653 (653, the median of what 11 landings that changed internal/sampling, internal/latentvideo counted)."
       },
       "steps": [
-        {
-          "id": "guider",
-          "title": "The flow guider takes CFG-Zero* and a guidance interval step by step, and Wan's profile offers each as a preset",
-          "status": "open",
-          "verify": "go test ./internal/sampling ./internal/latentvideo -count=1 -run '^TestTheGuiderTakesCFGZeroAndAGuidanceInterval$'",
-          "files": [
-            "internal/sampling",
-            "internal/latentvideo"
-          ],
-          "rationale": "The flow guider (internal/sampling/flow_sampler.go) combined every step alike: it knew no step, so CFG-Zero*'s zeroed first steps and a guidance interval's unguided steps had nowhere to live. Wan guides on the host each step (internal/latentvideo/denoiser.go), so the guider can take both there at once; MOSS and SenseNova guide inside a compiled update program per step (internal/latentimage/rotary_sampling_windows.go), which needs a projection reduction and a guided and an unguided program chosen per step, so their part stays with cfg-zero-interval beside the measurements.\n\nCFG-Zero* (arXiv 2503.18886) is written from the paper: one scale per sample, the conditioned output's dot product with the unconditioned one over the latter's squared norm plus 1e-8 as its appendix code adds, and one zeroed step, its default. The guidance interval (arXiv 2404.07724) takes the paper's best EDM2 band, sigma 0.28 to 5.42, as flow time t = sigma / (1 + sigma), 0.219 to 0.844: at Wan's shift of 5 it guides 24 of the 50 reference steps and saves 26 of the 100 passes.\n\nServes: held-out-quality, first-output.\nDisappears: a guider that could not vary by step.\nEvidence: a zeroed step runs no pass, a step outside the interval runs the conditioned pass alone, the projected combine equals the paper's formula, and Wan's presets fill a request with each.\nBatch: host lane."
-        },
         {
           "id": "cfg-zero-interval",
           "title": "CFG-Zero* and a guidance interval run on Wan's 50-step path, MOSS and SenseNova, with a shift sweep on Wan, each read against its suite",
@@ -235,6 +200,30 @@
             "sampling-split/block-override",
             "quality-instruments/soft-tifa"
           ]
+        }
+      ]
+    },
+    {
+      "id": "judge-calibration",
+      "title": "The media judges are shown to measure what they are used for: they score deliberately degraded outputs lower, a judge of another family ranks the same cases alike, a verdict counts media and not the questions asked of each, and a preset is admitted at the size a person asks for",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 615,
+        "reason": "Estimated from a survey: the judged suites, the paired exact test and the render path exist (cmd/evaluate render.go, internal/evaluation, internal/scorecard record.go judgeQuality); the degradations, a second judge's run and the medium pairing are new code with two card tests. Step owner-words: +255 (255, the median of what 12 landings that changed internal/plan/plan.go, cmd/plan/main.go, cmd/plan/answer_test.go counted). Step published-tower: +0 (no landing changed internal/gemma4convert, internal/projector, internal/hfconvert, internal/gguf). Step vision-judge: +395 (395, the median of what 9 landings that changed cmd/evaluate, internal/projector, internal/evaluation counted). Step published-names: +535 (535, the median of what 1 landings that changed internal/gemma4convert counted). Step processor-resize: +0 (no landing changed internal/projector/gemma4.go, internal/projector/gemma4_test.go). Step gemma-suite: +0 (no landing changed cmd/recipe/gemma_projection_fixtures_model_test.go, docs/verification/fixtures/gemma-4-12b)."
+      },
+      "steps": [
+        {
+          "id": "user-size",
+          "title": "A generation preset is admitted only by a suite drawn at the size, frames and format a person asks for, the person's request read from the page's controls (mediacapability.PersonRequest), and a suite drawn smaller is refused as its evidence",
+          "status": "open",
+          "verify": "go test ./internal/evaluation ./cmd/evaluate -count=1 -run '^TestAPresetIsAdmittedOnlyAtAPersonsSize$'",
+          "files": [
+            "internal/evaluation",
+            "cmd/evaluate",
+            "internal/mediacapability"
+          ],
+          "rationale": "Serves: held-out-quality and first-output for every media generator.\n\nDisappears: presets judged at a verification smoke's size.\n\nEvidence: the owner's review asks whether an improvement persists at the resolution and workload a person uses. The Wan student was first read at 81 frames and 832 x 480 against a base at 17 frames and 416 x 240; video-judge/same-settings fixed that one comparison by hand. The rule belongs where a preset is admitted.\n\nBatch: host lane.\n\nNote: 2026-11-09: no preset is admitted by a suite yet: a profile declares its presets and the page offers them (mediacapability offerPresets), and the first admission is guidance-ops/cfg-zero-interval's per-preset sign test. This step is that admission's rule, so it is built with that test: the render it reads is drawn at a person's request (mediacapability.PersonRequest) unless -render-set names another size, and a render drawn smaller is refused as a preset's evidence. Its check names ./internal/evaluation and ./cmd/evaluate, so a test of its name is written in each, or the check is narrowed by a landing before it.\n\nNote: Moved after guidance-ops (2026-11-09): this rule is built with guidance-ops/cfg-zero-interval's per-preset sign test, which awaits sampling-split/presets and quality-instruments/soft-tifa, so it is worked when that test is."
         }
       ]
     },

@@ -120,6 +120,10 @@ type Guider struct {
 	After   func(guided []float32) error
 	// Override is what the unconditioned branch changes of the model's blocks (BlockOverride).
 	Override BlockOverride
+	// Guidance is how the guidance varies over the steps; the guider of each step is At's.
+	Guidance Guidance
+	// zeroed is whether the step this guider guides gives no velocity (At).
+	zeroed bool
 }
 
 // unguided is the scale at which the guided output is the conditional one.
@@ -127,7 +131,7 @@ const unguided = 1
 
 // Unconditional says whether the guider reads an unconditional output: at a scale of one the guided output is the
 // conditional one, so a model runs no unconditioned pass for it.
-func (g Guider) Unconditional() bool { return g.Scale != unguided }
+func (g Guider) Unconditional() bool { return g.Scale != unguided && !g.zeroed }
 
 // Combine writes the guided output into out, which may be either output it reads: each element is read before it is
 // written. A guider that reads no unconditional output passes the conditional one through, and is given none.
@@ -137,12 +141,19 @@ func (g Guider) Combine(out, conditional, unconditional []float32) error {
 			return err
 		}
 	}
-	if !g.Unconditional() {
+	switch {
+	case g.zeroed:
+		clear(out)
+	case !g.Unconditional():
 		if !checked.Equal(len(out), len(conditional)) {
 			return fmt.Errorf("guidance: buffer lengths %d/%d differ", len(out), len(conditional))
 		}
 		copy(out, conditional)
-	} else if g.Float32 {
+	case g.Guidance.Projected:
+		if err := g.combineProjected(out, conditional, unconditional); err != nil {
+			return err
+		}
+	case g.Float32:
 		if !checked.Equal(len(out), len(conditional)) || !checked.Equal(len(out), len(unconditional)) {
 			return fmt.Errorf("guidance: buffer lengths %d/%d/%d differ", len(out), len(conditional), len(unconditional))
 		}
@@ -150,8 +161,10 @@ func (g Guider) Combine(out, conditional, unconditional []float32) error {
 		for index, value := range unconditional {
 			out[index] = value + scale*(conditional[index]-value)
 		}
-	} else if err := GuideInto(out, conditional, unconditional, g.Scale); err != nil {
-		return err
+	default:
+		if err := GuideInto(out, conditional, unconditional, g.Scale); err != nil {
+			return err
+		}
 	}
 	if g.After != nil {
 		return g.After(out)

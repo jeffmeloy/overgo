@@ -161,7 +161,7 @@ func (r *WanRuntime) Generate(ctx context.Context, request WanRequest) (EncodedV
 	}
 	video, err := writeClip(ctx, encoder, func(sink VideoFrameSink) error {
 		_, err := r.generator.Generate(ctx, GenerateRequest{
-			Steps: request.Steps, Shift: request.Shift, GuideScale: request.GuideScale,
+			Steps: request.Steps, Shift: request.Shift, GuideScale: request.GuideScale, Guidance: request.Guidance,
 			CondContext: request.CondContext, UncondContext: request.UncondContext,
 			InitialSample: request.InitialSample, Noise: request.Noise, Sink: sink,
 		})

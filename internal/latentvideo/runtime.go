@@ -31,9 +31,11 @@ type GeneratorConfig struct {
 
 // GenerateRequest: one conditioned trajectory and streamed clip publication.
 type GenerateRequest struct {
-	Steps         int
-	Shift         float64
-	GuideScale    float64
+	Steps      int
+	Shift      float64
+	GuideScale float64
+	// Guidance is how the guidance varies over the steps (sampling.Guidance).
+	Guidance      sampling.Guidance
 	CondContext   []float32
 	UncondContext []float32
 	InitialSample []float32
@@ -143,7 +145,7 @@ func (g *Generator) Generate(ctx context.Context, request GenerateRequest) (resu
 	g.decoder.ctx = ctx
 	denoised := processmeasure.Stage(ctx, "clip denoised")
 	result.Denoise, err = g.denoiser.Program.DenoiseWithBackend(g, DenoiseRequest{
-		Steps: request.Steps, Shift: request.Shift, GuideScale: request.GuideScale,
+		Steps: request.Steps, Shift: request.Shift, GuideScale: request.GuideScale, Guidance: request.Guidance,
 		CondContext: request.CondContext, UncondContext: request.UncondContext,
 		InitialSample: request.InitialSample, Noise: request.Noise, StepHook: request.StepHook,
 	})

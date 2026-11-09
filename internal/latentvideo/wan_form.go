@@ -147,6 +147,9 @@ func (request WanRequest) withGeneration(policy generationPolicy) WanRequest {
 	if request.GuideScale == 0 {
 		request.GuideScale = policy.GuideScale
 	}
+	if request.Guidance == (sampling.Guidance{}) {
+		request.Guidance = policy.Guidance
+	}
 	if request.Seed == 0 {
 		request.Seed = policy.Seed
 	}

@@ -26,6 +26,12 @@
       "seed": 31
     },
     "presets": {
+      "cfg-zero-star": {
+        "guidance": {"zero_steps": 1, "projected": true}
+      },
+      "guidance-interval": {
+        "guidance": {"interval": {"low": 0.219, "high": 0.844}}
+      },
       "model-card": {
         "shift": 8
       }

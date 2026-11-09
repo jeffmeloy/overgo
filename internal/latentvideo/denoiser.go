@@ -684,9 +684,11 @@ func (p *DenoiserProgram) UnpatchifyLatent(patches []float32) ([]float32, error)
 // trajectory directly (e.g. a captured noise tensor); when nil the Philox
 // noise plan generates it.
 type DenoiseRequest struct {
-	Steps         int
-	Shift         float64
-	GuideScale    float64
+	Steps      int
+	Shift      float64
+	GuideScale float64
+	// Guidance is how the guidance varies over the steps (sampling.Guidance).
+	Guidance      sampling.Guidance
 	CondContext   []float32
 	UncondContext []float32
 	InitialSample []float32
@@ -779,7 +781,7 @@ func (p *DenoiserProgram) DenoiseWithBackend(backend denoiseBackend, request Den
 	if err != nil {
 		return result, err
 	}
-	guider := sampling.Guider{Scale: request.GuideScale}
+	guider := sampling.Guider{Scale: request.GuideScale, Guidance: request.Guidance}
 	guided := make([]float32, elements)
 	// stepped observes the sample a step reached.
 	stepped := func(step int, sample []float32) {
@@ -795,6 +797,11 @@ func (p *DenoiserProgram) DenoiseWithBackend(backend denoiseBackend, request Den
 			stepped(i-1, sample)
 		}
 		timestep := timesteps[i]
+		// A step the guidance zeroes gives no velocity and runs neither pass.
+		step := guider.At(i, float64(sigmas[i]))
+		if step.Zeroed() {
+			return guided, step.Combine(guided, nil, nil)
+		}
 		headE, blockE, err := CompileTimestepConditioning([]float64{float64(timestep)}, p.timestepWeights)
 		if err != nil {
 			return nil, err
@@ -816,12 +823,12 @@ func (p *DenoiserProgram) DenoiseWithBackend(backend denoiseBackend, request Den
 		}
 		// At guidance 1 the guided output is the conditional one, so the unconditioned pass is not run.
 		var uncondOut []float32
-		if guider.Unconditional() {
+		if step.Unconditional() {
 			if uncondOut, err = branch(uncondContext); err != nil {
 				return nil, fmt.Errorf("denoise step %d unconditional branch: %w", i, err)
 			}
 		}
-		if err := guider.Combine(guided, condOut, uncondOut); err != nil {
+		if err := step.Combine(guided, condOut, uncondOut); err != nil {
 			return nil, err
 		}
 		if request.TraceSteps {

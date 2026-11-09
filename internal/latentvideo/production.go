@@ -93,13 +93,14 @@ type precisionPolicy struct {
 }
 
 type generationPolicy struct {
-	Frames     int     `json:"frames"`
-	Width      int     `json:"width"`
-	Height     int     `json:"height"`
-	Steps      int     `json:"steps"`
-	Shift      float64 `json:"shift"`
-	GuideScale float64 `json:"guide_scale"`
-	Seed       uint64  `json:"seed"`
+	Frames     int               `json:"frames"`
+	Width      int               `json:"width"`
+	Height     int               `json:"height"`
+	Steps      int               `json:"steps"`
+	Shift      float64           `json:"shift"`
+	GuideScale float64           `json:"guide_scale"`
+	Guidance   sampling.Guidance `json:"guidance,omitzero"`
+	Seed       uint64            `json:"seed"`
 }
 
 // profileEntry is the catalog's Wan profile and its presets: the profile is the authors' recipe, which a recipe binds,
@@ -528,15 +529,17 @@ func (s *gifEncoder) Finish() (EncodedVideo, error) {
 // policy, so a page composes it from typed controls and the runtime
 // resolves the rest through the model's own text pipeline.
 type WanRequest struct {
-	Frames         int     `json:"frames"`
-	Width          int     `json:"width"`
-	Height         int     `json:"height"`
-	Steps          int     `json:"steps"`
-	Shift          float64 `json:"shift"`
-	GuideScale     float64 `json:"guide_scale"`
-	Prompt         string  `json:"prompt,omitzero"`
-	NegativePrompt string  `json:"negative_prompt,omitzero"`
-	Seed           uint64  `json:"seed,omitzero"`
+	Frames     int     `json:"frames"`
+	Width      int     `json:"width"`
+	Height     int     `json:"height"`
+	Steps      int     `json:"steps"`
+	Shift      float64 `json:"shift"`
+	GuideScale float64 `json:"guide_scale"`
+	// Guidance is how the guidance varies over the steps (sampling.Guidance); a preset may state it.
+	Guidance       sampling.Guidance `json:"guidance,omitzero"`
+	Prompt         string            `json:"prompt,omitzero"`
+	NegativePrompt string            `json:"negative_prompt,omitzero"`
+	Seed           uint64            `json:"seed,omitzero"`
 	// Preset names a recipe of the profile's presets, its values filling what the request leaves unset.
 	Preset        string                    `json:"preset,omitzero"`
 	Format        ClipFormat                `json:"format,omitzero"`
@@ -552,6 +555,9 @@ func validateWanRequest(request WanRequest) error {
 	}
 	if !checked.PositiveFinite64(request.Shift) || !checked.NonNegativeFinite64(request.GuideScale) {
 		return errors.New("latent video: incomplete Wan request")
+	}
+	if err := request.Guidance.Validate(); err != nil {
+		return fmt.Errorf("latent video: %w", err)
 	}
 	if _, ok := checked.First(request.CondContext); !ok {
 		return errors.New("latent video: incomplete Wan request")

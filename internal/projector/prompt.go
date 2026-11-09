@@ -414,7 +414,7 @@ func InspectProjection(ctx context.Context, path string) (modelartifact.Inventor
 	if err := ctx.Err(); err != nil {
 		return modelartifact.Inventory{}, nil, nil, err
 	}
-	file, err := gguf.Open(path)
+	file, err := gguf.OpenProjector(path)
 	if err != nil {
 		return modelartifact.Inventory{}, nil, nil, err
 	}

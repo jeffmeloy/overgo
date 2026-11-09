@@ -114,7 +114,7 @@ func openProjectorResource[R any](
 	if err := ctx.Err(); err != nil {
 		return zero, err
 	}
-	file, err := gguf.Open(path)
+	file, err := gguf.OpenProjector(path)
 	if err != nil {
 		return zero, err
 	}

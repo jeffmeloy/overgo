@@ -79,6 +79,28 @@ func RegisterDirectoryOpener(open func(directory string) (*File, error)) {
 	directoryOpener.Store(&open)
 }
 
+// projectorDirectoryOpener serves a model directory's media projector as the GGUF its conversion would write, which a
+// directory's model view is not: Open gives a directory's language model, OpenProjector its projector.
+var projectorDirectoryOpener atomic.Pointer[func(string) (*File, error)]
+
+// RegisterProjectorDirectoryOpener makes OpenProjector serve a directory through open.
+func RegisterProjectorDirectoryOpener(open func(directory string) (*File, error)) {
+	projectorDirectoryOpener.Store(&open)
+}
+
+// OpenProjector opens a media projector: a GGUF file as Open does, and a model directory as the projector its
+// conversion would write, read from the directory's own files with nothing written.
+func OpenProjector(path string) (*File, error) {
+	if info, err := os.Stat(path); err == nil && info.IsDir() {
+		open := projectorDirectoryOpener.Load()
+		if open == nil {
+			return nil, fmt.Errorf("GGUF: %s is a directory, and no projector directory opener is linked", path)
+		}
+		return (*open)(path)
+	}
+	return Open(path)
+}
+
 // Shard is one physical file of a logical GGUF: its length, where its tensor
 // data begins, and the source its bytes, header and padding included, read from.
 type Shard struct {

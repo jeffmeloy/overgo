@@ -8,17 +8,22 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 399,
-        "reason": "Estimated from a survey: the judged suites, the paired exact test and the render path exist (cmd/evaluate render.go, internal/evaluation, internal/scorecard record.go judgeQuality); the degradations, a second judge's run and the medium pairing are new code with two card tests. Step owner-words: +255 (255, the median of what 12 landings that changed internal/plan/plan.go, cmd/plan/main.go, cmd/plan/answer_test.go counted)."
+        "nodes": 259,
+        "reason": "Estimated from a survey: the judged suites, the paired exact test and the render path exist (cmd/evaluate render.go, internal/evaluation, internal/scorecard record.go judgeQuality); the degradations, a second judge's run and the medium pairing are new code with two card tests. Step owner-words: +255 (255, the median of what 12 landings that changed internal/plan/plan.go, cmd/plan/main.go, cmd/plan/answer_test.go counted). Step published-tower: +0 (no landing changed internal/gemma4convert, internal/projector, internal/hfconvert, internal/gguf). Step vision-judge: +395 (395, the median of what 9 landings that changed cmd/evaluate, internal/projector, internal/evaluation counted)."
       },
       "steps": [
         {
-          "id": "second-judge-vision",
-          "title": "gemma-4-12B-it answers pictures and clips as a projection model: its vision tower converted to a projector with cmd/gguf convert-gemma4, verified, and its projection recipe activated once the owner answers, so the evaluator opens it as a judge",
+          "id": "vision-judge",
+          "title": "gemma-4-12B-it answers pictures and clips as a projection model from its published directory, its projection recipe verified on the grounded suite, so the evaluator opens it as a judge",
           "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/evaluate -count=1 -run '^TestGemmaTwelveOpensAsAJudge$'",
+          "files": [
+            "cmd/evaluate",
+            "internal/projector",
+            "internal/evaluation"
+          ],
           "needs_card": true,
-          "rationale": "Serves: held-out-quality for every image and video generator: a second judge to rank the first against.\n\nDisappears: one judge's ranking taken as the ranking.\n\nEvidence: probed 2026-11-09 from the evaluator's judge path (openProjectionInto): gemma-4-E4B-it's checkpoint is model type \"gemma4\", which the HF converter maps to no prototype, and its pictures are served by another route; gemma-4-12B-it's (\"gemma4_unified\") text opens through the converter, but its vision tower is no projector the evaluator reads (\"artifact projector type \\\"\\\" is unsupported\"), and no projection recipe of it is active. The only other vision models the judge path opens are Qwen's (Qwen3.8 Flash Next), the judge's own family. cmd/gguf convert-gemma4 converts a Gemma 4 checkpoint's projector (internal/gemma4convert); the projector so converted is verified and its projection recipe activated, the activation an act the owner answers (a reserved decision), so judge-calibration/independent can open gemma-4-12B-it as a judge.\n\nBatch: device lane."
+          "rationale": "With its tower read from the published directory (judge-calibration/published-tower), gemma-4-12B-it answers pictures and clips as a projection model: its projection recipe is verified on the grounded suite the Qwen judge's was (recipe verify -task projection -projector \u003cdirectory\u003e -input-file docs/verification/fixtures/qwen27/suite.json), so the evaluator opens it as a judge of another family than Qwen.\n\nActivating the verified recipe is hard to reverse (an activation is retired only through a failed gate), so it is put to the owner in one sentence when the recipe has verified, with its evidence; everything before it is the lead's.\n\nServes: judge-calibration/independent.\n\nDisappears: a second judge that needs a converted copy or hand-labelled cases.\n\nEvidence: the owner's answer to gemma-12b-judge (2026-11-09)."
         },
         {
           "id": "independent",
@@ -52,10 +57,21 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": -2145,
-        "reason": "The replay harness and ladder exist (cmd/loop replay.go, ladder.go); mutants of landed steps, a cost ledger per landing and a measured run of the local worker are new. Step grammar-draw: +0 (no landing changed internal/sampling/sampler.go, internal/sampling/greedy_grammar_test.go). Step worker-tools: +163 (163, the median of what 8 landings that changed cmd/loop/tools.go, cmd/loop/tools_test.go, cmd/loop/local_worker.go, cmd/loop/main.go, cmd/loop/init_config.go, cmd/loop/replay.go, cmd/loop/local_worker_windows_model_test.go, cmd/loop/worker_landing_test.go, internal/loop/driver.go, internal/loop/worker_landing_test.go counted). Step matched-ladder: +0 (no landing changed cmd/loop/ladder.go, cmd/loop/ladder_test.go, cmd/loop/ladder_matched_test.go)."
+        "nodes": -1888,
+        "reason": "The replay harness and ladder exist (cmd/loop replay.go, ladder.go); mutants of landed steps, a cost ledger per landing and a measured run of the local worker are new. Step grammar-draw: +0 (no landing changed internal/sampling/sampler.go, internal/sampling/greedy_grammar_test.go). Step worker-tools: +163 (163, the median of what 8 landings that changed cmd/loop/tools.go, cmd/loop/tools_test.go, cmd/loop/local_worker.go, cmd/loop/main.go, cmd/loop/init_config.go, cmd/loop/replay.go, cmd/loop/local_worker_windows_model_test.go, cmd/loop/worker_landing_test.go, internal/loop/driver.go, internal/loop/worker_landing_test.go counted). Step matched-ladder: +0 (no landing changed cmd/loop/ladder.go, cmd/loop/ladder_test.go, cmd/loop/ladder_matched_test.go). Step greedy-request: +257 (257, the median of what 1 landings that changed cmd/loop/local_worker.go, cmd/loop/local_worker_request_test.go counted)."
       },
       "steps": [
+        {
+          "id": "greedy-request",
+          "title": "The local worker asks for a greedy draw with no penalty, whatever the model's recipe adds, so its code keeps its repeated names and the server takes its greedy draw",
+          "status": "open",
+          "verify": "go test ./cmd/loop -count=1 -run '^TestTheLocalWorkerDrawsGreedilyWithoutPenalties$'",
+          "files": [
+            "cmd/loop/local_worker.go",
+            "cmd/loop/local_worker_request_test.go"
+          ],
+          "rationale": "The local worker asked for temperature 0 and nothing else, so the model's recipe filled in the rest: Qwen3.8-27B's adds a presence penalty of 1.5 with top-k 20 and top-p 0.8 (the server's /slots on 2026-11-09). A presence penalty turns the model away from every token it has written, and code repeats its names; and it kept the server's sampler off its greedy draw, so each token of a tool call asked the grammar about the whole vocabulary: 1.03 s a token, the GPU at 0% and the server on about three CPU cores, after loop-proof/grammar-draw had made the greedy draw ask about the likeliest token alone. The worker now asks for a greedy draw with no presence, frequency or repeat penalty.\n\nServes: loop-proof/demonstrated, whose cost is the local worker's wall.\n\nDisappears: a recipe's chat penalty on a worker's code edits.\n\nEvidence: cmd/loop TestTheLocalWorkerDrawsGreedilyWithoutPenalties reads the request the worker sends."
+        },
         {
           "id": "demonstrated",
           "title": "The local worker lands three plan steps unaided, each benefit confirmed by an evaluation the worker did not write, and the recorded benefit of the three exceeds their recorded cost",
@@ -67,6 +83,81 @@
           ],
           "needs_card": true,
           "rationale": "Serves: setup-steps.\n\nDisappears: a worker ladder chosen by replay pass rates alone.\n\nEvidence: local-worker/replay records each worker's passes, attempts and wall per replayed step; this step is the forward test the owner's review asks for, with costs and failures counted.\n\nBatch: device lane."
+        }
+      ]
+    },
+    {
+      "id": "rtx-vsr",
+      "title": "A clip or picture overgo draws or is given can be upscaled up to four times, denoised or deblurred on the card by NVIDIA's RTX Video Super Resolution, run from the nvidia-vfx runtime already on the machine, and each level is measured against the bicubic it replaces",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 1800,
+        "reason": "Estimated from a survey: a syscall binding of about a dozen NvVFX and NvCVImage entry points beside internal/cuda/cudnn's, a finishing clipEncoder in front of the existing MP4 writer, a control and a record field, NVENC arguments for the existing FFmpeg pipe, and a VMAF reading through the same FFmpeg. Earlier media campaigns came in at three to seven times their first estimates, so this is about three times the sum of the parts. plan -add derives its own count from history beside this figure."
+      },
+      "steps": [
+        {
+          "id": "effect",
+          "title": "internal/cuda/nvvfx loads NVIDIA's Video Effects runtime from the directory OVERGO_NVVFX names, runs VideoSuperRes on frames in overgo's device memory on overgo's stream at every level the effect offers, and gives what the nvidia-vfx binding gives on the same frames, within the difference two runs of the binding show; the runtime's DLL digests are its identity",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/cuda/nvvfx -count=1 -run '^TestVideoSuperResMatchesNvidiasBinding$'",
+          "files": [
+            "internal/cuda",
+            "internal/inferencesurface"
+          ],
+          "needs_card": true,
+          "rationale": "Serves: a fast learned upscaler, denoiser and deblurrer that needs no new weights: RTX Video Super Resolution, the effect the owner already runs by hand.\n\nDisappears: a Python virtual environment, PyTorch and PyNvVideoCodec between overgo and the effect.\n\nSource: C:\\Users\\jeffm\\upscale, the owner's working upscaler. upscale_video.py runs NVIDIA's RTX Video Super Resolution through the nvidia-vfx 0.1.0.1 wheel (Python bindings for the NVIDIA Video Effects SDK), decodes on NVDEC (PyNvVideoCodec), converts NV12 to RGB on the card with the source's own matrix and range (detect_colorspace :116-128, detect_full_range :131-142, FrameIO :211-300), runs denoise, deblur and upscale in that order (_PIPELINE_ORDER :75), and encodes HEVC on NVENC at a constant quality, VBR with an 80 Mbps ceiling (open_encoder :176-194), copying the sound when MP4 holds it. The folder also holds a 2026-03-12 FFmpeg build (gyan.dev essentials, GPLv3) configured with --enable-nvenc, --enable-nvdec and --enable-libvmaf beside libx264, and video-compare.exe, a side-by-side viewer.\n\nThe runtime is already on the machine: C:\\Users\\jeffm\\upscale\\env\\Lib\\site-packages\\nvvfx\\libs, 792 MB, seventeen DLLs loaded in the order nvvfx/_lib_loader.py names (NPP, TensorRT's nvinfer_10.dll at 441 MB, NVCVImage.dll, nvngxruntime.dll, NVVideoEffects.dll, nvVFXVideoSuperRes.dll, nvngx_vsr.dll at 45 MB). NVVideoEffects.dll exports a C interface (NvVFX_CreateEffect, NvVFX_SetImage, NvVFX_SetU, NvVFX_SetCudaStream, NvVFX_Load, NvVFX_Run, NvVFX_DestroyEffect) and NVCVImage.dll its image descriptors (NvCVImage_Init, NvCVImage_Alloc), so Go reaches it as internal/cuda/cudnn reaches cuDNN, by syscall.LoadDLL from a directory (cudnn_windows.go:24-57), with no Python and no cgo. The wheel's driver floor is 570.65; this card runs 616.64. It is NVIDIA-proprietary (NVIDIA Software License Agreement and product-specific terms, in the wheel's licenses folder): overgo loads it where it is installed and never copies it into the repository or anything it publishes.\n\nEvidence: the effect's levels (nvvfx/effects/video_super_res.py:29-101) are BICUBIC 0, LOW to ULTRA 1-4 (upscaling trained on compressed video, so it also removes compression damage), DENOISE 8-11 and DEBLUR 12-15 (same size in and out), and HIGHBITRATE 16-19 (upscaling for clean sources, skipping artifact suppression). upscale_video.py offers none of the HIGHBITRATE levels, and overgo's own frames are clean: nothing has compressed them before the encoder. The binding hands the effect planar RGB float32 in [0, 1] on the card (FrameIO.input_chw), the layout overgo's frames already have on the card before clipEncoder.add copies them out.\n\nThe bar is derived. The binding's output on the same frames is the reference, and the tolerance is the largest difference two runs of the binding show on those frames, measured in the test, since TensorRT may pick different kernels per engine build. The reference outputs are recorded as digests and sampled values in the test, not as fixture files; the binding runs from a harness under scripts/python_golden_references/, git-ignored, the one place Python runs. The runtime's directory joins the settings a run's identity names (internal/inferencesurface/identity.go:93), and each of its DLLs' digests joins the identity of anything the effect writes.\n\nWhere OVERGO_NVVFX is unset or a DLL is missing, the effect is refused with the setting and the missing file named. Nothing falls back to bicubic by itself.\n\nPredicted effect: a capability overgo lacks.\n\nBatch: device lane."
+        },
+        {
+          "id": "clips",
+          "title": "A clip request may ask for an upscale to a scale or height, a denoise or a deblur at a level; each frame is finished on the card between the generator and the clip encoder, so Wan, its student, LiveEdit and the oscillator all offer it; a clip a person supplies keeps its colour space, range and sound; the large clip is encoded on NVENC where the resolved FFmpeg offers it; and the record names the level, the scale, the effect's identity and the encoder",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestAClipIsFinishedOnTheCardBeforeItIsEncoded$'",
+          "files": [
+            "internal/latentvideo",
+            "internal/media",
+            "internal/mediacapability",
+            "internal/server",
+            "internal/runrecord"
+          ],
+          "needs_card": true,
+          "rationale": "Serves: a person gets a 4K clip from Wan's 832 x 480 in one request, and any video they bring can be cleaned or enlarged in overgo.\n\nDisappears: the hand step of running upscale_video.py on overgo's output.\n\nEvidence: every served clip already passes through one interface, clipEncoder (add, Finish, Close; internal/latentvideo/production.go:308-312), chosen by newServedEncoder (:316-328) and reached by WriteClip (:330) for generators outside the package. A finishing clipEncoder in front of the MP4 writer gives every video path the effect with no change to any generator. The request's fields follow the format field's path from mp4-clips/default: a control declared in mediacapability, filled where a request is taken in, recorded with it.\n\nA finished clip is up to 3328 x 1920 for Wan's 832 x 480 at four times. The FFmpeg resolved here today (C:\\Program Files\\DownloadHelper CoApp\\ffmpeg.exe, a 2023 build) has no NVENC, NVDEC or libvmaf in its configuration; the build in C:\\Users\\jeffm\\upscale has all three. With NVENC, the clip is encoded as HEVC at a constant quality, as upscale_video.py does (open_encoder :176-194), tagged hvc1 so players that require the tag (Safari, QuickTime) open it, and the test opens the finished clip in the web UI's own video element; the test encodes twice and compares the bytes, and if NVENC does not repeat its bytes on this card the finished clip is written by x264 at the default's settings and the record says why. Where NVENC is missing, the refusal or the x264 fallback names OVERGO_FFMPEG, as the MP4 refusal does (production.go:325).\n\nA supplied clip: its colour matrix, primaries, transfer and range are read from the source (BT.601, BT.709 or BT.2020, limited or full, as upscale_video.py's detect_colorspace and detect_full_range read them) and written on the result, and its sound is copied when MP4 holds the codec, else re-encoded as AAC.\n\nMeasured in the test: one Wan four-step student clip at 81 frames, 832 x 480, finished at four times. It records the frames per second of the effect and of the encode, and the share of the clip's wall the finish adds.\n\nSetup, the lead's, recorded in one line: OVERGO_FFMPEG = C:/Users/jeffm/upscale/ffmpeg.exe and OVERGO_NVVFX = C:/Users/jeffm/upscale/env/Lib/site-packages/nvvfx/libs, in the lead's environment and the hourly runner's. OVERGO_FFMPEG is one of the settings every result's identity names (internal/inferencesurface/identity.go resultSettings), so it is switched once, as this step begins, and the MP4 default's own check (internal/latentvideo TestAClipIsSavedAsMP4ByDefault) is run under the new build before anything else is.\n\nPredicted effect: a capability overgo lacks, and first-output for any clip a person asks for at 4K.\n\nBatch: device lane.",
+          "depends_on": [
+            "rtx-vsr/effect"
+          ]
+        },
+        {
+          "id": "measured",
+          "title": "Each upscaling level is read against bicubic on the source clips the harder video suite describes: each is downscaled two and four times, upscaled back, and scored by VMAF and PSNR against its original; a level is offered first only if it beats bicubic by the exact paired test at 0.05; and the level offered first for overgo's own clips is the one the judge's fidelity questions prefer over FFmpeg's Lanczos at the same size",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/evaluate -count=1 -run '^TestVideoSuperResBeatsBicubicOnSourceClips$'",
+          "files": [
+            "cmd/evaluate",
+            "internal/evaluation",
+            "internal/media"
+          ],
+          "needs_card": true,
+          "rationale": "Serves: the level a person gets first is the one measured best on real footage, not the one a script defaults to.\n\nDisappears: ULTRA chosen by default without a measurement.\n\nEvidence: overgo_data/datasets/VidGen holds 4,904 source clips at 1280 x 720, H.264, BT.709, 29.97 fps. The harder video suite's captions describe a subset, and the stillness floor already reads that set (judge-calibration/stillness, 5c5113e7f). A clip downscaled by FFmpeg's area filter and upscaled back has its original as ground truth. VMAF is read through the same FFmpeg with libvmaf, and PSNR beside it.\n\nThe bar is derived from what the step replaces. BICUBIC is level 0 of the same effect, what the frames are with no learned upscaler, so each of LOW to ULTRA and HIGHBITRATE LOW to ULTRA is compared with it clip by clip. Overgo's own clips have no ground truth at a larger size, so the first level offered for them is decided by the judge's fidelity questions (judge-calibration/fidelity, bc77ee5e7: sharp with clear fine detail, clean of noise), asked of Wan student clips upscaled by the standard and HIGHBITRATE groups' best levels and by FFmpeg's Lanczos at the same size. The content questions are not used, since they were measured blind to sharpness (judge-calibration/sensitivity, b6656118e). DENOISE and DEBLUR levels are read on source clips given noise of a known deviation and a known blur, against the clean original.\n\nvideo-finishing/flashvsr, a 6.45 GB diffusion upscaler, gets this step's best level as the baseline it must beat at its cost.\n\nPredicted effect: held-out-quality for every video generator and editor at the size a person asks for.\n\nBatch: device lane.",
+          "depends_on": [
+            "rtx-vsr/clips"
+          ]
+        },
+        {
+          "id": "pictures",
+          "title": "A picture overgo draws or is given can be upscaled two or four times by the same effect, its record naming the level and the effect's identity, and each level is read against bicubic on MOSS's 1024 x 1024 TIFA pictures downscaled and upscaled back, beside Real-ESRGAN on the same pairs once video-finishing/esrgan has landed",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/media -count=1 -run '^TestVideoSuperResUpscalesPicturesAgainstBicubic$'",
+          "files": [
+            "internal/media",
+            "internal/server",
+            "internal/mediacapability",
+            "cmd/evaluate"
+          ],
+          "needs_card": true,
+          "rationale": "Serves: 2048- and 4096-pixel pictures from MOSS, Krea and SenseNova in about the time of a frame, beside the slower Real-ESRGAN path the plan already holds.\n\nDisappears: nothing.\n\nEvidence: the effect works per frame on a planar RGB image (the binding's own example runs one 960 x 540 frame), so a picture is a one-frame clip. overgo_data/datasets/tifa_v1.0/moss-image-sft holds MOSS's 1024 x 1024 TIFA pictures, which, downscaled by two and four, give pairs with a ground truth. The bar is bicubic, level 0 of the same effect, by the exact paired test at 0.05 on PSNR, and the judge's fidelity questions are asked of a full-size upscale. Where video-finishing/esrgan has landed, Real-ESRGAN is read on the same pairs and the record names which is closer; neither waits for the other.\n\nPredicted effect: a capability overgo lacks for every image generator.\n\nBatch: device lane.",
+          "depends_on": [
+            "rtx-vsr/effect"
+          ]
         }
       ]
     },
@@ -1178,7 +1269,7 @@
             "local-models.json"
           ],
           "needs_card": true,
-          "rationale": "FlashVSR (Apache-2.0) is in the Wan2.1 lineage: a DMD DiT (5.68 GB), an LQ projection (0.58 GB) and a TC decoder (0.19 GB), 6.45 GB new, its Wan VAE already local; about 17 fps at 768 x 1408 on an A100. SeedVR2 is the deferred alternative, a new model family.\n\nServes: higher-resolution video.\nDisappears: nothing.\nEvidence: upscaled clips agree with an upstream golden above a floor.\nBatch: device lane.",
+          "rationale": "FlashVSR (Apache-2.0) is in the Wan2.1 lineage: a DMD DiT (5.68 GB), an LQ projection (0.58 GB) and a TC decoder (0.19 GB), 6.45 GB new, its Wan VAE already local; about 17 fps at 768 x 1408 on an A100. SeedVR2 is the deferred alternative, a new model family.\n\nNote: Its baseline is rtx-vsr/measured's best level, RTX Video Super Resolution on the card: FlashVSR, 6.45 GB of diffusion weights, is offered only where it beats that level at its own cost (owner's rtx_vsr_plan, 2026-11-09).\n\nServes: higher-resolution video.\nDisappears: nothing.\nEvidence: upscaled clips agree with an upstream golden above a floor.\nBatch: device lane.",
           "depends_on": [
             "video-decode-overlap/overlap"
           ]
@@ -1299,22 +1390,6 @@
           ]
         }
       ]
-    }
-  ],
-  "decisions": [
-    {
-      "id": "gemma-12b-judge",
-      "question": "A second judge of another family than Qwen needs gemma-4-12B-it's vision: the evaluator opens its text, but its vision tower is no projector it reads, and no projection recipe of it is active. May its checkpoint be converted to GGUF with a projector (cmd/gguf convert-gemma4, about 24 GB written) and its projection recipe, once verified, be activated? The owner's rule is to serve models from their tensors as published, and activating a model is the owner's act.",
-      "options": [
-        "convert gemma-4-12B-it with cmd/gguf convert-gemma4, verify its projection recipe and activate it as the second judge",
-        "keep gemma-4-12B-it as published: the owner labels 32 image and 32 video cases, which stand as the independent assessor"
-      ],
-      "recommendation": "convert gemma-4-12B-it with cmd/gguf convert-gemma4, verify its projection recipe and activate it as the second judge",
-      "blocks": [
-        "judge-calibration"
-      ],
-      "asked": "2026-11-09",
-      "owners_act": true
     }
   ]
 }

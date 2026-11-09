@@ -7,7 +7,7 @@ package gemma4convert
 import (
 	"fmt"
 	"io"
-	"sort"
+	"slices"
 	"strings"
 
 	"overgo/internal/gguf"
@@ -269,44 +269,54 @@ func towerTensorName(name string) (string, bool) {
 	return "", false
 }
 
-func towerTensors(source *safetensors.Source, outputF32 bool) ([]gguf.TensorData, error) {
-	tensors := make([]gguf.TensorData, 0, len(source.Tensors))
+// towerViews are the full towers' projector tensors as their conversion writes them, by name, each read anew from the
+// directory's files when opened: a rank-0 calibration scalar as one F32, the rest as stored or promoted to F32 where
+// outputF32 asks.
+func towerViews(source *safetensors.Source, outputF32 bool) ([]viewTensor, error) {
+	views := make([]viewTensor, 0, len(source.Tensors))
 	for sourceName, tensor := range source.Tensors {
 		if strings.HasPrefix(sourceName, "model.language_model.") {
 			continue
 		}
 		destinationName, ok := towerTensorName(sourceName)
 		if !ok {
-			return nil, fmt.Errorf("Gemma 4 converter: tower tensor %q has no mapping", sourceName)
+			return nil, fmt.Errorf("gemma 4 converter: tower tensor %q has no mapping", sourceName)
 		}
 		if tensor.DType != "BF16" {
-			return nil, fmt.Errorf("Gemma 4 converter: tower tensor %q uses %s", sourceName, tensor.DType)
+			return nil, fmt.Errorf("gemma 4 converter: tower tensor %q uses %s", sourceName, tensor.DType)
 		}
 		shape := gguf.ReverseShape(tensor.Shape)
-		var reader io.Reader = tensor.Reader()
+		scalar := len(shape) == 0
 		dataType := gguf.DTypeBF16
-		if len(shape) == 0 {
+		if scalar {
 			// rank-0 calibration scalar: shape [1], stored F32 (layer_scalar rule)
 			shape = []uint64{1}
-			promoted, err := safetensors.F32Reader(tensor)
-			if err != nil {
-				return nil, fmt.Errorf("Gemma 4 converter: tensor %q: %w", sourceName, err)
-			}
-			reader, dataType = promoted, gguf.DTypeF32
-		} else if outputF32 {
-			promoted, err := safetensors.PromoteF32Reader(reader, tensor.DType)
-			if err != nil {
-				return nil, fmt.Errorf("Gemma 4 converter: tensor %q: %w", sourceName, err)
-			}
-			reader, dataType = promoted, gguf.DTypeF32
 		}
-		tensors = append(tensors, gguf.TensorData{
-			Name: destinationName, Shape: shape, Type: dataType, Data: reader,
-		})
+		if scalar || outputF32 {
+			dataType = gguf.DTypeF32
+		}
+		open := func() (io.Reader, error) {
+			var reader io.Reader = tensor.Reader()
+			var err error
+			switch {
+			case scalar:
+				reader, err = safetensors.F32Reader(tensor)
+			case outputF32:
+				reader, err = safetensors.PromoteF32Reader(reader, tensor.DType)
+			}
+			if err != nil {
+				return nil, fmt.Errorf("gemma 4 converter: tensor %q: %w", sourceName, err)
+			}
+			return reader, nil
+		}
+		if _, err := open(); err != nil {
+			return nil, err
+		}
+		views = append(views, viewTensor{view: gguf.ViewTensor{Name: destinationName, Shape: shape, Type: dataType, Open: open}, open: open})
 	}
-	sort.Slice(tensors, func(i, j int) bool { return tensors[i].Name < tensors[j].Name })
-	if len(tensors) == 0 {
-		return nil, fmt.Errorf("Gemma 4 converter: no tower tensors found")
+	slices.SortFunc(views, func(left, right viewTensor) int { return strings.Compare(left.view.Name, right.view.Name) })
+	if len(views) == 0 {
+		return nil, fmt.Errorf("gemma 4 converter: no tower tensors found")
 	}
-	return tensors, nil
+	return views, nil
 }

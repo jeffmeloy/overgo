@@ -132,6 +132,68 @@ func readConfig(directory string) (modelConfig, error) {
 	return config, validateConfig(config)
 }
 
+// ProjectorView serves a Gemma 4 directory's media projector as its conversion would write it (convert-gemma4 -mmproj),
+// from its own files and without writing anything: the same metadata and the same bytes, each tensor read when a read
+// reaches it. A model is served from its tensors as published, so its vision is read here, never from a converted copy.
+func ProjectorView(directory, name string) (*gguf.File, error) {
+	directory, err := filepath.Abs(directory)
+	if err != nil {
+		return nil, err
+	}
+	config, err := readConfig(directory)
+	if err != nil {
+		return nil, err
+	}
+	source, err := safetensors.OpenSource(directory)
+	if err != nil {
+		return nil, err
+	}
+	metadata, views, err := projectorParts(directory, cmp.Or(strings.TrimSpace(name), filepath.Base(directory)), config, source, false)
+	var file *gguf.File
+	if err == nil {
+		served := make([]gguf.ViewTensor, len(views))
+		for index, tensor := range views {
+			served[index] = tensor.view
+		}
+		file, err = gguf.View(metadata, served, gguf.WriteOptions{}, directory, source)
+	}
+	if err != nil {
+		return nil, errors.Join(err, source.Close())
+	}
+	return file, nil
+}
+
+// projectorParts are the media projector's metadata and tensors as its conversion writes them: the full towers where
+// the checkpoint declares them (towerLayout), the embedder layout's otherwise, promoted to F32 where outputF32 asks.
+func projectorParts(directory, name string, config modelConfig, source *safetensors.Source, outputF32 bool) ([]gguf.Metadata, []viewTensor, error) {
+	var processor processorConfig
+	if err := jsonfile.Decode(filepath.Join(directory, "processor_config.json"), &processor); err != nil {
+		return nil, nil, fmt.Errorf("gemma 4 converter: processor config: %w", err)
+	}
+	if towerLayout(config) {
+		if err := validateTowerConfig(config, processor); err != nil {
+			return nil, nil, err
+		}
+		feedForward, err := audioFeedForwardLength(source, config)
+		if err != nil {
+			return nil, nil, err
+		}
+		views, err := towerViews(source, outputF32)
+		return towerProjectorMetadata(name, config, processor, feedForward), views, err
+	}
+	if err := validateProjectorConfig(config); err != nil {
+		return nil, nil, err
+	}
+	if processor.Image.MaxSoftTokens == 0 || processor.Video.MaxSoftTokens == 0 {
+		return nil, nil, errors.New("gemma 4 converter: processor token budgets are incomplete")
+	}
+	if processor.Audio.SampleRate == 0 {
+		return nil, nil, errors.New("gemma 4 converter: processor audio sample rate is missing")
+	}
+	views, err := projectorViews(source, outputF32)
+	return projectorMetadata(name, config, processor), views, err
+}
+
 // ModelView serves a Gemma 4 directory's language model as its conversion would write it, from its own files and without
 // writing anything: the same metadata and the same bytes, each tensor read when a read reaches it.
 func ModelView(directory, name string, fp8Native bool) (*gguf.File, error) {
@@ -220,43 +282,13 @@ func Convert(options Options) (Report, error) {
 		report.ModelTensors = len(tensors)
 	}
 	if options.MMProjPath != "" {
-		var processor processorConfig
-		if err := jsonfile.Decode(filepath.Join(directory, "processor_config.json"), &processor); err != nil {
-			return report, fmt.Errorf("Gemma 4 converter: processor config: %w", err)
+		metadata, views, err := projectorParts(directory, name, config, source, options.MMProjF32)
+		if err != nil {
+			return report, err
 		}
-		tower := towerLayout(config)
-		var metadata []gguf.Metadata
-		var tensors []gguf.TensorData
-		if tower {
-			if err := validateTowerConfig(config, processor); err != nil {
-				return report, err
-			}
-			feedForward, feedErr := audioFeedForwardLength(source, config)
-			if feedErr != nil {
-				return report, feedErr
-			}
-			metadata = towerProjectorMetadata(name, config, processor, feedForward)
-			var tensorErr error
-			tensors, tensorErr = towerTensors(source, options.MMProjF32)
-			if tensorErr != nil {
-				return report, tensorErr
-			}
-		} else {
-			if err := validateProjectorConfig(config); err != nil {
-				return report, err
-			}
-			if processor.Image.MaxSoftTokens == 0 || processor.Video.MaxSoftTokens == 0 {
-				return report, errors.New("Gemma 4 converter: processor token budgets are incomplete")
-			}
-			if processor.Audio.SampleRate == 0 {
-				return report, errors.New("Gemma 4 converter: processor audio sample rate is missing")
-			}
-			metadata = projectorMetadata(name, config, processor)
-			var tensorErr error
-			tensors, tensorErr = projectorTensors(source, options.MMProjF32)
-			if tensorErr != nil {
-				return report, tensorErr
-			}
+		tensors, err := openedTensors(views)
+		if err != nil {
+			return report, err
 		}
 		if err := gguf.WriteFileExclusive(options.MMProjPath, metadata, tensors, gguf.WriteOptions{}); err != nil {
 			return report, err
@@ -684,7 +716,23 @@ func projectorMetadata(name string, config modelConfig, processor processorConfi
 	}
 }
 
-func projectorTensors(source *safetensors.Source, outputF32 bool) ([]gguf.TensorData, error) {
+// openedTensors are the view's tensors as a conversion writes them, each opened once.
+func openedTensors(views []viewTensor) ([]gguf.TensorData, error) {
+	tensors := make([]gguf.TensorData, 0, len(views))
+	for _, tensor := range views {
+		reader, err := tensor.open()
+		if err != nil {
+			return nil, err
+		}
+		tensors = append(tensors, gguf.TensorData{Name: tensor.view.Name, Shape: tensor.view.Shape, Type: tensor.view.Type, Data: reader})
+	}
+	return tensors, nil
+}
+
+// projectorViews are the embedder layout's projector tensors as its conversion writes them, each read anew from the
+// directory's files when opened: the patch embedding made planar and the position table transposed, as the loader
+// reads them, and promoted to F32 where outputF32 asks.
+func projectorViews(source *safetensors.Source, outputF32 bool) ([]viewTensor, error) {
 	mapping := []struct{ source, destination string }{
 		{"model.embed_vision.patch_dense.weight", "v.patch_embd.weight"},
 		{"model.embed_vision.patch_dense.bias", "v.patch_embd.bias"},
@@ -698,46 +746,52 @@ func projectorTensors(source *safetensors.Source, outputF32 bool) ([]gguf.Tensor
 		{"model.embed_vision.multimodal_embedder.embedding_projection.weight", "mm.input_projection.weight"},
 		{"model.embed_audio.embedding_projection.weight", "mm.a.input_projection.weight"},
 	}
-	tensors := make([]gguf.TensorData, 0, len(mapping))
+	views := make([]viewTensor, 0, len(mapping))
 	for _, item := range mapping {
 		tensor, ok := source.Tensors[item.source]
 		if !ok {
-			return nil, fmt.Errorf("Gemma 4 converter: projector tensor %q is missing", item.source)
+			return nil, fmt.Errorf("gemma 4 converter: projector tensor %q is missing", item.source)
 		}
 		if tensor.DType != "BF16" {
-			return nil, fmt.Errorf("Gemma 4 converter: projector tensor %q uses %s", item.source, tensor.DType)
-		}
-		shape := gguf.ReverseShape(tensor.Shape)
-		var reader io.Reader = tensor.Reader()
-		switch item.source {
-		case "model.embed_vision.patch_dense.weight",
-			"model.embed_vision.patch_ln1.weight",
-			"model.embed_vision.patch_ln1.bias":
-			permuted, err := newPatchPermutationReader(tensor)
-			if err != nil {
-				return nil, fmt.Errorf("Gemma 4 converter: %w", err)
-			}
-			reader = permuted
-		case "model.embed_vision.pos_embedding":
-			position, err := newPositionReader(tensor)
-			if err != nil {
-				return nil, fmt.Errorf("Gemma 4 converter: %w", err)
-			}
-			reader = position
-			shape = []uint64{tensor.Shape[2], tensor.Shape[0], tensor.Shape[1]}
+			return nil, fmt.Errorf("gemma 4 converter: projector tensor %q uses %s", item.source, tensor.DType)
 		}
 		dataType := gguf.DTypeBF16
 		if outputF32 {
 			dataType = gguf.DTypeF32
-			promoted, promoteErr := safetensors.PromoteF32Reader(reader, "BF16")
-			if promoteErr != nil {
-				return nil, promoteErr
-			}
-			reader = promoted
 		}
-		tensors = append(tensors, gguf.TensorData{
-			Name: item.destination, Shape: shape, Type: dataType, Data: reader,
-		})
+		open := func() (io.Reader, error) {
+			var reader io.Reader = tensor.Reader()
+			switch item.source {
+			case "model.embed_vision.patch_dense.weight",
+				"model.embed_vision.patch_ln1.weight",
+				"model.embed_vision.patch_ln1.bias":
+				permuted, err := newPatchPermutationReader(tensor)
+				if err != nil {
+					return nil, fmt.Errorf("gemma 4 converter: %w", err)
+				}
+				reader = permuted
+			case "model.embed_vision.pos_embedding":
+				position, err := newPositionReader(tensor)
+				if err != nil {
+					return nil, fmt.Errorf("gemma 4 converter: %w", err)
+				}
+				reader = position
+			}
+			if outputF32 {
+				return safetensors.PromoteF32Reader(reader, "BF16")
+			}
+			return reader, nil
+		}
+		// A tensor its readers refuse is refused here, before any byte is read.
+		if _, err := open(); err != nil {
+			return nil, err
+		}
+		shape := gguf.ReverseShape(tensor.Shape)
+		if item.source == "model.embed_vision.pos_embedding" {
+			// The position reader took the table as [position, axis, hidden]; it is written [hidden, position, axis].
+			shape = []uint64{tensor.Shape[2], tensor.Shape[0], tensor.Shape[1]}
+		}
+		views = append(views, viewTensor{view: gguf.ViewTensor{Name: item.destination, Shape: shape, Type: dataType, Open: open}, open: open})
 	}
-	return tensors, nil
+	return views, nil
 }

@@ -150,9 +150,25 @@ func Viewed(directory string) bool {
 }
 
 // init makes gguf.Open serve a directory as its View, so a model registered
-// from its own files opens wherever a converted one does.
+// from its own files opens wherever a converted one does, and
+// gguf.OpenProjector serve a directory as its projector view.
 func init() {
 	gguf.RegisterDirectoryOpener(func(directory string) (*gguf.File, error) { return View(directory, "") })
+	gguf.RegisterProjectorDirectoryOpener(projectorView)
+}
+
+// projectorView opens a Hugging Face directory's media projector as the GGUF
+// its conversion would write, nothing written: a Gemma 4 directory's vision and
+// audio projector, read from the checkpoint as published.
+func projectorView(directory string) (*gguf.File, error) {
+	var config modelConfig
+	if err := jsonfile.Decode(filepath.Join(directory, "config.json"), &config); err != nil {
+		return nil, fmt.Errorf("HF converter: config: %w", err)
+	}
+	if config.ModelType != gemma4ModelType {
+		return nil, fmt.Errorf("HF converter: model type %q has no projector served from its files", config.ModelType)
+	}
+	return gemma4convert.ProjectorView(directory, "")
 }
 
 func viewQwen35(directory string, repository *hfrepo.Repository, name string) (*gguf.File, error) {

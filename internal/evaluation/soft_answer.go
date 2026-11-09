@@ -37,6 +37,9 @@ func generatedAnswerMetrics(suite GeneratedAnswerSuite, accuracy, soft float64) 
 	if suite.choices() {
 		metrics = append(metrics, runrecord.Metric{Name: SoftMetric, Value: soft, Direction: runrecord.DirectionMaximize})
 	}
+	if suite.Motion != nil {
+		metrics = append(metrics, suite.Motion.Metrics()...)
+	}
 	return metrics
 }
 

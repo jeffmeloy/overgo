@@ -32,34 +32,6 @@
       ]
     },
     {
-      "id": "media-screen",
-      "title": "Image embeddings screen a media change in minutes: each case's output is compared with the reference path's, and each clip's frames with their neighbours",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 240,
-        "reason": "Estimated after a survey of the code, at about twice what a first sketch of the steps counts, since this week's rows landed at two to six times the counts they were filed with (wan-few-step 300 -\u003e 1100, sampling-split 400 -\u003e 1700, umt5-resident 336 -\u003e 1750): a screen command over vitencoder's card path with a floor read from a second seed, and a frame-to-frame measure carried to the video cells."
-      },
-      "steps": [
-        {
-          "id": "clip-consistency",
-          "title": "Every generated or edited clip records the similarity of each frame's embedding to the next, its mean and lowest, beside its judged score, its floor read from the same measure over the source clips the suite's captions describe",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/evaluate ./internal/scorecard -count=1 -run '^TestAClipRecordsItsFrameToFrameSimilarity$'",
-          "files": [
-            "cmd/evaluate",
-            "internal/evaluation",
-            "internal/vitencoder",
-            "internal/scorecard",
-            "cmd/validate",
-            "README.md"
-          ],
-          "needs_card": true,
-          "rationale": "The video judge asks two questions a clip about its content (internal/evaluation/generated_video_matching.go:127-195). Nothing measures how a clip moves, and no Go file measures flicker or change from frame to frame. LiveEdit and the Wan student generate in chunks of three latent frames. long-video's rolling window and video-decode-overlap's chunked decode join chunks. A seam or flicker shows as a clip's lowest neighbour similarity, which no caption question sees. The VidGen source clips hold real motion for each caption, so the floor is read from data, not chosen.\n\nServes: held-out-quality for every video generator and editor.\nDisappears: a seam between chunks that no measure sees.\nEvidence: a fixture clip with one frame repeated and one replaced shows both in its lowest similarity, and the video cells carry the measure.\nBatch: device lane."
-        }
-      ]
-    },
-    {
       "id": "drawn-text-reading",
       "title": "Unlimited-OCR reads the text each image generator draws, and the drawn-text suite scores the characters it read back, over briefs written by seeded code",
       "owner": "master-lead",

@@ -90,7 +90,7 @@ func run() error {
 	repository := flag.String("repo", "", "OvergoDB root for -import-hf-cache, -list-derived-suites, and -all; empty resolves through the data root")
 	allModels := flag.Bool("all", false, "evaluate every servable local model against the store's derived suites")
 	protocol := flag.String("protocol", evaluation.PromptingRawCompletion.Label(), "how each model is asked: raw-completion scores the plain prompt's options by likelihood and stays the recorded anchor; chat-template asks a multiple-choice question through the model's declared chat template for its letter at once; exploratory-reasoning asks it there with thinking on and a long sampled answer, and publishes every question it asks as development evidence")
-	device := flag.Int("device", 0, "CUDA device ordinal for -all and -screen")
+	device := flag.Int("device", 0, "CUDA device ordinal for -all, -screen and -frame-similarity")
 	family := flag.String("family", "", "restrict -all and -list-derived-suites to one derived suite family (e.g. mmlu); only that family's records are read and compiled. A family a measurement run scores a part of, mmlu-pro, bbh and ifeval, is that part; append /whole for every case of it (mmlu-pro/whole), or /N for N of its cases taken evenly through the whole (mmlu-pro/40)")
 	catalogLimit := flag.Int("catalog-limit", discovery.CatalogBound, "servable model listing bound for -all")
 	declareDomains := flag.String("declare-domain", "", "comma-separated eval domains to declare for the positional model path (e.g. dna)")
@@ -115,10 +115,13 @@ func run() error {
 	editOneThing := flag.Bool("one-thing", false, "with -render-edits: tell the editor to change the colour of one worn thing each clip's caption names, and nothing else, where the fixed list changes the whole clip; a clip whose caption names no such thing is passed over")
 	drawnText := flag.Bool("render-drawn-text", false, "draw an infographic from each of -cases briefs of a fixed list with the image model -model-path names, each asked to hold a title, three lines with a figure and a line of small print, and write the suite that asks the judge which of four texts each picture holds to -suite-out, the pictures to -media-out")
 	renderSet := flag.String("render-set", "", "with -render-tifa, -render-drawn-text or -render-vidgen: comma-separated name=number settings that replace fields of the request the model's verification ran, such as width=416,height=240")
+	motionSuite := flag.String("frame-similarity", "", "measure how the clips of this suite move and write it with their motion to -suite-out: each clip in -media is read at 16 frames a second and each frame embedded with the image encoder -encoder names on -device, and the source clip each case describes is read from -sources by its name where one is there; a judged reading of the suite records the clips' mean and lowest similarity of a frame to the next and the share whose lowest falls below their source's")
+	motionMedia := flag.String("media", "", "with -frame-similarity: the directory the suite's clips are in")
+	motionSources := flag.String("sources", "", "with -frame-similarity: the directory of the source clips the suite's cases describe, each named by the caption or clip it is")
 	screenCandidate := flag.String("screen", "", "screen a candidate path's render directory against the reference path's, -reference, at the same prompts and seeds: each output is embedded with the image encoder -encoder names on -device, and a case is lost where the candidate lies farther from the reference than the reference path's output at another seed of the prompt, -reseeded; a candidate that loses more cases than chance allows fails")
 	screenReference := flag.String("reference", "", "with -screen: the reference path's render directory")
 	screenReseeded := flag.String("reseeded", "", "with -screen: the reference path's render directory at another seed of each prompt")
-	screenEncoder := flag.String("encoder", "", "with -screen: the image encoder's directory, webssl-dino300m")
+	screenEncoder := flag.String("encoder", "", "with -screen or -frame-similarity: the image encoder's directory, webssl-dino300m; with -render-vidgen or -render-edits, the clips drawn are measured with it as -frame-similarity measures them, against their source clips")
 	sceneClips := flag.String("build-scene-retrieval", "", "write the scene-retrieval suite of the clips in this directory to -suite-out, the frames to -media-out: a frame of every clip with a sibling scene of its source video, and of -distractors clips with none")
 	sceneDistractors := flag.Int("distractors", defaultSceneDistractors, "with -build-scene-retrieval: clips of a source video with no other scene to add to the gallery")
 	reconstructionClips := flag.String("build-reconstruction", "", "write the reconstruction suite of the clips in this directory to -suite-out: -cases clips, picked by -seed and bound to the digest of their files, each cut to -frames frames for an autoencoder to take into its latent and give back")
@@ -212,6 +215,13 @@ func run() error {
 		}
 		return runScreen(context.Background(), encoder, *device, candidate, reference, reseeded)
 	}
+	if suite := strings.TrimSpace(*motionSuite); suite != "" {
+		clips, encoder, out := strings.TrimSpace(*motionMedia), strings.TrimSpace(*screenEncoder), strings.TrimSpace(*suiteOut)
+		if flag.NArg() != 0 || clips == "" || encoder == "" || out == "" {
+			return errors.New("usage: evaluate -frame-similarity <suite.json> -media <clip directory> -encoder <image encoder directory> -suite-out <suite.json> [-sources <source clip directory>] [-device N]")
+		}
+		return writeMotion(context.Background(), suite, clips, strings.TrimSpace(*motionSources), encoder, *device, out)
+	}
 	if clips := strings.TrimSpace(*sceneClips); clips != "" {
 		if flag.NArg() != 0 || strings.TrimSpace(*suiteOut) == "" || strings.TrimSpace(*mediaOut) == "" {
 			return errors.New("usage: evaluate -build-scene-retrieval <clip directory> -media-out <frames directory> -suite-out <suite.json> [-distractors N] [-seed N]")
@@ -228,7 +238,11 @@ func run() error {
 		if flag.NArg() != 0 || strings.TrimSpace(*suiteOut) == "" || strings.TrimSpace(*mediaOut) == "" || strings.TrimSpace(*speechJudge) == "" || strings.TrimSpace(*modelPath) == "" {
 			return errors.New("usage: evaluate -render-edits <clip directory> -model-path <editor directory> -judge <vision-language model> -media-out <directory> -suite-out <suite.json> [-one-thing] [-captions <file>] [-repo <store>] [-cases N] [-seed N]")
 		}
-		return writeVideoEdits(context.Background(), clips, strings.TrimSpace(*captionSource), strings.TrimSpace(*modelPath), *repository, strings.TrimSpace(*speechJudge), strings.TrimSpace(*mediaOut), strings.TrimSpace(*suiteOut), *editOneThing, *captionCases, *captionSeed)
+		if err := writeVideoEdits(context.Background(), clips, strings.TrimSpace(*captionSource), strings.TrimSpace(*modelPath), *repository, strings.TrimSpace(*speechJudge), strings.TrimSpace(*mediaOut), strings.TrimSpace(*suiteOut), *editOneThing, *captionCases, *captionSeed); err != nil || strings.TrimSpace(*screenEncoder) == "" {
+			return err
+		}
+		// An edited clip moves as the clip it edits does, read from the directory it was cut from.
+		return writeMotion(context.Background(), strings.TrimSpace(*suiteOut), strings.TrimSpace(*mediaOut), clips, strings.TrimSpace(*screenEncoder), *device, strings.TrimSpace(*suiteOut))
 	}
 	if *drawnText {
 		if flag.NArg() != 0 || strings.TrimSpace(*suiteOut) == "" || strings.TrimSpace(*mediaOut) == "" || strings.TrimSpace(*speechJudge) == "" || strings.TrimSpace(*modelPath) == "" ||
@@ -246,7 +260,12 @@ func run() error {
 		if strings.TrimSpace(*vidgenCaptions) != "" {
 			draw = writeVidGenClips
 		}
-		return draw(context.Background(), source, strings.TrimSpace(*modelPath), *repository, strings.TrimSpace(*speechJudge), strings.TrimSpace(*mediaOut), strings.TrimSpace(*suiteOut), strings.TrimSpace(*renderSet), *captionCases, *captionSeed)
+		if err := draw(context.Background(), source, strings.TrimSpace(*modelPath), *repository, strings.TrimSpace(*speechJudge), strings.TrimSpace(*mediaOut), strings.TrimSpace(*suiteOut), strings.TrimSpace(*renderSet), *captionCases, *captionSeed); err != nil ||
+			strings.TrimSpace(*vidgenCaptions) == "" || strings.TrimSpace(*screenEncoder) == "" {
+			return err
+		}
+		// VidGen's source clips lie beside its caption file, each named by its caption's identity.
+		return writeMotion(context.Background(), strings.TrimSpace(*suiteOut), strings.TrimSpace(*mediaOut), filepath.Dir(source), strings.TrimSpace(*screenEncoder), *device, strings.TrimSpace(*suiteOut))
 	}
 	if parquet := strings.TrimSpace(*speechParquet); parquet != "" {
 		if flag.NArg() != 0 || strings.TrimSpace(*suiteOut) == "" || strings.TrimSpace(*speechJudge) == "" {

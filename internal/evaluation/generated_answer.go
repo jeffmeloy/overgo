@@ -57,6 +57,9 @@ type GeneratedAnswerSuite struct {
 	Judge      string                `json:"judge,omitzero"`
 	Transforms []string              `json:"transforms"`
 	Cases      []GeneratedAnswerCase `json:"cases"`
+	// Motion is how a suite of clips' clips move (ClipMotion), recorded beside the judged share; nil for pictures and
+	// for a suite measured before frames were.
+	Motion *ClipMotion `json:"motion,omitempty"`
 }
 
 type generatedAnswerPlan struct {
@@ -123,6 +126,11 @@ func CompileGeneratedAnswer(suite GeneratedAnswerSuite) (generatedAnswerPlan, er
 		}
 		if (len(testCase.Choices) > 0) != suite.choices() || suite.choices() && rightChoice(*testCase, suite.Transforms) < 0 {
 			return generatedAnswerPlan{}, fmt.Errorf("evaluation: case %q is not one choice among its choices as every case of the suite is", testCase.Name)
+		}
+	}
+	if suite.Motion != nil {
+		if err := suite.Motion.validate(suite.Cases); err != nil {
+			return generatedAnswerPlan{}, err
 		}
 	}
 	identity, dataset, split, err := suiteIdentities(suite, suite.Cases)

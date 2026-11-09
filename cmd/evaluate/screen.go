@@ -156,15 +156,7 @@ func embedOutput(ctx context.Context, encoder imageEmbedder, path string) ([]flo
 
 // cosineDistance is one minus the cosine of two embeddings; NaN where either is empty, which the screen refuses.
 func cosineDistance(a, b []float32) float64 {
-	if len(a) != len(b) {
-		return math.NaN()
-	}
-	var across, alongA, alongB float64
-	for index, value := range a {
-		x, y := float64(value), float64(b[index])
-		across, alongA, alongB = across+x*y, alongA+x*x, alongB+y*y
-	}
-	return 1 - across/math.Sqrt(alongA*alongB)
+	return 1 - evaluation.Cosine(a, b)
 }
 
 // runScreen opens the image encoder at encoderPath on the card of device and screens the candidate render directory.

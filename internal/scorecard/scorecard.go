@@ -91,6 +91,9 @@ type Cell struct {
 	// Soft is a share of choices' soft share beside it (evaluation.SoftMetric): how sure the judge was of the right
 	// answers, which falls where a share at its ceiling cannot. Nil where the suite scores none.
 	Soft *float64 `json:"soft,omitempty"`
+	// Motion is how a suite of clips' clips move beside its judged share (evaluation.ClipMotion), which no question
+	// about their content sees. Nil where the suite measured none.
+	Motion *Motion `json:"motion,omitempty"`
 	// Compared names the test that compares the path a request takes with a
 	// reference output, for a held-out quality that path produced, and
 	// Uncompared says why no such comparison is made where one was decided
@@ -136,6 +139,28 @@ type Cell struct {
 	borrowed string
 }
 
+// Motion is a suite's clips' similarity of each frame's image embedding to the next: the mean over its clips of each
+// clip's mean and of each clip's lowest, and the share of the clips with a source clip whose lowest falls below their
+// source's, where the suite had sources.
+type Motion struct {
+	Mean        float64  `json:"mean"`
+	Lowest      float64  `json:"lowest"`
+	BelowSource *float64 `json:"below_source,omitempty"`
+}
+
+// readMotion is the motion a reading's metrics carry, nil where they carry none.
+func readMotion(metrics map[string]float64) *Motion {
+	mean, measured := metrics[evaluation.FrameSimilarityMetric]
+	if !measured {
+		return nil
+	}
+	motion := &Motion{Mean: mean, Lowest: metrics[evaluation.LowestFrameSimilarityMetric]}
+	if below, sourced := metrics[evaluation.BelowSourceMetric]; sourced {
+		motion.BelowSource = &below
+	}
+	return motion
+}
+
 // QualityText renders a held-out quality as a user reads it: its value, its
 // base model's beside it when a verdict judged it against one, the noise of
 // the value and the cases it rests on where a record gives them, how many of
@@ -153,6 +178,12 @@ func (c Cell) QualityText() string {
 	}
 	if c.Soft != nil {
 		text += fmt.Sprintf(", soft %.4g", *c.Soft)
+	}
+	if c.Motion != nil {
+		text += fmt.Sprintf(", frame to frame %.4g, lowest %.4g", c.Motion.Mean, c.Motion.Lowest)
+		if c.Motion.BelowSource != nil {
+			text += fmt.Sprintf(", %.3g of clips below their source's lowest", *c.Motion.BelowSource)
+		}
 	}
 	if c.Cases > 0 {
 		text += fmt.Sprintf(" on %d cases", c.Cases)
@@ -1520,7 +1551,8 @@ func qualityCell(task recipe.Task, summaries []evaluation.EvalSummary, descripto
 			}
 			measured = append(measured, heldout{cases: ranked, first: first[measure(summary.Suite)], built: built[summary.Suite], cell: Cell{
 				Value: value, Label: label, Source: summary.Record, Direction: summary.Directions[name],
-				CodeCommit: commit, Environment: summary.Environment, Cases: cases, Noise: noise, Constant: constant, Soft: soft, Measure: measure(summary.Suite), Unread: summary.Unread,
+				CodeCommit: commit, Environment: summary.Environment, Cases: cases, Noise: noise, Constant: constant, Soft: soft, Motion: readMotion(summary.Metrics),
+				Measure: measure(summary.Suite), Unread: summary.Unread,
 				Contract: Contract{Metric: name, Origin: originEvaluation, Suite: summary.Suite, Protocol: summary.Prompting, Comparison: summary.Comparison},
 			}})
 		}

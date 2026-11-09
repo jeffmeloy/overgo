@@ -39,7 +39,7 @@
         ],
         "adoption_scope": "Supersedes the absent repository-document reference at the owner's request; current external SHA is verified. Does not alter the executable plan."
       },
-    "assessment": "Native Gemma ProjectorView now shares projectorParts/towerViews with explicit export and reads the published safetensors directory without writing a converted copy. Worker argument validation shares callTool; ladder now matches tasks. f3a43e69 replaces the old resize oracle within the existing projector owner using retained publisher-processor evidence. Projector loading still returns *gguf.File through gguf.View and adds a projector-directory registration hook; disk conversion is avoided, but execution remains container-shaped. No complete format-independent migration or binary/directory deletion established.348 still admits failed strong evidence;356 cost recovery and357 sampler admission remain unchanged.322 verification still follows costly test/lanes.",
+    "assessment": "7a1ae8c6f extends the existing sampling.Guider/Walk and Wan executor rather than adding another sampler or workflow.8e8d62236 suppresses repeated reads until an edit and ends three repeat-only replies through the existing worker attempt.07c3f20d9 uses media.DecodeAudio for WAV fixtures and existing recipe coverage/activation owners; the complete Gemma suite replaces the unsuitable Qwen-only prerequisite. 341 now includes accepted-but-ignored student Guidance and late invalid prompt Guidance; admit these through existing form/profile owners. Wan presets are already offered while held-out guidance acceptance remains open. The Gemma known-answer subset is27/28 publisher-correct cases, not broad accuracy evidence or an activated judge. Native projector still uses GGUF view contracts; no further format boundary migration, binary or package deletion landed. Concurrent4cb adds a private NVIDIA binding through existing CUDA memory/stream ownership; it has no product consumer yet.",
     "ast_surface_review": {
         "revision": "9bd406acafb89c44a439722419f1f7e85e71f691",
         "architectural_target": "Fewer independent product entry points and dependency owners; retain process isolation and existing compiled/runtime/development authority.",
@@ -55,54 +55,53 @@
         "cost": "Concrete parsed duplicate migrations total22production and150test AST removed; unimplemented estimates only. Three directories can disappear through349/351; command movement and all retained semantic constants must be charged. No overall refactor completion claimed."
       },
     "automation_follow_up": {
-        "architectural_progress": "Native Gemma ProjectorView now shares projectorParts/towerViews with explicit export and reads the published safetensors directory without writing a converted copy. Worker argument validation shares callTool; ladder now matches tasks. f3a43e69 replaces the old resize oracle within the existing projector owner using retained publisher-processor evidence.",
-        "conflicts": "Projector loading still returns *gguf.File through gguf.View and adds a projector-directory registration hook; disk conversion is avoided, but execution remains container-shaped. No complete format-independent migration or binary/directory deletion established.348 still admits failed strong evidence;356 cost recovery and357 sampler admission remain unchanged.322 verification still follows costly test/lanes.",
+        "architectural_progress": "7a1ae8c6f extends the existing sampling.Guider/Walk and Wan executor rather than adding another sampler or workflow.8e8d62236 suppresses repeated reads until an edit and ends three repeat-only replies through the existing worker attempt.07c3f20d9 uses media.DecodeAudio for WAV fixtures and existing recipe coverage/activation owners; the complete Gemma suite replaces the unsuitable Qwen-only prerequisite. Concurrent4cb reuses driver.ReadCString rather than copying the C-string boundary.",
+        "conflicts": "341 now includes accepted-but-ignored student Guidance and late invalid prompt Guidance; admit these through existing form/profile owners. Wan presets are already offered while held-out guidance acceptance remains open. The Gemma known-answer subset is27/28 publisher-correct cases, not broad accuracy evidence or an activated judge. Native projector still uses GGUF view contracts; no further format boundary migration, binary or package deletion landed.",
         "plan_recommendations": [
           {
-            "rows": "loop-proof/worker-tools (landed)",
+            "rows": "guidance-ops/guider (landed); cfg-zero-interval",
             "findings": [
-              "SQA-347"
+              "SQA-341"
             ],
-            "recommendation": "Close347: preserve one callTool admission for MCP/local/replay. Keep explicit empty values and scope/lifetime protections."
+            "recommendation": "Repair shared request admission and unsupported student semantics first. Preserve the existing Guider/Walk; do not expand recipes into per-step nodes. Preset visibility is already enabled, whereas the plan promises admission after held-out quality comparison. Keep these presets out of offered production choices until existing per-model acceptance establishes them; host formula/pass-count tests and a Bonsai inference scorecard do not establish Wan quality."
           },
           {
-            "rows": "loop-proof/matched-ladder,greedy-request (landed); demonstrated",
+            "rows": "second-judge/vision-judge,independent; judge-calibration/user-size",
+            "findings": [
+              "SQA-342"
+            ],
+            "recommendation": "The new suite covers declared modes; retain27 accepted/28 attempted and the omitted goliath case as source evidence. Treat it as implementation equivalence on publisher-correct examples, not a judge-accuracy estimate. Keep registration, model config and exact text/projection verification with current onboarding/recipe owners; owner activation blocks the row. Encode vision-judge->independent through existing depends_on rather than relying only on prose after the decision is answered. User-size acceptance remains open."
+          },
+          {
+            "rows": "loop-proof/demonstrated",
             "findings": [
               "SQA-348",
               "SQA-356",
               "SQA-357",
               "SQA-358"
             ],
-            "recommendation": "Use successful comparable matched tasks and truthful recovered attempt cost before payoff claims. Preserve grammar vocabulary admission. Merge the four unconditional request-setting checks into the existing conversation fixture; no new replay/measurement framework."
+            "recommendation": "Credit the retained one-step/one-attempt105s result only within its scope. The committed note says Claude replay failed Not logged in and the run will not be repeated until owner login; preserve that stop and independent host progress. Reuse current supervisor admission to expose this prerequisite before replay/model setup, without another polling/login framework. Keep successful matched fallback and truthful cost requirements; merge358 request assertions into the existing conversation fixture."
           },
           {
-            "rows": "judge-calibration/vision-judge,independent,user-size",
-            "findings": [
-              "SQA-342"
-            ],
-            "recommendation": "Use existing recipe verification and declared capabilities to admit the complete Gemma suite before device work. Reuse Qwen source media where contracts match, but Gemma prompt counts and audio/mixed cases are genuinely different. Retain publisher-derived preprocessing/count identity and grounded answers; repair renderer disagreement rather than record it as expected. Independent comparison waits for verified recipe plus owner activation; actual requested geometry remains necessary. Do not weaken declaration coverage to force a pass or add another scheduler."
-          },
-          {
-            "rows": "Existing landing verifier",
-            "findings": [
-              "SQA-322"
-            ],
-            "recommendation": "Move the existing verify/undo admission earlier; no second preflight or gate."
+            "rows": "rtx-vsr/effect (landed),clips,measured; video-finishing/flashvsr",
+            "findings": [],
+            "recommendation": "4cb lands a private effect binding with one320x180synthetic frame matching NVIDIA at17levels. Retain device/stream/effect cleanup and bounded error-string reuse. Clips still owns the first production caller, runtime DLL/result identity and color/range/audio/encoder integration; do not count the external Python pipeline as removed yet. FlashVSR names rtx-vsr/measured as its baseline but depends only on decode overlap: use existing depends_on for that prerequisite, without another scheduler."
           }
         ],
-        "cost": "Seven landings c763..f3a total+1003 production/+2214 test=+3217AST.358's proposed126-test-node deletion is not yet achieved and is not subtracted. No overall shrinkage or binary/directory reduction."
+        "cost": "Four landings+2664production/+3311test=+5975AST, plus609788Gemma fixture bytes and one internal package. No new executable. RTX-VSR integration/displacement remains open; no overall shrinkage."
       },
     "current_review_order": [
-        "Guidance, committed plan and Downloads architecture target",
-        "Concrete tool/request/replay and projector/export/lifetime callers; provisional conclusions",
-        "Selected AST, in-memory full-file consolidation and retained results",
-        "Existing findings/owner responses, then concurrent resize/plan reconciliation"
+        "Guidance, committed plan and Downloads target",
+        "New guidance/worker/fixture paths and concrete callers, provisional admission observations",
+        "Selected AST and retained costs/results",
+        "Canonical findings and owner responses; concurrent publication reconciliation"
       ],
     "declined_candidates": [
-        "Retain tiny native-directory/export parity and published modeltest: they cover different format/real-checkpoint boundaries, lifetimes and build tags.",
-        "Retain matched-cost calculation and config-writing tests as distinct pure-policy/config contracts; no forced merge.",
-        "Retain the projector executor and explicit export; common projectorParts already shares actual facts. No new abstraction or recipe expansion justified by this slice.",
-        "Do not retire the Gemma audio/mixed verification requirement or numerical resize evidence to shrink the suite."
+        "Retain pure sampling formula, Wan pass-count integration and preset declaration tests as distinct contracts; no AST-shape-only merge.",
+        "Retain repeat-only-stop and post-edit-invalidation fixture; it is not the redundant request-settings fixture in358.",
+        "Retain WAV mode routing and LibriSpeech provenance checks separately: host input contract versus modeltest/corpus identity. Reuse media.DecodeAudio; no new decoder.",
+        "Keep the six fixtures and all declared modes; deleting audio/mixed coverage or the omitted failure's source record would hide requirements.",
+        "Retain the RTX-VSR17-level reference fixture. Process-long DLL ownership is intentional; only test callers exist at this pin, so no speculative runtime registry/lifetime rewrite proposed."
       ],
     "media_follow_up": {
         "architectural_progress": "Mixed-format refusal now has one host fixture (354 closed). Calibration reuses the existing projection session/campaign and common answering helpers, with isolated records and established Close ownership. Scorecard comparison now reads the existing dataset's media groups instead of treating each question as independent. Stillness extends the existing motion record/display without a new runtime.",
@@ -201,16 +200,16 @@
           "Delete345 duplicate compiler, merge343/344/358 native setup, move322 verifier earlier."
         ]
       },
-    "plan_review_follow_up": "Worker argument fix, matched costs, explicit greedy request, published projector view/names and resize have landed. judge-calibration/vision-judge now records Qwen suite mismatch: Gemma declares sound/mixed modes and has different prompt counts. Independent and user-size acceptance remain outstanding; plan retains activation authority.",
-    "rank_basis": "Remove347 from active work;348 retains priority beside356; add358 among small measured test reductions. Correctness/recovery obligations outrank speculative savings.",
+    "plan_review_follow_up": "07c3f20d9 landed the complete Gemma suite and moved vision-judge/independent to second-judge under the existing owner activation decision.7a1ae8c6f landed the guidance mechanism/preset visibility; held-out acceptance remains cfg-zero-interval. Current plan adds installed RTX-VSR work and stops repeating the logged-out Claude comparison. Recommendations use existing depends_on and authority, not a second plan. Concurrent4cb lands rtx-vsr/effect; clips and measured remain with their runtime identity/integration obligations.",
+    "rank_basis": "Raise341 fromP3 toP2 for silently ignored request semantics, beside340. No new finding ID;358 remains a measured consolidation proposal.",
     "refactor_target_progress": {
         "status": "active; completion not established",
-        "document_availability": "Downloads target read, unchanged SHA; no repository document added.",
+        "document_availability": "Downloads target read; unchanged SHA. No repository target added.",
         "retained_reference_sha256": "fe13a4bd47c8c41ea6dbf766c0acf3dc41ab7dab0c6d8bd926863313d4f34395",
-        "progress": "Native Gemma ProjectorView now shares projectorParts/towerViews with explicit export and reads the published safetensors directory without writing a converted copy. Worker argument validation shares callTool; ladder now matches tasks. f3a43e69 replaces the old resize oracle within the existing projector owner using retained publisher-processor evidence.",
-        "conflicts": "Projector loading still returns *gguf.File through gguf.View and adds a projector-directory registration hook; disk conversion is avoided, but execution remains container-shaped. No complete format-independent migration or binary/directory deletion established.348 still admits failed strong evidence;356 cost recovery and357 sampler admission remain unchanged.322 verification still follows costly test/lanes.",
-        "next_useful_reductions": "358 removes one redundant request fixture with126test AST and one HTTP setup. Keep349..353 structural proposals at their evidence revision. For model execution, migrate shared binding/tensor contracts only with real source/export callers and delete displaced adapters; do not treat this compatibility view as completed separation.",
-        "cost": "Seven current landings+3217AST; proposed358 -126test AST unimplemented. No safe overall reduction."
+        "progress": "7a1ae8c6f extends the existing sampling.Guider/Walk and Wan executor rather than adding another sampler or workflow.8e8d62236 suppresses repeated reads until an edit and ends three repeat-only replies through the existing worker attempt.07c3f20d9 uses media.DecodeAudio for WAV fixtures and existing recipe coverage/activation owners; the complete Gemma suite replaces the unsuitable Qwen-only prerequisite. Concurrent4cb reuses existing CUDA memory/stream and C-string owner for a private effect binding.",
+        "conflicts": "341 now includes accepted-but-ignored student Guidance and late invalid prompt Guidance; admit these through existing form/profile owners. Wan presets are already offered while held-out guidance acceptance remains open. The Gemma known-answer subset is27/28 publisher-correct cases, not broad accuracy evidence or an activated judge. Native projector still uses GGUF view contracts; no further format boundary migration, binary or package deletion landed.",
+        "next_useful_reductions": "Keep358's existing request fixture migration (-126test AST); repair341 with current validation owners before new orchestration. Preserve349..353 binary/directory proposals at their original evidence revision. No new abstraction justified.",
+        "cost": "Four landings+2664production/+3311test=+5975AST, plus609788Gemma fixture bytes and one internal package. No new executable. RTX-VSR integration/displacement remains open; no overall shrinkage."
       },
     "working_notes_review": {
         "finding": "SQA-334",
@@ -220,10 +219,10 @@
       }
   },
     "committed_plan": {
-    "git_blob": "43b78e43bcf2e31c9480b8d4d29cf25d7a7e1458",
+    "git_blob": "bfe5a3d7e9fed4c248d21a34c34b231505178f38",
     "path": "docs/plan.json",
-    "revision": "f3a43e69c4017fbb0e42f4a687dcc4d9e9cd6ca9",
-    "sha256": "4c71010d1af6a96cc78f1fec0758b27aa0c1ebf08e8563ecdabae2d14ea54420",
+    "revision": "4cb1c8aead7d2190b2cc06591a91b8319ca18310",
+    "sha256": "f1c0fb864ab66d93cb3b1248b4c6973c988cb38d6eea4bad470854877544c8f6",
     "working_tree_status": "Committed plan at review pin; prior draft assessment retains its own snapshot identity. Current working plan edits excluded."
   },
     "findings": [
@@ -7149,14 +7148,38 @@
       "comparison": "In TestWebUIBrowserMOSSGeneration reuse its existing controls, request capture and fake output. Select comfy-tutorial before the first submitted generation, inspect the captured request, then reuse a later request for an explicit override. Update the obsolete prefilled-value assertion to the new displayed-hint contract; retain the native25/2.5 assertion in latentimage. No additional browser setup, device run or timing threshold."
     },
     {
-      "id": "SQA-341",
-      "status": "open",
-      "severity": "P3",
-      "category": "model-admission-order",
-      "classification": "source-established-late-deterministic-refusal",
-      "title": "Reject unsupported Wan student requests before loading device weights",
-      "evidence_commit": "bb3e392b16d4deb1677b827da5fab9cfa2449e6b",
-      "sources": [
+    "category": "model-admission-order",
+    "classification": "source-established-late-refusal-and-ignored-request",
+    "closure_criteria": [
+        "Invalid Guidance rejects in prompt and tensor form before model/text work; valid base Wan guidance still reaches Guider.At.",
+        "Student nonzero advanced Guidance, unsupported presets and conflicting distilled parameters reject after profile binding and before file/device/projection loading; no request setting is silently ignored.",
+        "Loader, Reset and Generate share the profile-bound student admission; prompt-only, geometry, numerical defaults, cancellation and lifetime contracts remain.",
+        "Existing form and student fixtures retain every unique case and two valid resident generations; no new model setup. Record full correction cost."
+      ],
+    "comparison": "In the retained host form fixture, prompt plus Guidance{ZeroSteps:-1} or reversed interval must reject. In the retained student store/program fixture, otherwise valid defaults plus Guidance{ZeroSteps:1,Projected:true}, and original invalid preset/step cases, must report the semantic refusal before a nonexistent model path; then preserve the original two successful requests. No SQA workload.",
+    "displaced_surface": "One coordinated request-admission repair: existing Guidance.Validate owns parameter validity; profile-bound student admission owns its supported semantics and replaces the105-node runtime-bound body. No required validation is retired. The loader, Reset and Generate share the same student predicate; known-invalid loads and silently ignored guidance disappear. This remains separate from325's workflow registry and340's untouched UI defaults.",
+    "evidence": "The original student admission order is unchanged: LoadWanStudentRuntime fills profile defaults, resolves files, creates NewReferenceEditRuntime and uploads a projection before its runtime-bound admit is called. Preset=model-card or Steps=50 instead of the student's4 is refused only by Generate; resident Reset refusal can retire/reload before the same refusal. New7a1ae8c6f adds WanRequest.Guidance: prompt-form ValidateWanRequestForm never calls Guidance.Validate, while tensor-form validateWanRequest does. Prompt plus Guidance{ZeroSteps:-1} therefore passes director admission; ordinary Wan rejects only after loading and memo.contexts. More seriously, an otherwise valid student prompt with Guidance{ZeroSteps:1,Projected:true} passes its admit, Reset and Generate; the chunk-causal Run call receives no Guidance and ignores it. PresetNames hiding student choices does not reject this exported request field. Source-established counterexamples; no model run or incident frequency measured.",
+    "evidence_commit": "4cb1c8aead7d2190b2cc06591a91b8319ca18310",
+    "expected_benefit": {
+        "outcome": "Correctness and early failure; no safe net code reduction established.",
+        "baseline": "Current selected full files: student1046/form1033/policy3974/shared Guidance405=6458 production AST. Retained form test578 + student serving test610=1188 test AST; selected total7646. Existing base-runtime1734 and director callers were traced; sizes are not deletion targets.",
+        "cost_contract": "Extend TestWanRequestFormAdmitsPromptOrTensors with negative zero steps and reversed interval, preserving prompt/tensor forms. Reuse the existing student store/program fixture to reject unsupported advanced guidance and the original preset/step cases before an unusable path can load; retain its two valid resident generations. No new fixture files/bytes, model setup, device run, schema, command or gate phase. New checks require some growth; exact replacement AST not measured and prior narrower estimates are superseded.",
+        "uncertainty": "Source proves accepted/ignored fields and load order, not observed wasted wall time. Early student admission still follows profile lookup and does not promise to preserve an invalid request's previous resident session."
+      },
+    "id": "SQA-341",
+    "impact": "Prevents requested guidance from silently producing an unchanged student computation, and rejects deterministic invalid/unsupported requests before expensive model/text work. No numerical algorithm or general session recovery rewrite is needed.",
+    "likely_effort": "Bounded correction in existing request/profile admission with native fixture extensions.",
+    "plan_coverage": "Shared Wan request fields must be supported or rejected by each existing executor. Current guidance presets do not authorize student support. Report recommendation only; no dispatch/plan edits.",
+    "plan_references": [
+        "wan-few-step/served retained student execution path",
+        "sampling-split/named-presets landed bb3e392b1",
+        "Standing recipe/refactor target: reject known bad prerequisites before expensive work",
+        "guidance-ops/guider7a1ae8c6f (landed); cfg-zero-interval pending",
+        "Downloads extreme_refactor_plan.md: resolve intent once; reject known prerequisites before loading"
+      ],
+    "recommended_change": "Reuse Guidance.Validate at the existing request-form admission before either prompt or tensor requests reach loading; retain the existing resolved-request check where needed. Make student admission depend on its bound profile, not a loaded runtime, and call that same owner immediately after profile/default resolution in LoadWanStudentRuntime, before student file/device/projection loading. Reuse it from Reset/Generate and reject nonzero advanced Guidance unsupported by the student, alongside existing prompt-only, preset and distilled steps/shift/scale rules. Remove the displaced runtime-only condition body; no second validator, schedule implementation or preflight. Preserve the director's replay-first ordering, legitimate resource retries, cancellation and Close.",
+    "severity": "P2",
+    "sources": [
         {
           "path": "internal/mediacapability/video_cuda_windows.go",
           "symbol": "studentSessions -> ValidateWanRequestForm / LoadWanStudentRuntime / Reset"
@@ -7180,31 +7203,27 @@
         {
           "path": "internal/capabilityruntime/session_refusal_test.go",
           "symbol": "TestSessionThatCannotTakeARequestIsReplaced"
+        },
+        {
+          "path": "internal/latentvideo/production.go",
+          "symbol": "WanRequest.Guidance; validateWanRequest"
+        },
+        {
+          "path": "internal/latentvideo/production_cuda_windows.go",
+          "symbol": "WanRuntime.resolve -> contexts -> validateWanRequest; Generate"
+        },
+        {
+          "path": "internal/sampling/guidance.go",
+          "symbol": "Guidance.Validate; Guider.At"
+        },
+        {
+          "path": "internal/latentvideo/wan_form_test.go",
+          "symbol": "TestWanRequestFormAdmitsPromptOrTensors"
         }
       ],
-      "evidence": "ValidateWanRequestForm accepts a prompt with a positive step count or nonempty Preset. The student loader reads its profile, fills defaults, resolves files, creates NewReferenceEditRuntime and uploads the text projection without invoking admit. A fresh director entry bypasses Reset; Generate finally refuses the preset or a schedule different from distillation. For example a valid student prompt with Preset=model-card, or Steps=50 instead of the student's4, can load device weights before the deterministic refusal. On a resident entry, Reset refuses, the generic owner retires it and retries loading; the loader again does the expensive work before Generate rejects the same request. The current commit adds the preset refusal to an already late admission owner. This is source-established ordering, not an observed wasted-run duration.",
-      "recommended_change": "Make the existing student admission check depend on its profile rather than a loaded runtime, and invoke that same owner immediately after readProgramProfile and withGeneration in LoadWanStudentRuntime, before student file resolution or device construction. Reuse it from Reset and Generate; remove the displaced runtime-only implementation rather than copy its conditions. Keep tensor-vs-prompt and distilled steps/shift/guidance refusals exact. Do not alter the generic director's legitimate resource-recovery retry, replay-first behavior or cancellation/lifetime machinery. Its resident retirement on an invalid request may remain; the replacement load must reject before hardware work.",
-      "displaced_surface": "The105-node runtime-bound admit method moves to a profile-bound check with its existing Reset/Generate callers adjusted and one loader call added. No validation is deleted. Known-invalid requests no longer construct a reference-edit runtime or upload a projection, including the director's reload attempt. Valid request loads/reuse, geometry changes, cancellation and Close remain with their present owners. This is distinct from SQA-325's missing workflow-adapter registry contract; sharing the phrase early admission does not justify merging them.",
-      "impact": "Avoids known-futile model loading and its transient resources before a request-specific error. A resident session may still be retired; this proposal does not claim to eliminate that or every late failure. No changed numerical output, security contract or observed elapsed saving.",
-      "expected_benefit": {
-        "outcome": "No net code saving claimed. Selected production baseline wan_student_cuda_windows.go1046 + wan_form.go1015=2061 AST; moving the existing admission owner and adding its load call is estimated+20..60, total2081..2121.",
-        "cost_contract": "Existing student serving fixture610 AST. Extend that same setup with one rejected call after profile/program publication and before its two valid generations, using an intentionally unusable model path and an invalid student preset: require the semantic admission error before path/device setup. Estimate+60..140 test nodes, total670..750. Combined selected pair+fixture2671->2751..2871 (+80..200), including moving rather than duplicating105 nodes. No new helper/wrapper, static fixture file/bytes, model setup, device execution, schema, export or gate phase. The invalid attempt is additional cheap test work; existing model success/reuse and host session-refusal coverage remain.",
-        "uncertainty": "Replacement sizes are estimates, not parsed edits. Source proves the present order; no SQA test/device workload ran. Early loader admission still follows the existing profile lookup and does not prove preservation of an invalid request's old resident entry."
-      },
-      "likely_effort": "Small relocation of the existing check and one call-site addition; extend one retained fixture.",
-      "plan_references": [
-        "wan-few-step/served retained student execution path",
-        "sampling-split/named-presets landed bb3e392b1",
-        "Standing recipe/refactor target: reject known bad prerequisites before expensive work"
-      ],
-      "plan_coverage": "Report-only. No new preflight command, scheduler, recovery taxonomy or recipe wrapper; no change to dispatch.",
-      "closure_criteria": [
-        "Unknown/unsupported student presets and conflicting distilled parameters are refused after profile binding and before any model file/device/projection load.",
-        "The loader, Reset and Generate share one admission owner; prompt-only and exact distilled numerical contracts remain.",
-        "The retained serving fixture detects refusal before an unusable path is resolved, then retains its existing successful two-request resident reuse checks; the generic session replacement/cancellation fixture remains unchanged. Record full growth honestly."
-      ],
-      "comparison": "During ordinary implementation validation, extend TestTheWanStudentIsServedAsItsOwnModel in its existing store/program setup. Load with an invalid student preset and nonexistent model path: the student contract must refuse before a file-resolution failure. Then continue the original valid renders/reuse sequence. This needs no new model render beyond the fixture's two existing requests; SQA executes none."
-    },
+    "status": "open",
+    "title": "Admit Wan guidance before loading and reject unsupported student settings"
+  },
     {
     "category": "evaluation-contract",
     "classification": "semantic-proxy-remains-uncalibrated; fidelity-and-grouped-comparison-progress",
@@ -8003,14 +8022,52 @@
       "comparison": "Use the existing six-token strict fixture with [0,0,2,0] and its neutral-bias reference. Source trace establishes the mismatch; ordinary implementation validation extends that fixture, with no SQA model/test run."
     },
     {
-      "id": "SQA-358",
-      "status": "open",
-      "severity": "P3",
-      "category": "test-consolidation",
-      "classification": "parsed-full-file-shared-request-contract",
-      "title": "Merge greedy worker request checks into the existing conversation fixture",
-      "evidence_commit": "f3a43e69c4017fbb0e42f4a687dcc4d9e9cd6ca9",
-      "sources": [
+    "category": "test-consolidation",
+    "classification": "parsed-full-file-shared-request-contract",
+    "closure_criteria": [
+        "All four explicit-presence/value requirements live in the existing conversation fixture with its existing unique cases intact.",
+        "Dedicated request file and duplicate server/call disappear; no substitute helper/test setup.",
+        "Complete files reduce610->484test AST for the measured proposal, or record actual full cost; normal implementation validation passes."
+      ],
+    "comparison": "Retained two-turn request fixture must reject missing or changed values for each of the four fields, including on the second request; preserve model, schema, tool IDs, malformed JSON and final-answer assertions.",
+    "displaced_surface": {
+        "production": "None; retain askChat as the request owner.",
+        "tests": "Remove entire219-node local_worker_request_test.go after migrating all four explicit-presence/value checks to TestTheLocalWorkerRunsEachToolCallItsModelMakes. No new helper, wrapper, test package or runtime owner.",
+        "setup": "HTTP servers2->1, requests3->2; no static fixture bytes or model/device setup. Search found no remaining verifier naming the deleted test; plan reason only mentions historical file cost."
+      },
+    "evidence": "473e2ee9c adds four explicit sampling fields to askChat and a219-node standalone HTTP fixture. The existing391-node conversation fixture already decodes the same request on two turns and checks final completion, model/schema and tool IDs/errors. Sampling fields are unconditional in askChat, including tools=nil; no different error/cancellation/platform/lifetime contract requires a second server and workLocally call. Rechecked after8e8d62236: repeat suppression changes workLocally, not unconditional request fields or the two test files. Its repeat/edit invalidation fixture has a distinct behavioral contract and must remain.",
+    "evidence_commit": "4cb1c8aead7d2190b2cc06591a91b8319ca18310",
+    "expected_benefit": {
+        "before": {
+          "production_ast": 810,
+          "test_ast": 610,
+          "http_servers": 2,
+          "http_requests": 3
+        },
+        "after": {
+          "production_ast": 810,
+          "test_ast": 484,
+          "http_servers": 1,
+          "http_requests": 2
+        },
+        "net_test_ast": -126,
+        "total_selected_ast_before": 1420,
+        "total_selected_ast_after": 1294,
+        "measurement": "Reuse the prior parsed full-file in-memory migration: test files and askChat are unchanged at this pin, so610->484 (-126) remains valid. Repeat-guard grew local_worker.go701->810; include that unchanged production owner in both totals. No application test written or run.",
+        "uncertainty": "Syntactic comparison proves proposed size, not a test pass. Same request producer and decode boundary traced manually; no package-wide type resolution. Zero binary/directory savings; no runtime speed claim beyond one avoided setup/request."
+      },
+    "id": "SQA-358",
+    "impact": "Deletes a redundant transport fixture while retaining the numerical request contract and existing multi-turn/error coverage.",
+    "likely_effort": "Small assertion migration and one file deletion.",
+    "plan_coverage": "Existing worker conversation fixture is the retained owner; does not require a separate plan or recipe.",
+    "plan_references": [
+        "loop-proof/greedy-request473e2ee9c (landed)",
+        "loop-proof/demonstrated",
+        "Downloads extreme_refactor_plan.md: shared owners and complete test/setup cost"
+      ],
+    "recommended_change": "Add four *float64 JSON fields and presence/value assertions to the existing decoded request: temperature0,presence_penalty0,frequency_penalty0,repeat_penalty1. Keep both conversation turns and all tool/schema/error assertions. Delete local_worker_request_test.go and its duplicate server, workLocally call, terminal-answer assertion and imports. Missing zero-valued fields must still fail; plain float64 fields would lose that requirement.",
+    "severity": "P3",
+    "sources": [
         {
           "path": "cmd/loop/local_worker.go",
           "symbol": "askChat, workLocally"
@@ -8024,101 +8081,51 @@
           "symbol": "dedicated request-setting fixture"
         }
       ],
-      "evidence": "473e2ee9c adds four explicit sampling fields to askChat and a219-node standalone HTTP fixture. The existing391-node conversation fixture already decodes the same request on two turns and checks final completion, model/schema and tool IDs/errors. Sampling fields are unconditional in askChat, including tools=nil; no different error/cancellation/platform/lifetime contract requires a second server and workLocally call.",
-      "recommended_change": "Add four *float64 JSON fields and presence/value assertions to the existing decoded request: temperature0,presence_penalty0,frequency_penalty0,repeat_penalty1. Keep both conversation turns and all tool/schema/error assertions. Delete local_worker_request_test.go and its duplicate server, workLocally call, terminal-answer assertion and imports. Missing zero-valued fields must still fail; plain float64 fields would lose that requirement.",
-      "displaced_surface": {
-        "production": "None; retain askChat as the request owner.",
-        "tests": "Remove entire219-node local_worker_request_test.go after migrating all four explicit-presence/value checks to TestTheLocalWorkerRunsEachToolCallItsModelMakes. No new helper, wrapper, test package or runtime owner.",
-        "setup": "HTTP servers2->1, requests3->2; no static fixture bytes or model/device setup. Search found no remaining verifier naming the deleted test; plan reason only mentions historical file cost."
-      },
-      "impact": "Deletes a redundant transport fixture while retaining the numerical request contract and existing multi-turn/error coverage.",
-      "expected_benefit": {
-        "before": {
-          "production_ast": 701,
-          "test_ast": 610,
-          "http_servers": 2,
-          "http_requests": 3
-        },
-        "after": {
-          "production_ast": 701,
-          "test_ast": 484,
-          "http_servers": 1,
-          "http_requests": 2
-        },
-        "net_test_ast": -126,
-        "total_selected_ast_before": 1311,
-        "total_selected_ast_after": 1185,
-        "measurement": "Full-file in-memory migration parsed with the same existing AST tool; retained file391->484, deleted file219. Imports unchanged. No application source/test written, compiled or run; implementation remains to validate through normal ownership.",
-        "uncertainty": "Syntactic comparison proves proposed size, not a test pass. Same request producer and decode boundary traced manually; no package-wide type resolution. Zero binary/directory savings; no runtime speed claim beyond one avoided setup/request."
-      },
-      "likely_effort": "Small assertion migration and one file deletion.",
-      "plan_references": [
-        "loop-proof/greedy-request473e2ee9c (landed)",
-        "loop-proof/demonstrated",
-        "Downloads extreme_refactor_plan.md: shared owners and complete test/setup cost"
-      ],
-      "plan_coverage": "Existing worker conversation fixture is the retained owner; does not require a separate plan or recipe.",
-      "comparison": "Retained two-turn request fixture must reject missing or changed values for each of the four fields, including on the second request; preserve model, schema, tool IDs, malformed JSON and final-answer assertions.",
-      "closure_criteria": [
-        "All four explicit-presence/value requirements live in the existing conversation fixture with its existing unique cases intact.",
-        "Dedicated request file and duplicate server/call disappear; no substitute helper/test setup.",
-        "Complete files reduce610->484test AST for the measured proposal, or record actual full cost; normal implementation validation passes."
-      ]
-    }
+    "status": "open",
+    "title": "Merge greedy worker request checks into the existing conversation fixture"
+  }
   ],
     "gate_test_assessment": {
-    "assumptions": "Task matching fixes failure/cost correlation, but failed/censored strong records and configuration ambiguity still invalidate the completion claim. Resize constants48/280/70 come from model patch/pool and declared image/frame budgets; eight retained publisher-reference cases are bounded evidence, not proof for arbitrary geometry.",
+    "assumptions": "Guidance settings belong to the resolved request; every executor must apply or reject them.1zero-step and[0.219,0.844] are preset choices, not established quality bounds at this pin;1e-8 is the implementation's projection stabilizer. Host formula/pass-count evidence is independent of held-out model quality. Gemma4short utterances selected from first200rows and27/28publisher-correct cases are a bounded known-answer corpus.",
     "automation_follow_up": {
         "landings": [
           {
-            "commit": "c763b6c47",
-            "production_ast": 257,
-            "test_ast": 323
+            "commit": "8e8d62236",
+            "production_ast": 109,
+            "test_ast": 349
           },
           {
-            "commit": "a84bebb4a",
-            "production_ast": 39,
-            "test_ast": 262
+            "commit": "07c3f20d9",
+            "production_ast": 155,
+            "test_ast": 1357
           },
           {
-            "commit": "4279fd1bd",
-            "production_ast": 139,
-            "test_ast": 261
+            "commit": "7a1ae8c6f",
+            "production_ast": 559,
+            "test_ast": 955
           },
           {
-            "commit": "966eec91c",
-            "production_ast": 535,
-            "test_ast": 775
-          },
-          {
-            "commit": "473e2ee9c",
-            "production_ast": 9,
-            "test_ast": 219
-          },
-          {
-            "commit": "e752d152e",
-            "production_ast": 0,
-            "test_ast": 307
-          },
-          {
-            "commit": "f3a43e69c",
-            "production_ast": 24,
-            "test_ast": 67
+            "commit": "4cb1c8aea",
+            "production_ast": 1841,
+            "test_ast": 650
           }
         ],
-        "total_production_ast": 1003,
-        "total_test_ast": 2214,
-        "total_ast": 3217,
-        "tests": "RETAIN shared search/line-read/admission and transport scope fixtures. RETAIN matched/config ladder cases; extend matched fixture for348 remaining eligibility. MERGE358 request fields into conversation fixture; REMOVE dedicated file after migration. RETAIN tiny source/export exact embedding parity, published modeltest and CPU/CUDA numerical contracts. SIMPLIFY achieved resize oracle replacement within existing native test; retain all eight processor targets. No new SQA application test.",
-        "retained_results": "Retained landing results only; no SQA rerun. Current published-projector modeltest opens the real directory, checks spec and encodes a host picture without adding directory entries; it does not verify every declared mode or judge quality. f3a undo with old resize fails the native assertion; retained gate12m2s, inference scorecard outputs identical for Bonsai-27B (not Gemma vision acceptance)."
+        "total_production_ast": 2664,
+        "total_test_ast": 3311,
+        "total_ast": 5975,
+        "tracked_fixture_files": 6,
+        "tracked_fixture_bytes": 609788,
+        "fixture_interpretation": "git ls-tree sizes:4WAV557136bytes + cases.json25435 + suite.json27217. Retained gate footer's fixtures0files/0bytes excludes this observed growth; do not report zero total fixture cost.",
+        "tests": "RETAIN repeat stop/invalidation, sampling numeric and Wan pass-count cases, native form, student resident reuse, WAV mode routing and Gemma corpus provenance. EXTEND existing form/student cases for341. MERGE358 request-setting checks into conversation fixture; REMOVE its dedicated file only after migration. No new SQA test or model run. RETAIN RTX-VSR17-level ABI/output reference comparison with existing device/stream setup; SQA runs none.",
+        "retained_results": "8e repeat guard undo fails an assertion;07c WAV routing undo fails an assertion.7a guidance undo does not compile, so it establishes no behavioral regression protection. Bonsai inference scorecard identical outputs is not Wan guidance acceptance. Gemma suite retains27/28publisher-correct cases; no completed Overgo Gemma judge or broad quality result claimed. Plan note records one local step105s and Claude Not logged in; not the required three-step/payoff demonstration.4cb17levels match stored NVIDIA-binding digests for one320x180frame; its undo fails to compile and proves no behavioral refusal. Device-specific4..9ms/frame and~0.4s build are retained observations, not general throughput or real-clip quality."
       },
     "automation_sequence": "Driver processcontrol/startup remain dispatch, stop and restart owners.356 identifies their disconnected cost start records;322 existing verify/undo still comes after test/lanes. Mutations reuse replay lock/tree and baseline admission, skip card checks, preserve partial records; no whole-gate or assertion-only detection claim.",
     "fresh_ast": {
-        "revision": "f3a43e69c4017fbb0e42f4a687dcc4d9e9cd6ca9",
-        "method": "Existing external Go parser:17 files at e752 (all unchanged at final pin) plus gemma4.go and gemma4_test.go at f3a. Comments/parser-local links only; concrete callers manually traced, no package type check or application execution.",
-        "selected_counts": "tools1463/toolsTest430/searchTest321; ladder644/ladderTest578/matchedTest221; localWorker701/conversationTest391/requestTest219; gemma4convert convert4376/tower1659/projectorViewTest776/publishedModelTest306; ggufReader4492/hfconvertQwen1150/projectorResources1095/prompt6455; concurrentGemmaRunner2339/GemmaTest4621.",
-        "comparison": "358 full test files610->484 (-126), production701 unchanged, HTTP servers2->1/requests3->2. External review-20261109-1401 ast.json, concurrent-ast.json and request-cost.json retained; only the proposed text is parsed in memory. No fixture/test workload run.",
-        "limits": "Selected sizes are not removability totals or a census. Retained landing footers are complete growth measurements and differ in comment accounting from selected-file sizes."
+        "revision": "4cb1c8aead7d2190b2cc06591a91b8319ca18310",
+        "method": "18 selected files parsed at7a, unchanged at4cb;2 concurrent RTX-VSR files parsed at4cb. Existing standard-library parser with comments/local links only; no package type check or application execution.",
+        "selected_counts": "localWorker810/repeatTest349/conversationTest391/requestTest219; guidance405/guidanceTest468/flowSampler858; WanGuidanceTest413/policy3974/form1033/student1046/baseRuntime1734/presetTest74; recipeVerify4622/WAVtest233/GemmaFixtureTest1124; formTest578/studentModelTest610. Concurrent nvvfx1840/VFXmodelTest650.",
+        "comparison": "341 selected production6458+native/modeltest1188=7646AST; required correction growth unmeasured.358 selected810production+610test ->810+484 (-126) proposed; tests/askChat unchanged. Retained external review-20261109-1558 ast.json/admission-ast.json; prior request-cost.json reused. Concurrent source/retained results reconciled in review-20261109-1558/concurrent-ast.json.",
+        "limits": "No broad census or revised duplication percentages; full gate footers and tracked fixture sizes reported separately."
       },
     "media_follow_up": {
         "landings": [
@@ -8411,29 +8418,34 @@
       },
     "tests": [
         {
-          "classification": "retain",
-          "owner": "callTool/search and worker transport fixtures",
-          "change": "347 shared admission verified in source; scope and explicit empty-string contracts retained."
+          "classification": "retain/extend",
+          "owner": "TestWanRequestFormAdmitsPromptOrTensors; TestTheWanStudentIsServedAsItsOwnModel",
+          "change": "341 invalid advanced guidance rejects before loading, supported base behavior remains and student semantics cannot be ignored; reuse existing fixtures."
         },
         {
-          "classification": "retain/extend",
-          "owner": "matched ladder and config fixtures",
-          "change": "Keep exact conditional-cost cases;348 successful/comparable fallback admission remains."
+          "classification": "retain",
+          "owner": "sampling and latentvideo TestTheGuiderTakesCFGZeroAndAGuidanceInterval",
+          "change": "Different formula and actual executor pass-count contracts; no merger."
+        },
+        {
+          "classification": "retain",
+          "owner": "TestTheLocalWorkerStopsRepeatingItself",
+          "change": "Repeat-only exit and post-edit invalidation are distinct from transport settings."
         },
         {
           "classification": "merge/remove",
-          "owner": "TestTheLocalWorkerRunsEachToolCallItsModelMakes",
-          "change": "358 migrate four presence/value assertions then delete local_worker_request_test.go; measured-126test AST/one setup."
+          "owner": "worker conversation fixture",
+          "change": "358 unchanged -126test AST proposal; no extra server/helper."
         },
         {
           "classification": "retain",
-          "owner": "projector directory/export fixture and published modeltest",
-          "change": "Distinct synthetic parity and actual checkpoint/name/layout contracts; build tags/lifetime remain."
+          "owner": "TestAProjectionFixtureMayBeAWAV; TestGemmaProjectionFixturesAreDrawnFromLibriSpeech",
+          "change": "Distinct mode admission and corpus/build-tag/provenance contracts; keep all modes and explicit27/28selection."
         },
         {
           "classification": "retain",
-          "owner": "TestGemma4ResizesAsItsProcessorDoes",
-          "change": "Eight publisher-reference geometry/budget targets replace obsolete resize oracle; no model execution by SQA."
+          "owner": "TestVideoSuperResMatchesNvidiasBinding",
+          "change": "One synthetic frame17levels; preserve exact recorded reference and windows/modeltest boundary. Not complete served clip evidence."
         }
       ]
   },
@@ -9970,8 +9982,8 @@
     "limitations": [
       "This chat previously implemented Overgo changes; follow-up SQA, not independent third-party review.",
       "No application tests, model/device workloads, services, benchmarks, profiles, production gates, agents/messages, plan/skill changes or pushes.",
-      "Selected-file Go parser analysis includes comments and parser-local links; no package-wide type resolution or application execution.358 is a parsed in-memory alternative, not an implemented/tested change. Retained gate and publisher-reference results were not independently rerun.",
-      "No safe overall net reduction or completed refactor established. Historical full-tree duplication percentages and binary/directory counts retain their original revision; no recurring census."
+      "AST analysis is standard-library parsing with parser-local links, no package type resolution or application execution. Source callers and build tags traced manually. Retained gate/model/reference results were not rerun.",
+      "No safe overall net reduction or completed refactor established. Prior whole-tree duplication/binary/directory figures remain historical; no new census.358 -126test AST remains an unimplemented proposal."
     ],
     "master_lead_triage": {
     "at": "2026-11-08",
@@ -10834,10 +10846,10 @@
   },
     "next_finding_number": 359,
     "publication_context": {
-    "assessment": "Review reconciled concurrent f3a resize and plan changes; only the SQA report is writable.",
-    "checked_head": "f3a43e69c4017fbb0e42f4a687dcc4d9e9cd6ca9",
-    "concurrent_changes": "e752->f3a touched projector resize/test and plan only. Read source/callers/retained results and parsed both Go files; original17 unchanged. Re-read report and owner fields immediately before guarded publication.",
-    "current_pin": "f3a43e69c4017fbb0e42f4a687dcc4d9e9cd6ca9",
+    "assessment": "Previous report included by07c3f20d9. Current report-only revision retains existing landing/gate ownership and unrelated work.",
+    "checked_head": "4cb1c8aead7d2190b2cc06591a91b8319ca18310",
+    "concurrent_changes": "7a->4cb adds RTX-VSR private package, exports shared ReadCString, adjusts its test and retires effect plan step. Source/lifecycle/test and retained costs read;2files parsed; original18/report/owner fields unchanged. Re-read immediately before publication.",
+    "current_pin": "4cb1c8aead7d2190b2cc06591a91b8319ca18310",
     "publication": "Use the existing report-only hook exception for a standalone commit when landing ownership permits. If busy, a validated report-only checkout write may remain pending; do not stage unrelated files, advance HEAD or disturb workers.",
     "report_only": "Only docs/sqa_findings.json; existing hooks and landing/gate ownership, unrelated index/worktree preserved."
   },
@@ -10852,6 +10864,7 @@
     "SQA-283",
     "SQA-331",
     "SQA-340",
+    "SQA-341",
     "SQA-348",
     "SQA-356",
     "SQA-342",
@@ -10860,7 +10873,6 @@
     "SQA-266",
     "SQA-328",
     "SQA-325",
-    "SQA-341",
     "SQA-330",
     "SQA-344",
     "SQA-349",
@@ -10902,58 +10914,53 @@
     "repository": "C:\\Users\\jeffm\\overgo",
     "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
     "review_notes": [
-      "347 closes because the shared boundary rejects malformed arguments before mutation; explicit empty-string behavior is retained.",
-      "348's original correlated-cost defect is fixed; failed fallback/comparability is a distinct retained requirement within the same canonical finding.",
-      "358 is an actual common request contract and measured full-file deletion, not similarity alone; no required numerical/transport coverage retired.",
-      "Native published-source access removes conversion setup, but a synthetic GGUF view is still compatibility architecture. Keep explicit export and dtype/lifetime contracts until their real consumers migrate.",
-      "Concurrent resize correction replaces the obsolete oracle and expands eight geometry cases in the same test owner. The plan's missing declared mixed-mode suite must be admitted before expensive verification; neither projector opening nor pixel embedding establishes a verified judge."
+      "341 retains original late student preset/step refusal and now covers the same admission boundary's new unsupported Guidance field; no unique requirement retired or second backlog item added.",
+      "358 test files and askChat remain unchanged; repeat behavior has its own distinct fixture and is retained. Production baseline updates701->810 on both sides of the prior126-node test proposal.",
+      "Four landings add2664 production/3311 test=5975AST. Six newly tracked Gemma fixtures total609788bytes (four WAV557136,twoJSON52652), despite gate fixture category0. RTX-VSR adds one internal directory and no command/binary; no surface reduction claimed.",
+      "Known-answer suite uses27/28 publisher-correct examples, with the failed goliath case retained in cases.json. Preserve this exclusion when reporting equivalence; do not mistake it for held-out judge accuracy.",
+      "Current plan records expired Claude login and stops repeating the comparison. Second-judge activation remains owner-blocked; independent host work continues.",
+      "Concurrent4cb lands the private RTX-VSR binding and reuses driver.ReadCString for actual CUDA/VFX error strings. Its existing device/stream owner and effect/staging cleanup are retained. DLL lifetime is explicitly process-long. No production clip consumer, runtime identity publication or displaced Python pipeline yet; those remain clips work."
     ],
-    "reviewed_at": "2026-11-09T14:10:40Z",
-    "reviewed_master": "f3a43e69c4017fbb0e42f4a687dcc4d9e9cd6ca9",
+    "reviewed_at": "2026-11-09T16:06:22Z",
+    "reviewed_master": "4cb1c8aead7d2190b2cc06591a91b8319ca18310",
     "schema_version": 2,
     "scope": [
-      "Committed master f3a43e69c4017fbb0e42f4a687dcc4d9e9cd6ca9; repository guidance, committed plan and Downloads architectural target read.",
-      "Bounded worker tool/request/ladder and native Gemma projector/source/export/resize paths;19 selected Go files parsed. Existing broad duplication/binary/directory results reused at their original revision.",
-      "347 source closure;348 partial repair;358 measured fixture consolidation. Current plan now records missing mixed-mode/prompt-count prerequisites; uncommitted work excluded."
+      "Committed master 4cb1c8aead7d2190b2cc06591a91b8319ca18310; repository guidance and Downloads target unchanged; current committed plan identity pinned.",
+      "Bounded guidance/request/executor, repeat guard and Gemma verification paths;18 Go files at7a unchanged at final pin. Concurrent RTX-VSR library/effect lifecycle and retained reference result reconciled;2 additional Go files parsed.",
+      "341 strengthened;358 rechecked. Current RTX-VSR package is private until clip integration; no product pipeline displacement claimed. Uncommitted demonstration/other worker changes excluded."
     ],
     "sqa_response": {
-    "assessment": "185 stable IDs:56 open,123 resolved,4 deferred,2 aliases. Close347; partially address348; add358. Architecture target active; no overall shrinkage.",
+    "assessment": "185stable IDs:56open,123resolved,4deferred,2aliases. Update341 and358; no new/closed IDs. Previous review was committed in07c3f20d9.",
     "consolidated_findings": [],
     "deferred_findings": [],
     "evidence": [
-        "f3a43e69c4017fbb0e42f4a687dcc4d9e9cd6ca9",
-        "Seven retained landings c763b6c47..f3a43e69c",
-        "19 selected-file AST results; full-file in-memory358 comparison"
+        "4cb1c8aead7d2190b2cc06591a91b8319ca18310",
+        "Four retained landings8e8d62236/07c3f20d9/7a1ae8c6f/4cb1c8aea",
+        "20selected AST files; tracked fixture bytes; unchanged358 comparison"
       ],
     "implementation_response_context": {
-        "reviewed_commit": "f3a43e69c4017fbb0e42f4a687dcc4d9e9cd6ca9",
+        "reviewed_commit": "4cb1c8aead7d2190b2cc06591a91b8319ca18310",
         "current_triage_head": "518fa52f417f796df399da65d208a61290fe5635",
-        "status": "Owner blocks and unknown fields preserved raw-exact. Current report at e752 unchanged by f3a; concurrent source/plan reviewed before publication."
+        "status": "Owner blocks and unknown fields preserved raw-exact; touched reviewer fields compared with current report before publication."
       },
-    "new_findings": [
-        "SQA-358"
-      ],
-    "partially_addressed_findings": [
-        "SQA-348"
-      ],
+    "new_findings": [],
+    "partially_addressed_findings": [],
     "priority_changes": [
-        "Remove347 from active work.",
-        "Keep348/356/357 correctness/evidence obligations; add358 as a small measured consolidation."
+        "Raise341 toP2 for accepted-but-ignored student guidance; retain original early-refusal requirements."
       ],
-    "recommendation": "Retain shared argument admission and native source progress; finish matched evidence eligibility and recovered cost accuracy. Delete the duplicated request fixture through its existing owner. Admit complete model-specific recipe prerequisites before costly execution.",
+    "recommendation": "Fix request/profile admission through existing owners, retain shared numerical execution, admit quality before offering new presets, and remove358's duplicate request setup. Preserve owner activation and known authentication stops.",
     "refactor": {
       "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
       "history_path": "docs/sqa_findings.json",
       "layout": "Full canonical open/deferred; compact resolved closure sources/revision/costs; explicit aliases, including aliases to closed canonical findings. Prior narratives remain in Git."
     },
     "reopened_findings": [],
-    "resolved_findings": [
-        "SQA-347"
-      ],
-    "reviewed_master": "f3a43e69c4017fbb0e42f4a687dcc4d9e9cd6ca9",
-    "uncertainty": "No application execution.358 -126test AST is a parsed proposal; no implemented net saving claimed. Source/export compatibility is not format-independent execution or a verified judge.",
+    "resolved_findings": [],
+    "reviewed_master": "4cb1c8aead7d2190b2cc06591a91b8319ca18310",
+    "uncertainty": "Source-established request counterexamples, not executed incidents.358 reduction unimplemented; no overall shrinkage, full judge acceptance or completed refactor.",
     "updated_findings": [
-        "SQA-348"
+        "SQA-341",
+        "SQA-358"
       ]
   }
   }

@@ -244,7 +244,7 @@ var cudaPackages = []string{
 	"./internal/latentimage", "./internal/libraryintake", "./internal/scratchmodel", "./internal/scratchtrain", "./internal/modeldevice", "./internal/hybridtrain",
 	"./internal/e4btrain", "./internal/devicegrad", "./internal/densecausaltrain", "./internal/controllertrain", "./internal/trainingprogram",
 	"./internal/torchrng", "./internal/routedlm", "./internal/longform", "./internal/inference", "./cmd/train", "./internal/graphruntime",
-	"./internal/trainingworkflow", "./internal/mosstrain",
+	"./internal/trainingworkflow", "./internal/mosstrain", "./internal/oscillatorimage",
 }
 
 // modelPackages are the packages whose real-model tests the cycle's models

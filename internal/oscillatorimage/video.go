@@ -100,8 +100,10 @@ func (m *Model) decodeVideo(ctx context.Context, features videoFeatures) (Encode
 	if len(features.frames) == 0 {
 		return EncodedVideo{}, errors.New("oscillatorimage: video features are empty")
 	}
-	if !features.format.IsZero() {
-		return m.decodeVideoMP4(ctx, features)
+	// A finished clip, a GIF among them, is written by the encoder every finished clip is, which finishes its frames on
+	// the card first; the GIF below finishes nothing (SQA-359).
+	if !features.format.IsZero() || !features.finish.IsZero() {
+		return m.decodeVideoClip(ctx, features)
 	}
 	animation := &gif.GIF{}
 	var previous []uint8
@@ -148,10 +150,10 @@ func (m *Model) decodeVideo(ctx context.Context, features videoFeatures) (Encode
 	}, nil
 }
 
-// decodeVideoMP4 writes the clip as an MP4 through the encoder Wan's clips are written by, each frame enlarged by the
-// request's scale as a GIF's frames are. Its changed pixels are counted at the enlarged size, where a GIF's are counted
-// at the model's.
-func (m *Model) decodeVideoMP4(ctx context.Context, features videoFeatures) (EncodedVideo, error) {
+// decodeVideoClip writes the clip in the request's format and finish through the encoder Wan's clips are written by,
+// each frame enlarged by the request's scale as a GIF's frames are. Its changed pixels are counted at the enlarged
+// size, where an unfinished GIF's are counted at the model's.
+func (m *Model) decodeVideoClip(ctx context.Context, features videoFeatures) (EncodedVideo, error) {
 	video, err := latentvideo.WriteClip(ctx, features.format, features.finish, videoFPS, latentvideo.SignedUnitPixels, func(sink latentvideo.VideoFrameSink) error {
 		for index, feature := range features.frames {
 			frame, err := m.decodePlanar(feature)

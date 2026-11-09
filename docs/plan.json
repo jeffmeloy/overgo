@@ -16,7 +16,7 @@
           "id": "independent",
           "title": "gemma-4-12B-it, a judge of another family, judges the same 32 image and 32 video cases as Qwen3.8-27B, and the two judges' per-medium scores agree in rank by Kendall's tau above a floor declared before the run, its bootstrap interval printed and the cases they disagree on listed",
           "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/evaluate -count=1 -run '^TestASecondJudgeRanksTheCasesAlike$'",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/evaluate -count=1 -run '^TestASecondJudgeRanksTheCasesAlike$' -timeout 120m",
           "files": [
             "cmd/evaluate",
             "internal/evaluation"
@@ -56,8 +56,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": -621,
-        "reason": "Estimated from a survey: a syscall binding of about a dozen NvVFX and NvCVImage entry points beside internal/cuda/cudnn's, a finishing clipEncoder in front of the existing MP4 writer, a control and a record field, NVENC arguments for the existing FFmpeg pipe, and a VMAF reading through the same FFmpeg. Earlier media campaigns came in at three to seven times their first estimates, so this is about three times the sum of the parts. plan -add derives its own count from history beside this figure. Step nvenc: +653 (653, the median of what 12 landings that changed internal/latentvideo, internal/media, internal/server counted). Step supplied: +331 (331, the median of what 13 landings that changed internal/latentvideo, internal/media, internal/server, internal/mediacapability counted). Step judged: +417 (417, the median of what 21 landings that changed cmd/evaluate, internal/evaluation, internal/latentvideo counted). Step intake: +417 (417, the median of what 20 landings that changed internal/latentvideo, internal/mediacapability, internal/server, cmd/evaluate counted)."
+        "nodes": 23,
+        "reason": "Estimated from a survey: a syscall binding of about a dozen NvVFX and NvCVImage entry points beside internal/cuda/cudnn's, a finishing clipEncoder in front of the existing MP4 writer, a control and a record field, NVENC arguments for the existing FFmpeg pipe, and a VMAF reading through the same FFmpeg. Earlier media campaigns came in at three to seven times their first estimates, so this is about three times the sum of the parts. plan -add derives its own count from history beside this figure. Step nvenc: +653 (653, the median of what 12 landings that changed internal/latentvideo, internal/media, internal/server counted). Step supplied: +331 (331, the median of what 13 landings that changed internal/latentvideo, internal/media, internal/server, internal/mediacapability counted). Step judged: +417 (417, the median of what 21 landings that changed cmd/evaluate, internal/evaluation, internal/latentvideo counted). Step intake: +417 (417, the median of what 20 landings that changed internal/latentvideo, internal/mediacapability, internal/server, cmd/evaluate counted). Step oscillator-finish: +653 (653, the median of what 14 landings that changed internal/oscillatorimage, internal/latentvideo counted)."
       },
       "steps": [
         {

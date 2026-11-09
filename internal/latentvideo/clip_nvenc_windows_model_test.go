@@ -32,7 +32,8 @@ const (
 // TestAFinishedClipIsEncodedOnNVENC: a finished clip is encoded on the card's NVENC as HEVC tagged hvc1 where the
 // resolved FFmpeg lists it (the build OVERGO_FFMPEG names), the record saying so, and two writes of one clip are the
 // same bytes, so a finished clip stays one clip. Measured on a Wan student clip of 81 frames at 832 x 480 finished at
-// four times: the effect's frames a second alone, and the clip's whole write, the effect and the encode together.
+// four times: the clip's whole write, the effect and the encode together. The effect alone took 3.8 s of it
+// (rtx-vsr/nvenc, 16c3e5e8e), a timing no longer repeated (SQA-360).
 func TestAFinishedClipIsEncodedOnNVENC(t *testing.T) {
 	cudatest.Require(t)
 	if os.Getenv("OVERGO_NVVFX") == "" {
@@ -75,12 +76,6 @@ func TestAFinishedClipIsEncodedOnNVENC(t *testing.T) {
 		return nil
 	}
 	finish := ClipFinish{Upscale: studentUpscale}
-
-	capture := &captureEncoder{}
-	started := time.Now()
-	testcheck.Must(writeClip(t.Context(), testcheck.Must(newFinishingEncoder(capture, finish, UnitPixels))(t), feed))(t)
-	finishing := time.Since(started)
-
 	var written []EncodedVideo
 	var spent []time.Duration
 	for range 2 {
@@ -89,9 +84,9 @@ func TestAFinishedClipIsEncodedOnNVENC(t *testing.T) {
 		spent = append(spent, time.Since(started))
 	}
 	first := written[0]
-	t.Logf("%d frames of %dx%d finished at %d times: the effect alone in %s (%.1f frames a second); finished and encoded in %s and %s (%.1f frames a second), %d bytes, by %v",
-		studentClipFrames, studentClipWidth, studentClipHeight, studentUpscale, finishing, float64(studentClipFrames)/finishing.Seconds(),
-		spent[0], spent[1], float64(studentClipFrames)/spent[1].Seconds(), len(first.Data), first.Encoding.Args)
+	t.Logf("%d frames of %dx%d finished at %d times and encoded in %s and %s (%.1f frames a second), %d bytes, by %v",
+		studentClipFrames, studentClipWidth, studentClipHeight, studentUpscale, spent[0], spent[1],
+		float64(studentClipFrames)/spent[1].Seconds(), len(first.Data), first.Encoding.Args)
 	if first.Width != studentUpscale*studentClipWidth || first.Height != studentUpscale*studentClipHeight || !media.OpensAsMP4(first.Data) {
 		t.Fatalf("the finished clip is %dx%d, an MP4 %t", first.Width, first.Height, media.OpensAsMP4(first.Data))
 	}

@@ -52,8 +52,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": -1867,
-        "reason": "The replay harness and ladder exist (cmd/loop replay.go, ladder.go); mutants of landed steps, a cost ledger per landing and a measured run of the local worker are new."
+        "nodes": -2012,
+        "reason": "The replay harness and ladder exist (cmd/loop replay.go, ladder.go); mutants of landed steps, a cost ledger per landing and a measured run of the local worker are new. Step grammar-draw: +0 (no landing changed internal/sampling/sampler.go, internal/sampling/greedy_grammar_test.go)."
       },
       "steps": [
         {

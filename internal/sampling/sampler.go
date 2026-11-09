@@ -402,6 +402,12 @@ func (s *Sampler) SampleWithHistory(logits []float32, history []int) (int, error
 			adjusted[bias.Token] += bias.Bias
 		}
 	}
+	if s.greedyBeyondGrammar() && s.gbnf != nil && !s.gbnfState.awaitingTrigger {
+		if best, found := s.greedyAllowed(adjusted); found {
+			s.recordGreedyProbability(best)
+			return s.acceptGrammar(best)
+		}
+	}
 	if err := s.applyGrammar(adjusted); err != nil {
 		return 0, err
 	}
@@ -1213,6 +1219,34 @@ func (s *Sampler) resetAdaptive() {
 	denominator := 1 - float64(s.config.AdaptiveDecay)
 	s.adaptiveSum = float64(s.config.AdaptiveTarget) / denominator
 	s.adaptiveWeight = 1 / denominator
+}
+
+// greedyGrammarTries is how many of the model's likeliest tokens a greedy draw asks its grammar about before it masks
+// the vocabulary whole.
+const greedyGrammarTries = 16
+
+// greedyAllowed is the token a greedy draw under a grammar chooses, the argmax of the tokens the grammar allows with
+// the lowest id winning ties, found by asking the grammar about the likeliest tokens in that order: the first it
+// allows is that argmax. Masking first asked it about every token of the vocabulary for each token drawn, which held a
+// tool call's reply on the CPU with the GPU idle (Qwen3.8-27B's edit_file replies took twenty minutes on 2026-11-09).
+// It marks each token refused in logits, and finds none once greedyGrammarTries are refused or none is left.
+func (s *Sampler) greedyAllowed(logits []float32) (int, bool) {
+	for range greedyGrammarTries {
+		best := 0
+		for index, value := range logits {
+			if value > logits[best] {
+				best = index
+			}
+		}
+		if math.IsInf(float64(logits[best]), -1) {
+			return 0, false
+		}
+		if _, allowed := s.gbnf.advanceToken(s.gbnfState, best); allowed {
+			return best, true
+		}
+		logits[best] = float32(math.Inf(-1))
+	}
+	return 0, false
 }
 
 func (s *Sampler) applyGrammar(logits []float32) error {

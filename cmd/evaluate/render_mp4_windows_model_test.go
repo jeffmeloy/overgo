@@ -26,8 +26,9 @@ import (
 // digest of its bytes, the render's manifest naming "mp4" and, for each draw, the FFmpeg that wrote it. The judge's
 // runtime binds each as it binds any rendered clip (verifyRendered) and reads it through FFmpeg, named by its bytes
 // (videoDecode), its 81 frames at the clip's size; the frame-to-frame measure reads both through the suite's names. A
-// pair screen whose other sides are GIFs, the student's earlier render at the same settings, is refused. The judged run
-// itself is left to a real comparison, so no reading of a two-clip suite joins the store's quality cells.
+// pair screen of two formats is refused before it reads anything (TestARenderKeepsItsClipsInOneFormat, on the host).
+// The judged run itself is left to a real comparison, so no reading of a two-clip suite joins the store's quality
+// cells.
 func TestARenderedClipIsAnMP4TheJudgeReads(t *testing.T) {
 	cudatest.Require(t)
 	ctx := t.Context()
@@ -75,10 +76,5 @@ func TestARenderedClipIsAnMP4TheJudgeReads(t *testing.T) {
 	}
 	for key, measured := range suite.Motion.Clips {
 		t.Logf("%s: mean frame-to-frame similarity %.4f, lowest %.4f", key, measured.Mean, measured.Lowest)
-	}
-
-	earlier := filepath.Join(roots.Datasets, "VidGen", "self-forcing-generated-832")
-	if _, err := screenPaths(ctx, card, drawn, earlier, earlier); err == nil || !strings.Contains(err.Error(), "one format") {
-		t.Fatalf("a screen of the MP4 render beside the GIFs at %s gave %v, want a refusal of two formats", earlier, err)
 	}
 }

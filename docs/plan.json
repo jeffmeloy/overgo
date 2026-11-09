@@ -13,14 +13,6 @@
       },
       "steps": [
         {
-          "id": "fidelity",
-          "title": "The judge is asked directly how well an output is drawn, whether a picture is sharp and free of noise and whether a clip moves, and scores the noised, blurred and frozen versions judge-calibration/sensitivity measured it blind to lower on those questions, by the exact paired test at 0.05",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/evaluate -count=1 -run '^TestTheJudgeSeesFidelityWhenAsked$' -timeout 120m -v",
-          "needs_card": true,
-          "rationale": "Serves: held-out-quality for every image and video generator: how well an output is drawn, beside what it shows.\n\nDisappears: quality cells that are prompt adherence alone.\n\nEvidence: judge-calibration/sensitivity measured the judge blind to noise of deviation 64 of 255 in pictures and clips and to a blurred clip, its caption and TIFA questions asking what an output shows. Asked directly (is the picture sharp, is it free of noise and grain, does the clip move), a vision-language model may see what its content questions do not; whether Qwen3.8-27B does is what this step measures, on the same degraded versions, before the questions join any suite. A fidelity share is its own measure beside the content share, so neither moves the other's history.\n\nBatch: device lane."
-        },
-        {
           "id": "stillness",
           "title": "A clip's frame-to-frame record bounds it from above as from below: a clip more alike frame to frame than the stillest of the source clips its suite's captions describe reads as too still, so a clip frozen on its first frame is caught",
           "status": "open",
@@ -44,7 +36,7 @@
           "id": "clustered",
           "title": "Every quality comparison over a suite that asks several questions of one picture or clip pairs its two readings by medium, the share of each medium's questions answered right, so its exact test counts media: a suite with each question asked twice reads the same verdict",
           "status": "open",
-          "verify": "go test ./internal/scorecard ./internal/evaluation -count=1 -run '^TestAQualityVerdictCountsMediaNotQuestions$'",
+          "verify": "go test ./internal/scorecard -count=1 -run '^TestAQualityVerdictCountsMediaNotQuestions$'",
           "files": [
             "internal/scorecard",
             "internal/evaluation"

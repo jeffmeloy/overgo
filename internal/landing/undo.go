@@ -85,7 +85,31 @@ func (l *landing) undo(ctx context.Context) error {
 		fmt.Fprintf(l.Log, "land: %s has no undo evidence: %s do not build without the change, so no assertion is shown to catch its absence\n",
 			l.Ref, strings.Join(l.unevidenced, "; "))
 	}
+	// A change none of whose checks asserts without it lands only with a test through a boundary that builds either
+	// way, or with its step's reason why none is practical (the owner's review, 2026-11-09: a component test can hold
+	// its local rule while the assembled path breaks the guarantee).
+	if len(l.unevidenced) == len(checks) {
+		if len(l.boundaryReasons) == 0 {
+			return fmt.Errorf("land: no check of %s fails on an assertion with %s, since %s do not build without the change: add a test through an existing boundary, one that builds without the change and fails there, to the step's check (go run ./cmd/plan -setverify), or say why none is practical in a line of its rationale opening %q (go run ./cmd/plan -note)",
+				l.Ref, said, strings.Join(l.unevidenced, "; "), noBoundaryLine)
+		}
+		l.undone = append(l.undone, "no boundary test, as the step says: "+strings.Join(l.boundaryReasons, "; "))
+	}
 	return nil
+}
+
+// noBoundaryLine opens the line of a step's rationale that says why no test through an existing boundary is practical,
+// which admits a landing whose checks do not build without its change.
+const noBoundaryLine = "No boundary test:"
+
+// noBoundaryReason is the reason a rationale's noBoundaryLine gives, empty where it has none.
+func noBoundaryReason(rationale string) string {
+	for line := range strings.Lines(rationale) {
+		if reason, stated := strings.CutPrefix(strings.TrimSpace(line), noBoundaryLine); stated && strings.TrimSpace(reason) != "" {
+			return strings.TrimSpace(reason)
+		}
+	}
+	return ""
 }
 
 // undoEvidenceTrailer is the trailer of a landing whose undo run is no evidence, so git log counts such landings

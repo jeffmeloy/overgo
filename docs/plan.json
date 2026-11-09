@@ -13,6 +13,14 @@
       },
       "steps": [
         {
+          "id": "second-judge-vision",
+          "title": "gemma-4-12B-it answers pictures and clips as a projection model: its vision tower converted to a projector with cmd/gguf convert-gemma4, verified, and its projection recipe activated once the owner answers, so the evaluator opens it as a judge",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/evaluate -count=1 -run '^TestGemmaTwelveOpensAsAJudge$'",
+          "needs_card": true,
+          "rationale": "Serves: held-out-quality for every image and video generator: a second judge to rank the first against.\n\nDisappears: one judge's ranking taken as the ranking.\n\nEvidence: probed 2026-11-09 from the evaluator's judge path (openProjectionInto): gemma-4-E4B-it's checkpoint is model type \"gemma4\", which the HF converter maps to no prototype, and its pictures are served by another route; gemma-4-12B-it's (\"gemma4_unified\") text opens through the converter, but its vision tower is no projector the evaluator reads (\"artifact projector type \\\"\\\" is unsupported\"), and no projection recipe of it is active. The only other vision models the judge path opens are Qwen's (Qwen3.8 Flash Next), the judge's own family. cmd/gguf convert-gemma4 converts a Gemma 4 checkpoint's projector (internal/gemma4convert); the projector so converted is verified and its projection recipe activated, the activation an act the owner answers (a reserved decision), so judge-calibration/independent can open gemma-4-12B-it as a judge.\n\nBatch: device lane."
+        },
+        {
           "id": "independent",
           "title": "gemma-4-12B-it, a judge of another family, judges the same 32 image and 32 video cases as Qwen3.8-27B, and the two judges' per-medium scores agree in rank by Kendall's tau above a floor declared before the run, its bootstrap interval printed and the cases they disagree on listed",
           "status": "open",
@@ -34,30 +42,7 @@
             "cmd/evaluate",
             "internal/mediacapability"
           ],
-          "rationale": "Serves: held-out-quality and first-output for every media generator.\n\nDisappears: presets judged at a verification smoke's size.\n\nEvidence: the owner's review asks whether an improvement persists at the resolution and workload a person uses. The Wan student was first read at 81 frames and 832 x 480 against a base at 17 frames and 416 x 240; video-judge/same-settings fixed that one comparison by hand. The rule belongs where a preset is admitted.\n\nBatch: host lane."
-        }
-      ]
-    },
-    {
-      "id": "undo-evidence",
-      "title": "A landing says plainly when its undo check is no evidence, and then needs a test through an existing boundary that fails without the change, or a stated reason none is practical",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 99,
-        "reason": "The undo check exists (internal/landing/undo.go) and already records the case; the change is a trailer, a refusal and its two tests."
-      },
-      "steps": [
-        {
-          "id": "boundary",
-          "title": "A landing whose undo check is no evidence is refused unless one of its checks builds without the change and fails there on an assertion, a test through an existing boundary, or its step's rationale names why none is practical",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestNoUndoEvidenceNeedsABoundaryTestOrAReason$'",
-          "files": [
-            "internal/landing",
-            "internal/plan"
-          ],
-          "rationale": "Serves: every landing's evidence.\n\nDisappears: a new API's tests standing as their own proof.\n\nEvidence: the owner's review asks for a behavioural counterexample through an existing boundary where practical. The scorecard fix of scorecard-integrity/failures is one: its test drives servingByRecipe through the store, an existing boundary, and fails with the defect put back.\n\nBatch: host lane."
+          "rationale": "Serves: held-out-quality and first-output for every media generator.\n\nDisappears: presets judged at a verification smoke's size.\n\nEvidence: the owner's review asks whether an improvement persists at the resolution and workload a person uses. The Wan student was first read at 81 frames and 832 x 480 against a base at 17 frames and 416 x 240; video-judge/same-settings fixed that one comparison by hand. The rule belongs where a preset is admitted.\n\nBatch: host lane.\n\nNote: 2026-11-09: no preset is admitted by a suite yet: a profile declares its presets and the page offers them (mediacapability offerPresets), and the first admission is guidance-ops/cfg-zero-interval's per-preset sign test. This step is that admission's rule, so it is built with that test: the render it reads is drawn at a person's request (mediacapability.PersonRequest) unless -render-set names another size, and a render drawn smaller is refused as a preset's evidence. Its check names ./internal/evaluation and ./cmd/evaluate, so a test of its name is written in each, or the check is narrowed by a landing before it."
         }
       ]
     },

@@ -147,6 +147,9 @@ type landing struct {
 	// unevidenced are the checks that did not build with the change's production Go restored, so no assertion of
 	// theirs is shown to catch the change's absence (undo).
 	unevidenced []string
+	// boundaryReasons are why no test through an existing boundary is practical, each a landed step's own, from the
+	// line its rationale opens with noBoundaryLine (undo).
+	boundaryReasons []string
 }
 
 // Run lands the row and returns the commit. Every check runs over the
@@ -509,6 +512,14 @@ func (l *landing) row(ctx context.Context) error {
 		}
 	}
 	l.advanced, l.verifiers, l.added = document, nil, replaced
+	l.boundaryReasons = nil
+	for _, row := range named {
+		if step, held := plan.ExactStep(document, row.item, row.step); held {
+			if reason := noBoundaryReason(step.Rationale); reason != "" {
+				l.boundaryReasons = append(l.boundaryReasons, row.String()+": "+reason)
+			}
+		}
+	}
 	l.counts = make(map[string]plan.Budget, len(document.Items))
 	for _, item := range document.Items {
 		l.counts[item.ID] = item.Budget

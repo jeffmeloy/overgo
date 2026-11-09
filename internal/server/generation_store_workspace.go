@@ -48,6 +48,8 @@ func BindGenerationCatalog[
 		Declared() (name, kind string, required bool, choices []string)
 		// Defaulted reports the value a request that leaves the field out is given, empty where none is declared.
 		Defaulted() string
+		// Accompanies reports the field the control applies with, empty where it applies alone.
+		Accompanies() string
 		// Slot reports an artifact control's label and media kind (empty for a typed field).
 		Slot() (label, media string)
 		// Bounded reports a numeric control's declared default, step and rate; declared is false without them.
@@ -74,7 +76,7 @@ func BindGenerationCatalog[
 			for _, control := range declared {
 				name, kind, required, choices := control.Declared()
 				label, media := control.Slot()
-				wire := workflowControl{Name: name, Type: workflowControlType(kind), Required: required, Advanced: control.Secondary(), Choices: choices, Default: control.Defaulted(), Label: label, Media: media, Help: control.Guidance()}
+				wire := workflowControl{Name: name, Type: workflowControlType(kind), Required: required, Advanced: control.Secondary(), Choices: choices, Default: control.Defaulted(), With: control.Accompanies(), Label: label, Media: media, Help: control.Guidance()}
 				if defaultValue, step, rate, declared := control.Bounded(); declared {
 					wire.Bounds = &workflowControlBounds{Default: defaultValue, Step: step, Rate: rate}
 				}

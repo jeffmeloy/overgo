@@ -51,6 +51,9 @@ type workflowControl struct {
 	// Default is the value a request that leaves the field out is given
 	// where it is taken in (withDefaults), so the request recorded names it.
 	Default string `json:"default,omitzero"`
+	// With names the field the control applies with (a clip's upscale level, its upscale): a request is given Default
+	// only where it asks for that field, and a page may offer the control beside it.
+	With string `json:"with,omitzero"`
 	// Label and Media describe an artifact slot: what a page calls it and
 	// the kind of stored file it takes (image, video, audio), so the page
 	// lists matching intakes beside it and routes an attachment to it.
@@ -623,6 +626,11 @@ func withDefaults(controls []workflowControl, input json.RawMessage) (json.RawMe
 		if stated, held := fields[control.Name]; held && string(bytes.TrimSpace(stated)) != "null" {
 			continue
 		}
+		// A control that applies with another field is given nothing where the request does not ask for that field:
+		// a clip asked for at its own size is not given an upscale's level, which it would be refused.
+		if control.With != "" && unasked(fields[control.With]) {
+			continue
+		}
 		value, err := json.Marshal(control.Default)
 		if err != nil {
 			return nil, err
@@ -633,6 +641,15 @@ func withDefaults(controls []workflowControl, input json.RawMessage) (json.RawMe
 		return input, nil
 	}
 	return json.Marshal(fields)
+}
+
+// unasked reports a field a request leaves out or states as nothing: absent, null, zero, false or empty.
+func unasked(raw json.RawMessage) bool {
+	switch string(bytes.TrimSpace(raw)) {
+	case "", "null", "0", "false", `""`:
+		return true
+	}
+	return false
 }
 
 func validateWorkflowValue(controlType workflowControlType, raw json.RawMessage) error {

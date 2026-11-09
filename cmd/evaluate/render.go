@@ -199,6 +199,11 @@ func withDeclaredDefaults(selected modelrecipe.CapabilityEvidenceSelection, dire
 	}
 	controls, _ := mediacapability.Controls(stages[0].Module.ID, directory)
 	for _, control := range controls {
+		// A control that applies with another field is given nothing where the request does not ask for that field
+		// (mediacapability.Control.With): a clip drawn at its own size is not given an upscale's level.
+		if asked := template[control.With]; control.With != "" && (asked == nil || reflect.ValueOf(asked).IsZero()) {
+			continue
+		}
 		if _, stated := template[control.Name]; control.Default != "" && (!stated || template[control.Name] == nil) {
 			template[control.Name] = control.Default
 		}

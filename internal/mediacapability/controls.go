@@ -34,6 +34,10 @@ type Control struct {
 	// clip's format, an MP4); empty where the model's runtime fills what is left out, as a size's bound is only a
 	// page's prefill.
 	Default string
+	// With names the field the control applies with (the field's with tag: a clip's upscale level applies with its
+	// upscale), so a request taken in is given its Default only where it asks for that field; empty where it applies
+	// alone.
+	With string
 	// Label names an artifact slot the way a page shows it (the request
 	// field's label tag); Media is the kind of artifact it takes (the
 	// media tag: image, video or audio), so a page offers the right stored
@@ -69,6 +73,9 @@ func (control Control) Declared() (name, kind string, required bool, choices []s
 
 // Defaulted reports the value a request taken in that leaves the field out is given, empty where none is declared.
 func (control Control) Defaulted() string { return control.Default }
+
+// Accompanies reports the field the control applies with, empty where it applies alone.
+func (control Control) Accompanies() string { return control.With }
 
 // Slot reports an artifact control's label and media kind (empty for a typed field).
 func (control Control) Slot() (label, media string) { return control.Label, control.Media }
@@ -210,7 +217,7 @@ func describe(request reflect.Type) ([]Control, string) {
 			continue
 		}
 		optional := strings.Contains(options, "omitzero") || strings.Contains(options, "omitempty")
-		control := Control{Name: name}
+		control := Control{Name: name, With: field.Tag.Get("with")}
 		// An artifact id names something the store holds (a clip a page
 		// attaches), which a page fills from a media card rather than types.
 		if field.Type == reflect.TypeFor[artifact.ID]() {

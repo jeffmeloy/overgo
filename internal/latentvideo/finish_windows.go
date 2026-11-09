@@ -24,8 +24,9 @@ import (
 type ClipFinish struct {
 	// Upscale multiplies the clip's sides by 2, 3 or 4; none where unset.
 	Upscale int `json:"upscale,omitzero"`
-	// UpscaleLevel is the upscaling's level, clean-high where unset.
-	UpscaleLevel UpscaleLevel `json:"upscale_level,omitzero"`
+	// UpscaleLevel is the upscaling's level, clean-high where unset. It applies with an upscale, so a request is given
+	// its default only where it asks for one (the with tag, mediacapability.Control.With).
+	UpscaleLevel UpscaleLevel `json:"upscale_level,omitzero" with:"upscale"`
 	// Denoise and Deblur are a strength from 1 to 4; none where unset.
 	Denoise int `json:"denoise,omitzero"`
 	Deblur  int `json:"deblur,omitzero"`

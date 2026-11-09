@@ -51,7 +51,7 @@ type CommandWorld interface {
 }
 
 // LandingWorld is the optional world extension that lands a worker's step itself once its check passes, as it lands a
-// run step (CommandWorld): a worker of overgo's own works with the six tools of cmd/loop -tools, none of which lands,
+// run step (CommandWorld): a worker of overgo's own works with the eight tools of cmd/loop -tools, none of which lands,
 // and was asked to land all the same. What it returns is said as a worker's tail is.
 type LandingWorld interface {
 	Land(step Step) (tail string, err error)

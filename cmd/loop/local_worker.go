@@ -22,11 +22,13 @@ const (
 	localResultChars = 24000
 )
 
-// localInstruction opens a local worker's conversation in place of a prompt written for a client: the six tools are
+// localInstruction opens a local worker's conversation in place of a prompt written for a client: the eight tools are
 // its only hands and the step's check its end.
 const localInstruction = "You work one step of a plan in a Go checkout, through the tools alone: there is no shell. " +
-	"Read the step with show_step, read the files it names with read_file, change what it asks with edit_file, " +
-	"and run its check with run_check until it passes. Then answer, with no tool call, in one line saying what you changed."
+	"Read the step with show_step and run its check with run_check to see what fails. Find what the failure names with " +
+	"search_files, and read only the lines you need with read_lines; read a whole file with read_file only when it is short. " +
+	"Your replies are few, so change what the step asks with edit_file as soon as you know where, then run run_check again, " +
+	"until it passes. Then answer, with no tool call, in one line saying what you changed."
 
 // chatMessage is one message of an OpenAI chat conversation, as overgo's chat route reads and writes it.
 type chatMessage struct {

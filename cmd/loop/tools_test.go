@@ -21,10 +21,10 @@ type toolAnswer struct {
 	} `json:"result"`
 }
 
-// TestTheWorkerHasOnlyItsTools holds the worker to the six tools the driver serves it: on Nov 7 a helper agent with a
+// TestTheWorkerHasOnlyItsTools holds the worker to the eight tools the driver serves it: on Nov 7 a helper agent with a
 // shell rewrote core.hooksPath and stopped the loop for an hour. The server answers the protocol's opening, lists
-// exactly the six, refuses an edit outside the step's files and makes one inside them; the default worker is given
-// no built-in tool and is allowed these six alone.
+// exactly the eight, refuses an edit outside the step's files and makes one inside them; the default worker is given
+// no built-in tool and is allowed these eight alone.
 func TestTheWorkerHasOnlyItsTools(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -51,7 +51,7 @@ func TestTheWorkerHasOnlyItsTools(t *testing.T) {
 	for _, tool := range answers[1].Result.Tools {
 		listed = append(listed, tool.Name)
 	}
-	if want := []string{"read_file", "edit_file", "run_check", "run_tests", "show_step", "run_probe"}; !slices.Equal(listed, want) {
+	if want := []string{"read_file", "read_lines", "search_files", "edit_file", "run_check", "run_tests", "show_step", "run_probe"}; !slices.Equal(listed, want) {
 		t.Fatalf("the worker's tools are %v, want %v", listed, want)
 	}
 	if _, err := os.Stat(filepath.Join(root, "internal", "y", "y.go")); !answers[2].Result.IsError || err == nil {
@@ -66,6 +66,6 @@ func TestTheWorkerHasOnlyItsTools(t *testing.T) {
 	}
 	at := slices.Index(defaultWorker, "--allowedTools")
 	if builtins := slices.Index(defaultWorker, "--tools"); at < 0 || builtins < 0 || defaultWorker[builtins+1] != "" || defaultWorker[at+1] != strings.Join(allowed, " ") {
-		t.Fatalf("the default worker is %q, want no built-in tool and the six alone allowed", defaultWorker)
+		t.Fatalf("the default worker is %q, want no built-in tool and the eight alone allowed", defaultWorker)
 	}
 }

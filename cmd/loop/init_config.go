@@ -26,7 +26,7 @@ const (
 )
 
 // defaultWorker is Claude Code given the prompt on its standard input, so a long prompt is passed once and meets no
-// command-line limit, with no built-in tool and the six the driver serves it alone (workerTools); its permissions are
+// command-line limit, with no built-in tool and the eight the driver serves it alone (workerTools); its permissions are
 // not bypassed, and the repository's hooks apply to it as to any session.
 var defaultWorker = []string{"claude", "-p", "--permission-mode", "acceptEdits", "--tools", "", "--strict-mcp-config", "--mcp-config", toolServer,
 	"--allowedTools", allowedTools()}

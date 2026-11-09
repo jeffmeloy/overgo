@@ -84,7 +84,7 @@ func main() {
 }
 
 // TestALocalModelWorksAFixtureStep holds the local worker to working a step on overgo's own inference: Qwen3.8-27B,
-// served by overgo's server, is sent the step and the six tools over the chat route, its tool calls are run in a fixture
+// served by overgo's server, is sent the step and the eight tools over the chat route, its tool calls are run in a fixture
 // checkout, and the step's check, which fails before, passes after. Its replies and tool calls are stated.
 func TestALocalModelWorksAFixtureStep(t *testing.T) {
 	cudatest.Require(t)

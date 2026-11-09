@@ -52,8 +52,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": -2012,
-        "reason": "The replay harness and ladder exist (cmd/loop replay.go, ladder.go); mutants of landed steps, a cost ledger per landing and a measured run of the local worker are new. Step grammar-draw: +0 (no landing changed internal/sampling/sampler.go, internal/sampling/greedy_grammar_test.go)."
+        "nodes": -2106,
+        "reason": "The replay harness and ladder exist (cmd/loop replay.go, ladder.go); mutants of landed steps, a cost ledger per landing and a measured run of the local worker are new. Step grammar-draw: +0 (no landing changed internal/sampling/sampler.go, internal/sampling/greedy_grammar_test.go). Step worker-tools: +163 (163, the median of what 8 landings that changed cmd/loop/tools.go, cmd/loop/tools_test.go, cmd/loop/local_worker.go, cmd/loop/main.go, cmd/loop/init_config.go, cmd/loop/replay.go, cmd/loop/local_worker_windows_model_test.go, cmd/loop/worker_landing_test.go, internal/loop/driver.go, internal/loop/worker_landing_test.go counted)."
       },
       "steps": [
         {

@@ -27,7 +27,7 @@ func (w *landingWorld) Land(step Step) (string, error) {
 }
 
 // TestTheDriverLandsAWorkersPassedStep holds the driver to landing what a worker passed: a worker of overgo's own works
-// with six tools, none of which lands, and was asked to land all the same. A worker that leaves its step's check passing
+// with eight tools, none of which lands, and was asked to land all the same. A worker that leaves its step's check passing
 // has the step landed by the driver, once and with no second worker call; a landing the gate refuses goes back to the
 // worker with the gate's words, and a step whose landing is refused at every attempt is parked.
 func TestTheDriverLandsAWorkersPassedStep(t *testing.T) {

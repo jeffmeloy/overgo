@@ -299,7 +299,7 @@ const (
 )
 
 // claudeReplayWorker is the driver's default worker as a replay runs it: Claude Code started in the replay checkout with
-// the driver's opening and the task's prompt on its standard input, its six tools served by this build's cmd/loop at
+// the driver's opening and the task's prompt on its standard input, its eight tools served by this build's cmd/loop at
 // binary from the task written to the process state, each call it makes logged there and counted.
 func claudeReplayWorker(binary, state string) replayWorker {
 	return replayWorker{name: defaultWorkerName, work: func(ctx context.Context, checkout string, task replayTask) (localWork, error) {

@@ -39,7 +39,7 @@
         ],
         "adoption_scope": "Supersedes the absent repository-document reference at the owner's request; current external SHA is verified. Does not alter the executable plan."
       },
-    "assessment": "Calibration improves within existing campaign, media and scorecard owners; the duplicate mixed-format device check is gone. Semantic acceptance and source-extrema limits remain; no overall code shrinkage or complete architectural migration established.",
+    "assessment": "Master consolidates undo fixture execution and expands native evidence within existing owners. New cost reporting duplicates active-attempt state across recovery and accounting; fix that join before using it for payoff claims. Concurrent grammar shortcut removes repeated grammar work but bypasses vocabulary-size validation (357).",
     "ast_surface_review": {
         "revision": "9bd406acafb89c44a439722419f1f7e85e71f691",
         "architectural_target": "Fewer independent product entry points and dependency owners; retain process isolation and existing compiled/runtime/development authority.",
@@ -54,21 +54,58 @@
         ],
         "cost": "Concrete parsed duplicate migrations total22production and150test AST removed; unimplemented estimates only. Three directories can disappear through349/351; command movement and all retained semantic constants must be charged. No overall refactor completion claimed."
       },
+    "automation_follow_up": {
+        "architectural_progress": "e9 merges undo message assertions into existing native fixtures and requires an existing-boundary assertion or explicit reason when no check builds.8ad adds missing policy/import/log assertions without new production owners. Mutations reuse landedSteps, replay checkout/lock and planverify; cost reporting reuses Git trailers and existing process state.",
+        "conflicts": "356 exposes two independent active-attempt interpretations; restart recovery does not close the cost record. Cost output counts landed steps and lacks token/failed-gate totals, so it is not demonstrated full payoff.322 still places verify/undo after broad test/lanes. No supported format-independent execution migration or binary/directory reduction landed in this interval.",
+        "plan_recommendations": [
+          {
+            "rows": "loop-proof/grammar-draw (landed); demonstrated",
+            "findings": [
+              "SQA-357"
+            ],
+            "recommendation": "Keep the measured fast path, restore vocabulary admission before the early return, and extend the retained small parity fixture independently of timing."
+          },
+          {
+            "rows": "loop-proof/demonstrated",
+            "findings": [
+              "SQA-356",
+              "SQA-348"
+            ],
+            "recommendation": "Make cost lifecycle/attribution truthful and keep matched replay outcomes before claiming benefit exceeds cost. Retain independently written evaluation and actual end/landing evidence; steps landed are throughput, not numerical product benefit. Reuse existing records and supervisor; no new report framework or recurring demonstration."
+          },
+          {
+            "rows": "Existing landing verifier; undo-evidence/boundary (landed)",
+            "findings": [
+              "SQA-322",
+              "SQA-355"
+            ],
+            "recommendation": "355 is closed with all unique cases retained and one fewer setup. Move the current verify/undo stage before broad test/lanes; do not duplicate it as preflight."
+          },
+          {
+            "rows": "judge-calibration/second-judge-vision,independent,user-size",
+            "findings": [
+              "SQA-342"
+            ],
+            "recommendation": "Credit the newly recorded projector prerequisite before the independent-judge run. Reuse the existing conversion/activation owner for current support and preserve owner activation authority. Treat GGUF conversion as current compatibility, not completion of the format-independent architecture target; no parallel loader or dummy dependency. Compare the same bound media/questions and actual requested geometry."
+          }
+        ],
+        "mutation_limits": "Retained first run refused19/30 selected comparison-inversion/check pairs over10 newest eligible step records;7 card steps skipped. Up to3 first textual comparisons per step, and only its named host check, not the whole gate. Shared-commit steps may sample the same mutations under different checks.8ad documents survivor checks at the new pin; old mutation records remain historical. No SQA rerun, whole-gate detection rate or broad semantic coverage claimed.",
+        "cost": "Five landings e9/1af/8ad/675/f39 total+3093 production/+2143 test=+5236 AST.355 achieves6->5 setups but+79 test nodes as coverage grows. Grammar's145/290 growth has retained favorable timing evidence, with357 preserving its input contract. No overall shrinkage."
+      },
     "current_review_order": [
         "Guidance, committed plan and architecture target",
-        "Calibration, evidence and scorecard callers",
-        "Concurrent stillness source/retained result",
-        "Selected AST and exact closure costs",
-        "Owner reconciliation"
+        "Driver/landing/recovery/cost callers and mutation scope",
+        "Selected AST and retained results",
+        "Prior finding/owner reconciliation"
       ],
     "declined_candidates": [
-        "No blanket merge of content and fidelity assertions: same media setup, different questions and acceptance contracts. Both still generate their own media and open sessions; no net replacement or independent-selector preservation proved in this sample.",
-        "Keep the new grouped-output store-path fixture: it verifies actual comparison behavior, including duplicated questions, rather than an implementation mirror.",
-        "No new recipe layer justified by these calibration tests; keep existing execution/numerical owners."
+        "Do not merge landing cost rendering with Git-trailer parsing: different failure and persistence contracts; retain both tests.",
+        "Retain policy-population and Comfy input-refusal cases; they exercise distinct admitted behavior missed by prior checks.",
+        "Mutation selection shares replay admission/checkout already. Its bounded result does not justify another recurring gate, selector or confidence run."
       ],
     "media_follow_up": {
         "architectural_progress": "Mixed-format refusal now has one host fixture (354 closed). Calibration reuses the existing projection session/campaign and common answering helpers, with isolated records and established Close ownership. Scorecard comparison now reads the existing dataset's media groups instead of treating each question as independent. Stillness extends the existing motion record/display without a new runtime.",
-        "remaining": "342 stays open: diagnostic source extrema and selected fidelity sensitivity do not validate semantic rejection or generic motion quality.346 observation identity is untouched;340 numeric preset overrides unchanged.355 still duplicates caught/unbuilt repository setup.349..353 retain the earlier structural reductions; no binaries or directories disappeared this interval.",
+        "remaining": "342,346 and340 remain as last reviewed.355 is now closed by e9/8ad; current automation follow-up supersedes its prior proposal.349..353 still retain structural reductions.",
         "plan_recommendations": [
           {
             "rows": "judge-calibration/independent,user-size",
@@ -79,14 +116,9 @@
             "rows": "judge-calibration/stillness (landed)",
             "finding": "SQA-342",
             "recommendation": "Keep source-relative motion descriptive; a stationary source can make the maximum1 and hide a freeze. A sample maximum is not a universal acceptance bound."
-          },
-          {
-            "rows": "undo-evidence/boundary; loop-proof/mutants,costs,demonstrated",
-            "finding": "SQA-355",
-            "recommendation": "Complete boundary assertion evidence through the existing undo owner before multiplying gate runs. Merge message checks into caught/unbuilt setups; reuse retained replay/gate records and costs. No second ledger or runner."
           }
         ],
-        "cost": "bc77ee5e7 +0 production/+607 test;3cc685278 +503/+902;5c5113e7f +125/+584: total+628/+2093=+2721 AST.354's achieved44-node deletion is included.355's separate48-node/two-setup proposal remains unimplemented."
+        "cost": "Prior calibration slice bc77/3cc/5c: +628 production/+2093 test; achieved354 deletion44 included. Historical slice only; current automation costs are separate."
       },
     "plan_review": {
         "draft": {
@@ -168,16 +200,16 @@
           "Delete345 duplicate compiler, merge343/344 native setup, move322 verifier earlier."
         ]
       },
-    "plan_review_follow_up": "Committed plan now starts judge-calibration/independent,user-size. Fidelity/clustered/stillness landed; undo-evidence/boundary and loop-proof remain. Keep sample/identity limits visible and reuse existing runtime/gate owners.",
-    "rank_basis": "Correctness/recovery ranking retained. Remove verified354 from active work;342 remains open with bounded calibration progress.355 remains the smallest measured setup consolidation.",
+    "plan_review_follow_up": "undo-evidence/boundary and loop-proof/mutants,survivors,costs landed. Only loop-proof/demonstrated remains in that row. Committed plan adds second-judge-vision prerequisite; no recipe/runtime authority change warranted.",
+    "rank_basis": "Remove355; add357 for sampler admission and356 beside348 for truthful cost evidence; existing correctness/recovery priority retained.",
     "refactor_target_progress": {
         "status": "active; completion not established",
         "document_availability": "Downloads target exists, unchanged SHA; no repository document added.",
         "retained_reference_sha256": "fe13a4bd47c8c41ea6dbf766c0acf3dc41ab7dab0c6d8bd926863313d4f34395",
-        "progress": "This slice consolidates mixed-format refusal in its host owner, reuses campaign/session helpers and fixes the comparison unit inside the scorecard. No new recipe/runtime/scheduler. Earlier format-independent and tool-owner migrations remain separately tracked.",
-        "conflicts": "342's semantic acceptance remains unsupported;346 media observation binding is untouched. Sharing helper text does not remove the two calibration fixtures' repeated media generation/session setup; no safe complete replacement cost established here.",
-        "next_useful_reductions": "355 removes two duplicate repository/verify setups;349/351 remove unnecessary command/package boundaries;345 removes the duplicate ComfyUI compiler. Preserve current correctness/identity repairs first.",
-        "cost": "bc77ee5e7 +0 production/+607 test;3cc685278 +503/+902;5c5113e7f +125/+584: total+628/+2093=+2721 AST.354's achieved44-node deletion is included.355's separate48-node/two-setup proposal remains unimplemented."
+        "progress": "e9 merges undo message assertions into existing native fixtures and requires an existing-boundary assertion or explicit reason when no check builds.8ad adds missing policy/import/log assertions without new production owners. Mutations reuse landedSteps, replay checkout/lock and planverify; cost reporting reuses Git trailers and existing process state.",
+        "conflicts": "356 exposes two independent active-attempt interpretations; restart recovery does not close the cost record. Cost output counts landed steps and lacks token/failed-gate totals, so it is not demonstrated full payoff.322 still places verify/undo after broad test/lanes. No supported format-independent execution migration or binary/directory reduction landed in this interval. Concurrent357 bypasses existing sampler vocabulary admission.",
+        "next_useful_reductions": "Unify active-attempt interpretation through existing startup/driver ownership (356); move the existing verifier earlier (322). Prior349/351 command/package and345 compiler deletions remain separate opportunities.",
+        "cost": "Five landings e9/1af/8ad/675/f39 total+3093 production/+2143 test=+5236 AST.355 achieves6->5 setups but+79 test nodes as coverage grows. Grammar's145/290 growth has retained favorable timing evidence, with357 preserving its input contract. No overall shrinkage."
       },
     "working_notes_review": {
         "finding": "SQA-334",
@@ -187,10 +219,10 @@
       }
   },
     "committed_plan": {
-    "git_blob": "9b249b949fe4ab2fe139542d182c1ecee3381741",
+    "git_blob": "698595893efd22f18fc31d797bd2c5334ab80f5d",
     "path": "docs/plan.json",
-    "revision": "5c5113e7f5432e9d2af1e26f5b9592d8c555011c",
-    "sha256": "daed6cd4ba69a2fd6b522fae373806bc423220de2a3bc5811d9965295c83a192",
+    "revision": "f39b61f82bb03d31a9c95a9ce7b07c25b2b00852",
+    "sha256": "dc65c595c5ebe549e0a5d53e3df6ecaa83d3491b6fc84367fb687c82d99c8ecb",
     "working_tree_status": "Committed plan at review pin; prior draft assessment retains its own snapshot identity. Current working plan edits excluded."
   },
     "findings": [
@@ -6237,8 +6269,8 @@
       ],
     "comparison": "During ordinary implementation validation use the existing full-mode false-verifier table case and recorded stage names. Historical +13-test-node alternative was sized before candidate isolation; re-count the final current fixture rather than treating that estimate as current exact AST. SQA runs no gate.",
     "displaced_surface": "The late verify position disappears; no verifier execution or requirement is deleted. On refused full attempts, subsequent broad test/lane/scorecard invocations and their waits disappear. On successful attempts all stages remain once. Preserve preflight filtering, free-space-first and plan-only behavior, committed acceptance terms, verifier deduplication, added-check rejection on the base, real command exit/non-vacuous/repeat semantics, cancellation, candidate identity checks, private checkout/lock release and partial spent records. Initial commit/quiet-turn acquisition still precedes checks, so this does not promise to eliminate every wait. The moved-tree, successful landing, preflight refusal and measurement-wait cases all stay. No production export, configuration, file format, numerical, build-tag, data or confidentiality contract changes.",
-    "evidence": "Rechecked at9f5552abc: checks still orders test and lanes before verify. Both gate and loop reach landing.Run. Candidate isolation now correctly makes all these stages read the checked tree, but changes neither this order nor the refusal cost. The spent fixture still exercises its false verifier only as preflight; its moved case now changes trunk rather than editing the candidate folder. Current retained count-history landing ran test2m3.407s then lanes0.802s before verify11.185s. Earlier successful a104591ab/df8523d27 exposed longer work; these are successful stage walls, not measured waste. Keep the same planverify owner and move it before broad tests/lanes; do not create a second admission phase.",
-    "evidence_commit": "9f5552abcdfbd3ec6e9c7e002f0a7fd2b075e1c9",
+    "evidence": "Rechecked at 675326b76392a92477bdbfb4b28d9e37672db456: checks still orders test and lanes before verify. Gate and loop retain landing.Run; candidate isolation remains. The new undo boundary refuses unsupported no-assertion evidence inside the same late verify owner, so it does not improve stage admission order. Latest costs landing retained test2m0.919s and lanes0.802s before verify18.403s; these were successful stages, not measured avoided waste. Keep the existing planverify and undo owners and move verify before broad tests/lanes; no second admission phase.",
+    "evidence_commit": "675326b76392a92477bdbfb4b28d9e37672db456",
     "expected_benefit": {
         "historical": "Earlier complete scratch-only alternative at efc02c5: landing.go5418->5418, spent_test.go682->695 (+13test AST/+103LF bytes); one existing Git/module fixture with4->5 table attempts. Kept as historical sizing, not current source after candidate isolation.",
         "current": "Same verifier is moved once; successful stage work unchanged. Known failing verification avoids later broad tests/lanes/scorecard, but initial locks/invariants remain.0new phase/helper/selector/staticfixture/schema/dependency. Current replacement AST and setup delta await ordinary implementation.",
@@ -7850,58 +7882,190 @@
     "title": "Keep mixed-format refusal in its host fixture and remove the late historical-directory dependency"
   },
     {
-      "id": "SQA-355",
-      "status": "open",
-      "severity": "P3",
-      "category": "duplicate-landing-fixture-execution",
-      "classification": "source-and-complete-file-AST-established-consolidation",
-      "title": "Check undo-evidence messages on the existing caught and unbuilt fixtures",
-      "evidence_commit": "3fa9b882a8329afe54e219db47f75857369c89cf",
-      "sources": [
+    "category": "duplicate-landing-fixture-execution",
+    "classification": "verified-fixture-consolidation-with-necessary-boundary-growth",
+    "evidence": "Closed by e9d31d570, with follow-up log assertions in8ad7985d8; rechecked at 675326b76392a92477bdbfb4b28d9e37672db456. The duplicate TestALandingWithoutUndoEvidenceSaysSo entry is gone. Its no-note/trailer assertions now use the existing caught result; its positive Change/trailer assertions use the retained unbuilt-with-reason result. Caught, passing-without-change and consolidation remain; unbuilt now has distinct no-reason refusal and with-reason acceptance cases.8ad adds printed-note assertions on those same fixtures, preserving user-visible reporting. The native helper still owns setup. No requirement retired; SQA ran no test.",
+    "evidence_commit": "675326b76392a92477bdbfb4b28d9e37672db456",
+    "expected_benefit": {
+        "comparison": "Actual complete undo_test.go501->507 at e9, then580 at pin (+79 test AST overall). Six repository/verify setups->five: the two duplicates disappear, while new no-reason refusal coverage requires one added distinct case. The earlier453-node/four-setup candidate was for the older contract and is not an achieved saving.",
+        "closure_cost": "e9 whole landing+181 production/+6 test;8ad whole landing+0/+567 across three test files, including later log assertions. All original message/undo coverage retained; no static fixture bytes, new binary or package. Credit one fewer setup execution, not net test-code shrinkage."
+      },
+    "id": "SQA-355",
+    "severity": "P3",
+    "sources": [
         {
           "path": "internal/landing/undo_test.go",
-          "symbol": "TestTheLandingUndoesItsChangeAndTheCheckFails; TestALandingWithoutUndoEvidenceSaysSo; undone"
+          "symbol": "TestTheLandingUndoesItsChangeAndTheCheckFails; TestNoUndoEvidenceNeedsABoundaryTestOrAReason; undone; printed"
         },
         {
           "path": "internal/landing/undo.go",
-          "symbol": "undo; unevidencedNote"
-        },
-        {
-          "path": "internal/landing/landing.go",
-          "symbol": "message"
+          "symbol": "undo; noBoundaryReason; unevidencedNote"
         }
       ],
-      "evidence": "The existing undo test constructs caught, passing-without-change, unbuilt and consolidation repositories through undone. The new visibility test constructs the identical caught and unbuilt repositories again to inspect their messages. Extracting one shared setup helper removed text repetition but still invokes newRowFixture, Git setup and l.verify six times across the pair. Both repeated inputs and admission contexts match; positive/negative message assertions can consume the existing caught/unbuilt values.",
-      "recommended_change": "Move the new trailer/first-Change-line assertion into the existing unbuilt case and the no-trailer/no-note assertion into the caught case; set unbuilt.composed there. Place each assertion before err is reused by later cases. Delete the duplicate visibility test entry point/comment and retain the four original behavioral cases. Keep the current helper for its actual callers; add no fixture or wrapper. Update any live verifier selector if one still names the removed entry point; the visible step has already left the committed plan.",
-      "displaced_surface": "One duplicated test entry point and two entire repository/verify setups. The new user-visible message requirements remain owned by the existing undo fixture, including absence of a false no-evidence note when the assertion catches the change. No production logic or boundaries change.",
-      "impact": "Less gate/test setup and maintenance with all new visibility coverage retained.",
+    "status": "resolved",
+    "title": "Check undo-evidence messages on the existing caught and unbuilt fixtures"
+  },
+    {
+      "id": "SQA-356",
+      "status": "open",
+      "severity": "P2",
+      "category": "attempt-lifecycle-and-cost-attribution",
+      "classification": "source-established-recovery-counterexample; single-retained-owner-migration",
+      "title": "Read worker cost from the actual attempt lifecycle, including interrupted runs",
+      "evidence_commit": "675326b76392a92477bdbfb4b28d9e37672db456",
+      "sources": [
+        {
+          "path": "cmd/loop/main.go",
+          "symbol": "execWorld.RunWorker; workerName; RecordAttempt and keepRunning before processcontrol.Run"
+        },
+        {
+          "path": "cmd/loop/startup.go",
+          "symbol": "runningRecord; keepRunning; dropRunning; noteUncleanEnd"
+        },
+        {
+          "path": "internal/loop/driver.go",
+          "symbol": "Run: level/attempts reset on a new driver invocation"
+        },
+        {
+          "path": "internal/landing/costs.go",
+          "symbol": "Attempt; RecordAttempt; landing.cost; cost.said"
+        },
+        {
+          "path": "cmd/loop/costs.go",
+          "symbol": "landingCosts: last Worker trailer attribution"
+        },
+        {
+          "path": "internal/landing/costs_test.go",
+          "symbol": "TestALandingRecordsItsFullCost"
+        },
+        {
+          "path": "cmd/loop/costs_test.go",
+          "symbol": "TestALandingRecordsItsFullCost"
+        },
+        {
+          "path": "cmd/loop/startup_test.go",
+          "symbol": "TestTheStartupTaskRunsTheDriverAtBoot: existing unclean-end case"
+        }
+      ],
+      "evidence": "RunWorker writes a start/end pair to worker_attempts.json and separately writes/removes driver_running.json for the same invocation. A driver/power failure prevents the deferred end record. noteUncleanEnd consumes driver_running.json and logs that interruption, but never reconciles worker_attempts.json. landing.cost treats every start lacking positive Wall as still running until the landing's now. Thus an attempt interrupted before a 17-hour downtime (already an admitted startup-fixture scenario) is charged that downtime when the same step later lands; it remains unclosed on subsequent reads. Attribution also loses the actual last worker: cost collects unique worker names in first-seen order, while landingCosts assigns the landing to the last name. Across an admitted restart, A then B then A can land with trailers A,B and be attributed to B. Start-record write failures are only printed and an empty history is reported as an interactive session with zero attempts, although missing evidence does not prove that. These are concrete source paths, not newly executed incidents.",
+      "recommended_change": "Use the existing driver start/exit/restart owner and processcontrol receipt as the one attempt lifecycle. Give recovery and cost reading the same invocation identity/state; reconcile interrupted attempts as unknown/censored rather than extending their work through downtime. Consolidate the duplicated active-start storage/writes instead of adding another record, scheduler or polling loop; keep necessary historical attempts and the current unclean-start notice. Preserve actual attempt order and identify the landing worker directly, not from a deduplicated list. Keep absent/unreadable cost evidence distinct from a known interactive invocation. Preserve best-effort progress, stops, budgets and partial results; missing accounting must not trigger expensive work again.",
+      "displaced_surface": "Replace the independent driver_running versus worker_attempts active-start interpretation with one retained lifecycle owner consumed by startup recovery and landing.cost. Remove whichever duplicate active-start serialization/write/delete path that migration displaces; keep history and recovery notice. Remove elapsed-to-now treatment of stale starts and unique-worker-order inference of the landing worker. No new workflow, ledger, service, command or binary.",
+      "impact": "Prevents downtime and missing records being presented as measured worker effort, and prevents resumed work being credited to the wrong worker. Full-cost/benefit conclusions must remain limited until this path is truthful.",
       "expected_benefit": {
-        "comparison": "Complete in-memory undo_test.go501->453 AST (-48test), including moved assertions/constant, retained helper/imports and deleted duplicate comment. Six repository/verify setups->four; unique test cases unchanged.",
-        "complete_cost": "Production0; no static fixture files/bytes, schema, command, package or migration scaffolding added. Two dynamic fixture/setup executions disappear. Native Go caching is retained; no elapsed saving or runtime benchmark claimed."
+        "baseline": "Selected complete files: landing/costs511 + cmd/loop/costs537 =1048 production AST; their tests397+251=648. startup880 and startup_test556 include other required scheduling/environment contracts; main3534 includes the full CLI. Existing active lifecycle helpers keepRunning48, dropRunning53, noteUncleanEnd187; RecordAttempt46 nodes. These are current sizes, not removable totals.",
+        "complete_cost": "675326b76 adds1315 production/648 test AST, no static fixtures/schema/CUDA. Current invocation performs attempt-start and running-marker writes, then attempt-end write and marker removal. A unified owner must still retain terminal history; count the complete replacement and migration reads. No safe net AST/runtime reduction is established; truthful interrupted-state handling may require growth.",
+        "tests": "RETAIN cost-message and Git-trailer tests as different contracts. EXTEND the existing startup interruption case and cost fixtures for interrupted/unknown state and A,B,A attribution, sharing their current setup. No new standalone suite, model/Git-history workload or SQA execution.",
+        "limits": "Do not add worker wall and gate wall as independent totals: an active worker's elapsed interval may include its landing gate. Token costs and measured benefit are absent from this report; the commit discloses that steps landed are the displayed output, not a measured economic payoff."
       },
-      "likely_effort": "Small same-file assertion migration and test-entry deletion.",
+      "likely_effort": "Small coordinated lifecycle/readout correction across existing driver, startup and landing owners; complete replacement must be counted.",
       "plan_references": [
-        "undo-evidence/visible3fa9b882a",
-        "undo-evidence/boundary remains current; reuse original fixture instead of more duplicate setups",
-        "Downloads extreme_refactor_plan.md: full setup costs and existing owners"
+        "loop-proof/costs 675326b76",
+        "loop-proof/demonstrated at 675326b76392a92477bdbfb4b28d9e37672db456",
+        "Downloads extreme_refactor_plan.md: one execution owner, truthful recovery and complete costs"
       ],
-      "plan_coverage": "Distinct from329's hook admission fixture. This is one coordinated migration inside the undo fixture; no new plan or test execution by SQA.",
+      "plan_coverage": "The costs step is landed; demonstrated remains current. Repair this evidence before using it to claim the worker pays for itself. Distinct from348's unmatched/marginal replay-ranking formula and271's app-session supervision; no duplicate dispatch authority.",
       "closure_criteria": [
-        "All existing caught/passing/unbuilt/consolidation cases and every new message assertion remain in the original fixture, with correct err association.",
-        "Duplicate test removed; setup executions fall6->4 and complete test AST falls without a replacement suite/helper."
+        "An interrupted attempt is reported with bounded known effort or explicit unknown/censored duration; downtime is never asserted as active worker wall.",
+        "Start/exit/restart and landing accounting share one lifecycle identity; the displaced active-start storage path is removed while historical/unclean evidence remains.",
+        "A,B,A followed by an A landing is attributed to A; missing/unreadable recording is not silently known interactive/zero.",
+        "Existing fixtures retain live, completed, interrupted and no-record cases; complete production/test/setup/migration costs are stated. No new scheduler or workload."
       ],
-      "comparison": "Compare identical undone inputs and move only the new message assertions onto those retained results. Parsed static candidate only; ordinary implementation validation uses the retained native fixture."
+      "comparison": "Read one existing startup interrupted-run fixture beside landing.cost at a later now, then compare worker trailers for A,B,A. This decides the source defect without a new run. During implementation, extend the retained native fixtures and preserve the separate Git parsing contract."
+    },
+    {
+      "id": "SQA-357",
+      "status": "open",
+      "severity": "P2",
+      "category": "sampling-fast-path-admission",
+      "classification": "source-established-vocabulary-boundary-regression",
+      "title": "Keep vocabulary-size validation ahead of the greedy grammar shortcut",
+      "evidence_commit": "f39b61f82bb03d31a9c95a9ce7b07c25b2b00852",
+      "sources": [
+        {
+          "path": "internal/sampling/sampler.go",
+          "symbol": "SampleWithHistory; greedyBeyondGrammar; greedyAllowed; applyGrammar; acceptGrammar"
+        },
+        {
+          "path": "internal/sampling/gbnf.go",
+          "symbol": "advanceToken checks chosen token, not logits length"
+        },
+        {
+          "path": "internal/sampling/gbnf_test.go",
+          "symbol": "TestGreedyGrammarSamplerChoosesThePipelinesToken"
+        },
+        {
+          "path": "internal/sampling/greedy_grammar_test.go",
+          "symbol": "TestAGreedyDrawUnderAGrammarCostsAboutWhatOneWithoutDoes"
+        }
+      ],
+      "evidence": "f39b61f82 returns through greedyAllowed/acceptGrammar before applyGrammar, where the existing GBNF vocabulary-length error lives. Concrete use of the retained native fixture: its six-token vocabulary and strict root <[2]> [xy]+ accept token2. Fresh samplers given four logits [0,0,2,0] return token2 and advance grammar on the shortcut, while the neutral-zero-bias reference reaches applyGrammar and rejects four logits for six tokens. A longer vector with the same allowed peak also bypasses the size check. New/NewGBNFVocabulary cannot validate a later Sample vector; advanceToken only checks the chosen index. Existing parity and new timing tests always use matched vector lengths. This input-contract regression is source-established, not a model incident reproduced by SQA.",
+      "recommended_change": "Retain the faster search/fallback. Admit the shortcut only after vocabulary length is known valid; reuse the existing grammar admission/error owner or let mismatches reach it. Extend the existing greedy-versus-pipeline fixture with short/long vectors and require matching refusal without grammar advancement. Preserve strict/lazy behavior, lowest-ID ties, all-rejected fallback, penalties and probability recording. Add no second validator, fixture setup or timing-based correctness test.",
+      "displaced_surface": "Remove the early return's validation bypass. Reuse the same small vocabulary and reference sampler; no algorithm rewrite, command/package, corpus or new validation framework.",
+      "impact": "Restores exact vocabulary compatibility and prevents the optimized path from consuming invalid input and changing grammar state.",
+      "expected_benefit": {
+        "baseline": "Selected full files: sampler8081 and gbnf7045 production AST; gbnf_test2574 and greedy_grammar_test290 test AST. These are retained sizes, not removable totals. Landed change+145 production/+290 test.",
+        "complete_cost": "Small admission correction and existing-fixture extension likely require growth; replacement size not measured, no safe net deletion established. Static fixture bytes, package/command count and model workload need not increase.",
+        "performance": "Retained favorable100000-token fixture reports eight draws515us with grammar versus517us without, compared with1.25s before. No universal tool-call speedup or SQA timing run inferred.",
+        "tests": "RETAIN strict/lazy reference parity and bounded performance evidence; EXTEND the existing parity fixture for invalid sizes, keeping numerical assertions independent of timing."
+      },
+      "likely_effort": "Small correction within existing sampler admission and native fixture.",
+      "plan_references": [
+        "loop-proof/grammar-draw f39b61f82",
+        "loop-proof/demonstrated",
+        "Downloads extreme_refactor_plan.md: retained behavior and one validation owner"
+      ],
+      "plan_coverage": "Concurrent optimization reconciled at final pin; restore its existing boundary before claiming full equivalence.",
+      "closure_criteria": [
+        "Both fast and reference paths reject short/long logits before grammar advancement, with the retained vocabulary-size contract.",
+        "Matched vectors retain token/tie/fallback/probability behavior independently of timing.",
+        "Count complete correction/test/setup cost; no duplicate validator or fixture."
+      ],
+      "comparison": "Use the existing six-token strict fixture with [0,0,2,0] and its neutral-bias reference. Source trace establishes the mismatch; ordinary implementation validation extends that fixture, with no SQA model/test run."
     }
   ],
     "gate_test_assessment": {
     "assumptions": "40replies/4096tokens/24000resultbytes explicit limits, not capability calibration.348 failure/cost correlation defeats marginal averaging. Small replay samples and model name alone do not establish full execution comparability.",
-    "automation_sequence": "Existing driver retains attempts/stops/landing.347 validates before mutations;348 uses current records/config.322 verifier still follows broad tests/lanes. Replay baseline classifies any check error as a task; effect of setup errors on comparable evidence remains a limit, not proof every compile failure is invalid.",
+    "automation_follow_up": {
+        "landings": [
+          {
+            "commit": "e9d31d570",
+            "production_ast": 181,
+            "test_ast": 6
+          },
+          {
+            "commit": "1af09f816",
+            "production_ast": 1452,
+            "test_ast": 632
+          },
+          {
+            "commit": "8ad7985d8",
+            "production_ast": 0,
+            "test_ast": 567
+          },
+          {
+            "commit": "675326b76",
+            "production_ast": 1315,
+            "test_ast": 648
+          },
+          {
+            "commit": "f39b61f82",
+            "production_ast": 145,
+            "test_ast": 290
+          }
+        ],
+        "total_production_ast": 3093,
+        "total_test_ast": 2143,
+        "total_ast": 5236,
+        "tests": "MERGE achieved355 duplicate message checks; REMOVE old visibility entry; RETAIN five distinct undo setups, including new reason/no-reason refusal and existing log assertions. RETAIN cost-message and Git-report fixtures, mutation strong/weak fixture, policy population filter, Comfy missing-input refusal. EXTEND current startup/cost fixtures for356 during implementation only. No new SQA tests/workloads. RETAIN strict/lazy grammar parity and performance evidence; EXTEND existing parity fixture for357 invalid sizes independently of timing.",
+        "retained_results": "e9 retained boundary undo fails an assertion;1af run19/30 selected host-check mutations refused,7 card steps skipped;8ad retained survivor comparisons fail their added assertions;675 retained cost-message/Git-report checks, verification18.403s. No independent rerun. f39 favorable eight-draw grammar timing515us versus517us without; existing strict/lazy parity cited. No general tool-call speedup inferred."
+      },
+    "automation_sequence": "Driver processcontrol/startup remain dispatch, stop and restart owners.356 identifies their disconnected cost start records;322 existing verify/undo still comes after test/lanes. Mutations reuse replay lock/tree and baseline admission, skip card checks, preserve partial records; no whole-gate or assertion-only detection claim.",
     "fresh_ast": {
-        "revision": "5c5113e7f5432e9d2af1e26f5b9592d8c555011c",
-        "method": "Existing external Go parser on nine selected committed files, ParseComments/local links; source caller/lifetime tracing. No package-wide type checking or application execution. Reused prior full-tree scan at9bd406aca.",
-        "selected_counts": "render_mp4 model test663;render_format test442;calibration test2909;stillness test584;clip_motion681;evidence_index3843;output_pairing test902;scorecard record5589;scorecard8564.",
-        "comparison": "354 actual pair1149->1105 (-44 test AST), required device setup retained.355 prior full-file501->453 (-48) and6->4 setups reused after verifying undo paths unchanged. No new broad boilerplate percentage or binary inventory run.",
-        "limits": "Selected counts are complete-file sizes, not entire-landing deltas. Full landed costs come from retained gate footers. External review-20261109-0954/ast.json retains detail."
+        "revision": "f39b61f82bb03d31a9c95a9ce7b07c25b2b00852",
+        "method": "Existing external parser:13 files at675326b76 and4 sampling files atf39b61f82; diff confirms earlier13 unchanged. Source/parser-local links only, no package type resolution or application execution.",
+        "selected_counts": "landing undo846/undoTest580/costs511/costsTest397; loop costs537/costsTest251/main3534/startup880/startupTest556/mutants1346/mutantsTest632; scorecard referencePolicyTest364; comfy importTest130. Concurrent sampler8081/gbnf7045/gbnfTest2574/greedyGrammarTest290.",
+        "comparison": "355 full undo file501->507->580; setup calls6->5.356 cost files1048production/648test, plus shared driver/startup owners; these are baselines, not deletable totals. External review-20261109-1159/ast.json retained. 357 replacement unimplemented/unpriced; concurrent-ast.json and grammar-owner-ast.json retain sampling detail.",
+        "limits": "Whole landed totals below come from retained gate footers; selected file sizes are not a repository census."
       },
     "media_follow_up": {
         "landings": [
@@ -9752,9 +9916,9 @@
   },
     "limitations": [
       "This chat previously implemented Overgo changes; follow-up SQA, not independent third-party review.",
-      "No application tests, models/devices, services, benchmarks, profiles, gates, agents/messages, plan/skill edits or pushes. Standard-library selected-file parser only.",
-      "AST has parser-local links, not package/type resolution. Retained implementation results were not independently rerun. Stillness counterexamples follow admitted source values/predicate, not measured incidents; metadata fallback remains an unproved hypothesis.",
-      "Full-tree duplication/binary/directory figures remain at their retained revisions. No overall net shrinkage or completed architectural refactor established."
+      "No application tests, models/devices, services, benchmarks, profiles, production gates, agents/messages, plan/skill changes or pushes. Selected-file parsing only.",
+      "AST counts include comments and parser-local links; no package-wide symbol/type resolution or execution.356 is a source-established restart/attribution counterexample, not a reproduced incident. Retained implementation results were not independently rerun.",
+      "No safe overall code/runtime reduction, broad mutation score or completed refactor established. Prior full-tree duplication/binary/directory measurements retain their exact revisions."
     ],
     "master_lead_triage": {
     "at": "2026-11-08",
@@ -10615,12 +10779,12 @@
       }
     }
   },
-    "next_finding_number": 356,
+    "next_finding_number": 358,
     "publication_context": {
-    "assessment": "Re-read committed code, report and owner fields before publication; active plan/landing/undo edits preserved and excluded from committed evidence.",
-    "checked_head": "5c5113e7f5432e9d2af1e26f5b9592d8c555011c",
-    "concurrent_changes": "Initial3cc685278 advanced to5c5113e7f; complete stillness source/test/plan and retained results reconciled and parsed. Active uncommitted undo boundary draft now merges message assertions while adding refusal/reason coverage;355 remains open at the pin, and its older estimate must be remeasured after landing. Final guards reject a changed pin/report.",
-    "current_pin": "5c5113e7f5432e9d2af1e26f5b9592d8c555011c",
+    "assessment": "Report initially published unstaged while landing owned publication; reconciled its completed f39b61f82 before committing. Active loop/tool work preserved.",
+    "checked_head": "f39b61f82bb03d31a9c95a9ce7b07c25b2b00852",
+    "concurrent_changes": "675326b76->f39b61f82 touches sampler/greedy test/plan only. Read source, validation/parity owner and retained result; parsed4 more files. Prior13 unchanged; report/owner re-read guarded at publication.",
+    "current_pin": "f39b61f82bb03d31a9c95a9ce7b07c25b2b00852",
     "publication": "Use the existing report-only hook exception for a standalone commit when landing ownership permits. If busy, a validated report-only checkout write may remain pending; do not stage unrelated files, advance HEAD or disturb workers.",
     "report_only": "Only docs/sqa_findings.json; existing hooks and landing/gate ownership, unrelated index/worktree preserved."
   },
@@ -10629,6 +10793,7 @@
     "SQA-316",
     "SQA-346",
     "SQA-343",
+    "SQA-357",
     "SQA-271",
     "SQA-322",
     "SQA-318",
@@ -10636,6 +10801,7 @@
     "SQA-331",
     "SQA-340",
     "SQA-348",
+    "SQA-356",
     "SQA-342",
     "SQA-345",
     "SQA-277",
@@ -10645,7 +10811,6 @@
     "SQA-341",
     "SQA-330",
     "SQA-344",
-    "SQA-355",
     "SQA-349",
     "SQA-351",
     "SQA-352",
@@ -10684,41 +10849,42 @@
     "repository": "C:\\Users\\jeffm\\overgo",
     "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
     "review_notes": [
-      "The prior354 estimate was46nodes; actual landed deletion is44 including revised comments. No saved device run claimed.",
-      "342 consolidates all current calibration progress without retiring its distinct semantic-admission requirements. Unsupported metadata-fallback concerns were not promoted to a new defect.",
-      "Reuse exact prior AST/binary/directory evidence; no recurring census or new review framework.",
-      "Concurrent undo boundary draft was inspected only to avoid conflicting publication; it is not a committed355 closure or an achieved48-node saving."
+      "355 closes the duplication obligation with a retained owner and all unique coverage. Added boundary/log requirements explain+79 test AST and the final five setups; do not credit the old48-node deletion estimate.",
+      "356 is separate from348's ranking formula and271's app supervision, but its own recovery/accounting symptoms share one coordinated attempt-owner migration.",
+      "New projector prerequisite is recorded plan evidence, not a verified format-independent execution capability. Architecture target remains active.",
+      "Concurrent f39 speedup needs357's retained admission boundary; timing is not numerical equivalence."
     ],
-    "reviewed_at": "2026-11-09T10:03:58Z",
-    "reviewed_master": "5c5113e7f5432e9d2af1e26f5b9592d8c555011c",
+    "reviewed_at": "2026-11-09T12:11:31Z",
+    "reviewed_master": "f39b61f82bb03d31a9c95a9ce7b07c25b2b00852",
     "schema_version": 2,
     "scope": [
-      "Committed master 5c5113e7f5432e9d2af1e26f5b9592d8c555011c; read committed plan, repository guidance and unchanged Downloads architecture target. Bounded media calibration -> evidence dataset -> scorecard comparison/display, related render fixture and session ownership.",
-      "Reconciled concurrent stillness landing5c5113e7f after initial3cc685278 pin. Nine selected Go files parsed; prior full-tree AST and unchanged structural findings reused. Provisional source conclusions preceded rankings.",
-      "Rechecked342 and354 against committed source/retained verification;355 and349..353 paths unchanged. Working plan edits excluded; no blanket closure."
+      "Committed master f39b61f82bb03d31a9c95a9ce7b07c25b2b00852; guidance/plan/Downloads target read. Initial675326b76 driver/undo/cost/mutation slice reconciled with concurrent grammar-draw.",
+      "17 selected Go files parsed:13 at675326b76, unchanged at final pin, and4 sampling files atf39b61f82. Concrete callers/recovery/native parity and retained results inspected; no repeat census.",
+      "355 resolved;322 remains open; new356/357 identify cost recovery and sampler admission defects. Uncommitted loop/tool/demonstration edits preserved and excluded."
     ],
     "sqa_response": {
-    "assessment": "182 stable IDs:55 open,121 resolved,4 deferred,2 aliases. Close354; update342 with fidelity, grouped-comparison and stillness progress. No new finding or alias.",
+    "assessment": "184 stable IDs:56 open,122 resolved,4 deferred,2 aliases. Close355; add356/357; recheck322. Concurrent grammar landing reconciled.",
     "consolidated_findings": [],
     "deferred_findings": [],
     "evidence": [
-        "5c5113e7f5432e9d2af1e26f5b9592d8c555011c",
-        "bc77ee5e7/3cc685278/5c5113e7f source and retained gate records",
-        "Nine selected AST files; prior full scan and unchanged355 candidate retained"
+        "f39b61f82bb03d31a9c95a9ce7b07c25b2b00852",
+        "Five retained landings e9d31d570..f39b61f82",
+        "17 selected AST files and exact source/caller comparisons"
       ],
     "implementation_response_context": {
-        "reviewed_commit": "5c5113e7f5432e9d2af1e26f5b9592d8c555011c",
+        "reviewed_commit": "f39b61f82bb03d31a9c95a9ce7b07c25b2b00852",
         "current_triage_head": "518fa52f417f796df399da65d208a61290fe5635",
-        "status": "Owner blocks and unknown fields preserved raw-exact.354 closure follows committed implementation/source;342 remains partly addressed, not closed."
+        "status": "Both owner blocks and unknown fields preserved raw-exact.355 source closure includes expanded boundary/log coverage, not the superseded48-node estimate."
       },
-    "new_findings": [],
-    "partially_addressed_findings": [
-        "SQA-342"
+    "new_findings": [
+        "SQA-356",
+        "SQA-357"
       ],
+    "partially_addressed_findings": [],
     "priority_changes": [
-        "Remove354 from active ranking; preserve existing correctness/recovery priority."
+        "Remove355 from active work; place356 beside348 before relying on worker cost/benefit."
       ],
-    "recommendation": "Credit the achieved deletion and comparison repair. Retain fidelity limits and keep source-extrema motion descriptive. Next small reduction remains355's duplicated repository setup.",
+    "recommendation": "Retain undo consolidation and grammar speedup; restore vocabulary admission, reconcile cost recovery through existing owners and move verification earlier.",
     "refactor": {
       "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
       "history_path": "docs/sqa_findings.json",
@@ -10726,12 +10892,12 @@
     },
     "reopened_findings": [],
     "resolved_findings": [
-        "SQA-354"
+        "SQA-355"
       ],
-    "reviewed_master": "5c5113e7f5432e9d2af1e26f5b9592d8c555011c",
-    "uncertainty": "Retained evidence only, not independent execution. No calibrated general motion bound, whole-system shrinkage or full refactor completion established.",
+    "reviewed_master": "f39b61f82bb03d31a9c95a9ce7b07c25b2b00852",
+    "uncertainty": "No application execution.356/357 are source-established counterexamples; incident frequency and replacement sizes unmeasured. No overall shrinkage/completed refactor.",
     "updated_findings": [
-        "SQA-342"
+        "SQA-322"
       ]
   }
   }

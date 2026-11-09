@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 
 	"overgo/internal/clioptions"
@@ -50,7 +51,7 @@ func planStep(root string) workerStep {
 	return workerStep{show: plan("-prompt"), check: plan("-verify"), files: stepFiles}
 }
 
-// workerTools are the six tools over the checkout at root, serving step.
+// workerTools are the eight tools over the checkout at root, serving step.
 func workerTools(root string, step workerStep) []workerTool {
 	inside := func(name string) (string, error) {
 		relative := filepath.ToSlash(filepath.Clean(name))
@@ -77,6 +78,41 @@ func workerTools(root string, step workerStep) []workerTool {
 			}
 			data, err := os.ReadFile(filepath.Join(root, relative))
 			return string(data), err
+		}},
+		// A worker that can only read whole files reads its context full before it edits anything: on 2026-11-08
+		// Qwen3.8-27B spent 39 of its 40 replies on file reads and changed nothing (local-worker/replay).
+		{"read_lines", "Read lines from to to of a file of the checkout, by its path from the checkout's root, each with its number.", []string{"path", "from", "to"}, func(arguments map[string]string) (string, error) {
+			relative, err := inside(arguments["path"])
+			if err != nil {
+				return "", err
+			}
+			from, fromErr := strconv.Atoi(arguments["from"])
+			to, toErr := strconv.Atoi(arguments["to"])
+			if fromErr != nil || toErr != nil || from < 1 || to < from {
+				return "", errors.New("from and to are line numbers, from 1, to no less than from")
+			}
+			data, err := os.ReadFile(filepath.Join(root, relative))
+			if err != nil {
+				return "", err
+			}
+			var text strings.Builder
+			number := 0
+			for line := range strings.Lines(string(data)) {
+				if number++; number >= from && number <= to {
+					fmt.Fprintf(&text, "%d\t%s", number, line)
+				}
+			}
+			return text.String(), nil
+		}},
+		{"search_files", "Find a text in the checkout's tracked files: each line holding it, with its file and line number.", []string{"text"}, func(arguments map[string]string) (string, error) {
+			if arguments["text"] == "" {
+				return "", errors.New("the text to find is empty")
+			}
+			found, err := gitauthority.Query(context.Background(), root, "grep", "-n", "-I", "-F", "-e", arguments["text"])
+			if err != nil && len(found) == 0 {
+				return "no tracked file holds it", nil
+			}
+			return string(found), nil
 		}},
 		{"edit_file", "Replace the one occurrence of old with new in a file the step may change; an empty old writes new as the whole file.", []string{"path", "old", "new"}, func(arguments map[string]string) (string, error) {
 			relative, err := inside(arguments["path"])
@@ -188,15 +224,21 @@ func (tool workerTool) schema() map[string]any {
 	return map[string]any{"type": "object", "properties": properties, "required": append([]string{}, tool.arguments...)}
 }
 
-// callTool runs the tool named with the arguments given, each read as a string.
+// callTool runs the tool named with the arguments given, each it names a string the call gives: a call missing one is
+// refused before the tool runs, since an edit read a missing old as empty and wrote new over the whole file (SQA-347).
+// Arguments it does not name are not read.
 func callTool(tools []workerTool, name string, given map[string]any) (string, error) {
 	at := slices.IndexFunc(tools, func(tool workerTool) bool { return tool.name == name })
 	if at < 0 {
 		return "", fmt.Errorf("%q is no tool of the worker's", name)
 	}
 	arguments := map[string]string{}
-	for key, value := range given {
-		arguments[key] = fmt.Sprint(value)
+	for _, argument := range tools[at].arguments {
+		text, isText := given[argument].(string)
+		if !isText {
+			return "", fmt.Errorf("%s takes %s, a string, which the call did not give (%v)", name, argument, given[argument])
+		}
+		arguments[argument] = text
 	}
 	return tools[at].run(arguments)
 }

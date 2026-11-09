@@ -203,11 +203,18 @@ type calibration struct {
 // their parents, which the store of the test's own holds as bare authorities.
 func openCalibration(t *testing.T, ctx context.Context, roots dataroot.Roots, root string) calibration {
 	t.Helper()
+	judge := filepath.Join(roots.ResolveModelPath("Qwen3.8-27B-UD-Q6_K"), "Qwen3.8-27B-UD-Q6_K.gguf")
+	return openJudge(t, ctx, roots, root, judge, filepath.Join(filepath.Dir(judge), "mmproj-BF16.gguf"))
+}
+
+// openJudge opens the model at path with the projector at projector as a judge over the outputs under root, as
+// openCalibration opens Qwen3.8-27B.
+func openJudge(t *testing.T, ctx context.Context, roots dataroot.Roots, root, path, projector string) calibration {
+	t.Helper()
 	store := testcheck.Must(overgodb.OpenReadOnly(roots.Store))(t)
 	answers := overgodbtest.Open(t, t.TempDir())
-	judge := filepath.Join(roots.ResolveModelPath("Qwen3.8-27B-UD-Q6_K"), "Qwen3.8-27B-UD-Q6_K.gguf")
 	session := testcheck.Must(openProjectionInto(ctx, store, answers, manifest{Repository: roots.Store, CodeCommit: runrecord.RunningCommit()},
-		modelRequest{Path: judge, Projector: filepath.Join(filepath.Dir(judge), "mmproj-BF16.gguf"), MediaRoot: root}))(t)
+		modelRequest{Path: path, Projector: projector, MediaRoot: root}))(t)
 	t.Cleanup(func() { testcheck.NoError(t, session.Close()) })
 	authorities := session.campaign.Authorities()
 	judged := testcheck.Must(projectionIdentity(ctx, store, projectionRuntime{runner: session.runner}))(t)

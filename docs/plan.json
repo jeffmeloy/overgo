@@ -13,22 +13,6 @@
       },
       "steps": [
         {
-          "id": "vision-judge",
-          "title": "gemma-4-12B-it is registered from its published directory, its text verified on an exact suite of its own and its projection on docs/verification/fixtures/gemma-4-12b, both activated on the owner's answer, so the evaluator opens it as a judge",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/evaluate -count=1 -run '^TestGemmaTwelveOpensAsAJudge$'",
-          "files": [
-            "cmd/evaluate",
-            "cmd/recipe",
-            "cmd/validate",
-            "internal/projector",
-            "internal/evaluation",
-            "internal/gemma4convert"
-          ],
-          "needs_card": true,
-          "rationale": "The evaluator opens a judge only through its model's active inference recipe and active projection recipe (cmd/evaluate openProjectionInto). The store serves gemma-4-12B-it's text from converted copies alone (adaptive_new/checkpoints/overgo-hfconvert/gemma-4-12B-it-fp8-native.gguf and -fp8-bf16.gguf), and the published directory is no registered model: it has no model config in the store, so a projection candidate binds no image attention ('media prompt requires explicit recipe-bound image attention', 2026-11-09). go run ./cmd/validate -onboard \u003cdirectory\u003e registers a directory hfconvert views as itself, unconverted, records and replays an exact suite and activates; on the owner's answer to gemma-published-activation it is run on the published directory, its model config recorded (cmd/model-config), and recipe verify -task projection -projector \u003cdirectory\u003e -input-file docs/verification/fixtures/gemma-4-12b/suite.json run and its recipe activated. Then TestGemmaTwelveOpensAsAJudge opens it through openProjectionInto and has it answer a picture and a clip case of the suite.\n\nServes: second-judge/independent.\n\nDisappears: a second judge reachable only through converted copies.\n\nEvidence: the suite kept 27 of 28 cases on the publisher's model (judge-calibration/gemma-suite)."
-        },
-        {
           "id": "independent",
           "title": "gemma-4-12B-it, a judge of another family, judges the same 32 image and 32 video cases as Qwen3.8-27B, and the two judges' per-medium scores agree in rank by Kendall's tau above a floor declared before the run, its bootstrap interval printed and the cases they disagree on listed",
           "status": "open",
@@ -1364,22 +1348,6 @@
           ]
         }
       ]
-    }
-  ],
-  "decisions": [
-    {
-      "id": "gemma-published-activation",
-      "question": "May gemma-4-12B-it be registered from its published folder (overgo_data/models/gemma-4-12B-it, nothing converted) and activated, its text once it passes its own exact suite and its picture, clip and sound projection once it passes its 27-case suite (the publisher's own model answered all 27 right), so it can serve as the second judge? An activation is undone only through a failed check.",
-      "options": [
-        "activate gemma-4-12B-it from its published folder once both suites pass",
-        "keep it unactivated: the media verdicts rest on the Qwen judge alone"
-      ],
-      "recommendation": "activate gemma-4-12B-it from its published folder once both suites pass",
-      "blocks": [
-        "second-judge"
-      ],
-      "asked": "2026-11-09",
-      "owners_act": true
     }
   ]
 }

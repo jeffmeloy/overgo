@@ -1,6 +1,7 @@
 package landing
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 
@@ -39,7 +40,17 @@ func undone(t *testing.T, class, reason, source, test string) (*landing, error) 
 	fixture.write("p/p.go", source)
 	fixture.write("p/p_test.go", "package p\n\nimport \"testing\"\n\n"+test)
 	l := fixture.candidate()
+	// What the landing prints as it runs is kept, to be read back (printed).
+	l.Log = &bytes.Buffer{}
 	return l, l.verify(t.Context())
+}
+
+// printed is what a landing undone ran printed.
+func printed(l *landing) string {
+	if log, kept := l.Log.(*bytes.Buffer); kept {
+		return log.String()
+	}
+	return ""
 }
 
 // TestTheLandingUndoesItsChangeAndTheCheckFails runs a landed step's check with the change's production Go restored
@@ -51,8 +62,8 @@ func TestTheLandingUndoesItsChangeAndTheCheckFails(t *testing.T) {
 	t.Parallel()
 	caught, err := undone(t, "", "", strings.Replace(undoneValue, "return 1", "return 2", 1), caughtTest)
 	if message := caught.message(); err != nil || !strings.Contains(message, undoSection+"\n- with p/p.go restored to ") || !strings.Contains(message, "TestValue") ||
-		strings.Contains(message, undoEvidenceTrailer) || strings.Contains(message, "No undo evidence") {
-		t.Errorf("a change its test catches without it ended as %v, its message:\n%s", err, message)
+		strings.Contains(message, undoEvidenceTrailer) || strings.Contains(message, "No undo evidence") || strings.Contains(printed(caught), "has no undo evidence") {
+		t.Errorf("a change its test catches without it ended as %v, its message:\n%s\nprinting:\n%s", err, message, printed(caught))
 	}
 	if _, err := undone(t, "", "", undoneValue+"\n// Twice is twice the value.\nfunc Twice() int { return 2 }\n",
 		"func TestValue(t *testing.T) {\n\tt.Parallel()\n\tif Value() != 1 {\n\t\tt.Fatal(Value())\n\t}\n}\n"); err == nil || !strings.Contains(err.Error(), "proves nothing") {
@@ -80,7 +91,8 @@ func TestNoUndoEvidenceNeedsABoundaryTestOrAReason(t *testing.T) {
 	unbuilt, err := undone(t, "", reason, undoneValue+twice, unbuiltTest)
 	unbuilt.composed = "subject\n\nCause:\n- a cause\n\nChange:\n- a change\n"
 	if message := unbuilt.message(); err != nil || !strings.Contains(message, "\n"+undoEvidenceTrailer+": none\n") ||
-		!strings.Contains(message, "Change:\n- No undo evidence: "+undoneCheck) || !strings.Contains(message, reason) {
-		t.Errorf("a change whose check does not build without it and whose step says why ended as %v, its message:\n%s", err, message)
+		!strings.Contains(message, "Change:\n- No undo evidence: "+undoneCheck) || !strings.Contains(message, reason) ||
+		!strings.Contains(printed(unbuilt), "has no undo evidence: "+undoneCheck) {
+		t.Errorf("a change whose check does not build without it and whose step says why ended as %v, its message:\n%s\nprinting:\n%s", err, message, printed(unbuilt))
 	}
 }

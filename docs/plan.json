@@ -57,13 +57,6 @@
       },
       "steps": [
         {
-          "id": "survivors",
-          "title": "Every bad alternative the first mutation run passed is refused by a test beside its step's check, or recorded as no defect with why: a reference's same-policy readings (internal/scorecard readingsOf), the comfy reference fixture's two comparisons, and the printed line of a landing with no undo evidence",
-          "status": "open",
-          "verify": "go test ./internal/scorecard -count=1 -run '^TestAReferenceReadsItsOwnPolicysReadings$'",
-          "rationale": "Serves: every landing's evidence: a check that passes a bad alternative of its own change holds less than its landing said.\n\nDisappears: the alternatives the first mutation run passed.\n\nEvidence: go run ./cmd/loop -mutants 2026-11-01 -replay-limit 10 (2026-11-09) refused 19 of 30 bad alternatives of 10 landed steps with host checks. It passed: internal/scorecard/record.go:304 and :305, the same-policy test of a reference's earlier readings (readingsOf), which no test reaches (scorecard-integrity/failures and /policy, one landing, 0 of 3 each); cmd/comfy-reference/fixture.go:68 and :72 (comfy-recorder/request, 0 of 3); internal/landing/undo.go:84, the printed line of a landing with no undo evidence (undo-evidence/visible, 1 of 3). Each is refused by a test added beside its step's check, or recorded as no defect with why. A landing of two steps is one commit, so its alternatives are drawn from its whole change; the run takes the first three comparisons of each landing's production Go, in the order its files and lines come.\n\nBatch: host lane."
-        },
-        {
           "id": "costs",
           "title": "Each landing records its full cost beside its measured benefit: the worker's wall and tokens across every attempt, its checks' wall, the attempts refused and their recovery, and the loop's report prints benefit against cost per worker",
           "status": "open",

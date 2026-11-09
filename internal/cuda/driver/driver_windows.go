@@ -1226,18 +1226,19 @@ func (l *Library) result(operation string, value uintptr) error {
 	pinned.Pin(&namePtr)
 	defer pinned.Unpin()
 	if result, _, _ := l.cuGetErrorName.Call(uintptr(code), uintptr(unsafe.Pointer(&namePtr))); int32(result) == 0 {
-		err.Name = readCString(namePtr, cudaDeviceNameBytes)
+		err.Name = ReadCString(namePtr, cudaDeviceNameBytes)
 	}
 	var messagePtr uintptr
 	pinned.Pin(&messagePtr)
 	if result, _, _ := l.cuGetErrorString.Call(uintptr(code), uintptr(unsafe.Pointer(&messagePtr))); int32(result) == 0 {
-		err.Message = readCString(messagePtr, 1024)
+		err.Message = ReadCString(messagePtr, 1024)
 	}
 	return err
 }
 
-// readCString: bounded copy from driver-owned C string
-func readCString(pointer uintptr, limit int) string {
+// ReadCString is a bounded copy of a C string a library owns, read through kernel32 so no uintptr becomes a Go
+// pointer: the driver's error texts, and NVIDIA's Video Effects runtime's (internal/cuda/nvvfx).
+func ReadCString(pointer uintptr, limit int) string {
 	if pointer == 0 || limit <= 0 {
 		return ""
 	}

@@ -71,13 +71,18 @@ func screenPaths(ctx context.Context, encoder imageEmbedder, candidate, referenc
 	if err != nil {
 		return evaluation.Screen{}, err
 	}
-	_, candidates, err := readScreenDraws(candidate)
+	candidateManifest, candidates, err := readScreenDraws(candidate)
 	if err != nil {
 		return evaluation.Screen{}, err
 	}
 	reseededManifest, others, err := readScreenDraws(reseeded)
 	if err != nil {
 		return evaluation.Screen{}, err
+	}
+	// A GIF beside an MP4 lies apart by its palette as well as its model, so the three sides agree in format first.
+	if format := referenceManifest.clipFormat(); candidateManifest.clipFormat() != format || reseededManifest.clipFormat() != format {
+		return evaluation.Screen{}, fmt.Errorf("evaluate: the reference's clips are %q, the candidate's %q and the reseeded directory's %q: a screen compares one format",
+			format, candidateManifest.clipFormat(), reseededManifest.clipFormat())
 	}
 	if reseededManifest.Model != referenceManifest.Model || reseededManifest.Recipe != referenceManifest.Recipe || !maps.Equal(reseededManifest.Settings, referenceManifest.Settings) {
 		return evaluation.Screen{}, fmt.Errorf("evaluate: %s was drawn by %s under %s with %v, not by the reference path, %s under %s with %v",

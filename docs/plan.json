@@ -3,34 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "mp4-clips",
-      "title": "Every clip overgo writes is an MP4 unless a request asks for a GIF, the judge and the screens read it, and the FFmpeg that wrote it is bound to it",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": -329,
-        "reason": "Estimated from a survey: the encoder, its FFmpeg path and the format choice exist (internal/latentvideo/mp4.go, production.go:280-326), so the change is a default, an identity on the clip's record, a render branch, a format check before a comparison, and two tests. plan -add derives its own count from history beside this figure."
-      },
-      "steps": [
-        {
-          "id": "render",
-          "title": "cmd/evaluate -render writes each clip a video model draws as an MP4 named by its digest, and rendered.json names its format and the FFmpeg digest. The judge, the pair screen and the frame-to-frame measure read it, and a comparison refuses two sides saved in different formats",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/evaluate -count=1 -run '^TestARenderedClipIsAnMP4TheJudgeReads$'",
-          "files": [
-            "cmd/evaluate",
-            "internal/evaluation",
-            "internal/scorecard"
-          ],
-          "needs_card": true,
-          "rationale": "Serves: the clips a quality comparison draws are saved as MP4, so the scores describe the model, not the GIF.\n\nDisappears: the render's refusal of anything but a PNG or a GIF (cmd/evaluate/render.go:159-170) and clipExtensionGIF (:41).\n\nEvidence: drawn() maps only PNG and GIF. -render-set reads numbers only (parseSettings, render.go:140-152), so a render cannot ask for \"mp4\" today. With mp4-clips/default the request names \"mp4\" itself. The judge already binds FFmpeg's identity for a clip that is not a GIF (cmd/evaluate/media_inputs.go:93-106, internal/evaluation/media_inputs.go:52). Clip consistency and the pair screen decode through media.DecodeVideoFile (cmd/evaluate/screen.go:125), which reads both formats.\n\nA comparison of a GIF side with an MP4 side measures the format as well as the model. Both the pair screen's floor (a second seed of the same prompt) and the base-versus-student verdict assume one format on both sides, so the manifests' formats are compared before anything is judged.\n\nThe test draws two clips with the Wan four-step student at its suite settings. It checks that each is an MP4 whose bytes match the digest in its name, judges both, and runs the frame-to-frame measure on them. A GIF render offered as the other side of a screen is refused.\n\nExisting GIF folders stay as they are, because converting a GIF back recovers none of its colours. video-judge/same-settings is mid-render with GIFs on both sides, so its verdict stays fair. The next comparison draws both sides as MP4.\n\nPredicted effect: held-out-quality for every video generator and editor.\n\nBatch: device lane.",
-          "depends_on": [
-            "mp4-clips/default"
-          ]
-        }
-      ]
-    },
-    {
       "id": "judge-calibration",
       "title": "The media judges are shown to measure what they are used for: they score deliberately degraded outputs lower, a judge of another family ranks the same cases alike, a verdict counts media and not the questions asked of each, and a preset is admitted at the size a person asks for",
       "owner": "master-lead",

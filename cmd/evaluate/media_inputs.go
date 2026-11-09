@@ -84,29 +84,39 @@ func (r projectionRuntime) bindMedia(ctx context.Context, kind evaluation.MediaK
 	input.Decode = evaluation.MediaDecode{Format: "image"}
 	if kind == evaluation.MediaVideo {
 		video := r.runner.RuntimePolicy().Interactive.Video
-		input.Decode = evaluation.MediaDecode{Format: "gif", FPS: video.FPS, Frames: video.MaxFrames}
-		file, err := os.Open(path)
+		decode, err := videoDecode(path, r.ffmpeg, video.FPS, video.MaxFrames)
 		if err != nil {
 			return evaluation.MediaInput{}, err
 		}
-		var header [len("GIF87a")]byte
-		_, readErr := io.ReadFull(file, header[:])
-		if err := errors.Join(readErr, file.Close()); err != nil {
-			return evaluation.MediaInput{}, err
-		}
-		if string(header[:]) != "GIF87a" && string(header[:]) != "GIF89a" {
-			tool, err := media.ResolveFFmpeg(r.ffmpeg)
-			if err != nil {
-				return evaluation.MediaInput{}, err
-			}
-			input.Decode.Format = "ffmpeg"
-			input.Decode.Tool, err = artifact.IdentifyFile(artifact.KindFile, tool)
-			if err != nil {
-				return evaluation.MediaInput{}, err
-			}
-		}
+		input.Decode = decode
 	}
 	return r.mediaFiles.bind(path, input)
+}
+
+// videoDecode is how the judge reads the clip at path, at fps and at most frames: a GIF by its own decoder, any other
+// clip, an MP4 among them, through the FFmpeg configured names or media.ResolveFFmpeg finds, named by the digest of its
+// bytes, so the answer is kept under the decoder that read it.
+func videoDecode(path, configured string, fps float64, frames int) (evaluation.MediaDecode, error) {
+	decode := evaluation.MediaDecode{Format: "gif", FPS: fps, Frames: frames}
+	file, err := os.Open(path)
+	if err != nil {
+		return evaluation.MediaDecode{}, err
+	}
+	var header [len("GIF87a")]byte
+	_, readErr := io.ReadFull(file, header[:])
+	if err := errors.Join(readErr, file.Close()); err != nil {
+		return evaluation.MediaDecode{}, err
+	}
+	if string(header[:]) == "GIF87a" || string(header[:]) == "GIF89a" {
+		return decode, nil
+	}
+	tool, err := media.ResolveFFmpeg(configured)
+	if err != nil {
+		return evaluation.MediaDecode{}, err
+	}
+	decode.Format = "ffmpeg"
+	decode.Tool, err = artifact.IdentifyFile(artifact.KindFile, tool)
+	return decode, err
 }
 
 // ResolveMedia retains a generated payload's exact request and original producing run.

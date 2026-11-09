@@ -43,6 +43,21 @@ func embedFrames(ctx context.Context, encoder imageEmbedder, frames []image.Imag
 	return vectors, nil
 }
 
+// clipFile is the file of a clip a suite names in directory: in a render directory the file its manifest binds the
+// name to, a suite naming each drawn clip by its request's key (renderMedia); elsewhere, VidGen's clips among them, the
+// file of that name.
+func clipFile(directory, name string) (string, error) {
+	var manifest renderManifest
+	err := jsonfile.Decode(filepath.Join(directory, renderManifestFile), &manifest)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return "", err
+	}
+	if held, drawn := manifest.Draws[name]; drawn {
+		return mediaPath(directory, held.File)
+	}
+	return mediaPath(directory, name)
+}
+
 // clipMotion reads the clip at path at motionFrameRate and measures how it moves.
 func clipMotion(ctx context.Context, encoder imageEmbedder, ffmpeg, path string) (evaluation.FrameSimilarity, error) {
 	frames, err := media.DecodeVideoFile(ctx, path, ffmpeg, motionFrameRate, motionFrames)
@@ -75,7 +90,11 @@ func measureMotion(ctx context.Context, encoder imageEmbedder, encoderName strin
 		if _, measured := motion.Clips[key]; !framed || kind != evaluation.MediaVideo || measured {
 			continue
 		}
-		if motion.Clips[key], err = clipMotion(ctx, encoder, ffmpeg, filepath.Join(clips, name)); err != nil {
+		file, err := clipFile(clips, name)
+		if err != nil {
+			return err
+		}
+		if motion.Clips[key], err = clipMotion(ctx, encoder, ffmpeg, file); err != nil {
 			return err
 		}
 		if sources == "" {

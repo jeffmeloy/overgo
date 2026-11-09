@@ -37,18 +37,35 @@ const (
 	renderDirectoryMode = 0o700
 	// settingBits is the precision a -render-set number is read at, a request's JSON number.
 	settingBits = 64
-	// clipExtensionGIF is the extension of a clip a video model draws, which the judge reads natively.
-	clipExtensionGIF = ".gif"
+	// gifFormat is the format a clip's request names by naming none, and a render manifest written before formats were
+	// recorded drew its clips in.
+	gifFormat = "gif"
 )
+
+// drawnExtensions name each format a generation returns by the extension its file is written under: a picture as a
+// PNG, a clip as the GIF or MP4 it was written as, which the judge reads natively or through FFmpeg.
+var drawnExtensions = map[string]string{media.PNGMediaType: ".png", media.GIFMediaType: ".gif", media.MP4MediaType: ".mp4"}
 
 // renderManifest binds full requests to their producing runs and content-addressed files.
 type renderManifest struct {
-	Model      artifact.ID              `json:"model"`
-	Recipe     artifact.ID              `json:"recipe"`
-	Task       recipe.Task              `json:"task"`
-	CodeCommit string                   `json:"code_commit"`
-	Settings   map[string]float64       `json:"settings,omitempty"`
-	Draws      map[string]renderedMedia `json:"draws"`
+	Model      artifact.ID        `json:"model"`
+	Recipe     artifact.ID        `json:"recipe"`
+	Task       recipe.Task        `json:"task"`
+	CodeCommit string             `json:"code_commit"`
+	Settings   map[string]float64 `json:"settings,omitempty"`
+	// Format is the format the clips were asked in (clipFormat); a picture render holds none.
+	Format string                   `json:"format,omitempty"`
+	Draws  map[string]renderedMedia `json:"draws"`
+}
+
+// clipFormat is the format a render's clips were written in: the one its manifest names, or a GIF for clips drawn
+// before a manifest named one, which is what their requests asked for by naming none. Two renders compared one beside
+// the other (a pair screen, a model beside its base) agree in it, or the comparison measures the format with the model.
+func (manifest renderManifest) clipFormat() string {
+	if manifest.Format == "" && manifest.Task == recipe.TaskVideoGen {
+		return gifFormat
+	}
+	return manifest.Format
 }
 
 // renderedMedia retains the request and original workflow that produced one payload.
@@ -59,9 +76,11 @@ type renderedMedia struct {
 	Input   artifact.ID     `json:"input"`
 	Output  artifact.ID     `json:"output"`
 	Run     artifact.ID     `json:"run,omitzero"`
+	// Encoding is the FFmpeg and the arguments that wrote an MP4 (media.EncodingOf); a GIF or a picture holds none.
+	Encoding media.Encoding `json:"encoding,omitzero"`
 }
 
-// alreadyDrawn admits a directory only for its declared model, recipe, task and settings.
+// alreadyDrawn admits a directory only for its declared model, recipe, task, settings and clip format.
 // Legacy manifests lack request and producer authority and cannot authorize reuse.
 func alreadyDrawn(directory string, want renderManifest) (renderManifest, error) {
 	data, err := os.ReadFile(filepath.Join(directory, renderManifestFile))
@@ -78,6 +97,9 @@ func alreadyDrawn(directory string, want renderManifest) (renderManifest, error)
 	if held.Model != want.Model || held.Recipe != want.Recipe || held.Task != want.Task || !maps.Equal(held.Settings, want.Settings) {
 		return renderManifest{}, fmt.Errorf("evaluate: %s holds media drawn by %s under %s with settings %v, not by %s under %s with %v: draw into another directory",
 			directory, held.Model, held.Recipe, held.Settings, want.Model, want.Recipe, want.Settings)
+	}
+	if held.clipFormat() != want.clipFormat() {
+		return renderManifest{}, fmt.Errorf("evaluate: %s holds clips written as %s, and this render writes %s: draw into another directory", directory, held.clipFormat(), want.clipFormat())
 	}
 	if held.Draws == nil {
 		return renderManifest{}, errors.New("evaluate: legacy render provenance is unknown; draw into another directory")
@@ -160,13 +182,26 @@ func drawn(output any) (artifact.Content, string, error) {
 	if err != nil {
 		return artifact.Content{}, "", err
 	}
-	switch content.Descriptor.MediaType {
-	case media.PNGMediaType:
-		return content, ".png", nil
-	case media.GIFMediaType:
-		return content, clipExtensionGIF, nil
-	default:
-		return artifact.Content{}, "", fmt.Errorf("evaluate: output %s is not a PNG or GIF", content.Descriptor.MediaType)
+	extension, written := drawnExtensions[content.Descriptor.MediaType]
+	if !written {
+		return artifact.Content{}, "", fmt.Errorf("evaluate: output %s is not a PNG, GIF or MP4", content.Descriptor.MediaType)
+	}
+	return content, extension, nil
+}
+
+// withDeclaredDefaults gives the request a render draws from each field its page's controls declare a default for
+// and it leaves out, as the server's intake gives a person's request (mediacapability.Control.Default): a clip asked
+// for in no format is drawn as an MP4, and the request records it.
+func withDeclaredDefaults(selected modelrecipe.CapabilityEvidenceSelection, directory string, template map[string]any) {
+	stages := selected.Program.Stages()
+	if len(stages) == 0 {
+		return
+	}
+	controls, _ := mediacapability.Controls(stages[0].Module.ID, directory)
+	for _, control := range controls {
+		if _, stated := template[control.Name]; control.Default != "" && (!stated || template[control.Name] == nil) {
+			template[control.Name] = control.Default
+		}
 	}
 }
 
@@ -199,12 +234,17 @@ func renderMedia(ctx context.Context, repository, path string, task recipe.Task,
 	if _, prompted := template["prompt"].(string); !prompted {
 		return nil, fmt.Errorf("evaluate: %s draws nothing from a caption: its verified request holds no prompt", path)
 	}
+	withDeclaredDefaults(selected, path, template)
 	if err := os.MkdirAll(directory, renderDirectoryMode); err != nil {
 		return nil, err
 	}
-	manifest, err := alreadyDrawn(directory, renderManifest{
+	want := renderManifest{
 		Model: modelID, Recipe: selected.Activation.Definition.ID, Task: task, CodeCommit: commit, Settings: settings, Draws: map[string]renderedMedia{},
-	})
+	}
+	if format, named := template["format"].(string); named && task == recipe.TaskVideoGen {
+		want.Format = format
+	}
+	manifest, err := alreadyDrawn(directory, want)
 	if err != nil {
 		return nil, err
 	}
@@ -244,7 +284,10 @@ func renderMedia(ctx context.Context, repository, path string, task recipe.Task,
 		if err := atomicfile.Write(filepath.Join(directory, name), content.Data, renderFileMode); err != nil {
 			return nil, err
 		}
-		manifest.Draws[key] = renderedMedia{File: name, Request: encoded, Input: measured.Input.Descriptor.ID, Output: content.Descriptor.ID, Run: measured.Run}
+		manifest.Draws[key] = renderedMedia{
+			File: name, Request: encoded, Input: measured.Input.Descriptor.ID, Output: content.Descriptor.ID, Run: measured.Run,
+			Encoding: media.EncodingOf(capabilityruntime.Unwrap(output)),
+		}
 		names[item.ID] = key
 		if err := save(); err != nil {
 			return nil, err

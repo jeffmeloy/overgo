@@ -99,9 +99,13 @@ func workLocally(ctx context.Context, server, model, prompt string, tools []work
 
 // askChat sends the conversation to overgo's chat route and returns the model's reply.
 func askChat(ctx context.Context, server, model string, messages []chatMessage, tools []map[string]any) (chatMessage, error) {
+	// Greedy with no penalty: a model's recipe may add one (Qwen3.8's presence penalty of 1.5), which turns a model away
+	// from tokens it has written, as code repeats its names, and keeps the server off its greedy draw, which asks a tool
+	// call's grammar about the model's likeliest token alone: under the penalty every token asked it about the whole
+	// vocabulary, a second a token on 2026-11-09 with the GPU idle.
 	body, err := json.Marshal(map[string]any{
-		"model": model, "messages": messages, "tools": tools, "temperature": 0, "max_tokens": localReplyTokens,
-		"chat_template_kwargs": map[string]any{"enable_thinking": false},
+		"model": model, "messages": messages, "tools": tools, "temperature": 0, "presence_penalty": 0, "frequency_penalty": 0,
+		"repeat_penalty": 1, "max_tokens": localReplyTokens, "chat_template_kwargs": map[string]any{"enable_thinking": false},
 	})
 	if err != nil {
 		return chatMessage{}, err

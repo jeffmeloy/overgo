@@ -57,21 +57,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": -1888,
+        "nodes": -1897,
         "reason": "The replay harness and ladder exist (cmd/loop replay.go, ladder.go); mutants of landed steps, a cost ledger per landing and a measured run of the local worker are new. Step grammar-draw: +0 (no landing changed internal/sampling/sampler.go, internal/sampling/greedy_grammar_test.go). Step worker-tools: +163 (163, the median of what 8 landings that changed cmd/loop/tools.go, cmd/loop/tools_test.go, cmd/loop/local_worker.go, cmd/loop/main.go, cmd/loop/init_config.go, cmd/loop/replay.go, cmd/loop/local_worker_windows_model_test.go, cmd/loop/worker_landing_test.go, internal/loop/driver.go, internal/loop/worker_landing_test.go counted). Step matched-ladder: +0 (no landing changed cmd/loop/ladder.go, cmd/loop/ladder_test.go, cmd/loop/ladder_matched_test.go). Step greedy-request: +257 (257, the median of what 1 landings that changed cmd/loop/local_worker.go, cmd/loop/local_worker_request_test.go counted)."
       },
       "steps": [
-        {
-          "id": "greedy-request",
-          "title": "The local worker asks for a greedy draw with no penalty, whatever the model's recipe adds, so its code keeps its repeated names and the server takes its greedy draw",
-          "status": "open",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestTheLocalWorkerDrawsGreedilyWithoutPenalties$'",
-          "files": [
-            "cmd/loop/local_worker.go",
-            "cmd/loop/local_worker_request_test.go"
-          ],
-          "rationale": "The local worker asked for temperature 0 and nothing else, so the model's recipe filled in the rest: Qwen3.8-27B's adds a presence penalty of 1.5 with top-k 20 and top-p 0.8 (the server's /slots on 2026-11-09). A presence penalty turns the model away from every token it has written, and code repeats its names; and it kept the server's sampler off its greedy draw, so each token of a tool call asked the grammar about the whole vocabulary: 1.03 s a token, the GPU at 0% and the server on about three CPU cores, after loop-proof/grammar-draw had made the greedy draw ask about the likeliest token alone. The worker now asks for a greedy draw with no presence, frequency or repeat penalty.\n\nServes: loop-proof/demonstrated, whose cost is the local worker's wall.\n\nDisappears: a recipe's chat penalty on a worker's code edits.\n\nEvidence: cmd/loop TestTheLocalWorkerDrawsGreedilyWithoutPenalties reads the request the worker sends."
-        },
         {
           "id": "demonstrated",
           "title": "The local worker lands three plan steps unaided, each benefit confirmed by an evaluation the worker did not write, and the recorded benefit of the three exceeds their recorded cost",

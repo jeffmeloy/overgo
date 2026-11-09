@@ -8,7 +8,7 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 772,
+        "nodes": 269,
         "reason": "Estimated from a survey: the judged suites, the paired exact test and the render path exist (cmd/evaluate render.go, internal/evaluation, internal/scorecard record.go judgeQuality); the degradations, a second judge's run and the medium pairing are new code with two card tests."
       },
       "steps": [
@@ -31,17 +31,6 @@
           ],
           "needs_card": true,
           "rationale": "Serves: held-out-quality for every image and video generator.\n\nDisappears: one judge's ranking taken as the ranking.\n\nEvidence: the owner's review asks whether the judge's ranking agrees with an independent assessment on representative cases. gemma-4-12B-it is on disk (overgo_data/models) and multimodal; a second family shares fewer of the first's blind spots. The cases are judge-instrument/repeatable's frozen 32 and 32. Where the owner labels cases, their labels join as a third assessor.\n\nBatch: device lane."
-        },
-        {
-          "id": "clustered",
-          "title": "Every quality comparison over a suite that asks several questions of one picture or clip pairs its two readings by medium, the share of each medium's questions answered right, so its exact test counts media: a suite with each question asked twice reads the same verdict",
-          "status": "open",
-          "verify": "go test ./internal/scorecard -count=1 -run '^TestAQualityVerdictCountsMediaNotQuestions$'",
-          "files": [
-            "internal/scorecard",
-            "internal/evaluation"
-          ],
-          "rationale": "Serves: held-out-quality, every judged media row.\n\nDisappears: case-by-case pairing of correlated questions (internal/scorecard/record.go judgeQuality).\n\nEvidence: judgeQuality pairs the two readings' outcomes question by question and runs ExactPairedBinary over them, so the three to ten TIFA questions about one picture count as independent trials and a decline stands on fewer media than its count says. The Wan student's comparison (cmd/validate TestTheWanStudentIsJudgedBesideItsBase) already pairs by clip; the scorecard does the same, the medium read from the case's group or its name's prefix.\n\nBatch: host lane."
         },
         {
           "id": "user-size",

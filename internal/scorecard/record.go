@@ -901,6 +901,48 @@ func Supported(ctx context.Context, root string, gaps []Gap) (kept []Gap, droppe
 //   - pairedTail moves with noiseDeviates and is reconsidered with it
 var pairedTail = half * math.Erfc(noiseDeviates/math.Sqrt2)
 
+// comparedReadings is how many readings a comparison sets side by side: the reference and the one judged against it.
+const comparedReadings = 2
+
+// pairedByOutput sets the cases two readings both answered side by side, and counts where the later answered fewer
+// right, more, or as many. A suite that asks several questions of one picture or clip (evaluation.CaseMedia) is
+// counted output by output, its questions read together, and outputs says so: they are one piece of evidence each, so
+// a decline counted question by question stood on fewer pictures than its count said (the owner's review,
+// 2026-11-09). Any other suite is counted case by case.
+func pairedByOutput(ctx context.Context, store *overgodb.Store, source artifact.ID, before, after map[string]bool) (lost, gained, same uint64, outputs bool) {
+	media, read := evaluation.CaseMedia(ctx, store, source)
+	key := func(name string) string { return name }
+	if read && len(slices.Compact(slices.Sorted(maps.Values(media)))) < len(media) {
+		key, outputs = func(name string) string { return cmp.Or(media[name], name) }, true
+	}
+	// right counts, by output, the paired cases each reading answered right, the earlier reading's first.
+	right := map[string][comparedReadings]int{}
+	for name, now := range after {
+		was, paired := before[name]
+		if !paired {
+			continue
+		}
+		counts := right[key(name)]
+		for at, answered := range []bool{was, now} {
+			if answered {
+				counts[at]++
+			}
+		}
+		right[key(name)] = counts
+	}
+	for _, counts := range right {
+		switch {
+		case counts[1] < counts[0]:
+			lost++
+		case counts[1] > counts[0]:
+			gained++
+		default:
+			same++
+		}
+	}
+	return lost, gained, same, outputs
+}
+
 // judgeQuality says whether a decline of a held-out quality stands by what its two readings rest on, and why (Supported).
 func judgeQuality(ctx context.Context, store *overgodb.Store, unopened error, declined Comparison) (bool, string) {
 	then, now := declined.Then, declined.Now
@@ -913,20 +955,13 @@ func judgeQuality(ctx context.Context, store *overgodb.Store, unopened error, de
 	default:
 		before, beforeRead := evaluation.CaseOutcomes(ctx, store, then.Source)
 		after, afterRead := evaluation.CaseOutcomes(ctx, store, now.Source)
-		var lost, gained, same uint64
-		for name, right := range after {
-			switch was, paired := before[name]; {
-			case !paired:
-			case was && !right:
-				lost++
-			case right && !was:
-				gained++
-			default:
-				same++
-			}
-		}
+		lost, gained, same, outputs := pairedByOutput(ctx, store, now.Source, before, after)
 		if beforeRead && afterRead && lost+gained+same > 0 {
 			tail := tensorstats.ExactPairedBinary(lost, gained, same).Tail
+			if outputs {
+				return tail <= pairedTail, fmt.Sprintf("%d of the %d outputs both readings answered questions of had fewer of their questions answered right and %d more, and so many go fewer with chance %.3g where either way is as likely, against the %.3g a decline stands at",
+					lost, lost+gained+same, gained, tail, pairedTail)
+			}
 			return tail <= pairedTail, fmt.Sprintf("%d of the %d cases both readings answered went from right to wrong and %d from wrong to right, and so many go wrong with chance %.3g where either way is as likely, against the %.3g a decline stands at",
 				lost, lost+gained+same, gained, tail, pairedTail)
 		}

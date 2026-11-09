@@ -228,6 +228,58 @@ var acceptedReportSchemas = []string{
 	generatedAnswerReportContract.Schema, functionCallReportContract.Schema, descriptionMatchingReportContract.Schema, structuredGeneratedReportContract.Schema,
 }
 
+// CaseMedia reads, by case name, what each case an evaluation record's share rests on asks about, from the dataset of
+// the plan the scoring run's report names: the case's group where the suite gave one (GeneratedAnswerCase.Group), else
+// the picture or clip its prompt names (ParseMediaPrompt), else the case itself. The several questions a suite asks of
+// one picture are one piece of evidence of how well it was drawn, so a comparison of two readings counts outputs.
+//   - read = false <=> the record, its run, the report, its plan or the plan's dataset cannot be read, or the dataset names no case.
+func CaseMedia(ctx context.Context, store *overgodb.Store, record artifact.ID) (media map[string]string, read bool) {
+	evaluated, err := runrecord.RequireEvaluation(ctx, store, record)
+	if err != nil {
+		return nil, false
+	}
+	bound, err := runrecord.RequireRun(ctx, store, evaluated.Run)
+	if err != nil {
+		return nil, false
+	}
+	_, report, read := scoredReport(ctx, store, bound)
+	var named struct {
+		Plan    artifact.ID `json:"plan"`
+		Dataset artifact.ID `json:"dataset"`
+	}
+	if !read || json.Unmarshal(report.Data, &named) != nil || !named.Plan.Valid() {
+		return nil, false
+	}
+	content, found, err := artifact.ReadContent(ctx, store, named.Plan)
+	if err != nil || !found || json.Unmarshal(content.Data, &named) != nil || !named.Dataset.Valid() {
+		return nil, false
+	}
+	if content, found, err = artifact.ReadContent(ctx, store, named.Dataset); err != nil || !found {
+		return nil, false
+	}
+	var cases []struct {
+		Name   string `json:"name"`
+		Prompt string `json:"prompt"`
+		Group  string `json:"group"`
+	}
+	if json.Unmarshal(content.Data, &cases) != nil || len(cases) == 0 {
+		return nil, false
+	}
+	media = make(map[string]string, len(cases))
+	for _, testCase := range cases {
+		_, name, _, framed := ParseMediaPrompt(testCase.Prompt)
+		switch {
+		case testCase.Group != "":
+			media[testCase.Name] = testCase.Group
+		case framed:
+			media[testCase.Name] = name
+		default:
+			media[testCase.Name] = testCase.Name
+		}
+	}
+	return media, true
+}
+
 // CaseOutcomes reads whether each case an evaluation record's share rests on was answered right, by case name, from the report of the run that scored the cases.
 //   - run that carried an earlier result forward => followed to the run that scored it (scoredReport)
 //   - choice report => right <=> the selected candidate is the answer, a tie counted by the tie break of the scoring plan's scorer (choiceCorrect)

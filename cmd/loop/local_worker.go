@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 )
 
@@ -20,7 +21,12 @@ const (
 	localReplyTokens = 4096
 	// localResultChars is the most of a tool's result the model is shown; the rest is cut and said to be.
 	localResultChars = 24000
+	// localRepeatedReplies is how many replies in a row of repeated readings alone end an attempt.
+	localRepeatedReplies = 3
 )
+
+// readingTools are the tools whose result an identical call repeats while nothing is edited.
+var readingTools = []string{"read_file", "read_lines", "search_files", "show_step"}
 
 // localInstruction opens a local worker's conversation in place of a prompt written for a client: the eight tools are
 // its only hands and the step's check its end.
@@ -64,6 +70,11 @@ func workLocally(ctx context.Context, server, model, prompt string, tools []work
 	}
 	messages := []chatMessage{{Role: "system", Content: localInstruction}, {Role: "user", Content: prompt}}
 	var work localWork
+	// A reading call the model made before, its name and arguments alike, is not run again while no edit has changed
+	// the checkout: its result stands above. A model drawn greedily that repeats a call repeats it until its replies run
+	// out (Qwen3.8-27B searched the same four texts over 50 times on one step, 2026-11-09), so localRepeatedReplies
+	// replies of repeats alone end the attempt, and the next attempt or worker takes the step.
+	asked, repeating := map[string]bool{}, 0
 	for work.Turns < localWorkerTurns {
 		reply, err := askChat(ctx, server, model, messages, listing)
 		if err != nil {
@@ -76,22 +87,42 @@ func workLocally(ctx context.Context, server, model, prompt string, tools []work
 			fmt.Fprintf(log, "local worker: answered after %d replies and %d tool calls: %s\n", work.Turns, work.Calls, work.Answer)
 			return work, nil
 		}
+		repeats := 0
 		for _, call := range reply.ToolCalls {
 			work.Calls++
 			var arguments map[string]any
 			result := ""
-			if err := json.Unmarshal([]byte(call.Function.Arguments), &arguments); err != nil {
-				result = "the arguments are not one JSON object: " + err.Error()
-			} else if text, err := callTool(tools, call.Function.Name, arguments); err != nil {
-				result = errors.Join(errors.New(text), err).Error()
-			} else {
+			key := call.Function.Name + " " + call.Function.Arguments
+			switch {
+			case slices.Contains(readingTools, call.Function.Name) && asked[key]:
+				repeats++
+				result = "this exact call was made already and nothing has been edited since: its result is above. Edit, or answer."
+			case json.Unmarshal([]byte(call.Function.Arguments), &arguments) != nil:
+				result = "the arguments are not one JSON object"
+			default:
+				text, err := callTool(tools, call.Function.Name, arguments)
 				result = text
+				if err != nil {
+					result = errors.Join(errors.New(text), err).Error()
+				}
+				asked[key] = true
+				if call.Function.Name == "edit_file" && err == nil {
+					// The checkout changed, so every reading may differ now.
+					asked = map[string]bool{}
+				}
 			}
 			fmt.Fprintf(log, "local worker: %s %.200s\n", call.Function.Name, call.Function.Arguments)
 			if len(result) > localResultChars {
 				result = result[:localResultChars] + fmt.Sprintf("\n[%d more characters cut]", len(result)-localResultChars)
 			}
 			messages = append(messages, chatMessage{Role: "tool", ToolCallID: call.ID, Content: result})
+		}
+		repeating++
+		if repeats < len(reply.ToolCalls) {
+			repeating = 0
+		}
+		if repeating == localRepeatedReplies {
+			return work, fmt.Errorf("loop: the local worker repeated readings it had made for %d replies in a row", localRepeatedReplies)
 		}
 	}
 	return work, fmt.Errorf("loop: the local worker spent its %d replies on the step", localWorkerTurns)

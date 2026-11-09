@@ -15,6 +15,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/evaluation"
 	"overgo/internal/inference"
+	"overgo/internal/jsonfile"
 	"overgo/internal/modelcli"
 	"overgo/internal/overgodb"
 	"overgo/internal/projector"
@@ -140,14 +141,37 @@ func readRows(text string) []textRow {
 	return rows
 }
 
-// writeReadings reads each picture of directory, in name order, with the reader at modelPath and projectorPath, and
-// prints each reading as a line of JSON.
-func writeReadings(ctx context.Context, repository, directory, modelPath, projectorPath string, device int) error {
-	entries, err := os.ReadDir(directory)
-	if err != nil {
-		return err
+// pictureReader reads a picture's text: the OCR reader on the card.
+type pictureReader interface {
+	read(ctx context.Context, name string, picture image.Image) (textReading, error)
+}
+
+// text is the reading's rows' texts, a line each.
+func (r textReading) text() string {
+	lines := make([]string, len(r.Rows))
+	for index, row := range r.Rows {
+		lines[index] = row.Text
 	}
-	repository, err = dataroot.StoreRoot(repository)
+	return strings.Join(lines, "\n")
+}
+
+// readFile reads the picture at path, named name in what it records.
+func readFile(ctx context.Context, reader pictureReader, path, name string) (textReading, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return textReading{}, err
+	}
+	picture, _, err := image.Decode(file)
+	if err = errors.Join(err, file.Close()); err != nil {
+		return textReading{}, fmt.Errorf("evaluate: decode %s: %w", name, err)
+	}
+	return reader.read(ctx, name, picture)
+}
+
+// withReader opens the reader at modelPath and projectorPath over the store at repository on the card of device, runs
+// use with it and closes it.
+func withReader(ctx context.Context, repository, modelPath, projectorPath string, device int, use func(*textReader) error) error {
+	repository, err := dataroot.StoreRoot(repository)
 	if err != nil {
 		return err
 	}
@@ -160,30 +184,73 @@ func writeReadings(ctx context.Context, repository, directory, modelPath, projec
 	if err != nil {
 		return err
 	}
-	read := 0
-	for _, entry := range entries {
-		if !slices.Contains(pictureExtensions, strings.ToLower(filepath.Ext(entry.Name()))) {
+	return errors.Join(use(reader), reader.Close())
+}
+
+// writeReadings reads each picture of directory, in name order, and prints each reading as a line of JSON.
+func writeReadings(ctx context.Context, repository, directory, modelPath, projectorPath string, device int) error {
+	entries, err := os.ReadDir(directory)
+	if err != nil {
+		return err
+	}
+	return withReader(ctx, repository, modelPath, projectorPath, device, func(reader *textReader) error {
+		read := 0
+		for _, entry := range entries {
+			if !slices.Contains(pictureExtensions, strings.ToLower(filepath.Ext(entry.Name()))) {
+				continue
+			}
+			reading, err := readFile(ctx, reader, filepath.Join(directory, entry.Name()), entry.Name())
+			if err != nil {
+				return err
+			}
+			line, err := json.Marshal(reading)
+			if err != nil {
+				return err
+			}
+			fmt.Println(string(line))
+			read++
+		}
+		fmt.Fprintf(os.Stderr, "evaluate: read %d pictures of %s\n", read, directory)
+		return nil
+	})
+}
+
+// readSuite reads each picture a suite of drawn text asks about, from pictures, and keeps the readings in the suite by
+// the picture's name.
+func readSuite(ctx context.Context, reader pictureReader, suite *evaluation.GeneratedAnswerSuite, pictures string) error {
+	readings := evaluation.PictureReadings{Read: map[string]string{}}
+	for _, testCase := range suite.Cases {
+		name, _, asked := testCase.Asked()
+		if _, read := readings.Read[name]; !asked || read {
 			continue
 		}
-		file, err := os.Open(filepath.Join(directory, entry.Name()))
+		reading, err := readFile(ctx, reader, filepath.Join(pictures, name), name)
 		if err != nil {
-			return errors.Join(err, reader.Close())
+			return err
 		}
-		picture, _, err := image.Decode(file)
-		if err = errors.Join(err, file.Close()); err != nil {
-			return errors.Join(fmt.Errorf("evaluate: decode %s: %w", entry.Name(), err), reader.Close())
-		}
-		reading, err := reader.read(ctx, entry.Name(), picture)
-		if err != nil {
-			return errors.Join(err, reader.Close())
-		}
-		line, err := json.Marshal(reading)
-		if err != nil {
-			return errors.Join(err, reader.Close())
-		}
-		fmt.Println(string(line))
-		read++
+		readings.Read[name], readings.Reader = reading.text(), reading.Reader
 	}
-	fmt.Fprintf(os.Stderr, "evaluate: read %d pictures of %s\n", read, directory)
-	return reader.Close()
+	if len(readings.Read) == 0 {
+		return errors.New("evaluate: the suite asks about no picture")
+	}
+	suite.Readings = &readings
+	return nil
+}
+
+// writeSuiteReadings reads the pictures of the suite at suitePath with the reader and writes the suite with its
+// readings to out, printing the share of the asked characters read back.
+func writeSuiteReadings(ctx context.Context, repository, suitePath, pictures, modelPath, projectorPath string, device int, out string) error {
+	var suite evaluation.GeneratedAnswerSuite
+	if err := jsonfile.DecodeStrict(suitePath, &suite); err != nil {
+		return err
+	}
+	if err := withReader(ctx, repository, modelPath, projectorPath, device, func(reader *textReader) error {
+		return readSuite(ctx, reader, &suite, pictures)
+	}); err != nil {
+		return err
+	}
+	for _, metric := range suite.Readings.Metrics(suite.Cases) {
+		fmt.Printf("readings: %s %.4f\n", metric.Name, metric.Value)
+	}
+	return writeSuite(out, suite, len(suite.Cases), "drawn-text readings")
 }

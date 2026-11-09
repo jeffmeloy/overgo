@@ -134,13 +134,13 @@ architecture profiles are registered (`go run ./cmd/validate -models -repo <stor
 | Bonsai-27B (Q1_0) | text | text → text | MMLU-Pro 0.42 | 4.2 GiB |
 | MiniCPM5-1B | text | text → text | MMLU-Pro 0.30 | 2.0 GiB |
 | Qwen2.5-0.5B (f16) | text | text → text | MMLU-Pro 0.17 | 0.9 GiB |
-| Unlimited-OCR (bf16) | text | text → text | BBH 0.30, within noise of a constant answer | 5.5 GiB |
+| Unlimited-OCR (bf16) | text, vision-language | text → text; image → text, row by row | BBH 0.30, within noise of a constant answer; its reference page read within one edit a row | 5.5 GiB |
 | Carbon-500M (f16) | genomic | DNA sequence → DNA sequence | perplexity 910 on 128 sequences (a draft model; not what it is for) | 1.0 GiB |
 | Fractale-350M-base | text | text → text, carrying notes between chunks | carried gain 5.6 on 37 documents | host |
 | needle | function calling | text → function call | 0.255 on 400 calls | host |
 | Hy-Embodied-RxBrain-1.0 | vision-language | image + question → answer | 0.63 on 64 questions (chance 0.25) | 3.5 GiB |
 | Krea-2-Turbo | text-to-image | text → image | 0.94 on 415 prompts | 25.0 GiB |
-| SenseNova-U1-8B-MoT-Infographic-V3 | text-to-image | text → image (infographics) | 100 of 100, the suite's ceiling | 15.4 GiB |
+| SenseNova-U1-8B-MoT-Infographic-V3 | text-to-image | text → image (infographics) | 100 of 100, the suite's ceiling; 0.98 of the asked characters read back by Unlimited-OCR on 20 pictures | 15.4 GiB |
 | SimpleDiffusion-TensorProductAttentionRope | image generation | noise → image, no caption | no caption suite applies | 0.5 GiB |
 | MOSS-Image-SFT | text-to-image | text → image; [trains adapters](docs/MOSS_IMAGE.md) | 0.91 on 415 questions about 64 captions | 13.0 GiB |
 | Un-0 | image generation, video generation | class → 8×8 picture or 12-frame clip (a 120 kB toy model) | no caption suite applies | host |

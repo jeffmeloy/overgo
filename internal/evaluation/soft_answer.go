@@ -40,6 +40,9 @@ func generatedAnswerMetrics(suite GeneratedAnswerSuite, accuracy, soft float64) 
 	if suite.Motion != nil {
 		metrics = append(metrics, suite.Motion.Metrics()...)
 	}
+	if suite.Readings != nil {
+		metrics = append(metrics, suite.Readings.Metrics(suite.Cases)...)
+	}
 	return metrics
 }
 

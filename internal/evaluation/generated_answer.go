@@ -60,6 +60,9 @@ type GeneratedAnswerSuite struct {
 	// Motion is how a suite of clips' clips move (ClipMotion), recorded beside the judged share; nil for pictures and
 	// for a suite measured before frames were.
 	Motion *ClipMotion `json:"motion,omitempty"`
+	// Readings are what an OCR reader read off a suite of drawn text's pictures (PictureReadings), recorded beside
+	// the judged share; nil for a suite no reader read.
+	Readings *PictureReadings `json:"readings,omitempty"`
 }
 
 type generatedAnswerPlan struct {
@@ -130,6 +133,11 @@ func CompileGeneratedAnswer(suite GeneratedAnswerSuite) (generatedAnswerPlan, er
 	}
 	if suite.Motion != nil {
 		if err := suite.Motion.validate(suite.Cases); err != nil {
+			return generatedAnswerPlan{}, err
+		}
+	}
+	if suite.Readings != nil {
+		if err := suite.Readings.validate(suite.Cases); err != nil {
 			return generatedAnswerPlan{}, err
 		}
 	}

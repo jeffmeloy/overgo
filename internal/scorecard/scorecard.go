@@ -94,6 +94,9 @@ type Cell struct {
 	// Motion is how a suite of clips' clips move beside its judged share (evaluation.ClipMotion), which no question
 	// about their content sees. Nil where the suite measured none.
 	Motion *Motion `json:"motion,omitempty"`
+	// Characters is the share of the characters a suite of drawn text's pictures were asked to hold that its reader
+	// read back (evaluation.CharacterMetric), beside the judge's choice. Nil where no reader read the suite.
+	Characters *float64 `json:"characters,omitempty"`
 	// Compared names the test that compares the path a request takes with a
 	// reference output, for a held-out quality that path produced, and
 	// Uncompared says why no such comparison is made where one was decided
@@ -148,6 +151,14 @@ type Motion struct {
 	BelowSource *float64 `json:"below_source,omitempty"`
 }
 
+// readMetric is the value of the metric named that a reading's metrics carry, nil where they carry none.
+func readMetric(metrics map[string]float64, name string) *float64 {
+	if value, carried := metrics[name]; carried {
+		return &value
+	}
+	return nil
+}
+
 // readMotion is the motion a reading's metrics carry, nil where they carry none.
 func readMotion(metrics map[string]float64) *Motion {
 	mean, measured := metrics[evaluation.FrameSimilarityMetric]
@@ -184,6 +195,9 @@ func (c Cell) QualityText() string {
 		if c.Motion.BelowSource != nil {
 			text += fmt.Sprintf(", %.3g of clips below their source's lowest", *c.Motion.BelowSource)
 		}
+	}
+	if c.Characters != nil {
+		text += fmt.Sprintf(", %.4g of the asked characters read back", *c.Characters)
 	}
 	if c.Cases > 0 {
 		text += fmt.Sprintf(" on %d cases", c.Cases)
@@ -1551,7 +1565,7 @@ func qualityCell(task recipe.Task, summaries []evaluation.EvalSummary, descripto
 			}
 			measured = append(measured, heldout{cases: ranked, first: first[measure(summary.Suite)], built: built[summary.Suite], cell: Cell{
 				Value: value, Label: label, Source: summary.Record, Direction: summary.Directions[name],
-				CodeCommit: commit, Environment: summary.Environment, Cases: cases, Noise: noise, Constant: constant, Soft: soft, Motion: readMotion(summary.Metrics),
+				CodeCommit: commit, Environment: summary.Environment, Cases: cases, Noise: noise, Constant: constant, Soft: soft, Motion: readMotion(summary.Metrics), Characters: readMetric(summary.Metrics, evaluation.CharacterMetric),
 				Measure: measure(summary.Suite), Unread: summary.Unread,
 				Contract: Contract{Metric: name, Origin: originEvaluation, Suite: summary.Suite, Protocol: summary.Prompting, Comparison: summary.Comparison},
 			}})

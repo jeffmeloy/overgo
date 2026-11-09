@@ -32,35 +32,6 @@
       ]
     },
     {
-      "id": "drawn-text-reading",
-      "title": "Unlimited-OCR reads the text each image generator draws, and the drawn-text suite scores the characters it read back, over briefs written by seeded code",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 520,
-        "reason": "Estimated after a survey of the code, at about twice what a first sketch of the steps counts, since this week's rows landed at two to six times the counts they were filed with (wan-few-step 300 -\u003e 1100, sampling-split 400 -\u003e 1700, umt5-resident 336 -\u003e 1750): the OCR model's projector path opened for the suite, a character score carried to the scorecard, and a brief writer over word and number lists."
-      },
-      "steps": [
-        {
-          "id": "char-score",
-          "title": "The drawn-text suite scores each picture by the share of its brief's characters the reader read back, title, three lines and small print, beside the judge's choice and soft share, and the scorecard reads it",
-          "status": "open",
-          "verify": "go test ./internal/evaluation ./cmd/evaluate ./internal/scorecard -count=1 -run '^TestDrawnTextScoresTheCharactersReadBack$'",
-          "files": [
-            "internal/evaluation",
-            "cmd/evaluate",
-            "internal/scorecard",
-            "cmd/validate",
-            "README.md"
-          ],
-          "rationale": "The suite asks the judge which of four near texts a picture holds (internal/evaluation/drawn_text.go:20, with near titles at :116 and near numbers at :151). SenseNova scores 100 of 100, the whole suite (README.md:143), so no change to SenseNova can show a gain there, and a picture with one wrong letter in its small print scores the same as one with none. The score is one minus the edit distance over the length of the brief's text, per picture. It is computed by code once the reader has read. Krea and MOSS draw text too, so the score applies to every image generator.\n\nServes: held-out-quality for every image generator.\nDisappears: a text-drawing suite at its ceiling.\nEvidence: a fixture picture with one character wrong scores below one with none, and the scorecard's drawn-text cell carries the character score.\nBatch: host lane.",
-          "depends_on": [
-            "drawn-text-reading/reader"
-          ]
-        }
-      ]
-    },
-    {
       "id": "local-worker",
       "title": "One of overgo's own models works plan steps as the driver's first worker, the Claude worker taking what it cannot pass, by a pass rate measured on steps that already landed",
       "owner": "master-lead",

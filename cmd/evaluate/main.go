@@ -116,10 +116,11 @@ func run() error {
 	drawnText := flag.Bool("render-drawn-text", false, "draw an infographic from each of -cases briefs of a fixed list with the image model -model-path names, each asked to hold a title, three lines with a figure and a line of small print, and write the suite that asks the judge which of four texts each picture holds to -suite-out, the pictures to -media-out")
 	renderSet := flag.String("render-set", "", "with -render-tifa, -render-drawn-text or -render-vidgen: comma-separated name=number settings that replace fields of the request the model's verification ran, such as width=416,height=240")
 	readText := flag.String("read-text", "", "read the text of each picture of this directory with the OCR model -reader names through its projector -reader-projector on -device, and print each reading, row by row with its box and the reader's model, recipe and projection, as a line of JSON")
-	readerModel := flag.String("reader", "", "with -read-text: the OCR model file, Unlimited-OCR")
-	readerProjector := flag.String("reader-projector", "", "with -read-text: the OCR model's projector file")
+	readSuitePath := flag.String("read-suite", "", "read each picture of this drawn-text suite, from -media, with the OCR model -reader names, and write the suite with its readings to -suite-out: a judged reading of the suite records the share of the characters each picture was asked to hold that the reader read back")
+	readerModel := flag.String("reader", "", "with -read-text or -read-suite: the OCR model file, Unlimited-OCR; with -render-drawn-text, the pictures drawn are read with it as -read-suite reads them")
+	readerProjector := flag.String("reader-projector", "", "with -reader: the OCR model's projector file")
 	motionSuite := flag.String("frame-similarity", "", "measure how the clips of this suite move and write it with their motion to -suite-out: each clip in -media is read at 16 frames a second and each frame embedded with the image encoder -encoder names on -device, and the source clip each case describes is read from -sources by its name where one is there; a judged reading of the suite records the clips' mean and lowest similarity of a frame to the next and the share whose lowest falls below their source's")
-	motionMedia := flag.String("media", "", "with -frame-similarity: the directory the suite's clips are in")
+	motionMedia := flag.String("media", "", "with -frame-similarity or -read-suite: the directory the suite's clips or pictures are in")
 	motionSources := flag.String("sources", "", "with -frame-similarity: the directory of the source clips the suite's cases describe, each named by the caption or clip it is")
 	screenCandidate := flag.String("screen", "", "screen a candidate path's render directory against the reference path's, -reference, at the same prompts and seeds: each output is embedded with the image encoder -encoder names on -device, and a case is lost where the candidate lies farther from the reference than the reference path's output at another seed of the prompt, -reseeded; a candidate that loses more cases than chance allows fails")
 	screenReference := flag.String("reference", "", "with -screen: the reference path's render directory")
@@ -232,6 +233,13 @@ func run() error {
 		}
 		return writeReadings(context.Background(), *repository, pictures, model, projectorPath, *device)
 	}
+	if suite := strings.TrimSpace(*readSuitePath); suite != "" {
+		model, projectorPath, pictures, out := strings.TrimSpace(*readerModel), strings.TrimSpace(*readerProjector), strings.TrimSpace(*motionMedia), strings.TrimSpace(*suiteOut)
+		if flag.NArg() != 0 || model == "" || projectorPath == "" || pictures == "" || out == "" {
+			return errors.New("usage: evaluate -read-suite <suite.json> -media <picture directory> -reader <OCR model file> -reader-projector <projector file> -suite-out <suite.json> [-repo <store>] [-device N]")
+		}
+		return writeSuiteReadings(context.Background(), *repository, suite, pictures, model, projectorPath, *device, out)
+	}
 	if clips := strings.TrimSpace(*sceneClips); clips != "" {
 		if flag.NArg() != 0 || strings.TrimSpace(*suiteOut) == "" || strings.TrimSpace(*mediaOut) == "" {
 			return errors.New("usage: evaluate -build-scene-retrieval <clip directory> -media-out <frames directory> -suite-out <suite.json> [-distractors N] [-seed N]")
@@ -259,7 +267,11 @@ func run() error {
 			strings.TrimSpace(*tifaQuestions) != "" || strings.TrimSpace(*vidgenCaptions) != "" {
 			return errors.New("usage: evaluate -render-drawn-text -model-path <generator directory> -judge <vision-language model> -media-out <directory> -suite-out <suite.json> [-repo <store>] [-render-set name=number,...] [-cases N] [-seed N]")
 		}
-		return writeDrawnText(context.Background(), strings.TrimSpace(*modelPath), *repository, strings.TrimSpace(*speechJudge), strings.TrimSpace(*mediaOut), strings.TrimSpace(*suiteOut), strings.TrimSpace(*renderSet), *captionCases, *captionSeed)
+		if err := writeDrawnText(context.Background(), strings.TrimSpace(*modelPath), *repository, strings.TrimSpace(*speechJudge), strings.TrimSpace(*mediaOut), strings.TrimSpace(*suiteOut), strings.TrimSpace(*renderSet), *captionCases, *captionSeed); err != nil ||
+			strings.TrimSpace(*readerModel) == "" {
+			return err
+		}
+		return writeSuiteReadings(context.Background(), *repository, strings.TrimSpace(*suiteOut), strings.TrimSpace(*mediaOut), strings.TrimSpace(*readerModel), strings.TrimSpace(*readerProjector), *device, strings.TrimSpace(*suiteOut))
 	}
 	if source := cmp.Or(strings.TrimSpace(*tifaQuestions), strings.TrimSpace(*vidgenCaptions)); source != "" {
 		if flag.NArg() != 0 || strings.TrimSpace(*suiteOut) == "" || strings.TrimSpace(*mediaOut) == "" || strings.TrimSpace(*speechJudge) == "" || strings.TrimSpace(*modelPath) == "" ||

@@ -176,6 +176,17 @@ type projectionSession struct {
 // binds the campaign to the model's active projection recipe over its
 // definition.
 func openProjectionSession(ctx context.Context, store *overgodb.Store, value manifest, request modelRequest) (evaluationSession, error) {
+	session, err := openProjectionInto(ctx, store, store, value, request)
+	if err != nil {
+		return nil, err
+	}
+	return session, nil
+}
+
+// openProjectionInto opens the vision-language model at request.Path with the models and recipes store holds, its
+// answers kept and its runs published in answers. The evaluator keeps both in one store; a calibration of the judge
+// (TestTheJudgeScoresDegradedOutputsLower) keeps its answers apart, so its readings join no quality cell of the store.
+func openProjectionInto(ctx context.Context, store, answers *overgodb.Store, value manifest, request modelRequest) (*projectionSession, error) {
 	model, _, err := modelcli.ResolveModel(ctx, store, request.Path)
 	if err != nil {
 		return nil, err
@@ -190,7 +201,7 @@ func openProjectionSession(ctx context.Context, store *overgodb.Store, value man
 		return nil, errors.Join(err, vision.Close())
 	}
 	bind(runner)
-	fail := func(cause error) (evaluationSession, error) {
+	fail := func(cause error) (*projectionSession, error) {
 		return nil, errors.Join(cause, vision.Close(), runner.Close())
 	}
 	description, err := runner.RecipeRuntimeDescription(recipe.TaskInference)
@@ -212,7 +223,7 @@ func openProjectionSession(ctx context.Context, store *overgodb.Store, value man
 	if err != nil {
 		return fail(err)
 	}
-	campaign, err := evaluation.NewIsolatedCampaign(store, runtime, identity, environment, value.CodeCommit)
+	campaign, err := evaluation.NewIsolatedCampaign(answers, runtime, identity, environment, value.CodeCommit)
 	if err != nil {
 		return fail(err)
 	}

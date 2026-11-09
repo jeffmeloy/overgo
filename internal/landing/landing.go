@@ -144,6 +144,9 @@ type landing struct {
 	// what the change's checks did with its production Go restored (undo).
 	composed string
 	undone   []string
+	// unevidenced are the checks that did not build with the change's production Go restored, so no assertion of
+	// theirs is shown to catch the change's absence (undo).
+	unevidenced []string
 }
 
 // Run lands the row and returns the commit. Every check runs over the
@@ -947,7 +950,17 @@ func (l *landing) message() string {
 	for _, row := range named {
 		trailers = append(trailers, plan.LandedRowTrailer+": "+row.String())
 	}
-	return l.composed + l.section(undoSection, l.undone) + "\n\nMeasured by the gate: " + strings.Join(l.measured, ", ") +
+	composed := l.composed
+	if len(l.unevidenced) > 0 {
+		trailers = append(trailers, undoEvidenceTrailer+": none")
+		const change = "Change:\n"
+		if strings.Contains(composed, change) {
+			composed = strings.Replace(composed, change, change+l.unevidencedNote()+"\n", 1)
+		} else {
+			composed += "\n\n" + l.unevidencedNote()
+		}
+	}
+	return composed + l.section(undoSection, l.undone) + "\n\nMeasured by the gate: " + strings.Join(l.measured, ", ") +
 		"\n\n" + strings.Join(trailers, "\n") + "\n"
 }
 

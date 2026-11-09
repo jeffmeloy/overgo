@@ -71,21 +71,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 250,
+        "nodes": 99,
         "reason": "The undo check exists (internal/landing/undo.go) and already records the case; the change is a trailer, a refusal and its two tests."
       },
       "steps": [
-        {
-          "id": "visible",
-          "title": "A landing whose undo check is no evidence, its tests not building without the change, carries the trailer Undo-Evidence: none and says so in its message's first Change line, and cmd/loop -land prints it",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestALandingWithoutUndoEvidenceSaysSo$'",
-          "files": [
-            "internal/landing",
-            "cmd/loop"
-          ],
-          "rationale": "Serves: every landing's evidence.\n\nDisappears: no-evidence buried in the message's undo section.\n\nEvidence: internal/landing/undo.go records 'fails before a test asserts anything, so it is no evidence' and returns success, and its test accepts that. The owner's review (2026-11-09): a landing then does not show that an assertion detects the missing behaviour, and the scorecard defect it found passed a component test while the assembled path broke the guarantee. A trailer lets git log count such landings.\n\nBatch: host lane."
-        },
         {
           "id": "boundary",
           "title": "A landing whose undo check is no evidence is refused unless one of its checks builds without the change and fails there on an assertion, a test through an existing boundary, or its step's rationale names why none is practical",

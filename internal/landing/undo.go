@@ -67,7 +67,7 @@ func (l *landing) undo(ctx context.Context) error {
 		}
 	}
 	said := fmt.Sprintf("%s restored to %.12s", strings.Join(restored, ", "), l.head)
-	l.undone = nil
+	l.undone, l.unevidenced = nil, nil
 	for _, check := range checks {
 		_, err := planverify.Execute(ctx, tree, check, nil)
 		failure, _, _ := strings.Cut(fmt.Sprint(err), "\n")
@@ -78,9 +78,25 @@ func (l *landing) undo(ctx context.Context) error {
 			l.undone = append(l.undone, "with "+said+", "+check+" fails: "+failure)
 		default:
 			l.undone = append(l.undone, "with "+said+", "+check+" fails before a test asserts anything, so it is no evidence: "+failure)
+			l.unevidenced = append(l.unevidenced, check)
 		}
 	}
+	if len(l.unevidenced) > 0 && l.Log != nil {
+		fmt.Fprintf(l.Log, "land: %s has no undo evidence: %s do not build without the change, so no assertion is shown to catch its absence\n",
+			l.Ref, strings.Join(l.unevidenced, "; "))
+	}
 	return nil
+}
+
+// undoEvidenceTrailer is the trailer of a landing whose undo run is no evidence, so git log counts such landings
+// (git log --grep="Undo-Evidence: none").
+const undoEvidenceTrailer = "Undo-Evidence"
+
+// unevidencedNote is the line that opens a message's Change section when its undo run is no evidence: what the
+// undo section says at its end, said where a reader starts.
+func (l *landing) unevidencedNote() string {
+	return "- No undo evidence: " + strings.Join(l.unevidenced, "; ") +
+		" do not build with the change's production Go restored, so no assertion here is shown to catch its absence."
 }
 
 // consolidates says a landed step is a consolidation's, whose change must shrink production code and pass before and

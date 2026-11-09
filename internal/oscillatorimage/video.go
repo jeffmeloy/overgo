@@ -21,6 +21,8 @@ type VideoRequest struct {
 	Scale  int   `json:"scale"`
 	// Format is the form the clip is written in, a GIF where the request names none (latentvideo.ClipFormat).
 	Format latentvideo.ClipFormat `json:"format,omitzero"`
+	// ClipFinish finishes the clip's frames on the card before they are encoded (latentvideo.ClipFinish).
+	latentvideo.ClipFinish
 }
 
 type EncodedVideo struct {
@@ -49,13 +51,14 @@ type videoFeatures struct {
 	frames [][]float32
 	scale  int
 	format latentvideo.ClipFormat
+	finish latentvideo.ClipFinish
 }
 
 func ValidateVideoRequest(request VideoRequest) error {
 	if request.Class < 0 || request.Frames <= 0 || request.Scale <= 0 {
 		return errors.New("oscillatorimage: video requires non-negative class and positive frame count and scale")
 	}
-	return request.Format.Validate()
+	return errors.Join(request.Format.Validate(), request.ClipFinish.Validate())
 }
 
 func (m *Model) prepareVideo(ctx context.Context, request VideoRequest) (videoPlan, error) {
@@ -75,7 +78,8 @@ func (m *Model) integrateVideo(ctx context.Context, plan videoPlan) (videoFeatur
 	if err := ctx.Err(); err != nil {
 		return videoFeatures{}, err
 	}
-	features := videoFeatures{frames: make([][]float32, plan.request.Frames), scale: plan.request.Scale, format: plan.request.Format}
+	features := videoFeatures{frames: make([][]float32, plan.request.Frames), scale: plan.request.Scale, format: plan.request.Format,
+		finish: plan.request.ClipFinish}
 	for frame := range features.frames {
 		phase, err := m.prepare(ctx, Request{Class: plan.request.Class, Seed: plan.request.Seed + int64(frame)})
 		if err != nil {
@@ -148,7 +152,7 @@ func (m *Model) decodeVideo(ctx context.Context, features videoFeatures) (Encode
 // request's scale as a GIF's frames are. Its changed pixels are counted at the enlarged size, where a GIF's are counted
 // at the model's.
 func (m *Model) decodeVideoMP4(ctx context.Context, features videoFeatures) (EncodedVideo, error) {
-	video, err := latentvideo.WriteClip(ctx, features.format, videoFPS, latentvideo.SignedUnitPixels, func(sink latentvideo.VideoFrameSink) error {
+	video, err := latentvideo.WriteClip(ctx, features.format, features.finish, videoFPS, latentvideo.SignedUnitPixels, func(sink latentvideo.VideoFrameSink) error {
 		for index, feature := range features.frames {
 			frame, err := m.decodePlanar(feature)
 			if err != nil {

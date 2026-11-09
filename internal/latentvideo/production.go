@@ -314,10 +314,27 @@ type clipEncoder interface {
 
 // newServedEncoder is the encoder a served clip of the format is written by.
 //   - an MP4 is written by the FFmpeg media.FFmpeg resolves, and is refused where none resolves, the refusal naming the two ways on: nothing changes a clip's format by itself
-func newServedEncoder(ctx context.Context, format ClipFormat, fps int, pixels PixelRange) (clipEncoder, error) {
-	if err := format.Validate(); err != nil {
+func newServedEncoder(ctx context.Context, format ClipFormat, finish ClipFinish, fps int, pixels PixelRange) (clipEncoder, error) {
+	if err := errors.Join(format.Validate(), finish.Validate()); err != nil {
 		return nil, err
 	}
+	if finish.IsZero() {
+		return newFormatEncoder(ctx, format, fps, pixels)
+	}
+	// A finished frame is in [0, 1] at its finished size, whatever the generator drew it in.
+	next, err := newFormatEncoder(ctx, format, fps, UnitPixels)
+	if err != nil {
+		return nil, err
+	}
+	finishing, err := newFinishingEncoder(next, finish, pixels)
+	if err != nil {
+		return nil, errors.Join(err, next.Close())
+	}
+	return finishing, nil
+}
+
+// newFormatEncoder is the encoder a clip of the format is written by.
+func newFormatEncoder(ctx context.Context, format ClipFormat, fps int, pixels PixelRange) (clipEncoder, error) {
 	if format.IsZero() {
 		return NewClipEncoder(fps, pixels)
 	}
@@ -330,8 +347,8 @@ func newServedEncoder(ctx context.Context, format ClipFormat, fps int, pixels Pi
 
 // WriteClip writes the frames a generation hands it as a clip of the format, through the encoder a served clip of that
 // format is written by, so a generator outside this package (the oscillator's video) writes its clips as Wan's are.
-func WriteClip(ctx context.Context, format ClipFormat, fps int, pixels PixelRange, generate func(VideoFrameSink) error) (EncodedVideo, error) {
-	encoder, err := newServedEncoder(ctx, format, fps, pixels)
+func WriteClip(ctx context.Context, format ClipFormat, finish ClipFinish, fps int, pixels PixelRange, generate func(VideoFrameSink) error) (EncodedVideo, error) {
+	encoder, err := newServedEncoder(ctx, format, finish, fps, pixels)
 	if err != nil {
 		return EncodedVideo{}, err
 	}
@@ -541,8 +558,9 @@ type WanRequest struct {
 	NegativePrompt string            `json:"negative_prompt,omitzero"`
 	Seed           uint64            `json:"seed,omitzero"`
 	// Preset names a recipe of the profile's presets, its values filling what the request leaves unset.
-	Preset        string                    `json:"preset,omitzero"`
-	Format        ClipFormat                `json:"format,omitzero"`
+	Preset string     `json:"preset,omitzero"`
+	Format ClipFormat `json:"format,omitzero"`
+	ClipFinish
 	CondContext   []float32                 `json:"cond_context,omitempty"`
 	UncondContext []float32                 `json:"uncond_context,omitempty"`
 	InitialSample []float32                 `json:"initial_sample,omitempty"`
@@ -587,8 +605,9 @@ type ReferenceEditCondition struct {
 	// (sampling.EditFlowConfig).
 	Warp bool  `json:"warp,omitempty"`
 	Seed int64 `json:"seed"`
-	// Format rides in the condition because the edit recipe reads only its condition and its source.
+	// Format and the finish ride in the condition because the edit recipe reads only its condition and its source.
 	Format ClipFormat `json:"format,omitzero"`
+	ClipFinish
 }
 
 type SourceVideo struct {
@@ -610,8 +629,9 @@ type ReferenceEditRequest struct {
 	Prompt         string                 `json:"prompt,omitzero"`
 	Seed           int64                  `json:"seed,omitzero"`
 	SourceArtifact artifact.ID            `json:"source_artifact,omitzero" label:"source clip" media:"video"`
-	// Format is the clip form's format, which resolving moves into the condition.
+	// Format and the finish are the clip form's, which resolving moves into the condition.
 	Format ClipFormat `json:"format,omitzero"`
+	ClipFinish
 }
 
 func ValidateReferenceEditRequest(request ReferenceEditRequest) error {
@@ -619,7 +639,10 @@ func ValidateReferenceEditRequest(request ReferenceEditRequest) error {
 	if !request.Format.IsZero() {
 		return fmt.Errorf("latent video: a resolved LiveEdit request names format %q beside its condition, which is where it carries one", request.Format)
 	}
-	if err := c.Format.Validate(); err != nil {
+	if !request.ClipFinish.IsZero() {
+		return errors.New("latent video: a resolved LiveEdit request names a finish beside its condition, which is where it carries one")
+	}
+	if err := errors.Join(c.Format.Validate(), c.ClipFinish.Validate()); err != nil {
 		return err
 	}
 	if _, ok := checked.First(c.TextContext); !ok {
@@ -680,6 +703,7 @@ type editConditionRecord struct {
 	ContextTimestep int64        `json:"context_timestep"`
 	Seed            int64        `json:"seed"`
 	Format          ClipFormat   `json:"format,omitzero"`
+	ClipFinish
 }
 
 type sourceVideoRecord struct {
@@ -710,6 +734,7 @@ func (c ReferenceEditCondition) Record() editConditionRecord {
 		TextContext: recordTensor(c.TextContext), InitialNoise: recordTensor(c.InitialNoise),
 		FramesPerChunk: c.FramesPerChunk, LocalAttention: c.LocalAttention,
 		Timesteps: c.Timesteps, Sigmas: c.Sigmas, ContextTimestep: c.ContextTimestep, Seed: c.Seed, Format: c.Format,
+		ClipFinish: c.ClipFinish,
 	}
 }
 

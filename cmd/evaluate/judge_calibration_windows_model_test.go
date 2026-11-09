@@ -384,7 +384,7 @@ func degradationNames(video bool) []string {
 // served clip is.
 func writeCalibrationClip(t *testing.T, ctx context.Context, path string, frames []image.Image) {
 	t.Helper()
-	video := testcheck.Must(latentvideo.WriteClip(ctx, "", motionFrameRate, latentvideo.UnitPixels, func(sink latentvideo.VideoFrameSink) error {
+	video := testcheck.Must(latentvideo.WriteClip(ctx, "", latentvideo.ClipFinish{}, motionFrameRate, latentvideo.UnitPixels, func(sink latentvideo.VideoFrameSink) error {
 		for index, frame := range frames {
 			bounds := frame.Bounds()
 			width, height := bounds.Dx(), bounds.Dy()

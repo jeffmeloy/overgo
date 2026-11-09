@@ -41,13 +41,17 @@ func TestControlsDeclareTheWanPromptForm(t *testing.T) {
 		t.Fatalf("LiveEdit refusal = %q", refusal)
 	}
 	names := make([]string, 0, len(edit))
+	editByName := map[string]Control{}
 	for _, control := range edit {
 		names = append(names, control.Name+":"+control.Type)
+		editByName[control.Name] = control
 	}
-	if joined := strings.Join(names, ","); joined != "prompt:text,seed:integer,source_artifact:artifact,format:text" {
+	// The clip's finish follows its format: an upscale and its level, a denoise and a deblur (latentvideo.ClipFinish).
+	if joined := strings.Join(names, ","); joined != "prompt:text,seed:integer,source_artifact:artifact,format:text,"+
+		"upscale:integer,upscale_level:text,denoise:integer,deblur:integer" {
 		t.Fatalf("LiveEdit controls = %s", joined)
 	}
-	for request, format := range map[string]Control{"Wan": byName["format"], "LiveEdit": edit[len(edit)-1]} {
+	for request, format := range map[string]Control{"Wan": byName["format"], "LiveEdit": editByName["format"]} {
 		if format.Required || strings.Join(format.Choices, ",") != "gif,mp4" {
 			t.Errorf("%s format control = %+v, want an optional choice of gif and mp4", request, format)
 		}

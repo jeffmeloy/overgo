@@ -69,19 +69,21 @@ const (
 	statusTextBytes   = 256
 )
 
-// vfx is NVIDIA's Video Effects runtime loaded from its directory, its entry points resolved.
-type vfx struct {
+// Runtime is NVIDIA's Video Effects runtime loaded from its directory, its entry points resolved.
+type Runtime struct {
 	directory                                          string
 	create, destroy, setImage, setU32, setStream, load *syscall.Proc
 	run, imageInit, transferImage, errorString         *syscall.Proc
 }
 
-// openVFX loads the runtime from the directory OVERGO_NVVFX names, every library by its path in runtimeFiles order, and
+// Open loads the runtime from the directory OVERGO_NVVFX names, every library by its path in runtimeFiles order, and
 // resolves the entry points overgo calls. An unset setting or a library missing from the directory is refused by
 // name before anything is loaded; nothing falls back to another upscaler. The libraries stay loaded for the life of the
 // process, as the runtime keeps them.
-func openVFX() (*vfx, error) {
-	directory := os.Getenv(directoryEnvironment)
+func Open() (*Runtime, error) {
+	// Read by its spelled name, which the identity of a capability that finishes its clips names among its result
+	// settings (internal/inferencesurface resultSettings).
+	directory := os.Getenv("OVERGO_NVVFX")
 	if directory == "" {
 		return nil, fmt.Errorf("nvvfx: %s names no directory of NVIDIA's Video Effects runtime", directoryEnvironment)
 	}
@@ -98,7 +100,7 @@ func openVFX() (*vfx, error) {
 		}
 		loaded[file] = library
 	}
-	r := &vfx{directory: directory}
+	r := &Runtime{directory: directory}
 	for _, binding := range []struct {
 		library, name string
 		proc          **syscall.Proc
@@ -123,11 +125,18 @@ func openVFX() (*vfx, error) {
 	return r, nil
 }
 
-// Directory is the directory the runtime was loaded from.
-func (r *vfx) Directory() string { return r.directory }
+// Libraries are the runtime's libraries as loaded, each by its path in the order Open loads them: the files whose
+// digests identify what the effect writes.
+func (r *Runtime) Libraries() []string {
+	paths := make([]string, len(runtimeFiles))
+	for index, file := range runtimeFiles {
+		paths[index] = filepath.Join(r.directory, file)
+	}
+	return paths
+}
 
 // status is an NvCV_Status as an error, its text the runtime's own.
-func (r *vfx) status(call string, code uintptr) error {
+func (r *Runtime) status(call string, code uintptr) error {
 	if int32(code) == statusSuccess {
 		return nil
 	}
@@ -135,27 +144,27 @@ func (r *vfx) status(call string, code uintptr) error {
 	return fmt.Errorf("nvvfx: %s: %s (%d)", call, driver.ReadCString(text, statusTextBytes), int32(code))
 }
 
-// planarImage is a planar float32 RGB image on the card in [0, 1], its three planes one after another, the layout overgo's
+// Image is a planar float32 RGB image on the card in [0, 1], its three planes one after another, the layout overgo's
 // frames have on the card and NVIDIA's binding hands the effect.
-type planarImage struct {
+type Image struct {
 	Pixels        driver.DevicePtr
 	Width, Height int
 }
 
 // Bytes is the image's size on the card.
-func (image planarImage) Bytes() uint64 {
+func (image Image) Bytes() uint64 {
 	return uint64(image.Width) * uint64(image.Height) * rgbChannels * float32Bytes
 }
 
 // vfxEffect is one created effect of the runtime.
 type vfxEffect struct {
-	runtime *vfx
+	runtime *Runtime
 	handle  uintptr
 }
 
 // VideoSuperRes creates RTX Video Super Resolution, the effect that upscales, denoises or deblurs a frame by the
 // level it is set to.
-func (r *vfx) VideoSuperRes() (*vfxEffect, error) {
+func (r *Runtime) VideoSuperRes() (*vfxEffect, error) {
 	selector, err := syscall.BytePtrFromString(videoSuperResSelector)
 	if err != nil {
 		return nil, err
@@ -172,24 +181,23 @@ func (r *vfx) VideoSuperRes() (*vfxEffect, error) {
 // SetQuality sets the effect's level: 0 bicubic, 1 to 4 upscaling trained on compressed video, 8 to 11 denoising,
 // 12 to 15 deblurring, 16 to 19 upscaling for clean sources (nvidia-vfx's QualityLevel).
 func (e *vfxEffect) SetQuality(level uint32) error {
-	name, err := syscall.BytePtrFromString(qualityParameter)
-	if err != nil {
-		return err
-	}
-	code, _, _ := e.runtime.setU32.Call(e.handle, uintptr(unsafe.Pointer(name)), uintptr(level))
-	runtime.KeepAlive(name)
-	return e.runtime.status("set "+qualityParameter, code)
+	return e.set(e.runtime.setU32, qualityParameter, uintptr(level))
 }
 
 // SetStream runs the effect on stream, overgo's own.
 func (e *vfxEffect) SetStream(stream driver.Stream) error {
-	name, err := syscall.BytePtrFromString(streamParameter)
+	return e.set(e.runtime.setStream, streamParameter, uintptr(stream))
+}
+
+// set calls one of the runtime's setters on the effect with the parameter named and its value.
+func (e *vfxEffect) set(setter *syscall.Proc, parameter string, value uintptr) error {
+	name, err := syscall.BytePtrFromString(parameter)
 	if err != nil {
 		return err
 	}
-	code, _, _ := e.runtime.setStream.Call(e.handle, uintptr(unsafe.Pointer(name)), uintptr(stream))
+	code, _, _ := setter.Call(e.handle, uintptr(unsafe.Pointer(name)), value)
 	runtime.KeepAlive(name)
-	return e.runtime.status("set "+streamParameter, code)
+	return e.runtime.status("set "+parameter, code)
 }
 
 // descriptor is an NvCVImage describing pixels already on the card, filled by the runtime's own NvCVImage_Init.
@@ -197,7 +205,7 @@ type descriptor [imageDescriptor]byte
 
 // describe is the descriptor of a width by height image at pixels: planar float32 RGB, overgo's frames, or interleaved
 // 8-bit RGBA, the only source the effect takes.
-func (r *vfx) describe(pixels driver.DevicePtr, width, height int, planarFloat bool) (*descriptor, error) {
+func (r *Runtime) describe(pixels driver.DevicePtr, width, height int, planarFloat bool) (*descriptor, error) {
 	if width <= 0 || height <= 0 || pixels == 0 {
 		return nil, fmt.Errorf("nvvfx: an image of %dx%d at %#x", width, height, pixels)
 	}
@@ -213,7 +221,7 @@ func (r *vfx) describe(pixels driver.DevicePtr, width, height int, planarFloat b
 
 // transfer converts source into target on stream by the runtime's own NvCVImage_Transfer, each value multiplied by
 // scale: 255 from float to 8 bits, 1/255 back, as NVIDIA's binding converts.
-func (r *vfx) transfer(source, target *descriptor, scale float32, stream driver.Stream) error {
+func (r *Runtime) transfer(source, target *descriptor, scale float32, stream driver.Stream) error {
 	// The scale is the call's third argument, a float, which the Windows x64 convention passes in XMM2; the system
 	// call copies each of the first four arguments into its XMM register as well as its integer one.
 	code, _, _ := r.transferImage.Call(uintptr(unsafe.Pointer(source)), uintptr(unsafe.Pointer(target)), uintptr(math.Float32bits(scale)),
@@ -225,14 +233,8 @@ func (r *vfx) transfer(source, target *descriptor, scale float32, stream driver.
 
 // setImage gives the effect the image named parameter, which the runtime copies, so the descriptor is not kept.
 func (e *vfxEffect) setImage(parameter string, image *descriptor) error {
-	name, err := syscall.BytePtrFromString(parameter)
-	if err != nil {
-		return err
-	}
-	code, _, _ := e.runtime.setImage.Call(e.handle, uintptr(unsafe.Pointer(name)), uintptr(unsafe.Pointer(image)))
-	runtime.KeepAlive(name)
-	runtime.KeepAlive(image)
-	return e.runtime.status("set "+parameter, code)
+	defer runtime.KeepAlive(image)
+	return e.set(e.runtime.setImage, parameter, uintptr(unsafe.Pointer(image)))
 }
 
 // Load builds the effect for the images and level it was given; a change of either asks for it again.
@@ -257,16 +259,16 @@ func (e *vfxEffect) Close() error {
 	return nil
 }
 
-// upscaler runs VideoSuperRes at one level on frames of one size, planar float32 RGB on the card: each frame is
+// Upscaler runs VideoSuperRes at one level on frames of one size, planar float32 RGB on the card: each frame is
 // converted to 8-bit RGBA by the runtime's own transfer, run, and converted back, as NVIDIA's binding runs it, on
 // overgo's stream and in overgo's device memory.
-type upscaler struct {
-	runtime                    *vfx
+type Upscaler struct {
+	runtime                    *Runtime
 	library                    *driver.Library
 	stream                     driver.Stream
 	effect                     *vfxEffect
 	staged                     [stagedImages]driver.DevicePtr
-	source, target             planarImage
+	source, target             Image
 	stagedSource, stagedTarget *descriptor
 }
 
@@ -277,23 +279,23 @@ const (
 	stagedImages
 )
 
-// newUpscaler builds the effect at level for frames of source's size written at target's, on stream, with its 8-bit
+// NewUpscaler builds the effect at level for frames of source's size written at target's, on stream, with its 8-bit
 // staging in library's device memory.
-func (r *vfx) newUpscaler(library *driver.Library, stream driver.Stream, level uint32, source, target planarImage) (*upscaler, error) {
+func (r *Runtime) NewUpscaler(library *driver.Library, stream driver.Stream, level uint32, source, target Image) (*Upscaler, error) {
 	effect, err := r.VideoSuperRes()
 	if err != nil {
 		return nil, err
 	}
-	upscaler := &upscaler{runtime: r, library: library, stream: stream, effect: effect, source: source, target: target}
-	if err := upscaler.build(level); err != nil {
-		return nil, errors.Join(err, upscaler.Close())
+	Upscaler := &Upscaler{runtime: r, library: library, stream: stream, effect: effect, source: source, target: target}
+	if err := Upscaler.build(level); err != nil {
+		return nil, errors.Join(err, Upscaler.Close())
 	}
-	return upscaler, nil
+	return Upscaler, nil
 }
 
 // build stages the effect's images, sets its level and stream, and loads it.
-func (u *upscaler) build(level uint32) error {
-	for index, image := range []planarImage{u.source, u.target} {
+func (u *Upscaler) build(level uint32) error {
+	for index, image := range []Image{u.source, u.target} {
 		staged, err := u.library.MemAlloc(uint64(image.Width) * uint64(image.Height) * rgbaBytes)
 		if err != nil {
 			return err
@@ -322,7 +324,7 @@ func (u *upscaler) build(level uint32) error {
 }
 
 // Frame runs the effect on the frame at source, writing it at target, both planar float32 RGB of the Upscaler's sizes.
-func (u *upscaler) Frame(source, target driver.DevicePtr) error {
+func (u *Upscaler) Frame(source, target driver.DevicePtr) error {
 	from, err := u.runtime.describe(source, u.source.Width, u.source.Height, true)
 	if err != nil {
 		return err
@@ -342,7 +344,7 @@ func (u *upscaler) Frame(source, target driver.DevicePtr) error {
 }
 
 // Close destroys the effect and frees its staging.
-func (u *upscaler) Close() error {
+func (u *Upscaler) Close() error {
 	err := u.effect.Close()
 	for index, staged := range u.staged {
 		if staged != 0 {

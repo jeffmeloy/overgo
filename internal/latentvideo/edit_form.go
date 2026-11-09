@@ -381,7 +381,7 @@ func ResolveClipRequest(ctx context.Context, reader artifact.Reader, modelDirect
 	if err != nil {
 		return ReferenceEditRequest{}, err
 	}
-	condition.Seed, condition.Format = request.Seed, request.Format
+	condition.Seed, condition.Format, condition.ClipFinish = request.Seed, request.Format, request.ClipFinish
 	resolved := ReferenceEditRequest{Condition: condition, Source: source}
 	return resolved, ValidateReferenceEditRequest(resolved)
 }

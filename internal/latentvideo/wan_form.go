@@ -102,7 +102,7 @@ func (request WanRequest) PromptForm() bool {
 // an initial sample nor a noise plan, which the runtime compiles from the
 // seed on its device. Either form names a clip format or leaves it to GIF.
 func ValidateWanRequestForm(request WanRequest) error {
-	if err := request.Format.Validate(); err != nil {
+	if err := errors.Join(request.Format.Validate(), request.ClipFinish.Validate()); err != nil {
 		return err
 	}
 	if !request.PromptForm() {

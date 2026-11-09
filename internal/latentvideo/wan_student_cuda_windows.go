@@ -138,7 +138,7 @@ func (r *WanStudentRuntime) Generate(ctx context.Context, request WanRequest) (E
 	if err != nil {
 		return EncodedVideo{}, err
 	}
-	encoder, err := newServedEncoder(ctx, request.Format, r.profile.SampleFPS, SignedUnitPixels)
+	encoder, err := newServedEncoder(ctx, request.Format, request.ClipFinish, r.profile.SampleFPS, SignedUnitPixels)
 	if err != nil {
 		return EncodedVideo{}, err
 	}

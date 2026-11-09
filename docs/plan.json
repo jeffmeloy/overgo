@@ -72,27 +72,36 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": -41,
-        "reason": "Estimated from a survey: a syscall binding of about a dozen NvVFX and NvCVImage entry points beside internal/cuda/cudnn's, a finishing clipEncoder in front of the existing MP4 writer, a control and a record field, NVENC arguments for the existing FFmpeg pipe, and a VMAF reading through the same FFmpeg. Earlier media campaigns came in at three to seven times their first estimates, so this is about three times the sum of the parts. plan -add derives its own count from history beside this figure."
+        "nodes": -899,
+        "reason": "Estimated from a survey: a syscall binding of about a dozen NvVFX and NvCVImage entry points beside internal/cuda/cudnn's, a finishing clipEncoder in front of the existing MP4 writer, a control and a record field, NVENC arguments for the existing FFmpeg pipe, and a VMAF reading through the same FFmpeg. Earlier media campaigns came in at three to seven times their first estimates, so this is about three times the sum of the parts. plan -add derives its own count from history beside this figure. Step nvenc: +653 (653, the median of what 12 landings that changed internal/latentvideo, internal/media, internal/server counted). Step supplied: +331 (331, the median of what 13 landings that changed internal/latentvideo, internal/media, internal/server, internal/mediacapability counted)."
       },
       "steps": [
         {
-          "id": "clips",
-          "title": "A clip request may ask for an upscale to a scale or height, a denoise or a deblur at a level; each frame is finished on the card between the generator and the clip encoder, so Wan, its student, LiveEdit and the oscillator all offer it; a clip a person supplies keeps its colour space, range and sound; the large clip is encoded on NVENC where the resolved FFmpeg offers it; and the record names the level, the scale, the effect's identity and the encoder",
+          "id": "nvenc",
+          "title": "A finished clip is encoded on NVENC as HEVC tagged hvc1 where the resolved FFmpeg offers it and repeats its bytes, x264 otherwise with the record saying why, and a Wan student clip of 81 frames finished at four times is measured",
           "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestAClipIsFinishedOnTheCardBeforeItIsEncoded$'",
+          "verify": "OVERGO_NVVFX=C:/Users/jeffm/upscale/env/Lib/site-packages/nvvfx/libs OVERGO_FFMPEG=C:/Users/jeffm/upscale/ffmpeg.exe OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestAFinishedClipIsEncodedOnNVENC$' -timeout 60m",
           "files": [
             "internal/latentvideo",
             "internal/media",
-            "internal/mediacapability",
-            "internal/server",
-            "internal/runrecord"
+            "internal/server"
           ],
           "needs_card": true,
-          "rationale": "Serves: a person gets a 4K clip from Wan's 832 x 480 in one request, and any video they bring can be cleaned or enlarged in overgo.\n\nDisappears: the hand step of running upscale_video.py on overgo's output.\n\nEvidence: every served clip already passes through one interface, clipEncoder (add, Finish, Close; internal/latentvideo/production.go:308-312), chosen by newServedEncoder (:316-328) and reached by WriteClip (:330) for generators outside the package. A finishing clipEncoder in front of the MP4 writer gives every video path the effect with no change to any generator. The request's fields follow the format field's path from mp4-clips/default: a control declared in mediacapability, filled where a request is taken in, recorded with it.\n\nA finished clip is up to 3328 x 1920 for Wan's 832 x 480 at four times. The FFmpeg resolved here today (C:\\Program Files\\DownloadHelper CoApp\\ffmpeg.exe, a 2023 build) has no NVENC, NVDEC or libvmaf in its configuration; the build in C:\\Users\\jeffm\\upscale has all three. With NVENC, the clip is encoded as HEVC at a constant quality, as upscale_video.py does (open_encoder :176-194), tagged hvc1 so players that require the tag (Safari, QuickTime) open it, and the test opens the finished clip in the web UI's own video element; the test encodes twice and compares the bytes, and if NVENC does not repeat its bytes on this card the finished clip is written by x264 at the default's settings and the record says why. Where NVENC is missing, the refusal or the x264 fallback names OVERGO_FFMPEG, as the MP4 refusal does (production.go:325).\n\nA supplied clip: its colour matrix, primaries, transfer and range are read from the source (BT.601, BT.709 or BT.2020, limited or full, as upscale_video.py's detect_colorspace and detect_full_range read them) and written on the result, and its sound is copied when MP4 holds the codec, else re-encoded as AAC.\n\nMeasured in the test: one Wan four-step student clip at 81 frames, 832 x 480, finished at four times. It records the frames per second of the effect and of the encode, and the share of the clip's wall the finish adds.\n\nSetup, the lead's, recorded in one line: OVERGO_FFMPEG = C:/Users/jeffm/upscale/ffmpeg.exe and OVERGO_NVVFX = C:/Users/jeffm/upscale/env/Lib/site-packages/nvvfx/libs, in the lead's environment and the hourly runner's. OVERGO_FFMPEG is one of the settings every result's identity names (internal/inferencesurface/identity.go resultSettings), so it is switched once, as this step begins, and the MP4 default's own check (internal/latentvideo TestAClipIsSavedAsMP4ByDefault) is run under the new build before anything else is.\n\nPredicted effect: a capability overgo lacks, and first-output for any clip a person asks for at 4K.\n\nBatch: device lane.",
-          "depends_on": [
-            "rtx-vsr/effect"
-          ]
+          "rationale": "A finished clip is up to 3328 x 1920 for Wan's 832 x 480 at four times. The FFmpeg resolved here today has no NVENC; the build in C:/Users/jeffm/upscale (2026-03-12, gyan.dev) lists hevc_nvenc, h264_nvenc and av1_nvenc beside libx264 and libvmaf. OVERGO_FFMPEG is switched to it once, as this step begins, and the MP4 default's own check (internal/latentvideo TestAClipIsSavedAsMP4ByDefault) is run under it before anything else is. With NVENC a finished clip is encoded as HEVC at a constant quality, as upscale_video.py does (open_encoder :176-194), tagged hvc1 so players that require the tag open it, and the web UI's own video element is shown to open it; the test encodes twice and compares the bytes, and where NVENC does not repeat its bytes on this card the finished clip is written by x264 at the default's settings and the record says why. Measured: one Wan four-step student clip at 81 frames, 832 x 480, finished at four times, with the frames per second of the effect and of the encode and the share of the clip's wall the finish adds.\n\nServes: a person gets a 4K clip from Wan's 832 x 480 in one request.\n\nDisappears: x264 at 3328 x 1920, minutes a clip.\n\nEvidence: rtx-vsr/clips lands the finish ahead of the encoder."
+        },
+        {
+          "id": "supplied",
+          "title": "A clip a person supplies is finished keeping its colour matrix, primaries, transfer and range, and its sound, copied where MP4 holds it and AAC otherwise",
+          "status": "open",
+          "verify": "OVERGO_NVVFX=C:/Users/jeffm/upscale/env/Lib/site-packages/nvvfx/libs OVERGO_FFMPEG=C:/Users/jeffm/upscale/ffmpeg.exe OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestASuppliedClipKeepsItsColourAndSound$'",
+          "files": [
+            "internal/latentvideo",
+            "internal/media",
+            "internal/server",
+            "internal/mediacapability"
+          ],
+          "needs_card": true,
+          "rationale": "A clip a person supplies can be cleaned or enlarged in overgo. Its colour matrix, primaries, transfer and range are read from the source (BT.601, BT.709 or BT.2020, limited or full, as upscale_video.py's detect_colorspace :116-128 and detect_full_range :131-142 read them) and written on the result, and its sound is copied when MP4 holds the codec, else re-encoded as AAC.\n\nServes: any video a person brings can be cleaned or enlarged in overgo.\n\nDisappears: the hand step of running upscale_video.py on a clip.\n\nEvidence: rtx-vsr/clips finishes a generated clip's frames; a supplied clip's decode path is media's."
         },
         {
           "id": "measured",

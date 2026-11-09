@@ -43,7 +43,7 @@ func movingClip(frames, height, width int) [][]float32 {
 // request is written by.
 func writeTestClip(t *testing.T, format ClipFormat, fps int, clip [][]float32, height, width int) EncodedVideo {
 	t.Helper()
-	encoder := testcheck.Must(newServedEncoder(t.Context(), format, fps, UnitPixels))(t)
+	encoder := testcheck.Must(newServedEncoder(t.Context(), format, ClipFinish{}, fps, UnitPixels))(t)
 	video, err := writeClip(t.Context(), encoder, func(sink VideoFrameSink) error {
 		for index, frame := range clip {
 			if err := sink(index, frame, height, width); err != nil {
@@ -132,7 +132,7 @@ func TestMP4ClipContent(t *testing.T) {
 		validateReferenceEditRequestForm(ReferenceEditRequest{Prompt: "a fox", SourceArtifact: clipID, Format: unknown}) == nil {
 		t.Fatal("a request for a WebM clip was admitted")
 	}
-	if _, err := newServedEncoder(t.Context(), unknown, 16, UnitPixels); err == nil {
+	if _, err := newServedEncoder(t.Context(), unknown, ClipFinish{}, 16, UnitPixels); err == nil {
 		t.Fatal("an encoder for a WebM clip was made")
 	}
 
@@ -167,7 +167,7 @@ func TestMP4ClipContent(t *testing.T) {
 		}
 	}
 
-	odd := testcheck.Must(newServedEncoder(t.Context(), mp4Clip, fps, UnitPixels))(t)
+	odd := testcheck.Must(newServedEncoder(t.Context(), mp4Clip, ClipFinish{}, fps, UnitPixels))(t)
 	if err := odd.add(t.Context(), 0, make([]float32, media.RGBChannels*15*16), 15, 16); err == nil {
 		t.Fatal("an MP4 frame of 16 by 15 pixels was taken")
 	}
@@ -232,7 +232,7 @@ func TestRepeatedGIFRequestReplaysAndPublishes(t *testing.T) {
 	clip := movingClip(frames, height, width)
 	served, _, err := capabilityruntime.ExecuteMeasured[EncodedVideo](t.Context(), store, model, program, key, inputs, func(runtime *workflowruntime.Runtime) error {
 		return registerWanRuntime(runtime, model, func(ctx context.Context, request WanRequest) (EncodedVideo, error) {
-			encoder, err := newServedEncoder(ctx, request.Format, profile.SampleFPS, UnitPixels)
+			encoder, err := newServedEncoder(ctx, request.Format, request.ClipFinish, profile.SampleFPS, UnitPixels)
 			if err != nil {
 				return EncodedVideo{}, err
 			}

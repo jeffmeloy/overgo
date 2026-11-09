@@ -89,8 +89,9 @@ var buildSettings = []string{"GOOS", "GOARCH", "GOAMD64", "GOARM64", "CGO_ENABLE
 // CUDA_PATH places the cuBLAS libraries when the search path does not hold
 // them, CUDA_VISIBLE_DEVICES decides which device the driver gives first, and
 // ProgramFiles places the FFmpeg a clip is decoded with when nothing else
-// names one, OVERGO_FFMPEG names one, and CUBLAS_WORKSPACE_CONFIG decides whether cuBLAS repeats its results.
-var resultSettings = []string{"CUBLAS_WORKSPACE_CONFIG", "CUDA_PATH", "CUDA_VISIBLE_DEVICES", "ProgramFiles", "OVERGO_FFMPEG"}
+// names one, OVERGO_FFMPEG names one, CUBLAS_WORKSPACE_CONFIG decides whether cuBLAS repeats its results, and
+// OVERGO_NVVFX places NVIDIA's Video Effects runtime a clip's frames are finished by.
+var resultSettings = []string{"CUBLAS_WORKSPACE_CONFIG", "CUDA_PATH", "CUDA_VISIBLE_DEVICES", "ProgramFiles", "OVERGO_FFMPEG", "OVERGO_NVVFX"}
 
 // neutralReads are the other reads of the environment in the code of an
 // identity, each as its argument is spelled, none of which changes what a

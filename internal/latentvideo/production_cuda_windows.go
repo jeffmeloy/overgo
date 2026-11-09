@@ -155,7 +155,7 @@ func (r *WanRuntime) Generate(ctx context.Context, request WanRequest) (EncodedV
 	if err != nil {
 		return EncodedVideo{}, err
 	}
-	encoder, err := newServedEncoder(ctx, request.Format, r.profile.SampleFPS, SignedUnitPixels)
+	encoder, err := newServedEncoder(ctx, request.Format, request.ClipFinish, r.profile.SampleFPS, SignedUnitPixels)
 	if err != nil {
 		return EncodedVideo{}, err
 	}
@@ -251,7 +251,7 @@ func (r *LiveEditRuntime) Reset(context.Context, ReferenceEditRequest) error {
 // read as -1 to 1 they come out washed, every black lifted to grey.
 func (r *LiveEditRuntime) Generate(ctx context.Context, request ReferenceEditRequest) (EncodedVideo, error) {
 	condition := request.Condition
-	encoder, err := newServedEncoder(ctx, condition.Format, r.profile.SampleFPS, UnitPixels)
+	encoder, err := newServedEncoder(ctx, condition.Format, condition.ClipFinish, r.profile.SampleFPS, UnitPixels)
 	if err != nil {
 		return EncodedVideo{}, err
 	}

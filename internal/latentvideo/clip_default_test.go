@@ -70,7 +70,7 @@ func TestAClipIsSavedAsMP4ByDefault(t *testing.T) {
 	}
 
 	t.Setenv("OVERGO_FFMPEG", filepath.Join(t.TempDir(), "ffmpeg.exe"))
-	if _, err := newServedEncoder(t.Context(), format, fps, UnitPixels); err == nil ||
+	if _, err := newServedEncoder(t.Context(), format, ClipFinish{}, fps, UnitPixels); err == nil ||
 		!strings.Contains(err.Error(), "OVERGO_FFMPEG") || !strings.Contains(err.Error(), `"format": "gif"`) {
 		t.Fatalf("with no FFmpeg an MP4 is refused with %v, which is to name OVERGO_FFMPEG and \"format\": \"gif\"", err)
 	}

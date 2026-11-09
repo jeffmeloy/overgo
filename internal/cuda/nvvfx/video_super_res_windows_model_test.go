@@ -65,11 +65,11 @@ func TestVideoSuperResMatchesNvidiasBinding(t *testing.T) {
 	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 	testcheck.NoError(t, worker.Do(context.Background(), func(state *device.State) (failed error) {
-		runtime, err := openVFX()
+		runtime, err := Open()
 		if err != nil {
 			return err
 		}
-		source := planarImage{Width: referenceWidth, Height: referenceHeight}
+		source := Image{Width: referenceWidth, Height: referenceHeight}
 		host := make([]byte, source.Bytes())
 		plane := source.Width * source.Height
 		for channel := range rgbChannels {
@@ -80,8 +80,8 @@ func TestVideoSuperResMatchesNvidiasBinding(t *testing.T) {
 				}
 			}
 		}
-		larger := planarImage{Width: referenceScale * referenceWidth, Height: referenceScale * referenceHeight}
-		for _, image := range []*planarImage{&source, &larger} {
+		larger := Image{Width: referenceScale * referenceWidth, Height: referenceScale * referenceHeight}
+		for _, image := range []*Image{&source, &larger} {
 			if image.Pixels, err = state.Driver.MemAlloc(image.Bytes()); err != nil {
 				return err
 			}
@@ -90,7 +90,7 @@ func TestVideoSuperResMatchesNvidiasBinding(t *testing.T) {
 		if err := state.Driver.MemcpyHtoD(source.Pixels, host); err != nil {
 			return err
 		}
-		sameSized := planarImage{Width: referenceWidth, Height: referenceHeight}
+		sameSized := Image{Width: referenceWidth, Height: referenceHeight}
 		if sameSized.Pixels, err = state.Driver.MemAlloc(sameSized.Bytes()); err != nil {
 			return err
 		}
@@ -101,15 +101,15 @@ func TestVideoSuperResMatchesNvidiasBinding(t *testing.T) {
 				target = sameSized
 			}
 			started := time.Now()
-			upscaler, err := runtime.newUpscaler(state.Driver, state.Stream, level, source, target)
+			Upscaler, err := runtime.NewUpscaler(state.Driver, state.Stream, level, source, target)
 			if err != nil {
 				return err
 			}
 			built := time.Since(started)
 			started = time.Now()
-			err = errors.Join(upscaler.Frame(source.Pixels, target.Pixels), state.Driver.StreamSynchronize(state.Stream))
+			err = errors.Join(Upscaler.Frame(source.Pixels, target.Pixels), state.Driver.StreamSynchronize(state.Stream))
 			ran := time.Since(started)
-			if err = errors.Join(err, upscaler.Close()); err != nil {
+			if err = errors.Join(err, Upscaler.Close()); err != nil {
 				return err
 			}
 			written := make([]byte, target.Bytes())

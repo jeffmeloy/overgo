@@ -196,6 +196,16 @@ func describe(request reflect.Type) ([]Control, string) {
 	var controls []Control
 	for field := range request.Fields() {
 		name, options, _ := strings.Cut(field.Tag.Get("json"), ",")
+		// An embedded struct with no name of its own holds fields a request carries at its own level, as encoding/json
+		// reads them (a clip's finish, latentvideo.ClipFinish), so each is a control of the request.
+		if field.Anonymous && name == "" && field.Type.Kind() == reflect.Struct {
+			embedded, refusal := describe(field.Type)
+			if refusal != "" {
+				return nil, refusal
+			}
+			controls = append(controls, embedded...)
+			continue
+		}
 		if name == "" || name == "-" {
 			continue
 		}

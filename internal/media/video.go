@@ -384,10 +384,21 @@ func OpensAsMP4(data []byte) bool {
 type Encoding struct {
 	Tool artifact.ID `json:"tool"`
 	Args []string    `json:"args"`
+	// Finish is how the clip's frames were finished on the card before they were encoded; none where they were not.
+	Finish *Finish `json:"finish,omitempty"`
+}
+
+// Finish is what finished a clip's frames before they were encoded: NVIDIA's RTX Video Super Resolution at each level
+// in the order run, the scale the last of them wrote at, and the runtime's libraries by their digests, so the clip names
+// what would finish it again.
+type Finish struct {
+	Levels  []uint32      `json:"levels"`
+	Scale   int           `json:"scale"`
+	Runtime []artifact.ID `json:"runtime"`
 }
 
 // IsZero says the clip names no program.
-func (e Encoding) IsZero() bool { return !e.Tool.Valid() && len(e.Args) == 0 }
+func (e Encoding) IsZero() bool { return !e.Tool.Valid() && len(e.Args) == 0 && e.Finish == nil }
 
 // EncodingOf is the encoding a generation's output says wrote it; an output that names none says none.
 func EncodingOf(output any) Encoding {

@@ -8,18 +8,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 269,
+        "nodes": 144,
         "reason": "Estimated from a survey: the judged suites, the paired exact test and the render path exist (cmd/evaluate render.go, internal/evaluation, internal/scorecard record.go judgeQuality); the degradations, a second judge's run and the medium pairing are new code with two card tests."
       },
       "steps": [
-        {
-          "id": "stillness",
-          "title": "A clip's frame-to-frame record bounds it from above as from below: a clip more alike frame to frame than the stillest of the source clips its suite's captions describe reads as too still, so a clip frozen on its first frame is caught",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/evaluate -count=1 -run '^TestAFrozenClipReadsAsTooStill$'",
-          "needs_card": true,
-          "rationale": "Serves: held-out-quality for every video generator and editor: whether a clip moves.\n\nDisappears: a frozen clip read as a perfect one.\n\nEvidence: judge-calibration/sensitivity measured the judge blind to a clip frozen on its first frame (1 lower of 10). The frame-to-frame measure (media-screen/clip-consistency) reads a clip's lowest similarity against its source clips' as a floor, which catches a cut, and reads a frozen clip, similarity 1 between every frame, as the most consistent clip there is. The source clips the suite's captions describe bound how still a real clip of them is, so their most still sets a ceiling as their least still sets the floor.\n\nBatch: device lane."
-        },
         {
           "id": "independent",
           "title": "gemma-4-12B-it, a judge of another family, judges the same 32 image and 32 video cases as Qwen3.8-27B, and the two judges' per-medium scores agree in rank by Kendall's tau above a floor declared before the run, its bootstrap interval printed and the cases they disagree on listed",

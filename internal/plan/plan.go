@@ -145,17 +145,34 @@ const decisionOptions = 2
 // Answer records the owner's answer to an open decision. The answer is
 // one of its options, given once.
 func Answer(document Plan, id, option string) (Plan, error) {
+	return answer(document, id, option, true)
+}
+
+// AnswerInOwnWords records the owner's answer to an open decision in their own words, when it is none of the options:
+// an owner may set the question aside for another way, as they did gemma-12b-judge's choice between converting a model
+// and labelling cases by hand with "just add the fix to the plan" (2026-11-09). Given once, like an option.
+func AnswerInOwnWords(document Plan, id, words string) (Plan, error) {
+	return answer(document, id, strings.TrimSpace(words), false)
+}
+
+// answer records given as the answer to the open decision id: one of its options where option says so, else words
+// that are none of them.
+func answer(document Plan, id, given string, option bool) (Plan, error) {
 	at := slices.IndexFunc(document.Decisions, func(decision Decision) bool { return decision.ID == id })
 	switch {
 	case at < 0:
 		return document, fmt.Errorf("plan: no decision %q", id)
 	case document.Decisions[at].Answer != "":
 		return document, fmt.Errorf("plan: decision %q is already answered: %s", id, document.Decisions[at].Answer)
-	case !slices.Contains(document.Decisions[at].Options, option):
-		return document, fmt.Errorf("plan: %q is not one of decision %q's options: %s", option, id, strings.Join(document.Decisions[at].Options, " | "))
+	case option && !slices.Contains(document.Decisions[at].Options, given):
+		return document, fmt.Errorf("plan: %q is not one of decision %q's options: %s", given, id, strings.Join(document.Decisions[at].Options, " | "))
+	case !option && given == "":
+		return document, fmt.Errorf("plan: decision %q's answer in words is empty", id)
+	case !option && slices.Contains(document.Decisions[at].Options, given):
+		return document, fmt.Errorf("plan: %q is one of decision %q's options: give it as the option it is", given, id)
 	}
 	document.Decisions = slices.Clone(document.Decisions)
-	document.Decisions[at].Answer = option
+	document.Decisions[at].Answer = given
 	return document, nil
 }
 

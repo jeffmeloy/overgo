@@ -58,14 +58,14 @@ func main() {
 	verify := flag.Bool("verify", false, "run the top open step's verify command; exit code is pass/fail")
 	status := flag.Bool("status", false, "one line per item")
 	decisions := flag.Bool("decisions", false, "the decisions still open, outside the system's authority, with how long each has waited")
-	answer := flag.Bool("answer", false, "record the answer to a decision: -answer <decision-id> -title <one of its options>")
+	answer := flag.Bool("answer", false, "record the answer to a decision: -answer <decision-id> -title <one of its options>, or -answer -reason <the answer> <decision-id> for one that is none of them")
 	reserved := flag.Bool("reserved", false, "mark a decision whose answer is an act no session takes (a store migration, deleting a model or data, activating or publishing a model, a push), so its rows wait for that answer while the others run: -reserved <decision-id>")
 	doctrine := flag.Bool("doctrine", false, "mark a decision as changing a standing rule, so its rows wait for the answer: -doctrine <decision-id>")
 	add := flag.Bool("add", false, "inject a new top-priority task owned by -role: -add <item-id> -title <t> [-before <id>] [-vcmd <cmd>] [-files <a,b> [-nodes <n>]]; or file a document's rows: -add -from <document> [-before <id>]")
 	from := flag.String("from", "", "with -add: a plan-shaped JSON document, or - to read it from standard input so a draft needs no file; every row and decision of it is filed, a row it assigns to no role assigned to -role, an id the plan holds is refused, and no row the plan holds changes")
 	setcount := flag.Bool("setcount", false, "set what a row may still add and why, running no check: -setcount -nodes <n> -reason <why> <item-id>")
 	nodes := flag.Int("nodes", 0, "with -setcount: the production syntax nodes the row may still add (0, the default: it may not grow; below zero: it must shrink); with -add or -addstep: the session's own figure, written beside the count the landings of the step's -files give, and the count where none did")
-	reason := flag.String("reason", "", "with -setcount, -setfiles, -addstep, -note or -retire: the edit's words, why the row grows, why a step's files change, the step's reasoning or why the work will not be done")
+	reason := flag.String("reason", "", "with -setcount, -setfiles, -addstep, -note or -retire: the edit's words, why the row grows, why a step's files change, the step's reasoning or why the work will not be done; with -answer: an answer in words, none of the decision's options")
 	rationaleFile := flag.String("rationale-file", "", "in place of -reason: a file that holds the edit's words")
 	addstep := flag.Bool("addstep", false, "add an open step to a row, last unless -before names a step: -addstep -title <t> -vcmd <cmd> -rationale-file <file> [-before <step-id>] <item-id> <step-id>")
 	note := flag.Bool("note", false, "add a working note to a step's reasoning, before its closing Serves lines, which -prompt shows with the step: -note -rationale-file <file> <item-id> <step-id>")
@@ -226,18 +226,22 @@ func run(c cli, args []string) error {
 			return savePlanMutation(commandWorktree, marked)
 		})
 	case c.answer:
-		if len(args) != 1 || strings.TrimSpace(c.title) == "" {
-			return errors.New("usage: plan -answer <decision-id> -title <one of its options>")
+		option, words := strings.TrimSpace(c.title), strings.TrimSpace(c.reason)
+		if len(args) != 1 || (option == "") == (words == "") {
+			return errors.New("usage: plan -answer <decision-id> -title <one of its options>, or plan -answer -reason <an answer that is none of its options> <decision-id>")
 		}
 		return withPlanMutation(commandWorktree, func(document plan.Plan) error {
-			answered, err := plan.Answer(document, args[0], c.title)
+			answered, err := plan.Answer(document, args[0], option)
+			if words != "" {
+				answered, err = plan.AnswerInOwnWords(document, args[0], words)
+			}
 			if err != nil {
 				return err
 			}
 			if err := savePlanMutation(commandWorktree, answered); err != nil {
 				return err
 			}
-			fmt.Printf("answered %s: %s\n", args[0], c.title)
+			fmt.Printf("answered %s: %s\n", args[0], cmp.Or(option, words))
 			return nil
 		})
 	default:

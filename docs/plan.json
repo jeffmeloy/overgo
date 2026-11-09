@@ -8,8 +8,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 144,
-        "reason": "Estimated from a survey: the judged suites, the paired exact test and the render path exist (cmd/evaluate render.go, internal/evaluation, internal/scorecard record.go judgeQuality); the degradations, a second judge's run and the medium pairing are new code with two card tests."
+        "nodes": 399,
+        "reason": "Estimated from a survey: the judged suites, the paired exact test and the render path exist (cmd/evaluate render.go, internal/evaluation, internal/scorecard record.go judgeQuality); the degradations, a second judge's run and the medium pairing are new code with two card tests. Step owner-words: +255 (255, the median of what 12 landings that changed internal/plan/plan.go, cmd/plan/main.go, cmd/plan/answer_test.go counted)."
       },
       "steps": [
         {

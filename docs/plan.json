@@ -3,30 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "second-judge",
-      "title": "gemma-4-12B-it, served from its published directory, judges the media suites beside Qwen3.8-27B, and the two judges' rankings agree",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 300,
-        "reason": "Estimated: the onboarding, projection verification and evaluator exist; a judge test opening Gemma and the rank-agreement test with its bootstrap are new, about the size of judge-calibration's calibration tests."
-      },
-      "steps": [
-        {
-          "id": "independent",
-          "title": "gemma-4-12B-it, a judge of another family, judges the same 32 image and 32 video cases as Qwen3.8-27B, and the two judges' per-medium scores agree in rank by Kendall's tau above a floor declared before the run, its bootstrap interval printed and the cases they disagree on listed",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/evaluate -count=1 -run '^TestASecondJudgeRanksTheCasesAlike$' -timeout 120m",
-          "files": [
-            "cmd/evaluate",
-            "internal/evaluation"
-          ],
-          "needs_card": true,
-          "rationale": "A judge of one family can share its blind spots with the generator it judges; a judge of another family ranking the same cases alike is evidence the ranking is the media's, and the cases they disagree on are where neither is to be trusted alone.\n\nServes: judge-calibration's purpose, the media judges shown to measure what they are used for.\n\nDisappears: a verdict resting on one judge's family.\n\nEvidence: judge-calibration/sensitivity and fidelity measured what the Qwen judge sees; this step measures whether a second family sees it alike."
-        }
-      ]
-    },
-    {
       "id": "loop-proof",
       "title": "The loop shows its worth end to end: the gate refuses deliberately bad alternatives, each landing records its full cost, and the local worker lands changes whose benefit an independent evaluation confirms and exceeds that cost",
       "owner": "master-lead",

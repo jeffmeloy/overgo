@@ -89,6 +89,38 @@ func main() {
 func TestALocalModelWorksAFixtureStep(t *testing.T) {
 	cudatest.Require(t)
 	ctx := t.Context()
+	target, name := servedWorkerModel(t)
+
+	checkout := t.TempDir()
+	for file, text := range localFixture {
+		path := filepath.Join(checkout, filepath.FromSlash(file))
+		testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+		testcheck.NoError(t, os.WriteFile(path, []byte(text), 0o644))
+	}
+	if _, err := runTool("git", "-C", checkout, "init", "-q"); err != nil {
+		t.Fatalf("the fixture checkout is no repository: %v", err)
+	}
+	t.Chdir(checkout)
+	if output, err := runTool("go", "run", "./cmd/plan", "-verify"); err == nil {
+		t.Fatalf("the fixture step's check passes before any change:\n%s", output)
+	}
+	prompt := testcheck.Must(runTool("go", "run", "./cmd/plan", "-prompt"))(t)
+	var log strings.Builder
+	step := planStep(".")
+	step.files = func() ([]string, error) { return []string{"calc"}, nil }
+	work, err := workLocally(ctx, target, name, prompt, workerTools(".", step), &log)
+	t.Logf("%s worked the step in %d replies and %d tool calls:\n%s", name, work.Turns, work.Calls, log.String())
+	testcheck.NoError(t, err)
+	if output, err := runTool("go", "run", "./cmd/plan", "-verify"); err != nil {
+		t.Fatalf("the fixture step's check fails after the local worker: %v\n%s", err, output)
+	}
+}
+
+// servedWorkerModel serves localWorkerModel through overgo's server, built from the checkout, for the test's life, and
+// gives its address and served name.
+func servedWorkerModel(t *testing.T) (target, name string) {
+	t.Helper()
+	ctx := t.Context()
 	repository := testutil.RepoRoot(t)
 	roots := testcheck.Must(dataroot.Resolve(repository))(t)
 	db := testcheck.Must(overgodb.OpenReadOnly(roots.Store))(t)
@@ -112,29 +144,8 @@ func TestALocalModelWorksAFixtureStep(t *testing.T) {
 	}
 	supervisor := testcheck.Must(modelswap.New(modelswap.ServerLauncher{Binary: binary, Store: roots.Store, Dir: repository}, 0))(t)
 	t.Cleanup(func() { testcheck.NoError(t, supervisor.Close()) })
-	name := filepath.Base(location)
+	name = filepath.Base(location)
 	lease := testcheck.Must(supervisor.Acquire(ctx, modelswap.Servable{Name: name, Location: location}))(t)
 	t.Cleanup(lease.Release)
-
-	checkout := t.TempDir()
-	for file, text := range localFixture {
-		path := filepath.Join(checkout, filepath.FromSlash(file))
-		testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-		testcheck.NoError(t, os.WriteFile(path, []byte(text), 0o644))
-	}
-	if _, err := runTool("git", "-C", checkout, "init", "-q"); err != nil {
-		t.Fatalf("the fixture checkout is no repository: %v", err)
-	}
-	t.Chdir(checkout)
-	if output, err := runTool("go", "run", "./cmd/plan", "-verify"); err == nil {
-		t.Fatalf("the fixture step's check passes before any change:\n%s", output)
-	}
-	prompt := testcheck.Must(runTool("go", "run", "./cmd/plan", "-prompt"))(t)
-	var log strings.Builder
-	work, err := workLocally(ctx, lease.Target, name, prompt, workerTools(".", func() ([]string, error) { return []string{"calc"}, nil }), &log)
-	t.Logf("%s worked the step in %d replies and %d tool calls:\n%s", name, work.Turns, work.Calls, log.String())
-	testcheck.NoError(t, err)
-	if output, err := runTool("go", "run", "./cmd/plan", "-verify"); err != nil {
-		t.Fatalf("the fixture step's check fails after the local worker: %v\n%s", err, output)
-	}
+	return lease.Target, name
 }

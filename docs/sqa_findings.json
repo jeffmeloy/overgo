@@ -2,47 +2,54 @@
     "branch": "master",
     "candidate_review": {
     "architectural_target": {
-  "ownership": "sqa_reviewer",
-  "status": "active_until_verified_refactor_completion",
-  "path": "docs/extreme_refactor_plan.md",
-  "document_sha256": "3382adec2744ef67c22643935b84a8bec7ff8db803d4b9f131af9f927f361965",
-  "document_reference_revision": "ce49882729168afb824472b77bcaf859493879f9",
-  "document_state": "Owner-requested working document; currently uncommitted. This reference does not assert it is part of the reviewed master.",
-  "purpose": "Standing architectural target for bounded SQA until the complete refactor is verified.",
-  "priorities": [
-    "Format-independent model loading and binding, retaining native tensor storage, required transforms and exact identity.",
-    "Existing shared execution/resource owners and recipes that replace orchestration; admit prerequisites early and recover valid completed work.",
-    "Thin CLI/API/workbench paths and supervised development execution with retained authority, stops and budgets.",
-    "Net removal across production Go, tests, fixtures/setup and automation; preserve numerical, security, data-loss and recovery contracts."
-  ],
-  "first_slice": "One supported model family, GGUF and safetensors, one shared binding/execution path, with displaced mandatory conversion/container-emulation paths removed.",
-  "review_use": "Read the current target alongside committed code and the executable plan. Record evidence-backed progress, conflicts and useful reductions through existing canonical findings; distinguish a measured improvement from a proposed architectural benefit. Do not invent findings to enforce the design, duplicate the backlog, or recommend a rewrite merely for conformity.",
-  "authority": "Design target only. docs/plan.json remains dispatch authority; implementation acceptance, supervision and landing remain with their existing owners.",
-  "completion": "Keep active until supported capabilities have migrated or been explicitly retired, displaced paths and temporary adapters are removed, public/data/numerical/recovery contracts are verified, and complete implementation/test/setup/runtime costs support completion. No deadline or savings quota.",
-  "related_canonical_findings": [
-    "SQA-271",
-    "SQA-266",
-    "SQA-325",
-    "SQA-328",
-    "SQA-331",
-    "SQA-339"
-  ],
-  "adoption_scope": "Target added at the owner's request. Existing reviewed_master, reviewed_at, findings, ranks, closure evidence and every implementation-owned/unknown field remain unchanged; no fresh implementation review is claimed."
-},
-    "assessment": "Named presets reuse existing profiles, form controls and runtime normalization, but composition misses two early-boundary contracts: untouched GUI defaults override image presets; the student loader postpones a known semantic refusal until after device loading. Repair these through their existing owners before expanding consumers. The two sampler/preset landings remain growth;339 is the concrete bounded deletion.",
+        "ownership": "sqa_reviewer",
+        "status": "active_until_verified_refactor_completion",
+        "path": "C:\\Users\\jeffm\\Downloads\\extreme_refactor_plan.md",
+        "document_sha256": "fe13a4bd47c8c41ea6dbf766c0acf3dc41ab7dab0c6d8bd926863313d4f34395",
+        "document_reference_revision": "386bf1602993bd520bc754521f4512e5e57a6c74",
+        "document_state": "Owner-requested architecture-first document in Downloads; read and SHA256 confirmed this review. External to the repository and not part of reviewed master.",
+        "purpose": "Architecture is primary: clear responsibilities, inward dependency direction, fewer independent implementations and complete behavior preservation.",
+        "priorities": [
+          "Resolve user intent once into a format-independent computation; readers implement model/tensor contracts, executors retain numerical semantics and resource lifetime.",
+          "Share actual orchestration through existing recipe/runtime owners only when it displaces two real workflows; admit known bad prerequisites early and recover exact valid work.",
+          "Keep durable truth in existing stores, product interfaces thin, and development authority in plan/supervisor/gate.",
+          "Delete displaced production/test/setup/automation paths; count migration and recovery cost. Existing correct behavior is a reference, known defects are not a contract."
+        ],
+        "first_slice": "One supported family from GGUF and safetensors through shared binding/execution; preserve native dtype/layout/transforms/identity and explicit export use.",
+        "review_use": "Assess bounded real changes against the architecture; consolidate through existing findings, never a mandatory rewrite checklist.",
+        "authority": "Design target only; docs/plan.json is sole dispatch authority. No implementation authorized by SQA.",
+        "completion": "Active until supported capabilities migrate or are explicitly retired, displaced paths/adapters are removed and retained correctness/recovery plus full costs support completion.",
+        "related_canonical_findings": [
+          "SQA-271",
+          "SQA-266",
+          "SQA-322",
+          "SQA-325",
+          "SQA-328",
+          "SQA-331",
+          "SQA-339",
+          "SQA-340",
+          "SQA-341",
+          "SQA-342",
+          "SQA-343",
+          "SQA-344",
+          "SQA-345",
+          "SQA-346"
+        ],
+        "adoption_scope": "Supersedes the absent repository-document reference at the owner's request; current external SHA is verified. Does not alter the executable plan."
+      },
+    "assessment": "New measurement producers bypass the existing media identity boundary:346 is a concrete OCR compilation failure and related motion attribution gap. Repair through the retained owner; do not add another media framework.345 remains the larger deletion opportunity, and342's landed temporal fixture earns partial credit.",
     "current_review_order": [
-        "Current plan and standing architectural target",
-        "Catalog -> UI -> submitted request -> effective model settings",
-        "Student request admission -> cold/resident load and retry",
-        "Sampler device detour339 and retained test ownership",
-        "Retained landing costs and current plan sequencing",
-        "Prior report/implementation reconciliation"
+        "Guidance, current plan and architecture target",
+        "OCR/motion producers and real bound-media evaluation caller",
+        "Numerical versus presentation/native/device test ownership",
+        "Targeted AST, retained records and fixture bytes",
+        "Prior findings/owner reconciliation"
       ],
     "declined_candidates": [
-        "Image and video preset fixtures share a name but not a complete contract: image tests pointer guidance/explicit override/defaults/cross-model names; video tests shift and actual backend pass counts. Explicit guidance0 is separately owned by the browser/API fixtures. Retain these contracts; a generic preset framework has no demonstrated net saving.",
-        "Do not collapse the director's resource-refusal reload into fatal setup failure for all models. Apply the student predicate before its expensive loader, retaining legitimate replacement/cancellation and replay.",
-        "Do not infer format-independent loading progress from profile-data presets. No loader migration or new safe storage-format deletion was established in this bounded review.",
-        "Do not repeat real media renders to verify a form-serialization bug. Existing browser request capture plus native preset normalization is sufficient."
+        "Keep reader device parity, native character arithmetic and scorecard rendering distinct. The three identically named character tests exercise different owners.",
+        "Full editDistance has fixed ends; stretchDistance has free page start/end. Similar loops do not justify a new parameterized distance abstraction.",
+        "Motion's neighbour observations and its corrected repeat fixture are useful bounded diagnostics; do not delete them or shared Card.Embed/Cosine when simplifying the semantic screen.",
+        "No measured memory/time improvement or completed format-independent refactor established;346's necessary binding growth is counted honestly."
       ],
     "plan_review": {
         "draft": {
@@ -57,91 +64,96 @@
         },
         "recommendations": [
           {
-            "rows": "format-loader/caption-text",
-            "disposition": "Keep as a bounded consolidation; preserve the larger obligation.",
-            "recommendation": "Remove the duplicate caption directory branch through gguf.Open. Preserve token encoding parity, not only fixed-ID rows. Explicitly defer remaining format coupling rather than claiming this finishes it; unrelated hand-off cleanup is separate.",
-            "finding": "SQA-324"
+            "rows": "landing-scope/candidate-checks; landing-derive/derive",
+            "disposition": "Landed architecture improvement; retain distinct tests.",
+            "recommendation": "Keep checkOut/derive as the single candidate owner. The lane-only temporary tree and live-folder settled recapture are gone. Retain generator-source and data-root contracts; native Go cache reuse needs no second cache.",
+            "cost": "+598 production/+263 test AST across the two landings;334's -161 test-node consolidation is included."
           },
           {
-            "rows": "ask-nothing/owner-turn,hook-text,pointer,stop-kinds",
-            "disposition": "Combine the concrete hook/text reduction.",
-            "recommendation": "Let answered owner turns end, remove repeated hook rules, and keep a short pointer. Ordinary design choices should not block work; retain requested stops until explicit resume and genuine outside prerequisites such as unavailable credentials/permissions, not only licence/hardware. Reuse existing decision/stop owners rather than a new vocabulary framework.",
-            "cost": "Name the removed hook output/tests; extend existing stop/turn tables for changed behavior, not five parallel conformance suites."
-          },
-          {
-            "rows": "driver-on/first-run,startup,stop-clears,gate-retired",
-            "disposition": "Sequence through existing dependencies and prove the handoff.",
-            "recommendation": "Reuse loop.Run, BeginCampaign, processcontrol and durable stops. A task definition and fake-worker pass do not prove delivered continuation; clean waiting exits need a responsible next action. Preserve partial work and budgets on restart. Retire hooks only after that owner works.",
-            "finding": "SQA-271"
-          },
-          {
-            "rows": "driver-on/defaults,fall-through,status; worker-tools/workers",
-            "disposition": "Defer extra dispatch/notification machinery until the existing driver runs.",
-            "recommendation": "Use current decision, parked-row, outcome and cycle-due owners. Recheck canonical findings before filing rows; severity alone is not a cost/benefit ranking and a blanket owner-only P3 rule creates another handoff for cheap safe reductions. Start with current step/last outcome/blocker status; derive it from existing records. Escalate worker strength only after evidence of worker capability failure, never unchanged invalid setup. No periodic full run merely to remain busy.",
-            "cost": "Four workflow metrics, per-landing notifications and escalation need demonstrated consumers and complete test/setup costs; none is a prerequisite to the first supervised handoff."
-          },
-          {
-            "rows": "generated-commits/message,rule-edits",
-            "disposition": "Generate factual fields and remove unnecessary refusals.",
-            "recommendation": "Reuse landing details and plan-diff data; keep an optional human explanation of cause instead of inventing intent from a diff. Delete displaced prose checks. Apply only deterministic existing fixes; do not promise an exact automatic edit for every semantic rule. Start with the existing early-verifier correction, not another mandatory validation phase.",
+            "rows": "Existing landing verifier",
+            "disposition": "Still needs early failure.",
+            "recommendation": "Move the existing verify entry before broad test/lanes. No second preflight command, selector or acceptance owner.",
             "finding": "SQA-322"
           },
           {
-            "rows": "generated-commits/undo-check; step-kinds/test-first,locked-test",
-            "disposition": "Remove universal restrictions that block consolidation.",
-            "recommendation": "Keep behavioral acceptance and numerical limits stable while allowing equivalent test edits. Restrict meaningful counterfactual checks to appropriate behavior changes; do not count build/setup failures as proof.",
-            "finding": "SQA-332"
+            "rows": "media-screen/pair-screen,clip-consistency",
+            "disposition": "Both landed; temporal claim partly narrowed.",
+            "recommendation": "Credit the fixture's admission that a repeat did not lower global minimum and keep local-neighbour diagnostics. Remove uncalibrated semantic rejection; no universal motion-quality floor.",
+            "finding": "SQA-342",
+            "cost": "Combined+3146production/+2293test; Cosine reuse's59-node deletion included, not a net reduction."
           },
           {
-            "rows": "step-kinds/run-steps; worker-tools/tools",
-            "disposition": "Reuse execution owners; defer a new six-tool server.",
-            "recommendation": "Direct deterministic run steps are useful when existing process/runrecord and recipe runtime owners handle identity, admission, resume, budgets and side effects. No second workflow language. A worker allowed to edit Go and run tests can execute subprocesses through that code; six advertised tools do not enforce a security boundary. Preserve actual filesystem/process/authority protections and do not retire guards based on tool names.",
-            "cost": "Keep existing decode/training loops in executors. Show displaced orchestration and at least two shared workflow contracts before expanding recipes; count added tool-server/tests/maintenance."
+            "rows": "judge-instrument/repeatable,replay,reverify,current",
+            "disposition": "Landed; credit reuse and admission, repair residual343.",
+            "recommendation": "Replay uses existing loadObserved/answers; currentJudges runs before workers and checks again before loading, reverifyOn restores accepted exact cases through the existing verifier/activation owner. Fix the missing effective-right-choice key and merge native replay/soft-score setup. Keep different model-state/CLI/activation recovery tests. A same-process repeatability pass is bounded evidence, not a general numerical guarantee.",
+            "finding": "SQA-343",
+            "cost": "Four complete retained landings+1743 production/+3178 test AST,1schema,0staticfixture files/bytes; no net reduction.343 estimates net126..316nodes removed after its necessary key growth."
           },
           {
-            "rows": "card-dispatch/needs-card,remeasure",
-            "disposition": "Extend existing dispatch and dependency identities.",
-            "recommendation": "Use Step.DependsOn, resource ownership and inferencesurface's current identities. Do not add another selector or trust an unchecked needs-card declaration as resource authority. Known untouched cells may reuse evidence; unknown dependency reach keeps conservative coverage.",
-            "cost": "One declared scheduling hint may help host work progress, but actual gate/resource owner stays authoritative. Extend existing dependency/identity fixtures."
+            "rows": "local-worker/lands,local,replay,ladder",
+            "disposition": "lands completed; retain existing supervisor ownership",
+            "recommendation": "Run now invokes Land after successful Verify; RunCommand uses the same owner. Credit this direct handoff repair. Keep stops, budgets, plan authority and actual landing outcomes in this owner as local/replay/ladder proceed; no separate recipe dispatcher.",
+            "finding": "SQA-271",
+            "cost": "lands+102production/+413test; no measured net reduction.271's external scheduled-session supervision is a distinct contract."
           },
           {
-            "rows": "one-rule-file/paragraphs,rule-text,skill-sort,memory-off",
-            "disposition": "Keep concrete deletions; remove generic prose policing.",
-            "recommendation": "Retain one short guidance source and delete proven duplicates. Avoid a new semantic 'rule sentence' detector, one-test-per-sentence program or startup memory warning merely to replace prose with machinery. Confirm any existing product setting before recommending it. Never manually refresh a pinned measurement checkout.",
-            "finding": "SQA-333"
+            "rows": "count-history/derived",
+            "disposition": "Landed advisory estimate; not a reduction.",
+            "recommendation": "HistoryCount aggregates whole landing costs touching listed directories and returns the upper middle for even samples. Treat it as disclosed context, not a calibrated predictor or a reason to omit test/setup costs. No new statistical mechanism recommended.",
+            "cost": "+540 production/+607 test AST; separate parser and command contracts retained."
+          },
+          {
+            "rows": "drawn-text-reading/briefs,reader,char-score",
+            "disposition": "All landed; preserve held question identity and fix media integration.",
+            "finding": "SQA-344",
+            "recommendation": "344 still governs stable question prefixes and duplicate brief tests.346 separately fixes the new real campaign binding and shared measurement attribution.",
+            "cost": "+395production/+316test and1598embedded JSON bytes landed; net37..162AST estimated reduction after repair."
+          },
+          {
+            "rows": "comfy-recorder/request,record",
+            "disposition": "Question the extra compiler before extending the recorder.",
+            "finding": "SQA-345",
+            "recommendation": "Reuse the six API requests already exported and required by importFixture. Delete the Go UI/widget interpreter; retain exact reference/provenance/recording.",
+            "cost": "+4372production/+539test and1749816fixture bytes landed; complete replacement estimates net3211..3711AST reduction with all fixtures retained."
+          },
+          {
+            "rows": "drawn-text-reading/reader,char-score; media-screen/clip-consistency",
+            "disposition": "Landed producers need the existing media binding boundary.",
+            "finding": "SQA-346",
+            "recommendation": "Exercise actual Campaign.CompileSuite, consistently bind readings/motion to content and measurement authority, and retain native numeric oracles. No second observation framework.",
+            "cost": "346 estimates necessary net+220..680AST; no guaranteed net saving."
           }
         ],
         "first_sequence": [
-          "Finish bounded caption consolidation with promised acceptance intact.",
-          "Simplify answered-turn and hook text through existing owners.",
-          "Move the existing landing verifier before broad tests/lanes.",
-          "Configure and prove one existing supervised worker-to-next-action handoff with stop/wait/budget recovery.",
-          "Only then add platform startup and retire displaced hooks; defer new policy/tool/telemetry frameworks."
+          "Repair346's actual media-bound OCR refusal and auxiliary-measurement attribution in the existing owner.",
+          "Repair343's cached scalar choice dependency and344's held-question identity; migrate tests before deleting duplicates.",
+          "Delete345's duplicate UI compiler through retained exported requests; keep golden evidence.",
+          "Retain342's narrow diagnostics without unsupported acceptance, and322's single verifier earlier."
         ]
       },
-    "plan_review_follow_up": "bb3e392b1 lands named-presets; sampling-split now retains only block-override. Interface+presets total+1777 production/+1402 test AST, not a deletion. Resolve340/341 through existing request/admission owners before extending consumers; retain339's-87 opportunity. plan-step-files/setfiles explicitly replaces repeated re-filing with the existing plan command, still planned. video-judge correctly records incomparable previous geometry and orders same-settings after soft-video; keep reference/held-out contracts fixed rather than repeatedly changing cases until desired non-ceiling scores appear. A different scoring instrument is not itself a model improvement. stage-cache/keys remains planned: reuse existing runtime/content identities and replay rather than adding another store/cache authority; no sigma-table caching justified solely because expensive latents need persistence. Concurrent21c6b7d12 raises remaining block-override estimate to500; this changes the estimate, not incurred cost. It adds landing-scope/scoped-commit -> candidate-checks using the existing private index and letGo worktree. Reuse the same frozen step.Files/plan.Lists owner for capture and admission; leave unrelated staged/unstaged paths untouched and do not widen authority from edited candidate terms. Replace whole-checkout recapture/checks rather than retaining two modes of truth for scoped steps. Keep exact checked-tree identity, generator outputs, cleanup and cancellation. Scope coverage in the existing landing fixture rather than a parallel gate suite. guard-checkout should reuse current ownership checks and preserve explicitly authorized report-only publication; a broadly ignored path must not be treated as inherently safe if it is an active runtime/control file. This target was explicitly requested by the user; its missing working file is a coordination/destination issue, not evidence the architectural request was withdrawn. SQA edits no plan or guard.",
-    "rank_basis": "Keep carried serious correctness/identity priorities without claiming a fresh whole-system ranking. Place340 after331 among P2 correctness issues;341 follows325 among concrete admission obligations. Existing ranks and closure evidence otherwise stand.",
+    "plan_review_follow_up": "media-screen/clip-consistency and drawn-text reader/char-score have landed. The temporal fixture now acknowledges a repeated frame can miss global minimum;342 updated. Character tests bypass Campaign.CompileSuite, yielding346. local-worker/local,replay,ladder remain in committed plan; working implementation and lane changes excluded.",
+    "rank_basis": "346 joins high-priority evidence correctness ahead of343. Preserve carried ranks and single canonical IDs; no full-system reranking.",
     "refactor_target_progress": {
         "status": "active; completion not established",
-        "document_availability": "docs/extreme_refactor_plan.md was absent when checked. Filename search found no replacement, and Git history for that path had no entry. Its prior architectural_target record describes an uncommitted snapshot; do not read its document_state as current availability. Cause and current owner intent are unknown. SQA did not recreate or delete it. The newly committed landing-scope rationale names this file as interfering with earlier whole-checkout checks; that is the implementation's retained account, not an independently timed40-minute measurement. It does not establish who removed the file.",
-        "retained_reference_sha256": "3382adec2744ef67c22643935b84a8bec7ff8db803d4b9f131af9f927f361965",
-        "progress": "Presets are data beside existing profiles and both form consumers retain one shared UI owner. Model executors still own denoising and lifetime. These are architectural alignment observations, not net savings or completed format-neutral binding.",
-        "conflicts": "340 exposes duplicated effective-default decisions across UI and executor;341 exposes load-before-semantic-admission. Repair boundaries in place. The current sample proves no completed format-independent family migration; existing identity findings remain relevant, not re-audited.",
-        "next_useful_reductions": "Keep339's two-device-caller adapter deletion. In340 move the redundant API preset predicate only once the existing browser fixture owns actual transport. No new architecture framework or compulsory rewrite; docs/plan.json remains dispatch authority.",
-        "cost": "Named-presets itself+767 production/+659 test AST,0 fixture files/bytes. Whole two-landing sampler/preset sequence+1777/+1402; code moves and future removals are not present savings. Concurrent licence-scope landing reports-34 production/+1780 test AST (combined+1746),0 fixture files/bytes; not a whole-surface reduction. These tests were not audited for redundancy here."
+        "document_availability": "Downloads target exists and matches SHA256 above. No repository architecture document was added or restored.",
+        "retained_reference_sha256": "fe13a4bd47c8c41ea6dbf766c0acf3dc41ab7dab0c6d8bd926863313d4f34395",
+        "progress": "The reader reuses projector/runtime identity and close owners; Cosine now serves screen and clip motion. Motion scorecard fields remain beside the existing judged Cell.Value. Previous direct worker landing/candidate ownership progress remains credited.",
+        "conflicts": "346 attaches run observations to suites without the existing media-binding contract: OCR fails rewritten-key validation and motion can retain stale same-name measurements.343 scalar choice key,344 question-prefix identity,345 duplicate UI compiler and322 late verifier remain.342 narrows the temporal claim but its semantic screen still rejects without calibration.",
+        "next_useful_reductions": "Use existing media binding for346 while deleting duplicate CLI numerical checks; accept necessary growth. Delete345's extra UI compiler, merge343/344 native setup, and move322's existing verifier earlier. Do not add a second workflow/identity owner.",
+        "cost": "Three newest full landings: clip+1586production/+1504test, OCRreader+1085/+943, characters+1256/+1279 =+3927production/+3726test. Retain79579OCR fixture bytes outside reported root fixtures. Cosine's59-node local reduction is included in clip growth.346 estimates net+220..680;345/343/344/342 reductions remain conditional, separate and not booked."
       },
     "working_notes_review": {
         "finding": "SQA-334",
-        "retained_owner": "Current plan note/printPromptStep owner; no new register or duplicated dispatch authority recommended.",
-        "scope": "Ignored GUI hand-off remains17,580 bytes; prior answer retained in fdd4ab1ce history. Current note and stray fixture follow-up only.",
-        "plan_follow_up": "Preserve prior hash-bound plan review as history. Archiving an answer is not completing its requested work."
+        "retained_owner": "Existing plan notes and findings; no second working-notes dispatch register.",
+        "scope": "17580-byte ignored GUI handoff remains. Native note and harness fixture migrations are credited; only requirement disposition remains.",
+        "plan_follow_up": "A recorded answer is not completed implementation. Retain unique GUI requirements before deleting its handoff/exemption."
       }
   },
     "committed_plan": {
-    "git_blob": "87da3031488fb9724b0561e3c901a61f6d0b480c",
+    "git_blob": "08b0f19dfd022846bd49c83d56000215340b3e49",
     "path": "docs/plan.json",
-    "revision": "21c6b7d12cfc0668eef1a62dde1e88d02c9e3a2d",
-    "sha256": "b7f61b22d0e7a0d7fb9423849aebc56057452fd70f1cc704b9e609e12907f848",
+    "revision": "2e701ee7f5f442bcdcdf38d8cb2560a8e5ff2c86",
+    "sha256": "50379d198077fb25279e6c217f9c82c66f60b2ebdde7527b25b9dee29d85c926",
     "working_tree_status": "Committed plan at review pin; prior draft assessment retains its own snapshot identity. Current working plan edits excluded."
   },
     "findings": [
@@ -6222,27 +6234,28 @@
     "classification": "source-established-late-verifier-with-unmeasured-avoided-work",
     "closure_criteria": [
         "Full Run executes its existing verify after invariants and before test/lanes; preflight and plan-only contracts remain.",
-        "The retained spent fixture refuses its existing false verifier in full mode with only the six cheap stages recorded; all original success, conflict, preflight and wait cases remain.",
-        "Retain candidate/acceptance identities and Execute/addedChecksFail semantics; count the complete +13 test-node alternative and the extra fixture attempt honestly. No separate precheck or selector."
+        "The retained spent fixture refuses its existing false verifier in full mode without broad test/lanes/scorecard stages; preserve success, trunk conflict, preflight, wait, candidate and generator identity cases.",
+        "Keep planverify and added-check/base semantics. Recount the current fixture and complete setup cost; historical +13test AST is not a current measured replacement. No separate precheck or selector."
       ],
-    "comparison": "Smallest deciding comparison is the existing row/refused case under full mode, through Run and its retained spent record, during ordinary implementation validation. The current table/order predicts test and lanes before refusal; the reordered owner predicts neither. Source/AST establishes scope now. No SQA-triggered gate, synthetic timing benchmark, device workload or redundant confidence run.",
+    "comparison": "During ordinary implementation validation use the existing full-mode false-verifier table case and recorded stage names. Historical +13-test-node alternative was sized before candidate isolation; re-count the final current fixture rather than treating that estimate as current exact AST. SQA runs no gate.",
     "displaced_surface": "The late verify position disappears; no verifier execution or requirement is deleted. On refused full attempts, subsequent broad test/lane/scorecard invocations and their waits disappear. On successful attempts all stages remain once. Preserve preflight filtering, free-space-first and plan-only behavior, committed acceptance terms, verifier deduplication, added-check rejection on the base, real command exit/non-vacuous/repeat semantics, cancellation, candidate identity checks, private checkout/lock release and partial spent records. Initial commit/quiet-turn acquisition still precedes checks, so this does not promise to eliminate every wait. The moved-tree, successful landing, preflight refusal and measurement-wait cases all stay. No production export, configuration, file format, numerical, build-tag, data or confidentiality contract changes.",
-    "evidence": "Run consumes checks in declared order. A full landing reaches test and lanes before verify; only an explicitly requested preflight filters out those broad stages. Both cmd/gate and cmd/loop's execRowWorld.Gate reach this owner, and the latter does not automatically preflight. The existing spent fixture already admits a row whose verifier is false and whose ordinary package tests pass, but exercises that row only with Preflight=true. In full mode that same known refusal is discovered after the broad stages. A missing selected Go test can likewise be rejected as vacuous only by planverify.Execute after ordinary tests pass. These are source-established admitted cases, not newly executed failed landings. Retained successful a104591ab ran test for 1m55.295s and lanes for 1m49.934s before verify for 1.787s; df8523d27 ran lanes for 18m24.834s before verify for 2.109s. Those timings show exposed work, not observed waste or a measured saving.",
-    "evidence_commit": "efc02c5fdbf321a8ae0686933839f82306d3f894",
+    "evidence": "Rechecked at9f5552abc: checks still orders test and lanes before verify. Both gate and loop reach landing.Run. Candidate isolation now correctly makes all these stages read the checked tree, but changes neither this order nor the refusal cost. The spent fixture still exercises its false verifier only as preflight; its moved case now changes trunk rather than editing the candidate folder. Current retained count-history landing ran test2m3.407s then lanes0.802s before verify11.185s. Earlier successful a104591ab/df8523d27 exposed longer work; these are successful stage walls, not measured waste. Keep the same planverify owner and move it before broad tests/lanes; do not create a second admission phase.",
+    "evidence_commit": "9f5552abcdfbd3ec6e9c7e002f0a7fd2b075e1c9",
     "expected_benefit": {
-        "outcome": "Complete scratch-only two-file alternative: landing.go 5418->5418 production AST and 41850->41850 LF bytes; spent_test.go 682->695 test AST (+13) and 4503->4606 LF bytes (+103). Pair 6100->6113. No source reduction: necessary regression coverage grows. Existing one Git/module fixture remains; table attempts 4->5 adds one six-stage refused host landing attempt in ordinary implementation validation. Static fixtures/schema/CUDA/dependencies/helpers/wrappers/new test functions all 0. Successful production gate work is unchanged; a failing verifier avoids later stages. No extra standing phase or recurring workload.",
-        "uncertainty": "Parsed complete alternatives only; no package compilation or application/test/device execution by SQA. Retained stage walls are successful attempts, not matched before/after failure measurements. Initial lock/quiet admission and arbitrary verifier duration remain. Ordinary implementation validation must retain moved-tree refusal and added-check/base semantics."
+        "historical": "Earlier complete scratch-only alternative at efc02c5: landing.go5418->5418, spent_test.go682->695 (+13test AST/+103LF bytes); one existing Git/module fixture with4->5 table attempts. Kept as historical sizing, not current source after candidate isolation.",
+        "current": "Same verifier is moved once; successful stage work unchanged. Known failing verification avoids later broad tests/lanes/scorecard, but initial locks/invariants remain.0new phase/helper/selector/staticfixture/schema/dependency. Current replacement AST and setup delta await ordinary implementation.",
+        "uncertainty": "No compiled replacement or new execution by SQA. Retained stage walls are successful attempts, not measured avoided elapsed time. Preserve current candidate/generator/trunk-compare-and-set semantics."
       },
     "id": "SQA-322",
     "impact": "A cheap declared acceptance failure can refuse the attempt before broad host/device work. This is sequencing efficiency, not a claim that invalid code can currently land or that any retained successful run was wasted.",
     "likely_effort": "Small existing table reorder and one case in the retained lifecycle fixture; no new framework.",
-    "plan_coverage": "No new plan row or SQA implementation. Distinct from SQA-266's repeated full-cycle evidence work and SQA-271's post-exit continuation; no shared root cause or coordinated migration justifies merging them.",
+    "plan_coverage": "Candidate-checks and derive are landed ownership improvements; the late verifier remains. Distinct from266 repeated-cycle reuse and271 dispatch/exit; preserve separate contracts.",
     "plan_references": [
         "docs/plan.json standing: cheap preflight stages and dependency-first failure admission",
         "vision-bridge/cache-identity and vision-bridge/train retained landing records (timing context only)",
         "UNCOMMITTED draft190b66312: generated-commits/message,undo-check,rule-edits"
       ],
-    "recommended_change": "Move the existing verify entry immediately after invariants in checks. Keep the same Execute and addedChecksFail owners, rather than adding a preliminary verifier or requiring a second manual preflight. Extend TestLandingRecordsItsWaitsByCause with one full-mode row/refused case using the same fixture and existing six-stage expectation; its recorded stage set must exclude test, lanes and scorecard. Reorder the two successful full-mode expectation lists for clarity. No new test function, helper, selector, cache or scheduler. Prioritize this existing +13-test-node correction before the draft's new universal undo/autofix machinery. Generated factual message fields can reuse l.details and existing plan-diff results; delete displaced prose checks rather than preserving them behind a new message framework.",
+    "recommended_change": "Move the existing verify entry after invariants in checks, retaining the same planverify.Execute, judgeAdded and addedChecksFail owners. Extend TestLandingRecordsItsWaitsByCause's existing table with its false-verifier case in full mode and require no test/lanes/scorecard stage. Preserve current trunk-move conflict, candidate tree identity, generator isolation, cancellation, plan-only/preflight and partial records. Do not rerun a manual preflight as a second standing gate.",
     "severity": "P3",
     "sources": [
         {
@@ -6756,56 +6769,60 @@
   },
     {
     "category": "development-context-consolidation",
-    "classification": "note-fixture-merged; stray-fixture-merged by landing-scope/candidate-checks, whose rules stage names a stray document and no longer refuses one; answered-handoff-remains",
-    "closure_criteria": ["Retain the verified note and harness fixes without reintroducing duplicate fixtures.","Reconcile the already-answered GUI hand-off and retire it only after unique requirements are retained.","Either retire the unnecessary broad gate, or explicitly retain it and consolidate shared fixture work; count the chosen alternative once."],
-    "comparison": "Use the existing mixed-file stray fixture for the moved harness case during ordinary implementation validation; no SQA test. Compare full post-migration AST/setup, and reconcile the GUI decision with actual retained requirements.",
-    "displaced_surface": "Already gone: notes_shown_test.go and one plan setup. Remaining accepted-purpose migration: GUI hand-off/exemption after disposition. Conditional small reduction if the gate stays: remove TestTheHarnessDirectoryHoldsNoStray as a separate body/setup after moving the harness ignored path and assertion into the retained mixed-file fixture. Gate retirement is an alternative, not an additional saving.",
-    "evidence": "Prior085a3ed2b removed notes_shown_test.go and merged its unique cases (-99 test AST);763bdc735 admitted the harness directory (+4 production/+95 test), net0 across those two follow-ups. At this pin strays_test.go remains329 nodes with a separate93-node harness test. The17,580-byte ignored GUI hand-off remains. fdd4ab1ce removes answered decisions from the live plan and records the gui-recommendations answer in Git; moving that answer to history does not itself rank or retire the nine unique GUI requirements. No replacement owner for those requirements was established in this bounded review.",
-    "evidence_commit": "40fabb8d80603b3ff81a5c8dd3c31d7a3143fb9b",
+    "classification": "note-and-stray-fixtures-merged; broad-stray-refusal-retired; answered-handoff-remains",
+    "closure_criteria": [
+        "Retain note behavior and merged file classification/harness cases under their existing owners.",
+        "Dispose of the nine GUI handoff requirements through current plan/findings before removing the handoff/exemption.",
+        "Count deletion once; no parallel notes ledger or restored document-policy gate."
+      ],
+    "comparison": "Source and selected AST establish fixture consolidation now; no SQA run. Compare the handoff's unique requirements with current retained owners before its eventual removal.",
+    "displaced_surface": "Done: notes_shown_test.go; TestTheHarnessDirectoryHoldsNoStray; the second clean fixture in the old stray test; stray refusal/mapping assertion. Retained owner is TestALandingNamesAStrayDocument with the moved harness exemption and all meaningful file classifications. Still pending: the17580-byte handoff and its documentFiles exception, only after requirement disposition.",
+    "evidence": "085a3ed2b removed notes_shown_test.go and merged its unique cases (-99 test AST);763bdc735 admitted the harness directory (+4 production/+95 test), historically net0. At9f5552abc, landing-scope/candidate-checks has now merged the harness path into TestALandingNamesAStrayDocument and removed the separate harness body and clean-only fixture: strays_test.go329->168 (-161 AST),3 Git setups/stray queries->1. The old rule mapping/refusal assertion is obsolete because rules now prints a note instead of rejecting an ignored document. The mixed fixture retains ignored drafts, harness state, tmp/runtime homes, local config, log and unignored added document cases. The17,580-byte ignored docs/gui_update_plan.json and its explicit documentFiles exemption remain; no fresh disposition of its nine unique GUI requirements was found. The recorded answer remains in fdd4ab1ce history.",
+    "evidence_commit": "9f5552abcdfbd3ec6e9c7e002f0a7fd2b075e1c9",
     "expected_benefit": {
-        "landed": "Note pair4730->4631 test nodes(-99), one duplicate plan setup removed; harness+4 production/+95 test offsets it. No new timing/memory claim.",
-        "fixture_merge": "Current strays_test.go329; separate harness body93. Move estimated25..45 nodes into retained fixture =>261..281 total, net-48..68 test; production0, no helper/static fixture. Three Git fixture setups become two; one query disappears.",
-        "gate_alternative": "Full gate removal is an alternative: current strays.go231 plus existing call/refusal entries, strays_test.go329. Prior bounded complete estimate242 production/328 test is historical; recount caller entries before claiming a new complete total. Do not add it to fixture-merge savings.",
-        "notes_cost": "17,580 hand-off bytes remain; count deletion only after unique requirement disposition. fdd4ab1ce adds98 production/220 test for general answered-decision archival, not a saving attributed to this migration."
+        "landed": "Prior note/harness follow-ups net0 AST. Current strays_test.go329->168 (-161 test AST),3->1 Git setups and queries; strays.go231->231. The refusal rule's3-node deletion is part of the complete landing below, not an additional additive estimate.",
+        "complete_cost": "candidate-checks retained landing footer +308 production/+20 test AST,0 fixture files/bytes: the -161 reduction is already included and must not be counted twice. derive separately+290 production/+243 test. Together+598 production/+263 test (+861 combined), not net shrinkage.",
+        "remaining": "17580 handoff bytes remain. No current elapsed/memory saving measured; reconcile unique requirements before deletion."
       },
     "id": "SQA-334",
     "impact": "Credits a real test reduction and fixes while preventing an answered hand-off from remaining permanent and avoiding duplicate Git setup.",
-    "likely_effort": "Small native-fixture merge; careful disposition of nine GUI requirements through existing plan/findings.",
+    "likely_effort": "Remaining work is bounded requirement disposition, not another fixture merge.",
     "plan_references": [
         "stray-check/note-tests085a3ed2b",
         "stray-check/harness-home763bdc735",
-        "answered-decisions/leave fdd4ab1ce retains gui-recommendations answer in Git"
+        "answered-decisions/leave fdd4ab1ce",
+        "landing-scope/candidate-checks0ad3c1b65"
       ],
-    "recommended_change": "Keep the existing plan note/write/read owner; no new working-notes register. Use the recorded gui-recommendations answer to dispose of the nine requirements through current plan/findings, then remove the obsolete hand-off/exemption. If the ignored-document gate stays, move the harness allowed-home case into TestALandingRefusesAStrayDocument's first mixed-file fixture and delete the separate harness body/setup. Keep ignored draft/unignored file/approved homes/empty result/refusal mapping cases. Full gate retirement remains an alternative, not an additional saving or an implemented change.",
+    "recommended_change": "Keep the landed single-fixture reduction and nonblocking diagnostic; do not restore a document-policy gate. Remaining work is to reconcile the previously answered GUI handoff through the current plan/findings, preserve or explicitly retire its unique requirements, then remove the obsolete handoff and exemption. No new working-notes register, fixture or review rule.",
     "severity": "P3",
     "sources": [
         {
           "path": "cmd/plan/plan_edits_test.go",
-          "symbol": "TestNoteAppendsToARationale retains note behavior"
-        },
-        {
-          "path": "cmd/plan/main.go",
-          "symbol": "plan note/printPromptStep existing owner"
+          "symbol": "TestNoteAppendsToARationale retained owner; historical closure"
         },
         {
           "path": "internal/landing/strays_test.go",
-          "symbol": "TestALandingRefusesAStrayDocument and TestTheHarnessDirectoryHoldsNoStray"
+          "symbol": "TestALandingNamesAStrayDocument now owns the merged harness case"
         },
         {
           "path": "internal/landing/strays.go",
-          "symbol": "documentHomes/strayDocuments"
+          "symbol": "documentFiles, strayDocuments, strayNote"
         },
         {
           "path": "internal/landing/rules.go",
-          "symbol": "strayDocuments caller"
+          "symbol": "rules prints nonblocking note"
         },
         {
           "path": "internal/landing/refusal.go",
-          "symbol": "stray-documents mapping"
+          "symbol": "obsolete stray-documents rule removed"
+        },
+        {
+          "path": "docs/gui_update_plan.json",
+          "symbol": "ignored17580-byte handoff; current presence only, not committed source"
         },
         {
           "path": "docs/plan.json",
-          "symbol": "gui-recommendations answer now recorded byfdd4ab1ce"
+          "symbol": "gui-recommendations answer retained in fdd4ab1ce history"
         }
       ],
     "status": "open",
@@ -7156,41 +7173,331 @@
         "The retained serving fixture detects refusal before an unusable path is resolved, then retains its existing successful two-request resident reuse checks; the generic session replacement/cancellation fixture remains unchanged. Record full growth honestly."
       ],
       "comparison": "During ordinary implementation validation, extend TestTheWanStudentIsServedAsItsOwnModel in its existing store/program setup. Load with an invalid student preset and nonexistent model path: the student contract must refuse before a file-resolution failure. Then continue the original valid renders/reuse sequence. This needs no new model render beyond the fixture's two existing requests; SQA executes none."
+    },
+    {
+      "id": "SQA-342",
+      "status": "open",
+      "severity": "P2",
+      "category": "evaluation-contract",
+      "classification": "implemented-semantic-proxy-without-calibration; temporal-claim-partly-narrowed",
+      "title": "Keep embedding similarity diagnostic until it supports the acceptance claim",
+      "evidence_commit": "2e701ee7f5f442bcdcdf38d8cb2560a8e5ff2c86",
+      "sources": [
+        {
+          "path": "docs/plan.json",
+          "symbol": "media-screen/pair-screen and clip-consistency; proposed consumers eight-bit-attention, w8a8-gemm, step-cache, light-vae, video-decode-overlap"
+        },
+        {
+          "path": "internal/evaluation/image_retrieval.go",
+          "symbol": "ImageEmbedder, nearestSameGroup: retrieval labels are the metric's actual contract"
+        },
+        {
+          "path": "internal/tensorstats/paired_binary.go",
+          "symbol": "ExactPairedBinary: independent binary pairs, not semantic calibration"
+        },
+        {
+          "path": "internal/evaluation/generated_video_matching.go",
+          "symbol": "BuildGeneratedVideoMatching: separate caption/question and grouped soft-score owner"
+        },
+        {
+          "path": "internal/evaluation/screen.go",
+          "symbol": "ScreenCase.Lost, ScreenCandidate, Screen.Passed"
+        },
+        {
+          "path": "cmd/evaluate/screen.go",
+          "symbol": "screenPaths, runScreen, printScreen"
+        },
+        {
+          "path": "cmd/evaluate/screen_windows_model_test.go",
+          "symbol": "TestTheScreenFailsACandidateThatLostItsPrompt"
+        },
+        {
+          "path": "internal/evaluation/clip_motion.go",
+          "symbol": "NewFrameSimilarity, ClipMotion.validate, ClipMotion.Metrics"
+        },
+        {
+          "path": "cmd/evaluate/motion_windows_model_test.go",
+          "symbol": "TestAClipRecordsItsFrameToFrameSimilarity"
+        }
+      ],
+      "evidence": "During publication reconciliation, pair-screen landed asf49359db3. ScreenCase.Lost now asserts Candidate>Reseeded means prompt loss; ScreenCandidate applies ExactPairedBinary at falseGain and printScreen returns a failing command on rejection. The retained32-case fixture uses two FRAMES FROM THE SAME REAL CLIP as nominal different seeds, compares pixel+/-1 perturbations with frames from another clip, and reports0/32 versus32/32 losses. That proves separation of those two controlled perturbations; it does not calibrate valid generated compositions or prompt correctness. A prompt can admit a third valid composition farther away than two nearby valid seeds, or an invalid count/colour detail can stay near. These are admitted-domain semantic counterexamples, not measured error rates. No committed automatic screen-before-judge caller was found; the command itself fails and the source/landing rationale claims admission. The clip-consistency landing ae199b5b9 now explicitly acknowledges that repeating the first frame did NOT lower the real clip's global minimum; it checks the struck frame's neighbours separately. Credit that correction. Its scorecard presents mean/minimum/source comparisons beside the judged value, without replacing Cell.Value. The remaining limitation is: a frozen clip has every adjacent similarity1 (maximal minimum), and a single repeat need not lower the existing minimum. Source-clip calibration does not fix that algebraic limitation. Pair tests cannot confer semantic validity on the predicate or make correlated frames independent. At2e701ee7f both media-screen steps have landed. The temporal fixture records clean mean.9294/minimum.5140, unrelated-frame neighbour.0440 and repeated-first-frame neighbour.7435; that bounded result is not a universal motion-quality ordering. Higher similarity is not always better (frozen clip), and the same-source floor is not valid for every generated composition.",
+      "recommended_change": "Remove the semantic screen's unsupported rejection/mandatory admission claim; keep existing bound judge/paired/numerical owners authoritative. Retain a diagnostic only for a concrete consumer. For motion, keep the landed adjacent observations as diagnostics with their bounded claim; do not interpret higher similarity or staying above a source minimum as universal quality or freeze/repeat detection. Keep actual temporal producer acceptance in its native owner. No new threshold search, calibration framework or recurring suite.",
+      "impact": "Prevents an extra gate from rejecting valid fast paths or presenting frozen video as temporally correct. Architectural benefit is one acceptance authority and fewer compulsory passes, rather than another quality framework.",
+      "likely_effort": "Small separation of diagnostic output from acceptance; larger deletion only if no actual diagnostic consumer needs the path. SQA changes no code or plan.",
+      "plan_references": [
+        "media-screen/pair-screen",
+        "media-screen/clip-consistency",
+        "video-judge/same-settings"
+      ],
+      "plan_coverage": "Both media-screen steps landed (f49359db3,ae199b5b9). The global-minimum repeat claim was narrowed in the actual temporal fixture; retain credit. The rejecting semantic screen and uncalibrated motion-quality interpretation remain; do not retain a stale missing-plan requirement.",
+      "displaced_surface": "Remove Screen.Passed/Tail/Level's semantic admission role and printScreen's prompt-loss failure; retain finite/input/identity checks. If the screen has no diagnostic consumer, retire its CLI/policy/device fixture together. Card.Embed and evaluation.Cosine now have a second real consumer in clip motion and must remain with that owner; do not count their deletion. Retain motion's neighbour observations and its corrected local-repeat fixture; remove only the unjustified universal acceptance/quality claims, not measured evidence.",
+      "expected_benefit": {
+        "measured_baseline": "Historical pair-screen landing+1560production/+789test=2349AST. Clip motion reuses evaluation.Cosine: cmd/evaluate/screen1152->1093 (-59nodes); current former screen slice2290 including shared entrypoints. Clip landing+1586production/+1504test includes that consolidation and is overall growth. Both landings together+3146production/+2293test. No static fixtures added by either.",
+        "minimum_change": "Diagnostic/acceptance separation estimated production-40..90AST, test0..25 with actual distance/refusal coverage retained: current former screen slice2290->2175..2250, estimated net40..115. No replacement compiled, no new helper/schema/fixture/setup.",
+        "larger_deletion": "Full screen deletion is conditional on absent required diagnostic use. Current shared Card.Embed and Cosine serve motion and are retained; any standalone estimates must subtract them and account for CLI changes. It is an alternative to minimal correction, never additive.",
+        "setup": "The current device fixture decodes32 source clips, opens one encoder, makes4 temporary render directories with128PNG files, and embeds192 images across the two candidates, including repeated reference/reseeded embeddings. Minimal correction retains that cost; retiring the unused path removes it. No rerun by SQA; native Go caching remains credited.",
+        "retained_results": "f49359db3: model verification62.47s; broad lane25m25.582s with CUDA4executed/15cached; scorecard unavailable because card reserved. Successful walls are not measured waste. Counterfactual did not compile, so no behavioral undo evidence. ae199b5b9 explicitly observed a repeat that global minimum missed; model verify64.999s and lane26m7.594s are bounded successful walls, not general motion evidence.",
+        "uncertainty": "Real valid-generation false rejection and missed semantic errors remain unmeasured. The source predicate and frozen-clip counterexample are sufficient to withhold the universal acceptance claim without running new workloads."
+      },
+      "comparison": "Use the retained fixture only for what it compares: same-clip frames/pixel shifts versus a different clip. It cannot decide the semantic bound. Review any already retained valid alternative compositions/known failures if available; absent that evidence keep diagnostics out of admission. The frozen-clip failure follows algebraically. Ordinary implementation can adjust the existing fixture when removing the verdict; no SQA generation or new test.",
+      "closure_criteria": [
+        "Implemented semantic screen has no unsupported semantic-loss rejection or compulsory judge admission.",
+        "Retain the landed temporal fixture's narrower local-neighbour evidence; higher similarity/source minima are not presented as universally better motion or proof against freezes/repeats.",
+        "Concrete diagnostic consumers and all shared embedding/numerical owners remain; retire unused gate/device paths only with complete costs."
+      ]
+    },
+    {
+      "id": "SQA-343",
+      "status": "open",
+      "severity": "P2",
+      "category": "evaluation-replay-correctness",
+      "classification": "source-established-cache-key-omits-scored-choice; consolidate-overlapping-native-fixtures",
+      "title": "Bind the cached judge probability to the choice it actually scores",
+      "evidence_commit": "2e701ee7f5f442bcdcdf38d8cb2560a8e5ff2c86",
+      "sources": [
+        {
+          "path": "internal/evaluation/judged_replay.go",
+          "symbol": "keptAnswer.Probability, Plan.judgedAsked, replayJudged"
+        },
+        {
+          "path": "internal/evaluation/generated_answer.go",
+          "symbol": "CompileGeneratedAnswer, evaluateGeneratedAnswer ask/replay/rescore"
+        },
+        {
+          "path": "internal/evaluation/soft_answer.go",
+          "symbol": "rightChoice, recordChoice and softShare retained numerical owners"
+        },
+        {
+          "path": "internal/evaluation/soft_tifa_test.go",
+          "symbol": "TestSoftTIFAScoresTheProbabilityOfTheRightAnswer and choiceJudge"
+        },
+        {
+          "path": "internal/evaluation/judged_replay_test.go",
+          "symbol": "countedJudge, TestAJudgedAnswerIsReplayedForTheSameInputs"
+        },
+        {
+          "path": "cmd/evaluate/judged_replay_test.go",
+          "symbol": "distinct Campaign/ResolveMedia/render-provenance integration retained"
+        }
+      ],
+      "evidence": "497ede4ae correctly reuses loadObserved/answers rather than adding a store. Its key covers judge, answering code, environment, media-bound prompt, token limit and choices, but not the effective right choice. Its value is not entirely raw: Probability is recordChoice's probability of the label previously accepted by Answers under Transforms. CompileGeneratedAnswer admits a fixed prompt with Choices[A,B] whose accepted answer is corrected from A to B. With judge probabilities A=.9/B=.1 and raw output A, judgedAsked remains identical; evaluateGeneratedAnswer rescoring makes accuracy0 but reuses soft probability.9 instead of.1. This is a source-derived counterexample, not a new execution. Current tests change media/model/judge, never this scoring dependency. The two native test files also repeat the same fox/boat questions, chance map, authority construction and store setup. Replay production files are unchanged through0682df981; current working scorer edits are excluded. At2e701ee7f generated_answer and soft_answer only add auxiliary metric validation/publication; judgedAsked still omits the right choice. No closure.",
+      "recommended_change": "Smallest complete repair: include the resolved right-choice index in the existing judgedAsked key for the probability being cached, computed through rightChoice and shared with recordChoice. This preserves the current compact value and existing loadObserved/answers owner; no new store, raw-logit schema, generalized scoring abstraction or migration service. A corrected label must miss that scored cache entry and re-ask only its question; same effective choice still reuses it. Keep legacy entries immutable; the changed key naturally stops crediting ambiguous old entries, with a one-time recomputation cost stated. Merge the native replay assertions into TestSoftTIFAScoresTheProbabilityOfTheRightAnswer, retaining its independent numerical oracle. Remove the duplicate replay fixture body/setup after moving changed-media/judge/reuse cases and one corrected-label regression. Keep the CLI integration test because it verifies actual bound media/campaign wiring.",
+      "impact": "Prevents a corrected reference answer from producing a stale soft-quality score, while retaining exact same-input reuse. One numerical/test owner replaces duplicated setup.",
+      "likely_effort": "Small unexported key/call change and consolidation of two native fixtures; necessary key coverage adds cases but can fit inside a net smaller test surface.",
+      "plan_references": [
+        "judge-instrument/replay497ede4ae landed",
+        "judge-instrument/currentaedec796e landed"
+      ],
+      "plan_coverage": "The replay row has left the live plan; this is its residual scored-value/key mismatch, distinct from315 external-file freshness and342 proposed embedding acceptance.",
+      "displaced_surface": "Delete the separate internal/evaluation/judged_replay_test.go test body and duplicated fox/boat/map/store/compile setup after transferring its actual cases. Keep choiceJudge as the shared fixture and retain or fold countedJudge's47-node counter into that fixture only if the total shrinks. Do not remove missing-choice-runtime refusal, numerical expected soft score, model-only reuse, changed-media invalidation, different-judge invalidation, or the571-node CLI integration file. Production removes no executor; it corrects the existing key.",
+      "expected_benefit": {
+        "measured_baseline": "Current selected production generated_answer1468 + judged_replay247 (unchanged) + soft_answer668 =2383AST. Native soft_tifa630 + judged_replay_test506 =1136 and CLI571 unchanged. Complete current bounded4090 nodes.",
+        "estimate": "Key/call growth estimated+20..60; merged native800..950 instead of1136; CLI571unchanged. Current complete after3774..3964, estimated net-126..316AST. Includes helper/import/key migration cost; not a parsed replacement.",
+        "setup": "Native stores3->2: retain the fresh no-choice-runtime failure store so cache cannot mask it; remove duplicate initial suite/store. No static fixture files/bytes or new gate/test selector. Existing fake judge calls fall from14 to about11 including the new corrected-label call; these are unit-fixture calls, not device time. Native evaluation attempt count remains about6 with the new case.",
+        "recovery_cost": "New key makes prior ambiguous scalar observations ineligible, causing one-time rejudgment before future reuse; retain old records. No measured elapsed/memory benefit. A full score-independent choice vector could avoid corrected-label work but is not needed for this repair and is not recommended without demonstrated demand."
+      },
+      "comparison": "Extend the retained native fixture with an unchanged prompt/choices whose accepted label alone changes A->B: exactly that question is asked once, accuracy and soft score follow B, then identical repeat asks nothing. Existing media/judge/raw-score and failure cases remain. No SQA test execution or new model workload.",
+      "closure_criteria": [
+        "Every cached scalar probability is bound to its effective right choice; old ambiguous keys cannot earn credit.",
+        "The corrected-label case yields the fresh B probability rather than the old A probability; same effective inputs replay.",
+        "All unique native and CLI media/provenance cases remain with named owners; duplicated native setup is deleted and full production/test/setup costs are recounted."
+      ]
+    },
+    {
+      "id": "SQA-344",
+      "status": "open",
+      "severity": "P3",
+      "category": "evaluation-identity-and-test-consolidation",
+      "classification": "source-established-size-dependent-question-stream; unexecuted-prefix-counterexample",
+      "title": "Keep the held questions stable when extending the drawn-text suite",
+      "evidence_commit": "2e701ee7f5f442bcdcdf38d8cb2560a8e5ff2c86",
+      "sources": [
+        {
+          "path": "internal/evaluation/drawn_text.go",
+          "symbol": "PickDrawnText, writtenBriefs, nearNumbers"
+        },
+        {
+          "path": "internal/evaluation/drawn_text_test.go",
+          "symbol": "TestDrawnTextSuiteAsksForTheTextItWasToldToDraw; TestDrawnTextChoicesDoNotGiveTheAnswerAway"
+        },
+        {
+          "path": "internal/evaluation/drawn_briefs_test.go",
+          "symbol": "TestDrawnBriefsAreWrittenBySeededCode"
+        },
+        {
+          "path": "docs/plan.json",
+          "revision": "e991c5e43^",
+          "symbol": "drawn-text-reading/briefs; retained in e991c5e43 landing rationale"
+        }
+      ],
+      "evidence": "The landed rationale says retaining the first20 briefs keeps earlier readings comparable. PickDrawnText shuffles those briefs, then writtenBriefs consumes that SAME RNG for the complete requested suffix before any question choices or numeric distractors are generated. Increasing count beyond20 therefore advances the prefix's question stream by a size-dependent amount; same brief IDs/captions do not establish same questions or correct-letter position. The new317-node file checks repeatability at200, not the full20->200 prefix. This is a source-established missing identity guarantee; SQA did not execute a seed-specific mismatch. Both test files independently generate suites and assert question count, four choices, answer membership, unique IDs and answer in caption; the older fixture also checks stronger distinct-choice/quoted-prompt properties.",
+      "recommended_change": "Give writtenBriefs its own deterministic RNG derived from the existing seed, leaving the original held-question RNG sequence intact, or equivalently generate the held questions before consuming suffix randomness. Reuse math/rand/v2; no seed registry, new generator abstraction or schema. Extend the retained drawn_text_test fixture to compare complete held items/questions at count20 and count200 and retain expanded-size repeatability, seed variation and prefix/suffix membership. Apply its existing stronger question invariants to the expanded items once. Remove drawn_briefs_test.go and its fmt.Sprint self-comparison/setup after moving those unique cases. Keep the separate answer-leakage test and arithmetic edge tables.",
+      "impact": "Preserves meaningful earlier evaluation comparison and avoids unnecessary rejudgment of unchanged held questions. Current cache keys can correctly miss changed prompts, so this is not proof of cache corruption or a model failure.",
+      "likely_effort": "Small existing RNG call change and native fixture consolidation.",
+      "plan_references": [
+        "drawn-text-reading/briefs landed e991c5e43",
+        "drawn-text-reading/reader,char-score remain separate open behavior"
+      ],
+      "plan_coverage": "Residual suite identity issue from the landed expansion; distinct from343's scored cache dependency. No new plan or device work.",
+      "displaced_surface": "Remove the separate317-node drawn_briefs_test.go including duplicate fmt formatting/assertions and suite setup. Retain drawn_text_test.go as owner of suite construction, exact near-number/title oracles, invalid input and BuildDrawnText cases. Move200-size determinism, other-seed variation, first-held/suffix identity and expanded-item checks there, adding full-prefix comparison. Retain TestDrawnTextChoicesDoNotGiveTheAnswerAway542nodes unchanged.",
+      "expected_benefit": {
+        "measured_baseline": "Actual selected AST: drawn_text.go1531; drawn_text_test.go1552; drawn_briefs_test.go317. Complete3400nodes. Embedded briefs7489bytes + words1598bytes remain; the gate's fixture0 does not mean the added word list is free.",
+        "estimate": "Production estimated+5..30nodes; retained combined test file1702..1802 instead of1869 including prefix/case migration and every helper/import. Complete after3238..3363, estimated net-37..162nodes. This is not a parsed replacement or guaranteed saving.",
+        "setup": "Combine the six20/200-suite generations into four (one held seed17 plus200 at17 twice and18 once), with full-prefix and suffix checks; keep the distinct40-seed leakage loop. No static fixture bytes, model runs, gate selectors or dependencies added. Ordinary verification uses the retained native fixture.",
+        "recovery": "Existing enlarged suites may have different question identities after correction; preserve their records and do not call their prior scores identical. Stable subsequent prefixes allow exact reuse through existing observation identity. No measured time/memory benefit."
+      },
+      "comparison": "Smallest deciding comparison: within the retained native fixture, compare all first20 items including question text, choices and accepted answers between PickDrawnText(20,17) and PickDrawnText(200,17), while retaining same-size determinism and varied-seed checks. No SQA execution.",
+      "closure_criteria": [
+        "Increasing count preserves every held prompt/question/answer/choice identity for the same seed.",
+        "Expanded briefs still satisfy the existing stronger invariant checks; all numerical edge, invalid-input and leakage cases remain.",
+        "Duplicate test file/setup is removed after migration; final complete production/test/fixture/setup cost is recorded."
+      ]
+    },
+    {
+      "id": "SQA-345",
+      "status": "open",
+      "severity": "P2",
+      "category": "architecture-unnecessary-translation",
+      "classification": "source-established-duplicate-producer; costed-existing-artifact-reuse",
+      "title": "Record ComfyUI's exported request instead of maintaining another UI compiler",
+      "evidence_commit": "2e701ee7f5f442bcdcdf38d8cb2560a8e5ff2c86",
+      "sources": [
+        {
+          "path": "cmd/comfy-reference/main.go",
+          "symbol": "run, act; section selection without graph-editing inputs"
+        },
+        {
+          "path": "cmd/comfy-reference/fixture.go",
+          "symbol": "importFixture, readFixture, fixture.request, source.Requests"
+        },
+        {
+          "path": "cmd/comfy-reference/flatten.go",
+          "symbol": "newFlattener, switchOn, request, source"
+        },
+        {
+          "path": "cmd/comfy-reference/widgets.go",
+          "symbol": "readSpec, orderedInputs, flattener.inputs, customInputs"
+        },
+        {
+          "path": "cmd/comfy-reference/workflow.go",
+          "symbol": "uiWorkflow, uiLink.UnmarshalJSON, nodeInfo"
+        },
+        {
+          "path": "cmd/comfy-reference/flatten_test.go",
+          "symbol": "TestTheUltraWorkflowFlattensToItsAPIRequest, differences"
+        },
+        {
+          "path": "fixtures/comfy/moss-ultra/source.json",
+          "symbol": "six retained requests exported by ComfyUI"
+        },
+        {
+          "path": "docs/plan.json",
+          "symbol": "comfy-recorder/record"
+        }
+      ],
+      "evidence": "0682df981 added a Go interpreter for ComfyUI's UI graph:24subgraphs, Set/Get/reroutes, bypass, positional widgets, dynamic combos and rgthree-specific forms. Yet importFixture already REQUIRES ComfyUI's own exported request for each of the six sections and stores it in source.Requests. act accepts only a held section; it offers no graph editing/parameterization that requires rebuilding the request. Its test compares the rebuilt class/inputs with those very exported artifacts. The existing producer is ComfyUI's frontend; Overgo's reference recorder needs the resulting request and exact run identity. The commit's claim that a recorder must build a request itself is not established by these callers.",
+      "recommended_change": "Keep comfy-reference as a small importer/reference runner over the retained API requests. Make fixture.request select and decode the already exported request under the existing section/source owner; ComfyUI remains responsible for translating its UI/custom nodes. Preserve workflow provenance, request identity, section errors and malformed/missing request rejection before expensive reference execution. Re-export through that owner when a workflow changes. Remove the separate UI compiler rather than extending its custom-node compatibility. If a concrete supported procedure truly needs dynamic graph editing, name it and cost only that missing operation before this deletion; a hypothetical next workflow is insufficient.",
+      "impact": "Removes a second workflow language implementation and its custom-node/version maintenance burden without removing the independent golden or any inference/training executor. References stay external to native model execution.",
+      "likely_effort": "Small recorder simplification plus removal of three compiler files and their assertion harness; final exact request/provenance handling must be included.",
+      "plan_references": [
+        "comfy-recorder/request landed0682df981",
+        "comfy-recorder/record",
+        "moss-ultra-bind and moss-ultra-compare consumers of retained reference evidence"
+      ],
+      "plan_coverage": "The open record step can reuse exported requests directly. This changes an unnecessary implementation choice, not the requested offline ComfyUI golden, recorded defects/settings, numerical acceptance or later native execution.",
+      "displaced_surface": "Delete flatten.go1379nodes, widgets.go1366 and workflow.go414; remove graphs45 and fixture.request's UI reconstruction160 in favor of a small retained-request read. Simplify importFixture's UI/node-definition filtering only after preserving provenance; keep apiNode or equivalent minimal request validation where actually needed. Replace flatten_test.go's539-node reconstruction/differences harness with a smaller existing-fixture request/provenance check. A broken UI-link test belongs to the retired compiler; it is not retained as dead-code coverage. Unknown section, missing/malformed exported request and changed workflow/request identity remain meaningful checks. No fixture deletion is credited.",
+      "expected_benefit": {
+        "measured_baseline": "Five command production files4365nodes plus7 commanddoc nodes =4372production; one539-node test =4911complete landed surface. The retained gate reports+10fixture files/+1749816bytes, all counted and retained in this recommendation.",
+        "estimate": "Complete simplified importer/CLI/provenance/request handling estimated1000..1350production nodes, including retained/moved apiNode and replacement read/validation; native test estimated200..350 including refusal cases. Complete after1200..1700, estimated net-3211..3711AST. No replacement implemented or parsed; do not book the3159-node three-file deletion without the entire replacement/import/migration cost.",
+        "fixtures_setup": "Retain all1749816fixture bytes initially, including1444931-byte workflow and71334-byte object_info as provenance; source503 and sections2055 also retained. One existing fixture remains. Six UI graph parses/builds/custom-widget translations per native equality test disappear; six request reads remain. Runtime section printing becomes one request read. No new model run, recurring workload, selector, package dependency or wrapper.",
+        "maintenance": "One producer (ComfyUI) owns frontend/custom-node semantics. Import/re-export remains required exactly as today; do not hide a new manual handoff or automator in fixture generation. Future recorded settings/latents/images, exact hashes and versioned execution records remain charged to record step.",
+        "retained_validation": "Original gate: invariants3m46.981s, test5m10.841s, verify5.22s, lanes skipped. Six requests matched class/inputs; counterfactual did not compile, so it is not behavioral undo evidence. These are retained records, not new SQA execution or measured avoided runtime."
+      },
+      "comparison": "Use the same six held exports. Retained request selection must emit identical node classes/inputs and preserve original metadata/provenance as required; verify unknown section, malformed/missing request and identity mismatch before reference execution in that native fixture. Do not compare a loaded request with itself as an independent oracle. Existing ComfyUI export is the golden producer; actual reference execution keeps its own numerical recording contract.",
+      "closure_criteria": [
+        "The reference recorder consumes the exported requests it already requires; there is one UI/custom-node translation owner.",
+        "Displaced compiler/widget/link parser and equality helper are removed, with unique request/provenance refusal behavior retained and no new generation handoff.",
+        "All six settings/requests and the external reference/numerical contract remain; full production/test/fixture/setup/migration costs establish a net reduction."
+      ]
+    },
+    {
+      "id": "SQA-346",
+      "status": "open",
+      "severity": "P2",
+      "category": "architecture-media-observation-binding",
+      "classification": "source-established-OCR-integration-refusal-and-stale-motion-attribution",
+      "title": "Bind OCR and motion observations through the existing media compiler",
+      "evidence_commit": "2e701ee7f5f442bcdcdf38d8cb2560a8e5ff2c86",
+      "sources": [
+        {
+          "path": "cmd/evaluate/reader.go",
+          "symbol": "readSuite, writeSuiteReadings; filename-keyed PictureReadings"
+        },
+        {
+          "path": "cmd/evaluate/motion.go",
+          "symbol": "measureMotion, writeMotion; encoder basename and group-keyed measurements"
+        },
+        {
+          "path": "cmd/evaluate/session.go",
+          "symbol": "evaluateSuiteFile -> Campaign.CompileSuite"
+        },
+        {
+          "path": "internal/evaluation/media_inputs.go",
+          "symbol": "Campaign.CompileSuite, MediaInput.Reference, mediaAuthority"
+        },
+        {
+          "path": "cmd/evaluate/media_inputs.go",
+          "symbol": "mediaFiles.bind/read, ResolveMedia"
+        },
+        {
+          "path": "internal/evaluation/drawn_reading.go",
+          "symbol": "PictureReadings.validate, askedTexts, Metrics"
+        },
+        {
+          "path": "internal/evaluation/clip_motion.go",
+          "symbol": "ClipMotion.validate, Metrics"
+        },
+        {
+          "path": "internal/evaluation/media_inputs_test.go",
+          "symbol": "TestMediaEvidenceNamesConsumedInputsAndKeepsItsMethod"
+        }
+      ],
+      "evidence": "Two new producers place execution observations in GeneratedAnswerSuite without using its existing media-binding owner. OCR readSuite keys Readings.Read by filename (first.png). Campaign.CompileSuite first rewrites case prompts to method digests, then compiles them; PictureReadings.validate calls askedTexts on those rewritten prompts and demands Readings.Read[methodDigest], which is absent. It therefore refuses an ordinary -read-suite result before the final bound compile. The new native and CLI tests call CompileGeneratedAnswer directly, while scorecard tests fabricate summaries, bypassing the actual caller. Motion avoids that immediate failure because groups remain unchanged, but stores no clip/source digest or decoder identity and only an encoder basename. A suite measured on clipA, then judged against changed same-name clipB, can attach A's motion to B's newly bound judgement; compilation cannot check that attribution. Both are source-derived paths, not executed failures. OCR metrics also lack content binding, so merely renaming its keys would leave the same stale-observation risk.",
+      "recommended_change": "Route both producers through the existing content/runtime/decoder identity owners and make Campaign.CompileSuite bind their observations along with cases. Preserve the distinction between measurement runtime (OCR/encoder) and answering runtime (judge): compare consumed content, not equality of their whole runtime references. Apply the existing filename-to-method and filename-to-bound mapping consistently before each compilation, or retain stable case-to-observation links that survive both passes; do not disable validation or copy one dictionary under two incompatible identities. Reject changed media/measurement authority before publishing credited metrics. Reuse MediaInput, mediaFiles and existing artifact/run identities; no second resolver, metric store, workflow or dispatcher. Keep immutable procedures separate from observed values when forming method identity. Legacy unbound observations may remain readable but cannot silently earn current media credit.",
+      "impact": "Makes the newly added OCR scoring usable through the real evaluation route and prevents old auxiliary measurements from being attributed to newly consumed media. Fixing the shared binding boundary avoids separate OCR/motion repair paths.",
+      "likely_effort": "Moderate, bounded observation-binding migration. Correctness requires some production/test growth; no safe net reduction is established for this repair.",
+      "plan_references": [
+        "drawn-text-reading/reader bf6be735b",
+        "drawn-text-reading/char-score2e701ee7f",
+        "media-screen/clip-consistencyae199b5b9"
+      ],
+      "plan_coverage": "These rows have landed and left the live plan. One coordinated existing-media-owner migration covers two concrete producers; distinct from283 execution-time verification state,315 Go test-cache freshness and343 cached right-choice probability.",
+      "displaced_surface": "Remove filename-only/encoder-basename-only credit and the parallel assumption that direct CompileGeneratedAnswer proves bound-media integration. Retain OCR row parsing, full-page/device parity, substring character-distance arithmetic, frame-order/cosine observations, exact render provenance and scorecard projection. In cmd/evaluate/drawn_reading_test keep reader/file/row/identity binding assertions, but remove its repeated clean/flawed score calculation and direct-compiler pseudo-integration after integration coverage moves to TestMediaEvidenceNamesConsumedInputsAndKeepsItsMethod; internal/evaluation/drawn_reading_test remains numerical owner. Do not merge full edit distance with free-end substring distance: different numerical contracts.",
+      "expected_benefit": {
+        "measured_baseline": "Actual selected8production files: evaluation/media_inputs1107, cmd media_inputs962, reader1385, motion630, drawn_reading585, clip_motion593, generated_answer1468, soft_answer668 =7398AST. Seven retained test files: media_inputs1939, evaluation drawn_reading510, cmd drawn_reading520, scorecard characters249/motion313, device reader943/motion731 =5205; complete12603.",
+        "estimate": "Existing-owner binding/data migration estimated+150..350production. Existing native media fixture +200..400test; remove70..130 duplicated CLI scoring/direct-compile nodes after migration, nettest+70..330. Complete after12823..13283 (net+220..680), including all identity fields, mapping/helper/import and migrated assertion costs. Not a compiled replacement. Necessary growth is not called a saving.",
+        "fixtures_setup": "No new static fixture/model/device suite. Retain79579bytes of OCR verification pages/suite (35988+39910+3681), omitted by the landing's root-fixture0 category. Extend the existing native fake media campaign/store, retaining its exact relocation/content/runtime/decoder cases; no additional store setup needed. Keep actual OCR/device and clip embedding coverage separate.",
+        "recovery": "Preserve old records. Valid matching observations survive relocation and can be reused; changed or missing input/instrument identity must refuse current attribution or recompute only through the existing authorized producer. Do not automatically start device work or repeat side effects to migrate legacy records. Quantified runtime saving not established."
+      },
+      "comparison": "Smallest deciding native comparison: attach a valid first.png OCR reading to the existing mediaInputRuntime campaign and call Campaign.CompileSuite, requiring both method/bound passes and expected score. Extend its existing relocation/changed-content/runtime/decoder table for OCR and motion: same content relocated keeps observations; changed bytes or measurement identity cannot retain their old credited values. Keep the independent character-score oracle; no new GPU execution by SQA.",
+      "closure_criteria": [
+        "A suite produced by -read-suite passes the actual media-bound campaign and retains correct character metrics through both identity-rewriting passes.",
+        "OCR and motion observations bind to the exact consumed content and their own measurement authority; changed media/instrument inputs cannot inherit old metrics.",
+        "Existing media owner performs the mapping/admission once, with no parallel resolver/store; all unique numerical/recovery cases remain and duplicate CLI numerical assertions disappear.",
+        "Full growth, fixture bytes, setup and legacy migration behavior are recorded honestly."
+      ]
     }
   ],
     "gate_test_assessment": {
-    "assumptions": "Presets'50/25/8/4 steps and guidance values are intentional model/reference policies, not arbitrary-literal findings. Scale1 is the guider's mathematical conditional-only point; video pass-count fixture owns skipped unconditional execution. Preserve float32/float64 ordering, image guidance0 distinct from omitted nil, Wan zero-as-unset convention and student distilled schedule. No new statistical framework or tolerance change. Current plan's harder-video probability score needs its own frozen held-out contract; observed tie count alone cannot guarantee every model avoids a ceiling.",
-    "automation_sequence": "The retained student director first attempts exact stored-result replay, then leases/loads; fresh entries skip Reset. Resident Reset failure retires and retries once, a necessary resource-recovery owner. Student semantic admission currently occurs after fresh load, so reuse its predicate before expensive work instead of another preflight/scheduler. Prior external-app supervision remains unverified; no new wakeup/delivery inference.",
+    "assumptions": "Character score normalizes case/space and uses free-end substring distance, distinct from full OCR row edit distance.16fps/81frame motion sampling is the current explicit Wan/LiveEdit window, not proof for longer/future clips. Frozen clips maximize neighbour similarity; no universal quality interpretation. Existing same-media replay requires full observation identity, not a filename or encoder basename.",
+    "automation_sequence": "Source shows renderer can finish then optional OCR/motion preparation writes a suite, but OCR's actual bound campaign later rejects its filename keys.346 moves admission/identity to existing owners; no retry of unchanged invalid setup. Landing still checks its verifier after broad test/lanes (322). HEAD publication must respect landing compare-and-set; source settled publishes its captured candidate and preserves later checkout edits.",
     "fresh_ast": {
-        "revision": "bb3e392b16d4deb1677b827da5fab9cfa2449e6b",
-        "method": "Existing external Go parser/ast.Inspect with ParseComments on19 selected committed files; local identifier links, manual cross-package/JS tracing; no typecheck/build.",
-        "files": {
-          "internal/latentimage/profile.go": 1704,
-          "internal/latentimage/runtime_cuda_windows.go": 2529,
-          "internal/latentimage/preset_windows_test.go": 295,
-          "internal/latentvideo/production.go": 3868,
-          "internal/latentvideo/wan_student_cuda_windows.go": 1046,
-          "internal/latentvideo/preset_test.go": 324,
-          "internal/sampling/flow_sampler.go": 807,
-          "internal/sampling/flow_sampler_test.go": 743,
-          "internal/mediacapability/controls.go": 1083,
-          "internal/mediacapability/controls_cuda_windows.go": 405,
-          "internal/mediacapability/moss_controls_windows_test.go": 465,
-          "internal/server/moss_generation_windows_test.go": 1682,
-          "internal/server/webui_browser_moss_generation_windows_test.go": 729,
-          "internal/latentvideo/wan_form.go": 1015,
-          "internal/latentvideo/wan_form_test.go": 578,
-          "internal/capabilityruntime/session_refusal_test.go": 590,
-          "internal/latentimage/sampler.go": 297,
-          "internal/latentimage/rotary_sampling_windows.go": 1340,
-          "internal/mediacapability/wan_student_cuda_windows_model_test.go": 610
-        },
-        "totals": {
-          "production": 14094,
-          "test": 6016
-        },
-        "deciding_comparisons": "339 current three-file4166->4079 expected(-87 production), tests0.340 and341 repair correctness/admission with explicitly estimated growth; no alternative implementation or tests written.",
-        "unchanged_at": "21c6b7d12cfc0668eef1a62dde1e88d02c9e3a2d"
+        "method": "Existing external Go parser over16selected committed files; comments/local links only, no package type resolution or application execution.",
+        "revision": "2e701ee7f5f442bcdcdf38d8cb2560a8e5ff2c86",
+        "current_files": 16,
+        "selected_counts": "evaluation media_inputs1107, cmd media_inputs962, reader1385, motion630, drawn_reading585, clip_motion593, generated_answer1468, soft_answer668; media_inputs_test1939, native drawn510, cmd drawn520, scorecard characters249/motion313, device reader943/motion731; screen1093(prior1152).",
+        "reused": "343 native/CLI fixtures and key unchanged;344/345 and334/322 sources unchanged at pin. Complete landing costs separate from selected totals.",
+        "limits": "346's full bounded sample12603AST includes its unchanged supporting owners; estimates are not compiled alternatives."
       },
     "requested_growth_analysis": {
       "window": {
@@ -7348,48 +7655,47 @@
       "interpretation": "repoanalysis+5825 is primarily new typed-walk/repeat-analysis machinery. typed_reach_test.go+4463 comprises357 nodes in TestTheReachWalkReadsTypes and4106 elsewhere; production_repeats_test.go+1395 has235 in its two tests and1160 elsewhere. Inference+4116 adds BF16/cache/prefetch/attention cases;landing+3510 adds authority and failed-publication/recovery checks;CUDA+2664 adds distinct operator/numerical paths;server+1730 andagentloop+1480 add request/mutation boundary checks. This is not evidence that all growth is necessary, but line/AST similarity alone supplies no safe wholesale deletion.",
       "retained_change_costs": "Two consolidation landings(2d59f642c exact folds andbb4fc706a parameter folds) remove744 production nodes but add1591 test nodes, net+847 across Go. Pilot retirementea8ed43a7 removes5926 production/9990 test nodes and one schema, while fixture bytes grow599; its test deletion is already included in the day's offsets and must not be subtracted twice. These retained gates are broader changes, not matched per-test performance comparisons."
     },
-    "retained_results": [
-        "bb3e392b1 named-presets: gate+767 production/+659 test AST; schemas0,CUDA0,fixtures0. Retained device/webui/CUDA lanes passed. Undo restored production then failed compilation before assertions and explicitly supplies no behavioral proof.",
-        "40fabb8d8 interface:+1010 production/+743 test. Combined+1777/+1402 across these two landings only. Native Go cache credited: current CUDA lane19 cached,0 executed; no new SQA confidence run.",
-        "bb3e392b1 inference slice reports Bonsai output identity and unchanged peak; this is not evidence that media presets survive GUI composition or that unsupported student requests fail before load.",
-        "21c6b7d12 licence-scope: retained gate-34 production/+1780 test AST, schemas/CUDA/fixtures0; device/webui/CUDA passed. This concurrent landing's test bodies and legal conclusions were not reviewed; do not claim its net1746-node growth is a consolidation or add it to the two-landing sampler subtotal."
-      ],
+    "retained_results": "ae199b5b9: clean81-frame mean.9294/minimum.5140; unrelated frame neighbour.0440; repeated-first-frame neighbour.7435, which does not lower global minimum. bf6be735b:29OCR rows, boxes within1, worst text distance1; retained verification page exact. Three complete landings+3927production/+3726test;79579OCR verification fixture bytes counted separately. Each undo failed before assertions, explicitly not behavioral evidence. char-score lane47m41.48s precedes verifier17.195s; successful walls are not proven wasted work. No SQA runs.",
     "tests": [
         {
-          "classification": "retain",
-          "owner": "latentimage.TestARequestRunsTheNamedPresetOfItsProfile",
-          "reason": "295 AST including setup. Keep MOSS25/2.5, explicit override, Krea4, unnamed baseline and cross-model unknown-name refusal. No cross-package abstraction."
+          "classification": "extend existing integration",
+          "owner": "TestMediaEvidenceNamesConsumedInputsAndKeepsItsMethod",
+          "change": "346: actual Campaign.CompileSuite with readings/motion and existing relocation/content/runtime/decoder cases. Reuse existing fake campaign/store; no model workload."
+        },
+        {
+          "classification": "simplify",
+          "owner": "cmd/evaluate TestDrawnTextScoresTheCharactersReadBack",
+          "change": "Keep file/row/reader binding; remove repeated clean/flawed metric checks and direct-compiler pseudo-integration once actual media integration moves."
         },
         {
           "classification": "retain",
-          "owner": "latentvideo.TestARequestRunsTheNamedPresetOfItsProfile",
-          "reason": "324 AST including countingBackend. Wan shift override/unknown name and guidance1 versus1.5 pass counts have independent failure signals. This is not a duplicate of image normalization."
-        },
-        {
-          "classification": "extend/simplify",
-          "owner": "TestWebUIBrowserMOSSGeneration",
-          "reason": "Reuse729-node browser fixture/request capture for340, replace obsolete prefilled-value expectation, preserve exact0/layout/resource-refusal/cancel/recovery. No new browser/model setup."
-        },
-        {
-          "classification": "merge/remove predicate only after retained coverage",
-          "owner": "mediacapability.TestMOSSImageGenerationContract and TestWebUIBrowserMOSSGeneration",
-          "displaced": "server.TestMOSSImageGenerationContract's new preset-choice/advanced predicate only",
-          "reason": "Provider owns declaration details; browser must own offered choice -> actual request. Preserve server durable/API execution assertions; no wholesale fixture removal."
-        },
-        {
-          "classification": "retain/extend",
-          "owner": "TestTheWanStudentIsServedAsItsOwnModel",
-          "reason": "610 AST. Extend its existing program/store setup with one semantic-refusal-before-path-resolution comparison for341, then retain original two renders/reuse. No extra real render."
+          "owner": "evaluation TestDrawnTextScoresTheCharactersReadBack",
+          "change": "Independent character-share oracle, row whitespace, legacy missing groups, malformed/missing reader coverage."
         },
         {
           "classification": "retain",
-          "owner": "TestSessionThatCannotTakeARequestIsReplaced; TestWanRequestFormAdmitsPromptOrTensors",
-          "reason": "590 and578 AST. Resource-induced reload, cancellation, subsequent recovery and base/tensor-form/default contracts differ from student policy. Do not remove them."
+          "owner": "scorecard character/motion fixtures and reader/device fixture",
+          "change": "Presentation optional fields and actual projector/golden/model lifetime are distinct contracts."
         },
         {
-          "classification": "retain",
-          "owner": "TestEverySamplerStepsThroughOneInterface and existing image schedule reference/cancellation tests",
-          "reason": "339 deletes device adaptation, not host stepping or schedule correctness. No new test for trivial direct access reuse."
+          "classification": "retain with corrected limits",
+          "owner": "TestAClipRecordsItsFrameToFrameSimilarity",
+          "change": "Acknowledge local repeated-frame drop can leave global minimum unchanged; no universal motion-quality claim."
+        },
+        {
+          "classification": "merge/simplify",
+          "owner": "TestDrawnTextSuiteAsksForTheTextItWasToldToDraw",
+          "change": "344: move expanded-size/seed/prefix assertions into retained fixture; remove drawn_briefs_test after full-prefix comparison and stronger per-item invariants retain all unique cases."
+        },
+        {
+          "classification": "remove/replace within existing fixture",
+          "owner": "TestTheUltraWorkflowFlattensToItsAPIRequest",
+          "change": "345 retires the extra compiler; remove differences and broken UI-link coverage with that compiler. Retain six exported request/provenance and meaningful malformed/missing/unknown-section refusals. No loaded-request self-comparison claimed as an oracle."
+        },
+        {
+          "classification": "merge/simplify",
+          "owner": "TestSoftTIFAScoresTheProbabilityOfTheRightAnswer",
+          "change": "343: absorb native replay cases and corrected-label case; preserve independent sqrt-based numeric oracle, metric export and no-choice refusal.630+506 native AST->estimated800..950 including counter/moved cases;3->2store setups. Keep CLI571AST."
         }
       ]
   },
@@ -8924,11 +9230,12 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
     "limitations": [
-      "This chat previously implemented Overgo changes; this is report-only follow-up, not independent third-party review.",
-      "No application tests, workloads, services, benchmarks, profiles, agents, worker messages, plan/skill edits or scheduling changes. Only existing external Go AST analysis ran against committed blobs.",
-      "AST includes comments and parser-local identifier links, not package type resolution. Cross-package and JavaScript callers were traced manually. Embedded JavaScript counts as a string in Go AST, so byte/maintenance costs are stated separately.",
-      "Counterexamples340/341 are source-derived, not fresh browser/device reproductions. Retained gate results belong to implementation; passing unrelated inference results do not establish media-preset correctness. No measured saving claimed.",
-      "Concurrent21c6b7d12 landed while report publication waited for the ownership lock. None of the19 AST files or new-finding sources changed; current landing-scope worktree edits remain excluded. No fresh database/blob or legal audit. The architecture document is absent; retained target metadata/snapshot is the reference."
+      "This chat previously implemented Overgo changes; this is follow-up report-only SQA, not independent third-party review.",
+      "No tests, services, model/device workloads, benchmarks, profiles, agents/messages, plan/skill changes or pushes. Existing external AST reader inspected committed blobs only.",
+      "AST includes comments and parser-local links without package types/build execution. Source/refusal examples and proposed costs are not reproduced failures or measured replacements.",
+      "346 requires correctness growth; no safe net reduction established for that migration. Test names and similar arithmetic do not establish duplicate contracts.",
+      "342's temporal limitation was partly acknowledged by the landed fixture; its semantic rejection remains uncalibrated. Pending343..345 remain supported at current pin.",
+      "Publication must preserve concurrent owner fields and unrelated changes. Do not advance HEAD during an active implementation landing's compare-and-set."
     ],
     "master_lead_triage": {
     "at": "2026-11-08",
@@ -9789,27 +10096,32 @@
       }
     }
   },
-    "next_finding_number": 342,
+    "next_finding_number": 347,
     "publication_context": {
-    "assessment": "Reread concurrent master/report/owner fields and dirty paths after waiting for existing landing lock; repin to21c6b7d12, confirm all19 AST and new-finding source files unchanged, and assess new landing-scope plan. Publish only when ownership locks permit.",
-    "checked_head": "21c6b7d12cfc0668eef1a62dde1e88d02c9e3a2d",
-    "publication": "Only substantive report change through existing hooks; no production gate, implementation or target-document restoration."
+    "assessment": "Re-read current pin/report/owner fields before writing. Only docs/sqa_findings.json may change; preserve worker/lane edits. Active landing's captured candidate preserves later checkout edits, but advancing HEAD would fail its compare-and-set.",
+    "checked_head": "2e701ee7f5f442bcdcdf38d8cb2560a8e5ff2c86",
+    "publication": "Use the existing report-only hook exception for a standalone commit when landing ownership permits. If busy, a validated report-only checkout write may remain pending; do not stage unrelated files, advance HEAD or disturb workers."
   },
     "ranked_active_finding_ids": [
     "SQA-316",
     "SQA-315",
+    "SQA-346",
+    "SQA-343",
     "SQA-271",
     "SQA-322",
     "SQA-318",
     "SQA-283",
     "SQA-331",
     "SQA-340",
+    "SQA-342",
+    "SQA-345",
     "SQA-277",
     "SQA-266",
     "SQA-328",
     "SQA-325",
     "SQA-341",
     "SQA-330",
+    "SQA-344",
     "SQA-257",
     "SQA-303",
     "SQA-285",
@@ -9843,45 +10155,49 @@
     "repository": "C:\\Users\\jeffm\\overgo",
     "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
     "review_notes": [
-      "Provisional source conclusions preceded reading prior rankings. New findings are distinct contracts; no duplication with325's missing stage adapters.",
-      "Only docs/sqa_findings.json is changed. Existing implementation/triage/unknown fields and historical closure evidence remain exact; current working code and plan are excluded.",
-      "This chat previously implemented Overgo. All review and cost claims are attributed accordingly."
+      "Fresh provisional conclusions preceded reading current rankings/owner responses.346 unifies two actual measurement producers at the existing media boundary, not unrelated identity problems.",
+      "Prior report drafts were unpublished while master held landing ownership. This review consolidates those pending findings and corrects stale plan/cost descriptions rather than duplicating them.",
+      "Preserve stable IDs, closure evidence, owner/unknown fields exactly. Architecture target remains active design guidance, not dispatch authority."
     ],
-    "reviewed_at": "2026-11-08T17:47:44Z",
-    "reviewed_master": "21c6b7d12cfc0668eef1a62dde1e88d02c9e3a2d",
+    "reviewed_at": "2026-11-09T01:53:14Z",
+    "reviewed_master": "2e701ee7f5f442bcdcdf38d8cb2560a8e5ff2c86",
     "schema_version": 2,
     "scope": [
-      "Committed master 21c6b7d12cfc0668eef1a62dde1e88d02c9e3a2d; initial source sample at bb3e392b16d4deb1677b827da5fab9cfa2449e6b remained byte-identical through concurrent licence-scope landing. Guidance and committed plan reread before publication.",
-      "Bounded preset path: catalog -> shared GUI controls -> image/video request admission -> resident session/load -> sampler. Existing recipe/runtime/authority owners and current plan proposals assessed against the standing architectural target.19 selected Go files parsed; JavaScript manually traced.",
-      "Only SQA-339 rechecked for current deletion sizing. New340/341 are separate concrete request-composition and model-admission contracts; other findings retain their prior source revisions.",
-      "Concurrent21c6b7d12 plan adds landing-scope; capture/inScope and its explicit step dependencies were inspected. License/legal substance and the new test bodies are outside this bounded review; retained whole-landing costs are reported without claiming audit."
+      "Committed master 2e701ee7f5f442bcdcdf38d8cb2560a8e5ff2c86; current26-row plan read first. Guidance unchanged; Downloads architecture target SHA256fe13a4bd47c8c41ea6dbf766c0acf3dc41ab7dab0c6d8bd926863313d4f34395 reconfirmed.",
+      "Fresh bounded path: new OCR/motion producers -> generated suite -> existing media identity compiler -> metric/scorecard publication. Actual AST for15selected files plus updated screen.go. Source-established integration/refusal and stale-attribution paths, not new executions.",
+      "Reconcile pending342..345/334/322 against three new committed metric/reader landings. Readings/motion changed generated_answer/soft_answer;343 key unchanged,344/345/candidate/verifier sources unchanged. Current local-worker and lane edits excluded.",
+      "Reuse retained gate/device records and prior AST where files are unchanged. No whole-system census, new database/GUI audit or completed format-neutral migration claim."
     ],
     "sqa_response": {
-    "assessment": "168 stable IDs:43 canonical open,119 resolved,4 deferred,2 consolidated aliases. Add340/341 for source-established preset composition and student admission gaps. Recheck339 unchanged except current sizing; no new closure or alias.",
+    "assessment": "173stable IDs:48canonical open,119resolved,4deferred,2aliases. Reconcile pending342..345 and334/322; add346 for the two new measurement producers' shared binding boundary.",
     "consolidated_findings": [],
     "deferred_findings": [],
     "evidence": [
-        "bb3e392b16d4deb1677b827da5fab9cfa2449e6b",
-        "Named-presets retained gate footer",
-        "19 selected committed Go AST files",
-        "Shared GUI source and resident-director caller trace",
-        "Retained refactor target snapshot; current file absent",
-        "21c6b7d12cfc0668eef1a62dde1e88d02c9e3a2d concurrent plan/capture-scope follow-up; original sample unchanged"
+        "2e701ee7f5f442bcdcdf38d8cb2560a8e5ff2c86",
+        "16selected Go AST files; existing media compiler/callers and retained landings",
+        "Architecture target SHA256 unchanged",
+        "Current owner report unchanged since prior draft"
       ],
     "implementation_response_context": {
-        "reviewed_commit": "21c6b7d12cfc0668eef1a62dde1e88d02c9e3a2d",
+        "reviewed_commit": "2e701ee7f5f442bcdcdf38d8cb2560a8e5ff2c86",
         "current_triage_head": "518fa52f417f796df399da65d208a61290fe5635",
-        "status": "Current report and relevant owner responses reread; no339/325 response at the inspected triage keys. Preserve all implementation-owned/unknown fields raw-exact. Other prior claims were not freshly re-audited."
+        "status": "Owner blocks preserved raw-exact. No new response to pending342..346. Existing283/315 state/freshness contracts remain distinct; no inferred closures."
       },
     "new_findings": [
-        "SQA-340",
-        "SQA-341"
+        "SQA-342",
+        "SQA-343",
+        "SQA-344",
+        "SQA-345",
+        "SQA-346"
       ],
-    "partially_addressed_findings": [],
+    "partially_addressed_findings": [
+        "SQA-334",
+        "SQA-342"
+      ],
     "priority_changes": [
-        "340 enters P2 correctness work;341 enters P3 early-admission work. Carried priorities otherwise unchanged."
+        "346 joins evidence correctness near the top;342 temporal fixture receives partial credit. Other carried priorities unchanged."
       ],
-    "recommendation": "Fix actual request composition and early student admission through existing owners. Keep339's small device allocation deletion. Judge further recipe/cache/sampler expansion by demonstrated displacement and complete costs, with current plan as dispatch owner.",
+    "recommendation": "Fix346 through the existing media compiler and native fixture. Preserve numerical/device coverage, delete duplicated CLI scoring checks, and retain345's concrete larger architecture reduction. Count necessary correctness growth.",
     "refactor": {
       "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
       "history_path": "docs/sqa_findings.json",
@@ -9889,12 +10205,16 @@
     },
     "reopened_findings": [],
     "resolved_findings": [],
-    "reviewed_master": "21c6b7d12cfc0668eef1a62dde1e88d02c9e3a2d",
-    "uncertainty": "No fresh application/browser/device execution or measured saving. Both new findings are source-derived; repair costs are estimates. The architectural target's working file is absent; retained snapshot/standing intent remain available, but no current-file or completed-refactor claim.",
+    "reviewed_master": "2e701ee7f5f442bcdcdf38d8cb2560a8e5ff2c86",
+    "uncertainty": "Source-derived346 compile refusal and stale-media attribution, not an executed reproduction. Replacement costs estimated. No new model/device run or measured savings.",
     "updated_findings": [
-        "SQA-339",
-        "SQA-340",
-        "SQA-341"
+        "SQA-334",
+        "SQA-322",
+        "SQA-342",
+        "SQA-343",
+        "SQA-344",
+        "SQA-345",
+        "SQA-346"
       ]
   }
   }

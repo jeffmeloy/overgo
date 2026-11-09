@@ -41,7 +41,7 @@ const (
 // allowedTools names the worker's tools as its session knows them.
 func allowedTools() string {
 	var names []string
-	for _, tool := range workerTools("", nil) {
+	for _, tool := range workerTools("", workerStep{}) {
 		names = append(names, toolPrefix+tool.name)
 	}
 	return strings.Join(names, " ")
@@ -68,6 +68,12 @@ func writeDefaultConfig(path string, said io.Writer) error {
 	}
 	defaults := config{Worker: defaultWorker, Name: defaultWorkerName, Prompt: defaultPromptFile,
 		Config: loop.Config{MaxAttemptsPerStep: defaultAttempts, MaxInvocations: defaultInvocations}}
+	// The replays recorded beside the configuration say for which kinds of step the local worker goes first.
+	records, err := readReplayRecords(filepath.Join(filepath.Dir(path), replayRecords))
+	if err != nil {
+		return err
+	}
+	ladderFromReplays(&defaults, records)
 	// The data root and the role the command runs under are the driver's, which a scheduled task starts with neither.
 	defaults.Environment = map[string]string{}
 	for _, name := range []string{dataroot.Env, plan.AutomationRoleEnvironment} {
@@ -81,6 +87,6 @@ func writeDefaultConfig(path string, said io.Writer) error {
 	if err := os.WriteFile(prompt, []byte(defaultPrompt), defaultConfigMode); err != nil {
 		return err
 	}
-	_, err := fmt.Fprintf(said, "loop: wrote %s and %s; start the driver with go run ./cmd/loop\n", path, prompt)
+	_, err = fmt.Fprintf(said, "loop: wrote %s and %s; start the driver with go run ./cmd/loop\n", path, prompt)
 	return err
 }

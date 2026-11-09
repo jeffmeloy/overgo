@@ -84,6 +84,9 @@ type config struct {
 	// Workers are the stronger workers, in order, a step goes to after Worker spends its attempts on it, each written
 	// as Worker is; after the last the step is set aside with a finding.
 	Workers [][]string `json:"workers,omitempty"`
+	// FirstFor are the kinds of step (stepKind) Worker takes first; with Workers, every other kind starts at the worker
+	// after it, since no replay showed Worker paying for it (execWorld.StartLevel).
+	FirstFor []string `json:"first_for,omitempty"`
 	// Name is the worker's stable identity: the campaign records it, and the worker's landings are held to the step
 	// dispatch names for it.
 	Name string `json:"name"`
@@ -126,8 +129,13 @@ func run(args []string) error {
 	statusView := flags.Bool("status", false, "read the state of the work in this checkout, the dispatched step, the last commit, the decisions waiting for an answer and the week's pace, keep it in the process state as status.json and print it; runs nothing")
 	sessionPrompt := flags.Bool("session-prompt", false, "print the instructions a session the Claude app's scheduled task starts follows, with the environment its commands run in from loop.json; runs nothing")
 	localServer := flags.String("local-worker", "", "work the prompt on standard input as a worker of overgo's own: send it and the six tools to the chat route of the overgo server at this address, run each tool call the model -local-model names makes, and end when it answers with no call")
-	localModel := flags.String("local-model", "", "with -local-worker: the served model that works the step")
+	localModel := flags.String("local-model", "", "with -local-worker or -replay: the served model that works the step")
+	replaySince := flags.String("replay", "", "replay the steps landed since this date (2026-11-01) whose check runs one Go test with the local worker -local-worker and -local-model name, or with -replay-claude the Claude worker: each from the commit it landed on, its landing's tests in place, up to three attempts; print each record, pass or fail by the step's own check with attempts, tool calls and wall, as a line of JSON")
+	replayLimit := flags.Int("replay-limit", defaultReplayLimit, "with -replay: the most steps replayed, newest first")
 	toolsServer := flags.Bool("tools", false, "serve the worker its six tools over the Model Context Protocol on standard input and output: read, edit within the step's files, run its check, run a package's tests, show the step and run an approved probe")
+	toolsStep := flags.String("tools-step", "", "with -tools: serve a replayed step's task, read from this file, in place of the plan's dispatched step")
+	toolsLog := flags.String("tools-log", "", "with -tools: append the name of each tool called to this file, a line each")
+	replayClaude := flags.Bool("replay-claude", false, "with -replay: replay the driver's default worker, Claude Code, its tools served by this build over the replay checkout, in place of the local worker")
 	startup := flags.Bool("install-startup", false, "register a Windows scheduled task that runs go run ./cmd/loop in this checkout at the user's logon and again after it fails; replaces a task of its name")
 	initialize := flags.Bool("init", false, "write the driver's machine configuration, loop.json and its worker's prompt, into the checkout's process state from the defaults the repository holds; writes over neither")
 	pushCommit := flags.String("push", "", "the owner's command: push the named commit to origin's main, fast-forward only; refused from a worker's environment and without -confirm-push")
@@ -213,15 +221,52 @@ func run(args []string) error {
 	switch {
 	case *initialize:
 		return writeDefaultConfig(*configPath, os.Stdout)
+	case *replaySince != "":
+		worker := localReplayWorker(*localServer, *localModel, os.Stderr)
+		switch {
+		case *replayClaude:
+			state, err := filepath.Abs(filepath.Join(loopWorktree, processlock.StateDirectory))
+			if err != nil {
+				return err
+			}
+			// The worker's tools are this build's, served over the replay checkout, whose own cmd/loop is its parent's.
+			binary := filepath.Join(state, replayToolServer)
+			if _, err := runTool("go", "build", "-o", binary, "./cmd/loop"); err != nil {
+				return err
+			}
+			worker = claudeReplayWorker(binary, state)
+		case *localServer == "" || *localModel == "":
+			return errors.New("loop: -replay names the local worker's server with -local-worker and its model with -local-model, or takes the Claude worker with -replay-claude")
+		}
+		// The records are kept beside the driver's configuration too, which -init reads the ladder from.
+		if err := processlock.EnsureStateDirectory(loopWorktree); err != nil {
+			return err
+		}
+		kept, err := os.OpenFile(filepath.Join(loopWorktree, processlock.StateDirectory, replayRecords), os.O_APPEND|os.O_CREATE|os.O_WRONLY, clioptions.PrivateFileMode)
+		if err != nil {
+			return err
+		}
+		return errors.Join(replaySteps(context.Background(), loopWorktree, *replaySince, *replayLimit, worker, io.MultiWriter(os.Stdout, kept)), kept.Close())
 	case *localServer != "":
 		prompt, err := io.ReadAll(os.Stdin)
 		if err != nil || *localModel == "" {
 			return errors.Join(err, errors.New("loop: -local-worker reads the prompt on standard input and names its model with -local-model"))
 		}
-		_, err = workLocally(context.Background(), *localServer, *localModel, string(prompt), workerTools(loopWorktree, stepFiles), os.Stdout)
+		_, err = workLocally(context.Background(), *localServer, *localModel, string(prompt), workerTools(loopWorktree, planStep(loopWorktree)), os.Stdout)
 		return err
 	case *toolsServer:
-		return serveTools(os.Stdin, os.Stdout, workerTools(loopWorktree, stepFiles))
+		tools := workerTools(loopWorktree, planStep(loopWorktree))
+		if *toolsStep != "" {
+			var task replayTask
+			if err := jsonfile.DecodeStrict(*toolsStep, &task); err != nil {
+				return err
+			}
+			tools = task.tools(context.Background(), loopWorktree)
+		}
+		if *toolsLog != "" {
+			tools = loggedTools(tools, *toolsLog)
+		}
+		return serveTools(os.Stdin, os.Stdout, tools)
 	case *sessionPrompt:
 		return writeSessionPrompt(*configPath, os.Stdout)
 	case *statusView:

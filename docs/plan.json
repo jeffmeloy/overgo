@@ -24,51 +24,9 @@
             "internal/scorecard"
           ],
           "needs_card": true,
-          "rationale": "The base's 0.914 was judged at 17 frames, 416 x 240 and 20 steps, the student's 0.898 at 81 frames, 832 x 480 and 4 steps, and the check passed whatever the result. The base is drawn at the student's settings (about 6 h of the card at 374 s a clip for 64 clips) and both are judged on the soft, harder suite; the check states the comparison's verdict and holds that the two ran the same settings, so a student is not evidence for anything until this lands.\n\nNote: 2026-11-08 20:20: both draws are built at aedec796e (it holds soft-video's harder suite), so the two suites are made alike. The base draws 80 clips at 832 x 480, 81 frames, 50 steps into datasets/VidGen/wan2.1-generated-832 (46 of 80 done, about 5.7 min a clip); the student then draws the same 80 into self-forcing-generated-832, its log at scratch/same-settings/student-render.log. Both are then judged through cmd/evaluate -manifest and the check reads the two quality cells. The student's earlier 64-clip suite is not reused, because the harder suite has 80 clips and a draw into that directory refuses a build other than cf71bbc58.\n\nServes: held-out-quality for the Wan student.\nDisappears: a comparison across settings, and a check that passes whatever the result.\nEvidence: both quality cells rest on the same captions at the same size and frames, and the paired comparison states its verdict.\nBatch: device lane.",
+          "rationale": "The base's 0.914 was judged at 17 frames, 416 x 240 and 20 steps, the student's 0.898 at 81 frames, 832 x 480 and 4 steps, and the check passed whatever the result. The base is drawn at the student's settings (about 6 h of the card at 374 s a clip for 64 clips) and both are judged on the soft, harder suite; the check states the comparison's verdict and holds that the two ran the same settings, so a student is not evidence for anything until this lands.\n\nNote: 2026-11-08 20:20: both draws are built at aedec796e (it holds soft-video's harder suite), so the two suites are made alike. The base draws 80 clips at 832 x 480, 81 frames, 50 steps into datasets/VidGen/wan2.1-generated-832 (46 of 80 done, about 5.7 min a clip); the student then draws the same 80 into self-forcing-generated-832, its log at scratch/same-settings/student-render.log. Both are then judged through cmd/evaluate -manifest and the check reads the two quality cells. The student's earlier 64-clip suite is not reused, because the harder suite has 80 clips and a draw into that directory refuses a build other than cf71bbc58.\n\nNote: 2026-11-08 22:15: base draw at 66 of 80. A chained script waits for it, then draws the student from the aedec796e worktree into self-forcing-generated-832 at width=832,height=480,frames=81 and judges both manifests, logs base-judge.log and student-judge.log in scratch/same-settings.\n\nServes: held-out-quality for the Wan student.\nDisappears: a comparison across settings, and a check that passes whatever the result.\nEvidence: both quality cells rest on the same captions at the same size and frames, and the paired comparison states its verdict.\nBatch: device lane.",
           "depends_on": [
             "video-judge/soft-video"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "local-worker",
-      "title": "One of overgo's own models works plan steps as the driver's first worker, the Claude worker taking what it cannot pass, by a pass rate measured on steps that already landed",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 2604,
-        "reason": "Estimated after a survey of the code, at about twice what a first sketch of the steps counts, since this week's rows landed at two to six times the counts they were filed with (wan-few-step 300 -\u003e 1100, sampling-split 400 -\u003e 1700, umt5-resident 336 -\u003e 1750): the driver landing a worker's passed step, a worker loop over the six tools and overgo's chat route, a replay of landed steps from their parent commits, and the ordering from the replay's results."
-      },
-      "steps": [
-        {
-          "id": "replay",
-          "title": "Steps that landed since 2026-11-01 with one Go test as their check are replayed, each from its parent commit in a worktree of its own, recording each worker's passes, attempts, tool calls and wall per step",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/loop -count=1 -run '^TestLandedStepsReplayForAWorker$'",
-          "files": [
-            "cmd/loop",
-            "internal/loop",
-            "internal/evaluation"
-          ],
-          "needs_card": true,
-          "rationale": "No harness runs a local model as an agent on tasks and scores it. BindAgentTrajectoryPlan (internal/evaluation/plan.go:198-213, called from cmd/loop/evidence.go:136-180) binds trajectories and names ten scorers that nothing computes. The nearest scored suite is single function calls (internal/evaluation/function_call.go, where needle scores 0.255 on 400). A landed step is a task with a known answer: its parent commit, its plan step and its check, which must fail at the parent (skill.md:121) and passed at the landing. Replaying them measures each worker on overgo's own work, on the same steps: Qwen3.8-27B-UD-Q6_K, Qwen3.5-9B-Q8_0 and the Claude worker.\n\nServes: model calls per landing.\nDisappears: a worker ranked with no measurement.\nEvidence: the replay records, per worker and step, pass or fail by the step's own check, with attempts, tool calls and wall.\nBatch: device lane.",
-          "depends_on": [
-            "local-worker/local"
-          ]
-        },
-        {
-          "id": "ladder",
-          "title": "loop.json's default workers list puts the local model first for the kinds of step where its replayed pass rate makes its attempts, plus the Claude worker's on its failures, take less wall than the Claude worker alone, and the Claude worker after it",
-          "status": "open",
-          "verify": "go test ./cmd/loop ./internal/loop -count=1 -run '^TestTheLocalWorkerGoesFirstWhereItsReplayPays$'",
-          "files": [
-            "cmd/loop",
-            "internal/loop"
-          ],
-          "rationale": "The driver already ranks workers cheapest first and moves a step it cannot pass, with its failures, to the next (internal/loop/driver.go:32-34 and 220-224; skill.md:50). It was written because overgo is to run on a much weaker model. What is missing is the measurement of where a weaker model pays. A step's kind is the top directory of its listed files and whether it needs the card. The ordering follows from the replay's pass rates and walls, with no threshold chosen by hand.\n\nServes: model calls per landing.\nDisappears: a strong worker spent on steps a local model passes.\nEvidence: given replay records, the default config orders the workers per kind by expected wall, and a kind with no local passes keeps the Claude worker first.\nBatch: host lane.",
-          "depends_on": [
-            "local-worker/replay"
           ]
         }
       ]
@@ -79,10 +37,21 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 1200,
-        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
+        "nodes": 1853,
+        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard). Step guider: +653 (653, the median of what 11 landings that changed internal/sampling, internal/latentvideo counted)."
       },
       "steps": [
+        {
+          "id": "guider",
+          "title": "The flow guider takes CFG-Zero* and a guidance interval step by step, and Wan's profile offers each as a preset",
+          "status": "open",
+          "verify": "go test ./internal/sampling ./internal/latentvideo -count=1 -run '^TestTheGuiderTakesCFGZeroAndAGuidanceInterval$'",
+          "files": [
+            "internal/sampling",
+            "internal/latentvideo"
+          ],
+          "rationale": "The flow guider (internal/sampling/flow_sampler.go) combined every step alike: it knew no step, so CFG-Zero*'s zeroed first steps and a guidance interval's unguided steps had nowhere to live. Wan guides on the host each step (internal/latentvideo/denoiser.go), so the guider can take both there at once; MOSS and SenseNova guide inside a compiled update program per step (internal/latentimage/rotary_sampling_windows.go), which needs a projection reduction and a guided and an unguided program chosen per step, so their part stays with cfg-zero-interval beside the measurements.\n\nCFG-Zero* (arXiv 2503.18886) is written from the paper: one scale per sample, the conditioned output's dot product with the unconditioned one over the latter's squared norm plus 1e-8 as its appendix code adds, and one zeroed step, its default. The guidance interval (arXiv 2404.07724) takes the paper's best EDM2 band, sigma 0.28 to 5.42, as flow time t = sigma / (1 + sigma), 0.219 to 0.844: at Wan's shift of 5 it guides 24 of the 50 reference steps and saves 26 of the 100 passes.\n\nServes: held-out-quality, first-output.\nDisappears: a guider that could not vary by step.\nEvidence: a zeroed step runs no pass, a step outside the interval runs the conditioned pass alone, the projected combine equals the paper's formula, and Wan's presets fill a request with each.\nBatch: host lane."
+        },
         {
           "id": "cfg-zero-interval",
           "title": "CFG-Zero* and a guidance interval run on Wan's 50-step path, MOSS and SenseNova, with a shift sweep on Wan, each read against its suite",

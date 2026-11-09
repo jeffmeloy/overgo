@@ -37,6 +37,12 @@ type LadderWorld interface {
 	UseWorker(level int)
 }
 
+// StartingWorld is the optional ladder extension that starts a step at a rung of its own: where a weaker worker's
+// replayed attempts do not pay for its kind of step, the step starts with the worker after it.
+type StartingWorld interface {
+	StartLevel(step Step) int
+}
+
 // CommandWorld is the optional world extension that works a run step with no worker: much of the plan's work is a
 // measurement to run and wait for, which a model adds nothing to. It runs the step's command, requires the record the
 // step names written, and lands it through the gate; what it returns is said as a worker's tail is.
@@ -222,6 +228,9 @@ func Run(world World, config Config) (Outcome, error) {
 		}
 		if step.Key() != lastKey {
 			lastKey, attempts, feedback, level = step.Key(), 0, "", 0
+			if starting, starts := world.(StartingWorld); starts && climbs {
+				level = max(min(starting.StartLevel(step), ladder.Workers()-1), 0)
+			}
 			if climbs {
 				ladder.UseWorker(level)
 			}

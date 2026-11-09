@@ -28,7 +28,7 @@ type toolAnswer struct {
 func TestTheWorkerHasOnlyItsTools(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	tools := workerTools(root, func() ([]string, error) { return []string{"cmd/x"}, nil })
+	tools := workerTools(root, workerStep{files: func() ([]string, error) { return []string{"cmd/x"}, nil }})
 	requests := strings.Join([]string{
 		`{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18"}}`,
 		`{"jsonrpc": "2.0", "method": "notifications/initialized"}`,

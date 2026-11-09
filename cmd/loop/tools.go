@@ -35,9 +35,23 @@ var approvedProbes = map[string]string{
 // unwritable are the places no worker edit reaches, whatever its step lists, beside what git ignores.
 var unwritable = []string{".git", protection.HarnessConfigDirectory}
 
-// workerTools are the six tools over the checkout at root; listed gives the files the dispatched step may change, none
-// meaning any a landing admits.
-func workerTools(root string, listed func() ([]string, error)) []workerTool {
+// workerStep is the step a worker's tools serve: how it is shown and checked, each answering with what it printed, and
+// the files it may change, none meaning any a landing admits.
+type workerStep struct {
+	show, check func() (string, error)
+	files       func() ([]string, error)
+}
+
+// planStep is the plan's dispatched step in the checkout at root, shown and checked through its cmd/plan.
+func planStep(root string) workerStep {
+	plan := func(verb string) func() (string, error) {
+		return func() (string, error) { return runTool("go", "-C", root, "run", "./cmd/plan", verb) }
+	}
+	return workerStep{show: plan("-prompt"), check: plan("-verify"), files: stepFiles}
+}
+
+// workerTools are the six tools over the checkout at root, serving step.
+func workerTools(root string, step workerStep) []workerTool {
 	inside := func(name string) (string, error) {
 		relative := filepath.ToSlash(filepath.Clean(name))
 		if filepath.IsAbs(name) || relative == ".." || strings.HasPrefix(relative, "../") {
@@ -45,12 +59,15 @@ func workerTools(root string, listed func() ([]string, error)) []workerTool {
 		}
 		return relative, nil
 	}
-	tool := func(arguments ...string) string {
-		shown, err := runTool(arguments...)
+	shown := func(run func() (string, error)) string {
+		text, err := run()
 		if err != nil {
-			return shown + "\nfailed: " + err.Error()
+			return text + "\nfailed: " + err.Error()
 		}
-		return shown
+		return text
+	}
+	tool := func(arguments ...string) string {
+		return shown(func() (string, error) { return runTool(arguments...) })
 	}
 	return []workerTool{
 		{"read_file", "Read a file of the checkout, by its path from the checkout's root.", []string{"path"}, func(arguments map[string]string) (string, error) {
@@ -66,7 +83,7 @@ func workerTools(root string, listed func() ([]string, error)) []workerTool {
 			if err != nil {
 				return "", err
 			}
-			files, err := listed()
+			files, err := step.files()
 			if err != nil {
 				return "", err
 			}
@@ -93,17 +110,17 @@ func workerTools(root string, listed func() ([]string, error)) []workerTool {
 			return "edited " + relative, os.WriteFile(path, []byte(text), clioptions.OutputFileMode)
 		}},
 		{"run_check", "Run the step's check (go run ./cmd/plan -verify).", nil, func(map[string]string) (string, error) {
-			return tool("go", "run", "./cmd/plan", "-verify"), nil
+			return shown(step.check), nil
 		}},
 		{"run_tests", "Run one package's tests, by its directory from the checkout's root.", []string{"package"}, func(arguments map[string]string) (string, error) {
 			relative, err := inside(arguments["package"])
 			if err != nil || strings.HasPrefix(relative, "-") {
 				return "", errors.Join(err, errors.New("the package is a directory of the checkout"))
 			}
-			return tool("go", "test", "./"+relative, "-count=1"), nil
+			return tool("go", "-C", root, "test", "./"+relative, "-count=1"), nil
 		}},
 		{"show_step", "Show the step: its title, check, notes and reasoning (go run ./cmd/plan -prompt).", nil, func(map[string]string) (string, error) {
-			return tool("go", "run", "./cmd/plan", "-prompt"), nil
+			return shown(step.show), nil
 		}},
 		{"run_probe", "Run an approved probe by its name.", []string{"name"}, func(arguments map[string]string) (string, error) {
 			command, approved := approvedProbes[arguments["name"]]

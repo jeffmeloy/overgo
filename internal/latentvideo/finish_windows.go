@@ -24,7 +24,7 @@ import (
 type ClipFinish struct {
 	// Upscale multiplies the clip's sides by 2, 3 or 4; none where unset.
 	Upscale int `json:"upscale,omitzero"`
-	// UpscaleLevel is the upscaling's level, high where unset.
+	// UpscaleLevel is the upscaling's level, clean-high where unset.
 	UpscaleLevel UpscaleLevel `json:"upscale_level,omitzero"`
 	// Denoise and Deblur are a strength from 1 to 4; none where unset.
 	Denoise int `json:"denoise,omitzero"`
@@ -63,9 +63,12 @@ var upscaleLevels = map[UpscaleLevel]uint32{
 	"clean-high": highLevel + cleanLevelOffset, "clean-ultra": ultraLevel + cleanLevelOffset,
 }
 
-// defaultUpscaleLevel is the level an upscale runs at where the request names none: nvidia-vfx's own default, until
-// rtx-vsr/measured reads which level a person should get first.
-const defaultUpscaleLevel UpscaleLevel = "high"
+// defaultUpscaleLevel is the level an upscale runs at where the request names none: the level that beat bicubic with
+// the highest mean VMAF on 24 VidGen source clips shrunk by two and four and upscaled back (cmd/evaluate
+// TestVideoSuperResBeatsBicubicOnSourceClips, 2026-11-09: VMAF 99.26 at two times and 87.31 at four, against bicubic's
+// 96.27 and 67.35 and nvidia-vfx's own default high's 99.06 and 85.08). The clean-source levels led throughout, as
+// overgo's frames, compressed by nothing before their encoder, would have them.
+const defaultUpscaleLevel UpscaleLevel = "clean-high"
 
 // Choices are the levels a page offers.
 func (UpscaleLevel) Choices() []string {

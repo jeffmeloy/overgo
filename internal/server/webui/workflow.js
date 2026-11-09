@@ -132,7 +132,8 @@
         input = datasetPicker(control);
       } else if (choices) {
         input = el("select", { class: "text", "aria-label": control.label || control.name.replace(/_/g, " ") },
-          el("option", { value: "", text: control.required ? "select" : "unset", disabled: control.required, selected: true }),
+          // A field left unset is given the default its control declares where the request is taken in.
+          el("option", { value: "", text: control.required ? "select" : control.default ? "default (" + control.default + ")" : "unset", disabled: control.required, selected: true }),
           ...choices.map((choice) => el("option", { value: choice, text: choice })));
       } else {
         // A declared bound prefills the default and steps the field by the model's stride.

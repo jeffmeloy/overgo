@@ -140,7 +140,7 @@ func validateReferenceEditRequestForm(request ReferenceEditRequest) error {
 	if request.Seed < 0 {
 		return errors.New("latent video: negative LiveEdit seed")
 	}
-	return request.Format.validate()
+	return request.Format.Validate()
 }
 
 // sourceVideoFromGIF decodes an animated GIF into the planar source video

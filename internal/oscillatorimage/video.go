@@ -10,6 +10,7 @@ import (
 	"image/draw"
 	"image/gif"
 
+	"overgo/internal/latentvideo"
 	"overgo/internal/media"
 )
 
@@ -18,6 +19,8 @@ type VideoRequest struct {
 	Seed   int64 `json:"seed"`
 	Frames int   `json:"frames"`
 	Scale  int   `json:"scale"`
+	// Format is the form the clip is written in, a GIF where the request names none (latentvideo.ClipFormat).
+	Format latentvideo.ClipFormat `json:"format,omitzero"`
 }
 
 type EncodedVideo struct {
@@ -29,7 +32,12 @@ type EncodedVideo struct {
 	Width         int    `json:"width"`
 	FPS           int    `json:"fps"`
 	ChangedPixels int    `json:"changed_pixels"`
+	// Encoding is the FFmpeg and the arguments that wrote an MP4; a GIF holds none.
+	Encoding media.Encoding `json:"encoding,omitzero"`
 }
+
+// RanEncoding is the program that wrote the clip's bytes (media.EncodingOf).
+func (video EncodedVideo) RanEncoding() media.Encoding { return video.Encoding }
 
 // videoFPS is the clip's frame rate: the GIF's per-frame delay derives from
 // it, and the published clip carries it so a consumer validating the
@@ -40,13 +48,14 @@ type videoPlan struct{ request VideoRequest }
 type videoFeatures struct {
 	frames [][]float32
 	scale  int
+	format latentvideo.ClipFormat
 }
 
 func ValidateVideoRequest(request VideoRequest) error {
 	if request.Class < 0 || request.Frames <= 0 || request.Scale <= 0 {
 		return errors.New("oscillatorimage: video requires non-negative class and positive frame count and scale")
 	}
-	return nil
+	return request.Format.Validate()
 }
 
 func (m *Model) prepareVideo(ctx context.Context, request VideoRequest) (videoPlan, error) {
@@ -66,7 +75,7 @@ func (m *Model) integrateVideo(ctx context.Context, plan videoPlan) (videoFeatur
 	if err := ctx.Err(); err != nil {
 		return videoFeatures{}, err
 	}
-	features := videoFeatures{frames: make([][]float32, plan.request.Frames), scale: plan.request.Scale}
+	features := videoFeatures{frames: make([][]float32, plan.request.Frames), scale: plan.request.Scale, format: plan.request.Format}
 	for frame := range features.frames {
 		phase, err := m.prepare(ctx, Request{Class: plan.request.Class, Seed: plan.request.Seed + int64(frame)})
 		if err != nil {
@@ -86,6 +95,9 @@ func (m *Model) decodeVideo(ctx context.Context, features videoFeatures) (Encode
 	}
 	if len(features.frames) == 0 {
 		return EncodedVideo{}, errors.New("oscillatorimage: video features are empty")
+	}
+	if !features.format.IsZero() {
+		return m.decodeVideoMP4(ctx, features)
 	}
 	animation := &gif.GIF{}
 	var previous []uint8
@@ -130,6 +142,53 @@ func (m *Model) decodeVideo(ctx context.Context, features videoFeatures) (Encode
 		Data: encoded.Bytes(), MediaType: "image/gif", Frames: len(features.frames), Channels: m.Cfg.OutChannels,
 		Height: m.Cfg.OutH() * features.scale, Width: m.Cfg.OutW() * features.scale, FPS: videoFPS, ChangedPixels: changed,
 	}, nil
+}
+
+// decodeVideoMP4 writes the clip as an MP4 through the encoder Wan's clips are written by, each frame enlarged by the
+// request's scale as a GIF's frames are. Its changed pixels are counted at the enlarged size, where a GIF's are counted
+// at the model's.
+func (m *Model) decodeVideoMP4(ctx context.Context, features videoFeatures) (EncodedVideo, error) {
+	video, err := latentvideo.WriteClip(ctx, features.format, videoFPS, latentvideo.SignedUnitPixels, func(sink latentvideo.VideoFrameSink) error {
+		for index, feature := range features.frames {
+			frame, err := m.decodePlanar(feature)
+			if err != nil {
+				return err
+			}
+			pixels, height, width, err := enlarged(frame, features.scale)
+			if err != nil {
+				return err
+			}
+			if err := sink(index, pixels, height, width); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return EncodedVideo{}, err
+	}
+	return EncodedVideo{
+		Data: video.Data, MediaType: video.MediaType, Frames: video.Frames, Channels: video.Channels, Height: video.Height,
+		Width: video.Width, FPS: video.FPS, ChangedPixels: video.ChangedPixels, Encoding: video.Encoding,
+	}, nil
+}
+
+// enlarged is the planar frame with each pixel repeated scale times along each side, and its height and width.
+func enlarged(frame planarImage, scale int) (pixels []float32, height, width int, err error) {
+	if frame.Channels != media.RGBChannels || len(frame.Pixels) != frame.Channels*frame.Height*frame.Width || scale <= 0 {
+		return nil, 0, 0, errors.New("oscillatorimage: video frame is not planar RGB at a positive scale")
+	}
+	height, width = frame.Height*scale, frame.Width*scale
+	plane, enlargedPlane := frame.Height*frame.Width, height*width
+	pixels = make([]float32, frame.Channels*enlargedPlane)
+	for channel := range frame.Channels {
+		for y := range height {
+			for x := range width {
+				pixels[channel*enlargedPlane+y*width+x] = frame.Pixels[channel*plane+y/scale*frame.Width+x/scale]
+			}
+		}
+	}
+	return pixels, height, width, nil
 }
 
 func planarRGBA(frame planarImage, scale int) (*image.RGBA, []uint8, error) {

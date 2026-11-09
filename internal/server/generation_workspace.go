@@ -48,6 +48,9 @@ type workflowControl struct {
 	// Choices are the values the model's artifact exports for the field;
 	// a page offers them instead of a free input.
 	Choices []string `json:"choices,omitempty"`
+	// Default is the value a request that leaves the field out is given
+	// where it is taken in (withDefaults), so the request recorded names it.
+	Default string `json:"default,omitzero"`
 	// Label and Media describe an artifact slot: what a page calls it and
 	// the kind of stored file it takes (image, video, audio), so the page
 	// lists matching intakes beside it and routes an attachment to it.
@@ -492,6 +495,10 @@ func (h *Handler) submitWorkflow(
 	if h.repository == nil {
 		return artifact.ID{}, errors.New("workflow workspace: durable repository required")
 	}
+	input, err := withDefaults(capability.Controls, input)
+	if err != nil {
+		return artifact.ID{}, err
+	}
 	// Judged here, behind the request ledger: a repeat of a numbered run that
 	// started is answered from the ledger, not weighed against the memory its
 	// own run now holds. A capability listed with a refusal is not weighed:
@@ -534,6 +541,7 @@ func validateWorkflowCapabilities(capabilities []WorkflowCapability) error {
 		for _, control := range capability.Controls {
 			if control.Name == "" || !control.Type.valid() || fields[control.Name] || !slotMedia[control.Media] ||
 				control.Format != "" && control.Type != workflowControlDataset ||
+				control.Default != "" && (control.Type != workflowControlText || len(control.Choices) > 0 && !slices.Contains(control.Choices, control.Default)) ||
 				control.Bounds != nil && (control.Bounds.Step < 0 || control.Bounds.Rate < 0) {
 				return fmt.Errorf("workflow workspace: invalid control %q", control.Name)
 			}
@@ -589,6 +597,42 @@ func validateWorkflowInput(controls []workflowControl, raw json.RawMessage) erro
 		}
 	}
 	return nil
+}
+
+// withDefaults gives a request that leaves a field out, or states it as null,
+// the value the field's control declares for it, so the request recorded names
+// what ran: a clip asked for in no format is written as an MP4 and its request
+// says so. A request recorded before a default was declared keeps what naming
+// nothing meant then, since a recorded request is never taken in again. A
+// request that states every defaulted field is passed on as it came.
+func withDefaults(controls []workflowControl, input json.RawMessage) (json.RawMessage, error) {
+	var fields map[string]json.RawMessage
+	filled := false
+	for _, control := range controls {
+		if control.Default == "" {
+			continue
+		}
+		if fields == nil {
+			if err := strictjson.Decode(bytes.NewReader(input), &fields); err != nil {
+				return nil, fmt.Errorf("workflow workspace: invalid input: %w", err)
+			}
+			if fields == nil {
+				fields = map[string]json.RawMessage{}
+			}
+		}
+		if stated, held := fields[control.Name]; held && string(bytes.TrimSpace(stated)) != "null" {
+			continue
+		}
+		value, err := json.Marshal(control.Default)
+		if err != nil {
+			return nil, err
+		}
+		fields[control.Name], filled = value, true
+	}
+	if !filled {
+		return input, nil
+	}
+	return json.Marshal(fields)
 }
 
 func validateWorkflowValue(controlType workflowControlType, raw json.RawMessage) error {

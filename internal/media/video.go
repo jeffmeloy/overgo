@@ -19,6 +19,7 @@ import (
 	"strconv"
 	"strings"
 
+	"overgo/internal/artifact"
 	"overgo/internal/checked"
 	"overgo/internal/processcontrol"
 	"overgo/internal/tensor"
@@ -361,4 +362,37 @@ func ResolveFFmpeg(configured string) (string, error) {
 		}
 	}
 	return "", errors.New("media: FFmpeg is unavailable")
+}
+
+// The box an MP4 opens with (ISO/IEC 14496-12 section 4.3): its type follows
+// the box's 32-bit size, so it ends at byte 8. The format fixes both, so
+// neither is reconsidered.
+const (
+	mp4FileType    = "ftyp"
+	mp4FileTypeEnd = 8
+)
+
+// OpensAsMP4 says the bytes open with an MP4's file type box, so bytes of another form labelled as one are told apart
+// before they are published or exported.
+func OpensAsMP4(data []byte) bool {
+	return len(data) >= mp4FileTypeEnd && string(data[mp4FileTypeEnd-len(mp4FileType):mp4FileTypeEnd]) == mp4FileType
+}
+
+// Encoding is the program a clip's bytes were written by, so the clip names what would write it again: the
+// executable's identity and the arguments it was given. A clip overgo writes itself (a GIF), and one decoded from its
+// bytes, holds none.
+type Encoding struct {
+	Tool artifact.ID `json:"tool"`
+	Args []string    `json:"args"`
+}
+
+// IsZero says the clip names no program.
+func (e Encoding) IsZero() bool { return !e.Tool.Valid() && len(e.Args) == 0 }
+
+// EncodingOf is the encoding a generation's output says wrote it; an output that names none says none.
+func EncodingOf(output any) Encoding {
+	if encoded, ok := output.(interface{ RanEncoding() Encoding }); ok {
+		return encoded.RanEncoding()
+	}
+	return Encoding{}
 }

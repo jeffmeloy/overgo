@@ -3,6 +3,38 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "scorecard-integrity",
+      "title": "The scorecard keeps every failure a recipe's attempts recorded and reads each timing under one runtime policy, so an unreliable or slower model does not read as healthy",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 150,
+        "reason": "Both defects are located (internal/scorecard/scorecard.go servingByRecipe's summary replacement and its window joins) and each fix is a few lines and a test through the store; written and checked on 2026-11-09 before filing."
+      },
+      "steps": [
+        {
+          "id": "failures",
+          "title": "A recipe failing on and off under one commit keeps every failure through servingByRecipe's replacement of its summary by the newest measured success, read through the store: eight failures then one success read 8 failed of 9",
+          "status": "open",
+          "verify": "go test ./internal/scorecard -count=1 -run '^TestAFailureRateSurvivesItsMeasuredAttempt$'",
+          "files": [
+            "internal/scorecard"
+          ],
+          "rationale": "Serves: failures, for every served recipe.\n\nDisappears: the field-by-field copy of a summary's counts when a measured success replaces it, which dropped fixedBy.\n\nEvidence: the owner's review (2026-11-09) reproduced it through the store: eight failures and one success at one commit read 0 failed of 1 attempt, where 8 of 9 failed, because tally() set fixedBy and the replacement in servingByRecipe built a new summary without it, so every older failure read as superseded. TestFailureRateCountsTheAttemptsOfItsWindow passed because it calls tally() alone. The tally becomes one embedded value (failureTally) that the replacement carries whole, and the new test reads the history through the store; with fixedBy dropped again it reads 0 of 1.\n\nBatch: host lane."
+        },
+        {
+          "id": "policy",
+          "title": "A serving timing's window joins only attempts run under the runtime policy of the attempt that opens it, its cell names that policy, a decline across a policy change names both, and a reference's allowance reads its own policy's readings",
+          "status": "open",
+          "verify": "go test ./internal/scorecard -count=1 -run '^TestATimingIsReadUnderOneRuntimePolicy$'",
+          "files": [
+            "internal/scorecard"
+          ],
+          "rationale": "Serves: first-output, throughput, load and peak-memory cells of every chat and media row.\n\nDisappears: windows that joined attempts by environment and preset alone.\n\nEvidence: serving observations record Policy because a model's declared sampling changes without its recipe (runrecord.ServingObservation.Policy), and the windows ignored it. The owner's synthetic case: two older attempts at 100 tokens a second under policy A and the newest at 1 under policy B read 100; with the partition it reads 1 under B, and against A's 100 it is a decline whose verdict names both policies. A reading from before cells named a policy joins a reference's readings, or every serving reference would stand unjudged for its window after the field came.\n\nBatch: host lane."
+        }
+      ]
+    },
+    {
       "id": "video-judge",
       "title": "The generated-video judge scores probabilities on harder cases, and Wan's base and its four-step student are judged at the same settings, so the student's quality says something",
       "owner": "master-lead",
@@ -18,16 +50,181 @@
           "status": "open",
           "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/validate -count=1 -run '^TestTheWanStudentIsJudgedBesideItsBase$'",
           "files": [
-            "cmd/validate",
+            "cmd/validate/wan_student_model_test.go"
+          ],
+          "needs_card": true,
+          "rationale": "The base's 0.914 was judged at 17 frames, 416 x 240 and 20 steps, the student's 0.898 at 81 frames, 832 x 480 and 4 steps, and the check passed whatever the result. The base is drawn at the student's settings (about 6 h of the card at 374 s a clip for 64 clips) and both are judged on the soft, harder suite; the check states the comparison's verdict and holds that the two ran the same settings, so a student is not evidence for anything until this lands.\n\nNote: 2026-11-08 20:20: both draws are built at aedec796e (it holds soft-video's harder suite), so the two suites are made alike. The base draws 80 clips at 832 x 480, 81 frames, 50 steps into datasets/VidGen/wan2.1-generated-832 (46 of 80 done, about 5.7 min a clip); the student then draws the same 80 into self-forcing-generated-832, its log at scratch/same-settings/student-render.log. Both are then judged through cmd/evaluate -manifest and the check reads the two quality cells. The student's earlier 64-clip suite is not reused, because the harder suite has 80 clips and a draw into that directory refuses a build other than cf71bbc58.\n\nNote: 2026-11-08 22:15: base draw at 66 of 80. A chained script waits for it, then draws the student from the aedec796e worktree into self-forcing-generated-832 at width=832,height=480,frames=81 and judges both manifests, logs base-judge.log and student-judge.log in scratch/same-settings.\n\nNote: files set to cmd/validate/wan_student_model_test.go: the comparison's change is its check alone, and the folders beside it hold mp4-clips/default's edits\n\nNote: files set to cmd/validate/wan_student_model_test.go: The renders and judging changed no code; the change is the check's choice of the reading made at the student's settings. Other sessions' uncommitted mp4-clips and scorecard work sits in cmd/evaluate, cmd/validate and internal/scorecard, and stays out of this landing.\n\nServes: held-out-quality for the Wan student.\nDisappears: a comparison across settings, and a check that passes whatever the result.\nEvidence: both quality cells rest on the same captions at the same size and frames, and the paired comparison states its verdict.\nBatch: device lane.",
+          "depends_on": [
+            "video-judge/soft-video"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "mp4-clips",
+      "title": "Every clip overgo writes is an MP4 unless a request asks for a GIF, the judge and the screens read it, and the FFmpeg that wrote it is bound to it",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": -329,
+        "reason": "Estimated from a survey: the encoder, its FFmpeg path and the format choice exist (internal/latentvideo/mp4.go, production.go:280-326), so the change is a default, an identity on the clip's record, a render branch, a format check before a comparison, and two tests. plan -add derives its own count from history beside this figure."
+      },
+      "steps": [
+        {
+          "id": "render",
+          "title": "cmd/evaluate -render writes each clip a video model draws as an MP4 named by its digest, and rendered.json names its format and the FFmpeg digest. The judge, the pair screen and the frame-to-frame measure read it, and a comparison refuses two sides saved in different formats",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/evaluate -count=1 -run '^TestARenderedClipIsAnMP4TheJudgeReads$'",
+          "files": [
             "cmd/evaluate",
             "internal/evaluation",
             "internal/scorecard"
           ],
           "needs_card": true,
-          "rationale": "The base's 0.914 was judged at 17 frames, 416 x 240 and 20 steps, the student's 0.898 at 81 frames, 832 x 480 and 4 steps, and the check passed whatever the result. The base is drawn at the student's settings (about 6 h of the card at 374 s a clip for 64 clips) and both are judged on the soft, harder suite; the check states the comparison's verdict and holds that the two ran the same settings, so a student is not evidence for anything until this lands.\n\nNote: 2026-11-08 20:20: both draws are built at aedec796e (it holds soft-video's harder suite), so the two suites are made alike. The base draws 80 clips at 832 x 480, 81 frames, 50 steps into datasets/VidGen/wan2.1-generated-832 (46 of 80 done, about 5.7 min a clip); the student then draws the same 80 into self-forcing-generated-832, its log at scratch/same-settings/student-render.log. Both are then judged through cmd/evaluate -manifest and the check reads the two quality cells. The student's earlier 64-clip suite is not reused, because the harder suite has 80 clips and a draw into that directory refuses a build other than cf71bbc58.\n\nNote: 2026-11-08 22:15: base draw at 66 of 80. A chained script waits for it, then draws the student from the aedec796e worktree into self-forcing-generated-832 at width=832,height=480,frames=81 and judges both manifests, logs base-judge.log and student-judge.log in scratch/same-settings.\n\nServes: held-out-quality for the Wan student.\nDisappears: a comparison across settings, and a check that passes whatever the result.\nEvidence: both quality cells rest on the same captions at the same size and frames, and the paired comparison states its verdict.\nBatch: device lane.",
+          "rationale": "Serves: the clips a quality comparison draws are saved as MP4, so the scores describe the model, not the GIF.\n\nDisappears: the render's refusal of anything but a PNG or a GIF (cmd/evaluate/render.go:159-170) and clipExtensionGIF (:41).\n\nEvidence: drawn() maps only PNG and GIF. -render-set reads numbers only (parseSettings, render.go:140-152), so a render cannot ask for \"mp4\" today. With mp4-clips/default the request names \"mp4\" itself. The judge already binds FFmpeg's identity for a clip that is not a GIF (cmd/evaluate/media_inputs.go:93-106, internal/evaluation/media_inputs.go:52). Clip consistency and the pair screen decode through media.DecodeVideoFile (cmd/evaluate/screen.go:125), which reads both formats.\n\nA comparison of a GIF side with an MP4 side measures the format as well as the model. Both the pair screen's floor (a second seed of the same prompt) and the base-versus-student verdict assume one format on both sides, so the manifests' formats are compared before anything is judged.\n\nThe test draws two clips with the Wan four-step student at its suite settings. It checks that each is an MP4 whose bytes match the digest in its name, judges both, and runs the frame-to-frame measure on them. A GIF render offered as the other side of a screen is refused.\n\nExisting GIF folders stay as they are, because converting a GIF back recovers none of its colours. video-judge/same-settings is mid-render with GIFs on both sides, so its verdict stays fair. The next comparison draws both sides as MP4.\n\nPredicted effect: held-out-quality for every video generator and editor.\n\nBatch: device lane.",
           "depends_on": [
-            "video-judge/soft-video"
+            "mp4-clips/default"
           ]
+        }
+      ]
+    },
+    {
+      "id": "judge-calibration",
+      "title": "The media judges are shown to measure what they are used for: they score deliberately degraded outputs lower, a judge of another family ranks the same cases alike, a verdict counts media and not the questions asked of each, and a preset is admitted at the size a person asks for",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 900,
+        "reason": "Estimated from a survey: the judged suites, the paired exact test and the render path exist (cmd/evaluate render.go, internal/evaluation, internal/scorecard record.go judgeQuality); the degradations, a second judge's run and the medium pairing are new code with two card tests."
+      },
+      "steps": [
+        {
+          "id": "degraded",
+          "title": "Each generated-media judge scores deliberately degraded outputs lower: blurred, noised, frame-frozen and prompt-swapped versions of a suite's own outputs each lose to the outputs they came from in a paired exact test, at a level declared before the run",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/evaluate -count=1 -run '^TestTheJudgeScoresDegradedOutputsLower$'",
+          "files": [
+            "cmd/evaluate",
+            "internal/evaluation"
+          ],
+          "needs_card": true,
+          "rationale": "Serves: held-out-quality for every image and video generator.\n\nDisappears: a judge trusted for a difference it was never shown to see.\n\nEvidence: the owner's review (2026-11-09): provenance makes a score reproducible, calibration makes it useful. A judge that cannot tell a picture from its blurred copy, or a clip from one of another prompt, cannot rank two models. Each degradation is applied to the base's own outputs on the TIFA and generated-video suites, so the paired test reads the degradation alone.\n\nBatch: device lane."
+        },
+        {
+          "id": "independent",
+          "title": "gemma-4-12B-it, a judge of another family, judges the same 32 image and 32 video cases as Qwen3.8-27B, and the two judges' per-medium scores agree in rank by Kendall's tau above a floor declared before the run, its bootstrap interval printed and the cases they disagree on listed",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/evaluate -count=1 -run '^TestASecondJudgeRanksTheCasesAlike$'",
+          "files": [
+            "cmd/evaluate",
+            "internal/evaluation"
+          ],
+          "needs_card": true,
+          "rationale": "Serves: held-out-quality for every image and video generator.\n\nDisappears: one judge's ranking taken as the ranking.\n\nEvidence: the owner's review asks whether the judge's ranking agrees with an independent assessment on representative cases. gemma-4-12B-it is on disk (overgo_data/models) and multimodal; a second family shares fewer of the first's blind spots. The cases are judge-instrument/repeatable's frozen 32 and 32. Where the owner labels cases, their labels join as a third assessor.\n\nBatch: device lane."
+        },
+        {
+          "id": "clustered",
+          "title": "Every quality comparison over a suite that asks several questions of one picture or clip pairs its two readings by medium, the share of each medium's questions answered right, so its exact test counts media: a suite with each question asked twice reads the same verdict",
+          "status": "open",
+          "verify": "go test ./internal/scorecard ./internal/evaluation -count=1 -run '^TestAQualityVerdictCountsMediaNotQuestions$'",
+          "files": [
+            "internal/scorecard",
+            "internal/evaluation"
+          ],
+          "rationale": "Serves: held-out-quality, every judged media row.\n\nDisappears: case-by-case pairing of correlated questions (internal/scorecard/record.go judgeQuality).\n\nEvidence: judgeQuality pairs the two readings' outcomes question by question and runs ExactPairedBinary over them, so the three to ten TIFA questions about one picture count as independent trials and a decline stands on fewer media than its count says. The Wan student's comparison (cmd/validate TestTheWanStudentIsJudgedBesideItsBase) already pairs by clip; the scorecard does the same, the medium read from the case's group or its name's prefix.\n\nBatch: host lane."
+        },
+        {
+          "id": "user-size",
+          "title": "A generation preset is admitted only by a suite drawn at the size, frames and format a person asks for, the person's request read from the page's controls (mediacapability.PersonRequest), and a suite drawn smaller is refused as its evidence",
+          "status": "open",
+          "verify": "go test ./internal/evaluation ./cmd/evaluate -count=1 -run '^TestAPresetIsAdmittedOnlyAtAPersonsSize$'",
+          "files": [
+            "internal/evaluation",
+            "cmd/evaluate",
+            "internal/mediacapability"
+          ],
+          "rationale": "Serves: held-out-quality and first-output for every media generator.\n\nDisappears: presets judged at a verification smoke's size.\n\nEvidence: the owner's review asks whether an improvement persists at the resolution and workload a person uses. The Wan student was first read at 81 frames and 832 x 480 against a base at 17 frames and 416 x 240; video-judge/same-settings fixed that one comparison by hand. The rule belongs where a preset is admitted.\n\nBatch: host lane."
+        }
+      ]
+    },
+    {
+      "id": "undo-evidence",
+      "title": "A landing says plainly when its undo check is no evidence, and then needs a test through an existing boundary that fails without the change, or a stated reason none is practical",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 250,
+        "reason": "The undo check exists (internal/landing/undo.go) and already records the case; the change is a trailer, a refusal and its two tests."
+      },
+      "steps": [
+        {
+          "id": "visible",
+          "title": "A landing whose undo check is no evidence, its tests not building without the change, carries the trailer Undo-Evidence: none and says so in its message's first Change line, and cmd/loop -land prints it",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestALandingWithoutUndoEvidenceSaysSo$'",
+          "files": [
+            "internal/landing",
+            "cmd/loop"
+          ],
+          "rationale": "Serves: every landing's evidence.\n\nDisappears: no-evidence buried in the message's undo section.\n\nEvidence: internal/landing/undo.go records 'fails before a test asserts anything, so it is no evidence' and returns success, and its test accepts that. The owner's review (2026-11-09): a landing then does not show that an assertion detects the missing behaviour, and the scorecard defect it found passed a component test while the assembled path broke the guarantee. A trailer lets git log count such landings.\n\nBatch: host lane."
+        },
+        {
+          "id": "boundary",
+          "title": "A landing whose undo check is no evidence is refused unless one of its checks builds without the change and fails there on an assertion, a test through an existing boundary, or its step's rationale names why none is practical",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestNoUndoEvidenceNeedsABoundaryTestOrAReason$'",
+          "files": [
+            "internal/landing",
+            "internal/plan"
+          ],
+          "rationale": "Serves: every landing's evidence.\n\nDisappears: a new API's tests standing as their own proof.\n\nEvidence: the owner's review asks for a behavioural counterexample through an existing boundary where practical. The scorecard fix of scorecard-integrity/failures is one: its test drives servingByRecipe through the store, an existing boundary, and fails with the defect put back.\n\nBatch: host lane."
+        }
+      ]
+    },
+    {
+      "id": "loop-proof",
+      "title": "The loop shows its worth end to end: the gate refuses deliberately bad alternatives, each landing records its full cost, and the local worker lands changes whose benefit an independent evaluation confirms and exceeds that cost",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 900,
+        "reason": "The replay harness and ladder exist (cmd/loop replay.go, ladder.go); mutants of landed steps, a cost ledger per landing and a measured run of the local worker are new."
+      },
+      "steps": [
+        {
+          "id": "mutants",
+          "title": "The gate is run on deliberately bad alternatives of ten landed steps, each its landed change with one production statement removed or one comparison inverted, and the share it refuses is recorded per step and printed",
+          "status": "open",
+          "verify": "go test ./cmd/loop -count=1 -run '^TestTheGateRefusesBadAlternatives$' -timeout 60m",
+          "files": [
+            "cmd/loop",
+            "internal/landing"
+          ],
+          "rationale": "Serves: setup-steps, the loop's own evidence.\n\nDisappears: a gate trusted for catching what it was never shown to catch.\n\nEvidence: the owner's review names the demonstration: a worker's change, a gate that catches bad alternatives, an independent benefit, and a benefit that exceeds its cost. replay.go already checks steps out at their parents in worktrees of their own; a mutant is one more tree.\n\nBatch: host lane."
+        },
+        {
+          "id": "costs",
+          "title": "Each landing records its full cost beside its measured benefit: the worker's wall and tokens across every attempt, its checks' wall, the attempts refused and their recovery, and the loop's report prints benefit against cost per worker",
+          "status": "open",
+          "verify": "go test ./internal/landing ./cmd/loop -count=1 -run '^TestALandingRecordsItsFullCost$'",
+          "files": [
+            "internal/landing",
+            "cmd/loop",
+            "internal/loop"
+          ],
+          "rationale": "Serves: setup-steps.\n\nDisappears: benefit read without its cost.\n\nEvidence: the owner's review: the recorded benefit must exceed the full cost of proposing, checking and recovering. Landings record the checks they ran and the gate's measures, not the attempts that failed before them.\n\nBatch: host lane."
+        },
+        {
+          "id": "demonstrated",
+          "title": "The local worker lands three plan steps unaided, each benefit confirmed by an evaluation the worker did not write, and the recorded benefit of the three exceeds their recorded cost",
+          "status": "open",
+          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/loop -count=1 -run '^TestTheLocalWorkerPaysForItself$' -timeout 120m",
+          "files": [
+            "cmd/loop",
+            "internal/loop"
+          ],
+          "needs_card": true,
+          "rationale": "Serves: setup-steps.\n\nDisappears: a worker ladder chosen by replay pass rates alone.\n\nEvidence: local-worker/replay records each worker's passes, attempts and wall per replayed step; this step is the forward test the owner's review asks for, with costs and failures counted.\n\nBatch: device lane."
         }
       ]
     },

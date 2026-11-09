@@ -225,6 +225,10 @@ func validateMediaSampleContent(name string, data []byte) error {
 		_, err = png.Decode(bytes.NewReader(data))
 	case ".gif":
 		_, err = gif.DecodeAll(bytes.NewReader(data))
+	case ".mp4":
+		if !media.OpensAsMP4(data) {
+			err = errors.New("an MP4 sample does not open with an MP4's file type box")
+		}
 	case ".wav":
 		// WAV samples retain the existing exporter and content-hash check.
 	default:
@@ -232,6 +236,9 @@ func validateMediaSampleContent(name string, data []byte) error {
 	}
 	return err
 }
+
+// videoExtensions are the extensions a generated clip is exported under, by the media type it was written as.
+var videoExtensions = map[string]string{media.GIFMediaType: "gif", media.MP4MediaType: "mp4"}
 
 // sampleFile decodes one run-output content into an exportable file:
 // the bytes and a SHA-256 name with the extension its media type owns.
@@ -241,16 +248,21 @@ func sampleFile(content artifact.Content) (string, []byte, bool) {
 		return hashName(content.Data, "png"), content.Data, true
 	case content.Descriptor.MediaType == media.GIFMediaType:
 		return hashName(content.Data, "gif"), content.Data, true
+	case content.Descriptor.MediaType == media.MP4MediaType:
+		return hashName(content.Data, "mp4"), content.Data, true
 	case content.Descriptor.Schema == generatedVideoSchema:
 		var video struct {
 			Data      []byte `json:"data"`
 			MediaType string `json:"media_type"`
 		}
-		if err := json.Unmarshal(content.Data, &video); err != nil ||
-			video.MediaType != media.GIFMediaType || len(video.Data) == 0 {
+		if err := json.Unmarshal(content.Data, &video); err != nil || len(video.Data) == 0 {
 			return "", nil, false
 		}
-		return hashName(video.Data, "gif"), video.Data, true
+		extension, exported := videoExtensions[video.MediaType]
+		if !exported {
+			return "", nil, false
+		}
+		return hashName(video.Data, extension), video.Data, true
 	case content.Descriptor.Schema == speechAudioSchema:
 		var audio struct {
 			PCM        []float32 `json:"pcm"`

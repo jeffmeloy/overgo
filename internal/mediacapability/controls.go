@@ -30,6 +30,10 @@ type Control struct {
 	// Choices are the values the model's own artifact exports for the
 	// field (a speech model's voices); empty when any value may be typed.
 	Choices []string
+	// Default is the value a request taken in that leaves the field out is given, declared by the field's type (a
+	// clip's format, an MP4); empty where the model's runtime fills what is left out, as a size's bound is only a
+	// page's prefill.
+	Default string
 	// Label names an artifact slot the way a page shows it (the request
 	// field's label tag); Media is the kind of artifact it takes (the
 	// media tag: image, video or audio), so a page offers the right stored
@@ -62,6 +66,9 @@ func (control Control) Bounded() (defaultValue, step, rate int, declared bool) {
 func (control Control) Declared() (name, kind string, required bool, choices []string) {
 	return control.Name, control.Type, control.Required, control.Choices
 }
+
+// Defaulted reports the value a request taken in that leaves the field out is given, empty where none is declared.
+func (control Control) Defaulted() string { return control.Default }
 
 // Slot reports an artifact control's label and media kind (empty for a typed field).
 func (control Control) Slot() (label, media string) { return control.Label, control.Media }
@@ -205,6 +212,9 @@ func describe(request reflect.Type) ([]Control, string) {
 		// A field whose type names its values (a clip's format) offers them as choices.
 		if values, named := reflect.Zero(field.Type).Interface().(interface{ Choices() []string }); named {
 			control.Choices = values.Choices()
+		}
+		if fill, named := reflect.Zero(field.Type).Interface().(interface{ Default() string }); named {
+			control.Default = fill.Default()
 		}
 		if help, named := reflect.Zero(field.Type).Interface().(interface{ Help() string }); named {
 			control.Help = help.Help()

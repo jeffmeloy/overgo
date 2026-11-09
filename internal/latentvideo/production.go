@@ -246,10 +246,15 @@ type EncodedVideo struct {
 	ResidentRun   int    `json:"resident_run"`
 	// Preset is what the generation that made the clip ran; a clip decoded from its bytes holds none.
 	Preset media.Preset `json:"preset,omitzero"`
+	// Encoding is the FFmpeg and the arguments that wrote an MP4; a GIF, and a clip decoded from its bytes, holds none.
+	Encoding media.Encoding `json:"encoding,omitzero"`
 }
 
 // RanPreset is the preset the clip was made at (media.PresetOf).
 func (video EncodedVideo) RanPreset() media.Preset { return video.Preset }
+
+// RanEncoding is the program that wrote the clip's bytes (media.EncodingOf).
+func (video EncodedVideo) RanEncoding() media.Encoding { return video.Encoding }
 
 // VideoContent is the artifact a clip is published as, under the contract of
 // its media type.
@@ -259,8 +264,8 @@ func VideoContent(video EncodedVideo) (artifact.Content, error) {
 	contract := encodedGIFContract
 	if video.MediaType == media.MP4MediaType {
 		contract = encodedMP4Contract
-		if opening := video.Data[:min(len(video.Data), mp4FileTypeEnd)]; len(opening) < mp4FileTypeEnd || string(opening[mp4FileTypeEnd-len(mp4FileType):]) != mp4FileType {
-			return artifact.Content{}, fmt.Errorf("latent video: a clip labelled MP4 opens with %q, where an MP4 opens with its %s box", opening, mp4FileType)
+		if !media.OpensAsMP4(video.Data) {
+			return artifact.Content{}, errors.New("latent video: a clip labelled MP4 does not open with an MP4's file type box")
 		}
 	}
 	if err := media.ValidateEncodedRGBVideo(video.Data, video.MediaType, contract.MediaType, video.Frames, video.Channels, video.Height, video.Width, video.FPS); err != nil {
@@ -269,18 +274,10 @@ func VideoContent(video EncodedVideo) (artifact.Content, error) {
 	return contract.OwnedContentBytes(video.Data)
 }
 
-// The box an MP4 opens with (ISO/IEC 14496-12 section 4.3): its type follows
-// the box's 32-bit size, so it ends at byte 8. The format fixes both, so
-// neither is reconsidered.
-const (
-	mp4FileType    = "ftyp"
-	mp4FileTypeEnd = 8
-)
-
 // ClipFormat is the form a served clip is written in.
-//   - "" or "gif" = a GIF, each frame cut to a palette of its own, the default
-//   - "mp4" = H.264 in an MP4 through FFmpeg, at full colour where a GIF frame holds 256, and in fewer bytes
-//   - "gif" marshals as "", so a request that names the default is the request that names none, and keeps its run key.
+//   - "mp4" = H.264 in an MP4 through FFmpeg, at full colour where a GIF frame holds 256, and in fewer bytes; the page's default (Default)
+//   - "" or "gif" = a GIF, each frame cut to a palette of its own
+//   - "gif" marshals as "", so a request that names GIF is the request that names none and keeps its run key: a request recorded before MP4 was the default meant GIF by naming none, so the default is filled where a request is taken in, never where one is decoded.
 type ClipFormat string
 
 const (
@@ -288,13 +285,18 @@ const (
 	mp4Clip ClipFormat = "mp4"
 )
 
-// IsZero reports whether the format is the default GIF.
+// IsZero reports whether the format is GIF, which a request names by naming none.
 func (format ClipFormat) IsZero() bool { return format == "" || format == gifClip }
+
+// Default is the format a request taken in that names none is given: an MP4, which keeps the colours a GIF's palette
+// dithers away.
+func (ClipFormat) Default() string { return string(mp4Clip) }
 
 // Choices are the formats a page offers.
 func (ClipFormat) Choices() []string { return []string{string(gifClip), string(mp4Clip)} }
 
-func (format ClipFormat) validate() error {
+// Validate refuses a format neither GIF nor MP4.
+func (format ClipFormat) Validate() error {
 	if !format.IsZero() && format != mp4Clip {
 		return fmt.Errorf("latent video: clip format %q, want %q or %q", string(format), gifClip, mp4Clip)
 	}
@@ -310,9 +312,9 @@ type clipEncoder interface {
 }
 
 // newServedEncoder is the encoder a served clip of the format is written by.
-//   - an MP4 is written by the FFmpeg media.FFmpeg resolves, and is refused where none resolves
+//   - an MP4 is written by the FFmpeg media.FFmpeg resolves, and is refused where none resolves, the refusal naming the two ways on: nothing changes a clip's format by itself
 func newServedEncoder(ctx context.Context, format ClipFormat, fps int, pixels PixelRange) (clipEncoder, error) {
-	if err := format.validate(); err != nil {
+	if err := format.Validate(); err != nil {
 		return nil, err
 	}
 	if format.IsZero() {
@@ -320,9 +322,19 @@ func newServedEncoder(ctx context.Context, format ClipFormat, fps int, pixels Pi
 	}
 	ffmpeg, err := media.FFmpeg()
 	if err != nil {
-		return nil, fmt.Errorf("latent video: an MP4 clip is written through FFmpeg: %w", err)
+		return nil, fmt.Errorf("latent video: an MP4 clip is written through FFmpeg, and none resolves: set OVERGO_FFMPEG to an FFmpeg executable, or ask for \"format\": \"gif\": %w", err)
 	}
 	return NewMP4Encoder(ctx, ffmpeg, fps, pixels)
+}
+
+// WriteClip writes the frames a generation hands it as a clip of the format, through the encoder a served clip of that
+// format is written by, so a generator outside this package (the oscillator's video) writes its clips as Wan's are.
+func WriteClip(ctx context.Context, format ClipFormat, fps int, pixels PixelRange, generate func(VideoFrameSink) error) (EncodedVideo, error) {
+	encoder, err := newServedEncoder(ctx, format, fps, pixels)
+	if err != nil {
+		return EncodedVideo{}, err
+	}
+	return writeClip(ctx, encoder, generate)
 }
 
 // writeClip runs a generation that hands its frames to the encoder and
@@ -601,7 +613,7 @@ func ValidateReferenceEditRequest(request ReferenceEditRequest) error {
 	if !request.Format.IsZero() {
 		return fmt.Errorf("latent video: a resolved LiveEdit request names format %q beside its condition, which is where it carries one", request.Format)
 	}
-	if err := c.Format.validate(); err != nil {
+	if err := c.Format.Validate(); err != nil {
 		return err
 	}
 	if _, ok := checked.First(c.TextContext); !ok {

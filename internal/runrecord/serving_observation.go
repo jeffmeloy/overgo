@@ -92,6 +92,9 @@ type ServingObservation struct {
 	// Preset is what a generated picture or clip ran: its size, steps, guidance, sampler and shift. A record from before
 	// this field, and an attempt that generates no picture or clip, holds none.
 	Preset media.Preset `json:"preset,omitzero"`
+	// Encoding is the program that wrote a clip's bytes, the FFmpeg executable's identity and its arguments. A record
+	// from before this field, a GIF overgo writes itself, and an answer read back from the store hold none.
+	Encoding media.Encoding `json:"encoding,omitzero"`
 	// Stages are where a measured request's wall went: each part its path names (processmeasure.Stage), and what none
 	// names as one more, so they sum to it. A record from before this field, and an attempt no ledger timed, holds none.
 	Stages []processmeasure.Part `json:"stages,omitempty"`

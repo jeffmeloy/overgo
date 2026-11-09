@@ -46,6 +46,8 @@ func BindGenerationCatalog[
 	},
 	Control interface {
 		Declared() (name, kind string, required bool, choices []string)
+		// Defaulted reports the value a request that leaves the field out is given, empty where none is declared.
+		Defaulted() string
 		// Slot reports an artifact control's label and media kind (empty for a typed field).
 		Slot() (label, media string)
 		// Bounded reports a numeric control's declared default, step and rate; declared is false without them.
@@ -72,7 +74,7 @@ func BindGenerationCatalog[
 			for _, control := range declared {
 				name, kind, required, choices := control.Declared()
 				label, media := control.Slot()
-				wire := workflowControl{Name: name, Type: workflowControlType(kind), Required: required, Advanced: control.Secondary(), Choices: choices, Label: label, Media: media, Help: control.Guidance()}
+				wire := workflowControl{Name: name, Type: workflowControlType(kind), Required: required, Advanced: control.Secondary(), Choices: choices, Default: control.Defaulted(), Label: label, Media: media, Help: control.Guidance()}
 				if defaultValue, step, rate, declared := control.Bounded(); declared {
 					wire.Bounds = &workflowControlBounds{Default: defaultValue, Step: step, Rate: rate}
 				}
@@ -405,7 +407,7 @@ func (workspace *storeGenerationWorkspace) observe(ctx context.Context, model, r
 		// The server's process holds other models, so the executor's own peak is the attempt's, and a zero of it is a
 		// measurement only where the session's meter was read: a model with no meter, a failed read and a stored answer
 		// leave the peak absent, which the scorecard must not read as a model that runs on the host.
-		PeakDeviceBytes: measured.PeakDeviceBytes, PeakMeasured: cause == nil && measured.PeakMeasured, Preset: media.PresetOf(measured.Output), Cause: cause,
+		PeakDeviceBytes: measured.PeakDeviceBytes, PeakMeasured: cause == nil && measured.PeakMeasured, Preset: media.PresetOf(measured.Output), Encoding: media.EncodingOf(measured.Output), Cause: cause,
 	})
 }
 

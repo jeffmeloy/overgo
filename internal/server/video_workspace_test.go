@@ -35,8 +35,11 @@ func videoWorkspaceFixture(t *testing.T) (*Handler, *nativeMediaWorkspace, []byt
 		capabilities: []WorkflowCapability{
 			{
 				Task: recipe.TaskVideoGen, Recipe: generateRecipe,
-				Stages:   []recipe.Stage{{Node: recipe.Node{ID: "generate", Module: "test.video"}}},
-				Controls: []workflowControl{{Name: "prompt", Type: workflowControlText, Required: true}},
+				Stages: []recipe.Stage{{Node: recipe.Node{ID: "generate", Module: "test.video"}}},
+				Controls: []workflowControl{
+					{Name: "prompt", Type: workflowControlText, Required: true},
+					{Name: "format", Type: workflowControlText, Choices: []string{"gif", "mp4"}, Default: "mp4"},
+				},
 			},
 		},
 		completion: map[recipe.Task]operation.Completion{
@@ -76,5 +79,47 @@ func TestVideoGenerationWorkspace(t *testing.T) {
 	}
 	if len(workspace.executed) != 1 || workspace.executed[0] != recipe.TaskVideoGen {
 		t.Fatalf("executed=%v", workspace.executed)
+	}
+}
+
+// TestAVideoRequestIsGivenItsFormatsDefault holds the intake to the default a
+// control declares: a clip asked for in no format, or in a null one, runs with
+// the control's "mp4" in its request, so the request recorded names what ran,
+// and one that names "gif" keeps it. A default outside its control's choices,
+// or on a control that is no text, is refused with the capability.
+func TestAVideoRequestIsGivenItsFormatsDefault(t *testing.T) {
+	t.Parallel()
+	handler, workspace, _ := videoWorkspaceFixture(t)
+	recipeID := workspace.capabilities[0].Recipe.String()
+	for body, want := range map[string]string{
+		`{"model":"` + recipeID + `","prompt":"a fox"}`:                 "mp4",
+		`{"model":"` + recipeID + `","prompt":"a fox","format":null}`:   "mp4",
+		`{"model":"` + recipeID + `","prompt":"a fox","format":"gif"}`:  "gif",
+		`{"model":"` + recipeID + `","prompt":"an owl","format":"mp4"}`: "mp4",
+	} {
+		response := serveTestRequest(handler, http.MethodPost, "/v1/videos/generations", body)
+		if response.Code != http.StatusOK {
+			t.Fatalf("%s: status=%d body=%s", body, response.Code, response.Body.String())
+		}
+		workspace.mu.Lock()
+		input := workspace.inputs[len(workspace.inputs)-1]
+		workspace.mu.Unlock()
+		var ran struct {
+			Format string `json:"format"`
+		}
+		testcheck.NoError(t, json.Unmarshal(input, &ran))
+		if ran.Format != want {
+			t.Fatalf("%s ran with %s, want the format %q", body, input, want)
+		}
+	}
+	for _, control := range []workflowControl{
+		{Name: "format", Type: workflowControlText, Choices: []string{"gif", "mp4"}, Default: "webm"},
+		{Name: "steps", Type: workflowControlInteger, Default: "4"},
+	} {
+		capability := workspace.capabilities[0]
+		capability.Controls = []workflowControl{control}
+		if err := validateWorkflowCapabilities([]WorkflowCapability{capability}); err == nil {
+			t.Fatalf("a control %+v was admitted", control)
+		}
 	}
 }

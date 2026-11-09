@@ -58,8 +58,37 @@ func writeTestClip(t *testing.T, format ClipFormat, fps int, clip [][]float32, h
 	return video
 }
 
+// readBackRatio is the peak signal-to-noise ratio, in dB, of a written clip's frames read back against the frames it
+// was written from, unit-range planar RGB: the higher, the nearer, as a lower mean squared error. A GIF is read by the
+// GIF decoder and an MP4 through ffmpeg; a clip that comes back at another count of frames or size fails the test.
+func readBackRatio(t *testing.T, video EncodedVideo, ffmpeg string, clip [][]float32) float64 {
+	t.Helper()
+	height, width := video.Height, video.Width
+	var decoded []image.Image
+	if video.MediaType == media.GIFMediaType {
+		decoded = testcheck.Must(media.DecodeGIF(bytes.NewReader(video.Data), 2*len(clip)))(t)
+	} else {
+		decoded = testcheck.Must(media.DecodeEncodedVideo(t.Context(), video.Data, ffmpeg, float64(video.FPS), 2*len(clip)))(t)
+	}
+	if len(decoded) != len(clip) || decoded[0].Bounds().Dx() != width || decoded[0].Bounds().Dy() != height {
+		t.Fatalf("the %s comes back as %d frames of %v, written as %d of %dx%d", video.MediaType, len(decoded), decoded[0].Bounds(), len(clip), width, height)
+	}
+	var squared float64
+	for frame, picture := range decoded {
+		bounds := picture.Bounds()
+		for at := range height * width {
+			red, green, blue, _ := picture.At(bounds.Min.X+at%width, bounds.Min.Y+at/width).RGBA()
+			for channel, value := range []uint32{red, green, blue} {
+				apart := float64(value>>8) - float64(encodeVideoByte(clip[frame][channel*height*width+at], UnitPixels))
+				squared += apart * apart
+			}
+		}
+	}
+	return 20 * math.Log10(math.MaxUint8/math.Sqrt(squared/float64(len(decoded)*media.RGBChannels*height*width)))
+}
+
 // TestMP4ClipContent holds the MP4 a served clip can be written as beside the
-// GIF it is written as by default.
+// GIF a recorded request that names no format is written as.
 //
 // A request, an edit condition's record and a session key that name GIF are
 // the bytes of ones that name no format, so no answer the store holds for a
@@ -117,28 +146,7 @@ func TestMP4ClipContent(t *testing.T) {
 	if gifVideo.MediaType != media.GIFMediaType || mp4Video.MediaType != media.MP4MediaType {
 		t.Fatalf("clips written as %q and %q", gifVideo.MediaType, mp4Video.MediaType)
 	}
-	gifFrames := testcheck.Must(media.DecodeGIF(bytes.NewReader(gifVideo.Data), 2*frames))(t)
-	mp4Frames := testcheck.Must(media.DecodeEncodedVideo(t.Context(), mp4Video.Data, ffmpeg, fps, 2*frames))(t)
-	ratio := func(decoded []image.Image) float64 {
-		var squared float64
-		for frame, picture := range decoded {
-			bounds := picture.Bounds()
-			for at := range height * width {
-				red, green, blue, _ := picture.At(bounds.Min.X+at%width, bounds.Min.Y+at/width).RGBA()
-				for channel, value := range []uint32{red, green, blue} {
-					apart := float64(value>>8) - float64(encodeVideoByte(clip[frame][channel*height*width+at], UnitPixels))
-					squared += apart * apart
-				}
-			}
-		}
-		return 20 * math.Log10(math.MaxUint8/math.Sqrt(squared/float64(len(decoded)*media.RGBChannels*height*width)))
-	}
-	for name, decoded := range map[string][]image.Image{"GIF": gifFrames, "MP4": mp4Frames} {
-		if len(decoded) != frames || decoded[0].Bounds().Dx() != width || decoded[0].Bounds().Dy() != height {
-			t.Fatalf("the %s comes back as %d frames of %v, written as %d of %dx%d", name, len(decoded), decoded[0].Bounds(), frames, width, height)
-		}
-	}
-	gifRatio, mp4Ratio := ratio(gifFrames), ratio(mp4Frames)
+	gifRatio, mp4Ratio := readBackRatio(t, gifVideo, ffmpeg, clip), readBackRatio(t, mp4Video, ffmpeg, clip)
 	t.Logf("GIF %d bytes at %.2f dB, MP4 %d bytes at %.2f dB", len(gifVideo.Data), gifRatio, len(mp4Video.Data), mp4Ratio)
 	if mp4Ratio <= gifRatio || len(mp4Video.Data) >= len(gifVideo.Data) {
 		t.Fatalf("the MP4 is %d bytes at %.2f dB and the GIF %d bytes at %.2f dB; the MP4 is to be nearer the frames in fewer bytes",

@@ -6,10 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"strconv"
 	"strings"
 
+	"overgo/internal/artifact"
 	"overgo/internal/checked"
 	"overgo/internal/media"
 	"overgo/internal/processcontrol"
@@ -25,6 +25,7 @@ const chromaSubsampling = 2
 // at the first frame.
 type mp4Encoder struct {
 	ffmpeg                              string
+	encoding                            media.Encoding
 	supervised                          *processcontrol.Supervised
 	wait                                context.Context
 	input                               io.WriteCloser
@@ -46,10 +47,12 @@ func NewMP4Encoder(ctx context.Context, ffmpeg string, fps int, pixels PixelRang
 	if !checked.Nonzero(ffmpeg) || !checked.PositiveInts(fps) || !pixels.valid() {
 		return nil, errors.New("latent video: incomplete MP4 encoder config")
 	}
-	if _, err := os.Stat(ffmpeg); err != nil {
+	// The executable is named by its bytes, since a path names whatever is installed there later.
+	tool, err := artifact.IdentifyFile(artifact.KindFile, ffmpeg)
+	if err != nil {
 		return nil, fmt.Errorf("latent video: FFmpeg: %w", err)
 	}
-	return &mp4Encoder{ffmpeg: ffmpeg, fps: fps, pixels: pixels, wait: ctx}, nil
+	return &mp4Encoder{ffmpeg: ffmpeg, encoding: media.Encoding{Tool: tool}, fps: fps, pixels: pixels, wait: ctx}, nil
 }
 
 // start starts FFmpeg for frames of height by width.
@@ -61,16 +64,23 @@ func (s *mp4Encoder) start(height, width int) error {
 	if height%chromaSubsampling != 0 || width%chromaSubsampling != 0 {
 		return fmt.Errorf("latent video: an MP4 frame is %dx%d, and its sides must be multiples of %d", width, height, chromaSubsampling)
 	}
+	// x264's slow preset at a constant rate factor of 14, one thread: on two VidGen clips cut to 81 frames at 832 x 480
+	// it read back at 40.1 and 40.4 dB in 2.6 and 2.4 MB, where ultrafast at 18 read 38.4 and 38.6 in 3.1 and 2.7 MB
+	// (ultrafast turns off the deblocking filter and adaptive quantization), against a ceiling of 42.4 and 43.8 dB that
+	// 4:2:0 itself sets. One encoder thread, so the same frames are the same bytes on any machine: -threads binds the input
+	// or output it precedes, so it follows the input and sits with the encoder's own options; before -i it set the
+	// rawvideo reader's threads and x264 ran 15 frame threads and 2 lookahead threads (x264's own record in the clip).
+	s.encoding.Args = []string{
+		"-nostdin", "-hide_banner", "-loglevel", "error",
+		"-f", "rawvideo", "-pix_fmt", "rgb24", "-s", fmt.Sprintf("%dx%d", width, height),
+		"-r", strconv.Itoa(s.fps), "-i", "pipe:0", "-an", "-c:v", "libx264", "-threads", "1",
+		"-preset", "slow", "-crf", "14", "-pix_fmt", "yuv420p",
+		"-movflags", "frag_keyframe+empty_moov", "-f", "mp4", "pipe:1",
+	}
 	frameInput, frameSource := io.Pipe()
 	supervised, err := processcontrol.Start(s.wait, processcontrol.Command{
-		Path: s.ffmpeg,
-		Args: []string{
-			"-nostdin", "-hide_banner", "-loglevel", "error", "-threads", "1",
-			"-f", "rawvideo", "-pix_fmt", "rgb24", "-s", fmt.Sprintf("%dx%d", width, height),
-			"-r", strconv.Itoa(s.fps), "-i", "pipe:0", "-an", "-c:v", "libx264",
-			"-preset", "ultrafast", "-crf", "18", "-pix_fmt", "yuv420p",
-			"-movflags", "frag_keyframe+empty_moov", "-f", "mp4", "pipe:1",
-		},
+		Path:   s.ffmpeg,
+		Args:   s.encoding.Args,
 		Stdin:  frameInput,
 		Stdout: &s.output,
 		Stderr: &s.errors,
@@ -151,7 +161,7 @@ func (s *mp4Encoder) Finish() (EncodedVideo, error) {
 	}
 	return EncodedVideo{
 		Data: s.output.Bytes(), MediaType: media.MP4MediaType, Frames: s.frames, Channels: media.RGBChannels,
-		Height: s.height, Width: s.width, FPS: s.fps, ChangedPixels: s.changed,
+		Height: s.height, Width: s.width, FPS: s.fps, ChangedPixels: s.changed, Encoding: s.encoding,
 	}, nil
 }
 

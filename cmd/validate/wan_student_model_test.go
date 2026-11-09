@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"maps"
 	"slices"
 	"strings"
@@ -72,11 +73,13 @@ const generatedVideoSource = "vidgen-1m/generated-video-caption-matching"
 // verdictTail is the one-sided tail at which the paired comparison of the student with its base states a difference.
 const verdictTail = 0.05
 
-// drawnAt is the size and frames a clip was drawn at, as the request that drew it records them.
+// drawnAt is the size, frames and format a clip was drawn at, as the request that drew it records them: a request that
+// names no format drew a GIF.
 type drawnAt struct {
-	Frames int `json:"frames"`
-	Width  int `json:"width"`
-	Height int `json:"height"`
+	Frames int    `json:"frames"`
+	Width  int    `json:"width"`
+	Height int    `json:"height"`
+	Format string `json:"format"`
 }
 
 // judgedSettings are the sizes and frames of the clips a quality cell's judged run asked about: the run's report names
@@ -122,25 +125,47 @@ func judgedSettings(t *testing.T, ctx context.Context, store *overgodb.Store, so
 // TestTheWanStudentIsJudgedBesideItsBase holds the comparison of the student with its 50-step base to like with like:
 // on 2026-11-08 the student's 0.898 was read beside a base judged at 17 frames, 416 x 240 and 20 steps, and the check
 // passed whatever the result. Both quality cells rest on the same cases of the harder generated-video suite, every clip
-// either judged drawn at the student's settings, 81 frames at 832 x 480, and the clips are compared one by one, a clip
-// whose questions the student answers more of than the base's a win, fewer a loss; the exact paired test states the
-// verdict at verdictTail.
+// either judged drawn at the student's settings, 81 frames at 832 x 480, and in one format on both sides, since a GIF
+// differs from an MP4 by its palette as well as its model; the clips are compared one by one, a clip whose questions
+// the student answers more of than the base's a win, fewer a loss, and the exact paired test states the verdict at
+// verdictTail.
 func TestTheWanStudentIsJudgedBesideItsBase(t *testing.T) {
 	t.Parallel()
 	ctx, store, studentRow, baseRow := studentRows(t)
-	studentQuality, baseQuality := studentRow.Cells[metric.Quality], baseRow.Cells[metric.Quality]
-	want := []drawnAt{{Frames: 81, Width: 832, Height: 480}}
-	for _, named := range []struct {
-		name string
-		cell scorecard.Cell
-	}{{"student", studentQuality}, {"base", baseQuality}} {
-		name, cell := named.name, named.cell
-		if !cell.Measured() || !strings.HasPrefix(cell.Measure, generatedVideoSource) {
-			t.Fatalf("the %s's quality cell reads %+v, want one of %s", name, cell, generatedVideoSource)
+	want := drawnAt{Frames: 81, Width: 832, Height: 480}
+	// atSettings is a row's held-out quality on the generated-video suite judged on clips all drawn at want's size and
+	// frames, whichever of its readings heads the row (the base's 128-clip reading at 17 frames, 416 x 240 and 20 steps
+	// rests on more cases), and the formats they were drawn in.
+	atSettings := func(name string, row scorecard.Row) (scorecard.Cell, []string) {
+		var seen []string
+		for _, cell := range row.Measured(metric.Quality) {
+			if !cell.Measured() || !strings.HasPrefix(cell.Measure, generatedVideoSource) {
+				continue
+			}
+			drawn := judgedSettings(t, ctx, store, cell.Source)
+			var formats []string
+			for _, clip := range drawn {
+				if !slices.Contains(formats, clip.Format) {
+					formats = append(formats, clip.Format)
+				}
+				clip.Format = ""
+				if clip != want {
+					formats = nil
+					break
+				}
+			}
+			if len(formats) > 0 {
+				return cell, formats
+			}
+			seen = append(seen, fmt.Sprintf("%s at %+v", cell.Measure, drawn))
 		}
-		if drawn := judgedSettings(t, ctx, store, cell.Source); !slices.Equal(drawn, want) {
-			t.Fatalf("the %s's quality was judged on clips drawn at %+v, want every clip at %+v", name, drawn, want[0])
-		}
+		t.Fatalf("the %s holds no quality judged on %s clips drawn at %+v; its readings: %v", name, generatedVideoSource, want, seen)
+		return scorecard.Cell{}, nil
+	}
+	studentQuality, studentFormats := atSettings("student", studentRow)
+	baseQuality, baseFormats := atSettings("base", baseRow)
+	if len(studentFormats) != 1 || !slices.Equal(studentFormats, baseFormats) {
+		t.Fatalf("the student's clips were drawn as %q and the base's as %q (\"\" a GIF): a comparison holds one format", studentFormats, baseFormats)
 	}
 	studentCases, read := evaluation.CaseOutcomes(ctx, store, studentQuality.Source)
 	baseCases, baseRead := evaluation.CaseOutcomes(ctx, store, baseQuality.Source)
@@ -178,6 +203,6 @@ func TestTheWanStudentIsJudgedBesideItsBase(t *testing.T) {
 	case tensorstats.ExactPairedBinary(losses, wins, ties).Tail <= verdictTail:
 		verdict = "the student is worse"
 	}
-	t.Logf("the student %.3f against the base's %.3f on %d cases, both drawn at %+v: by clip %d wins, %d losses, %d ties; %s",
-		studentQuality.Value, baseQuality.Value, len(studentCases), want[0], wins, losses, ties, verdict)
+	t.Logf("the student %.3f against the base's %.3f on %d cases, both drawn at %d frames, %d x %d, as %q: by clip %d wins, %d losses, %d ties; %s",
+		studentQuality.Value, baseQuality.Value, len(studentCases), want.Frames, want.Width, want.Height, studentFormats[0], wins, losses, ties, verdict)
 }

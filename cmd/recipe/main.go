@@ -500,7 +500,7 @@ func attemptCapability(
 	recorded, recordErr := servingattempt.RecordWholeOutput(context.WithoutCancel(ctx), store, servingattempt.WholeOutput{
 		Model: modelID, Recipe: selected.Activation.Definition.ID, Run: measured.Run, Task: task, Started: started, Wall: end - begin,
 		Load: measured.Load, Decode: measured.Decode, OutputTokens: measured.OutputTokens,
-		PeakDeviceBytes: peak, PeakMeasured: peakMeasured, UserSize: userSize, Preset: media.PresetOf(measured.Output), Stages: stagedParts(stages, end-begin), Cause: err,
+		PeakDeviceBytes: peak, PeakMeasured: peakMeasured, UserSize: userSize, Preset: media.PresetOf(measured.Output), Encoding: media.EncodingOf(measured.Output), Stages: stagedParts(stages, end-begin), Cause: err,
 	})
 	return output, recorded, errors.Join(err, recordErr)
 }

@@ -56,3 +56,23 @@ func TestControlsOfferExportedVoices(t *testing.T) {
 		t.Fatalf("a request without exported fields was refused: %q", refusal)
 	}
 }
+
+// TestAVideoFormatControlDeclaresMP4 holds the page's format control of a video request to the default the intake fills:
+// the oscillator's video, which builds without a device, offers GIF and MP4 and declares MP4 for a request that names
+// none, from the format's own type, so every video request with a format declares the same.
+func TestAVideoFormatControlDeclaresMP4(t *testing.T) {
+	t.Parallel()
+	controls, refusal := Controls(modelrecipe.ModuleOscillatorVideoPrepare, "")
+	if refusal != "" {
+		t.Fatal(refusal)
+	}
+	for _, control := range controls {
+		if control.Name == "format" {
+			if control.Type != ControlText || control.Required || control.Defaulted() != "mp4" || len(control.Choices) != 2 {
+				t.Fatalf("the format control is %+v", control)
+			}
+			return
+		}
+	}
+	t.Fatalf("the oscillator's video offers no format: %+v", controls)
+}

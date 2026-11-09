@@ -72,4 +72,9 @@ func TestTheStartupTaskRunsTheDriverAtBoot(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root, ".overgo-runtime", runningRecordFile)); err == nil {
 		t.Fatal("the running record outlived the start that read it")
 	}
+	// The attempt it was is closed as interrupted, so a landing does not charge it the 17 hours the machine was down.
+	if recorded := string(testcheck.Must(os.ReadFile(filepath.Join(root, ".overgo-runtime", "worker_attempts.json")))(t)); !strings.Contains(recorded, `"interrupted": true`) ||
+		!strings.Contains(recorded, "fault-finding/queued-load") {
+		t.Fatalf("the start after an unclean end recorded the attempts %s; want the step's attempt closed as interrupted", recorded)
+	}
 }

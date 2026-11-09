@@ -498,7 +498,7 @@ func (w *execWorld) RunWorker(step loop.Step, prompt, feedback string) (string, 
 		}
 	}()
 	// The record a worker leaves while it works says, at the next start, what a run that never exited was doing.
-	if err := keepRunning(loopWorktree, step.Key(), time.Now()); err != nil {
+	if err := keepRunning(loopWorktree, step.Key(), attempt.Started); err != nil {
 		cancel()
 		<-watchDone
 		return "", err

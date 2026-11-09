@@ -12,7 +12,7 @@ import (
 // TestALandingRecordsItsFullCost reads the cost each landing says back from its trailers and prints, for each worker,
 // the steps its landings landed against what they cost, as the owner's review (2026-11-09) asked: benefit against the
 // full cost, per worker. Of four landings, two by the local worker land three steps in 4 attempts, 900 s of their wall
-// and 120 s of the gate, one is an interactive session's, and one is from before landings said their cost, which is
+// and 120 s of the gate, one names no recorded attempt, and one is from before landings said their cost, which is
 // counted apart. A worker is named by its configured name, a later one by the local model it serves, else by its
 // command.
 func TestALandingRecordsItsFullCost(t *testing.T) {
@@ -44,7 +44,7 @@ func TestALandingRecordsItsFullCost(t *testing.T) {
 	report := out.String()
 	for _, want := range []string{
 		"local qwen: landed 3 steps in 2 landings, 4 worker attempts in 15m0s of their wall, the gate 2m0s\n",
-		"an interactive session: landed 1 steps in 1 landings, 0 worker attempts in 0s of their wall, the gate 45s\n",
+		"no recorded attempt: landed 1 steps in 1 landings, 0 worker attempts in 0s of their wall, the gate 45s\n",
 		"1 landings from before landings said their cost are not counted\n",
 	} {
 		if !strings.Contains(report, want) {

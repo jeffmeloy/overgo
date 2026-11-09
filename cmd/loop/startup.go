@@ -16,6 +16,7 @@ import (
 	"unicode/utf16"
 
 	"overgo/internal/jsonfile"
+	"overgo/internal/landing"
 	"overgo/internal/processlock"
 )
 
@@ -133,13 +134,14 @@ const (
 	uncleanLogFile    = "driver_unclean.log"
 )
 
-// keepRunning records that a worker works step from now; it is removed by dropRunning when the worker exits.
-func keepRunning(root, step string, now time.Time) error {
+// keepRunning records that a worker works step from started, the attempt's own start, so a run that never exits is
+// closed at the next start as that attempt; it is removed by dropRunning when the worker exits.
+func keepRunning(root, step string, started time.Time) error {
 	path, err := statePath(root, runningRecordFile)
 	if err != nil {
 		return err
 	}
-	return jsonfile.Write(path, runningRecord{Step: step, Started: now}, startupFileMode)
+	return jsonfile.Write(path, runningRecord{Step: step, Started: started}, startupFileMode)
 }
 
 // dropRunning removes the running record once its worker has exited.
@@ -179,6 +181,12 @@ func noteUncleanEnd(root string, now time.Time, said io.Writer) error {
 		return err
 	}
 	if _, err := io.WriteString(said, "loop: "+line); err != nil {
+		return err
+	}
+	// The attempt it was is closed as interrupted, its wall unknown, so a landing of the step counts it and does not
+	// charge it the time the machine was down (SQA-356).
+	interrupted := landing.Attempt{Step: left.Step, Started: left.Started, Interrupted: true}
+	if err := landing.RecordAttempt(root, interrupted); err != nil {
 		return err
 	}
 	return dropRunning(root)

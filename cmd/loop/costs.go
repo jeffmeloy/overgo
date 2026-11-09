@@ -13,9 +13,9 @@ import (
 	"overgo/internal/landing"
 )
 
-// interactiveWorker names the landings whose cost names no worker: an interactive session's work, which the driver
-// recorded no attempt of.
-const interactiveWorker = "an interactive session"
+// unrecordedWorker names the landings whose cost names no worker: no attempt the driver recorded, an interactive
+// session's work or a driver's whose record was not written, which the record cannot tell apart (SQA-356).
+const unrecordedWorker = "no recorded attempt"
 
 // workerCost is what one worker's landings landed and cost: the steps, the landings, the attempts at them, the
 // workers' wall and the gate's.
@@ -58,7 +58,7 @@ func landingCosts(ctx context.Context, root, since string) (costs []workerCost, 
 			unsaid++
 			continue
 		}
-		worker := interactiveWorker
+		worker := unrecordedWorker
 		if named := strings.Split(strings.TrimSpace(workers), ","); named[0] != "" {
 			// The last worker named ran the attempt that landed.
 			worker = strings.TrimSpace(named[len(named)-1])

@@ -17,9 +17,9 @@ import (
 // three attempts at row/do in the process state, the first by a local worker that ran 300 s and failed, the second by
 // the Claude worker still running, the one that lands, and one at another step. The landing's message says 2 worker
 // attempts by both workers, 1 before the one that landed, and its trailers carry the attempts, the workers' wall (the
-// running attempt counted to now) and the gate's, and each worker. A landing the driver recorded no attempt of says
-// it was an interactive session's and carries 0 attempts. The record is written as the driver writes it, its fields
-// spelled out, so the test builds with the landing before it.
+// running attempt counted to now) and the gate's, and each worker. A landing the driver recorded no attempt of says it
+// recorded none, not that the work was an interactive session's, and carries 0 attempts. The record is written as the
+// driver writes it, its fields spelled out, so the test builds with the landing before it.
 func TestALandingRecordsItsFullCost(t *testing.T) {
 	t.Parallel()
 	landed := func(attempts []map[string]any) string {
@@ -56,7 +56,7 @@ func TestALandingRecordsItsFullCost(t *testing.T) {
 		!strings.Contains(message, "\nWorker: local qwen\n") || !strings.Contains(message, "\nWorker: claude-master-lead\n") || strings.Contains(message, "elsewhere") {
 		t.Errorf("a landing the driver recorded attempts at says:\n%s", message)
 	}
-	if interactive := landed(nil); !strings.Contains(interactive, "Cost: no worker attempt recorded, the work an interactive session's") || trailer(interactive, "Worker-Attempts") != 0 {
+	if interactive := landed(nil); !strings.Contains(interactive, "Cost: no worker attempt recorded;") || trailer(interactive, "Worker-Attempts") != 0 {
 		t.Errorf("a landing the driver recorded no attempt at says:\n%s", interactive)
 	}
 }

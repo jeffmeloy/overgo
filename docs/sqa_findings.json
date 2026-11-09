@@ -39,7 +39,7 @@
         ],
         "adoption_scope": "Supersedes the absent repository-document reference at the owner's request; current external SHA is verified. Does not alter the executable plan."
       },
-    "assessment": "7a1ae8c6f extends the existing sampling.Guider/Walk and Wan executor rather than adding another sampler or workflow.8e8d62236 suppresses repeated reads until an edit and ends three repeat-only replies through the existing worker attempt.07c3f20d9 uses media.DecodeAudio for WAV fixtures and existing recipe coverage/activation owners; the complete Gemma suite replaces the unsuitable Qwen-only prerequisite. 341 now includes accepted-but-ignored student Guidance and late invalid prompt Guidance; admit these through existing form/profile owners. Wan presets are already offered while held-out guidance acceptance remains open. The Gemma known-answer subset is27/28 publisher-correct cases, not broad accuracy evidence or an activated judge. Native projector still uses GGUF view contracts; no further format boundary migration, binary or package deletion landed. Concurrent4cb adds a private NVIDIA binding through existing CUDA memory/stream ownership; it has no product consumer yet.",
+    "assessment": "The clips/NVENC landings reuse latentvideo.WriteClip, existing CUDA workers and the FFmpeg process owner across Wan, student, LiveEdit and oscillator MP4; finish and encoder identity are recorded. Attempt recovery now shares a start timestamp and corrects normal interrupted attribution. Concurrent01ce chooses clean-high from24 source clips at2x/4x. No format-independent model boundary, executable or directory removal landed in this slice. 359 exposes the remaining oscillator GIF branch ignoring finish; its exact legacy palette contract prevents blind deletion.356's two active stores still leave crash gaps and hide unknown cost in aggregation. Runtime DLL admission is delayed until the first generated frame. Source-quality calibration is not generated-video acceptance. No safe overall net reduction or completed architectural refactor established.",
     "ast_surface_review": {
         "revision": "9bd406acafb89c44a439722419f1f7e85e71f691",
         "architectural_target": "Fewer independent product entry points and dependency owners; retain process isolation and existing compiled/runtime/development authority.",
@@ -55,53 +55,62 @@
         "cost": "Concrete parsed duplicate migrations total22production and150test AST removed; unimplemented estimates only. Three directories can disappear through349/351; command movement and all retained semantic constants must be charged. No overall refactor completion claimed."
       },
     "automation_follow_up": {
-        "architectural_progress": "7a1ae8c6f extends the existing sampling.Guider/Walk and Wan executor rather than adding another sampler or workflow.8e8d62236 suppresses repeated reads until an edit and ends three repeat-only replies through the existing worker attempt.07c3f20d9 uses media.DecodeAudio for WAV fixtures and existing recipe coverage/activation owners; the complete Gemma suite replaces the unsuitable Qwen-only prerequisite. Concurrent4cb reuses driver.ReadCString rather than copying the C-string boundary.",
-        "conflicts": "341 now includes accepted-but-ignored student Guidance and late invalid prompt Guidance; admit these through existing form/profile owners. Wan presets are already offered while held-out guidance acceptance remains open. The Gemma known-answer subset is27/28 publisher-correct cases, not broad accuracy evidence or an activated judge. Native projector still uses GGUF view contracts; no further format boundary migration, binary or package deletion landed.",
+        "architectural_progress": "The clips/NVENC landings reuse latentvideo.WriteClip, existing CUDA workers and the FFmpeg process owner across Wan, student, LiveEdit and oscillator MP4; finish and encoder identity are recorded. Attempt recovery now shares a start timestamp and corrects normal interrupted attribution. Concurrent01ce chooses clean-high from24 source clips at2x/4x. No format-independent model boundary, executable or directory removal landed in this slice.",
+        "conflicts": "359 exposes the remaining oscillator GIF branch ignoring finish; its exact legacy palette contract prevents blind deletion.356's two active stores still leave crash gaps and hide unknown cost in aggregation. Runtime DLL admission is delayed until the first generated frame. Source-quality calibration is not generated-video acceptance. No safe overall net reduction or completed architectural refactor established.",
         "plan_recommendations": [
           {
-            "rows": "guidance-ops/guider (landed); cfg-zero-interval",
+            "rows": "rtx-vsr/clips,nvenc,measured (landed); supplied,judged,pictures (open)",
             "findings": [
-              "SQA-341"
+              "SQA-359",
+              "SQA-360"
             ],
-            "recommendation": "Repair shared request admission and unsupported student semantics first. Preserve the existing Guider/Walk; do not expand recipes into per-step nodes. Preset visibility is already enabled, whereas the plan promises admission after held-out quality comparison. Keep these presets out of offered production choices until existing per-model acceptance establishes them; host formula/pass-count tests and a Bonsai inference scorecard do not establish Wan quality."
+            "recommendation": "Repair oscillator finished-GIF dispatch through WriteClip; retain exact no-finish GIF behavior. Remove the NVENC timing-only pass without losing two-write repeatability or the numerical reference. Supplied still owns color matrix/primaries/transfer/range and audio preservation; the external upscale_video.py handoff has not been displaced."
           },
           {
-            "rows": "second-judge/vision-judge,independent; judge-calibration/user-size",
+            "rows": "rtx-vsr/supplied,judged,pictures; current finish construction",
+            "findings": [],
+            "recommendation": "In finish_windows.go, newFinishingEncoder only validates and creates a worker; build first calls nvvfx.Open from add after the generator has produced a frame, and runtimeIdentity opens/hashes DLLs after next.Finish. Move known DLL/configuration/identity admission to the existing encoder construction owner before its generate callback, reuse that admitted runtime, and retain lazy shape-dependent allocation/Close. A missing OVERGO_NVVFX/DLL must fail before generation, not after denoising. No new registry, preflight command or recipe node; exact before/after cost is unmeasured."
+          },
+          {
+            "rows": "rtx-vsr/measured (landed),judged; video-finishing/flashvsr",
             "findings": [
               "SQA-342"
             ],
-            "recommendation": "The new suite covers declared modes; retain27 accepted/28 attempted and the omitted goliath case as source evidence. Treat it as implementation equivalence on publisher-correct examples, not a judge-accuracy estimate. Keep registration, model config and exact text/projection verification with current onboarding/recipe owners; owner activation blocks the row. Encode vision-judge->independent through existing depends_on rather than relying only on prose after the decision is answered. User-size acceptance remains open."
+            "recommendation": "Credit clean-high's source reconstruction result, not a generated-video quality guarantee. The measurement selects the first24 decodable720p clips, silently replaces failed decodes, scores16frames each, and selects the maximum mean on that same set; retain case identity/exclusions and treat it as calibration.2x VMAF is near its ceiling, PSNR favors bicubic,3x and generated/fidelity/denoise/deblur remain outside this evidence. Keep existing independent judged acceptance. FlashVSR's stated baseline is now landed; do not add a dependency on the removed measured step. If its offer depends on generated-video judgment, declare the remaining judged dependency through existing plan ownership."
           },
           {
-            "rows": "loop-proof/demonstrated",
+            "rows": "loop-proof/attempt-lifecycle (landed),demonstrated",
             "findings": [
               "SQA-348",
               "SQA-356",
               "SQA-357",
               "SQA-358"
             ],
-            "recommendation": "Credit the retained one-step/one-attempt105s result only within its scope. The committed note says Claude replay failed Not logged in and the run will not be repeated until owner login; preserve that stop and independent host progress. Reuse current supervisor admission to expose this prerequisite before replay/model setup, without another polling/login framework. Keep successful matched fallback and truthful cost requirements; merge358 request assertions into the existing conversation fixture."
+            "recommendation": "Credit normal restart, worker order and no-record wording; complete356's original durable/unknown-cost obligations before payoff claims. Preserve the Claude-login stop and independent host progress; do not rerun the parked demonstration. Existing105s one-step result is not the three-step matched payoff proof. Merge358's transport checks into the existing conversation fixture."
           },
           {
-            "rows": "rtx-vsr/effect (landed),clips,measured; video-finishing/flashvsr",
-            "findings": [],
-            "recommendation": "4cb lands a private effect binding with one320x180synthetic frame matching NVIDIA at17levels. Retain device/stream/effect cleanup and bounded error-string reuse. Clips still owns the first production caller, runtime DLL/result identity and color/range/audio/encoder integration; do not count the external Python pipeline as removed yet. FlashVSR names rtx-vsr/measured as its baseline but depends only on decode overlap: use existing depends_on for that prerequisite, without another scheduler."
+            "rows": "cfg-zero-interval; second-judge/vision-judge,independent",
+            "findings": [
+              "SQA-341",
+              "SQA-342"
+            ],
+            "recommendation": "Retain prior guidance request-admission/held-out acceptance requirements and owner-blocked judge activation. Neither video finishing nor source reconstruction establishes those claims. Keep current executor/recipe/plan owners; no second orchestration mechanism."
           }
         ],
-        "cost": "Four landings+2664production/+3311test=+5975AST, plus609788Gemma fixture bytes and one internal package. No new executable. RTX-VSR integration/displacement remains open; no overall shrinkage."
+        "cost": "Four implementation landings since4cb: +2442 production/+3605 test = +6047 AST; no CUDA/fixture-category growth, new command or package.360 proposes52 test nodes and one81-frame finishing pass removed; unimplemented, counted once.358's separate126-node migration remains."
       },
     "current_review_order": [
-        "Guidance, committed plan and Downloads target",
-        "New guidance/worker/fixture paths and concrete callers, provisional admission observations",
-        "Selected AST and retained costs/results",
-        "Canonical findings and owner responses; concurrent publication reconciliation"
+        "Repository instructions, pinned plan and architectural target",
+        "Concrete clip/lifecycle callers and retained tests; provisional branch/recovery/unused-work observations",
+        "Selected AST, complete in-memory deletion comparison and retained results",
+        "Existing findings/owner responses; concurrent01ce/default/plan reconciliation"
       ],
     "declined_candidates": [
-        "Retain pure sampling formula, Wan pass-count integration and preset declaration tests as distinct contracts; no AST-shape-only merge.",
-        "Retain repeat-only-stop and post-edit-invalidation fixture; it is not the redundant request-settings fixture in358.",
-        "Retain WAV mode routing and LibriSpeech provenance checks separately: host input contract versus modeltest/corpus identity. Reuse media.DecodeAudio; no new decoder.",
-        "Keep the six fixtures and all declared modes; deleting audio/mixed coverage or the omitted failure's source record would hide requirements.",
-        "Retain the RTX-VSR17-level reference fixture. Process-long DLL ownership is intentional; only test callers exist at this pin, so no speculative runtime registry/lifetime rewrite proposed."
+        "Do not delete the native oscillator GIF loop based on similar encoding AST: fixed/adaptive palette, truncation, ChangedPixels scale and cancellation semantics differ.",
+        "Retain the companion capture helper: its exact numerical test reads the frame; only the NVENC timing-only consumer is redundant.",
+        "Retain two finished NVENC writes: they establish byte-repeatability, not duplicate assertions. Keep platform/modeltest boundaries and fixture identity.",
+        "Do not merge startup recovery, accounting logic and Git-trailer parsing merely because each mentions interruption. Retain their distinct contracts.",
+        "Source reconstruction, generated fidelity and exact NVIDIA parity are distinct evidence. No broad test/measurement deletion justified by this slice."
       ],
     "media_follow_up": {
         "architectural_progress": "Mixed-format refusal now has one host fixture (354 closed). Calibration reuses the existing projection session/campaign and common answering helpers, with isolated records and established Close ownership. Scorecard comparison now reads the existing dataset's media groups instead of treating each question as independent. Stillness extends the existing motion record/display without a new runtime.",
@@ -200,16 +209,16 @@
           "Delete345 duplicate compiler, merge343/344/358 native setup, move322 verifier earlier."
         ]
       },
-    "plan_review_follow_up": "07c3f20d9 landed the complete Gemma suite and moved vision-judge/independent to second-judge under the existing owner activation decision.7a1ae8c6f landed the guidance mechanism/preset visibility; held-out acceptance remains cfg-zero-interval. Current plan adds installed RTX-VSR work and stops repeating the logged-out Claude comparison. Recommendations use existing depends_on and authority, not a second plan. Concurrent4cb lands rtx-vsr/effect; clips and measured remain with their runtime identity/integration obligations.",
-    "rank_basis": "Raise341 fromP3 toP2 for silently ignored request semantics, beside340. No new finding ID;358 remains a measured consolidation proposal.",
+    "plan_review_follow_up": "Clips,NVENC and attempt-lifecycle landed; concurrent01ce lands source measurement and adds judged with its generated-video/denoise/deblur obligations. Supplied/pictures remain. FlashVSR's earlier missing measured dependency is now overtaken by that landing; preserve any remaining actual judged prerequisite through existing plan.356 is partially addressed; new359/360 belong to current owners, not new dispatch authority.",
+    "rank_basis": "359P2 follows341 for silently ignored admitted semantics.356 staysP2, partially addressed.360P3 precedes other measured test reductions; no other priority changes.",
     "refactor_target_progress": {
         "status": "active; completion not established",
         "document_availability": "Downloads target read; unchanged SHA. No repository target added.",
         "retained_reference_sha256": "fe13a4bd47c8c41ea6dbf766c0acf3dc41ab7dab0c6d8bd926863313d4f34395",
-        "progress": "7a1ae8c6f extends the existing sampling.Guider/Walk and Wan executor rather than adding another sampler or workflow.8e8d62236 suppresses repeated reads until an edit and ends three repeat-only replies through the existing worker attempt.07c3f20d9 uses media.DecodeAudio for WAV fixtures and existing recipe coverage/activation owners; the complete Gemma suite replaces the unsuitable Qwen-only prerequisite. Concurrent4cb reuses existing CUDA memory/stream and C-string owner for a private effect binding.",
-        "conflicts": "341 now includes accepted-but-ignored student Guidance and late invalid prompt Guidance; admit these through existing form/profile owners. Wan presets are already offered while held-out guidance acceptance remains open. The Gemma known-answer subset is27/28 publisher-correct cases, not broad accuracy evidence or an activated judge. Native projector still uses GGUF view contracts; no further format boundary migration, binary or package deletion landed.",
-        "next_useful_reductions": "Keep358's existing request fixture migration (-126test AST); repair341 with current validation owners before new orchestration. Preserve349..353 binary/directory proposals at their original evidence revision. No new abstraction justified.",
-        "cost": "Four landings+2664production/+3311test=+5975AST, plus609788Gemma fixture bytes and one internal package. No new executable. RTX-VSR integration/displacement remains open; no overall shrinkage."
+        "progress": "The clips/NVENC landings reuse latentvideo.WriteClip, existing CUDA workers and the FFmpeg process owner across Wan, student, LiveEdit and oscillator MP4; finish and encoder identity are recorded. Attempt recovery now shares a start timestamp and corrects normal interrupted attribution. Concurrent01ce chooses clean-high from24 source clips at2x/4x. No format-independent model boundary, executable or directory removal landed in this slice.",
+        "conflicts": "359 exposes the remaining oscillator GIF branch ignoring finish; its exact legacy palette contract prevents blind deletion.356's two active stores still leave crash gaps and hide unknown cost in aggregation. Runtime DLL admission is delayed until the first generated frame. Source-quality calibration is not generated-video acceptance. No safe overall net reduction or completed architectural refactor established.",
+        "next_useful_reductions": "Delete360's unnecessary timing pass (-52test AST); keep358 (-126) and349..353 binary/directory proposals at their retained revisions. Route finished oscillator GIF through the existing writer while retaining exact legacy behavior. Complete356's durable lifecycle rather than adding a third record. Keep model-format migration target active; no completion claimed.",
+        "cost": "Four implementation landings since4cb: +2442 production/+3605 test = +6047 AST; no CUDA/fixture-category growth, new command or package.360 proposes52 test nodes and one81-frame finishing pass removed; unimplemented, counted once.358's separate126-node migration remains."
       },
     "working_notes_review": {
         "finding": "SQA-334",
@@ -219,10 +228,10 @@
       }
   },
     "committed_plan": {
-    "git_blob": "bfe5a3d7e9fed4c248d21a34c34b231505178f38",
+    "git_blob": "af763d4d16a4c13917545334ec47e2751d00f3ff",
     "path": "docs/plan.json",
-    "revision": "4cb1c8aead7d2190b2cc06591a91b8319ca18310",
-    "sha256": "f1c0fb864ab66d93cb3b1248b4c6973c988cb38d6eea4bad470854877544c8f6",
+    "revision": "01ce863aef2cfa6619a5232918e6a63825056bec",
+    "sha256": "210a7e9a9106aa3fae6110a37e65b8f061fe568e14867efe3615a72b88cb21ae",
     "working_tree_status": "Committed plan at review pin; prior draft assessment retains its own snapshot identity. Current working plan edits excluded."
   },
     "findings": [
@@ -7905,14 +7914,36 @@
     "title": "Check undo-evidence messages on the existing caught and unbuilt fixtures"
   },
     {
-      "id": "SQA-356",
-      "status": "open",
-      "severity": "P2",
-      "category": "attempt-lifecycle-and-cost-attribution",
-      "classification": "source-established-recovery-counterexample; single-retained-owner-migration",
-      "title": "Read worker cost from the actual attempt lifecycle, including interrupted runs",
-      "evidence_commit": "675326b76392a92477bdbfb4b28d9e37672db456",
-      "sources": [
+    "category": "attempt-lifecycle-and-cost-attribution",
+    "classification": "source-established-recovery-counterexample; single-retained-owner-migration",
+    "closure_criteria": [
+        "An interrupted attempt is reported with bounded known effort or explicit unknown/censored duration; downtime is never asserted as active worker wall.",
+        "Start/exit/restart and landing accounting share one lifecycle identity; the displaced active-start storage path is removed while historical/unclean evidence remains.",
+        "A,B,A followed by an A landing is attributed to A; missing/unreadable recording is not silently known interactive/zero.",
+        "Existing fixtures retain live, completed, interrupted and no-record cases; complete production/test/setup/migration costs are stated. No new scheduler or workload."
+      ],
+    "comparison": "Read RunWorker's start->marker and dropRunning->deferred end boundaries beside noteUncleanEnd and landing.cost. Retain the landed native interruption check; extend that fixture for orphan/legacy starts and compare existing cost output's treatment of unknown wall.",
+    "displaced_surface": "Original obligation remains: replace independent driver_running versus worker_attempts active-state interpretations and remove the displaced active serialization/write/delete path. Keep historical attempts and restart notice. The A,B,A attribution and missing-history wording corrections already landed; no additional worker-order mechanism is requested.",
+    "evidence": "Partially addressed by 6da610a60: the running marker now uses the attempt's start identity, startup appends Interrupted, A,B,A moves A last, and absent records are no longer called interactive. Retained undo fails the interruption assertion. Two independent active-start stores remain. RunWorker records start before keepRunning and removes the marker before its deferred end write; a crash in either gap leaves a start without a marker, so noteUncleanEnd cannot close it and landing.cost still charges elapsed-to-now through downtime. Pre-6da records used separate time.Now values for marker and attempt, so exact Step+Started matching cannot reconcile an old interrupted pair; no actual such surviving record was observed. Cost prose discloses unknown interrupted wall, but Worker-Wall-Seconds drops it and landingCosts/printCosts presents the remainder as worker wall without the unknown qualification. These are source-established recovery/readout paths, not executed incidents.",
+    "evidence_commit": "01ce863aef2cfa6619a5232918e6a63825056bec",
+    "expected_benefit": {
+        "baseline": "Current complete selected files: cmd/loop/main3533 + startup917 + costs537 + landing/costs655 =5642 production AST. startup_test601 + cmd/loop/costs_test251 + landing/costs_test397 + interrupted_cost_test353 =1602 test AST. Includes unrelated CLI/startup behavior; none is a removable total.",
+        "complete_cost": "6da adds180 production/398 test AST, no fixture/schema/CUDA growth. Start/end attempt records and separate running marker are still both written. The complete unified replacement, historical-record handling and retained native tests must be counted. No safe net reduction established; correctness may require growth.",
+        "tests": "RETAIN existing interruption, live/completed/A,B,A, no-record wording, startup and Git-trailer contracts. Extend the retained native fixtures for orphan start and pre-change identity, and keep unknown duration visible in the existing CLI fixture; do not add another suite or run an SQA workload.",
+        "limits": "Do not add worker wall and gate wall as independent totals: an active worker's elapsed interval may include its landing gate. Token costs and measured benefit are absent from this report; the commit discloses that steps landed are the displayed output, not a measured economic payoff."
+      },
+    "id": "SQA-356",
+    "impact": "Prevents downtime and missing records being presented as measured worker effort, and prevents resumed work being credited to the wrong worker. Full-cost/benefit conclusions must remain limited until this path is truthful.",
+    "likely_effort": "Small coordinated lifecycle/readout correction across existing driver, startup and landing owners; complete replacement must be counted.",
+    "plan_coverage": "Attempt-lifecycle fixes normal restart attribution and wording; original durable lifecycle/unknown-cost requirements remain open. Demonstrated remains parked for Claude login. No second finding or scheduler for the same root cause.",
+    "plan_references": [
+        "loop-proof/attempt-lifecycle 6da610a60 (landed)",
+        "loop-proof/demonstrated at 01ce863aef2cfa6619a5232918e6a63825056bec",
+        "Downloads extreme_refactor_plan.md: one execution owner, truthful recovery and complete costs"
+      ],
+    "recommended_change": "Finish the original retained-owner migration: use the existing driver start/exit/restart and processcontrol receipt as one durable attempt lifecycle, retaining terminal history and the unclean-start notice. Remove the displaced second active-start write/delete path; do not infer liveness from a start-only record. Preserve old interrupted evidence as unknown when exact identity cannot be recovered rather than charging downtime. Carry known-versus-unknown wall into the existing cost readout, keeping completed wall and actual worker order. Retain best-effort progress, stops, budgets and partial results; accounting failure must not rerun work.",
+    "severity": "P2",
+    "sources": [
         {
           "path": "cmd/loop/main.go",
           "symbol": "execWorld.RunWorker; workerName; RecordAttempt and keepRunning before processcontrol.Run"
@@ -7946,31 +7977,9 @@
           "symbol": "TestTheStartupTaskRunsTheDriverAtBoot: existing unclean-end case"
         }
       ],
-      "evidence": "RunWorker writes a start/end pair to worker_attempts.json and separately writes/removes driver_running.json for the same invocation. A driver/power failure prevents the deferred end record. noteUncleanEnd consumes driver_running.json and logs that interruption, but never reconciles worker_attempts.json. landing.cost treats every start lacking positive Wall as still running until the landing's now. Thus an attempt interrupted before a 17-hour downtime (already an admitted startup-fixture scenario) is charged that downtime when the same step later lands; it remains unclosed on subsequent reads. Attribution also loses the actual last worker: cost collects unique worker names in first-seen order, while landingCosts assigns the landing to the last name. Across an admitted restart, A then B then A can land with trailers A,B and be attributed to B. Start-record write failures are only printed and an empty history is reported as an interactive session with zero attempts, although missing evidence does not prove that. These are concrete source paths, not newly executed incidents.",
-      "recommended_change": "Use the existing driver start/exit/restart owner and processcontrol receipt as the one attempt lifecycle. Give recovery and cost reading the same invocation identity/state; reconcile interrupted attempts as unknown/censored rather than extending their work through downtime. Consolidate the duplicated active-start storage/writes instead of adding another record, scheduler or polling loop; keep necessary historical attempts and the current unclean-start notice. Preserve actual attempt order and identify the landing worker directly, not from a deduplicated list. Keep absent/unreadable cost evidence distinct from a known interactive invocation. Preserve best-effort progress, stops, budgets and partial results; missing accounting must not trigger expensive work again.",
-      "displaced_surface": "Replace the independent driver_running versus worker_attempts active-start interpretation with one retained lifecycle owner consumed by startup recovery and landing.cost. Remove whichever duplicate active-start serialization/write/delete path that migration displaces; keep history and recovery notice. Remove elapsed-to-now treatment of stale starts and unique-worker-order inference of the landing worker. No new workflow, ledger, service, command or binary.",
-      "impact": "Prevents downtime and missing records being presented as measured worker effort, and prevents resumed work being credited to the wrong worker. Full-cost/benefit conclusions must remain limited until this path is truthful.",
-      "expected_benefit": {
-        "baseline": "Selected complete files: landing/costs511 + cmd/loop/costs537 =1048 production AST; their tests397+251=648. startup880 and startup_test556 include other required scheduling/environment contracts; main3534 includes the full CLI. Existing active lifecycle helpers keepRunning48, dropRunning53, noteUncleanEnd187; RecordAttempt46 nodes. These are current sizes, not removable totals.",
-        "complete_cost": "675326b76 adds1315 production/648 test AST, no static fixtures/schema/CUDA. Current invocation performs attempt-start and running-marker writes, then attempt-end write and marker removal. A unified owner must still retain terminal history; count the complete replacement and migration reads. No safe net AST/runtime reduction is established; truthful interrupted-state handling may require growth.",
-        "tests": "RETAIN cost-message and Git-trailer tests as different contracts. EXTEND the existing startup interruption case and cost fixtures for interrupted/unknown state and A,B,A attribution, sharing their current setup. No new standalone suite, model/Git-history workload or SQA execution.",
-        "limits": "Do not add worker wall and gate wall as independent totals: an active worker's elapsed interval may include its landing gate. Token costs and measured benefit are absent from this report; the commit discloses that steps landed are the displayed output, not a measured economic payoff."
-      },
-      "likely_effort": "Small coordinated lifecycle/readout correction across existing driver, startup and landing owners; complete replacement must be counted.",
-      "plan_references": [
-        "loop-proof/costs 675326b76",
-        "loop-proof/demonstrated at 675326b76392a92477bdbfb4b28d9e37672db456",
-        "Downloads extreme_refactor_plan.md: one execution owner, truthful recovery and complete costs"
-      ],
-      "plan_coverage": "The costs step is landed; demonstrated remains current. Repair this evidence before using it to claim the worker pays for itself. Distinct from348's unmatched/marginal replay-ranking formula and271's app-session supervision; no duplicate dispatch authority.",
-      "closure_criteria": [
-        "An interrupted attempt is reported with bounded known effort or explicit unknown/censored duration; downtime is never asserted as active worker wall.",
-        "Start/exit/restart and landing accounting share one lifecycle identity; the displaced active-start storage path is removed while historical/unclean evidence remains.",
-        "A,B,A followed by an A landing is attributed to A; missing/unreadable recording is not silently known interactive/zero.",
-        "Existing fixtures retain live, completed, interrupted and no-record cases; complete production/test/setup/migration costs are stated. No new scheduler or workload."
-      ],
-      "comparison": "Read one existing startup interrupted-run fixture beside landing.cost at a later now, then compare worker trailers for A,B,A. This decides the source defect without a new run. During implementation, extend the retained native fixtures and preserve the separate Git parsing contract."
-    },
+    "status": "open",
+    "title": "Read worker cost from the actual attempt lifecycle, including interrupted runs"
+  },
     {
       "id": "SQA-357",
       "status": "open",
@@ -8083,49 +8092,156 @@
       ],
     "status": "open",
     "title": "Merge greedy worker request checks into the existing conversation fixture"
-  }
+  },
+    {
+      "id": "SQA-359",
+      "status": "open",
+      "severity": "P2",
+      "category": "clip-output-contract-and-shared-owner",
+      "classification": "source-established-admitted-request-counterexample",
+      "title": "Apply an oscillator GIF's requested finish through the existing clip writer",
+      "evidence_commit": "01ce863aef2cfa6619a5232918e6a63825056bec",
+      "sources": [
+        {
+          "path": "internal/oscillatorimage/video.go",
+          "symbol": "VideoRequest; ValidateVideoRequest; prepareVideo/integrateVideo; decodeVideo; decodeVideoMP4"
+        },
+        {
+          "path": "internal/latentvideo/production.go",
+          "symbol": "ClipFormat.IsZero; WriteClip; NewClipEncoder; NewGIFEncoder"
+        },
+        {
+          "path": "internal/latentvideo/finish_windows.go",
+          "symbol": "ClipFinish.Validate; newFinishingEncoder"
+        },
+        {
+          "path": "internal/oscillatorimage/load_test.go",
+          "symbol": "TestArtifactPublishesReferenceGIF"
+        },
+        {
+          "path": "internal/oscillatorimage/video_mp4_test.go",
+          "symbol": "TestTheOscillatorWritesTheMP4ItIsAskedFor"
+        },
+        {
+          "path": "internal/oscillatorimage/cancellation_test.go",
+          "symbol": "TestVideoCancellationKeepsOutputs"
+        }
+      ],
+      "evidence": "f9aeadd1a adds ClipFinish to oscillator VideoRequest and carries it into videoFeatures. ValidateVideoRequest admits explicit GIF plus Upscale=2 (or denoise/deblur). decodeVideo dispatches to the shared WriteClip path only when !features.format.IsZero(); IsZero also means explicit GIF. Its legacy GIF loop never reads features.finish. The admitted GIF silently keeps un-finished dimensions/pixels and lacks Finish identity, whereas MP4 passes the same finish to WriteClip. Source counterexample only; no model run.",
+      "recommended_change": "Use the existing shared writer branch whenever a finish is requested, including GIF, and give decodeVideoMP4 a format-neutral name instead of adding a wrapper. Keep the no-finish native GIF contract until it can be migrated exactly. Wan/student/LiveEdit already use the same finishing/encoding owner. Reject any unsupported finish before costly generation through the existing request boundary. Do not turn encoding into recipe nodes.",
+      "displaced_surface": "The MP4-only branch guard/name becomes a shared-format call; no new encoder, adapter or package. Full removal of the legacy GIF loop/planarRGBA is conditional, not yet a safe deletion: it uses fixed Plan9/FloydSteinberg, truncating signed-pixel conversion and unscaled ChangedPixels. WriteClip currently uses an adaptive palette and counts changed pixels after enlargement. Preserve these differences before claiming whole-loop removal.",
+      "impact": "Prevents accepted finishing requests from silently producing a different result. Reduces independent orchestration only where the output contract is actually shared.",
+      "expected_benefit": {
+        "baseline": "video.go1397 production AST; shared production.go4153 and finish_windows.go1605 already exist. Native load_test1312, cancellation_test850 and video_mp4_test241 total2403 test AST. These complete files contain other required behavior.",
+        "complete_cost": "Minimal correction reuses WriteClip with no new runtime/helper/fixture file. Exact after-count and any native fixture extension are unmeasured; no safe net code reduction claimed. Full legacy-GIF deletion is not credited until palette, pixel conversion, ChangedPixels, default format and cancellation equivalence are retained.",
+        "tests": "RETAIN exact reference GIF (all pixels/palette/frame order, only documented delay correction), MP4 identity/dimensions and cancellation/retry outputs. EXTEND the smallest existing oscillator output fixture for explicit GIF plus finish using existing finish reference evidence; SQA executes none."
+      },
+      "likely_effort": "Small shared-writer dispatch repair; full legacy GIF retirement is a separate conditional part of the same migration.",
+      "plan_references": [
+        "rtx-vsr/clips f9aeadd1a (landed)",
+        "rtx-vsr/supplied at 01ce863aef2cfa6619a5232918e6a63825056bec",
+        "Downloads extreme_refactor_plan.md: one owner for actual shared behavior"
+      ],
+      "plan_coverage": "The clips landing claims all generated clips. Fix this existing producer before expanding supplied/picture paths; do not duplicate the finishing pipeline.",
+      "closure_criteria": [
+        "Every admitted oscillator finish is applied or rejected explicitly before expensive generation; explicit GIF cannot ignore it.",
+        "A finished GIF uses the existing clip finishing/identity owner and the expected dimensions/order.",
+        "No-finish reference GIF and cancellation/retry contracts remain exact. Any legacy path deleted has all unique cases transferred and complete costs stated."
+      ],
+      "comparison": "Trace one admitted VideoRequest{Format:gif, ClipFinish:{Upscale:2}} through ValidateVideoRequest->decodeVideo and compare the existing MP4 WriteClip call. Extend the retained native fixture only during implementation; retain exact unfinished GIF evidence."
+    },
+    {
+      "id": "SQA-360",
+      "status": "open",
+      "severity": "P3",
+      "category": "duplicate-test-work-and-memory",
+      "classification": "source-established-unused-work; parsed-complete-file-reduction",
+      "title": "Remove the NVENC test's extra full-clip timing pass",
+      "evidence_commit": "01ce863aef2cfa6619a5232918e6a63825056bec",
+      "sources": [
+        {
+          "path": "internal/latentvideo/clip_nvenc_windows_model_test.go",
+          "symbol": "TestAFinishedClipIsEncodedOnNVENC; capture timing pass; two WriteClip calls"
+        },
+        {
+          "path": "internal/latentvideo/clip_finish_windows_model_test.go",
+          "symbol": "captureEncoder.add; TestAClipIsFinishedOnTheCardBeforeItIsEncoded"
+        },
+        {
+          "path": "internal/latentvideo/finish_windows.go",
+          "symbol": "finishingEncoder.add; Finish; release"
+        }
+      ],
+      "evidence": "The NVENC test finishes the same 81-frame832x480 student clip at4x three times. The first pass writes all3328x1920 RGB float32 frames into captureEncoder, whose add copies/retains every frame. This test never reads those captured frames; it prints only elapsed time. The following two WriteClip passes perform all MP4/size/HEVC-hvc1/byte-repeatability assertions. The companion finish fixture separately reads its captured frame against the exact NVIDIA digest. Thus the timing-only pass retains81*3328*1920*3*4=6210846720 bytes (5.78GiB) of unnecessary float payload; this is source arithmetic, not a measured peak.",
+      "recommended_change": "Delete the first capture/finish pass and its timing-only log fields/comment. Keep both actual finished NVENC writes, their end-to-end duration logs and every assertion. Retain captureEncoder in the companion one-frame numerical reference fixture, where its output is consumed. Keep the already-landed one-off timing result in Git; do not replace this deletion with another benchmark or recurring workload.",
+      "displaced_surface": "Only the unused full-clip capture setup, third finish invocation and effect-only timing/log expressions disappear. Same imports, feed, two encodes, reference fixture and helper remain. No production change, wrapper, fixture migration or new binary.",
+      "impact": "Avoids81 repeated upscale frames, one effect/worker setup and approximately5.78GiB of retained frame payload each execution of this test while preserving its correctness checks.",
+      "expected_benefit": {
+        "production_ast_delta": 0,
+        "test_ast_before": 1303,
+        "test_ast_after": 1251,
+        "test_ast_delta": -52,
+        "comparison_detail": "Actual whole-file in-memory AST comparison: NVENC634->582, companion finish fixture669->669 (includes captureEncoder); complete combined1303->1251. Same imports and all assertions retained. Standard go/parser with comments; not applied or executed.",
+        "setup": "Finish passes3->2, upscale frames243->162; actual MP4 encodes2->2; source decode1->1; numerical one-frame companion unchanged. No model generation or new gate/test job introduced.",
+        "fixtures": "0 fixture files/bytes added or deleted; pinned81-frame clip identity retained. Existing gate may cache/reach this test; savings apply when it executes, not every gate.",
+        "uncertainty": "Parsing validates the proposed smaller source, not runtime acceptance. Retained16c observation: first pass3.8s and full writes10.4/10.6s on its named card/runtime. No promised universal wall or measured peak-memory saving.",
+        "tests": "SIMPLIFY NVENC fixture by removing only the timing-only pass; RETAIN two full writes and dimensions/container/encoder identity/byte-repeatability checks. RETAIN companion exact numerical/finish ordering/record checks and capture helper."
+      },
+      "likely_effort": "Trivial deletion in one native fixture; no new test needed.",
+      "plan_references": [
+        "rtx-vsr/nvenc 16c3e5e8e (landed)",
+        "Downloads extreme_refactor_plan.md: complete test/setup cost and unnecessary work"
+      ],
+      "plan_coverage": "The one-off effect timing has already been retained in the landing. It need not be a permanent third execution in the correctness fixture.",
+      "closure_criteria": [
+        "Timing-only full-clip capture is absent; two actual finished writes and all correctness assertions remain.",
+        "Exact companion reference and shared helper remain; complete two-file AST decreases by the measured52 nodes or a documented final comparison.",
+        "No replacement workload, helper or fixture surface offsets the deletion."
+      ],
+      "comparison": "Compare the complete NVENC fixture before/after deleting the unused capture block and effect-only log fields, with the companion helper file unchanged; inspect all assertions and count three versus two finishing passes. Retained static comparison review-20261109-1759/nvenc-cost.json; no application execution."
+    }
   ],
     "gate_test_assessment": {
-    "assumptions": "Guidance settings belong to the resolved request; every executor must apply or reject them.1zero-step and[0.219,0.844] are preset choices, not established quality bounds at this pin;1e-8 is the implementation's projection stabilizer. Host formula/pass-count evidence is independent of held-out model quality. Gemma4short utterances selected from first200rows and27/28publisher-correct cases are a bounded known-answer corpus.",
+    "assumptions": "Finish scale2..4, strength0..4 and SDK level mapping are explicit product/ABI contracts. Audited numerical comparison covers source1280x720,16frames,24decodable clips at2x/4x, not3x/generated clips; paired unit is clip, not frame. Tensorstats tail is one-sided. Source selection/ceiling/PSNR tradeoffs limit generalization; no claim of an observed failed default. Source arithmetic for unused capture is5.78GiB, not profiled peak.",
     "automation_follow_up": {
         "landings": [
           {
-            "commit": "8e8d62236",
-            "production_ast": 109,
-            "test_ast": 349
+            "commit": "f9aeadd1a",
+            "production_ast": 1842,
+            "test_ast": 695
           },
           {
-            "commit": "07c3f20d9",
-            "production_ast": 155,
-            "test_ast": 1357
+            "commit": "16c3e5e8e",
+            "production_ast": 417,
+            "test_ast": 634
           },
           {
-            "commit": "7a1ae8c6f",
-            "production_ast": 559,
-            "test_ast": 955
+            "commit": "6da610a60",
+            "production_ast": 180,
+            "test_ast": 398
           },
           {
-            "commit": "4cb1c8aea",
-            "production_ast": 1841,
-            "test_ast": 650
+            "commit": "01ce863ae",
+            "production_ast": 3,
+            "test_ast": 1878
           }
         ],
-        "total_production_ast": 2664,
-        "total_test_ast": 3311,
-        "total_ast": 5975,
-        "tracked_fixture_files": 6,
-        "tracked_fixture_bytes": 609788,
-        "fixture_interpretation": "git ls-tree sizes:4WAV557136bytes + cases.json25435 + suite.json27217. Retained gate footer's fixtures0files/0bytes excludes this observed growth; do not report zero total fixture cost.",
-        "tests": "RETAIN repeat stop/invalidation, sampling numeric and Wan pass-count cases, native form, student resident reuse, WAV mode routing and Gemma corpus provenance. EXTEND existing form/student cases for341. MERGE358 request-setting checks into conversation fixture; REMOVE its dedicated file only after migration. No new SQA test or model run. RETAIN RTX-VSR17-level ABI/output reference comparison with existing device/stream setup; SQA runs none.",
-        "retained_results": "8e repeat guard undo fails an assertion;07c WAV routing undo fails an assertion.7a guidance undo does not compile, so it establishes no behavioral regression protection. Bonsai inference scorecard identical outputs is not Wan guidance acceptance. Gemma suite retains27/28publisher-correct cases; no completed Overgo Gemma judge or broad quality result claimed. Plan note records one local step105s and Claude Not logged in; not the required three-step/payoff demonstration.4cb17levels match stored NVIDIA-binding digests for one320x180frame; its undo fails to compile and proves no behavioral refusal. Device-specific4..9ms/frame and~0.4s build are retained observations, not general throughput or real-clip quality."
+        "total_production_ast": 2442,
+        "total_test_ast": 3605,
+        "total_ast": 6047,
+        "tracked_fixture_files": 0,
+        "tracked_fixture_bytes": 0,
+        "fixture_interpretation": "Current slice adds no static fixture file; existing student/source assets are reused. Gate fixture category is0. New measurement setup and repeated runtime work still cost memory/time.",
+        "tests": "RETAIN recovery, no-record/worker-order and Git readout contracts; extend orphan/legacy cases within existing fixtures. RETAIN exact unfinished GIF/MP4/cancellation contracts; extend finished GIF through retained output fixture. SIMPLIFY NVENC timing-only pass; retain two writes plus companion exact numerical fixture. RETAIN source comparison as calibration with scope/exclusions disclosed. No SQA application execution.",
+        "retained_results": "f9 undo does not compile and proves no behavioral regression protection.16c NVENC undo fails an assertion; retained81-frame effect3.8s/full10.4,10.6s and repeatable bytes are device/tool-specific.6da interruption undo fails an assertion.01ce source measurement ran448s, clean-high VMAF99.26/87.31 versus bicubic96.27/67.35;2x bicubic PSNR39.50 exceeds clean-high39.01. Its undo fails default assertion. Bonsai identical-output scorecard is not finishing quality or guidance acceptance. None rerun."
       },
     "automation_sequence": "Driver processcontrol/startup remain dispatch, stop and restart owners.356 identifies their disconnected cost start records;322 existing verify/undo still comes after test/lanes. Mutations reuse replay lock/tree and baseline admission, skip card checks, preserve partial records; no whole-gate or assertion-only detection claim.",
     "fresh_ast": {
-        "revision": "4cb1c8aead7d2190b2cc06591a91b8319ca18310",
-        "method": "18 selected files parsed at7a, unchanged at4cb;2 concurrent RTX-VSR files parsed at4cb. Existing standard-library parser with comments/local links only; no package type check or application execution.",
-        "selected_counts": "localWorker810/repeatTest349/conversationTest391/requestTest219; guidance405/guidanceTest468/flowSampler858; WanGuidanceTest413/policy3974/form1033/student1046/baseRuntime1734/presetTest74; recipeVerify4622/WAVtest233/GemmaFixtureTest1124; formTest578/studentModelTest610. Concurrent nvvfx1840/VFXmodelTest650.",
-        "comparison": "341 selected production6458+native/modeltest1188=7646AST; required correction growth unmeasured.358 selected810production+610test ->810+484 (-126) proposed; tests/askChat unchanged. Retained external review-20261109-1558 ast.json/admission-ast.json; prior request-cost.json reused. Concurrent source/retained results reconciled in review-20261109-1558/concurrent-ast.json.",
-        "limits": "No broad census or revised duplication percentages; full gate footers and tracked fixture sizes reported separately."
+        "revision": "01ce863aef2cfa6619a5232918e6a63825056bec",
+        "method": "Existing external standard-library parser,19unique selected files.17 at6da,16 unchanged at01ce; finish re-parsed1602->1605, measurement1878 and driver main3533 parsed at01ce. In-memory proposed deletion parsed; no application compile/run.",
+        "selected_counts": "landing costs655/tests397/interrupted353; loop costs537/tests251/startup917/test601/main3533; finish1605/mp41365/production4153; finishTest669/NVENCTest634; oscillator video1397/mp4Test241/loadTest1312/cancellationTest850; nvvfx1815; measurementTest1878.",
+        "comparison": "356 selected5642production/1602test; correction after-cost unknown.359 selected owner/test costs retained with semantic differences, no net-deletion claim.360 NVENC634->582 plus companion669 unchanged =1303->1251; production/fixture changes0, finishing passes3->2. Retained external review-20261109-1759/ast*.json and nvenc-cost.json.",
+        "limits": "No package type resolution or new whole-tree census. Historical duplication percentages/binary counts unchanged and not relabeled current."
       },
     "media_follow_up": {
         "landings": [
@@ -8419,33 +8535,28 @@
     "tests": [
         {
           "classification": "retain/extend",
-          "owner": "TestWanRequestFormAdmitsPromptOrTensors; TestTheWanStudentIsServedAsItsOwnModel",
-          "change": "341 invalid advanced guidance rejects before loading, supported base behavior remains and student semantics cannot be ignored; reuse existing fixtures."
+          "owner": "existing startup, interruption/cost and CLI trailer fixtures",
+          "change": "356 normal-case repairs retained; add orphan/legacy/unknown-readout cases using current setup during implementation."
+        },
+        {
+          "classification": "retain/extend",
+          "owner": "oscillator reference GIF, MP4 and cancellation fixtures",
+          "change": "359 apply explicit GIF finish without weakening exact un-finished output or cancellation/retry contracts."
+        },
+        {
+          "classification": "simplify",
+          "owner": "TestAFinishedClipIsEncodedOnNVENC",
+          "change": "360 remove timing-only capture/finish invocation; keep both actual encodes and every assertion."
         },
         {
           "classification": "retain",
-          "owner": "sampling and latentvideo TestTheGuiderTakesCFGZeroAndAGuidanceInterval",
-          "change": "Different formula and actual executor pass-count contracts; no merger."
+          "owner": "TestAClipIsFinishedOnTheCardBeforeItIsEncoded; captureEncoder",
+          "change": "Reference frame is consumed here; exact numerical/finish order/record identity retained."
         },
         {
           "classification": "retain",
-          "owner": "TestTheLocalWorkerStopsRepeatingItself",
-          "change": "Repeat-only exit and post-edit invalidation are distinct from transport settings."
-        },
-        {
-          "classification": "merge/remove",
-          "owner": "worker conversation fixture",
-          "change": "358 unchanged -126test AST proposal; no extra server/helper."
-        },
-        {
-          "classification": "retain",
-          "owner": "TestAProjectionFixtureMayBeAWAV; TestGemmaProjectionFixturesAreDrawnFromLibriSpeech",
-          "change": "Distinct mode admission and corpus/build-tag/provenance contracts; keep all modes and explicit27/28selection."
-        },
-        {
-          "classification": "retain",
-          "owner": "TestVideoSuperResMatchesNvidiasBinding",
-          "change": "One synthetic frame17levels; preserve exact recorded reference and windows/modeltest boundary. Not complete served clip evidence."
+          "owner": "TestVideoSuperResBeatsBicubicOnSourceClips",
+          "change": "Calibration over first24decodable clips; preserve selection/exclusions and avoid equating it with independent generated-video acceptance."
         }
       ]
   },
@@ -9980,10 +10091,10 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
     "limitations": [
-      "This chat previously implemented Overgo changes; follow-up SQA, not independent third-party review.",
+      "This chat previously implemented Overgo changes; this is follow-up SQA, not independent third-party review.",
       "No application tests, model/device workloads, services, benchmarks, profiles, production gates, agents/messages, plan/skill changes or pushes.",
-      "AST analysis is standard-library parsing with parser-local links, no package type resolution or application execution. Source callers and build tags traced manually. Retained gate/model/reference results were not rerun.",
-      "No safe overall net reduction or completed refactor established. Prior whole-tree duplication/binary/directory figures remain historical; no new census.358 -126test AST remains an unimplemented proposal."
+      "AST uses go/parser/go/ast with comments and parser-local links; no package type resolution or execution.19 unique files across17 initial files plus updated finish, measurement and driver main. Source/build tags and consumer contracts traced manually.",
+      "No new census or current whole-tree duplication percentage. Prior binary/directory/boilerplate evidence keeps its original revision. No overall net reduction or completed refactor established;52-node and126-node proposals are unimplemented."
     ],
     "master_lead_triage": {
     "at": "2026-11-08",
@@ -10844,12 +10955,12 @@
       }
     }
   },
-    "next_finding_number": 359,
+    "next_finding_number": 361,
     "publication_context": {
-    "assessment": "Previous report included by07c3f20d9. Current report-only revision retains existing landing/gate ownership and unrelated work.",
-    "checked_head": "4cb1c8aead7d2190b2cc06591a91b8319ca18310",
-    "concurrent_changes": "7a->4cb adds RTX-VSR private package, exports shared ReadCString, adjusts its test and retires effect plan step. Source/lifecycle/test and retained costs read;2files parsed; original18/report/owner fields unchanged. Re-read immediately before publication.",
-    "current_pin": "4cb1c8aead7d2190b2cc06591a91b8319ca18310",
+    "assessment": "Report-only update through existing landing/gate ownership; no implementation execution. Prior report committed0e48eadf27.",
+    "checked_head": "01ce863aef2cfa6619a5232918e6a63825056bec",
+    "concurrent_changes": "6da->01ce lands source measurement/default/plan; source and retained evidence read, affected finish and new measurement parsed. Re-read head/report/owner/plan immediately before publication; preserve any unrelated edits.",
+    "current_pin": "01ce863aef2cfa6619a5232918e6a63825056bec",
     "publication": "Use the existing report-only hook exception for a standalone commit when landing ownership permits. If busy, a validated report-only checkout write may remain pending; do not stage unrelated files, advance HEAD or disturb workers.",
     "report_only": "Only docs/sqa_findings.json; existing hooks and landing/gate ownership, unrelated index/worktree preserved."
   },
@@ -10865,6 +10976,7 @@
     "SQA-331",
     "SQA-340",
     "SQA-341",
+    "SQA-359",
     "SQA-348",
     "SQA-356",
     "SQA-342",
@@ -10879,6 +10991,7 @@
     "SQA-351",
     "SQA-352",
     "SQA-353",
+    "SQA-360",
     "SQA-358",
     "SQA-350",
     "SQA-257",
@@ -10914,41 +11027,46 @@
     "repository": "C:\\Users\\jeffm\\overgo",
     "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
     "review_notes": [
-      "341 retains original late student preset/step refusal and now covers the same admission boundary's new unsupported Guidance field; no unique requirement retired or second backlog item added.",
-      "358 test files and askChat remain unchanged; repeat behavior has its own distinct fixture and is retained. Production baseline updates701->810 on both sides of the prior126-node test proposal.",
-      "Four landings add2664 production/3311 test=5975AST. Six newly tracked Gemma fixtures total609788bytes (four WAV557136,twoJSON52652), despite gate fixture category0. RTX-VSR adds one internal directory and no command/binary; no surface reduction claimed.",
-      "Known-answer suite uses27/28 publisher-correct examples, with the failed goliath case retained in cases.json. Preserve this exclusion when reporting equivalence; do not mistake it for held-out judge accuracy.",
-      "Current plan records expired Claude login and stops repeating the comparison. Second-judge activation remains owner-blocked; independent host work continues.",
-      "Concurrent4cb lands the private RTX-VSR binding and reuses driver.ReadCString for actual CUDA/VFX error strings. Its existing device/stream owner and effect/staging cleanup are retained. DLL lifetime is explicitly process-long. No production clip consumer, runtime identity publication or displaced Python pipeline yet; those remain clips work."
+      "356's original unique lifecycle/unknown-cost obligations remain; normal recovery, A/B/A and absent-record fixes credited without closing it.",
+      "359 requires one existing output path to honor an admitted finish. Exact no-finish GIF palette/pixels/cancellation/ChangedPixels differences prevent crediting full legacy-loop deletion.",
+      "360 deletes only unused repeat work: complete two-file AST1303->1251;81 excess finished frames and6210846720 retained float bytes avoided when the fixture runs. Numerical and NVENC correctness coverage remains.",
+      "Four landed changes add6047AST, including1878nodes for the new source comparison. No shrinkage claimed.17 original AST files reused; only finish changed by3nodes and measurement/main parsed at final pin.",
+      "01ce promotes clean-high using24 source clips,16frames each,2x/4x; generated/Lanczos judgment and degraded-source denoise/deblur remain planned. Preserve PSNR/VMAF differences and selection limits.",
+      "Plan stops unauthenticated comparison and owner-blocked activation remain. No new orchestration, workflow graph or recurring workload proposed."
     ],
-    "reviewed_at": "2026-11-09T16:06:22Z",
-    "reviewed_master": "4cb1c8aead7d2190b2cc06591a91b8319ca18310",
+    "reviewed_at": "2026-11-09T18:10:34Z",
+    "reviewed_master": "01ce863aef2cfa6619a5232918e6a63825056bec",
     "schema_version": 2,
     "scope": [
-      "Committed master 4cb1c8aead7d2190b2cc06591a91b8319ca18310; repository guidance and Downloads target unchanged; current committed plan identity pinned.",
-      "Bounded guidance/request/executor, repeat guard and Gemma verification paths;18 Go files at7a unchanged at final pin. Concurrent RTX-VSR library/effect lifecycle and retained reference result reconciled;2 additional Go files parsed.",
-      "341 strengthened;358 rechecked. Current RTX-VSR package is private until clip integration; no product pipeline displacement claimed. Uncommitted demonstration/other worker changes excluded."
+      "Committed master 01ce863aef2cfa6619a5232918e6a63825056bec and its plan; repository guidance/Downloads architectural target read and unchanged.",
+      "Bounded clip finishing/encoding from request to producer, native oscillator GIF compatibility, worker start/exit/restart cost paths and current plan dependencies.19 selected Go files parsed; exact current producer/consumer calls inspected beyond the latest diff.",
+      "Retained gates/model evidence reused; 356 partially reconciled,359/360 new. Concurrent01ce source-clip measurement/default and plan changes read before publication."
     ],
     "sqa_response": {
-    "assessment": "185stable IDs:56open,123resolved,4deferred,2aliases. Update341 and358; no new/closed IDs. Previous review was committed in07c3f20d9.",
+    "assessment": "187stable IDs:58open,123resolved,4deferred,2aliases.356 partially addressed;359/360 new. No closure or consolidation of distinct contracts.",
     "consolidated_findings": [],
     "deferred_findings": [],
     "evidence": [
-        "4cb1c8aead7d2190b2cc06591a91b8319ca18310",
-        "Four retained landings8e8d62236/07c3f20d9/7a1ae8c6f/4cb1c8aea",
-        "20selected AST files; tracked fixture bytes; unchanged358 comparison"
+        "01ce863aef2cfa6619a5232918e6a63825056bec",
+        "Four retained implementation landings f9ae/16c/6da/01ce",
+        "19unique selected AST files; complete NVENC+companion deletion comparison; current lifecycle/request callers"
       ],
     "implementation_response_context": {
-        "reviewed_commit": "4cb1c8aead7d2190b2cc06591a91b8319ca18310",
+        "reviewed_commit": "01ce863aef2cfa6619a5232918e6a63825056bec",
         "current_triage_head": "518fa52f417f796df399da65d208a61290fe5635",
-        "status": "Owner blocks and unknown fields preserved raw-exact; touched reviewer fields compared with current report before publication."
+        "status": "Implementation review dea7d30a and master triage fields preserved raw-exact, including unknown fields. Touched reviewer fields compared with latest report before publication."
       },
-    "new_findings": [],
-    "partially_addressed_findings": [],
-    "priority_changes": [
-        "Raise341 toP2 for accepted-but-ignored student guidance; retain original early-refusal requirements."
+    "new_findings": [
+        "SQA-359",
+        "SQA-360"
       ],
-    "recommendation": "Fix request/profile admission through existing owners, retain shared numerical execution, admit quality before offering new presets, and remove358's duplicate request setup. Preserve owner activation and known authentication stops.",
+    "partially_addressed_findings": [
+        "SQA-356"
+      ],
+    "priority_changes": [
+        "359P2 silently ignored finish;360P3 redundant test work.356 remainsP2."
+      ],
+    "recommendation": "Honor finished-GIF requests through the existing clip writer, remove the unused timing pass and complete the shared durable attempt lifecycle. Fail known runtime prerequisites before generation. Keep exact native behavior, retained results and current plan authority.",
     "refactor": {
       "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
       "history_path": "docs/sqa_findings.json",
@@ -10956,11 +11074,10 @@
     },
     "reopened_findings": [],
     "resolved_findings": [],
-    "reviewed_master": "4cb1c8aead7d2190b2cc06591a91b8319ca18310",
-    "uncertainty": "Source-established request counterexamples, not executed incidents.358 reduction unimplemented; no overall shrinkage, full judge acceptance or completed refactor.",
+    "reviewed_master": "01ce863aef2cfa6619a5232918e6a63825056bec",
+    "uncertainty": "Static admitted counterexamples, not observed production incidents.52-node reduction is parsed but unimplemented; runtime memory is payload arithmetic. Source calibration is not a generated-quality guarantee. No overall shrinkage or completed refactor.",
     "updated_findings": [
-        "SQA-341",
-        "SQA-358"
+        "SQA-356"
       ]
   }
   }

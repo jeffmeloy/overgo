@@ -3,32 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "video-judge",
-      "title": "The generated-video judge scores probabilities on harder cases, and Wan's base and its four-step student are judged at the same settings, so the student's quality says something",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 999,
-        "reason": "Estimate from quality-instruments, which needed about this for images: the video suite's soft score and composed cases, the base judged at the student's settings, and a comparison that states its verdict; the renders run hours on the card."
-      },
-      "steps": [
-        {
-          "id": "same-settings",
-          "title": "Wan's 50-step base and its four-step student are drawn and judged at the student's settings, 81 frames at 832 x 480, on the harder suite, and the comparison states its verdict",
-          "status": "open",
-          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/validate -count=1 -run '^TestTheWanStudentIsJudgedBesideItsBase$'",
-          "files": [
-            "cmd/validate/wan_student_model_test.go"
-          ],
-          "needs_card": true,
-          "rationale": "The base's 0.914 was judged at 17 frames, 416 x 240 and 20 steps, the student's 0.898 at 81 frames, 832 x 480 and 4 steps, and the check passed whatever the result. The base is drawn at the student's settings (about 6 h of the card at 374 s a clip for 64 clips) and both are judged on the soft, harder suite; the check states the comparison's verdict and holds that the two ran the same settings, so a student is not evidence for anything until this lands.\n\nNote: 2026-11-08 20:20: both draws are built at aedec796e (it holds soft-video's harder suite), so the two suites are made alike. The base draws 80 clips at 832 x 480, 81 frames, 50 steps into datasets/VidGen/wan2.1-generated-832 (46 of 80 done, about 5.7 min a clip); the student then draws the same 80 into self-forcing-generated-832, its log at scratch/same-settings/student-render.log. Both are then judged through cmd/evaluate -manifest and the check reads the two quality cells. The student's earlier 64-clip suite is not reused, because the harder suite has 80 clips and a draw into that directory refuses a build other than cf71bbc58.\n\nNote: 2026-11-08 22:15: base draw at 66 of 80. A chained script waits for it, then draws the student from the aedec796e worktree into self-forcing-generated-832 at width=832,height=480,frames=81 and judges both manifests, logs base-judge.log and student-judge.log in scratch/same-settings.\n\nNote: files set to cmd/validate/wan_student_model_test.go: the comparison's change is its check alone, and the folders beside it hold mp4-clips/default's edits\n\nNote: files set to cmd/validate/wan_student_model_test.go: The renders and judging changed no code; the change is the check's choice of the reading made at the student's settings. Other sessions' uncommitted mp4-clips and scorecard work sits in cmd/evaluate, cmd/validate and internal/scorecard, and stays out of this landing.\n\nServes: held-out-quality for the Wan student.\nDisappears: a comparison across settings, and a check that passes whatever the result.\nEvidence: both quality cells rest on the same captions at the same size and frames, and the paired comparison states its verdict.\nBatch: device lane.",
-          "depends_on": [
-            "video-judge/soft-video"
-          ]
-        }
-      ]
-    },
-    {
       "id": "mp4-clips",
       "title": "Every clip overgo writes is an MP4 unless a request asks for a GIF, the judge and the screens read it, and the FFmpeg that wrote it is bound to it",
       "owner": "master-lead",

@@ -29,8 +29,9 @@ func undone(t *testing.T, class, reason, source, test string) (*landing, error) 
 		document.Items[0].Class, document.Items[0].Budget.Nodes = class, 100
 		document.Items[0].Steps[0].Verify = undoneCheck
 		if reason != "" {
-			// The line is spelled out, not read from noBoundaryLine, so the test builds with the landing before it.
-			document.Items[0].Steps[0].Rationale = "Why the row exists.\n\nNo boundary test: " + reason + "\n"
+			// The line is spelled out, not read from noBoundaryLine, so the test builds with the landing before it, and is
+			// written as go run ./cmd/plan -note writes a note.
+			document.Items[0].Steps[0].Rationale = "Why the row exists.\n\nNote: No boundary test: " + reason + "\n"
 		}
 	})
 	fixture.git("add", "-A")

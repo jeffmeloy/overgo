@@ -102,10 +102,12 @@ func (l *landing) undo(ctx context.Context) error {
 // which admits a landing whose checks do not build without its change.
 const noBoundaryLine = "No boundary test:"
 
-// noBoundaryReason is the reason a rationale's noBoundaryLine gives, empty where it has none.
+// noBoundaryReason is the reason a rationale's noBoundaryLine gives, empty where it has none: the line opens with it,
+// or with the "Note:" go run ./cmd/plan -note writes before it.
 func noBoundaryReason(rationale string) string {
 	for line := range strings.Lines(rationale) {
-		if reason, stated := strings.CutPrefix(strings.TrimSpace(line), noBoundaryLine); stated && strings.TrimSpace(reason) != "" {
+		line = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "Note:"))
+		if reason, stated := strings.CutPrefix(line, noBoundaryLine); stated && strings.TrimSpace(reason) != "" {
 			return strings.TrimSpace(reason)
 		}
 	}

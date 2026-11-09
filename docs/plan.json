@@ -52,20 +52,16 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 900,
+        "nodes": -552,
         "reason": "The replay harness and ladder exist (cmd/loop replay.go, ladder.go); mutants of landed steps, a cost ledger per landing and a measured run of the local worker are new."
       },
       "steps": [
         {
-          "id": "mutants",
-          "title": "The gate is run on deliberately bad alternatives of ten landed steps, each its landed change with one production statement removed or one comparison inverted, and the share it refuses is recorded per step and printed",
+          "id": "survivors",
+          "title": "Every bad alternative the first mutation run passed is refused by a test beside its step's check, or recorded as no defect with why: a reference's same-policy readings (internal/scorecard readingsOf), the comfy reference fixture's two comparisons, and the printed line of a landing with no undo evidence",
           "status": "open",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestTheGateRefusesBadAlternatives$' -timeout 60m",
-          "files": [
-            "cmd/loop",
-            "internal/landing"
-          ],
-          "rationale": "Serves: setup-steps, the loop's own evidence.\n\nDisappears: a gate trusted for catching what it was never shown to catch.\n\nEvidence: the owner's review names the demonstration: a worker's change, a gate that catches bad alternatives, an independent benefit, and a benefit that exceeds its cost. replay.go already checks steps out at their parents in worktrees of their own; a mutant is one more tree.\n\nBatch: host lane."
+          "verify": "go test ./internal/scorecard -count=1 -run '^TestAReferenceReadsItsOwnPolicysReadings$'",
+          "rationale": "Serves: every landing's evidence: a check that passes a bad alternative of its own change holds less than its landing said.\n\nDisappears: the alternatives the first mutation run passed.\n\nEvidence: go run ./cmd/loop -mutants 2026-11-01 -replay-limit 10 (2026-11-09) refused 19 of 30 bad alternatives of 10 landed steps with host checks. It passed: internal/scorecard/record.go:304 and :305, the same-policy test of a reference's earlier readings (readingsOf), which no test reaches (scorecard-integrity/failures and /policy, one landing, 0 of 3 each); cmd/comfy-reference/fixture.go:68 and :72 (comfy-recorder/request, 0 of 3); internal/landing/undo.go:84, the printed line of a landing with no undo evidence (undo-evidence/visible, 1 of 3). Each is refused by a test added beside its step's check, or recorded as no defect with why. A landing of two steps is one commit, so its alternatives are drawn from its whole change; the run takes the first three comparisons of each landing's production Go, in the order its files and lines come.\n\nBatch: host lane."
         },
         {
           "id": "costs",
@@ -1322,6 +1318,22 @@
           ]
         }
       ]
+    }
+  ],
+  "decisions": [
+    {
+      "id": "gemma-12b-judge",
+      "question": "A second judge of another family than Qwen needs gemma-4-12B-it's vision: the evaluator opens its text, but its vision tower is no projector it reads, and no projection recipe of it is active. May its checkpoint be converted to GGUF with a projector (cmd/gguf convert-gemma4, about 24 GB written) and its projection recipe, once verified, be activated? The owner's rule is to serve models from their tensors as published, and activating a model is the owner's act.",
+      "options": [
+        "convert gemma-4-12B-it with cmd/gguf convert-gemma4, verify its projection recipe and activate it as the second judge",
+        "keep gemma-4-12B-it as published: the owner labels 32 image and 32 video cases, which stand as the independent assessor"
+      ],
+      "recommendation": "convert gemma-4-12B-it with cmd/gguf convert-gemma4, verify its projection recipe and activate it as the second judge",
+      "blocks": [
+        "judge-calibration"
+      ],
+      "asked": "2026-11-09",
+      "owners_act": true
     }
   ]
 }

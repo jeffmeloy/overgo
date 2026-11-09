@@ -131,7 +131,8 @@ func run(args []string) error {
 	localServer := flags.String("local-worker", "", "work the prompt on standard input as a worker of overgo's own: send it and the six tools to the chat route of the overgo server at this address, run each tool call the model -local-model names makes, and end when it answers with no call")
 	localModel := flags.String("local-model", "", "with -local-worker or -replay: the served model that works the step")
 	replaySince := flags.String("replay", "", "replay the steps landed since this date (2026-11-01) whose check runs one Go test with the local worker -local-worker and -local-model name, or with -replay-claude the Claude worker: each from the commit it landed on, its landing's tests in place, up to three attempts; print each record, pass or fail by the step's own check with attempts, tool calls and wall, as a line of JSON")
-	replayLimit := flags.Int("replay-limit", defaultReplayLimit, "with -replay: the most steps replayed, newest first")
+	replayLimit := flags.Int("replay-limit", defaultReplayLimit, "with -replay or -mutants: the most steps replayed or put to their bad alternatives, newest first")
+	mutantsSince := flags.String("mutants", "", "put the steps landed since this date (2026-11-01) whose check runs one Go test on the host to bad alternatives: each at the commit that landed it, its check passing there, each of up to three comparisons on the lines it wrote inverted in turn; print each step's record, how many of its alternatives its check refused and those it passed, as a line of JSON, and the share the gate refused")
 	toolsServer := flags.Bool("tools", false, "serve the worker its six tools over the Model Context Protocol on standard input and output: read, edit within the step's files, run its check, run a package's tests, show the step and run an approved probe")
 	toolsStep := flags.String("tools-step", "", "with -tools: serve a replayed step's task, read from this file, in place of the plan's dispatched step")
 	toolsLog := flags.String("tools-log", "", "with -tools: append the name of each tool called to this file, a line each")
@@ -247,6 +248,15 @@ func run(args []string) error {
 			return err
 		}
 		return errors.Join(replaySteps(context.Background(), loopWorktree, *replaySince, *replayLimit, worker, io.MultiWriter(os.Stdout, kept)), kept.Close())
+	case *mutantsSince != "":
+		if err := processlock.EnsureStateDirectory(loopWorktree); err != nil {
+			return err
+		}
+		kept, err := os.OpenFile(filepath.Join(loopWorktree, processlock.StateDirectory, mutantRecords), os.O_APPEND|os.O_CREATE|os.O_WRONLY, clioptions.PrivateFileMode)
+		if err != nil {
+			return err
+		}
+		return errors.Join(mutateSteps(context.Background(), loopWorktree, *mutantsSince, *replayLimit, io.MultiWriter(os.Stdout, kept)), kept.Close())
 	case *localServer != "":
 		prompt, err := io.ReadAll(os.Stdin)
 		if err != nil || *localModel == "" {

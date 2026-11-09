@@ -146,12 +146,7 @@ func serveTools(in io.Reader, out io.Writer, tools []workerTool) error {
 		case "tools/list":
 			listing := make([]map[string]any, len(tools))
 			for index, tool := range tools {
-				properties := map[string]any{}
-				for _, argument := range tool.arguments {
-					properties[argument] = map[string]string{"type": "string"}
-				}
-				listing[index] = map[string]any{"name": tool.name, "description": tool.description,
-					"inputSchema": map[string]any{"type": "object", "properties": properties, "required": tool.arguments}}
+				listing[index] = map[string]any{"name": tool.name, "description": tool.description, "inputSchema": tool.schema()}
 			}
 			result = map[string]any{"tools": listing}
 		case "tools/call":
@@ -165,6 +160,15 @@ func serveTools(in io.Reader, out io.Writer, tools []workerTool) error {
 			return err
 		}
 	}
+}
+
+// schema is the JSON schema of the tool's arguments: an object of the strings it names, each required.
+func (tool workerTool) schema() map[string]any {
+	properties := map[string]any{}
+	for _, argument := range tool.arguments {
+		properties[argument] = map[string]string{"type": "string"}
+	}
+	return map[string]any{"type": "object", "properties": properties, "required": append([]string{}, tool.arguments...)}
 }
 
 // callTool runs the tool named with the arguments given, each read as a string.

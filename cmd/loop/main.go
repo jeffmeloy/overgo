@@ -125,6 +125,8 @@ func run(args []string) error {
 	improveOnce := flags.Bool("improve", false, "run one improvement cycle now if one is due (HandStartDue says why when none is), as an emptied plan does: measure the scorecard, judge each cell against what its earlier readings held, and file the declines and the other gaps as rows")
 	statusView := flags.Bool("status", false, "read the state of the work in this checkout, the dispatched step, the last commit, the decisions waiting for an answer and the week's pace, keep it in the process state as status.json and print it; runs nothing")
 	sessionPrompt := flags.Bool("session-prompt", false, "print the instructions a session the Claude app's scheduled task starts follows, with the environment its commands run in from loop.json; runs nothing")
+	localServer := flags.String("local-worker", "", "work the prompt on standard input as a worker of overgo's own: send it and the six tools to the chat route of the overgo server at this address, run each tool call the model -local-model names makes, and end when it answers with no call")
+	localModel := flags.String("local-model", "", "with -local-worker: the served model that works the step")
 	toolsServer := flags.Bool("tools", false, "serve the worker its six tools over the Model Context Protocol on standard input and output: read, edit within the step's files, run its check, run a package's tests, show the step and run an approved probe")
 	startup := flags.Bool("install-startup", false, "register a Windows scheduled task that runs go run ./cmd/loop in this checkout at the user's logon and again after it fails; replaces a task of its name")
 	initialize := flags.Bool("init", false, "write the driver's machine configuration, loop.json and its worker's prompt, into the checkout's process state from the defaults the repository holds; writes over neither")
@@ -211,6 +213,13 @@ func run(args []string) error {
 	switch {
 	case *initialize:
 		return writeDefaultConfig(*configPath, os.Stdout)
+	case *localServer != "":
+		prompt, err := io.ReadAll(os.Stdin)
+		if err != nil || *localModel == "" {
+			return errors.Join(err, errors.New("loop: -local-worker reads the prompt on standard input and names its model with -local-model"))
+		}
+		_, err = workLocally(context.Background(), *localServer, *localModel, string(prompt), workerTools(loopWorktree, stepFiles), os.Stdout)
+		return err
 	case *toolsServer:
 		return serveTools(os.Stdin, os.Stdout, workerTools(loopWorktree, stepFiles))
 	case *sessionPrompt:

@@ -24,7 +24,7 @@
             "internal/scorecard"
           ],
           "needs_card": true,
-          "rationale": "The base's 0.914 was judged at 17 frames, 416 x 240 and 20 steps, the student's 0.898 at 81 frames, 832 x 480 and 4 steps, and the check passed whatever the result. The base is drawn at the student's settings (about 6 h of the card at 374 s a clip for 64 clips) and both are judged on the soft, harder suite; the check states the comparison's verdict and holds that the two ran the same settings, so a student is not evidence for anything until this lands.\n\nServes: held-out-quality for the Wan student.\nDisappears: a comparison across settings, and a check that passes whatever the result.\nEvidence: both quality cells rest on the same captions at the same size and frames, and the paired comparison states its verdict.\nBatch: device lane.",
+          "rationale": "The base's 0.914 was judged at 17 frames, 416 x 240 and 20 steps, the student's 0.898 at 81 frames, 832 x 480 and 4 steps, and the check passed whatever the result. The base is drawn at the student's settings (about 6 h of the card at 374 s a clip for 64 clips) and both are judged on the soft, harder suite; the check states the comparison's verdict and holds that the two ran the same settings, so a student is not evidence for anything until this lands.\n\nNote: 2026-11-08 20:20: both draws are built at aedec796e (it holds soft-video's harder suite), so the two suites are made alike. The base draws 80 clips at 832 x 480, 81 frames, 50 steps into datasets/VidGen/wan2.1-generated-832 (46 of 80 done, about 5.7 min a clip); the student then draws the same 80 into self-forcing-generated-832, its log at scratch/same-settings/student-render.log. Both are then judged through cmd/evaluate -manifest and the check reads the two quality cells. The student's earlier 64-clip suite is not reused, because the harder suite has 80 clips and a draw into that directory refuses a build other than cf71bbc58.\n\nServes: held-out-quality for the Wan student.\nDisappears: a comparison across settings, and a check that passes whatever the result.\nEvidence: both quality cells rest on the same captions at the same size and frames, and the paired comparison states its verdict.\nBatch: device lane.",
           "depends_on": [
             "video-judge/soft-video"
           ]
@@ -37,27 +37,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 3398,
+        "nodes": 2604,
         "reason": "Estimated after a survey of the code, at about twice what a first sketch of the steps counts, since this week's rows landed at two to six times the counts they were filed with (wan-few-step 300 -\u003e 1100, sampling-split 400 -\u003e 1700, umt5-resident 336 -\u003e 1750): the driver landing a worker's passed step, a worker loop over the six tools and overgo's chat route, a replay of landed steps from their parent commits, and the ordering from the replay's results."
       },
       "steps": [
-        {
-          "id": "local",
-          "title": "cmd/loop's local worker sends the step's prompt and the six tools to overgo's own chat route and runs each tool call the model makes, and Qwen3.8-27B-UD-Q6_K passes a fixture step with it",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/loop -count=1 -run '^TestALocalModelWorksAFixtureStep$'",
-          "files": [
-            "cmd/loop",
-            "internal/server",
-            "internal/inference",
-            "cmd/server"
-          ],
-          "needs_card": true,
-          "rationale": "overgo serves /v1/chat/completions and /v1/messages with tools (internal/server/routes.go:48-57, internal/server/anthropic_tools.go), constraining a call to the tool grammar for GGUF templates that use \u003cfunction=...\u003e or \u003ctool_call\u003e (internal/inference/chat_tool_grammar.go:39-49), as the Qwen GGUFs do. The six tools already live in cmd/loop/tools.go, and the driver's config gives each worker its own command and environment (cmd/loop/main.go:81-97). Nothing connects a worker to overgo's server today. A worker of overgo's own needs only the step's prompt and the six tools, not a client prompt written for Claude and resent every turn.\n\nServes: model calls per landing; the loop runs on overgo's own inference.\nDisappears: a driver whose every worker is an outside service.\nEvidence: a fixture step with a one-line fix and its failing test is passed by Qwen3.8-27B-UD-Q6_K through the local worker.\nBatch: device lane.",
-          "depends_on": [
-            "local-worker/lands"
-          ]
-        },
         {
           "id": "replay",
           "title": "Steps that landed since 2026-11-01 with one Go test as their check are replayed, each from its parent commit in a worktree of its own, recording each worker's passes, attempts, tool calls and wall per step",

@@ -1,0 +1,224 @@
+{
+  "schema": "overgo/native-projection/v1",
+  "source": "transformers:5.14.1 gemma4_unified;cases:overgo/gemma-4-12b-projection-cases/v1: qwen27 pictures; librispeech test-clean 0000.parquet",
+  "model_dir": "gemma-4-12B-it",
+  "date": "2026-11-09",
+  "cases": [
+    {
+      "name": "image-0-left",
+      "prompt": "{\n        \"kind\": \"image\",\n        \"files\": [\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-0.png\",\n            \"artifact\": \"file:sha256:cb9549be184fba6e3969811657310cf63d38b108befcc0f50345a335e07b4e7e\"\n          }\n        ],\n        \"text\": [\n          \"\",\n          \"Choices: A = red; B = blue; C = green; D = yellow. What color is on the left half of the image? Reply with exactly one letter: A, B, C, or D.\"\n        ]\n      }",
+      "max_tokens": 1,
+      "text": "A",
+      "prompt_tokens": 315,
+      "generated_tokens": 1
+    },
+    {
+      "name": "image-0-right",
+      "prompt": "{\n        \"kind\": \"image\",\n        \"files\": [\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-0.png\",\n            \"artifact\": \"file:sha256:cb9549be184fba6e3969811657310cf63d38b108befcc0f50345a335e07b4e7e\"\n          }\n        ],\n        \"text\": [\n          \"\",\n          \"Choices: A = red; B = blue; C = green; D = yellow. What color is on the right half of the image? Reply with exactly one letter: A, B, C, or D.\"\n        ]\n      }",
+      "max_tokens": 1,
+      "text": "B",
+      "prompt_tokens": 315,
+      "generated_tokens": 1
+    },
+    {
+      "name": "image-1-top",
+      "prompt": "{\n        \"kind\": \"image\",\n        \"files\": [\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-1.png\",\n            \"artifact\": \"file:sha256:1465c1b16f7722254fac80a13532251298cf1ebcc7279f34df7f8d55b62d6053\"\n          }\n        ],\n        \"text\": [\n          \"\",\n          \"Choices: A = red; B = blue; C = green; D = yellow. What color is on the top half of the image? Reply with exactly one letter: A, B, C, or D.\"\n        ]\n      }",
+      "max_tokens": 1,
+      "text": "C",
+      "prompt_tokens": 315,
+      "generated_tokens": 1
+    },
+    {
+      "name": "image-1-bottom",
+      "prompt": "{\n        \"kind\": \"image\",\n        \"files\": [\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-1.png\",\n            \"artifact\": \"file:sha256:1465c1b16f7722254fac80a13532251298cf1ebcc7279f34df7f8d55b62d6053\"\n          }\n        ],\n        \"text\": [\n          \"\",\n          \"Choices: A = red; B = blue; C = green; D = yellow. What color is on the bottom half of the image? Reply with exactly one letter: A, B, C, or D.\"\n        ]\n      }",
+      "max_tokens": 1,
+      "text": "D",
+      "prompt_tokens": 315,
+      "generated_tokens": 1
+    },
+    {
+      "name": "images-0-0-left",
+      "prompt": "{\n        \"kind\": \"images\",\n        \"files\": [\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-0.png\",\n            \"artifact\": \"file:sha256:cb9549be184fba6e3969811657310cf63d38b108befcc0f50345a335e07b4e7e\"\n          },\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-1.png\",\n            \"artifact\": \"file:sha256:1465c1b16f7722254fac80a13532251298cf1ebcc7279f34df7f8d55b62d6053\"\n          }\n        ],\n        \"text\": [\n          \"\",\n          \"\\n\",\n          \"Choices: A = red; B = blue; C = green; D = yellow. What color is on the left half of the first image? Reply with exactly one letter: A, B, C, or D.\"\n        ]\n      }",
+      "max_tokens": 1,
+      "text": "A",
+      "prompt_tokens": 574,
+      "generated_tokens": 1
+    },
+    {
+      "name": "video-0-0-left",
+      "prompt": "{\n        \"kind\": \"video\",\n        \"files\": [\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-0.png\",\n            \"artifact\": \"file:sha256:cb9549be184fba6e3969811657310cf63d38b108befcc0f50345a335e07b4e7e\"\n          },\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-0.png\",\n            \"artifact\": \"file:sha256:cb9549be184fba6e3969811657310cf63d38b108befcc0f50345a335e07b4e7e\"\n          },\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-1.png\",\n            \"artifact\": \"file:sha256:1465c1b16f7722254fac80a13532251298cf1ebcc7279f34df7f8d55b62d6053\"\n          },\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-1.png\",\n            \"artifact\": \"file:sha256:1465c1b16f7722254fac80a13532251298cf1ebcc7279f34df7f8d55b62d6053\"\n          }\n        ],\n        \"text\": [\n          \"\",\n          \"Choices: A = red; B = blue; C = green; D = yellow. What color is on the left half of the first frame? Reply with exactly one letter: A, B, C, or D.\"\n        ],\n        \"fps\": 4\n      }",
+      "max_tokens": 1,
+      "text": "A",
+      "prompt_tokens": 349,
+      "generated_tokens": 1
+    },
+    {
+      "name": "images-0-0-right",
+      "prompt": "{\n        \"kind\": \"images\",\n        \"files\": [\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-0.png\",\n            \"artifact\": \"file:sha256:cb9549be184fba6e3969811657310cf63d38b108befcc0f50345a335e07b4e7e\"\n          },\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-1.png\",\n            \"artifact\": \"file:sha256:1465c1b16f7722254fac80a13532251298cf1ebcc7279f34df7f8d55b62d6053\"\n          }\n        ],\n        \"text\": [\n          \"\",\n          \"\\n\",\n          \"Choices: A = red; B = blue; C = green; D = yellow. What color is on the right half of the first image? Reply with exactly one letter: A, B, C, or D.\"\n        ]\n      }",
+      "max_tokens": 1,
+      "text": "B",
+      "prompt_tokens": 574,
+      "generated_tokens": 1
+    },
+    {
+      "name": "video-0-0-right",
+      "prompt": "{\n        \"kind\": \"video\",\n        \"files\": [\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-0.png\",\n            \"artifact\": \"file:sha256:cb9549be184fba6e3969811657310cf63d38b108befcc0f50345a335e07b4e7e\"\n          },\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-0.png\",\n            \"artifact\": \"file:sha256:cb9549be184fba6e3969811657310cf63d38b108befcc0f50345a335e07b4e7e\"\n          },\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-1.png\",\n            \"artifact\": \"file:sha256:1465c1b16f7722254fac80a13532251298cf1ebcc7279f34df7f8d55b62d6053\"\n          },\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-1.png\",\n            \"artifact\": \"file:sha256:1465c1b16f7722254fac80a13532251298cf1ebcc7279f34df7f8d55b62d6053\"\n          }\n        ],\n        \"text\": [\n          \"\",\n          \"Choices: A = red; B = blue; C = green; D = yellow. What color is on the right half of the first frame? Reply with exactly one letter: A, B, C, or D.\"\n        ],\n        \"fps\": 4\n      }",
+      "max_tokens": 1,
+      "text": "B",
+      "prompt_tokens": 349,
+      "generated_tokens": 1
+    },
+    {
+      "name": "images-0-1-top",
+      "prompt": "{\n        \"kind\": \"images\",\n        \"files\": [\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-0.png\",\n            \"artifact\": \"file:sha256:cb9549be184fba6e3969811657310cf63d38b108befcc0f50345a335e07b4e7e\"\n          },\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-1.png\",\n            \"artifact\": \"file:sha256:1465c1b16f7722254fac80a13532251298cf1ebcc7279f34df7f8d55b62d6053\"\n          }\n        ],\n        \"text\": [\n          \"\",\n          \"\\n\",\n          \"Choices: A = red; B = blue; C = green; D = yellow. What color is on the top half of the second image? Reply with exactly one letter: A, B, C, or D.\"\n        ]\n      }",
+      "max_tokens": 1,
+      "text": "C",
+      "prompt_tokens": 574,
+      "generated_tokens": 1
+    },
+    {
+      "name": "video-0-1-top",
+      "prompt": "{\n        \"kind\": \"video\",\n        \"files\": [\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-0.png\",\n            \"artifact\": \"file:sha256:cb9549be184fba6e3969811657310cf63d38b108befcc0f50345a335e07b4e7e\"\n          },\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-0.png\",\n            \"artifact\": \"file:sha256:cb9549be184fba6e3969811657310cf63d38b108befcc0f50345a335e07b4e7e\"\n          },\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-1.png\",\n            \"artifact\": \"file:sha256:1465c1b16f7722254fac80a13532251298cf1ebcc7279f34df7f8d55b62d6053\"\n          },\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-1.png\",\n            \"artifact\": \"file:sha256:1465c1b16f7722254fac80a13532251298cf1ebcc7279f34df7f8d55b62d6053\"\n          }\n        ],\n        \"text\": [\n          \"\",\n          \"Choices: A = red; B = blue; C = green; D = yellow. What color is on the top half of the last frame? Reply with exactly one letter: A, B, C, or D.\"\n        ],\n        \"fps\": 4\n      }",
+      "max_tokens": 1,
+      "text": "C",
+      "prompt_tokens": 349,
+      "generated_tokens": 1
+    },
+    {
+      "name": "images-0-1-bottom",
+      "prompt": "{\n        \"kind\": \"images\",\n        \"files\": [\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-0.png\",\n            \"artifact\": \"file:sha256:cb9549be184fba6e3969811657310cf63d38b108befcc0f50345a335e07b4e7e\"\n          },\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-1.png\",\n            \"artifact\": \"file:sha256:1465c1b16f7722254fac80a13532251298cf1ebcc7279f34df7f8d55b62d6053\"\n          }\n        ],\n        \"text\": [\n          \"\",\n          \"\\n\",\n          \"Choices: A = red; B = blue; C = green; D = yellow. What color is on the bottom half of the second image? Reply with exactly one letter: A, B, C, or D.\"\n        ]\n      }",
+      "max_tokens": 1,
+      "text": "D",
+      "prompt_tokens": 574,
+      "generated_tokens": 1
+    },
+    {
+      "name": "video-0-1-bottom",
+      "prompt": "{\n        \"kind\": \"video\",\n        \"files\": [\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-0.png\",\n            \"artifact\": \"file:sha256:cb9549be184fba6e3969811657310cf63d38b108befcc0f50345a335e07b4e7e\"\n          },\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-0.png\",\n            \"artifact\": \"file:sha256:cb9549be184fba6e3969811657310cf63d38b108befcc0f50345a335e07b4e7e\"\n          },\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-1.png\",\n            \"artifact\": \"file:sha256:1465c1b16f7722254fac80a13532251298cf1ebcc7279f34df7f8d55b62d6053\"\n          },\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-1.png\",\n            \"artifact\": \"file:sha256:1465c1b16f7722254fac80a13532251298cf1ebcc7279f34df7f8d55b62d6053\"\n          }\n        ],\n        \"text\": [\n          \"\",\n          \"Choices: A = red; B = blue; C = green; D = yellow. What color is on the bottom half of the last frame? Reply with exactly one letter: A, B, C, or D.\"\n        ],\n        \"fps\": 4\n      }",
+      "max_tokens": 1,
+      "text": "D",
+      "prompt_tokens": 349,
+      "generated_tokens": 1
+    },
+    {
+      "name": "images-1-0-top",
+      "prompt": "{\n        \"kind\": \"images\",\n        \"files\": [\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-1.png\",\n            \"artifact\": \"file:sha256:1465c1b16f7722254fac80a13532251298cf1ebcc7279f34df7f8d55b62d6053\"\n          },\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-0.png\",\n            \"artifact\": \"file:sha256:cb9549be184fba6e3969811657310cf63d38b108befcc0f50345a335e07b4e7e\"\n          }\n        ],\n        \"text\": [\n          \"\",\n          \"\\n\",\n          \"Choices: A = red; B = blue; C = green; D = yellow. What color is on the top half of the first image? Reply with exactly one letter: A, B, C, or D.\"\n        ]\n      }",
+      "max_tokens": 1,
+      "text": "C",
+      "prompt_tokens": 574,
+      "generated_tokens": 1
+    },
+    {
+      "name": "video-1-0-top",
+      "prompt": "{\n        \"kind\": \"video\",\n        \"files\": [\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-1.png\",\n            \"artifact\": \"file:sha256:1465c1b16f7722254fac80a13532251298cf1ebcc7279f34df7f8d55b62d6053\"\n          },\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-1.png\",\n            \"artifact\": \"file:sha256:1465c1b16f7722254fac80a13532251298cf1ebcc7279f34df7f8d55b62d6053\"\n          },\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-0.png\",\n            \"artifact\": \"file:sha256:cb9549be184fba6e3969811657310cf63d38b108befcc0f50345a335e07b4e7e\"\n          },\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-0.png\",\n            \"artifact\": \"file:sha256:cb9549be184fba6e3969811657310cf63d38b108befcc0f50345a335e07b4e7e\"\n          }\n        ],\n        \"text\": [\n          \"\",\n          \"Choices: A = red; B = blue; C = green; D = yellow. What color is on the top half of the first frame? Reply with exactly one letter: A, B, C, or D.\"\n        ],\n        \"fps\": 4\n      }",
+      "max_tokens": 1,
+      "text": "C",
+      "prompt_tokens": 349,
+      "generated_tokens": 1
+    },
+    {
+      "name": "images-1-0-bottom",
+      "prompt": "{\n        \"kind\": \"images\",\n        \"files\": [\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-1.png\",\n            \"artifact\": \"file:sha256:1465c1b16f7722254fac80a13532251298cf1ebcc7279f34df7f8d55b62d6053\"\n          },\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-0.png\",\n            \"artifact\": \"file:sha256:cb9549be184fba6e3969811657310cf63d38b108befcc0f50345a335e07b4e7e\"\n          }\n        ],\n        \"text\": [\n          \"\",\n          \"\\n\",\n          \"Choices: A = red; B = blue; C = green; D = yellow. What color is on the bottom half of the first image? Reply with exactly one letter: A, B, C, or D.\"\n        ]\n      }",
+      "max_tokens": 1,
+      "text": "D",
+      "prompt_tokens": 574,
+      "generated_tokens": 1
+    },
+    {
+      "name": "video-1-0-bottom",
+      "prompt": "{\n        \"kind\": \"video\",\n        \"files\": [\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-1.png\",\n            \"artifact\": \"file:sha256:1465c1b16f7722254fac80a13532251298cf1ebcc7279f34df7f8d55b62d6053\"\n          },\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-1.png\",\n            \"artifact\": \"file:sha256:1465c1b16f7722254fac80a13532251298cf1ebcc7279f34df7f8d55b62d6053\"\n          },\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-0.png\",\n            \"artifact\": \"file:sha256:cb9549be184fba6e3969811657310cf63d38b108befcc0f50345a335e07b4e7e\"\n          },\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-0.png\",\n            \"artifact\": \"file:sha256:cb9549be184fba6e3969811657310cf63d38b108befcc0f50345a335e07b4e7e\"\n          }\n        ],\n        \"text\": [\n          \"\",\n          \"Choices: A = red; B = blue; C = green; D = yellow. What color is on the bottom half of the first frame? Reply with exactly one letter: A, B, C, or D.\"\n        ],\n        \"fps\": 4\n      }",
+      "max_tokens": 1,
+      "text": "D",
+      "prompt_tokens": 349,
+      "generated_tokens": 1
+    },
+    {
+      "name": "images-1-1-left",
+      "prompt": "{\n        \"kind\": \"images\",\n        \"files\": [\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-1.png\",\n            \"artifact\": \"file:sha256:1465c1b16f7722254fac80a13532251298cf1ebcc7279f34df7f8d55b62d6053\"\n          },\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-0.png\",\n            \"artifact\": \"file:sha256:cb9549be184fba6e3969811657310cf63d38b108befcc0f50345a335e07b4e7e\"\n          }\n        ],\n        \"text\": [\n          \"\",\n          \"\\n\",\n          \"Choices: A = red; B = blue; C = green; D = yellow. What color is on the left half of the second image? Reply with exactly one letter: A, B, C, or D.\"\n        ]\n      }",
+      "max_tokens": 1,
+      "text": "A",
+      "prompt_tokens": 574,
+      "generated_tokens": 1
+    },
+    {
+      "name": "video-1-1-left",
+      "prompt": "{\n        \"kind\": \"video\",\n        \"files\": [\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-1.png\",\n            \"artifact\": \"file:sha256:1465c1b16f7722254fac80a13532251298cf1ebcc7279f34df7f8d55b62d6053\"\n          },\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-1.png\",\n            \"artifact\": \"file:sha256:1465c1b16f7722254fac80a13532251298cf1ebcc7279f34df7f8d55b62d6053\"\n          },\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-0.png\",\n            \"artifact\": \"file:sha256:cb9549be184fba6e3969811657310cf63d38b108befcc0f50345a335e07b4e7e\"\n          },\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-0.png\",\n            \"artifact\": \"file:sha256:cb9549be184fba6e3969811657310cf63d38b108befcc0f50345a335e07b4e7e\"\n          }\n        ],\n        \"text\": [\n          \"\",\n          \"Choices: A = red; B = blue; C = green; D = yellow. What color is on the left half of the last frame? Reply with exactly one letter: A, B, C, or D.\"\n        ],\n        \"fps\": 4\n      }",
+      "max_tokens": 1,
+      "text": "A",
+      "prompt_tokens": 349,
+      "generated_tokens": 1
+    },
+    {
+      "name": "images-1-1-right",
+      "prompt": "{\n        \"kind\": \"images\",\n        \"files\": [\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-1.png\",\n            \"artifact\": \"file:sha256:1465c1b16f7722254fac80a13532251298cf1ebcc7279f34df7f8d55b62d6053\"\n          },\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-0.png\",\n            \"artifact\": \"file:sha256:cb9549be184fba6e3969811657310cf63d38b108befcc0f50345a335e07b4e7e\"\n          }\n        ],\n        \"text\": [\n          \"\",\n          \"\\n\",\n          \"Choices: A = red; B = blue; C = green; D = yellow. What color is on the right half of the second image? Reply with exactly one letter: A, B, C, or D.\"\n        ]\n      }",
+      "max_tokens": 1,
+      "text": "B",
+      "prompt_tokens": 574,
+      "generated_tokens": 1
+    },
+    {
+      "name": "video-1-1-right",
+      "prompt": "{\n        \"kind\": \"video\",\n        \"files\": [\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-1.png\",\n            \"artifact\": \"file:sha256:1465c1b16f7722254fac80a13532251298cf1ebcc7279f34df7f8d55b62d6053\"\n          },\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-1.png\",\n            \"artifact\": \"file:sha256:1465c1b16f7722254fac80a13532251298cf1ebcc7279f34df7f8d55b62d6053\"\n          },\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-0.png\",\n            \"artifact\": \"file:sha256:cb9549be184fba6e3969811657310cf63d38b108befcc0f50345a335e07b4e7e\"\n          },\n          {\n            \"kind\": \"image\",\n            \"path\": \"docs/verification/fixtures/qwen27/image-0.png\",\n            \"artifact\": \"file:sha256:cb9549be184fba6e3969811657310cf63d38b108befcc0f50345a335e07b4e7e\"\n          }\n        ],\n        \"text\": [\n          \"\",\n          \"Choices: A = red; B = blue; C = green; D = yellow. What color is on the right half of the last frame? Reply with exactly one letter: A, B, C, or D.\"\n        ],\n        \"fps\": 4\n      }",
+      "max_tokens": 1,
+      "text": "B",
+      "prompt_tokens": 349,
+      "generated_tokens": 1
+    },
+    {
+      "name": "audio-0-first-word",
+      "prompt": "{\"files\":[{\"artifact\":\"file:sha256:103c3f15eb3715ebc6243d142244128a3ac39b6bfae315baa6b8dc4a8be14aa8\",\"kind\":\"audio-wav\",\"path\":\"docs/verification/fixtures/gemma-4-12b/speech-0.wav\"}],\"kind\":\"audio\",\"text\":[\"\",\"Choices: A = concord; B = congratulations; C = this; D = goliath. Which word is spoken first? Reply with exactly one letter: A, B, C, or D.\"]}",
+      "max_tokens": 1,
+      "text": "A",
+      "prompt_tokens": 143,
+      "generated_tokens": 1
+    },
+    {
+      "name": "mixed-0-picture",
+      "prompt": "{\"files\":[{\"artifact\":\"file:sha256:cb9549be184fba6e3969811657310cf63d38b108befcc0f50345a335e07b4e7e\",\"kind\":\"image\",\"path\":\"docs/verification/fixtures/qwen27/image-0.png\"},{\"artifact\":\"file:sha256:103c3f15eb3715ebc6243d142244128a3ac39b6bfae315baa6b8dc4a8be14aa8\",\"kind\":\"audio-wav\",\"path\":\"docs/verification/fixtures/gemma-4-12b/speech-0.wav\"}],\"kind\":\"mixed\",\"text\":[\"\\u003c|turn\\u003euser\\n\",\"\",\"Choices: A = red; B = blue; C = green; D = yellow. What color is on the left half of the image? Reply with exactly one letter: A, B, C, or D.\\u003cturn|\\u003e\\n\\u003c|turn\\u003emodel\\n\\u003c|channel\\u003ethought\\n\\u003cchannel|\\u003e\"]}",
+      "max_tokens": 1,
+      "text": "A",
+      "prompt_tokens": 405,
+      "generated_tokens": 1
+    },
+    {
+      "name": "mixed-0-sound",
+      "prompt": "{\"files\":[{\"artifact\":\"file:sha256:cb9549be184fba6e3969811657310cf63d38b108befcc0f50345a335e07b4e7e\",\"kind\":\"image\",\"path\":\"docs/verification/fixtures/qwen27/image-0.png\"},{\"artifact\":\"file:sha256:103c3f15eb3715ebc6243d142244128a3ac39b6bfae315baa6b8dc4a8be14aa8\",\"kind\":\"audio-wav\",\"path\":\"docs/verification/fixtures/gemma-4-12b/speech-0.wav\"}],\"kind\":\"mixed\",\"text\":[\"\\u003c|turn\\u003euser\\n\",\"\",\"Choices: A = concord; B = congratulations; C = this; D = goliath. Which word is spoken first? Reply with exactly one letter: A, B, C, or D.\\u003cturn|\\u003e\\n\\u003c|turn\\u003emodel\\n\\u003c|channel\\u003ethought\\n\\u003cchannel|\\u003e\"]}",
+      "max_tokens": 1,
+      "text": "A",
+      "prompt_tokens": 401,
+      "generated_tokens": 1
+    },
+    {
+      "name": "audio-1-first-word",
+      "prompt": "{\"files\":[{\"artifact\":\"file:sha256:ca418189ed1db4ce1bf5e6940d51a9ce870d4d52f3ef9019ccdbb2189d1a0a9c\",\"kind\":\"audio-wav\",\"path\":\"docs/verification/fixtures/gemma-4-12b/speech-1.wav\"}],\"kind\":\"audio\",\"text\":[\"\",\"Choices: A = concord; B = congratulations; C = this; D = goliath. Which word is spoken first? Reply with exactly one letter: A, B, C, or D.\"]}",
+      "max_tokens": 1,
+      "text": "B",
+      "prompt_tokens": 181,
+      "generated_tokens": 1
+    },
+    {
+      "name": "mixed-1-picture",
+      "prompt": "{\"files\":[{\"artifact\":\"file:sha256:1465c1b16f7722254fac80a13532251298cf1ebcc7279f34df7f8d55b62d6053\",\"kind\":\"image\",\"path\":\"docs/verification/fixtures/qwen27/image-1.png\"},{\"artifact\":\"file:sha256:ca418189ed1db4ce1bf5e6940d51a9ce870d4d52f3ef9019ccdbb2189d1a0a9c\",\"kind\":\"audio-wav\",\"path\":\"docs/verification/fixtures/gemma-4-12b/speech-1.wav\"}],\"kind\":\"mixed\",\"text\":[\"\\u003c|turn\\u003euser\\n\",\"\",\"Choices: A = red; B = blue; C = green; D = yellow. What color is on the top half of the image? Reply with exactly one letter: A, B, C, or D.\\u003cturn|\\u003e\\n\\u003c|turn\\u003emodel\\n\\u003c|channel\\u003ethought\\n\\u003cchannel|\\u003e\"]}",
+      "max_tokens": 1,
+      "text": "C",
+      "prompt_tokens": 443,
+      "generated_tokens": 1
+    },
+    {
+      "name": "mixed-1-sound",
+      "prompt": "{\"files\":[{\"artifact\":\"file:sha256:1465c1b16f7722254fac80a13532251298cf1ebcc7279f34df7f8d55b62d6053\",\"kind\":\"image\",\"path\":\"docs/verification/fixtures/qwen27/image-1.png\"},{\"artifact\":\"file:sha256:ca418189ed1db4ce1bf5e6940d51a9ce870d4d52f3ef9019ccdbb2189d1a0a9c\",\"kind\":\"audio-wav\",\"path\":\"docs/verification/fixtures/gemma-4-12b/speech-1.wav\"}],\"kind\":\"mixed\",\"text\":[\"\\u003c|turn\\u003euser\\n\",\"\",\"Choices: A = concord; B = congratulations; C = this; D = goliath. Which word is spoken first? Reply with exactly one letter: A, B, C, or D.\\u003cturn|\\u003e\\n\\u003c|turn\\u003emodel\\n\\u003c|channel\\u003ethought\\n\\u003cchannel|\\u003e\"]}",
+      "max_tokens": 1,
+      "text": "B",
+      "prompt_tokens": 439,
+      "generated_tokens": 1
+    },
+    {
+      "name": "audio-2-first-word",
+      "prompt": "{\"files\":[{\"artifact\":\"file:sha256:b4ee5871dbb5084f596aa076453afc255f1416c83aec19d05e324ef4e062fc4d\",\"kind\":\"audio-wav\",\"path\":\"docs/verification/fixtures/gemma-4-12b/speech-2.wav\"}],\"kind\":\"audio\",\"text\":[\"\",\"Choices: A = concord; B = congratulations; C = this; D = goliath. Which word is spoken first? Reply with exactly one letter: A, B, C, or D.\"]}",
+      "max_tokens": 1,
+      "text": "C",
+      "prompt_tokens": 202,
+      "generated_tokens": 1
+    }
+  ]
+}

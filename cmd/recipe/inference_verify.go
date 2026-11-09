@@ -24,6 +24,7 @@ import (
 	"overgo/internal/cuda/driver"
 	"overgo/internal/evaluation"
 	"overgo/internal/inference"
+	"overgo/internal/media"
 	"overgo/internal/mediacapability"
 	"overgo/internal/modelintake"
 	"overgo/internal/modelrecipe"
@@ -150,7 +151,7 @@ func decodeProjectionInput(raw string, capabilities projector.SessionCapabilitie
 		switch file.Kind {
 		case "image":
 			images++
-		case "audio-f32le":
+		case "audio-f32le", audioWAVFixture:
 			audio++
 		default:
 			return input, errors.New("projection: unsupported fixture encoding")
@@ -192,6 +193,27 @@ func requireProjectionCoverage(suite evaluation.ExactSuite, capabilities project
 	return nil
 }
 
+// audioWAVFixture is a projection fixture's sound kept as a WAV file, mono at the rate the projector reads: a format
+// docs/verification admits and a person can play, where audio-f32le is raw samples.
+const audioWAVFixture = "audio-wav"
+
+// wavFixture is a WAV fixture's samples, refused unless mono at the rate the session's projector reads.
+func (runtime *projectedExactRuntime) wavFixture(ctx context.Context, data []byte) ([]float32, error) {
+	decoded, _, err := media.DecodeAudio(ctx, data, uint64(len(data)))
+	if err != nil {
+		return nil, err
+	}
+	rate, err := projector.AudioSampleRate(runtime.projection)
+	if err != nil {
+		return nil, err
+	}
+	if decoded.Format.Channels != 1 || decoded.Format.SampleRate != uint64(rate) {
+		return nil, fmt.Errorf("projection: a WAV fixture is %d channels at %d Hz, want one at the projector's %d Hz",
+			decoded.Format.Channels, decoded.Format.SampleRate, rate)
+	}
+	return decoded.Samples, nil
+}
+
 // Generate validates fixture identities and executes projection-to-language generation.
 func (runtime *projectedExactRuntime) Generate(ctx context.Context, raw string, options inference.GenerateOptions) ([]tokenizer.TokenID, string, error) {
 	input, err := decodeProjectionInput(raw, runtime.projection.Capabilities())
@@ -220,6 +242,11 @@ func (runtime *projectedExactRuntime) Generate(ctx context.Context, raw string, 
 			}
 			pictures = append(pictures, picture)
 			ordered = append(ordered, projector.NewImageMediaInput(picture))
+		} else if file.Kind == audioWAVFixture {
+			if waveform, err = runtime.wavFixture(ctx, data); err != nil {
+				return nil, "", err
+			}
+			ordered = append(ordered, projector.NewAudioMediaInput(waveform))
 		} else {
 			width := binary.Size(float32(0))
 			if len(data)%width != 0 {

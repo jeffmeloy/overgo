@@ -38,19 +38,20 @@ const projectorViewConfig = `{
 const projectorViewProcessor = `{"feature_extractor": {"sampling_rate": 16000},
   "image_processor": {"max_soft_tokens": 4}, "video_processor": {"max_soft_tokens": 4}}`
 
-// projectorViewShapes are the checkpoint's projector tensors, in the checkpoint's own row-major shapes.
+// projectorViewShapes are the checkpoint's projector tensors, by the names gemma-4-12B-it's published checkpoint gives
+// them, in the checkpoint's own row-major shapes.
 var projectorViewShapes = map[string][]uint64{
-	"model.embed_vision.patch_dense.weight":                              {8, 48},
-	"model.embed_vision.patch_dense.bias":                                {8},
-	"model.embed_vision.patch_ln1.weight":                                {48},
-	"model.embed_vision.patch_ln1.bias":                                  {48},
-	"model.embed_vision.patch_ln2.weight":                                {8},
-	"model.embed_vision.patch_ln2.bias":                                  {8},
-	"model.embed_vision.pos_embedding":                                   {16, 2, 8},
-	"model.embed_vision.pos_norm.weight":                                 {8},
-	"model.embed_vision.pos_norm.bias":                                   {8},
-	"model.embed_vision.multimodal_embedder.embedding_projection.weight": {8, 8},
-	"model.embed_audio.embedding_projection.weight":                      {8, 4},
+	"model.vision_embedder.patch_dense.weight":       {8, 48},
+	"model.vision_embedder.patch_dense.bias":         {8},
+	"model.vision_embedder.patch_ln1.weight":         {48},
+	"model.vision_embedder.patch_ln1.bias":           {48},
+	"model.vision_embedder.patch_ln2.weight":         {8},
+	"model.vision_embedder.patch_ln2.bias":           {8},
+	"model.vision_embedder.pos_embedding":            {16, 2, 8},
+	"model.vision_embedder.pos_norm.weight":          {8},
+	"model.vision_embedder.pos_norm.bias":            {8},
+	"model.embed_vision.embedding_projection.weight": {8, 8},
+	"model.embed_audio.embedding_projection.weight":  {8, 4},
 }
 
 // TestAProjectorIsReadFromItsPublishedFiles: a Gemma 4 checkpoint's media projector opens from the checkpoint's own

@@ -733,17 +733,18 @@ func openedTensors(views []viewTensor) ([]gguf.TensorData, error) {
 // directory's files when opened: the patch embedding made planar and the position table transposed, as the loader
 // reads them, and promoted to F32 where outputF32 asks.
 func projectorViews(source *safetensors.Source, outputF32 bool) ([]viewTensor, error) {
+	// The names gemma-4-12B-it's published checkpoint gives its embedder (model.safetensors, 2026-11-09).
 	mapping := []struct{ source, destination string }{
-		{"model.embed_vision.patch_dense.weight", "v.patch_embd.weight"},
-		{"model.embed_vision.patch_dense.bias", "v.patch_embd.bias"},
-		{"model.embed_vision.patch_ln1.weight", "v.patch_norm.1.weight"},
-		{"model.embed_vision.patch_ln1.bias", "v.patch_norm.1.bias"},
-		{"model.embed_vision.patch_ln2.weight", "v.patch_norm.2.weight"},
-		{"model.embed_vision.patch_ln2.bias", "v.patch_norm.2.bias"},
-		{"model.embed_vision.pos_embedding", "v.position_embd.weight"},
-		{"model.embed_vision.pos_norm.weight", "v.patch_norm.3.weight"},
-		{"model.embed_vision.pos_norm.bias", "v.patch_norm.3.bias"},
-		{"model.embed_vision.multimodal_embedder.embedding_projection.weight", "mm.input_projection.weight"},
+		{"model.vision_embedder.patch_dense.weight", "v.patch_embd.weight"},
+		{"model.vision_embedder.patch_dense.bias", "v.patch_embd.bias"},
+		{"model.vision_embedder.patch_ln1.weight", "v.patch_norm.1.weight"},
+		{"model.vision_embedder.patch_ln1.bias", "v.patch_norm.1.bias"},
+		{"model.vision_embedder.patch_ln2.weight", "v.patch_norm.2.weight"},
+		{"model.vision_embedder.patch_ln2.bias", "v.patch_norm.2.bias"},
+		{"model.vision_embedder.pos_embedding", "v.position_embd.weight"},
+		{"model.vision_embedder.pos_norm.weight", "v.patch_norm.3.weight"},
+		{"model.vision_embedder.pos_norm.bias", "v.patch_norm.3.bias"},
+		{"model.embed_vision.embedding_projection.weight", "mm.input_projection.weight"},
 		{"model.embed_audio.embedding_projection.weight", "mm.a.input_projection.weight"},
 	}
 	views := make([]viewTensor, 0, len(mapping))
@@ -761,16 +762,14 @@ func projectorViews(source *safetensors.Source, outputF32 bool) ([]viewTensor, e
 		}
 		open := func() (io.Reader, error) {
 			var reader io.Reader = tensor.Reader()
-			switch item.source {
-			case "model.embed_vision.patch_dense.weight",
-				"model.embed_vision.patch_ln1.weight",
-				"model.embed_vision.patch_ln1.bias":
+			switch item.destination {
+			case "v.patch_embd.weight", "v.patch_norm.1.weight", "v.patch_norm.1.bias":
 				permuted, err := newPatchPermutationReader(tensor)
 				if err != nil {
 					return nil, fmt.Errorf("gemma 4 converter: %w", err)
 				}
 				reader = permuted
-			case "model.embed_vision.pos_embedding":
+			case "v.position_embd.weight":
 				position, err := newPositionReader(tensor)
 				if err != nil {
 					return nil, fmt.Errorf("gemma 4 converter: %w", err)
@@ -787,7 +786,7 @@ func projectorViews(source *safetensors.Source, outputF32 bool) ([]viewTensor, e
 			return nil, err
 		}
 		shape := gguf.ReverseShape(tensor.Shape)
-		if item.source == "model.embed_vision.pos_embedding" {
+		if item.destination == "v.position_embd.weight" {
 			// The position reader took the table as [position, axis, hidden]; it is written [hidden, position, axis].
 			shape = []uint64{tensor.Shape[2], tensor.Shape[0], tensor.Shape[1]}
 		}

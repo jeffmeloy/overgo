@@ -1,0 +1,24 @@
+{
+  "cases": [
+    {
+      "generated_tokens": 373,
+      "max_tokens": 512,
+      "name": "page-top",
+      "prompt": "{\"kind\": \"image\", \"files\": [{\"kind\": \"image\", \"path\": \"docs/verification/fixtures/unlimited-ocr/page-top.png\", \"artifact\": \"file:sha256:36958ece5735d9be61b81a64c9b3a74a3047d4e35d5758a581f4795e4a5aa254\"}], \"text\": [\"\", \"document parsing.\"]}",
+      "prompt_tokens": 277,
+      "text": "title [75, 104, 236, 124]ADAPTIVE GPT OCR LONG FIXTURE\ntext [75, 172, 344, 195]Line 01: adaptive memory scalable OCR validation row 0017\ntext [75, 243, 345, 266]Line 02: adaptive memory scalable OCR validation row 0034\ntext [75, 314, 344, 337]Line 03: adaptive memory scalable OCR validation row 0051\ntext [75, 385, 344, 407]Line 04 adaptive memory scalable OCR validation row 0068\ntext [75, 456, 344, 478]Line 05: adaptive memory scalable OCR validation row 0085\ntext [75, 526, 344, 549]Line 06: adaptive memory scalable OCR validation row 0102\ntext [75, 597, 344, 619]Line 07: adaptive memory scalable OCR validation row 0119\ntext [75, 668, 344, 690]Line 08: adaptive memory scalable OCR validation row 0136\ntext [75, 738, 344, 761]Line 09: adaptive memory scalable OCR validation row 0153\ntext [75, 809, 344, 831]Line 10: adaptive memory scalable OCR validation row 0170\ntext [75, 879, 344, 902]Line 11: adaptive memory scalable OCR validation row 0187\ntext [75, 950, 344, 972]Line 12: adaptive memory scalable OCR validation row 0204"
+    },
+    {
+      "generated_tokens": 457,
+      "max_tokens": 1024,
+      "name": "page-top-and-next",
+      "prompt": "{\"kind\": \"images\", \"files\": [{\"kind\": \"image\", \"path\": \"docs/verification/fixtures/unlimited-ocr/page-top.png\", \"artifact\": \"file:sha256:36958ece5735d9be61b81a64c9b3a74a3047d4e35d5758a581f4795e4a5aa254\"}, {\"kind\": \"image\", \"path\": \"docs/verification/fixtures/unlimited-ocr/page-next.png\", \"artifact\": \"file:sha256:ddc580b8cdf8ccc7d88ff210c2365d4006a2e7c5e1dc6933b067739a357ee604\"}], \"text\": [\"\", \"\", \"document parsing.\"]}",
+      "prompt_tokens": 550,
+      "text": "title [76, 100, 236, 123]ADAPTIVE GPTOCRILONG FIXTURE\ntext [75, 172, 344, 195]Line 01: adaptive memory scalable OCR validation row 0017\ntext [75, 243, 345, 266]Line 02 adaptive memory scalable OCR validation row 0034\ntext [75, 314, 344, 336]Line 03 adaptive memory scalable OCR validation row 0051\ntext [75, 384, 345, 406]Line 04 adaptive memory scalable OCR validation row 0068\ntext [75, 455, 344, 477]Line 05: adaptive memory scalable OCR validation row 0085\ntext [75, 526, 344, 548]Line 06 adaptive memory scalable OCR validation row 0102\ntext [75, 596, 344, 618]Line 07: adaptive memory scalable OCR validation row 0119\ntext [75, 667, 344, 689]Line 08: adaptive memory scalable OCR validation row 0136\ntext [75, 738, 344, 759]Line 09: adaptive memory scalable OCR validation row 0153\ntext [75, 808, 344, 829]Line 10: adaptive memory scalable OCR validation row 0370\ntext [75, 878, 344, 899]Line 11: adaptive memory scalable OCR validation row 0391\ntext [75, 948, 344, 969]Line 24 adaptive memory scalable OCR validation row 0408\ntext [75, 818, 344, 839]Line 11: adaptive memory scalable OCR validation row 0391\ntext [75, 888, 344, 909]Line 25: adaptive memory scalable OCR validation row 0425\ntext [75, 948, 344, 969]Line 26 adaptive memory scalable OCR validation row 0442\n"
+    }
+  ],
+  "date": "2026-11-08",
+  "model_dir": "Unlimited-OCR-bf16",
+  "schema": "overgo/native-projection/v1",
+  "source": "overgo greedy reading recorded at onboarding; the path is held to the reference decode by internal/adaptiveparity TestUnlimitedOCRProductionParity"
+}

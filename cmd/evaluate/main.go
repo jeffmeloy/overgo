@@ -115,6 +115,9 @@ func run() error {
 	editOneThing := flag.Bool("one-thing", false, "with -render-edits: tell the editor to change the colour of one worn thing each clip's caption names, and nothing else, where the fixed list changes the whole clip; a clip whose caption names no such thing is passed over")
 	drawnText := flag.Bool("render-drawn-text", false, "draw an infographic from each of -cases briefs of a fixed list with the image model -model-path names, each asked to hold a title, three lines with a figure and a line of small print, and write the suite that asks the judge which of four texts each picture holds to -suite-out, the pictures to -media-out")
 	renderSet := flag.String("render-set", "", "with -render-tifa, -render-drawn-text or -render-vidgen: comma-separated name=number settings that replace fields of the request the model's verification ran, such as width=416,height=240")
+	readText := flag.String("read-text", "", "read the text of each picture of this directory with the OCR model -reader names through its projector -reader-projector on -device, and print each reading, row by row with its box and the reader's model, recipe and projection, as a line of JSON")
+	readerModel := flag.String("reader", "", "with -read-text: the OCR model file, Unlimited-OCR")
+	readerProjector := flag.String("reader-projector", "", "with -read-text: the OCR model's projector file")
 	motionSuite := flag.String("frame-similarity", "", "measure how the clips of this suite move and write it with their motion to -suite-out: each clip in -media is read at 16 frames a second and each frame embedded with the image encoder -encoder names on -device, and the source clip each case describes is read from -sources by its name where one is there; a judged reading of the suite records the clips' mean and lowest similarity of a frame to the next and the share whose lowest falls below their source's")
 	motionMedia := flag.String("media", "", "with -frame-similarity: the directory the suite's clips are in")
 	motionSources := flag.String("sources", "", "with -frame-similarity: the directory of the source clips the suite's cases describe, each named by the caption or clip it is")
@@ -221,6 +224,13 @@ func run() error {
 			return errors.New("usage: evaluate -frame-similarity <suite.json> -media <clip directory> -encoder <image encoder directory> -suite-out <suite.json> [-sources <source clip directory>] [-device N]")
 		}
 		return writeMotion(context.Background(), suite, clips, strings.TrimSpace(*motionSources), encoder, *device, out)
+	}
+	if pictures := strings.TrimSpace(*readText); pictures != "" {
+		model, projectorPath := strings.TrimSpace(*readerModel), strings.TrimSpace(*readerProjector)
+		if flag.NArg() != 0 || model == "" || projectorPath == "" {
+			return errors.New("usage: evaluate -read-text <picture directory> -reader <OCR model file> -reader-projector <projector file> [-repo <store>] [-device N]")
+		}
+		return writeReadings(context.Background(), *repository, pictures, model, projectorPath, *device)
 	}
 	if clips := strings.TrimSpace(*sceneClips); clips != "" {
 		if flag.NArg() != 0 || strings.TrimSpace(*suiteOut) == "" || strings.TrimSpace(*mediaOut) == "" {

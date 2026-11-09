@@ -37,24 +37,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 1605,
+        "nodes": 520,
         "reason": "Estimated after a survey of the code, at about twice what a first sketch of the steps counts, since this week's rows landed at two to six times the counts they were filed with (wan-few-step 300 -\u003e 1100, sampling-split 400 -\u003e 1700, umt5-resident 336 -\u003e 1750): the OCR model's projector path opened for the suite, a character score carried to the scorecard, and a brief writer over word and number lists."
       },
       "steps": [
-        {
-          "id": "reader",
-          "title": "cmd/evaluate reads an image's text with Unlimited-OCR through projector.DeepSeekOCRRunner, recording its model and projector identities with what it read",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/evaluate -count=1 -run '^TestUnlimitedOCRReadsAPictureForTheSuite$'",
-          "files": [
-            "cmd/evaluate",
-            "internal/projector",
-            "internal/evaluation",
-            "docs/verification"
-          ],
-          "needs_card": true,
-          "rationale": "Unlimited-OCR's vision path exists (internal/projector/deepseekocr.go:41, registered at internal/projector/prompt.go:295). Only TestUnlimitedOCRProductionParity holds it (internal/adaptiveparity/unlimited_ocr_windows_test.go:55-175: an exact 200-token prefix, row coordinates within 1 and an edit distance of at most 1 per row), and that test opens the projector directly. The served row is text -\u003e text (README.md:137). docs/verification/text-vision-coverage.json:66 says document recognition is not claimed, and compatibility.json holds it pending-fixture. Qwen3.8-27B can read text through its projector, but it is the suite's judge. A separate reader keeps the reading and the judging two instruments, and a dedicated OCR model reads more cheaply than a 27B judge's 27 s a question.\n\nServes: held-out-quality for every image generator.\nDisappears: an OCR vision path no command runs.\nEvidence: the reader reads the parity test's page within that test's bounds, and a drawn-text picture's reading records the reader's identities.\nBatch: device lane."
-        },
         {
           "id": "char-score",
           "title": "The drawn-text suite scores each picture by the share of its brief's characters the reader read back, title, three lines and small print, beside the judge's choice and soft share, and the scorecard reads it",

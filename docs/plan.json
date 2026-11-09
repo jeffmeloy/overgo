@@ -52,22 +52,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": -552,
+        "nodes": -1867,
         "reason": "The replay harness and ladder exist (cmd/loop replay.go, ladder.go); mutants of landed steps, a cost ledger per landing and a measured run of the local worker are new."
       },
       "steps": [
-        {
-          "id": "costs",
-          "title": "Each landing records its full cost beside its measured benefit: the worker's wall and tokens across every attempt, its checks' wall, the attempts refused and their recovery, and the loop's report prints benefit against cost per worker",
-          "status": "open",
-          "verify": "go test ./internal/landing ./cmd/loop -count=1 -run '^TestALandingRecordsItsFullCost$'",
-          "files": [
-            "internal/landing",
-            "cmd/loop",
-            "internal/loop"
-          ],
-          "rationale": "Serves: setup-steps.\n\nDisappears: benefit read without its cost.\n\nEvidence: the owner's review: the recorded benefit must exceed the full cost of proposing, checking and recovering. Landings record the checks they ran and the gate's measures, not the attempts that failed before them.\n\nBatch: host lane."
-        },
         {
           "id": "demonstrated",
           "title": "The local worker lands three plan steps unaided, each benefit confirmed by an evaluation the worker did not write, and the recorded benefit of the three exceeds their recorded cost",

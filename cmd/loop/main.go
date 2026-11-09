@@ -53,6 +53,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -62,6 +63,7 @@ import (
 	"overgo/internal/gitauthority"
 	"overgo/internal/guard"
 	"overgo/internal/jsonfile"
+	"overgo/internal/landing"
 	"overgo/internal/loop"
 	"overgo/internal/plan"
 	"overgo/internal/processcontrol"
@@ -133,6 +135,7 @@ func run(args []string) error {
 	replaySince := flags.String("replay", "", "replay the steps landed since this date (2026-11-01) whose check runs one Go test with the local worker -local-worker and -local-model name, or with -replay-claude the Claude worker: each from the commit it landed on, its landing's tests in place, up to three attempts; print each record, pass or fail by the step's own check with attempts, tool calls and wall, as a line of JSON")
 	replayLimit := flags.Int("replay-limit", defaultReplayLimit, "with -replay or -mutants: the most steps replayed or put to their bad alternatives, newest first")
 	mutantsSince := flags.String("mutants", "", "put the steps landed since this date (2026-11-01) whose check runs one Go test on the host to bad alternatives: each at the commit that landed it, its check passing there, each of up to three comparisons on the lines it wrote inverted in turn; print each step's record, how many of its alternatives its check refused and those it passed, as a line of JSON, and the share the gate refused")
+	costsSince := flags.String("costs", "", "print, for each worker, the steps its landings since this date (2026-11-09) landed against what they cost: the landings, the worker attempts at them, their wall and the gate's, read from each landing's cost trailers, the worker the last named")
 	toolsServer := flags.Bool("tools", false, "serve the worker its six tools over the Model Context Protocol on standard input and output: read, edit within the step's files, run its check, run a package's tests, show the step and run an approved probe")
 	toolsStep := flags.String("tools-step", "", "with -tools: serve a replayed step's task, read from this file, in place of the plan's dispatched step")
 	toolsLog := flags.String("tools-log", "", "with -tools: append the name of each tool called to this file, a line each")
@@ -248,6 +251,13 @@ func run(args []string) error {
 			return err
 		}
 		return errors.Join(replaySteps(context.Background(), loopWorktree, *replaySince, *replayLimit, worker, io.MultiWriter(os.Stdout, kept)), kept.Close())
+	case *costsSince != "":
+		costs, unsaid, err := landingCosts(context.Background(), loopWorktree, *costsSince)
+		if err != nil {
+			return err
+		}
+		printCosts(os.Stdout, costs, unsaid)
+		return nil
 	case *mutantsSince != "":
 		if err := processlock.EnsureStateDirectory(loopWorktree); err != nil {
 			return err
@@ -476,6 +486,17 @@ func (w *execWorld) RunWorker(step loop.Step, prompt, feedback string) (string, 
 	}
 	var combined bytes.Buffer
 	output := io.MultiWriter(os.Stdout, &combined)
+	// The attempt is recorded as it starts and as it ends, so a landing the worker makes reads what the step cost.
+	attempt := landing.Attempt{Step: step.Key(), Worker: workerName(w.config.Name, w.level, worker), Started: time.Now()}
+	if err := landing.RecordAttempt(loopWorktree, attempt); err != nil {
+		fmt.Printf("loop: the attempt at %s is not recorded: %v\n", step.Key(), err)
+	}
+	defer func() {
+		attempt.Wall = time.Since(attempt.Started)
+		if err := landing.RecordAttempt(loopWorktree, attempt); err != nil {
+			fmt.Printf("loop: the end of the attempt at %s is not recorded: %v\n", step.Key(), err)
+		}
+	}()
 	// The record a worker leaves while it works says, at the next start, what a run that never exited was doing.
 	if err := keepRunning(loopWorktree, step.Key(), time.Now()); err != nil {
 		cancel()
@@ -501,6 +522,18 @@ func (w *execWorld) RunWorker(step loop.Step, prompt, feedback string) (string, 
 	// accomplished. Log the event and continue.
 	fmt.Printf("loop: worker exited for %s (err=%v)\n", step.Key(), err)
 	return tail, nil
+}
+
+// workerName is how a landing's cost names the worker at level running command: the configured name of the first, a
+// later worker by the local model it serves where it names one, else by its command.
+func workerName(configured string, level int, command []string) string {
+	if level == 0 && configured != "" {
+		return configured
+	}
+	if at := slices.Index(command, "-local-model"); at >= 0 && at+1 < len(command) {
+		return "local " + command[at+1]
+	}
+	return strings.TrimSuffix(filepath.Base(command[0]), ".exe")
 }
 
 // RunCommand works a run step with no worker: it runs the step's command in the checkout, requires the record the step

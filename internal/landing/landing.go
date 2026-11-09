@@ -971,7 +971,16 @@ func (l *landing) message() string {
 			composed += "\n\n" + l.unevidencedNote()
 		}
 	}
-	return composed + l.section(undoSection, l.undone) + "\n\nMeasured by the gate: " + strings.Join(l.measured, ", ") +
+	// What the landed steps cost, the worker attempts the driver recorded and the gate's run, beside what they measured.
+	costLine := "Cost: unread: "
+	if spent, err := l.cost(time.Now()); err != nil {
+		costLine += err.Error()
+	} else {
+		var costTrailers []string
+		costLine, costTrailers = spent.said()
+		trailers = append(trailers, costTrailers...)
+	}
+	return composed + l.section(undoSection, l.undone) + "\n\n" + costLine + "\n\nMeasured by the gate: " + strings.Join(l.measured, ", ") +
 		"\n\n" + strings.Join(trailers, "\n") + "\n"
 }
 

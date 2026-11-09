@@ -8,21 +8,36 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 900,
+        "nodes": 827,
         "reason": "Estimated from a survey: the judged suites, the paired exact test and the render path exist (cmd/evaluate render.go, internal/evaluation, internal/scorecard record.go judgeQuality); the degradations, a second judge's run and the medium pairing are new code with two card tests."
       },
       "steps": [
         {
-          "id": "degraded",
-          "title": "Each generated-media judge scores deliberately degraded outputs lower: blurred, noised, frame-frozen and prompt-swapped versions of a suite's own outputs each lose to the outputs they came from in a paired exact test, at a level declared before the run",
+          "id": "sensitivity",
+          "title": "The judge's sensitivity to each way an output is degraded is measured and held: it scores another prompt's picture or clip and a blurred picture lower, by the exact paired test at 0.05, and its blindness to noise, to a frozen clip and to a blurred clip is measured and recorded, so its quality cells read as prompt adherence",
           "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/evaluate -count=1 -run '^TestTheJudgeScoresDegradedOutputsLower$'",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/evaluate -count=1 -run '^TestTheJudgeScoresDegradedOutputsLower$' -timeout 120m -v",
           "files": [
-            "cmd/evaluate",
-            "internal/evaluation"
+            "cmd/evaluate"
           ],
           "needs_card": true,
-          "rationale": "Serves: held-out-quality for every image and video generator.\n\nDisappears: a judge trusted for a difference it was never shown to see.\n\nEvidence: the owner's review (2026-11-09): provenance makes a score reproducible, calibration makes it useful. A judge that cannot tell a picture from its blurred copy, or a clip from one of another prompt, cannot rank two models. Each degradation is applied to the base's own outputs on the TIFA and generated-video suites, so the paired test reads the degradation alone.\n\nBatch: device lane."
+          "rationale": "Serves: held-out-quality for every image and video generator, read as what it measures.\n\nDisappears: a judge assumed to see every loss of quality.\n\nEvidence: measured 2026-11-09 on the first 12 pictures Krea-2-Turbo drew for TIFA and the first 10 clips Wan2.1-T2V-1.3B drew at 81 frames and 832 x 480, each written again unchanged, blurred (box radius a sixteenth of the shorter side, three passes), noised (deviation 64 of 255), frozen on its first frame and swapped for another prompt's output, outputs compared by the share of their questions answered right (exact paired test at 0.05). Another prompt's output: pictures 11 lower, 0 higher, 1 the same; clips 8, 0, 2. A blurred picture: 11, 0, 1. Noise: pictures 1, 1, 10; clips 0, 0, 10. A blurred clip: 3, 0, 7. A frozen clip: 1, 0, 9. The judge's questions ask what an output shows, not how well, so its quality cells are prompt adherence: the Wan student's 'no difference' from its base (video-judge/same-settings) says nothing of sharpness, noise or motion. judge-calibration/fidelity and judge-calibration/stillness add the instruments that see those.\n\nBatch: device lane.\n\nNote: files set to cmd/evaluate: the judge's session can keep its answers apart (openProjectionInto), and the calibration is a card test of the evaluator"
+        },
+        {
+          "id": "fidelity",
+          "title": "The judge is asked directly how well an output is drawn, whether a picture is sharp and free of noise and whether a clip moves, and scores the noised, blurred and frozen versions judge-calibration/sensitivity measured it blind to lower on those questions, by the exact paired test at 0.05",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/evaluate -count=1 -run '^TestTheJudgeSeesFidelityWhenAsked$' -timeout 120m -v",
+          "needs_card": true,
+          "rationale": "Serves: held-out-quality for every image and video generator: how well an output is drawn, beside what it shows.\n\nDisappears: quality cells that are prompt adherence alone.\n\nEvidence: judge-calibration/sensitivity measured the judge blind to noise of deviation 64 of 255 in pictures and clips and to a blurred clip, its caption and TIFA questions asking what an output shows. Asked directly (is the picture sharp, is it free of noise and grain, does the clip move), a vision-language model may see what its content questions do not; whether Qwen3.8-27B does is what this step measures, on the same degraded versions, before the questions join any suite. A fidelity share is its own measure beside the content share, so neither moves the other's history.\n\nBatch: device lane."
+        },
+        {
+          "id": "stillness",
+          "title": "A clip's frame-to-frame record bounds it from above as from below: a clip more alike frame to frame than the stillest of the source clips its suite's captions describe reads as too still, so a clip frozen on its first frame is caught",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/evaluate -count=1 -run '^TestAFrozenClipReadsAsTooStill$'",
+          "needs_card": true,
+          "rationale": "Serves: held-out-quality for every video generator and editor: whether a clip moves.\n\nDisappears: a frozen clip read as a perfect one.\n\nEvidence: judge-calibration/sensitivity measured the judge blind to a clip frozen on its first frame (1 lower of 10). The frame-to-frame measure (media-screen/clip-consistency) reads a clip's lowest similarity against its source clips' as a floor, which catches a cut, and reads a frozen clip, similarity 1 between every frame, as the most consistent clip there is. The source clips the suite's captions describe bound how still a real clip of them is, so their most still sets a ceiling as their least still sets the floor.\n\nBatch: device lane."
         },
         {
           "id": "independent",

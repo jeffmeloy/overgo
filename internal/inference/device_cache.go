@@ -1576,13 +1576,8 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	if projected.MultiAxisPositions != nil {
 		axes := [tensor.MaxDimensions][]uint32(*projected.MultiAxisPositions)
 		multiPositions, positions = &axes, axes[0]
-		for _, axis := range axes {
-			for _, position := range axis {
-				positionAfter = max(positionAfter, position+1)
-			}
-		}
-		if positionAfter < nextPosition {
-			return fail(errors.New("projected positions precede the cache's next position"))
+		if positionAfter, err = projectedPositionAfter(*projected.MultiAxisPositions, nextPosition, projected.continues); err != nil {
+			return fail(err)
 		}
 	}
 	var positionRows []*tensor.Tensor

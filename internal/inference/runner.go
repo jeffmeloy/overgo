@@ -181,6 +181,8 @@ type ProjectedInputs struct {
 	DeepstackEmbeddings          []reference.Value
 	BidirectionalAttentionBlocks []AttentionBlock
 	VisualExpertBlocks           []AttentionBlock
+	// continues marks the inputs of a chunk after a prompt's first (span): its cache is the prompt's own, read so far.
+	continues bool
 }
 
 // preparedModel: loaded assets; model-wide execution config.

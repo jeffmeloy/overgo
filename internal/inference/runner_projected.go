@@ -303,7 +303,7 @@ func (r *Runner) deviceProjectable(inputs ProjectedInputs) bool {
 // span gives the projected inputs of count tokens from start, each indexed from start: a chunk of a prompt the
 // device reads in parts. Attention and visual expert blocks, which no device prompt reads, are not carried.
 func (inputs ProjectedInputs) span(start, count int) *ProjectedInputs {
-	result := &ProjectedInputs{}
+	result := &ProjectedInputs{continues: start > 0}
 	for _, override := range inputs.EmbeddingOverrides {
 		if index := int(override.TokenIndex) - start; index >= 0 && index < count {
 			result.EmbeddingOverrides = append(result.EmbeddingOverrides, EmbeddingOverride{TokenIndex: uint32(index), Embedding: override.Embedding})
@@ -322,6 +322,29 @@ func (inputs ProjectedInputs) span(start, count int) *ProjectedInputs {
 		result.DeepstackEmbeddings = append(result.DeepstackEmbeddings, reference.Value{Shape: shape, Data: stream.Data[start*width : (start+count)*width]})
 	}
 	return result
+}
+
+// projectedPositionAfter is the cache's next position after a projected prompt's tokens at positions are read onto a
+// cache whose next position is next: one past the largest position read so far. Multi-axis positions do not rise token
+// by token, a clip's rows and columns starting again at each frame, so a chunk after a prompt's first (continues) can
+// hold no position as large as an earlier chunk's, and its cache keeps the earlier chunk's next position: on
+// 2026-11-09 a clip prompt the card bisected under memory pressure was refused here mid-frame. A prompt's first chunk
+// whose positions all lie before a cache it did not write is refused, since its positions would collide with that
+// cache's.
+func projectedPositionAfter(positions MultiAxisPositions, next uint32, continues bool) (uint32, error) {
+	var after uint32
+	for _, axis := range positions {
+		for _, position := range axis {
+			after = max(after, position+1)
+		}
+	}
+	if after < next {
+		if !continues {
+			return 0, errors.New("projected positions precede the cache's next position")
+		}
+		after = next
+	}
+	return after, nil
 }
 
 // overrideDeviceRows puts projected rows in place of their tokens' embedding rows on the device: the rows times a

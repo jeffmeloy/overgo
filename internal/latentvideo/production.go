@@ -319,10 +319,11 @@ func newServedEncoder(ctx context.Context, format ClipFormat, finish ClipFinish,
 		return nil, err
 	}
 	if finish.IsZero() {
-		return newFormatEncoder(ctx, format, fps, pixels)
+		encoder, _, err := newFormatEncoder(ctx, format, fps, pixels, false)
+		return encoder, err
 	}
 	// A finished frame is in [0, 1] at its finished size, whatever the generator drew it in.
-	next, err := newFormatEncoder(ctx, format, fps, UnitPixels)
+	next, encodedBy, err := newFormatEncoder(ctx, format, fps, UnitPixels, true)
 	if err != nil {
 		return nil, err
 	}
@@ -330,19 +331,26 @@ func newServedEncoder(ctx context.Context, format ClipFormat, finish ClipFinish,
 	if err != nil {
 		return nil, errors.Join(err, next.Close())
 	}
+	finishing.encodedBy = encodedBy
 	return finishing, nil
 }
 
-// newFormatEncoder is the encoder a clip of the format is written by.
-func newFormatEncoder(ctx context.Context, format ClipFormat, fps int, pixels PixelRange) (clipEncoder, error) {
+// newFormatEncoder is the encoder a clip of the format is written by: a finished MP4 on NVENC where the FFmpeg lists
+// it, saying which encoder and, where not NVENC, why.
+func newFormatEncoder(ctx context.Context, format ClipFormat, fps int, pixels PixelRange, finished bool) (clipEncoder, string, error) {
 	if format.IsZero() {
-		return NewClipEncoder(fps, pixels)
+		encoder, err := NewClipEncoder(fps, pixels)
+		return encoder, "", err
 	}
 	ffmpeg, err := media.FFmpeg()
 	if err != nil {
-		return nil, fmt.Errorf("latent video: an MP4 clip is written through FFmpeg, and none resolves: set OVERGO_FFMPEG to an FFmpeg executable, or ask for \"format\": \"gif\": %w", err)
+		return nil, "", fmt.Errorf("latent video: an MP4 clip is written through FFmpeg, and none resolves: set OVERGO_FFMPEG to an FFmpeg executable, or ask for \"format\": \"gif\": %w", err)
 	}
-	return NewMP4Encoder(ctx, ffmpeg, fps, pixels)
+	if finished {
+		return newFinishedMP4Encoder(ctx, ffmpeg, fps, pixels)
+	}
+	encoder, err := NewMP4Encoder(ctx, ffmpeg, fps, pixels)
+	return encoder, "", err
 }
 
 // WriteClip writes the frames a generation hands it as a clip of the format, through the encoder a served clip of that

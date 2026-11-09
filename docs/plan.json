@@ -72,23 +72,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": -899,
+        "nodes": -1316,
         "reason": "Estimated from a survey: a syscall binding of about a dozen NvVFX and NvCVImage entry points beside internal/cuda/cudnn's, a finishing clipEncoder in front of the existing MP4 writer, a control and a record field, NVENC arguments for the existing FFmpeg pipe, and a VMAF reading through the same FFmpeg. Earlier media campaigns came in at three to seven times their first estimates, so this is about three times the sum of the parts. plan -add derives its own count from history beside this figure. Step nvenc: +653 (653, the median of what 12 landings that changed internal/latentvideo, internal/media, internal/server counted). Step supplied: +331 (331, the median of what 13 landings that changed internal/latentvideo, internal/media, internal/server, internal/mediacapability counted)."
       },
       "steps": [
-        {
-          "id": "nvenc",
-          "title": "A finished clip is encoded on NVENC as HEVC tagged hvc1 where the resolved FFmpeg offers it and repeats its bytes, x264 otherwise with the record saying why, and a Wan student clip of 81 frames finished at four times is measured",
-          "status": "open",
-          "verify": "OVERGO_NVVFX=C:/Users/jeffm/upscale/env/Lib/site-packages/nvvfx/libs OVERGO_FFMPEG=C:/Users/jeffm/upscale/ffmpeg.exe OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestAFinishedClipIsEncodedOnNVENC$' -timeout 60m",
-          "files": [
-            "internal/latentvideo",
-            "internal/media",
-            "internal/server"
-          ],
-          "needs_card": true,
-          "rationale": "A finished clip is up to 3328 x 1920 for Wan's 832 x 480 at four times. The FFmpeg resolved here today has no NVENC; the build in C:/Users/jeffm/upscale (2026-03-12, gyan.dev) lists hevc_nvenc, h264_nvenc and av1_nvenc beside libx264 and libvmaf. OVERGO_FFMPEG is switched to it once, as this step begins, and the MP4 default's own check (internal/latentvideo TestAClipIsSavedAsMP4ByDefault) is run under it before anything else is. With NVENC a finished clip is encoded as HEVC at a constant quality, as upscale_video.py does (open_encoder :176-194), tagged hvc1 so players that require the tag open it, and the web UI's own video element is shown to open it; the test encodes twice and compares the bytes, and where NVENC does not repeat its bytes on this card the finished clip is written by x264 at the default's settings and the record says why. Measured: one Wan four-step student clip at 81 frames, 832 x 480, finished at four times, with the frames per second of the effect and of the encode and the share of the clip's wall the finish adds.\n\nServes: a person gets a 4K clip from Wan's 832 x 480 in one request.\n\nDisappears: x264 at 3328 x 1920, minutes a clip.\n\nEvidence: rtx-vsr/clips lands the finish ahead of the encoder."
-        },
         {
           "id": "supplied",
           "title": "A clip a person supplies is finished keeping its colour matrix, primaries, transfer and range, and its sound, copied where MP4 holds it and AAC otherwise",

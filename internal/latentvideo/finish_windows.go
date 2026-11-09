@@ -149,8 +149,10 @@ type finishingEncoder struct {
 	next   clipEncoder
 	finish ClipFinish
 	pixels PixelRange
-	worker *device.Worker
-	stages []*nvvfx.Upscaler
+	// encodedBy is the encoder the clip after the finish is written by, and why where it is not NVENC.
+	encodedBy string
+	worker    *device.Worker
+	stages    []*nvvfx.Upscaler
 	// frames are the device frames the stages read and write: the input, then each stage's output.
 	frames         []nvvfx.Image
 	upload, result []byte
@@ -256,7 +258,7 @@ func (f *finishingEncoder) Finish() (EncodedVideo, error) {
 	if err != nil {
 		return video, errors.Join(err, f.release())
 	}
-	record := &media.Finish{Scale: 1, Runtime: identity}
+	record := &media.Finish{Scale: 1, Runtime: identity, Encoder: f.encodedBy}
 	for _, stage := range f.finish.levels() {
 		record.Levels = append(record.Levels, stage.level)
 		record.Scale *= stage.scale

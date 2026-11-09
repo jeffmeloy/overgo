@@ -395,6 +395,8 @@ type Finish struct {
 	Levels  []uint32      `json:"levels"`
 	Scale   int           `json:"scale"`
 	Runtime []artifact.ID `json:"runtime"`
+	// Encoder is the encoder the finished clip was written by (hevc_nvenc), and why where it is not NVENC.
+	Encoder string `json:"encoder,omitzero"`
 }
 
 // IsZero says the clip names no program.

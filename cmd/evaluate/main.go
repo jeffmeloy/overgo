@@ -146,6 +146,9 @@ func run() error {
 	promptCases := flag.String("read-prompts", "", "print, as JSON, each multiple-choice case of this file as the model file -model-path names is given it, read from that file's chat template and vocabulary without loading the model: under -protocol chat-template the question as one user turn with the answer opened, and the tokens a generation starts from; else the prompt's tokens and each candidate's continuation, as raw completion scores them; a case that is a bare sequence, as a sequence-scoring suite holds, is read whole after the prefix the vocabulary declares")
 	suiteOut := flag.String("suite-out", "", "with a -build- flag: the suite file to write")
 	cpuProfile := flag.String("cpuprofile", "", "write a Go CPU profile of this process to the file (the host side of a pass; a worker's file is its own)")
+	reaskRecord := flag.String("reask", "", "ask the answers of this chat-template evaluation record that named no option because the token budget ended again, through the model file -model-path names, under -reask-opener and -reask-tokens, and print how many now name an option letter; records nothing")
+	reaskOpener := flag.String("reask-opener", "The answer is", "with -reask: the words the model's turn opens with")
+	reaskTokens := flag.Int("reask-tokens", reaskDefaultTokens, "with -reask: how many tokens the answer is read from")
 	flag.Parse()
 	if err := dataroot.ResolveStore(repository); err != nil {
 		return err
@@ -382,6 +385,14 @@ func run() error {
 			return runAllWorker(context.Background(), *repository, *device, *family, *modelPath, *protocol, *budget)
 		}
 		return runAllParent(context.Background(), *repository, *device, *family, *catalogLimit, *protocol, *budget)
+	}
+	if *reaskRecord != "" {
+		reasked, err := reaskBudgetEnded(context.Background(), *repository, *modelPath, *reaskRecord, evaluation.AnswerVariant{Opener: *reaskOpener, Tokens: *reaskTokens})
+		if err != nil {
+			return err
+		}
+		fmt.Printf("%s under %q and %d tokens: %d of %d budget-ended answers now name an option letter\n", *reaskRecord, *reaskOpener, *reaskTokens, reasked.Lettered, reasked.Asked)
+		return nil
 	}
 	if *listSuites {
 		if flag.NArg() != 0 || *worker || strings.TrimSpace(*manifestPath) != "" {

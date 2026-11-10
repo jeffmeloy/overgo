@@ -8,22 +8,23 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": -210,
-        "reason": "Estimated: a reading over answers the store already holds and, where the cause is overgo's, a change to one request field or one answer reader. The count is reset from what the reading finds. Step reread: +201 (201, the median of what 18 landings that changed internal/evaluation, cmd/evaluate, internal/scorecard counted)."
+        "nodes": -748,
+        "reason": "Estimated: a reading over answers the store already holds and, where the cause is overgo's, a change to one request field or one answer reader. The count is reset from what the reading finds. Step reread: +201 (201, the median of what 18 landings that changed internal/evaluation, cmd/evaluate, internal/scorecard counted). Step paren-opener: +155 (155, the median of what 21 landings that changed internal/evaluation, cmd/evaluate, internal/scorecard, docs/verification counted)."
       },
       "steps": [
         {
-          "id": "reread",
-          "title": "The answers the eight-token budget ended are asked again under a 32-token budget and under an opener ending at the letter's place, and a change that recovers a letter for half of them is put to every model's MMLU-Pro cell under a new plan",
+          "id": "paren-opener",
+          "title": "The chat-template protocol opens the answer with 'The answer is (' under a new scorer method, the retained acceptances it re-binds are recorded again, and every model's MMLU-Pro cell is read again under it",
           "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/evaluate -count=1 -run '^TestTheBudgetEndedAnswersAreAskedAgain$' -timeout 120m",
+          "verify": "go test ./internal/evaluation -count=1 -run '^TestTheChatProtocolOpensTheAnswerAtTheLettersPlace$'",
           "files": [
             "internal/evaluation",
             "cmd/evaluate",
-            "internal/scorecard"
+            "internal/scorecard",
+            "docs/verification"
           ],
           "needs_card": true,
-          "rationale": "Serves: held-out-quality for Qwen3.5-9B, both gemma-4-12B-it builds and MiniCPM5-1B, whose MMLU-Pro cells lose answers to overgo's request.\n\nDisappears: answers counted wrong because the protocol stopped reading before they named a letter. answer-format/unanswered sorted them (scorecard of 2026-11-09, the store's chat-template readings): the eight-token budget after the opener The answer is ended 145 of Qwen3.5-9B's 145, 98 of MiniCPM5-1B's 98, and 69 and 68 of the two gemma builds' 156 and 160, whose other 87 and 92 said no option fits, the model's own. They end differently. MiniCPM gives the value (\"11.9, which corresponds to\"), so a few more tokens would reach its letter. Qwen3.5-9B and gemma begin a working (\"calculated as follows: 1.\"), which a few more tokens do not finish, and which the opener's phrasing may invite.\n\nMeasure first, on the unanswered cases alone (511 of the four models), each asked again under two candidate changes held apart: a budget of 32 tokens after the same opener, and an opener that ends at the letter's place, The answer is (. The bar is fixed before the run: a change is put to every model's chat-template cell, the same 1209 held-out cases under a new plan, only if it recovers a letter for at least half of the four models' budget-ended answers. Otherwise the protocol stays, and the cells say their losses as they now do. A change that recovers letters also changes which answers are right, so every model is read again under it, and no cell is compared across the two protocols.\n\nBatch: device lane."
+          "rationale": "Serves: held-out-quality for every model read under the chat-template protocol, the MMLU-Pro cells first.\n\nDisappears: answers counted wrong because the opener invited prose. answer-format/reread measured it (2026-11-10, TestTheBudgetEndedAnswersAreAskedAgain): asked again, \"The answer is (\" drew an option letter within the same eight tokens for 370 of the 380 answers the budget ended:\n- Qwen3.5-9B: 143 of 145.\n- gemma-4-12B-it-fp8: 65 of 69.\n- gemma-4-12B-it-fp8-native: 64 of 68.\n- MiniCPM5-1B: 98 of 98.\nThirty-two tokens after the old opener drew 106. A drawn letter is not a right one: whether each is right is what the re-read says.\n\nThe change: chatAnswerOpener becomes \"The answer is (\" under a new scorer method (generated-letter-paren), so readings under the old opener stay their own plans and no cell is compared across the two. It re-binds every chat-template plan, so the step also does three things:\n- Re-records the retained answers that two acceptances stand on, under the new plan: TestMiniCPMRetainedChoiceAcceptance (mmlu, mmlu-pro, bbh and musr) and TestQwenFourRetainedBenchmarkAcceptance. This takes those models' runs, not a fixture edit.\n- Moves the pinned plan identities that change with the method (TestMMLUProIsAGroupedChoiceWithItsIdentitiesUnchanged, TestEvaluationProtocolCapturesAllPolicyInputs), each named in the message.\n- Reads every model's MMLU-Pro chat-template cell again on the same 1209 held-out cases (go run ./cmd/validate -run -cells).\n\nSeen while measuring: with the method changed, those four tests fail at once, which is how this step is known to be its own.\n\nBatch: device lane."
         }
       ]
     },

@@ -38,6 +38,8 @@ type Executor struct {
 }
 
 type executorResources struct {
+	// released says Close has released the resources, on the worker's turn, which alone writes and reads it.
+	released bool
 	// costs are the machine's measured costs a model's load binds (SetMachineCosts), which a blas state takes.
 	costs     MachineCosts
 	experts   ExpertBanks
@@ -1739,14 +1741,16 @@ func (e *Executor) Close() error {
 // DropGraphExecs destroys every instantiated graph exec. Callers that free
 // device memory a captured graph may reference (a resident session releasing
 // a program's weights) invoke it on the executor's worker turn, with that
-// turn's state, before the free; the next execution captures afresh.
+// turn's state, before the free; the next execution captures afresh. The
+// turn orders it against Close's release of the resources, so it takes no
+// executor lock: Close holds that lock while it waits for the worker, and a
+// drop waiting for the lock on the worker's turn would hold Close forever
+// (executor-close/release-race).
 func (e *Executor) DropGraphExecs(state *device.State) error {
 	if e == nil || state == nil {
 		return errors.New("CUDA executor drop requires the worker state")
 	}
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	if e.closed {
+	if e.resources.released {
 		return nil
 	}
 	return e.resources.graphExecs.drop(state)
@@ -3346,6 +3350,7 @@ func (e *Executor) ReleasePromptMemory(ctx context.Context) error {
 }
 
 func (e *Executor) closeResources(state *device.State) error {
+	e.resources.released = true
 	var errs []error
 	if err := e.resources.buffers.close(state); err != nil {
 		errs = append(errs, err)

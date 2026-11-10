@@ -30,33 +30,16 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 40,
+        "nodes": 36,
         "reason": "Estimated: one lock taken off a call that already runs on the worker's turn, and one deferred end of capture. The tests are the larger part and count no production nodes."
       },
       "steps": [
         {
-          "id": "release-race",
-          "title": "DropGraphExecs holds no executor lock on the worker's turn, so a release queued behind a close runs and both return",
-          "status": "open",
-          "verify": "go test ./internal/cuda/executor ./internal/graphruntime -count=1 -run '^TestAReleaseBesideACloseFinishes$'",
-          "files": [
-            "internal/cuda/executor",
-            "internal/graphruntime"
-          ],
-          "needs_card": true,
-          "rationale": "Serves: failure-rate, for a model switch or a session's end that meets a close.\n\nDisappears: a lock taken in two orders. Close holds e.mu while it waits on worker.Do (internal/cuda/executor/executor.go:1715-1727), as SetExpertBanks does (expert_banks.go:45-63). ResidentSession.Release runs on the worker and calls DropGraphExecs (internal/graphruntime/resident.go:311-327), which takes e.mu.RLock (executor.go:1747). A release already on the worker when Close takes the lock waits for the lock, and Close waits for the worker behind it: neither returns. The read lock guards nothing there, since the worker's turn already serializes resources.\n\nEvidence: the review of 2026-11-09 read the inversion at ac1935d75. Whether a served path reaches it was not shown, and no test covers the two together. The step first writes the test and reads it hang at HEAD (under the test's own deadline, as a signal and not a timer the gate reads); if no caller can order the two that way, the step is retired with that reading and the lock is removed as a consolidation.\n\nPredicted effect: none on a measured cell.\n\nBatch: device lane, unless the worker's fake carries the test on the host."
-        },
-        {
-          "id": "capture-end",
+          "id": "capture-panic",
           "title": "A capture that ends in a panic ends its stream's capture as one that ends in an error does",
           "status": "open",
-          "verify": "go test ./internal/cuda/executor -count=1 -run '^TestAPanicWhileCapturingEndsTheCapture$'",
-          "files": [
-            "internal/cuda/executor",
-            "internal/cuda/device"
-          ],
-          "needs_card": true,
-          "rationale": "Serves: failure-rate after a launcher fault.\n\nDisappears: an executor that goes on serving with its stream still capturing. callSafely (internal/cuda/device/worker.go:282) turns a panic into an error and the executor keeps its worker, while execute ends capture on the returned-error path alone (executor.go:2781-2794). The launchers assert types unchecked (launch_linear_layout.go:31, 48, 74, 81) and fallback.go:107 panics by design, so a launcher bug is the trigger.\n\nEvidence: a review pass's reading of 2026-11-09, not confirmed by a second reading and not reproduced. The step reproduces it first with a launcher made to panic; a reading that the stream is already out of capture retires the step with what was read.\n\nPredicted effect: none on a measured cell.\n\nBatch: device lane."
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestAPanicWhileCapturingEndsTheCapture$' -timeout 10m",
+          "rationale": "Serves: failure-rate after a launcher fault.\n\nDisappears: an executor that goes on serving with its stream still capturing. callSafely (internal/cuda/device/worker.go:282) turns a panic into an error and the executor keeps its worker, while execute ends capture on the returned-error path alone (executor.go:2781-2794). The launchers assert types unchecked (launch_linear_layout.go:31, 48, 74, 81) and fallback.go:107 panics by design, so a launcher bug is the trigger.\n\nEvidence: a review pass's reading of 2026-11-09, not confirmed by a second reading and not reproduced. The step reproduces it first with a launcher made to panic; a reading that the stream is already out of capture retires the step with what was read.\n\nPredicted effect: none on a measured cell.\n\nBatch: device lane.\nRe-filed from executor-close/capture-end (2026-11-10): its check needs the card, so it runs with OVERGO_CUDA_TEST=1; a landing reads a step's check from the committed plan, so the check is changed by a new step."
         }
       ]
     },

@@ -39,7 +39,7 @@
         ],
         "adoption_scope": "Supersedes the absent repository-document reference at the owner's request; current external SHA is verified. Does not alter the executable plan."
       },
-    "assessment": "Existing exposure, generation metadata and cache owners repaired evidence contracts. Remaining architectural work is to remove obsolete orchestration and repeated native execution.",
+    "assessment": "Three changes improved capability/security but left concrete ownership/admission gaps. Corrections should stay in existing relay, projected execution and load/session owners.",
     "ast_surface_review": {
         "revision": "9bd406acafb89c44a439722419f1f7e85e71f691",
         "architectural_target": "Fewer independent product entry points and dependency owners; retain process isolation and existing compiled/runtime/development authority.",
@@ -88,7 +88,7 @@
           }
         ]
       },
-    "current_review_order": "Guidance/plan/target -> committed sources/callers/fixtures -> provisional conclusions -> current findings/owner responses -> retained results and targeted AST -> concurrent publication checks.",
+    "current_review_order": "Retained guidance/plan/target identity -> source/callers/fixtures -> provisional conclusions -> current findings/owner fields -> targeted AST/retained results -> concurrent publish checks.",
     "declined_candidates": [
         "Do not delete MP4 color or README generation tests merely because they reuse writer/record setup; their contracts differ.",
         "Do not equate a protocol's new scorer identity with unexposed dataset content.",
@@ -193,16 +193,16 @@
         ]
       },
     "plan_review_follow_up": {
-        "pin": "c3b4fa860bcf37a55d860855afda3c741d203fd3",
-        "assessment": "judge-speed/probability-key landed; test-surface already supplies ownership for later setup reduction. Known repeated native setup can be merged without waiting for new per-test telemetry. Keep the live device-residency work independent and do not touch its in-progress files.",
-        "limits": "judge-speed media-residency1.5x and gemma-split cross-model speed targets remain plan targets, not proofs from equal weight bytes or accepted regressions. Preserve placement/accuracy/lifetime when deciding them; no measurement or new finding claimed in this evidence-focused slice."
+        "pin": "38b24b610b6d6e18fb905f18f1f8ad53fb190f6a",
+        "assessment": "media-residency, cell-blocks and provider-variables landed. Current executor-close work remains separate and unreviewed until committed. The three residuals need their existing owners, not broad architecture rewrites.",
+        "limits": "The12-picture1.5x comparison and24-question cross-model timing are bounded performance evidence. The0.02 probability tolerance and short prompts do not establish all chunk/layout correctness; keep numerical acceptance independent of timing."
       },
-    "rank_basis": "Unresolved correctness/recovery first; corrected defects downgraded to their actual remaining surface obligations.",
+    "rank_basis": "Security and correctness before speculative savings; separate HTTP, projected-chunk and resource-admission contracts.",
     "refactor_target_progress": {
-        "architectural_progress": "PrepareReask now shares exposeDevelopment with exploratory reasoning before model loading; cause reporting consumes generated-token evidence and one report reader; judged replay binds the scalar probability to its right choice. No new store, scheduler, binary or package directory.",
-        "conflicts": "The four-model tuning experiment remains live after its protocol choice was withdrawn. Shared TIFA declarations coexist with three identical initial native evaluations. Fixes improved ownership but did not yet remove their full displaced execution surface.",
-        "next_useful_reductions": "Retire reask route/model experiment/dedicated fixture with public disposition; merge judge native setup through tifaPlan/choiceJudge while preserving distinct CLI integration.",
-        "cost": "c122e6ba..c3b4fa860:27 changed Go paths,+630 production/+2531 test AST,+155/+413 lines,+5 test files,production file count unchanged. Gate fixture category0; no new command binaries/package directories. Five gates total3299s; no claim those entire costs were avoidable."
+        "architectural_progress": "Idle resource retirement reuses the director; cell attention reuses existing step-record/kernel mechanics rather than a new CUDA path; provider-variable admission reuses the store/document codec and existing HTTP routes.",
+        "conflicts": "Initial-URL admission does not constrain credential redirects. Projected device admission checks block end but not complete chunk consumption. Resource eviction precedes known store/model refusal.",
+        "next_useful_reductions": "Remove implicit redirect behavior, predictable partial prefill and invalid-load eviction. Keep prior343 native setup and361 one-off experiment retirement opportunities; these landings did not implement them.",
+        "cost": "00826743e..38b24b610:25 changed Go paths,+1695 production/+3386 test AST (+5081 total),+349/+525 lines,+2 production/+6 test files. No new command binaries/package directories; one provider-variable document schema, no static fixture bytes. Three gate walls3284s. Necessary growth is explicit."
       },
     "working_notes_review": {
         "finding": "SQA-334",
@@ -212,10 +212,10 @@
       }
   },
     "committed_plan": {
-    "git_blob": "2db70970116986f8730a9960547f70529c256d4a",
+    "git_blob": "c090a1749a26fc8961c98af533868b8c4ffa15b7",
     "path": "docs/plan.json",
-    "revision": "c3b4fa860bcf37a55d860855afda3c741d203fd3",
-    "sha256": "b9442da00ff8c613adbdf03eb8b862642416daf4314adbddd4c46343dec31859",
+    "revision": "38b24b610b6d6e18fb905f18f1f8ad53fb190f6a",
+    "sha256": "d1499de7922514585f2a7871b36b1dfe3210a0003aa5c2adbe175c3ede799e78",
     "working_tree_status": "Committed plan at review pin; prior draft assessment retains its own snapshot identity. Current working plan edits excluded."
   },
     "findings": [
@@ -8222,7 +8222,156 @@
       ],
     "status": "resolved",
     "title": "Do not report inferred answer causes as measured token exhaustion"
-  }
+  },
+    {
+      "id": "SQA-363",
+      "status": "open",
+      "severity": "P1",
+      "category": "provider-credential-boundary",
+      "classification": "source-established-redirect-bypass",
+      "title": "Keep provider credentials inside the admitted endpoint across redirects",
+      "evidence_commit": "38b24b610b6d6e18fb905f18f1f8ad53fb190f6a",
+      "sources": [
+        {
+          "path": "internal/remoteprovider/variables.go",
+          "symbol": "KeyTransport"
+        },
+        {
+          "path": "internal/remoterelay/listing.go",
+          "symbol": "ListModels; listModels"
+        },
+        {
+          "path": "internal/remoterelay/generator.go",
+          "symbol": "New; Generator.Generate"
+        },
+        {
+          "path": "internal/capabilityruntime/peer.go",
+          "symbol": "ExecutePeer: copies client and refuses redirects"
+        },
+        {
+          "path": "Go1.26.2/src/net/http/client.go",
+          "symbol": "Client.do; shouldCopyHeaderOnRedirect; defaultCheckRedirect (installed toolchain source)"
+        }
+      ],
+      "evidence": "38b24b610 admits the starting URL through KeyTransport, but listing and generation both call http.Client.Do with the supplied client or http.DefaultClient and no redirect restriction. Both attach Authorization. In the installed Go1.26.2 client, redirects are followed by default; sensitive headers remain for the same hostname (including a changed port), and the forwarding decision does not reject an HTTPS-to-HTTP scheme change. An admitted https://provider.example/api/v1/models returning Location:http://provider.example/models therefore sends its bearer token over cleartext on the next request; a307/308 completion redirect can replay the request too. This contradicts the new transport and endpoint-binding contract. Source-established counterexample; no network request, secret access or exploit execution by SQA.",
+      "recommended_change": "At the remoterelay HTTP owner, refuse redirects for both credential-bearing callers, using the existing copied-client/ErrUseLastResponse pattern in ExecutePeer. Preserve injected transports, cancellation and timeout settings without mutating a caller's shared client. Let the current non-success response handling report the redirect. If a supported redirect behavior actually exists, admit each destination against the same transport and exact endpoint/authority contract before forwarding; do not rely on Go's domain/subdomain header rule. No new URL policy framework or service.",
+      "displaced_surface": "Remove implicit redirect following at the two existing request sites; share their actual credential transport contract in remoterelay rather than duplicate per-route checks. Retain NameVariable, declared-variable binding, trust-boundary tests, direct HTTPS/local HTTP behavior and streaming terminal/cancellation checks.",
+      "comparison": "Extend the existing relay/listing native fixture: a same-host different-port redirect and an HTTPS downgrade must cause zero requests/keys at the destination for both listing and generation, including a307/308 POST; direct allowed requests still pass and the supplied client is unchanged. One shared redirect fixture can exercise both consumers. No external endpoint or model needed.",
+      "closure_criteria": [
+        "No provider key or completion body follows a destination outside its admitted endpoint/transport contract.",
+        "Both listing and generation use the retained HTTP owner, with supplied client state preserved.",
+        "Existing declaration, listing, streaming and cancellation cases remain; complete helper/test cost counted."
+      ],
+      "impact": "Prevents credentials crossing a different endpoint or cleartext connection after initial admission.",
+      "likely_effort": "Small shared HTTP-client policy change and native fixture extension; security correctness may grow code.",
+      "expected_benefit": {
+        "baseline": "Selected production: variables524 + listing439 + generator1207 AST. Provider-variable landing adds665 production/878 test AST and one document schema; no static fixtures or new binaries/directories.",
+        "cost": "No replacement parsed or safe net-node saving claimed. Charge any shared client helper, two caller migrations and complete native fixture changes. Never delete trust-boundary coverage for a node target."
+      },
+      "plan_references": [
+        "serving-bounds/provider-variables 38b24b610 (landed)",
+        "Downloads extreme_refactor_plan.md: interface authority and one boundary owner"
+      ],
+      "plan_coverage": "The landed initial-URL checks do not constrain redirects; no remaining live row explicitly covers this residual boundary."
+    },
+    {
+      "id": "SQA-364",
+      "status": "open",
+      "severity": "P2",
+      "category": "projected-prefill-admission",
+      "classification": "source-established-admitted-geometry-late-refusal",
+      "title": "Choose the supported prompt path before a projected prompt splits",
+      "evidence_commit": "38b24b610b6d6e18fb905f18f1f8ad53fb190f6a",
+      "sources": [
+        {
+          "path": "internal/inference/runner_generation.go",
+          "symbol": "projectedOnDevice; readDevicePromptLocked; propagated error"
+        },
+        {
+          "path": "internal/inference/runner_projected.go",
+          "symbol": "deviceProjectable; ProjectedInputs.span; projectedAttentionBlockIDs"
+        },
+        {
+          "path": "internal/inference/device_prefill.go",
+          "symbol": "prefillDeviceCachedLocked; devicePromptChunkTokens"
+        },
+        {
+          "path": "internal/inference/device_cache.go",
+          "symbol": "forwardDeviceCachedBatchLocked; buildDeviceCachedBatchBranch blocksSplit refusal"
+        },
+        {
+          "path": "internal/inference/projected_blocks_test.go",
+          "symbol": "TestABidirectionalBlockIsReadWholeOrRefused"
+        }
+      ],
+      "evidence": "1ee8ff0b9 admits device projection when every block ends within promptChunkTokens; it never checks total prompt tokens. With a supported uncached prompt of8193 tokens and an early valid block[2,5), default chunk8192 passes deviceProjectable and compileProjectedRequestPlan. Prefill executes the first8192 tokens, then span(8192,1) sets blocksSplit because the original prompt had a block. buildDeviceCachedBatchBranch refuses that later chunk and Generate returns the error; it does not select the existing host projected path. The same mismatch appears with a tiny6-token prompt, chunk4, block[1,3). Memory-capacity bisection can also shrink an initially admitted chunk across a block. These are source-traced admitted geometries, not a model reproduction. The new span fixture checks marking/refusal but not the earlier admission decision.",
+      "recommended_change": "Make device admission and prefill use the same whole-block/chunk contract, including total token count and the existing memory-refusal retry. The smallest conservative repair is to choose the already-supported host projected path before device work when the current device implementation cannot consume the full request; do not add another attention implementation. If supporting later causal chunks instead, prove their cache/block semantics before removing blocksSplit. Handle a pre-execution memory refusal through the existing fallback owner; never silently truncate a block or replay partially advanced cache state.",
+      "displaced_surface": "Remove the partial device execution followed by a predictable second-chunk refusal. Reuse existing projectedRequestPlan, device prefill and host projected forward. Keep the block geometry validator, cell Reach, raw-scaled embedding semantics, cancellation and cache release.",
+      "comparison": "Extend the existing small projected-block fixture to connect admission to token count: whole prompt, block crossing first chunk, early complete block followed by a later text chunk, and a memory-driven split. Assert the supported path is selected before any partial execution and cache ownership remains valid. Retain native cell-reach/geometry and numerical coverage; short24-question model timing cannot decide these boundaries.",
+      "closure_criteria": [
+        "Every admitted projected device request survives the implementation chunk contract, or selects the supported fallback before partial execution.",
+        "Configured and memory-reduced chunks preserve full bidirectional blocks and cache lifetime.",
+        "Unique shape/scaling/numerical cases remain in existing owners; no second preflight, cache or attention engine."
+      ],
+      "impact": "Prevents longer image/video prompts failing after expensive partial prefill despite having a supported host path.",
+      "likely_effort": "Bounded admission/fallback correction; exact runtime trade depends on retained path.",
+      "expected_benefit": {
+        "baseline": "Selected runner_projected2217, device_prefill1164, builder_cell957 AST; native projected_blocks206 and cell_reach230. Full cell-block landing+637 production/+1142 test AST.",
+        "cost": "No replacement or net saving measured. Correct fallback may be slower on affected requests but preserves behavior. No new model fixture required for the admission mismatch. Keep8192 as its existing calibrated text-prefill bound; renaming it is no fix."
+      },
+      "plan_references": [
+        "judge-speed/cell-blocks 1ee8ff0b9 (landed)",
+        "Downloads extreme_refactor_plan.md: resolve/admit once, preserve numerical and lifetime contracts"
+      ],
+      "plan_coverage": "The landed short-prompt speed comparison and span-marker tests do not cover total-length admission or memory bisection."
+    },
+    {
+      "id": "SQA-365",
+      "status": "open",
+      "severity": "P3",
+      "category": "load-admission-and-session-reuse",
+      "classification": "source-established-unnecessary-eviction-before-known-refusal",
+      "title": "Resolve a model request before evicting reusable sessions",
+      "evidence_commit": "38b24b610b6d6e18fb905f18f1f8ad53fb190f6a",
+      "sources": [
+        {
+          "path": "internal/modelcli/model.go",
+          "symbol": "open; openRunner; ResolveClaimedGGUF"
+        },
+        {
+          "path": "internal/capabilityruntime/idle_release.go",
+          "symbol": "ReleaseIdleSessions; releaseIdle"
+        },
+        {
+          "path": "internal/capabilityruntime/session_director.go",
+          "symbol": "finishRetirement; lease/eviction/Close"
+        },
+        {
+          "path": "internal/capabilityruntime/idle_release_test.go",
+          "symbol": "TestIdleSessionsGiveTheirMemoryBack"
+        }
+      ],
+      "evidence": "cbdb10261 repairs measured GPU admission failure by releasing idle session leases through their director. But modelcli.open calls ReleaseIdleSessions after only checking that the repository string is nonempty. The read-only store open and model/recipe resolution happen later in openRunner. A nonexistent nonempty repository or invalid model reference therefore closes all idle directors' entries, then fails before it can load any replacement. The global iteration does not filter its already-declared device, so even idle host sessions participate; the host test demonstrates that scope. A following valid media request must reload what this invalid request evicted. Busy leases and retirement accounting remain correctly protected; no data-loss or close-race claim.",
+      "recommended_change": "Move the existing release call after reusable store/model/recipe admission succeeds and before the device load actually needs the reclaimed memory. Reuse the resolved program and existing error/Close owners, with no duplicate validator or second load. Keep reclamation scoped to the resource being admitted where existing device ownership permits it; do not invent a general pressure scheduler. Preserve finishRetirement and in-use lease behavior.",
+      "displaced_surface": "Remove eviction caused solely by invalid store/model requests and any consequent reload work. Retain the proven reclaim-before-device-allocation behavior and existing director; do not replace its lifetime machinery. A relocation by itself is not a source-node saving.",
+      "comparison": "Extend an existing model-open/idle-session native fixture: an idle entry survives invalid repository/model admission unchanged; a valid resource-needing open reclaims it once, leaves a borrowed entry alive, and later reloads through the same director. Charge all added setup/helper nodes. No repeated video generation is needed for invalid-input ordering.",
+      "closure_criteria": [
+        "Known repository/model resolution failure leaves valid resident sessions reusable.",
+        "Successful admission reclaims through the existing director before required allocation, with busy/retiring/error lifetimes preserved.",
+        "Complete code/test/setup cost is recorded without treating moved code as deletion."
+      ],
+      "impact": "Avoids unloading useful models and forcing later reloads for requests that cannot start.",
+      "likely_effort": "Small existing-load sequencing change; no new coordinator.",
+      "expected_benefit": {
+        "baseline": "idle_release346 + modelcli/model1740 selected production AST; idle_release_test366; complete residency landing+393 production/+1366 test AST, including1000-node device comparison.",
+        "cost": "No safe net-node reduction or measured reload count claimed. Existing comparison reports0.47s/question beside the released student versus0.51s alone, on12 pictures; retain that bounded evidence. Added native admission coverage may grow tests."
+      },
+      "plan_references": [
+        "judge-speed/media-residency cbdb10261 (landed)",
+        "Downloads extreme_refactor_plan.md: admit before costly work; preserve valid completed/session work"
+      ],
+      "plan_coverage": "The residency fix proves reclaiming idle memory helps the judged workload; it does not check whether a model can be resolved before reclaiming."
+    }
   ],
     "gate_test_assessment": {
     "assumptions": "32selected outputs per kind,2000paired-output resamples and fixed seed20261109; paired observations share media and questions. Normal-derived rank floor0.204 is not a universal validity bound. Full tied scores can be finite but unrankable. recordChoice rejects NaN/Inf probability; arithmetic versus geometric aggregation has an admitted order reversal.",
@@ -8259,12 +8408,12 @@
       },
     "automation_sequence": "Driver processcontrol/startup remain dispatch, stop and restart owners.356 identifies their disconnected cost start records;322 existing verify/undo still comes after test/lanes. Mutations reuse replay lock/tree and baseline admission, skip card checks, preserve partial records; no whole-gate or assertion-only detection claim.",
     "fresh_ast": {
-        "revision": "c3b4fa860bcf37a55d860855afda3c741d203fd3",
-        "method": "Existing external main.go parsed13 committed files; day-count.go compared27 changed Go paths and three fix commits. No tests.",
-        "retained_result": "review-20261110-0810-ast.json",
-        "selected_counts": "generated_answer1472; judged_replay292; judged_replay_test498; soft_tifa689; CLIreask201; evaluation/reask529; live reask test559; reask_exposure802; unread_cause498; unread_test254; cause_evidence371; evidence_index3922; paired-opener retained-results test545.",
-        "limits": "Comments included, parser-local links only. No exact full-function hash duplicate in this sample; no repository boilerplate percentage inferred.",
-        "comparison": "343 complete bounded4090->4190(+100); conditional361 displacement730prod+1361test excluding flags/API. Current fixes do not establish net deletion."
+        "revision": "38b24b610b6d6e18fb905f18f1f8ad53fb190f6a",
+        "method": "Existing external main.go parsed16 committed files and day-count.go counted25 changed Go paths plus each of3 landings. No application execution.",
+        "retained_result": "review-20261110-1007-ast.json",
+        "selected_counts": "variables524; listing439; generator1207; variables_test315; listing_test447; provider_binding_test1314; idle_release346; idle_release_test366; modelcli1740; runner_projected2217; projected_blocks_test206; device_prefill1164; builder_cell957; cell_reach_test230; judge_residency_model_test1000; gemma_speed_model_test692.",
+        "comparison": "No complete replacement parsed or safe net reduction established. Native boundary tests remain necessary; same test name across provider/server/relay is not redundancy.",
+        "limits": "Comments included; parser-local links only; no whole-tree boilerplate/binary census."
       },
     "media_follow_up": {
         "landings": [
@@ -8448,18 +8597,16 @@
       "retained_change_costs": "Two consolidation landings(2d59f642c exact folds andbb4fc706a parameter folds) remove744 production nodes but add1591 test nodes, net+847 across Go. Pilot retirementea8ed43a7 removes5926 production/9990 test nodes and one schema, while fixture bytes grow599; its test deletion is already included in the day's offsets and must not be subtracted twice. These retained gates are broader changes, not matched per-test performance comparisons."
     },
     "retained_results": [
-        "a0a91f8e2:+166 production/+627 test AST, gate711s; protocol identity migration.",
-        "1651282c8:+373/+927, gate643s, verify29.562s; exposure before setup and one model load per two variants.",
-        "93d2f520f:+42/+380, gate634s, verify18.255s; measured ending/unknown and duplicate decoder removal.",
-        "4db328259:+0/+546, gate652s, verify33.243s; reverted opener after ten retained readings,34minutes device work reported,38 fewer correct,post-hoc bar.",
-        "c3b4fa860:+49/+51, gate659s, verify15.897s; key correction and shared native fixture declarations."
+        "cbdb10261:+393 production/+1366 test AST; gate1024s, verify321.444s. Initial projector admission failed at~10MB free for~72MB; after reclaim0.47s/question vs0.51s alone on12 pictures. Implementation evidence only.",
+        "1ee8ff0b9:+637/+1142; gate1625s, verify111.403s. Short Gemma picture prompts~0.517->~0.11s/question; initial wrong mask moved probabilities up to0.99 before Reach correction. Final24-question comparison uses0.02 tolerance; not all-layout proof.",
+        "38b24b610:+665/+878; gate635s, verify19.451s; one new document schema, no static fixture bytes or CUDA changes. Native admission tests and routes passed; redirect path absent from coverage."
       ],
-    "surface_reduction_analysis": "Full endpoint+3161AST. Shared definitions do not equal fewer setup executions. No additional binary/directory/static fixture changes in the slice; no implementation by SQA.",
+    "surface_reduction_analysis": "Complete bounded growth+5081AST. Retained evidence supports bounded speed/memory/security improvements, not code reduction. No new command binary/directory. Shared existing owners should absorb corrections without new framework.",
     "tests": [
-        "RETAIN: cause_evidence/unread fixtures; generated-token versus early/unknown history and malformed/likelihood cases are distinct necessary contracts.",
-        "MERGE: three native judge baselines into one existing fixture plus the fresh refusal store; retain every numerical/replay/corrected-label assertion and CLI integration.",
-        "REMOVE after public disposition: one-off reask model experiment and dedicated admission fixture together with their production route. Exposure/confirmation owner tests remain.",
-        "RETAIN: protocol identity/history checks and paired-opener read-only evidence; the latter opens no model and is not generalization proof."
+        "RETAIN provider-variable policy/idempotence, relay-listing binding and HTTP route no-send cases: distinct trust boundaries. Extend existing native relay fixtures for redirects rather than build a new policy suite.",
+        "RETAIN cell reach/native geometry and scaled model probability coverage; SIMPLIFY/EXTEND the current projected admission fixture to own both admission and span constraints. No second large model fixture for the chunk counterexample.",
+        "RETAIN idle/busy lease accounting and measured residency comparison. Extend native load admission for invalid input. Do not remove the paired isolation setup merely because two video draws look alike.",
+        "Existing343 native judge setup and361 obsolete opener experiment remain MERGE/REMOVE recommendations at their own evidence pins. No deletion implemented here."
       ]
   },
     "hygiene_assessment": "No hygiene finding. Scratch analysis is outside the repository; concrete correctness and production/test cost take priority.",
@@ -9993,10 +10140,10 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
     "limitations": [
-      "No application/model/device tests, workloads, benchmarks, gates, agents/messages, plan/skill edits or pushes. Retained implementation results are attributed to their landings.",
-      "AST includes comments and parser-local symbol links, not package type resolution. No exact whole-function hash duplicates in the13-file sample; shared contract/setup review, not that hash result, establishes the remaining consolidation.",
-      "No safe complete new net-node reduction established; the landed fixes grew code. Conditional retirement and native setup counts are distinct from measured savings.",
-      "Architecture target remains active. No full-refactor or format-independent execution completion claim; binary/directory historical analysis retains its original pin."
+      "No application/model/device tests, network requests, benchmarks, gates, agents/messages, plan/skill edits or pushes. Findings are source-traced, not reproduced incidents.",
+      "Go AST includes comments and parser-local symbol links; no package type resolution. No exact full-function body-hash duplicate in16 selected files. That is not a repository boilerplate percentage or absence of duplication.",
+      "Installed Go1.26.2 net/http/client.go was read for redirect/header semantics; no external service or credential was accessed.",
+      "No safe complete new net reduction established. Security/geometry correctness may require growth; performance claims retain their hardware/sample scope. Architecture target remains active."
     ],
     "master_lead_triage": {
     "at": "2026-11-10",
@@ -10872,16 +11019,18 @@
       }
     }
   },
-    "next_finding_number": 363,
+    "next_finding_number": 366,
     "publication_context": {
-    "assessment": "One verified closure and two narrowed partial findings; no new backlog IDs.",
-    "checked_head": "c3b4fa860bcf37a55d860855afda3c741d203fd3",
-    "concurrent_changes": "Current uncommitted judge-residency/session-release work excluded; latest code/report/owner state checked again under existing publication ownership.",
-    "current_pin": "c3b4fa860bcf37a55d860855afda3c741d203fd3",
-    "publication": "Report-only path commit through existing hook exception if landing_turn/gate are available; leave validated report unstaged rather than interrupt an active landing.",
+    "assessment": "Three substantive source-established findings with distinct retained owners; no status-only update.",
+    "checked_head": "38b24b610b6d6e18fb905f18f1f8ad53fb190f6a",
+    "concurrent_changes": "Uncommitted CUDA executor close-race test/code plus compatibility/plan edits excluded; re-read immediately before report write.",
+    "current_pin": "38b24b610b6d6e18fb905f18f1f8ad53fb190f6a",
+    "publication": "Report-only through existing hook exception and landing_turn/gate ownership; preserve concurrent work.",
     "report_only": "Only docs/sqa_findings.json; unrelated index/worktree preserved."
   },
     "ranked_active_finding_ids": [
+    "SQA-363",
+    "SQA-364",
     "SQA-316",
     "SQA-346",
     "SQA-271",
@@ -10935,52 +11084,48 @@
     "SQA-334",
     "SQA-336",
     "SQA-361",
-    "SQA-343"
+    "SQA-343",
+    "SQA-365"
   ],
     "repository": "C:\\Users\\jeffm\\overgo",
     "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
     "review_notes": [
-      "Prior review report was committed by master in1651282c8; this review updates its reviewer-owned status and evidence only.",
-      "Current owner replies and unknown fields preserved. No new finding quota, broad census or application execution.",
-      "Architecture target is a design reference; docs/plan.json remains sole implementation dispatch."
+      "Prior report commit00826743e preserved. Existing resolved evidence and implementation-owned/unknown fields remain unchanged.",
+      "Architecture target active; no new abstraction, workload, agent, plan mutation or implementation by SQA.",
+      "Historical numeric growth analysis retained at its own revision; current delta is explicitly bounded."
     ],
-    "reviewed_at": "2026-11-10T08:18:29Z",
-    "reviewed_master": "c3b4fa860bcf37a55d860855afda3c741d203fd3",
+    "reviewed_at": "2026-11-10T10:13:08Z",
+    "reviewed_master": "38b24b610b6d6e18fb905f18f1f8ad53fb190f6a",
     "schema_version": 2,
     "scope": [
-      "Committed master c3b4fa860bcf37a55d860855afda3c741d203fd3 and plan blob2db70970116986f8730a9960547f70529c256d4a; repository guidance and Downloads architecture target re-read.",
-      "Bounded evaluation identity, development exposure/admission, result replay, cause reporting and command/test lifetimes across five landings. Source conclusions formed before prior rankings; no whole-workflow census.",
-      "Actual existing Go AST parser on13 selected committed files; endpoint comparison on27 changed Go paths. Current judge-residency/session-release implementation excluded.",
-      "This chat previously implemented Overgo changes and contributed plan wording; follow-up SQA, not independent third-party review."
+      "Committed master 38b24b610b6d6e18fb905f18f1f8ad53fb190f6a; plan blobc090a1749a26fc8961c98af533868b8c4ffa15b7. Repository guidance and Downloads target hashes unchanged from the fully read prior review; contents retained.",
+      "Bounded rotation through session reclamation/load admission, projected inference and cell geometry, HTTP provider admission/listing/streaming, and their native/model fixtures. Provisional source conclusions before prior rankings.",
+      "16 selected committed Go files parsed by existing AST tool;25 changed-Go endpoint paths counted. No broad census. Current executor release/compatibility/plan edits excluded.",
+      "This chat previously implemented Overgo and contributed plan wording; follow-up SQA, not independent third-party review."
     ],
     "sqa_response": {
-    "assessment": "189 stable IDs:54 open,129 resolved,4 deferred,2 canonical aliases. No new findings. SQA-362 closed;343 and361 correctness repairs credited, with remaining consolidation/retirement kept under the same IDs.",
+    "assessment": "192 stable IDs:57 open,129 resolved,4 deferred,2 aliases. Three distinct new findings; no old closure reversed and no duplicate backlog item.",
     "consolidated_findings": [],
     "deferred_findings": [],
-    "evidence": "Source at pin; five committed landing records;13-file AST;27-path endpoint count. Retained paired readings motivated rollback, with post-hoc aggregate threshold and one changed recipe disclosed.",
-    "implementation_response_context": "Read current owner triage:361 identifies exposure backfill and opener rollback and leaves retirement to review;362 requests closure. Preserved all implementation-owned/unknown fields raw-exact.",
-    "new_findings": [],
-    "partially_addressed_findings": [
-        "SQA-343",
-        "SQA-361"
+    "evidence": "Three committed landings; source/caller and fixture review; local Go redirect implementation;16-file AST and25-path endpoint counts.",
+    "implementation_response_context": "Current report and implementation-owned triage re-read; no new owner response closes the sampled residuals. Existing257/341 have distinct drafting and Wan admission roots and are not merged merely because loader/director files overlap.",
+    "new_findings": [
+        "SQA-363",
+        "SQA-364",
+        "SQA-365"
       ],
-    "priority_changes": "343 and361 P2->P3: the cache-key/exposure defects are fixed; their remaining bounded setup/dead-route costs do not outrank unresolved correctness/recovery work.",
-    "recommendation": "Close unsupported-budget causality and duplicate decoding. Finish343 native setup merge and361 obsolete live experiment retirement using existing owners; no new frameworks or recurring measurements.",
+    "partially_addressed_findings": [],
+    "priority_changes": "363 credential boundary first;364 predictable partial-work failure next;365 unnecessary eviction below unresolved correctness/recovery. Existing343/361 cleanup remains open.",
+    "recommendation": "Keep the measured capability improvements. Repair the redirect boundary and chunk admission through existing owners, then prevent invalid requests evicting useful sessions. No new workflow or test telemetry needed to decide these cases.",
     "refactor": {
       "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
       "history_path": "docs/sqa_findings.json",
       "layout": "Full canonical open/deferred; compact resolved closure sources/revision/costs; explicit aliases, including aliases to closed canonical findings. Prior narratives remain in Git."
     },
     "reopened_findings": [],
-    "resolved_findings": [
-        "SQA-362"
-      ],
-    "reviewed_master": "c3b4fa860bcf37a55d860855afda3c741d203fd3",
-    "uncertainty": "No fresh execution. Full AST delta+630 production/+2531 test is correctness/capability cost, not a reduction; exact retirement savings await complete removal/caller accounting.",
-    "updated_findings": [
-        "SQA-343",
-        "SQA-361",
-        "SQA-362"
-      ]
+    "resolved_findings": [],
+    "reviewed_master": "38b24b610b6d6e18fb905f18f1f8ad53fb190f6a",
+    "uncertainty": "No exploit/model execution; source counterexamples name admitted inputs. No full refactor, blanket speedup or net-code reduction claim.",
+    "updated_findings": []
   }
   }

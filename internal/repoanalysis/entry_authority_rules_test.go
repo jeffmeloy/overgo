@@ -240,7 +240,7 @@ func EntryAuthorityRules() []EntryAuthorityRule {
 				"internal/fsatomic/replace_windows.go":               "OS-ABI owner: kernel32 MoveFileExW for durable atomic replace; ntdll lists the processes holding a file",
 				"internal/hostexpert/cores_windows.go":               "OS-ABI owner: kernel32 processor topology and thread group affinity for the expert pool's pinned workers",
 				"internal/landing/space_windows.go":                  "OS-ABI owner: kernel32 GetDiskFreeSpaceExW for the free-space floor of a commit's checks",
-				"internal/processcontrol/supervisor_windows.go":      "OS-ABI owner: kernel32 job objects for process-tree supervision",
+				"internal/processcontrol/supervisor_windows.go":      "OS-ABI owner: kernel32 job objects for process-tree supervision; ntdll resumes the child once it is contained",
 				"internal/processcontrol/resource_shared_windows.go": "OS-ABI owner: shell32 resolves the machine-wide resource admission directory",
 				"internal/processlock/lock_windows.go":               "OS-ABI owner: kernel32 LockFileEx for the exclusive process lock",
 				"internal/processmeasure/peak_windows.go":            "OS-ABI owner: psapi peak-memory measurement",

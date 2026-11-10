@@ -23,13 +23,13 @@ var (
 	procTerminateJobObject   = kernel32.NewProc("TerminateJobObject")
 	procOpenProcess          = kernel32.NewProc("OpenProcess")
 	procCloseHandle          = kernel32.NewProc("CloseHandle")
-	procThread32First        = kernel32.NewProc("Thread32First")
-	procThread32Next         = kernel32.NewProc("Thread32Next")
-	procOpenThread           = kernel32.NewProc("OpenThread")
-	procResumeThread         = kernel32.NewProc("ResumeThread")
 	procCreateCompletionPort = kernel32.NewProc("CreateIoCompletionPort")
 	procGetCompletionStatus  = kernel32.NewProc("GetQueuedCompletionStatus")
 	procGetExitCodeProcess   = kernel32.NewProc("GetExitCodeProcess")
+	// NtResumeProcess resumes the child created suspended in one call. Go closes CreateProcess's thread handle, and
+	// the documented way back to it, a Toolhelp walk of every thread on the machine, cost 28 ms a start and ran one
+	// start at a time (eight side by side took 40 ms each), since the child is always the walk's last entry.
+	procNtResumeProcess = syscall.NewLazyDLL("ntdll.dll").NewProc("NtResumeProcess")
 )
 
 const (
@@ -42,17 +42,16 @@ const (
 	// jobObjectLimitKillOnJobClose is JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE:
 	// closing the last job handle terminates every process in the job.
 	jobObjectLimitKillOnJobClose = 0x2000
-	// processAccessForJob combines PROCESS_SET_QUOTA, PROCESS_TERMINATE and
-	// PROCESS_DUP_HANDLE: job assignment plus resource-handle retention.
-	processAccessForJob = 0x0141
+	// processAccessForJob combines PROCESS_SET_QUOTA, PROCESS_TERMINATE,
+	// PROCESS_DUP_HANDLE and PROCESS_SUSPEND_RESUME: job assignment,
+	// resource-handle retention, and the child's resume once it is contained.
+	processAccessForJob = 0x0941
 	// terminatedTreeExitCode is the exit status TerminateJobObject
 	// stamps on every process it kills.
 	terminatedTreeExitCode = 1
 	// createSuspended is CREATE_SUSPENDED. No child instructions execute before
-	// the primary thread is resumed following successful job assignment.
+	// the child is resumed following successful job assignment.
 	createSuspended = 0x00000004
-	// threadSuspendResume is THREAD_SUSPEND_RESUME, the minimum ResumeThread right.
-	threadSuspendResume = 0x0002
 	// JobObjectAssociateCompletionPortInformation and JOB_OBJECT_MSG_ACTIVE_PROCESS_ZERO.
 	jobCompletionPortClass = 7
 	jobActiveProcessZero   = 4
@@ -178,63 +177,13 @@ func newProcessTree(command *exec.Cmd) (processTree, error) {
 		_, _, _ = procCloseHandle.Call(job)
 		return processTree{}, fmt.Errorf("assign process %d to job: %w", command.Process.Pid, callErr)
 	}
-	if err := resumeCreatedThread(uint32(command.Process.Pid)); err != nil {
+	// The child runs from here, inside its job.
+	if status, _, _ := procNtResumeProcess.Call(process); status != 0 {
 		_, _, _ = procCloseHandle.Call(job)
-		return processTree{}, err
+		return processTree{}, fmt.Errorf("resume contained child %d: NTSTATUS %#x", command.Process.Pid, status)
 	}
 	ready = true
 	return processTree{job: job, completion: completion, process: process}, nil
-}
-
-// threadEntry has the documented THREADENTRY32 ABI from tlhelp32.h.
-type threadEntry struct {
-	Size, Usage, ThreadID, ProcessID uint32
-	BasePriority, DeltaPriority      int32
-	Flags                            uint32
-}
-
-// resumeCreatedThread resumes only the unstarted child's primary thread. Go
-// closes CreateProcess's thread handle, so obtain it through documented Toolhelp
-// APIs. An unexpected thread set fails closed rather than resuming other work.
-func resumeCreatedThread(pid uint32) error {
-	snapshot, err := syscall.CreateToolhelp32Snapshot(syscall.TH32CS_SNAPTHREAD, 0)
-	if err != nil {
-		return fmt.Errorf("snapshot suspended child threads: %w", err)
-	}
-	defer syscall.CloseHandle(snapshot)
-	var entry threadEntry
-	var threadID uint32
-	entry.Size = uint32(unsafe.Sizeof(entry))
-	ok, _, callErr := procThread32First.Call(uintptr(snapshot), uintptr(unsafe.Pointer(&entry)))
-	for ok != 0 {
-		if entry.ProcessID == pid {
-			if threadID != 0 {
-				return errors.New("suspended child has more than one initial thread")
-			}
-			threadID = entry.ThreadID
-		}
-		entry.Size = uint32(unsafe.Sizeof(entry))
-		ok, _, callErr = procThread32Next.Call(uintptr(snapshot), uintptr(unsafe.Pointer(&entry)))
-	}
-	if !errors.Is(callErr, syscall.ERROR_NO_MORE_FILES) {
-		return fmt.Errorf("enumerate suspended child threads: %w", callErr)
-	}
-	if threadID == 0 {
-		return errors.New("suspended child primary thread is absent")
-	}
-	thread, _, callErr := procOpenThread.Call(threadSuspendResume, windowsFalse, uintptr(threadID))
-	if thread == 0 {
-		return fmt.Errorf("open suspended child thread: %w", callErr)
-	}
-	defer procCloseHandle.Call(thread)
-	previous, _, callErr := procResumeThread.Call(thread)
-	if uint32(previous) == ^uint32(0) {
-		return fmt.Errorf("resume contained child: %w", callErr)
-	}
-	if previous != 1 {
-		return fmt.Errorf("contained child has unexpected suspend count %d", previous)
-	}
-	return nil
 }
 
 func (t processTree) terminate() error {

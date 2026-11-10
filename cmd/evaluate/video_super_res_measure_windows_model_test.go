@@ -65,31 +65,7 @@ func TestVideoSuperResBeatsBicubicOnSourceClips(t *testing.T) {
 	ctx := t.Context()
 	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	ffmpeg := testcheck.Must(media.FFmpeg())(t)
-	sources := filepath.Join(roots.Datasets, "VidGen")
-	listed := testcheck.Must(os.ReadDir(filepath.Join(roots.Datasets, "VidGen_frames")))(t)
-	var clips [][][]float32
-	var names []string
-	for _, entry := range listed {
-		clip := strings.TrimSuffix(entry.Name(), filepath.Ext(entry.Name()))
-		pictures, err := media.DecodeVideoFile(ctx, filepath.Join(sources, clip+clipFileExtension), ffmpeg, superResFPS, superResFrames)
-		if err != nil || len(pictures) < superResFrames || pictures[0].Bounds().Dx() != superResWidth || pictures[0].Bounds().Dy() != superResHeight {
-			continue
-		}
-		frames := make([][]float32, len(pictures))
-		for index, picture := range pictures {
-			frames[index] = planarUnit(picture.Bounds().Min.X, picture.Bounds().Min.Y, func(x, y int) (uint32, uint32, uint32) {
-				r, g, b, _ := picture.At(x, y).RGBA()
-				return r, g, b
-			})
-		}
-		clips, names = append(clips, frames), append(names, clip)
-		if len(clips) == superResClips {
-			break
-		}
-	}
-	if len(clips) < superResClips {
-		t.Fatalf("VidGen holds %d decodable 1280 x 720 clips among VidGen_frames' names, not %d", len(clips), superResClips)
-	}
+	clips, names := superResSources(t, roots, ffmpeg)
 	scratch := t.TempDir()
 	// vmaf[factor][level][clip] and psnr alike.
 	vmaf, psnr := map[int]map[latentvideo.UpscaleLevel][]float64{}, map[int]map[latentvideo.UpscaleLevel][]float64{}
@@ -150,6 +126,38 @@ func TestVideoSuperResBeatsBicubicOnSourceClips(t *testing.T) {
 	if got := latentvideo.UpscaleLevel("").Default(); got != string(best) {
 		t.Fatalf("a request naming no level gets %s, where the level that beats bicubic with the highest mean VMAF is %s", got, best)
 	}
+}
+
+// superResSources are the first superResClips VidGen clips VidGen_frames names that decode to superResFrames frames at
+// 1280 x 720, each frame planar float32 RGB in [0, 1], and their names.
+func superResSources(t *testing.T, roots dataroot.Roots, ffmpeg string) ([][][]float32, []string) {
+	t.Helper()
+	sources := filepath.Join(roots.Datasets, "VidGen")
+	listed := testcheck.Must(os.ReadDir(filepath.Join(roots.Datasets, "VidGen_frames")))(t)
+	var clips [][][]float32
+	var names []string
+	for _, entry := range listed {
+		clip := strings.TrimSuffix(entry.Name(), filepath.Ext(entry.Name()))
+		pictures, err := media.DecodeVideoFile(t.Context(), filepath.Join(sources, clip+clipFileExtension), ffmpeg, superResFPS, superResFrames)
+		if err != nil || len(pictures) < superResFrames || pictures[0].Bounds().Dx() != superResWidth || pictures[0].Bounds().Dy() != superResHeight {
+			continue
+		}
+		frames := make([][]float32, len(pictures))
+		for index, picture := range pictures {
+			frames[index] = planarUnit(picture.Bounds().Min.X, picture.Bounds().Min.Y, func(x, y int) (uint32, uint32, uint32) {
+				r, g, b, _ := picture.At(x, y).RGBA()
+				return r, g, b
+			})
+		}
+		clips, names = append(clips, frames), append(names, clip)
+		if len(clips) == superResClips {
+			break
+		}
+	}
+	if len(clips) < superResClips {
+		t.Fatalf("VidGen holds %d decodable 1280 x 720 clips among VidGen_frames' names, not %d", len(clips), superResClips)
+	}
+	return clips, names
 }
 
 // planarUnit is a 1280 x 720 picture as planar float32 RGB in [0, 1], read by pixel.

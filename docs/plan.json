@@ -32,8 +32,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 23,
-        "reason": "Estimated from a survey: a syscall binding of about a dozen NvVFX and NvCVImage entry points beside internal/cuda/cudnn's, a finishing clipEncoder in front of the existing MP4 writer, a control and a record field, NVENC arguments for the existing FFmpeg pipe, and a VMAF reading through the same FFmpeg. Earlier media campaigns came in at three to seven times their first estimates, so this is about three times the sum of the parts. plan -add derives its own count from history beside this figure. Step nvenc: +653 (653, the median of what 12 landings that changed internal/latentvideo, internal/media, internal/server counted). Step supplied: +331 (331, the median of what 13 landings that changed internal/latentvideo, internal/media, internal/server, internal/mediacapability counted). Step judged: +417 (417, the median of what 21 landings that changed cmd/evaluate, internal/evaluation, internal/latentvideo counted). Step intake: +417 (417, the median of what 20 landings that changed internal/latentvideo, internal/mediacapability, internal/server, cmd/evaluate counted). Step oscillator-finish: +653 (653, the median of what 14 landings that changed internal/oscillatorimage, internal/latentvideo counted)."
+        "nodes": 159,
+        "reason": "Estimated from a survey: a syscall binding of about a dozen NvVFX and NvCVImage entry points beside internal/cuda/cudnn's, a finishing clipEncoder in front of the existing MP4 writer, a control and a record field, NVENC arguments for the existing FFmpeg pipe, and a VMAF reading through the same FFmpeg. Earlier media campaigns came in at three to seven times their first estimates, so this is about three times the sum of the parts. plan -add derives its own count from history beside this figure. Step nvenc: +653 (653, the median of what 12 landings that changed internal/latentvideo, internal/media, internal/server counted). Step supplied: +331 (331, the median of what 13 landings that changed internal/latentvideo, internal/media, internal/server, internal/mediacapability counted). Step judged: +417 (417, the median of what 21 landings that changed cmd/evaluate, internal/evaluation, internal/latentvideo counted). Step intake: +417 (417, the median of what 20 landings that changed internal/latentvideo, internal/mediacapability, internal/server, cmd/evaluate counted). Step oscillator-finish: +653 (653, the median of what 14 landings that changed internal/oscillatorimage, internal/latentvideo counted). Step judged-fidelity: +136 (136, the median of what 11 landings that changed cmd/evaluate counted)."
       },
       "steps": [
         {
@@ -49,19 +49,6 @@
           ],
           "needs_card": true,
           "rationale": "A clip a person supplies can be cleaned or enlarged in overgo. Its colour matrix, primaries, transfer and range are read from the source (BT.601, BT.709 or BT.2020, limited or full, as upscale_video.py's detect_colorspace :116-128 and detect_full_range :131-142 read them) and written on the result, and its sound is copied when MP4 holds the codec, else re-encoded as AAC.\n\nServes: any video a person brings can be cleaned or enlarged in overgo.\n\nDisappears: the hand step of running upscale_video.py on a clip.\n\nEvidence: rtx-vsr/clips finishes a generated clip's frames; a supplied clip's decode path is media's."
-        },
-        {
-          "id": "judged",
-          "title": "The level offered first for overgo's own clips is the one the judge's fidelity questions prefer over FFmpeg's Lanczos at the same size, and each denoise and deblur level is read against its degraded source",
-          "status": "open",
-          "verify": "OVERGO_NVVFX=C:/Users/jeffm/upscale/env/Lib/site-packages/nvvfx/libs OVERGO_FFMPEG=C:/Users/jeffm/upscale/ffmpeg.exe OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/evaluate -count=1 -run '^TestTheJudgePrefersTheDefaultLevelOverLanczos$' -timeout 120m",
-          "files": [
-            "cmd/evaluate",
-            "internal/evaluation",
-            "internal/latentvideo"
-          ],
-          "needs_card": true,
-          "rationale": "Overgo's own clips have no ground truth at a larger size, so the level offered first for them is read by the judge's fidelity questions (judge-calibration/fidelity, bc77ee5e7: sharp with clear fine detail, clean of noise), asked of Wan student clips upscaled by the source clips' best level of each group (clean-high, and high) and by FFmpeg's Lanczos at the same size. The content questions are not used, since they were measured blind to sharpness (judge-calibration/sensitivity, b6656118e). DENOISE and DEBLUR levels are read on source clips given noise of a known deviation and a known blur, against the clean original.\n\nServes: the level a person gets first for a generated clip is the one measured best on such clips.\n\nDisappears: a default for generated clips read only on source footage.\n\nEvidence: rtx-vsr/measured chose clean-high on source clips (VMAF 87.31 at four times against bicubic's 67.35)."
         },
         {
           "id": "pictures",

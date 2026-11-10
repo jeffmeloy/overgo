@@ -2786,18 +2786,23 @@ func execute(
 				return nil, captureErr
 			}
 		}
-		if doorbell != nil {
-			doorbell.capture = doorbell.capture[:0]
-		}
-		launchErr := runLaunches()
-		if launchErr != nil {
-			if capturing {
+		// A capture the launches leave, by an error or by a panic the worker turns into one, is ended and its graph
+		// destroyed unused, so the stream serves the next execution out of capture.
+		ended := !capturing
+		defer func() {
+			if !ended {
 				graph, _ := state.Driver.StreamEndCapture(state.Stream)
 				_ = state.Driver.GraphDestroy(graph)
 			}
+		}()
+		if doorbell != nil {
+			doorbell.capture = doorbell.capture[:0]
+		}
+		if launchErr := runLaunches(); launchErr != nil {
 			return nil, launchErr
 		}
 		if capturing {
+			ended = true
 			graph, captureErr := state.Driver.StreamEndCapture(state.Stream)
 			if captureErr != nil {
 				return nil, captureErr

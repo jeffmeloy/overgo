@@ -25,25 +25,6 @@
       ]
     },
     {
-      "id": "executor-close",
-      "title": "An executor closing beside a resident session's release finishes, and a launcher that panics while a graph is captured leaves the stream out of capture",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 36,
-        "reason": "Estimated: one lock taken off a call that already runs on the worker's turn, and one deferred end of capture. The tests are the larger part and count no production nodes."
-      },
-      "steps": [
-        {
-          "id": "capture-panic",
-          "title": "A capture that ends in a panic ends its stream's capture as one that ends in an error does",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestAPanicWhileCapturingEndsTheCapture$' -timeout 10m",
-          "rationale": "Serves: failure-rate after a launcher fault.\n\nDisappears: an executor that goes on serving with its stream still capturing. callSafely (internal/cuda/device/worker.go:282) turns a panic into an error and the executor keeps its worker, while execute ends capture on the returned-error path alone (executor.go:2781-2794). The launchers assert types unchecked (launch_linear_layout.go:31, 48, 74, 81) and fallback.go:107 panics by design, so a launcher bug is the trigger.\n\nEvidence: a review pass's reading of 2026-11-09, not confirmed by a second reading and not reproduced. The step reproduces it first with a launcher made to panic; a reading that the stream is already out of capture retires the step with what was read.\n\nPredicted effect: none on a measured cell.\n\nBatch: device lane.\nRe-filed from executor-close/capture-end (2026-11-10): its check needs the card, so it runs with OVERGO_CUDA_TEST=1; a landing reads a step's check from the committed plan, so the check is changed by a new step."
-        }
-      ]
-    },
-    {
       "id": "test-surface",
       "title": "Tests are cut and shaped by their measured cost: the gate records what each test took, and the lead's own model tests share what they load, measure speed with Go benchmarks, and drop what another test already holds",
       "class": "consolidation",

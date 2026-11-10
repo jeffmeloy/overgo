@@ -228,13 +228,11 @@ func (c Cell) QualityText() string {
 			text += " (" + causes + ")"
 		}
 	}
-	if c.Constant != nil {
-		advantage, directed := c.Direction.Advantage(c.Value, *c.Constant)
-		switch {
-		case !worse(c.Direction, *c.Constant, c.Value, 0):
+	if standing, has := c.againstConstant(); has {
+		switch standing {
+		case noBetter:
 			text += fmt.Sprintf(", no better than the %.4g a constant answer scores", *c.Constant)
-		case directed && advantage < noiseDeviates*c.Noise:
-			// Better by less than its own noise tells nothing from a constant answer.
+		case withinNoise:
 			text += fmt.Sprintf(", within its noise of the %.4g a constant answer scores", *c.Constant)
 		default:
 			text += fmt.Sprintf(", a constant answer scores %.4g", *c.Constant)

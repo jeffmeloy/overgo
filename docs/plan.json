@@ -29,30 +29,6 @@
       ]
     },
     {
-      "id": "readme-quality",
-      "title": "README's served-model table is written from the newest scorecard record as its speed table is, each quality figure beside the answers it lost, and a training recipe is named by the tier of its evidence",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 0,
-        "reason": "A consolidation: the writer of the speed table (validate -readme) gains the served-model rows and the hand-kept table goes, so the README holds no figure a command did not write."
-      },
-      "steps": [
-        {
-          "id": "written-table",
-          "title": "validate -readme writes the served-model table and the training line between markers from the scorecard record and the training specifications, and validate -claims refuses a README whose table is not the record's",
-          "status": "open",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestTheReadmesServedModelsAreTheScorecards$'",
-          "files": [
-            "cmd/validate",
-            "README.md"
-          ],
-          "rationale": "Serves: the scorecard as what a user sees, on the page a user reads first.\n\nDisappears: a hand-kept table that reads stronger than the record. README names the record scorecard-20261028T150740Z; against the scorecard printed at ac1935d75 on 2026-11-09 it gives Qwen2.5-0.5B's trained token accuracy as 0.508 where the cell reads 0.5167 on 24 cases, Qwen3.8-27B's MMLU-Pro as 0.60 where the inference row holds no quality cell, and Qwen3.5-9B's as a bare 0.49 where the cell says 145 answers named no option. It calls training recipes \"a completed proof\" where docs/TRAINING_COMPATIBILITY.md names 25 of its 26 claims real-artifact-smoke, most of 1 to 12 steps.\n\nEvidence: both reviews of 2026-11-09. The speed table is already written this way (the marker comment in README, cmd/validate), and TestPublishedMatricesAreCurrent already refuses a stale generated matrix.\n\nPredicted effect: none on a measured cell; README's figures become the record's.\n\nBatch: host lane."
-        }
-      ]
-    },
-    {
       "id": "judge-speed",
       "title": "A judge's cached answer is bound to the answer it scores, a judge beside a resident video model answers at its own speed, and gemma-4-12B-it judges no slower than the larger Qwen judge",
       "owner": "master-lead",

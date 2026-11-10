@@ -165,13 +165,21 @@ func deriveStoreSuites(
 	if err != nil {
 		return nil, nil, err
 	}
-	families, _, err := storeFamilies(ctx, reader, wanted)
+	records, err := storeFamilies(ctx, reader, wanted)
 	if err != nil {
 		return nil, nil, err
 	}
+	families := records.families
 	assemblers := map[string]func([]storeCase) (any, int, error){
-		"mmlu":     assembleMMLUSuite,
-		"mmlu-pro": assembleMMLUProSuite,
+		"mmlu": assembleMMLUSuite,
+		// Read by likelihood on the plain text, MMLU-Pro is leaderboard_mmlu_pro's reading, its validation split's first
+		// rows its demonstrations; asked through the chat template, it is asked alone.
+		"mmlu-pro": func(cases []storeCase) (any, int, error) {
+			if authorities.Execution.Prompting == PromptingRawCompletion {
+				return assembleMMLUProSuite(cases, records.shots["mmlu-pro"])
+			}
+			return assembleMMLUProSuite(cases, nil)
+		},
 		"bbh": func(cases []storeCase) (any, int, error) {
 			if authorities.Execution.Prompting == PromptingRawCompletion {
 				return assembleNativeBBH(cases)
@@ -217,28 +225,38 @@ func deriveStoreSuites(
 	return suites, skipped, nil
 }
 
-// storeFamilies reads the cases of the store's active benchmark catalog by
-// the family each import was ported to, every family or the one wanted, and
-// names the datasets each family's cases are records of.
-func storeFamilies(ctx context.Context, reader artifact.Reader, wanted string) (map[string][]storeCase, map[string][]artifact.ID, error) {
+// storeRecords are the records of the store's active benchmark catalog by the family each import was ported to: each
+// family's cases, the rows of its demonstration split, which are no case of it, and the datasets its cases are records
+// of.
+type storeRecords struct {
+	families, shots map[string][]storeCase
+	datasets        map[string][]artifact.ID
+}
+
+// storeFamilies reads the records of the store's active benchmark catalog, every family or the one wanted.
+func storeFamilies(ctx context.Context, reader artifact.Reader, wanted string) (storeRecords, error) {
 	id, bound, err := artifact.ResolveAlias(ctx, reader, benchmarkCatalogAlias)
 	if err != nil || !bound {
-		return nil, nil, errors.Join(err, errors.New("evaluation: active benchmark catalog is absent"))
+		return storeRecords{}, errors.Join(err, errors.New("evaluation: active benchmark catalog is absent"))
 	}
 	catalog, found, err := benchmarkCatalogCodec.Read(ctx, reader, id)
 	if err != nil || !found {
-		return nil, nil, errors.Join(err, errors.New("evaluation: active benchmark catalog is unreadable"))
+		return storeRecords{}, errors.Join(err, errors.New("evaluation: active benchmark catalog is unreadable"))
 	}
-	families, datasets := map[string][]storeCase{}, map[string][]artifact.ID{}
+	records := storeRecords{families: map[string][]storeCase{}, shots: map[string][]storeCase{}, datasets: map[string][]artifact.ID{}}
 	for _, entry := range catalog.Entries {
 		imported, found, err := dataset.ReadBenchmarkImport(ctx, reader, entry.Dataset)
 		if err != nil || !found {
-			return nil, nil, errors.Join(err, fmt.Errorf("evaluation: benchmark import %s is unreadable", entry.Name))
+			return storeRecords{}, errors.Join(err, fmt.Errorf("evaluation: benchmark import %s is unreadable", entry.Name))
 		}
 		family, recognized := familyForConversion(imported.Spec.Conversion)
-		// A family's demonstration split is no case of it, so no reading scores its rows.
-		if !recognized || wanted != "" && family.family != wanted || family.shotSplit != "" && entry.Split == family.shotSplit {
+		if !recognized || wanted != "" && family.family != wanted {
 			continue
+		}
+		// A family's demonstration split is no case of it, so no reading scores its rows, and no suite is bound to it.
+		cases := records.families
+		if family.shotSplit != "" && entry.Split == family.shotSplit {
+			cases = records.shots
 		}
 		subset := entry.Name
 		if parts := strings.Split(entry.Name, "/"); len(parts) >= 2 {
@@ -251,31 +269,33 @@ func storeFamilies(ctx context.Context, reader artifact.Reader, wanted string) (
 		if entry.Parameters.Kind() != artifact.KindInvalid {
 			parameters, err = readIFEvalParameters(ctx, reader, imported, entry.Parameters)
 			if err != nil {
-				return nil, nil, err
+				return storeRecords{}, err
 			}
 		}
 		for ordinal, recordID := range imported.Records {
 			record, found, err := dataset.ReadBenchmarkRecord(ctx, reader, recordID)
 			if err != nil || !found {
-				return nil, nil, errors.Join(err, fmt.Errorf("evaluation: benchmark record %d of %s is unreadable", ordinal, entry.Name))
+				return storeRecords{}, errors.Join(err, fmt.Errorf("evaluation: benchmark record %d of %s is unreadable", ordinal, entry.Name))
 			}
 			fields := make(map[string]json.RawMessage, len(record.Fields))
 			for _, field := range record.Fields {
 				fields[field.Name] = field.Value
 			}
-			families[family.family] = append(families[family.family], storeCase{
+			cases[family.family] = append(cases[family.family], storeCase{
 				entry: entry.Name, subset: subset, ordinal: ordinal, fields: fields, parameters: parameters[recordID],
 			})
 		}
-		datasets[family.family] = append(datasets[family.family], entry.Dataset)
-	}
-	if len(families) == 0 {
-		if wanted != "" {
-			return nil, nil, fmt.Errorf("evaluation: the catalog holds no %s family", wanted)
+		if family.shotSplit == "" || entry.Split != family.shotSplit {
+			records.datasets[family.family] = append(records.datasets[family.family], entry.Dataset)
 		}
-		return nil, nil, errors.New("evaluation: the catalog holds no recognized benchmark families")
 	}
-	return families, datasets, nil
+	if len(records.families) == 0 {
+		if wanted != "" {
+			return storeRecords{}, fmt.Errorf("evaluation: the catalog holds no %s family", wanted)
+		}
+		return storeRecords{}, errors.New("evaluation: the catalog holds no recognized benchmark families")
+	}
+	return records, nil
 }
 
 // StoreInstructionPrompts is the whole instruction family of the store's
@@ -286,11 +306,12 @@ func storeFamilies(ctx context.Context, reader artifact.Reader, wanted string) (
 // cases that cannot be scored: both are refused.
 func StoreInstructionPrompts(ctx context.Context, reader artifact.Reader) (InstructionPrompts, artifact.ID, error) {
 	const family = "ifeval"
-	families, datasets, err := storeFamilies(ctx, reader, family)
+	records, err := storeFamilies(ctx, reader, family)
 	if err != nil {
 		return InstructionPrompts{}, artifact.ID{}, err
 	}
-	source, dropped, err := assembleIFEvalSuite(families[family])
+	datasets := records.datasets
+	source, dropped, err := assembleIFEvalSuite(records.families[family])
 	if err != nil || dropped != 0 || len(datasets[family]) != 1 {
 		return InstructionPrompts{}, artifact.ID{}, errors.Join(fmt.Errorf("evaluation: the catalog's instruction cases are of %d datasets, with %d outside the rule vocabulary; the pilot divides the cases of one, all scored", len(datasets[family]), dropped), err)
 	}
@@ -374,35 +395,44 @@ func letteredPrompt(question string, options []string) string {
 	return prompt.String()
 }
 
-// assembleMMLUProSuite asks MMLU-Pro as a grouped-choice suite grouped by category.
+// leaderboardShots is how many demonstrations lm-eval's leaderboard_mmlu_pro gives each question: its num_fewshot,
+// the first rows of the validation split (its fewshot_split, sampler first_n).
+const leaderboardShots = 5
+
+// assembleMMLUProSuite asks MMLU-Pro as a grouped-choice suite grouped by category, each case after the first
+// leaderboardShots rows of shots as its demonstrations, where shots are given.
 //   - candidates = bare letters scored after targetDelimiter, as lm-eval's leaderboard_mmlu_pro writes its choices
-func assembleMMLUProSuite(cases []storeCase) (any, int, error) {
+//   - a demonstration = its question, options and cue, then its answer's letter after targetDelimiter, then a blank line,
+//     as lm-eval writes a demonstration and joins it to the next (target_delimiter " ", fewshot_delimiter "\n\n")
+func assembleMMLUProSuite(cases, shots []storeCase) (any, int, error) {
 	suite := GroupedChoiceSuite{
 		Kind: GroupedChoiceKind, Schema: mmluProSchema, Source: "store/mmlu-pro",
 		Normalization: sequencescore.NormalizationSum, Delimiter: targetDelimiter,
+	}
+	if len(shots) > 0 && len(shots) < leaderboardShots {
+		return nil, 0, fmt.Errorf("the demonstration split holds %d rows; a question is given %d", len(shots), leaderboardShots)
+	}
+	// The demonstrations are the suite's, shown before every case and written once.
+	for _, shot := range shots[:min(len(shots), leaderboardShots)] {
+		question, options, answer, _, err := mmluProRow(shot)
+		if err != nil {
+			return nil, 0, err
+		}
+		delimited := make([]string, len(options))
+		for index := range options {
+			delimited[index] = targetDelimiter + choiceLetters[index]
+		}
+		suite.Demonstrations = append(suite.Demonstrations, MultipleChoiceCase{
+			Name: fmt.Sprintf("%s/%d", shot.entry, shot.ordinal), Prompt: letteredPrompt(question, options), Candidates: delimited, Answer: answer,
+		})
 	}
 	for _, entry := range cases {
 		if entry.undrawn {
 			continue
 		}
-		question, err := caseString(entry.fields, "question")
+		question, options, answer, category, err := mmluProRow(entry)
 		if err != nil {
 			return nil, 0, err
-		}
-		options, err := caseStrings(entry.fields, "options")
-		if err != nil {
-			return nil, 0, err
-		}
-		answer, err := caseInt(entry.fields, "answer_index")
-		if err != nil {
-			return nil, 0, err
-		}
-		category, err := caseString(entry.fields, "category")
-		if err != nil {
-			return nil, 0, err
-		}
-		if question == "" || slices.Contains(options, "") || len(options) > len(choiceLetters) || answer < 0 || answer >= len(options) {
-			return nil, 0, fmt.Errorf("case %s/%d holds %d options and answer %d, or an empty question or option; a case asks a question among at most %d options, none empty, and answers one", entry.entry, entry.ordinal, len(options), answer, len(choiceLetters))
 		}
 		suite.Cases = append(suite.Cases, DemonstratedChoice{
 			Name: fmt.Sprintf("%s/%d", entry.entry, entry.ordinal), Group: category,
@@ -410,6 +440,30 @@ func assembleMMLUProSuite(cases []storeCase) (any, int, error) {
 		})
 	}
 	return suite, 0, nil
+}
+
+// mmluProRow reads an MMLU-Pro record: its question, options, answer and category.
+func mmluProRow(entry storeCase) (string, []string, int, string, error) {
+	question, err := caseString(entry.fields, "question")
+	if err != nil {
+		return "", nil, 0, "", err
+	}
+	options, err := caseStrings(entry.fields, "options")
+	if err != nil {
+		return "", nil, 0, "", err
+	}
+	answer, err := caseInt(entry.fields, "answer_index")
+	if err != nil {
+		return "", nil, 0, "", err
+	}
+	category, err := caseString(entry.fields, "category")
+	if err != nil {
+		return "", nil, 0, "", err
+	}
+	if question == "" || slices.Contains(options, "") || len(options) > len(choiceLetters) || answer < 0 || answer >= len(options) {
+		return "", nil, 0, "", fmt.Errorf("case %s/%d holds %d options and answer %d, or an empty question or option; a case asks a question among at most %d options, none empty, and answers one", entry.entry, entry.ordinal, len(options), answer, len(choiceLetters))
+	}
+	return question, options, answer, category, nil
 }
 
 // targetDelimiter separates a prompt that ends in its answer cue ("A:",

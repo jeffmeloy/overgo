@@ -51,7 +51,9 @@ func TestMMLUProImportsItsValidationSplit(t *testing.T) {
 		}}
 	}
 	test, validation := declare("test", 4), declare("validation", 5)
-	authorities := mmluProProtocols()[PromptingRawCompletion.Label()].authorities
+	// Through the chat template, which shows no demonstrations, the suite is its scored cases alone
+	// (TestMMLUProIsReadAsLeaderboardMMLUProReadsIt holds the reading that shows them).
+	authorities := mmluProProtocols()[PromptingChatTemplate.Label()].authorities
 	plan := func(declarations ...benchmarkDeclaration) artifact.ID {
 		store := overgodbtest.Open(t, t.TempDir())
 		testcheck.Must(catalogBenchmarkDeclarations(t.Context(), store, root, declarations))(t)

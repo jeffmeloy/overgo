@@ -110,7 +110,7 @@ func TestMMLUProAsksAsLMEvalDoes(t *testing.T) {
 				"question": source.Question, "options": source.Options, "answer_index": source.Answer, "category": source.Category,
 			})})
 		}
-		assembled, _, err := assembleMMLUProSuite(cases)
+		assembled, _, err := assembleMMLUProSuite(cases, nil)
 		testcheck.NoError(t, err)
 		suite := assembled.(GroupedChoiceSuite)
 		for index := range suite.Cases {
@@ -198,7 +198,7 @@ func mmluProFixture(t *testing.T) []storeCase {
 //   - answers = what the plan's execution is asked, each candidate after the delimiter as the scorer is handed it
 func mmluProIdentities(t *testing.T, cases []storeCase, authorities ExactAuthorities) (string, []artifact.ID) {
 	t.Helper()
-	assembled, _, err := assembleMMLUProSuite(cases)
+	assembled, _, err := assembleMMLUProSuite(cases, nil)
 	testcheck.NoError(t, err)
 	compiled := testcheck.Must(CompileGroupedChoice(assembled.(GroupedChoiceSuite)))(t)
 	plan := testcheck.Must(BindGroupedChoice(compiled, authorities))(t)
@@ -255,7 +255,8 @@ func TestMMLUProIsAGroupedChoiceWithItsIdentitiesUnchanged(t *testing.T) {
 			t.Skipf("the store at %s is not readable: %v", roots.Store, err)
 		}
 		defer reader.Close()
-		families, datasets, err := storeFamilies(t.Context(), reader, "mmlu-pro")
+		records, err := storeFamilies(t.Context(), reader, "mmlu-pro")
+		families, datasets := records.families, records.datasets
 		if err != nil || fmt.Sprint(datasets["mmlu-pro"]) != mmluProStoreDatasets {
 			t.Skipf("the store's MMLU-Pro cases are records of %v, the digests were pinned on those of %s: %v", datasets["mmlu-pro"], mmluProStoreDatasets, err)
 		}
@@ -290,7 +291,7 @@ func TestMMLUProIsAGroupedChoiceWithItsIdentitiesUnchanged(t *testing.T) {
 	})
 
 	raw := protocols[PromptingRawCompletion.Label()].authorities
-	assembled, _, err := assembleMMLUProSuite(fixture)
+	assembled, _, err := assembleMMLUProSuite(fixture, nil)
 	testcheck.NoError(t, err)
 	suite := assembled.(GroupedChoiceSuite)
 	compiled := testcheck.Must(CompileGroupedChoice(suite))(t)

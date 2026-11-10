@@ -100,7 +100,7 @@ func TestEvaluationSuitesAreSizedForTheirDecisions(t *testing.T) {
 
 	drawn := slices.Clone(cases)
 	drawShare(drawn, tenth)
-	assembled, _, err := assembleMMLUProSuite(drawn)
+	assembled, _, err := assembleMMLUProSuite(drawn, nil)
 	testcheck.NoError(t, err)
 	if scored := len(assembled.(GroupedChoiceSuite).Cases); scored != len(first["physics"])+len(first["law"])+len(first["history"])+len(first["math"]) {
 		t.Fatalf("the MMLU-Pro suite scores %d cases, and the draw kept %d", scored, len(first["physics"])+len(first["law"])+len(first["history"])+len(first["math"]))

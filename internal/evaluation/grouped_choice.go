@@ -40,8 +40,11 @@ type GroupedChoiceSuite struct {
 	// Delimiter is what a likelihood scoring puts between a case's prompt and each of its candidates.
 	//   - accepted = empty or targetDelimiter, because the scorer's method names the target delimiter alone
 	//   - empty => each candidate carries its own delimiter
-	Delimiter string               `json:"delimiter,omitzero"`
-	Cases     []DemonstratedChoice `json:"cases"`
+	Delimiter string `json:"delimiter,omitzero"`
+	// Demonstrations are shown before every case, written once (lm-eval's demonstrations of a task whose every
+	// question is given the same ones).
+	Demonstrations []MultipleChoiceCase `json:"demonstrations,omitempty"`
+	Cases          []DemonstratedChoice `json:"cases"`
 }
 
 type groupedChoicePlan struct {
@@ -74,18 +77,29 @@ func CompileGroupedChoice(suite GroupedChoiceSuite) (groupedChoicePlan, error) {
 	}
 	cases := make([]MultipleChoiceCase, len(suite.Cases))
 	groups := make([]string, len(suite.Cases))
+	// A demonstration is its prompt and its answer's candidate, then a blank line before what follows.
+	demonstrated := func(prompt *strings.Builder, demonstrations []MultipleChoiceCase) error {
+		for _, demonstration := range demonstrations {
+			if err := validateMultipleChoiceCase(demonstration); err != nil {
+				return errors.New("evaluation: invalid grouped-choice demonstration")
+			}
+			prompt.WriteString(demonstration.Prompt)
+			prompt.WriteString(demonstration.Candidates[demonstration.Answer])
+			prompt.WriteString("\n\n")
+		}
+		return nil
+	}
+	prefix := strings.Builder{}
+	if err := demonstrated(&prefix, suite.Demonstrations); err != nil {
+		return groupedChoicePlan{}, err
+	}
 	for index, source := range suite.Cases {
 		if strings.TrimSpace(source.Group) != source.Group || source.Group == "" {
 			return groupedChoicePlan{}, errors.New("evaluation: grouped-choice group is absent")
 		}
 		prompt := strings.Builder{}
-		for _, demonstration := range source.Demonstrations {
-			if err := validateMultipleChoiceCase(demonstration); err != nil {
-				return groupedChoicePlan{}, errors.New("evaluation: invalid grouped-choice demonstration")
-			}
-			prompt.WriteString(demonstration.Prompt)
-			prompt.WriteString(demonstration.Candidates[demonstration.Answer])
-			prompt.WriteString("\n\n")
+		if err := demonstrated(&prompt, source.Demonstrations); err != nil {
+			return groupedChoicePlan{}, err
 		}
 		prompt.WriteString(source.Prompt)
 		cases[index] = MultipleChoiceCase{
@@ -95,7 +109,7 @@ func CompileGroupedChoice(suite GroupedChoiceSuite) (groupedChoicePlan, error) {
 	}
 	choice, err := CompileMultipleChoice(MultipleChoiceSuite{
 		Kind: MultipleChoiceKind, Schema: suite.Schema, Source: suite.Source,
-		Normalization: suite.Normalization, TieBreak: suite.TieBreak, Aggregation: AggregationAccuracy, Cases: cases,
+		Normalization: suite.Normalization, TieBreak: suite.TieBreak, Aggregation: AggregationAccuracy, Prefix: prefix.String(), Cases: cases,
 	})
 	if err != nil {
 		return groupedChoicePlan{}, err

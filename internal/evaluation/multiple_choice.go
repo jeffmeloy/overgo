@@ -54,7 +54,10 @@ type MultipleChoiceSuite struct {
 	Normalization sequencescore.Normalization `json:"normalization"`
 	TieBreak      string                      `json:"tie_break,omitzero"`
 	Aggregation   string                      `json:"aggregation"`
-	Cases         []MultipleChoiceCase        `json:"cases"`
+	// Prefix is what every case's prompt follows when it is asked, written once: demonstrations a whole suite shares,
+	// which, written into each of MMLU-Pro's 12,032 prompts, made a case profile past the store's batch limit.
+	Prefix string               `json:"prefix,omitzero"`
+	Cases  []MultipleChoiceCase `json:"cases"`
 }
 
 type multipleChoicePlan struct {
@@ -79,14 +82,17 @@ type multipleChoicePlan struct {
 const delimitedChoiceMethod = "likelihood-target-delimiter"
 
 // delimited returns the suite as a likelihood scoring is to score it: each
-// candidate with the plan's delimiter before it.
+// case's prompt after the suite's prefix, and each candidate with the plan's
+// delimiter before it.
 func (p multipleChoicePlan) delimited() MultipleChoiceSuite {
-	if p.delimiter == "" {
+	if p.delimiter == "" && p.suite.Prefix == "" {
 		return p.suite
 	}
 	scored := p.suite
+	scored.Prefix = ""
 	scored.Cases = make([]MultipleChoiceCase, len(p.suite.Cases))
 	for index, testCase := range p.suite.Cases {
+		testCase.Prompt = p.suite.Prefix + testCase.Prompt
 		testCase.Candidates = slices.Clone(testCase.Candidates)
 		for candidate := range testCase.Candidates {
 			testCase.Candidates[candidate] = p.delimiter + testCase.Candidates[candidate]

@@ -419,6 +419,11 @@ func (l *landing) planOnly() bool {
 // as it stands and outside the commit. The index the checkout's own git
 // commands use is neither read nor written.
 func (l *landing) capture(ctx context.Context) (string, error) {
+	// Each capture stages onto the commit the landing builds on, not onto the one before: a path the change deletes
+	// is staged as gone once, and a later stage's capture naming it again would match nothing in the index or the tree.
+	if _, err := l.staged(ctx, "read-tree", l.builtOn()); err != nil {
+		return "", err
+	}
 	arguments := []string{"add", "-A"}
 	if l.scope != nil {
 		changed, err := dirtyTree(ctx, l.Repo)

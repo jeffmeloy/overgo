@@ -3,6 +3,8 @@ package landing
 import (
 	"bytes"
 	"io"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -56,6 +58,30 @@ func TestALandingCommitsOnlyItsStepsFiles(t *testing.T) {
 	open.write("internal/y/y.go", "package y\n\nfunc y() {}\n")
 	if l, _ := taken(open); open.git("show", l.candidate+":internal/y/y.go") != "package y\n\nfunc y() {}" {
 		t.Fatal("a step that lists nothing did not take the whole tree")
+	}
+}
+
+// TestALandingDeletesAFileAtEveryStage holds a scoped landing to a change that deletes a tracked file: on 2026-11-09
+// loop-proof/greedy-admission deleted a test, the format stage's capture staged it as gone, and the fix stage's capture,
+// naming it again, matched nothing ("pathspec did not match any files"). Every capture, as each stage takes one, stages
+// the deletion, and the candidate holds the file no more.
+func TestALandingDeletesAFileAtEveryStage(t *testing.T) {
+	t.Parallel()
+	fixture := newRowFixture(t, map[string]string{"cmd/x/x.go": "package main\n", "cmd/x/old_test.go": "package main\n"})
+	editPlan(t, fixture, func(document *plan.Plan) { document.Items[0].Steps[0].Files = []string{"cmd/x"} })
+	fixture.git("add", "-A")
+	fixture.git("commit", "-q", "-m", "a step that lists its files")
+	fixture.write("cmd/x/x.go", "package main\n\nfunc main() {}\n")
+	testcheck.NoError(t, os.Remove(filepath.Join(fixture.repo, "cmd", "x", "old_test.go")))
+	l := &landing{Options: Options{Repo: fixture.repo, Ref: "row/do", Log: io.Discard}, scratch: t.TempDir(), details: map[string]string{}}
+	testcheck.NoError(t, l.parents(t.Context()))
+	for stage := range 2 {
+		if err := l.shipSet(t.Context()); err != nil {
+			t.Fatalf("capture %d of a change that deletes a file: %v", stage+1, err)
+		}
+	}
+	if files := fixture.git("ls-tree", "-r", "--name-only", l.candidate); strings.Contains(files, "old_test.go") || !strings.Contains(files, "cmd/x/x.go") {
+		t.Fatalf("the candidate holds %q, want the deleted file gone and the edited one kept", files)
 	}
 }
 

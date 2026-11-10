@@ -402,7 +402,9 @@ func (s *Sampler) SampleWithHistory(logits []float32, history []int) (int, error
 			adjusted[bias.Token] += bias.Bias
 		}
 	}
-	if s.greedyBeyondGrammar() && s.gbnf != nil && !s.gbnfState.awaitingTrigger {
+	// The shortcut is taken only over logits of the grammar's own vocabulary; any other length goes on to applyGrammar,
+	// which refuses it before the grammar advances (SQA-357).
+	if s.greedyBeyondGrammar() && s.gbnf != nil && !s.gbnfState.awaitingTrigger && len(s.gbnf.tokenPieces) == len(adjusted) {
 		if best, found := s.greedyAllowed(adjusted); found {
 			s.recordGreedyProbability(best)
 			return s.acceptGrammar(best)

@@ -191,9 +191,10 @@ func evaluateGeneratedAnswer(
 	var probabilities []float64
 	replayed := 0
 	for index, testCase := range compiled.suite.Cases {
+		right := rightChoice(testCase, compiled.suite.Transforms)
 		ask := func() (keptAnswer, error) {
 			if compiled.suite.choices() {
-				result, chance, err := recordChoice(ctx, generator, testCase, rightChoice(testCase, compiled.suite.Transforms))
+				result, chance, err := recordChoice(ctx, generator, testCase, right)
 				return keptAnswer{result.Text, result.PromptTokens, result.GeneratedTokens, &chance}, err
 			}
 			result, err := recordInstruction(ctx, generator, testCase.Name, testCase.Prompt, testCase.MaxTokens)
@@ -203,7 +204,7 @@ func evaluateGeneratedAnswer(
 		var answeredBefore bool
 		var err error
 		if judged {
-			kept, answeredBefore, err = replayJudged(ctx, repository, plan, judge.Judge(), testCase, ask)
+			kept, answeredBefore, err = replayJudged(ctx, repository, plan, judge.Judge(), testCase, right, ask)
 		} else {
 			kept, err = ask()
 		}

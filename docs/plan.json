@@ -8,20 +8,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 180,
+        "nodes": 131,
         "reason": "Estimated: one key field in the judged replay; a placement or eviction change where the measurement finds the slowdown; and whatever the Gemma split shows, unknown until it is measured."
       },
       "steps": [
-        {
-          "id": "probability-key",
-          "title": "A judged answer's cached probability is keyed by the right choice it scores, so a corrected answer is asked again and an unchanged one reused",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -count=1 -run '^TestACorrectedAnswerIsNotScoredByTheOldAnswersProbability$'",
-          "files": [
-            "internal/evaluation"
-          ],
-          "rationale": "Serves: SQA-343 (P2). Every judged reading that uses the judge's probability depends on it: soft TIFA, second-judge's rank agreement, rtx-vsr/judged-fidelity's comparison.\n\nDisappears: a corrected answer scored by the probability of the old one. judgedAsked keys a cached answer by judge, code, environment, prompt, token limit and choices, but not the right choice. Its kept Probability is the probability of the answer accepted when it was asked. Correcting a case's answer from A to B therefore reuses 0.9 where the judge gave B 0.1.\n\nThe fix is the finding's own: the resolved right choice joins the existing key (rightChoice, shared with recordChoice). There is no new store; old entries stay and are no longer credited. Its two replay fixtures merge into TestSoftTIFAScoresTheProbabilityOfTheRightAnswer, keeping its numerical oracle.\n\nBatch: host lane."
-        },
         {
           "id": "media-residency",
           "title": "A judge opened in a process that holds a video model's sessions answers a picture within 1.5 times its time alone, the cause of the slowdown measured first and fixed where it lies",

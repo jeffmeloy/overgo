@@ -39,7 +39,7 @@
         ],
         "adoption_scope": "Supersedes the absent repository-document reference at the owner's request; current external SHA is verified. Does not alter the executable plan."
       },
-    "assessment": "Verified removal of obsolete worker comparison (-934 production/-851 test), one request-fixture migration (-104 test included in c0), restored sampler admission and five HTTP handlers reusing decodeJSONBounded (-75 production). Existing recipe/runtime, model source and executor ownership are retained; no format-independent migration completed in this slice. SQA-356's duplicate active lifecycle and unknown cost remain. Calibration still needs accuracy/aggregate/degenerate-data corrections and actual-size admission. A cropped, post-hoc nonsignificance check is not evidence of full-video noninferiority. No additional safe net deletion established from this bounded inspection.",
+    "assessment": "README served/training figures now use the existing scorecard/generation owner; MP4 conversion/tagging shares one writer for x264 and NVENC. Prior pending348/357/358 closures were included by master in1cb0845d5. The matched protocol experiment explicitly distinguishes letter recovery from correctness, and planned scorer identity changes preserve old comparisons. The new standalone Reask path skips development exposure and loads the model before record admission. UnreadCauses assigns token exhaustion from text alone. These are distinct contracts361/362; reuse existing evidence/admission/reader owners, not a new workflow.",
     "ast_surface_review": {
         "revision": "9bd406acafb89c44a439722419f1f7e85e71f691",
         "architectural_target": "Fewer independent product entry points and dependency owners; retain process isolation and existing compiled/runtime/development authority.",
@@ -55,50 +55,50 @@
         "cost": "Concrete parsed duplicate migrations total22production and150test AST removed; unimplemented estimates only. Three directories can disappear through349/351; command movement and all retained semantic constants must be charged. No overall refactor completion claimed."
       },
     "automation_follow_up": {
-        "architectural_progress": "Verified removal of obsolete worker comparison (-934 production/-851 test), one request-fixture migration (-104 test included in c0), restored sampler admission and five HTTP handlers reusing decodeJSONBounded (-75 production). Existing recipe/runtime, model source and executor ownership are retained; no format-independent migration completed in this slice.",
-        "conflicts": "SQA-356's duplicate active lifecycle and unknown cost remain. Calibration still needs accuracy/aggregate/degenerate-data corrections and actual-size admission. A cropped, post-hoc nonsignificance check is not evidence of full-video noninferiority. No additional safe net deletion established from this bounded inspection.",
-        "cost": "Since the prior reviewed0b pin: -947 production/+2418 test=+1471 Go AST over22 changed Go files; ac193's +2225 test accounts for most growth. The following four landings from ac193 to7d alone: -947 production/+193 test=-754 total. No static fixture bytes, new binary or package directory in this slice. Direct committed AST totals match retained gate sums; no new overall reduction since the prior review.",
+        "architectural_progress": "README served/training figures now use the existing scorecard/generation owner; MP4 conversion/tagging shares one writer for x264 and NVENC. Prior pending348/357/358 closures were included by master in1cb0845d5. The matched protocol experiment explicitly distinguishes letter recovery from correctness, and planned scorer identity changes preserve old comparisons.",
+        "conflicts": "The new standalone Reask path skips development exposure and loads the model before record admission. UnreadCauses assigns token exhaustion from text alone. These are distinct contracts361/362; reuse existing evidence/admission/reader owners, not a new workflow.",
+        "cost": "Four landings since7d: +2801 production/+2288 test=+5089GoAST over17 changed Go paths, +4 production files/+5 test files; no new command binary/package directory. New embedded served_models.json is6663bytes of presentation metadata, not a test fixture. Gate static-fixture category remains0. No safe complete new net reduction established.",
         "plan_recommendations": [
           {
-            "rows": "loop-proof/local-demonstrated",
+            "rows": "answer-format/paren-opener; existing evaluation campaign",
             "findings": [
-              "SQA-356"
+              "SQA-361"
             ],
-            "recommendation": "Measure competence separately from benefit; finish one durable attempt owner and expose unknown wall before asserting full cost. No new replay harness or scheduler."
+            "recommendation": "Record development exposure before tuning and keep historical tuning separate from independent confirmation. Retire displaced one-off orchestration where no diagnostic use remains."
           },
           {
-            "rows": "test-surface/judge-tests; judge-calibration/user-size; judge-speed",
+            "rows": "existing unmatched/readme readers",
+            "findings": [
+              "SQA-362"
+            ],
+            "recommendation": "Keep unknown causes unknown; consolidate repeated report decoding without weakening total-count or malformed-report cases."
+          },
+          {
+            "rows": "test-surface and existing structural reductions",
             "findings": [
               "SQA-342",
-              "SQA-343"
-            ],
-            "recommendation": "Retain accuracy and rank contracts on shared answers, share source decoding, and label the cropped null result honestly. Source reconstruction, still-frame fidelity and full temporal quality remain distinct."
-          },
-          {
-            "rows": "Existing structural reductions",
-            "findings": [
               "SQA-349",
               "SQA-350",
               "SQA-351",
               "SQA-352",
-              "SQA-353"
+              "SQA-353",
+              "SQA-356"
             ],
-            "recommendation": "Reuse retained AST proposals; no new binary/package or generic abstraction needed for these verified closures."
+            "recommendation": "Prior calibration, binary/directory and lifecycle obligations remain; use retained evidence, no fresh census or recurring confidence runs."
           }
         ]
       },
     "current_review_order": [
-        "Read unchanged guidance and Downloads target; pin committed master/plan.",
-        "Trace worker selection/request, sampler and JSON admission; form provisional conclusions before prior rankings.",
-        "Parse selected committed Go and compare changed endpoints; reconcile existing closures, owner responses and plan refinements.",
-        "Re-read code/report/ownership immediately before report-only publication."
+        "Pinned guidance/plan/target and new committed changes",
+        "Concrete source/retained results and provisional ownership conclusions",
+        "Existing findings/owner responses and11-file AST; no duplicate open exposure finding",
+        "Reconcile concurrent report/code and publish report only"
       ],
     "declined_candidates": [
-        "Do not recreate retired Claude profitability selection or delete configurable worker fallback.",
-        "Keep the new size-boundary, tool-parameter and route-budget coverage: they exercise distinct admission contracts despite similar setup.",
-        "Hermes grammar now enforces required/unique parameter names for the local worker's string schema; this does not establish arbitrary schema-value compatibility. No new generic schema framework proposed.",
-        "decodeJSONWithLimit is a stateless37-node forwarding candidate, but full caller migration cost was not compared; not promoted as an established saving.",
-        "Reuse earlier binary/directory/boilerplate analysis at its own pin. No fresh census or whole-tree duplication percentage."
+        "Do not delete MP4 color or README generation tests merely because they reuse writer/record setup; their contracts differ.",
+        "Do not equate a protocol's new scorer identity with unexposed dataset content.",
+        "No new schema/telemetry framework merely to guess why an old answer ended; unavailable evidence stays unknown.",
+        "No additional package, binary or selector needed for the proposed owner migrations."
       ],
     "media_follow_up": {
         "architectural_progress": "Mixed-format refusal now has one host fixture (354 closed). Calibration reuses the existing projection session/campaign and common answering helpers, with isolated records and established Close ownership. Scorecard comparison now reads the existing dataset's media groups instead of treating each question as independent. Stillness extends the existing motion record/display without a new runtime.",
@@ -200,10 +200,10 @@
     "plan_review_follow_up": "0b completes second-judge/independent and retires its row; the implementation now has actual cross-family rank evidence. The remaining committed plan still holds user-size and RTX generated-fidelity work. Pending closures359/360 retained. No model workload rerun or uncommitted upcoming measurement used as evidence.",
     "rank_basis": "342 remainsP2 and partially addressed by paired-media comparison. No ranking/ID changes; pending359/360 resolution remains.",
     "refactor_target_progress": {
-        "architectural_progress": "Verified removal of obsolete worker comparison (-934 production/-851 test), one request-fixture migration (-104 test included in c0), restored sampler admission and five HTTP handlers reusing decodeJSONBounded (-75 production). Existing recipe/runtime, model source and executor ownership are retained; no format-independent migration completed in this slice.",
-        "conflicts": "SQA-356's duplicate active lifecycle and unknown cost remain. Calibration still needs accuracy/aggregate/degenerate-data corrections and actual-size admission. A cropped, post-hoc nonsignificance check is not evidence of full-video noninferiority. No additional safe net deletion established from this bounded inspection.",
-        "next_useful_reductions": "One durable worker lifecycle; planned shared judge/source fixtures; earlier binary/directory proposals retained at their original evidence identity.",
-        "cost": "Since the prior reviewed0b pin: -947 production/+2418 test=+1471 Go AST over22 changed Go files; ac193's +2225 test accounts for most growth. The following four landings from ac193 to7d alone: -947 production/+193 test=-754 total. No static fixture bytes, new binary or package directory in this slice. Direct committed AST totals match retained gate sums; no new overall reduction since the prior review."
+        "architectural_progress": "README served/training figures now use the existing scorecard/generation owner; MP4 conversion/tagging shares one writer for x264 and NVENC. Prior pending348/357/358 closures were included by master in1cb0845d5. The matched protocol experiment explicitly distinguishes letter recovery from correctness, and planned scorer identity changes preserve old comparisons.",
+        "conflicts": "The new standalone Reask path skips development exposure and loads the model before record admission. UnreadCauses assigns token exhaustion from text alone. These are distinct contracts361/362; reuse existing evidence/admission/reader owners, not a new workflow.",
+        "next_useful_reductions": "Remove or migrate unrecorded reask orchestration, then delete the duplicate unread report decoder; preserve required evidence through current owners.",
+        "cost": "Four landings since7d: +2801 production/+2288 test=+5089GoAST over17 changed Go paths, +4 production files/+5 test files; no new command binary/package directory. New embedded served_models.json is6663bytes of presentation metadata, not a test fixture. Gate static-fixture category remains0. No safe complete new net reduction established."
       },
     "working_notes_review": {
         "finding": "SQA-334",
@@ -213,10 +213,10 @@
       }
   },
     "committed_plan": {
-    "git_blob": "b516574ede62d0c525dbd0a8ffc0461dfaf49d91",
+    "git_blob": "9fa7d2a05133e9de2cad484e437d34397d0ab286",
     "path": "docs/plan.json",
-    "revision": "7d1c97f7d4d11234d6299ded5573b51443724e37",
-    "sha256": "e59bf259f3014947438244d70ab15550b1680be068aec8d817b3e9eee757e7fe",
+    "revision": "c122e6baef6ffe4bc88ce6d8ace27eea2b845e72",
+    "sha256": "ff1b2d939b07f9a4e2c5dae04901172f99a6375dabae1335aac0fc789fd68487",
     "working_tree_status": "Committed plan at review pin; prior draft assessment retains its own snapshot identity. Current working plan edits excluded."
   },
     "findings": [
@@ -8122,53 +8122,160 @@
       ],
     "status": "resolved",
     "title": "Remove the NVENC test's extra full-clip timing pass"
-  }
+  },
+    {
+      "id": "SQA-361",
+      "status": "open",
+      "severity": "P2",
+      "category": "evaluation-development-exposure",
+      "classification": "source-established-bypass-of-existing-exposure-owner",
+      "title": "Route protocol tuning through the existing development-exposure owner",
+      "evidence_commit": "c122e6baef6ffe4bc88ce6d8ace27eea2b845e72",
+      "sources": [
+        {
+          "path": "cmd/evaluate/reask.go",
+          "symbol": "reaskBudgetEnded: OpenReadOnly and OpenRunner before record/dataset admission"
+        },
+        {
+          "path": "internal/evaluation/reask.go",
+          "symbol": "ReaskBudgetEnded; direct Record calls"
+        },
+        {
+          "path": "cmd/evaluate/reask_windows_model_test.go",
+          "symbol": "TestTheBudgetEndedAnswersAreAskedAgain"
+        },
+        {
+          "path": "internal/evaluation/reasoning_choice.go",
+          "symbol": "exposeDevelopment; choiceContent"
+        },
+        {
+          "path": "internal/evaluation/heldout_confirmation.go",
+          "symbol": "confirmOnPart; exposure"
+        }
+      ],
+      "evidence": "The new -reask path opens the store read-only, opens the model, then reads an evaluation and its dataset and directly generates selected cases under alternate openers/budgets. It explicitly records nothing. Its only repository callers are the CLI and the model experiment. The experiment selects a protocol using 370/380 lettered answers versus106/380, and the committed next step rereads the same1209 cases under that selection. Existing exploratory reasoning instead calls exposeDevelopment before generation; confirmOnPart refuses overlapping development content. Reask invokes neither owner. A fresh acceptance containing a case touched only by Reask therefore lacks this exposure record even when the earlier experiment influenced protocol selection. This is a source-established missing record, not evidence of an actual improper promotion.",
+      "recommended_change": "Keep the measured result as development evidence. Retire the one-off reask CLI/exported helper and model-experiment rerun once the chosen protocol has its retained native fixture, if no required diagnostic use remains. If retained, use the existing compiled campaign and exposeDevelopment/choiceContent ownership before any generation, with exact source-model, dataset, protocol and variant identity; refusal to record exposure must precede work. Admit the record/dataset and selected cases before OpenRunner. Preserve prior results and label historical tuning honestly; changing scorer identity does not make reused content unseen. No new experiment runner, ledger or scheduler.",
+      "displaced_surface": "Conditional deletion: three -reask flags/branch, cmd/evaluate/reask.go, internal/evaluation/reask.go and the one-off variant model test, after their retained result/protocol contract has an owner. Otherwise remove the independent direct-Record orchestration in favor of the existing campaign/exposure path. Do not delete supported diagnostics without disposition.",
+      "comparison": "Extend the existing reasoning-choice exposure fixture with one case reached through the retained tuning entry point: the same content under another acceptance must be refused before its confirmation callback, while disjoint content remains admissible. A failed exposure write or invalid record must invoke neither generation nor model opening. No model rerun is needed to establish this contract.",
+      "closure_criteria": [
+        "No tuning generation bypasses development-content exposure; historical results are not silently relabelled as fresh held-out proof.",
+        "Known invalid record/dataset/variant prerequisites are refused before model loading, and repeated work has exact identity or the one-off path is removed.",
+        "Retained native exposure/confirmation cases cover the entry point; displaced flags/helpers/tests and complete replacement/setup costs are counted."
+      ],
+      "impact": "Prevents protocol selection on reused cases being presented as independent held-out evidence, and avoids expensive setup before known record refusal.",
+      "likely_effort": "Bounded retirement or coordinated migration through existing evaluation owners; no safe complete net reduction established.",
+      "expected_benefit": {
+        "baseline": "Reask files:444+162 production AST; model experiment549 test AST. Whole55b landing+693 production/+549 test includes CLI wiring. Four models times two variants currently reopen the model up to8times; no durable partial reask results.",
+        "complete_cost": "Those606 production/549 test nodes are conditional removable surface, not promised net savings. Existing-native-fixture extension, retained diagnostic behavior and record migration must be charged. Correct exposure may need growth. No new binary/directory/static fixture; existing test took4m46s in retained verification.",
+        "uncertainty": "No replay, model run or promotion reproduction by SQA. Letter recovery is not answer correctness. No claim that an old measurement must be erased."
+      },
+      "plan_references": [
+        "answer-format/reread 55b766d46 (landed)",
+        "answer-format/paren-opener at c122e6baef6ffe4bc88ce6d8ace27eea2b845e72",
+        "Downloads extreme_refactor_plan.md: existing evidence/admission owners; remove displaced orchestration"
+      ],
+      "plan_coverage": "paren-opener binds a new scorer identity and rereads cells but does not itself account for content exposed by tuning; the existing evaluation owner is the required boundary."
+    },
+    {
+      "id": "SQA-362",
+      "status": "open",
+      "severity": "P2",
+      "category": "evidence-causality-and-duplicate-reading",
+      "classification": "source-established-unsupported-causal-label",
+      "title": "Do not report inferred answer causes as measured token exhaustion",
+      "evidence_commit": "c122e6baef6ffe4bc88ce6d8ace27eea2b845e72",
+      "sources": [
+        {
+          "path": "internal/evaluation/unread_cause.go",
+          "symbol": "UnreadCauses.add; unreadCauses; String"
+        },
+        {
+          "path": "internal/evaluation/evidence_index.go",
+          "symbol": "unreadAnswers; countUnread"
+        },
+        {
+          "path": "internal/evaluation/exact.go",
+          "symbol": "ExactResult.GeneratedTokens; Record"
+        },
+        {
+          "path": "internal/evaluation/multiple_choice.go",
+          "symbol": "choiceObservation.Raw; MultipleChoiceReport.Answers"
+        },
+        {
+          "path": "internal/scorecard/served_table.go",
+          "symbol": "Cell.Brief"
+        },
+        {
+          "path": "internal/evaluation/unread_cause_test.go",
+          "symbol": "TestAnAnswerNamingNoOptionIsSortedByItsCause"
+        }
+      ],
+      "evidence": "UnreadCauses.add sees only raw text. Anything unmatched that is neither an open-thought marker, a listed phrase nor a repeated3-word phrase defaults to Budget. String states it ran out of tokens; README/scorecard repeat that as fact and Reask selects Budget cases. Admitted counterexample: a model emits an empty answer or one unrecognized symbol and ends before8tokens; add still increments Budget. ExactResult already records generated token count, while choiceObservation holds text and no termination cause. The classifier also runs for PromptingReasoning, whose budget differs. A text fragment or substring does not establish why generation stopped. Separately, unreadAnswers unmarshals the same report twice through countUnread and unreadCauses.",
+      "recommended_change": "Retain the total unmatched count and raw observations. Keep text patterns as qualified indicators; unresolved cause remains unknown rather than measured budget exhaustion. Use existing bound answer records and available generation metadata where sufficient; missing historical evidence stays unknown, with no new telemetry framework. Consolidate total/count classification into one report read through the existing unread owner and migrate countUnread's callers/assertions, deleting the displaced decoder rather than adding a wrapper. Reask must not turn this heuristic into an asserted causal selection criterion; its separate exposure obligation stays361.",
+      "displaced_surface": "Remove unconditional unmatched->Budget causality and the duplicate countUnread report decode after its total-count cases move to the retained reader. Keep exact unmatched/matched semantics, invalid-report handling, scorecard/readme disclosure and historical identities. No claim to retire useful diagnostics.",
+      "comparison": "Extend the existing native unread/choice fixture with an early-ended unrecognized answer, a report missing stop evidence, and a genuinely bounded generation where known metadata supports the label. All remain in the unmatched total; only supported causes are asserted. Ordinary versus reasoning budgets retain their own contracts. Existing README assertion must expect qualified wording.",
+      "closure_criteria": [
+        "Unknown termination cannot be called measured token exhaustion in scorecard, README or retry selection.",
+        "Total unmatched count and cause/indicator summary use one existing report parse, retaining malformed/likelihood/generated cases.",
+        "Complete correction, caller/test migration and historical-field treatment are priced; no duplicate fixture or new evidence framework."
+      ],
+      "impact": "Keeps causal diagnosis and retry selection honest while removing repeated report parsing.",
+      "likely_effort": "Small existing-reader/readout correction; stronger stop evidence may require additional wiring.",
+      "expected_benefit": {
+        "baseline": "unread_cause.go352AST, unread_cause_test171; evidence_index3862 including unrelated logic. countUnread67 and unreadCauses77 are the two full reader bodies; their144-node sum is not all removable.",
+        "complete_cost": "One parse per unreadAnswers instead of two. New unknown handling, caller/test migration and any required metadata wiring are unmeasured; no safe net-node saving established. Preserve total counts and useful diagnostics. Static fixtures, binaries/directories and model workloads need not grow.",
+        "uncertainty": "Counterexample follows admitted generation/report contracts; no actual retained answer is asserted to have ended early. Does not dispute the observed370/380 recovery count."
+      },
+      "plan_references": [
+        "answer-format/unanswered 1cb0845d5 (landed)",
+        "readme-quality/written-table c122e6bae (landed)",
+        "answer-format/reread 55b766d46 (landed)",
+        "answer-format/paren-opener at c122e6baef6ffe4bc88ce6d8ace27eea2b845e72",
+        "Downloads extreme_refactor_plan.md: existing evidence/admission owners; remove displaced orchestration"
+      ],
+      "plan_coverage": "Completed cause/readme rows disseminate the inferred labels; use their existing evaluation/scorecard owners, distinct from361's exposure contract."
+    }
   ],
     "gate_test_assessment": {
     "assumptions": "32selected outputs per kind,2000paired-output resamples and fixed seed20261109; paired observations share media and questions. Normal-derived rank floor0.204 is not a universal validity bound. Full tied scores can be finite but unrankable. recordChoice rejects NaN/Inf probability; arithmetic versus geometric aggregation has an admitted order reversal.",
     "automation_follow_up": {
         "landings": [
           {
-            "commit": "ac1935d75",
-            "production_ast": 0,
-            "test_ast": 2225
+            "commit": "7ca654005",
+            "production_ast": 23,
+            "test_ast": 431
           },
           {
-            "commit": "c0b2e4983",
-            "production_ast": 33,
-            "test_ast": 309
+            "commit": "1cb0845d5",
+            "production_ast": 491,
+            "test_ast": 255
           },
           {
-            "commit": "8cdd52bae",
-            "production_ast": -934,
-            "test_ast": -851
+            "commit": "55b766d46",
+            "production_ast": 693,
+            "test_ast": 549
           },
           {
-            "commit": "e3e16d778",
-            "production_ast": -75,
-            "test_ast": 417
-          },
-          {
-            "commit": "7d1c97f7d",
-            "production_ast": 29,
-            "test_ast": 318
+            "commit": "c122e6bae",
+            "production_ast": 1594,
+            "test_ast": 1053
           }
         ],
-        "total_production_ast": -947,
-        "total_test_ast": 2418,
-        "total_ast": 1471,
+        "total_production_ast": 2801,
+        "total_test_ast": 2288,
+        "total_ast": 5089,
         "tracked_fixture_files": 0,
         "tracked_fixture_bytes": 0,
-        "retained_results": "c0 invalid-size undo assertion failed; matched Bonsai outputs identical.8c default-worker undo failed. e3 route-budget undo failed.7d required/duplicate-parameter undo failed and retained device6.252s/webui14.741s/CUDA1executed19cached. Gate walls: ac28m18s,c014m20s,8c7m30s,e312m31s,7d11m31s. Successful walls are costs, not measured waste; no SQA rerun.",
-        "fixture_interpretation": "Static fixture count0 excludes generated media, databases, HTTP/process setup and model loads. SQA-358 removes one server and one request; necessary admission/recovery tests add work."
+        "fixture_interpretation": "New embedded presentation metadata6663bytes; not a test fixture. Generated clips, temporary stores and model reloads remain actual setup costs.",
+        "retained_results": "7ca color assertion/undo retained; gate813s.1cb cause classifier verification17.1s; gate638s.55b four models/two variants: opener370/380 versus106/380 lettered, verification286.312s, gate893s. c122 README verification2.276s, gate373s. SQA did not rerun them; no cost treated as measured waste."
       },
     "automation_sequence": "Driver processcontrol/startup remain dispatch, stop and restart owners.356 identifies their disconnected cost start records;322 existing verify/undo still comes after test/lanes. Mutations reuse replay lock/tree and baseline admission, skip card checks, preserve partial records; no whole-gate or assertion-only detection claim.",
     "fresh_ast": {
-        "revision": "7d1c97f7d4d11234d6299ded5573b51443724e37",
-        "method": "Existing external main.go go/parser/go/ast tool:11 selected committed files with call maps, function-body hashes and parser-local object links. Existing day-count.go compares22 changed Go paths from0b; not a whole-tree census.",
-        "selected_counts": "ladder164; local_worker810; local_worker_test506; sampler8093; greedy_admission_test187; gbnf_test2574; chat_tool_grammar829; chat_tool_grammar_test714; chat_parse2066; server_admin5993; json_body_limit_test417.",
-        "comparison": "Prior ladder644+tests578+221 ->164; request tests391+219 ->506. Full removed and retained files counted, no speculative helper substitution implemented. See closure entries and whole-landing costs for non-overlapping attribution.",
-        "limits": "Comments included, consistent with retained repo counts. No go/types/package resolution, application tests or model/device execution. Existing retained analysis remains revision-qualified. Output review-20261110-0410-ast.json in the existing external SQA analysis directory."
+        "revision": "c122e6baef6ffe4bc88ce6d8ace27eea2b845e72",
+        "method": "Existing external main.go parsed11committed files with call maps/function hashes/parser-local links. day-count.go compared17changedGo paths from7d; no application execution.",
+        "selected_counts": "evaluation/reask444; cmd/evaluate/reask162; reask_model_test549; unread_cause352; unread_cause_test171; evidence_index3862; reasoning_choice1185; served_table978; validate/readme885; readme_served_test1053; mp4_colour_test431.",
+        "comparison": "Reask606production+549test is conditional displaced surface; whole55b adds693/549. countUnread67 plus unreadCauses77 duplicate a report decode. No complete replacement candidate parsed, so no net-saving estimate.",
+        "limits": "Comments included; no go/types/package resolution. Retained file review-20261110-0608-ast.json; historical structural counts remain revision-qualified."
       },
     "media_follow_up": {
         "landings": [
@@ -8461,29 +8568,29 @@
       },
     "tests": [
         {
-          "classification": "remove/merge verified",
-          "owner": "local_worker_request_test.go -> TestTheLocalWorkerRunsEachToolCallItsModelMakes",
-          "change": "Four explicit-presence/value checks retained on both turns;610->506AST and2->1HTTP setups."
+          "classification": "retain",
+          "owner": "TestAnMP4IsConvertedAndTaggedAsBT709",
+          "change": "Saturated-color decode and metadata validate a distinct conversion contract; share WriteClip and retain its no-finish roundtrip. No deletion based solely on similar encoding setup."
         },
         {
-          "classification": "remove verified",
-          "owner": "ladder_test.go and ladder_matched_test.go",
-          "change": "Retired comparison contract and implementation removed by explicit owner decision; retain startup/configurable-worker/replay cases."
+          "classification": "retain/extend",
+          "owner": "existing reasoning-choice exposure and heldout-confirmation fixture",
+          "change": "Add the retained tuning entry-point case to existing fake-runtime/store coverage; no real-model proof required."
+        },
+        {
+          "classification": "simplify/merge",
+          "owner": "unread cause and existing chat-choice fixtures",
+          "change": "Retain total-count/malformed/generated/likelihood cases while removing repeated report decode and qualifying unobserved causes."
         },
         {
           "classification": "retain",
-          "owner": "greedy_admission_test.go; gbnf_test.go; chat_tool_grammar_test.go",
-          "change": "Invalid sizes, strict/lazy parity and required/unique parameter generation are distinct correctness obligations. Source validates before grammar advance; no timing-based correctness substitution."
+          "owner": "TestTheReadmesServedModelsAreTheScorecards",
+          "change": "Keep current-record figures, training-tier distinctions and undeclared/stale/manual-value checks; update only causal wording with362."
         },
         {
-          "classification": "retain",
-          "owner": "TestEveryJSONRouteRefusesABodyPastItsLimit; TestJSONRequestBudgets",
-          "change": "Route wiring and ordinary-versus-multimodal byte limits differ. Its AST name scan is only a structural guard, not type-resolved proof for all routes."
-        },
-        {
-          "classification": "merge/simplify proposed",
-          "owner": "test-surface/judge-tests and existing calibration/source fixtures",
-          "change": "Move unique accuracy checks and repair assertions before removing setup; keep paired-media units and actual acceptance contract. Do not claim savings before the complete migration."
+          "classification": "remove or consolidate conditionally",
+          "owner": "TestTheBudgetEndedAnswersAreAskedAgain",
+          "change": "Retain its measured result as development evidence; once the chosen protocol has native coverage, retire the historical variant experiment or route supported diagnostics through the current campaign. No automatic rerun against each latest scorecard."
         }
       ]
   },
@@ -10018,15 +10125,30 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
     "limitations": [
-      "Report-only: no implementation, tests, models, services, benchmarks, gates, agents/messages, plan/skill edits or pushes.",
-      "AST includes comments and parser-local links only; no package type resolution. Structural similarity alone does not establish redundancy.",
-      "No whole-tree census, current duplicated-code percentage or verified full refactor. Costs refer to named intervals; prior reviewed pin to current grows1471AST despite the most recent four landings shrinking754.",
-      "Retained model/check results are implementation evidence, not independent SQA reproductions. External target remains active."
+      "No application/model/device tests, workloads, services, benchmarks, gates, agents/messages, plan/skill edits or pushes.",
+      "AST includes comments and parser-local links, not package type resolution. No whole-tree census or current boilerplate percentage; prior binary/directory work remains at its own pins.",
+      "Source-established361/362 counterexamples, not observed improper promotions or inferred stop events in real models. Correctness and evidence integrity may require growth.",
+      "External architecture target remains active; no format-independent/full-refactor completion or safe complete new net reduction established."
     ],
     "master_lead_triage": {
-    "at": "2026-11-08",
-    "head": "518fa52f417f796df399da65d208a61290fe5635",
+    "at": "2026-11-10",
+    "head": "a0a91f8e244c69be10f1d92d2468574e1c76b6f1",
     "findings": {
+      "SQA-361": {
+        "action": "filed",
+        "rows": [
+          "answer-evidence/tuning-exposure",
+          "answer-evidence/reread-cells"
+        ],
+        "note": "Accepted: the opener was chosen on the store's MMLU-Pro share and nothing recorded it. Filed before the re-read, which waits for it: the re-ask admits its record and cases before opening the model and publishes them through exposeDevelopment before asking, the 2026-11-10 cases are recorded by one more re-ask, and a reading says how many of its cases were exposed. Retiring the re-ask instead is weighed in that row; the measured result stays development evidence."
+      },
+      "SQA-362": {
+        "action": "filed",
+        "rows": [
+          "answer-evidence/cause-evidence"
+        ],
+        "note": "Accepted: Budget was the default of the cause sort. Filed first: an observation keeps its generated tokens, Budget only where they reached the protocol's budget, unknown otherwise and for every earlier report, one report read for the count and the causes."
+      },
       "SQA-335": {
         "action": "implemented",
         "rows": [
@@ -10882,19 +11004,21 @@
       }
     }
   },
-    "next_finding_number": 361,
+    "next_finding_number": 363,
     "publication_context": {
-    "assessment": "Substantive three-closure reconciliation plus current calibration and cost evidence.",
-    "checked_head": "7d1c97f7d4d11234d6299ded5573b51443724e37",
-    "concurrent_changes": "Current uncommitted docs/plan.json, internal/latentvideo/mp4.go and mp4_colour_test.go belong to implementation and are excluded. Re-read report, code and owner state under existing locks before writing.",
-    "current_pin": "7d1c97f7d4d11234d6299ded5573b51443724e37",
-    "publication": "Standalone report-only commit through existing reference-transaction hook exception and landing_turn/gate ownership; if busy, preserve implementation and leave validated report pending.",
+    "assessment": "Two concrete evidence-integrity findings through existing owners; prior verified closures retained.",
+    "checked_head": "c122e6baef6ffe4bc88ce6d8ace27eea2b845e72",
+    "concurrent_changes": "Uncommitted paren-opener evaluation/validation/API/plan edits belong to implementation and are excluded; re-read immediately before writing.",
+    "current_pin": "c122e6baef6ffe4bc88ce6d8ace27eea2b845e72",
+    "publication": "Report-only commit through existing hook exception and landing_turn/gate ownership; preserve unrelated work if a landing is active.",
     "report_only": "Only docs/sqa_findings.json; unrelated index/worktree preserved."
   },
     "ranked_active_finding_ids": [
     "SQA-316",
+    "SQA-361",
     "SQA-346",
     "SQA-343",
+    "SQA-362",
     "SQA-271",
     "SQA-322",
     "SQA-318",
@@ -10949,57 +11073,53 @@
     "repository": "C:\\Users\\jeffm\\overgo",
     "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
     "review_notes": [
-      "Close348 by explicit retirement of its defective selector; retain declared multi-worker fallback and local replay.",
-      "Close357 on existing admission restoration, charging new coverage honestly. Close358 with actual104-node saving, not the earlier126-node estimate.",
-      "342 includes the cropped generated-video null result and the committed accuracy-preserving plan;356's lifecycle/censored-cost gap remains.",
-      "22 changed Go files since0b net+1471AST. No additional safe net reduction or full architectural completion established."
+      "Prior unstaged report is now committed through master's1cb landing; its three closures and exact costs remain.",
+      "Protocol experiment370/380 letter recovery is useful development evidence, not corrected-answer accuracy or fresh held-out confirmation.",
+      "Count total unmatched answers without inventing a termination cause; reuse one parse and existing metadata owners.",
+      "Current sample grew5089GoAST; one-off reask retirement and reader consolidation are conditional proposals whose full replacement costs remain unknown."
     ],
-    "reviewed_at": "2026-11-10T04:16:36Z",
-    "reviewed_master": "7d1c97f7d4d11234d6299ded5573b51443724e37",
+    "reviewed_at": "2026-11-10T06:16:56Z",
+    "reviewed_master": "c122e6baef6ffe4bc88ce6d8ace27eea2b845e72",
     "schema_version": 2,
     "scope": [
-      "Committed master 7d1c97f7d4d11234d6299ded5573b51443724e37 and plan b516574ede62d0c525dbd0a8ffc0461dfaf49d91; guidance unchanged and Downloads target SHA confirmed.",
-      "Bounded worker default/replay/request, greedy grammar admission, tool grammar/parser and HTTP JSON admission, plus generated-video comparison source/retained results beyond the latest diff.",
-      "11 selected source/test AST files plus direct22 changed-Go-file endpoint accounting; retained historical binary/directory analyses reused. No application/model workload.",
-      "Uncommitted plan and MP4 colour work excluded. This chat previously implemented changes and contributed the current plan review; this is not independent third-party review."
+      "Committed master c122e6baef6ffe4bc88ce6d8ace27eea2b845e72 and plan9fa7d2a05133e9de2cad484e437d34397d0ab286; unchanged guidance/Downloads target reused.",
+      "Bounded MP4 writer/roundtrip, README scorecard producer, unmatched-answer producer/consumers and tuning-to-exposure/confirmation path; provisional conclusions before prior rankings.",
+      "11selected committed files parsed with existing AST tooling, plus17changed-Go endpoint comparison. Current paren-opener implementation and related working edits excluded.",
+      "This chat previously implemented Overgo changes and contributed plan wording; this is follow-up SQA, not independent third-party review."
     ],
     "sqa_response": {
-    "assessment": "187 stable IDs:53open,128resolved,4deferred,2aliases. Three verified closures; no new finding or consolidation.",
+    "assessment": "189stable IDs:55open,128resolved,4deferred,2aliases. Two new distinct evidence contracts; prior348/357/358 closures remain verified and committed.",
     "consolidated_findings": [],
     "deferred_findings": [],
     "evidence": [
-        "7d1c97f7d4d11234d6299ded5573b51443724e37",
-        "c0b2e4983;8cdd52bae;e3e16d778;ac1935d75 retained gate/undo records",
-        "11 selected-file AST and22 changed-file endpoint comparison"
+        "c122e6baef6ffe4bc88ce6d8ace27eea2b845e72",
+        "11 selected-file AST;17changed-file endpoint count",
+        "Source trace Reask->Record versus exposeDevelopment->confirmation",
+        "1cb0845d5 includes prior pending report"
       ],
     "implementation_response_context": {
-        "reviewed_commit": "7d1c97f7d4d11234d6299ded5573b51443724e37",
+        "reviewed_commit": "c122e6baef6ffe4bc88ce6d8ace27eea2b845e72",
         "current_triage_head": "518fa52f417f796df399da65d208a61290fe5635",
-        "status": "Owner/triage blocks and unknown fields preserved raw-exact. Findings independently rechecked against committed source within the disclosed implementation overlap."
+        "status": "Implementation and triage blocks preserved raw-exact; current dirty implementation excluded."
       },
-    "new_findings": [],
-    "partially_addressed_findings": [
-        "SQA-342",
-        "SQA-356"
+    "new_findings": [
+        "SQA-361",
+        "SQA-362"
       ],
-    "priority_changes": [],
-    "recommendation": "Keep achieved deletions; finish existing lifecycle recovery and calibration owners. Preserve accuracy coverage during planned consolidation. Reuse prior structural proposals instead of adding machinery.",
+    "partially_addressed_findings": [],
+    "priority_changes": [
+        "SQA-361 and SQA-362 ranked ahead of speculative surface savings."
+      ],
+    "recommendation": "Prefer retiring or migrating unrecorded tuning to the existing campaign/exposure owner; report unknown causes honestly and parse unread evidence once.",
     "refactor": {
       "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
       "history_path": "docs/sqa_findings.json",
       "layout": "Full canonical open/deferred; compact resolved closure sources/revision/costs; explicit aliases, including aliases to closed canonical findings. Prior narratives remain in Git."
     },
     "reopened_findings": [],
-    "resolved_findings": [
-        "SQA-348",
-        "SQA-357",
-        "SQA-358"
-      ],
-    "reviewed_master": "7d1c97f7d4d11234d6299ded5573b51443724e37",
-    "uncertainty": "SQA-356's duplicate active lifecycle and unknown cost remain. Calibration still needs accuracy/aggregate/degenerate-data corrections and actual-size admission. A cropped, post-hoc nonsignificance check is not evidence of full-video noninferiority. No additional safe net deletion established from this bounded inspection.",
-    "updated_findings": [
-        "SQA-342",
-        "SQA-356"
-      ]
+    "resolved_findings": [],
+    "reviewed_master": "c122e6baef6ffe4bc88ce6d8ace27eea2b845e72",
+    "uncertainty": "No actual improper promotion or early-stop incident reproduced. Complete correction costs unknown; no safe new net reduction established.",
+    "updated_findings": []
   }
   }

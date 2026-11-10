@@ -224,10 +224,10 @@ func choiceContent(testCase MultipleChoiceCase) (string, error) {
 	return fmt.Sprintf("%x", sha256.Sum256(asked)), nil
 }
 
-// exposeDevelopment publishes the cases a plan asks under the reasoning protocol as a development part of the plan's dataset, published as containing what each case asks.
-//   - a case an exploratory protocol has asked = exposed development evidence
+// exposeDevelopment publishes cases about to be asked as a development part of the dataset source, published as containing what each case asks: the cases the reasoning protocol asks, and those a re-ask asks to choose a protocol on (PrepareReask).
+//   - a case an exploratory protocol or a protocol's choice has asked = exposed development evidence
 //   - a promotion part that holds what an exposed case asks is refused a confirmation (confirmOnPart) because its reading was not held out
-func exposeDevelopment(ctx context.Context, repository artifact.Repository, plan Plan, cases []MultipleChoiceCase) error {
+func exposeDevelopment(ctx context.Context, repository artifact.Repository, source artifact.ID, cases []MultipleChoiceCase) error {
 	records := make([]dataset.Record, len(cases))
 	contents := make(map[string]string, len(cases))
 	for index, testCase := range cases {
@@ -237,7 +237,7 @@ func exposeDevelopment(ctx context.Context, repository artifact.Repository, plan
 		}
 		records[index], contents[testCase.Name] = dataset.Record{ID: testCase.Name, Group: testCase.Name}, content
 	}
-	membership, err := dataset.NewMembership(plan.body.Dataset, 0, PoolParts[poolDevelopment], records)
+	membership, err := dataset.NewMembership(source, 0, PoolParts[poolDevelopment], records)
 	if err != nil {
 		return err
 	}
@@ -250,7 +250,7 @@ func exposeDevelopment(ctx context.Context, repository artifact.Repository, plan
 		return err
 	}
 	if _, err := artifact.Publish(ctx, repository, batch); err != nil {
-		return errors.Join(fmt.Errorf("evaluation: the %d cases asked under the %s protocol were not published as development evidence, so none was asked", len(cases), PromptingReasoning.Label()), err)
+		return errors.Join(fmt.Errorf("evaluation: the %d cases to be asked were not published as development evidence, so none was asked", len(cases)), err)
 	}
 	return nil
 }

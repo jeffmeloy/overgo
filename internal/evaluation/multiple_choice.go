@@ -336,7 +336,7 @@ func scoreMultipleChoice(
 		return nil, artifact.ID{}, 0, fmt.Errorf("evaluation: the %s protocol asks a runtime that shapes a turn with thinking switched and reads what follows a thought, and %T does neither", PromptingReasoning.Label(), scorer)
 	}
 	if reasons {
-		if err := exposeDevelopment(ctx, repository, plan, suite.Cases); err != nil {
+		if err := exposeDevelopment(ctx, repository, plan.body.Dataset, suite.Cases); err != nil {
 			return nil, artifact.ID{}, 0, err
 		}
 	}

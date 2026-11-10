@@ -161,6 +161,9 @@ func (c Cell) Brief(measure string) string {
 			text += " (" + causes + ")"
 		}
 	}
+	if c.Developed > 0 {
+		text += fmt.Sprintf(", %d of them development evidence", c.Developed)
+	}
 	switch standing, has := c.againstConstant(); {
 	case has && standing == noBetter:
 		text += ", no better than a constant answer"

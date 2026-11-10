@@ -35,7 +35,9 @@ const reaskBar = 0.5
 // budget-ended answers alone (answer-format/unanswered), under each of reaskVariants: a budget of 32 tokens after the
 // same opener, and an opener that ends at the letter's place. A variant that draws a letter for at least reaskBar of
 // the four models' budget-ended answers together is the protocol's change; the protocol, as ChoiceProtocol says it, is
-// held to that variant where one met the bar and to its own opener and eight tokens where none did.
+// held to that variant where one met the bar and to its own opener and eight tokens where none did. A reading's
+// budget-ended cases are published as development evidence of its dataset before the model opens (SQA-361), since the
+// protocol is chosen on them, and every variant is asked on one load of the model.
 func TestTheBudgetEndedAnswersAreAskedAgain(t *testing.T) {
 	cudatest.Require(t)
 	ctx := t.Context()
@@ -72,11 +74,11 @@ func TestTheBudgetEndedAnswersAreAskedAgain(t *testing.T) {
 		if err != nil || !found {
 			t.Fatalf("%s (%s) is not in the catalog: %v", name, row.Model, err)
 		}
+		all := testcheck.Must(reaskBudgetEnded(ctx, roots.Store, entry.Location, row.Cells["held-out-quality"].Source, reaskVariants))(t)
 		for index, variant := range reaskVariants {
-			reasked := testcheck.Must(reaskBudgetEnded(ctx, roots.Store, entry.Location, row.Cells["held-out-quality"].Source, variant))(t)
-			asked[index] += reasked.Asked
-			lettered[index] += reasked.Lettered
-			t.Logf("%s under %q and %d tokens: %d of %d budget-ended answers name a letter", name, variant.Opener, variant.Tokens, reasked.Lettered, reasked.Asked)
+			asked[index] += all[index].Asked
+			lettered[index] += all[index].Lettered
+			t.Logf("%s under %q and %d tokens: %d of %d budget-ended answers name a letter", name, variant.Opener, variant.Tokens, all[index].Lettered, all[index].Asked)
 		}
 	}
 	chosen := -1

@@ -124,6 +124,9 @@ type Cell struct {
 	// UnreadCauses sorts the Unread answers by why each named no option, so a reading says how many of its losses the
 	// request made and how many the model did.
 	UnreadCauses evaluation.UnreadCauses `json:"unread_causes,omitzero"`
+	// Developed is how many of the cases a held-out quality rests on are development evidence of its dataset, asked by
+	// an exploratory protocol or to choose the protocol it was read under, so the reading is not held out on them.
+	Developed uint64 `json:"developed,omitzero"`
 	// Prompt is the length, in tokens, of the fresh prompts a first output
 	// read at a longer prompt was timed at (Row.Lengths); zero for every other
 	// cell.
@@ -227,6 +230,9 @@ func (c Cell) QualityText() string {
 		if causes := c.UnreadCauses.String(); causes != "" {
 			text += " (" + causes + ")"
 		}
+	}
+	if c.Developed > 0 {
+		text += fmt.Sprintf(", %d of them development evidence, asked in choosing how the model is asked", c.Developed)
 	}
 	if standing, has := c.againstConstant(); has {
 		switch standing {
@@ -1598,7 +1604,7 @@ func qualityCell(task recipe.Task, summaries []evaluation.EvalSummary, descripto
 			measured = append(measured, heldout{cases: ranked, first: first[measure(summary.Suite)], built: built[summary.Suite], cell: Cell{
 				Value: value, Label: label, Source: summary.Record, Direction: summary.Directions[name],
 				CodeCommit: commit, Environment: summary.Environment, Cases: cases, Noise: noise, Constant: constant, Soft: soft, Motion: readMotion(summary.Metrics), Characters: readMetric(summary.Metrics, evaluation.CharacterMetric),
-				Measure: measure(summary.Suite), Unread: summary.Unread, UnreadCauses: summary.UnreadCauses,
+				Measure: measure(summary.Suite), Unread: summary.Unread, UnreadCauses: summary.UnreadCauses, Developed: summary.Developed,
 				Contract: Contract{Metric: name, Origin: originEvaluation, Suite: summary.Suite, Protocol: summary.Prompting, Comparison: summary.Comparison},
 			}})
 		}

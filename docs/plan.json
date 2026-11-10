@@ -3,6 +3,42 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "answer-evidence",
+      "title": "A generated answer's reading says only what its record shows: a cause of an unread answer where the record holds it, and how many of its cases chose the protocol it was asked under, and every MMLU-Pro cell is read again under the opener that ends at the letter's place",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 27,
+        "reason": "Estimated: an observation's generated tokens and the cause rule that reads them, one unread reading in place of two report parses (SQA-362); the re-ask's admission and exposure through exposeDevelopment, and a count of exposed cases beside a reading (SQA-361). The re-read adds no code."
+      },
+      "steps": [
+        {
+          "id": "cause-evidence",
+          "title": "An answer that names no option is called budget-ended only where its record shows the budget's tokens written, any other cause the record cannot show is unknown, and the report is read once for both",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -count=1 -run '^TestABudgetEndIsCalledOnlyWhereTheTokensRanOut$'",
+          "files": [
+            "internal/evaluation",
+            "internal/scorecard",
+            "cmd/evaluate",
+            "cmd/validate",
+            "README.md"
+          ],
+          "rationale": "Serves: held-out-quality, every generated-letter reading's count of answers that named no option, and the README and scorecard words beside it.\n\nDisappears: a cause stated as measured that was inferred. SQA-362 (P2, 2026-11-10): UnreadCauses.add sees only an answer's text, and any unmatched answer that is neither an open thought, a declining phrase nor a repeated phrase is counted as Budget, which String calls \"ran out of the answer's tokens\" and README and the scorecard repeat. An empty answer, or one symbol and an end of turn, is counted the same. The report is also read twice for one count (countUnread and unreadCauses).\n\nThe change: a generated answer's observation keeps the tokens it was written in (from ExactResult.GeneratedTokens), and an answer is called budget-ended only where they reached the budget its protocol asks under; an unmatched answer of no recognised cause is unknown, and a report written before the tokens were kept says unknown for every one it cannot place. The thought, declining and repeating indicators stay, named as what the text shows. countUnread's callers read the one unread reading.\n\nEvidence: SQA-362's counterexample (an empty or one-symbol answer that ends before eight tokens is counted Budget) follows from the code as it stands; no retained answer is claimed to have ended early.\n\nPredicted effect: none on a value; the causes of earlier readings become unknown until they are read again.\n\nBatch: host lane.\n"
+        },
+        {
+          "id": "reread-cells",
+          "title": "Every model's MMLU-Pro cell is read again under the chat-template protocol's opener that ends at the letter's place, at a clean commit, each reading keeping its answers' tokens and its exposed cases",
+          "status": "open",
+          "verify": "go test ./cmd/evaluate -count=1 -tags modeltest -run '^TestEveryMMLUProCellIsReadAfterTheLettersPlace$'",
+          "files": [
+            "cmd/evaluate"
+          ],
+          "rationale": "Serves: held-out-quality for every model read under the chat-template protocol, the MMLU-Pro cells first.\n\nDisappears: MMLU-Pro cells read under the earlier opener, which lost 5 to 160 answers a model to the eight tokens.\n\nThe change: every model's MMLU-Pro chat-template cell (ten models, the 1209 cases of the store's share) is read again at a clean commit after answer-format/paren-opener, tuning-exposure and cause-evidence, through the benchmark cell cmd/validate runs (evaluate -all -worker -family mmlu-pro -protocol chat-template). The readings record the tokens each answer was written in and say how many of their cases chose the opener.\n\nEvidence: answer-format/reread (370 of 380 budget-ended answers named a letter after the new opener). A reading needs a clean tree, since it binds the commit it ran at; the first attempt on 2026-11-10 was refused for an uncommitted findings register.\n\nPredicted effect: each model's unread count falls toward the 10 of 380 the re-ask left; whether accuracy rises is what the reading says.\n\nBatch: device lane, about an hour of the card for nine models and longer for Qwen3.8-27B.\n"
+        }
+      ]
+    },
+    {
       "id": "judge-speed",
       "title": "A judge's cached answer is bound to the answer it scores, a judge beside a resident video model answers at its own speed, and gemma-4-12B-it judges no slower than the larger Qwen judge",
       "owner": "master-lead",

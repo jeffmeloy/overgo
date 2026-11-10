@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/benchmarkrecord"
+	"overgo/internal/dataset"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
@@ -99,9 +100,12 @@ type EvalSummary struct {
 	// UnreadCauses sorts the Unread answers by why each named no option (unreadCause): the token budget ended, a
 	// thought stayed open, the model declined, or it repeated itself.
 	UnreadCauses UnreadCauses `json:"unread_causes,omitzero"`
-	Comparison   artifact.ID  `json:"comparison,omitzero"`
-	Environment  artifact.ID  `json:"environment,omitzero"`
-	CodeCommit   string       `json:"code_commit,omitzero"`
+	// Developed is how many of a generated reading's cases are development evidence of its dataset (developedCases):
+	// asked by an exploratory protocol, or to choose the protocol, so the reading is not held out on them.
+	Developed   uint64      `json:"developed,omitzero"`
+	Comparison  artifact.ID `json:"comparison,omitzero"`
+	Environment artifact.ID `json:"environment,omitzero"`
+	CodeCommit  string      `json:"code_commit,omitzero"`
 	// Directions says which way each metric improves: the scorecard judges
 	// a held-out regression by it.
 	Directions map[string]runrecord.Direction `json:"-"`
@@ -178,22 +182,49 @@ func recordExecution(ctx context.Context, store *overgodb.Store, record runrecor
 	if policy.Prompting == PromptingRawCompletion && scoredGlued(ctx, store, plan) {
 		summary.Prompting += protocolSeparator + gluedLetters
 	}
-	if policy.Prompting == PromptingChatTemplate || policy.Prompting == PromptingReasoning {
-		summary.Unread, summary.UnreadCauses = unreadAnswers(ctx, store, bound)
+	// The report of the run that scored the cases says which generated answers named no option and which cases were
+	// asked; a report that cannot be read counts none, saying what is known and standing in no reading's way.
+	if _, report, read := scoredReport(ctx, store, bound); read && (policy.Prompting == PromptingChatTemplate || policy.Prompting == PromptingReasoning) {
+		summary.Unread, summary.UnreadCauses = countUnread(report.Data), unreadCauses(report.Data)
+		summary.Developed = developedCases(ctx, store, record.Dataset, report.Data)
 	}
 	return summary
 }
 
-// unreadAnswers counts, in the report of the run that scored a record's
-// cases, the generated answers in which no option was read. A report that
-// cannot be read, or that holds no generated answer, counts none: the count
-// says what is known and does not stand in the way of a reading.
-func unreadAnswers(ctx context.Context, store *overgodb.Store, bound runrecord.Run) (uint64, UnreadCauses) {
-	_, report, read := scoredReport(ctx, store, bound)
-	if !read {
-		return 0, UnreadCauses{}
+// developedCases counts the cases a report scored that are development evidence of source: held by a part of it
+// published as development before they were asked, by an exploratory protocol or to choose a protocol
+// (exposeDevelopment). Zero where none is, or the report or a part cannot be read.
+func developedCases(ctx context.Context, reader artifact.Reader, source artifact.ID, report []byte) uint64 {
+	edges, err := reader.Children(ctx, source)
+	if err != nil {
+		return 0
 	}
-	return countUnread(report.Data), unreadCauses(report.Data)
+	developed := map[string]bool{}
+	for _, edge := range edges {
+		if edge.Relation != artifact.RelationDerivedFrom || edge.Child.Kind() != artifact.KindDatasetShard {
+			continue
+		}
+		if part, found, err := dataset.LoadMembership(ctx, reader, edge.Child); err == nil && found && part.Partition == PoolParts[poolDevelopment] {
+			for _, record := range part.Records {
+				developed[record.ID] = true
+			}
+		}
+	}
+	var answers struct {
+		Observations []struct {
+			Name string `json:"name"`
+		} `json:"observations"`
+	}
+	if len(developed) == 0 || json.Unmarshal(report, &answers) != nil {
+		return 0
+	}
+	var count uint64
+	for _, answer := range answers.Observations {
+		if developed[answer.Name] {
+			count++
+		}
+	}
+	return count
 }
 
 // scoredReport reads the report of the run that scored a run's cases, and that run.

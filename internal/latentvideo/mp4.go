@@ -39,6 +39,12 @@ var x264Codec = []string{"-c:v", "libx264", "-threads", "1", "-preset", "slow", 
 var nvencCodec = []string{"-c:v", "hevc_nvenc", "-preset", "p7", "-rc", "vbr", "-cq", "18", "-b:v", "0", "-maxrate", "80M",
 	"-bufsize", "160M", "-tag:v", "hvc1"}
 
+// bt709Conversion converts a clip's RGB to 4:2:0 YUV by BT.709's limited-range coefficients and tags the stream with
+// BT.709's primaries, transfer, matrix and range, so a player shows the colours drawn: with no colour options FFmpeg's
+// scaler converts by BT.601 and writes no tags, and a player shows untagged HD as BT.709 (clip-encode/colour-709).
+var bt709Conversion = []string{"-vf", "scale=out_color_matrix=bt709:out_range=tv", "-pix_fmt", "yuv420p",
+	"-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv"}
+
 // nvencEncoder is the name FFmpeg lists NVENC's HEVC encoder by.
 const nvencEncoder = "hevc_nvenc"
 
@@ -140,11 +146,11 @@ func (s *mp4Encoder) start(height, width int) error {
 	if len(codec) == 0 {
 		codec = x264Codec
 	}
-	s.encoding.Args = append(append([]string{
+	s.encoding.Args = append(append(append([]string{
 		"-nostdin", "-hide_banner", "-loglevel", "error",
 		"-f", "rawvideo", "-pix_fmt", "rgb24", "-s", fmt.Sprintf("%dx%d", width, height),
 		"-r", strconv.Itoa(s.fps), "-i", "pipe:0", "-an",
-	}, codec...), "-pix_fmt", "yuv420p", "-movflags", "frag_keyframe+empty_moov", "-f", "mp4", "pipe:1")
+	}, codec...), bt709Conversion...), "-movflags", "frag_keyframe+empty_moov", "-f", "mp4", "pipe:1")
 	frameInput, frameSource := io.Pipe()
 	supervised, err := processcontrol.Start(s.wait, processcontrol.Command{
 		Path:   s.ffmpeg,

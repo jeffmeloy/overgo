@@ -20,7 +20,6 @@ import (
 	"overgo/internal/hfhub"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
-	"overgo/internal/strictjson"
 )
 
 // The hub workspace is the workbench's discovery surface: the local catalog
@@ -509,8 +508,7 @@ func (h *Handler) startHubDownload(response http.ResponseWriter, request *http.R
 		return
 	}
 	var body downloadRequestBody
-	if err := strictjson.Decode(request.Body, &body); err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request", err.Error())
+	if !h.decodeBoundedJSON(response, request, &body) {
 		return
 	}
 	var timeout time.Duration

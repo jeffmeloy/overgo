@@ -13,7 +13,6 @@ import (
 	"overgo/internal/agenttool"
 	"overgo/internal/artifact"
 	"overgo/internal/runrecord"
-	"overgo/internal/strictjson"
 )
 
 // The agent workspace is protocol projection only: it decodes requests,
@@ -82,8 +81,7 @@ func (h *Handler) agentTools(response http.ResponseWriter, request *http.Request
 // result or the typed refusal.
 func (h *Handler) agentStep(response http.ResponseWriter, request *http.Request) {
 	var body agentStepRequest
-	if err := strictjson.Decode(request.Body, &body); err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request", err.Error())
+	if !h.decodeBoundedJSON(response, request, &body) {
 		return
 	}
 	// A step names its session and tool; an agent name binds the session to that active agent,
@@ -179,8 +177,7 @@ type agentStepRequest struct {
 // whether it binds these facts. It publishes and executes nothing.
 func (h *Handler) agentApprovalPreview(response http.ResponseWriter, request *http.Request) {
 	var body agentStepRequest
-	if err := strictjson.Decode(request.Body, &body); err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request", err.Error())
+	if !h.decodeBoundedJSON(response, request, &body) {
 		return
 	}
 	if body.Session == "" || body.Tool == "" {

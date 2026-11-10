@@ -13,7 +13,6 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/strictjson"
 )
 
 type compositionCompletion struct {
@@ -195,8 +194,7 @@ func (h *Handler) compositeGeneration(response http.ResponseWriter, request *htt
 		return
 	}
 	var input compositionGenerationRequest
-	if err := strictjson.Decode(request.Body, &input); err != nil {
-		writeInvalidRequest(response, err)
+	if !h.decodeBoundedJSON(response, request, &input) {
 		return
 	}
 	selection, err := inference.ResolveCompositeGenerationSurface(
@@ -215,8 +213,11 @@ func (h *Handler) activateComposition(response http.ResponseWriter, request *htt
 		return
 	}
 	var input compositionActivationRequest
-	if err := strictjson.Decode(request.Body, &input); err != nil || !input.Recipe.Valid() {
-		writeInvalidRequest(response, errors.Join(err, errors.New("valid composition recipe is required")))
+	if !h.decodeBoundedJSON(response, request, &input) {
+		return
+	}
+	if !input.Recipe.Valid() {
+		writeInvalidRequest(response, errors.New("valid composition recipe is required"))
 		return
 	}
 	value, err := composition.LoadCompositionRecipe(request.Context(), h.repository, input.Recipe)

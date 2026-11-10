@@ -87,12 +87,13 @@ func TestCycleRunsWhatPromotionCompares(t *testing.T) {
 	excluded.Inapplicable = "it declares dna"
 	registered := []ModelValidation{
 		cell(model, recipe.TaskInference, guardValidation, ""), cell(model, recipe.TaskInference, servingValidation, ""),
-		cell(model, recipe.TaskInference, "mmlu-pro", raw), cell(model, recipe.TaskInference, "bbh", raw),
+		validationCells(cell(model, recipe.TaskInference, "mmlu-pro", ""))[0], validationCells(cell(model, recipe.TaskInference, "mmlu-pro", ""))[1],
+		cell(model, recipe.TaskInference, "bbh", raw),
 		cell(model, recipe.TaskInference, "ifeval", chat), cell(model, recipe.TaskTraining, "training-proof", ""),
 		excluded,
 	}
-	if compared := compareContracts(slices.Clone(registered), baseline); !slices.Equal([]string{compared[2].Protocol, compared[3].Protocol, compared[4].Protocol}, []string{chat, raw, chat}) {
-		t.Fatalf("mmlu-pro, bbh and ifeval take protocols %+v; want only the compared mmlu-pro to take the baseline's %s", compared[2:5], chat)
+	if compared := compareContracts(slices.Clone(registered), baseline); len(compared) != len(registered) || !slices.Equal([]string{compared[2].Protocol, compared[3].Protocol, compared[4].Protocol, compared[5].Protocol}, []string{raw, chat, raw, chat}) {
+		t.Fatalf("mmlu-pro, read under both its protocols, bbh and ifeval take protocols %+v; want each kept, the compared chat-template reading among them, and no cell added", compared[2:6])
 	}
 	selected := func(baseline *scorecard.Record) Plan {
 		return SelectValidation(Inputs{Registered: compareContracts(slices.Clone(registered), baseline), Scorecard: baseline})
@@ -139,15 +140,15 @@ func TestCycleRunsWhatPromotionCompares(t *testing.T) {
 		blocking, background []string
 	}{
 		{name: "the headline compared", baseline: baseline,
-			blocking: []string{guardValidation, "mmlu-pro " + chat, servingValidation, "training-proof"}, background: []string{"bbh " + raw, "ifeval " + chat}},
+			blocking: []string{guardValidation, "mmlu-pro " + chat, servingValidation, "training-proof"}, background: []string{"bbh " + raw, "ifeval " + chat, "mmlu-pro " + raw}},
 		{name: "a retained protocol compared beside the headline", baseline: retaining(contract("store/mmlu-pro", chat), contract("store/mmlu-pro", raw)),
 			blocking: []string{guardValidation, "mmlu-pro " + chat, "mmlu-pro " + raw, servingValidation, "training-proof"}, background: []string{"bbh " + raw, "ifeval " + chat}},
 		{name: "the headline and a retained protocol reordered", baseline: retaining(contract("store/mmlu-pro", raw), contract("store/mmlu-pro", chat)),
 			blocking: []string{guardValidation, "mmlu-pro " + chat, "mmlu-pro " + raw, servingValidation, "training-proof"}, background: []string{"bbh " + raw, "ifeval " + chat}},
 		{name: "a retained family compared beside the headline", baseline: retaining(contract("store/mmlu-pro", chat), contract("store/ifeval", chat)),
-			blocking: []string{guardValidation, "ifeval " + chat, "mmlu-pro " + chat, servingValidation, "training-proof"}, background: []string{"bbh " + raw}},
+			blocking: []string{guardValidation, "ifeval " + chat, "mmlu-pro " + chat, servingValidation, "training-proof"}, background: []string{"bbh " + raw, "mmlu-pro " + raw}},
 		{name: "no baseline", baseline: nil,
-			blocking: []string{guardValidation, servingValidation, "training-proof"}, background: []string{"bbh " + raw, "ifeval " + chat, "mmlu-pro " + raw}},
+			blocking: []string{guardValidation, servingValidation, "training-proof"}, background: []string{"bbh " + raw, "ifeval " + chat, "mmlu-pro " + chat, "mmlu-pro " + raw}},
 	} {
 		plan := selected(scenario.baseline)
 		blocking, background := scheduled(plan.Run, "blocking"), scheduled(plan.Background, "background")

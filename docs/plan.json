@@ -25,30 +25,6 @@
       ]
     },
     {
-      "id": "mmlu-pro-lm-eval",
-      "title": "MMLU-Pro's headline reading is lm_eval's, as leaderboard_mmlu_pro reads it, with the chat-template reading beside it, once overgo's reading of a model lm_eval also loads matches lm_eval's own within a bar declared before the run",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": -233,
-        "reason": "Estimated: the validation split named beside the test split in the import, its first five rows set as each test case's demonstrations, a reading of its own recorded under its own scorer identity, and the scorecard's MMLU-Pro cell headed by that reading with the chat-template reading beside it; the lm_eval comparison is a model test and a reference script, which count no production nodes."
-      },
-      "steps": [
-        {
-          "id": "headline",
-          "title": "The scorecard's MMLU-Pro cell is headed by the leaderboard reading for every model, with the chat-template reading shown beside it, never pooled with it",
-          "status": "open",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestMMLUProIsHeadedByTheLeaderboardReading$'",
-          "files": [
-            "cmd/validate",
-            "internal/scorecard",
-            "internal/evaluation"
-          ],
-          "rationale": "Serves: the owner's direction of 2026-11-10: MMLU-Pro's headline reading becomes lm_eval's leaderboard_mmlu_pro reading, the chat-template reading staying beside it.\n\nDisappears: an MMLU-Pro cell headed by whichever protocol the model's newest evaluation used (cmd/validate/bound_records.go takes the newest summary under the cell's protocol, raw-completion by default), and Qwen2.5-0.5B's row headed by its chat-template reading, which internal/scorecard/model_uses.json says the plain-text reading is to replace.\n\nThe change: the measurement run reads MMLU-Pro under the leaderboard reading for every model and heads the cell with it; the chat-template reading is read and shown beside it under its own label, and a comparison never sets one beside the other's earlier numbers. The README's served table names which reading heads the cell. model_uses.json's Qwen2.5-0.5B entry drops the need the change meets.\n\nCheck: TestMMLUProIsHeadedByTheLeaderboardReading builds a fixture store holding both readings of one model and wants the MMLU-Pro cell headed by the leaderboard reading, the chat-template reading beside it, and neither one's number in the other's place. At base the cell takes the newest reading, whichever its protocol.\n\nOnly after matches-lm-eval: the headline moves once overgo's reading is shown to match lm_eval's within the declared bar.\n\nBatch: host lane; the next measurement run reads every model under it."
-        }
-      ]
-    },
-    {
       "id": "loop-proof",
       "title": "The loop shows its worth end to end: the gate refuses deliberately bad alternatives, each landing records its full cost, and the local worker lands changes whose benefit an independent evaluation confirms and exceeds that cost",
       "owner": "master-lead",

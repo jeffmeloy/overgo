@@ -30,6 +30,28 @@ import (
 // compares for it.
 var benchmarkFamilies = []string{"mmlu-pro", "bbh", "ifeval"}
 
+// familyProtocols are the protocols a family is read under where it is read under more than one, its headline first:
+// MMLU-Pro by lm-eval's leaderboard_mmlu_pro reading, raw completion with the validation split's five demonstrations,
+// and beside it through the chat template (the owner, 2026-11-10).
+var familyProtocols = map[string][]string{
+	"mmlu-pro": {evaluation.PromptingRawCompletion.Label(), evaluation.PromptingChatTemplate.Label()},
+}
+
+// validationCells are an activation's cells for one validation: one under each protocol its family is read under, or
+// one naming none.
+func validationCells(cell ModelValidation) []ModelValidation {
+	protocols := familyProtocols[cell.Validation]
+	if len(protocols) == 0 {
+		return []ModelValidation{cell}
+	}
+	cells := make([]ModelValidation, len(protocols))
+	for index, protocol := range protocols {
+		cells[index] = cell
+		cells[index].Protocol = protocol
+	}
+	return cells
+}
+
 // templateFamilies score the answer a model generates to an instruction, which
 // means something only through the model's own chat template. A first
 // measurement of one runs under it; one of any other family takes the

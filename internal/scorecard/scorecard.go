@@ -1549,6 +1549,12 @@ func earned(summaries []evaluation.EvalSummary, state modelrecipe.ModelState) []
 	return slices.DeleteFunc(slices.Clone(summaries), func(summary evaluation.EvalSummary) bool { return unverified(summary.Verification) })
 }
 
+// headlineProtocols are the protocol whose reading heads a measure read under several, ahead of the order qualityCell
+// reads them in, the others shown beside it: MMLU-Pro is headed by lm-eval's leaderboard_mmlu_pro reading, raw
+// completion after the validation split's five demonstrations, and its chat-template reading stands beside it (the
+// owner, 2026-11-10). A likelihood reading of it without the demonstrations is labelled apart and heads nothing.
+var headlineProtocols = map[string]string{"store/mmlu-pro": evaluation.PromptingRawCompletion.Label()}
+
 func qualityCell(task recipe.Task, summaries []evaluation.EvalSummary, descriptors map[string]evaluation.SuiteDescriptor) (Cell, []Cell) {
 	type heldout struct {
 		cases uint64
@@ -1622,11 +1628,18 @@ func qualityCell(task recipe.Task, summaries []evaluation.EvalSummary, descripto
 	default:
 		return gap("no held-out evaluation of this recipe"), nil
 	}
+	// A measure read under several protocols is headed by its headline protocol's reading, the others beside it.
+	headed := func(reading heldout) int {
+		if protocol, named := headlineProtocols[reading.cell.Measure]; named && protocol != reading.cell.Contract.Protocol {
+			return 1
+		}
+		return 0
+	}
 	slices.SortFunc(measured, func(left, right heldout) int {
 		// A measure's builds are ordered before a build's protocols: a build
 		// evaluated later is read first whatever its protocol is called, and
 		// only one set's own alternatives fall to the order of their names.
-		return cmp.Or(cmp.Compare(right.cases, left.cases), strings.Compare(left.first, right.first),
+		return cmp.Or(cmp.Compare(headed(left), headed(right)), cmp.Compare(right.cases, left.cases), strings.Compare(left.first, right.first),
 			cmp.Compare(left.built, right.built), strings.Compare(left.cell.Contract.Protocol, right.cell.Contract.Protocol),
 			artifact.CompareID(left.cell.Contract.Comparison, right.cell.Contract.Comparison), artifact.CompareID(left.cell.Source, right.cell.Source))
 	})

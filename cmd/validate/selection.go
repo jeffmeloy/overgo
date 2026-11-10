@@ -309,16 +309,18 @@ func compareContracts(cells []ModelValidation, baseline *scorecard.Record) []Mod
 			if !derived {
 				continue
 			}
+			// The cell already under the compared protocol takes the contract; else the first not yet taken that names
+			// none, so a family read under several protocols keeps each (familyProtocols).
 			at := -1
 			for index, other := range cells {
 				if other.Recipe != cell.Recipe || other.Validation != family {
 					continue
 				}
-				if taken[index] && other.Protocol == contract.Protocol {
+				if other.Protocol == contract.Protocol {
 					at = index
 					break
 				}
-				if !taken[index] && at < 0 {
+				if !taken[index] && other.Protocol == "" && at < 0 {
 					at = index
 				}
 			}

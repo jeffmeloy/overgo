@@ -392,11 +392,11 @@ func registeredCells(ctx context.Context, store *overgodb.Store) ([]ModelValidat
 			}
 			for _, validation := range validations {
 				// The activation's recipe finds a benchmark's newest record.
-				cells = append(cells, ModelValidation{
+				cells = append(cells, validationCells(ModelValidation{
 					Model: entry.Model, ModelName: name, Location: entry.Location, Directory: directory,
 					Kind: capability.Task, Modality: modality, Recipe: capability.Recipe,
 					Validation: validation, Stale: capability.Stale, Trained: entry.Trained, Measured: entry.Measured,
-				})
+				})...)
 			}
 		}
 	}

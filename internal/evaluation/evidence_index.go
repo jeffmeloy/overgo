@@ -179,8 +179,12 @@ func recordExecution(ctx context.Context, store *overgodb.Store, record runrecor
 	if counting := namedCounting(ctx, store, plan); len(counting) != 0 {
 		summary.Prompting = strings.Join(append([]string{summary.Prompting}, counting...), protocolSeparator)
 	}
-	if policy.Prompting == PromptingRawCompletion && scoredGlued(ctx, store, plan) {
-		summary.Prompting += protocolSeparator + gluedLetters
+	if policy.Prompting == PromptingRawCompletion {
+		if prefix, mmluPro := mmluProPrefix(ctx, store, plan); scoredGlued(ctx, store, plan) {
+			summary.Prompting += protocolSeparator + gluedLetters
+		} else if mmluPro && prefix == "" {
+			summary.Prompting += protocolSeparator + withoutDemonstrations
+		}
 	}
 	// The report of the run that scored the cases says which generated answers named no option and which cases were
 	// asked; a report that cannot be read counts none, saying what is known and standing in no reading's way.

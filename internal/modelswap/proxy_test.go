@@ -49,9 +49,10 @@ func TestModelSwapRoutesLiveEnvelopeBeforeEOF(t *testing.T) {
 	if err := <-done; err != nil {
 		t.Fatal(err)
 	}
+	// The opening record names the child by its served name (servedAs); the stream after it is passed on unread.
 	replay := bufio.NewReader(request.Body)
-	if line, err := replay.ReadString('\n'); err != nil || line != first {
-		t.Fatalf("opening envelope changed: %q %v", line, err)
+	if line, err := replay.ReadString('\n'); err != nil || line != "{\"model\":\"native\",\"source\":{}}\n" {
+		t.Fatalf("opening envelope = %q %v, want it naming the child's served name", line, err)
 	}
 	next := "{\"sequence\":0}\n"
 	go func() {

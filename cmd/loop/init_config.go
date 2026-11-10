@@ -24,8 +24,10 @@ const (
 	defaultConfigMode  fs.FileMode = 0o600
 )
 
-// defaultLocalModel is the model the default worker serves: Qwen3.8-27B, the one the local worker was measured on.
-const defaultLocalModel = "Qwen3.8-27B-UD-Q6_K.gguf"
+// defaultLocalModel is the model the default worker serves: Qwen3.8-27B, the one the local worker was measured on, named
+// by its identity, which the swap proxy's catalog resolves exactly where its file name is ambiguous (two present
+// entries hold Qwen3.8-27B-UD-Q6_K.gguf), and which the proxy passes to the child as the child's own name.
+const defaultLocalModel = "model:sha256:73dc8d6fd4500f7b9bb76b801e4de3c0e8df971c86163e3cd348e64e2bc74ea6"
 
 // defaultWorker is the local worker: this command reading the prompt on its standard input and working it through the
 // chat route of overgo's own server with the eight tools the driver serves (workerTools). The claude CLI is no worker

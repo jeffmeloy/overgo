@@ -209,9 +209,11 @@ func writeProxyError(response http.ResponseWriter, request *http.Request, err er
 func (p *Proxy) routeServable(request *http.Request) (Servable, error) {
 	name := request.URL.Query().Get("swap")
 	explicitSwap := name != ""
+	var buffered []byte
 	if name == "" && request.Body != nil && request.ContentLength != 0 &&
 		strings.Contains(request.Header.Get("Content-Type"), "json") {
-		buffered, err := routingEnvelope(request)
+		var err error
+		buffered, err = routingEnvelope(request)
 		if err != nil {
 			return Servable{}, err
 		}
@@ -228,13 +230,16 @@ func (p *Proxy) routeServable(request *http.Request) (Servable, error) {
 		// served -- chat requests echo the served model id, and resolving
 		// it against the catalog could alias to a different artifact and
 		// swap spuriously mid-conversation.
-		if running, ok := p.Supervisor.Status(); ok &&
-			(strings.EqualFold(name, running.Name) || strings.EqualFold(name, running.Model)) {
-			return running, nil
+		servable, found := p.Supervisor.Status()
+		if !found || !strings.EqualFold(name, servable.Name) && !strings.EqualFold(name, servable.Model) {
+			var err error
+			if servable, found, err = p.Resolver.Resolve(request.Context(), name); err != nil {
+				return Servable{}, err
+			}
 		}
-		servable, found, err := p.Resolver.Resolve(request.Context(), name)
-		if err != nil {
-			return Servable{}, err
+		// One named by any other reference the catalog resolves reaches the child under the child's own name.
+		if found && !explicitSwap && !strings.EqualFold(name, servable.Name) {
+			return servable, servedAs(request, buffered, servable.Name)
 		}
 		if found {
 			return servable, nil
@@ -253,6 +258,33 @@ func (p *Proxy) routeServable(request *http.Request) (Servable, error) {
 		return p.Default, nil
 	}
 	return Servable{}, errNothingServes
+}
+
+// servedAs names the child's served name in the request's opening JSON record, which named the model by another
+// reference the catalog resolves, its identity or location: the child knows itself by its served name alone, and
+// answered an identity "requested model is not loaded" (the local worker's model, 2026-11-09). The rest of the body
+// follows the record unread.
+func servedAs(request *http.Request, opening []byte, served string) error {
+	var record map[string]json.RawMessage
+	if err := json.Unmarshal(opening, &record); err != nil {
+		return fmt.Errorf("model swap: invalid routing envelope: %w", err)
+	}
+	record["model"], _ = json.Marshal(served)
+	rewritten, err := json.Marshal(record)
+	if err != nil {
+		return err
+	}
+	if bytes.HasSuffix(opening, []byte("\n")) {
+		rewritten = append(rewritten, '\n')
+	}
+	if _, err := io.ReadFull(request.Body, make([]byte, len(opening))); err != nil {
+		return err
+	}
+	request.Body = replayBody{Reader: io.MultiReader(bytes.NewReader(rewritten), request.Body), Closer: request.Body}
+	if request.ContentLength >= 0 {
+		request.ContentLength += int64(len(rewritten) - len(opening))
+	}
+	return nil
 }
 
 // replayBody retains the original body's cancellation and close ownership.

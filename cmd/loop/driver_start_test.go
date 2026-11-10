@@ -30,7 +30,8 @@ func TestTheDriversDefaultWorkerIsTheLocalWorker(t *testing.T) {
 	var written config
 	testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(state, "loop.json"), &written))
 	// Spelled, not named, so the check reads the command the configuration holds.
-	local := []string{"go", "run", "./cmd/loop", "-local-worker", "http://127.0.0.1:8080", "-local-model", "Qwen3.8-27B-UD-Q6_K.gguf"}
+	local := []string{"go", "run", "./cmd/loop", "-local-worker", "http://127.0.0.1:8080", "-local-model",
+		"model:sha256:73dc8d6fd4500f7b9bb76b801e4de3c0e8df971c86163e3cd348e64e2bc74ea6"}
 	named := slices.ContainsFunc(append([][]string{written.Worker}, written.Workers...), func(worker []string) bool {
 		return slices.ContainsFunc(worker, func(argument string) bool { return strings.Contains(strings.ToLower(argument), "claude") })
 	})

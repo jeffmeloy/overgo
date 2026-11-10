@@ -39,7 +39,7 @@
         ],
         "adoption_scope": "Supersedes the absent repository-document reference at the owner's request; current external SHA is verified. Does not alter the executable plan."
       },
-    "assessment": "Shared execution/data owners improved, but ambient gate state and insufficient admission still cause avoidable work. No safe net code reduction established this interval.",
+    "assessment": "Two useful existing-owner consolidations landed, but authority and prerequisite admission still rely on path spelling rather than the owned contract. Retained worker demonstration remains failed.",
     "ast_surface_review": {
         "revision": "9bd406acafb89c44a439722419f1f7e85e71f691",
         "architectural_target": "Fewer independent product entry points and dependency owners; retain process isolation and existing compiled/runtime/development authority.",
@@ -55,49 +55,42 @@
         "cost": "Concrete parsed duplicate migrations total22production and150test AST removed; unimplemented estimates only. Three directories can disappear through349/351; command movement and all retained semantic constants must be charged. No overall refactor completion claimed."
       },
     "automation_follow_up": {
-        "architectural_progress": "MMLU demonstrations are held once in the existing choice prefix and expanded at scoring, avoiding serialized repeated demonstrations. mmluProRow owns common row validation; chat and raw numerical contracts remain distinct. ImportBenchmark now uses artifact.Publish for idempotent record/import publication. test-surface/landing-scenarios was retired from retained measurements instead of adding a shared-fixture mechanism. Concurrent grammar repair removes the blanket less-than prohibition through the existing builder. No new binary or owner hierarchy.",
-        "conflicts": "368 ambient-store gate dependence;369 exact reference admission;370 historical headline eligibility;371 terminal-prefix grammar admission. Existing283 state attribution,296 identifier scan,342 calibration,366 skipped-check advice and367 timing-only gate remain separate and unchanged in their governing code. Recipe/format migration is not complete.",
-        "cost": "8a839f0..a7acfa6:23changedGo paths, +735production/+3396test=+4131AST, +157/+551lines,0new production files and6new test files. Earlier five MMLU/catalog landings account for648/3025; concurrent grammar repair87/371. No new command/package directory/schema/static fixture/CUDA entrypoint. Six retained gate walls total3815s; these are costs, not measured avoidable time. No safe net AST reduction established in this interval.",
+        "architectural_progress": "edit_file and delete_file now share writable scope/ignore/protection admission, and replay wraps both with the held-test rule. Successful deletion also invalidates the existing read-result cache. Measurement exclusion moved from the demonstration into the existing replay boundary before checkout movement. These are useful consolidations, not a new runtime or net source reduction.",
+        "conflicts": "372: held-test spelling equality bypasses filesystem identity on Windows.373: a directory path is used as proof of model-produced prerequisites, excluding host-only refactors. Prior366 missing-test advice and371 grammar termination remain unchanged;356 durable interrupted-cost obligations remain distinct. Prior368..370 MMLU findings are untouched.",
+        "cost": "7aad643d7..8ac909a24:10changedGo paths,+205production/+584test=+789AST,+36/+102lines,0new production files and2new test files. No new command/package directory/schema/static fixture/CUDA entrypoint. Retained gate walls291+263=554s; these are costs, not avoidable-time measurements. No safe net code reduction established.",
         "plan_recommendations": [
           {
-            "rows": "mmlu-pro-lm-eval (completed); store-shots/identities (completed)",
+            "rows": "loop-proof/delete-tool (landed); local-demonstrated",
             "findings": [
-              "SQA-368",
-              "SQA-369",
-              "SQA-370"
+              "SQA-372"
             ],
-            "recommendation": "Retain shared prefix/row parsing and separate raw/chat identities. Remove ambient gate state, admit exact references before model work, and distinguish headline eligibility from ordering through current owners."
+            "recommendation": "Keep one writable owner for edit/delete and reuse existing pathidentity to preserve held checks across aliases. Extend the native fixture before another costly replay."
           },
           {
-            "rows": "test-surface/landing-scenarios (retired)",
+            "rows": "loop-proof/measurement-skip (landed); local-demonstrated",
             "findings": [
-              "SQA-307",
-              "SQA-329",
-              "SQA-367"
+              "SQA-373"
             ],
-            "recommendation": "Honor measured retirement; do not revive a generic fixture-sharing project. The narrow proven alias/case-pair/timing deletions remain separate recommendations and savings must not be double counted."
+            "recommendation": "Use the step/check prerequisite, not directory membership. Keep known impossible measurement tasks out early without excluding host consolidation work or inventing a second classifier."
           },
           {
-            "rows": "loop-proof/tool-value-markup (completed); local-demonstrated (first live step)",
+            "rows": "loop-proof/local-demonstrated",
             "findings": [
-              "SQA-371",
-              "SQA-366"
+              "SQA-356",
+              "SQA-366",
+              "SQA-371"
             ],
-            "recommendation": "Check terminal-prefix admission in the retained native fixture before another worker demonstration. Keep the retained2-of-6 failure record; grammar repair is a prerequisite, not proof of three useful unaided landings or positive net benefit."
-          },
-          {
-            "rows": "catalog-reimport/held-records (completed)",
-            "recommendation": "Keep artifact.Publish as the single no-change owner. Retain distinct normal-import and older-key store states; no extra recovery wrapper or retry machinery."
+            "recommendation": "Run6 remains2of6 after the latest prerequisites were addressed. Repeating the same selected steps supplies correlated failure evidence, not independent general competence. Use retained failing call/check traces to decide the next concrete change; do not start an unchanged demonstration merely for confidence. Respect existing stops/budgets; no plan edit or run by SQA."
           }
         ]
       },
-    "current_review_order": "Guidance/plan/target -> source/callers/retained results -> provisional conclusions -> finding/owner reconciliation -> bounded AST -> concurrent delta and publication checks.",
+    "current_review_order": "Guidance/committed plan/target identity -> source/callers and provisional conclusions -> current findings/owner responses -> bounded AST and historical counterexample -> concurrent publication checks.",
     "declined_candidates": [
-        "No shared fixture system after measured retirement; native Go caching and isolated repositories remain.",
-        "No merging scorecard headline and validator protocol fixtures: selection/presentation and command/baseline binding are distinct contracts.",
-        "No merging the two import stores: earlier-key publication is a distinct recovery state.",
-        "Candidate only: recordExecution calls mmluProPrefix, then scoredGlued calls it again. Sole callers confirmed; one profile read/JSON decode can potentially disappear in the same owner while preserving glue precedence and read errors. Current functions103+94AST, recordExecution455; full replacement/helper/test cost not priced, so no new abstraction, promised saving or active finding.",
-        "No conversion/recipe rewrite solely to follow the target; this sample establishes no two new workflows needing a shared orchestration owner."
+        "Do not merge MCP tool-list/protocol assertions with replay held-test assertions merely because both invoke workerTools. They enforce different caller contracts.",
+        "Use the current delete fixture to cover shared edit/delete alias refusal; no second path-guard package or test repository needed.",
+        "Use the current measurement repository fixture for genuine measurement versus host inventory; no generic dependency scanner or recurring confidence run.",
+        "Retain local read-cache invalidation after deletion through existing workLocally; no new cache owner. Same-name or similar setup alone does not establish removable tests.",
+        "No new recipe extension justified by these development-tool changes; plan/driver retain dispatch and authority. No safe net code reduction established."
       ],
     "media_follow_up": {
         "architectural_progress": "Mixed-format refusal now has one host fixture (354 closed). Calibration reuses the existing projection session/campaign and common answering helpers, with isolated records and established Close ownership. Scorecard comparison now reads the existing dataset's media groups instead of treating each question as independent. Stillness extends the existing motion record/display without a new runtime.",
@@ -197,16 +190,16 @@
         ]
       },
     "plan_review_follow_up": {
-        "pin": "a7acfa639919e0a2658b38a8df3a3ef48f823377",
-        "assessment": "MMLU work and catalog recovery landed; shared landing fixture proposal retired. Final plan puts local-demonstrated first. Its previous2-of-6 result remains failure; prerequisite fixes do not establish benefit.",
-        "limits": "Plan/skill not edited. No source-only closure of runtime obligations. Failed BF16 and production-undo compile results preserved."
+        "pin": "8ac909a24a1563852dc20e05a168439946f70de7",
+        "assessment": "delete-tool and measurement-skip landed. local-demonstrated is still first; runs5and6 each2of6. Shared mutation/replay owners should be retained while fixing372/373 before dependent repeated work.",
+        "limits": "Plan unchanged by SQA. Legacy measurement steps lack Run/Record metadata, so merely reading those fields is insufficient. Current source does not close older recovery, grammar or diagnostic findings."
       },
-    "rank_basis": "Keep363security first. Add four P2 deterministic admission/identity/presentation findings after existing366; retain earlier distinct canonical obligations.",
+    "rank_basis": "Keep363security first.372/373 precede existing366 because held-check integrity and correct admission determine whether later worker evidence is meaningful. No general ranking rewrite.",
     "refactor_target_progress": {
-        "architectural_progress": "MMLU demonstrations are held once in the existing choice prefix and expanded at scoring, avoiding serialized repeated demonstrations. mmluProRow owns common row validation; chat and raw numerical contracts remain distinct. ImportBenchmark now uses artifact.Publish for idempotent record/import publication. test-surface/landing-scenarios was retired from retained measurements instead of adding a shared-fixture mechanism. Concurrent grammar repair removes the blanket less-than prohibition through the existing builder. No new binary or owner hierarchy.",
-        "conflicts": "368 ambient-store gate dependence;369 exact reference admission;370 historical headline eligibility;371 terminal-prefix grammar admission. Existing283 state attribution,296 identifier scan,342 calibration,366 skipped-check advice and367 timing-only gate remain separate and unchanged in their governing code. Recipe/format migration is not complete.",
-        "next_useful_reductions": "368 removes real-store gate work without dropping corpus identity ownership. Correct369/370/371 through existing import/presentation/grammar owners. Honor retired orchestration and keep existing narrow307/329/367 deletion recommendations independent.",
-        "cost": "8a839f0..a7acfa6:23changedGo paths, +735production/+3396test=+4131AST, +157/+551lines,0new production files and6new test files. Earlier five MMLU/catalog landings account for648/3025; concurrent grammar repair87/371. No new command/package directory/schema/static fixture/CUDA entrypoint. Six retained gate walls total3815s; these are costs, not measured avoidable time. No safe net AST reduction established in this interval."
+        "architectural_progress": "edit_file and delete_file now share writable scope/ignore/protection admission, and replay wraps both with the held-test rule. Successful deletion also invalidates the existing read-result cache. Measurement exclusion moved from the demonstration into the existing replay boundary before checkout movement. These are useful consolidations, not a new runtime or net source reduction.",
+        "conflicts": "372: held-test spelling equality bypasses filesystem identity on Windows.373: a directory path is used as proof of model-produced prerequisites, excluding host-only refactors. Prior366 missing-test advice and371 grammar termination remain unchanged;356 durable interrupted-cost obligations remain distinct. Prior368..370 MMLU findings are untouched.",
+        "next_useful_reductions": "Reuse pathidentity in the shared mutation boundary; remove the directory-as-prerequisite rule without restoring a manual demonstration filter. Honor previous narrow307/329/367 deletion opportunities rather than creating new orchestration.",
+        "cost": "7aad643d7..8ac909a24:10changedGo paths,+205production/+584test=+789AST,+36/+102lines,0new production files and2new test files. No new command/package directory/schema/static fixture/CUDA entrypoint. Retained gate walls291+263=554s; these are costs, not avoidable-time measurements. No safe net code reduction established."
       },
     "working_notes_review": {
         "finding": "SQA-334",
@@ -216,10 +209,10 @@
       }
   },
     "committed_plan": {
-    "git_blob": "4b89608cde1ecfbc320f0a45a1ced026b2cc600a",
+    "git_blob": "24ee904a7933baf4ca59dfd68640529933f34a85",
     "path": "docs/plan.json",
-    "revision": "a7acfa639919e0a2658b38a8df3a3ef48f823377",
-    "sha256": "bb9aecd75d4cde0512c7ff6319b3f11dfadc44d82fc44ab49fc106845b6bff0c",
+    "revision": "8ac909a24a1563852dc20e05a168439946f70de7",
+    "sha256": "02b68be37e57cdb98e70405fb1bb0cb5fa42343076b079402d4dd1f531d69818",
     "working_tree_status": "Committed plan at review pin; prior draft assessment retains its own snapshot identity. Current working plan edits excluded."
   },
     "findings": [
@@ -7921,10 +7914,10 @@
     "id": "SQA-356",
     "impact": "Prevents downtime and missing records being presented as measured worker effort, and prevents resumed work being credited to the wrong worker. Full-cost/benefit conclusions must remain limited until this path is truthful.",
     "likely_effort": "Small coordinated lifecycle/readout correction across existing driver, startup and landing owners; complete replacement must be counted.",
-    "plan_coverage": "The Claude comparison is retired and local-default landed. local-demonstrated now asks the sole local worker for three unaided steps in at most six tries; neither a passing replay nor the new grammar fix closes durable lifecycle/censored-cost requirements. startup.go, landing/costs.go and cmd/loop/costs.go are byte-identical to the prior reviewed evidence; main.go still records start before keepRunning and drops the marker before deferred end recording.",
+    "plan_coverage": "At8ac909a24 local-demonstrated remains open after runs5and6 each passed2of6. The retained run6 log separates880217ms summed replay attempt wall from954.856s package wall; neither is a complete durable interruption accounting repair or proof of benefit. startup.go, landing/costs.go and cmd/loop/costs.go are unchanged since the prior review; main.go only changes tool-count wording. Original orphan-start/legacy/censored-cost obligations remain.",
     "plan_references": [
-        "loop-proof/attempt-lifecycle 6da610a60 (landed)",
-        "loop-proof/local-demonstrated at 7d1c97f7d4d11234d6299ded5573b51443724e37",
+        "loop-proof/attempt-lifecycle6da610a60 (landed)",
+        "loop-proof/local-demonstrated at8ac909a24a1563852dc20e05a168439946f70de7",
         "Downloads extreme_refactor_plan.md: one execution owner and truthful full costs"
       ],
     "recommended_change": "Finish the original retained-owner migration: use the existing driver start/exit/restart and processcontrol receipt as one durable attempt lifecycle, retaining terminal history and the unclean-start notice. Remove the displaced second active-start write/delete path; do not infer liveness from a start-only record. Preserve old interrupted evidence as unknown when exact identity cannot be recovered rather than charging downtime. Carry known-versus-unknown wall into the existing cost readout, keeping completed wall and actual worker order. Retain best-effort progress, stops, budgets and partial results; accounting failure must not rerun work.",
@@ -8661,10 +8654,125 @@
         "Downloads extreme_refactor_plan.md: fix admission causes before dependent work"
       ],
       "plan_coverage": "The cited implementation step has landed; its residual contract is not explicitly owned by an open step at this pin. This is a report recommendation, not dispatch or permission to implement."
+    },
+    {
+      "id": "SQA-372",
+      "status": "open",
+      "severity": "P2",
+      "category": "worker-filesystem-authority",
+      "classification": "source-established-case-alias-bypass; not-executed",
+      "title": "Protect held tests by filesystem identity before editing or deleting",
+      "evidence_commit": "8ac909a24a1563852dc20e05a168439946f70de7",
+      "sources": [
+        {
+          "path": "cmd/loop/replay.go",
+          "symbol": "replayTask.tools: exact strings in task.Tests"
+        },
+        {
+          "path": "cmd/loop/tools.go",
+          "symbol": "workerTools inside/writable; edit_file and delete_file"
+        },
+        {
+          "path": "internal/plan/plan.go",
+          "symbol": "Lists: lexical file/directory membership"
+        },
+        {
+          "path": "internal/pathidentity/identity.go",
+          "symbol": "Same and Contains; existing filesystem authority owner"
+        },
+        {
+          "path": "cmd/loop/tools_delete_test.go",
+          "symbol": "TestTheWorkerDeletesAFileItsStepMayChange"
+        },
+        {
+          "path": "cmd/loop/leftovers.go",
+          "symbol": "Existing pathidentity.Contains/Same caller in this command"
+        }
+      ],
+      "evidence": "b6da70b52 correctly shares writable admission between edit_file and delete_file and applies the held-test wrapper to both. The wrapper nevertheless compares cleaned path strings with slices.Contains. On an ordinary case-insensitive Windows checkout, the new fixture task Files=[scripts], Tests=[scripts/held_test.go] admits scripts/HELD_test.go: it misses the held string, remains under the allowed scripts directory, and is not ignored. os.WriteFile or os.Remove then operates on the held file itself. The file may be rewritten into a passing check or deleted; deletion need not earn a pass to violate the hold. Existing malformed-argument repair347 stays valid and closed. No mutation or exploit was executed by SQA.",
+      "recommended_change": "Use existing pathidentity.Same at the held-file boundary and existing filesystem containment authority where writable needs it, before either mutation. Keep the current shared writable owner, lexical scope restrictions, ignored/protected paths and normal creation of new allowed files. Preserve host filesystem semantics rather than globally lowercasing every path. Handle identity lookup errors explicitly; do not silently treat an unreadable existing held file as unrelated. No new path-policy package or edit/delete-specific copies.",
+      "displaced_surface": "Replace spelling-only proof that a requested mutation is not a held test. The edit and delete callers share the actual authority contract and remain under one admission owner. Keep347 argument validation and366 diagnostic behavior distinct; no production/test deletion is safe merely because both tools mutate files.",
+      "impact": "A worker can alter the independently held verifier through an accepted alternate spelling, undermining replay evidence and intended file authority.",
+      "expected_benefit": {
+        "baseline": "tools.go1730AST (workerTools920); replay.go1986 (replayTask.tools201); delete fixture299. Existing pathidentity393production/339test and same-command callers already supply filesystem semantics.",
+        "cost": "Necessary correctness growth not yet parsed; no safe net reduction established. Extend the same temporary repository fixture for both edit/delete and an alias; no new worker/model/store setup, binary, directory or fixture framework.",
+        "uncertainty": "Source-derived Windows case-alias counterexample. No actual overwritten held test, worker misuse or exploit claimed; global hardlink/symlink-race hardening is not measured by this review."
+      },
+      "likely_effort": "Small admission repair and extension of the retained native mutation fixture.",
+      "plan_references": [
+        "loop-proof/delete-tool landedb6da70b52",
+        "loop-proof/local-demonstrated",
+        "Downloads extreme_refactor_plan.md: shared owners and intact authority"
+      ],
+      "plan_coverage": "Deletion capability landed; the existing held-check guard still uses spelling equality. No open step explicitly owns this residual. Report only; do not dispatch work.",
+      "closure_criteria": [
+        "Both edit_file and delete_file refuse an alternate Windows spelling of the held file before mutation, preserving original bytes and presence.",
+        "Existing admitted file changes still work; platform-aware identity errors and protected/scope checks retain their authority.",
+        "Reuse pathidentity and the current native fixture; count complete repair/test cost without creating a second guard implementation."
+      ],
+      "comparison": "Extend TestTheWorkerDeletesAFileItsStepMayChange with scripts/HELD_test.go when the filesystem identifies it as scripts/held_test.go, exercising both mutations and checking the original remains unchanged. Keep exact-path hold, allowed deletion and outside-scope refusal in that fixture. Retain existing pathidentity native coverage; no SQA execution."
+    },
+    {
+      "id": "SQA-373",
+      "status": "open",
+      "severity": "P2",
+      "category": "replay-prerequisite-ownership",
+      "classification": "source-established-false-measurement-classification",
+      "title": "Determine replay eligibility from the step contract, not its output directory",
+      "evidence_commit": "8ac909a24a1563852dc20e05a168439946f70de7",
+      "sources": [
+        {
+          "path": "cmd/loop/replay.go",
+          "symbol": "replayed.measurement; replay; landedSteps; oneTest"
+        },
+        {
+          "path": "cmd/loop/replay_measurement_test.go",
+          "symbol": "TestAMeasurementIsNoTaskForTheWorker"
+        },
+        {
+          "path": "internal/plan/plan.go",
+          "symbol": "Step.Run, Record and Verify"
+        },
+        {
+          "path": "internal/loop/driver.go",
+          "symbol": "Run dispatches declared run steps through CommandWorld"
+        },
+        {
+          "path": "docs/plan.json",
+          "symbol": "Historical66b05cc1482c parent: compact-production/dead-declarations"
+        },
+        {
+          "path": "docs/verification/unreached-declarations.txt",
+          "symbol": "Changed by3ef2c5d8f; static typed-reach inventory, not a model measurement"
+        }
+      ],
+      "evidence": "8ac909a24 usefully rejects known impossible measurement tasks before moving the checkout, but measurement lists every changed path under docs/verification for the whole landing and treats any match as a card-produced record. Concrete retained counterexample:3ef2c5d8f changes unreached-declarations.txt while landing compact-production/dead-declarations. Its parent66b05cc1482c declares go test ./internal/repoanalysis -count=1 -run ^TestNoDeclarationIsReachedByNothing$, with no Run, Record or NeedsCard. It satisfies oneTest, yet the new method calls this host source-analysis refactor a measurement no worker tools can make. Deletions or unrelated records in a multi-step landing also satisfy the same unfiltered path query. The new fixture only compares one code path with one JSON measurement path and tests the helper, not replay admission. Legacy vision-bridge steps also have empty Run/Record, so those fields alone cannot replace all legacy admission.",
+      "recommended_change": "Replace the directory-wide inference in the existing replay admission with the actual step and verifier prerequisite. Reuse Step.Run/Record for declared run work; for legacy checks establish the specific immutable model-produced input rather than assuming every docs/verification change is one. Static inventories, oracle/configuration edits, deleted records and unrelated co-landed files must not imply model work. Keep known vision-bridge model-record tasks out before checkout/worker execution. If legacy prerequisite identity cannot be established, record that uncertainty without calling it a measured task. Do not add a general dependency scanner, capability registry, selector service or second scheduler.",
+      "displaced_surface": "Remove the blanket changed-directory-to-model-work rule. Keep early admission in replay shared by CLI and demonstration; preserve skipped outcomes outside tried counts and retain their exact reasons. The existing plan/driver owns run-versus-worker dispatch. Do not recreate the demonstration-only hand filter.",
+      "impact": "Avoids silently removing legitimate deletion/consolidation tasks from the worker evaluation and misreporting why they were excluded, while still preventing attempts on known impossible prerequisites.",
+      "expected_benefit": {
+        "baseline": "replay.go1986AST; measurement55; replay431. New helper-only test284AST creates one repository with10setupGit commands (init plus three add/commit/rev-parse groups), then2measurement queries.",
+        "cost": "Complete measurement-skip landing+129production/+284test=+413AST. Replacement total unknown, no safe net code reduction established. Extend this same repository fixture with the concrete host-inventory case and the early boundary; no second repository/model run or generic classification suite.",
+        "uncertainty": "False classification follows committed source and historical plan, not a newly executed replay. It is not claimed that this historical step would pass for the worker or was reached within a particular replay limit."
+      },
+      "likely_effort": "Bounded replay admission correction using existing step/check ownership and one retained fixture.",
+      "plan_references": [
+        "loop-proof/measurement-skip landed8ac909a24",
+        "loop-proof/local-demonstrated",
+        "compact-production/dead-declarations landed3ef2c5d8f",
+        "Downloads extreme_refactor_plan.md: declared dependencies and truthful partial evidence"
+      ],
+      "plan_coverage": "The skip step landed with production-only undo failing at compilation, explicitly not behavioral evidence. local-demonstrated remains open after2of6. Preserve the earlier failed runs; narrowing eligibility does not turn them into successes.",
+      "closure_criteria": [
+        "The retained host-only dead-declarations case is not classified as model work merely for changing its static inventory.",
+        "Known model-produced prerequisites are rejected before checkout/worker execution; error/unknown evidence is distinguished from established measurement identity.",
+        "One existing replay boundary owns eligibility, with skips and failures retained, no extra classifier or recurring workload."
+      ],
+      "comparison": "Extend TestAMeasurementIsNoTaskForTheWorker with a host code step plus static inventory and an unrelated co-landed record, retaining the genuine model-record case. Check the existing replay early-return boundary without starting a worker or building an old checkout. Reuse the one repository; no full demonstration needed to decide this contract."
     }
   ],
     "gate_test_assessment": {
-    "assumptions": "Five demonstrations/first_n and delimiter are explicit comparison-protocol choices, not universal model constants.0.01accuracy and0.9agreement were declared bounds for one Qwen/FP32 comparison; two exclusions need exact revision/content binding.12,032case count does not identify a corpus.40spaced and share draws are pinned historical identity contracts. Numerical acceptance stays independent of timing. Grammar closing tag is a parser format boundary; terminal proper prefixes do not violate it.",
+    "assumptions": "Windows ordinary case-insensitive path identity differs from lexical spelling; apply actual filesystem semantics, not global case folding. docs/verification is a storage location, not a model-work type.6chosen steps/3required passes/40reply ceilings are explicit local demonstration policy; repeated runs on the same tasks are correlated. Keep package elapsed separate from attempt-wall sums.",
     "automation_follow_up": {
         "landings": [
           {
@@ -8696,14 +8804,14 @@
         "fixture_interpretation": "New embedded presentation metadata6663bytes; not a test fixture. Generated clips, temporary stores and model reloads remain actual setup costs.",
         "retained_results": "7ca color assertion/undo retained; gate813s.1cb cause classifier verification17.1s; gate638s.55b four models/two variants: opener370/380 versus106/380 lettered, verification286.312s, gate893s. c122 README verification2.276s, gate373s. SQA did not rerun them; no cost treated as measured waste."
       },
-    "automation_sequence": "Ordinary landing still reads the real store under368, and322verify sequencing remains open. Existing corpus lane should admit reference identity before OpenRunner. Benchmark publication reuses Publish recovery; no retry needed for identical records. Local run3 failure exposed a grammar prerequisite;371 can be decided natively before another worker run.",
+    "automation_sequence": "Known prerequisite refusal now precedes moveReplay and worker execution. Driver already distinguishes declared Run/Record work from worker dispatch. Current373heuristic overgeneralizes that boundary;372can corrupt its held verifier. Existing plan stops, budgets, process supervision and partial records remain owners. No new scheduler, cache or gate.",
     "fresh_ast": {
-        "revision": "a7acfa639919e0a2658b38a8df3a3ef48f823377",
-        "method": "Existing external main.go parsed13selected committed files; day-count.go counted all23changedGo endpoint paths. Reused prior analyses for unchanged findings; no application execution.",
-        "retained_result": "review-20261110-1611-{ast,scorecard-ast,grammar-ast,final-delta}.json",
-        "selected_counts": "mmlu_test2235;mmlu_pro241;lm_eval_model1068;leaderboard870;evidence_index3945;store_suites4130;reimport321;scorecard_headline271;validator_headline381;scorecard8663;grammar916;grammar_test715;value_test370. Total24126AST.",
-        "comparison": "MMLU prefix103 and scoredGlued94 expose duplicate read work, not full-body redundancy. Existing scalar/fixture reductions remain at their retained revisions. New correctness repairs have unmeasured replacement cost.",
-        "limits": "128functions,4991parser-local identifier links,0exact full-body groups. No type resolution or repository-wide duplicate/boilerplate percentage."
+        "revision": "8ac909a24a1563852dc20e05a168439946f70de7",
+        "method": "Existing external main.go parsed11committed files; day-count.go counted10changedGo endpoint paths.",
+        "retained_result": "review-20261110-1809-{ast,owners-ast,delta}.json",
+        "selected_counts": "tools1730;tools_test356;tools_delete299;replay1986;replay_measurement284;local_worker819;replay_model447;pathidentity393/test339;tools_search321;local_worker_repeat349. Total7323AST.",
+        "comparison": "writable is shared by two actual mutation callers. pathidentity is already used by this command. No exact full-body duplicate function groups; shared fixture opportunities preserve different transport/replay contracts.",
+        "limits": "31functions,1428parser-local identifier links, no package type resolution. No replacement parsed or whole-repo duplicate percentage."
       },
     "media_follow_up": {
         "landings": [
@@ -8887,22 +8995,18 @@
       "retained_change_costs": "Two consolidation landings(2d59f642c exact folds andbb4fc706a parameter folds) remove744 production nodes but add1591 test nodes, net+847 across Go. Pilot retirementea8ed43a7 removes5926 production/9990 test nodes and one schema, while fixture bytes grow599; its test deletion is already included in the day's offsets and must not be subtracted twice. These retained gates are broader changes, not matched per-test performance comparisons."
     },
     "retained_results": [
-        "9e943606f: five-shot prefix/row ownership +389production/+882test; gate682s, verify15.584s. Retain exact prompt/delimiter and chat identity fixtures. Production-only undo did not compile after signature changes; it is not a successful behavioral undo.",
-        "0203b6459: +0production/+1068test. BF16 comparison failed0.8714agreement and remains failed. Separately declared FP32 result:12,030cases after2revision exclusions, overgo0.1871/lm_eval0.1876, agreement0.9860, only-overgo19/only-lm25; model240s, gate468s, verify242.002s. Source admission limits are369; not generalized parity.",
-        "0203b6459 retires landing-scenarios:294s summed command time across81parallel tests, package46s; fixture Git66.7s, one build11.7s, tested gate Git169.5s. No demonstrated safe shared-fixture saving worth isolation cost. Summed command time is not package wall.",
-        "5f1ebc623: raw/chat validator and headline changes+259production/+690test; gate535s, verify17.138s. Current fixture misses only-ineligible case370. Validator undo compile failure was disclosed, not counted as behavioral proof.",
-        "1a1c6c007: Publish reuse0production/+321test; gate1438s, verify14.988s. New321-node fixture retains two materially different store states.",
-        "fdd636906: ambient-store expectation adjustment0production/+64test; gate254s, verify30.343s. Commit records the preceding catalog import broke every landing test stage;368 addresses residual ownership.",
-        "a7acfa639: concurrent grammar repair+87production/+371test; gate438s, verify24.677s; retained undo assertion fails on prior code. Local demonstration run3 still2of6 according to commit, including truncated edits. Retained Bonsai outputs identical, peak5389.8MiB unchanged; native prefix edge371 remains. SQA ran none of these."
+        "b6da70b52: delete-tool +76production/+300test; gate291s, verify31.807s. Retained undo fails native assertion when delete_file is absent. Shared writable/held guard, new299-node delete fixture; no new static fixture/schema.",
+        "8ac909a24: measurement-skip +129production/+284test; gate263s, verify30.78s. Production-only undo fails compilation, explicitly no behavioral undo. Same landing invalidates cached reads after delete.",
+        "Retained run6: six attempted steps,2passed; attempts1,3,1,3,3,3; calls18,82,13,67,122,113. Attempt wall880217ms (14m40.217s), package954.856s (15m54.856s);9records include3skips. The same two pass as previous runs; observed failures preserved. These distinct timings are not contradictory or additive.",
+        "3ef2c5d8f historical host-refactor counterexample: parent66b05cc1482c step Verify is the single native TestNoDeclarationIsReachedByNothing, no Run/Record/NeedsCard, and its inventory change matches the new measurement filter. This is source evidence, not a replay result."
       ],
-    "surface_reduction_analysis": "8a839f0..a7acfa6:23changedGo paths, +735production/+3396test=+4131AST, +157/+551lines,0new production files and6new test files. Earlier five MMLU/catalog landings account for648/3025; concurrent grammar repair87/371. No new command/package directory/schema/static fixture/CUDA entrypoint. Six retained gate walls total3815s; these are costs, not measured avoidable time. No safe net AST reduction established in this interval.",
+    "surface_reduction_analysis": "7aad643d7..8ac909a24:10changedGo paths,+205production/+584test=+789AST,+36/+102lines,0new production files and2new test files. No new command/package directory/schema/static fixture/CUDA entrypoint. Retained gate walls291+263=554s; these are costs, not avoidable-time measurements. No safe net code reduction established.",
     "tests": [
-        "RETAIN native MMLU prompt/delimiter/identity and demonstration exclusion cases. SIMPLIFY ordinary identity gate by removing ambient-store dependency under368; MERGE corpus setup with the existing admitted import only where historical data identities match.",
-        "RETAIN full numerical lm_eval comparison; EXTEND one native admission fixture under369, preserving failed BF16 and distinct FP32/exclusions. No extra model setup.",
-        "RETAIN distinct validator/headline fixtures; EXTEND existing scorecard fixture for only-ineligible readings under370. No store/model needed.",
-        "RETAIN benchmark reimport fixture with normal and older-key stores; they exercise distinct content-publication states. Existing Publish is the retained production owner.",
-        "RETAIN native greedy grammar fixture and embedded complete-tag rejection; EXTEND it with terminal-prefix/parser cases under371. Do not add another worker/device fixture.",
-        "REMOVE no existing application test in SQA.367timing-only and307alias deletion remain recommendations; shared landing-fixture project retired without implementation."
+        "RETAIN tool protocol/listing/argument admission and separate replay hold contracts. EXTEND the existing delete fixture with both mutation operations against an alternate held-file spelling; reuse one repository.",
+        "RETAIN pathidentity filesystem semantics fixture; do not copy Same/Contains behavior into the worker package.",
+        "SIMPLIFY measurement helper/admission in the current replay owner and EXTEND its existing repository fixture with host inventory and co-landed-record cases. Preserve genuine measurement exclusion before worker execution.",
+        "RETAIN local repeat guard, read-cache invalidation and tagged real replay contract. No new model setup or confidence runs for deterministic admission changes.",
+        "REMOVE no application tests in SQA; no safe complete test-body deletion established in this sample."
       ]
   },
     "hygiene_assessment": "No hygiene finding. Scratch analysis is outside the repository; concrete correctness and production/test cost take priority.",
@@ -10436,10 +10540,10 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
     "limitations": [
-      "No application tests, process/model/device workloads, benchmarks, gates, agents/messages, plan/skill edits or pushes. Retained implementation evidence only.",
-      "AST counts include comments and4991parser-local identifier links in128functions; no package go/types resolution. No exact full-body duplicates in13selected files. This does not measure semantic or whole-tree boilerplate percentage.",
-      "Reference pairing, single-reading headline and terminal-prefix grammar counterexamples are source-derived, not executed reproductions. The store-dependent landing failure is recorded by the implementation commit.",
-      "This interval grows code. Small duplicated profile-read candidate is not a completed reduction. No full architecture migration or general model/dataset parity claim."
+      "No application tests, workers, process/model/device workloads, benchmarks, gates, agents/messages, plan/skill changes or pushes. Only existing external AST/report tooling executed.",
+      "Parser counts include comments and1428local identifier links in31functions. No package type resolution, no exact full-body duplicates in11selected files, and no whole-tree boilerplate percentage inferred.",
+      "Windows case-alias and false-measurement counterexamples are source-derived; no destructive reproduction or replay executed. Failed worker outcomes come from committed notes and the retained run6 log.",
+      "Two landings grow total code. Existing shared owners reduce duplicated decisions; replacement costs remain unmeasured. No completed recipe/format architecture migration or general worker competence claim."
     ],
     "master_lead_triage": {
     "at": "2026-11-10",
@@ -11315,14 +11419,14 @@
       }
     }
   },
-    "next_finding_number": 372,
+    "next_finding_number": 374,
     "publication_context": {
-    "assessment": "Substantive report: architecture progress, four distinct residual contracts and measured retirement; source-only review with retained results.",
-    "checked_head": "a7acfa639919e0a2658b38a8df3a3ef48f823377",
-    "concurrent_changes": "a7acfa639 landed during review; code/plan delta read,13-file/23-path counts reconciled and report unchanged. Re-read again immediately before publishing.",
-    "current_pin": "a7acfa639919e0a2658b38a8df3a3ef48f823377",
-    "publication": "Normal report-only hook exception under existing landing_turn/gate ownership; preserve workers.",
-    "report_only": "Only docs/sqa_findings.json; unrelated work/index preserved."
+    "assessment": "Substantive report-only update: shared-owner progress, two admission defects and retained failed-run accounting.",
+    "checked_head": "8ac909a24a1563852dc20e05a168439946f70de7",
+    "concurrent_changes": "Live docs/plan.json edits observed and excluded; committed plan identity used. Re-read source/report/owner state immediately before publishing.",
+    "current_pin": "8ac909a24a1563852dc20e05a168439946f70de7",
+    "publication": "Normal report-only hook exception under existing landing_turn/gate ownership; no worker disturbance.",
+    "report_only": "Only docs/sqa_findings.json; other index/worktree changes preserved."
   },
     "ranked_active_finding_ids": [
     "SQA-363",
@@ -11330,6 +11434,8 @@
     "SQA-316",
     "SQA-346",
     "SQA-271",
+    "SQA-372",
+    "SQA-373",
     "SQA-366",
     "SQA-368",
     "SQA-369",
@@ -11392,34 +11498,32 @@
     "repository": "C:\\Users\\jeffm\\overgo",
     "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
     "review_notes": [
-      "Prior report8a839f0 and all stable IDs/closure evidence retained. Owner and unknown fields preserved raw-exact.",
-      "New368..371 have distinct contracts: gate isolation, reference identity, headline eligibility and grammar termination. Do not merge them merely because they belong to one campaign.",
-      "367 plan coverage updated for measured retirement; broader existing architectural and correctness obligations remain active. Current narrative replaces prior reviewer follow-up; history remains in Git."
+      "Preserved all198prior stable IDs and raw-exact owner/unknown fields. New372filesystem authority and373replay eligibility are distinct contracts; no forced consolidation.",
+      "356 retains its original lifecycle/censored-cost obligations, with current plan/run context refreshed.367retired-fixture recommendation and368..371remain unchanged.",
+      "Current bounded follow-up replaces older reviewer narrative; historical evidence remains in Git."
     ],
-    "reviewed_at": "2026-11-10T16:23:41Z",
-    "reviewed_master": "a7acfa639919e0a2658b38a8df3a3ef48f823377",
+    "reviewed_at": "2026-11-10T18:15:24Z",
+    "reviewed_master": "8ac909a24a1563852dc20e05a168439946f70de7",
     "schema_version": 2,
     "scope": [
-      "Committed mastera7acfa639919e0a2658b38a8df3a3ef48f823377; plan blob4b89608cde1ecfbc320f0a45a1ced026b2cc600a. Guidance and Downloads architecture target unchanged; retained contents reused.",
-      "Bounded MMLU admission/scoring/evidence/headline and benchmark import review; concurrent tool-value grammar delta reconciled. Followed concrete native fixtures, real-store/corpus owners, parser and retained landing records.",
-      "13selected Go files parsed; all23changedGo endpoint paths counted. The10MMLU/scorecard source blobs are unchanged fromfdd636906 at the final pin; three grammar files parsed at final pin. No broad census.",
-      "This chat previously implemented Overgo and contributed plan wording; follow-up SQA, not independent third-party review."
+      "Committed master8ac909a24a1563852dc20e05a168439946f70de7; committed plan blob24ee904a7933baf4ca59dfd68640529933f34a85. AGENTS/skill/Downloads architecture-target hashes unchanged; retained guidance reused.",
+      "Bounded worker mutation authority, replay eligibility/dispatch and retained failed-run review. Followed existing pathidentity, plan/driver, native fixtures and actual historical host-only counterexample beyond the latest diff.",
+      "11selected committed Go files parsed; all10changedGo endpoint paths counted. No whole-tree census or application execution.",
+      "This chat previously implemented Overgo and contributed plan wording; this is follow-up SQA, not independent third-party review."
     ],
     "sqa_response": {
-    "assessment": "198stable IDs:63open,129resolved,4deferred,2aliases. Four new distinct source/retained-evidence findings;367plan coverage updated. No closures or aliases changed.",
+    "assessment": "200stable IDs:65open,129resolved,4deferred,2aliases. Two new distinct admission findings;356current plan context refreshed. No closures or aliases changed.",
     "consolidated_findings": [],
     "deferred_findings": [],
-    "evidence": "Six landings, retained failed and successful evidence,13-file AST and23-path full endpoint costs. Concurrent grammar landing reconciled before publication.",
-    "implementation_response_context": "Current findings and owner blocks re-read at final pin; no implementation response overwritten.283/296/342/366/367 requirements retain their owners; shared file mentions are not closures.",
+    "evidence": "Two committed landings, native and historical caller/contract review,11-file AST and10-path endpoint costs, retained run6 failure record.",
+    "implementation_response_context": "Current report/owner blocks re-read.347 remains resolved for argument admission;372 is a distinct filesystem identity requirement.356/366/368..371 remain active in unchanged governing code. No implementation-owned response overwritten.",
     "new_findings": [
-        "SQA-368",
-        "SQA-369",
-        "SQA-370",
-        "SQA-371"
+        "SQA-372",
+        "SQA-373"
       ],
     "partially_addressed_findings": [],
-    "priority_changes": "Keep existing security ranking.368..371 are separate deterministic correctness/admission obligations; no speculative speed benefit outranks them.",
-    "recommendation": "Remove ambient gate state, bind reference identity before model work, enforce headline eligibility, and finish grammar termination admission through current owners. Credit shared prefix/idempotent publication and the decision not to build an unnecessary fixture mechanism.",
+    "priority_changes": "Add372held-verifier authority and373replay prerequisite attribution; preserve security and correctness priority.",
+    "recommendation": "Keep one writable owner and one replay admission owner. Reuse existing filesystem identity and declared run/check contracts, preserve failed demonstrations, and decide deterministic repairs with retained native fixtures before further costly work.",
     "refactor": {
       "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
       "history_path": "docs/sqa_findings.json",
@@ -11427,10 +11531,10 @@
     },
     "reopened_findings": [],
     "resolved_findings": [],
-    "reviewed_master": "a7acfa639919e0a2658b38a8df3a3ef48f823377",
-    "uncertainty": "Source-derived edge cases not executed. Complete replacement costs unmeasured; no safe net AST reduction or general parity established.",
+    "reviewed_master": "8ac909a24a1563852dc20e05a168439946f70de7",
+    "uncertainty": "Source counterexamples not executed. Same2of6 measured result does not establish general competence or economic benefit. No safe net code reduction established.",
     "updated_findings": [
-        "SQA-367"
+        "SQA-356"
       ]
   }
   }

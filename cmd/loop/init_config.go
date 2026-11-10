@@ -7,7 +7,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"overgo/internal/dataroot"
 	"overgo/internal/jsonfile"
@@ -25,27 +24,13 @@ const (
 	defaultConfigMode  fs.FileMode = 0o600
 )
 
-// defaultWorker is Claude Code given the prompt on its standard input, so a long prompt is passed once and meets no
-// command-line limit, with no built-in tool and the eight the driver serves it alone (workerTools); its permissions are
-// not bypassed, and the repository's hooks apply to it as to any session.
-var defaultWorker = []string{"claude", "-p", "--permission-mode", "acceptEdits", "--tools", "", "--strict-mcp-config", "--mcp-config", toolServer,
-	"--allowedTools", allowedTools()}
+// defaultLocalModel is the model the default worker serves: Qwen3.8-27B, the one the local worker was measured on.
+const defaultLocalModel = "Qwen3.8-27B-UD-Q6_K.gguf"
 
-// toolPrefix opens the name a session gives each tool of the server named overgo, and toolServer configures that
-// server: go run ./cmd/loop -tools, in the checkout the worker starts in.
-const (
-	toolPrefix = "mcp__overgo__"
-	toolServer = `{"mcpServers": {"overgo": {"command": "go", "args": ["run", "./cmd/loop", "-tools"]}}}`
-)
-
-// allowedTools names the worker's tools as its session knows them.
-func allowedTools() string {
-	var names []string
-	for _, tool := range workerTools("", workerStep{}) {
-		names = append(names, toolPrefix+tool.name)
-	}
-	return strings.Join(names, " ")
-}
+// defaultWorker is the local worker: this command reading the prompt on its standard input and working it through the
+// chat route of overgo's own server with the eight tools the driver serves (workerTools). The claude CLI is no worker
+// here: the owner does not use it (2026-11-09).
+var defaultWorker = []string{"go", "run", "./cmd/loop", "-local-worker", localServerAddress, "-local-model", defaultLocalModel}
 
 // defaultPrompt opens every worker's prompt: what the worker is for, where the written guidance is, and that it never
 // stops to ask. It takes no hold by its words (guard.TakeoverDeclaration): a working session's hold sends the worker
@@ -68,12 +53,6 @@ func writeDefaultConfig(path string, said io.Writer) error {
 	}
 	defaults := config{Worker: defaultWorker, Name: defaultWorkerName, Prompt: defaultPromptFile,
 		Config: loop.Config{MaxAttemptsPerStep: defaultAttempts, MaxInvocations: defaultInvocations}}
-	// The replays recorded beside the configuration say for which kinds of step the local worker goes first.
-	records, err := readReplayRecords(filepath.Join(filepath.Dir(path), replayRecords))
-	if err != nil {
-		return err
-	}
-	ladderFromReplays(&defaults, records)
 	// The data root and the role the command runs under are the driver's, which a scheduled task starts with neither.
 	defaults.Environment = map[string]string{}
 	for _, name := range []string{dataroot.Env, plan.AutomationRoleEnvironment} {
@@ -87,6 +66,6 @@ func writeDefaultConfig(path string, said io.Writer) error {
 	if err := os.WriteFile(prompt, []byte(defaultPrompt), defaultConfigMode); err != nil {
 		return err
 	}
-	_, err = fmt.Fprintf(said, "loop: wrote %s and %s; start the driver with go run ./cmd/loop\n", path, prompt)
+	_, err := fmt.Fprintf(said, "loop: wrote %s and %s; start the driver with go run ./cmd/loop\n", path, prompt)
 	return err
 }

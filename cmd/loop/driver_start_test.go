@@ -13,14 +13,15 @@ import (
 	"overgo/internal/testcheck"
 )
 
-// TestADriverStartsFromItsDefaultConfiguration holds what a driver start admits, in one fixture (SQA-338): in a
+// TestTheDriversDefaultWorkerIsTheLocalWorker holds what a driver start admits, in one fixture (SQA-338): in a
 // directory that holds no store, no strategy and no plan, with no worker named in the environment, go run ./cmd/loop
-// -init writes loop.json and its worker's prompt, naming Claude Code as the worker with the prompt on its standard
-// input, its edits accepted and its permissions not bypassed, the lane's worker name and both budgets, and the prompt
-// names skill.md and never stopping to ask; the driver starts from them, the pause marker ending the run at once, its
-// campaign recording the name and the worker's name left out of the process's environment after; a second -init writes
-// over nothing; and a config without its prompt file or its budgets, or one that still names a strategy, is refused.
-func TestADriverStartsFromItsDefaultConfiguration(t *testing.T) {
+// -init writes loop.json and its worker's prompt, naming the local worker, Qwen3.8-27B through overgo's own server,
+// and no claude CLI anywhere among its workers, since the owner does not use it (2026-11-09), with the lane's worker
+// name and both budgets, and the prompt names skill.md and never stopping to ask; the driver starts from them, the
+// pause marker ending the run at once, its campaign recording the name and the worker's name left out of the process's
+// environment after; a second -init writes over nothing; and a config without its prompt file or its budgets, or one
+// that still names a strategy, is refused.
+func TestTheDriversDefaultWorkerIsTheLocalWorker(t *testing.T) {
 	// Serial: it changes the process's directory and environment.
 	t.Chdir(t.TempDir())
 	t.Setenv(plan.AutomationWorkerEnvironment, "")
@@ -28,11 +29,13 @@ func TestADriverStartsFromItsDefaultConfiguration(t *testing.T) {
 	state := processlock.StateDirectory
 	var written config
 	testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(state, "loop.json"), &written))
-	worker := strings.Join(written.Worker, " ")
-	if written.Worker[0] != "claude" || !slices.Contains(written.Worker, "-p") || slices.Contains(written.Worker, "{prompt}") ||
-		!strings.Contains(worker, "acceptEdits") || strings.Contains(worker, "bypass") || strings.Contains(worker, "dangerously") ||
-		written.Name != defaultWorkerName || written.MaxAttemptsPerStep == 0 || written.MaxInvocations == 0 {
-		t.Fatalf("-init wrote %+v; want Claude Code reading its prompt from standard input, edits accepted and nothing bypassed, the lane's name and both budgets", written)
+	// Spelled, not named, so the check reads the command the configuration holds.
+	local := []string{"go", "run", "./cmd/loop", "-local-worker", "http://127.0.0.1:8080", "-local-model", "Qwen3.8-27B-UD-Q6_K.gguf"}
+	named := slices.ContainsFunc(append([][]string{written.Worker}, written.Workers...), func(worker []string) bool {
+		return slices.ContainsFunc(worker, func(argument string) bool { return strings.Contains(strings.ToLower(argument), "claude") })
+	})
+	if !slices.Equal(written.Worker, local) || named || written.Name != defaultWorkerName || written.MaxAttemptsPerStep == 0 || written.MaxInvocations == 0 {
+		t.Fatalf("-init wrote %+v; want the local worker %q, no claude CLI among its workers, the lane's name and both budgets", written, local)
 	}
 	if prompt := string(testcheck.Must(os.ReadFile(filepath.Join(state, written.Prompt)))(t)); !strings.Contains(prompt, "skill.md") || !strings.Contains(prompt, "never stop to ask") {
 		t.Fatalf("the worker's prompt = %q; want it to name skill.md and never stopping to ask", prompt)

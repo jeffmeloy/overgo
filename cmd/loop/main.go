@@ -132,14 +132,13 @@ func run(args []string) error {
 	sessionPrompt := flags.Bool("session-prompt", false, "print the instructions a session the Claude app's scheduled task starts follows, with the environment its commands run in from loop.json; runs nothing")
 	localServer := flags.String("local-worker", "", "work the prompt on standard input as a worker of overgo's own: send it and the eight tools to the chat route of the overgo server at this address, run each tool call the model -local-model names makes, and end when it answers with no call")
 	localModel := flags.String("local-model", "", "with -local-worker or -replay: the served model that works the step")
-	replaySince := flags.String("replay", "", "replay the steps landed since this date (2026-11-01) whose check runs one Go test with the local worker -local-worker and -local-model name, or with -replay-claude the Claude worker: each from the commit it landed on, its landing's tests in place, up to three attempts; print each record, pass or fail by the step's own check with attempts, tool calls and wall, as a line of JSON")
+	replaySince := flags.String("replay", "", "replay the steps landed since this date (2026-11-01) whose check runs one Go test with the local worker -local-worker and -local-model name: each from the commit it landed on, its landing's tests in place, up to three attempts; print each record, pass or fail by the step's own check with attempts, tool calls and wall, as a line of JSON")
 	replayLimit := flags.Int("replay-limit", defaultReplayLimit, "with -replay or -mutants: the most steps replayed or put to their bad alternatives, newest first")
 	mutantsSince := flags.String("mutants", "", "put the steps landed since this date (2026-11-01) whose check runs one Go test on the host to bad alternatives: each at the commit that landed it, its check passing there, each of up to three comparisons on the lines it wrote inverted in turn; print each step's record, how many of its alternatives its check refused and those it passed, as a line of JSON, and the share the gate refused")
 	costsSince := flags.String("costs", "", "print, for each worker, the steps its landings since this date (2026-11-09) landed against what they cost: the landings, the worker attempts at them, their wall and the gate's, read from each landing's cost trailers, the worker the last named")
 	toolsServer := flags.Bool("tools", false, "serve the worker its eight tools over the Model Context Protocol on standard input and output: read a file or its lines, search the tracked files, edit within the step's files, run its check, run a package's tests, show the step and run an approved probe")
 	toolsStep := flags.String("tools-step", "", "with -tools: serve a replayed step's task, read from this file, in place of the plan's dispatched step")
 	toolsLog := flags.String("tools-log", "", "with -tools: append the name of each tool called to this file, a line each")
-	replayClaude := flags.Bool("replay-claude", false, "with -replay: replay the driver's default worker, Claude Code, its tools served by this build over the replay checkout, in place of the local worker")
 	startup := flags.Bool("install-startup", false, "register a Windows scheduled task that runs go run ./cmd/loop in this checkout at the user's logon and again after it fails; replaces a task of its name")
 	initialize := flags.Bool("init", false, "write the driver's machine configuration, loop.json and its worker's prompt, into the checkout's process state from the defaults the repository holds; writes over neither")
 	pushCommit := flags.String("push", "", "the owner's command: push the named commit to origin's main, fast-forward only; refused from a worker's environment and without -confirm-push")
@@ -226,23 +225,11 @@ func run(args []string) error {
 	case *initialize:
 		return writeDefaultConfig(*configPath, os.Stdout)
 	case *replaySince != "":
-		worker := localReplayWorker(*localServer, *localModel, os.Stderr)
-		switch {
-		case *replayClaude:
-			state, err := filepath.Abs(filepath.Join(loopWorktree, processlock.StateDirectory))
-			if err != nil {
-				return err
-			}
-			// The worker's tools are this build's, served over the replay checkout, whose own cmd/loop is its parent's.
-			binary := filepath.Join(state, replayToolServer)
-			if _, err := runTool("go", "build", "-o", binary, "./cmd/loop"); err != nil {
-				return err
-			}
-			worker = claudeReplayWorker(binary, state)
-		case *localServer == "" || *localModel == "":
-			return errors.New("loop: -replay names the local worker's server with -local-worker and its model with -local-model, or takes the Claude worker with -replay-claude")
+		if *localServer == "" || *localModel == "" {
+			return errors.New("loop: -replay names the local worker's server with -local-worker and its model with -local-model")
 		}
-		// The records are kept beside the driver's configuration too, which -init reads the ladder from.
+		worker := localReplayWorker(*localServer, *localModel, os.Stderr)
+		// The records are kept beside the driver's configuration too, the local worker's history.
 		if err := processlock.EnsureStateDirectory(loopWorktree); err != nil {
 			return err
 		}

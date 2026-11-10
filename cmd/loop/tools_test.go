@@ -23,8 +23,7 @@ type toolAnswer struct {
 
 // TestTheWorkerHasOnlyItsTools holds the worker to the eight tools the driver serves it: on Nov 7 a helper agent with a
 // shell rewrote core.hooksPath and stopped the loop for an hour. The server answers the protocol's opening, lists
-// exactly the eight, refuses an edit outside the step's files and makes one inside them; the default worker is given
-// no built-in tool and is allowed these eight alone.
+// exactly the eight, refuses an edit outside the step's files and makes one inside them.
 func TestTheWorkerHasOnlyItsTools(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -59,13 +58,5 @@ func TestTheWorkerHasOnlyItsTools(t *testing.T) {
 	}
 	if data, err := os.ReadFile(filepath.Join(root, "cmd", "x", "x.go")); answers[3].Result.IsError || err != nil || string(data) != "package main\n" {
 		t.Fatalf("an edit inside the step's files answered error %v and left %q (%v)", answers[3].Result.IsError, data, err)
-	}
-	allowed := make([]string, len(listed))
-	for index, name := range listed {
-		allowed[index] = toolPrefix + name
-	}
-	at := slices.Index(defaultWorker, "--allowedTools")
-	if builtins := slices.Index(defaultWorker, "--tools"); at < 0 || builtins < 0 || defaultWorker[builtins+1] != "" || defaultWorker[at+1] != strings.Join(allowed, " ") {
-		t.Fatalf("the default worker is %q, want no built-in tool and the eight alone allowed", defaultWorker)
 	}
 }

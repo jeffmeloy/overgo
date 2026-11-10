@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -16,10 +15,8 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
 	"overgo/internal/gitauthority"
-	"overgo/internal/jsonfile"
 	"overgo/internal/plan"
 	"overgo/internal/planverify"
-	"overgo/internal/processcontrol"
 	"overgo/internal/processlock"
 	"overgo/internal/runrecord"
 )
@@ -287,47 +284,6 @@ func replaySteps(ctx context.Context, root, since string, limit int, worker repl
 func localReplayWorker(server, model string, log io.Writer) replayWorker {
 	return replayWorker{name: model, work: func(ctx context.Context, checkout string, task replayTask) (localWork, error) {
 		return workLocally(ctx, server, model, task.Prompt, task.tools(ctx, checkout), log)
-	}}
-}
-
-// The files a worker in a process of its own reads its task from and logs its tool calls to, in the process state.
-const (
-	replayTaskFile = "replay-task.json"
-	replayCallLog  = "replay-calls.log"
-	// replayToolServer is this build of cmd/loop, which serves a replayed worker its tools.
-	replayToolServer = "replay-loop.exe"
-)
-
-// claudeReplayWorker is the driver's default worker as a replay runs it: Claude Code started in the replay checkout with
-// the driver's opening and the task's prompt on its standard input, its eight tools served by this build's cmd/loop at
-// binary from the task written to the process state, each call it makes logged there and counted.
-func claudeReplayWorker(binary, state string) replayWorker {
-	return replayWorker{name: defaultWorkerName, work: func(ctx context.Context, checkout string, task replayTask) (localWork, error) {
-		taskFile, callLog := filepath.Join(state, replayTaskFile), filepath.Join(state, replayCallLog)
-		if err := jsonfile.Write(taskFile, task, clioptions.PrivateFileMode); err != nil {
-			return localWork{}, err
-		}
-		if err := os.WriteFile(callLog, nil, clioptions.PrivateFileMode); err != nil {
-			return localWork{}, err
-		}
-		server, err := json.Marshal(map[string]any{"mcpServers": map[string]any{"overgo": map[string]any{
-			"command": binary, "args": []string{"-tools", "-tools-step", taskFile, "-tools-log", callLog},
-		}}})
-		if err != nil {
-			return localWork{}, err
-		}
-		command := slices.Clone(defaultWorker)
-		command[slices.Index(command, toolServer)] = string(server)
-		var output bytes.Buffer
-		receipt, err := processcontrol.Run(ctx, processcontrol.Command{
-			Path: command[0], Args: command[1:], Dir: checkout, Env: loopEnvironment(),
-			Stdin: strings.NewReader(defaultPrompt + task.Prompt), Stdout: &output, Stderr: &output,
-		})
-		if err == nil && receipt.ExitCode != 0 {
-			err = fmt.Errorf("the worker exited %d: %s", receipt.ExitCode, clioptions.Tail(output.String(), replayFailure))
-		}
-		calls, readErr := os.ReadFile(callLog)
-		return localWork{Calls: bytes.Count(calls, []byte("\n")), Answer: clioptions.Tail(output.String(), replayFailure)}, errors.Join(err, readErr)
 	}}
 }
 

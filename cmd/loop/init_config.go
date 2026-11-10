@@ -30,7 +30,7 @@ const (
 const defaultLocalModel = "model:sha256:73dc8d6fd4500f7b9bb76b801e4de3c0e8df971c86163e3cd348e64e2bc74ea6"
 
 // defaultWorker is the local worker: this command reading the prompt on its standard input and working it through the
-// chat route of overgo's own server with the eight tools the driver serves (workerTools). The claude CLI is no worker
+// chat route of overgo's own server with the nine tools the driver serves (workerTools). The claude CLI is no worker
 // here: the owner does not use it (2026-11-09).
 var defaultWorker = []string{"go", "run", "./cmd/loop", "-local-worker", localServerAddress, "-local-model", defaultLocalModel}
 

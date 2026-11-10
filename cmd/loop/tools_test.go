@@ -21,9 +21,9 @@ type toolAnswer struct {
 	} `json:"result"`
 }
 
-// TestTheWorkerHasOnlyItsTools holds the worker to the eight tools the driver serves it: on Nov 7 a helper agent with a
+// TestTheWorkerHasOnlyItsTools holds the worker to the nine tools the driver serves it: on Nov 7 a helper agent with a
 // shell rewrote core.hooksPath and stopped the loop for an hour. The server answers the protocol's opening, lists
-// exactly the eight, refuses an edit outside the step's files and makes one inside them.
+// exactly the nine, refuses an edit outside the step's files and makes one inside them.
 func TestTheWorkerHasOnlyItsTools(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -50,7 +50,7 @@ func TestTheWorkerHasOnlyItsTools(t *testing.T) {
 	for _, tool := range answers[1].Result.Tools {
 		listed = append(listed, tool.Name)
 	}
-	if want := []string{"read_file", "read_lines", "search_files", "edit_file", "run_check", "run_tests", "show_step", "run_probe"}; !slices.Equal(listed, want) {
+	if want := []string{"read_file", "read_lines", "search_files", "edit_file", "delete_file", "run_check", "run_tests", "show_step", "run_probe"}; !slices.Equal(listed, want) {
 		t.Fatalf("the worker's tools are %v, want %v", listed, want)
 	}
 	if _, err := os.Stat(filepath.Join(root, "internal", "y", "y.go")); !answers[2].Result.IsError || err == nil {

@@ -91,13 +91,18 @@ func (task replayTask) tools(ctx context.Context, checkout string) []workerTool 
 		files:  func() ([]string, error) { return task.Files, nil },
 	})
 	tools = slices.DeleteFunc(tools, func(tool workerTool) bool { return tool.name == "run_probe" })
-	edit := slices.IndexFunc(tools, func(tool workerTool) bool { return tool.name == "edit_file" })
-	edits := tools[edit].run
-	tools[edit].run = func(arguments map[string]string) (string, error) {
-		if slices.Contains(task.Tests, filepath.ToSlash(filepath.Clean(arguments["path"]))) {
-			return "", fmt.Errorf("%s is the step's check, which the replay holds as it landed", arguments["path"])
+	// A held test is neither edited nor deleted.
+	for index, tool := range tools {
+		if tool.name != "edit_file" && tool.name != "delete_file" {
+			continue
 		}
-		return edits(arguments)
+		changes := tool.run
+		tools[index].run = func(arguments map[string]string) (string, error) {
+			if slices.Contains(task.Tests, filepath.ToSlash(filepath.Clean(arguments["path"]))) {
+				return "", fmt.Errorf("%s is the step's check, which the replay holds as it landed", arguments["path"])
+			}
+			return changes(arguments)
+		}
 	}
 	return tools
 }

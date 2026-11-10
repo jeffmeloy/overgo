@@ -81,7 +81,7 @@ func missingTest(step workerStep) string {
 		strings.Join(named, "; "), strings.Join(files, ", "))
 }
 
-// workerTools are the eight tools over the checkout at root, serving step.
+// workerTools are the nine tools over the checkout at root, serving step.
 func workerTools(root string, step workerStep) []workerTool {
 	inside := func(name string) (string, error) {
 		relative := filepath.ToSlash(filepath.Clean(name))
@@ -99,6 +99,24 @@ func workerTools(root string, step workerStep) []workerTool {
 	}
 	tool := func(arguments ...string) string {
 		return shown(func() (string, error) { return runTool(arguments...) })
+	}
+	// writable is a path the worker may change: inside the checkout, a place git tracks, none the guard holds, and
+	// among the step's files.
+	writable := func(name string) (string, error) {
+		relative, err := inside(name)
+		if err != nil {
+			return "", err
+		}
+		files, err := step.files()
+		if err != nil {
+			return "", err
+		}
+		// What git ignores is no worker's to write: the reference tree, the models and scratch among it.
+		_, tracked := gitauthority.Query(context.Background(), root, "check-ignore", "-q", "--", relative)
+		if plan.Lists(unwritable, relative) || tracked == nil || len(files) != 0 && !plan.Lists(files, relative) {
+			return "", fmt.Errorf("%s is not among the files the step may change (%s)", relative, strings.Join(files, ", "))
+		}
+		return relative, nil
 	}
 	return []workerTool{
 		{"read_file", "Read a file of the checkout, by its path from the checkout's root.", []string{"path"}, func(arguments map[string]string) (string, error) {
@@ -145,18 +163,9 @@ func workerTools(root string, step workerStep) []workerTool {
 			return string(found), nil
 		}},
 		{"edit_file", "Replace the one occurrence of old with new in a file the step may change; an empty old writes new as the whole file.", []string{"path", "old", "new"}, func(arguments map[string]string) (string, error) {
-			relative, err := inside(arguments["path"])
+			relative, err := writable(arguments["path"])
 			if err != nil {
 				return "", err
-			}
-			files, err := step.files()
-			if err != nil {
-				return "", err
-			}
-			// What git ignores is no worker's to write: the reference tree, the models and scratch among it.
-			_, tracked := gitauthority.Query(context.Background(), root, "check-ignore", "-q", "--", relative)
-			if plan.Lists(unwritable, relative) || tracked == nil || len(files) != 0 && !plan.Lists(files, relative) {
-				return "", fmt.Errorf("%s is not among the files the step may change (%s)", relative, strings.Join(files, ", "))
 			}
 			path := filepath.Join(root, relative)
 			text := arguments["new"]
@@ -174,6 +183,15 @@ func workerTools(root string, step workerStep) []workerTool {
 				return "", err
 			}
 			return "edited " + relative, os.WriteFile(path, []byte(text), clioptions.OutputFileMode)
+		}},
+		// A step whose change is a deletion needs one: test-reach/fuzz-or-delete's check wants a script gone, and with no
+		// way to remove a file the worker spent its 40 replies three times (loop-proof/local-demonstrated, run 5).
+		{"delete_file", "Delete a file the step may change.", []string{"path"}, func(arguments map[string]string) (string, error) {
+			relative, err := writable(arguments["path"])
+			if err != nil {
+				return "", err
+			}
+			return "deleted " + relative, os.Remove(filepath.Join(root, relative))
 		}},
 		{"run_check", "Run the step's check (go run ./cmd/plan -verify).", nil, func(map[string]string) (string, error) {
 			said := shown(step.check)

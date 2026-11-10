@@ -39,7 +39,7 @@ func TestAReaskPublishesWhatItAsksBeforeAskingIt(t *testing.T) {
 	}
 	environment := testcheck.Must(runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture", Backend: "fixture", Driver: "fixture"}))(t)
 	suite := chatLetterSuite()
-	reading := &chatFixture{answers: []string{"B) two", "11.9, which corresponds to", "None of the options fits"}}
+	reading := &countedChat{answers: []writtenAnswer{{"B) two", 2}, {"11.9, which corresponds to", chatAnswerTokens}, {"None of the options fits", chatAnswerTokens}}}
 	campaign := testcheck.Must(newCampaign(store, reading, identity, environment, planTestCommit, LifecycleIsolated))(t)
 	compiled := testcheck.Must(CompileSuite(testcheck.Must(json.Marshal(suite))(t), campaign.WithPrompting(PromptingChatTemplate).Authorities()))(t)
 	result := testcheck.Must(campaign.Evaluate(ctx, compiled))(t)

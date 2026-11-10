@@ -185,16 +185,17 @@ func recordExecution(ctx context.Context, store *overgodb.Store, record runrecor
 	// The report of the run that scored the cases says which generated answers named no option and which cases were
 	// asked; a report that cannot be read counts none, saying what is known and standing in no reading's way.
 	if _, report, read := scoredReport(ctx, store, bound); read && (policy.Prompting == PromptingChatTemplate || policy.Prompting == PromptingReasoning) {
-		summary.Unread, summary.UnreadCauses = countUnread(report.Data), unreadCauses(report.Data)
-		summary.Developed = developedCases(ctx, store, record.Dataset, report.Data)
+		answers := reportAnswers(report.Data)
+		summary.UnreadCauses = sortUnread(answers)
+		summary.Unread, summary.Developed = summary.UnreadCauses.Total(), developedCases(ctx, store, record.Dataset, answers)
 	}
 	return summary
 }
 
-// developedCases counts the cases a report scored that are development evidence of source: held by a part of it
-// published as development before they were asked, by an exploratory protocol or to choose a protocol
-// (exposeDevelopment). Zero where none is, or the report or a part cannot be read.
-func developedCases(ctx context.Context, reader artifact.Reader, source artifact.ID, report []byte) uint64 {
+// developedCases counts the answered cases that are development evidence of source: held by a part of it published as
+// development before they were asked, by an exploratory protocol or to choose a protocol (exposeDevelopment). Zero
+// where none is, or a part cannot be read.
+func developedCases(ctx context.Context, reader artifact.Reader, source artifact.ID, answers []reportAnswer) uint64 {
 	edges, err := reader.Children(ctx, source)
 	if err != nil {
 		return 0
@@ -210,16 +211,8 @@ func developedCases(ctx context.Context, reader artifact.Reader, source artifact
 			}
 		}
 	}
-	var answers struct {
-		Observations []struct {
-			Name string `json:"name"`
-		} `json:"observations"`
-	}
-	if len(developed) == 0 || json.Unmarshal(report, &answers) != nil {
-		return 0
-	}
 	var count uint64
-	for _, answer := range answers.Observations {
+	for _, answer := range answers {
 		if developed[answer.Name] {
 			count++
 		}
@@ -383,26 +376,6 @@ func scoredTieBreak(ctx context.Context, store *overgodb.Store, scoring runrecor
 		TieBreak string `json:"tie_break"`
 	}
 	return named.TieBreak, json.Unmarshal(scorer.Data, &named) == nil
-}
-
-// countUnread counts the answers of a report's observations that named no
-// option, with text or without: only a generated answer selects none.
-func countUnread(report []byte) uint64 {
-	var answers struct {
-		Observations []struct {
-			Selected int `json:"selected"`
-		} `json:"observations"`
-	}
-	if json.Unmarshal(report, &answers) != nil {
-		return 0
-	}
-	var unread uint64
-	for _, answer := range answers.Observations {
-		if answer.Selected == unmatchedChoice {
-			unread++
-		}
-	}
-	return unread
 }
 
 // carriedReceipt names the replay receipt a run reports and the record that

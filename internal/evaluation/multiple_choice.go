@@ -108,6 +108,10 @@ type choiceObservation struct {
 	// it empty and Selected below zero means no candidate letter was
 	// found in it.
 	Raw string `json:"raw,omitzero"`
+	// Ended is how a generated answer's generation ended (generationEnded): it wrote as many tokens as its protocol
+	// bounds an answer to, or the model ended it sooner. Empty for a scored answer, and in a report written before
+	// generations kept it.
+	Ended string `json:"ended,omitzero"`
 }
 
 type MultipleChoiceReport struct {
@@ -369,6 +373,13 @@ func scoreMultipleChoice(
 			return nil, artifact.ID{}, 0, errors.Join(err, held.write(ctx))
 		}
 		if answer.Written != nil {
+			// How the generation ended is kept beside its text, each protocol by its own bound, so a reading says a
+			// budget ended only where it did.
+			bound := chatAnswerTokens
+			if reasons {
+				bound = plan.reasoning.MaxTokens
+			}
+			observations[index].Ended = generationEnded(answer.Written.GeneratedTokens, bound)
 			letters := chatChoiceLetters(testCase)
 			if index == 0 {
 				progress.sample(fmt.Sprintf("first generated answer %s: %q against candidates %q",

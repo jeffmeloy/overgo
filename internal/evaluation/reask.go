@@ -69,23 +69,13 @@ func PrepareReask(ctx context.Context, store *overgodb.Store, record artifact.ID
 	for _, testCase := range cases {
 		byName[testCase.Name] = testCase
 	}
-	var answers struct {
-		Observations []struct {
-			Name     string `json:"name"`
-			Selected int    `json:"selected"`
-			Raw      string `json:"raw"`
-		} `json:"observations"`
-	}
-	if err := json.Unmarshal(report.Data, &answers); err != nil {
-		return PreparedReask{}, err
-	}
 	var prepared PreparedReask
-	for _, answer := range answers.Observations {
+	for _, answer := range reportAnswers(report.Data) {
 		var cause UnreadCauses
 		if answer.Selected != unmatchedChoice {
 			continue
 		}
-		if cause.add(answer.Raw); cause.Budget == 0 {
+		if cause.add(answer.Raw, answer.Ended); cause.Budget == 0 {
 			continue
 		}
 		testCase, held := byName[answer.Name]

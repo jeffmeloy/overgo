@@ -93,25 +93,6 @@ func TestChatChoicePromptIsTheTextTheEvaluationGeneratesFrom(t *testing.T) {
 	}
 }
 
-// TestCountUnreadCountsGeneratedAnswersThatNamedNoOption holds the count the
-// scorecard states beside a generated-letter reading: the answers of a report
-// in which no option was read, whether the answer has text or, as an answer of
-// no text is written, none. An answer that named an option, and a case scored
-// by likelihood, which always selects a candidate, are not counted; what is no
-// report counts none.
-func TestCountUnreadCountsGeneratedAnswersThatNamedNoOption(t *testing.T) {
-	t.Parallel()
-	report := `{"observations":[{"selected":1,"raw":" B"},{"selected":-1,"raw":" not given in the options"},{"selected":-1,"raw":" calculated as follows"},{"selected":-1},{"selected":0}]}`
-	if unread := countUnread([]byte(report)); unread != 3 {
-		t.Fatalf("%d answers are counted as naming no option, want the three that named none, the one of no text among them", unread)
-	}
-	for _, other := range []string{`{"observations":[]}`, `{"accuracy":0.5}`, `not a report`} {
-		if unread := countUnread([]byte(other)); unread != 0 {
-			t.Errorf("%d answers are counted in %s", unread, other)
-		}
-	}
-}
-
 func TestMatchChoiceLetterReadsTheFirstStandaloneLetter(t *testing.T) {
 	t.Parallel()
 	candidates := []string{" A", " B", " C", " D"}
@@ -205,8 +186,8 @@ func TestAnAnswerOfNoTextIsCountedAsNamingNoOption(t *testing.T) {
 		observations, accuracy, err := scoreChoicesAlone(t, t.Context(), &chatFixture{answers: answers}, suite)
 		testcheck.NoError(t, err)
 		report := written(observations)
-		if unread := countUnread(report); accuracy != 1.0/3 || len(observations) != 3 || observations[2].Selected != unmatchedChoice || observations[2].Raw != last || unread != 1 {
-			t.Errorf("a last answer of %q reads %v with %d answers counted as naming no option in %s; want a third right and the one answer counted", last, accuracy, unread, report)
+		if accuracy != 1.0/3 || len(observations) != 3 || observations[2].Selected != unmatchedChoice || observations[2].Raw != last || unreadCauses(report) == (UnreadCauses{}) {
+			t.Errorf("a last answer of %q reads %v in %s; want a third right and the one answer sorted as naming no option", last, accuracy, report)
 		}
 		if indexed := indexedChatReading(t, &chatFixture{answers: answers}, suite); indexed.Prompting != PromptingChatTemplate.Label() || indexed.Metrics["accuracy"] != 1.0/3 || indexed.Unread != 1 {
 			t.Errorf("a last answer of %q is read by the evidence index as %+v; want a chat-template reading of a third right with one answer counted as naming no option", last, indexed)
@@ -218,8 +199,8 @@ func TestAnAnswerOfNoTextIsCountedAsNamingNoOption(t *testing.T) {
 	}
 	observations, _, err := scoreChoicesAlone(t, t.Context(), &choiceTally{scores: scores}, suite)
 	testcheck.NoError(t, err)
-	if report := written(observations); len(observations) != 3 || countUnread(report) != 0 {
-		t.Errorf("scored by likelihood, %d answers are counted as naming no option in %s; want none of three", countUnread(report), report)
+	if report := written(observations); len(observations) != 3 || unreadCauses(report) != (UnreadCauses{}) {
+		t.Errorf("scored by likelihood, answers sort as naming no option in %s; want none of three", report)
 	}
 }
 

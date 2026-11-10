@@ -39,7 +39,7 @@
         ],
         "adoption_scope": "Supersedes the absent repository-document reference at the owner's request; current external SHA is verified. Does not alter the executable plan."
       },
-    "assessment": "Real root-cause performance and setup progress through existing owners; two small automation residuals and one existing calibration obligation need correction.",
+    "assessment": "Shared execution/data owners improved, but ambient gate state and insufficient admission still cause avoidable work. No safe net code reduction established this interval.",
     "ast_surface_review": {
         "revision": "9bd406acafb89c44a439722419f1f7e85e71f691",
         "architectural_target": "Fewer independent product entry points and dependency owners; retain process isolation and existing compiled/runtime/development authority.",
@@ -55,45 +55,49 @@
         "cost": "Concrete parsed duplicate migrations total22production and150test AST removed; unimplemented estimates only. Three directories can disappear through349/351; command movement and all retained semantic constants must be charged. No overall refactor completion claimed."
       },
     "automation_follow_up": {
-        "architectural_progress": "Root-cause process-start repair removes the whole-machine Toolhelp walk, its thread type/helper and four entrypoints through the existing supervisor. Existing suspended creation/job containment remains. Judge tests share answers/model lifetime and decoded clips; opt-in Go benchmarks retain speed evidence. Proxy translates exact model identity to served name within its existing bounded/replayable request owner. MMLU validation imports use existing cache/catalog and do not alter scored-suite identities.",
-        "conflicts": "366: generic VACUOUS result overclaims absent source and directs unnecessary edits.367: unconditional15-pair2x latency test mixes host performance with correctness admission.342: shared judge setup landed, but fair-sign null is unjustified for heterogeneous choice groups; existing rank/semantic concerns remain.322/329 and363..365 code paths unchanged. No whole recipe or format migration.",
-        "cost": "72ae3b9..c06fc9c:20 changedGo paths,+165production/+1345test=+1510AST,+22/+243lines,0new production files and net3test files. No new command binary/package directory/schema/static fixture/CUDA entrypoint. process-starts -271/+298=+27total; judge-tests0/-8 is a small achieved net deletion plus removed setup. Other capability/recovery work accounts for the remaining growth. Five retained gate walls total3607s; successful walls are costs, not waste.",
+        "architectural_progress": "MMLU demonstrations are held once in the existing choice prefix and expanded at scoring, avoiding serialized repeated demonstrations. mmluProRow owns common row validation; chat and raw numerical contracts remain distinct. ImportBenchmark now uses artifact.Publish for idempotent record/import publication. test-surface/landing-scenarios was retired from retained measurements instead of adding a shared-fixture mechanism. Concurrent grammar repair removes the blanket less-than prohibition through the existing builder. No new binary or owner hierarchy.",
+        "conflicts": "368 ambient-store gate dependence;369 exact reference admission;370 historical headline eligibility;371 terminal-prefix grammar admission. Existing283 state attribution,296 identifier scan,342 calibration,366 skipped-check advice and367 timing-only gate remain separate and unchanged in their governing code. Recipe/format migration is not complete.",
+        "cost": "8a839f0..a7acfa6:23changedGo paths, +735production/+3396test=+4131AST, +157/+551lines,0new production files and6new test files. Earlier five MMLU/catalog landings account for648/3025; concurrent grammar repair87/371. No new command/package directory/schema/static fixture/CUDA entrypoint. Six retained gate walls total3815s; these are costs, not measured avoidable time. No safe net AST reduction established in this interval.",
         "plan_recommendations": [
           {
-            "rows": "test-surface/process-starts (landed); landing-scenarios",
+            "rows": "mmlu-pro-lm-eval (completed); store-shots/identities (completed)",
             "findings": [
-              "SQA-367",
+              "SQA-368",
+              "SQA-369",
+              "SQA-370"
+            ],
+            "recommendation": "Retain shared prefix/row parsing and separate raw/chat identities. Remove ambient gate state, admit exact references before model work, and distinguish headline eligibility from ordering through current owners."
+          },
+          {
+            "rows": "test-surface/landing-scenarios (retired)",
+            "findings": [
+              "SQA-307",
               "SQA-329",
-              "SQA-307"
+              "SQA-367"
             ],
-            "recommendation": "Credit the supervisor root-cause fix. Retire a shared-built-fixture proposal if no measured repeated setup remains; do not build it to satisfy the old selector. Keep existing native containment/recovery and opt-in benchmark; delete timing-only admission and previously proven duplicate entries independently."
+            "recommendation": "Honor measured retirement; do not revive a generic fixture-sharing project. The narrow proven alias/case-pair/timing deletions remain separate recommendations and savings must not be double counted."
           },
           {
-            "rows": "test-surface/judge-tests (landed); judge-calibration/user-size",
+            "rows": "loop-proof/tool-value-markup (completed); local-demonstrated (first live step)",
             "findings": [
-              "SQA-342"
-            ],
-            "recommendation": "Keep the single retained judge/repair setup and all accuracy obligations. Correct the accuracy null using existing numerical owners; retained data and one pure finite-choice check decide it without another model-opening fixture."
-          },
-          {
-            "rows": "loop-proof/write-the-test (landed); local-demonstrated",
-            "findings": [
+              "SQA-371",
               "SQA-366"
             ],
-            "recommendation": "Make missing-test advice conditional and preserve skip/setup evidence before another edit or retry. Proxy and diagnostic repairs are prerequisites, not proof that a local worker now delivers a beneficial landed change."
+            "recommendation": "Check terminal-prefix admission in the retained native fixture before another worker demonstration. Keep the retained2-of-6 failure record; grammar repair is a prerequisite, not proof of three useful unaided landings or positive net benefit."
           },
           {
-            "rows": "mmlu-pro-lm-eval/validation-split (landed); five-shot,matches-lm-eval,headline",
-            "recommendation": "Keep demonstration rows separate from scored cases and preserve historical scorer/dataset identities. This review credits import exclusion only; exact lm_eval parity/headline changes remain live implementation work, not established results."
+            "rows": "catalog-reimport/held-records (completed)",
+            "recommendation": "Keep artifact.Publish as the single no-change owner. Retain distinct normal-import and older-key store states; no extra recovery wrapper or retry machinery."
           }
         ]
       },
-    "current_review_order": "Guidance/committed plan/target identity -> source/callers/retained receipts -> provisional conclusions -> current finding/owner reconciliation -> selected AST and exact arithmetic -> concurrent publication checks.",
+    "current_review_order": "Guidance/plan/target -> source/callers/retained results -> provisional conclusions -> finding/owner reconciliation -> bounded AST -> concurrent delta and publication checks.",
     "declined_candidates": [
-        "No shared-built-fixture system merely to satisfy an old test name; retained measurement found the supervisor root cause.",
-        "No new source census/test discovery framework to fix conditional missing-test advice.",
-        "Do not recreate the removed Gemma-only opening or separate clip decode to fix the retained accuracy criterion.",
-        "Identically named proxy and init tests cover separate forwarding/configuration contracts; keep both. MMLU test-only versus test-plus-validation stores preserve identity boundaries, not redundant setup."
+        "No shared fixture system after measured retirement; native Go caching and isolated repositories remain.",
+        "No merging scorecard headline and validator protocol fixtures: selection/presentation and command/baseline binding are distinct contracts.",
+        "No merging the two import stores: earlier-key publication is a distinct recovery state.",
+        "Candidate only: recordExecution calls mmluProPrefix, then scoredGlued calls it again. Sole callers confirmed; one profile read/JSON decode can potentially disappear in the same owner while preserving glue precedence and read errors. Current functions103+94AST, recordExecution455; full replacement/helper/test cost not priced, so no new abstraction, promised saving or active finding.",
+        "No conversion/recipe rewrite solely to follow the target; this sample establishes no two new workflows needing a shared orchestration owner."
       ],
     "media_follow_up": {
         "architectural_progress": "Mixed-format refusal now has one host fixture (354 closed). Calibration reuses the existing projection session/campaign and common answering helpers, with isolated records and established Close ownership. Scorecard comparison now reads the existing dataset's media groups instead of treating each question as independent. Stillness extends the existing motion record/display without a new runtime.",
@@ -193,16 +197,16 @@
         ]
       },
     "plan_review_follow_up": {
-        "pin": "c06fc9ceb8ef9e77a2787f0ff115f1e0b5ae89af",
-        "assessment": "landing-scenarios now explicitly rechecks whether any fixture sharing is justified after the process-start repair; honor its retirement option. judge-tests migration is landed. The local worker has admission/proxy repairs but local-demonstrated remains open. Only MMLU demonstration import is committed.",
-        "limits": "Live MMLU five-shot/scoring edits excluded. Retained process timings are this host's matched evidence, not universal2x bounds. Rank agreement remains distinct from valid accuracy and from production geometric soft scoring."
+        "pin": "a7acfa639919e0a2658b38a8df3a3ef48f823377",
+        "assessment": "MMLU work and catalog recovery landed; shared landing fixture proposal retired. Final plan puts local-demonstrated first. Its previous2-of-6 result remains failure; prerequisite fixes do not establish benefit.",
+        "limits": "Plan/skill not edited. No source-only closure of runtime obligations. Failed BF16 and production-undo compile results preserved."
       },
-    "rank_basis": "Keep security/correctness first;366 follows existing automation ownership issues,367 remains P3.342 receives stronger current evidence without a duplicate finding.",
+    "rank_basis": "Keep363security first. Add four P2 deterministic admission/identity/presentation findings after existing366; retain earlier distinct canonical obligations.",
     "refactor_target_progress": {
-        "architectural_progress": "Root-cause process-start repair removes the whole-machine Toolhelp walk, its thread type/helper and four entrypoints through the existing supervisor. Existing suspended creation/job containment remains. Judge tests share answers/model lifetime and decoded clips; opt-in Go benchmarks retain speed evidence. Proxy translates exact model identity to served name within its existing bounded/replayable request owner. MMLU validation imports use existing cache/catalog and do not alter scored-suite identities.",
-        "conflicts": "366: generic VACUOUS result overclaims absent source and directs unnecessary edits.367: unconditional15-pair2x latency test mixes host performance with correctness admission.342: shared judge setup landed, but fair-sign null is unjustified for heterogeneous choice groups; existing rank/semantic concerns remain.322/329 and363..365 code paths unchanged. No whole recipe or format migration.",
-        "next_useful_reductions": "Remove the timing-only gate rather than adding tolerances/retries. Correct worker guidance with conditional wording through its current response. Retain judge sharing while repairing the statistical contract. Prior small307/329 and342 cmpSign reductions remain; no new scheduler or framework.",
-        "cost": "72ae3b9..c06fc9c:20 changedGo paths,+165production/+1345test=+1510AST,+22/+243lines,0new production files and net3test files. No new command binary/package directory/schema/static fixture/CUDA entrypoint. process-starts -271/+298=+27total; judge-tests0/-8 is a small achieved net deletion plus removed setup. Other capability/recovery work accounts for the remaining growth. Five retained gate walls total3607s; successful walls are costs, not waste."
+        "architectural_progress": "MMLU demonstrations are held once in the existing choice prefix and expanded at scoring, avoiding serialized repeated demonstrations. mmluProRow owns common row validation; chat and raw numerical contracts remain distinct. ImportBenchmark now uses artifact.Publish for idempotent record/import publication. test-surface/landing-scenarios was retired from retained measurements instead of adding a shared-fixture mechanism. Concurrent grammar repair removes the blanket less-than prohibition through the existing builder. No new binary or owner hierarchy.",
+        "conflicts": "368 ambient-store gate dependence;369 exact reference admission;370 historical headline eligibility;371 terminal-prefix grammar admission. Existing283 state attribution,296 identifier scan,342 calibration,366 skipped-check advice and367 timing-only gate remain separate and unchanged in their governing code. Recipe/format migration is not complete.",
+        "next_useful_reductions": "368 removes real-store gate work without dropping corpus identity ownership. Correct369/370/371 through existing import/presentation/grammar owners. Honor retired orchestration and keep existing narrow307/329/367 deletion recommendations independent.",
+        "cost": "8a839f0..a7acfa6:23changedGo paths, +735production/+3396test=+4131AST, +157/+551lines,0new production files and6new test files. Earlier five MMLU/catalog landings account for648/3025; concurrent grammar repair87/371. No new command/package directory/schema/static fixture/CUDA entrypoint. Six retained gate walls total3815s; these are costs, not measured avoidable time. No safe net AST reduction established in this interval."
       },
     "working_notes_review": {
         "finding": "SQA-334",
@@ -212,10 +216,10 @@
       }
   },
     "committed_plan": {
-    "git_blob": "4135ca6d0a42de420acfd5ec1e26eb3bc9dc5fe1",
+    "git_blob": "4b89608cde1ecfbc320f0a45a1ced026b2cc600a",
     "path": "docs/plan.json",
-    "revision": "c06fc9ceb8ef9e77a2787f0ff115f1e0b5ae89af",
-    "sha256": "4d74e881ac0a12c51fcc948b096312be216ef12c8c43911746c3ee7e00823e15",
+    "revision": "a7acfa639919e0a2658b38a8df3a3ef48f823377",
+    "sha256": "bb9aecd75d4cde0512c7ff6319b3f11dfadc44d82fc44ab49fc106845b6bff0c",
     "working_tree_status": "Committed plan at review pin; prior draft assessment retains its own snapshot identity. Current working plan edits excluded."
   },
     "findings": [
@@ -8424,14 +8428,34 @@
       "plan_coverage": "The step landed its absent-test case; skipped evidence is a distinct unhandled response. Keep this separate from318 fuzz discovery and322 verifier sequencing."
     },
     {
-      "id": "SQA-367",
-      "status": "open",
-      "severity": "P3",
-      "category": "timing-gate-and-process-setup",
-      "classification": "source-established-unbounded-timing-criterion; flakiness-hypothesis",
-      "title": "Keep process-start speed in its existing benchmark, outside correctness admission",
-      "evidence_commit": "c06fc9ceb8ef9e77a2787f0ff115f1e0b5ae89af",
-      "sources": [
+    "category": "timing-gate-and-process-setup",
+    "classification": "source-established-unbounded-timing-criterion; flakiness-hypothesis",
+    "closure_criteria": [
+        "No ordinary correctness test refuses solely on this2x host timing ratio.",
+        "Existing benchmark owns speed evidence; platform containment, exit, cancellation and cleanup assertions remain.",
+        "Complete test deletion includes imports and removes30 repeated starts without introducing another gate or benchmark suite."
+      ],
+    "comparison": "Retained source has timing Test158AST plus two unused-after-removal imports4AST: file602 ->440, estimated complete test deletion162nodes. Benchmark136AST remains. During ordinary performance work use the existing benchmark against the previous implementation under comparable conditions; correctness acceptance does not depend on wall time.",
+    "displaced_surface": "One timing-only Test and30 child launches per uncached Windows package execution disappear. Benchmark and correctness checks remain. No production/API/Windows resource lifetime change, no test helper or alternate binary.",
+    "evidence": "a3aa45a63 correctly removes the Toolhelp walk, but also adds an ordinary Windows Test that launches15 plain and15 supervised commands, separately sorts elapsed times and requires supervised median <2*plain median. The factor2 and15samples are empirical choices from one host, not the Windows containment contract. Plain exec and Run perform different work, and adjacent calls do not share identical scheduling delays. An admitted schedule delaying8 supervised starts to50ms while plain starts take10ms fails even when every containment/exit contract holds. This is a possible false failure, not an observed incident. Six successful contended runs and the historical51.7/11.9ms failure do not establish a universal gate bound.",
+    "evidence_commit": "c06fc9ceb8ef9e77a2787f0ff115f1e0b5ae89af",
+    "expected_benefit": {
+        "outcome": "Production0; proposed test602->440 (-162AST), no helper/fixture/setup addition. After size is arithmetic from parsed function/import nodes, not an implemented replacement.",
+        "cost": "Process-start landing itself is-271production/+298test=+27totalGoAST; do not present it as total code reduction. Its retained speed improvement remains valid within measured conditions.307's separate18-node alias deletion is not included here.",
+        "uncertainty": "No SQA timing run or reproduced flake. No fixed avoided seconds or allocation claim; native Go cache already skips unchanged packages."
+      },
+    "id": "SQA-367",
+    "impact": "Removes avoidable process work and a machine-sensitive refusal path while retaining measured performance evidence.",
+    "likely_effort": "Delete the timing-only entry and two imports; no new test necessary.",
+    "plan_coverage": "0203b6459 retires landing-scenarios after measured setup attribution; do not revive its generic shared-fixture proposal. The timing Test and BenchmarkSupervisedStart remain unchanged at a7acfa639.367 removes a distinct timing-only admission contract;307 removes an independent forwarding alias. Neither is disproved by retiring a broader fixture project.",
+    "plan_references": [
+        "test-surface/process-starts landeda3aa45a63",
+        "test-surface/landing-scenarios retired0203b6459",
+        "Downloads extreme_refactor_plan.md: preserve correctness, reduce setup and automation"
+      ],
+    "recommended_change": "Delete TestASupervisedStartCostsWhatAPlainOneDoes and its now-unused slices/time imports. Keep BenchmarkSupervisedStart as the existing opt-in performance comparison; retained before/after receipts preserve evidence for the Toolhelp deletion. Keep containment-before-execution, concurrent exit, descendant cleanup and cancellation in their native correctness tests. Do not replace the ratio with a looser limit, retries, sleeps or another measurement service.",
+    "severity": "P3",
+    "sources": [
         {
           "path": "internal/processcontrol/supervisor_windows_test.go",
           "symbol": "TestASupervisedStartCostsWhatAPlainOneDoes; BenchmarkSupervisedStart; TestWindowsContainmentPrecedesExecution; TestWindowsConcurrentShortCommands"
@@ -8445,32 +8469,202 @@
           "symbol": "TestSupervisorProcessTreeContract retained correctness owner"
         }
       ],
-      "evidence": "a3aa45a63 correctly removes the Toolhelp walk, but also adds an ordinary Windows Test that launches15 plain and15 supervised commands, separately sorts elapsed times and requires supervised median <2*plain median. The factor2 and15samples are empirical choices from one host, not the Windows containment contract. Plain exec and Run perform different work, and adjacent calls do not share identical scheduling delays. An admitted schedule delaying8 supervised starts to50ms while plain starts take10ms fails even when every containment/exit contract holds. This is a possible false failure, not an observed incident. Six successful contended runs and the historical51.7/11.9ms failure do not establish a universal gate bound.",
-      "recommended_change": "Delete TestASupervisedStartCostsWhatAPlainOneDoes and its now-unused slices/time imports. Keep BenchmarkSupervisedStart as the existing opt-in performance comparison; retained before/after receipts preserve evidence for the Toolhelp deletion. Keep containment-before-execution, concurrent exit, descendant cleanup and cancellation in their native correctness tests. Do not replace the ratio with a looser limit, retries, sleeps or another measurement service.",
-      "displaced_surface": "One timing-only Test and30 child launches per uncached Windows package execution disappear. Benchmark and correctness checks remain. No production/API/Windows resource lifetime change, no test helper or alternate binary.",
-      "comparison": "Retained source has timing Test158AST plus two unused-after-removal imports4AST: file602 ->440, estimated complete test deletion162nodes. Benchmark136AST remains. During ordinary performance work use the existing benchmark against the previous implementation under comparable conditions; correctness acceptance does not depend on wall time.",
+    "status": "open",
+    "title": "Keep process-start speed in its existing benchmark, outside correctness admission"
+  },
+    {
+      "id": "SQA-368",
+      "status": "open",
+      "severity": "P2",
+      "category": "gate-fixture-ownership",
+      "classification": "observed-store-dependent-landing-failure; residual-source-established",
+      "title": "Keep the ordinary identity gate independent of the mutable benchmark store",
+      "evidence_commit": "a7acfa639919e0a2658b38a8df3a3ef48f823377",
+      "sources": [
+        {
+          "path": "internal/evaluation/mmlu_pro_test.go",
+          "symbol": "TestMMLUProIsAGroupedChoiceWithItsIdentitiesUnchanged/store; mmluProIdentities; mmluProProtocols"
+        },
+        {
+          "path": "internal/evaluation/mmlu_pro_leaderboard_test.go",
+          "symbol": "TestMMLUProIsReadAsLeaderboardMMLUProReadsIt; temporary catalog owner"
+        },
+        {
+          "path": "internal/evaluation/mmlu_pro_lm_eval_windows_model_test.go",
+          "symbol": "Existing modeltest corpus import into a private store"
+        },
+        {
+          "path": "skill.md",
+          "symbol": "A store write never changes the gate verdict; TestReachInvariants"
+        }
+      ],
+      "evidence": "fdd636906 records that importing the validation split made every landing test stage fail on the ambient-store identity assertion. Its +64 test nodes adjust the expected share plan but retain the cause: an untagged parallel subtest resolves the user data root, reads the real store, and either skips or hashes its corpus. For the pinned 12,032-case dataset it calls mmluProIdentities once per case under three protocols (36,096 calls), plus whole/share/spaced draws. Whether the check executes and what it derives still depends on mutable external state. The native four-case fixture already pins individual/combined identities; the leaderboard fixture already owns controlled test-plus-validation catalogs. No SQA test run.",
+      "recommended_change": "Remove the ambient-store dependency from the ordinary host gate. Retain small pinned identities, scorer bytes, delimiter differences and validation/no-validation behavior in the existing native fixtures. Preserve unique full-corpus whole/share/spaced/each digests under the existing explicitly admitted corpus/modeltest owner, using its imported private store before model loading where the exact historical dataset is available. Do not silently drop old digests or equate absence with successful verification. No new corpus, fixture framework or standing workload.",
+      "displaced_surface": "The real-store open/skip/read path and full-corpus walk leave ordinary uncached gate executions. Keep mmluProIdentities and native assertions; retain or explicitly retire each historical corpus obligation with evidence. Moving the corpus assertions alone is not code savings, and a separate import would add setup; reuse the existing corpus import when compatible.",
+      "comparison": "Extend the existing tiny catalog fixture to decide with/without demonstrations deterministically, preserving its distinct chat contract. The ordinary gate must have the same result with the user store absent, present or updated. The existing admitted corpus lane remains the owner of full historical digests; no new SQA execution.",
       "closure_criteria": [
-        "No ordinary correctness test refuses solely on this2x host timing ratio.",
-        "Existing benchmark owns speed evidence; platform containment, exit, cancellation and cleanup assertions remain.",
-        "Complete test deletion includes imports and removes30 repeated starts without introducing another gate or benchmark suite."
+        "Ordinary identity acceptance reads only declared native fixtures, independent of the user store.",
+        "All individual/combined and historical full-corpus identity requirements have retained owners; no skip is credited as a pass.",
+        "Count relocated assertions, shared helpers and corpus import setup before claiming net code savings."
       ],
-      "impact": "Removes avoidable process work and a machine-sensitive refusal path while retaining measured performance evidence.",
-      "likely_effort": "Delete the timing-only entry and two imports; no new test necessary.",
+      "impact": "Prevents a benchmark import from breaking unrelated landings and removes repeated corpus work from the ordinary gate.",
       "expected_benefit": {
-        "outcome": "Production0; proposed test602->440 (-162AST), no helper/fixture/setup addition. After size is arithmetic from parsed function/import nodes, not an implemented replacement.",
-        "cost": "Process-start landing itself is-271production/+298test=+27totalGoAST; do not present it as total code reduction. Its retained speed improvement remains valid within measured conditions.307's separate18-node alias deletion is not included here.",
-        "uncertainty": "No SQA timing run or reproduced flake. No fixed avoided seconds or allocation claim; native Go cache already skips unchanged packages."
+        "outcome": "Prevents a benchmark import from breaking unrelated landings and removes repeated corpus work from the ordinary gate.",
+        "baseline": "mmlu_pro_test.go2235AST; combined identity Test940. Leaderboard native fixture870AST and existing tagged comparison1068AST remain.36,096 singleton bindings plus9draw bindings per uncached matching-store execution are source arithmetic, not measured time.",
+        "cost": "Production0 expected for the ownership correction; complete replacement test size not measured. No safe net AST reduction established. No new binary/directory/static fixture required; native Go caching already avoids unchanged package runs."
       },
+      "likely_effort": "Bounded repair in the named existing owner and retained fixture; no new runtime, scheduler or verification framework.",
       "plan_references": [
-        "test-surface/process-starts landeda3aa45a63",
-        "test-surface/landing-scenarios",
-        "Downloads extreme_refactor_plan.md: preserve correctness, reduce setup and automation"
+        "store-shots/identities landed fdd636906",
+        "mmlu-pro-lm-eval/five-shot,matches-lm-eval",
+        "Downloads extreme_refactor_plan.md: explicit evidence ownership and less repeated setup"
       ],
-      "plan_coverage": "The timing Test is present although process-starts landed as a consolidation. Existing benchmark is the retained performance owner;307 concerns a distinct duplicate correctness entry."
+      "plan_coverage": "The cited implementation step has landed; its residual contract is not explicitly owned by an open step at this pin. This is a report recommendation, not dispatch or permission to implement."
+    },
+    {
+      "id": "SQA-369",
+      "status": "open",
+      "severity": "P2",
+      "category": "reference-identity-and-early-admission",
+      "classification": "source-established-unbound-reference-pairing",
+      "title": "Admit the exact reference questions before loading the comparison model",
+      "evidence_commit": "a7acfa639919e0a2658b38a8df3a3ef48f823377",
+      "sources": [
+        {
+          "path": "internal/evaluation/mmlu_pro_lm_eval_windows_model_test.go",
+          "symbol": "lmEvalReference; TestMMLUProReadsAsLmEvalReadsIt; revisedQuestions"
+        },
+        {
+          "path": "internal/evaluation/store_suites.go",
+          "symbol": "storeFamilies; imported canonical records"
+        },
+        {
+          "path": "internal/dataset/benchmark.go",
+          "symbol": "BenchmarkImportSpec revision/SHA256 and imported record identity"
+        },
+        {
+          "path": "scripts/python_golden_references/mmlu_pro_lm_eval_reference.py",
+          "symbol": "Ignored local reference producer, inspected read-only; existing reference.json"
+        }
+      ],
+      "evidence": "The tagged comparison validates task/model display name/dtype/shot-count/splits and total case count before loading, but pairs results afterward with reference.Questions[ordinal]. It checks answer_index only after the whole suite executes; question_id is used solely for two exclusions and diagnostics. Changing every non-excluded reference question_id leaves the result unchanged. A same-size corpus with different questions/options and unchanged answer indices is not admitted against exact content. The local 3,719,216-byte reference records lm_eval0.4.9.1 and model_path but its dataset_fingerprint is empty; question text/options and exact model/tokenizer digests are absent. Those version/path fields are not read by the Go type. This qualifies future parity claims; it does not establish that the retained measured comparison used wrong rows.",
+      "recommended_change": "Before OpenRunner or suite.execute, bind the existing reference to exact model/tokenizer, validation demonstrations, dataset revision/content and each compared question using existing import/artifact identities. Match actual question identity/content and validate uniqueness, answer/category and exclusions, not only ordinal/count. Preserve the two documented revision differences only for their exact revisions; reject unexplained drift early. Extend the existing reference artifact/producer if needed, without another sidecar registry, importer or comparison framework. Keep numerical thresholds separate from timing.",
+      "displaced_surface": "Replace ordinal-only trust and late prerequisite checks in the current comparison owner. Keep ordered observations for reporting, current numerical tally and declared comparison bounds. Native admission checking is necessary growth; no net deletion promised and no new model run authorized.",
+      "comparison": "One smallest native extension should admit the exact pair then reject a changed question ID/content, duplicate/missing pairing or changed demonstration/model binding before the model-opening boundary. Keep the existing tagged full numerical comparison; reuse its current data/import owner. Existing retained result remains 12,030 paired cases after two explicit exclusions.",
+      "closure_criteria": [
+        "Exact comparison identity and per-question correspondence are checked before expensive model work.",
+        "Only declared, content-bound revision differences are excluded; counts cannot hide missing or duplicate pairs.",
+        "Keep failed BF16 evidence and distinct FP32 result, declared0.01accuracy/0.9agreement bounds and numerical ordering; do not replace them with timing acceptance."
+      ],
+      "impact": "Avoids expensive comparisons against stale or mismatched evidence and makes the claimed question matching true.",
+      "expected_benefit": {
+        "outcome": "Avoids expensive comparisons against stale or mismatched evidence and makes the claimed question matching true.",
+        "baseline": "Tagged comparison1068AST, test function900; one private imported store plus model setup. Local retained reference3,719,216bytes, outside the committed fixture count.",
+        "cost": "Replacement/provenance/native-fixture growth unmeasured; no safe net code reduction established. Extend current artifact rather than add files/services. No SQA workload."
+      },
+      "likely_effort": "Bounded repair in the named existing owner and retained fixture; no new runtime, scheduler or verification framework.",
+      "plan_references": [
+        "mmlu-pro-lm-eval/matches-lm-eval landed0203b6459",
+        "Downloads extreme_refactor_plan.md: exact bindings and prerequisite admission"
+      ],
+      "plan_coverage": "The cited implementation step has landed; its residual contract is not explicitly owned by an open step at this pin. This is a report recommendation, not dispatch or permission to implement."
+    },
+    {
+      "id": "SQA-370",
+      "status": "open",
+      "severity": "P2",
+      "category": "scorecard-protocol-eligibility",
+      "classification": "source-established-single-reading-counterexample",
+      "title": "Keep a lone no-demonstration reading out of the MMLU-Pro headline",
+      "evidence_commit": "a7acfa639919e0a2658b38a8df3a3ef48f823377",
+      "sources": [
+        {
+          "path": "internal/scorecard/scorecard.go",
+          "symbol": "headlineProtocols; qualityCell headed/sort/return"
+        },
+        {
+          "path": "internal/scorecard/mmlu_pro_headline_test.go",
+          "symbol": "TestTheLeaderboardReadingHeadsMMLUPro"
+        },
+        {
+          "path": "internal/evaluation/mmlu_pro.go",
+          "symbol": "withoutDemonstrations"
+        },
+        {
+          "path": "internal/evaluation/evidence_index.go",
+          "symbol": "recordExecution labels old raw readings"
+        }
+      ],
+      "evidence": "The new protocol owner says a raw reading without demonstrations heads no MMLU-Pro cell. qualityCell only sorts such readings after preferred ones and then unconditionally returns measured[0]. For the existing fixture descriptors and []EvalSummary{alone}, the old raw zero-shot reading is therefore the headline. The new test supplies chat+alone when the leaderboard reading is missing, so it never checks the admitted lone-reading case. This is source-derived, not a reproduced live scorecard incident.",
+      "recommended_change": "Make headline eligibility explicit in the existing qualityCell owner while retaining old readings as alternatives with their exact labels/identity. When no eligible reading exists, return the existing missing-evidence cell and keep historical evidence beside it. Preserve the intentional chat fallback when it is eligible and other measures behavior. Do not delete historical records, relabel them as five-shot or add a second scoring/selection owner.",
+      "displaced_surface": "Replace unconditional first-ranked-as-headline selection for ineligible historical MMLU-Pro readings. Keep validator protocol expansion and baseline matching separate from display eligibility; their similarly named tests cover different contracts.",
+      "comparison": "Extend the existing scorecard fixture with only alone and with no eligible MMLU-Pro reading. Keep its leaderboard-over-newer-chat, chat fallback and alternatives assertions. No model/store fixture needed.",
+      "closure_criteria": [
+        "A lone raw no-demonstration record cannot become the headline.",
+        "Historical readings remain visible with their original identities; missing eligible evidence is explicit.",
+        "Existing eligible leaderboard/chat ordering and unrelated measure selection remain covered by retained native tests."
+      ],
+      "impact": "Prevents a historical protocol that the system excludes from being presented as the main quality result.",
+      "expected_benefit": {
+        "outcome": "Prevents a historical protocol that the system excludes from being presented as the main quality result.",
+        "baseline": "qualityCell655AST; scorecard headline fixture271AST. Validator headline fixture381AST remains a distinct execution/baseline contract.",
+        "cost": "Small necessary selection/fixture growth, complete replacement unmeasured. No net deletion claim, new setup, command or directory."
+      },
+      "likely_effort": "Bounded repair in the named existing owner and retained fixture; no new runtime, scheduler or verification framework.",
+      "plan_references": [
+        "mmlu-pro-lm-eval/headline landed5f1ebc623",
+        "Downloads extreme_refactor_plan.md: truthful result presentation"
+      ],
+      "plan_coverage": "The cited implementation step has landed; its residual contract is not explicitly owned by an open step at this pin. This is a report recommendation, not dispatch or permission to implement."
+    },
+    {
+      "id": "SQA-371",
+      "status": "open",
+      "severity": "P2",
+      "category": "tool-value-grammar-admission",
+      "classification": "source-established-grammar-parser-boundary-mismatch",
+      "title": "Let a tool value end in a proper prefix of its closing tag",
+      "evidence_commit": "a7acfa639919e0a2658b38a8df3a3ef48f823377",
+      "sources": [
+        {
+          "path": "internal/inference/chat_tool_grammar.go",
+          "symbol": "parameterLessThan; parameterClosing; hermesToolGrammar"
+        },
+        {
+          "path": "internal/inference/chat_parse.go",
+          "symbol": "parseHermesParameters first closing-tag boundary"
+        },
+        {
+          "path": "internal/inference/chat_tool_value_test.go",
+          "symbol": "TestAToolCallValueMayHoldALessThanSign"
+        }
+      ],
+      "evidence": "Concurrent a7acfa639 fixes internal less-than characters, crediting a real run3 failure, but parameterLessThan requires every < to consume a following character that diverges from </parameter>. It cannot finish on a proper prefix. For a value exactly < (or << or </param), the following actual closing tag is recursively consumed as another less-than rule and fails at its final >. The parser can read those values up to the first complete closing tag. The fixture comment promises << but its map includes only longer text with a later divergent character. No grammar/test was executed by SQA; this is a source derivation.",
+      "recommended_change": "Correct the value/terminator boundary in the existing Hermes grammar builder so every allowed proper prefix may end immediately before the actual closing tag. Preserve rejection of an embedded complete closing tag, NUL and structural/tool-name/required-parameter constraints. Do not merely add an empty alternative that lets the full forbidden tag be consumed as ordinary value text. Reuse the compiled grammar, greedy sampler and parser; no retry, second protocol or escaping wrapper.",
+      "displaced_surface": "Replace the over-restrictive prefix tail rule within the current owner. Extend the same byte-token fixture with terminal <, << and proper closing-tag prefixes, plus existing embedded-complete-tag rejection and exact parser roundtrip. No duplicate model/worker fixture.",
+      "comparison": "The retained native grammar/parser fixture must preserve exact values at termination for proper prefixes and still refuse a value containing the complete terminator. This can decide admission without rerunning the local worker; real local-worker competence remains a separate plan obligation.",
+      "closure_criteria": [
+        "Proper closing-tag prefixes at end of a value survive grammar admission and parser roundtrip unchanged.",
+        "A complete closing tag still terminates the value; existing structural restrictions and NUL policy remain.",
+        "Reuse the existing native fixture and count complete grammar/test growth before another expensive demonstration."
+      ],
+      "impact": "Removes a remaining deterministic restriction on edit_file text before another costly worker attempt.",
+      "expected_benefit": {
+        "outcome": "Removes a remaining deterministic restriction on edit_file text before another costly worker attempt.",
+        "baseline": "Grammar916AST, existing grammar tests715, new value fixture370. Latest landing+87production/+371test=+458AST.",
+        "cost": "Boundary repair may require growth; no safe net reduction established. No new model setup, binary, directory, vocabulary owner or wrapper.296 lower-identifier reuse is a separate unchanged contract."
+      },
+      "likely_effort": "Bounded repair in the named existing owner and retained fixture; no new runtime, scheduler or verification framework.",
+      "plan_references": [
+        "loop-proof/tool-value-markup landeda7acfa639",
+        "loop-proof/local-demonstrated",
+        "Downloads extreme_refactor_plan.md: fix admission causes before dependent work"
+      ],
+      "plan_coverage": "The cited implementation step has landed; its residual contract is not explicitly owned by an open step at this pin. This is a report recommendation, not dispatch or permission to implement."
     }
   ],
     "gate_test_assessment": {
-    "assumptions": "15timing pairs and2x are host assumptions, not containment ABI limits. Judge sign test assumes fair signs after centering by sum(1/choices); two3-choice questions give5/9positive signs under guessing, disproving that general null.32media/2000paired resamples remain bounded; all-tied rank failure is unresolved. MMLU demonstration split is explicitly excluded from score identities.",
+    "assumptions": "Five demonstrations/first_n and delimiter are explicit comparison-protocol choices, not universal model constants.0.01accuracy and0.9agreement were declared bounds for one Qwen/FP32 comparison; two exclusions need exact revision/content binding.12,032case count does not identify a corpus.40spaced and share draws are pinned historical identity contracts. Numerical acceptance stays independent of timing. Grammar closing tag is a parser format boundary; terminal proper prefixes do not violate it.",
     "automation_follow_up": {
         "landings": [
           {
@@ -8502,14 +8696,14 @@
         "fixture_interpretation": "New embedded presentation metadata6663bytes; not a test fixture. Generated clips, temporary stores and model reloads remain actual setup costs.",
         "retained_results": "7ca color assertion/undo retained; gate813s.1cb cause classifier verification17.1s; gate638s.55b four models/two variants: opener370/380 versus106/380 lettered, verification286.312s, gate893s. c122 README verification2.276s, gate373s. SQA did not rerun them; no cost treated as measured waste."
       },
-    "automation_sequence": "Existing supervisor handles creation, containment, resume, wait and cleanup; no new scheduler. Gate still places verify after tests/lanes (322). Native cache and stream-derived test cost output remain. run_check must retain evidence distinctions before recommending edits (366).",
+    "automation_sequence": "Ordinary landing still reads the real store under368, and322verify sequencing remains open. Existing corpus lane should admit reference identity before OpenRunner. Benchmark publication reuses Publish recovery; no retry needed for identical records. Local run3 failure exposed a grammar prerequisite;371 can be decided natively before another worker run.",
     "fresh_ast": {
-        "revision": "c06fc9ceb8ef9e77a2787f0ff115f1e0b5ae89af",
-        "method": "Existing external main.go parsed14committed files; day-count.go counted20changedGo endpoint paths. No application execution.",
-        "retained_result": "review-20261110-1409-ast.json",
-        "selected_counts": "supervisor_windows1137/test602; supervisor_test705; second_judge1563; video_judged2107; video_measure1952; clip_nvenc657; tools1648; tools_missing189; proxy1615/identity_test298; hfcache1158; mmlu_validation444; store_suites3848.",
-        "comparison": "Timing Test158 plus unused imports4 -> proposed602to440 (-162testAST), benchmark136 remains. Existing307 alias18 remains (file705).342 cmpSign31 remains. No complete replacement parsed.",
-        "limits": "87functions;3832local identifier occurrences; no exact full-body groups. No go/types/broad census; counts do not prove equivalent behavior."
+        "revision": "a7acfa639919e0a2658b38a8df3a3ef48f823377",
+        "method": "Existing external main.go parsed13selected committed files; day-count.go counted all23changedGo endpoint paths. Reused prior analyses for unchanged findings; no application execution.",
+        "retained_result": "review-20261110-1611-{ast,scorecard-ast,grammar-ast,final-delta}.json",
+        "selected_counts": "mmlu_test2235;mmlu_pro241;lm_eval_model1068;leaderboard870;evidence_index3945;store_suites4130;reimport321;scorecard_headline271;validator_headline381;scorecard8663;grammar916;grammar_test715;value_test370. Total24126AST.",
+        "comparison": "MMLU prefix103 and scoredGlued94 expose duplicate read work, not full-body redundancy. Existing scalar/fixture reductions remain at their retained revisions. New correctness repairs have unmeasured replacement cost.",
+        "limits": "128functions,4991parser-local identifier links,0exact full-body groups. No type resolution or repository-wide duplicate/boilerplate percentage."
       },
     "media_follow_up": {
         "landings": [
@@ -8693,19 +8887,22 @@
       "retained_change_costs": "Two consolidation landings(2d59f642c exact folds andbb4fc706a parameter folds) remove744 production nodes but add1591 test nodes, net+847 across Go. Pilot retirementea8ed43a7 removes5926 production/9990 test nodes and one schema, while fixture bytes grow599; its test deletion is already included in the day's offsets and must not be subtracted twice. These retained gates are broader changes, not matched per-test performance comparisons."
     },
     "retained_results": [
-        "a3aa45a63: Toolhelp deletion-271production/+298test. Instrumented package135->46s, command elapsed sum898->294s; benchmark48.8->16.3msalone and41.5->6.9msparallel. These are retained host comparisons, not SQA runs or additive wall savings. Gate1638s, verify8.277s.",
-        "32f640e18: complete judge/repair/clip migration0production/-8test. Shared judge run667s; Qwen165/184pictures,58/64clips; Gemma159/184,57/64; tau0.560/0.746. Repair source check636s including219s subtest; NVENC correctness25s; opt-in clip25.1/7.4frames/s at2x/4x. Gate881s, verify652.12s.",
-        "8d2260ce8: missing-test guidance+201production/+189test; retained absent-check assertion fails on old code. Gate255s, verify17.237s. Skipped-case diagnostic is not covered.",
-        "54b6f308b: identity forwarding+211production/+422test; cold/running identity and NDJSON coverage retained; real live-ASR rebind30s. Gate248s, verify16.169s. No local-worker-benefit result yet.",
-        "c06fc9c: demonstration import+24production/+444test; test-only versus combined catalog identity remains. Gate585s, verify16.297s. Five-shot scoring and12,032-question parity are not implemented evidence at this pin."
+        "9e943606f: five-shot prefix/row ownership +389production/+882test; gate682s, verify15.584s. Retain exact prompt/delimiter and chat identity fixtures. Production-only undo did not compile after signature changes; it is not a successful behavioral undo.",
+        "0203b6459: +0production/+1068test. BF16 comparison failed0.8714agreement and remains failed. Separately declared FP32 result:12,030cases after2revision exclusions, overgo0.1871/lm_eval0.1876, agreement0.9860, only-overgo19/only-lm25; model240s, gate468s, verify242.002s. Source admission limits are369; not generalized parity.",
+        "0203b6459 retires landing-scenarios:294s summed command time across81parallel tests, package46s; fixture Git66.7s, one build11.7s, tested gate Git169.5s. No demonstrated safe shared-fixture saving worth isolation cost. Summed command time is not package wall.",
+        "5f1ebc623: raw/chat validator and headline changes+259production/+690test; gate535s, verify17.138s. Current fixture misses only-ineligible case370. Validator undo compile failure was disclosed, not counted as behavioral proof.",
+        "1a1c6c007: Publish reuse0production/+321test; gate1438s, verify14.988s. New321-node fixture retains two materially different store states.",
+        "fdd636906: ambient-store expectation adjustment0production/+64test; gate254s, verify30.343s. Commit records the preceding catalog import broke every landing test stage;368 addresses residual ownership.",
+        "a7acfa639: concurrent grammar repair+87production/+371test; gate438s, verify24.677s; retained undo assertion fails on prior code. Local demonstration run3 still2of6 according to commit, including truncated edits. Retained Bonsai outputs identical, peak5389.8MiB unchanged; native prefix edge371 remains. SQA ran none of these."
       ],
-    "surface_reduction_analysis": "72ae3b9..c06fc9c:20 changedGo paths,+165production/+1345test=+1510AST,+22/+243lines,0new production files and net3test files. No new command binary/package directory/schema/static fixture/CUDA entrypoint. process-starts -271/+298=+27total; judge-tests0/-8 is a small achieved net deletion plus removed setup. Other capability/recovery work accounts for the remaining growth. Five retained gate walls total3607s; successful walls are costs, not waste.",
+    "surface_reduction_analysis": "8a839f0..a7acfa6:23changedGo paths, +735production/+3396test=+4131AST, +157/+551lines,0new production files and6new test files. Earlier five MMLU/catalog landings account for648/3025; concurrent grammar repair87/371. No new command/package directory/schema/static fixture/CUDA entrypoint. Six retained gate walls total3815s; these are costs, not measured avoidable time. No safe net AST reduction established in this interval.",
     "tests": [
-        "RETAIN Windows containment-before-execution, concurrent short commands, process-tree/cancellation and benchmark. REMOVE proposed367 timing-only Test; separate307 forwarding alias remains independently removable.",
-        "MERGE achieved: Gemma accuracy is with second-judge answers, repair levels use already-decoded clips/worker/runtime. RETAIN separate accuracy/agreement, VMAF and NVENC bytes/encoder/repeat; SIMPLIFY invalid fair-sign inference and preserve pure numerical coverage within existing owners.",
-        "RETAIN missing-test tool fixture; EXTEND it with skipped existing check under366, using shared setup. No new fixture framework.",
-        "RETAIN proxy cold/running identity forwarding and live envelope-before-EOF, plus init's ambiguous-name resolution. Same test name across these packages is not duplicate behavior.",
-        "RETAIN demonstration-import discovery and two catalog identity states. Two stores represent distinct bound datasets; no safe fixture reduction established here."
+        "RETAIN native MMLU prompt/delimiter/identity and demonstration exclusion cases. SIMPLIFY ordinary identity gate by removing ambient-store dependency under368; MERGE corpus setup with the existing admitted import only where historical data identities match.",
+        "RETAIN full numerical lm_eval comparison; EXTEND one native admission fixture under369, preserving failed BF16 and distinct FP32/exclusions. No extra model setup.",
+        "RETAIN distinct validator/headline fixtures; EXTEND existing scorecard fixture for only-ineligible readings under370. No store/model needed.",
+        "RETAIN benchmark reimport fixture with normal and older-key stores; they exercise distinct content-publication states. Existing Publish is the retained production owner.",
+        "RETAIN native greedy grammar fixture and embedded complete-tag rejection; EXTEND it with terminal-prefix/parser cases under371. Do not add another worker/device fixture.",
+        "REMOVE no existing application test in SQA.367timing-only and307alias deletion remain recommendations; shared landing-fixture project retired without implementation."
       ]
   },
     "hygiene_assessment": "No hygiene finding. Scratch analysis is outside the repository; concrete correctness and production/test cost take priority.",
@@ -10239,10 +10436,10 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
     "limitations": [
-      "No application tests, process/model/device workloads, benchmarks, gates, agents/messages, plan/skill edits or pushes. Reused committed results only.",
-      "Go parser counts include comments and3832parser-local identifier links in87functions, without package type resolution. No exact full-body duplicates in14selected files; forwarding/setup redundancy requires caller analysis. No whole-tree boilerplate percentage.",
-      "The9.14273%counterexample is exact arithmetic for the accuracy component under stated uniform-independent guesses, not a model run or observed failure of the joint accuracy/rank gate. Timing-test flakiness is a source-supported risk, not a reproduced incident.",
-      "Five landings are overall growth. Achieved judge migration saves8testAST and setup; proposed367 saves162testAST by arithmetic. No blanket speedup or completed architecture migration claim."
+      "No application tests, process/model/device workloads, benchmarks, gates, agents/messages, plan/skill edits or pushes. Retained implementation evidence only.",
+      "AST counts include comments and4991parser-local identifier links in128functions; no package go/types resolution. No exact full-body duplicates in13selected files. This does not measure semantic or whole-tree boilerplate percentage.",
+      "Reference pairing, single-reading headline and terminal-prefix grammar counterexamples are source-derived, not executed reproductions. The store-dependent landing failure is recorded by the implementation commit.",
+      "This interval grows code. Small duplicated profile-read candidate is not a completed reduction. No full architecture migration or general model/dataset parity claim."
     ],
     "master_lead_triage": {
     "at": "2026-11-10",
@@ -11118,12 +11315,12 @@
       }
     }
   },
-    "next_finding_number": 368,
+    "next_finding_number": 372,
     "publication_context": {
-    "assessment": "Substantive architecture progress, two residual automation findings and342consolidated calibration evidence.",
-    "checked_head": "c06fc9ceb8ef9e77a2787f0ff115f1e0b5ae89af",
-    "concurrent_changes": "Live plan and MMLU evaluation/scoring/test edits excluded; re-read before publishing.",
-    "current_pin": "c06fc9ceb8ef9e77a2787f0ff115f1e0b5ae89af",
+    "assessment": "Substantive report: architecture progress, four distinct residual contracts and measured retirement; source-only review with retained results.",
+    "checked_head": "a7acfa639919e0a2658b38a8df3a3ef48f823377",
+    "concurrent_changes": "a7acfa639 landed during review; code/plan delta read,13-file/23-path counts reconciled and report unchanged. Re-read again immediately before publishing.",
+    "current_pin": "a7acfa639919e0a2658b38a8df3a3ef48f823377",
     "publication": "Normal report-only hook exception under existing landing_turn/gate ownership; preserve workers.",
     "report_only": "Only docs/sqa_findings.json; unrelated work/index preserved."
   },
@@ -11134,6 +11331,10 @@
     "SQA-346",
     "SQA-271",
     "SQA-366",
+    "SQA-368",
+    "SQA-369",
+    "SQA-370",
+    "SQA-371",
     "SQA-322",
     "SQA-318",
     "SQA-283",
@@ -11191,34 +11392,34 @@
     "repository": "C:\\Users\\jeffm\\overgo",
     "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
     "review_notes": [
-      "Master included the prior report in a3aa45a63. Preserve stable IDs, closure evidence and all implementation-owned/unknown fields exactly.",
-      "342 remains canonical for media calibration/accuracy obligations; credit its completed setup migration without closing its unresolved statistical/semantic requirements.",
-      "New366 worker diagnosis and367 timing admission have distinct owners/contracts; no duplicate backlog aliases needed. Historical growth analysis retained at its own revision."
+      "Prior report8a839f0 and all stable IDs/closure evidence retained. Owner and unknown fields preserved raw-exact.",
+      "New368..371 have distinct contracts: gate isolation, reference identity, headline eligibility and grammar termination. Do not merge them merely because they belong to one campaign.",
+      "367 plan coverage updated for measured retirement; broader existing architectural and correctness obligations remain active. Current narrative replaces prior reviewer follow-up; history remains in Git."
     ],
-    "reviewed_at": "2026-11-10T14:18:51Z",
-    "reviewed_master": "c06fc9ceb8ef9e77a2787f0ff115f1e0b5ae89af",
+    "reviewed_at": "2026-11-10T16:23:41Z",
+    "reviewed_master": "a7acfa639919e0a2658b38a8df3a3ef48f823377",
     "schema_version": 2,
     "scope": [
-      "Committed masterc06fc9ceb8ef9e77a2787f0ff115f1e0b5ae89af; plan blob4135ca6d0a42de420acfd5ec1e26eb3bc9dc5fe1. Guidance/Downloads architecture target hashes unchanged; retained contents reused.",
-      "Bounded five-landing review: Windows process containment/start costs, media-judge setup/statistical acceptance, worker check feedback, proxy identity/streaming and evaluation demonstration import.",
-      "Fourteen selected committed Go files parsed and all20changedGo endpoints counted. Existing numerical/evidence/caller owners read; source conclusions before rankings.",
+      "Committed mastera7acfa639919e0a2658b38a8df3a3ef48f823377; plan blob4b89608cde1ecfbc320f0a45a1ced026b2cc600a. Guidance and Downloads architecture target unchanged; retained contents reused.",
+      "Bounded MMLU admission/scoring/evidence/headline and benchmark import review; concurrent tool-value grammar delta reconciled. Followed concrete native fixtures, real-store/corpus owners, parser and retained landing records.",
+      "13selected Go files parsed; all23changedGo endpoint paths counted. The10MMLU/scorecard source blobs are unchanged fromfdd636906 at the final pin; three grammar files parsed at final pin. No broad census.",
       "This chat previously implemented Overgo and contributed plan wording; follow-up SQA, not independent third-party review."
     ],
     "sqa_response": {
-    "assessment": "194stable IDs:59open,129resolved,4deferred,2aliases. Two new distinct findings;342updated and partially addressed by landed sharing. No closure reversed.",
+    "assessment": "198stable IDs:63open,129resolved,4deferred,2aliases. Four new distinct source/retained-evidence findings;367plan coverage updated. No closures or aliases changed.",
     "consolidated_findings": [],
     "deferred_findings": [],
-    "evidence": "Five committed landings; process/evidence/proxy/evaluation caller review;14-file AST;20-path full endpoint costs; exact finite-choice arithmetic. Retained implementation runs only.",
-    "implementation_response_context": "Current report and owner fields re-read. Prior report landed with a3aa45a63.342's setup migration is verified, while its remaining accuracy/rank/semantic requirements stay active. Same-file citations do not close unrelated findings.",
+    "evidence": "Six landings, retained failed and successful evidence,13-file AST and23-path full endpoint costs. Concurrent grammar landing reconciled before publication.",
+    "implementation_response_context": "Current findings and owner blocks re-read at final pin; no implementation response overwritten.283/296/342/366/367 requirements retain their owners; shared file mentions are not closures.",
     "new_findings": [
-        "SQA-366",
-        "SQA-367"
+        "SQA-368",
+        "SQA-369",
+        "SQA-370",
+        "SQA-371"
       ],
-    "partially_addressed_findings": [
-        "SQA-342"
-      ],
-    "priority_changes": "No broad reprioritization from speed results.366 early diagnostic correctness and367 removal of timing-only admission;342 staysP2.",
-    "recommendation": "Keep the process-start and judge-sharing improvements. Preserve diagnostic uncertainty before directing code edits, leave speed to the existing benchmark, and correct the judge null through existing numerical owners.",
+    "partially_addressed_findings": [],
+    "priority_changes": "Keep existing security ranking.368..371 are separate deterministic correctness/admission obligations; no speculative speed benefit outranks them.",
+    "recommendation": "Remove ambient gate state, bind reference identity before model work, enforce headline eligibility, and finish grammar termination admission through current owners. Credit shared prefix/idempotent publication and the decision not to build an unnecessary fixture mechanism.",
     "refactor": {
       "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
       "history_path": "docs/sqa_findings.json",
@@ -11226,10 +11427,10 @@
     },
     "reopened_findings": [],
     "resolved_findings": [],
-    "reviewed_master": "c06fc9ceb8ef9e77a2787f0ff115f1e0b5ae89af",
-    "uncertainty": "No independent workloads. Timing false failures are possible, not observed; the accuracy arithmetic invalidates a general null, not the measured judges' high accuracy. No overall net reduction or complete refactor claim.",
+    "reviewed_master": "a7acfa639919e0a2658b38a8df3a3ef48f823377",
+    "uncertainty": "Source-derived edge cases not executed. Complete replacement costs unmeasured; no safe net AST reduction or general parity established.",
     "updated_findings": [
-        "SQA-342"
+        "SQA-367"
       ]
   }
   }

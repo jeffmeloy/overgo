@@ -291,17 +291,41 @@ func deepstackInputForLayer(
 }
 
 // deviceProjectable reports whether a device prompt reads these inputs as the host's forward does: rows put in place
-// of their tokens', multi-axis positions, and deepstack streams added at their layers. Attention and visual expert
-// blocks, per-layer embeddings, and rows scaled or mapped from a base are read on the host alone.
+// of their tokens', raw-scaled ones after the token rows are scaled, multi-axis positions, deepstack streams added at
+// their layers, and bidirectional attention blocks where the prompt is read in one chunk. Visual expert blocks,
+// per-layer embeddings, and rows of a visual span or mapped from a base are read on the host alone. On 2026-11-10
+// gemma-4-12B-it's picture prompts, read on the host for their blocks and raw-scaled rows, took 500 ms for 295 tokens
+// where its text prompts take 78 ms (judge-speed/cell-blocks).
 func (r *Runner) deviceProjectable(inputs ProjectedInputs) bool {
 	program := r.program.Model.ProjectedInput()
-	return len(inputs.BidirectionalAttentionBlocks) == 0 && len(inputs.VisualExpertBlocks) == 0 && !program.PerLayerEmbeddings &&
-		program.Overrides != model.EmbeddingOverrideVisualSpan && program.Overrides != model.EmbeddingOverrideRawScaled &&
-		program.Overrides != model.EmbeddingOverrideMappedBase
+	// A block is read whole by one chunk, so a layer over cells reads it as the masked attention does (cellReach).
+	cut := slices.ContainsFunc(inputs.BidirectionalAttentionBlocks, func(block AttentionBlock) bool {
+		return r.promptChunkTokens > 0 && int(block.End) > r.promptChunkTokens
+	})
+	return !cut && len(inputs.VisualExpertBlocks) == 0 && !program.PerLayerEmbeddings &&
+		program.Overrides != model.EmbeddingOverrideVisualSpan && program.Overrides != model.EmbeddingOverrideMappedBase
+}
+
+// cellReach is, for each of tokens tokens read onto first cells, the last cell it reads: a token of a block to the
+// block's end, the masked attention letting it read later keys of its own block, and any other token to its own cell.
+// Its window begins where its own cell's does, as the masked attention's does, so the cells read exactly the keys the
+// masked attention reads.
+func cellReach(first uint32, tokens int, blocks []AttentionBlock) []uint32 {
+	reach := make([]uint32, tokens)
+	for index := range reach {
+		reach[index] = first + uint32(index)
+	}
+	for _, block := range blocks {
+		for token := block.Start; token < block.End && int(token) < tokens; token++ {
+			reach[token] = first + block.End - 1
+		}
+	}
+	return reach
 }
 
 // span gives the projected inputs of count tokens from start, each indexed from start: a chunk of a prompt the
-// device reads in parts. Attention and visual expert blocks, which no device prompt reads, are not carried.
+// device reads in parts. Visual expert blocks, which no device prompt reads, are not carried, and bidirectional
+// blocks only by a chunk that holds every one whole.
 func (inputs ProjectedInputs) span(start, count int) *ProjectedInputs {
 	result := &ProjectedInputs{continues: start > 0}
 	for _, override := range inputs.EmbeddingOverrides {
@@ -320,6 +344,15 @@ func (inputs ProjectedInputs) span(start, count int) *ProjectedInputs {
 		width, _, _ := stream.MatrixExtents()
 		shape := tensor.MustShape(uint64(width), uint64(count))
 		result.DeepstackEmbeddings = append(result.DeepstackEmbeddings, reference.Value{Shape: shape, Data: stream.Data[start*width : (start+count)*width]})
+	}
+	// Bidirectional blocks are carried by the one chunk that holds the prompt from its start and every block whole;
+	// any other chunk of such a prompt is marked, and refused where it is read.
+	if len(inputs.BidirectionalAttentionBlocks) > 0 {
+		if start == 0 && !slices.ContainsFunc(inputs.BidirectionalAttentionBlocks, func(block AttentionBlock) bool { return int(block.End) > count }) {
+			result.BidirectionalAttentionBlocks = slices.Clone(inputs.BidirectionalAttentionBlocks)
+		} else {
+			result.blocksSplit = true
+		}
 	}
 	return result
 }

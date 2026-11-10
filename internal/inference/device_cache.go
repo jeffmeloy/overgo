@@ -1589,6 +1589,12 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	tokenRowInput := builder.GetRows(embeddingTable, tokenIndices)
 	current := tokenRowInput
 	deviceFeeds.Add(embeddingTable, embeddingPointer)
+	// Raw-scaled media rows take the place of token rows already scaled, and are not scaled themselves, as the host's
+	// forward reads them (applyScaledRawEmbeddingOverrides).
+	rawScaled := r.program.Model.ProjectedInput().Overrides == model.EmbeddingOverrideRawScaled && len(projected.EmbeddingOverrides) > 0
+	if scale := r.spec.InputEmbeddingScale(); rawScaled && scale != 1 {
+		current = builder.Scale(current, scale)
+	}
 	if len(projected.EmbeddingOverrides) > 0 {
 		current = overrideDeviceRows(builder, prefix, current, projected.EmbeddingOverrides, len(tokenIDs), hostFeeds)
 	}
@@ -1618,7 +1624,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		positionRows = append(positionRows, positionInput)
 		current = builder.Add(current, positionInput)
 	}
-	if scale := r.spec.InputEmbeddingScale(); scale != 1 {
+	if scale := r.spec.InputEmbeddingScale(); !rawScaled && scale != 1 {
 		current = builder.Scale(current, scale)
 	}
 	if r.weights.TokenEmbeddingNorm != nil {
@@ -1672,6 +1678,25 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		if inputErr != nil {
 			return fail(inputErr)
 		}
+	}
+	// A media span read with bidirectional attention attends within itself both ways, as the host's forward reads it:
+	// each token's block, or -1, is a side input of every layer that reads blocks. It is read only where the whole
+	// prompt is read at once, from no cache, so no block is cut by a chunk or a cached prefix.
+	var attentionBlocks *tensor.Tensor
+	if projected.blocksSplit {
+		return fail(errors.New("bidirectional attention blocks require the prompt read in one chunk"))
+	}
+	if len(projected.BidirectionalAttentionBlocks) > 0 {
+		if sequences != tensor.SingletonExtent {
+			return fail(errors.New("bidirectional attention blocks require one sequence"))
+		}
+		ids, blockErr := projectedAttentionBlockIDs(r.program.Model.ProjectedInput().AttentionBlocks, len(tokenIDs), pastTokens > 0, projected.BidirectionalAttentionBlocks)
+		if blockErr != nil {
+			return fail(blockErr)
+		}
+		shape := tensor.MustShape(uint64(len(ids)))
+		attentionBlocks = builder.Input(prefix+"attention_block_ids", dtype.F32, shape)
+		hostFeeds[attentionBlocks] = reference.Value{Shape: shape, Data: ids}
 	}
 	keys := make([]*tensor.Tensor, len(r.weights.Layers))
 	values := make([]*tensor.Tensor, len(r.weights.Layers))
@@ -1731,7 +1756,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 			return fail(layerErr)
 		}
 		*deviceFeeds = append(*deviceFeeds, layerFeeds...)
-		sideInputs := layerSideInputs{embeddingSkip: embeddingSkip, multiPositions: projected.MultiAxisPositions}
+		sideInputs := layerSideInputs{embeddingSkip: embeddingSkip, multiPositions: projected.MultiAxisPositions, attentionBlock: attentionBlocks}
 		if len(perLayerInputs) > 0 {
 			sideInputs.perLayerInput = perLayerInputs[layerIndex]
 		}
@@ -1756,6 +1781,11 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 			}, kvHeads, width, cells, pages*tensor.CellPageCells)
 			cellInputs[layerIndex] = nodes
 			cellBinding = &model.CellBinding{State: state, Capacity: cells, FirstCell: pastTokens}
+			// A windowed layer reads its blocks as the masked attention does: each token of a block to the block's end.
+			// Its window still begins where its own cell's does (cellReach).
+			if attentionBlocks != nil && plan.AttentionGraph.Window != tensor.FirstOffset {
+				cellBinding.Reach = cellReach(pastTokens, len(tokenIDs), projected.BidirectionalAttentionBlocks)
+			}
 		case plan.SharedKV:
 			cacheInputs.key, cacheInputs.value = keys[plan.KVSource], values[plan.KVSource]
 		default:

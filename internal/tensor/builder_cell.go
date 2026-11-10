@@ -69,6 +69,10 @@ type CellAttentionAttributes struct {
 	Capacity uint32
 	Window   uint32
 	Scale    float32
+	// Reach is, for each token, the last cell it reads where it reads past its own: a token of a bidirectional
+	// attention block reads to its block's end, its window still beginning where its own cell's begins, as the masked
+	// attention reads later keys of the query's own block. Empty where every token reads to its own cell.
+	Reach []uint32
 }
 
 func (CellAttentionAttributes) validFor(op Op) bool { return sameOp(op, OpCellAttention) }
@@ -76,8 +80,11 @@ func (CellAttentionAttributes) validFor(op Op) bool { return sameOp(op, OpCellAt
 // steps are the attributes' step records, QSAStepWords each.
 func (a CellAttentionAttributes) steps() []uint32 {
 	words := make([]uint32, 0, QSAStepWords*len(a.Cells))
-	for _, cell := range a.Cells {
+	for index, cell := range a.Cells {
 		first, count := a.Reads(cell)
+		if len(a.Reach) == len(a.Cells) && a.Reach[index] > cell {
+			count = a.Reach[index] + 1 - first
+		}
 		words = append(words, cell, cell+1, first, count)
 	}
 	return words
@@ -105,7 +112,7 @@ func (b *Builder) CellAttention(query, key, value *Tensor, state CellState, attr
 		b.setError(err)
 		return nil
 	}
-	attributes.Cells = slices.Clone(attributes.Cells)
+	attributes.Cells, attributes.Reach = slices.Clone(attributes.Cells), slices.Clone(attributes.Reach)
 	inputs := []*Tensor{query, key, value, state.KeyCodes, state.ValueCodes, state.KeyScales, state.ValueScales, state.PageTable}
 	return b.add("", dtype.F32, query.Shape, OpCellAttention, inputs, attributes)
 }
@@ -134,6 +141,9 @@ func validateCellAttention(query, key, value *Tensor, state CellState, attribute
 			return errors.New("cell attention cells are not consecutive inside the state")
 		}
 	}
+	if err := validateCellAttentionReach(attributes); err != nil {
+		return err
+	}
 	if state.KeyCodes == nil || state.KeyCodes.Shape.Rank != PairedExtent {
 		return errors.New("cell attention state does not hold the layer's cells")
 	}
@@ -154,6 +164,24 @@ func validateCellAttention(query, key, value *Tensor, state CellState, attribute
 	} {
 		if part.tensor == nil || part.tensor.Type != part.kind || part.tensor.Shape != part.shape {
 			return errors.New("cell attention state does not hold the layer's cells")
+		}
+	}
+	return nil
+}
+
+// validateCellAttentionReach refuses a reach that is not, for each token, its own cell or a later cell of the step:
+// a token reads no further than the step's last cell, which this step appends, so none it has not written.
+func validateCellAttentionReach(attributes CellAttentionAttributes) error {
+	if len(attributes.Reach) == 0 {
+		return nil
+	}
+	if len(attributes.Reach) != len(attributes.Cells) {
+		return errors.New("cell attention reaches are not a token's each")
+	}
+	last := attributes.Cells[len(attributes.Cells)-1]
+	for index, cell := range attributes.Cells {
+		if reach := attributes.Reach[index]; reach < cell || reach > last {
+			return errors.New("cell attention reaches are not each a token's own cell or a later one of its step")
 		}
 	}
 	return nil

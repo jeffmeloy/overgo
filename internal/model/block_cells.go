@@ -12,6 +12,9 @@ type CellBinding struct {
 	State     tensor.CellState
 	Capacity  uint32
 	FirstCell uint32
+	// Reach is, for each token of the step, the last cell it reads (tensor.CellAttentionAttributes.Reach). Empty where
+	// every token reads to its own cell.
+	Reach []uint32
 }
 
 // HoldsAttentionCells reports whether a runner may build the layer over Strata's int8 cells: an attention layer that
@@ -44,5 +47,6 @@ func cellAttentionStep(builder *tensor.Builder, spec Spec, plan LayerPlan, cells
 	}
 	return builder.CellAttention(query, key, value, cells.State, tensor.CellAttentionAttributes{
 		Cells: steps, Capacity: cells.Capacity, Window: plan.AttentionGraph.Window, Scale: spec.resolvedAttentionScale(query.Shape.Dims[0]),
+		Reach: cells.Reach,
 	})
 }

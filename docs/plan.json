@@ -3,32 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "judge-speed",
-      "title": "A judge's cached answer is bound to the answer it scores, a judge beside a resident video model answers at its own speed, and gemma-4-12B-it judges no slower than the larger Qwen judge",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": -262,
-        "reason": "Estimated: one key field in the judged replay; a placement or eviction change where the measurement finds the slowdown; and whatever the Gemma split shows, unknown until it is measured."
-      },
-      "steps": [
-        {
-          "id": "gemma-split",
-          "title": "Where gemma-4-12B-it's time a judge question goes is measured, by vision tower, prompt and choice scoring, and the largest part cut until it judges no slower a question than Qwen3.8-27B",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/evaluate -count=1 -run '^TestGemmaTwelveJudgesNoSlowerThanTheLargerJudge$' -timeout 60m",
-          "files": [
-            "cmd/evaluate",
-            "internal/projector",
-            "internal/gemma4convert",
-            "internal/inference"
-          ],
-          "needs_card": true,
-          "rationale": "Serves: the second judge, used wherever a verdict is to rest on more than one family.\n\nDisappears: a 12B judge twice as slow as a 27B one. In second-judge/independent, on the same 248 picture and clip questions, Qwen3.8-27B took 473 s and gemma-4-12B-it 975 s. Gemma's published bf16 weights are 24 GB and Qwen's Q6_K about 22 GB, so a question reads about the same weight bytes. Gemma's prompt runs at about 3000 tokens a second, and its pictures make fewer tokens than Qwen's. The difference is not in the weights read, so the vision tower read from the published tensors (towerViews) or the choice scoring is the first suspect, measured by stage before anything changes.\n\nThe bar is derived: no slower a question than Qwen3.8-27B on the same 24 picture questions, since a question reads about the same bytes in each.\n\nBatch: device lane."
-        }
-      ]
-    },
-    {
       "id": "serving-bounds",
       "title": "A request past its size limit is refused on every JSON route, a provider declared over HTTP binds only a variable the operator named, and a stored artifact is served so a browser cannot run it",
       "owner": "master-lead",

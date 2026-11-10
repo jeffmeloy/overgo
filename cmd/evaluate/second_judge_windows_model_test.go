@@ -114,6 +114,8 @@ func TestASecondJudgeRanksTheCasesAlike(t *testing.T) {
 
 // judgedAnswer is one case's answer: whether the judge chose the right choice, and its probability of it.
 type judgedAnswer struct {
+	// prompt is how many tokens the question was read as, the picture's among them.
+	prompt      int
 	right       bool
 	probability float64
 }
@@ -138,6 +140,7 @@ func (judge calibration) judged(t *testing.T, ctx context.Context, suite evaluat
 			Name        string   `json:"name"`
 			Accepted    bool     `json:"accepted"`
 			Probability *float64 `json:"probability"`
+			Prompt      int      `json:"prompt_tokens"`
 		} `json:"observations"`
 	}
 	testcheck.NoError(t, json.Unmarshal(content.Data, &report))
@@ -146,7 +149,7 @@ func (judge calibration) judged(t *testing.T, ctx context.Context, suite evaluat
 		if observation.Probability == nil {
 			t.Fatalf("%s's answer to %s carries no probability", suite.Source, observation.Name)
 		}
-		answers[observation.Name] = judgedAnswer{right: observation.Accepted, probability: *observation.Probability}
+		answers[observation.Name] = judgedAnswer{right: observation.Accepted, probability: *observation.Probability, prompt: observation.Prompt}
 	}
 	if len(answers) != len(suite.Cases) {
 		t.Fatalf("the report of %s answers %d of its %d cases", suite.Source, len(answers), len(suite.Cases))

@@ -18,6 +18,7 @@ import (
 	"overgo/internal/modelcli"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/processmeasure"
 	"overgo/internal/projector"
 	"overgo/internal/recipe"
 	"overgo/internal/sequencescore"
@@ -68,8 +69,12 @@ func (r projectionRuntime) Generate(ctx context.Context, prompt string, options 
 	if !named {
 		return nil, "", errors.New("evaluate: a projection case names the video or image its question asks about")
 	}
+	// A question's time is named by stage (judge-speed/gemma-split): its media read and decoded, the projector's
+	// encode, the prompt read and the answer written.
+	decoded := processmeasure.Stage(ctx, "media decode")
 	raw, err := r.mediaFiles.read(name)
 	if err != nil {
+		decoded()
 		return nil, "", err
 	}
 	var built projector.MultimodalPrompt
@@ -87,16 +92,22 @@ func (r projectionRuntime) Generate(ctx context.Context, prompt string, options 
 			}
 		}
 		frames, decodeErr := media.DecodeEncodedVideo(ctx, raw, r.ffmpeg, video.FPS, video.MaxFrames)
+		decoded()
 		if decodeErr != nil {
 			return nil, "", fmt.Errorf("evaluate: decode video %s: %w", name, decodeErr)
 		}
+		projected := processmeasure.Stage(ctx, "vision tower")
 		built, err = r.vision.BuildVideoPrompt(ctx, r.runner, frames, "", question, video.FPS, false)
+		projected()
 	case evaluation.MediaImage:
 		picture, _, decodeErr := image.Decode(bytes.NewReader(raw))
+		decoded()
 		if err := decodeErr; err != nil {
 			return nil, "", fmt.Errorf("evaluate: decode image %s: %w", name, err)
 		}
+		projected := processmeasure.Stage(ctx, "vision tower")
 		built, err = r.vision.BuildImagePrompt(ctx, r.runner, picture, "", question, false)
+		projected()
 	}
 	if err != nil {
 		return nil, "", fmt.Errorf("evaluate: project %s %s: %w", kind, name, err)
@@ -106,7 +117,18 @@ func (r projectionRuntime) Generate(ctx context.Context, prompt string, options 
 		return nil, "", err
 	}
 	options.PromptTokenIDs, options.ProjectedInputs = promptIDs, &projected
-	return r.runner.Generate(ctx, question, options)
+	read, answered := processmeasure.Stage(ctx, "prompt"), func() {}
+	evaluated := options.OnPromptEvaluated
+	options.OnPromptEvaluated = func(prompt inference.PromptEvaluation) {
+		read()
+		answered = processmeasure.Stage(ctx, "answer")
+		if evaluated != nil {
+			evaluated(prompt)
+		}
+	}
+	ids, text, err := r.runner.Generate(ctx, question, options)
+	answered()
+	return ids, text, err
 }
 
 // defaultCaptionCases and defaultCaptionSeed are the clips a caption-matching

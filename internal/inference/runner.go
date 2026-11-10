@@ -183,6 +183,9 @@ type ProjectedInputs struct {
 	VisualExpertBlocks           []AttentionBlock
 	// continues marks the inputs of a chunk after a prompt's first (span): its cache is the prompt's own, read so far.
 	continues bool
+	// blocksSplit marks a chunk (span) that does not hold every bidirectional block of its prompt whole, which no
+	// device prompt reads: a block cut by a chunk would attend only backwards across the cut.
+	blocksSplit bool
 }
 
 // preparedModel: loaded assets; model-wide execution config.

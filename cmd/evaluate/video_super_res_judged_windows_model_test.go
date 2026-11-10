@@ -82,7 +82,7 @@ const (
 )
 
 // TestJudgedClipsAreDrawn draws what TestTheJudgeDoesNotPreferLanczosOverTheDefaultLevel judges, in a process of its own: it
-// reads the repair levels (readRepairLevels), has the Wan student draw judgedClips VidGen captions as they are and
+// has the Wan student draw judgedClips VidGen captions as they are and
 // finished at twice the size by the level a request naming none gets, enlarges each plain clip by FFmpeg's Lanczos to
 // the same size, encoded on NVENC as a finished clip is, and writes the middle of judgedFrames frames of each as
 // pictures, with the suite that asks the judge of each whether it is sharp and whether it is clean.
@@ -95,10 +95,6 @@ func TestJudgedClipsAreDrawn(t *testing.T) {
 	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	ffmpeg := testcheck.Must(media.FFmpeg())(t)
 	started := time.Now()
-	readRepairLevels(t, roots, ffmpeg)
-	t.Logf("the repair levels read in %s", time.Since(started).Round(time.Second))
-
-	started = time.Now()
 	items := testcheck.Must(evaluation.PickVideoCaptions(filepath.Join(roots.Datasets, "VidGen", "VidGen_1M_video_caption.json"), judgedClips, judgedSeed))(t)
 	prompts := make([]renderPrompt, len(items))
 	for index, item := range items {
@@ -186,7 +182,7 @@ func TestJudgedClipsAreDrawn(t *testing.T) {
 // 0.895), so the claim was refuted, and the default stands on the VMAF of source clips with a ground truth
 // (TestVideoSuperResBeatsBicubicOnSourceClips). What is held, a bar set after that run, is that the judge does not
 // prefer Lanczos over the default by the same test: it would fail were Lanczos clearly the better finish. The denoise
-// and deblur levels are read in the same run (readRepairLevels).
+// and deblur levels are read on the source clips TestVideoSuperResBeatsBicubicOnSourceClips decodes (readRepairLevels).
 func TestTheJudgeDoesNotPreferLanczosOverTheDefaultLevel(t *testing.T) {
 	cudatest.Require(t)
 	if os.Getenv("OVERGO_NVVFX") == "" {
@@ -258,14 +254,10 @@ func TestTheJudgeDoesNotPreferLanczosOverTheDefaultLevel(t *testing.T) {
 // clip's own. Each strength's VMAF is set against the degraded clip's by the exact paired test, and the strongest of
 // each repair beats it at calibrationLevel: on 2026-11-09 every deblur strength did, and denoise at 3 and 4 alone, VMAF
 // reading this noise as little loss.
-func readRepairLevels(t *testing.T, roots dataroot.Roots, ffmpeg string) {
+func readRepairLevels(t *testing.T, ffmpeg string, clips [][][]float32, worker *device.Worker, runtime *nvvfx.Runtime) {
 	t.Helper()
 	ctx := t.Context()
-	clips, _ := superResSources(t, roots, ffmpeg)
 	scratch := t.TempDir()
-	runtime := testcheck.Must(nvvfx.Open())(t)
-	worker := testcheck.Must(device.New(0))(t)
-	t.Cleanup(func() { testcheck.NoError(t, worker.Close()) })
 	random := rand.New(rand.NewPCG(degradeSeed, degradeSeed))
 	for _, repair := range []struct {
 		name    string

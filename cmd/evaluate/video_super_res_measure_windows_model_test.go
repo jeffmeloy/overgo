@@ -72,6 +72,8 @@ func TestVideoSuperResBeatsBicubicOnSourceClips(t *testing.T) {
 	runtime := testcheck.Must(nvvfx.Open())(t)
 	worker := testcheck.Must(device.New(0))(t)
 	t.Cleanup(func() { testcheck.NoError(t, worker.Close()) })
+	// The denoise and deblur strengths are read on the same decoded clips, with the same worker and effects runtime.
+	t.Run("repair-levels", func(t *testing.T) { readRepairLevels(t, ffmpeg, clips, worker, runtime) })
 	for _, factor := range superResFactors {
 		vmaf[factor], psnr[factor] = map[latentvideo.UpscaleLevel][]float64{}, map[latentvideo.UpscaleLevel][]float64{}
 		for clip, frames := range clips {

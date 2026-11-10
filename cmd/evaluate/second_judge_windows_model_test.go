@@ -18,6 +18,7 @@ import (
 	"overgo/internal/evaluation"
 	"overgo/internal/media"
 	"overgo/internal/runrecord"
+	"overgo/internal/tensorstats"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
@@ -37,14 +38,24 @@ const (
 	agreementSeed = 20261109
 )
 
-// TestASecondJudgeRanksTheCasesAlike measures whether a judge of another family ranks the media as Qwen3.8-27B does.
-// Both judges answer the questions the calibration suites ask of their first 32 pictures and 32 clips, each question
-// scored by its choices, the lettered options its prompt offers, so each answer carries the judge's probability of the
-// right one. An output's score is the mean of those probabilities over its questions, and the two judges' scores of a
+// TestTwoJudgesAreRightAndRankTheCasesAlike measures whether a judge of another family, gemma-4-12B-it opened from its
+// published directory under its active recipes, is right and ranks the media as Qwen3.8-27B does. Both judges answer
+// the questions the calibration suites ask of their first 32 pictures and 32 clips, each question scored by its
+// choices, the lettered options its prompt offers, so each answer carries the judge's probability of the right one.
+//
+// Two judges can agree while both are wrong, so each is first held right, pictures and clips apart, with the media as
+// the independent units, since one picture's questions are not independent of each other: an output's excess is its
+// questions answered right less what guessing among each one's own choices gets, and the outputs above chance
+// outnumber those below by the exact paired test at calibrationLevel. A medium whose every output sits at chance is no
+// evidence and fails.
+//
+// Then an output's score is the mean of those probabilities over its questions, and the two judges' scores of a
 // medium's outputs agree in rank by Kendall's tau-b above the floor declared before the run: the tau independent
 // rankings exceed one time in twenty (agreementZ). The tau's interval over agreementResamples draws of the outputs is
-// printed, and every question one judge answers right and the other wrong is listed.
-func TestASecondJudgeRanksTheCasesAlike(t *testing.T) {
+// printed, and every question one judge answers right and the other wrong is listed. This holds what
+// TestGemmaTwelveOpensAsAJudge held, gemma answering 57 of 67 picture questions and 19 of 20 clip questions right over
+// 12 pictures and 10 clips on 2026-11-09, over the larger set, with the judge opened once.
+func TestTwoJudgesAreRightAndRankTheCasesAlike(t *testing.T) {
 	cudatest.Require(t)
 	ctx := t.Context()
 	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
@@ -77,6 +88,42 @@ func TestASecondJudgeRanksTheCasesAlike(t *testing.T) {
 	}
 	for index, suite := range suites {
 		outputs, cases := outputCases(suite)
+		choices := map[string]int{}
+		for _, testCase := range suite.Cases {
+			choices[testCase.Name] = len(testCase.Choices)
+		}
+		for at, judge := range judges {
+			var above, below, even uint64
+			right := 0
+			for _, output := range outputs {
+				var excess float64
+				for _, name := range cases[output] {
+					if choices[name] == 0 {
+						t.Fatalf("%s's question %s offers no choices, so guessing it has no chance to set against", suite.Source, name)
+					}
+					if read[at][index][name].right {
+						excess++
+						right++
+					}
+					excess -= 1 / float64(choices[name])
+				}
+				switch {
+				case excess > 0:
+					above++
+				case excess < 0:
+					below++
+				default:
+					even++
+				}
+			}
+			tail := tensorstats.ExactPairedBinary(above, below, even).Tail
+			t.Logf("%s on %s: %d of %d questions right; %d outputs above chance, %d below, %d at it (tail %.3g)",
+				judge.name, suite.Source, right, len(suite.Cases), above, below, even, tail)
+			if above+below == 0 || tail > calibrationLevel {
+				t.Errorf("%s is not right on %s more often than guessing: %d outputs above chance, %d below, %d at it, tail %.3g against %.3g",
+					judge.name, suite.Source, above, below, even, tail, calibrationLevel)
+			}
+		}
 		scores := make([][]float64, len(judges))
 		for at := range judges {
 			for _, output := range outputs {

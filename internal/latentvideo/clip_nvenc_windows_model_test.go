@@ -4,11 +4,11 @@ package latentvideo
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
 	"testing"
-	"time"
 
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/dataroot"
@@ -29,28 +29,26 @@ const (
 	studentUpscale    = 4
 )
 
-// TestAFinishedClipIsEncodedOnNVENC: a finished clip is encoded on the card's NVENC as HEVC tagged hvc1 where the
-// resolved FFmpeg lists it (the build OVERGO_FFMPEG names), the record saying so, and two writes of one clip are the
-// same bytes, so a finished clip stays one clip. Measured on a Wan student clip of 81 frames at 832 x 480 finished at
-// four times: the clip's whole write, the effect and the encode together. The effect alone took 3.8 s of it
-// (rtx-vsr/nvenc, 16c3e5e8e), a timing no longer repeated (SQA-360).
-func TestAFinishedClipIsEncodedOnNVENC(t *testing.T) {
-	cudatest.Require(t)
+// studentClipFeed decodes the Wan student clip and feeds its frames, planar float32 RGB in [0, 1], to a clip's sink;
+// it skips where the card, the effects runtime or the clip is absent.
+func studentClipFeed(tb testing.TB) func(VideoFrameSink) error {
+	tb.Helper()
+	cudatest.Require(tb)
 	if os.Getenv("OVERGO_NVVFX") == "" {
-		testskip.NotApplicable(t, "OVERGO_NVVFX names no NVIDIA Video Effects runtime here")
+		testskip.NotApplicable(tb, "OVERGO_NVVFX names no NVIDIA Video Effects runtime here")
 	}
-	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(tb)))(tb)
 	path := filepath.Join(roots.Datasets, "VidGen", "self-forcing-generated", studentClip)
 	if _, err := os.Stat(path); err != nil {
-		testskip.NotApplicable(t, "the Wan student's VidGen clips are not on this machine: "+err.Error())
+		testskip.NotApplicable(tb, "the Wan student's VidGen clips are not on this machine: "+err.Error())
 	}
-	ffmpeg := testcheck.Must(media.FFmpeg())(t)
-	pictures := testcheck.Must(media.DecodeVideoFile(t.Context(), path, ffmpeg, studentClipFPS, studentClipFrames))(t)
+	ffmpeg := testcheck.Must(media.FFmpeg())(tb)
+	pictures := testcheck.Must(media.DecodeVideoFile(tb.Context(), path, ffmpeg, studentClipFPS, studentClipFrames))(tb)
 	frames := make([][]float32, len(pictures))
 	for index, picture := range pictures {
 		bounds := picture.Bounds()
 		if bounds.Dx() != studentClipWidth || bounds.Dy() != studentClipHeight {
-			t.Fatalf("frame %d of the student clip is %dx%d, want %dx%d", index, bounds.Dx(), bounds.Dy(), studentClipWidth, studentClipHeight)
+			tb.Fatalf("frame %d of the student clip is %dx%d, want %dx%d", index, bounds.Dx(), bounds.Dy(), studentClipWidth, studentClipHeight)
 		}
 		plane := studentClipWidth * studentClipHeight
 		frame := make([]float32, media.RGBChannels*plane)
@@ -65,9 +63,9 @@ func TestAFinishedClipIsEncodedOnNVENC(t *testing.T) {
 		frames[index] = frame
 	}
 	if len(frames) != studentClipFrames {
-		t.Fatalf("the student clip decoded to %d frames, want %d", len(frames), studentClipFrames)
+		tb.Fatalf("the student clip decoded to %d frames, want %d", len(frames), studentClipFrames)
 	}
-	feed := func(sink VideoFrameSink) error {
+	return func(sink VideoFrameSink) error {
 		for index, frame := range frames {
 			if err := sink(index, frame, studentClipHeight, studentClipWidth); err != nil {
 				return err
@@ -75,18 +73,19 @@ func TestAFinishedClipIsEncodedOnNVENC(t *testing.T) {
 		}
 		return nil
 	}
+}
+
+// TestAFinishedClipIsEncodedOnNVENC: a finished clip is encoded on the card's NVENC as HEVC tagged hvc1 where the
+// resolved FFmpeg lists it (the build OVERGO_FFMPEG names), the record saying so, and two writes of one clip are the
+// same bytes, so a finished clip stays one clip. Its time is BenchmarkFinishedClipWrite's.
+func TestAFinishedClipIsEncodedOnNVENC(t *testing.T) {
+	feed := studentClipFeed(t)
 	finish := ClipFinish{Upscale: studentUpscale}
 	var written []EncodedVideo
-	var spent []time.Duration
 	for range 2 {
-		started := time.Now()
 		written = append(written, testcheck.Must(WriteClip(t.Context(), mp4Clip, finish, studentClipFPS, UnitPixels, feed))(t))
-		spent = append(spent, time.Since(started))
 	}
 	first := written[0]
-	t.Logf("%d frames of %dx%d finished at %d times and encoded in %s and %s (%.1f frames a second), %d bytes, by %v",
-		studentClipFrames, studentClipWidth, studentClipHeight, studentUpscale, spent[0], spent[1],
-		float64(studentClipFrames)/spent[1].Seconds(), len(first.Data), first.Encoding.Args)
 	if first.Width != studentUpscale*studentClipWidth || first.Height != studentUpscale*studentClipHeight || !media.OpensAsMP4(first.Data) {
 		t.Fatalf("the finished clip is %dx%d, an MP4 %t", first.Width, first.Height, media.OpensAsMP4(first.Data))
 	}
@@ -96,5 +95,22 @@ func TestAFinishedClipIsEncodedOnNVENC(t *testing.T) {
 	}
 	if !bytes.Equal(first.Data, written[1].Data) {
 		t.Fatalf("two writes of one finished clip are %d and %d bytes and differ: NVENC does not repeat its bytes here", len(first.Data), len(written[1].Data))
+	}
+}
+
+// BenchmarkFinishedClipWrite times a finished clip's whole write, the effect and the encode together, on the Wan
+// student clip at two and four times, in frames a second; the effect alone took 3.8 s of the four-times write
+// (rtx-vsr/nvenc, 16c3e5e8e). Opt in: go test -tags modeltest ./internal/latentvideo -run '^$' -bench
+// '^BenchmarkFinishedClipWrite$' with OVERGO_CUDA_TEST=1 and OVERGO_NVVFX set.
+func BenchmarkFinishedClipWrite(b *testing.B) {
+	feed := studentClipFeed(b)
+	for _, upscale := range []int{2, studentUpscale} {
+		b.Run(fmt.Sprintf("x%d", upscale), func(b *testing.B) {
+			b.ReportAllocs()
+			for b.Loop() {
+				testcheck.Must(WriteClip(b.Context(), mp4Clip, ClipFinish{Upscale: upscale}, studentClipFPS, UnitPixels, feed))(b)
+			}
+			b.ReportMetric(float64(studentClipFrames*b.N)/b.Elapsed().Seconds(), "frames/s")
+		})
 	}
 }

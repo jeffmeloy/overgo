@@ -284,6 +284,14 @@ func TestMMLUProIsAGroupedChoiceWithItsIdentitiesUnchanged(t *testing.T) {
 				t.Errorf("under %s the store's %d cases alone digest to %s, want %s", label, len(whole), got, protocol.store["each"])
 			}
 		}
+		// The family derived for a likelihood reading is the share given the store's validation demonstrations, the
+		// share alone where the store holds none (mmlu-pro-lm-eval/five-shot).
+		if shots := records.shots["mmlu-pro"]; len(shots) > 0 {
+			assembled, _, err := assembleMMLUProSuite(share, shots)
+			testcheck.NoError(t, err)
+			compiled := testcheck.Must(CompileGroupedChoice(assembled.(GroupedChoiceSuite)))(t)
+			sharePlan = testcheck.Must(BindGroupedChoice(compiled, protocols[PromptingRawCompletion.Label()].authorities))(t).Identity()
+		}
 		suites, _, err := DeriveStoreSuiteFamily(t.Context(), reader, protocols[PromptingRawCompletion.Label()].authorities, "mmlu-pro")
 		if err != nil || len(suites) != 1 || suites[0].Plan().Identity() != sharePlan || suites[0].Descriptor().Kind != GroupedChoiceKind {
 			t.Fatalf("the derived MMLU-Pro family is %d suites, the first binding another plan than %s or of another kind: %v", len(suites), sharePlan, err)

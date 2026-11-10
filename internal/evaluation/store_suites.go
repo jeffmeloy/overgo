@@ -236,7 +236,8 @@ func storeFamilies(ctx context.Context, reader artifact.Reader, wanted string) (
 			return nil, nil, errors.Join(err, fmt.Errorf("evaluation: benchmark import %s is unreadable", entry.Name))
 		}
 		family, recognized := familyForConversion(imported.Spec.Conversion)
-		if !recognized || wanted != "" && family.family != wanted {
+		// A family's demonstration split is no case of it, so no reading scores its rows.
+		if !recognized || wanted != "" && family.family != wanted || family.shotSplit != "" && entry.Split == family.shotSplit {
 			continue
 		}
 		subset := entry.Name

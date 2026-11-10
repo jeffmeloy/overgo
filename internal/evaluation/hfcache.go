@@ -25,6 +25,9 @@ type hfCacheFamily struct {
 	splits     []string
 	conversion string
 	fields     []dataset.FieldBinding
+	// shotSplit is the split, among splits, lm_eval draws a family's demonstrations from (its fewshot_split): imported
+	// beside the cases, never one of the cases a reading scores, nor of the datasets its suite is bound to.
+	shotSplit string
 }
 
 var hfCacheFamilies = map[string]hfCacheFamily{
@@ -44,8 +47,8 @@ var hfCacheFamilies = map[string]hfCacheFamily{
 		},
 	},
 	"TIGER-Lab___mmlu-pro": {
-		family: "mmlu-pro", domain: DomainText, splitBase: "mmlu-pro", splits: []string{"test"},
-		conversion: "lm-eval/mmlu-pro/v1",
+		family: "mmlu-pro", domain: DomainText, splitBase: "mmlu-pro", splits: []string{"test", "validation"},
+		conversion: "lm-eval/mmlu-pro/v1", shotSplit: "validation",
 		fields: []dataset.FieldBinding{
 			{Target: "question", Source: "question"},
 			{Target: "options", Source: "options"},

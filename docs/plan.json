@@ -53,20 +53,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 180,
+        "nodes": 156,
         "reason": "Estimated: the validation split named beside the test split in the import, its first five rows set as each test case's demonstrations, a reading of its own recorded under its own scorer identity, and the scorecard's MMLU-Pro cell headed by that reading with the chat-template reading beside it; the lm_eval comparison is a model test and a reference script, which count no production nodes."
       },
       "steps": [
-        {
-          "id": "validation-split",
-          "title": "MMLU-Pro's validation split is imported beside its test split, its rows in the order lm_eval reads them",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -count=1 -run '^TestMMLUProImportsItsValidationSplit$'",
-          "files": [
-            "internal/evaluation"
-          ],
-          "rationale": "Serves: the owner's request of 2026-11-10, MMLU-Pro read as lm_eval's leaderboard_mmlu_pro reads it, whose five demonstrations come from the validation split.\n\nDisappears: an MMLU-Pro import that holds the test split alone. internal/evaluation/hfcache.go names TIGER-Lab___mmlu-pro with splits [test]; the Hugging Face cache lm_eval reads (C:/Users/jeffm/eval/datasets/TIGER-Lab___mmlu-pro) holds mmlu-pro-validation.arrow beside mmlu-pro-test.arrow, 70 rows, five a category.\n\nThe change: the import names the validation split too, kept apart from the test split so no reading scores it, its rows in the arrow file's order, which is the order lm_eval's first_n sampler takes them in. Both splits come from one revision of the dataset; the cache holds two (9126953e and dd36ce4b), and the import names the one lm_eval resolves.\n\nCheck: TestMMLUProImportsItsValidationSplit imports a fixture cache holding both splits and wants the validation rows kept, in order, apart from the test cases, and no test case drawn from them. At base the validation split is not read.\n\nBatch: host lane."
-        },
         {
           "id": "five-shot",
           "title": "MMLU-Pro is read as leaderboard_mmlu_pro reads it: the first five validation rows as plain-text demonstrations, no chat template, and the likeliest letter after \"Answer:\", recorded under its own scorer beside the chat-template reading",

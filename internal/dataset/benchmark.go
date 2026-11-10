@@ -124,7 +124,8 @@ func ImportBenchmark(ctx context.Context, repository artifact.Repository, path s
 		if err != nil {
 			return err
 		}
-		if _, err := artifact.CommitBatch(ctx, repository, batch); err != nil {
+		// A record the store holds already, under an earlier writer's key, is held, not refused.
+		if _, err := artifact.Publish(ctx, repository, batch); err != nil {
 			return err
 		}
 		result.Records = append(result.Records, record.ID)
@@ -165,7 +166,7 @@ func ImportBenchmark(ctx context.Context, repository artifact.Repository, path s
 	if err != nil {
 		return BenchmarkImport{}, err
 	}
-	if _, err := artifact.CommitBatch(ctx, repository, batch); err != nil {
+	if _, err := artifact.Publish(ctx, repository, batch); err != nil {
 		return BenchmarkImport{}, err
 	}
 	return result, nil

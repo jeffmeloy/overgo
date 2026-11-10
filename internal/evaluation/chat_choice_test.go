@@ -30,7 +30,7 @@ func (f *chatFixture) ShapeChatPrompt(prompt string) (string, error) {
 }
 
 func (f *chatFixture) Generate(_ context.Context, prompt string, options inference.GenerateOptions) ([]tokenizer.TokenID, string, error) {
-	if !strings.HasPrefix(prompt, "<user>") || !strings.HasSuffix(prompt, "<model>"+chatAnswerOpener) && !strings.HasSuffix(prompt, "<model>"+earlierChatOpener) {
+	if !strings.HasPrefix(prompt, "<user>") || !strings.HasSuffix(prompt, "<model>"+chatAnswerOpener) && !strings.HasSuffix(prompt, "<model>"+parenChatOpener) {
 		panic("generation received an unshaped prompt or an unopened model turn")
 	}
 	text := f.answers[f.calls%len(f.answers)]

@@ -36,32 +36,32 @@ const hostedChoiceMethod = "generated-letter-hosted"
 // paragraphs before naming a letter and MiniCPM5 opens its thinking
 // channel, both truncated by the answer bound and scored unmatched
 // (12 of 27 BBH groups near zero); a system message reached gemma but
-// not the thinking model, while an opener drew the letter from both
+// not the thinking model, while this opener drew the letter from both
 // as the first generated token. It is appended after the template's
 // generation prompt, so it is the model's own turn, not user text.
-// It ends at the letter's place (answer-format/reread, 2026-11-10):
-// after earlierChatOpener 380 answers of four models' MMLU-Pro readings
-// ran out of the eight tokens in prose or a value, and asked again
-// after this opener 370 of them named a letter within the same eight.
-const chatAnswerOpener = "The answer is ("
+// The hosted-chat protocol opens with it too.
+const chatAnswerOpener = "The answer is"
 
 // chatChoiceMethod names the scorer method the chat-template protocol
 // binds into the plan, so a generated-letter record is a different
 // plan from a likelihood record of the same suite. Each opener is a
-// method of its own, so records made under an earlier one stay their
-// own plans and no reading is compared across the two.
-const chatChoiceMethod = "generated-letter-paren"
+// method of its own, so records made under another stay their own
+// plans and no reading is compared across the two.
+const chatChoiceMethod = "generated-letter-opener"
 
-// earlierChatOpener is what the chat-template protocol opened the model's turn with before answer-format/paren-opener,
-// under earlierChatMethod, and what the hosted-chat protocol still opens it with: a plan recorded under it binds as it
-// was recorded and keeps its answers, and a hosted plan asks what it always asked.
+// parenChatOpener ends the opener at the letter's place, under parenChatMethod. It was the protocol's from
+// answer-format/paren-opener to answer-evidence/earlier-opener (2026-11-10). Asked again, the answers the eight tokens
+// had ended named a letter after it 370 times in 380, but over the same 1209 MMLU-Pro cases, paired case by case, ten
+// models answered 38 fewer right with it than without, six of the ten fewer: after "(" many write a lower-case
+// enumeration ("a) 1.06 g", "i) and (iii) only") and both gemma-4-12B-it builds that the answer is not provided. A
+// plan recorded under it binds as it was recorded, and its answers stay its own.
 const (
-	earlierChatOpener = "The answer is"
-	earlierChatMethod = "generated-letter-opener"
+	parenChatOpener = "The answer is ("
+	parenChatMethod = "generated-letter-paren"
 )
 
 // chatOpeners are the openers of the chat-template protocol's methods, each method's own.
-var chatOpeners = map[string]string{chatChoiceMethod: chatAnswerOpener, earlierChatMethod: earlierChatOpener}
+var chatOpeners = map[string]string{chatChoiceMethod: chatAnswerOpener, parenChatMethod: parenChatOpener}
 
 // chatAnswerTokens bounds the answer generation after the opener
 // (protocol decision 2026-09-03, reopened from the 16 of 2026-09-02):

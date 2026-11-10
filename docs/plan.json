@@ -3,28 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "answer-evidence",
-      "title": "A generated answer's reading says only what its record shows: a cause of an unread answer where the record holds it, and how many of its cases chose the protocol it was asked under, and every MMLU-Pro cell is read again under the opener that ends at the letter's place",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": -15,
-        "reason": "Estimated: an observation's generated tokens and the cause rule that reads them, one unread reading in place of two report parses (SQA-362); the re-ask's admission and exposure through exposeDevelopment, and a count of exposed cases beside a reading (SQA-361). The re-read adds no code."
-      },
-      "steps": [
-        {
-          "id": "reread-cells",
-          "title": "Every model's MMLU-Pro cell is read again under the chat-template protocol's opener that ends at the letter's place, at a clean commit, each reading keeping its answers' tokens and its exposed cases",
-          "status": "open",
-          "verify": "go test ./cmd/evaluate -count=1 -tags modeltest -run '^TestEveryMMLUProCellIsReadAfterTheLettersPlace$'",
-          "files": [
-            "cmd/evaluate"
-          ],
-          "rationale": "Serves: held-out-quality for every model read under the chat-template protocol, the MMLU-Pro cells first.\n\nDisappears: MMLU-Pro cells read under the earlier opener, which lost 5 to 160 answers a model to the eight tokens.\n\nThe change: every model's MMLU-Pro chat-template cell (ten models, the 1209 cases of the store's share) is read again at a clean commit after answer-format/paren-opener, tuning-exposure and cause-evidence, through the benchmark cell cmd/validate runs (evaluate -all -worker -family mmlu-pro -protocol chat-template). The readings record the tokens each answer was written in and say how many of their cases chose the opener.\n\nEvidence: answer-format/reread (370 of 380 budget-ended answers named a letter after the new opener). A reading needs a clean tree, since it binds the commit it ran at; the first attempt on 2026-11-10 was refused for an uncommitted findings register.\n\nPredicted effect: each model's unread count falls toward the 10 of 380 the re-ask left; whether accuracy rises is what the reading says.\n\nBatch: device lane, about an hour of the card for nine models and longer for Qwen3.8-27B.\n"
-        }
-      ]
-    },
-    {
       "id": "judge-speed",
       "title": "A judge's cached answer is bound to the answer it scores, a judge beside a resident video model answers at its own speed, and gemma-4-12B-it judges no slower than the larger Qwen judge",
       "owner": "master-lead",

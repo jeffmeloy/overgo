@@ -41,7 +41,7 @@ func TestScorecardNamesTheAnswerProtocol(t *testing.T) {
 	}, nil)
 	direct, known := evaluation.ChoiceProtocol(chat)
 	likeliest, alsoKnown := evaluation.ChoiceProtocol(raw)
-	if !known || !alsoKnown || !strings.Contains(direct, `"The answer is ("`) || !strings.Contains(direct, "8 tokens") || !strings.Contains(direct, "thinking") {
+	if !known || !alsoKnown || !strings.Contains(direct, `"The answer is"`) || !strings.Contains(direct, "8 tokens") || !strings.Contains(direct, "thinking") {
 		t.Fatalf("the chat-template protocol is described as %q, want its opener, its token bound and that it does not think", direct)
 	}
 	if _, unknown := evaluation.ChoiceProtocol("few-shot"); unknown {

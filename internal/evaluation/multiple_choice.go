@@ -228,7 +228,7 @@ func bindMultipleChoice(compiled multipleChoicePlan, authorities ExactAuthoritie
 		scorer.Method = chatMethod
 		switch prompting {
 		case PromptingHostedChat:
-			scorer.Method, opener = hostedChoiceMethod, earlierChatOpener
+			scorer.Method, opener = hostedChoiceMethod, chatAnswerOpener
 		case PromptingReasoning:
 			// parser = the scorer's method, so another parser reads answers already given without asking again.
 			scorer.Method, opener = authorities.Execution.Reasoning.Parser, ""
@@ -298,8 +298,8 @@ type askedChoice struct {
 	Name       string   `json:"name"`
 	Prompt     string   `json:"prompt"`
 	Candidates []string `json:"candidates"`
-	// Opener is what the model's turn is opened with where it is not earlierChatOpener, so answers given after one
-	// opener are never read as answers to another, and answers recorded before it keep their identity.
+	// Opener is what the model's turn is opened with where it is not chatAnswerOpener, so answers given after one
+	// opener are never read as answers to another, and answers asked after chatAnswerOpener keep the identity they always had.
 	Opener string `json:"opener,omitzero"`
 }
 
@@ -319,7 +319,7 @@ func scoreMultipleChoice(
 ) ([]choiceObservation, artifact.ID, float64, error) {
 	asked := make([]askedChoice, len(suite.Cases))
 	opener := plan.opener
-	if opener == earlierChatOpener {
+	if opener == chatAnswerOpener {
 		opener = ""
 	}
 	for index, testCase := range suite.Cases {
@@ -352,7 +352,7 @@ func scoreMultipleChoice(
 				return choiceAnswer{Written: &written}, err
 			}
 			if generative {
-				written, err := answerChoiceByGeneration(ctx, chat, testCase, cmp.Or(plan.opener, earlierChatOpener))
+				written, err := answerChoiceByGeneration(ctx, chat, testCase, cmp.Or(plan.opener, chatAnswerOpener))
 				return choiceAnswer{Written: &written}, err
 			}
 			scores, err := scorer.ScoreContinuations(ctx, testCase.Prompt, testCase.Candidates)

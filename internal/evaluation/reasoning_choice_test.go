@@ -138,11 +138,10 @@ func TestEvaluationProtocolCapturesAllPolicyInputs(t *testing.T) {
 		return plan, [3]artifact.ID{plan.Identity(), comparison, observed}
 	}
 
-	// The direct protocols: the identities trunk 01c937185 bound for this case set, the chat-template plan and comparison
-	// moved by answer-format/paren-opener's method, whose answers to a case set asked after the earlier opener keep theirs.
+	// The direct protocols: the identities trunk 01c937185 bound for this case set.
 	for label, pinned := range map[prompting][3]string{
 		PromptingRawCompletion: {"957dbf9acd984322bcc2f3cf7225824448832fbfb3e74444fdb8aeda5e12cd92", "2e5db8ab90a9c5d621d71a5bbf6c28b30e70934c30f1d61a1c0f3ed22c28e16a", "e55c3a691b2baf1482aef22c0068554991b3b408a22f2f857b64e2c57fd31202"},
-		PromptingChatTemplate:  {"839cce7e7cc39c1a2bf0897e5ca714fdc97f24707ed53f0e08c9d4da13508a3d", "86cc8f983977ad8f60b316dc16fd7b8d6b45840ed898809a1d0fc436a7c8f728", "643d1abecdbabad7e9a9f7bd2a4b4df836521fcf2cd7c3e6f139f3124af2e41d"},
+		PromptingChatTemplate:  {"cdeddf7e8339b7c63bd00b38adc62d578d7a473f05aa2fb953f12a7aa23b66cd", "280fc72b317bed02414d9d539183763ed1fa2f2e80ec375aaef70f1b8bff9fbe", "643d1abecdbabad7e9a9f7bd2a4b4df836521fcf2cd7c3e6f139f3124af2e41d"},
 		PromptingHostedChat:    {"e134c1753b6bca87dfeb6750cbe4332d79604e3921e7aebd64eec56b43f38fb0", "4b7e4e1b3978797e943c0d3a9de779a51ac5e504980b9c71ea07d71b61e7843f", "55d6d397faf464197d85ef8aa396d2766d9c45fffbe2c2f9a95235b752da09d2"},
 	} {
 		authorities := ListingAuthorities()

@@ -10135,19 +10135,19 @@
     "head": "a0a91f8e244c69be10f1d92d2468574e1c76b6f1",
     "findings": {
       "SQA-361": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "answer-evidence/tuning-exposure",
-          "answer-evidence/reread-cells"
+          "answer-opener/earlier-opener"
         ],
-        "note": "Accepted: the opener was chosen on the store's MMLU-Pro share and nothing recorded it. Filed before the re-read, which waits for it: the re-ask admits its record and cases before opening the model and publishes them through exposeDevelopment before asking, the 2026-11-10 cases are recorded by one more re-ask, and a reading says how many of its cases were exposed. Retiring the re-ask instead is weighed in that row; the measured result stays development evidence."
+        "note": "Landed at 1651282c8: the re-ask admits its record and cases before the model opens and publishes them through exposeDevelopment before asking; the 2026-11-10 cases (257 of the share) were published by one more re-ask, which reproduced 370 and 106 of 380, and every reading of the share says so. The finding's warning held: read again in full, the opener chosen on lost answers answered 38 fewer cases right over ten models, paired, so answer-opener/earlier-opener restores the earlier opener. Retiring the one-off re-ask is left to the reviewer's closure. Awaits the reviewer's closure."
       },
       "SQA-362": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "answer-evidence/cause-evidence"
         ],
-        "note": "Accepted: Budget was the default of the cause sort. Filed first: an observation keeps its generated tokens, Budget only where they reached the protocol's budget, unknown otherwise and for every earlier report, one report read for the count and the causes."
+        "note": "Landed at 93d2f520f: an observation keeps how its generation ended, Budget only where its tokens reached the protocol's bound, unknown otherwise and for every earlier report, one report read for the count, the causes and the developed cases; countUnread is deleted. Awaits the reviewer's closure."
       },
       "SQA-335": {
         "action": "implemented",

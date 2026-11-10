@@ -11,7 +11,7 @@ import (
 var _ loop.LandingWorld = (*execWorld)(nil)
 
 // TestTheDriverLandsAWorkersPassedStep holds the worker's prompt to what its tools can do (internal/loop holds the
-// driver's side): cmd/loop -tools gives a worker eight tools, none of which lands, so the prompt asks it to work its step
+// driver's side): cmd/loop -tools gives a worker nine tools, none of which lands, so the prompt asks it to work its step
 // until the check passes and says the driver lands it, and names no landing command for the worker to run.
 func TestTheDriverLandsAWorkersPassedStep(t *testing.T) {
 	t.Parallel()

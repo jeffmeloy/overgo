@@ -196,9 +196,22 @@ func moveReplay(root, checkout, commit string) error {
 	return os.WriteFile(filepath.Join(checkout, dataroot.ConfigFile), roots, clioptions.PrivateFileMode)
 }
 
+// measurement is the records under docs/verification the landing of r wrote, which a model run on the card makes: a
+// step whose check reads one is a measurement, which the worker's tools cannot make (loop-proof/local-demonstrated's
+// vision-bridge steps failed every try of runs 2 to 4), so it is no task to replay.
+func (r replayed) measurement(ctx context.Context, root string) ([]string, error) {
+	names, err := gitauthority.Query(ctx, root, "diff", "--name-only", r.parent, r.landed, "--", "docs/verification")
+	return strings.Fields(string(names)), err
+}
+
 // replay works step with worker in checkout, from the step's parent with the landing's tests in place: the check must
 // fail there first, then the worker works up to attempts times, each after the first told the last failure.
 func replay(ctx context.Context, root, checkout string, step replayed, worker replayWorker, attempts int) (replayRecord, error) {
+	records, err := step.measurement(ctx, root)
+	if err != nil || len(records) != 0 {
+		return replayRecord{Worker: worker.name, Kind: stepKind(step.step.Files, step.step.NeedsCard), Step: step.reference, Landed: step.landed,
+			Skipped: "a measurement: its landing wrote " + strings.Join(records, ", ") + ", which a model run makes and no worker's tools can"}, err
+	}
 	if err := moveReplay(root, checkout, step.parent); err != nil {
 		return replayRecord{}, err
 	}

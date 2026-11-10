@@ -106,7 +106,7 @@ func workLocally(ctx context.Context, server, model, prompt string, tools []work
 					result = errors.Join(errors.New(text), err).Error()
 				}
 				asked[key] = true
-				if call.Function.Name == "edit_file" && err == nil {
+				if (call.Function.Name == "edit_file" || call.Function.Name == "delete_file") && err == nil {
 					// The checkout changed, so every reading may differ now.
 					asked = map[string]bool{}
 				}

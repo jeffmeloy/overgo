@@ -31,20 +31,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 60,
+        "nodes": 5,
         "reason": "Estimated: one field read from the go test -json stream the gate already parses and one report line; the rest moves and deletes test code, which counts no production nodes."
       },
       "steps": [
-        {
-          "id": "test-costs",
-          "title": "A landing's measured line names the slowest tests of each stage beside its slowest packages, read from the go test -json stream the gate already parses",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestTheGateNamesItsSlowestTests$'",
-          "files": [
-            "internal/landing"
-          ],
-          "rationale": "Serves: the owner's direction of 2026-11-09, native Go testing used to improve performance and eliminate unnecessary tests. A test is cut by what it is measured to cost, not by a guess.\n\nDisappears: knowing a package is slow without knowing which of its tests.\n\nEvidence: ranPackages (internal/landing/landing.go) names the five slowest packages of a stage and skips every per-test event, though each pass and fail event carries the test's Elapsed. Across the last fifteen landings the invariants stage took 2m21s to 3m18s, internal/landing alone 140 to 171 s of it on every landing, and the test stage often adds cmd/loop at 118 to 195 s. The per-test cost comes from the same stream, with no second run.\n\nThe register's open test findings are ordered by this list once it exists, the slowest first: SQA-239, 241, 242, 244, 247, 249, 259, 262, 285, 287, 295, 297, 303, 306, 307, 311, 312, 317, 323, 329 and 352.\n\nPredicted effect: none on its own; it orders the cuts after it.\n\nBatch: host lane."
-        },
         {
           "id": "landing-scenarios",
           "title": "Landing scenarios share repeated build setup and merge duplicate walks while preserving isolated repositories and every failure and recovery assertion",

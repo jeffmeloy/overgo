@@ -778,16 +778,17 @@ func (l *landing) goTest(ctx context.Context, stage string, packages ...string) 
 	return nil
 }
 
-// reportedPackages is how many of the packages go test ran the measurement
-// names: the slowest few are where a landing's test time went.
-const reportedPackages = 5
+// reportedRuns is how many of the packages go test ran, and of their tests,
+// the measurement names: the slowest few are where a landing's test time went.
+const reportedRuns = 5
 
 // cachedMarker ends go test's line for a package it replayed from its cache
 // rather than ran.
 const cachedMarker = "\t(cached)"
 
 // ranPackages names the packages go test ran rather than replayed from its
-// cache, slowest first, so the measured test time says what it was spent on.
+// cache, slowest first, and the slowest of their tests, so the measured test
+// time says what it was spent on and which tests took it.
 func ranPackages(output string) string {
 	type event struct {
 		Action, Package, Test, Output string
@@ -797,22 +798,29 @@ func ranPackages(output string) string {
 	var ran []event
 	for line := range strings.Lines(output) {
 		var parsed event
-		if json.Unmarshal([]byte(line), &parsed) != nil || parsed.Test != "" {
+		// A subtest's time is its parent's too, so it is left to its parent.
+		if json.Unmarshal([]byte(line), &parsed) != nil || strings.Contains(parsed.Test, "/") {
 			continue
 		}
 		switch {
-		case parsed.Action == "output" && strings.Contains(parsed.Output, cachedMarker):
+		case parsed.Test == "" && parsed.Action == "output" && strings.Contains(parsed.Output, cachedMarker):
 			cached[parsed.Package] = true
-		case (parsed.Action == "pass" || parsed.Action == "fail") && !cached[parsed.Package]:
+		case parsed.Action == "pass" || parsed.Action == "fail":
 			ran = append(ran, parsed)
 		}
 	}
 	slices.SortFunc(ran, func(left, right event) int { return cmp.Compare(right.Elapsed, left.Elapsed) })
-	var slowest []string
-	for _, run := range ran[:min(len(ran), reportedPackages)] {
-		slowest = append(slowest, fmt.Sprintf("%s %.0fs", strings.TrimPrefix(run.Package, "overgo/"), run.Elapsed))
+	// Named by kind, a package's runs apart from its tests'; a replayed package's tests come before the line that
+	// says it was replayed, so they are left out once every line is read.
+	named := map[bool][]string{}
+	for _, run := range ran {
+		if !cached[run.Package] {
+			named[run.Test == ""] = append(named[run.Test == ""], fmt.Sprintf("%s %.0fs", strings.TrimSpace(strings.TrimPrefix(run.Package, "overgo/")+" "+run.Test), run.Elapsed))
+		}
 	}
-	return fmt.Sprintf("ran %d packages: %s", len(ran), strings.Join(slowest, ", "))
+	packages, tests := named[true], named[false]
+	return fmt.Sprintf("ran %d packages: %s; slowest tests: %s", len(packages),
+		strings.Join(packages[:min(len(packages), reportedRuns)], ", "), strings.Join(tests[:min(len(tests), reportedRuns)], ", "))
 }
 
 func (l *landing) verify(ctx context.Context) error {

@@ -148,18 +148,25 @@ func TestNewPolicyLiteralsIgnoresRenames(t *testing.T) {
 	}
 }
 
-// TestRanPackagesNamesOnlyWhatRan counts the packages go test ran, slowest
-// first, and leaves out the ones it replayed from its cache.
-func TestRanPackagesNamesOnlyWhatRan(t *testing.T) {
+// TestTheGateNamesItsSlowestTests holds a stage's measured line to what go test ran: the packages it ran, slowest
+// first, and their slowest top-level tests beside them, a package replayed from its cache left out with its tests,
+// and a subtest left to its parent, whose time holds it.
+func TestTheGateNamesItsSlowestTests(t *testing.T) {
 	t.Parallel()
 	output := strings.Join([]string{
+		`{"Action":"pass","Package":"overgo/internal/cached","Test":"TestReplayed","Elapsed":900}`,
 		`{"Action":"output","Package":"overgo/internal/cached","Output":"ok  \tovergo/internal/cached\t(cached)\n"}`,
 		`{"Action":"pass","Package":"overgo/internal/cached","Elapsed":0.002}`,
-		`{"Action":"pass","Package":"overgo/internal/fast","Elapsed":2}`,
-		`{"Action":"pass","Package":"overgo/internal/fast","Test":"TestInner","Elapsed":1}`,
+		`{"Action":"run","Package":"overgo/internal/fast","Test":"TestQuick"}`,
+		`{"Action":"fail","Package":"overgo/internal/fast","Test":"TestQuick","Elapsed":1}`,
+		`{"Action":"fail","Package":"overgo/internal/fast","Elapsed":2}`,
+		`{"Action":"pass","Package":"overgo/internal/slow","Test":"TestWhole/part","Elapsed":240}`,
+		`{"Action":"pass","Package":"overgo/internal/slow","Test":"TestWhole","Elapsed":250}`,
+		`{"Action":"pass","Package":"overgo/internal/slow","Test":"TestSmall","Elapsed":40}`,
 		`{"Action":"pass","Package":"overgo/internal/slow","Elapsed":300}`,
 	}, "\n")
-	if got, want := ranPackages(output), "ran 2 packages: internal/slow 300s, internal/fast 2s"; got != want {
+	want := "ran 2 packages: internal/slow 300s, internal/fast 2s; slowest tests: internal/slow TestWhole 250s, internal/slow TestSmall 40s, internal/fast TestQuick 1s"
+	if got := ranPackages(output); got != want {
 		t.Fatalf("ranPackages = %q, want %q", got, want)
 	}
 }

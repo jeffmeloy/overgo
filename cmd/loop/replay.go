@@ -85,9 +85,10 @@ func (task replayTask) check(ctx context.Context, checkout string) (string, erro
 // step shown as the prompt, its check run in checkout, and an edit of a held test refused.
 func (task replayTask) tools(ctx context.Context, checkout string) []workerTool {
 	tools := workerTools(checkout, workerStep{
-		show:  func() (string, error) { return task.Prompt, nil },
-		check: func() (string, error) { return task.check(ctx, checkout) },
-		files: func() ([]string, error) { return task.Files, nil },
+		show:   func() (string, error) { return task.Prompt, nil },
+		check:  func() (string, error) { return task.check(ctx, checkout) },
+		verify: func() (string, error) { return task.Verify, nil },
+		files:  func() ([]string, error) { return task.Files, nil },
 	})
 	tools = slices.DeleteFunc(tools, func(tool workerTool) bool { return tool.name == "run_probe" })
 	edit := slices.IndexFunc(tools, func(tool workerTool) bool { return tool.name == "edit_file" })

@@ -108,20 +108,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": -268,
+        "nodes": -469,
         "reason": "The replay harness and ladder exist (cmd/loop replay.go, ladder.go); mutants of landed steps, a cost ledger per landing and a measured run of the local worker are new. Step grammar-draw: +0 (no landing changed internal/sampling/sampler.go, internal/sampling/greedy_grammar_test.go). Step worker-tools: +163 (163, the median of what 8 landings that changed cmd/loop/tools.go, cmd/loop/tools_test.go, cmd/loop/local_worker.go, cmd/loop/main.go, cmd/loop/init_config.go, cmd/loop/replay.go, cmd/loop/local_worker_windows_model_test.go, cmd/loop/worker_landing_test.go, internal/loop/driver.go, internal/loop/worker_landing_test.go counted). Step matched-ladder: +0 (no landing changed cmd/loop/ladder.go, cmd/loop/ladder_test.go, cmd/loop/ladder_matched_test.go). Step greedy-request: +257 (257, the median of what 1 landings that changed cmd/loop/local_worker.go, cmd/loop/local_worker_request_test.go counted). Step repeat-guard: +257 (257, the median of what 2 landings that changed cmd/loop/local_worker.go, cmd/loop/local_worker_repeat_test.go counted). Step attempt-lifecycle: +163 (163, the median of what 9 landings that changed internal/landing/costs.go, internal/landing/costs_test.go, internal/landing/interrupted_cost_test.go, cmd/loop/startup.go, cmd/loop/startup_test.go, cmd/loop/main.go, cmd/loop/costs.go, cmd/loop/costs_test.go counted). Step greedy-admission: +145 (145, the median of what 22 landings that changed internal/sampling, cmd/loop counted). Step local-default: +102 (102, the median of what 17 landings that changed cmd/loop counted). Step local-demonstrated: +102 (102, the median of what 17 landings that changed cmd/loop counted). Step tool-call-grammar: +145 (145, the median of what 8 landings that changed internal/inference, internal/sampling counted). Step write-the-test: +66 (66, the median of what 19 landings that changed cmd/loop counted). Step proxy-model: +66 (66, the median of what 19 landings that changed internal/modelswap, cmd/loop counted)."
       },
       "steps": [
-        {
-          "id": "write-the-test",
-          "title": "When a step's check names a test that no file holds yet, run_check tells the local worker which test to write, where, and to write it first",
-          "status": "open",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestRunCheckSaysToWriteTheMissingTestFirst$'",
-          "files": [
-            "cmd/loop"
-          ],
-          "rationale": "Serves: the local worker on real open steps, the owner's next proof (2026-11-09).\n\nDisappears: a worker that reads a real step's code and never writes. On 2026-11-09 the driver gave the local worker clip-encode/admit-runtime, an open step whose check names a test that does not exist yet (tmp/loop-proof/local-real-step-2026-11-09.log). Over two attempts it made 81 tool calls: 51 searches, 28 reads, 2 check runs, no edit. The first attempt ended at its 40 replies, the second at the repeat guard. It read the right files (finish_windows.go, production.go, the nvvfx binding, the clip tests), but nothing told it that the check fails because the test it names is missing. The replayed steps it passes (run 2: fuzz-discovery/fail-listing, stray-check/note-tests) all have their test in place, and a real step is the first that asks it to write one.\n\nThe fix, in the driver's tools: run_check, when the check runs no test (go test's no tests to run, the gate's VACUOUS), answers with the test the check names, the files the step may write, and that the test is to be written first, in one of them, to fail before the change and pass after.\n\nCheck: TestRunCheckSaysToWriteTheMissingTestFirst runs run_check over a step whose check names a test no file holds. Its answer must name the test and a file the step may write, and say to write it first. At base it answers with the bare check output.\n\nBatch: host lane."
-        },
         {
           "id": "proxy-model",
           "title": "A request the swap proxy resolves by a model's identity or location reaches the child under the child's own served name, and -init names the worker's model by a reference that resolves on a fresh proxy",

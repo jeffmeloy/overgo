@@ -15,7 +15,9 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/gitauthority"
 	"overgo/internal/plan"
+	"overgo/internal/planverify"
 	"overgo/internal/protection"
+	"overgo/internal/runrecord"
 )
 
 // workerTool is one of the tools the driver serves its worker over the Model Context Protocol (go run ./cmd/loop
@@ -36,11 +38,11 @@ var approvedProbes = map[string]string{
 // unwritable are the places no worker edit reaches, whatever its step lists, beside what git ignores.
 var unwritable = []string{".git", protection.HarnessConfigDirectory}
 
-// workerStep is the step a worker's tools serve: how it is shown and checked, each answering with what it printed, and
-// the files it may change, none meaning any a landing admits.
+// workerStep is the step a worker's tools serve: how it is shown and checked, each answering with what it printed, its
+// check's command, and the files it may change, none meaning any a landing admits.
 type workerStep struct {
-	show, check func() (string, error)
-	files       func() ([]string, error)
+	show, check, verify func() (string, error)
+	files               func() ([]string, error)
 }
 
 // planStep is the plan's dispatched step in the checkout at root, shown and checked through its cmd/plan.
@@ -48,7 +50,35 @@ func planStep(root string) workerStep {
 	plan := func(verb string) func() (string, error) {
 		return func() (string, error) { return runTool("go", "-C", root, "run", "./cmd/plan", verb) }
 	}
-	return workerStep{show: plan("-prompt"), check: plan("-verify"), files: stepFiles}
+	verify := func() (string, error) {
+		dispatch, err := dispatched()
+		if err != nil {
+			return "", err
+		}
+		step, err := dispatchedStep(dispatch)
+		return step.Verify, err
+	}
+	return workerStep{show: plan("-prompt"), check: plan("-verify"), verify: verify, files: stepFiles}
+}
+
+// missingTest tells a worker whose check ran no test which test the check names and where it may write it: a real
+// step's check often names the test the step adds, and a worker not told so reads and never writes (on 2026-11-09 the
+// local worker spent 81 calls on clip-encode/admit-runtime and edited nothing).
+func missingTest(step workerStep) string {
+	command, err := step.verify()
+	parsed, parseErr := runrecord.ParseVerify(command)
+	files, filesErr := step.files()
+	if errors.Join(err, parseErr, filesErr) != nil {
+		return ""
+	}
+	var named []string
+	for _, test := range parsed.GoTests() {
+		if test.Target != nil {
+			named = append(named, strings.Trim(test.Target.Pattern, "^$")+" in "+strings.Join(test.Packages, " "))
+		}
+	}
+	return fmt.Sprintf("\nThe check ran no test: the test it names, %s, is in no file yet. Write it first, in a file the step may change (%s): it fails before the change and passes after it. Then make the change.",
+		strings.Join(named, "; "), strings.Join(files, ", "))
 }
 
 // workerTools are the eight tools over the checkout at root, serving step.
@@ -146,7 +176,11 @@ func workerTools(root string, step workerStep) []workerTool {
 			return "edited " + relative, os.WriteFile(path, []byte(text), clioptions.OutputFileMode)
 		}},
 		{"run_check", "Run the step's check (go run ./cmd/plan -verify).", nil, func(map[string]string) (string, error) {
-			return shown(step.check), nil
+			said := shown(step.check)
+			if step.verify != nil && strings.Contains(said, planverify.ErrVacuous.Error()) {
+				said += missingTest(step)
+			}
+			return said, nil
 		}},
 		{"run_tests", "Run one package's tests, by its directory from the checkout's root.", []string{"package"}, func(arguments map[string]string) (string, error) {
 			relative, err := inside(arguments["package"])

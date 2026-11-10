@@ -25,29 +25,6 @@
       ]
     },
     {
-      "id": "test-surface",
-      "title": "Tests are cut and shaped by their measured cost: the gate records what each test took, and the lead's own model tests share what they load, measure speed with Go benchmarks, and drop what another test already holds",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 276,
-        "reason": "Estimated: one field read from the go test -json stream the gate already parses and one report line; the rest moves and deletes test code, which counts no production nodes."
-      },
-      "steps": [
-        {
-          "id": "landing-scenarios",
-          "title": "Landing scenarios share repeated build setup and merge duplicate walks while preserving isolated repositories and every failure and recovery assertion",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestLandingScenariosShareTheirBuiltFixture$'",
-          "files": [
-            "internal/landing"
-          ],
-          "rationale": "Serves: every landing's wall, and the owner's direction of 2026-11-09 to use native Go testing to improve performance and drop unnecessary tests.\n\nDisappears: repeated setup and duplicate scenario walks where the measurements identify them; the amount of wall time saved remains to be measured. Across the last fifteen landings the invariants stage took 2m21s to 3m18s, internal/landing 140 to 171 s of it, on every landing whatever it changed.\n\nEvidence: go test ./internal/landing -count=1 -json on 2026-11-09 took 244 s for 80 tests. The twenty slowest are all parallel end-to-end landing scenarios at 103 to 201 s of wall each: TestTwoWorktreesLandThroughOneQueue 201 s, TestTrunkCheckoutFollowsWithItsOwnChangesKept 200 s, TestEveryStageFailureLeavesTheTrunkAlone 198 s, TestWorktreeCandidateIsIntegratedOntoTheTrunk 190 s, TestEveryRuleRefusalFixesOrPrintsItsEdit 181 s, and on. The serial tests sum to 43 s. Run side by side, the scenarios contend for the same cores, so their total, not any one of them, is the cost.\n\nThe step measures first, by stage of a scenario, where a scenario's time goes: the fixture repository, the tools it builds, the git and go commands it runs. The part every scenario repeats is then built once for the package (a fixture made once and copied per scenario, with Go's own test caching left to work), and scenarios that walk the same landing to different assertions are folded into subtests of one. The check named here holds the shared fixture. If the measurement finds the time elsewhere, the check is reset to what it finds before this step lands.\n\nPredicted effect: less repeated setup and lower total package wall. The earlier under-one-minute package and 1m30s invariants figures are hypotheses, not timing assertions or acceptance limits. Retain isolated mutable repositories and each concurrency, failure, recovery and undo assertion, including the distinction between an assertion detecting removed behavior and a compile failure that supplies no undo evidence. Compare package wall and setup executions under equivalent conditions; do not add overlapping parallel test durations or count Go cache hits as new savings.\n\nBatch: host lane.\n\nNote: Measured 2026-11-10, each command the gate runs timed: the scenarios' time was in supervised process starts, not in setup they repeat. The fixtures' own git summed 50 s and their one go build 16 s of 898 s of commands. process-starts takes the starts' thread walk away: the package went from 135 s to 46 s and its commands from 898 s to 294 s. This step re-measures on that tree before it shares any fixture or folds any scenario; the gate's measured line now names the slowest tests (test-costs). If no setup the scenarios repeat stands out then, the step is retired with the measurement."
-        }
-      ]
-    },
-    {
       "id": "mmlu-pro-lm-eval",
       "title": "MMLU-Pro's headline reading is lm_eval's, as leaderboard_mmlu_pro reads it, with the chat-template reading beside it, once overgo's reading of a model lm_eval also loads matches lm_eval's own within a bar declared before the run",
       "owner": "master-lead",
@@ -57,17 +34,6 @@
         "reason": "Estimated: the validation split named beside the test split in the import, its first five rows set as each test case's demonstrations, a reading of its own recorded under its own scorer identity, and the scorecard's MMLU-Pro cell headed by that reading with the chat-template reading beside it; the lm_eval comparison is a model test and a reference script, which count no production nodes."
       },
       "steps": [
-        {
-          "id": "matches-lm-eval",
-          "title": "overgo's leaderboard reading of Qwen2.5-0.5B, a model lm_eval in C:/Users/jeffm/eval also loads, is within 1.0 accuracy point of lm_eval's own over the 12,032 test questions, and the two choose the same letter on at least 90% of them",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/evaluation -count=1 -run '^TestMMLUProReadsAsLmEvalReadsIt$' -timeout 300m",
-          "files": [
-            "internal/evaluation"
-          ],
-          "needs_card": true,
-          "rationale": "Serves: the owner's request of 2026-11-10, the check that overgo's port of leaderboard_mmlu_pro reads a model as lm_eval does.\n\nThe model: Qwen2.5-0.5B, overgo_data/models/Qwen2.5-0.5B, which lm_eval in C:/Users/jeffm/eval has loaded already (overgo_qwen25_benchmark.yaml, its results naming Qwen2.5-0.5B-HF) and overgo serves from its published tensors. It is the smallest model both load, so both full readings fit in hours. No lm_eval reading of leaderboard_mmlu_pro for it exists in C:/Users/jeffm/eval (results_20251103_123642_734 reads the Qwen3-4B family), so the reference is made once: lm_eval 0.4.9.1 from C:/Users/jeffm/eval/env, run by a script in scripts/python_golden_references/ through eval_single_model.py's HFLM settings (dtype auto, batch auto) with log_samples on, its per-question choices and accuracy kept as the reference file the test reads. lm_eval's own results directory is written beside the others there.\n\nThe bar, declared before either reading: over the 12,032 test questions, overgo's accuracy is within 1.0 percentage point of lm_eval's, and the two choose the same letter on at least 90% of the questions. A prompt built differently (a demonstration missing, a delimiter, a template) moves both by far more; the two compute in different precisions (lm_eval bfloat16 from the model's config, overgo its own path), which flips questions whose letters are near tied, so the agreement bar is not 100%. The test prints the accuracy of each, their difference, the agreement, the questions one gets right and the other wrong both ways, and each category's accuracy beside lm_eval's.\n\nCheck: TestMMLUProReadsAsLmEvalReadsIt reads the reference file, has overgo read the same test split of the same dataset revision by the five-shot reading, matches the questions by their question_id, and holds both bars. It refuses a reference whose task, revision, shot count or question count differ.\n\nBatch: device lane; the reference run is the card's too and comes first. The headline moves only after this check passes (headline).\n\nNote: The reference was made on 2026-11-10 (scripts/python_golden_references/mmlu_pro_lm_eval_reference.py, C:/Users/jeffm/eval/overgo_qwen25_mmlu_pro_results/reference.json): lm_eval 0.4.9.1 read Qwen2.5-0.5B at accuracy 0.1882 over the 12,032 test questions, in bfloat16, in about ten minutes. Offline, lm_eval took the latest cached revision of TIGER-Lab/MMLU-Pro, dd36ce4b; overgo's import takes the lexically first, 9126953e. The two differ in 2 test questions (question_id 6065 its options, 11783 its question and options) and 1 validation row (question_id 9 its answer), and the first five validation rows, the demonstrations, are the same in both. overgo keeps its revision, so no pinned MMLU-Pro identity moves: the comparison matches questions by question_id, sets aside the 2 whose text differs, and holds both bars over the other 12,030."
-        },
         {
           "id": "headline",
           "title": "The scorecard's MMLU-Pro cell is headed by the leaderboard reading for every model, with the chat-template reading shown beside it, never pooled with it",

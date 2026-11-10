@@ -367,10 +367,12 @@ func NewComponentSessionDirector[Model any](name, device string, capacity int) (
 	if name == "" || device == "" || capacity <= 0 {
 		return nil, errors.New("capability runtime: incomplete component session director")
 	}
-	return &ModelSessionDirector[struct{}, Model, struct{}]{
+	director := &ModelSessionDirector[struct{}, Model, struct{}]{
 		name: name, device: device, capacity: capacity,
 		entries: make(map[sessionKey]*sessionEntry[Model]), changed: make(chan struct{}),
-	}, nil
+	}
+	holdsSessions(director, true)
+	return director, nil
 }
 
 // LeaseComponent: exclusive use under its compiled lifetime.
@@ -460,11 +462,13 @@ func newModelSessionDirector[Input, Model, Output any](
 	if name == "" || device == "" || capacity <= 0 || validate == nil || policy == nil || load == nil || reset == nil || bind == nil {
 		return nil, errors.New("capability runtime: incomplete model session director")
 	}
-	return &ModelSessionDirector[Input, Model, Output]{
+	director := &ModelSessionDirector[Input, Model, Output]{
 		name: name, device: device, capacity: capacity,
 		validate: validate, policy: policy, load: load, reset: reset, bind: bind, inputs: inputs,
 		entries: make(map[sessionKey]*sessionEntry[Model]), changed: make(chan struct{}),
-	}, nil
+	}
+	holdsSessions(director, true)
+	return director, nil
 }
 
 func (c *ModelSessionDirector[Input, Model, Output]) Executor() Executor {
@@ -835,6 +839,7 @@ func (c *ModelSessionDirector[Input, Model, Output]) Close(ctx context.Context) 
 	c.shutting, c.shut, c.shutErr = false, true, result
 	c.notify()
 	c.mu.Unlock()
+	holdsSessions(c, false)
 	return result
 }
 

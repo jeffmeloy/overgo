@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 
 	"overgo/internal/artifact"
+	"overgo/internal/capabilityruntime"
 	"overgo/internal/dataroot"
 	"overgo/internal/discovery"
 	"overgo/internal/inference"
@@ -164,6 +165,11 @@ func open(
 ) (*inference.Runner, error) {
 	if strings.TrimSpace(repository) == "" {
 		return nil, errors.Join(errors.New("model recipe repository is required"), store.Close())
+	}
+	// A model opened in a process beside a media model's idle sessions finds the card held by them, its layers or its
+	// projector's encodes refused room: they give it back first, and load again on their next request.
+	if _, err := capabilityruntime.ReleaseIdleSessions(ctx); err != nil {
+		return nil, errors.Join(err, store.Close())
 	}
 	runner, err := openRunner(ctx, repository, store, path, options, true, served)
 	if errors.Is(err, artifact.ErrContentMismatch) {

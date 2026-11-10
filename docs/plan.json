@@ -8,25 +8,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 131,
+        "nodes": -262,
         "reason": "Estimated: one key field in the judged replay; a placement or eviction change where the measurement finds the slowdown; and whatever the Gemma split shows, unknown until it is measured."
       },
       "steps": [
-        {
-          "id": "media-residency",
-          "title": "A judge opened in a process that holds a video model's sessions answers a picture within 1.5 times its time alone, the cause of the slowdown measured first and fixed where it lies",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/evaluate -count=1 -run '^TestAJudgeBesideAResidentVideoModelAnswersAtItsOwnSpeed$' -timeout 90m",
-          "files": [
-            "cmd/evaluate",
-            "internal/capabilityruntime",
-            "internal/mediacapability",
-            "internal/modelcli",
-            "internal/inference"
-          ],
-          "needs_card": true,
-          "rationale": "Serves: a server that holds a video model and a language model on one card, as overgo-server does. Measured in a test, but the cause lives in the shared code: a session director that never releases a session and a model loader that places what it is given.\n\nDisappears: a language model slowed by a resident video model. On 2026-11-09 Qwen3.8-27B judged 192 pictures of 1024 x 960 in 2m49s in a process of its own. In the process that had just drawn 32 clips with the Wan student, whose sessions stay resident for the process's life (capabilityruntime's ModelSessionDirector has no release), it took about 20 s a picture. The card sat mostly idle with one host core busy, and 28 to 38 GB of the 48 were in use. The likely cause is the judge's layers placed on the host because the student's memory was counted (modelcli.ModelReserve, hybrid-native residency); contention is the other. The step measures which before changing anything.\n\nThe fix follows the cause. If placement: an idle media session gives its memory back when a language model would otherwise put layers on the host (an eviction on the director, the director's own lease rules kept). If contention: what contends is named and fixed there.\n\nCheck: TestAJudgeBesideAResidentVideoModelAnswersAtItsOwnSpeed draws 2 clips with the student and then judges 12 pictures in the same process. Each picture must take at most 1.5 times what the same pictures take in a child process with no video model. rtx-vsr/judged-fidelity then needs no child process.\n\nBatch: device lane."
-        },
         {
           "id": "gemma-split",
           "title": "Where gemma-4-12B-it's time a judge question goes is measured, by vision tower, prompt and choice scoring, and the largest part cut until it judges no slower a question than Qwen3.8-27B",

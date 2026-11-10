@@ -15,6 +15,26 @@ import (
 // chatToolNameCharacters are what a tool's name may hold.
 const chatToolNameCharacters = textcheck.Alphanumeric + "_-"
 
+// parameterClosing is what ends a parameter-form value, the only text a value cannot hold: the parser reads a value to
+// its first closing tag (parseHermesParameters).
+const parameterClosing = "</parameter>"
+
+// parameterLessThan is the rule for a less-than sign within a value and what follows it, until the text parts from
+// the closing tag: after each prefix of the tag, any byte but the tag's next one, or another less-than sign, which
+// starts the rule again. A value may hold any text but the tag (loop-proof/tool-value-markup): one whose rule admitted
+// no less-than sign at all left the local worker unable to write a Go comparison, a channel receive or <item>.
+func parameterLessThan() string {
+	const again = "tool-parameter-lt"
+	// The tag's last byte would close it, so after the rest of it only another byte follows.
+	last := len(parameterClosing) - 1
+	tail := fmt.Sprintf(`[^%c<\x00] | %s`, parameterClosing[last], again)
+	for index := last - 1; index >= 1; index-- {
+		next := parameterClosing[index]
+		tail = fmt.Sprintf(`[^%c<\x00] | %s | %s ( %s )`, next, again, strconv.Quote(string(next)), tail)
+	}
+	return again + ` ::= "<" ( ` + tail + ` )`
+}
+
 // ChatToolGrammar: returns lazy GBNF grammar that activates when model
 // begins tool-call delimiter advertised by its GGUF template
 func (r *Runner) ChatToolGrammar(
@@ -192,7 +212,8 @@ func hermesToolGrammar(
 	rules = append(
 		rules,
 		`space ::= | " " | "\n"{1,2} [ \t]{0,20}`,
-		`tool-parameter-value ::= [^<\x00]*`,
+		`tool-parameter-value ::= ( [^<\x00] | tool-parameter-lt )*`,
+		parameterLessThan(),
 		`tool-call ::= "<tool_call>" space (`+
 			strings.Join(functionRules, " | ")+
 			`) space "</tool_call>"`,

@@ -128,7 +128,8 @@ func TestHermesToolGrammarUsesFunctionAndParameterTags(t *testing.T) {
 	for _, fragment := range []string{
 		`"<function=weather>"`,
 		`"<parameter=city>"`,
-		`tool-parameter-value ::= [^<\x00]*`,
+		`tool-parameter-value ::= ( [^<\x00] | tool-parameter-lt )*`,
+		`tool-parameter-lt ::= "<" (`,
 	} {
 		if !strings.Contains(source, fragment) {
 			t.Fatalf("grammar does not contain %q:\n%s", fragment, source)

@@ -8,24 +8,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 215,
+        "nodes": -450,
         "reason": "Estimated from a reading of the three sites: five handlers moved onto the existing bounded decoder, one admission rule on a provider declaration's variable and endpoint, and three response headers on one route. No new component."
       },
       "steps": [
-        {
-          "id": "provider-variables",
-          "title": "A provider declared over HTTP names only a variable the operator listed for providers, and its key leaves only over https or to a loopback endpoint",
-          "status": "open",
-          "verify": "go test ./internal/remoteprovider ./internal/remoterelay ./internal/server -count=1 -run '^TestAProviderBindsOnlyAVariableTheOperatorNamed$'",
-          "files": [
-            "internal/remoteprovider",
-            "internal/remoterelay",
-            "internal/server",
-            "cmd/remote-provider",
-            "SECURITY.md"
-          ],
-          "rationale": "Serves: the claim SECURITY.md makes for the API key, that it admits a caller to the server and not to the host's other secrets.\n\nDisappears: a key holder reading any environment variable but three. serverSecrets (internal/remoteprovider/provider.go:43) refuses OVERGO_API_KEY, OVERGO_HF_TOKEN and OVERGO_MODELSCOPE_TOKEN and admits every other name; canonicalize admits an http endpoint on any host (provider.go:82). A caller with the key declares a provider whose key_environment is another service's secret and whose endpoint is its own, asks for the model listing, and listModels (internal/remoterelay/listing.go:67) sends the value as a Bearer header. The same listing answers a non-200 body back into the error (listing.go:78) and has no destination check, where the agent tool executor and the media fetcher both refuse private ranges.\n\nEvidence: the review of 2026-11-09, confirmed by reading at ac1935d75. It matters only where the server is bound beyond loopback with a key, which the startup admits.\n\nThe rule is a list, not a deny list: the variables a provider may bind are named by the operator (the command line or cmd/remote-provider, which no HTTP route reaches), and a declaration over HTTP that names another is refused by the variable's name. SECURITY.md says what the key grants in the same change.\n\nPredicted effect: none on a measured cell.\n\nBatch: host lane."
-        },
         {
           "id": "artifact-headers",
           "title": "A stored artifact's bytes are answered with nosniff and, unless its media type is one the workbench draws, as an attachment",

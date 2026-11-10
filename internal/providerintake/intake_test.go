@@ -21,6 +21,7 @@ const (
 // declared context length; an undeclared variable and an absent key refuse.
 func TestIntakeListsProviderModels(t *testing.T) {
 	store := overgodbtest.Open(t, t.TempDir())
+	testcheck.NoError(t, remoteprovider.NameVariable(t.Context(), store, intakeTestVariable))
 	fake, _ := relaytest.ServeListing(t, "", "intake-key", []string{"unused"}, []relaytest.Model{{ID: "vendor/listed", Name: "Listed", ContextLength: 2048}})
 	intake := Intake{CatalogLimit: 8}
 	declared := server.ProviderListing{Endpoint: fake.URL + "/", KeyEnvironment: intakeTestVariable}

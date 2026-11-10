@@ -24,10 +24,16 @@ key is, and a route that stays public answers whoever reaches it.
 
 A provider's variable goes to one endpoint: a declaration binds the pair until
 it retires, and a listing names a declared pair or carries a key of its own,
-which goes to that endpoint and is kept nowhere. The server's own secrets
+which goes to that endpoint and is kept nowhere. A declaration or a listing
+names only a variable the operator named for providers' keys, which
+`go run ./cmd/remote-provider -name-variable <name>` (or a declaration made by
+that command) does and no route can; the server's own secrets
 (`OVERGO_API_KEY`, `OVERGO_HF_TOKEN`, `OVERGO_MODELSCOPE_TOKEN`) cannot be
-declared. An authenticated client can still bind a variable no declaration
-holds yet.
+named. A key goes over https, or over plain http to this machine alone.
+
+So the API key admits a caller to the server: to its models, its store and the
+providers the operator set up, and to no other secret in the server's
+environment.
 
 ## API keys
 

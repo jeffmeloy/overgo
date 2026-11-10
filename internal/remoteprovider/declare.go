@@ -147,6 +147,10 @@ func DeclareDocument(ctx context.Context, store *overgodb.Store, limit int, docu
 		return nil, err
 	}
 	variable, endpoint := strings.TrimSpace(document.KeyEnvironment), CanonicalEndpoint(document.Endpoint)
+	// A declaration binds only a variable the operator named, and sends its key only where it cannot be read in transit.
+	if err := errors.Join(Admitted(ctx, store, variable), KeyTransport(endpoint)); err != nil {
+		return nil, err
+	}
 	if index := slices.IndexFunc(active, func(model Declared) bool {
 		return model.Provider.KeyEnvironment == variable && model.Provider.Endpoint != endpoint
 	}); index >= 0 {

@@ -140,10 +140,14 @@ func Refusal(provider Provider) string {
 	return ""
 }
 
-// Key reads the provider's key from its environment variable.
+// Key reads the provider's key from its environment variable, for an endpoint the key does not cross the network to in
+// the clear (KeyTransport): a declaration made before that rule is refused its key, not served.
 func Key(provider Provider) (string, error) {
 	if refusal := Refusal(provider); refusal != "" {
 		return "", errors.New("remote provider: " + refusal)
+	}
+	if err := KeyTransport(provider.Endpoint); err != nil {
+		return "", err
 	}
 	return os.Getenv(provider.KeyEnvironment), nil
 }

@@ -13,6 +13,7 @@ import (
 	"overgo/internal/overgodbtest"
 	"overgo/internal/remoteprovider"
 	"overgo/internal/remoterelay"
+	"overgo/internal/testcheck"
 )
 
 const (
@@ -101,6 +102,8 @@ func TestAProviderKeyGoesOnlyToItsDeclaredEndpoint(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			store := overgodbtest.Open(t, t.TempDir())
+			// The operator names the variable, as cmd/remote-provider does; no route can.
+			testcheck.NoError(t, remoteprovider.NameVariable(t.Context(), store, bindingVariable))
 			target := serve(t, store)
 			declared, other := newKeyRecorder(t), newKeyRecorder(t)
 			refused := func(what, path, body string) {
@@ -145,5 +148,38 @@ func TestAProviderKeyGoesOnlyToItsDeclaredEndpoint(t *testing.T) {
 				t.Fatalf("declaration after the retirement = %d %s", response.Code, response.Body)
 			}
 		})
+	}
+}
+
+// TestAProviderBindsOnlyAVariableTheOperatorNamed holds what a caller with the server's key can have sent to an endpoint
+// of its choosing (serving-bounds/provider-variables): over both routes, a declaration or a listing that names a
+// variable the operator has not named is refused by the variable's name with no key sent, and one the operator named
+// is declared; a key goes over https or over http to this machine alone, so a declaration at an http endpoint elsewhere
+// is refused.
+//
+// Serial: it sets the variables.
+func TestAProviderBindsOnlyAVariableTheOperatorNamed(t *testing.T) {
+	const unnamed = "PROVIDER_UNNAMED_SECRET"
+	t.Setenv(bindingVariable, bindingKey)
+	t.Setenv(unnamed, "another-service-secret")
+	store := overgodbtest.Open(t, t.TempDir())
+	target := &IdleShell{Repository: store, Intake: bindingIntake()}
+	endpoint := newKeyRecorder(t)
+	for what, request := range map[string][2]string{
+		"the declaration of an unnamed variable": {registerRoute, providerRegistration(endpoint.URL, unnamed)},
+		"the listing of an unnamed variable":     {listingRoute, fmt.Sprintf(`{"endpoint":%q,"key_environment":%q}`, endpoint.URL, unnamed)},
+	} {
+		response := serveTestRequest(target, http.MethodPost, request[0], request[1])
+		if response.Code != http.StatusUnprocessableEntity || !strings.Contains(response.Body.String(), unnamed+" is not a variable the operator named") || endpoint.received() != "" {
+			t.Fatalf("%s = %d %s, keys sent %q; want it refused by the variable's name with none sent", what, response.Code, response.Body, endpoint.received())
+		}
+	}
+	testcheck.NoError(t, remoteprovider.NameVariable(t.Context(), store, bindingVariable))
+	if response := serveTestRequest(target, http.MethodPost, registerRoute, providerRegistration("http://provider.example/api/v1", bindingVariable)); response.Code != http.StatusUnprocessableEntity ||
+		!strings.Contains(response.Body.String(), "only over https") {
+		t.Fatalf("a declaration at an http endpoint elsewhere = %d %s; want it refused", response.Code, response.Body)
+	}
+	if response := serveTestRequest(target, http.MethodPost, registerRoute, providerRegistration(endpoint.URL, bindingVariable)); response.Code != http.StatusOK {
+		t.Fatalf("the declaration of the named variable at this machine's endpoint = %d %s", response.Code, response.Body)
 	}
 }

@@ -43,7 +43,14 @@ type Listing struct {
 // refuses the listing by the variable's name.
 func ListModels(ctx context.Context, store *overgodb.Store, limit int, listing Listing, client *http.Client) ([]Listed, error) {
 	if listing.Key != "" {
+		if err := remoteprovider.KeyTransport(listing.Endpoint); err != nil {
+			return nil, err
+		}
 		return listModels(ctx, remoteprovider.CanonicalEndpoint(listing.Endpoint), listing.Key, client)
+	}
+	// A variable is read only where the operator named it, though a declaration made before that rule binds it.
+	if err := remoteprovider.Admitted(ctx, store, listing.KeyEnvironment); err != nil {
+		return nil, err
 	}
 	provider, err := remoteprovider.Bound(ctx, store, limit, listing.Endpoint, listing.KeyEnvironment)
 	if err != nil {

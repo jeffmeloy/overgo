@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
@@ -40,6 +41,7 @@ func run(args []string, output io.Writer) error {
 	reason := flags.String("reason", "", "with -retire: why the model leaves the catalog (the endpoint gone, the key withdrawn)")
 	list := flags.Bool("list", false, "list the store's remote models with their refusals")
 	limit := flags.Int("limit", catalogListingLimit, "maximum models the listing reads")
+	variable := flags.String("name-variable", "", "name an environment variable a provider declared over HTTP may bind for its key; a declaration made by this command names its own")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -49,6 +51,13 @@ func run(args []string, output io.Writer) error {
 	}
 	defer store.Close()
 	ctx := context.Background()
+	if *variable != "" {
+		if err := remoteprovider.NameVariable(ctx, store, *variable); err != nil {
+			return err
+		}
+		fmt.Fprintf(output, "named %s for providers' keys\n", strings.TrimSpace(*variable))
+		return nil
+	}
 	if *declare != "" {
 		var document remoteprovider.Document
 		if err := jsonfile.DecodeStrict(*declare, &document); err != nil {
@@ -56,6 +65,10 @@ func run(args []string, output io.Writer) error {
 		}
 		commit, err := runrecord.ExecutableCodeCommit(".")
 		if err != nil {
+			return err
+		}
+		// The operator declaring names the declaration's variable: this command is how a variable comes to be named.
+		if err := remoteprovider.NameVariable(ctx, store, document.KeyEnvironment); err != nil {
 			return err
 		}
 		declarations, err := remoteprovider.DeclareDocument(ctx, store, *limit, document, commit)

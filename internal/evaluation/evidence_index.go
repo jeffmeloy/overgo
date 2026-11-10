@@ -95,10 +95,13 @@ type EvalSummary struct {
 	// wrong: a model that begins to reason, or says the answer is not among
 	// the options, is scored as one that chose badly. Zero where every answer
 	// named one, and where answers were scored and not generated.
-	Unread      uint64      `json:"unread,omitzero"`
-	Comparison  artifact.ID `json:"comparison,omitzero"`
-	Environment artifact.ID `json:"environment,omitzero"`
-	CodeCommit  string      `json:"code_commit,omitzero"`
+	Unread uint64 `json:"unread,omitzero"`
+	// UnreadCauses sorts the Unread answers by why each named no option (unreadCause): the token budget ended, a
+	// thought stayed open, the model declined, or it repeated itself.
+	UnreadCauses UnreadCauses `json:"unread_causes,omitzero"`
+	Comparison   artifact.ID  `json:"comparison,omitzero"`
+	Environment  artifact.ID  `json:"environment,omitzero"`
+	CodeCommit   string       `json:"code_commit,omitzero"`
 	// Directions says which way each metric improves: the scorecard judges
 	// a held-out regression by it.
 	Directions map[string]runrecord.Direction `json:"-"`
@@ -176,7 +179,7 @@ func recordExecution(ctx context.Context, store *overgodb.Store, record runrecor
 		summary.Prompting += protocolSeparator + gluedLetters
 	}
 	if policy.Prompting == PromptingChatTemplate || policy.Prompting == PromptingReasoning {
-		summary.Unread = unreadAnswers(ctx, store, bound)
+		summary.Unread, summary.UnreadCauses = unreadAnswers(ctx, store, bound)
 	}
 	return summary
 }
@@ -185,12 +188,12 @@ func recordExecution(ctx context.Context, store *overgodb.Store, record runrecor
 // cases, the generated answers in which no option was read. A report that
 // cannot be read, or that holds no generated answer, counts none: the count
 // says what is known and does not stand in the way of a reading.
-func unreadAnswers(ctx context.Context, store *overgodb.Store, bound runrecord.Run) uint64 {
+func unreadAnswers(ctx context.Context, store *overgodb.Store, bound runrecord.Run) (uint64, UnreadCauses) {
 	_, report, read := scoredReport(ctx, store, bound)
 	if !read {
-		return 0
+		return 0, UnreadCauses{}
 	}
-	return countUnread(report.Data)
+	return countUnread(report.Data), unreadCauses(report.Data)
 }
 
 // scoredReport reads the report of the run that scored a run's cases, and that run.

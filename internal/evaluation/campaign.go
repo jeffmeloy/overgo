@@ -63,6 +63,9 @@ type CampaignResult struct {
 	Evidence   artifact.ID               `json:"evidence"`
 	Metrics    []runrecord.Metric        `json:"metrics"`
 	Resources  runrecord.ResourceFitness `json:"resources"`
+	// Unread sorts the reading's answers that named no option by why each named none; zero where every answer named
+	// one or none was generated.
+	Unread UnreadCauses `json:"unread,omitzero"`
 }
 
 func NewCampaign(
@@ -223,6 +226,9 @@ func (campaign *Campaign) publishSuccess(
 ) (CampaignResult, error) {
 	plan := suite.plan
 	retained := CampaignResult{Report: result.Report, Metrics: result.Metrics}
+	if report, found, err := artifact.ReadContent(ctx, campaign.repository, result.Report); err == nil && found {
+		retained.Unread = unreadCauses(report.Data)
+	}
 	run, err := runrecord.NewBoundRun(
 		campaign.identity.Recipe, runrecord.OutcomeSucceeded,
 		[]artifact.ID{plan.Identity()}, []artifact.ID{result.Report}, "", campaign.commit,

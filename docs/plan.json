@@ -3,87 +3,27 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "clip-encode",
-      "title": "Every MP4 overgo writes carries the colours drawn, tagged BT.709, a finish whose runtime is missing is refused before anything is drawn, and a finished frame reaches FFmpeg as 8-bit bytes made on the card",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 197,
-        "reason": "Estimated: FFmpeg arguments for the colour conversion and tags, one admission call moved ahead of generation, and a transfer to 8-bit YUV on the card with a byte path through the MP4 encoder beside its float path."
-      },
-      "steps": [
-        {
-          "id": "admit-runtime",
-          "title": "A clip request asking for a finish whose runtime is missing is refused before the generation runs, not at its first frame",
-          "status": "open",
-          "verify": "go test ./internal/latentvideo -count=1 -run '^TestAFinishWithoutItsRuntimeIsRefusedBeforeAnythingIsDrawn$'",
-          "files": [
-            "internal/latentvideo",
-            "internal/cuda/nvvfx"
-          ],
-          "rationale": "Serves: the follow-up SQA-359's resolution names, a finish refused through the request's admission, not after costly work.\n\nDisappears: a generation run to its end before its finish is refused. newFinishingEncoder opens no runtime; build does, at the first frame (internal/latentvideo/finish_windows.go). Wan's 50-step path hands its first frame only after every step and the VAE decode, so a request whose OVERGO_NVVFX is unset or names a directory missing a DLL spends the whole generation before the refusal.\n\nThe fix: newServedEncoder opens the runtime (nvvfx.Open) when the finish is not zero, before the generation runs, and the refusal names the setting and the file.\n\nCheck: TestAFinishWithoutItsRuntimeIsRefusedBeforeAnythingIsDrawn calls WriteClip with an upscale and OVERGO_NVVFX naming an empty directory, through a generation that records whether it was called. It wants the refusal and no call. At base the generation runs and the refusal comes from its first frame.\n\nBatch: host lane."
-        },
-        {
-          "id": "device-bytes",
-          "title": "A finished frame is converted on the card to the 8-bit BT.709 YUV 4:2:0 FFmpeg encodes and handed to it as is, so the host reads an eighth of the bytes, keeps no float copy of the frame, and FFmpeg converts nothing",
-          "status": "open",
-          "verify": "OVERGO_NVVFX=C:/Users/jeffm/upscale/env/Lib/site-packages/nvvfx/libs OVERGO_FFMPEG=C:/Users/jeffm/upscale/ffmpeg.exe OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestAFinishedFrameReachesTheEncoderAsEightBitYUV$'",
-          "files": [
-            "internal/latentvideo",
-            "internal/cuda/nvvfx",
-            "internal/media"
-          ],
-          "needs_card": true,
-          "rationale": "Serves: finished clips written faster and in less memory, the effect no longer waiting on the host.\n\nDisappears: four host passes over every finished frame. Today a 3328 x 1920 frame comes back as 77 MB of float32 (finishingEncoder.add: MemcpyDtoH, then a loop rebuilding 19 million float32 values into a second 77 MB slice). The MP4 encoder then converts it value by value through a callback into 19 MB of rgb24, compares it pixel by pixel with bytes.Equal against a 19 MB copy of the frame before, and pipes it to FFmpeg, whose scaler converts it to YUV on the CPU. On rtx-vsr/nvenc's student clip, 81 frames finished at four times, the effect took 3.8 s of a 10.4 s write (7.8 frames a second), so about two thirds of the time is host work. Each stream holds about 197 MB of host buffers.\n\nThe fix: the effect already writes 8-bit RGBA on the card. NvCVImage_Transfer converts it there to BT.709 limited-range YUV 4:2:0 (8-bit RGB where the runtime writes no YUV), which is downloaded, 9.6 MB a frame at four times, and piped to FFmpeg as raw yuv420p tagged as clip-encode/colour-709 tags it. The float path stays for unfinished clips. ChangedPixels is counted on the bytes FFmpeg is handed, the change of what it counts named in the record.\n\nCheck: TestAFinishedFrameReachesTheEncoderAsEightBitYUV finishes the student clip at four times. The host must read width x height x 3/2 bytes a frame, the decoded frames must be within 40 dB PSNR of the float path's decoded frames, and two writes must be the same bytes. BenchmarkFinishedClipWrite (test-surface/judge-tests) gives frames a second and bytes allocated a frame, before and after, in the landing's message.\n\nPredicted effect: about 16 frames a second at four times (the effect alone runs 21), and about 30 MB of host buffers a stream in place of 197 MB.\n\nBatch: device lane."
-        }
-      ]
-    },
-    {
-      "id": "loop-proof",
-      "title": "The loop shows its worth end to end: the gate refuses deliberately bad alternatives, each landing records its full cost, and the local worker lands changes whose benefit an independent evaluation confirms and exceeds that cost",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": -400,
-        "reason": "The replay harness and ladder exist (cmd/loop replay.go, ladder.go); mutants of landed steps, a cost ledger per landing and a measured run of the local worker are new. Step grammar-draw: +0 (no landing changed internal/sampling/sampler.go, internal/sampling/greedy_grammar_test.go). Step worker-tools: +163 (163, the median of what 8 landings that changed cmd/loop/tools.go, cmd/loop/tools_test.go, cmd/loop/local_worker.go, cmd/loop/main.go, cmd/loop/init_config.go, cmd/loop/replay.go, cmd/loop/local_worker_windows_model_test.go, cmd/loop/worker_landing_test.go, internal/loop/driver.go, internal/loop/worker_landing_test.go counted). Step matched-ladder: +0 (no landing changed cmd/loop/ladder.go, cmd/loop/ladder_test.go, cmd/loop/ladder_matched_test.go). Step greedy-request: +257 (257, the median of what 1 landings that changed cmd/loop/local_worker.go, cmd/loop/local_worker_request_test.go counted). Step repeat-guard: +257 (257, the median of what 2 landings that changed cmd/loop/local_worker.go, cmd/loop/local_worker_repeat_test.go counted). Step attempt-lifecycle: +163 (163, the median of what 9 landings that changed internal/landing/costs.go, internal/landing/costs_test.go, internal/landing/interrupted_cost_test.go, cmd/loop/startup.go, cmd/loop/startup_test.go, cmd/loop/main.go, cmd/loop/costs.go, cmd/loop/costs_test.go counted). Step greedy-admission: +145 (145, the median of what 22 landings that changed internal/sampling, cmd/loop counted). Step local-default: +102 (102, the median of what 17 landings that changed cmd/loop counted). Step local-demonstrated: +102 (102, the median of what 17 landings that changed cmd/loop counted). Step tool-call-grammar: +145 (145, the median of what 8 landings that changed internal/inference, internal/sampling counted)."
-      },
-      "steps": [
-        {
-          "id": "local-demonstrated",
-          "title": "The local worker, the driver's only worker, lands three plan steps unaided from their landings' parents, each passing a check it did not write, in at most six tries, every attempt's wall and failure recorded beside its step",
-          "status": "open",
-          "verify": "OVERGO_LOOP_DEMONSTRATION=1 OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/loop -count=1 -run '^TestTheLocalWorkerLandsStepsUnaided$' -timeout 120m",
-          "files": [
-            "cmd/loop"
-          ],
-          "needs_card": true,
-          "rationale": "Serves: the owner's review priority 4, repeated useful improvements shown through the complete loop with costs and failures included, now with the local worker as the driver's only worker.\n\nDisappears: loop-proof/demonstrated's comparison with the Claude worker, which needed the claude CLI the owner will never use (2026-11-09). It priced the local worker's benefit as the Claude worker's wall it saved. With no other worker there is nothing to price it against, so the bar is the local worker's own record: steps landed unaided, every attempt's wall and every failure counted.\n\nEvidence: run 1 of 2026-11-09 (tmp/loop-proof/demonstration-2026-11-09-run1.log). At 28 ms a token the local worker passed fuzz-discovery/fail-listing unaided in 1 attempt, 18 calls and 105 s, then repeated four searches; the repeat guard (8e8d62236) has landed since.\n\nThe test: tmp/loop-proof/parked/demonstration_windows_model_test.go.txt is restored to cmd/loop as TestTheLocalWorkerLandsStepsUnaided, with claudeReplayWorker, the second replay of each step and the cascades sum taken out. It puts the local worker to the smallest landed steps whose check runs one test on the host, each from its landing's parent with the landing's tests in place, so the check is an evaluation the worker did not write, which fails there and passed at the landing. It stops at three passes or six tries, logs every record as -replay keeps it, and requires three passes. Each step's attempts, wall and outcome are logged beside it, failures included.\n\nThe verify sets OVERGO_LOOP_DEMONSTRATION=1, the test's opt-in for hours of work, and OVERGO_CUDA_TEST=1, since the worker is served on the card.\n\nBatch: device lane, the local worker served by overgo.\n\nInterpretation of the review's full-loop criterion: three passing unaided steps establish execution competence, not automatically positive net benefit. Use the existing independently authored checks and matched retained mutation evidence to show useful behavior and rejection of bad alternatives; report each chosen step's concrete benefit separately from total proposal, model setup, verification, failed-attempt and recovery cost. Removing the Claude comparison does not establish that benefit exceeds cost. Make that claim only where a declared comparison supports it, with units kept explicit; otherwise retain the measured competence result and say the economic benefit remains unestablished. Reuse existing replay and landing records instead of a second harness.\n\nNote: Run 2, 2026-11-09 (tmp/loop-proof/demonstration-2026-11-09-run2.log), the local worker alone: 2 of 6 passed in 23m22s of wall over every attempt, short of 3. Passed: fuzz-discovery/fail-listing (1 attempt, 18 calls, 108 s) and stray-check/note-tests (1 attempt, 18 calls, 104 s). Failed: one-rule-file/skill-sort (3 attempts, 179 calls, 292 s; the worker's edits never satisfied skill.md's check); vision-bridge/judge-9b (3 attempts, 102 calls, 518 s; the repeat guard ended it); and two ended by the server, not the worker: ask-nothing/pointer and vision-bridge/envelope-9b, each a 500 because Qwen3.8 drew a tool call the parser refuses (a required path missing; path given twice). loop-proof/tool-call-grammar comes first. The test is parked at tmp/loop-proof/parked/local_demonstration_windows_model_test.go.txt; restore it to cmd/loop/demonstration_windows_model_test.go to run again."
-        }
-      ]
-    },
-    {
       "id": "answer-format",
-      "title": "A held-out answer that names no option is read by its cause before it is counted wrong: a cause in overgo's request is fixed and the cell read again, and a model's own is said on its cell",
+      "title": "An MMLU-Pro answer that names no option is sorted by why it named none, the token budget ended, a thought left open, the model declined or it repeated itself, and the scorecard says the sort beside the count",
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 80,
-        "reason": "Estimated: a reading over answers the store already holds and, where the cause is overgo's, a change to one request field or one answer reader. The count is reset from what the reading finds."
+        "nodes": -210,
+        "reason": "Estimated: a reading over answers the store already holds and, where the cause is overgo's, a change to one request field or one answer reader. The count is reset from what the reading finds. Step reread: +201 (201, the median of what 18 landings that changed internal/evaluation, cmd/evaluate, internal/scorecard counted)."
       },
       "steps": [
         {
-          "id": "unanswered",
-          "title": "The MMLU-Pro answers of Qwen3.5-9B, both gemma-4-12B-it builds and MiniCPM5-1B that name no option are read, each sorted by why (the token budget ended, thinking never closed, the template, the answer reader, the model declined), and the cells are read again where the cause is overgo's",
+          "id": "reread",
+          "title": "The answers the eight-token budget ended are asked again under a 32-token budget and under an opener ending at the letter's place, and a change that recovers a letter for half of them is put to every model's MMLU-Pro cell under a new plan",
           "status": "open",
-          "verify": "go test ./internal/evaluation ./cmd/evaluate -count=1 -run '^TestAnAnswerNamingNoOptionIsSortedByItsCause$'",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/evaluate -count=1 -run '^TestTheBudgetEndedAnswersAreAskedAgain$' -timeout 120m",
           "files": [
             "internal/evaluation",
             "cmd/evaluate",
-            "internal/scorecard",
-            "docs/verification"
+            "internal/scorecard"
           ],
           "needs_card": true,
-          "rationale": "Serves: held-out-quality for Qwen3.5-9B, gemma-4-12B-it-fp8, gemma-4-12B-it-fp8-native and MiniCPM5-1B.\n\nDisappears: four quality cells that may measure the request and not the model. The scorecard of 2026-11-09 counts as wrong 145 of Qwen3.5-9B's 1,209 MMLU-Pro answers for naming no option, 156 and 160 of the two gemma-4-12B-it builds' and 98 of MiniCPM5-1B's, where Qwen3.5-4B has 8 and Flash-Next 5 on the same cases through the same protocol. The 9B reads 0.4921 beside the 4B's 0.4864: a model twice the size, of the same family, level with the smaller one, with 137 more answers lost before any is scored. Were those answered at the 9B's own rate on the rest, the cell would read near 0.56.\n\nEvidence: go run ./cmd/validate -scorecard at ac1935d75. Nothing here says the cause: the step reads it. The answers are in the store, so the sorting costs no generation; only a cell whose cause is overgo's is drawn again, on its own model's cells (validate -run -model).\n\nA cause that is the model's own stays counted wrong, and the cell says so in the words it uses now. A cause in overgo's request (a budget that ends inside thinking, a template turn, a reader that misses a stated letter) is fixed in its home and the criterion is the same held-out cases, fixed before the re-read.\n\nPredicted effect: held-out-quality rises on the cells whose cause is overgo's and holds on the others; throughput and first-output hold.\n\nBatch: device lane for the re-read, host lane for the sorting."
+          "rationale": "Serves: held-out-quality for Qwen3.5-9B, both gemma-4-12B-it builds and MiniCPM5-1B, whose MMLU-Pro cells lose answers to overgo's request.\n\nDisappears: answers counted wrong because the protocol stopped reading before they named a letter. answer-format/unanswered sorted them (scorecard of 2026-11-09, the store's chat-template readings): the eight-token budget after the opener The answer is ended 145 of Qwen3.5-9B's 145, 98 of MiniCPM5-1B's 98, and 69 and 68 of the two gemma builds' 156 and 160, whose other 87 and 92 said no option fits, the model's own. They end differently. MiniCPM gives the value (\"11.9, which corresponds to\"), so a few more tokens would reach its letter. Qwen3.5-9B and gemma begin a working (\"calculated as follows: 1.\"), which a few more tokens do not finish, and which the opener's phrasing may invite.\n\nMeasure first, on the unanswered cases alone (511 of the four models), each asked again under two candidate changes held apart: a budget of 32 tokens after the same opener, and an opener that ends at the letter's place, The answer is (. The bar is fixed before the run: a change is put to every model's chat-template cell, the same 1209 held-out cases under a new plan, only if it recovers a letter for at least half of the four models' budget-ended answers. Otherwise the protocol stays, and the cells say their losses as they now do. A change that recovers letters also changes which answers are right, so every model is read again under it, and no cell is compared across the two protocols.\n\nBatch: device lane."
         }
       ]
     },
@@ -276,6 +216,86 @@
           ],
           "needs_card": true,
           "rationale": "Serves: less duplicated model-test setup without losing the evaluator calibration the review asks for.\n\nDisappears: the separate Gemma opening run only after its unique accuracy obligation is retained, a second decode of the same 24 VidGen source clips, and ad hoc performance logging in the NVENC correctness test.\n\nEvidence: TestGemmaTwelveOpensAsAJudge checks correct answers over 12 pictures and 10 clips; TestASecondJudgeRanksTheCasesAlike opens the same judge over 32 of each but asserts rank agreement alone. Two judges can agree while both are wrong. The larger fixture therefore does not yet replace the accuracy check. Its read[judge][suite] already holds right-answer flags and probabilities, and outputCases already groups questions by medium.\n\nRetain TestASecondJudgeRanksTheCasesAlike and extend its existing answers with an accuracy criterion fixed before the run, using media as the independent units and each question's actual choices. Preserve picture and clip results separately, invalid or missing-answer refusal, model/recipe identities and sequential judge lifetime. Do not carry over the old assumption that all questions are independent Bernoulli trials. Keep rank agreement and the existing deliberate-degradation checks as distinct requirements, use the production quality aggregation where its contract matches, and refuse degenerate all-tied evidence. Delete TestGemmaTwelveOpensAsAJudge and rebind its claim only once the retained check demonstrates both accuracy and agreement; a source-name search alone cannot prove that.\n\nMove readRepairLevels into TestVideoSuperResBeatsBicubicOnSourceClips as a subtest using its already-decoded clips, preserving each repair-level assertion. Move only the finished-clip timing loop into BenchmarkFinishedClipWrite at two and four times, with b.ReportMetric and b.ReportAllocs. TestAFinishedClipIsEncodedOnNVENC retains bytes, encoder and repeat assertions. The benchmark remains opt-in, used for clip-encode/device-bytes before/after comparison rather than a recurring gate workload.\n\nDeciding comparison: the retained checks own every removed assertion, including a case where both judges agree on wrong answers; compare complete test/helper nodes and actual setup executions before and after. Reuse the shared answers for calibration rather than opening either judge again. The old six-minute saving is a hypothesis until the merged workload is measured.\n\nBatch: device lane for the retained judge comparison; host consolidation may proceed independently."
+        }
+      ]
+    },
+    {
+      "id": "loop-proof",
+      "title": "The loop shows its worth end to end: the gate refuses deliberately bad alternatives, each landing records its full cost, and the local worker lands changes whose benefit an independent evaluation confirms and exceeds that cost",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": -268,
+        "reason": "The replay harness and ladder exist (cmd/loop replay.go, ladder.go); mutants of landed steps, a cost ledger per landing and a measured run of the local worker are new. Step grammar-draw: +0 (no landing changed internal/sampling/sampler.go, internal/sampling/greedy_grammar_test.go). Step worker-tools: +163 (163, the median of what 8 landings that changed cmd/loop/tools.go, cmd/loop/tools_test.go, cmd/loop/local_worker.go, cmd/loop/main.go, cmd/loop/init_config.go, cmd/loop/replay.go, cmd/loop/local_worker_windows_model_test.go, cmd/loop/worker_landing_test.go, internal/loop/driver.go, internal/loop/worker_landing_test.go counted). Step matched-ladder: +0 (no landing changed cmd/loop/ladder.go, cmd/loop/ladder_test.go, cmd/loop/ladder_matched_test.go). Step greedy-request: +257 (257, the median of what 1 landings that changed cmd/loop/local_worker.go, cmd/loop/local_worker_request_test.go counted). Step repeat-guard: +257 (257, the median of what 2 landings that changed cmd/loop/local_worker.go, cmd/loop/local_worker_repeat_test.go counted). Step attempt-lifecycle: +163 (163, the median of what 9 landings that changed internal/landing/costs.go, internal/landing/costs_test.go, internal/landing/interrupted_cost_test.go, cmd/loop/startup.go, cmd/loop/startup_test.go, cmd/loop/main.go, cmd/loop/costs.go, cmd/loop/costs_test.go counted). Step greedy-admission: +145 (145, the median of what 22 landings that changed internal/sampling, cmd/loop counted). Step local-default: +102 (102, the median of what 17 landings that changed cmd/loop counted). Step local-demonstrated: +102 (102, the median of what 17 landings that changed cmd/loop counted). Step tool-call-grammar: +145 (145, the median of what 8 landings that changed internal/inference, internal/sampling counted). Step write-the-test: +66 (66, the median of what 19 landings that changed cmd/loop counted). Step proxy-model: +66 (66, the median of what 19 landings that changed internal/modelswap, cmd/loop counted)."
+      },
+      "steps": [
+        {
+          "id": "write-the-test",
+          "title": "When a step's check names a test that no file holds yet, run_check tells the local worker which test to write, where, and to write it first",
+          "status": "open",
+          "verify": "go test ./cmd/loop -count=1 -run '^TestRunCheckSaysToWriteTheMissingTestFirst$'",
+          "files": [
+            "cmd/loop"
+          ],
+          "rationale": "Serves: the local worker on real open steps, the owner's next proof (2026-11-09).\n\nDisappears: a worker that reads a real step's code and never writes. On 2026-11-09 the driver gave the local worker clip-encode/admit-runtime, an open step whose check names a test that does not exist yet (tmp/loop-proof/local-real-step-2026-11-09.log). Over two attempts it made 81 tool calls: 51 searches, 28 reads, 2 check runs, no edit. The first attempt ended at its 40 replies, the second at the repeat guard. It read the right files (finish_windows.go, production.go, the nvvfx binding, the clip tests), but nothing told it that the check fails because the test it names is missing. The replayed steps it passes (run 2: fuzz-discovery/fail-listing, stray-check/note-tests) all have their test in place, and a real step is the first that asks it to write one.\n\nThe fix, in the driver's tools: run_check, when the check runs no test (go test's no tests to run, the gate's VACUOUS), answers with the test the check names, the files the step may write, and that the test is to be written first, in one of them, to fail before the change and pass after.\n\nCheck: TestRunCheckSaysToWriteTheMissingTestFirst runs run_check over a step whose check names a test no file holds. Its answer must name the test and a file the step may write, and say to write it first. At base it answers with the bare check output.\n\nBatch: host lane."
+        },
+        {
+          "id": "proxy-model",
+          "title": "A request the swap proxy resolves by a model's identity or location reaches the child under the child's own served name, and -init names the worker's model by a reference that resolves on a fresh proxy",
+          "status": "open",
+          "verify": "go test ./internal/modelswap ./cmd/loop -count=1 -run '^TestARequestNamingAModelByIdentityIsAnsweredByThatModel$'",
+          "files": [
+            "internal/modelswap",
+            "cmd/loop"
+          ],
+          "rationale": "Serves: the driver's local worker, which reaches its model through the swap proxy on 127.0.0.1:8080, the address -init writes (loop-proof/local-default).\n\nDisappears: a worker that cannot name its model. Found on 2026-11-09 starting the local worker on clip-encode/admit-runtime:\n- The proxy refused -init's model name: \"model catalog: ambiguous reference Qwen3.8-27B-UD-Q6_K.gguf; use an exact model identity or location\". The capability catalog holds one present entry of that name (model:sha256:73dc8d6f…), so the resolver's catalog holds another of the same file name.\n- A request naming the model by its identity resolved and swapped the child to Qwen3.8-27B, but the proxy passed the request's model field on unchanged. The child, which knows itself by the file name, answered \"requested model is not loaded\".\n- Only once the child ran did the file name route, through the running-child shortcut (internal/modelswap/proxy.go routeServable).\n\nThe fix: a request the proxy resolves by identity or location reaches the child under the child's served name, so any exact reference the resolver accepts is answered by the model it names. -init's default worker names its model by the reference that resolves on a fresh proxy.\n\nCheck: TestARequestNamingAModelByIdentityIsAnsweredByThatModel serves a fake child through the proxy and sends a chat request naming the model by identity. The child must see its own served name and answer. At base it sees the identity and refuses.\n\nBatch: host lane."
+        },
+        {
+          "id": "local-demonstrated",
+          "title": "The local worker, the driver's only worker, lands three plan steps unaided from their landings' parents, each passing a check it did not write, in at most six tries, every attempt's wall and failure recorded beside its step",
+          "status": "open",
+          "verify": "OVERGO_LOOP_DEMONSTRATION=1 OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/loop -count=1 -run '^TestTheLocalWorkerLandsStepsUnaided$' -timeout 120m",
+          "files": [
+            "cmd/loop"
+          ],
+          "needs_card": true,
+          "rationale": "Serves: the owner's review priority 4, repeated useful improvements shown through the complete loop with costs and failures included, now with the local worker as the driver's only worker.\n\nDisappears: loop-proof/demonstrated's comparison with the Claude worker, which needed the claude CLI the owner will never use (2026-11-09). It priced the local worker's benefit as the Claude worker's wall it saved. With no other worker there is nothing to price it against, so the bar is the local worker's own record: steps landed unaided, every attempt's wall and every failure counted.\n\nEvidence: run 1 of 2026-11-09 (tmp/loop-proof/demonstration-2026-11-09-run1.log). At 28 ms a token the local worker passed fuzz-discovery/fail-listing unaided in 1 attempt, 18 calls and 105 s, then repeated four searches; the repeat guard (8e8d62236) has landed since.\n\nThe test: tmp/loop-proof/parked/demonstration_windows_model_test.go.txt is restored to cmd/loop as TestTheLocalWorkerLandsStepsUnaided, with claudeReplayWorker, the second replay of each step and the cascades sum taken out. It puts the local worker to the smallest landed steps whose check runs one test on the host, each from its landing's parent with the landing's tests in place, so the check is an evaluation the worker did not write, which fails there and passed at the landing. It stops at three passes or six tries, logs every record as -replay keeps it, and requires three passes. Each step's attempts, wall and outcome are logged beside it, failures included.\n\nThe verify sets OVERGO_LOOP_DEMONSTRATION=1, the test's opt-in for hours of work, and OVERGO_CUDA_TEST=1, since the worker is served on the card.\n\nBatch: device lane, the local worker served by overgo.\n\nInterpretation of the review's full-loop criterion: three passing unaided steps establish execution competence, not automatically positive net benefit. Use the existing independently authored checks and matched retained mutation evidence to show useful behavior and rejection of bad alternatives; report each chosen step's concrete benefit separately from total proposal, model setup, verification, failed-attempt and recovery cost. Removing the Claude comparison does not establish that benefit exceeds cost. Make that claim only where a declared comparison supports it, with units kept explicit; otherwise retain the measured competence result and say the economic benefit remains unestablished. Reuse existing replay and landing records instead of a second harness.\n\nNote: Run 2, 2026-11-09 (tmp/loop-proof/demonstration-2026-11-09-run2.log), the local worker alone: 2 of 6 passed in 23m22s of wall over every attempt, short of 3. Passed: fuzz-discovery/fail-listing (1 attempt, 18 calls, 108 s) and stray-check/note-tests (1 attempt, 18 calls, 104 s). Failed: one-rule-file/skill-sort (3 attempts, 179 calls, 292 s; the worker's edits never satisfied skill.md's check); vision-bridge/judge-9b (3 attempts, 102 calls, 518 s; the repeat guard ended it); and two ended by the server, not the worker: ask-nothing/pointer and vision-bridge/envelope-9b, each a 500 because Qwen3.8 drew a tool call the parser refuses (a required path missing; path given twice). loop-proof/tool-call-grammar comes first. The test is parked at tmp/loop-proof/parked/local_demonstration_windows_model_test.go.txt; restore it to cmd/loop/demonstration_windows_model_test.go to run again."
+        }
+      ]
+    },
+    {
+      "id": "clip-encode",
+      "title": "Every MP4 overgo writes carries the colours drawn, tagged BT.709, a finish whose runtime is missing is refused before anything is drawn, and a finished frame reaches FFmpeg as 8-bit bytes made on the card",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 197,
+        "reason": "Estimated: FFmpeg arguments for the colour conversion and tags, one admission call moved ahead of generation, and a transfer to 8-bit YUV on the card with a byte path through the MP4 encoder beside its float path."
+      },
+      "steps": [
+        {
+          "id": "admit-runtime",
+          "title": "A clip request asking for a finish whose runtime is missing is refused before the generation runs, not at its first frame",
+          "status": "open",
+          "verify": "go test ./internal/latentvideo -count=1 -run '^TestAFinishWithoutItsRuntimeIsRefusedBeforeAnythingIsDrawn$'",
+          "files": [
+            "internal/latentvideo",
+            "internal/cuda/nvvfx"
+          ],
+          "rationale": "Serves: the follow-up SQA-359's resolution names, a finish refused through the request's admission, not after costly work.\n\nDisappears: a generation run to its end before its finish is refused. newFinishingEncoder opens no runtime; build does, at the first frame (internal/latentvideo/finish_windows.go). Wan's 50-step path hands its first frame only after every step and the VAE decode, so a request whose OVERGO_NVVFX is unset or names a directory missing a DLL spends the whole generation before the refusal.\n\nThe fix: newServedEncoder opens the runtime (nvvfx.Open) when the finish is not zero, before the generation runs, and the refusal names the setting and the file.\n\nCheck: TestAFinishWithoutItsRuntimeIsRefusedBeforeAnythingIsDrawn calls WriteClip with an upscale and OVERGO_NVVFX naming an empty directory, through a generation that records whether it was called. It wants the refusal and no call. At base the generation runs and the refusal comes from its first frame.\n\nBatch: host lane.\n\nNote: The owner's proof of 2026-11-09: the driver gave this step to the local worker (Qwen3.8-27B through the swap proxy). Two attempts, 81 tool calls (51 searches, 28 reads, 2 check runs) and no edit; the first ended at 40 replies, the second at the repeat guard (tmp/loop-proof/local-real-step-2026-11-09.log). loop-proof/write-the-test answers what stopped it. The step is the lead's after the test costs."
+        },
+        {
+          "id": "device-bytes",
+          "title": "A finished frame is converted on the card to the 8-bit BT.709 YUV 4:2:0 FFmpeg encodes and handed to it as is, so the host reads an eighth of the bytes, keeps no float copy of the frame, and FFmpeg converts nothing",
+          "status": "open",
+          "verify": "OVERGO_NVVFX=C:/Users/jeffm/upscale/env/Lib/site-packages/nvvfx/libs OVERGO_FFMPEG=C:/Users/jeffm/upscale/ffmpeg.exe OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestAFinishedFrameReachesTheEncoderAsEightBitYUV$'",
+          "files": [
+            "internal/latentvideo",
+            "internal/cuda/nvvfx",
+            "internal/media"
+          ],
+          "needs_card": true,
+          "rationale": "Serves: finished clips written faster and in less memory, the effect no longer waiting on the host.\n\nDisappears: four host passes over every finished frame. Today a 3328 x 1920 frame comes back as 77 MB of float32 (finishingEncoder.add: MemcpyDtoH, then a loop rebuilding 19 million float32 values into a second 77 MB slice). The MP4 encoder then converts it value by value through a callback into 19 MB of rgb24, compares it pixel by pixel with bytes.Equal against a 19 MB copy of the frame before, and pipes it to FFmpeg, whose scaler converts it to YUV on the CPU. On rtx-vsr/nvenc's student clip, 81 frames finished at four times, the effect took 3.8 s of a 10.4 s write (7.8 frames a second), so about two thirds of the time is host work. Each stream holds about 197 MB of host buffers.\n\nThe fix: the effect already writes 8-bit RGBA on the card. NvCVImage_Transfer converts it there to BT.709 limited-range YUV 4:2:0 (8-bit RGB where the runtime writes no YUV), which is downloaded, 9.6 MB a frame at four times, and piped to FFmpeg as raw yuv420p tagged as clip-encode/colour-709 tags it. The float path stays for unfinished clips. ChangedPixels is counted on the bytes FFmpeg is handed, the change of what it counts named in the record.\n\nCheck: TestAFinishedFrameReachesTheEncoderAsEightBitYUV finishes the student clip at four times. The host must read width x height x 3/2 bytes a frame, the decoded frames must be within 40 dB PSNR of the float path's decoded frames, and two writes must be the same bytes. BenchmarkFinishedClipWrite (test-surface/judge-tests) gives frames a second and bytes allocated a frame, before and after, in the landing's message.\n\nPredicted effect: about 16 frames a second at four times (the effect alone runs 21), and about 30 MB of host buffers a stream in place of 197 MB.\n\nBatch: device lane."
         }
       ]
     },

@@ -39,7 +39,7 @@
         ],
         "adoption_scope": "Supersedes the absent repository-document reference at the owner's request; current external SHA is verified. Does not alter the executable plan."
       },
-    "assessment": "0b's two-family comparison reuses openJudge/current campaign, processes one model at a time and groups/resamples by32media per kind. Previous pending359/360 closures remain verified: shared finished-GIF execution and the deleted timing pass. Published Gemma uses the existing native-directory view, not a fully migrated format-independent runtime. New test adds its own arithmetic aggregate and rank/bootstrap helpers; arithmetic ranking differs from production softShare, and all-tied finite scores reach an empty bootstrap before refusal. e3's question-level chance claim,356 recovery gaps and late finish-DLL admission remain. No new binary or directory; no overall reduction.",
+    "assessment": "Verified removal of obsolete worker comparison (-934 production/-851 test), one request-fixture migration (-104 test included in c0), restored sampler admission and five HTTP handlers reusing decodeJSONBounded (-75 production). Existing recipe/runtime, model source and executor ownership are retained; no format-independent migration completed in this slice. SQA-356's duplicate active lifecycle and unknown cost remain. Calibration still needs accuracy/aggregate/degenerate-data corrections and actual-size admission. A cropped, post-hoc nonsignificance check is not evidence of full-video noninferiority. No additional safe net deletion established from this bounded inspection.",
     "ast_surface_review": {
         "revision": "9bd406acafb89c44a439722419f1f7e85e71f691",
         "architectural_target": "Fewer independent product entry points and dependency owners; retain process isolation and existing compiled/runtime/development authority.",
@@ -55,58 +55,50 @@
         "cost": "Concrete parsed duplicate migrations total22production and150test AST removed; unimplemented estimates only. Three directories can disappear through349/351; command movement and all retained semantic constants must be charged. No overall refactor completion claimed."
       },
     "automation_follow_up": {
-        "architectural_progress": "0b's two-family comparison reuses openJudge/current campaign, processes one model at a time and groups/resamples by32media per kind. Previous pending359/360 closures remain verified: shared finished-GIF execution and the deleted timing pass. Published Gemma uses the existing native-directory view, not a fully migrated format-independent runtime.",
-        "conflicts": "New test adds its own arithmetic aggregate and rank/bootstrap helpers; arithmetic ranking differs from production softShare, and all-tied finite scores reach an empty bootstrap before refusal. e3's question-level chance claim,356 recovery gaps and late finish-DLL admission remain. No new binary or directory; no overall reduction.",
+        "architectural_progress": "Verified removal of obsolete worker comparison (-934 production/-851 test), one request-fixture migration (-104 test included in c0), restored sampler admission and five HTTP handlers reusing decodeJSONBounded (-75 production). Existing recipe/runtime, model source and executor ownership are retained; no format-independent migration completed in this slice.",
+        "conflicts": "SQA-356's duplicate active lifecycle and unknown cost remain. Calibration still needs accuracy/aggregate/degenerate-data corrections and actual-size admission. A cropped, post-hoc nonsignificance check is not evidence of full-video noninferiority. No additional safe net deletion established from this bounded inspection.",
+        "cost": "Since the prior reviewed0b pin: -947 production/+2418 test=+1471 Go AST over22 changed Go files; ac193's +2225 test accounts for most growth. The following four landings from ac193 to7d alone: -947 production/+193 test=-754 total. No static fixture bytes, new binary or package directory in this slice. Direct committed AST totals match retained gate sums; no new overall reduction since the prior review.",
         "plan_recommendations": [
           {
-            "rows": "second-judge/independent (landed); existing calibration/score owner",
+            "rows": "loop-proof/local-demonstrated",
             "findings": [
-              "SQA-342"
+              "SQA-356"
             ],
-            "recommendation": "Credit tau0.565/0.726, paired32media bootstrap and per-question disagreements. Preserve shared opening and sequential cleanup. Align claimed score with the actual production aggregation or limit the claim; handle full undefined tau before resampling. Use stdlib cmp.Compare for finite comparisons, deleting cmpSign. No new judge framework or independent reader API solely for this test."
+            "recommendation": "Measure competence separately from benefit; finish one durable attempt owner and expose unknown wall before asserting full cost. No new replay harness or scheduler."
           },
           {
-            "rows": "judge-calibration/user-size; rtx-vsr/judged",
+            "rows": "test-surface/judge-tests; judge-calibration/user-size; judge-speed",
             "findings": [
-              "SQA-342"
+              "SQA-342",
+              "SQA-343"
             ],
-            "recommendation": "Both second-judge prerequisites are now landed. Keep remaining actual-size/generated-fidelity evidence separate from family rank agreement and source reconstruction. No stale dependency on a removed plan row; no automatic re-run of the completed comparison."
+            "recommendation": "Retain accuracy and rank contracts on shared answers, share source decoding, and label the cropped null result honestly. Source reconstruction, still-frame fidelity and full temporal quality remain distinct."
           },
           {
-            "rows": "Existing finish admission, attempt lifecycle, and activation prerequisites",
+            "rows": "Existing structural reductions",
             "findings": [
-              "SQA-356",
-              "SQA-322"
-            ],
-            "recommendation": "Retain earlier concrete follow-ups: known runtime DLL/identity failure before generate callback through the encoder owner; one durable worker lifecycle with unknown-cost readout; associated smoke declaration through existing activation/gate ownership. None is fixed by the new rank test. No new scheduler, registry or gate suite."
-          },
-          {
-            "rows": "Remaining reductions",
-            "findings": [
-              "SQA-358",
               "SQA-349",
               "SQA-350",
               "SQA-351",
               "SQA-352",
               "SQA-353"
             ],
-            "recommendation": "Reuse retained request-fixture and binary/directory analyses. Do not rebuild a census or count moved code as removed.359/360 stay closed with costs/evidence retained."
+            "recommendation": "Reuse retained AST proposals; no new binary/package or generic abstraction needed for these verified closures."
           }
-        ],
-        "cost": "Since prior reviewed ae:0production/+1362test AST, no fixtures. Including pending previous review's three landings: +145production/+2002test=+2147AST; existing smoke-oracle JSON+442bytes.360's achieved-51 is already included. New cmp.Compare proposal removes25test AST only; full statistical repair cost unmeasured."
+        ]
       },
     "current_review_order": [
-        "Pinned plan and unchanged guidance/target",
-        "New comparison and concrete grouping/probability/report owners, provisional conclusions",
-        "7-file AST and whole-file stdlib comparison",
-        "Existing342 and pending closure/owner fields, concurrent reconciliation"
+        "Read unchanged guidance and Downloads target; pin committed master/plan.",
+        "Trace worker selection/request, sampler and JSON admission; form provisional conclusions before prior rankings.",
+        "Parse selected committed Go and compare changed endpoints; reconcile existing closures, owner responses and plan refinements.",
+        "Re-read code/report/ownership immediately before report-only publication."
       ],
     "declined_candidates": [
-        "Do not merge generated exact-answer CaseOutcomes with the new probability-report reader merely because both parse observations: fresh generated report versus carried/scorer-specific/tie-aware contracts differ. No complete safe shared migration shown.",
-        "Keep shared openJudge and sequential subtest cleanup; both judges do not fit the card together.",
-        "Keep one pair bootstrap sample index for both judges and media-level grouping. No new scheduler/statistics framework proposed.",
-        "Do not delete the225-node judge-opening fixture solely because the new comparison opens Gemma too: original accuracy requirements and generative versus choice-scoring contracts still need retained owners.",
-        "cmp.Compare is valid for the traced finite probabilities, including equal/negative-zero values; do not claim equivalent arbitrary-NaN behavior."
+        "Do not recreate retired Claude profitability selection or delete configurable worker fallback.",
+        "Keep the new size-boundary, tool-parameter and route-budget coverage: they exercise distinct admission contracts despite similar setup.",
+        "Hermes grammar now enforces required/unique parameter names for the local worker's string schema; this does not establish arbitrary schema-value compatibility. No new generic schema framework proposed.",
+        "decodeJSONWithLimit is a stateless37-node forwarding candidate, but full caller migration cost was not compared; not promoted as an established saving.",
+        "Reuse earlier binary/directory/boilerplate analysis at its own pin. No fresh census or whole-tree duplication percentage."
       ],
     "media_follow_up": {
         "architectural_progress": "Mixed-format refusal now has one host fixture (354 closed). Calibration reuses the existing projection session/campaign and common answering helpers, with isolated records and established Close ownership. Scorecard comparison now reads the existing dataset's media groups instead of treating each question as independent. Stillness extends the existing motion record/display without a new runtime.",
@@ -208,13 +200,10 @@
     "plan_review_follow_up": "0b completes second-judge/independent and retires its row; the implementation now has actual cross-family rank evidence. The remaining committed plan still holds user-size and RTX generated-fidelity work. Pending closures359/360 retained. No model workload rerun or uncommitted upcoming measurement used as evidence.",
     "rank_basis": "342 remainsP2 and partially addressed by paired-media comparison. No ranking/ID changes; pending359/360 resolution remains.",
     "refactor_target_progress": {
-        "status": "active; completion not established",
-        "document_availability": "Downloads target read; unchanged SHA. No repository target added.",
-        "retained_reference_sha256": "fe13a4bd47c8c41ea6dbf766c0acf3dc41ab7dab0c6d8bd926863313d4f34395",
-        "progress": "0b's two-family comparison reuses openJudge/current campaign, processes one model at a time and groups/resamples by32media per kind. Previous pending359/360 closures remain verified: shared finished-GIF execution and the deleted timing pass. Published Gemma uses the existing native-directory view, not a fully migrated format-independent runtime.",
-        "conflicts": "New test adds its own arithmetic aggregate and rank/bootstrap helpers; arithmetic ranking differs from production softShare, and all-tied finite scores reach an empty bootstrap before refusal. e3's question-level chance claim,356 recovery gaps and late finish-DLL admission remain. No new binary or directory; no overall reduction.",
-        "next_useful_reductions": "Delete cmpSign in favor of stdlib at its two finite callsites (-25test AST); repair the existing rank guard and bind claims to the actual score before new statistical machinery. Keep358/349..353 proposals and356/341 owner-bound corrections. No new package/binary/refactor-completion claim.",
-        "cost": "Since prior reviewed ae:0production/+1362test AST, no fixtures. Including pending previous review's three landings: +145production/+2002test=+2147AST; existing smoke-oracle JSON+442bytes.360's achieved-51 is already included. New cmp.Compare proposal removes25test AST only; full statistical repair cost unmeasured."
+        "architectural_progress": "Verified removal of obsolete worker comparison (-934 production/-851 test), one request-fixture migration (-104 test included in c0), restored sampler admission and five HTTP handlers reusing decodeJSONBounded (-75 production). Existing recipe/runtime, model source and executor ownership are retained; no format-independent migration completed in this slice.",
+        "conflicts": "SQA-356's duplicate active lifecycle and unknown cost remain. Calibration still needs accuracy/aggregate/degenerate-data corrections and actual-size admission. A cropped, post-hoc nonsignificance check is not evidence of full-video noninferiority. No additional safe net deletion established from this bounded inspection.",
+        "next_useful_reductions": "One durable worker lifecycle; planned shared judge/source fixtures; earlier binary/directory proposals retained at their original evidence identity.",
+        "cost": "Since the prior reviewed0b pin: -947 production/+2418 test=+1471 Go AST over22 changed Go files; ac193's +2225 test accounts for most growth. The following four landings from ac193 to7d alone: -947 production/+193 test=-754 total. No static fixture bytes, new binary or package directory in this slice. Direct committed AST totals match retained gate sums; no new overall reduction since the prior review."
       },
     "working_notes_review": {
         "finding": "SQA-334",
@@ -224,10 +213,10 @@
       }
   },
     "committed_plan": {
-    "git_blob": "7306b07690fcf5919f2ace4c1515139d5e64cc60",
+    "git_blob": "b516574ede62d0c525dbd0a8ffc0461dfaf49d91",
     "path": "docs/plan.json",
-    "revision": "0b326644ace365709193155c4fbe0f9a99e2f037",
-    "sha256": "7c8c9711fcd603a9e3b7b241407844d19776437d37a3821681e422bb8b9f9796",
+    "revision": "7d1c97f7d4d11234d6299ded5573b51443724e37",
+    "sha256": "e59bf259f3014947438244d70ab15550b1680be068aec8d817b3e9eee757e7fe",
     "working_tree_status": "Committed plan at review pin; prior draft assessment retains its own snapshot identity. Current working plan edits excluded."
   },
     "findings": [
@@ -7242,8 +7231,8 @@
       ],
     "comparison": "Reuse0b's retained32media results. Compare arithmetic versus geometric order for(.9,.1) and(.45,.45); trace constant finite scores through kendallTauB->resampledTau->existing refusal. Compare complete source with cmpSign removed and stdlib cmp.Compare at both finite calls (-25nodes). Retain the prior question-cloning, stationary-source and semantic-screen counterexamples. No SQA model/test workload.",
     "displaced_surface": "Existing unsupported screen admission can be removed while diagnostic consumers/validation stay. For the new comparison, delete cmpSign and use the standard library; do not export a second report reader or copy production soft-score logic into another helper. Reuse calibration.answer/openJudge/group identities and current numerical owners. Keep distinct exact-answer, probability and carried-report contracts; a reader handling one fresh generated report is not automatically interchangeable with CaseOutcomes/scoredReport.",
-    "evidence": "Original obligations remain: the semantic screen rejects Candidate>Reseeded embedding distance without establishing prompt correctness for valid compositions; its32-case frame/pixel-versus-unrelated-clip fixture is not that evidence. Retain numeric/identity validation. Matched80-clip student/base8wins/9losses/63ties does not establish equivalence. bc77 fidelity detects the selected12pictures/10clips (12/0/0 and9/0/1).3cc correctly groups questions by CaseMedia/pairedByOutput (3media losses tail0.125 versus6question losses0.0156).5c source-maximum stillness is descriptive: stationary source1 hides a strict-greater freeze and changing unrelated sources changes classification; no production gate was found. e3's Gemma opening check still flattens12pictures/10clips into67/20independent question trials, with57/67 and19/20correct. New0b comparison improves this: shared openJudge, sequential session cleanup,32media per kind and paired-media bootstrap, yielding tau0.565/0.726 with printed intervals0.324..0.766/0.562..0.854;184/64questions have15/2disagreements. This is real cross-family rank evidence on the selected suites, not accuracy ground truth. Its arithmetic mean of probabilities differs from production softShare's per-media geometric mean: admitted probabilities(.9,.1) versus(.45,.45) rank first by arithmetic but second by geometric. Thus the evidence does not establish rank agreement under the production soft metric. A further source-established edge: finite uniform probabilities are admitted; if either judge ties all outputs, tau is NaN, resampledTau drops every draw then indexes empty taus before the later NaN failure branch. No such failure was observed in the retained run.",
-    "evidence_commit": "0b326644ace365709193155c4fbe0f9a99e2f037",
+    "evidence": "Original obligations remain: the semantic screen rejects Candidate>Reseeded embedding distance without establishing prompt correctness for valid compositions; its32-case frame/pixel-versus-unrelated-clip fixture is not that evidence. Retain numeric/identity validation. Matched80-clip student/base8wins/9losses/63ties does not establish equivalence. bc77 fidelity detects the selected12pictures/10clips (12/0/0 and9/0/1).3cc correctly groups questions by CaseMedia/pairedByOutput (3media losses tail0.125 versus6question losses0.0156).5c source-maximum stillness is descriptive: stationary source1 hides a strict-greater freeze and changing unrelated sources changes classification; no production gate was found. e3's Gemma opening check still flattens12pictures/10clips into67/20independent question trials, with57/67 and19/20correct. New0b comparison improves this: shared openJudge, sequential session cleanup,32media per kind and paired-media bootstrap, yielding tau0.565/0.726 with printed intervals0.324..0.766/0.562..0.854;184/64questions have15/2disagreements. This is real cross-family rank evidence on the selected suites, not accuracy ground truth. Its arithmetic mean of probabilities differs from production softShare's per-media geometric mean: admitted probabilities(.9,.1) versus(.45,.45) rank first by arithmetic but second by geometric. Thus the evidence does not establish rank agreement under the production soft metric. A further source-established edge: finite uniform probabilities are admitted; if either judge ties all outputs, tau is NaN, resampledTau drops every draw then indexes empty taus before the later NaN failure branch. No such failure was observed in the retained run. ac1935d75's generated-clip comparison uses16 captions, matched81 frames at832x480 and two1664x960 finishes; judge sees only middle1024x960 crops at frames20,40,60. clean-high wins6 versus Lanczos10 (tails0.895/0.227), so neither preference was established. The test's no-Lanczos-preference bar was set after the run. Cropped still-frame sharp/clean judgments do not establish full-frame temporal quality or noninferiority. The default remains grounded in the distinct source-reference VMAF result. These are retained results/source, not SQA executions.",
+    "evidence_commit": "7d1c97f7d4d11234d6299ded5573b51443724e37",
     "expected_benefit": {
         "measured_baseline": "Historical pair-screen landing+1560production/+789test=2349AST. Clip motion reuses evaluation.Cosine: cmd/evaluate/screen1152->1093 (-59nodes); current former screen slice2290 including shared entrypoints. Clip landing+1586production/+1504test includes that consolidation and is overall growth. Both landings together+3146production/+2293test. No static fixtures added by either.",
         "minimum_change": "Diagnostic/acceptance separation estimated production-40..90AST, test0..25 with actual distance/refusal coverage retained: current former screen slice2290->2175..2250, estimated net40..115. No replacement compiled, no new helper/schema/fixture/setup.",
@@ -7251,21 +7240,23 @@
         "setup": "The current device fixture decodes32 source clips, opens one encoder, makes4 temporary render directories with128PNG files, and embeds192 images across the two candidates, including repeated reference/reseeded embeddings. Minimal correction retains that cost; retiring the unused path removes it. No rerun by SQA; native Go caching remains credited.",
         "retained_results": "f49359db3: model verification62.47s; broad lane25m25.582s with CUDA4executed/15cached; scorecard unavailable because card reserved. Successful walls are not measured waste. Counterfactual did not compile, so no behavioral undo evidence. ae199b5b9 explicitly observed a repeat that global minimum missed; model verify64.999s and lane26m7.594s are bounded successful walls, not general motion evidence.",
         "uncertainty": "Selected first32pictures/32clips and two judge families are bounded evidence. The ranking null uses a normal-derived floor0.204; tie/independence assumptions and omitted undefined resamples limit the stated confidence, not proof that the retained verdict is wrong. Arithmetic/geometric ranking reversal and all-tied bootstrap failure follow from admitted values/source; neither was a new model experiment. Prior question-independence and stillness limits remain.",
-        "current_review": "0b adds1362test AST,0production/fixtures; retained model check25m2s and gate29m41s. Complete comparison+shared calibration+Gemma baseline1362+2959+225=4546test AST. In-memory full-file cmpSign deletion/two cmp.Compare calls including import gives1337+2959+225=4521 (-25test nodes), production0, fixture/setup/gate work0. Numerical-contract/undefined-tau repairs and needed native coverage are not included and may exceed this saving. No overall net reduction established."
+        "current_review": "ac1935d75 adds2225 test AST,0 production/static fixtures. Retained generated-video check1278s; gate28m18s. Separate child rendering frees residency before judging (192 questions in2m49s alone versus about20s/picture beside student sessions). It also decodes the24 source clips again for repair checks; test-surface/judge-tests already schedules sharing that setup. Prior cmpSign -25 proposal remains unimplemented; no fresh model/timing run."
       },
     "id": "SQA-342",
     "impact": "Prevents an extra gate from rejecting valid fast paths or presenting frozen video as temporally correct. Architectural benefit is one acceptance authority and fewer compulsory passes, rather than another quality framework.",
     "likely_effort": "Small separation of diagnostic output from acceptance; larger deletion only if no actual diagnostic consumer needs the path. SQA changes no code or plan.",
-    "plan_coverage": "Both second-judge steps have landed and the row is removed. Credit actual shared media/session evidence; no unresolved activation/dependency remains for this row. User-size and generated-video fidelity remain open. Existing canonical342 retains statistical-unit, acceptance-contract and semantic-screen requirements; no duplicate backlog item.",
+    "plan_coverage": "Committed test-surface/judge-tests now preserves accuracy separately from agreement, groups by medium, reuses shared answers and names TestTwoJudgesAreRightAndRankTheCasesAlike before deleting the old fixture. This chat contributed the plan wording; master corrected its initially already-passing verifier. No implementation of that migration yet. judge-calibration/user-size and judge-speed retain admission/residency work; clip-encode/admit-runtime addresses early DLL admission. ac1935d75 completes a bounded generated-clip experiment with an inconclusive comparison, not a quality-equivalence proof.",
     "plan_references": [
         "media-screen/pair-screen and clip-consistency",
         "video-judge/same-settings 14188bb91",
         "judge-calibration/sensitivity b6656118e",
         "judge-calibration/fidelity bc77ee5e7; clustered 3cc685278; stillness 5c5113e7f",
         "second-judge/vision-judge e3b788a0c and independent0b326644a (landed)",
-        "judge-calibration/user-size; rtx-vsr/judged at 0b326644ace365709193155c4fbe0f9a99e2f037"
+        "judge-calibration/user-size; rtx-vsr/judged at 0b326644ace365709193155c4fbe0f9a99e2f037",
+        "rtx-vsr/judged-fidelity ac1935d75 (landed; null generated-fidelity result)",
+        "test-surface/judge-tests; judge-calibration/user-size; judge-speed at 7d1c97f7d4d11234d6299ded5573b51443724e37"
       ],
-    "recommended_change": "Keep unsupported semantic prompt-loss rejection out of admission, retain numeric/identity checks, and keep source-relative stillness descriptive. Preserve content/fidelity, question records and grouped-media limitations; agreement is not ground truth. Keep e3 accuracy requirements with the existing calibration owner rather than treating correlated questions as independent trials. Credit0b's grouping, shared opening and sequential resource lifetime. State which aggregation its acceptance measures: reuse the existing soft-score owner if claiming the production metric, otherwise explicitly limit the claim to the declared arithmetic ranking; do not introduce a second quality policy. Handle undefined full-sample tau before resampling, retaining disagreement/partial results and a clear inconclusive/failure outcome. Any necessary coverage should be one smallest pure case in the retained native comparison fixture, without model reruns. Replace cmpSign's two finite-number calls with standard cmp.Compare and delete the helper; no new abstraction or test is needed for that trivial substitution.",
+    "recommended_change": "Keep unsupported semantic prompt-loss rejection out of admission, retain numeric/identity checks, and keep source-relative stillness descriptive. Preserve content/fidelity, question records and grouped-media limitations; agreement is not ground truth. Keep e3 accuracy requirements with the existing calibration owner rather than treating correlated questions as independent trials. Credit0b's grouping, shared opening and sequential resource lifetime. State which aggregation its acceptance measures: reuse the existing soft-score owner if claiming the production metric, otherwise explicitly limit the claim to the declared arithmetic ranking; do not introduce a second quality policy. Handle undefined full-sample tau before resampling, retaining disagreement/partial results and a clear inconclusive/failure outcome. Any necessary coverage should be one smallest pure case in the retained native comparison fixture, without model reruns. Replace cmpSign's two finite-number calls with standard cmp.Compare and delete the helper; no new abstraction or test is needed for that trivial substitution. Keep ac1935d75's null comparison descriptive and its future significant-loss check a coarse alarm; a nonsignificant difference is not proof of equivalence or a quality admission. If admission needs a noninferiority claim, state its meaningful margin and media-level comparison before exposure through the existing evaluation owner. Preserve the source-reference result separately, state the crop/frame scope, and reuse compatible records; do not add a campaign merely to justify the existing default.",
     "severity": "P2",
     "sources": [
         {
@@ -7339,6 +7330,10 @@
         {
           "path": "docs/plan.json",
           "symbol": "second-judge/independent landed0b326644a; judge-calibration/user-size and rtx-vsr/judged remain"
+        },
+        {
+          "path": "cmd/evaluate/video_super_res_judged_windows_model_test.go",
+          "symbol": "TestTheJudgeDoesNotPreferLanczosOverTheDefaultLevel; TestJudgedClipsAreDrawn; readRepairLevels"
         }
       ],
     "status": "open",
@@ -7615,34 +7610,14 @@
   },
     {
     "category": "worker-selection-evidence",
-    "classification": "partially-fixed-matched-cost; residual-failed-fallback-evidence",
-    "closure_criteria": [
-        "Matched costs and existing correlated/missing-task cases remain correct.",
-        "Failed/censored strong work and ambiguous/incomparable evidence cannot promote local-first; budgets and dispatch authority stay with existing owners.",
-        "Retain all distinct config/pairing cases and count complete correction/setup cost."
-      ],
-    "comparison": "Keep the20vs19 correlated case and a true matched win. In the same native matched fixture, add A(local pass1,strong pass100),B(local fail1,strong fail1): it must retain strong-first because neither record completesB. Check ambiguous/incomparable repeated evidence without running models.",
-    "displaced_surface": {
-        "production": "Remove eligibility of failed/incomparable records from the decision; reuse cascades and replayRecord. The marginal failure-product formula is already gone.",
-        "tests": "Retain the config-writing fixture and pure paired-cost cases as distinct contracts. Extend the existing matched fixture for failed strong fallback and ambiguous repeats; no new setup/harness."
-      },
-    "evidence": "a84bebb4a fixes the marginal-average defect: cascades matches Kind/Step/Landed, sums actual conditional fallback cost and refuses unmatched local tasks. The original20vs19 correlation counterexample is covered. Residual: strongest.Passed is never inspected, and last non-skipped append silently selects repeats without proving comparable attempt/config identity. Admitted source example in seconds: taskA local passes1,strong passes100; taskB local fails1,strong fails1. Code calculates ladder3<alone101 and selects local despite no successful completion ofB or successful fallback cost. No replay workload executed.",
-    "evidence_commit": "f3a43e69c4017fbb0e42f4a687dcc4d9e9cd6ca9",
+    "classification": "verified-removal-of-obsolete-worker-selection",
+    "evidence": "Closed by 8cdd52bae, rechecked at this pin. The owner's explicit retirement of Claude comparison removes localFirst, cascades, ladderFromReplays, claudeReplayWorker, -replay-claude and the two ladder test files. Their unsupported profitability decision no longer exists. Existing config.Workers/FirstFor, StartLevel and the driver retain explicit worker order, budgets and stops; local -replay and its records remain. TestTheDriversDefaultWorkerIsTheLocalWorker extends the existing start-admission fixture and the retained landing undo failed its assertion at the previous code. No automatic evidence-based worker-selection requirement remains after the explicit scope retirement; local competence/full-cost evidence continues under local-demonstrated and SQA-356.",
+    "evidence_commit": "7d1c97f7d4d11234d6299ded5573b51443724e37",
     "expected_benefit": {
-        "outcome": "Worker order rests on actual completed comparable tasks.",
-        "cost": "Current ladder644+ladder_test578+ladder_matched_test221=1443AST versus prior1142; landed+39production/+262test. Remaining admission/test correction unpriced; no safe net deletion or measured runtime win established. Static fixtures0 and no new service/workload required.",
-        "uncertainty": "The failed-fallback counterexample follows source arithmetic. Selection by last record does not establish same configuration/budget; historical samples are not a guarantee for new tasks."
+        "closure_cost": "Complete 8cdd52bae landing: -934 production/-851 test AST, no static fixture/schema/CUDA growth. Selected ladder.go 644->164 and ladder test files 578+221->0: -1279 nodes within, not in addition to, that total. No binary/package directory removed; one CLI flag and obsolete comparison setup removed. Native startup fixture retained.",
+        "limits": "Gate 7m30s is retained implementation cost, not a measured saving. Explicit configurable worker fallback still exists; no recommendation to recreate profitability selection. Historical records retained."
       },
     "id": "SQA-348",
-    "impact": "A failed strong attempt can still make an unsupported cascade look profitable; exact task matching alone does not establish completion or comparability.",
-    "likely_effort": "Bounded calculation replacement and existing native fixture extension; no safe net reduction established.",
-    "plan_coverage": "Matched cost portion landed; completion/comparability remains with the existing ladder and replay owners.",
-    "plan_references": [
-        "loop-proof/matched-ladder a84bebb4a (landed)",
-        "loop-proof/demonstrated",
-        "Downloads extreme_refactor_plan.md: existing evidence/dispatch owners"
-      ],
-    "recommended_change": "Retain the matched calculation. At the existing cascades admission, require records that support successful strong-alone/fallback completion on the compared tasks; failed/censored strong work is not that cost. Keep strong-first for ambiguous/incomparable repeats or changed conditions, using existing replay identity and declared budgets. Do not add a scheduler, ledger, statistical service or arbitrary minimum sample-size rule.",
     "severity": "P2",
     "sources": [
         {
@@ -7662,7 +7637,7 @@
           "symbol": "TestTheLocalWorkerGoesFirstWhereItsReplayPays"
         }
       ],
-    "status": "open",
+    "status": "resolved",
     "title": "Require successful comparable fallback evidence before choosing the worker order"
   },
     {
@@ -7936,7 +7911,7 @@
     "comparison": "Read RunWorker's start->marker and dropRunning->deferred end boundaries beside noteUncleanEnd and landing.cost. Retain the landed native interruption check; extend that fixture for orphan/legacy starts and compare existing cost output's treatment of unknown wall.",
     "displaced_surface": "Original obligation remains: replace independent driver_running versus worker_attempts active-state interpretations and remove the displaced active serialization/write/delete path. Keep historical attempts and restart notice. The A,B,A attribution and missing-history wording corrections already landed; no additional worker-order mechanism is requested.",
     "evidence": "Partially addressed by 6da610a60: the running marker now uses the attempt's start identity, startup appends Interrupted, A,B,A moves A last, and absent records are no longer called interactive. Retained undo fails the interruption assertion. Two independent active-start stores remain. RunWorker records start before keepRunning and removes the marker before its deferred end write; a crash in either gap leaves a start without a marker, so noteUncleanEnd cannot close it and landing.cost still charges elapsed-to-now through downtime. Pre-6da records used separate time.Now values for marker and attempt, so exact Step+Started matching cannot reconcile an old interrupted pair; no actual such surviving record was observed. Cost prose discloses unknown interrupted wall, but Worker-Wall-Seconds drops it and landingCosts/printCosts presents the remainder as worker wall without the unknown qualification. These are source-established recovery/readout paths, not executed incidents.",
-    "evidence_commit": "01ce863aef2cfa6619a5232918e6a63825056bec",
+    "evidence_commit": "7d1c97f7d4d11234d6299ded5573b51443724e37",
     "expected_benefit": {
         "baseline": "Current complete selected files: cmd/loop/main3533 + startup917 + costs537 + landing/costs655 =5642 production AST. startup_test601 + cmd/loop/costs_test251 + landing/costs_test397 + interrupted_cost_test353 =1602 test AST. Includes unrelated CLI/startup behavior; none is a removable total.",
         "complete_cost": "6da adds180 production/398 test AST, no fixture/schema/CUDA growth. Start/end attempt records and separate running marker are still both written. The complete unified replacement, historical-record handling and retained native tests must be counted. No safe net reduction established; correctness may require growth.",
@@ -7946,11 +7921,11 @@
     "id": "SQA-356",
     "impact": "Prevents downtime and missing records being presented as measured worker effort, and prevents resumed work being credited to the wrong worker. Full-cost/benefit conclusions must remain limited until this path is truthful.",
     "likely_effort": "Small coordinated lifecycle/readout correction across existing driver, startup and landing owners; complete replacement must be counted.",
-    "plan_coverage": "Attempt-lifecycle fixes normal restart attribution and wording; original durable lifecycle/unknown-cost requirements remain open. Demonstrated remains parked for Claude login. No second finding or scheduler for the same root cause.",
+    "plan_coverage": "The Claude comparison is retired and local-default landed. local-demonstrated now asks the sole local worker for three unaided steps in at most six tries; neither a passing replay nor the new grammar fix closes durable lifecycle/censored-cost requirements. startup.go, landing/costs.go and cmd/loop/costs.go are byte-identical to the prior reviewed evidence; main.go still records start before keepRunning and drops the marker before deferred end recording.",
     "plan_references": [
         "loop-proof/attempt-lifecycle 6da610a60 (landed)",
-        "loop-proof/demonstrated at 01ce863aef2cfa6619a5232918e6a63825056bec",
-        "Downloads extreme_refactor_plan.md: one execution owner, truthful recovery and complete costs"
+        "loop-proof/local-demonstrated at 7d1c97f7d4d11234d6299ded5573b51443724e37",
+        "Downloads extreme_refactor_plan.md: one execution owner and truthful full costs"
       ],
     "recommended_change": "Finish the original retained-owner migration: use the existing driver start/exit/restart and processcontrol receipt as one durable attempt lifecycle, retaining terminal history and the unclean-start notice. Remove the displaced second active-start write/delete path; do not infer liveness from a start-only record. Preserve old interrupted evidence as unknown when exact identity cannot be recovered rather than charging downtime. Carry known-versus-unknown wall into the existing cost readout, keeping completed wall and actual worker order. Retain best-effort progress, stops, budgets and partial results; accounting failure must not rerun work.",
     "severity": "P2",
@@ -7992,14 +7967,17 @@
     "title": "Read worker cost from the actual attempt lifecycle, including interrupted runs"
   },
     {
-      "id": "SQA-357",
-      "status": "open",
-      "severity": "P2",
-      "category": "sampling-fast-path-admission",
-      "classification": "source-established-vocabulary-boundary-regression",
-      "title": "Keep vocabulary-size validation ahead of the greedy grammar shortcut",
-      "evidence_commit": "f39b61f82bb03d31a9c95a9ce7b07c25b2b00852",
-      "sources": [
+    "category": "sampling-fast-path-admission",
+    "classification": "verified-existing-admission-restored-before-fast-path",
+    "evidence": "Closed by c0b2e4983, rechecked at this pin. SampleWithHistory takes the greedy shortcut only when len(gbnf.tokenPieces)==len(adjusted); mismatches reach the existing applyGrammar refusal before acceptGrammar. Short and long vector cases live in TestTheGreedyShortcutRefusesLogitsOfAnotherSize; the existing strict/lazy greedy-versus-pipeline fixture remains unchanged. Retained undo failed the invalid-size assertion. The new fixture's [xy]+ continuation alone is not a strong proof of no advancement, but source ordering establishes refusal before state mutation. Numerical/tie/fallback/probability owners are retained.",
+    "evidence_commit": "7d1c97f7d4d11234d6299ded5573b51443724e37",
+    "expected_benefit": {
+        "closure_cost": "sampler.go 8081->8093 (+12 production AST); new admission fixture 187 test AST; gbnf_test.go stays2574. Implementation used a separate small fixture instead of the proposed shared-fixture extension; no test deletion credited. Complete c0 landing +33 production/+309 test includes this correction, the 104-node SQA-358 deletion and necessary staged-deletion recovery coverage; count once.",
+        "limits": "No extra binary/package/static fixture. Retained Bonsai comparison outputs identical and 10 CUDA executions/10 cached; SQA ran no tests or timing. Correctness growth is justified; no new speed claim."
+      },
+    "id": "SQA-357",
+    "severity": "P2",
+    "sources": [
         {
           "path": "internal/sampling/sampler.go",
           "symbol": "SampleWithHistory; greedyBeyondGrammar; greedyAllowed; applyGrammar; acceptGrammar"
@@ -8017,46 +7995,14 @@
           "symbol": "TestAGreedyDrawUnderAGrammarCostsAboutWhatOneWithoutDoes"
         }
       ],
-      "evidence": "f39b61f82 returns through greedyAllowed/acceptGrammar before applyGrammar, where the existing GBNF vocabulary-length error lives. Concrete use of the retained native fixture: its six-token vocabulary and strict root <[2]> [xy]+ accept token2. Fresh samplers given four logits [0,0,2,0] return token2 and advance grammar on the shortcut, while the neutral-zero-bias reference reaches applyGrammar and rejects four logits for six tokens. A longer vector with the same allowed peak also bypasses the size check. New/NewGBNFVocabulary cannot validate a later Sample vector; advanceToken only checks the chosen index. Existing parity and new timing tests always use matched vector lengths. This input-contract regression is source-established, not a model incident reproduced by SQA.",
-      "recommended_change": "Retain the faster search/fallback. Admit the shortcut only after vocabulary length is known valid; reuse the existing grammar admission/error owner or let mismatches reach it. Extend the existing greedy-versus-pipeline fixture with short/long vectors and require matching refusal without grammar advancement. Preserve strict/lazy behavior, lowest-ID ties, all-rejected fallback, penalties and probability recording. Add no second validator, fixture setup or timing-based correctness test.",
-      "displaced_surface": "Remove the early return's validation bypass. Reuse the same small vocabulary and reference sampler; no algorithm rewrite, command/package, corpus or new validation framework.",
-      "impact": "Restores exact vocabulary compatibility and prevents the optimized path from consuming invalid input and changing grammar state.",
-      "expected_benefit": {
-        "baseline": "Selected full files: sampler8081 and gbnf7045 production AST; gbnf_test2574 and greedy_grammar_test290 test AST. These are retained sizes, not removable totals. Landed change+145 production/+290 test.",
-        "complete_cost": "Small admission correction and existing-fixture extension likely require growth; replacement size not measured, no safe net deletion established. Static fixture bytes, package/command count and model workload need not increase.",
-        "performance": "Retained favorable100000-token fixture reports eight draws515us with grammar versus517us without, compared with1.25s before. No universal tool-call speedup or SQA timing run inferred.",
-        "tests": "RETAIN strict/lazy reference parity and bounded performance evidence; EXTEND the existing parity fixture for invalid sizes, keeping numerical assertions independent of timing."
-      },
-      "likely_effort": "Small correction within existing sampler admission and native fixture.",
-      "plan_references": [
-        "loop-proof/grammar-draw f39b61f82",
-        "loop-proof/demonstrated",
-        "Downloads extreme_refactor_plan.md: retained behavior and one validation owner"
-      ],
-      "plan_coverage": "Concurrent optimization reconciled at final pin; restore its existing boundary before claiming full equivalence.",
-      "closure_criteria": [
-        "Both fast and reference paths reject short/long logits before grammar advancement, with the retained vocabulary-size contract.",
-        "Matched vectors retain token/tie/fallback/probability behavior independently of timing.",
-        "Count complete correction/test/setup cost; no duplicate validator or fixture."
-      ],
-      "comparison": "Use the existing six-token strict fixture with [0,0,2,0] and its neutral-bias reference. Source trace establishes the mismatch; ordinary implementation validation extends that fixture, with no SQA model/test run."
-    },
+    "status": "resolved",
+    "title": "Keep vocabulary-size validation ahead of the greedy grammar shortcut"
+  },
     {
     "category": "test-consolidation",
-    "classification": "parsed-full-file-shared-request-contract",
-    "closure_criteria": [
-        "All four explicit-presence/value requirements live in the existing conversation fixture with its existing unique cases intact.",
-        "Dedicated request file and duplicate server/call disappear; no substitute helper/test setup.",
-        "Complete files reduce610->484test AST for the measured proposal, or record actual full cost; normal implementation validation passes."
-      ],
-    "comparison": "Retained two-turn request fixture must reject missing or changed values for each of the four fields, including on the second request; preserve model, schema, tool IDs, malformed JSON and final-answer assertions.",
-    "displaced_surface": {
-        "production": "None; retain askChat as the request owner.",
-        "tests": "Remove entire219-node local_worker_request_test.go after migrating all four explicit-presence/value checks to TestTheLocalWorkerRunsEachToolCallItsModelMakes. No new helper, wrapper, test package or runtime owner.",
-        "setup": "HTTP servers2->1, requests3->2; no static fixture bytes or model/device setup. Search found no remaining verifier naming the deleted test; plan reason only mentions historical file cost."
-      },
-    "evidence": "473e2ee9c adds four explicit sampling fields to askChat and a219-node standalone HTTP fixture. The existing391-node conversation fixture already decodes the same request on two turns and checks final completion, model/schema and tool IDs/errors. Sampling fields are unconditional in askChat, including tools=nil; no different error/cancellation/platform/lifetime contract requires a second server and workLocally call. Rechecked after8e8d62236: repeat suppression changes workLocally, not unconditional request fields or the two test files. Its repeat/edit invalidation fixture has a distinct behavioral contract and must remain.",
-    "evidence_commit": "4cb1c8aead7d2190b2cc06591a91b8319ca18310",
+    "classification": "verified-native-request-fixture-consolidation",
+    "evidence": "Closed by c0b2e4983. local_worker_request_test.go is deleted; all four *float64 fields and nil/value checks now run on each request in TestTheLocalWorkerRunsEachToolCallItsModelMakes. The existing two-turn conversation, model/schema/tool IDs, malformed-argument and final-answer assertions remain. askChat is unchanged and the repeat-guard fixture keeps its distinct contract. Fresh committed AST establishes the actual whole-file saving, smaller than the earlier proposal.",
+    "evidence_commit": "7d1c97f7d4d11234d6299ded5573b51443724e37",
     "expected_benefit": {
         "before": {
           "production_ast": 810,
@@ -8066,26 +8012,17 @@
         },
         "after": {
           "production_ast": 810,
-          "test_ast": 484,
+          "test_ast": 506,
           "http_servers": 1,
           "http_requests": 2
         },
-        "net_test_ast": -126,
+        "net_test_ast": -104,
         "total_selected_ast_before": 1420,
-        "total_selected_ast_after": 1294,
-        "measurement": "Reuse the prior parsed full-file in-memory migration: test files and askChat are unchanged at this pin, so610->484 (-126) remains valid. Repeat-guard grew local_worker.go701->810; include that unchanged production owner in both totals. No application test written or run.",
-        "uncertainty": "Syntactic comparison proves proposed size, not a test pass. Same request producer and decode boundary traced manually; no package-wide type resolution. Zero binary/directory savings; no runtime speed claim beyond one avoided setup/request."
+        "total_selected_ast_after": 1316,
+        "measurement": "Actual test files 391+219->506. Removes one file/server/workLocally setup and one request, with no substitute helper, static fixture, model load, binary or directory. This -104 is included in c0's whole-landing test +309, never added twice.",
+        "uncertainty": "AST includes comments and parser-local symbol links, no package type resolution. Closure uses source plus retained implementation checks, not a new SQA run."
       },
     "id": "SQA-358",
-    "impact": "Deletes a redundant transport fixture while retaining the numerical request contract and existing multi-turn/error coverage.",
-    "likely_effort": "Small assertion migration and one file deletion.",
-    "plan_coverage": "Existing worker conversation fixture is the retained owner; does not require a separate plan or recipe.",
-    "plan_references": [
-        "loop-proof/greedy-request473e2ee9c (landed)",
-        "loop-proof/demonstrated",
-        "Downloads extreme_refactor_plan.md: shared owners and complete test/setup cost"
-      ],
-    "recommended_change": "Add four *float64 JSON fields and presence/value assertions to the existing decoded request: temperature0,presence_penalty0,frequency_penalty0,repeat_penalty1. Keep both conversation turns and all tool/schema/error assertions. Delete local_worker_request_test.go and its duplicate server, workLocally call, terminal-answer assertion and imports. Missing zero-valued fields must still fail; plain float64 fields would lose that requirement.",
     "severity": "P3",
     "sources": [
         {
@@ -8101,7 +8038,7 @@
           "symbol": "dedicated request-setting fixture"
         }
       ],
-    "status": "open",
+    "status": "resolved",
     "title": "Merge greedy worker request checks into the existing conversation fixture"
   },
     {
@@ -8192,28 +8129,46 @@
     "automation_follow_up": {
         "landings": [
           {
-            "commit": "0b326644a",
+            "commit": "ac1935d75",
             "production_ast": 0,
-            "test_ast": 1362
+            "test_ast": 2225
+          },
+          {
+            "commit": "c0b2e4983",
+            "production_ast": 33,
+            "test_ast": 309
+          },
+          {
+            "commit": "8cdd52bae",
+            "production_ast": -934,
+            "test_ast": -851
+          },
+          {
+            "commit": "e3e16d778",
+            "production_ast": -75,
+            "test_ast": 417
+          },
+          {
+            "commit": "7d1c97f7d",
+            "production_ast": 29,
+            "test_ast": 318
           }
         ],
-        "total_production_ast": 0,
-        "total_test_ast": 1362,
-        "total_ast": 1362,
+        "total_production_ast": -947,
+        "total_test_ast": 2418,
+        "total_ast": 1471,
         "tracked_fixture_files": 0,
         "tracked_fixture_bytes": 0,
-        "fixture_interpretation": "New244-line Windows/modeltest file; no static fixture added. Uses32pictures/32clips and two existing models; generated scratch/record work remains real cost.",
-        "tests": "RETAIN shared session/record cleanup, exact answer evidence and grouped media comparison. SIMPLIFY cmpSign through stdlib; no test needed for trivial finite substitution. CORRECT undefined tau and claim/score alignment with one smallest retained pure fixture; no added model run.",
-        "retained_results": "0b retained first32TIFA pictures184questions:tau0.565,interval0.324..0.766,15disagreements. First32VidGen clips64questions:tau0.726,interval0.562..0.854,2disagreements on one clip. Qwen473s/Gemma975s,total~1500s; gate29m41s,verify25m2s. No production undo (test-only). This is selected-media association, not a universal accuracy/production-soft-metric guarantee. No SQA rerun.",
-        "pending_prior_review": "Prior6c/e3/ae adds145production/640test=785AST and442smoke-JSON bytes; includes achieved360 deletion51nodes. Pending359/360 closure sources/costs remain in their entries, not counted again."
+        "retained_results": "c0 invalid-size undo assertion failed; matched Bonsai outputs identical.8c default-worker undo failed. e3 route-budget undo failed.7d required/duplicate-parameter undo failed and retained device6.252s/webui14.741s/CUDA1executed19cached. Gate walls: ac28m18s,c014m20s,8c7m30s,e312m31s,7d11m31s. Successful walls are costs, not measured waste; no SQA rerun.",
+        "fixture_interpretation": "Static fixture count0 excludes generated media, databases, HTTP/process setup and model loads. SQA-358 removes one server and one request; necessary admission/recovery tests add work."
       },
     "automation_sequence": "Driver processcontrol/startup remain dispatch, stop and restart owners.356 identifies their disconnected cost start records;322 existing verify/undo still comes after test/lanes. Mutations reuse replay lock/tree and baseline admission, skip card checks, preserve partial records; no whole-gate or assertion-only detection claim.",
     "fresh_ast": {
-        "revision": "0b326644ace365709193155c4fbe0f9a99e2f037",
-        "method": "7committed selected files parsed; existing external tool reused. Exact in-memory full-file stdlib substitution parsed, never applied/executed.",
-        "selected_counts": "comparison1362/calibration2959/Gemma225; evidence_index3843/generated_answer1468/soft_answer668/scorecard record5589.",
-        "comparison": "cmpSign deleted and two cmp.Compare selectors plus import counted:1362->1337; shared2959+225 unchanged; complete4546->4521(-25test). Production0, helpers/fixtures/setup/gate executions0delta. Required guard/metric/native-coverage changes excluded and unmeasured.",
-        "limits": "Source contracts/build tags traced; no package type resolution, current whole-tree percentage or fresh application evidence. Retained review-20261109-2203/ast.json and compare-cost.json."
+        "revision": "7d1c97f7d4d11234d6299ded5573b51443724e37",
+        "method": "Existing external main.go go/parser/go/ast tool:11 selected committed files with call maps, function-body hashes and parser-local object links. Existing day-count.go compares22 changed Go paths from0b; not a whole-tree census.",
+        "selected_counts": "ladder164; local_worker810; local_worker_test506; sampler8093; greedy_admission_test187; gbnf_test2574; chat_tool_grammar829; chat_tool_grammar_test714; chat_parse2066; server_admin5993; json_body_limit_test417.",
+        "comparison": "Prior ladder644+tests578+221 ->164; request tests391+219 ->506. Full removed and retained files counted, no speculative helper substitution implemented. See closure entries and whole-landing costs for non-overlapping attribution.",
+        "limits": "Comments included, consistent with retained repo counts. No go/types/package resolution, application tests or model/device execution. Existing retained analysis remains revision-qualified. Output review-20261110-0410-ast.json in the existing external SQA analysis directory."
       },
     "media_follow_up": {
         "landings": [
@@ -8506,24 +8461,29 @@
       },
     "tests": [
         {
-          "classification": "retain/correct",
-          "owner": "TestASecondJudgeRanksTheCasesAlike; kendallTauB/resampledTau",
-          "change": "Retain media pairing, sequential opening, rank/disagreement records; decline undefined full tau before bootstrap and state aggregate contract."
+          "classification": "remove/merge verified",
+          "owner": "local_worker_request_test.go -> TestTheLocalWorkerRunsEachToolCallItsModelMakes",
+          "change": "Four explicit-presence/value checks retained on both turns;610->506AST and2->1HTTP setups."
         },
         {
-          "classification": "simplify/remove",
-          "owner": "cmpSign -> standard cmp.Compare",
-          "change": "Two finite callsites; entire helper/import costs counted,25test nodes removable; no extra test."
-        },
-        {
-          "classification": "retain/correct",
-          "owner": "TestGemmaTwelveOpensAsAJudge",
-          "change": "Original grouped-question accuracy obligation342 remains; don't retire its requirement without valid owner."
+          "classification": "remove verified",
+          "owner": "ladder_test.go and ladder_matched_test.go",
+          "change": "Retired comparison contract and implementation removed by explicit owner decision; retain startup/configurable-worker/replay cases."
         },
         {
           "classification": "retain",
-          "owner": "openJudge; calibration.answer; CaseOutcomes; recordChoice; softShare",
-          "change": "Share existing actual contracts; preserve probability validation, carried evidence and different aggregation meanings."
+          "owner": "greedy_admission_test.go; gbnf_test.go; chat_tool_grammar_test.go",
+          "change": "Invalid sizes, strict/lazy parity and required/unique parameter generation are distinct correctness obligations. Source validates before grammar advance; no timing-based correctness substitution."
+        },
+        {
+          "classification": "retain",
+          "owner": "TestEveryJSONRouteRefusesABodyPastItsLimit; TestJSONRequestBudgets",
+          "change": "Route wiring and ordinary-versus-multimodal byte limits differ. Its AST name scan is only a structural guard, not type-resolved proof for all routes."
+        },
+        {
+          "classification": "merge/simplify proposed",
+          "owner": "test-surface/judge-tests and existing calibration/source fixtures",
+          "change": "Move unique accuracy checks and repair assertions before removing setup; keep paired-media units and actual acceptance contract. Do not claim savings before the complete migration."
         }
       ]
   },
@@ -10058,10 +10018,10 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
     "limitations": [
-      "This chat previously implemented Overgo changes; follow-up SQA, not independent third-party review.",
-      "No application tests, models/device workloads, services, benchmarks, profiles, production gates, agents/messages, plan/skill changes or pushes.",
-      "AST standard go/parser/go/ast with comments/parser-local links; no package type resolution/application execution. Retained results reused and source contracts traced manually.",
-      "No census or current whole-tree duplication percentage. Historical binary/directory reductions remain at their original pins.25-node helper saving is unimplemented and excludes needed statistical repair/coverage; no safe overall net reduction or completed refactor."
+      "Report-only: no implementation, tests, models, services, benchmarks, gates, agents/messages, plan/skill edits or pushes.",
+      "AST includes comments and parser-local links only; no package type resolution. Structural similarity alone does not establish redundancy.",
+      "No whole-tree census, current duplicated-code percentage or verified full refactor. Costs refer to named intervals; prior reviewed pin to current grows1471AST despite the most recent four landings shrinking754.",
+      "Retained model/check results are implementation evidence, not independent SQA reproductions. External target remains active."
     ],
     "master_lead_triage": {
     "at": "2026-11-08",
@@ -10924,18 +10884,17 @@
   },
     "next_finding_number": 361,
     "publication_context": {
-    "assessment": "Reconcile pending20:01 report and0b comparison into one report-only publication through existing ownership/hooks.",
-    "checked_head": "0b326644ace365709193155c4fbe0f9a99e2f037",
-    "concurrent_changes": "Uncommitted video_super_res_measure_windows_model_test.go and untracked video_super_res_judged_windows_model_test.go belong to implementation and are excluded; re-read latest code/report/owner changes before writing.",
-    "current_pin": "0b326644ace365709193155c4fbe0f9a99e2f037",
-    "publication": "Use the existing report-only hook exception for a standalone commit when landing ownership permits. If busy, a validated report-only checkout write may remain pending; do not stage unrelated files, advance HEAD or disturb workers.",
-    "report_only": "Only docs/sqa_findings.json; existing hooks and landing/gate ownership, unrelated index/worktree preserved."
+    "assessment": "Substantive three-closure reconciliation plus current calibration and cost evidence.",
+    "checked_head": "7d1c97f7d4d11234d6299ded5573b51443724e37",
+    "concurrent_changes": "Current uncommitted docs/plan.json, internal/latentvideo/mp4.go and mp4_colour_test.go belong to implementation and are excluded. Re-read report, code and owner state under existing locks before writing.",
+    "current_pin": "7d1c97f7d4d11234d6299ded5573b51443724e37",
+    "publication": "Standalone report-only commit through existing reference-transaction hook exception and landing_turn/gate ownership; if busy, preserve implementation and leave validated report pending.",
+    "report_only": "Only docs/sqa_findings.json; unrelated index/worktree preserved."
   },
     "ranked_active_finding_ids": [
     "SQA-316",
     "SQA-346",
     "SQA-343",
-    "SQA-357",
     "SQA-271",
     "SQA-322",
     "SQA-318",
@@ -10943,7 +10902,6 @@
     "SQA-331",
     "SQA-340",
     "SQA-341",
-    "SQA-348",
     "SQA-356",
     "SQA-342",
     "SQA-345",
@@ -10957,7 +10915,6 @@
     "SQA-351",
     "SQA-352",
     "SQA-353",
-    "SQA-358",
     "SQA-350",
     "SQA-257",
     "SQA-303",
@@ -10992,42 +10949,41 @@
     "repository": "C:\\Users\\jeffm\\overgo",
     "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
     "review_notes": [
-      "0b uses paired media and sequential judge lifetimes correctly. Its retained rank/disagreement results are bounded cross-family evidence; do not mistake agreement for correctness or arithmetic score ranking for production geometric scoring.",
-      "342 remains canonical: retain earlier semantic-screen/stillness/independence obligations and add the same acceptance boundary's metric/degenerate-rank limits. No new finding ID.",
-      "Actual cmpSign substitution is25test AST saved across full comparison+shared-fixture files4546->4521; finite producer and JSON/report boundary admit no NaN probability. Standard cmp.Compare's NaN semantics differ only outside that traced domain.",
-      "All-tied finite scores can make full tau undefined; resampling currently indexes an empty slice before the existing refusal. Move that decision earlier and preserve partial evidence; new coverage belongs in a tiny existing native fixture, not a rerun of two models.",
-      "Pending359/360 closures/actual51-node deletion are retained exactly. Their prior report was left unstaged for an active landing; this update seeks one report-only commit through the same ownership.",
-      "New comparison adds1362test nodes and about25minutes of retained model checking. No overall shrinkage; no recurring remeasurement proposed."
+      "Close348 by explicit retirement of its defective selector; retain declared multi-worker fallback and local replay.",
+      "Close357 on existing admission restoration, charging new coverage honestly. Close358 with actual104-node saving, not the earlier126-node estimate.",
+      "342 includes the cropped generated-video null result and the committed accuracy-preserving plan;356's lifecycle/censored-cost gap remains.",
+      "22 changed Go files since0b net+1471AST. No additional safe net reduction or full architectural completion established."
     ],
-    "reviewed_at": "2026-11-09T22:09:04Z",
-    "reviewed_master": "0b326644ace365709193155c4fbe0f9a99e2f037",
+    "reviewed_at": "2026-11-10T04:16:36Z",
+    "reviewed_master": "7d1c97f7d4d11234d6299ded5573b51443724e37",
     "schema_version": 2,
     "scope": [
-      "Committed master 0b326644ace365709193155c4fbe0f9a99e2f037 and committed plan; unchanged repository guidance and Downloads target reused.",
-      "Bounded two-judge comparison, actual probability producer, stored-report readers, shared calibration/session cleanup and grouped scorecard consumer.7selected Go files parsed; complete in-memory helper deletion compared.",
-      "Pending20:01 report reconciled with new landing.359/360 closures retained;342 updated. Working video measurement/judged files excluded."
+      "Committed master 7d1c97f7d4d11234d6299ded5573b51443724e37 and plan b516574ede62d0c525dbd0a8ffc0461dfaf49d91; guidance unchanged and Downloads target SHA confirmed.",
+      "Bounded worker default/replay/request, greedy grammar admission, tool grammar/parser and HTTP JSON admission, plus generated-video comparison source/retained results beyond the latest diff.",
+      "11 selected source/test AST files plus direct22 changed-Go-file endpoint accounting; retained historical binary/directory analyses reused. No application/model workload.",
+      "Uncommitted plan and MP4 colour work excluded. This chat previously implemented changes and contributed the current plan review; this is not independent third-party review."
     ],
     "sqa_response": {
-    "assessment": "187stable IDs:56open,125resolved,4deferred,2aliases.342 updated with new paired-media evidence/limits. No new IDs. Pending359/360 closures carried forward for publication.",
+    "assessment": "187 stable IDs:53open,128resolved,4deferred,2aliases. Three verified closures; no new finding or consolidation.",
     "consolidated_findings": [],
     "deferred_findings": [],
     "evidence": [
-        "0b326644ace365709193155c4fbe0f9a99e2f037",
-        "0b retained comparison/cleanup/gate records",
-        "7selected AST files and full-file cmp.Compare comparison",
-        "Pending20:01 closure report preserved"
+        "7d1c97f7d4d11234d6299ded5573b51443724e37",
+        "c0b2e4983;8cdd52bae;e3e16d778;ac1935d75 retained gate/undo records",
+        "11 selected-file AST and22 changed-file endpoint comparison"
       ],
     "implementation_response_context": {
-        "reviewed_commit": "0b326644ace365709193155c4fbe0f9a99e2f037",
+        "reviewed_commit": "7d1c97f7d4d11234d6299ded5573b51443724e37",
         "current_triage_head": "518fa52f417f796df399da65d208a61290fe5635",
-        "status": "Current pending report re-read; implementation/triage and unknown fields preserved raw-exact. Pending resolution sources/costs retained."
+        "status": "Owner/triage blocks and unknown fields preserved raw-exact. Findings independently rechecked against committed source within the disclosed implementation overlap."
       },
     "new_findings": [],
     "partially_addressed_findings": [
-        "SQA-342"
+        "SQA-342",
+        "SQA-356"
       ],
     "priority_changes": [],
-    "recommendation": "Retain shared sessions and paired-media comparison; bind acceptance claims to the actual score and reject unrankable data before bootstrap. Remove cmpSign, not needed quality coverage. Preserve pending verified closures and existing admission/recovery obligations.",
+    "recommendation": "Keep achieved deletions; finish existing lifecycle recovery and calibration owners. Preserve accuracy coverage during planned consolidation. Reuse prior structural proposals instead of adding machinery.",
     "refactor": {
       "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
       "history_path": "docs/sqa_findings.json",
@@ -11035,13 +10991,15 @@
     },
     "reopened_findings": [],
     "resolved_findings": [
-        "SQA-359",
-        "SQA-360"
+        "SQA-348",
+        "SQA-357",
+        "SQA-358"
       ],
-    "reviewed_master": "0b326644ace365709193155c4fbe0f9a99e2f037",
-    "uncertainty": "Admitted source-level metric reversal/degenerate-rank paths, not an observed model failure.25-node static proposal excludes necessary repair growth. No overall shrinkage or full architectural migration.",
+    "reviewed_master": "7d1c97f7d4d11234d6299ded5573b51443724e37",
+    "uncertainty": "SQA-356's duplicate active lifecycle and unknown cost remain. Calibration still needs accuracy/aggregate/degenerate-data corrections and actual-size admission. A cropped, post-hoc nonsignificance check is not evidence of full-video noninferiority. No additional safe net deletion established from this bounded inspection.",
     "updated_findings": [
-        "SQA-342"
+        "SQA-342",
+        "SQA-356"
       ]
   }
   }

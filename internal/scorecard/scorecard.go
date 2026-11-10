@@ -121,6 +121,9 @@ type Cell struct {
 	// is counted wrong, so a reading with many says as much of how answers are
 	// read as of what the model knows.
 	Unread uint64 `json:"unread,omitzero"`
+	// UnreadCauses sorts the Unread answers by why each named no option, so a reading says how many of its losses the
+	// request made and how many the model did.
+	UnreadCauses evaluation.UnreadCauses `json:"unread_causes,omitzero"`
 	// Prompt is the length, in tokens, of the fresh prompts a first output
 	// read at a longer prompt was timed at (Row.Lengths); zero for every other
 	// cell.
@@ -221,6 +224,9 @@ func (c Cell) QualityText() string {
 	}
 	if c.Unread > 0 {
 		text += fmt.Sprintf(", %d of them answered with no option named and counted wrong", c.Unread)
+		if causes := c.UnreadCauses.String(); causes != "" {
+			text += " (" + causes + ")"
+		}
 	}
 	if c.Constant != nil {
 		advantage, directed := c.Direction.Advantage(c.Value, *c.Constant)
@@ -1594,7 +1600,7 @@ func qualityCell(task recipe.Task, summaries []evaluation.EvalSummary, descripto
 			measured = append(measured, heldout{cases: ranked, first: first[measure(summary.Suite)], built: built[summary.Suite], cell: Cell{
 				Value: value, Label: label, Source: summary.Record, Direction: summary.Directions[name],
 				CodeCommit: commit, Environment: summary.Environment, Cases: cases, Noise: noise, Constant: constant, Soft: soft, Motion: readMotion(summary.Metrics), Characters: readMetric(summary.Metrics, evaluation.CharacterMetric),
-				Measure: measure(summary.Suite), Unread: summary.Unread,
+				Measure: measure(summary.Suite), Unread: summary.Unread, UnreadCauses: summary.UnreadCauses,
 				Contract: Contract{Metric: name, Origin: originEvaluation, Suite: summary.Suite, Protocol: summary.Prompting, Comparison: summary.Comparison},
 			}})
 		}

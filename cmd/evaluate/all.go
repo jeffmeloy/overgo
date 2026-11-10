@@ -394,8 +394,18 @@ func campaignDerivedSuites(ctx context.Context, campaign *evaluation.Campaign, s
 		for _, metric := range result.Metrics {
 			fmt.Printf("  %s = %v %s\n", metric.Name, metric.Value, metric.Unit)
 		}
+		fmt.Print(unreadLine(result))
 	}
 	return selected, nil
+}
+
+// unreadLine says how many of a reading's answers named no option and why each named none, the request's causes
+// first, so a reading shows what its request lost beside what the model did; empty where every answer named one.
+func unreadLine(result evaluation.CampaignResult) string {
+	if result.Unread == (evaluation.UnreadCauses{}) {
+		return ""
+	}
+	return "  answers that named no option: " + result.Unread.String() + "\n"
 }
 
 // familyFilterOutcome decides an empty family selection: a model whose

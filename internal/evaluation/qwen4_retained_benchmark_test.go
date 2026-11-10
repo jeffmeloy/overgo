@@ -42,7 +42,7 @@ func TestQwenFourRetainedBenchmarkAcceptance(t *testing.T) {
 	var execution ExecutionPolicy
 	readRetainedEvidence(t, store, body.Execution, &execution)
 	compiled := testcheck.Must(CompileMultipleChoice(suite))(t)
-	bound, err := BindMultipleChoice(compiled, ExactAuthorities{ModelDefinition: definition, RuntimeRecipe: value.Recipe, Environment: value.Environment, CodeCommit: value.CodeCommit, Execution: execution})
+	bound, err := bindMultipleChoice(compiled, ExactAuthorities{ModelDefinition: definition, RuntimeRecipe: value.Recipe, Environment: value.Environment, CodeCommit: value.CodeCommit, Execution: execution}, retainedChoiceMethod(t, store, body.Scorer))
 	if err != nil || bound.Identity() != value.Plan {
 		t.Fatalf("binding differs: %v", err)
 	}

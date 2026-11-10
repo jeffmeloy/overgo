@@ -233,3 +233,14 @@ func checkNativeIFEvalCases(ctx context.Context, reader artifact.Reader, input n
 	}
 	return nil
 }
+
+// retainedChoiceMethod is the method the stored scorer of a retained choice plan generated its letters under, the one
+// that plan binds again with: a plan recorded under an earlier opener binds as it was recorded.
+func retainedChoiceMethod(t *testing.T, store *overgodb.Store, scorer artifact.ID) string {
+	t.Helper()
+	var stored struct {
+		Method string `json:"method"`
+	}
+	readRetainedEvidence(t, store, scorer, &stored)
+	return stored.Method
+}

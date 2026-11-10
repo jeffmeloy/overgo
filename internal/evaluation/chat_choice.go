@@ -36,17 +36,32 @@ const hostedChoiceMethod = "generated-letter-hosted"
 // paragraphs before naming a letter and MiniCPM5 opens its thinking
 // channel, both truncated by the answer bound and scored unmatched
 // (12 of 27 BBH groups near zero); a system message reached gemma but
-// not the thinking model, while this opener drew the letter from both
+// not the thinking model, while an opener drew the letter from both
 // as the first generated token. It is appended after the template's
 // generation prompt, so it is the model's own turn, not user text.
-const chatAnswerOpener = "The answer is"
+// It ends at the letter's place (answer-format/reread, 2026-11-10):
+// after earlierChatOpener 380 answers of four models' MMLU-Pro readings
+// ran out of the eight tokens in prose or a value, and asked again
+// after this opener 370 of them named a letter within the same eight.
+const chatAnswerOpener = "The answer is ("
 
 // chatChoiceMethod names the scorer method the chat-template protocol
 // binds into the plan, so a generated-letter record is a different
-// plan from a likelihood record of the same suite. The opener changed
-// what the protocol measures, so records made under the instruction
-// alone stay a different plan under the earlier name.
-const chatChoiceMethod = "generated-letter-opener"
+// plan from a likelihood record of the same suite. Each opener is a
+// method of its own, so records made under an earlier one stay their
+// own plans and no reading is compared across the two.
+const chatChoiceMethod = "generated-letter-paren"
+
+// earlierChatOpener is what the chat-template protocol opened the model's turn with before answer-format/paren-opener,
+// under earlierChatMethod, and what the hosted-chat protocol still opens it with: a plan recorded under it binds as it
+// was recorded and keeps its answers, and a hosted plan asks what it always asked.
+const (
+	earlierChatOpener = "The answer is"
+	earlierChatMethod = "generated-letter-opener"
+)
+
+// chatOpeners are the openers of the chat-template protocol's methods, each method's own.
+var chatOpeners = map[string]string{chatChoiceMethod: chatAnswerOpener, earlierChatMethod: earlierChatOpener}
 
 // chatAnswerTokens bounds the answer generation after the opener
 // (protocol decision 2026-09-03, reopened from the 16 of 2026-09-02):
@@ -114,8 +129,9 @@ func answerChoiceByGeneration(
 	ctx context.Context,
 	runtime chatChoiceRuntime,
 	testCase MultipleChoiceCase,
+	opener string,
 ) (ExactResult, error) {
-	prompt, err := ChatChoicePrompt(runtime, testCase)
+	prompt, err := openedChoicePrompt(runtime, testCase, opener)
 	if err != nil {
 		return ExactResult{}, err
 	}
@@ -136,6 +152,11 @@ type ChatShaper interface {
 // follows. The evaluation generates from exactly this, so a reader of what a
 // model is asked reads it here and nowhere else.
 func ChatChoicePrompt(shaper ChatShaper, testCase MultipleChoiceCase) (string, error) {
+	return openedChoicePrompt(shaper, testCase, chatAnswerOpener)
+}
+
+// openedChoicePrompt is ChatChoicePrompt with the model's turn opened by opener, the one its plan asks with.
+func openedChoicePrompt(shaper ChatShaper, testCase MultipleChoiceCase, opener string) (string, error) {
 	prompt, _, err := chatChoicePrompt(testCase, chatChoiceInstruction)
 	if err != nil {
 		return "", err
@@ -144,7 +165,7 @@ func ChatChoicePrompt(shaper ChatShaper, testCase MultipleChoiceCase) (string, e
 	if err != nil {
 		return "", err
 	}
-	return shaped + chatAnswerOpener, nil
+	return shaped + opener, nil
 }
 
 // chatChoiceLetters returns the letters the extractor reads for a case,

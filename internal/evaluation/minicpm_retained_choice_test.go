@@ -58,7 +58,7 @@ func TestMiniCPMRetainedChoiceAcceptance(t *testing.T) {
 				t.Fatal("generated evidence replaced by a different execution protocol")
 			}
 			compiled := testcheck.Must(CompileMultipleChoice(suite))(t)
-			bound, err := BindMultipleChoice(compiled, ExactAuthorities{ModelDefinition: value.ModelDefinition, RuntimeRecipe: value.Recipe, Environment: value.Environment, CodeCommit: value.CodeCommit, Execution: execution})
+			bound, err := bindMultipleChoice(compiled, ExactAuthorities{ModelDefinition: value.ModelDefinition, RuntimeRecipe: value.Recipe, Environment: value.Environment, CodeCommit: value.CodeCommit, Execution: execution}, retainedChoiceMethod(t, store, body.Scorer))
 			if err != nil || bound.Identity() != value.Plan || compiled.identity != body.CaseProfile {
 				t.Fatalf("retained generated protocol no longer binds exactly: %v", err)
 			}

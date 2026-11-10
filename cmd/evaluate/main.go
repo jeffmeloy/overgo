@@ -147,7 +147,7 @@ func run() error {
 	suiteOut := flag.String("suite-out", "", "with a -build- flag: the suite file to write")
 	cpuProfile := flag.String("cpuprofile", "", "write a Go CPU profile of this process to the file (the host side of a pass; a worker's file is its own)")
 	reaskRecord := flag.String("reask", "", "ask the answers of this chat-template evaluation record that named no option because the token budget ended again, through the model file -model-path names, under -reask-opener and -reask-tokens, and print how many now name an option letter; records nothing")
-	reaskOpener := flag.String("reask-opener", "The answer is", "with -reask: the words the model's turn opens with")
+	reaskOpener := flag.String("reask-opener", "The answer is", "with -reask: the words the model's turn opens with; by default the opener the readings before answer-format/paren-opener were asked after")
 	reaskTokens := flag.Int("reask-tokens", reaskDefaultTokens, "with -reask: how many tokens the answer is read from")
 	flag.Parse()
 	if err := dataroot.ResolveStore(repository); err != nil {

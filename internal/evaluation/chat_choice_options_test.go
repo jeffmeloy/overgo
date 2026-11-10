@@ -37,7 +37,7 @@ func TestChatChoicePromptListsTextCandidatesAsLetteredOptions(t *testing.T) {
 		t.Fatalf("letter case prompt = %q letters = %q err = %v", prompt, letters, err)
 	}
 	fixture := &chatFixture{answers: []string{"A"}}
-	written, err := answerChoiceByGeneration(t.Context(), fixture, textCase)
+	written, err := answerChoiceByGeneration(t.Context(), fixture, textCase, chatAnswerOpener)
 	if err != nil || !strings.Contains(fixture.shaped[0], "A. False") {
 		t.Fatalf("written = %+v err = %v shaped = %q", written, err, fixture.shaped)
 	}

@@ -1,6 +1,7 @@
 package evaluation
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -191,6 +192,17 @@ func validateMultipleChoiceCase(testCase MultipleChoiceCase) error {
 }
 
 func BindMultipleChoice(compiled multipleChoicePlan, authorities ExactAuthorities) (Plan, error) {
+	return bindMultipleChoice(compiled, authorities, chatChoiceMethod)
+}
+
+// bindMultipleChoice binds compiled with chatMethod the method a chat-template plan generates its letter under, which
+// names the opener it asks with (chatOpeners): chatChoiceMethod for every plan bound to be asked, and an earlier
+// method for a plan recorded under it, which binds as it was recorded.
+func bindMultipleChoice(compiled multipleChoicePlan, authorities ExactAuthorities, chatMethod string) (Plan, error) {
+	opener, known := chatOpeners[chatMethod]
+	if !known {
+		return Plan{}, fmt.Errorf("evaluation: the chat-template protocol generates a letter under no method %q", chatMethod)
+	}
 	scorer := struct {
 		Version       uint16                      `json:"version"`
 		Kind          string                      `json:"kind"`
@@ -209,21 +221,26 @@ func BindMultipleChoice(compiled multipleChoicePlan, authorities ExactAuthoritie
 		if err := validateChatChoiceSuite(compiled.suite.Cases); err != nil {
 			return Plan{}, err
 		}
-		scorer.Method = chatChoiceMethod
+		scorer.Method = chatMethod
 		switch prompting {
 		case PromptingHostedChat:
-			scorer.Method = hostedChoiceMethod
+			scorer.Method, opener = hostedChoiceMethod, earlierChatOpener
 		case PromptingReasoning:
 			// parser = the scorer's method, so another parser reads answers already given without asking again.
-			scorer.Method = authorities.Execution.Reasoning.Parser
+			scorer.Method, opener = authorities.Execution.Reasoning.Parser, ""
 			if _, known := reasonedParsers[scorer.Method]; !known {
 				return Plan{}, fmt.Errorf("evaluation: the %s protocol reads answers by parser %q, which is none of the %d this code holds", prompting.Label(), scorer.Method, len(reasonedParsers))
 			}
 		}
-	} else if compiled.delimiter != "" {
-		scorer.Method = delimitedChoiceMethod
+	} else {
+		opener = ""
+		if compiled.delimiter != "" {
+			scorer.Method = delimitedChoiceMethod
+		}
 	}
-	return bindAsked(compiled.dataset, compiled.split, compiled.identity, compiled.suite, scorer, authorities)
+	plan, err := bindAsked(compiled.dataset, compiled.split, compiled.identity, compiled.suite, scorer, authorities)
+	plan.opener = opener
+	return plan, err
 }
 
 func evaluateMultipleChoice(
@@ -277,6 +294,9 @@ type askedChoice struct {
 	Name       string   `json:"name"`
 	Prompt     string   `json:"prompt"`
 	Candidates []string `json:"candidates"`
+	// Opener is what the model's turn is opened with where it is not earlierChatOpener, so answers given after one
+	// opener are never read as answers to another, and answers recorded before it keep their identity.
+	Opener string `json:"opener,omitzero"`
 }
 
 // scoreMultipleChoice answers each case of a suite and scores the answers. A
@@ -294,8 +314,12 @@ func scoreMultipleChoice(
 	suite MultipleChoiceSuite,
 ) ([]choiceObservation, artifact.ID, float64, error) {
 	asked := make([]askedChoice, len(suite.Cases))
+	opener := plan.opener
+	if opener == earlierChatOpener {
+		opener = ""
+	}
 	for index, testCase := range suite.Cases {
-		asked[index] = askedChoice{Name: testCase.Name, Prompt: testCase.Prompt, Candidates: testCase.Candidates}
+		asked[index] = askedChoice{Name: testCase.Name, Prompt: testCase.Prompt, Candidates: testCase.Candidates, Opener: opener}
 	}
 	held, err := loadAnswers[choiceAnswer](ctx, repository, plan, asked)
 	if err != nil {
@@ -324,7 +348,7 @@ func scoreMultipleChoice(
 				return choiceAnswer{Written: &written}, err
 			}
 			if generative {
-				written, err := answerChoiceByGeneration(ctx, chat, testCase)
+				written, err := answerChoiceByGeneration(ctx, chat, testCase, cmp.Or(plan.opener, earlierChatOpener))
 				return choiceAnswer{Written: &written}, err
 			}
 			scores, err := scorer.ScoreContinuations(ctx, testCase.Prompt, testCase.Candidates)

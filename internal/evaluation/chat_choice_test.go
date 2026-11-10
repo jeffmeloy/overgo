@@ -30,7 +30,7 @@ func (f *chatFixture) ShapeChatPrompt(prompt string) (string, error) {
 }
 
 func (f *chatFixture) Generate(_ context.Context, prompt string, options inference.GenerateOptions) ([]tokenizer.TokenID, string, error) {
-	if !strings.HasPrefix(prompt, "<user>") || !strings.HasSuffix(prompt, "<model>"+chatAnswerOpener) {
+	if !strings.HasPrefix(prompt, "<user>") || !strings.HasSuffix(prompt, "<model>"+chatAnswerOpener) && !strings.HasSuffix(prompt, "<model>"+earlierChatOpener) {
 		panic("generation received an unshaped prompt or an unopened model turn")
 	}
 	text := f.answers[f.calls%len(f.answers)]
@@ -75,7 +75,7 @@ func TestChatChoicePromptIsTheTextTheEvaluationGeneratesFrom(t *testing.T) {
 		{Name: "texts", Prompt: "Is it so?", Candidates: []string{" False", " True"}, Answer: 1},
 	} {
 		want := testcheck.Must(ChatChoicePrompt(runtime, testCase))(t)
-		if _, err := answerChoiceByGeneration(t.Context(), runtime, testCase); err != nil {
+		if _, err := answerChoiceByGeneration(t.Context(), runtime, testCase, chatAnswerOpener); err != nil {
 			t.Fatal(err)
 		}
 		if asked := runtime.asked[len(runtime.asked)-1]; asked != want {

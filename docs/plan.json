@@ -3,32 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "answer-format",
-      "title": "An MMLU-Pro answer that names no option is sorted by why it named none, the token budget ended, a thought left open, the model declined or it repeated itself, and the scorecard says the sort beside the count",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": -748,
-        "reason": "Estimated: a reading over answers the store already holds and, where the cause is overgo's, a change to one request field or one answer reader. The count is reset from what the reading finds. Step reread: +201 (201, the median of what 18 landings that changed internal/evaluation, cmd/evaluate, internal/scorecard counted). Step paren-opener: +155 (155, the median of what 21 landings that changed internal/evaluation, cmd/evaluate, internal/scorecard, docs/verification counted)."
-      },
-      "steps": [
-        {
-          "id": "paren-opener",
-          "title": "The chat-template protocol opens the answer with 'The answer is (' under a new scorer method, the retained acceptances it re-binds are recorded again, and every model's MMLU-Pro cell is read again under it",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -count=1 -run '^TestTheChatProtocolOpensTheAnswerAtTheLettersPlace$'",
-          "files": [
-            "internal/evaluation",
-            "cmd/evaluate",
-            "internal/scorecard",
-            "docs/verification"
-          ],
-          "needs_card": true,
-          "rationale": "Serves: held-out-quality for every model read under the chat-template protocol, the MMLU-Pro cells first.\n\nDisappears: answers counted wrong because the opener invited prose. answer-format/reread measured it (2026-11-10, TestTheBudgetEndedAnswersAreAskedAgain): asked again, \"The answer is (\" drew an option letter within the same eight tokens for 370 of the 380 answers the budget ended:\n- Qwen3.5-9B: 143 of 145.\n- gemma-4-12B-it-fp8: 65 of 69.\n- gemma-4-12B-it-fp8-native: 64 of 68.\n- MiniCPM5-1B: 98 of 98.\nThirty-two tokens after the old opener drew 106. A drawn letter is not a right one: whether each is right is what the re-read says.\n\nThe change: chatAnswerOpener becomes \"The answer is (\" under a new scorer method (generated-letter-paren), so readings under the old opener stay their own plans and no cell is compared across the two. It re-binds every chat-template plan, so the step also does three things:\n- Re-records the retained answers that two acceptances stand on, under the new plan: TestMiniCPMRetainedChoiceAcceptance (mmlu, mmlu-pro, bbh and musr) and TestQwenFourRetainedBenchmarkAcceptance. This takes those models' runs, not a fixture edit.\n- Moves the pinned plan identities that change with the method (TestMMLUProIsAGroupedChoiceWithItsIdentitiesUnchanged, TestEvaluationProtocolCapturesAllPolicyInputs), each named in the message.\n- Reads every model's MMLU-Pro chat-template cell again on the same 1209 held-out cases (go run ./cmd/validate -run -cells).\n\nSeen while measuring: with the method changed, those four tests fail at once, which is how this step is known to be its own.\n\nBatch: device lane."
-        }
-      ]
-    },
-    {
       "id": "judge-speed",
       "title": "A judge's cached answer is bound to the answer it scores, a judge beside a resident video model answers at its own speed, and gemma-4-12B-it judges no slower than the larger Qwen judge",
       "owner": "master-lead",

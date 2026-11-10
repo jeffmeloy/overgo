@@ -138,6 +138,9 @@ type Plan struct {
 	// reasoning is the bound execution policy's Reasoning, which a choice
 	// suite is answered and parsed by.
 	reasoning reasoningPolicy
+	// opener is what a choice suite whose letter is generated opens the model's turn with, its scorer method's
+	// (chatOpeners), and empty for every other plan.
+	opener string
 }
 
 type planBody struct {

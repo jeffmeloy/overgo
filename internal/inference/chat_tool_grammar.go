@@ -135,9 +135,20 @@ func hermesToolGrammar(
 		}
 		functionName := fmt.Sprintf("tool-function-%d", index)
 		functionRules[index] = functionName
+		// Each parameter appears once: the required ones in the order the schema requires them, then each optional one,
+		// sorted, or not at all. The parser refuses a call giving a parameter twice (parseHermesParameters) or missing a
+		// required one (validateParsedToolArguments), so the grammar draws no call it would refuse.
 		properties, _ := tool.Function.Parameters["properties"].(map[string]any)
-		propertyNames := make([]string, 0, len(properties))
+		required := schemaRequiredNames(tool.Function.Parameters["required"])
+		var optional []string
 		for name := range properties {
+			if !slices.Contains(required, name) {
+				optional = append(optional, name)
+			}
+		}
+		slices.Sort(optional)
+		var sequence []string
+		for propertyIndex, name := range append(slices.Clone(required), optional...) {
 			if !textcheck.Only(name, chatToolNameCharacters) {
 				return "", fmt.Errorf(
 					"tool %d parameter name %q is not tag-safe",
@@ -145,17 +156,11 @@ func hermesToolGrammar(
 					name,
 				)
 			}
-			propertyNames = append(propertyNames, name)
-		}
-		slices.Sort(propertyNames)
-		parameterRules := make([]string, len(propertyNames))
-		for propertyIndex, name := range propertyNames {
 			ruleName := fmt.Sprintf(
 				"tool-%d-parameter-%d",
 				index,
 				propertyIndex,
 			)
-			parameterRules[propertyIndex] = ruleName
 			rules = append(
 				rules,
 				ruleName+" ::= "+
@@ -163,10 +168,14 @@ func hermesToolGrammar(
 					` tool-parameter-value `+
 					strconv.Quote("</parameter>")+" space",
 			)
+			if propertyIndex >= len(required) {
+				ruleName += "?"
+			}
+			sequence = append(sequence, ruleName)
 		}
 		body := ""
-		if len(parameterRules) != 0 {
-			body = " (" + strings.Join(parameterRules, " | ") + ")*"
+		if len(sequence) != 0 {
+			body = " " + strings.Join(sequence, " ")
 		}
 		rules = append(
 			rules,

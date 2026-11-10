@@ -4,8 +4,59 @@ import (
 	"strings"
 	"testing"
 
+	"overgo/internal/sampling"
 	"overgo/internal/testcheck"
 )
+
+// TestAToolCallGrammarHoldsEachParameterOnceAndTheRequiredOnes holds a parameter-form tool call to what the parser
+// takes: Qwen3.8, the local worker's model, drew calls missing a required path and giving path twice, and the chat
+// route answered each with a 500 (loop-proof/local-demonstrated, run 2). The grammar for a tool whose path is required
+// and whose note is optional takes a call with path, with or without note, and takes no call missing path or giving it
+// twice, read by a greedy draw under the compiled grammar, a byte a token.
+func TestAToolCallGrammarHoldsEachParameterOnceAndTheRequiredOnes(t *testing.T) {
+	t.Parallel()
+	runner := jinjaChatTestRunner(t, `<tool_call><function=example_function_name></function></tool_call>`)
+	tool := ChatTool{Type: "function", Function: ChatToolDefinition{Name: "edit", Description: "Edit a file", Parameters: map[string]any{
+		"type":       "object",
+		"properties": map[string]any{"path": map[string]any{"type": "string"}, "note": map[string]any{"type": "string"}},
+		"required":   []any{"path"},
+	}}}
+	source, root, _, err := runner.ChatToolGrammar([]ChatTool{tool}, true, false, false)
+	testcheck.NoError(t, err)
+	const bytesOfAToken = 256
+	pieces := make([][]byte, bytesOfAToken+1)
+	for value := range bytesOfAToken {
+		pieces[value] = []byte{byte(value)}
+	}
+	end := bytesOfAToken
+	vocabulary := testcheck.Must(sampling.NewGBNFVocabulary(pieces, []int{end}, nil))(t)
+	grammar := testcheck.Must(vocabulary.Compile(source, root, sampling.GBNFLazyOptions{}))(t)
+	takes := func(text string) bool {
+		sampler := testcheck.Must(sampling.New(sampling.Config{GBNF: grammar}))(t)
+		tokens := make([]int, 0, len(text)+1)
+		for _, value := range []byte(text) {
+			tokens = append(tokens, int(value))
+		}
+		for _, want := range append(tokens, end) {
+			logits := make([]float32, len(pieces))
+			logits[want] = 1
+			if token, err := sampler.Sample(logits); err != nil || token != want {
+				return false
+			}
+		}
+		return true
+	}
+	for text, want := range map[string]bool{
+		"<tool_call><function=edit><parameter=path>a.go</parameter></function></tool_call>":                                 true,
+		"<tool_call><function=edit><parameter=path>a.go</parameter><parameter=note>n</parameter></function></tool_call>":    true,
+		"<tool_call><function=edit><parameter=note>n</parameter></function></tool_call>":                                    false,
+		"<tool_call><function=edit><parameter=path>a.go</parameter><parameter=path>b.go</parameter></function></tool_call>": false,
+	} {
+		if got := takes(text); got != want {
+			t.Errorf("the grammar takes %q: %t, want %t", text, got, want)
+		}
+	}
+}
 
 func TestJSONToolGrammarUsesSchemaAndLazyDelimiter(t *testing.T) {
 	runner := jinjaChatTestRunner(

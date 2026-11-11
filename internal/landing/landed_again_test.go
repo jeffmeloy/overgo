@@ -46,7 +46,7 @@ func TestEveryStageFailureLeavesTheTrunkAlone(t *testing.T) {
 	}{
 		{"format", "row/do", map[string]string{"p/p.go": source + "\nfunc Unparsed( {\n"}},
 		{"vet", "row/do", map[string]string{"p/p.go": source + "\nimport \"fmt\"\n\n// Printed prints.\nfunc Printed() { fmt.Printf(\"%d\", \"text\") }\n"}},
-		{"rules", "row/do", map[string]string{"p/p.go": source + "\n// Seven is seven.\nfunc Seven() int { return 7 }\n"}},
+		{"rules", "row/do", map[string]string{"p/p.go": source + "\nimport \"sort\"\n\n// Sorted sorts.\nfunc Sorted(values []int) { sort.Slice(values, func(i, j int) bool { return values[i] > values[j] }) }\n"}},
 		{"test", "row/do", map[string]string{"p/p_test.go": "package p\n\nimport \"testing\"\n\nfunc TestFails(t *testing.T) { t.Fatal(\"broken\") }\n"}},
 		{"verify", "failing/do", map[string]string{"a.txt": "verified\n"}},
 	} {

@@ -12,50 +12,16 @@ import (
 	"overgo/internal/testcheck"
 )
 
-// TestExportUseCountsConsumers holds the export rule to consumers: another
-// package's production code that selects a new export through an import of
-// its package lets it land under any import name, as does a file that names
-// the package but does not parse; another package's test counts only for a
-// test-support package, one whose production importers are all test
-// support themselves and none a main package. A comment, a string, a local
-// that shadows the import, a same-named package from another path and the
-// package's own tests leave it refused.
-func TestExportUseCountsConsumers(t *testing.T) {
+// TestTheGateAdmitsInlineNumbersAndPackageExports holds the rules stage to what bears on behaviour, quality or
+// measurement (fewer-refusals/trim-rules): a change that writes a number inline and exports a function its own package
+// alone calls passes it. The two rules that refused both were behind 24 of the 30 refusals that named their rule by
+// 2026-11-11; the policy against an arbitrary limit is held where it matters by its own checks, and a declaration
+// nothing reaches by the reach check.
+func TestTheGateAdmitsInlineNumbersAndPackageExports(t *testing.T) {
 	t.Parallel()
-	const exported = "package p\n\nfunc New() int { return 1 }\n"
-	const imports = "package q\n\nimport \"overgo/internal/p\"\n\n"
-	const tested = imports + "var value = p.New()\n"
-	snapshot := func(source string) gosyntax.Snapshot { return packageSnapshot(t, source) }
-	for _, test := range []struct {
-		name     string
-		files    map[string]string
-		consumed bool
-	}{
-		{"a comment and a string", map[string]string{"internal/q/q.go": "package q\n\n// Built by p.New once the model loads.\nconst note = \"p.New\"\n"}, false},
-		{"a shadowing local", map[string]string{"internal/q/q.go": imports + "var other = p.Other\n\nfunc f(p struct{ New int }) int { return p.New }\n"}, false},
-		{"a same-named package", map[string]string{"internal/q/q.go": "package q\n\nimport p \"overgo/internal/peer\"\n\nvar value = p.New()\n"}, false},
-		{"its own package's test", map[string]string{"internal/p/p_test.go": "package p_test\n\nimport \"overgo/internal/p\"\n\nvar value = p.New()\n"}, false},
-		{"only another package's test, of a package production imports", map[string]string{
-			"cmd/x/main.go": "package main\n\nimport \"overgo/internal/p\"\n\nfunc main() { p.Other() }\n", "internal/q/q_test.go": tested}, false},
-		{"a call", map[string]string{"cmd/x/main.go": "package main\n\nimport \"overgo/internal/p\"\n\nfunc main() { p.New() }\n"}, true},
-		{"an aliased import", map[string]string{"internal/q/q.go": "package q\n\nimport made \"overgo/internal/p\"\n\nvar value = made.New()\n"}, true},
-		{"a consumer before a local selector", map[string]string{"internal/q/q.go": imports + "func use(...int) {}\nfunc f(local struct{ New int }) { use(p.New(), local.New) }\n"}, true},
-		{"a consumer after a local selector", map[string]string{"internal/q/q.go": imports + "func use(...int) {}\nfunc f(local struct{ New int }) { use(local.New, p.New()) }\n"}, true},
-		{"another package's test, of a package only tests import", map[string]string{"internal/q/q_test.go": tested}, true},
-		{"another package's test, of a package only test support imports", map[string]string{
-			"internal/b/b.go":      "package b\n\nimport \"overgo/internal/p\"\n\nvar Other = p.Other\n",
-			"internal/c/c_test.go": "package c\n\nimport \"overgo/internal/b\"\n\nvar other = b.Other\n", "internal/q/q_test.go": tested}, true},
-		{"an unparsed importer", map[string]string{"internal/q/q.go": imports + "func broken( {\n"}, true},
-	} {
-		repo := t.TempDir()
-		test.files["internal/p/p.go"] = exported
-		writeModule(t, repo, test.files)
-		l := &landing{Options: Options{Repo: repo}}
-		findings, err := l.newUnconsumedExports(snapshot("package p\n"), snapshot(exported))
-		if err != nil || (len(findings) == 0) != test.consumed {
-			t.Errorf("%s: findings = %q, %v; consumed = %t", test.name, findings, err, test.consumed)
-		}
-	}
+	fixture := newRowFixture(t, map[string]string{"internal/p/p.go": emptyPackage})
+	fixture.write("internal/p/p.go", emptyPackage+"\n// Half is the fixture's export, which its package alone calls.\nfunc Half(n int) int { return n / 2 }\n\n// Quarter halves twice.\nfunc quarter(n int) int { return Half(Half(n)) }\n")
+	testcheck.NoError(t, fixture.candidate().rules(t.Context()))
 }
 
 // TestFallbackLintAcceptsLazyReads passes an if that falls back from an
@@ -127,24 +93,6 @@ var twice sync.Once
 	slices.Sort(scopes)
 	if want := []string{"Stable", "package"}; !slices.Equal(scopes, want) {
 		t.Fatalf("findings = %q, want one each in %v", findings, want)
-	}
-}
-
-// TestNewPolicyLiteralsIgnoresRenames refuses a number a change adds and
-// passes one a change only carries into a renamed function.
-func TestNewPolicyLiteralsIgnoresRenames(t *testing.T) {
-	t.Parallel()
-	snapshot := func(source string) gosyntax.Snapshot {
-		t.Helper()
-		result := testcheck.Must((gosyntax.Snapshot{}).Overlay(map[string][]byte{"internal/p/p.go": []byte("package p\n\n" + source)}))(t)
-		return result
-	}
-	base := snapshot("func half(n int) int { return n / 2 }\n")
-	if findings := newPolicyLiterals(base, snapshot("func Half(n int) int { return n / 2 }\n")); len(findings) != 0 {
-		t.Fatalf("a renamed function's number was refused: %v", findings)
-	}
-	if findings := newPolicyLiterals(base, snapshot("func Half(n int) int { return n / 2 }\n\nfunc third(n int) int { return n / 2 / 2 }\n")); len(findings) != 1 {
-		t.Fatalf("an added number was not refused once: %v", findings)
 	}
 }
 

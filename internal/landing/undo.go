@@ -104,7 +104,9 @@ func (l *landing) undo(ctx context.Context) error {
 	// its local rule while the assembled path breaks the guarantee).
 	if len(l.unevidenced) == len(checks) {
 		if len(l.boundaryReasons) == 0 {
-			return fmt.Errorf("land: no check of %s fails on an assertion with %s, since %s do not build without the change: add a test through an existing boundary, one that builds without the change and fails there, to the step's check (go run ./cmd/plan -setverify), or say why none is practical in a line of its rationale opening %q (go run ./cmd/plan -note)",
+			// A landing is judged by the check of the commit it builds on, so a check widened in the same change is
+			// never run here; the note is the remedy that works (finding bc29104a, 2026-11-11).
+			return fmt.Errorf("land: no check of %s fails on an assertion with %s, since %s do not build without the change: say in a line of the step's rationale opening %q why the check has no test through a boundary that builds without the change, naming any such test the change adds (go run ./cmd/plan -note)",
 				l.Ref, said, strings.Join(l.unevidenced, "; "), noBoundaryLine)
 		}
 		l.undone = append(l.undone, "no boundary test, as the step says: "+strings.Join(l.boundaryReasons, "; "))

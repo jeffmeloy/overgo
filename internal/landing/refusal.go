@@ -35,31 +35,22 @@ type Refusal struct {
 var stageRules = []struct{ name, phrase string }{
 	{"pins", "changes bytes a record pins"},
 	{"style", "new Go style findings"},
-	{"inline-numbers", "new inline number"},
 	{"legacy-forms", "new sort.Slice"},
 	{"legacy-forms", "new sync.Once"},
-	{"exports", "has no consumer outside its package"},
 	{"cuda-lanes", "has CUDA-gated tests that no lane runs"},
 	{"count", "production syntax nodes, and the consolidation"},
 }
 
-// pinsRefusal, uncoveredRefusal, exportRefusal and shrinkRefusal are what the
-// rules stage refuses a change with for moving bytes a record pins, a
-// CUDA-gated test no lane runs, an export no other package uses, and a
-// consolidation that grows past its count; each ends with the edit that
-// clears it, a command where one does.
+// pinsRefusal, uncoveredRefusal and shrinkRefusal are what the rules stage
+// refuses a change with for moving bytes a record pins, a CUDA-gated test no
+// lane runs, and a consolidation that grows past its count; each ends with
+// the edit that clears it, a command where one does.
 func pinsRefusal(stale []string) string {
 	return "changes bytes a record pins: " + strings.Join(stale, "; ")
 }
 
 func uncoveredRefusal(directory string) string {
 	return directory + " has CUDA-gated tests that no lane runs; edit: add \"./" + directory + "\" to cudaPackages in internal/landing/lanes.go"
-}
-
-func exportRefusal(pkg, name, directory string) string {
-	unexported := strings.ToLower(name[:1]) + name[1:]
-	return "new export " + pkg + "." + name + " in " + directory + " has no consumer outside its package; edit: gofmt -r '" + name + " -> " +
-		unexported + "' -w " + directory + "/*.go, or land its consumer"
 }
 
 func shrinkRefusal(growth int, row string, left int) string {

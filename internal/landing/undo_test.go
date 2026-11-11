@@ -103,14 +103,15 @@ func TestAMovedTestIsUndoneWhereItMoved(t *testing.T) {
 
 // TestNoUndoEvidenceNeedsABoundaryTestOrAReason holds a change none of whose checks builds without it to a reason: on
 // 2026-11-09 such a landing said its checks were no evidence and landed (the owner's review). Its checks not building
-// with its production Go restored, it is refused, the refusal naming the two ways on: a test through an existing
-// boundary in its check, or a line of its step's rationale opening noBoundaryLine. With that line it lands, its undo
+// with its production Go restored, it is refused, the refusal naming the way on that works: a line of its step's
+// rationale opening noBoundaryLine, never a widened check, which a landing judged by its base's check does not run
+// (fewer-refusals/trim-rules). With that line it lands, its undo
 // section giving the reason, its message carrying the trailer Undo-Evidence: none, which git log counts, and opening
 // its Change section with the checks that are no evidence.
 func TestNoUndoEvidenceNeedsABoundaryTestOrAReason(t *testing.T) {
 	t.Parallel()
-	if _, err := undone(t, "", "", undoneValue+twice, unbuiltTest); err == nil || !strings.Contains(err.Error(), "No boundary test:") || !strings.Contains(err.Error(), "-setverify") {
-		t.Errorf("a change whose check does not build without it and whose step gives no reason ended as %v, want it refused naming both ways on", err)
+	if _, err := undone(t, "", "", undoneValue+twice, unbuiltTest); err == nil || !strings.Contains(err.Error(), "No boundary test:") || strings.Contains(err.Error(), "-setverify") {
+		t.Errorf("a change whose check does not build without it and whose step gives no reason ended as %v, want it refused naming the note and no widened check", err)
 	}
 	const reason = "Twice is new, and no caller of Value reads it."
 	unbuilt, err := undone(t, "", reason, undoneValue+twice, unbuiltTest)

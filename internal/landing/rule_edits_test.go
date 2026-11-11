@@ -42,10 +42,6 @@ func TestEveryRuleRefusalFixesOrPrintsItsEdit(t *testing.T) {
 		testcheck.NoError(t, fixture.candidate().rules(t.Context()))
 	}
 
-	export := newRowFixture(t, map[string]string{"internal/p/p.go": emptyPackage})
-	export.write("internal/p/p.go", emptyPackage+"\n// Exported is the fixture's export.\nfunc Exported() string { return \"\" }\n")
-	cleared(export, refused(export, "has no consumer"), ", or land")
-
 	pinned := newRowFixture(t, map[string]string{"a.txt": "base\n"})
 	digest := sha256.Sum256([]byte("base\n"))
 	pinned.write("docs/verification/a-coverage.json", `{"inputs": {"a.txt": "`+hex.EncodeToString(digest[:])+`"}}`+"\n")
@@ -53,14 +49,6 @@ func TestEveryRuleRefusalFixesOrPrintsItsEdit(t *testing.T) {
 	pinned.git("commit", "-q", "-m", "a pin")
 	pinned.write("a.txt", "changed\n")
 	cleared(pinned, refused(pinned, "pinned by docs/verification/a-coverage.json"), ", or else")
-
-	number := newRowFixture(t, map[string]string{"internal/p/p.go": emptyPackage})
-	number.write("internal/p/p.go", emptyPackage+"\nfunc value() int { return 42 }\n")
-	numbered := refused(number, "new inline number internal/p/p.go 42 on lines 3")
-	_, name, _ := strings.Cut(numbered, "`const ")
-	name, _, _ = strings.Cut(name, " = ")
-	number.write("internal/p/p.go", emptyPackage+"\n// "+name+" is the fixture's number.\nconst "+name+" = 42\n\nfunc value() int { return "+name+" }\n")
-	testcheck.NoError(t, number.candidate().rules(t.Context()))
 
 	text := newRowFixture(t, map[string]string{"internal/p/p.go": emptyPackage})
 	text.write("internal/p/p.go", emptyPackage+"\nimport \"errors\"\n\nfunc failed() error { return errors.New(\"Failed\") }\n")

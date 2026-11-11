@@ -204,7 +204,7 @@ type commandReach struct {
 // reachFromCommands walks a snapshot's production files from its commands by names, for the record schema reading, which follows a schema by name through the values that hold it; the census of declarations walks types (reachTypes).
 //   - a file whose build constraint needs ignoreTag is no part of the package beside it and is no root
 //   - a generated file is walked for what it reaches
-//   - test-support package = no main package, whose every importing production file outside it is in a test-support package and none in a main package (the rule of landing.newUnconsumedExports)
+//   - test-support package = no main package, whose every importing production file outside it is in a test-support package and none in a main package
 //   - roots = main of every main package + init, variables and constants of every package that is not test support, because a command links each such package
 //   - a method is reached <=> its receiver type is reached and (its name is selected or outside holds its name)
 //   - outside = the exported method names of interfaces declared outside the module, whose callers the walk cannot read

@@ -17,7 +17,7 @@ import (
 // TestSmallGateLandsAChange holds the small gate to its contract on a fixture
 // module: a change whose checks pass lands as one commit that names its row
 // and removes the row from the plan; a failing test, a message without its
-// sections, and a new inline number are refused with HEAD left where it was.
+// sections, and a new legacy form are refused with HEAD left where it was.
 func TestSmallGateLandsAChange(t *testing.T) {
 	t.Parallel()
 	repo := t.TempDir()
@@ -87,9 +87,9 @@ func TestSmallGateLandsAChange(t *testing.T) {
 		t.Fatalf("a failing test landed: %v", err)
 	}
 	git("checkout", "--", "internal/p/p_test.go")
-	write("internal/p/p.go", "// Package p is the fixture.\npackage p\n\n// Value is the fixture's value.\nfunc Value() int { return 1 + 2 - 2 }\n")
-	if _, err := land("second/do", message); err == nil || !strings.Contains(err.Error(), "new inline number") {
-		t.Fatalf("a new inline number landed: %v", err)
+	write("internal/p/p.go", "// Package p is the fixture.\npackage p\n\nimport \"sort\"\n\n// Value is the fixture's value.\nfunc Value() int {\n\tvalues := []int{0, 1}\n\tsort.Slice(values, func(i, j int) bool { return values[i] > values[j] })\n\treturn values[0]\n}\n")
+	if _, err := land("second/do", message); err == nil || !strings.Contains(err.Error(), "new sort.Slice") {
+		t.Fatalf("a new legacy form landed: %v", err)
 	}
 	if head := git("rev-parse", "HEAD"); head != commit {
 		t.Fatalf("a refused landing moved HEAD to %s", head)

@@ -88,7 +88,7 @@ A line of this file reads by this notation, and cites the tests that hold its ru
 - net production lines flat or falling except the row declares growth (check: internal/landing TestItemsGrowthIsChargedAcrossItsLandings, internal/landing TestChangeIsJudgedByTheTermsItStartedWith, internal/landing TestWrittenCodeIsCountedByKind)
 - growth that buys capability or speed or memory = declared and welcome (check: internal/landing TestLandingRaisesItsOwnCount, cmd/plan TestSetCountWritesTheCountAndItsReason)
 - never a regex over structured data (check: internal/repoanalysis TestNoRegexParsesStructuredData)
-- path only tests reach = unwired => add its route or lane or command (check: internal/repoanalysis TestEveryProcessDeclarationIsReachedByACommand, internal/repoanalysis TestEveryProcessRecordSchemaHasAProductionWriter, internal/landing TestExportUseCountsConsumers)
+- path only tests reach = unwired => add its route or lane or command (check: internal/repoanalysis TestEveryProcessDeclarationIsReachedByACommand, internal/repoanalysis TestEveryProcessRecordSchemaHasAProductionWriter)
 - never markdown behavior control => an idea becomes a Go test or a gate rule (check: internal/repoanalysis TestRSIRuntimeIsGoOnly)
 
 ## Autonomous feedback
@@ -218,7 +218,7 @@ A line of this file reads by this notation, and cites the tests that hold its ru
 - unknown dependency => keep the broader scope (check: internal/devicescope TestDeviceConservativeFallback, internal/landing TestLaneReachSkipsOtherPackagesTests)
 - conflicting mutations and isolated measurements => serialized (check: internal/landing TestATimedMeasurementAndALandingNeverRunTogether, internal/authoritylock TestAcquireSerializesPlanAndGateMutation, internal/landing TestCommitsOfTwoWorktreesTakeTurns)
 - CPU work holds no GPU claim (check: internal/landing TestCPULanesOverlapTheDeviceLane, internal/landing TestALandingWaitingOnARunLeavesTheCheckoutFree)
-- remove unused flags, wrappers, state and exports (check: internal/landing TestExportUseCountsConsumers, internal/repoanalysis TestEveryProcessDeclarationIsReachedByACommand, internal/repoanalysis TestProjectorSessionOwnsNoPromptWrappers)
+- remove unused flags, wrappers, state and exports (check: internal/repoanalysis TestEveryProcessDeclarationIsReachedByACommand, internal/repoanalysis TestProjectorSessionOwnsNoPromptWrappers)
 - never rerun for a favorable result (check: internal/evaluation TestInstructionResumeRetainsQualityFailure, internal/scorecard TestOneBusyAttemptCannotMaskADecline)
 
 ### Speed work
@@ -237,9 +237,8 @@ A line of this file reads by this notation, and cites the tests that hold its ru
 - parallel dispatch => the same results at every width and worker count (check: internal/hostmath TestDispatchSchedulingPreservesResults)
 - preserve numerical contracts and checkpoint identity (check: internal/model TestBlockSelectionDoesNotDependOnChunk, internal/artifact TestHasherMatchesIdentifyForAnyChunking, internal/trainingprogram TestResumeSidecarRoundTripsBitExact)
 - nothing fits => resumable wait or reported limit (check: internal/processcontrol TestResourceAdmissionWaitsForRelease, internal/server TestResidentFitAdmitsADeviceRunOnlyBesideTheServedModel)
-- number other than 0 or 1 => named constant with a reason (gate rule) (check: internal/landing TestNewPolicyLiteralsIgnoresRenames)
 - thresholds, tolerances, sample sizes and optimizer settings = derived from declarations or observations or math (check: internal/trainingprogram TestBuiltinOptimizerPolicyDerivesConfig, internal/server TestDefaultNeighborCountIsDerived)
-- limit with no derivation = arbitrary literal => replace it with a rule (check: internal/landing TestNewPolicyLiteralsIgnoresRenames, internal/repoanalysis TestNoFixedTimers, internal/composition TestOfflinePlanRejectsLiteralPolicy)
+- limit with no derivation = arbitrary literal => replace it with a rule (check: internal/repoanalysis TestNoFixedTimers, internal/composition TestOfflinePlanRejectsLiteralPolicy)
 - kept value => record its source, scope and reconsideration condition in the owning contract (check: internal/composition TestOfflinePlanRejectsLiteralPolicy, internal/repoanalysis TestTuningValuesNameTheirCost)
 
 ## Training

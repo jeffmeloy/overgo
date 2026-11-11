@@ -3,6 +3,29 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "replay-waits",
+      "title": "A decode step's replay waits the same on a token whose experts move whatever the card's free memory, so the device lane does not fail beside another process on the card",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 30,
+        "reason": "Filed 2026-11-11 from the refusal record at the owner's direction that each plan update finds and corrects brittle behaviour: moss-ultra-import/import, which changed no CUDA code, was refused by TestDecodeStepReplaysAsOneGraph in the device lane, about 15 minutes a rerun. The lead's figure."
+      },
+      "steps": [
+        {
+          "id": "own-waits",
+          "title": "TestDecodeStepReplaysAsOneGraph waits once a token, a token whose experts move among them, with the card's memory held back as the lane's neighbours hold it",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestDecodeStepReplaysAsOneGraph$'",
+          "files": [
+            "internal/cuda/executor"
+          ],
+          "needs_card": true,
+          "rationale": "Serves: the owner's direction of 2026-11-11 that each plan update finds and corrects brittle behaviour; finding evidence:sha256:146b8fb17a1df4da49e042ce3d9d698788f94637c695a0cc49af731b2c5cf9b9.\n\nDisappears: a device-lane failure no change caused. On 2026-11-11 the device lane of moss-ultra-import/import, which changed no CUDA code, failed 'token 2 launched 0 kernels and waited for the stream 2 times, want a replay with one wait' (executor_windows_decode_graph_test.go:323) while the readings campaign drew SenseNova on the card; token 2 is a group's third, beside which its experts move. The count is the replayed worker's own: each fixture executor opens its own worker and driver library, so no other test's wait reaches it (a first reading that blamed a process-wide counter was wrong, its finding refuted). With the campaign judging, 26 GB on the card, the test passed 40 of 40 alone and in a full package run, one wait a token, every wait from executor.execute. The waits that depend on the card's state are moePrefetch.end's on the copy stream when a prefetch arena was taken (moe_prefetch.go:92-94) and computeHostExperts' on the read stream (moe_host.go:193).\n\nThe change: with the card free, run the test with device memory held back as a neighbour on the card holds it, read which wait is the second, and either pin the test's memory so one path runs or hold the replay to its compute stream's waits; a replay that itself waits twice on its compute stream is still refused.\n\nCheck: the test passes with the card's memory held back, and with it free.\n\nBatch: device lane; it needs the card free of the readings campaign, whose draw a held-back allocation could starve."
+        }
+      ]
+    },
+    {
       "id": "guidance-ops",
       "title": "CFG-Zero*, the guidance interval, APG and NAG are guider functions written from their papers, each a preset admitted per model by its held-out suite",
       "owner": "master-lead",
@@ -152,25 +175,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 1134,
+        "nodes": 187,
         "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard). Step import: +83 (83, the median of what 3 landings that changed internal/modelrecipe, internal/discovery, local-models.json counted)."
       },
       "steps": [
-        {
-          "id": "convrot",
-          "title": "ConvRot int8 weights decode at load through per-row scales and the inverse 256-wide Hadamard rotation to the bf16 path, bit-equal to comfy_kitchen's decode, and the fused qkv splits",
-          "status": "open",
-          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestConvRotDecodesAsComfyKitchenDoes$'",
-          "files": [
-            "internal/latentimage",
-            "internal/tensor",
-            "fixtures/comfy"
-          ],
-          "rationale": "The Base transformer and the encoder store I8 weights with an F32 scale per row and a normalised Hadamard rotation in groups of 256 columns; a small JSON on every tensor (comfy_quant) names the format; q, k and v are fused into proj.qkv [9216, 3072]. The format comes from comfy_kitchen 0.2.40 in the install's Python, which is Apache-2.0, so its eager reference may be followed with a notice.\n\nEach weight is rebuilt at load into the bf16 path overgo runs, and proj.qkv is split into q, k and v. The reference decode is recorded once by a golden script from the ignored Python place. Computing in 8 bits is w8a8-gemm/int8-convrot.\n\nServes: setup-steps.\nDisappears: nothing.\nEvidence: decoded tensors of both the transformer and the encoder equal comfy_kitchen's dequantize_int8_convrot_weight to the bit.\nBatch: host lane.",
-          "depends_on": [
-            "moss-ultra-import/import"
-          ]
-        },
         {
           "id": "encoder",
           "title": "The abliterated Qwen3.5-9B conditions MOSS under the workflow's template, and its language-model head serves the same file as a chat model",

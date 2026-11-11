@@ -16,6 +16,23 @@ import (
 	"overgo/internal/tensor/dtype"
 )
 
+// bf16Payload is a decoded weight's bfloat16 bits in the storage a graph binds it in.
+func bf16Payload(bits []uint16, storage dtype.Type) []byte {
+	width := 2
+	if storage != dtype.BF16 {
+		width = 4
+	}
+	payload := make([]byte, len(bits)*width)
+	for index, value := range bits {
+		if width == 2 {
+			binary.LittleEndian.PutUint16(payload[2*index:], value)
+		} else {
+			binary.LittleEndian.PutUint32(payload[4*index:], math.Float32bits(dtype.BF16ToFloat32(value)))
+		}
+	}
+	return payload
+}
+
 func weightPayload(value safetensors.Tensor, storage dtype.Type) ([]byte, error) {
 	elements := int(value.Elements())
 	if storage == dtype.BF16 && value.DType == "BF16" {
@@ -71,7 +88,23 @@ func compileResidentWeights(
 		}
 		value, ok := source.Tensors[name]
 		if !ok {
-			return nil, fmt.Errorf("%s: missing tensor %s", label, name)
+			// A ComfyUI ConvRot file holds a weight in int8, or as its third of a fused qkv, decoded here at load.
+			decoded, shape, quantized, err := convRotWeight(source, name)
+			if err != nil {
+				return nil, fmt.Errorf("%s: tensor %s: %w", label, name, err)
+			}
+			if !quantized {
+				return nil, fmt.Errorf("%s: missing tensor %s", label, name)
+			}
+			if node.Shape.Rank != tensor.SingletonExtent && (len(shape) != int(node.Shape.Rank) || shape[0] != node.Shape.Dims[1] || shape[1] != node.Shape.Dims[0]) {
+				return nil, fmt.Errorf("%s: tensor %s shape differs from graph", label, name)
+			}
+			if err := session.Bind(ctx, program, sourcePath, name, node, func() ([]byte, error) {
+				return bf16Payload(decoded, node.Type), nil
+			}); err != nil {
+				return nil, fmt.Errorf("%s: tensor %s: %w", label, name, err)
+			}
+			continue
 		}
 		// Flat graph inputs preserve explicit linear views of source tables.
 		// Matrix inputs preserve source axes as well as the payload extent.

@@ -39,7 +39,7 @@
         ],
         "adoption_scope": "Supersedes the absent repository-document reference at the owner's request; current external SHA is verified. Does not alter the executable plan."
       },
-    "assessment": "Existing leftovers now discovers recorded sessions across harness folders, keeps linked data, and classifies explicitly ended scratch; overgodb rehearse replaces ad-hoc copies using CloneStore and row lifetime. Refusal causes stay in the existing record, and controls hide pending presets. Architecture remains incomplete where stale end records override live ownership, clones publish partial results, and manual family labels substitute for bound admission.",
+    "assessment": "Native ConvRot load-time decoding and local hard-link import reuse existing model/inventory owners, with no conversion step or new binary. The loader still bypasses the decoder for present I8 names and eagerly decodes missing-name views before cache admission. Import checks cheap invalid setup too late. The stop hook now lets a plan-only edit accompany the next landing while retaining code-orphan detection.",
     "ast_surface_review": {
         "revision": "9bd406acafb89c44a439722419f1f7e85e71f691",
         "architectural_target": "Fewer independent product entry points and dependency owners; retain process isolation and existing compiled/runtime/development authority.",
@@ -55,31 +55,27 @@
         "cost": "Concrete parsed duplicate migrations total22production and150test AST removed; unimplemented estimates only. Three directories can disappear through349/351; command movement and all retained semantic constants must be charged. No overall refactor completion claimed."
       },
     "automation_follow_up": {
-        "architectural_progress": "Session cleanup and rehearsal reuse existing leftovers/clone/plan owners. Cause retained in the existing refusal record; no separate ledger. Review report382/383 was incorporated by bdd549c49.",
-        "remaining": "384 data-loss path and385 failed-copy recovery need their existing owners.376 cause recording is not automatic delivery; old count/window residuals remain.380 admission and381 identity predicates are unchanged.",
+        "architectural_progress": "plan-rides/no-orphan removes a false orphan stop for plan-only edits through turnCreatedDirt; code dirt is still charged. Import/ConvRot use existing commands and lifetime owners. 6e1c93213 incorporated the preceding report.",
+        "remaining": "384 session lifetime, 385 clone recovery and 376 cause delivery remain open and unchanged. New386/387 expose known format/admission failures before further expensive work; no new monitor is proposed.",
         "plan_recommendations": [
           {
-            "rows": "session-leftovers/ended-session,rehearsal-copy (landed)",
-            "findings": [
-              "SQA-384",
-              "SQA-385"
-            ],
-            "recommendation": "Repair current lifecycle evidence and complete publication at the existing owners; do not grow another cleanup/retry mechanism."
+            "rows": "replay-waits/own-waits",
+            "recommendation": "Keep the plan's corrected worker-local explanation. Distinguish a valid copy/read-stream wait under memory pressure from a duplicate compute replay wait; do not weaken the real replay contract or conclude from passing repeats alone."
           },
           {
-            "rows": "refusal-causes/refusal-cause (landed)",
+            "rows": "guidance-ops/preset-readings",
             "findings": [
-              "SQA-376"
+              "SQA-379",
+              "SQA-381"
             ],
-            "recommendation": "Keep cause retention but reuse existing status output if automatic cause feedback is needed; do not treat a truncated display line as unique evidence identity or add a recurring reader."
+            "recommendation": "Diagnose the retained artifact-size refusal before dependent MOSS arms; reuse exact valid partial results and preserve other-model progress. Respect the old checkout's schema and evidence identity."
           }
         ],
-        "complete_cost": "c8e291582->bf1651186, six full changed-Go migrations (27paths): +1620production/+3108testAST,+321/+484lines,+2/+8files. Session discovery/link/end904/1659; rehearsal405/977; refusal cause59/286; preset filter252/186. Net+4728AST. Also one15-line/843-byte hook adapter,10hook-settings lines and299embedded preset-state bytes. No binary, package or directory deletion. Retained gates report0new fixture bytes/CUDA entries; dynamic fixture setup and metadata maintenance still count. No safe aggregate net reduction established.",
+        "complete_cost": "bf1651186->461a5903e, three landings and nine changed Go paths: +1906 production/+1184 test AST, +318/+190 lines, +3/+3 files. Import 949/380 AST; ConvRot 947/696; plan-stop 10/108. Net +3090 AST, plus 2,602,812 fixture bytes and 2,591 declaration bytes. No new binary or package directory; no directory deletion. No safe aggregate net Go reduction established.",
         "separate_costs": {
-          "session-discovery-links-end": "904production/1659test AST",
-          "rehearsal": "405/977",
-          "refusal-cause": "59/286",
-          "preset-filter": "252/186"
+          "local-import": "949 production/380 test AST",
+          "convrot": "947/696",
+          "plan-stop": "10/108"
         },
         "authority": "Report-only; no dispatch, worker messages or execution changes."
       },
@@ -187,16 +183,18 @@
         ]
       },
     "plan_review_follow_up": {
-        "pin": "bf1651186c635603e1081d32712bcc9f4040bb75",
-        "assessment": "30 committed items. Session-leftovers and refusal-causes landed and left the plan; preset-readings still leads. Credit shared owners and removal of manual copy setup, but session-end/clone publication and bound preset approval need residual repair.",
-        "limits": "Current recipe-import/plan drafts excluded; plan untouched. No new runtime demonstrations, recipe rewrites or global census. Binary output lifetime350 remains unresolved."
+        "pin": "461a5903e5eb4e8983f16ed4594c1083086cca56",
+        "assessment": "31 committed items. replay-waits/own-waits now leads and explicitly retracts the process-wide-counter guess; worker-local counts and the possible copy/read-stream paths need the retained fixture to decide. The 40 passing repeats do not establish the failure cause. guidance-ops/preset-readings stays ahead of NAG; local import and ConvRot have landed, encoder remains dependent.",
+        "limits": "Review only; no plan edits, workload reruns or dispatch. Preserve independent host progress while card work waits. No claim that the Ultra workflow is fully supported.",
+        "recommendation": "Repair 386 binding and 387 import admission before dependent encoder work. For preset-readings, inspect the retained case-62 artifact size/refusal and producer identity before retrying the unchanged failing MOSS path; preserve its 61 completed drawings and independent SenseNova progress. Keep 379/381 bound evidence obligations: an older campaign checkout refusing a new model-config field is a producer compatibility constraint, not permission to relabel old results.",
+        "sources": "Committed plan at pin; campaign details here are attributed to its retained notes, not a new SQA observation of the running process."
       },
-    "rank_basis": "Data lifetime384 first among newly reviewed obligations;385 recovery and379 bound admission precede added machinery. Existing safety/correctness rankings and closed evidence retained.",
+    "rank_basis": "Existing data-loss and recovery obligations remain ahead of new format-binding386 and cheap admission387; new capability work is not evidence of aggregate reduction.",
     "refactor_target_progress": {
-        "architectural_progress": "Existing leftovers now discovers recorded sessions across harness folders, keeps linked data, and classifies explicitly ended scratch; overgodb rehearse replaces ad-hoc copies using CloneStore and row lifetime. Refusal causes stay in the existing record, and controls hide pending presets. Architecture remains incomplete where stale end records override live ownership, clones publish partial results, and manual family labels substitute for bound admission.",
-        "conflicts": "384 lifecycle evidence is not current ownership;385 final path is not completed publication;379 family label is not model-specific admission. Keep numerical/token identity and data-loss protection ahead of simplification.",
-        "next_useful_reductions": "Use existing start/end/hold state once, existing fsatomic clone publication, and the existing evidence-to-controls projection. Delete displaced terminal/publication/manual-label decisions.350 binary lifetime and382/383 token/mode issues remain distinct and open.",
-        "cost": "c8e291582->bf1651186, six full changed-Go migrations (27paths): +1620production/+3108testAST,+321/+484lines,+2/+8files. Session discovery/link/end904/1659; rehearsal405/977; refusal cause59/286; preset filter252/186. Net+4728AST. Also one15-line/843-byte hook adapter,10hook-settings lines and299embedded preset-state bytes. No binary, package or directory deletion. Retained gates report0new fixture bytes/CUDA entries; dynamic fixture setup and metadata maintenance still count. No safe aggregate net reduction established."
+        "architectural_progress": "Native ConvRot load-time decoding and local hard-link import reuse existing model/inventory owners, with no conversion step or new binary. The loader still bypasses the decoder for present I8 names and eagerly decodes missing-name views before cache admission. Import checks cheap invalid setup too late. The stop hook now lets a plan-only edit accompany the next landing while retaining code-orphan detection.",
+        "conflicts": "386 format selection occurs after name existence instead of before binding;387 prerequisite admission occurs after payload work. Existing384/385 safety/recovery obligations remain higher priority. A helper numerical golden is not a complete loader proof.",
+        "next_useful_reductions": "One resident binding branch with lazy format payloads; native import admission setup; merge plan-rides assertions into TestStopIgnoresPreexistingDirt and remove that extra test file. Losslessly compact the ConvRot JSON: 1,590,676 bytes removed without dropping data. No new orchestration or workflow language.",
+        "cost": "bf1651186->461a5903e, three landings and nine changed Go paths: +1906 production/+1184 test AST, +318/+190 lines, +3/+3 files. Import 949/380 AST; ConvRot 947/696; plan-stop 10/108. Net +3090 AST, plus 2,602,812 fixture bytes and 2,591 declaration bytes. No new binary or package directory; no directory deletion. No safe aggregate net Go reduction established."
       },
     "working_notes_review": {
         "finding": "SQA-334",
@@ -206,10 +204,10 @@
       }
   },
     "committed_plan": {
-    "git_blob": "d98a33f2dc8b6a2c26b95fd74e0820ea25bd1d54",
+    "git_blob": "52b1f69c80e2d25fb44aafc051ae339f857c6076",
     "path": "docs/plan.json",
-    "revision": "bf1651186c635603e1081d32712bcc9f4040bb75",
-    "sha256": "3e782f71eaf0e0f5cf106810a2407226001e90adbe7cb8e9d353c818e93137a7",
+    "revision": "461a5903e5eb4e8983f16ed4594c1083086cca56",
+    "sha256": "24fcf076c30b035062cbddc62527f1d9f6c74fe94e3436a18106d5a0cbc16600",
     "working_tree_status": "Committed plan at review pin; prior draft assessment retains its own snapshot identity. Current working plan edits excluded."
   },
     "findings": [
@@ -9506,10 +9504,136 @@
         "Both clone consumers use the retained publication/copy owner with full helper/test/setup costs recorded; no second clone implementation."
       ],
       "comparison": "Extend the retained clone fixture with one controlled copy failure and corrected retry at the same name, plus cancellation after lock acquisition; assert no final partial directory and prompt lock release. Preserve source blob identity and existing-destination refusal. Check the existing rehearsal command still binds its row and produces an openable complete head. Recommendation only; no SQA execution."
-    }
+    },
+    {
+    "category": "model-storage-binding",
+    "classification": "source-established-unreachable-direct-quantized-path-and-scale-geometry",
+    "closure_criteria": [
+        "Direct I8 ConvRot and fused q/k/v graph inputs both load through the actual resident binder; ordinary floating tensors and reversed-axis checks remain correct.",
+        "Unsupported scale second-axis extent is refused before decode; a repeated resident binding avoids another payload decode and retains correct release behavior.",
+        "Golden numerical acceptance stays unchanged; duplicate binding branches are removed and total production/test/setup/fixture costs are reported."
+      ],
+    "comparison": "Extend the retained native binding fixture with one direct ConvRot tensor and one fused view, reuse the same resident binding, and keep its existing shape-refusal/release assertion. A two-row source with [2,2] scales must refuse, while [2,1] preserves the exact decoder result. Reuse the existing three-tensor golden only under the normal implementation gate/cycle; no new large corpus or SQA execution.",
+    "displaced_surface": "Remove the missing-name-only format dispatch, duplicate shape/Bind/error branch and eager decoded buffer outside Bind; retain the existing resolver, numerical decoder and resident owner. compileResidentWeights 435 AST, convRotWeight 470 and bf16Payload 91 are gross migration boundaries, not claimed savings. RETAIN the modeltest golden hashes and all numeric exceptions. Extend the existing small resident-binding fixture for direct/fused names and retained allocation reuse; use a tiny native source for malformed scale geometry. SIMPLIFY the JSON fixture whitespace with its current reader; no values, hashes or cases disappear.",
+    "evidence": "compileResidentWeights calls convRotWeight only when source.Tensors[name] is absent. Direct <base>.weight I8 tensors with comfy_quant metadata exist by that name, so they go to weightPayload -> F32Reader, whose PromoteF32Reader refuses I8. The golden explicitly covers direct layers.41.proj.ffn_down and model.language_model.layers.0.linear_attn.in_proj_z, but calls the helper directly and cannot expose the production selection defect. The missing-name fused-qkv branch also decodes before Bind, even though Bind already skips its payload callback on an existing resident allocation. Separately, the same format resolver accepts F32 scales shaped [rows,2] because it never checks axis 1, then reads one contiguous float per row; a two-row [2,2] scale tensor uses row0 column1 for row1 instead of row1 column0. Safetensors extent validation admits that well-formed shape. These are source-established counterexamples, not a completed Ultra load or device reproduction.",
+    "evidence_commit": "461a5903e5eb4e8983f16ed4594c1083086cca56",
+    "expected_benefit": {
+        "baseline": "ConvRot landing 320305e9c adds 947 production/696 test AST and a 2,602,812-byte JSON fixture. No binary or package added. Helper golden requires installed model files and does not exercise the binding route.",
+        "after": "No repair implemented or net Go saving established; charge format-resolution adaptation, retained shape/lifetime checks and necessary tiny-fixture growth against deleted branch duplication. Moving the decode is not itself a saving.",
+        "fixture": "Lossless compact JSON plus newline is 1,012,136 bytes: 1,590,676 bytes (61.1%) removable without a new format, dependency or weaker acceptance. All three readings, shapes, exact/comparison hashes and exception pairs retained. This is a static serialization comparison, not a model result."
+      },
+    "id": "SQA-386",
+    "impact": "The landed format adapter refuses directly named quantized weights through its production loader, can silently select incorrect row scales for an admitted unsupported shape, and repeats fused decode work that the existing resident cache would avoid.",
+    "likely_effort": "Bounded correction at the existing format-to-resident binding boundary; numerical decoder remains.",
+    "plan_coverage": "Native load-time decoding is the right architectural direction, but helper parity does not establish that directly named weights reach that decoder in production. Repair admission/binding before extending dependent encoder behavior.",
+    "plan_references": [
+        "moss-ultra-import/convrot 320305e9c (landed)",
+        "moss-ultra-import/encoder depends on convrot",
+        "Downloads architecture target: format-independent execution and one binding/lifetime owner"
+      ],
+    "recommended_change": "Resolve the declared storage format and logical tensor view before choosing the payload reader. Retain convRotWeight/decodeConvRotRow as the format owner, but separate cheap metadata/shape admission from materialization within the existing loader so ordinary and ConvRot inputs use one shape-validation and ResidentSession.Bind path. Materialize through its lazy payload callback, preserving cache identity and lifetime. Require the supported per-row scale geometry [rows,1] before reading payloads. Keep the 256-column format bound, q/k/v row order, integer Hadamard accumulation and float64-to-float32-to-BF16 rounding; preserve direct BF16/F32/F16 behavior, Windows availability, error release and cancellation. Do not introduce GGUF conversion, a second cache or a generic reader framework.",
+    "severity": "P2",
+    "sources": [
+        {
+          "path": "internal/latentimage/resident_graph_cuda_windows.go",
+          "symbol": "compileResidentWeights; weightPayload; bf16Payload"
+        },
+        {
+          "path": "internal/latentimage/convrot.go",
+          "symbol": "convRotWeight; decodeConvRotRow"
+        },
+        {
+          "path": "internal/graphruntime/resident.go",
+          "symbol": "ResidentSession.Bind"
+        },
+        {
+          "path": "internal/safetensors/convert.go",
+          "symbol": "F32Reader; PromoteF32Reader"
+        },
+        {
+          "path": "internal/latentimage/convrot_modeltest_test.go",
+          "symbol": "TestConvRotDecodesAsComfyKitchenDoes"
+        },
+        {
+          "path": "internal/latentimage/generator_composition_windows_test.go",
+          "symbol": "TestResidentWeightShapeRefusal; compactGeneratorFixture"
+        },
+        {
+          "path": "internal/latentimage/refinement_verify_windows.go",
+          "symbol": "compileResidentWeights caller"
+        },
+        {
+          "path": "fixtures/comfy/moss-ultra/convrot_decode.json",
+          "symbol": "direct FFN/encoder and fused qkv readings"
+        }
+      ],
+    "status": "open",
+    "title": "Resolve ConvRot storage before the shared lazy resident binding"
+  },
+    {
+    "category": "local-model-import-admission",
+    "classification": "source-established-late-deterministic-prerequisite-refusal",
+    "closure_criteria": [
+        "An invalid later declaration, source-size mismatch or unavailable target store is refused before any model payload hashing or new links.",
+        "A real content mismatch still refuses before publication; preexisting same-file links survive, only newly owned links are cleaned, and correcting the input allows retry.",
+        "The cheap admission/recovery cases run in retained native setup without installed MOSS files; the six-file integration and content identities remain covered, with complete code/test/setup costs."
+      ],
+    "comparison": "Use the retained native inventory fixture with a bad declared size/digest and a later invalid entry; verify no payload read/link work precedes refusal. Exercise destination admission at the existing command boundary. Retain same-size changed-content refusal plus corrected retry and existing-link protection. Recommendations only; no SQA tests, imports or store writes.",
+    "displaced_surface": "Replace late-only declaration/size checks and the import-before-store ordering; retain fromFilesContext, artifact.Publish and existing hard-link ownership. ImportLocal 519 AST and command importLocal 246 AST are gross migration boundaries. MERGE/MOVE the small changed-bytes/link-cleanup assertion out of the six-file modeltest into the existing native modelartifact inventory fixture; RETAIN installed-file/store-location integration separately. Add only the smallest early-admission cases to the retained native setup; no duplicate live-store fixture.",
+    "evidence": "ReadLocalImport checks only the declaration name and nonempty files after strict decoding. ImportLocal already stats each source but does not compare its size with declared Bytes, and accepts malformed SHA256 text until after fromFilesContext hashes/inventories every file. It links earlier files before admitting later entries. The command opens the destination OvergoDB only after ImportLocal returns. Thus a known size mismatch, invalid digest declaration or unopenable destination can spend the entire six-file inventory first; the pinned declaration totals 16,921,866,358 bytes. A store-open refusal leaves the successfully created hard links, and retry repeats inventory hashing. Existing changed-bytes refusal coverage is appended to a modeltest that first requires all six installed files and live store locations.",
+    "evidence_commit": "461a5903e5eb4e8983f16ed4594c1083086cca56",
+    "expected_benefit": {
+        "baseline": "Import landing 6e1c93213 adds 949 production/380 test AST, a 2,591-byte declaration and a recipe subcommand; no new binary/package and no model bytes copied.",
+        "after": "Necessary admission/test growth is not yet measured; count it against displaced late checks/setup dependencies. No safe net Go reduction established. Known-invalid metadata/store paths can avoid the 16.9 GB inventory read, but valid imports still verify all bytes.",
+        "setup": "Retain one tiny native file fixture for refusal/cleanup and the separate installed-model identity coverage. Reuse existing hashing cancellation rather than adding a second recovery layer."
+      },
+    "id": "SQA-387",
+    "impact": "Deterministically invalid setup is discovered after large avoidable reads and filesystem work; its cheap regression case is unavailable until unrelated real-model setup succeeds. No elapsed saving or observed failed import is asserted.",
+    "likely_effort": "Bounded reordering and admission at existing command/inventory owners.",
+    "plan_coverage": "Reusing local files and the current inventory is progress; early admission is incomplete. Keep this distinct from SQA-385 clone publication: an import retains source hard links and publishes artifact metadata, not a fresh store clone.",
+    "plan_references": [
+        "moss-ultra-import/import 6e1c93213 (landed)",
+        "moss-ultra-import/encoder (dependent work)",
+        "Downloads architecture target: fail before expensive setup and reuse current artifact owners"
+      ],
+    "recommended_change": "Use ReadLocalImport/ImportLocal and the command as the existing admission owners: validate every declaration entry, digest encoding, allowed role/path and declared size against already available source metadata before linking or hashing; establish the destination store before expensive inventory work. Keep the existing inventory/hash/publication owner and full content verification; equal sizes do not prove identity. Compare expected identities at the existing per-file inventory boundary where practical to stop before later expensive files, without a second hash pass or new receipt/cache. Preserve same-file reuse, refusal of another file at a target, source protection and removal of only links this attempt created. No new scheduler, downloader, retry service or import framework.",
+    "severity": "P2",
+    "sources": [
+        {
+          "path": "cmd/recipe/import_local.go",
+          "symbol": "importLocal"
+        },
+        {
+          "path": "internal/modelartifact/local_import.go",
+          "symbol": "ReadLocalImport; ImportLocal"
+        },
+        {
+          "path": "internal/modelartifact/from_files.go",
+          "symbol": "fromFilesContext; identifyFileContext"
+        },
+        {
+          "path": "internal/modelrecipe/moss_ultra_import.json",
+          "symbol": "six pinned local files"
+        },
+        {
+          "path": "internal/modelrecipe/moss_ultra_import_modeltest_test.go",
+          "symbol": "TestTheUltraRecipeListsItsSixFilesByHash"
+        },
+        {
+          "path": "internal/modelartifact/inventory_context_test.go",
+          "symbol": "TestInventorySourceVerification; TestPipelineInventoryCancellationDuringHashing"
+        },
+        {
+          "path": "internal/modelartifact/from_files_test.go",
+          "symbol": "native model inventory fixtures"
+        }
+      ],
+    "status": "open",
+    "title": "Admit local import metadata and destination before hashing model files"
+  }
   ],
     "gate_test_assessment": {
-    "assumptions": "An ended session ID can restart: holdWorktree explicitly refreshes its process. A previous terminal marker cannot override live ownership. Partial filesystem work is not a published clone; context after lock acquisition still matters. Family/preset labels cannot identify model/recipe/evidence.240bytes is an explicit diagnostic storage/display cap, not an identity or statistical grouping guarantee.",
+    "assumptions": "256 is the admitted ConvRot group width and H4 normalization16 is algorithmic. Per-row scales require [rows,1]; file extent validity alone does not prove this layout. convRotNoiseShare1/4096 is a retained bounded numerical comparison, not a general quality claim; keep timing independent. SHA256 encodes32bytes; file size equality is cheap admission, never content identity.",
     "automation_follow_up": {
         "retained_feedback": {
           "window": "November8 and9,2026 America/New_York (UTC-05); local retained records read after58e8280",
@@ -9532,20 +9656,16 @@
         "cost": "budget+450production/+575test; verify-first+175/+148. No static fixture growth. Prior report was carried by a0cf; do not count its prose as application AST.",
         "interpretation": "Historical refusal wall motivates ordering and status delivery, but is not measured saved work. Query/window/outcome definitions must be explicit."
       },
-    "automation_sequence": "Existing confirmed-commit clearFinished includes session-scratch after the new classification; it does not require a second manual token. Keep that single removal owner and exact receipts, while correcting terminal-state freshness. Rehearse uses an existing plan row and writer lock, but partial-final output/late cancellation needs385. Cause persistence is not delivered cause feedback.",
+    "automation_sequence": "Plan-only dirt no longer causes a false stop while card work waits; actual code orphan protection and plan/gate authority remain. Keep the existing verifier/resource owners for early failure (322). Do not rerun unchanged invalid setup or treat a stopped reference as evidence against unrun preset arms.",
     "fresh_ast": {
-        "revision": "bf1651186c635603e1081d32712bcc9f4040bb75",
-        "method": "Existing external go/parser selected-file and complete changed-file counters; no application code execution.",
+        "revision": "461a5903e5eb4e8983f16ed4594c1083086cca56",
+        "method": "Existing external go/parser selected-file and complete changed-file counters over committed blobs; no application code execution.",
         "retained_result": [
-          "review-bf1651-selected-ast.json",
-          "review-bf1651-total-delta.json",
-          "review-bf1651-session-delta.json",
-          "review-bf1651-rehearsal-delta.json",
-          "review-bf1651-refusal-delta.json",
-          "review-bf1651-presets-delta.json"
+          "review-461a59-selected-ast.json",
+          "review-461a59-total-delta.json"
         ],
-        "counts": "11files6959AST/49functions/1218parser-local links. No repeated exact complete function bodies. SessionEnded89,CloneStore203,CloneLiveStore53,offeredPresets60 are replacement/ownership boundaries, not net savings.",
-        "limits": "No package/type resolution, global census or refreshed binary inventory. Existing same-name command/retention tests hold distinct contracts."
+        "counts": "9 files, 5783 AST nodes, 24 functions, 1268 parser-local identifier links; no exact repeated full function bodies. compileResidentWeights 435 has two shape/Bind branches sharing the same ownership contract. ImportLocal 519, convRotWeight 470 and decodeConvRotRow 200 are complete function counts, not net savings.",
+        "limits": "No package/type resolution, global census or refreshed executable-output inventory. Structural body matches alone do not decide shared ownership; this sample supports no repository-wide boilerplate percentage."
       },
     "media_follow_up": {
         "revision": "fc673760f813afdf216be087fe586f717461cd3a",
@@ -9709,16 +9829,16 @@
       "retained_change_costs": "Two consolidation landings(2d59f642c exact folds andbb4fc706a parameter folds) remove744 production nodes but add1591 test nodes, net+847 across Go. Pilot retirementea8ed43a7 removes5926 production/9990 test nodes and one schema, while fixture bytes grow599; its test deletion is already included in the day's offsets and must not be subtracted twice. These retained gates are broader changes, not matched per-test performance comparisons."
     },
     "retained_results": [
-        "Retained gate wall seconds: session-discovery230, linked-data214, ended-session219, rehearsal1535, refusal-cause283, preset-filter436. Required checks/waits included; no avoidable-time claim.",
-        "Rehearsal verify19.156s and device/webui/CUDA lanes retained; scorecard unavailable because physical GPU already reserved. This does not prove cancellation/retry recovery. Native Go/CUDA cache reuse remains credited.",
-        "Ended-session verify20.723s tests recorded-end and live-hold separately, not same-ID restart. Preset verify30.823s checks current label offerings, not model-specific bound evidence. No SQA reruns."
+        "Import6e1c93213 gate1070s, verify9.731s after lanes, device13m58; CUDA20cached/0new. ConvRot320305e9c gate711s, verify13.109s after lanes, CUDA7m22 with7executed/13cached. Plan-stop461a5903e gate226s, verify21.157s, no device lane. Retained records only; no SQA reruns.",
+        "Import/ConvRot assertion-undo evidence was not established because restored production did not compile the new test; do not substitute that for a failing behavioral assertion. ConvRot helper golden still bypasses production binding. Scorecard unavailability during reserved GPU use is not model-quality evidence.",
+        "Native Go/CUDA cache reuse is credited. Existing322 owns relevant verifier ordering; three retained gate sequences do not establish that every long device verifier should run before cheap independent checks."
       ],
-    "surface_reduction_analysis": "c8e291582->bf1651186, six full changed-Go migrations (27paths): +1620production/+3108testAST,+321/+484lines,+2/+8files. Session discovery/link/end904/1659; rehearsal405/977; refusal cause59/286; preset filter252/186. Net+4728AST. Also one15-line/843-byte hook adapter,10hook-settings lines and299embedded preset-state bytes. No binary, package or directory deletion. Retained gates report0new fixture bytes/CUDA entries; dynamic fixture setup and metadata maintenance still count. No safe aggregate net reduction established.",
+    "surface_reduction_analysis": "bf1651186->461a5903e, three landings and nine changed Go paths: +1906 production/+1184 test AST, +318/+190 lines, +3/+3 files. Import 949/380 AST; ConvRot 947/696; plan-stop 10/108. Net +3090 AST, plus 2,602,812 fixture bytes and 2,591 declaration bytes. No new binary or package directory; no directory deletion. No safe aggregate net Go reduction established.",
     "tests": [
-        "RETAIN guard lifecycle, hook routing, session discovery and leftovers ownership fixtures; extend existing end/live cases for the same resumed ID. RETAIN linked-data/hard-link/read-only protections. No cross-layer merge merely because all create temporary directories.",
-        "RETAIN CloneStore chain/blob/source-release/existing-target coverage; EXTEND one native failure/corrected-retry/cancellation case and reuse existing directory publication. RETAIN separate rehearsal command versus leftovers retention boundaries; their same test names are not duplicate contracts.",
-        "RETAIN recipe declaration and controls integration coverage; SIMPLIFY/replace embedded status-table assertions when bound evidence becomes the authority. Keep379 command-record coverage distinct from342 numerical acceptance; no new model corpus.",
-        "RETAIN cause UTF-8/first-line/limit/class/rule preservation in the existing refusal fixture. No safe standalone test deletion established in this sample; no SQA tests created/executed."
+        "RETAIN ConvRot exact/comparison hash and fused-qkv numerical cases. EXTEND the existing small resident-binding fixture for the real direct/fused route and cache reuse, with a tiny native invalid-scale source; no new large model corpus.",
+        "RETAIN six-file installed-store identity integration. MERGE the small changed-bytes/link-cleanup tail into the existing native modelartifact fixture and extend cheap admission there; moving assertions alone is not a code saving.",
+        "MERGE plan_rides_test.go's plan-only and plan-plus-code assertions into TestStopIgnoresPreexistingDirt; REMOVE the extra file, standalone wrapper/import and t.Parallel setup while retaining parked/missing-snapshot/modified-code cases. The 108-node file is a gross boundary; its assertions survive, so 108 is not a net saving.",
+        "SIMPLIFY ConvRot fixture whitespace only; all readings, hashes and exception pairs retained. RETAIN different numerical, binding-lifetime and store-publication contracts. No SQA tests created or executed."
       ]
   },
     "hygiene_assessment": "No hygiene finding. Scratch analysis is outside the repository; concrete correctness and production/test cost take priority.",
@@ -11252,9 +11372,9 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
     "limitations": [
-      "No application tests, workloads, services, gates, implementation, agents/messages or plan/skill changes. Existing external static analysis tools only.",
-      "AST includes comments and parser-local resolution, not package/type resolution; no exact repeated full function bodies in this sample. Semantic ownership/recovery defects do not imply interchangeable tests or a global boilerplate percentage.",
-      "Current preset labels are all pending; future family-wide admission counterexample is schema/source-established, not an observed false offer. Session/clone failure paths are static; no deletion or cancellation experiment."
+      "No application tests, model/device workloads, services, gates, imports, agents/messages, implementation or plan/skill changes. Existing external static analysis and retained records only.",
+      "Parser-local identifier links are not package/type resolution. No exact duplicate full bodies in this bounded sample; branch/ownership reuse requires concrete contract analysis. No global duplication percentage, measured speedup or full-refactor completion claimed.",
+      "Direct-name I8 refusal, scale geometry and late metadata/store admission are source-established paths, not runtime reproductions. The preset campaign interruption and replay-wait diagnosis are attributed to committed plan notes; no new inspection of the running job."
     ],
     "master_lead_triage": {
     "at": "2026-11-10",
@@ -12130,12 +12250,12 @@
       }
     }
   },
-    "next_finding_number": 386,
+    "next_finding_number": 388,
     "publication_context": {
-    "assessment": "Substantive session/clone safety and preset-provenance reconciliation.",
-    "checked_head": "bf1651186c635603e1081d32712bcc9f4040bb75",
-    "concurrent_changes": "Committed source, report and owner state reread before publication. Current recipe import and plan drafts excluded and untouched.",
-    "current_pin": "bf1651186c635603e1081d32712bcc9f4040bb75",
+    "assessment": "Substantive ConvRot production binding and local-import early-admission reconciliation.",
+    "checked_head": "461a5903e5eb4e8983f16ed4594c1083086cca56",
+    "concurrent_changes": "Committed source, plan, report and owner fields reread immediately before publication; unrelated implementation work excluded and preserved.",
+    "current_pin": "461a5903e5eb4e8983f16ed4594c1083086cca56",
     "publication": "Existing landing_turn/gate ownership and report-only normal Git hook; save unstaged if implementation holds publication.",
     "report_only": "Only docs/sqa_findings.json; unrelated index/worktree preserved."
   },
@@ -12162,6 +12282,8 @@
     "SQA-318",
     "SQA-283",
     "SQA-331",
+    "SQA-386",
+    "SQA-387",
     "SQA-382",
     "SQA-383",
     "SQA-340",
@@ -12220,34 +12342,31 @@
     "repository": "C:\\Users\\jeffm\\overgo",
     "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
     "review_notes": [
-      "384 session lifecycle safety is distinct from350 historical executable lifetime even though both use leftovers.go.",
-      "385 consolidates live and backup clone callers through their common fresh-destination publication contract; preserve the live-lock versus immutable-backup difference.",
-      "379 retains its original producer-binding and consumer obligations while replacing stale no-filter wording with partial landed progress. No parallel finding for the family status file."
+      "386 joins storage selection, scale admission and lazy materialization under the same retained format-to-binding migration; numerical decoder behavior stays intact.",
+      "387 local import admission is distinct from385 fresh clone publication; their different lifetime and side effects do not justify consolidation.",
+      "Retained ownership/closure fields and canonical IDs stay unchanged. Plan-only stop progress does not prove a delivered next dispatch. No requirement retired from similar test syntax."
     ],
-    "reviewed_at": "2026-11-11T20:32:39Z",
-    "reviewed_master": "bf1651186c635603e1081d32712bcc9f4040bb75",
+    "reviewed_at": "2026-11-11T22:36:41Z",
+    "reviewed_master": "461a5903e5eb4e8983f16ed4594c1083086cca56",
     "schema_version": 2,
     "scope": [
-      "Committed master bf1651186c635603e1081d32712bcc9f4040bb75 and committed plan; bounded session lifecycle/cleanup, live-store rehearsal, refusal cause retention and preset evidence-to-controls review.",
-      "Actual Go AST on11files:6959nodes,49functions,1218parser-local links; complete changed-Go costs for six landings. Prior command/directory analysis and architecture target reused at their recorded identity.",
-      "skill.md and Downloads target hashes unchanged/reconfirmed. This chat previously implemented Overgo and contributed plan wording; not independent third-party review. Current import/plan drafts excluded."
+      "Committed master 461a5903e5eb4e8983f16ed4594c1083086cca56 and its plan; bounded local import -> inventory -> publication and ConvRot source -> resident binding review, plus plan-stop and retained gate sequencing.",
+      "Actual 9-file Go AST and complete three-landing changed-Go costs; retained command/directory analysis reused at its original identity, not rerun as a census.",
+      "skill.md and Downloads architecture target hashes reconfirmed. This chat previously implemented Overgo and contributed plan wording; this is not independent third-party review."
     ],
     "sqa_response": {
-    "assessment": "212 stable IDs:76open,130resolved,4deferred,2aliases. New384/385;379 consumer progress and376 cause retention reconciled. No existing requirement retired.",
+    "assessment": "214 stable IDs:78 open,130 resolved,4 deferred,2 aliases. New386/387; no closure, reopening or consolidation this pass.",
     "consolidated_findings": [],
     "deferred_findings": [],
-    "evidence": "Pinned source/callers and retained fixtures, six landing records, actual11-file Go AST plus full changed-Go costs. Unknown and implementation-owned fields retained raw-exact.",
-    "implementation_response_context": "Owner blocks reread; no new closure claims for379/376/382/383. bdd549c49 contains the preceding report. Current import drafts are not committed evidence.",
+    "evidence": "Pinned source and callers, model declarations/fixtures, retained three-landing records, actual selected-file AST and full changed-Go costs. Owner and unknown fields preserved raw-exact.",
+    "implementation_response_context": "Existing implementation_review/master_lead_triage reread. No new implementation closure for386/387; preceding report incorporated by6e1c93213. Existing384/385 remain unchanged.",
     "new_findings": [
-        "SQA-384",
-        "SQA-385"
+        "SQA-386",
+        "SQA-387"
       ],
-    "partially_addressed_findings": [
-        "SQA-379",
-        "SQA-376"
-      ],
-    "priority_changes": "384 active-session scratch safety outranks speculative savings.385 makes failed/cancelled clone creation recoverable.379 remains one coordinated provenance-to-controls obligation;342 statistics stay separate.",
-    "recommendation": "Use current ownership and publication records as execution facts, rather than permanent end markers or family status labels. Reuse the existing clone/publication and cleanup owners; no new framework.",
+    "partially_addressed_findings": [],
+    "priority_changes": "Keep data-loss/recovery obligations first. Repair the actual ConvRot binding route before dependent Ultra work; admit import setup before reading16.9GB. No new recurring monitor or test framework.",
+    "recommendation": "Select storage at the existing loader boundary and reuse its lazy resident binding; move cheap import prerequisites ahead of links and inventory. Merge only the same-contract hook assertions and compact fixture whitespace without discarding evidence.",
     "refactor": {
         "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
         "history_path": "docs/sqa_findings.json",
@@ -12255,11 +12374,8 @@
       },
     "reopened_findings": [],
     "resolved_findings": [],
-    "reviewed_master": "bf1651186c635603e1081d32712bcc9f4040bb75",
-    "uncertainty": "Admitted static counterexamples; no live deletion, failed clone or false model approval reproduced. No elapsed savings, recoverable bytes or repository-wide duplication percentage asserted.",
-    "updated_findings": [
-        "SQA-379",
-        "SQA-376"
-      ]
+    "reviewed_master": "461a5903e5eb4e8983f16ed4594c1083086cca56",
+    "uncertainty": "Static admitted counterexamples, not new runtime results. No safe net Go reduction established; lossless fixture byte reduction is measured from serialization. Preserve known numerical/layout/platform/lifetime distinctions.",
+    "updated_findings": []
   }
   }

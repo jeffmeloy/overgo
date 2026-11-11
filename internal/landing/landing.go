@@ -866,23 +866,8 @@ func ranPackages(output string) string {
 }
 
 func (l *landing) verify(ctx context.Context) error {
-	// Each check runs where its named test is declared, its proof on the base and its undo evidence too.
-	for at, verifier := range l.verifiers {
-		if strings.TrimSpace(verifier) == "" {
-			continue
-		}
-		resolved, said, err := whereDeclared(ctx, l.stageRoot(), verifier)
-		if err != nil {
-			return err
-		}
-		if said != "" && l.Log != nil {
-			fmt.Fprintln(l.Log, said)
-		}
-		if added := slices.Index(l.added, verifier); added >= 0 {
-			l.added[added] = resolved
-		}
-		l.verifiers[at] = resolved
-	}
+	// Each check runs as its step was accepted with it (SQA-378): a test of its name elsewhere earns nothing, and a moved
+	// test is a check changed in the plan, recorded as one.
 	for _, verifier := range l.verifiers {
 		if strings.TrimSpace(verifier) == "" {
 			continue

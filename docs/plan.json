@@ -3,50 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "fail-early",
-      "title": "A failure is found at the earliest and cheapest point it can be: a landing runs a step's own check before its long stages, a refusal names what answers it, an undeclared setting is caught by the quick checks, and each landing answers its refusals and says how the plan moved",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": -148,
-        "reason": "Estimated from the day's refusals: a reordered stage list, two refusal messages, one rule moved before the lanes, and a check of the message read from the gate's own refusal record; about sixty nodes a step. Serves: development velocity: the owner's direction of 2026-11-10, that a failure is a possible automation, above all one found after a long test or evaluation run that an earlier check could have found.\n\nDisappears: refusals that cost a whole gate run, or a long model run, to say what a check of seconds could have said. 35 landings on 2026-11-10 spent 6.2 hours of gate wall, refused runs uncounted; in one stretch 7 steps took 14 gate runs, and one step (card-budgets/declared-budget) six, each 5 to 10 minutes: a check holding no passing test of its name in a package it names (found after the full lanes, twice, the second time with the message unchanged), an environment read no capability identity declares (found by a lane test), a set of names a text record repeats from the code (found by a lane test), and two rules the preflight would have found in seconds. The six-task thinking run spent 23 minutes on a first task whose every reply came back empty, which one request would have shown.\n\nBatch: host lane. Step packages-found: +255 (255, the median of what 23 landings that changed internal/landing, internal/planverify, internal/runrecord counted). Step record-written: +255 (255, the median of what 33 landings that changed internal/inferencesurface, internal/landing, cmd/validate, docs/verification/surface-moves.txt counted). Step setting-reader: +136 (136, the median of what 25 landings that changed internal/envsetting, internal/inferencesurface, internal/cuda, internal/media, internal/devicebudget, internal/dataroot, internal/clioptions, internal/remoteprovider, internal/agenttool, internal/processcontrol, internal/latentvideo, docs/verification/surface-moves.txt counted). Step hermetic-tests: +70 (70, the median of what 55 landings that changed cmd/loop, internal/landing, internal/repoanalysis, internal/testutil counted)."
-      },
-      "steps": [
-        {
-          "id": "setting-reader",
-          "title": "A setting in a capability's code is read through one function of its kind, and reading it there declares it",
-          "status": "open",
-          "verify": "go test ./internal/inferencesurface -count=1 -run '^TestASettingReadThroughItsFunctionIsDeclared$'",
-          "files": [
-            "internal/envsetting",
-            "internal/inferencesurface",
-            "internal/cuda",
-            "internal/media",
-            "internal/devicebudget",
-            "internal/dataroot",
-            "internal/clioptions",
-            "internal/remoteprovider",
-            "internal/agenttool",
-            "internal/processcontrol",
-            "internal/latentvideo",
-            "docs/verification/surface-moves.txt"
-          ],
-          "rationale": "Serves: development velocity (fail-early): a setting read in a capability's code is declared by the act of reading it.\n\nDisappears: a read that the identity code must be told of by hand. The capability identity (internal/inferencesurface) lists the result settings and the neutral reads by name and spelling, and a read of the environment that neither list holds leaves every identity reaching it uncounted, found by a lane test (OVERGO_DEVICE_BUDGET_GIB, 2026-11-10, and with it a measurement test that put every case to the models again). The owner's direction of 2026-11-10: one function is the only way to read a setting, and reading through it declares it.\n\nThe change: a setting is read through one function of its kind, a result setting (its value joins the identity) or a neutral read (its reason given where it is read), and the identity's two lists are read from those calls, not kept; the reads the lists hold today move onto the functions.\n\nCheck: TestASettingReadThroughItsFunctionIsDeclared counts a capability whose code reads a new name through the result function and wants the name among its identity's settings with no list edited, and one read through the neutral function counted as neutral. At the base no such function is.\n\nBatch: host lane."
-        },
-        {
-          "id": "answered-refusals",
-          "title": "A landing answers each refusal its step met with a plan step that finds it sooner, or why none can, and says how the plan moved",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestALandingAnswersItsRefusalsAndItsPlan$'",
-          "files": [
-            "internal/landing",
-            "cmd/loop"
-          ],
-          "rationale": "Serves: development velocity and the owner's directions of 2026-11-10: before each commit, the whole plan refactored for the best and fastest way to its intent; every failure read as a possible automation, above all one found late; and deterministic code in place of doctrine a session must remember.\n\nDisappears: two rules held in memory and checked by nothing. skill.md says the plan is refactored from each result; on 2026-11-10 seven steps landed with the plan touched only where a step was added. And a refusal or a long run's failure was fixed and forgotten, never asked whether it could have been found earlier.\n\nThe change, read from facts the gate holds, not from wording: the landing reads the refusals its step met since its last landing (the refusal record the gate keeps, with class and recurrences) and refuses unless the message answers each by naming a plan step that the plan holds, filed to find that failure sooner, or says none can and why; and it refuses unless the plan was changed through cmd/plan since the trunk's last landing or the message says why it needed no change.\n\nCheck: TestALandingAnswersItsRefusalsAndItsPlan lands a step that met a refusal with a message naming no step for it and wants it refused, naming the refusal; with a step named that the plan holds, landed; with a step named the plan lacks, refused; and with the plan unchanged and no reason, refused. At the base all land.\n\nBatch: host lane."
-        }
-      ]
-    },
-    {
       "id": "guidance-ops",
       "title": "CFG-Zero*, the guidance interval, APG and NAG are guider functions written from their papers, each a preset admitted per model by its held-out suite",
       "owner": "master-lead",

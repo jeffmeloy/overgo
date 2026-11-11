@@ -12,9 +12,11 @@ import (
 	"overgo/internal/testcheck"
 )
 
-// The worker runs in a real contained subprocess and exits immediately after
-// publishing its fixture completion. No in-process callback advances the row.
-func TestCampaignWorkerExitContinues(t *testing.T) {
+// TestACampaignWorkerContinuesAndRecordsInItsOwnFolder runs the worker in a real contained subprocess that exits
+// immediately after publishing its fixture completion, no in-process callback advancing the row, and holds the driver's
+// record of each attempt to the folder the driver runs in (fail-early-runs/attempts-in-place): the test ran in its
+// package's folder and wrote cmd/loop/.overgo-runtime/worker_attempts.json there, a file of the module.
+func TestACampaignWorkerContinuesAndRecordsInItsOwnFolder(t *testing.T) {
 	const helperRoot = "OVERGO_CAMPAIGN_WORKER_TEST_ROOT"
 	if root := os.Getenv(helperRoot); root != "" {
 		prompt := testcheck.Must(io.ReadAll(os.Stdin))(t)
@@ -29,15 +31,27 @@ func TestCampaignWorkerExitContinues(t *testing.T) {
 		testcheck.NoError(t, os.WriteFile(filepath.Join(root, name), []byte("completed"), 0o600))
 		return
 	}
+	packageFolder := testcheck.Must(os.Getwd())(t)
+	// A record from an earlier run may stand there already (a gate's worktree keeps ignored files): what is held is that
+	// this run writes none.
+	recordInPlace := filepath.Join(packageFolder, ".overgo-runtime", "worker_attempts.json")
+	before, beforeErr := os.Stat(recordInPlace)
 	root := t.TempDir()
+	// The driver records each worker attempt in the process state of the folder it runs in (loopWorktree): run here, the
+	// record falls in the test's folder and not in cmd/loop/.overgo-runtime, a file of the module go test would read
+	// as an input of the package's tests.
+	t.Chdir(root)
 	t.Setenv(helperRoot, root)
-	world := &campaignWorkerWorld{root: root, runner: execWorld{promptPrefix: "Test campaign policy", config: config{Worker: []string{os.Args[0], "-test.run=^TestCampaignWorkerExitContinues$"}}}}
+	world := &campaignWorkerWorld{root: root, runner: execWorld{promptPrefix: "Test campaign policy", config: config{Worker: []string{os.Args[0], "-test.run=^TestACampaignWorkerContinuesAndRecordsInItsOwnFolder$"}}}}
 	result, err := loop.Run(world, loop.Config{MaxAttemptsPerStep: 2, MaxInvocations: 3})
 	if err != nil || result.Reason != loop.ReasonPlanComplete || result.Invocations != 2 {
 		t.Fatalf("real worker continuation: %+v %v", result, err)
 	}
 	if _, err := os.Stat(filepath.Join(root, "second")); err != nil {
 		t.Fatal("second worker never executed", err)
+	}
+	if after, err := os.Stat(recordInPlace); err == nil && (beforeErr != nil || !after.ModTime().Equal(before.ModTime()) || after.Size() != before.Size()) {
+		t.Error("the driver recorded its worker attempts in the package's folder, an input of its tests go test would read")
 	}
 }
 

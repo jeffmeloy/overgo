@@ -1,6 +1,7 @@
 package landing
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -28,7 +29,13 @@ type Refusal struct {
 	// Rules names the rules a refusal of the rules stage broke, so a rule
 	// whose refusals are not defects can be counted, and found.
 	Rules []string `json:"rules,omitzero"`
+	// Cause is the first line of the refusal's text past the gate's prefix, cut to causeBytes: what each plan review
+	// counts refusals by, to find the brittle ones, where the class names only the stage (refusal-causes, 2026-11-11).
+	Cause string `json:"cause,omitzero"`
 }
+
+// causeBytes bounds a refusal's cause in the record, which keeps every refusal: its first line says why.
+const causeBytes = 240
 
 // stageRules are the rules the rules stage holds a change to, each by its
 // name and a phrase its refusal carries, which no other rule's does.
@@ -78,6 +85,11 @@ func Classify(reference, refusal string) Refusal {
 	}
 	classified := Refusal{Reference: reference, Class: gateClass}
 	_, stage, _ := strings.Cut(refusal, stagePrefix)
+	cause, _, _ := strings.Cut(cmp.Or(stage, refusal), "\n")
+	if cause = strings.TrimSpace(cause); len(cause) > causeBytes {
+		cause = strings.ToValidUTF8(cause[:causeBytes], "")
+	}
+	classified.Cause = cause
 	// The stage space is none of checks, and what it refuses is the machine, not the change.
 	if strings.HasPrefix(stage, spaceClass+":") {
 		classified.Class, classified.Probe = spaceClass, "go run ./cmd/gate -plan <item>/<step> -message-file - -preflight"

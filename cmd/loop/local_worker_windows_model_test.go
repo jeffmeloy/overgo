@@ -142,7 +142,8 @@ func servedWorkerModel(t *testing.T) (target, name string) {
 	if err != nil || receipt.ExitCode != 0 {
 		t.Fatalf("the server binary did not build: %v (exit %d)", err, receipt.ExitCode)
 	}
-	supervisor := testcheck.Must(modelswap.New(modelswap.ServerLauncher{Binary: binary, Store: roots.Store, Dir: repository}, 0))(t)
+	// The child accepts a thinking worker's reply, which the policy's bound refuses (loop-proof/reply-bound).
+	supervisor := testcheck.Must(modelswap.New(modelswap.ServerLauncher{Binary: binary, Store: roots.Store, Dir: repository, MaxTokens: localThinkingTokens}, 0))(t)
 	t.Cleanup(func() { testcheck.NoError(t, supervisor.Close()) })
 	name = filepath.Base(location)
 	lease := testcheck.Must(supervisor.Acquire(ctx, modelswap.Servable{Name: name, Location: location}))(t)

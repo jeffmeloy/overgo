@@ -78,6 +78,12 @@ type ServerLauncher struct {
 	// Workspaces is the operator's launch declaration; every child enables
 	// the same workspaces, so a swap never loses a tab.
 	Workspaces Workspaces
+	// MaxTokens is the most tokens a child accepts for one reply (its
+	// -max-tokens); zero keeps the recipe policy's. A model let think
+	// before it answers needs more than the policy's 4096: the local
+	// worker's every thinking request was refused at that bound
+	// (loop-proof/reply-bound).
+	MaxTokens int
 }
 
 // Workspaces names the server workspaces a launch enables beyond serving.
@@ -135,6 +141,9 @@ func (l ServerLauncher) launch(ctx context.Context, servable Servable) (*serverP
 	// The child self-reports the servable's name so the GUI's model pill
 	// (and the proxy's self-identity short-circuit) track the swap.
 	arguments := append([]string{"-listen", address, "-repo", l.Store, "-model-id", servable.Name}, l.Workspaces.arguments()...)
+	if l.MaxTokens > 0 {
+		arguments = append(arguments, "-max-tokens", strconv.Itoa(l.MaxTokens))
+	}
 	// The child logs its bound listener; the announcement is the readiness
 	// signal. Its last output also rides a failed exit, so a child that ends
 	// before serving says why in the swap error, not only on the console.

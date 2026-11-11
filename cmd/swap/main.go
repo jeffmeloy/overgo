@@ -43,6 +43,7 @@ func run() (err error) {
 	defaultModel := flag.String("default", "", "model served for model-less requests before any child runs")
 	training := flag.Bool("training", false, "enable the recipe-bound training workspace in every served child")
 	modelBuilder := flag.Bool("model-builder", false, "enable the corpus-derived model builder workspace in every served child")
+	maxTokens := flag.Int("max-tokens", 0, "the most tokens every served child accepts for one reply; 0 keeps the recipe policy's (a model let think needs more)")
 	flag.Parse()
 	if err := dataroot.ResolveStore(store); err != nil {
 		return err
@@ -58,7 +59,7 @@ func run() (err error) {
 	}
 	defer repository.Close()
 	resolver := &modelswap.CatalogResolver{Store: repository, Limit: *catalogLimit}
-	launcher := modelswap.ServerLauncher{Binary: *binary, Store: *store, Workspaces: modelswap.Workspaces{Training: *training, ModelBuilder: *modelBuilder}}
+	launcher := modelswap.ServerLauncher{Binary: *binary, Store: *store, Workspaces: modelswap.Workspaces{Training: *training, ModelBuilder: *modelBuilder}, MaxTokens: *maxTokens}
 	supervisor, err := modelswap.New(launcher, *idle)
 	if err != nil {
 		return err

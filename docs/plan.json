@@ -1330,19 +1330,6 @@
       },
       "steps": [
         {
-          "id": "linked-data",
-          "title": "Removing a session folder removes names and never data held elsewhere: a junction or symbolic link in it is never followed and holds the folder, and a file with another name under the models root, the data root or a store is whole after, bytes and read-only attribute both",
-          "status": "open",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestRemovingASessionFolderLeavesLinkedDataWhole$'",
-          "files": [
-            "cmd/loop"
-          ],
-          "rationale": "Serves: model, dataset and checkpoint inputs as immutable, under the one new line that deletes beside them. The owner's word of 2026-11-09: be careful not to delete links to data in other places like models.\n\nDisappears: the way 170 GB of weights were lost before, as removeCopy's own comment records (cmd/loop/leftovers.go:1168-1172): a removal that follows a junction out of the folder it is removing. The walk already refuses an entry that holds a link a recursive delete could follow (leftovers.go:236-238) and removeCopy never asks git to remove a directory. This step holds the session line to both, by a test that builds the three cases and reads the linked data after: a directory junction to a models folder, a symbolic link to a model file, and a hard link to one.\n\nEvidence: measured 2026-11-09 in the session folder the next step names: no junction or symbolic link to five levels deep (deeper was not walked), and 15.9 GiB of hard-linked files, the MOSS text encoder and VAE under moss-run/served and moss-run-void/served, four names each, the others in overgo_data/models/MOSS-Image-SFT-797fa8e678b4f and overgo_data/references/moss-image. Removing a hard link's name leaves the other names and the bytes, and frees nothing; the listing says so, giving an entry's bytes apart from the bytes its removal frees.\n\nOne thing to read before trusting it: on Windows a file's attributes belong to the file, not the name, so a removal that clears read-only to delete a name clears it on the model's own name too (Qwen3.5-9B-Q8_0.gguf in the models root is read-only). Whether Go's removal does so here is read by the test, and if it does the attribute is put back or the name is removed another way.\n\nPredicted effect: none on a measured cell.\n\nBatch: host lane.",
-          "depends_on": [
-            "session-leftovers/every-harness-folder"
-          ]
-        },
-        {
           "id": "ended-session",
           "title": "A session folder is finished only once its session's end is recorded, by a session-end hook or by the end of the process its hold names, and nothing in it is kept by a worktree the helper-copy line holds, an entry named for an open plan row, a committed line or a store registration; a folder whose session's end is unrecorded is reported, never deleted",
           "status": "open",

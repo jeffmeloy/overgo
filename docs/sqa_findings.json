@@ -7,7 +7,7 @@
         "path": "C:\\Users\\jeffm\\Downloads\\extreme_refactor_plan.md",
         "document_sha256": "fe13a4bd47c8c41ea6dbf766c0acf3dc41ab7dab0c6d8bd926863313d4f34395",
         "document_reference_revision": "386bf1602993bd520bc754521f4512e5e57a6c74",
-        "document_state": "Owner-requested architecture-first document in Downloads; read and SHA256 confirmed this review. External to the repository and not part of reviewed master.",
+        "document_state": "Downloads architecture target read and SHA256 reconfirmed at this review; external to committed master. Still active, not a second dispatch plan.",
         "purpose": "Architecture is primary: clear responsibilities, inward dependency direction, fewer independent implementations and complete behavior preservation.",
         "priorities": [
           "Resolve user intent once into a format-independent computation; readers implement model/tensor contracts, executors retain numerical semantics and resource lifetime.",
@@ -39,7 +39,7 @@
         ],
         "adoption_scope": "Supersedes the absent repository-document reference at the owner's request; current external SHA is verified. Does not alter the executable plan."
       },
-    "assessment": "Shared envsetting replaces two manual declarations; APG stays in sampling.Guider; whole-tree reads move out of ordinary driver/landing suites while native caching remains owner. Dispatch can choose host work under a recorded live card hold; replay probes one request before tasks. These are useful reductions in repeated manual work, with real code/test growth.",
+    "assessment": "The gate deletes blanket inline-number/export-consumer rules and their tests, retaining targeted numerical/limit, pinned-byte, reachability and CUDA-lane checks. Mode sampling stays in the existing model policy; thinking requests now pass depth beside tools. Prompt weighting reuses existing graphs but independently reconstructs token/layout/branch meaning, causing382; media-history normalization drops mode in383.",
     "ast_surface_review": {
         "revision": "9bd406acafb89c44a439722419f1f7e85e71f691",
         "architectural_target": "Fewer independent product entry points and dependency owners; retain process isolation and existing compiled/runtime/development authority.",
@@ -55,41 +55,30 @@
         "cost": "Concrete parsed duplicate migrations total22production and150test AST removed; unimplemented estimates only. Three directories can disappear through349/351; command movement and all retained semantic constants must be charged. No overall refactor completion claimed."
       },
     "automation_follow_up": {
-        "architectural_progress": "Shared envsetting replaces two manual declarations; APG stays in sampling.Guider; whole-tree reads move out of ordinary driver/landing suites while native caching remains owner. Dispatch can choose host work under a recorded live card hold; replay probes one request before tasks. These are useful reductions in repeated manual work, with real code/test growth.",
-        "remaining": "380 configuration admission;381 setting identity;377 historical source binding. Existing374/376 obligations retain their earlier scoped evidence. Card hold and one-request probe are bounded progress, not external-supervisor completion.",
+        "architectural_progress": "e03ecced6 removes two form-only refusal families and their scanners/tests; c8e291 admits depth alongside tools before a worker run. Targeted correctness checks and the landing/driver remain owners.",
+        "remaining": "376 status-count/delivery residuals are unchanged; removing refusal rules is not proof of corrected accounting.380 effective environment and381 syntax-independent identity sources are unchanged. No model competence or full-run completion is inferred.",
         "plan_recommendations": [
           {
-            "rows": "guidance-ops/preset-readings; setting-reader/do (landed)",
+            "rows": "fewer-refusals/trim-rules (landed)",
             "findings": [
-              "SQA-342",
-              "SQA-379",
-              "SQA-381"
+              "SQA-376"
             ],
-            "recommendation": "Credit the landed setting reader and moving readings before NAG. Keep statistical approval and record/render binding unresolved; correct syntax-dependent identity discovery through its existing owner. Printed verdicts and a campaign start are not valid admission or completion."
+            "recommendation": "Credit actual deletion and retained targeted checks. Keep existing status accounting/delivery repair separate; do not add a replacement policy suite or infer elapsed savings from AST counts."
           },
           {
-            "rows": "fail-early-runs/land-environment (landed)",
+            "rows": "loop-proof/sampling-by-mode; thinking-depth (landed); local-demonstrated (open)",
             "findings": [
-              "SQA-380"
+              "SQA-383"
             ],
-            "recommendation": "Use one effective filtered environment and surface existing-config errors before starting tool work."
-          },
-          {
-            "rows": "setting-reader/do; review-fixes/historical-record",
-            "findings": [
-              "SQA-377"
-            ],
-            "recommendation": "Stop rewriting the historical dependency interpretation for current symbols; keep it tied to its recorded revision."
+            "recommendation": "Repair resolved mode at shared normalization before dependent demonstrations. Keep depth/sampling in existing template/policy owners; no new executor or request flags."
           }
         ],
-        "complete_cost": "d87c57c->5a2336fba six complete changed-Go migrations: +2334 production/+3227 test AST (+453/+562 lines; +4/+9 files), one envsetting package, no binary or directory deletion. Split once: test-reuse370/699, APG736/1181, setting-reader402/450, card-held332/322, probe274/258, landing-environment220/317. Embedded production presets grow94+83bytes; retained gates report0new fixture bytes/schemas/CUDA entries. No safe aggregate net reduction.",
+        "complete_cost": "5a2336fba->c8e291582, five full changed-Go migrations (45paths): +491 production/+1482 test AST,+118/+251 lines,+1/+6 files. Prompt weights+1264/+731; sampling-by-mode+383/+896; rule deletion-1180/-479; thinking-depth+24/+334. Net+1973AST. The rule deletion alone is a safe1659-node reduction; the whole interval grows. No binary or directory deletion and no new fixture bytes/CUDA entry points reported by retained gates. New sampling metadata still has maintenance cost despite zero new record schemas.",
         "separate_costs": {
-          "test-reuse": "370 production/699 test",
-          "APG": "736/1181",
-          "setting-reader": "402/450",
-          "card-held": "332/322",
-          "worker-probe": "274/258",
-          "landing-environment": "220/317"
+          "prompt-weighting": "1264 production/731 test AST",
+          "sampling-by-mode": "383/896",
+          "rule-deletion": "-1180/-479",
+          "thinking-depth": "24/334"
         },
         "authority": "Report-only; no dispatch, worker messages or execution changes."
       },
@@ -102,18 +91,24 @@
         "Do not treat a high refusal percentage as permission to weaken correctness, identity, safety or numerical checks."
       ],
     "media_follow_up": {
-        "architectural_progress": "APG uses existing Guider; setting-reader landed before the now-first preset-readings. Existing execution loops retain numerical/lifetime ownership.",
-        "remaining": "342/379 admission and record binding files are unchanged.16a9f2367 reports readings started, but no valid approval or run completion is inferred.",
-        "cost": "APG736production/1181testAST plus177embedded preset bytes. Native retained checks do not establish held-out quality.",
+        "architectural_progress": "Krea/MOSS weighting uses the current denoiser graphs and positive-finite owner; independent tokenization/layout/branch reconstruction needs382 before broader prompt behavior.",
+        "remaining": "342/379 preset admission and record/render binding sources are unchanged. The committed plan still places preset-readings before NAG; no approval/completion inferred.",
+        "cost": "Both prompt-weight landings+1264production/+731testAST; no fixture bytes claimed. No new runtime/memory measurement.",
         "plan_recommendations": [
           {
-            "rows": "guidance-ops/preset-readings; setting-reader/do (landed)",
+            "rows": "krea-pack prompt weighting (landed); moss-ultra-sections/prompt-modes (open)",
+            "findings": [
+              "SQA-382"
+            ],
+            "recommendation": "Keep one bound conditioning result across actual tokenization, layout, cache and positive/negative feeds. Delete displaced reconstruction before adding further prompt modes."
+          },
+          {
+            "rows": "guidance-ops/preset-readings,nag-wan,nag-krea",
             "findings": [
               "SQA-342",
-              "SQA-379",
-              "SQA-381"
+              "SQA-379"
             ],
-            "recommendation": "Credit the landed setting reader and moving readings before NAG. Keep statistical approval and record/render binding unresolved; correct syntax-dependent identity discovery through its existing owner. Printed verdicts and a campaign start are not valid admission or completion."
+            "recommendation": "Preserve reading-before-dependent-NAG order, while fixing statistical admission and evidence binding in existing owners. Printing a verdict or starting a run is not verified approval."
           }
         ]
       },
@@ -198,16 +193,16 @@
         ]
       },
     "plan_review_follow_up": {
-        "pin": "8ac909a24a1563852dc20e05a168439946f70de7",
-        "assessment": "delete-tool and measurement-skip landed. local-demonstrated is still first; runs5and6 each2of6. Shared mutation/replay owners should be retained while fixing372/373 before dependent repeated work.",
-        "limits": "Plan unchanged by SQA. Legacy measurement steps lack Run/Record metadata, so merely reading those fields is insufficient. Current source does not close older recovery, grammar or diagnostic findings."
+        "pin": "c8e2915829387d03df8999c75be2fbc966314dac",
+        "assessment": "31 committed items. preset-readings still leads before NAG. Prompt weighting and mode/depth steps landed; local-demonstrated remains. Credit shared policy and deletion; repair382/383 at their existing boundaries before relying on dependent behavior.",
+        "limits": "Plan and current drafts untouched. Retained gate successes do not establish weighted-token equivalence, media-mode correctness, preset approval or worker competence."
       },
-    "rank_basis": "378 closes after removing accepted-check retargeting. Remaining374/376/377 retain their canonical priorities and only residual obligations.",
+    "rank_basis": "Preserve canonical safety/recovery priorities;382/383 address accepted-input semantics before related feature growth. Existing resolved/aliases retain closure/source/cost evidence.",
     "refactor_target_progress": {
-        "architectural_progress": "Shared envsetting replaces two manual declarations; APG stays in sampling.Guider; whole-tree reads move out of ordinary driver/landing suites while native caching remains owner. Dispatch can choose host work under a recorded live card hold; replay probes one request before tasks. These are useful reductions in repeated manual work, with real code/test growth.",
-        "conflicts": "Shared owners help only if their boundary is coherent: final environment filtering must follow merging, and identity must follow imported calls rather than spelling. Historical evidence still depends on current symbols.",
-        "next_useful_reductions": "380 remove repeated/silent config loading;381 replace the322-node scanner and consolidate duplicate tiny-module setup. Preserve Result/Neutral distinction, resource authority, historical evidence and numerical approval contracts.",
-        "cost": "d87c57c->5a2336fba six complete changed-Go migrations: +2334 production/+3227 test AST (+453/+562 lines; +4/+9 files), one envsetting package, no binary or directory deletion. Split once: test-reuse370/699, APG736/1181, setting-reader402/450, card-held332/322, probe274/258, landing-environment220/317. Embedded production presets grow94+83bytes; retained gates report0new fixture bytes/schemas/CUDA entries. No safe aggregate net reduction."
+        "architectural_progress": "The gate deletes blanket inline-number/export-consumer rules and their tests, retaining targeted numerical/limit, pinned-byte, reachability and CUDA-lane checks. Mode sampling stays in the existing model policy; thinking requests now pass depth beside tools. Prompt weighting reuses existing graphs but independently reconstructs token/layout/branch meaning, causing382; media-history normalization drops mode in383.",
+        "conflicts": "382 token/row/branch binding and383 mode loss contradict resolving intent once. No new workflow framework is needed; existing numerical/session/cache owners remain.",
+        "next_useful_reductions": "Remove segmented/repeated prompt reconstruction and duplicated mode propagation through their current owners. Prior349/351 binary/directory reductions and380/381 admission/identity obligations remain open; no fresh global census or invented boilerplate percentage.",
+        "cost": "5a2336fba->c8e291582, five full changed-Go migrations (45paths): +491 production/+1482 test AST,+118/+251 lines,+1/+6 files. Prompt weights+1264/+731; sampling-by-mode+383/+896; rule deletion-1180/-479; thinking-depth+24/+334. Net+1973AST. The rule deletion alone is a safe1659-node reduction; the whole interval grows. No binary or directory deletion and no new fixture bytes/CUDA entry points reported by retained gates. New sampling metadata still has maintenance cost despite zero new record schemas."
       },
     "working_notes_review": {
         "finding": "SQA-334",
@@ -217,10 +212,10 @@
       }
   },
     "committed_plan": {
-    "git_blob": "f9ec115f583b415e3950fc9757ef2d00541aa880",
+    "git_blob": "07d4658b55e61a257822f79bfd1ecf5a84309a0f",
     "path": "docs/plan.json",
-    "revision": "5a2336fbaf7dd4293bb5adc58119578783ae5566",
-    "sha256": "86b7d1b5a60290d05e940d4a098b97fa43207bbe98ab7ab738070a1bfae4e152",
+    "revision": "c8e2915829387d03df8999c75be2fbc966314dac",
+    "sha256": "16d3f87f99fc3d645b309e496c34c97976585e6c8bfb071b054a73b3dde8c22c",
     "working_tree_status": "Committed plan at review pin; prior draft assessment retains its own snapshot identity. Current working plan edits excluded."
   },
     "findings": [
@@ -9247,10 +9242,144 @@
         "The spelling scanner/manual lists stay removed, required current identity and public LinkFlag coverage has a retained owner, and full migration cost is counted."
       ],
       "comparison": "In the retained tiny module fixture, express the same Result(\"FIXTURE_PRECISION\") through a valid import alias and a comment before the call parenthesis. Both must retain the same dependency and invalidate when its value changes; a nonliteral and an unsupported indirect read must be explicitly refused. Preserve neutral and unrelated-package cases. No SQA test execution."
+    },
+    {
+      "id": "SQA-382",
+      "status": "open",
+      "severity": "P2",
+      "category": "conditioning-correctness",
+      "classification": "source-established-token-row-branch-mismatch",
+      "title": "Bind prompt weights to the token rows actually executed",
+      "evidence_commit": "c8e2915829387d03df8999c75be2fbc966314dac",
+      "sources": [
+        {
+          "path": "internal/latentimage/prompt_weights.go",
+          "symbol": "spanTokens; chatTokens; weightedSpans"
+        },
+        {
+          "path": "internal/latentimage/textinput.go",
+          "symbol": "renderTextInput; rowWeights"
+        },
+        {
+          "path": "internal/representation/sequence.go",
+          "symbol": "AssemblePaddedSequence"
+        },
+        {
+          "path": "internal/hfbpe/tokenizer.go",
+          "symbol": "Tokenizer.Encode; bpe"
+        },
+        {
+          "path": "internal/latentimage/runtime_cuda_windows.go",
+          "symbol": "promptPrograms: textMask/textWeights selection"
+        },
+        {
+          "path": "internal/latentimage/generator_rotary_windows.go",
+          "symbol": "prepareRotary: input/cache and positive-only weights"
+        },
+        {
+          "path": "internal/latentimage/model_encoder_windows.go",
+          "symbol": "modelConditioner.input; weights"
+        },
+        {
+          "path": "internal/latentimage/rotary_sampling_windows.go",
+          "symbol": "runRotarySampling: load positive/negative-skipped"
+        },
+        {
+          "path": "internal/latentimage/textinput_test.go",
+          "symbol": "TestRenderKreaTextInputLayout"
+        },
+        {
+          "path": "internal/latentimage/conditioning_test.go",
+          "symbol": "TestMOSSConditioningGolden"
+        },
+        {
+          "path": "internal/latentimage/prompt_weights_test.go",
+          "symbol": "Krea parser/layout and graph weighting fixture"
+        },
+        {
+          "path": "internal/latentimage/moss_prompt_weights_test.go",
+          "symbol": "TestAPromptWeightScalesMOSSTokensAttentionValue"
+        }
+      ],
+      "evidence": "Three cases share one missing binding from accepted markup to executed conditioning. (1) spanTokens encodes each stretch separately; chatTokens also renders a sentinel instead of the actual prompt. BPE is not additive: an admitted byte-level vocabulary a/b/ab with merge a b encodes clean ab as one token, while (a:1)b takes two independent encodes. Weight one can therefore change token IDs/conditioning before attention. Existing fake word-count encoders cannot catch this; graph-only weights-of-one checks do not prove input equivalence. (2) AssemblePaddedSequence places suffix at prefix+maximum-suffixLen, overwriting the final suffixLen prompt slots when full. rowWeights copies maximum weights without that boundary. The retained prefix3/budget5/suffix1 layout puts suffix at row7, but a fifth prompt weight2 gives that suffix weight2; Krea consumes this attended row. (3) MOSS accepts and strips markup from negative prompts through input, but only request.Prompt supplies settings.weights; load(name, negative, skip) passes none. Negative weights are silently discarded. These are source-admitted cases, not measured model-output failures.",
+      "impact": "Weight markup can alter tokenization at unit weight, scale template suffix tokens, or silently lose a negative-branch weight. Separately deriving weights also repeats rendering/tokenization after an uncached positive input.",
+      "recommended_change": "Keep renderTextInput/textInput, hfbpe and AssemblePaddedSequence as the owners. Resolve the clean rendered sequence and weight alignment coherently; preserve whole-sequence normalization/tokenization and define or refuse ambiguous within-token weights rather than assuming independent encodes are equivalent. Derive weights from the actual retained prompt range without changing the established suffix geometry. Carry the matching weights with positive and negative conditioning, including cache reuse and skipped negative branches; otherwise refuse unsupported negative markup before encoding. Remove the weights-only re-render where the bound result is already available. No second tokenizer, layout, cache or recipe language.",
+      "displaced_surface": "Replace spanTokens/chatTokens segmented reconstruction and rowWeights independent range arithmetic; remove modelConditioner.weights re-rendering once its input/result owner carries the same facts. RETAIN Krea text-first and MOSS image-first numerical/graph fixtures separately. MERGE shared parser cases; SIMPLIFY the fake word-count assertions into real-tokenizer alignment coverage in existing conditioning/layout fixtures. Preserve positive-finite refusal, literal parentheses, empty/default behavior, truncation, template IDs, mask, cancellation and Windows/CUDA lifetime.",
+      "expected_benefit": {
+        "baseline": "The two complete prompt-weight landings add1264 production/731 test AST,249/107 lines and1/2 files. Selected displaced functions: spanTokens83, chatTokens176, rowWeights65 AST; these are gross replacement surfaces, not net savings.",
+        "after": "Unimplemented. Charge tokenizer alignment, per-branch/cache metadata and retained/extended fixtures against deletions. No guaranteed net code or memory saving; correctness takes priority.",
+        "setup": "Reuse existing tiny tokenizer/layout and MOSS retained tokenizer-source fixtures; preserve separate numerical references. No new model corpus, standalone binary, package, recurring run or SQA execution. Cache-hit/cold-path work must both be counted."
+      },
+      "likely_effort": "Bounded but nontrivial conditioning-boundary correction; exact tokenizer offset/normalization semantics require care.",
+      "plan_references": [
+        "krea-pack/prompt-weighting 93bebae41 (landed)",
+        "krea-pack/moss-weighting 892736f81 (landed)",
+        "Downloads architecture sections4,5,9: resolve intent once, preserve numerical/lifetime ownership"
+      ],
+      "plan_coverage": "Landed feature checks prove selected graph effects; they do not prove token/layout/branch binding. Repair this shared boundary before extending prompt modes.",
+      "closure_criteria": [
+        "Unit-weight marked and clean prompts have identical actual IDs/mask/conditioning under the retained tokenizer, including a cross-span merge and normalization/template boundaries. Non-unit ambiguity has an explicit admitted contract.",
+        "Full-budget prompts leave prefix/suffix/pad rows unweighted and preserve existing truncation geometry. Accepted negative weights reach both ordinary and skipped branches, or unsupported markup refuses early.",
+        "Cache and cold input agree on bound weights without redundant positive re-rendering; displaced reconstruction and duplicate test setup are removed, full costs recorded and numerical/lifetime evidence retained."
+      ],
+      "comparison": "Extend TestRenderKreaTextInputLayout with its existing full-budget case and a weighted last discarded prompt token; suffix stays1. In existing conditioning coverage use a real tiny BPE merge across (a:1)b and compare with clean ab, then preserve the retained MOSS tokenizer/template IDs. Extend the existing weighting/guidance boundary coverage to observe accepted negative weights in ordinary/skipped feeds. Keep graph weights-of-one and changed-weight numerical checks; do not launch an SQA workload."
+    },
+    {
+      "id": "SQA-383",
+      "status": "open",
+      "severity": "P2",
+      "category": "request-semantics",
+      "classification": "source-established-multimodal-mode-loss",
+      "title": "Preserve the resolved thinking mode across multimodal history normalization",
+      "evidence_commit": "c8e2915829387d03df8999c75be2fbc966314dac",
+      "sources": [
+        {
+          "path": "internal/server/protocol_chat.go",
+          "symbol": "normalizeChatPrompt; parseChatMultimodalPrompt; parseChatSingleMultimodalPrompt; chatTemplateKwargs"
+        },
+        {
+          "path": "internal/server/protocol_common.go",
+          "symbol": "prepareProtocolGenerationPlan: newSampler(parameters, prompt.Thinking == nil || *prompt.Thinking)"
+        },
+        {
+          "path": "internal/server/sampling_mode_test.go",
+          "symbol": "TestAModelIsServedTheSamplingOfItsMode"
+        },
+        {
+          "path": "internal/server/server_completion_chat_embedding_test.go",
+          "symbol": "TestChatImageHistoryPreservesTurnPositionAndReplay"
+        },
+        {
+          "path": "internal/modelrecipe/runtime_policy.go",
+          "symbol": "RuntimePolicy.SamplingFor"
+        }
+      ],
+      "evidence": "normalizeChatPrompt returns the media branch before attaching Thinking. The single-media fast path attaches it, but parseChatMultimodalPrompt history/tool path formats with body.TemplateKwargs and returns nativePrompt with MediaHistory=true and no Thinking. prepareProtocolGenerationPlan treats nil as true. Thus a valid image-user/assistant/user history with enable_thinking=false and distinct model mode defaults formats thinking off but selects thinking-on sampling. Explicit sampling fields still override their respective defaults. The new sampling-mode fixture exercises only plaintext hi; the c8e291 tool/depth correction does not repair this history branch. Source-established, not a live serving run.",
+      "impact": "The same explicitly selected mode has different sampling semantics depending on message history/media. The shared path serves Chat, Responses and Anthropic callers; route-specific repairs would multiply the defect.",
+      "recommended_change": "Resolve and attach the effective thinking mode once at the shared normalization boundary for both text and media results, using existing chatTemplateKwargs and SamplingFor. Delete branch-specific duplicate mode attachment where displaced; retain input validation and actual template extras. Keep one sampler policy and preserve explicit request overrides, single-set fallback, tools and media order.",
+      "displaced_surface": "Replace the split text-only/single-media Thinking assignments with one shared post-normalization assignment. RETAIN the server sampling fixture, modelartifact persistence fixture and modelrecipe policy/identity fixture: they hold different boundaries. Extend the existing image-history/replay fixture instead of adding parallel Chat/Responses/Anthropic suites or copying its PNG/projector setup.",
+      "expected_benefit": {
+        "baseline": "Complete sampling-by-mode landing: +383 production/+896 test AST,+80/+153 lines,+3 test files. Thinking-depth follow-up:+24/+334 AST,+9/+55 lines,+1 test file; these totals include their other behavior and are counted once in review totals.",
+        "after": "Small shared-boundary correction, exact delta unimplemented. Removing duplicate assignments is an opportunity, not a claimed net reduction; charge the extra retained fixture assertion.",
+        "setup": "Reuse the current1x1 PNG, fakeGenerator/historyGenerator and fakeHistoryProjector, including replay. No model/device fixture, new binary/package or recurring gate."
+      },
+      "likely_effort": "Small normalization fix and one retained native integration extension.",
+      "plan_references": [
+        "loop-proof/sampling-by-mode a10d37e41 (landed)",
+        "loop-proof/thinking-depth c8e291582 (landed)",
+        "loop-proof/local-demonstrated (still open)",
+        "Downloads architecture sections4,8: one effective request semantics"
+      ],
+      "plan_coverage": "Mode defaults and depth admission are useful progress; a successful plaintext/tool fixture is not proof that every normalized request carries the mode.",
+      "closure_criteria": [
+        "A thinking-off media history selects the same off defaults as plaintext/single-media requests; default-on and explicit sampling overrides remain correct.",
+        "The shared normalization owner carries the resolved mode on every supported branch; existing media order/replay, tool/template and one-set fallback contracts remain covered without duplicated protocol suites."
+      ],
+      "comparison": "In TestChatImageHistoryPreservesTurnPositionAndReplay, retain the3-message/1x1 image setup, give the handler distinct thinking/off defaults, send enable_thinking=false and inspect base.sampling. It must use off defaults on both initial/replay requests while all existing media-position checks hold. Keep the plaintext fixture for default-on, one-set fallback and explicit overrides. No SQA test execution."
     }
   ],
     "gate_test_assessment": {
-    "assumptions": "Environment key case follows Windows for landing filtering; loader errors differ from an absent optional file. Go import aliases/comments are valid syntax, so source spelling is not dependency identity. PID liveness is a dispatch hint, not a reservation; model-loop numerical contracts remain separate from orchestration.",
+    "assumptions": "Unit weight must not change clean-prompt tokenization. BPE normalization/merges are not additive across arbitrary markup boundaries; suffix rows can replace a full prompt tail. Nil Thinking means true in sampler selection, while an explicit false still formats false. Krea and MOSS graph layouts and Windows/CUDA lifetimes remain distinct.",
     "automation_follow_up": {
         "retained_feedback": {
           "window": "November8 and9,2026 America/New_York (UTC-05); local retained records read after58e8280",
@@ -9273,21 +9402,21 @@
         "cost": "budget+450production/+575test; verify-first+175/+148. No static fixture growth. Prior report was carried by a0cf; do not count its prose as application AST.",
         "interpretation": "Historical refusal wall motivates ordering and status delivery, but is not measured saved work. Query/window/outcome definitions must be explicit."
       },
-    "automation_sequence": "Known prerequisite refusal now precedes moveReplay and worker execution. Driver already distinguishes declared Run/Record work from worker dispatch. Current373heuristic overgeneralizes that boundary;372can corrupt its held verifier. Existing plan stops, budgets, process supervision and partial records remain owners. No new scheduler, cache or gate.",
+    "automation_sequence": "Rule-only number/export scanning and its failure instructions are deleted. Existing byte identity, targeted numerical/limit, code reachability, CUDA admission and driver authority remain. Depth with tools is admitted by existing chatTemplateKwargs. Prior early-admission, delivery and identity obligations remain; no new scheduler or safety bypass recommended.",
     "fresh_ast": {
-        "revision": "5a2336fbaf7dd4293bb5adc58119578783ae5566",
-        "method": "Existing selected Go parser and complete changed-file counter; no application execution.",
+        "revision": "c8e2915829387d03df8999c75be2fbc966314dac",
+        "method": "Existing external go/parser selected-file/cost tools; no application execution.",
         "retained_result": [
-          "review-5a2336-selected-ast.json",
-          "review-5a2336-dd8f0d904-delta.json",
-          "review-5a2336-da371fdf5-delta.json",
-          "review-5a2336-e2ab11644-delta.json",
-          "review-5a2336-16a9f2367-delta.json",
-          "review-5a2336-9236fdeb3-delta.json",
-          "review-5a2336-5a2336fba-delta.json"
+          "review-c8e291-selected-ast.json",
+          "review-c8e291-total-delta.json",
+          "review-c8e291-thinking-delta.json",
+          "review-e03ecced-93bebae41-delta.json",
+          "review-e03ecced-892736f81-delta.json",
+          "review-e03ecced-a10d37e41-delta.json",
+          "review-e03ecced-e03ecced6-delta.json"
         ],
-        "counts": "9files5838nodes/39functions/1139parser-local links. Result and Neutral are the only identical full bodies in this sample; their contracts differ.",
-        "limits": "No package/type resolution or whole-repository census. Cost covers entire changed files; test relocation is not deletion."
+        "counts": "9files9148nodes/38functions/1926parser-local links. No repeated exact full function-body hashes. Semantic duplication is independent reconstruction, not interchangeable numerical code.",
+        "limits": "No package/type resolution or broad census; complete changed-file endpoints include helpers/wrappers/tests. Binary/directory analysis retained at its original pin."
       },
     "media_follow_up": {
         "revision": "fc673760f813afdf216be087fe586f717461cd3a",
@@ -9451,17 +9580,16 @@
       "retained_change_costs": "Two consolidation landings(2d59f642c exact folds andbb4fc706a parameter folds) remove744 production nodes but add1591 test nodes, net+847 across Go. Pilot retirementea8ed43a7 removes5926 production/9990 test nodes and one schema, while fixture bytes grow599; its test deletion is already included in the day's offsets and must not be subtracted twice. These retained gates are broader changes, not matched per-test performance comparisons."
     },
     "retained_results": [
-        "Retained gate walls: test-reuse395s, APG1041s, setting-reader1459s, card-held298s, worker-probe245s, landing-environment255s. Required work and waits are included; these are not avoidable-time estimates.",
-        "dd8f0d904 reports native cache replay after an unrelated profile edit and separate whole-tree tests13s/10s. Later ordinary suites still run for own/shared dependency changes; no universal caching or matched elapsed gain is claimed.",
-        "9236fdeb3/5a2336fba retained native verify16.799s/17.326s and assertion-based undo. They miss malformed configured state and alternate setting-call spelling; successful gates do not close those source counterexamples."
+        "Existing gate records: prompt-weighting293s; MOSS-weighting639s; sampling-by-mode2078s; rule deletion288s; thinking-depth476s. Full gate wall includes required work/waits, not measured avoidable cost.",
+        "Prompt weighting retained verify11.686s/12.353s and graph checks miss full-tokenizer/suffix/negative binding. Sampling verify30.525s and plaintext fixture miss media history. Thinking-depth verify17.216s/tool fixture does not close383. No rerun by SQA.",
+        "Rule-deletion record confirms-1180production/-479testAST and0fixture/schema/CUDA growth; dead-declaration gate fixtures replace obsolete inline-number expectations. No matched elapsed-speed claim."
       ],
-    "surface_reduction_analysis": "d87c57c->5a2336fba six complete changed-Go migrations: +2334 production/+3227 test AST (+453/+562 lines; +4/+9 files), one envsetting package, no binary or directory deletion. Split once: test-reuse370/699, APG736/1181, setting-reader402/450, card-held332/322, probe274/258, landing-environment220/317. Embedded production presets grow94+83bytes; retained gates report0new fixture bytes/schemas/CUDA entries. No safe aggregate net reduction.",
+    "surface_reduction_analysis": "5a2336fba->c8e291582, five full changed-Go migrations (45paths): +491 production/+1482 test AST,+118/+251 lines,+1/+6 files. Prompt weights+1264/+731; sampling-by-mode+383/+896; rule deletion-1180/-479; thinking-depth+24/+334. Net+1973AST. The rule deletion alone is a safe1659-node reduction; the whole interval grows. No binary or directory deletion and no new fixture bytes/CUDA entry points reported by retained gates. New sampling metadata still has maintenance cost despite zero new record schemas.",
     "tests": [
-        "RETAIN the child landing-environment fixture317nodes; extend its existing input table for configured opt-ins, explicit overrides and load errors before subprocess start. No second subprocess suite.",
-        "MERGE envsetting's280-node tiny-module setup into the retained identity fixture where the public LinkFlag assertion and literal/dynamic/direct/neutral/package-scoped cases remain. SIMPLIFY the scanner; RETAIN distinct Result/Neutral contracts.",
-        "RETAIN whole-tree moved tests under their existing names, undo-renamed-test regression and ordinary suite coverage. suite_reads_test491nodes is an opt-in diagnostic that explicitly runs both suites; it is excluded from wholeTreeRun by filename and must not become a standing duplicate suite run.",
-        "RETAIN replay first-request refusal and card-held host-dispatch recovery cases. These do not prove full worker competence or physical card ownership; no speculative replacement fixture.",
-        "RETAIN APG numerical/default-path/platform coverage; no consolidation inferred from similar wiring. No test created or executed by SQA."
+        "RETAIN separate Krea/MOSS numerical graph fixtures: text-first versus image-first and native-width/lifetime contracts differ. MERGE shared parser cases and SIMPLIFY word-count-only alignment assertions into existing real-tokenizer/conditioning coverage; REMOVE displaced assertion/setup bodies only after their cases move.",
+        "EXTEND/RETAIN TestRenderKreaTextInputLayout for the existing full-budget suffix boundary and TestMOSSConditioningGolden tokenizer/template evidence. Retain positive-finite/literal/default/normalization/truncation cases; no new model fixture corpus or runtime execution.",
+        "RETAIN sampling-mode server, modelartifact persistence and modelrecipe policy/identity fixtures as distinct contracts. Extend existing TestChatImageHistoryPreservesTurnPositionAndReplay with off defaults; reuse its image/fake/projector setup, no parallel protocol suites.",
+        "REMOVE obsolete blanket-number/export-rule assertions (already landed); RETAIN targeted unsupported-limit/numerical/pinned-byte/reachability/CUDA checks and the gate recovery fixtures. No SQA tests created or run."
       ]
   },
     "hygiene_assessment": "No hygiene finding. Scratch analysis is outside the repository; concrete correctness and production/test cost take priority.",
@@ -10995,10 +11123,9 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
     "limitations": [
-      "No application tests, model/device workloads, services, gates, agents/messages, implementation or plan/skill changes. Existing external parser/cost tooling only.",
-      "AST includes comments and parser-local resolution, not package/type analysis. The identical Result/Neutral bodies have different contracts and are not deletion candidates; no repository-wide boilerplate percentage inferred.",
-      "Configured-opt-in and alias/comment examples are admitted source cases; no live configuration leak, stale model result or new timing run claimed. Current working drafts are not closure evidence.",
-      "CardHold is a manually recorded dispatch hint backed by PID liveness, not proof of physical resource ownership or supervised continuation. A successful single worker probe does not prove completion or quality of the later tasks."
+      "No application tests, model/device workloads, services, gates, agents/messages, implementation or plan/skill changes; existing external static parser/cost tools only.",
+      "Go AST includes comments and parser-local links, not package/type resolution. No identical complete function bodies in this sample; no global boilerplate percentage or safe overall deletion target established.",
+      "Tokenizer/row/branch and media-mode counterexamples are source-established admitted cases. No live output regression, runtime/memory saving or full-refactor completion claimed."
     ],
     "master_lead_triage": {
     "at": "2026-11-10",
@@ -11874,13 +12001,13 @@
       }
     }
   },
-    "next_finding_number": 382,
+    "next_finding_number": 384,
     "publication_context": {
-    "assessment": "Substantive early-admission/identity follow-up and plan-progress reconciliation at5a2336fba.",
-    "checked_head": "5a2336fbaf7dd4293bb5adc58119578783ae5566",
-    "concurrent_changes": "Latest source/report/owner state re-read before publication; working latentimage/tests/plan edits untouched.",
-    "current_pin": "5a2336fbaf7dd4293bb5adc58119578783ae5566",
-    "publication": "Existing landing_turn/gate locks and report-only normal Git hook exception; save unstaged if implementation owns publication.",
+    "assessment": "Substantive conditioning/mode follow-up and architecture/cost reconciliation.",
+    "checked_head": "c8e2915829387d03df8999c75be2fbc966314dac",
+    "concurrent_changes": "Concurrent thinking-depth landing reread and incorporated; current leftovers/plan drafts excluded. Latest report/owner bytes and master rechecked immediately before write.",
+    "current_pin": "c8e2915829387d03df8999c75be2fbc966314dac",
+    "publication": "Existing landing_turn/gate ownership and normal report-only Git hooks; save unstaged if implementation owns publication.",
     "report_only": "Only docs/sqa_findings.json; unrelated index/worktree preserved."
   },
     "ranked_active_finding_ids": [
@@ -11904,6 +12031,8 @@
     "SQA-318",
     "SQA-283",
     "SQA-331",
+    "SQA-382",
+    "SQA-383",
     "SQA-340",
     "SQA-341",
     "SQA-356",
@@ -11960,44 +12089,40 @@
     "repository": "C:\\Users\\jeffm\\overgo",
     "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
     "review_notes": [
-      "342/379 remain canonical; only stale plan sequencing text changes. Setting-reader is now landed and preset-readings precedes NAG.",
-      "377 now has an actual historical-citation rewrite, reinforcing its already-open source-identity obligation.",
-      "380/381 are distinct effective-environment and result-dependency contracts. Neither duplicates verifier ordering322 or historical evidence377."
+      "382 consolidates tokenization, fixed-row suffix and CFG/cache weight transport as one coordinated bound-conditioning migration. It does not merge Krea/MOSS numerical contracts.",
+      "383 is distinct request-mode propagation; sharing the file with existing token-budget or media obligations is not a shared root cause.",
+      "e03ecced6 establishes a concrete net reduction for that landing; all five landings together grow1973AST. No quota or refactor completion claim."
     ],
-    "reviewed_at": "2026-11-11T16:28:30Z",
-    "reviewed_master": "5a2336fbaf7dd4293bb5adc58119578783ae5566",
+    "reviewed_at": "2026-11-11T18:33:56Z",
+    "reviewed_master": "c8e2915829387d03df8999c75be2fbc966314dac",
     "schema_version": 2,
     "scope": [
-      "Committed master 5a2336fbaf7dd4293bb5adc58119578783ae5566 and committed plan; bounded review of setting identity, landing environment, replay admission, card dispatch and test reuse. Prior preset admission files rechecked unchanged.",
-      "Existing targeted Go AST on9 files:5838nodes/39functions/1139parser-local links; complete changed-Go costs for six landings. Retained verification and prior binary/directory analysis reused.",
-      "Repository guidance and Downloads architecture target retain verified prior hashes. Current latentimage/plan drafts excluded. This chat previously implemented Overgo and contributed plan wording; not independent third-party review."
+      "Committed master c8e2915829387d03df8999c75be2fbc966314dac and committed plan. Bounded prompt weighting/tokenizer/layout/cache/CFG and multimodal mode/defaults; gate refusal reduction and worker depth followed through current owners.",
+      "Actual selected-file Go AST:9 files,9148nodes,38functions,1926parser-local links; full costs for five landings. Prior binary/directory and historical evidence analyses reused.",
+      "Downloads architecture target hash reconfirmed. This chat previously implemented Overgo and contributed plan wording; this is not independent third-party review. Current implementation drafts excluded."
     ],
     "sqa_response": {
-    "assessment": "208 stable IDs:72 open,130 resolved,4 deferred,2 aliases. New380/381;377 strengthened;342/379 plan progress reconciled.",
+    "assessment": "210 stable IDs:74 open,130 resolved,4 deferred,2 aliases. New382/383; rule deletion and mode/depth progress reconciled. No existing requirement retired.",
     "consolidated_findings": [],
     "deferred_findings": [],
-    "evidence": "Pinned callers/tests/configuration, six retained landing records and nine-file AST. Report owner blocks and unknown fields preserved.",
-    "implementation_response_context": "Previous SQA report landed in da371fdf5. No new owner response asserts342/379 resolved. Setting-reader prerequisite and reading-before-NAG order are credited; current latentimage drafts excluded.",
+    "evidence": "Pinned concrete callers, existing fixtures, five retained landing records and nine-file AST; complete changed-Go costs. Both owner blocks and every unknown field preserved.",
+    "implementation_response_context": "Current owner blocks reread unchanged. Prior findings remain canonical; source checks leave342/379/380/381 open.376 changed only by removing two refusal labels/helper, not its residual status accounting. Current leftovers/plan drafts excluded.",
     "new_findings": [
-        "SQA-380",
-        "SQA-381"
+        "SQA-382",
+        "SQA-383"
       ],
     "partially_addressed_findings": [],
-    "priority_changes": "Retain correctness/security ranking.380 prevents reintroduced costly lane opt-ins;381 prevents omitted evidence dependencies.342/379 still precede any claim of preset approval.",
-    "recommendation": "Finish guarantees inside current admission/identity owners; delete duplicate readers/scanners and merge compatible native fixture setup rather than add policy layers.",
+    "priority_changes": "Retain earlier safety/recovery ranking. New P2 input-semantics findings precede related media enhancements. Rule deletion is credited without closing distinct accounting or identity obligations.",
+    "recommendation": "Repair meaning once in existing normalization/conditioning owners; remove displaced reconstruction and reuse retained fixtures. No additional policy framework, scheduler or workload.",
     "refactor": {
-      "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
-      "history_path": "docs/sqa_findings.json",
-      "layout": "Full canonical open/deferred; compact resolved closure sources/revision/costs; explicit aliases, including aliases to closed canonical findings. Prior narratives remain in Git."
-    },
+        "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
+        "history_path": "docs/sqa_findings.json",
+        "layout": "Full canonical open/deferred; compact resolved closure sources/revision/costs; explicit aliases, including aliases to closed canonical findings. Prior narratives remain in Git."
+      },
     "reopened_findings": [],
     "resolved_findings": [],
-    "reviewed_master": "5a2336fbaf7dd4293bb5adc58119578783ae5566",
-    "uncertainty": "Static counterexamples and bounded retained records only. Net growth is measured; future reductions are unimplemented and not guaranteed.",
-    "updated_findings": [
-        "SQA-342",
-        "SQA-377",
-        "SQA-379"
-      ]
+    "reviewed_master": "c8e2915829387d03df8999c75be2fbc966314dac",
+    "uncertainty": "Static admitted cases, not observed live model failures. No repository-wide duplication percentage, performance gain or aggregate net reduction inferred.",
+    "updated_findings": []
   }
   }

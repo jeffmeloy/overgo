@@ -31,6 +31,23 @@ type spent struct {
 	Device      time.Duration `json:"device_wait,omitzero"`
 	// Stages is the time of each stage that ran, its waits included.
 	Stages map[string]time.Duration `json:"stages,omitempty"`
+	// Kind is whether the run was a commit attempt or a preflight, empty in a record from before runs said so: a refused
+	// preflight and a refused commit share an outcome, the stage that refused them (review-fixes/status-measures).
+	Kind string `json:"kind,omitempty"`
+}
+
+// The kinds of a run.
+const (
+	kindCommit    = "commit"
+	kindPreflight = "preflight"
+)
+
+// runKind is the kind of a run that is a preflight or not.
+func runKind(preflight bool) string {
+	if preflight {
+		return kindPreflight
+	}
+	return kindCommit
 }
 
 // Outcomes of a run that no stage refused.

@@ -184,7 +184,7 @@ func Run(ctx context.Context, options Options) (landed string, err error) {
 	}()
 	// Where the run's time went is recorded however it ends. A record that
 	// cannot be written is said and changes nothing: the landing stands.
-	l.spent = spent{Reference: options.Ref, Started: time.Now(), Outcome: gateClass, Stages: map[string]time.Duration{}}
+	l.spent = spent{Reference: options.Ref, Started: time.Now(), Outcome: gateClass, Kind: runKind(options.Preflight), Stages: map[string]time.Duration{}}
 	defer func() {
 		if unrecorded := l.recordSpent(); unrecorded != nil {
 			fmt.Fprintf(options.Log, "land: where the run's time went was not recorded: %v\n", unrecorded)

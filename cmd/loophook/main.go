@@ -34,9 +34,11 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"overgo/internal/gitauthority"
 	"overgo/internal/guard"
+	"overgo/internal/landing"
 	"overgo/internal/plan"
 	"overgo/internal/processcontrol"
 	"overgo/internal/processlock"
@@ -444,6 +446,11 @@ func runDoctrine(hookJSON string) {
 	fmt.Println()
 	fmt.Println("Dispatched now (go run ./cmd/plan -next):")
 	fmt.Println(nextDispatch().Line)
+	// The day's delivery, read from Git and the gate's run records, so the work's cost and progress are in sight without
+	// being asked for (review-fixes/status-measures); a checkout it cannot be read in says nothing of it.
+	if delivery, err := landing.DayDelivery(context.Background(), ".", time.Now(), landing.ReportFiling); err == nil {
+		fmt.Println(delivery)
+	}
 	if run := measurementRun(); run != "" {
 		fmt.Println()
 		fmt.Println(run)

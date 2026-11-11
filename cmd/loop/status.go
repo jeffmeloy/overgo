@@ -29,6 +29,8 @@ type workStatus struct {
 	LastCommit      string       `json:"last_commit"`
 	WaitingForOwner []string     `json:"waiting_for_owner,omitempty"`
 	Week            landing.Pace `json:"week"`
+	// Day is the day's delivery, the five measures the session start prints too (review-fixes/status-measures).
+	Day landing.Delivery `json:"day"`
 }
 
 // statusOf is the status of a checkout whose dispatch line, last commit, plan and pace are given.
@@ -65,6 +67,9 @@ func writeStatus(root string, said io.Writer) error {
 		return err
 	}
 	status := statusOf(now, dispatched, strings.TrimSpace(string(last)), document, pace)
+	if status.Day, err = landing.DayDelivery(ctx, root, now, landing.ReportFiling); err != nil {
+		return err
+	}
 	path, err := statePath(root, statusFile)
 	if err != nil {
 		return err
@@ -74,5 +79,9 @@ func writeStatus(root string, said io.Writer) error {
 	}
 	_, err = fmt.Fprintf(said, "dispatched: %s\nlast commit: %s\nwaiting for the owner: %d\nweek: %.1f commits a day, %.0f%% of attempts refused, %.1f idle hours\n",
 		status.Dispatched, status.LastCommit, len(status.WaitingForOwner), status.Week.LandingsPerDay, percent*status.Week.RefusedShare, status.Week.IdleHours)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintln(said, status.Day)
 	return err
 }

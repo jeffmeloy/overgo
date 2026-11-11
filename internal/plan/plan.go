@@ -27,6 +27,10 @@ const Path = "docs/plan.json"
 // ScopeLane retains only work explicitly owned by the declared lane.
 const ScopeLane = "lane"
 
+// NotePrefix opens each working note plan -note adds to a step's reasoning, by which a step's prompt shows its notes
+// apart from the rest of its reasoning.
+const NotePrefix = "Note: "
+
 const (
 	// StatusOpen permits dispatch.
 	StatusOpen = "open"

@@ -398,12 +398,17 @@ func dispatchedStep(dispatch plan.Dispatch) (plan.Step, error) {
 
 // stepFiles are the files the dispatched step lists, which the worker's edits stay inside.
 func stepFiles() ([]string, error) {
+	step, err := currentStep()
+	return step.Files, err
+}
+
+// currentStep is the step the plan dispatches now.
+func currentStep() (plan.Step, error) {
 	dispatch, err := dispatched()
 	if err != nil {
-		return nil, err
+		return plan.Step{}, err
 	}
-	step, err := dispatchedStep(dispatch)
-	return step.Files, err
+	return dispatchedStep(dispatch)
 }
 
 // dispatched is the plan's current row, as data: the prose line is never parsed back.
@@ -426,7 +431,7 @@ func (w *execWorld) awaitValidation() error {
 }
 
 func (w *execWorld) Prompt(loop.Step) (string, error) {
-	return planCommand("-prompt")
+	return reasonedPrompt(planCommand("-prompt"))
 }
 
 // Workers counts the workers a step can go to: Worker, then each of Workers.

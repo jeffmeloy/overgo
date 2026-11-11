@@ -51,14 +51,11 @@ func planStep(root string) workerStep {
 		return func() (string, error) { return runTool("go", "-C", root, "run", "./cmd/plan", verb) }
 	}
 	verify := func() (string, error) {
-		dispatch, err := dispatched()
-		if err != nil {
-			return "", err
-		}
-		step, err := dispatchedStep(dispatch)
+		step, err := currentStep()
 		return step.Verify, err
 	}
-	return workerStep{show: plan("-prompt"), check: plan("-verify"), verify: verify, files: stepFiles}
+	show := func() (string, error) { return reasonedPrompt(plan("-prompt")()) }
+	return workerStep{show: show, check: plan("-verify"), verify: verify, files: stepFiles}
 }
 
 // missingTest tells a worker whose check ran no test which test the check names and where it may write it: a real

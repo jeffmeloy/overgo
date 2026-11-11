@@ -471,7 +471,7 @@ const rationaleClosing = paragraphBreak + "Serves:"
 // which the task's prompt shows the notes and none of the reasoning beside them.
 const (
 	paragraphBreak = "\n\n"
-	notePrefix     = "Note: "
+	notePrefix     = plan.NotePrefix
 )
 
 // editUsage is what the edits of a row or a step take.

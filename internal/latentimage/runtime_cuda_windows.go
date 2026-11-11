@@ -18,6 +18,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/processmeasure"
 	"overgo/internal/safetensors"
+	"overgo/internal/sampling"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/torchrng"
@@ -38,6 +39,8 @@ type Request struct {
 	Seed              int64      `json:"seed"`
 	DynamicShiftMu    float64    `json:"mu,omitzero"`
 	NumTrainTimesteps int        `json:"num_train_timesteps,omitzero"`
+	// Guidance is how the guidance varies over the steps (sampling.Guider.At), which a rotary profile alone runs.
+	Guidance sampling.Guidance `json:"guidance,omitzero"`
 	// Preset names a recipe of the model's catalog presets, its steps and guidance filling what the request leaves unset.
 	Preset string `json:"preset,omitzero"`
 }
@@ -92,6 +95,9 @@ func ValidateRequest(request Request) error {
 	if request.GuidanceScale != nil && !checked.NonNegativeFinite32(*request.GuidanceScale) {
 		return errors.New("latent image: guidance must be finite and nonnegative")
 	}
+	if err := request.Guidance.Validate(); err != nil {
+		return fmt.Errorf("latent image: %w", err)
+	}
 	return validatePrompt(request.PromptMode, request.Prompt, request.Width, request.Height)
 }
 
@@ -112,7 +118,7 @@ func LoadGenerator(ctx context.Context, modelDir string, profile Profile, reques
 	if profile.Rotary != nil {
 		return loadRotaryGenerator(ctx, modelDir, profile, request)
 	}
-	if request.NegativePrompt != "" || request.GuidanceScale != nil || request.PromptMode == promptLayout {
+	if request.rotaryOnly() {
 		return nil, errors.New("latent image: selected profile does not support negative prompts, guidance overrides or layout validation")
 	}
 	spec, err := Derive(modelDir)
@@ -263,7 +269,7 @@ func (g *Generator) Reset(ctx context.Context, request Request) error {
 	if g.rotary != nil {
 		return g.resetRotary(ctx, request)
 	}
-	if request.NegativePrompt != "" || request.GuidanceScale != nil || request.PromptMode == promptLayout {
+	if request.rotaryOnly() {
 		return errors.New("latent image: selected profile does not support negative prompts, guidance overrides or layout validation")
 	}
 	if g == nil || g.pipeline == nil || !g.completed {
@@ -454,8 +460,17 @@ func (r Request) withPreset(directory string) (Request, error) {
 		r.Steps = preset.Steps
 	}
 	if r.GuidanceScale == nil {
-		r.GuidanceScale = preset.Guidance
+		r.GuidanceScale = preset.GuidanceScale
+	}
+	if r.Guidance == (sampling.Guidance{}) {
+		r.Guidance = preset.Guidance
 	}
 	r.Preset = ""
 	return r, nil
+}
+
+// rotaryOnly is whether the request asks what only a rotary profile runs: a negative prompt, a guidance scale of its
+// own or guidance over its steps, or layout validation.
+func (r Request) rotaryOnly() bool {
+	return r.NegativePrompt != "" || r.GuidanceScale != nil || r.Guidance != (sampling.Guidance{}) || r.PromptMode == promptLayout
 }

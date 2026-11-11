@@ -8,26 +8,21 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 1294,
-        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard). Step guider: +653 (653, the median of what 11 landings that changed internal/sampling, internal/latentvideo counted)."
+        "nodes": 1766,
+        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard). Step guider: +653 (653, the median of what 11 landings that changed internal/sampling, internal/latentvideo counted). Step moss-presets: +334 (334, the median of what 8 landings that changed internal/latentimage counted). Step sensenova-presets: +0 (no landing changed internal/sensenovarecipe, internal/routedlm). Step preset-readings: +331 (331, the median of what 9 landings that changed internal/mediacapability, docs/verification counted). Step moss-presets: +334 (334, the median of what 8 landings that changed internal/latentimage counted). Step sensenova-presets: +0 (no landing changed internal/sensenovarecipe, internal/routedlm)."
       },
       "steps": [
         {
-          "id": "cfg-zero-interval",
-          "title": "CFG-Zero* and a guidance interval run on Wan's 50-step path, MOSS and SenseNova, with a shift sweep on Wan, each read against its suite",
+          "id": "sensenova-presets",
+          "title": "SenseNova's request names CFG-Zero* or a guidance interval, and its step loop runs the branches the guider asks for",
           "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo ./internal/latentimage -count=1 -run '^TestCFGZeroAndTheGuidanceIntervalAreGuiderPresets$'",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/sensenovarecipe -count=1 -run '^TestSenseNovaRunsCFGZeroAndAGuidanceIntervalAsPresets$'",
           "files": [
-            "internal/sampling",
-            "internal/latentvideo",
-            "internal/latentimage"
+            "internal/sensenovarecipe",
+            "internal/routedlm"
           ],
           "needs_card": true,
-          "rationale": "CFG-Zero* (arXiv 2503.18886, Apache-2.0) rescales the unconditioned prediction by its optimal projection and zeroes the first steps; it raised Wan 1.3B's VBench total from 80.52 to 80.91 at no cost. A guidance interval (arXiv 2404.07724) applies guidance only in the middle of the noise range and drops the unconditioned pass elsewhere, about 15 to 20 of MOSS's 100 passes. Wan's shift is 5 here (the reference script) and 8 to 12 on the model card, so a sweep of 3 to 12 is a cheap quality reading. MOSS's negative branch skips layer 22, so every change is re-read on its suite.\n\nEach lands as a named preset; the reference presets are unchanged.\n\nNote: 2026-11-11 survey, before work: the guider (CFG-Zero*, the guidance interval) is in internal/sampling and Wan's 50-step loop already (7a1ae8c6f), and Wan's profile declares cfg-zero-star, guidance-interval and model-card (shift 8); MOSS's rotary loop compiles one update program and uses no sampling.Guider, so its presets need the guider stepped per index there and a guidance field on its image presets; SenseNova's two branches run in one routedlm session call, so skipping its unconditioned pass changes internal/routedlm and internal/sensenovarecipe, outside this step's files. Nothing admits a preset by a suite: judge-calibration/user-size, moved before this row, builds that rule, and this step's readings wait for it (the owner's order of 2026-11-11). Device cost at a person's size: Wan about 8 h an arm of 80 clips, its 832 reference drawn as GIF so drawn again as MP4; MOSS about 1 h an arm of 64; SenseNova about 2.5 h; a reference, two presets and a three-value shift sweep on Wan is 40 to 50 hours of the card.\n\nServes: held-out-quality, first-output.\nDisappears: nothing.\nEvidence: each preset's per-case sign test against its model's reference on its suite is recorded, and only a preset that does not lower quality is offered.\nBatch: device lane.",
-          "depends_on": [
-            "sampling-split/presets",
-            "quality-instruments/soft-tifa"
-          ]
+          "rationale": "SenseNova's step loop (internal/sensenovarecipe) runs its two branches in one routed session call and guides on the host with routedlm.GuidedFlowVelocity, and its request names no preset (2026-11-11). Its request gains a preset of a declared set, CFG-Zero* and a guidance interval written as Wan's and MOSS's are, and each step asks sampling.Guider: a zeroed step runs neither branch and keeps the latent, a projected step combines through Guider.Combine, and a step outside the interval runs the conditioned branch alone, which needs the routed session to run one branch (internal/routedlm).\n\nCheck: TestSenseNovaRunsCFGZeroAndAGuidanceIntervalAsPresets runs SenseNova's card fixture for the reference and each preset and counts the branches each step runs, the reference's image unchanged. At the base the request has no preset.\n\nServes: held-out-quality, first-output.\nDisappears: SenseNova's guidance that could not vary by step.\nEvidence: the branch counts the check logs; quality is guidance-ops/preset-readings'.\nBatch: device lane."
         },
         {
           "id": "apg",
@@ -61,6 +56,18 @@
             "sampling-split/block-override",
             "quality-instruments/soft-tifa"
           ]
+        },
+        {
+          "id": "preset-readings",
+          "title": "Each model's guidance presets and Wan's model-card shift are read against its reference at a person's size, and only an admitted preset is offered",
+          "status": "open",
+          "verify": "go test ./internal/mediacapability -count=1 -run '^TestOnlyAnAdmittedGuidancePresetIsOffered$'",
+          "files": [
+            "internal/mediacapability",
+            "docs/verification"
+          ],
+          "needs_card": true,
+          "rationale": "Each guidance preset is read against its model's reference on its held-out suite at the size a person asks for (judge-calibration/user-size): go run ./cmd/evaluate -render-preset draws it, the judge reads both arms, and -admit-preset prints the exact paired verdict. Order by card time, cheapest first: MOSS (about 1 h an arm of 64), SenseNova (about 2.5 h), Wan (about 8 h an arm of 80, its reference drawn again as MP4). Wan's shift is read at the model card's 8 (the model-card preset) against the reference script's 5; the 3 to 12 sweep first planned is 8 h a value at a person's size, so a further value is read only if 8 moves the suite.\n\nCheck: TestOnlyAnAdmittedGuidancePresetIsOffered holds a model's page to the recorded verdicts: a preset is offered only where its verdict, drawn at a person's size against the reference with no preset, admits it, and a preset with no verdict or a refusal is not offered. At the base every declared preset is offered with no verdict.\n\nNote: 2026-11-11: fail-early/setting-reader (one function reads a setting and declares it in the capability identity) was retired to wait for cfg-zero-interval, which is now split. It moves every capability's identity, so it is filed again and lands before these readings, or their verdicts name identities it moves. Its parked patch went with tmp/fail-early when that row closed; the work is redone from its rationale in 5f2e763cf's message.\n\nServes: held-out-quality, first-output.\nDisappears: presets offered on no reading of their quality.\nEvidence: each verdict, with the two evaluation records it read, in the record the check reads.\nBatch: device lane."
         }
       ]
     },
@@ -1249,7 +1256,7 @@
           "files": [
             "cmd/loop"
           ],
-          "rationale": "Serves: development velocity (fail-early): a landing needs nothing typed before it.\n\nDisappears: every landing is started with a typed prefix (the automation role, the data root, the audio reference store, three variables unset), each a place to slip; a slip costs a refused run or one run under the wrong role.\n\nCheck: TestALandingTakesItsEnvironmentFromTheConfiguration starts a landing with none of the prefix and wants the role and roots the loop's configuration names, and the three variables unset in its gate. At the base it runs with the process's environment.\n\nBatch: host lane."
+          "rationale": "Serves: development velocity (fail-early): a landing needs nothing typed before it.\n\nDisappears: every landing is started with a typed prefix (the automation role, the data root, the audio reference store, three variables unset), each a place to slip; a slip costs a refused run or one run under the wrong role.\n\nCheck: TestALandingTakesItsEnvironmentFromTheConfiguration starts a landing with none of the prefix and wants the role and roots the loop's configuration names, and the three variables unset in its gate. At the base it runs with the process's environment.\n\nBatch: host lane.\n\nNote: 2026-11-11 evidence: guidance-ops/moss-presets was landed with no OVERGO_DATA_ROOT typed before it, and its cuda lane refused it after the full lanes: seven MOSS card tests in internal/latentimage (the generator's lifecycle, composition and workflow, the decoder golden, the encoder) found no cuDNN, as the data root a test resolves from its package folder holds no libraries folder. Set, the same tests pass. One gate run of the lanes spent on a setting the loop's configuration holds."
         },
         {
           "id": "card-held",

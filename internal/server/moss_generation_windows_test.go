@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"slices"
 	"sync"
 	"testing"
 
@@ -173,7 +174,7 @@ func TestMOSSImageGenerationContract(t *testing.T) {
 			t.Fatal("guidance declaration lost", c)
 		}
 		// The page offers the model's own presets beside the authors' recipe.
-		if c.Name == "preset" && (!c.Advanced || len(c.Choices) != 1 || c.Choices[0] != "comfy-tutorial") {
+		if c.Name == "preset" && (!c.Advanced || !slices.Equal(c.Choices, []string{"cfg-zero-star", "comfy-tutorial", "guidance-interval"})) {
 			t.Fatal("MOSS's presets are not offered", c)
 		}
 	}

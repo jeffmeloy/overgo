@@ -4,6 +4,7 @@ package mediacapability
 
 import (
 	"encoding/json"
+	"slices"
 	"testing"
 
 	"overgo/internal/latentimage"
@@ -28,7 +29,7 @@ func TestMOSSImageGenerationContract(t *testing.T) {
 			t.Fatal("missing supported control", name)
 		}
 	}
-	if len(held) != 9 || len(held["preset"].Choices) != 1 || held["preset"].Choices[0] != "comfy-tutorial" || held["guidance_scale"].Type != ControlNumber || len(held["prompt_mode"].Choices) != 2 || held["prompt_mode"].Help == "" {
+	if len(held) != 9 || !slices.Equal(held["preset"].Choices, []string{"cfg-zero-star", "comfy-tutorial", "guidance-interval"}) || held["guidance_scale"].Type != ControlNumber || len(held["prompt_mode"].Choices) != 2 || held["prompt_mode"].Help == "" {
 		t.Fatal("unsupported controls", held)
 	}
 	for _, name := range []string{"negative_prompt", "steps", "seed", "guidance_scale", "preset"} {

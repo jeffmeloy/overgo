@@ -13,6 +13,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
+	"overgo/internal/sampling"
 	"overgo/internal/strictjson"
 )
 
@@ -191,10 +192,13 @@ func PersonSize(directory string) (int, error) {
 	return catalog.Rotary.DefaultSize, nil
 }
 
-// imagePreset is a named recipe's steps and guidance, each filling a request that leaves it unset.
+// imagePreset is a named recipe's steps, guidance scale and guidance over the steps, each filling a request that leaves
+// it unset.
 type imagePreset struct {
-	Steps    int      `json:"steps,omitzero"`
-	Guidance *float32 `json:"guidance_scale,omitempty"`
+	Steps         int      `json:"steps,omitzero"`
+	GuidanceScale *float32 `json:"guidance_scale,omitempty"`
+	// Guidance is how the guidance varies over the steps (sampling.Guidance), the key Wan's presets use.
+	Guidance sampling.Guidance `json:"guidance,omitzero"`
 }
 
 // PresetNames are the presets the catalog declares for the model in directory, in order, for a page to offer.

@@ -12,6 +12,7 @@ import (
 	"overgo/internal/cuda/driver"
 	"overgo/internal/graphruntime"
 	"overgo/internal/media"
+	"overgo/internal/sampling"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
@@ -75,19 +76,39 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 		return nil, e
 	}
 	shape := conditional.plan.latent.Shape
-	step, e := compileFlowGuidanceProgram(shape, settings.guidance)
+	// update is a compiled Euler update and the nodes of its plan.
+	type update struct {
+		plan    *flowGuidanceProgram
+		program *graphruntime.ResidentProgram
+	}
+	compileUpdate := func(name string, guidance float32) (update, error) {
+		p, e := compileFlowGuidanceProgram(shape, guidance)
+		if e != nil {
+			return update{}, e
+		}
+		dynamic := []*tensor.Tensor{p.latent, p.positive}
+		if p.negative != nil {
+			dynamic = append(dynamic, p.negative)
+		}
+		program, e := runtime.Compile(ctx, name, dynamic, p.velocity, p.next)
+		if e != nil {
+			return update{}, e
+		}
+		programs = append(programs, program)
+		return update{p, program}, nil
+	}
+	guided, e := compileUpdate("rotary guidance and Euler", settings.guidance)
 	if e != nil {
 		return nil, e
 	}
-	dynamic := []*tensor.Tensor{step.latent, step.positive}
-	if step.negative != nil {
-		dynamic = append(dynamic, step.negative)
+	// A step outside the guidance interval, or one whose velocity the host guided (CFG-Zero*'s projection), steps by the
+	// update at a scale of one; the reference recipe compiles none.
+	plain := guided
+	if guided.plan.negative != nil && settings.varies != (sampling.Guidance{}) {
+		if plain, e = compileUpdate("rotary Euler", tensor.UnitScale); e != nil {
+			return nil, e
+		}
 	}
-	update, e := runtime.Compile(ctx, "rotary guidance and Euler", dynamic, step.velocity, step.next)
-	if e != nil {
-		return nil, e
-	}
-	programs = append(programs, update)
 	b := tensor.NewBuilder()
 	input := b.Input("initial_latent", dtype.F32, shape)
 	uploaded := b.Scale(input, tensor.UnitScale)
@@ -106,6 +127,32 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 		return nil, errors.New("rotary sampling: uploaded latent missing")
 	}
 	current := &residentLatent{outputs: retained, node: uploaded, value: value}
+	// project guides a step on the host as CFG-Zero* does, the unconditioned prediction rescaled by its projection onto
+	// the conditioned one over the whole sample (sampling.Guider), and holds the guided velocity on the device.
+	project := func(at sampling.Guider, positive, negative *residentLatent) (*residentLatent, error) {
+		conditioned, e := positive.outputs.CopyToHost(ctx, positive.node)
+		if e != nil {
+			return nil, e
+		}
+		unconditioned, e := negative.outputs.CopyToHost(ctx, negative.node)
+		if e != nil {
+			return nil, e
+		}
+		velocity := make([]float32, len(conditioned.Data))
+		if e := at.Combine(velocity, conditioned.Data, unconditioned.Data); e != nil {
+			return nil, e
+		}
+		held, e := runtime.Retain(ctx, upload, map[*tensor.Tensor]reference.Value{input: {Shape: shape, Data: velocity}}, nil)
+		if e != nil {
+			return nil, e
+		}
+		value, ok := held.Value(uploaded)
+		if !ok {
+			held.Release(context.WithoutCancel(ctx))
+			return nil, errors.New("rotary sampling: guided velocity missing")
+		}
+		return &residentLatent{outputs: held, node: uploaded, value: value}, nil
+	}
 	defer func() {
 		if current != nil {
 			err = errors.Join(err, current.outputs.Release(context.WithoutCancel(ctx)))
@@ -121,9 +168,15 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 	if e != nil {
 		return nil, e
 	}
+	guider := sampling.Guider{Scale: float64(settings.guidance), Guidance: settings.varies}
 	for index, time := range settings.schedule.Timesteps {
 		if e := ctx.Err(); e != nil {
 			return nil, e
+		}
+		// A step the guidance zeroes gives no velocity: the latent stays, and neither pass runs.
+		at := guider.At(index, settings.schedule.Sigmas[index])
+		if at.Zeroed() {
+			continue
 		}
 		embedding, e := (media.SinusoidalProgram{Dimensions: spec.TimestepEmbed, FrequencyBase: rotaryTimestepBase, InputScale: float64(tensor.UnitScale)}).Encode32(time)
 		if e != nil {
@@ -158,8 +211,9 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 				return e
 			}
 			defer pos.outputs.Release(context.WithoutCancel(ctx))
-			pointers := []driver.DevicePtr{current.value.Pointer, pos.value.Pointer}
-			if step.negative != nil {
+			// Outside the guidance interval the step steps by the conditioned prediction alone.
+			step, pointers := plain, []driver.DevicePtr{current.value.Pointer, pos.value.Pointer}
+			if at.Unconditional() {
 				name, skip := "negative", settings.override.At(index, settings.schedule.Steps)
 				if len(skip) > 0 {
 					name = "negative-skipped"
@@ -173,13 +227,21 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 					return e
 				}
 				defer neg.outputs.Release(context.WithoutCancel(ctx))
-				pointers = append(pointers, neg.value.Pointer)
+				step, pointers = guided, append(pointers, neg.value.Pointer)
+				if at.Guidance.Projected {
+					velocity, e := project(at, pos, neg)
+					if e != nil {
+						return e
+					}
+					defer velocity.outputs.Release(context.WithoutCancel(ctx))
+					step, pointers = plain, []driver.DevicePtr{current.value.Pointer, velocity.value.Pointer}
+				}
 			}
-			next, e := runtime.Retain(ctx, update, map[*tensor.Tensor]reference.Value{step.delta: {Shape: step.delta.Shape, Data: []float32{sampler.Delta(index)}}}, pointers)
+			next, e := runtime.Retain(ctx, step.program, map[*tensor.Tensor]reference.Value{step.plan.delta: {Shape: step.plan.delta.Shape, Data: []float32{sampler.Delta(index)}}}, pointers)
 			if e != nil {
 				return e
 			}
-			value, ok := next.Value(step.next)
+			value, ok := next.Value(step.plan.next)
 			if !ok {
 				next.Release(context.WithoutCancel(ctx))
 				return errors.New("rotary sampling: next latent missing")
@@ -188,7 +250,7 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 				for _, item := range []struct {
 					name string
 					node *tensor.Tensor
-				}{{fmt.Sprintf("velocity.%d", index), step.velocity}, {fmt.Sprintf("latents.%d", index), step.next}} {
+				}{{fmt.Sprintf("velocity.%d", index), step.plan.velocity}, {fmt.Sprintf("latents.%d", index), step.plan.next}} {
 					host, e := next.CopyToHost(ctx, item.node)
 					if e == nil {
 						e = observe(item.name, host.Data)
@@ -203,7 +265,7 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 				next.Release(context.WithoutCancel(ctx))
 				return e
 			}
-			current = &residentLatent{outputs: next, node: step.next, value: value}
+			current = &residentLatent{outputs: next, node: step.plan.next, value: value}
 			return nil
 		}()
 		if advanceErr != nil {

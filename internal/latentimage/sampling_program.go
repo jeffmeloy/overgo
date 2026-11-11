@@ -11,15 +11,20 @@ import (
 type rotarySamplingSpec struct {
 	schedule FlowSchedule
 	guidance float32
+	// varies is how the guidance varies over the steps (sampling.Guider.At); its zero value guides every step alike.
+	varies sampling.Guidance
 	// override is what the negative branch changes of the transformer's blocks (sampling.BlockOverride).
 	override sampling.BlockOverride
 }
 
 func (s rotarySamplingSpec) validate(layers int) error {
-	if !checked.NonNegativeFinite32(s.guidance) || s.schedule.Steps <= 0 || len(s.schedule.Timesteps) != s.schedule.Steps || len(s.schedule.Deltas) != s.schedule.Steps {
+	if !checked.NonNegativeFinite32(s.guidance) || s.schedule.Steps <= 0 || len(s.schedule.Timesteps) != s.schedule.Steps || len(s.schedule.Deltas) != s.schedule.Steps || len(s.schedule.Sigmas) <= s.schedule.Steps {
 		return errors.New("rotary sampling: invalid guidance or schedule")
 	}
 	if err := s.override.Validate(layers); err != nil {
+		return err
+	}
+	if err := s.varies.Validate(); err != nil {
 		return err
 	}
 	for i, time := range s.schedule.Timesteps {

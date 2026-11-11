@@ -11,6 +11,7 @@ import (
 	"overgo/internal/cuda/driver"
 	"overgo/internal/graphruntime"
 	"overgo/internal/media"
+	"overgo/internal/sampling"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/torchrng"
@@ -109,13 +110,18 @@ func (g *Generator) configureRotary(ctx context.Context, request Request) error 
 	if request.GuidanceScale != nil {
 		guidance = *request.GuidanceScale
 	}
-	settings := rotarySamplingSpec{schedule: schedule, guidance: guidance, override: g.profile.Rotary.negativeOverride()}
-	if err = settings.validate(g.rotary.transformer.Layers); err != nil {
+	if err = g.rotarySettings(schedule, guidance, request.Guidance).validate(g.rotary.transformer.Layers); err != nil {
 		return err
 	}
 	g.request, g.schedule = request, schedule
 	g.rotary.guidance = guidance
 	return nil
+}
+
+// rotarySettings is the sampling a rotary request runs: its schedule, its guidance scale and how the guidance varies over
+// the steps, the negative branch changing the profile's blocks.
+func (g *Generator) rotarySettings(schedule FlowSchedule, guidance float32, varies sampling.Guidance) rotarySamplingSpec {
+	return rotarySamplingSpec{schedule: schedule, guidance: guidance, varies: varies, override: g.profile.Rotary.negativeOverride()}
 }
 
 func (g *Generator) resetRotary(ctx context.Context, request Request) error {
@@ -229,7 +235,7 @@ func (g *Generator) integrateRotary(ctx context.Context) (*Generator, error) {
 	if err != nil {
 		return nil, err
 	}
-	settings := rotarySamplingSpec{schedule: g.schedule, guidance: g.rotary.guidance, override: g.profile.Rotary.negativeOverride()}
+	settings := g.rotarySettings(g.schedule, g.rotary.guidance, g.request.Guidance)
 	result, err := runRotarySampling(ctx, g.rotary.runtime, g.modelDir, g.rotary.transformer, g.shape.Height, g.shape.Width, initial, g.rotary.positive, g.rotary.negative, settings, g.observe)
 	if err != nil {
 		return nil, err

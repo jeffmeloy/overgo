@@ -21,6 +21,9 @@ const (
 	localReplyTokens = 4096
 	// localThinkingTokens bounds one reply the model thinks before: room to reason, then the call or the answer.
 	localThinkingTokens = 16384
+	// localThinkingDepth is the reasoning_effort a thinking worker asks for: low, the shallowest Qwen3.8 offers, as a
+	// plan step is small; with none the model thinks at its deepest, xhigh.
+	localThinkingDepth = "low"
 	// localResultChars is the most of a tool's result the model is shown; the rest is cut and said to be.
 	localResultChars = 24000
 	// localRepeatedReplies is how many replies in a row of repeated readings alone end an attempt.
@@ -172,18 +175,22 @@ func probeWorker(ctx context.Context, server string, model workerModel) error {
 
 // askChatEnded is askChat with why the reply ended, as the route says it (stop, length, tool_calls).
 func askChatEnded(ctx context.Context, server string, model workerModel, messages []chatMessage, tools []map[string]any) (chatMessage, string, error) {
-	tokens := localReplyTokens
+	// With thinking off the worker draws greedily with no penalty: a model's recipe may add one (Qwen3.8's presence
+	// penalty of 1.5 with thinking off), which turns a model away from tokens it has written, as code repeats its names,
+	// and keeps the server off its greedy draw, which asks a tool call's grammar about the model's likeliest token alone:
+	// under the penalty every token asked it about the whole vocabulary, a second a token on 2026-11-09 with the GPU idle,
+	// and greedily the worker passed 3 of 5 tasks (run 7). With thinking on it sends no sampling of its own, so the
+	// server serves the model's set for thinking, since a greedy thinker is what Qwen3.8's page warns against (the
+	// thinking run of 2026-11-10 came back with empty replies), and asks for the shallowest depth, for small steps.
+	asked := map[string]any{"model": model.name, "messages": messages, "tools": tools, "max_tokens": localReplyTokens}
+	kwargs := map[string]any{"enable_thinking": model.thinking}
 	if model.thinking {
-		tokens = localThinkingTokens
+		asked["max_tokens"], kwargs["reasoning_effort"] = localThinkingTokens, localThinkingDepth
+	} else {
+		asked["temperature"], asked["presence_penalty"], asked["frequency_penalty"], asked["repeat_penalty"] = 0, 0, 0, 1
 	}
-	// Greedy with no penalty: a model's recipe may add one (Qwen3.8's presence penalty of 1.5), which turns a model away
-	// from tokens it has written, as code repeats its names, and keeps the server off its greedy draw, which asks a tool
-	// call's grammar about the model's likeliest token alone: under the penalty every token asked it about the whole
-	// vocabulary, a second a token on 2026-11-09 with the GPU idle.
-	body, err := json.Marshal(map[string]any{
-		"model": model.name, "messages": messages, "tools": tools, "temperature": 0, "presence_penalty": 0, "frequency_penalty": 0,
-		"repeat_penalty": 1, "max_tokens": tokens, "chat_template_kwargs": map[string]any{"enable_thinking": model.thinking},
-	})
+	asked["chat_template_kwargs"] = kwargs
+	body, err := json.Marshal(asked)
 	if err != nil {
 		return chatMessage{}, "", err
 	}

@@ -1132,7 +1132,7 @@
      "contains": "promptTools []inference.ChatTool",
      "path": "internal/server/protocol_chat.go",
      "role": "source",
-     "identity": "file:sha256:4661a425345995a34c7fbd496a838febcceb30a41227c5eff5a888a41d9703f8"
+     "identity": "file:sha256:99b63e7a311111ca900c957a063d90ece6bee67c0024d5ea2f57368f72c5b22c"
     },
     {
      "contains": "func TestChatAndResponsesMultimodalFunctionTools(",

@@ -482,7 +482,9 @@ func (h *Handler) chatCompletions(response http.ResponseWriter, request *http.Re
 		return
 	}
 	if len(toolSelection.active) != 0 {
-		enableThinking, err := chatThinkingEnabled(body.TemplateKwargs)
+		// The tool grammar needs the thinking switch alone; the prompt's formatting carried the other keys, a depth among
+		// them, to the template.
+		enableThinking, _, err := chatTemplateKwargs(body.TemplateKwargs)
 		if err != nil {
 			writeInvalidRequest(response, err)
 			return

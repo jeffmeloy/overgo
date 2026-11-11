@@ -864,6 +864,23 @@ func ranPackages(output string) string {
 }
 
 func (l *landing) verify(ctx context.Context) error {
+	// Each check runs where its named test is declared, its proof on the base and its undo evidence too.
+	for at, verifier := range l.verifiers {
+		if strings.TrimSpace(verifier) == "" {
+			continue
+		}
+		resolved, said, err := whereDeclared(ctx, l.stageRoot(), verifier)
+		if err != nil {
+			return err
+		}
+		if said != "" && l.Log != nil {
+			fmt.Fprintln(l.Log, said)
+		}
+		if added := slices.Index(l.added, verifier); added >= 0 {
+			l.added[added] = resolved
+		}
+		l.verifiers[at] = resolved
+	}
 	for _, verifier := range l.verifiers {
 		if strings.TrimSpace(verifier) == "" {
 			continue

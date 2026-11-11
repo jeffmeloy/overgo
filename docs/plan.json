@@ -8,41 +8,43 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 125,
-        "reason": "Estimated from the day's refusals: a reordered stage list, two refusal messages, one rule moved before the lanes, and a check of the message read from the gate's own refusal record; about sixty nodes a step. Serves: development velocity: the owner's direction of 2026-11-10, that a failure is a possible automation, above all one found after a long test or evaluation run that an earlier check could have found.\n\nDisappears: refusals that cost a whole gate run, or a long model run, to say what a check of seconds could have said. 35 landings on 2026-11-10 spent 6.2 hours of gate wall, refused runs uncounted; in one stretch 7 steps took 14 gate runs, and one step (card-budgets/declared-budget) six, each 5 to 10 minutes: a check holding no passing test of its name in a package it names (found after the full lanes, twice, the second time with the message unchanged), an environment read no capability identity declares (found by a lane test), a set of names a text record repeats from the code (found by a lane test), and two rules the preflight would have found in seconds. The six-task thinking run spent 23 minutes on a first task whose every reply came back empty, which one request would have shown.\n\nBatch: host lane."
+        "nodes": 130,
+        "reason": "Estimated from the day's refusals: a reordered stage list, two refusal messages, one rule moved before the lanes, and a check of the message read from the gate's own refusal record; about sixty nodes a step. Serves: development velocity: the owner's direction of 2026-11-10, that a failure is a possible automation, above all one found after a long test or evaluation run that an earlier check could have found.\n\nDisappears: refusals that cost a whole gate run, or a long model run, to say what a check of seconds could have said. 35 landings on 2026-11-10 spent 6.2 hours of gate wall, refused runs uncounted; in one stretch 7 steps took 14 gate runs, and one step (card-budgets/declared-budget) six, each 5 to 10 minutes: a check holding no passing test of its name in a package it names (found after the full lanes, twice, the second time with the message unchanged), an environment read no capability identity declares (found by a lane test), a set of names a text record repeats from the code (found by a lane test), and two rules the preflight would have found in seconds. The six-task thinking run spent 23 minutes on a first task whose every reply came back empty, which one request would have shown.\n\nBatch: host lane. Step packages-found: +255 (255, the median of what 23 landings that changed internal/landing, internal/planverify, internal/runrecord counted). Step record-written: +255 (255, the median of what 33 landings that changed internal/inferencesurface, internal/landing, cmd/validate, docs/verification/surface-moves.txt counted). Step setting-reader: +136 (136, the median of what 25 landings that changed internal/envsetting, internal/inferencesurface, internal/cuda, internal/media, internal/devicebudget, internal/dataroot, internal/clioptions, internal/remoteprovider, internal/agenttool, internal/processcontrol, internal/latentvideo, docs/verification/surface-moves.txt counted)."
       },
       "steps": [
         {
-          "id": "vacuous-names",
-          "title": "A check that proves nothing names each package it runs without a passing test of its name, and the two ways on",
+          "id": "record-written",
+          "title": "The surface-move record's sets are written by the landing from the code, as the README's parts are",
           "status": "open",
-          "verify": "go test ./internal/testevidence -count=1 -run '^TestAVacuousCheckNamesThePackagesWithoutItsTest$'",
+          "verify": "go test ./internal/inferencesurface -count=1 -run '^TestTheSurfaceRecordsSetsAreWrittenFromTheCode$'",
           "files": [
-            "internal/testevidence",
-            "internal/landing"
-          ],
-          "rationale": "Serves: development velocity (fail-early): a refusal says what answers it.\n\nDisappears: \"go test -run X matched no passing test\" said neither which package lacked the test nor what to do: a check naming three packages, one holding the test, was refused twice with the same words. A check is held to the terms its step started with, so where the step's check was written before its survey the way on is to add the test there or retire the step and file its work under a check where the change is (card-budgets/budget-bound).\n\nCheck: TestAVacuousCheckNamesThePackagesWithoutItsTest runs a check over two packages, one holding a passing test of its name, and wants the refusal to name the other and the two ways on. At the base it names neither.\n\nBatch: host lane."
-        },
-        {
-          "id": "record-edit",
-          "title": "A surface-move record that lacks a name the code declares fails saying its line as it should read",
-          "status": "open",
-          "verify": "go test ./internal/inferencesurface -count=1 -run '^TestASurfaceRecordMismatchSaysTheEdit$'",
-          "files": [
-            "internal/inferencesurface"
-          ],
-          "rationale": "Serves: development velocity (fail-early): a record the code is checked against says the line to write.\n\nDisappears: docs/verification/surface-moves.txt repeats each set of names the capability identity code holds (set-result-settings and others), and a name added to the code failed TestSurfaceMoveRecordDefinesClaimDependencies in the lanes with the two lists side by side and no edit named (card-budgets/declared-budget, 2026-11-10).\n\nCheck: TestASurfaceRecordMismatchSaysTheEdit compares a record whose set lacks a name the code holds and wants the failure to give the record's line as it should read. At the base it prints the two lists.\n\nBatch: host lane."
-        },
-        {
-          "id": "identity-reads",
-          "title": "An environment read no capability identity declares is refused by the landing's rules, before its lanes",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestAnUndeclaredEnvironmentReadIsRefusedBeforeTheLanes$'",
-          "files": [
+            "internal/inferencesurface",
             "internal/landing",
-            "internal/inferencesurface"
+            "cmd/validate",
+            "docs/verification/surface-moves.txt"
           ],
-          "rationale": "Serves: development velocity (fail-early): an undeclared environment read is refused by the cheap rules, before the lanes.\n\nDisappears: a read of the environment that no capability identity declares (internal/inferencesurface resultSettings and neutralReads) was found by TestRepositoryCountsEveryCapabilityPackage in the test lanes, 8 minutes into a gate run, and again by a measurement test that put every case to the models again (card-budgets/declared-budget, 2026-11-10).\n\nCheck: TestAnUndeclaredEnvironmentReadIsRefusedBeforeTheLanes lands a change adding an os.Getenv of an undeclared name in a capability's code and wants it refused by the rules, naming the two lists and what each means, with no lane run. At the base the rules pass it.\n\nBatch: host lane."
+          "rationale": "Serves: development velocity (fail-early): the surface-move record's lists are written by the tool from the code, never kept by hand.\n\nDisappears: a second copy kept by hand. docs/verification/surface-moves.txt repeats each set of names the capability identity code holds (set-result-settings and the others), and TestSurfaceMoveRecordDefinesClaimDependencies refuses a record that differs; a name added to the code (OVERGO_DEVICE_BUDGET_GIB, 2026-11-10) failed it in the lanes. The owner's direction of 2026-11-10: the tool writes the second copy, as the README's written parts are written.\n\nThe change: a generator writes each set line of the record from the code's sets, and the landing runs it among the generators whose files it takes into the commit (the API manifest's and the claims'), so a set the code changes is written into the record by the commit that changes it.\n\nCheck: TestTheSurfaceRecordsSetsAreWrittenFromTheCode writes a record whose set lacks a name the code holds and wants the line written as the code gives it, the record's other lines untouched, and the landing to name the generator. At the base nothing writes the record.\n\nBatch: host lane."
+        },
+        {
+          "id": "setting-reader",
+          "title": "A setting in a capability's code is read through one function of its kind, and reading it there declares it",
+          "status": "open",
+          "verify": "go test ./internal/inferencesurface -count=1 -run '^TestASettingReadThroughItsFunctionIsDeclared$'",
+          "files": [
+            "internal/envsetting",
+            "internal/inferencesurface",
+            "internal/cuda",
+            "internal/media",
+            "internal/devicebudget",
+            "internal/dataroot",
+            "internal/clioptions",
+            "internal/remoteprovider",
+            "internal/agenttool",
+            "internal/processcontrol",
+            "internal/latentvideo",
+            "docs/verification/surface-moves.txt"
+          ],
+          "rationale": "Serves: development velocity (fail-early): a setting read in a capability's code is declared by the act of reading it.\n\nDisappears: a read that the identity code must be told of by hand. The capability identity (internal/inferencesurface) lists the result settings and the neutral reads by name and spelling, and a read of the environment that neither list holds leaves every identity reaching it uncounted, found by a lane test (OVERGO_DEVICE_BUDGET_GIB, 2026-11-10, and with it a measurement test that put every case to the models again). The owner's direction of 2026-11-10: one function is the only way to read a setting, and reading through it declares it.\n\nThe change: a setting is read through one function of its kind, a result setting (its value joins the identity) or a neutral read (its reason given where it is read), and the identity's two lists are read from those calls, not kept; the reads the lists hold today move onto the functions.\n\nCheck: TestASettingReadThroughItsFunctionIsDeclared counts a capability whose code reads a new name through the result function and wants the name among its identity's settings with no list edited, and one read through the neutral function counted as neutral. At the base no such function is.\n\nBatch: host lane."
         },
         {
           "id": "answered-refusals",

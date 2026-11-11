@@ -48,6 +48,25 @@ type VerifySegment struct {
 	Path string
 	// testEnd is the byte offset in the command just past `go test`.
 	testEnd int
+	// packageSpans are the byte spans in the command of the packages, in order.
+	packageSpans []wordSpan
+}
+
+// InPackages is command with its one go test run in packages, the rest of it as written, so a check that names its test
+// runs where the test is declared (fail-early/packages-found). It refuses a command of more than one go test, and one
+// whose packages are not side by side, which it cannot rewrite without rewriting what lies between them.
+func (c VerifyCommand) InPackages(command string, packages []string) (string, error) {
+	tests := c.GoTests()
+	if len(tests) != 1 || len(tests[0].packageSpans) == 0 || len(packages) == 0 {
+		return "", errors.New("verifier is not one go test naming its packages")
+	}
+	spans := tests[0].packageSpans
+	for at := 1; at < len(spans); at++ {
+		if strings.TrimSpace(command[spans[at-1].end:spans[at].start]) != "" {
+			return "", errors.New("verifier's packages are not side by side")
+		}
+	}
+	return command[:spans[0].start] + strings.Join(packages, " ") + command[spans[len(spans)-1].end:], nil
 }
 
 // goTestValueFlags are the go test flags whose value may follow as the next
@@ -139,19 +158,22 @@ func (c VerifyCommand) JSONCommand(command string) string {
 }
 
 type verifyWord struct {
-	text     string
-	end      int
-	operator bool
+	text       string
+	start, end int
+	operator   bool
 }
+
+// wordSpan is where a word stands in a command: its first byte and the byte past its last.
+type wordSpan struct{ start, end int }
 
 // verifyWords splits command into words and operators, reporting whether
 // the command composes anything beyond an && chain.
 func verifyWords(command string) (words []verifyWord, composite bool, err error) {
 	var word strings.Builder
-	inWord := false
+	inWord, begin := false, 0
 	emit := func(end int) {
 		if inWord {
-			words = append(words, verifyWord{text: word.String(), end: end})
+			words = append(words, verifyWord{text: word.String(), start: begin, end: end})
 			word.Reset()
 			inWord = false
 		}
@@ -162,6 +184,9 @@ func verifyWords(command string) (words []verifyWord, composite bool, err error)
 	}
 	for i := 0; i < len(command); i++ {
 		c := command[i]
+		if !inWord {
+			begin = i
+		}
 		switch c {
 		case ' ', '\t', '\n':
 			emit(i)
@@ -237,7 +262,7 @@ func parseVerifySegment(words []verifyWord) (VerifySegment, error) {
 		segment.Kind, segment.Path = segmentFileGuard, words[guardWords-1].text
 	case len(words) >= goTestWords && words[0].text == "go" && words[1].text == "test":
 		segment.Kind, segment.testEnd = SegmentGoTest, words[goTestWords-1].end
-		if err := segment.parseGoTest(segment.Fields[goTestWords:]); err != nil {
+		if err := segment.parseGoTest(words[goTestWords:]); err != nil {
 			return VerifySegment{}, err
 		}
 	case len(words) == 0:
@@ -265,14 +290,15 @@ func parseVerifySegment(words []verifyWord) (VerifySegment, error) {
 }
 
 // parseGoTest reads a go test invocation's flags and packages.
-func (segment *VerifySegment) parseGoTest(arguments []string) error {
+func (segment *VerifySegment) parseGoTest(arguments []verifyWord) error {
 	for i := 0; i < len(arguments); i++ {
-		argument := arguments[i]
+		argument := arguments[i].text
 		if argument == "-args" {
 			break
 		}
 		if !strings.HasPrefix(argument, "-") {
 			segment.Packages = append(segment.Packages, argument)
+			segment.packageSpans = append(segment.packageSpans, wordSpan{arguments[i].start, arguments[i].end})
 			continue
 		}
 		name, value, attached := strings.Cut(argument, "=")
@@ -281,7 +307,7 @@ func (segment *VerifySegment) parseGoTest(arguments []string) error {
 				return fmt.Errorf("go test flag %s has no value", name)
 			}
 			i++
-			value, attached = arguments[i], true
+			value, attached = arguments[i].text, true
 		}
 		switch {
 		case name == "-run":

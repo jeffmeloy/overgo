@@ -132,6 +132,7 @@ func run(args []string) error {
 	sessionPrompt := flags.Bool("session-prompt", false, "print the instructions a session the Claude app's scheduled task starts follows, with the environment its commands run in from loop.json; runs nothing")
 	localServer := flags.String("local-worker", "", "work the prompt on standard input as a worker of overgo's own: send it and the nine tools to the chat route of the overgo server at this address, run each tool call the model -local-model names makes, and end when it answers with no call")
 	localModel := flags.String("local-model", "", "with -local-worker or -replay: the served model that works the step")
+	localThinking := flags.Bool("local-thinking", false, "with -local-worker or -replay: let the model think before each reply, given room for it; off by default")
 	replaySince := flags.String("replay", "", "replay the steps landed since this date (2026-11-01) whose check runs one Go test with the local worker -local-worker and -local-model name: each from the commit it landed on, its landing's tests in place, up to three attempts; print each record, pass or fail by the step's own check with attempts, tool calls and wall, as a line of JSON")
 	replayLimit := flags.Int("replay-limit", defaultReplayLimit, "with -replay or -mutants: the most steps replayed or put to their bad alternatives, newest first")
 	mutantsSince := flags.String("mutants", "", "put the steps landed since this date (2026-11-01) whose check runs one Go test on the host to bad alternatives: each at the commit that landed it, its check passing there, each of up to three comparisons on the lines it wrote inverted in turn; print each step's record, how many of its alternatives its check refused and those it passed, as a line of JSON, and the share the gate refused")
@@ -228,7 +229,7 @@ func run(args []string) error {
 		if *localServer == "" || *localModel == "" {
 			return errors.New("loop: -replay names the local worker's server with -local-worker and its model with -local-model")
 		}
-		worker := localReplayWorker(*localServer, *localModel, os.Stderr)
+		worker := localReplayWorker(*localServer, workerModel{name: *localModel, thinking: *localThinking}, os.Stderr)
 		// The records are kept beside the driver's configuration too, the local worker's history.
 		if err := processlock.EnsureStateDirectory(loopWorktree); err != nil {
 			return err
@@ -259,7 +260,7 @@ func run(args []string) error {
 		if err != nil || *localModel == "" {
 			return errors.Join(err, errors.New("loop: -local-worker reads the prompt on standard input and names its model with -local-model"))
 		}
-		_, err = workLocally(context.Background(), *localServer, *localModel, string(prompt), workerTools(loopWorktree, planStep(loopWorktree)), os.Stdout)
+		_, err = workLocally(context.Background(), *localServer, workerModel{name: *localModel, thinking: *localThinking}, string(prompt), workerTools(loopWorktree, planStep(loopWorktree)), os.Stdout)
 		return err
 	case *toolsServer:
 		tools := workerTools(loopWorktree, planStep(loopWorktree))

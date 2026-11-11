@@ -47,7 +47,7 @@ func TestTheLocalWorkerStopsRepeatingItself(t *testing.T) {
 				{"edit_file", "", []string{"path", "old", "new"}, func(map[string]string) (string, error) { return "edited a.go", nil }},
 			}
 			var log strings.Builder
-			work, err := workLocally(t.Context(), server.URL, "model", "the step", tools, &log)
+			work, err := workLocally(t.Context(), server.URL, workerModel{name: "model"}, "the step", tools, &log)
 			if searches != example.searches || (err != nil) != example.stopped {
 				t.Fatalf("the search ran %d times and the attempt ended with %v after %d replies, want %d runs and a stop %t:\n%s",
 					searches, err, work.Turns, example.searches, example.stopped, log.String())

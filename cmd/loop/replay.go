@@ -300,8 +300,8 @@ func replaySteps(ctx context.Context, root, since string, limit int, worker repl
 }
 
 // localReplayWorker is the local worker as a replay runs it: the model served at server, its tools in this process.
-func localReplayWorker(server, model string, log io.Writer) replayWorker {
-	return replayWorker{name: model, work: func(ctx context.Context, checkout string, task replayTask) (localWork, error) {
+func localReplayWorker(server string, model workerModel, log io.Writer) replayWorker {
+	return replayWorker{name: model.name, work: func(ctx context.Context, checkout string, task replayTask) (localWork, error) {
 		return workLocally(ctx, server, model, task.Prompt, task.tools(ctx, checkout), log)
 	}}
 }

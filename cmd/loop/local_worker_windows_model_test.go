@@ -108,7 +108,7 @@ func TestALocalModelWorksAFixtureStep(t *testing.T) {
 	var log strings.Builder
 	step := planStep(".")
 	step.files = func() ([]string, error) { return []string{"calc"}, nil }
-	work, err := workLocally(ctx, target, name, prompt, workerTools(".", step), &log)
+	work, err := workLocally(ctx, target, workerModel{name: name}, prompt, workerTools(".", step), &log)
 	t.Logf("%s worked the step in %d replies and %d tool calls:\n%s", name, work.Turns, work.Calls, log.String())
 	testcheck.NoError(t, err)
 	if output, err := runTool("go", "run", "./cmd/plan", "-verify"); err != nil {

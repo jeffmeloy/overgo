@@ -56,7 +56,7 @@ func TestTheLocalWorkerRunsEachToolCallItsModelMakes(t *testing.T) {
 		return "echoed " + arguments["text"], nil
 	}}
 	var log strings.Builder
-	work := testcheck.Must(workLocally(t.Context(), route.URL, "local", "the step", []workerTool{echo}, &log))(t)
+	work := testcheck.Must(workLocally(t.Context(), route.URL, workerModel{name: "local"}, "the step", []workerTool{echo}, &log))(t)
 	if work.Turns != len(replies) || work.Calls != 2 || work.Answer != "done: echoed one" || len(asked) != len(replies) {
 		t.Fatalf("the worker worked %+v over %d requests, want two replies, two calls and the last reply's answer", work, len(asked))
 	}

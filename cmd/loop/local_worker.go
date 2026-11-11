@@ -19,6 +19,8 @@ const (
 	localWorkerTurns = 40
 	// localReplyTokens bounds one reply: a tool call or a short answer, the model's thinking left off.
 	localReplyTokens = 4096
+	// localThinkingTokens bounds one reply the model thinks before: room to reason, then the call or the answer.
+	localThinkingTokens = 16384
 	// localResultChars is the most of a tool's result the model is shown; the rest is cut and said to be.
 	localResultChars = 24000
 	// localRepeatedReplies is how many replies in a row of repeated readings alone end an attempt.
@@ -60,10 +62,18 @@ type localWork struct {
 	Answer       string
 }
 
+// workerModel is the model a local worker is served: its name, and whether it thinks before each reply. Thinking is off
+// unless asked: replies are fewer tokens then, and the owner has it switched on for a run to see what it buys
+// (2026-11-10).
+type workerModel struct {
+	name     string
+	thinking bool
+}
+
 // workLocally works prompt with the model served at server under model, through tools: each tool call the model makes
 // is run and its result sent back, until the model answers with no call or spends localWorkerTurns. Each call is
 // written to log as it is made.
-func workLocally(ctx context.Context, server, model, prompt string, tools []workerTool, log io.Writer) (localWork, error) {
+func workLocally(ctx context.Context, server string, model workerModel, prompt string, tools []workerTool, log io.Writer) (localWork, error) {
 	listing := make([]map[string]any, len(tools))
 	for index, tool := range tools {
 		listing[index] = map[string]any{"type": "function", "function": map[string]any{"name": tool.name, "description": tool.description, "parameters": tool.schema()}}
@@ -129,14 +139,18 @@ func workLocally(ctx context.Context, server, model, prompt string, tools []work
 }
 
 // askChat sends the conversation to overgo's chat route and returns the model's reply.
-func askChat(ctx context.Context, server, model string, messages []chatMessage, tools []map[string]any) (chatMessage, error) {
+func askChat(ctx context.Context, server string, model workerModel, messages []chatMessage, tools []map[string]any) (chatMessage, error) {
+	tokens := localReplyTokens
+	if model.thinking {
+		tokens = localThinkingTokens
+	}
 	// Greedy with no penalty: a model's recipe may add one (Qwen3.8's presence penalty of 1.5), which turns a model away
 	// from tokens it has written, as code repeats its names, and keeps the server off its greedy draw, which asks a tool
 	// call's grammar about the model's likeliest token alone: under the penalty every token asked it about the whole
 	// vocabulary, a second a token on 2026-11-09 with the GPU idle.
 	body, err := json.Marshal(map[string]any{
-		"model": model, "messages": messages, "tools": tools, "temperature": 0, "presence_penalty": 0, "frequency_penalty": 0,
-		"repeat_penalty": 1, "max_tokens": localReplyTokens, "chat_template_kwargs": map[string]any{"enable_thinking": false},
+		"model": model.name, "messages": messages, "tools": tools, "temperature": 0, "presence_penalty": 0, "frequency_penalty": 0,
+		"repeat_penalty": 1, "max_tokens": tokens, "chat_template_kwargs": map[string]any{"enable_thinking": model.thinking},
 	})
 	if err != nil {
 		return chatMessage{}, err

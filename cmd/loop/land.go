@@ -8,14 +8,20 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"overgo/internal/clioptions"
 	"overgo/internal/gitauthority"
+	"overgo/internal/jsonfile"
 	"overgo/internal/landing"
 	"overgo/internal/plan"
+	"overgo/internal/processcontrol"
+	"overgo/internal/processlock"
+	"overgo/internal/testskip"
 )
 
 // Landing a row is a fixed sequence around the one thing a worker authors:
@@ -103,7 +109,7 @@ func (w *execRowWorld) tool(echo io.Writer, arguments ...string) (string, error)
 	// A failed run's file is read below and is then nobody's: it does not outlive the run.
 	defer os.Remove(errorFile)
 	progress := clioptions.NewTailWriter(clioptions.DiagnosticTailBytes)
-	err := runToolEnv(append(os.Environ(), clioptions.ErrorFileEnvironment+"="+errorFile), bytes.NewReader(w.message), echo, progress, arguments...)
+	err := runToolEnv(append(landingEnvironment(os.Environ(), configuredEnvironment()), clioptions.ErrorFileEnvironment+"="+errorFile), bytes.NewReader(w.message), echo, progress, arguments...)
 	if err == nil {
 		return "", nil
 	}
@@ -206,4 +212,49 @@ func landCommand(reference, messageFile string, input io.Reader, output io.Write
 		err = fmt.Errorf("%s %s at %s", reference, outcome.Outcome, outcome.Phase)
 	}
 	return err
+}
+
+// withheldFromLandings are the settings a landing's tools never inherit from the session that starts them: each lane
+// opts into the card (OVERGO_CUDA_TEST) and the live store (testskip.StoreAcceptanceEnv) itself, and a CUDA test's
+// measured child (cudatest) is marked by its parent alone, so a session that holds one of them would run every test of
+// the gate under it.
+var withheldFromLandings = []string{"OVERGO_CUDA_TEST", testskip.StoreAcceptanceEnv, "OVERGO_CUDA_MEASUREMENT_TEST"}
+
+// configuredEnvironment is what the loop's configuration sets in its environment (config.Environment, the role and the
+// data roots), none where the checkout keeps no configuration.
+func configuredEnvironment() map[string]string {
+	path, err := processlock.StateFile(loopWorktree, processcontrol.LoopConfigFile, processcontrol.LegacyLoopConfigFile)
+	if err != nil {
+		return nil
+	}
+	var loaded config
+	if jsonfile.DecodeStrict(path, &loaded) != nil {
+		return nil
+	}
+	return loaded.Environment
+}
+
+// landingEnvironment is the environment a landing's tools run in, from environ, the session's: each setting configured
+// names that environ leaves unset or empty is set to its configured value, so a landing needs nothing typed before it
+// (fail-early-runs/land-environment: guidance-ops/moss-presets, landed with no data root, was refused after its full
+// lanes for want of cuDNN), and the settings withheldFromLandings names are dropped.
+func landingEnvironment(environ []string, configured map[string]string) []string {
+	set := map[string]bool{}
+	var kept []string
+	for _, entry := range environ {
+		name, value, _ := strings.Cut(entry, "=")
+		if slices.ContainsFunc(withheldFromLandings, func(withheld string) bool { return strings.EqualFold(withheld, name) }) {
+			continue
+		}
+		if value != "" {
+			set[strings.ToUpper(name)] = true
+		}
+		kept = append(kept, entry)
+	}
+	for _, name := range slices.Sorted(maps.Keys(configured)) {
+		if !set[strings.ToUpper(name)] {
+			kept = append(kept, name+"="+configured[name])
+		}
+	}
+	return kept
 }

@@ -39,7 +39,7 @@
         ],
         "adoption_scope": "Supersedes the absent repository-document reference at the owner's request; current external SHA is verified. Does not alter the executable plan."
       },
-    "assessment": "Accepted checks again run unchanged; the historical record writer and duplicate suite runner are deleted. Current record sets bind their original probe. Session-start now displays day delivery through the existing status owner. Live doctrine tests stay in repository analysis; the reasoning fixture is isolated.",
+    "assessment": "MOSS and SenseNova reuse sampling.Guider; loops retain model-specific numerical ordering, including SenseNova BF16 rounding. Current controls reuse model-owned preset names. This reduces duplicate guidance logic ownership but does not establish model quality, speed or complete refactor migration.",
     "ast_surface_review": {
         "revision": "9bd406acafb89c44a439722419f1f7e85e71f691",
         "architectural_target": "Fewer independent product entry points and dependency owners; retain process isolation and existing compiled/runtime/development authority.",
@@ -55,47 +55,28 @@
         "cost": "Concrete parsed duplicate migrations total22production and150test AST removed; unimplemented estimates only. Three directories can disappear through349/351; command movement and all retained semantic constants must be charged. No overall refactor completion claimed."
       },
     "automation_follow_up": {
-        "architectural_progress": "Accepted checks again run unchanged; the historical record writer and duplicate suite runner are deleted. Current record sets bind their original probe. Session-start now displays day delivery through the existing status owner. Live doctrine tests stay in repository analysis; the reasoning fixture is isolated.",
-        "remaining": "Historical citations still read the live checkout (377); status unknown/count/projection semantics remain (376); worker prompt construction still reads two snapshots (374). The committed media admission step remains separate from its first preset; current evaluator drafts are excluded from closure.",
+        "architectural_progress": "22151be7d isolates retained attempt files in the existing driver test setup; production0/test+84AST. Earlier accepted-check/history/status progress remains in its canonical findings.",
+        "remaining": "374/376/377 remain open under their prior scoped evidence. Current landing/plan changes are drafts and not credited. The next concrete sequencing risk is expensive preset readings before supported bound admission.",
         "plan_recommendations": [
           {
-            "rows": "review-fixes/historical-record (landed)",
+            "rows": "judge-calibration/user-size (landed); guidance-ops/preset-readings",
             "findings": [
-              "SQA-377"
+              "SQA-342",
+              "SQA-379"
             ],
-            "recommendation": "Finish the historical-source binding in the same record fixture; retain the removed generator."
-          },
-          {
-            "rows": "review-fixes/status-measures (landed)",
-            "findings": [
-              "SQA-376"
-            ],
-            "recommendation": "Finish truthful missing-history/unique-report-commit semantics and consolidate the old status projection."
-          },
-          {
-            "rows": "fail-early/accepted-check (landed)",
-            "findings": [
-              "SQA-378"
-            ],
-            "recommendation": "Closed: existing accepted command and explicit check-change owner are sufficient; no replacement discovery abstraction."
-          },
-          {
-            "rows": "guidance-ops/cfg-zero-interval; judge-calibration/user-size",
-            "findings": [],
-            "recommendation": "The committed plan still expresses coordinated admission in prose. Land it with the first preset or declare its actual dependency; current evaluator work is not yet committed and is not credited as complete."
+            "recommendation": "Repair supported statistical admission and record/render binding before expensive measurements; make setting-reader identity work an actual prerequisite. Close the existing offering gate before exposing unjudged presets. Keep apg/nag numerical implementations with existing executors."
           }
         ],
-        "complete_cost": "59463f1->9290a89: +575 production/+575 test AST,132 production/87 test lines; production files -1, test files +1. Fewer independent repair paths, but1150 net AST growth because status adds functionality. No aggregate code reduction claimed.",
+        "complete_cost": "9290a89->d87c57c four complete changed-Go landings: +2334 production/+2005 test AST (+462/+331 lines; +3/+5 files). Split once: admission1231/766, attempt isolation0/84, MOSS527/533, SenseNova576/622. No binary or code-directory removal. Embedded production preset data: profiles.json1561->1754bytes (+193), SenseNova presets0->172bytes (+172); compatibility documentation also changes. Retained gates report0new fixture bytes/schemas/CUDA entrypoints. No runtime speed/memory saving measured by SQA. No safe net reduction established.",
         "separate_costs": {
-          "accepted-check": "-641 production/-82 test",
-          "historical-record-only": "-256 production/-64 test",
-          "removed-testinputs": "-5 production/-529 test; one package and nested runner gone",
-          "retained-hermetic-change": "+87 production/-26 test; doctrine relocation is movement",
-          "day-status": "+1385 production/+747 test"
+          "admission": "1231 production/766 test AST",
+          "attempt-isolation": "0 production/84 test AST",
+          "MOSS-presets": "527 production/533 test AST",
+          "SenseNova-presets": "576 production/622 test AST"
         },
-        "authority": "Report-only follow-up; no dispatch, worker messages or plan/code edits."
+        "authority": "Report-only recommendations; no dispatch/worker messages or code/plan edits."
       },
-    "current_review_order": "Pinned guidance/plan -> concrete committed changes/callers/retained evidence -> current findings/owner responses -> bounded AST and complete costs -> publication reconciliation.",
+    "current_review_order": "Pinned guidance/plan -> committed callers and provisional conclusions -> existing findings/owner responses -> targeted AST/costs -> concurrent publication reconciliation.",
     "declined_candidates": [
         "Do not implement five separate monitors, another notes file or recurring model/test workload. One existing status projection is enough.",
         "Do not count a successful preflight as a refused commit, an already-landed retry as a new commit, or a retired/renamed step as completed.",
@@ -104,9 +85,19 @@
         "Do not treat a high refusal percentage as permission to weaken correctness, identity, safety or numerical checks."
       ],
     "media_follow_up": {
-        "architectural_progress": "359follow-up is verified: runtime admission moves to newFinishingEncoder before generation, with retained next.Close and device release owners.",
-        "remaining": "clip-encode/device-bytes remains open; format-loader and recipe migration are not established by this change.365 still requires resolving a model before eviction.",
-        "cost": "fc673760f:+15production/+107test. Retained native assertion/undo, not a new model run."
+        "architectural_progress": "MOSS and SenseNova reuse sampling.Guider; loops retain model-specific numerical ordering, including SenseNova BF16 rounding. Current controls reuse model-owned preset names. This reduces duplicate guidance logic ownership but does not establish model quality, speed or complete refactor migration.",
+        "remaining": "342 numerical acceptance and379 provenance binding; declared presets are still offered before the planned reader. Existing media encoding/format-loader obligations retain their own evidence.",
+        "cost": "9290a89->d87c57c four complete changed-Go landings: +2334 production/+2005 test AST (+462/+331 lines; +3/+5 files). Split once: admission1231/766, attempt isolation0/84, MOSS527/533, SenseNova576/622. No binary or code-directory removal. Embedded production preset data: profiles.json1561->1754bytes (+193), SenseNova presets0->172bytes (+172); compatibility documentation also changes. Retained gates report0new fixture bytes/schemas/CUDA entrypoints. No runtime speed/memory saving measured by SQA. No safe net reduction established.",
+        "plan_recommendations": [
+          {
+            "rows": "judge-calibration/user-size (landed); guidance-ops/preset-readings",
+            "findings": [
+              "SQA-342",
+              "SQA-379"
+            ],
+            "recommendation": "Repair supported statistical admission and record/render binding before expensive measurements; make setting-reader identity work an actual prerequisite. Close the existing offering gate before exposing unjudged presets. Keep apg/nag numerical implementations with existing executors."
+          }
+        ]
       },
     "plan_review": {
         "draft": {
@@ -195,10 +186,10 @@
       },
     "rank_basis": "378 closes after removing accepted-check retargeting. Remaining374/376/377 retain their canonical priorities and only residual obligations.",
     "refactor_target_progress": {
-        "architectural_progress": "a0cfebe16 lands device-budget wiring and includes the previously saved SQA report;58e8280 lands host-first verification and restores report-derived capability rows ahead of local-worker experiments. The current review verifies host ordering and existing status ownership, not a full independent validation of the budget implementation.",
-        "conflicts": "Feedback delivery remains manual while a new per-commit explanation rule is proposed. Fix the reader/delivery path before adding more gate policy.",
-        "next_useful_reductions": "Reuse status.json and existing dispatch/Git/spent owners, remove manual recounting and avoid a blanket reason gate; retain374/375 prompt/search consolidations and earlier binary/directory reductions.",
-        "cost": "Two implementation landings add625production/723test=1348AST: budget450/575 and verify-first175/148. No overall reduction or completion of the architecture target claimed."
+        "architectural_progress": "MOSS and SenseNova reuse sampling.Guider; loops retain model-specific numerical ordering, including SenseNova BF16 rounding. Current controls reuse model-owned preset names. This reduces duplicate guidance logic ownership but does not establish model quality, speed or complete refactor migration.",
+        "conflicts": "Preset admission throws away available render/evaluation identity and mistakes a loss alarm for a quality guarantee. One coherent evidence-bound admission owner is needed, not another manifest or quality framework.",
+        "next_useful_reductions": "Delete unbound approval paths; merge duplicated native acceptance assertions; reuse CaseMedia and existing artifacts without merging distinct scorecard decline and preset admission policies. Prior binary/directory candidates remain scoped at their recorded revision.",
+        "cost": "9290a89->d87c57c four complete changed-Go landings: +2334 production/+2005 test AST (+462/+331 lines; +3/+5 files). Split once: admission1231/766, attempt isolation0/84, MOSS527/533, SenseNova576/622. No binary or code-directory removal. Embedded production preset data: profiles.json1561->1754bytes (+193), SenseNova presets0->172bytes (+172); compatibility documentation also changes. Retained gates report0new fixture bytes/schemas/CUDA entrypoints. No runtime speed/memory saving measured by SQA. No safe net reduction established."
       },
     "working_notes_review": {
         "finding": "SQA-334",
@@ -208,10 +199,10 @@
       }
   },
     "committed_plan": {
-    "git_blob": "6f099eeb927a249fef01bf4929a8c67cc440f7f8",
+    "git_blob": "9f96a55d3c7edc4fa136979ec7c04944703ff75c",
     "path": "docs/plan.json",
-    "revision": "9290a897354af0f2e1e6afe667eb34b9a53072f1",
-    "sha256": "ec855b856660469d4393e8a620bdbdcbf97ff53de43d4a893835cfb4b9c0845c",
+    "revision": "d87c57c33f294d7fdaaa6d32e33b75f866f764d7",
+    "sha256": "db4dd4c41abcf7e985d14b23a91a1c8dc77f983807e10d021cf4bf31f4465381",
     "working_tree_status": "Committed plan at review pin; prior draft assessment retains its own snapshot identity. Current working plan edits excluded."
   },
     "findings": [
@@ -7228,12 +7219,13 @@
         "Reuse existing numerical, media, campaign and recovery owners; count complete code/test/setup costs and retire only displaced, unneeded paths.",
         "Gemma/second-judge confidence or acceptance does not tighten merely by repeating questions about unchanged media; accuracy requirements retain an explicit valid owner.",
         "Independent-judge rank claims name the actual score aggregation, retain media pairing and treat undefined rank/omitted bootstrap samples explicitly without panic. Any simplification includes full helper/import/native-test costs.",
-        "The merged accuracy acceptance uses a null justified by the actual choice counts and within-media dependence; the two3-choice uniform-guess counterexample is not assigned an invalid fair-sign tail."
+        "The merged accuracy acceptance uses a null justified by the actual choice counts and within-media dependence; the two3-choice uniform-guess counterexample is not assigned an invalid fair-sign tail.",
+        "Preset approval has a declared supported acceptance criterion at independent-media level; empty/insufficient/all-tied evidence is not silently proof of equivalence. The four-all-loss counterexample cannot approve unchanged under the stated no-quality-loss claim. Correlated questions do not increase the independent sample count. Preserve all earlier screen/calibration obligations."
       ],
-    "comparison": "Retain prior semantic-screen, stationary-source, arithmetic/geometric and all-tied cases. For the new accuracy criterion, enumerate the nine equally likely outcomes of two3-choice questions: five have positive excess. Across32independent media the current nominal5%test has9.14273%false-positive probability for this component. A corrected criterion must respect its declared null and media dependence, while preserving both judges' accuracy and rank requirements. Compare complete native/helper/model-fixture cost; no SQA workloads.",
+    "comparison": "Retain prior semantic-screen, stationary-source, arithmetic/geometric and all-tied cases. For the new accuracy criterion, enumerate the nine equally likely outcomes of two3-choice questions: five have positive excess. Across32independent media the current nominal5%test has9.14273%false-positive probability for this component. A corrected criterion must respect its declared null and media dependence, while preserving both judges' accuracy and rank requirements. Compare complete native/helper/model-fixture cost; no SQA workloads. For preset admission, use the retained native fixture with four all-loss pairs (exact tail1/16), helper-empty input, all ties and repeated questions on one medium; preserve valid supported approval and existing size/format refusal. This is a proposed native check, not SQA execution.",
     "displaced_surface": "Existing unsupported screen admission can be removed while diagnostic consumers/validation stay. For the new comparison, delete cmpSign and use the standard library; do not export a second report reader or copy production soft-score logic into another helper. Reuse calibration.answer/openJudge/group identities and current numerical owners. Keep distinct exact-answer, probability and carried-report contracts; a reader handling one fresh generated report is not automatically interchangeable with CaseOutcomes/scoredReport. Achieved32f640e18 deletes the Gemma-only test/file and moves repair checks under the existing decoded-clips fixture. Remove only the invalid fair-sign assumption from the accuracy criterion; retain the separate accuracy obligation. No new quality-policy layer.",
-    "evidence": "Original screen obligation remains: Candidate>Reseeded embedding distance is not established prompt-loss evidence; retain input/numerical/identity validation and diagnostic consumers. Source-relative stillness remains descriptive: a stationary source yields1 and hides strict-greater freeze; source extrema are not universal quality bounds. Matched80-clip8wins/9losses/63ties does not prove equivalence. Prior bc77 fidelity and3cc per-media grouping are retained improvements. ac1935d75's generated16-caption/cropped-middle-frame sharp/clean comparison (6clean-high versus10Lanczos, tails0.895/0.227) remains inconclusive and its post-run alarm is not noninferiority; source-reference VMAF is a separate requirement.\n32f640e18 now removes the separate Gemma opening fixture and repeated repair decode/worker setup. Accuracy and agreement use the retained answers with media as units; all questions/right flags remain, and judges close sequentially. However, comparing each medium's correct-count minus sum(1/choices) to zero does not create the fair binary pairs required by ExactPairedBinary. Admitted counterexample:32 independent media, each with two independent uniformly guessed3-choice questions. Positive excess means at least one correct, probability5/9 rather than1/2. The code first accepts22positive media at nominal tail0.0250512; uniform guessing reaches that threshold with probability0.0914273, exceeding calibrationLevel0.05. This exact enumeration concerns the accuracy component, not the joint rank gate or an observed failure. Within-media correlation can further alter the sign null. Keep the actual accuracy values, but do not label this tail an exact chance comparison.\nRemaining comparison code is unchanged: arithmetic probability means differ from production softShare's geometric mean ((.9,.1) versus(.45,.45) reverses rank); all finite constant scores yield NaN tau, all2000resamples are omitted and resampledTau indexes an empty slice before the later refusal. cmpSign remains a31-node private wrapper with two finite-number call sites. These are source/arithmetic counterexamples; no model experiment.",
-    "evidence_commit": "c06fc9ceb8ef9e77a2787f0ff115f1e0b5ae89af",
+    "evidence": "Original screen obligation remains: Candidate>Reseeded embedding distance is not established prompt-loss evidence; retain input/numerical/identity validation and diagnostic consumers. Source-relative stillness remains descriptive: a stationary source yields1 and hides strict-greater freeze; source extrema are not universal quality bounds. Matched80-clip8wins/9losses/63ties does not prove equivalence. Prior bc77 fidelity and3cc per-media grouping are retained improvements. ac1935d75's generated16-caption/cropped-middle-frame sharp/clean comparison (6clean-high versus10Lanczos, tails0.895/0.227) remains inconclusive and its post-run alarm is not noninferiority; source-reference VMAF is a separate requirement.\n32f640e18 now removes the separate Gemma opening fixture and repeated repair decode/worker setup. Accuracy and agreement use the retained answers with media as units; all questions/right flags remain, and judges close sequentially. However, comparing each medium's correct-count minus sum(1/choices) to zero does not create the fair binary pairs required by ExactPairedBinary. Admitted counterexample:32 independent media, each with two independent uniformly guessed3-choice questions. Positive excess means at least one correct, probability5/9 rather than1/2. The code first accepts22positive media at nominal tail0.0250512; uniform guessing reaches that threshold with probability0.0914273, exceeding calibrationLevel0.05. This exact enumeration concerns the accuracy component, not the joint rank gate or an observed failure. Within-media correlation can further alter the sign null. Keep the actual accuracy values, but do not label this tail an exact chance comparison.\nRemaining comparison code is unchanged: arithmetic probability means differ from production softShare's geometric mean ((.9,.1) versus(.45,.45) reverses rank); all finite constant scores yield NaN tau, all2000resamples are omitted and resampledTau indexes an empty slice before the later refusal. cmpSign remains a31-node private wrapper with two finite-number call sites. These are source/arithmetic counterexamples; no model experiment.\nAt d87c57c, the newly landed AdmitPreset turns the existing nonsignificance problem into approval: Admitted = ExactPairedBinary(losses,wins,ties).Tail > 0.05. Four paired cases all right for reference and all wrong for candidate produce 0 wins/4 losses and tail 0.0625, so the CLI can admit 100% observed degradation. Two empty maps also admit at helper level (tail1), although CaseOutcomes rejects empty reports on the current CLI path. Per-question case names are counted independently; repeating correlated questions on one output can change the decision. The tensorstats owner explicitly requires independent pairs and calls tail1 with no discordance nothing seen. Existing CaseMedia and scorecard.pairedByOutput already retain media grouping; instruction acceptance already distinguishes undecided from gain/loss. These are source and exact-arithmetic counterexamples, not an observed model-quality failure. The two new native tests cover equal outcomes and large loss, not insufficient evidence or a correlated group.",
+    "evidence_commit": "d87c57c33f294d7fdaaa6d32e33b75f866f764d7",
     "expected_benefit": {
         "measured_baseline": "Historical pair-screen landing+1560production/+789test=2349AST. Clip motion reuses evaluation.Cosine: cmd/evaluate/screen1152->1093 (-59nodes); current former screen slice2290 including shared entrypoints. Clip landing+1586production/+1504test includes that consolidation and is overall growth. Both landings together+3146production/+2293test. No static fixtures added by either.",
         "minimum_change": "Diagnostic/acceptance separation estimated production-40..90AST, test0..25 with actual distance/refusal coverage retained: current former screen slice2290->2175..2250, estimated net40..115. No replacement compiled, no new helper/schema/fixture/setup.",
@@ -7241,12 +7233,13 @@
         "setup": "The current device fixture decodes32 source clips, opens one encoder, makes4 temporary render directories with128PNG files, and embeds192 images across the two candidates, including repeated reference/reseeded embeddings. Minimal correction retains that cost; retiring the unused path removes it. No rerun by SQA; native Go caching remains credited.",
         "retained_results": "f49359db3: model verification62.47s; broad lane25m25.582s with CUDA4executed/15cached; scorecard unavailable because card reserved. Successful walls are not measured waste. Counterfactual did not compile, so no behavioral undo evidence. ae199b5b9 explicitly observed a repeat that global minimum missed; model verify64.999s and lane26m7.594s are bounded successful walls, not general motion evidence.",
         "uncertainty": "Selected32media per kind, two judges and reused answers are bounded evidence. The nominal accuracy tail assumes fair signs, which actual choice cardinalities do not establish; arithmetic/geometric rank reversal and all-tied bootstrap failure remain. Correcting inference may require small native coverage growth; no guaranteed additional saving beyond cmpSign's existing25-node proposal.",
-        "current_review": "32f640e18 completed the planned merge: production0/test-8AST across the full five-file migration, including the shared clip feed and opt-in benchmark. One Gemma model open, one repeated24-clip decode, one device worker/runtime setup disappear; repair assertions and NVENC byte/encoder/repeat assertions remain. Retained judge run667s: Qwen165/184pictures,58/64clips; Gemma159/184,57/64; output sign counts29/30above for pictures and30each for clips; tau0.560/0.746. Gate881s, verify652.12s. No SQA rerun. New accuracy-null issue below does not prove these high-accuracy observations wrong."
+        "current_review": "32f640e18 completed the planned merge: production0/test-8AST across the full five-file migration, including the shared clip feed and opt-in benchmark. One Gemma model open, one repeated24-clip decode, one device worker/runtime setup disappear; repair assertions and NVENC byte/encoder/repeat assertions remain. Retained judge run667s: Qwen165/184pictures,58/64clips; Gemma159/184,57/64; output sign counts29/30above for pictures and30each for clips; tau0.560/0.746. Gate881s, verify652.12s. No SQA rerun. New accuracy-null issue below does not prove these high-accuracy observations wrong.",
+        "preset_admission_follow_up": "2c7ac4ea4 complete changed Go: +1231 production/+766 test AST, +233/+104 lines, +2/+2 files; 0 schemas/static fixture bytes per retained gate. Current admission helper+CLI files are 1014 production AST and their two native test files763 test AST. This shared baseline is counted once across342/379. Removing the duplicate CLI equal/smaller acceptance assertions and their right-map setup is a concrete consolidation; manifest format/mixed-size/reuse checks stay. Correct evidence binding and inconclusive handling may require net growth; no safe net reduction or after count established. No new binary/directory, model setup or workload is needed to decide the source counterexamples."
       },
     "id": "SQA-342",
     "impact": "Prevents an extra gate from rejecting valid fast paths or presenting frozen video as temporally correct. Architectural benefit is one acceptance authority and fewer compulsory passes, rather than another quality framework.",
     "likely_effort": "Small separation of diagnostic output from acceptance; larger deletion only if no actual diagnostic consumer needs the path. SQA changes no code or plan.",
-    "plan_coverage": "test-surface/judge-tests landed32f640e18 with the requested setup migration and separate accuracy/agreement intent. The fair-sign null mismatch, undefined rank handling and production-metric scope remain in this canonical finding. judge-calibration/user-size remains live. This chat contributed earlier plan wording; no independent review claim.",
+    "plan_coverage": "judge-calibration/user-size landed2c7ac4ea4; size/format admission is progress, but quality approval remains unsound. guidance-ops/preset-readings is open after apg/nag and explicitly acknowledges all declared presets are currently offered without verdict. Fix this statistical contract and379 binding before expensive readings; use existing plan dependency/dispatch ownership. Earlier unique screen/calibration requirements remain open.",
     "plan_references": [
         "media-screen/pair-screen and clip-consistency",
         "video-judge/same-settings 14188bb91",
@@ -7256,9 +7249,10 @@
         "judge-calibration/user-size; rtx-vsr/judged at 0b326644ace365709193155c4fbe0f9a99e2f037",
         "rtx-vsr/judged-fidelity ac1935d75 (landed; null generated-fidelity result)",
         "test-surface/judge-tests; judge-calibration/user-size; judge-speed at 7d1c97f7d4d11234d6299ded5573b51443724e37",
-        "test-surface/judge-tests landed32f640e18; current pin c06fc9c"
+        "test-surface/judge-tests landed32f640e18; current pin c06fc9c",
+        "judge-calibration/user-size landed2c7ac4ea4; guidance-ops/apg,nag,preset-readings at d87c57c"
       ],
-    "recommended_change": "Keep unsupported semantic prompt-loss rejection out of admission, retain numeric/identity checks, and keep source-relative stillness descriptive. Preserve content/fidelity, question records and grouped-media limitations; agreement is not ground truth. Credit32f640e18's completed shared opening/repair setup and retained separate accuracy/agreement obligations. Correct the accuracy null through the existing calibration/tensorstats owner: grouping media alone does not justify treating signs around an expected count as fair coin flips. Use a declared per-media correctness event with a justified chance bound through existing BinomialUpperTail, or a comparison whose null matches the chosen aggregate and within-media dependence; choose before another model run. Keep all observed per-question accuracy values and media identities. One smallest native finite-choice counterexample should hold the calculation; do not restore a duplicate model-opening fixture. State which aggregation its acceptance measures: reuse the existing soft-score owner if claiming the production metric, otherwise explicitly limit the claim to the declared arithmetic ranking; do not introduce a second quality policy. Handle undefined full-sample tau before resampling, retaining disagreement/partial results and a clear inconclusive/failure outcome. Any necessary coverage should be one smallest pure case in the retained native comparison fixture, without model reruns. Replace cmpSign's two finite-number calls with standard cmp.Compare and delete the helper; no new abstraction or test is needed for that trivial substitution. Keep ac1935d75's null comparison descriptive and its future significant-loss check a coarse alarm; a nonsignificant difference is not proof of equivalence or a quality admission. If admission needs a noninferiority claim, state its meaningful margin and media-level comparison before exposure through the existing evaluation owner. Preserve the source-reference result separately, state the crop/frame scope, and reuse compatible records; do not add a campaign merely to justify the existing default.",
+    "recommended_change": "Keep unsupported semantic prompt-loss rejection out of admission, retain numeric/identity checks, and keep source-relative stillness descriptive. Preserve content/fidelity, question records and grouped-media limitations; agreement is not ground truth. Credit32f640e18's completed shared opening/repair setup and retained separate accuracy/agreement obligations. Correct the accuracy null through the existing calibration/tensorstats owner: grouping media alone does not justify treating signs around an expected count as fair coin flips. Use a declared per-media correctness event with a justified chance bound through existing BinomialUpperTail, or a comparison whose null matches the chosen aggregate and within-media dependence; choose before another model run. Keep all observed per-question accuracy values and media identities. One smallest native finite-choice counterexample should hold the calculation; do not restore a duplicate model-opening fixture. State which aggregation its acceptance measures: reuse the existing soft-score owner if claiming the production metric, otherwise explicitly limit the claim to the declared arithmetic ranking; do not introduce a second quality policy. Handle undefined full-sample tau before resampling, retaining disagreement/partial results and a clear inconclusive/failure outcome. Any necessary coverage should be one smallest pure case in the retained native comparison fixture, without model reruns. Replace cmpSign's two finite-number calls with standard cmp.Compare and delete the helper; no new abstraction or test is needed for that trivial substitution. Keep ac1935d75's null comparison descriptive and its future significant-loss check a coarse alarm; a nonsignificant difference is not proof of equivalence or a quality admission. If admission needs a noninferiority claim, state its meaningful margin and media-level comparison before exposure through the existing evaluation owner. Preserve the source-reference result separately, state the crop/frame scope, and reuse compatible records; do not add a campaign merely to justify the existing default. Repair preset admission before further guidance measurements: keep insufficient evidence inconclusive and not offered, state the supported acceptance claim/margin before sampling, and use the actual independent media units from both bound records. Reuse existing tensorstats arithmetic and the evaluation decision owner; preserve scorecard decline detection as a distinct contract. Extract shared media pairing only if the two callers share the full matching/aggregation contract; do not move the loss-alarm predicate into admission as though they were equivalent. Consolidate duplicated low-level acceptance assertions into internal/evaluation/preset_admission_test.go; retain command manifest/identity checks separately. SQA-379 owns binding the judged records to these renders; its fix is prerequisite evidence, not a substitute for this statistical correction.",
     "severity": "P2",
     "sources": [
         {
@@ -7332,10 +7326,30 @@
         {
           "path": "cmd/evaluate/video_super_res_judged_windows_model_test.go",
           "symbol": "TestTheJudgeDoesNotPreferLanczosOverTheDefaultLevel; TestJudgedClipsAreDrawn; readRepairLevels"
+        },
+        {
+          "path": "internal/evaluation/preset_admission.go",
+          "symbol": "AdmitPreset; PresetArm; PresetVerdict"
+        },
+        {
+          "path": "cmd/evaluate/preset_reading.go",
+          "symbol": "admitPresetReading reads CaseOutcomes without CaseMedia"
+        },
+        {
+          "path": "internal/evaluation/instruction_acceptance.go",
+          "symbol": "poolGain/poolLoss/poolUndecided"
+        },
+        {
+          "path": "internal/evaluation/preset_admission_test.go",
+          "symbol": "TestAPresetIsAdmittedOnlyAtAPersonsSize"
+        },
+        {
+          "path": "cmd/evaluate/preset_reading_test.go",
+          "symbol": "TestAPresetIsAdmittedOnlyAtAPersonsSize"
         }
       ],
     "status": "open",
-    "title": "Keep embedding similarity diagnostic until it supports the acceptance claim"
+    "title": "Tie media quality admission to supported statistical evidence"
   },
     {
     "category": "evaluation-replay-correctness",
@@ -9050,10 +9064,73 @@
       ],
     "status": "resolved",
     "title": "Bind the intended test once instead of retargeting accepted checks during landing"
-  }
+  },
+    {
+      "id": "SQA-379",
+      "status": "open",
+      "severity": "P2",
+      "category": "correctness",
+      "classification": "source-established-preset-evidence-binding-gap",
+      "title": "Bind preset approval to the renders and scoring records actually compared",
+      "evidence_commit": "d87c57c33f294d7fdaaa6d32e33b75f866f764d7",
+      "sources": [
+        {
+          "path": "cmd/evaluate/preset_reading.go",
+          "symbol": "admitPresetReading; readRender; drawnArm"
+        },
+        {
+          "path": "cmd/evaluate/render.go",
+          "symbol": "renderManifest; renderedMedia; alreadyDrawn; renderRequest"
+        },
+        {
+          "path": "internal/evaluation/evidence_index.go",
+          "symbol": "CaseOutcomes; CaseMedia; scoredReport"
+        },
+        {
+          "path": "internal/runrecord/record.go",
+          "symbol": "Evaluation and Run identity"
+        },
+        {
+          "path": "internal/mediacapability/controls_cuda_windows.go",
+          "symbol": "routedImageControls; imageControls -> offerPresets"
+        },
+        {
+          "path": "cmd/evaluate/preset_reading_test.go",
+          "symbol": "TestAPresetIsAdmittedOnlyAtAPersonsSize does not call admitPresetReading"
+        },
+        {
+          "path": "docs/plan.json",
+          "symbol": "guidance-ops/preset-readings admission and setting-reader prerequisite"
+        }
+      ],
+      "evidence": "admitPresetReading independently reads two manifests and two user-supplied evaluation IDs, reduces each manifest to preset/format/size and each evaluation to case-name booleans, then compares those booleans. It does not verify that either record scored the corresponding manifest outputs or that both sides share the intended model/task/recipe, question/judge contract and paired inputs. The loop overwrites drawn; ResolveActiveExecution therefore reads the candidate manifest model/task current activation, not the historical recipe that rendered either arm. Source-admitted case: differently produced or old render directories at matching size/format plus unrelated nonempty evaluations with the same case names satisfy the checked fields; a replacement activation can also supply the current template for old recipe evidence. renderManifest already retains Model/Recipe/Task/CodeCommit and each draw Input/Output/Run/Request; evaluation records already lead to the scoring report, plan and dataset. alreadyDrawn validates reuse identity but this command never calls its checks. Printed PresetVerdict holds only preset/counts/admitted and is not a bound admission record. Current controls offer declared preset names without reading a verdict; the plan explicitly leaves that consumer gating unfinished. No false approval was reproduced against a live store.",
+      "impact": "A plausible quality verdict can be attached to media or a recipe it never evaluated, wasting hours and undermining future automatic preset offering. Correct statistics342 alone cannot repair wrong provenance. This is distinct from283 campaign publication attribution: this command must bind two supplied record/render pairs before a new comparison.",
+      "recommended_change": "Use the existing render provenance and run/evaluation artifact owners to bind each judged dataset/media input to its exact rendered outputs and producer identity before calculating a verdict. Require the same intended model/task, comparable recipe/code and full effective request except declared preset treatment; preserve paired prompts/seeds and matching question/judge/scoring contracts. Do not substitute current activation for the historical recipe; reuse historical records only when their bound identities remain applicable. Missing or foreign provenance stays unknown/refused before expensive rendering or judging where knowable. Carry the bound record IDs and relevant recipe/request identity through the existing evidence storage to the existing capability controls; offer only a currently applicable, statistically supported admission. Implement the plan's setting-reader identity prerequisite before long readings through existing dependencies, without a second scheduler, registry, notes file or evidence ledger.",
+      "displaced_surface": "Remove unbound case-name-only comparison and the current-activation template substitution as authorities. Retain existing manifest, scoredReport/carried-result traversal, runrecord/artifact identity and modelrecipe lifecycle. Reuse read/validation only where the contract truly matches: alreadyDrawn can accept a missing file as a new render, so calling it blindly is not sufficient admission validation. Merge repeated numerical admission calls/right-map setup out of cmd/evaluate/preset_reading_test.go into the existing evaluation test; keep format fallback, mixed sizes and preset reuse cases, and extend the command fixture for actual record binding with existing native store/artifact setup. No second model fixture or new binary/package.",
+      "expected_benefit": {
+        "baseline": "Shared full admission baseline/cost is charged once in342: +1231 production/+766 test AST. Selected command file719 nodes, command test429 nodes. No implemented after count or guaranteed net saving.",
+        "setup": "Existing native store/artifact fixtures suffice for identity counterexamples; no model/device workload, benchmark or new recurring gate requested. 0 new fixture files/bytes/schemas in the admission landing per retained gate.",
+        "cost": "Binding may grow code and the retained command fixture; remove duplicate assertion bodies/setup in the same migration and count all touched helpers, callers and storage/offer changes. Moving validation or writing another JSON file is not a saving.",
+        "uncertainty": "Static source establishes absent checks. Runtime reachability requires otherwise valid active model/defaults; no observed incorrect model decision, timed gain or complete end-to-end proof claimed."
+      },
+      "likely_effort": "Medium within current render/evaluation/controls owners; correctness may require growth before consolidation.",
+      "plan_references": [
+        "judge-calibration/user-size landed2c7ac4ea4",
+        "guidance-ops/preset-readings at d87c57c",
+        "guidance-ops/moss-presets e9b82cdf6; sensenova-presets d87c57c"
+      ],
+      "plan_coverage": "The existing preset-readings row owns offer gating and record linkage. It follows apg/nag and its setting-reader prerequisite is only in rationale. Recommend binding/admission correctness and executable prerequisite order first; measurement cost is estimated in plan at roughly1h/2.5h/8h per arm, not measured by SQA. No new parallel dispatch plan.",
+      "closure_criteria": [
+        "The real admitPresetReading path rejects swapped/foreign evaluation IDs and mismatched render model/task/recipe/output or scoring identity even with identical case names, dimensions and booleans.",
+        "A changed active recipe cannot silently reattribute old renders; exact valid carried scoring records remain reusable under their original identity. Full effective request and declared treatment define comparability.",
+        "The capability control consumes the same bound, applicable admission; missing/refused/inconclusive/stale evidence does not offer a preset. Preserve342 statistical requirements and existing stop/resource/activation authority.",
+        "Small native command fixture retains format/mixed-size/reuse and adds the binding counterexample; duplicate lower-level acceptance assertions/setup disappear, and complete production/test/storage/setup cost is reported."
+      ],
+      "comparison": "In the retained command fixture and existing temporary artifact store, construct two minimal valid bound arms, then swap one scored record or its rendered output while retaining all case names/outcomes/sizes; current source accepts what must be rejected. Change active recipe after recording to check historical binding. A legitimate carried record still works. No real rendering or judging is necessary to decide this defect; proposed checks only."
+    }
   ],
     "gate_test_assessment": {
-    "assumptions": "Windows ordinary case-insensitive path identity differs from lexical spelling; apply actual filesystem semantics, not global case folding. docs/verification is a storage location, not a model-work type.6chosen steps/3required passes/40reply ceilings are explicit local demonstration policy; repeated runs on the same tasks are correlated. Keep package elapsed separate from attempt-wall sums.",
+    "assumptions": "0.05 is the existing error-rate policy, not evidence that a large tail proves no loss. Actual independent units are media, not correlated questions.81frames/832x480/50steps in the fixture illustrate person-sized requests, not universal supported shapes; reuse actual bound recipe/request defaults and existing validation. Keep numerical acceptance independent of timing.",
     "automation_follow_up": {
         "retained_feedback": {
           "window": "November8 and9,2026 America/New_York (UTC-05); local retained records read after58e8280",
@@ -9078,19 +9155,17 @@
       },
     "automation_sequence": "Known prerequisite refusal now precedes moveReplay and worker execution. Driver already distinguishes declared Run/Record work from worker dispatch. Current373heuristic overgeneralizes that boundary;372can corrupt its held verifier. Existing plan stops, budgets, process supervision and partial records remain owners. No new scheduler, cache or gate.",
     "fresh_ast": {
-        "revision": "9290a897354af0f2e1e6afe667eb34b9a53072f1",
-        "method": "Existing Go parser and changed-file endpoint counter; no application tests.",
+        "revision": "d87c57c33f294d7fdaaa6d32e33b75f866f764d7",
+        "method": "Existing Go parser and complete changed-file endpoint counter; no application execution.",
         "retained_result": [
-          "review-9290-selected-ast.json",
-          "review-9290-hermetic-delta.json",
-          "review-9290-accepted-delta.json",
-          "review-9290-history-delta.json",
-          "review-9290-status-delta.json",
-          "review-9290-combined-delta.json",
-          "review-9290-removed-meta-ast.json"
+          "review-d87c57c-selected-ast.json",
+          "review-d87c57c-admission-delta.json",
+          "review-d87c57c-isolation-delta.json",
+          "review-d87c57c-moss-delta.json",
+          "review-d87c57c-sensenova-delta.json"
         ],
-        "counts": "9 selected files6507nodes/18functions/1565local links. Four-landing total+575production/+575testAST; no aggregate reduction.",
-        "limits": "Parse-only; complete changed files counted, not full repository. Moving doctrine tests is not deletion."
+        "counts": "7 files2796nodes/17functions/593parser-local links; no identical full function body hashes in this sample. This does not measure semantic boilerplate percentage.",
+        "limits": "Parse-only; no package/type resolution. Complete changed files counted; no broad census."
       },
     "media_follow_up": {
         "revision": "fc673760f813afdf216be087fe586f717461cd3a",
@@ -9254,17 +9329,16 @@
       "retained_change_costs": "Two consolidation landings(2d59f642c exact folds andbb4fc706a parameter folds) remove744 production nodes but add1591 test nodes, net+847 across Go. Pilot retirementea8ed43a7 removes5926 production/9990 test nodes and one schema, while fixture bytes grow599; its test deletion is already included in the day's offsets and must not be subtracted twice. These retained gates are broader changes, not matched per-test performance comparisons."
     },
     "retained_results": [
-        "58e8280 retained host-order verification23.314s; undo fails an assertion; gate395s. Source confirms same planverify/added-check/undo owner.",
-        "November9:10verify refusals,140.54minutes whole wall versus46.48minutes test/lanes. November8:122records include24successful preflights; remaining98 include52landed and46other outcomes. Old failed-preflight run kind is unknown.",
-        "Current status file read22:11:31Nov10 still names fc673760f; source only invokes its reader through explicit-status. Writing a snapshot does not demonstrate delivered continuation."
+        "2c7ac4ea4 retained gate403s, native verify16.652s, CUDA2 executed/18 cached; this exercises size/format and large loss, not the new counterexamples.",
+        "22151be7d gate289s; e9b82cdf6 gate671s; d87c57c gate674s. MOSS/SenseNova verification20.27s/75.948s and retained lane caches are bounded implementation evidence, not held-out preset admission or measured end-to-end savings."
       ],
-    "surface_reduction_analysis": "Existing status/records/dispatch are sufficient owners. The requested extension has real code/test cost; avoid an additional reason gate, ledger or scheduler. No safe net reduction established yet.",
+    "surface_reduction_analysis": "9290a89->d87c57c four complete changed-Go landings: +2334 production/+2005 test AST (+462/+331 lines; +3/+5 files). Split once: admission1231/766, attempt isolation0/84, MOSS527/533, SenseNova576/622. No binary or code-directory removal. Embedded production preset data: profiles.json1561->1754bytes (+193), SenseNova presets0->172bytes (+172); compatibility documentation also changes. Retained gates report0new fixture bytes/schemas/CUDA entrypoints. No runtime speed/memory saving measured by SQA. No safe net reduction established.",
     "tests": [
-        "RETAIN accepted-check native row regression and original terms/new-row/undo coverage; REMOVE resolver-only fixture (already deleted). No replacement package-discovery suite.",
-        "RETAIN record arithmetic/dependencies and current identity validation. MERGE the217-node historical-set assertion into the existing3077-node record fixture only if duplicate setup/reads disappear; finish source binding there.",
-        "RETAIN fixed reasoning fixture; EXTEND it for coherent identified live projection instead of reverting to ambient-plan skips. REMOVE nested full-suite runner (already deleted); reuse native caching and retained input logs.",
-        "SIMPLIFY old status arithmetic only after decision/dispatch cases are retained. Extend current status fixture for absent history, one commit/two steps and actual delivered boundary; no new fixture package.",
-        "All are recommendations. SQA executed no application test, gate or workload."
+        "RETAIN internal/evaluation/preset_admission_test.go as the native numerical/size/format owner; extend it for insufficient evidence/four losses/media grouping. No model fixture.",
+        "SIMPLIFY cmd/evaluate/preset_reading_test.go by merging duplicate low-level approval/refusal assertions and right-map setup into the evaluation fixture. RETAIN format fallback, mixed dimensions and preset reuse; extend this command fixture to call the real binding path with existing temporary store/artifact setup.",
+        "RETAIN tensorstats exact arithmetic and scorecard output-grouping coverage; only share aggregation if matching rules agree. Their distinct loss-alarm and admission decisions must remain distinct.",
+        "RETAIN model-specific default guidance/rounding and executor tests; similar wiring is not enough to merge numerical, Windows/CUDA or resource-lifetime contracts.",
+        "No tests created or executed by SQA. Proposed minimal correctness extensions may increase test surface; no numerical saving claim."
       ]
   },
     "hygiene_assessment": "No hygiene finding. Scratch analysis is outside the repository; concrete correctness and production/test cost take priority.",
@@ -10798,10 +10872,10 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
     "limitations": [
-      "No implementation, tests, workloads, agents/messages, plan/skill edits or pushes. Only report and existing external analysis tooling.",
-      "Source and retained gate evidence establish the stated closures/remaining paths; no reproduction or new timing run. AST includes comments, parser-local links only, no package/type resolution or broad census.",
-      "Status missing-ledger and multi-step-commit examples are source-admitted cases. Historical source rename and prompt interleaving are admitted counterexamples, not claimed observed incidents.",
-      "Implementation status fixture lacks assertion-based undo proof; no observed user delivery is inferred solely from its helper test. Hook wiring is directly inspected."
+      "No application tests, model/device workloads, production gates, benchmarks, agents/messages, plan/skill edits or pushes. Only report and existing external analysis tooling.",
+      "AST includes comments and parser-local identifier resolution; no package/type resolution or repository census. Structural similarity is not proof of contract equivalence or a repository-wide duplication percentage.",
+      "Four-all-loss approval and missing record/render binding are source-established counterexamples. Empty input approval is helper-level only; CaseOutcomes rejects empty reports on the current CLI route. No live-store false approval or model regression reproduced.",
+      "Prior historical/status/prompt findings retain their last scoped evidence; this slice does not close them or claim completed format-independent model migration."
     ],
     "master_lead_triage": {
     "at": "2026-11-10",
@@ -11677,13 +11751,13 @@
       }
     }
   },
-    "next_finding_number": 379,
+    "next_finding_number": 380,
     "publication_context": {
-    "assessment": "Substantive closure and residual-obligation reconciliation at9290a89.",
-    "checked_head": "9290a897354af0f2e1e6afe667eb34b9a53072f1",
-    "concurrent_changes": "Current code/plan/report/owner state re-read before publication; uncommitted evaluator work left untouched.",
-    "current_pin": "9290a897354af0f2e1e6afe667eb34b9a53072f1",
-    "publication": "Normal report-only hook exception under existing landing_turn/gate ownership; save unstaged if implementation owns publication.",
+    "assessment": "Substantive342 statistical reconciliation and379 render/evaluation identity finding at d87c57c.",
+    "checked_head": "d87c57c33f294d7fdaaa6d32e33b75f866f764d7",
+    "concurrent_changes": "Code/report/owner state re-read before writing; working landing/tests/plan changes preserved and excluded.",
+    "current_pin": "d87c57c33f294d7fdaaa6d32e33b75f866f764d7",
+    "publication": "Existing landing_turn/gate ownership and normal report-only hooks; save unstaged if implementation owns publication.",
     "report_only": "Only docs/sqa_findings.json; unrelated index/worktree preserved."
   },
     "ranked_active_finding_ids": [
@@ -11710,6 +11784,7 @@
     "SQA-341",
     "SQA-356",
     "SQA-342",
+    "SQA-379",
     "SQA-345",
     "SQA-277",
     "SQA-266",
@@ -11760,48 +11835,41 @@
     "repository": "C:\\Users\\jeffm\\overgo",
     "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
     "review_notes": [
-      "378 closes with the existing qualified verifier as retained identity owner; no speculative new binding abstraction is required.",
-      "377 retains only the unfinished historical citation/source binding.376 credits automatic delivery and retirement of answered-refusals while retaining count/unknown/projection gaps.",
-      "The duplicate test-runner package is gone. Complete costs are split once by mechanism; movement of doctrine tests receives no deletion credit."
+      "Consolidated preset statistical admission into342, which already requires independent media and rejects nonsignificance as equivalence; every earlier unique requirement remains.",
+      "379 is distinct provenance validation of two supplied render/evaluation arms, not another copy of283 campaign publication-state attribution.",
+      "Keep the existing numerical, evidence, runtime and control owners. Fix known invalid evidence before long measurements; no second scheduler/registry or additional model fixture."
     ],
-    "reviewed_at": "2026-11-11T12:26:35Z",
-    "reviewed_master": "9290a897354af0f2e1e6afe667eb34b9a53072f1",
+    "reviewed_at": "2026-11-11T14:26:58Z",
+    "reviewed_master": "d87c57c33f294d7fdaaa6d32e33b75f866f764d7",
     "schema_version": 2,
     "scope": [
-      "Committed master 9290a897354af0f2e1e6afe667eb34b9a53072f1 and committed plan; bounded reconciliation of accepted checks, historical evidence, status delivery and test isolation.",
-      "Actual selected-file AST over9 files:6507nodes,18functions,1565parser-local links; complete changed-Go costs for four landings and combined endpoints. Retained gates reused, no application execution.",
-      "Current evaluator/preset-admission worktree changes are implementation drafts and excluded from closure. Downloads architecture target SHA unchanged.",
-      "This chat previously implemented Overgo and contributed plan wording; this review is not independent third-party validation."
+      "Committed master d87c57c33f294d7fdaaa6d32e33b75f866f764d7 and committed plan; bounded preset rendering -> scoring evidence -> admission -> capability offering review, with existing scorecard/media-group and instruction-decision owners.",
+      "Actual selected-file Go AST on7 files:2796nodes,17functions,593parser-local links. Complete changed-Go costs for four landings, retained gate results and prior binary/directory analysis reused.",
+      "Downloads architecture target remains active at verified SHA; working landing/test/plan edits are excluded. This chat previously implemented Overgo and contributed plan wording; not independent third-party validation."
     ],
     "sqa_response": {
-    "assessment": "205 stable IDs:69open,130resolved,4deferred,2aliases.378closed;374/376/377partially addressed.",
+    "assessment": "206 stable IDs:70 open,130 resolved,4 deferred,2 aliases.342 updated;379 new. No closure inferred from successful gates alone.",
     "consolidated_findings": [],
     "deferred_findings": [],
-    "evidence": "Four committed landings, native retained verification records, selected AST and complete before/after changes. Current owner blocks unchanged and preserved.",
-    "implementation_response_context": "Implementation commits explicitly address376/377/378; report closure follows source and retained evidence, not commit claims alone. Current evaluator draft excluded.",
-    "new_findings": [],
-    "partially_addressed_findings": [
-        "SQA-374",
-        "SQA-376",
-        "SQA-377"
+    "evidence": "Committed source/callers, retained gate records,7-file AST and exact four-all-loss arithmetic. Prior owner responses re-read and preserved.",
+    "implementation_response_context": "user-size landed before MOSS/SenseNova presets and fixes size/format checks. Its tests do not establish sound quality admission or render/record binding. Current implementation drafts excluded.",
+    "new_findings": [
+        "SQA-379"
       ],
-    "priority_changes": "378 accepted-check integrity defect closed; residual historical/status/prompt obligations remain canonical.",
-    "recommendation": "Keep the deleted repair paths deleted. Finish remaining identity and reporting semantics through the retained owners; do not add replacement abstractions or another refusal gate.",
+    "partially_addressed_findings": [],
+    "priority_changes": "342 quality-admission correction and379 evidence binding precede further long guidance comparisons; canonical order retains higher-severity correctness/security work.",
+    "recommendation": "Finish coherent admission through existing evaluation/render/evidence/control owners before expanding presets or collecting costly readings.",
     "refactor": {
       "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
       "history_path": "docs/sqa_findings.json",
       "layout": "Full canonical open/deferred; compact resolved closure sources/revision/costs; explicit aliases, including aliases to closed canonical findings. Prior narratives remain in Git."
     },
     "reopened_findings": [],
-    "resolved_findings": [
-        "SQA-378"
-      ],
-    "reviewed_master": "9290a897354af0f2e1e6afe667eb34b9a53072f1",
-    "uncertainty": "No independent runtime validation. Test-isolation cache gains are retained implementation evidence; combined source grows1150AST despite removal of bad repair paths.",
+    "resolved_findings": [],
+    "reviewed_master": "d87c57c33f294d7fdaaa6d32e33b75f866f764d7",
+    "uncertainty": "No safe net code reduction established; necessary correctness coverage may grow. Numerical and binding counterexamples are source-based, not observed model failures.",
     "updated_findings": [
-        "SQA-374",
-        "SQA-376",
-        "SQA-377"
+        "SQA-342"
       ]
   }
   }

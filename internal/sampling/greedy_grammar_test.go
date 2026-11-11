@@ -13,8 +13,11 @@ import (
 const (
 	// grammarVocabulary is the vocabulary's size, Qwen3's order of magnitude.
 	grammarVocabulary = 100_000
-	// grammarDraws is how many tokens each round draws.
+	// grammarDraws seeds the logits' source.
 	grammarDraws = 8
+	// grammarRound is how long a round draws for: a round of a few draws with no grammar passed below the clock's
+	// resolution on Windows and measured 0s, which no ratio holds (2026-11-11).
+	grammarRound = 20 * time.Millisecond
 	// grammarRounds is how many rounds are timed, the fastest of each kept.
 	grammarRounds = 5
 	// grammarOverhead is the most a grammar that allows the model's choice may multiply a greedy draw's time.
@@ -43,21 +46,23 @@ func TestAGreedyDrawUnderAGrammarCostsAboutWhatOneWithoutDoes(t *testing.T) {
 	}
 	// The end never outweighs a word, so the grammar never closes.
 	logits[end] = -1
+	// fastest is the fastest round's time a draw, each round drawing until grammarRound has passed.
 	fastest := func(sampler *Sampler) time.Duration {
 		best := time.Duration(0)
 		for range grammarRounds {
-			started := time.Now()
-			for range grammarDraws {
+			started, draws := time.Now(), 0
+			for time.Since(started) < grammarRound {
 				testcheck.Must(sampler.Sample(logits))(t)
+				draws++
 			}
-			if spent := time.Since(started); best == 0 || spent < best {
+			if spent := time.Since(started) / time.Duration(draws); best == 0 || spent < best {
 				best = spent
 			}
 		}
 		return best
 	}
 	without, under := fastest(free), fastest(constrained)
-	t.Logf("%d greedy draws over %d tokens: %s with no grammar, %s under one", grammarDraws, grammarVocabulary, without, under)
+	t.Logf("a greedy draw over %d tokens: %s with no grammar, %s under one", grammarVocabulary, without, under)
 	if under > grammarOverhead*without {
 		t.Fatalf("a greedy draw under a grammar that allows the model's choice took %s, more than %d times one without (%s)", under, grammarOverhead, without)
 	}

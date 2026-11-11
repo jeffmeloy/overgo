@@ -262,6 +262,8 @@ func (g *Generator) integrate(ctx context.Context, plan *generationPlan) (genera
 	}()
 	z := plan.z
 	guider := sampling.Guider{Scale: float64(plan.request.CFGScale), Guidance: plan.guidance}
+	// APG carries its momentum over the generation's steps.
+	adaptive := &sampling.AdaptiveGuider{Adaptive: plan.guidance.Adaptive, Scale: float64(plan.request.CFGScale)}
 	for step := range plan.request.Steps {
 		if err := ctx.Err(); err != nil {
 			return generationFeatures{}, err
@@ -319,7 +321,7 @@ func (g *Generator) integrate(ctx context.Context, plan *generationPlan) (genera
 		}
 		g.stats.Flow += time.Since(started)
 		started = time.Now()
-		guided, err := guidedVelocity(at, plan.request.CFGScale, velocities)
+		guided, err := guidedVelocity(at, adaptive, plan.request.CFGScale, velocities, z, imageTime-timestep)
 		if err != nil {
 			return generationFeatures{}, err
 		}
@@ -339,15 +341,22 @@ const imageTime = 1
 const conditionedBranch = 1
 
 // guidedVelocity is the velocity a step steps by: the authors' combine of the two branches, the conditioned branch's alone
-// where the guider reads no unconditioned output, or CFG-Zero*'s projected combine (sampling.Guider), each stored as
-// BF16 as the authors' is.
-func guidedVelocity(at sampling.Guider, scale float32, velocities [][]float32) ([]float32, error) {
+// where the guider reads no unconditioned output, CFG-Zero*'s projected combine (sampling.Guider), or APG's, which denoises the
+// sample at the step's noise level (sampling.AdaptiveGuider), each stored as BF16 as the authors' is.
+func guidedVelocity(at sampling.Guider, adaptive *sampling.AdaptiveGuider, scale float32, velocities [][]float32, sample []float32, noise float64) ([]float32, error) {
 	switch {
 	case !at.Unconditional():
 		return routedlm.GuidedFlowVelocity(velocities[:conditionedBranch], []float32{tensor.UnitScale})
-	case at.Guidance.Projected:
+	case at.Guidance.Projected, at.Guidance.Adaptive.On():
 		guided := make([]float32, len(velocities[0]))
-		if err := at.Combine(guided, velocities[0], velocities[1]); err != nil {
+		combined := at.Combine
+		if at.Guidance.Adaptive.On() {
+			// SenseNova's velocity points to the image: it denoises the sample to the sample plus the noise level times it.
+			combined = func(out, conditional, unconditional []float32) error {
+				return adaptive.Combine(out, conditional, unconditional, sample, -noise)
+			}
+		}
+		if err := combined(guided, velocities[0], velocities[1]); err != nil {
 			return nil, err
 		}
 		dtype.RoundBF16Slice(guided)

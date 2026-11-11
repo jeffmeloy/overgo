@@ -127,9 +127,13 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 		return nil, errors.New("rotary sampling: uploaded latent missing")
 	}
 	current := &residentLatent{outputs: retained, node: uploaded, value: value}
-	// project guides a step on the host as CFG-Zero* does, the unconditioned prediction rescaled by its projection onto
-	// the conditioned one over the whole sample (sampling.Guider), and holds the guided velocity on the device.
-	project := func(at sampling.Guider, positive, negative *residentLatent) (*residentLatent, error) {
+	// APG carries its momentum over the generation's steps.
+	adaptive := &sampling.AdaptiveGuider{Adaptive: settings.varies.Adaptive, Scale: float64(settings.guidance)}
+	// hosted guides a step on the host and holds the guided velocity on the device: as CFG-Zero* does, the
+	// unconditioned prediction rescaled by its projection onto the conditioned one over the whole sample
+	// (sampling.Guider), or as APG does, which denoises the step's latent, a velocity taking it to the latent less
+	// sigma times it.
+	hosted := func(at sampling.Guider, sigma float64, positive, negative *residentLatent) (*residentLatent, error) {
 		conditioned, e := positive.outputs.CopyToHost(ctx, positive.node)
 		if e != nil {
 			return nil, e
@@ -139,7 +143,15 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 			return nil, e
 		}
 		velocity := make([]float32, len(conditioned.Data))
-		if e := at.Combine(velocity, conditioned.Data, unconditioned.Data); e != nil {
+		if at.Guidance.Adaptive.On() {
+			sample, e := current.outputs.CopyToHost(ctx, current.node)
+			if e == nil {
+				e = adaptive.Combine(velocity, conditioned.Data, unconditioned.Data, sample.Data, sigma)
+			}
+			if e != nil {
+				return nil, e
+			}
+		} else if e := at.Combine(velocity, conditioned.Data, unconditioned.Data); e != nil {
 			return nil, e
 		}
 		held, e := runtime.Retain(ctx, upload, map[*tensor.Tensor]reference.Value{input: {Shape: shape, Data: velocity}}, nil)
@@ -228,8 +240,8 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 				}
 				defer neg.outputs.Release(context.WithoutCancel(ctx))
 				step, pointers = guided, append(pointers, neg.value.Pointer)
-				if at.Guidance.Projected {
-					velocity, e := project(at, pos, neg)
+				if at.Guidance.Projected || at.Guidance.Adaptive.On() {
+					velocity, e := hosted(at, settings.schedule.Sigmas[index], pos, neg)
 					if e != nil {
 						return e
 					}

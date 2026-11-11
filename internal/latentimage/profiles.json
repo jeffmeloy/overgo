@@ -33,6 +33,9 @@
         "steps": 25,
         "guidance_scale": 2.5
       },
+      "apg": {
+        "guidance": {"adaptive": {"threshold": 40, "momentum": -0.5}}
+      },
       "guidance-interval": {
         "guidance": {"interval": {"low": 0.219, "high": 0.844}}
       }

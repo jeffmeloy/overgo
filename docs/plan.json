@@ -8,26 +8,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 1190,
-        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard). Step guider: +653 (653, the median of what 11 landings that changed internal/sampling, internal/latentvideo counted). Step moss-presets: +334 (334, the median of what 8 landings that changed internal/latentimage counted). Step sensenova-presets: +0 (no landing changed internal/sensenovarecipe, internal/routedlm). Step preset-readings: +331 (331, the median of what 9 landings that changed internal/mediacapability, docs/verification counted). Step moss-presets: +334 (334, the median of what 8 landings that changed internal/latentimage counted). Step sensenova-presets: +0 (no landing changed internal/sensenovarecipe, internal/routedlm)."
+        "nodes": 788,
+        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard). Step guider: +653 (653, the median of what 11 landings that changed internal/sampling, internal/latentvideo counted). Step moss-presets: +334 (334, the median of what 8 landings that changed internal/latentimage counted). Step sensenova-presets: +0 (no landing changed internal/sensenovarecipe, internal/routedlm). Step preset-readings: +331 (331, the median of what 9 landings that changed internal/mediacapability, docs/verification counted). Step moss-presets: +334 (334, the median of what 8 landings that changed internal/latentimage counted). Step sensenova-presets: +0 (no landing changed internal/sensenovarecipe, internal/routedlm). Step apg-presets: +334 (334, the median of what 13 landings that changed internal/sampling, internal/latentimage, internal/sensenovarecipe, internal/mediacapability/moss_controls_windows_test.go, internal/mediacapability/sensenova_presets_windows_test.go, internal/server/moss_generation_windows_test.go counted)."
       },
       "steps": [
-        {
-          "id": "apg",
-          "title": "APG replaces the guidance combine for MOSS and SenseNova as a preset",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestAPGIsAGuiderPresetForMossAndSenseNova$'",
-          "files": [
-            "internal/sampling",
-            "internal/latentimage"
-          ],
-          "needs_card": true,
-          "rationale": "MOSS and SenseNova guide at 3 to 4. APG (Sadat et al., 2024) splits the guidance delta into parallel and orthogonal parts, clamps its norm and adds momentum, cutting oversaturation at no extra pass; on DiT-XL/2 it took FID from 19.14 to 9.34 at guidance 4. It is written from the paper, never from ComfyUI's node.\n\nServes: held-out-quality.\nDisappears: nothing.\nEvidence: the preset's sign test against each model's reference is recorded.\nBatch: device lane.",
-          "depends_on": [
-            "sampling-split/presets",
-            "quality-instruments/soft-tifa"
-          ]
-        },
         {
           "id": "nag",
           "title": "NAG restores negative prompts at guidance 1 on Krea-2-Turbo and the Wan student",

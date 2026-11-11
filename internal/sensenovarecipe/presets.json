@@ -1,4 +1,7 @@
 {
+  "apg": {
+    "guidance": {"adaptive": {"threshold": 100, "momentum": -0.5}}
+  },
   "cfg-zero-star": {
     "guidance": {"zero_steps": 1, "projected": true}
   },

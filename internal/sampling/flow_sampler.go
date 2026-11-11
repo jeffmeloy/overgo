@@ -144,6 +144,8 @@ func (g Guider) Combine(out, conditional, unconditional []float32) error {
 	switch {
 	case g.zeroed:
 		clear(out)
+	case g.Unconditional() && g.Guidance.Adaptive.On():
+		return errors.New("guidance: APG combines with the sample its step denoises, through an AdaptiveGuider")
 	case !g.Unconditional():
 		if !checked.Equal(len(out), len(conditional)) {
 			return fmt.Errorf("guidance: buffer lengths %d/%d differ", len(out), len(conditional))

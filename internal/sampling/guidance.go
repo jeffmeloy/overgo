@@ -17,6 +17,8 @@ type Guidance struct {
 	ZeroSteps int           `json:"zero_steps,omitzero"`
 	Projected bool          `json:"projected,omitzero"`
 	Interval  NoiseInterval `json:"interval,omitzero"`
+	// Adaptive is APG, which combines with the sample a step denoises (AdaptiveGuider).
+	Adaptive Adaptive `json:"adaptive,omitzero"`
 }
 
 // projectionFloor is what CFG-Zero*'s appendix code adds to the unconditioned output's squared norm, so an output of
@@ -43,7 +45,10 @@ func (g Guidance) Validate() error {
 	if g.Interval != (NoiseInterval{}) && !(0 <= g.Interval.Low && g.Interval.Low < g.Interval.High && g.Interval.High <= unguided) {
 		return fmt.Errorf("guidance: interval [%g, %g] is no ordered band of noise levels within [0, 1]", g.Interval.Low, g.Interval.High)
 	}
-	return nil
+	if g.Projected && g.Adaptive.On() {
+		return errors.New("guidance: CFG-Zero*'s projection and APG are two combines, and a step takes one")
+	}
+	return g.Adaptive.validate()
 }
 
 // At is the guider for the step at index step, whose noise level is sigma: one that gives no velocity on a step

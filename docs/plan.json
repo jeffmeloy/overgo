@@ -8,20 +8,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": -106,
+        "nodes": -380,
         "reason": "Estimated: a replay's first request, a landing's environment from its configuration, and a card hold in dispatch; about fifty nodes a step. Serves: development velocity: the owner's direction of 2026-11-10, that a failure is a possible automation, above all one found after a long test or evaluation run that an earlier check could have found.\n\nDisappears: refusals that cost a whole gate run, or a long model run, to say what a check of seconds could have said. 35 landings on 2026-11-10 spent 6.2 hours of gate wall, refused runs uncounted; in one stretch 7 steps took 14 gate runs, and one step (card-budgets/declared-budget) six, each 5 to 10 minutes: a check holding no passing test of its name in a package it names (found after the full lanes, twice, the second time with the message unchanged), an environment read no capability identity declares (found by a lane test), a set of names a text record repeats from the code (found by a lane test), and two rules the preflight would have found in seconds. The six-task thinking run spent 23 minutes on a first task whose every reply came back empty, which one request would have shown.\n\nBatch: host lane. Step attempts-in-place: +76 (76, the median of what 32 landings that changed cmd/loop counted)."
       },
       "steps": [
-        {
-          "id": "model-run-probe",
-          "title": "A replay of the local worker proves one request at the worker's settings before its tasks, and refuses at once naming why the reply ended",
-          "status": "open",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestAReplayProbesTheWorkersSettingsFirst$'",
-          "files": [
-            "cmd/loop"
-          ],
-          "rationale": "Serves: development velocity (fail-early): a long model run proves its first request before its tasks.\n\nDisappears: the six-task thinking run of 2026-11-10 spent 23 minutes on its first task with every reply empty (greedy thinking, no tool call, no answer), and an earlier start ended at its first request, 400 from the server's reply bound. One request at the worker's settings would have shown either in under a minute.\n\nCheck: TestAReplayProbesTheWorkersSettingsFirst serves a route that answers an empty reply cut at its bound, and wants the replay refused before any task, the refusal naming the reason the reply ended; and a route answering a tool call to let the tasks start. At the base the replay starts its first task.\n\nBatch: host lane."
-        },
         {
           "id": "land-environment",
           "title": "A landing takes its role and data roots from the loop's configuration and unsets what its gate must not inherit",

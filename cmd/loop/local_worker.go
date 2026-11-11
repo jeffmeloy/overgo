@@ -74,10 +74,7 @@ type workerModel struct {
 // is run and its result sent back, until the model answers with no call or spends localWorkerTurns. Each call is
 // written to log as it is made.
 func workLocally(ctx context.Context, server string, model workerModel, prompt string, tools []workerTool, log io.Writer) (localWork, error) {
-	listing := make([]map[string]any, len(tools))
-	for index, tool := range tools {
-		listing[index] = map[string]any{"type": "function", "function": map[string]any{"name": tool.name, "description": tool.description, "parameters": tool.schema()}}
-	}
+	listing := toolListing(tools)
 	messages := []chatMessage{{Role: "system", Content: localInstruction}, {Role: "user", Content: prompt}}
 	var work localWork
 	// A reading call the model made before, its name and arguments alike, is not run again while no edit has changed
@@ -140,6 +137,41 @@ func workLocally(ctx context.Context, server string, model workerModel, prompt s
 
 // askChat sends the conversation to overgo's chat route and returns the model's reply.
 func askChat(ctx context.Context, server string, model workerModel, messages []chatMessage, tools []map[string]any) (chatMessage, error) {
+	reply, _, err := askChatEnded(ctx, server, model, messages, tools)
+	return reply, err
+}
+
+// toolListing is the tools as the chat route is told of them.
+func toolListing(tools []workerTool) []map[string]any {
+	listing := make([]map[string]any, len(tools))
+	for index, tool := range tools {
+		listing[index] = map[string]any{"type": "function", "function": map[string]any{"name": tool.name, "description": tool.description, "parameters": tool.schema()}}
+	}
+	return listing
+}
+
+// probeTask is what a probe of the worker asks: the first call a task's work makes.
+const probeTask = "Read your task: call show_step."
+
+// probeWorker asks the local worker one request at its settings, a task's tools listed, before any task: a reply that
+// calls no tool ends the run at once, naming why the reply ended. The six-task thinking run of 2026-11-10 spent 23
+// minutes on a first task whose every reply was empty, and a start before it ended at its first request, refused by
+// the server's reply bound; this request shows either in a minute.
+func probeWorker(ctx context.Context, server string, model workerModel) error {
+	listing := toolListing(workerTools("", workerStep{show: func() (string, error) { return probeTask, nil }}))
+	messages := []chatMessage{{Role: "system", Content: localInstruction}, {Role: "user", Content: probeTask}}
+	reply, ended, err := askChatEnded(ctx, server, model, messages, listing)
+	if err != nil {
+		return fmt.Errorf("the first request at the worker's settings failed: %w", err)
+	}
+	if len(reply.ToolCalls) == 0 {
+		return fmt.Errorf("the first request at the worker's settings (%s, thinking %t) ended %q with no tool call: %.200q", model.name, model.thinking, ended, reply.Content)
+	}
+	return nil
+}
+
+// askChatEnded is askChat with why the reply ended, as the route says it (stop, length, tool_calls).
+func askChatEnded(ctx context.Context, server string, model workerModel, messages []chatMessage, tools []map[string]any) (chatMessage, string, error) {
 	tokens := localReplyTokens
 	if model.thinking {
 		tokens = localThinkingTokens
@@ -153,29 +185,30 @@ func askChat(ctx context.Context, server string, model workerModel, messages []c
 		"repeat_penalty": 1, "max_tokens": tokens, "chat_template_kwargs": map[string]any{"enable_thinking": model.thinking},
 	})
 	if err != nil {
-		return chatMessage{}, err
+		return chatMessage{}, "", err
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimSuffix(server, "/")+"/v1/chat/completions", bytes.NewReader(body))
 	if err != nil {
-		return chatMessage{}, err
+		return chatMessage{}, "", err
 	}
 	request.Header.Set("Content-Type", "application/json")
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
-		return chatMessage{}, fmt.Errorf("loop: the chat route did not answer: %w", err)
+		return chatMessage{}, "", fmt.Errorf("loop: the chat route did not answer: %w", err)
 	}
 	defer response.Body.Close()
 	answer, err := io.ReadAll(response.Body)
 	if err != nil || response.StatusCode != http.StatusOK {
-		return chatMessage{}, fmt.Errorf("loop: the chat route answered %s (%v): %.500s", response.Status, err, answer)
+		return chatMessage{}, "", fmt.Errorf("loop: the chat route answered %s (%v): %.500s", response.Status, err, answer)
 	}
 	var parsed struct {
 		Choices []struct {
-			Message chatMessage `json:"message"`
+			Message      chatMessage `json:"message"`
+			FinishReason string      `json:"finish_reason"`
 		} `json:"choices"`
 	}
 	if err := json.Unmarshal(answer, &parsed); err != nil || len(parsed.Choices) == 0 {
-		return chatMessage{}, fmt.Errorf("loop: the chat route's answer holds no reply (%v): %.500s", err, answer)
+		return chatMessage{}, "", fmt.Errorf("loop: the chat route's answer holds no reply (%v): %.500s", err, answer)
 	}
-	return parsed.Choices[0].Message, nil
+	return parsed.Choices[0].Message, parsed.Choices[0].FinishReason, nil
 }

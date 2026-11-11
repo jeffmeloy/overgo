@@ -61,6 +61,8 @@ type replayRecord struct {
 type replayWorker struct {
 	name string
 	work func(ctx context.Context, checkout string, task replayTask) (localWork, error)
+	// probe asks the worker one request at its settings before any task (probeWorker); none for a worker that takes none.
+	probe func(ctx context.Context) error
 }
 
 // replayTask is what a replay hands a worker for one step: the prompt, the step's check, the files it may change and
@@ -259,6 +261,11 @@ func replay(ctx context.Context, root, checkout string, step replayed, worker re
 // replaySteps replays the steps landed since the date, newest first, up to limit of them, with worker, writing each
 // record as a line of JSON to out as it is made.
 func replaySteps(ctx context.Context, root, since string, limit int, worker replayWorker, out io.Writer) error {
+	if worker.probe != nil {
+		if err := worker.probe(ctx); err != nil {
+			return fmt.Errorf("loop: %s: %w; no task is started", worker.name, err)
+		}
+	}
 	steps, err := landedSteps(ctx, root, since)
 	if err != nil {
 		return err
@@ -303,7 +310,7 @@ func replaySteps(ctx context.Context, root, since string, limit int, worker repl
 func localReplayWorker(server string, model workerModel, log io.Writer) replayWorker {
 	return replayWorker{name: model.name, work: func(ctx context.Context, checkout string, task replayTask) (localWork, error) {
 		return workLocally(ctx, server, model, task.Prompt, task.tools(ctx, checkout), log)
-	}}
+	}, probe: func(ctx context.Context) error { return probeWorker(ctx, server, model) }}
 }
 
 // loggedTools are tools that each append their name as a line to log when called.

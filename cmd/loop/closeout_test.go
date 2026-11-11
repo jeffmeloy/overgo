@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"overgo/internal/clioptions"
+	"overgo/internal/guard"
 	"overgo/internal/plan"
 	"overgo/internal/processlock"
 	"overgo/internal/testcheck"
@@ -72,6 +73,9 @@ func TestCloseoutRefusesFinishedLeftovers(t *testing.T) {
 	gitFixture(t, ahead, "commit", "-q", "--allow-empty", "-m", "ahead of the trunk")
 	gitFixture(t, repo, "branch", "unmerged-free", gitFixture(t, ahead, "rev-parse", "HEAD"))
 	gitFixture(t, repo, "branch", "merged-free", "master")
+	// A session whose end is recorded and whose folder holds nothing kept: its scratch is finished.
+	write("temporary/sessions/s3/scratchpad/probe.txt", "notes")
+	write("repo/"+processlock.StateDirectory+"/"+guard.SessionState("s3")+"-ended", "2026-11-11T00:00:00Z\n")
 	write("repo/bin/loose.exe", "7 bytes")
 	write("repo/tmp/landed-row/probe.go", "package probe\n")
 	write("repo/stray/x", "stray\n")
@@ -190,6 +194,7 @@ func TestCloseoutRefusesFinishedLeftovers(t *testing.T) {
 		"build-cache|cache",
 		"experiment|data/experiments/done/weights",
 		"helper-copy|temporary/sessions/s1/scratchpad/clean",
+		"session-scratch|temporary/sessions/s3",
 		"temporary-build|temporary/go-build1",
 		"tmp|repo/tmp/landed-row",
 	}
@@ -256,7 +261,7 @@ func TestCloseoutRefusesFinishedLeftovers(t *testing.T) {
 	// Each refusing entry is cleared by the means of its kind; the close-out then passes, and counts.
 	gitFixture(t, repo, "worktree", "remove", clean)
 	gitFixture(t, repo, "branch", "-d", "merged-free")
-	for _, slash := range []string{"data/experiments/done/weights", "temporary/go-build1", "repo/tmp/landed-row", "cache"} {
+	for _, slash := range []string{"data/experiments/done/weights", "temporary/go-build1", "repo/tmp/landed-row", "cache", "temporary/sessions/s3"} {
 		testcheck.NoError(t, os.RemoveAll(at(slash)))
 	}
 	text, last, failure = closeout(h)

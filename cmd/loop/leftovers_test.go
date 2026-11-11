@@ -364,8 +364,8 @@ func TestLeftoversListsEveryDeclaredPlaceWithItsRule(t *testing.T) {
 			"checkpoint|data/checkpoints/loose|report|unknown",
 			"scratch|data/scratch/log.txt|report|unknown",
 			"data-build|data/build|report|unknown",
-			"session-scratch|temporary/sessions/s1|report|unknown",
-			"session-scratch|temporary/sessions/s2|report|unknown",
+			"session-scratch|temporary/sessions/s1|delete|held",
+			"session-scratch|temporary/sessions/s2|delete|held",
 			"temporary-build|temporary/go-build1|delete|finished",
 			"temporary-build|temporary/go-build2|delete|held",
 			"build-cache|cache|delete|held",
@@ -575,7 +575,7 @@ func TestLeftoversListsEveryDeclaredPlaceWithItsRule(t *testing.T) {
 			"branch|refs/heads/master|delete|unknown",
 			"branch|refs/heads/side|delete|unknown",
 			"helper-copy|second/.claude/worktrees/agent|delete|unknown",
-			"session-scratch|second-sessions|report|unknown",
+			"session-scratch|second-sessions|delete|unknown",
 			"undeclared|second/.claude/other|report|undeclared",
 			"worktree|second-lane|report|unknown",
 		}
@@ -1294,10 +1294,10 @@ func TestLeftoversDeletesOnlyWhatItsTableMarksFinished(t *testing.T) {
 			name, place, token, want string
 		}{
 			{"a token that is not the listing's", "experiment", "0123456789abcdef", "list it again"},
-			{"a place that only reports", "checkpoint", "", "helper-copy, branch, experiment, temporary-build, build-cache, tmp"},
-			{"a place that never deletes", "store-backup", "", "helper-copy, branch, experiment, temporary-build, build-cache, tmp"},
-			{"the stashes", "stash", "", "helper-copy, branch, experiment, temporary-build, build-cache, tmp"},
-			{"the worktrees that are no helper copies", "worktree", "", "helper-copy, branch, experiment, temporary-build, build-cache, tmp"},
+			{"a place that only reports", "checkpoint", "", "helper-copy, branch, experiment, session-scratch, temporary-build, build-cache, tmp"},
+			{"a place that never deletes", "store-backup", "", "helper-copy, branch, experiment, session-scratch, temporary-build, build-cache, tmp"},
+			{"the stashes", "stash", "", "helper-copy, branch, experiment, session-scratch, temporary-build, build-cache, tmp"},
+			{"the worktrees that are no helper copies", "worktree", "", "helper-copy, branch, experiment, session-scratch, temporary-build, build-cache, tmp"},
 			{"a place the table does not have", "nowhere", "", `"nowhere"`},
 		} {
 			lines, _, err := run(h, refused.place, refused.token)
@@ -1735,7 +1735,7 @@ func TestCommitClearsWhatNothingHolds(t *testing.T) {
 	}
 
 	t.Run("a commit clears every place whose finished entries are deleted", func(t *testing.T) {
-		if got, want := deletingPlaces(), []string{"helper-copy", "branch", "experiment", "temporary-build", "build-cache", "tmp"}; !slices.Equal(got, want) {
+		if got, want := deletingPlaces(), []string{"helper-copy", "branch", "experiment", "session-scratch", "temporary-build", "build-cache", "tmp"}; !slices.Equal(got, want) {
 			t.Fatalf("the table deletes the finished entries of the places %q, want exactly %q", got, want)
 		}
 	})

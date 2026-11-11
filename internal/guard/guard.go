@@ -14,13 +14,16 @@ package guard
 import (
 	"cmp"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
+	"overgo/internal/processcontrol"
 	"overgo/internal/processlock"
 )
 
@@ -104,6 +107,38 @@ func SessionState(session string) string {
 		return "loop_state"
 	}
 	return "loop_state-" + session
+}
+
+// sessionEnd names the file, beside a session's state, that records the session ended.
+func sessionEnd(session string) string { return SessionState(session) + "-ended" }
+
+// RecordSessionEnd records, in the process state of the checkout at root, that session ended: the session-end hook
+// does, and so does cmd/loop -leftovers -end-session for a session that ended before the hook was there. A session not
+// named by one path element has no state of its own, so no end is recorded for it.
+func RecordSessionEnd(root, session string) error {
+	if SessionState(session) == SessionState("") {
+		return errors.New("guard: a session's end is recorded only for a session named by one path element")
+	}
+	if err := processlock.EnsureStateDirectory(root); err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(root, processlock.StateDirectory, sessionEnd(session)), []byte(time.Now().UTC().Format(time.RFC3339)+"\n"), 0o600)
+}
+
+// SessionEnded reports whether session has ended, by a positive sign alone: its end recorded, or the checkout's hold
+// naming it and a process that has exited. A session with neither may be running, a review session among them, which
+// holds nothing, so it is never taken to have ended; a folder's age is no sign.
+func SessionEnded(root, session string) bool {
+	state := filepath.Join(root, processlock.StateDirectory)
+	if _, err := os.Stat(filepath.Join(state, sessionEnd(session))); err == nil {
+		return true
+	}
+	raw, err := os.ReadFile(filepath.Join(state, WorktreeHolder))
+	if err != nil {
+		return false
+	}
+	held, process := ReadHold(raw)
+	return held == session && process > 0 && !processcontrol.ProcessAlive(process)
 }
 
 // Landing reports whether a command lands a change through the gate: what makes a session an implementing one, whose

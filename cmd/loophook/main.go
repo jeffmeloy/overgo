@@ -7,6 +7,8 @@
 //	loophook doctrine     SessionStart.   emits the turn contract + dispatch.
 //	loophook prompt       UserPromptSubmit. Classifies bounded requests before
 //	                      dispatching campaign work.
+//	loophook session-end  SessionEnd.     records the session's end, which lets
+//	                      the leftovers' session line finish its folder.
 //
 // The stop gate protects WORK and the LOOP: it refuses a turn-end that would
 // orphan turn-created uncommitted work, and it refuses a turn-end while the
@@ -71,7 +73,7 @@ type hookInput struct {
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "usage: loophook <stop|post-commit|doctrine>")
+		fmt.Fprintln(os.Stderr, "usage: loophook <stop|post-commit|doctrine|prompt|session-end>")
 		os.Exit(2)
 	}
 	switch os.Args[1] {
@@ -83,6 +85,12 @@ func main() {
 		runDoctrine(readStdin())
 	case "prompt":
 		runPrompt(readStdin())
+	case "session-end":
+		// The session's end is recorded so the leftovers' session line may finish its folder; a session the hook
+		// names none of has no state of its own, and its end is left unrecorded, never guessed.
+		if err := guard.RecordSessionEnd(".", parseHook(readStdin()).Session); err != nil {
+			fmt.Fprintln(os.Stderr, "loophook:", err)
+		}
 	default:
 		fmt.Fprintf(os.Stderr, "loophook: unknown subcommand %q\n", os.Args[1])
 		os.Exit(2)

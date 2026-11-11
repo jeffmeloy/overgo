@@ -51,6 +51,16 @@
           }
         ]
       }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash scripts/overgo_session_end.sh"
+          }
+        ]
+      }
     ]
   }
 }

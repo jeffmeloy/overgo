@@ -1325,24 +1325,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": -45,
+        "nodes": -724,
         "reason": "Estimated: the session line of the leftovers table gains the list function and the finished rule the tmp line has (cmd/loop/leftovers.go scratchEntries, removeEntry), read over every harness folder that holds a recorded session; one record of a session's end beside the per-session state the checkout already keeps; and a marker a rehearsal copy of the store is made with. Reset from the first step's listing."
       },
       "steps": [
-        {
-          "id": "ended-session",
-          "title": "A session folder is finished only once its session's end is recorded, by a session-end hook or by the end of the process its hold names, and nothing in it is kept by a worktree the helper-copy line holds, an entry named for an open plan row, a committed line or a store registration; a folder whose session's end is unrecorded is reported, never deleted",
-          "status": "open",
-          "verify": "go test ./cmd/loop ./cmd/loophook -count=1 -run '^TestAnEndedSessionsScratchIsFinished$'",
-          "files": [
-            "cmd/loop",
-            "cmd/loophook"
-          ],
-          "rationale": "Serves: cleanup as deterministic code, for the largest place it does not yet reach.\n\nDisappears: a line with no end. session-scratch reads \"none this command can read\", action report (cmd/loop/leftovers.go:160), and sessionFolders answers unknown for every entry (:763-768). One folder shows what that costs: claude/C--Users-jeffm-overgo/9e3511d1-e85c-4667-93c7-a7f762cb886a holds 104.2 GiB of the 107.6, last written 2026-11-08, with 29 of the 51 worktrees git registers under the temporary directory. Its scratchpad holds five copies of the store (store-arm-a to -d and store-copy, 42.5 GiB), moss-run and moss-run-void (35.7 GiB), q9copy (8.9 GiB, a copy of Qwen3.5-9B-Q8_0.gguf) and trained-bf16 (2.8 GiB). 15.9 GiB of moss-run and moss-run-void is hard links to MOSS files in the models root, which a removal frees nothing of and must leave whole there (the step linked-data).\n\nEvidence: the review of 2026-11-09. The rule is the tmp line's (leftovers.go:164, TestTmpEntryBelongsToAnOpenRowOrIsFinished) with one more keeper, the running session: an entry named for an open row is kept, as tmp/\u003crow id\u003e/ is, and a session that wants its probe kept past its end names the folder for its row. Whether a session has ended is read from a signal, never from a folder's age, and only a positive one finishes a folder. The checkout keeps one hold, .overgo-runtime/implementing_session, for the implementing session alone, so its process ending (cmd/loophook, as TestAHoldWhoseProcessEndedIsTaken reads it) speaks for that one session only. Every other running session holds nothing, a review session among them (the session that filed this row wrote it from its own scratch folder while it ran). Reading a missing hold as an ended session would delete a running session's scratch. A session-end hook therefore records each session's end beside the per-session state the checkout keeps, and a folder whose session has neither that record nor an ended hold stays held and is reported. A session that ended before the record existed, such as 9e3511d1, is ended by the lead's own word (cmd/loop -leftovers -end-session \u003cid\u003e, which writes the same record) once read. A worktree is the helper-copy line's to judge first, so nothing uncommitted is deleted by this one.\n\nReviewed 2026-11-09 by the lead: the end signal is positive only, and an unrecorded end never deletes.\n\nPredicted effect: none on a measured cell.\n\nBatch: host lane.",
-          "depends_on": [
-            "session-leftovers/linked-data"
-          ]
-        },
         {
           "id": "rehearsal-copy",
           "title": "A rehearsal copy of the store is made by a command that marks it with the plan row it is for, the leftovers lines tell it from a backup by that mark, and it is finished when its row leaves the plan",

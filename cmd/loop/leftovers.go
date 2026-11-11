@@ -15,6 +15,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"unicode/utf8"
 
 	"overgo/internal/artifact"
@@ -157,7 +158,7 @@ var leftoverPlaces = []place{
 	{"checkpoint", "data:checkpoints/", "trained models", "none: a registered model is kept", actionReport, outputs, nil},
 	{"scratch", "data:scratch/", "outputs of runs that left no record", "none until a maker is recorded", actionReport, outputs, nil},
 	{"data-build", "data:build/", "build outputs kept outside the module", "none: the data root is where build outputs belong", actionReport, wholeDirectory, nil},
-	{"session-scratch", "sessions:", "the harness's scratch folder of each session of this checkout", "none this command can read", actionReport, sessionFolders, nil},
+	{"session-scratch", "sessions:", "the harness's scratch folder of each session of this checkout", "its session's end is recorded, and it holds no worktree, no location the store registers, no folder named for an open row and no name a committed line carries", actionDelete, sessionFolders, removeEntry},
 	{"temporary-build", "temporary:go-build", "the folders a go command builds in", "no go command and no test binary runs, and it does not hold this command's own executable", actionDelete, temporaryBuilds, removeEntry},
 	{"build-cache", "cache:", "the go build cache, which every go command rebuilds what it lacks of", "it holds more than every registered checkout's own build comes to, and no go command and no test binary runs", actionDelete, buildCache, removeEntry},
 	{"bin", "checkout:bin/", "built executables", "no tracked file names it", actionReport, executables, nil},
@@ -766,9 +767,11 @@ func scratchEntries(f *facts, line place) []leftover {
 // session; and, in each other folder of the temporary directory's claude folder, the folders named by a session this
 // checkout recorded, its process state holding a loop_state-<session> file for each. Since 2026-11-07 the harness has
 // also kept this checkout's sessions under folders named by a hash (claude/bebbf49200dd4b2b held 47 of them, 3.0 GiB,
-// on 2026-11-09), and a session folder is named by its id whatever its parent, so the parent is never guessed.
+// on 2026-11-09), and a session folder is named by its id whatever its parent, so the parent is never guessed. Each is
+// decided by sessionState.
 func sessionFolders(f *facts, line place) []leftover {
-	finished := func(os.DirEntry, string) (string, string) { return stateUnknown, line.finished }
+	rows := sync.OnceValues(f.openRows)
+	finished := func(_ os.DirEntry, path string) (string, string) { return f.sessionState(line, path, rows) }
 	var found []leftover
 	if _, err := os.Stat(f.sessions); err != nil {
 		found = failed(f.sessions, err)
@@ -804,6 +807,76 @@ func sessionFolders(f *facts, line place) []leftover {
 		})...)
 	}
 	return found
+}
+
+// sessionState decides one session folder by the tmp line's rule with one more keeper, the running session: it is held
+// while its session's end is unrecorded, by the session-end hook, the lead's -end-session or a hold whose process has
+// exited (guard.SessionEnded), since only a positive sign ends a session; and, once ended, while it holds a worktree,
+// which the helper-copy line judges first so nothing uncommitted goes with the folder, a location the store registers, a
+// folder named for an open row, as tmp/<row>/ is kept and as a session keeps a probe past its end, or a name a committed
+// line carries. Otherwise it is finished, and the walk still holds it for a link or a store in it (weighed).
+func (f *facts) sessionState(line place, path string, rows func() (map[string]bool, error)) (state, rule string) {
+	session := filepath.Base(path)
+	if !guard.SessionEnded(f.checkout, session) {
+		return stateHeld, "its session's end is not recorded: the session-end hook records it, and go run ./cmd/loop -leftovers -end-session " + session + " records one that ended before the hook"
+	}
+	for _, tree := range f.trees[1:] {
+		if under(path, tree.Root) {
+			return stateHeld, "it holds the worktree " + tree.Root + ", which the helper-copy line judges first"
+		}
+	}
+	if located := f.locatedUnder(path); len(located) != 0 {
+		return stateHeld, "the store registers " + located[0]
+	} else if f.unlocated != nil {
+		return stateUnknown, f.unlocated.Error()
+	}
+	open, err := rows()
+	if err != nil {
+		return stateUnknown, err.Error()
+	}
+	// A row's folder lies in the session folder or in a folder of it, its scratchpad.
+	children, _ := os.ReadDir(path)
+	for _, child := range children {
+		inner, _ := os.ReadDir(filepath.Join(path, child.Name()))
+		for _, folder := range append(slices.Clone(inner), child) {
+			if folder.IsDir() && open[strings.ToLower(folder.Name())] {
+				return stateHeld, "it holds a folder named for the open row " + folder.Name()
+			}
+		}
+	}
+	arguments := []string{"grep", "-n", "-I", "-i", "-F", "-e", session, "HEAD", "--", "."}
+	for _, record := range repoanalysis.WorkRecords {
+		arguments = append(arguments, ":(exclude)"+record)
+	}
+	found, err := gitRead(f.checkout, arguments...)
+	switch {
+	case errors.Is(err, noAnswer):
+	case err != nil:
+		return stateUnknown, err.Error()
+	default:
+		named, _, _ := strings.Cut(found, "\n")
+		return stateHeld, "a committed line names it: " + named
+	}
+	return stateFinished, line.finished
+}
+
+// openRows are the ids, in small letters, of the rows the working plan and the plan of the trunk's commit hold.
+func (f *facts) openRows() (map[string]bool, error) {
+	working, err := plan.Load(filepath.Join(f.checkout, plan.Path))
+	if err != nil {
+		return nil, err
+	}
+	committed, err := f.trunkPlan()
+	if err != nil {
+		return nil, err
+	}
+	open := map[string]bool{}
+	for _, document := range []plan.Plan{working, committed} {
+		for _, row := range document.Items {
+			open[strings.ToLower(row.ID)] = true
+		}
+	}
+	return open, nil
 }
 
 // temporaryBuilds lists the folders whose name opens with the line's. The

@@ -185,7 +185,14 @@ func workerTools(root string, step workerStep) []workerTool {
 			if err := os.MkdirAll(filepath.Dir(path), clioptions.OutputDirectoryMode); err != nil {
 				return "", err
 			}
-			return "edited " + relative, os.WriteFile(path, []byte(text), clioptions.OutputFileMode)
+			// A file without its final newline prints as one with it, so the edit says so: in loop-proof/
+			// local-demonstrated the worker wrote CLAUDE.md as "@AGENTS.md" with none, its check wanting one, and searched
+			// for a line-ending setting it could not see (run 7).
+			said := "edited " + relative
+			if text != "" && !strings.HasSuffix(text, "\n") {
+				said += ", which now ends without a final newline"
+			}
+			return said, os.WriteFile(path, []byte(text), clioptions.OutputFileMode)
 		}},
 		// A step whose change is a deletion needs one: test-reach/fuzz-or-delete's check wants a script gone, and with no
 		// way to remove a file the worker spent its 40 replies three times (loop-proof/local-demonstrated, run 5).

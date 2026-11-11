@@ -48,6 +48,7 @@ import (
 	"overgo/internal/processcontrol"
 	"overgo/internal/quietmachine"
 	"overgo/internal/repoanalysis"
+	"overgo/internal/runrecord"
 	"overgo/internal/testevidence"
 )
 
@@ -301,14 +302,53 @@ type check struct {
 // the stages that take seconds and refuse what the change itself got wrong:
 // the files' form, the style and growth rules, and the invariant tests the
 // repository holds itself to, which also run first in a full landing so the
-// refusal comes before the tests of every package.
+// refusal comes before the tests of every package. The step's own check, its
+// undo evidence included, runs with them when it runs on the host, seconds
+// where it ran after eight minutes of tests and lanes (fail-early/verify-first);
+// a check on the card, minutes to hours, keeps its place after them.
 func (l *landing) checks() []check {
-	return []check{
+	early := []check{
 		{"format", l.format, true}, {"fix", l.fix, true}, {"vet", l.vet, true}, {"rules", l.rules, true},
-		{"invariants", l.invariants, true}, {"test", l.test, false}, {"lanes", l.lanes, false},
-		{"verify", l.verify, true}, {"scorecard", l.scorecard, false},
+		{"invariants", l.invariants, true},
 	}
+	long := []check{{"test", l.test, false}, {"lanes", l.lanes, false}}
+	verify, scorecard := check{"verify", l.verify, true}, check{"scorecard", l.scorecard, false}
+	if slices.ContainsFunc(l.verifiers, onTheCard) {
+		return slices.Concat(early, long, []check{verify, scorecard})
+	}
+	return slices.Concat(early, []check{verify}, long, []check{scorecard})
 }
+
+// onTheCard says a step's check runs on the graphics card: it sets OVERGO_CUDA_TEST=1 or builds with the modeltest
+// tag, the two ways a check reaches a model.
+func onTheCard(verify string) bool {
+	parsed, err := runrecord.ParseVerify(verify)
+	if err != nil {
+		return false
+	}
+	for _, segment := range parsed.Segments {
+		if slices.Contains(segment.Env, cudaTestSetting) {
+			return true
+		}
+		for at, field := range segment.Fields {
+			tags, named := strings.CutPrefix(field, "-tags=")
+			if !named && field == "-tags" && at+1 < len(segment.Fields) {
+				tags, named = segment.Fields[at+1], true
+			}
+			if named && slices.Contains(strings.Split(tags, ","), modelTestTag) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// cudaTestSetting and modelTestTag are how a check asks for the card: the setting cudatest.Require reads, and the
+// build tag of the tests that load a model.
+const (
+	cudaTestSetting = "OVERGO_CUDA_TEST=1"
+	modelTestTag    = "modeltest"
+)
 
 // stagePrefix opens the refusal of a stage, before the stage's name.
 const stagePrefix = "land: "

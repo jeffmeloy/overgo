@@ -3,229 +3,57 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "loop-proof",
-      "title": "The loop shows its worth end to end: the gate refuses deliberately bad alternatives, each landing records its full cost, and the local worker lands changes whose benefit an independent evaluation confirms and exceeds that cost",
+      "id": "fail-early",
+      "title": "A failure is found at the earliest and cheapest point it can be: a landing runs a step's own check before its long stages, a refusal names what answers it, an undeclared setting is caught by the quick checks, and each landing answers its refusals and says how the plan moved",
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": -859,
-        "reason": "The replay harness and ladder exist (cmd/loop replay.go, ladder.go); mutants of landed steps, a cost ledger per landing and a measured run of the local worker are new. Step grammar-draw: +0 (no landing changed internal/sampling/sampler.go, internal/sampling/greedy_grammar_test.go). Step worker-tools: +163 (163, the median of what 8 landings that changed cmd/loop/tools.go, cmd/loop/tools_test.go, cmd/loop/local_worker.go, cmd/loop/main.go, cmd/loop/init_config.go, cmd/loop/replay.go, cmd/loop/local_worker_windows_model_test.go, cmd/loop/worker_landing_test.go, internal/loop/driver.go, internal/loop/worker_landing_test.go counted). Step matched-ladder: +0 (no landing changed cmd/loop/ladder.go, cmd/loop/ladder_test.go, cmd/loop/ladder_matched_test.go). Step greedy-request: +257 (257, the median of what 1 landings that changed cmd/loop/local_worker.go, cmd/loop/local_worker_request_test.go counted). Step repeat-guard: +257 (257, the median of what 2 landings that changed cmd/loop/local_worker.go, cmd/loop/local_worker_repeat_test.go counted). Step attempt-lifecycle: +163 (163, the median of what 9 landings that changed internal/landing/costs.go, internal/landing/costs_test.go, internal/landing/interrupted_cost_test.go, cmd/loop/startup.go, cmd/loop/startup_test.go, cmd/loop/main.go, cmd/loop/costs.go, cmd/loop/costs_test.go counted). Step greedy-admission: +145 (145, the median of what 22 landings that changed internal/sampling, cmd/loop counted). Step local-default: +102 (102, the median of what 17 landings that changed cmd/loop counted). Step local-demonstrated: +102 (102, the median of what 17 landings that changed cmd/loop counted). Step tool-call-grammar: +145 (145, the median of what 8 landings that changed internal/inference, internal/sampling counted). Step write-the-test: +66 (66, the median of what 19 landings that changed cmd/loop counted). Step proxy-model: +66 (66, the median of what 19 landings that changed internal/modelswap, cmd/loop counted). Step search-untracked: +102 (102, the median of what 23 landings that changed cmd/loop counted). Step edit-newline: +76 (76, the median of what 26 landings that changed cmd/loop counted). Step search-literal: +70 (70, the median of what 27 landings that changed cmd/loop counted). Step reply-bound: +70 (70, the median of what 28 landings that changed internal/modelswap, cmd/swap, cmd/loop counted). Step live-reasoning: +98 (98, the median of what 40 landings that changed cmd/loop, cmd/plan, internal/plan counted)."
+        "nodes": 125,
+        "reason": "Estimated from the day's refusals: a reordered stage list, two refusal messages, one rule moved before the lanes, and a check of the message read from the gate's own refusal record; about sixty nodes a step. Serves: development velocity: the owner's direction of 2026-11-10, that a failure is a possible automation, above all one found after a long test or evaluation run that an earlier check could have found.\n\nDisappears: refusals that cost a whole gate run, or a long model run, to say what a check of seconds could have said. 35 landings on 2026-11-10 spent 6.2 hours of gate wall, refused runs uncounted; in one stretch 7 steps took 14 gate runs, and one step (card-budgets/declared-budget) six, each 5 to 10 minutes: a check holding no passing test of its name in a package it names (found after the full lanes, twice, the second time with the message unchanged), an environment read no capability identity declares (found by a lane test), a set of names a text record repeats from the code (found by a lane test), and two rules the preflight would have found in seconds. The six-task thinking run spent 23 minutes on a first task whose every reply came back empty, which one request would have shown.\n\nBatch: host lane."
       },
       "steps": [
         {
-          "id": "local-demonstrated",
-          "title": "The local worker, the driver's only worker, lands three plan steps unaided from their landings' parents, each passing a check it did not write, in at most six tries, every attempt's wall and failure recorded beside its step",
+          "id": "vacuous-names",
+          "title": "A check that proves nothing names each package it runs without a passing test of its name, and the two ways on",
           "status": "open",
-          "verify": "OVERGO_LOOP_DEMONSTRATION=1 OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/loop -count=1 -run '^TestTheLocalWorkerLandsStepsUnaided$' -timeout 120m",
+          "verify": "go test ./internal/testevidence -count=1 -run '^TestAVacuousCheckNamesThePackagesWithoutItsTest$'",
           "files": [
+            "internal/testevidence",
+            "internal/landing"
+          ],
+          "rationale": "Serves: development velocity (fail-early): a refusal says what answers it.\n\nDisappears: \"go test -run X matched no passing test\" said neither which package lacked the test nor what to do: a check naming three packages, one holding the test, was refused twice with the same words. A check is held to the terms its step started with, so where the step's check was written before its survey the way on is to add the test there or retire the step and file its work under a check where the change is (card-budgets/budget-bound).\n\nCheck: TestAVacuousCheckNamesThePackagesWithoutItsTest runs a check over two packages, one holding a passing test of its name, and wants the refusal to name the other and the two ways on. At the base it names neither.\n\nBatch: host lane."
+        },
+        {
+          "id": "record-edit",
+          "title": "A surface-move record that lacks a name the code declares fails saying its line as it should read",
+          "status": "open",
+          "verify": "go test ./internal/inferencesurface -count=1 -run '^TestASurfaceRecordMismatchSaysTheEdit$'",
+          "files": [
+            "internal/inferencesurface"
+          ],
+          "rationale": "Serves: development velocity (fail-early): a record the code is checked against says the line to write.\n\nDisappears: docs/verification/surface-moves.txt repeats each set of names the capability identity code holds (set-result-settings and others), and a name added to the code failed TestSurfaceMoveRecordDefinesClaimDependencies in the lanes with the two lists side by side and no edit named (card-budgets/declared-budget, 2026-11-10).\n\nCheck: TestASurfaceRecordMismatchSaysTheEdit compares a record whose set lacks a name the code holds and wants the failure to give the record's line as it should read. At the base it prints the two lists.\n\nBatch: host lane."
+        },
+        {
+          "id": "identity-reads",
+          "title": "An environment read no capability identity declares is refused by the landing's rules, before its lanes",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestAnUndeclaredEnvironmentReadIsRefusedBeforeTheLanes$'",
+          "files": [
+            "internal/landing",
+            "internal/inferencesurface"
+          ],
+          "rationale": "Serves: development velocity (fail-early): an undeclared environment read is refused by the cheap rules, before the lanes.\n\nDisappears: a read of the environment that no capability identity declares (internal/inferencesurface resultSettings and neutralReads) was found by TestRepositoryCountsEveryCapabilityPackage in the test lanes, 8 minutes into a gate run, and again by a measurement test that put every case to the models again (card-budgets/declared-budget, 2026-11-10).\n\nCheck: TestAnUndeclaredEnvironmentReadIsRefusedBeforeTheLanes lands a change adding an os.Getenv of an undeclared name in a capability's code and wants it refused by the rules, naming the two lists and what each means, with no lane run. At the base the rules pass it.\n\nBatch: host lane."
+        },
+        {
+          "id": "answered-refusals",
+          "title": "A landing answers each refusal its step met with a plan step that finds it sooner, or why none can, and says how the plan moved",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestALandingAnswersItsRefusalsAndItsPlan$'",
+          "files": [
+            "internal/landing",
             "cmd/loop"
           ],
-          "needs_card": true,
-          "rationale": "Serves: the owner's review priority 4, repeated useful improvements shown through the complete loop with costs and failures included, now with the local worker as the driver's only worker.\n\nDisappears: loop-proof/demonstrated's comparison with the Claude worker, which needed the claude CLI the owner will never use (2026-11-09). It priced the local worker's benefit as the Claude worker's wall it saved. With no other worker there is nothing to price it against, so the bar is the local worker's own record: steps landed unaided, every attempt's wall and every failure counted.\n\nEvidence: run 1 of 2026-11-09 (tmp/loop-proof/demonstration-2026-11-09-run1.log). At 28 ms a token the local worker passed fuzz-discovery/fail-listing unaided in 1 attempt, 18 calls and 105 s, then repeated four searches; the repeat guard (8e8d62236) has landed since.\n\nThe test: tmp/loop-proof/parked/demonstration_windows_model_test.go.txt is restored to cmd/loop as TestTheLocalWorkerLandsStepsUnaided, with claudeReplayWorker, the second replay of each step and the cascades sum taken out. It puts the local worker to the smallest landed steps whose check runs one test on the host, each from its landing's parent with the landing's tests in place, so the check is an evaluation the worker did not write, which fails there and passed at the landing. It stops at three passes or six tries, logs every record as -replay keeps it, and requires three passes. Each step's attempts, wall and outcome are logged beside it, failures included.\n\nThe verify sets OVERGO_LOOP_DEMONSTRATION=1, the test's opt-in for hours of work, and OVERGO_CUDA_TEST=1, since the worker is served on the card.\n\nBatch: device lane, the local worker served by overgo.\n\nInterpretation of the review's full-loop criterion: three passing unaided steps establish execution competence, not automatically positive net benefit. Use the existing independently authored checks and matched retained mutation evidence to show useful behavior and rejection of bad alternatives; report each chosen step's concrete benefit separately from total proposal, model setup, verification, failed-attempt and recovery cost. Removing the Claude comparison does not establish that benefit exceeds cost. Make that claim only where a declared comparison supports it, with units kept explicit; otherwise retain the measured competence result and say the economic benefit remains unestablished. Reuse existing replay and landing records instead of a second harness.\n\nNote: Run 2, 2026-11-09 (tmp/loop-proof/demonstration-2026-11-09-run2.log), the local worker alone: 2 of 6 passed in 23m22s of wall over every attempt, short of 3. Passed: fuzz-discovery/fail-listing (1 attempt, 18 calls, 108 s) and stray-check/note-tests (1 attempt, 18 calls, 104 s). Failed: one-rule-file/skill-sort (3 attempts, 179 calls, 292 s; the worker's edits never satisfied skill.md's check); vision-bridge/judge-9b (3 attempts, 102 calls, 518 s; the repeat guard ended it); and two ended by the server, not the worker: ask-nothing/pointer and vision-bridge/envelope-9b, each a 500 because Qwen3.8 drew a tool call the parser refuses (a required path missing; path given twice). loop-proof/tool-call-grammar comes first. The test is parked at tmp/loop-proof/parked/local_demonstration_windows_model_test.go.txt; restore it to cmd/loop/demonstration_windows_model_test.go to run again.\n\nNote: Run 3, 2026-11-10 (tmp/loop-proof/demonstration-2026-11-10-run3.log), after tool-call-grammar, write-the-test and proxy-model: 2 of 6 passed in 25m16s of wall over every attempt, short of 3; no attempt ended at the server. Passed: fuzz-discovery/fail-listing and stray-check/note-tests. Failed: one-rule-file/skill-sort (3 attempts, 99 calls, 186 s; its edits never satisfied skill.md's check); ask-nothing/pointer (3 attempts, 123 calls, 335 s; its 40 replies spent); vision-bridge/envelope-9b (115 calls, 308 s) and vision-bridge/judge-9b (107 calls, 512 s), both ended by the repeat guard, each check reading a docs/verification record the step's run wrote. Skipped as no task at their parents: loop-proof/survivors, start-admission/fixture, one-rule-file/rule-text.\n\nask-nothing/pointer shows a fault of the tool grammar, not of the worker: each of its five edits of AGENTS.md ended its new text exactly where the line goes on with \u003citem\u003e/\u003cstep\u003e, so the file was left cut there. The parameter form's value is drawn under tool-parameter-value ::= [^\u003c\\x00]* (internal/inference/chat_tool_grammar.go), which admits no less-than sign at all: no Go comparison, no channel receive, no type list, no markup. loop-proof/tool-value-markup is filed before this step to admit every value that holds no closing tag; the demonstration runs again after it.\n\nNote: Run 4, 2026-11-10 (tmp/loop-proof/demonstration-2026-11-10-run4.log), after tool-value-markup: 2 of 6 passed in 31m47s, short of 3. Passed: fuzz-discovery/fail-listing (1 attempt, 17 calls, 77 s) and stray-check/note-tests (2 attempts, 38 calls, 176 s). Failed: one-rule-file/skill-sort (3 attempts, 86 calls, 153 s); ask-nothing/pointer (3 attempts, 128 calls, 423 s), now writing \u003citem\u003e/\u003cstep\u003e whole, its AGENTS.md printing the same as the pointer the check wants, so parting from it only in what the failure does not show (its final newline the likeliest); vision-bridge/envelope-9b (135 calls, 379 s) and vision-bridge/judge-9b (117 calls, 618 s), each check reading a docs/verification record the step's own model run wrote.\n\nDeclared before run 5: a landed step whose landing wrote a record under docs/verification is a measurement, not a task the worker can do, since its check reads what a model run on the card wrote and the worker has no tool that runs a model. The demonstration leaves such a step out, logs it as left out with the record it names, and counts it as no try. Over four runs the two vision-bridge steps were tried 3 times each and could not pass.\n\nNote: Run 5, 2026-11-10 (tmp/loop-proof/demonstration-2026-11-10-run5.log), with the measurement steps left out as declared (vision-bridge/envelope-9b, judge-9b, judge, terms): 2 of 6 passed in 16m7s, short of 3. Passed: fuzz-discovery/fail-listing (1 attempt, 17 calls, 77 s) and stray-check/note-tests (1 attempt, 18 calls, 89 s). Failed: one-rule-file/skill-sort (3 attempts, 91 calls, 177 s); ask-nothing/pointer (3 attempts, 63 calls, 209 s; the repeat guard); test-reach/fuzz-or-delete (3 attempts, 102 calls, 209 s; its check wants scripts/stall_check.sh gone, and the worker's eight tools delete nothing, so the step could not pass); consolidate/split-ops (3 attempts, 88 calls, 133 s; moving kernels out of ops_f32.cu into their family headers; the repeat guard). loop-proof/delete-tool is filed before this step: a step whose change is a deletion is one the worker could not do.\n\nNote: Run 6, 2026-11-10 (tmp/loop-proof/demonstration-2026-11-10-run6.log), after delete-tool: 2 of 6 passed in 15m55s, short of 3. Passed: fuzz-discovery/fail-listing (1 attempt, 18 calls, 78 s) and stray-check/note-tests (1 attempt, 13 calls, 50 s). Failed: one-rule-file/skill-sort (3 attempts, 82 calls, 149 s); ask-nothing/pointer (3 attempts, 67 calls, 152 s); test-reach/fuzz-or-delete (3 attempts, 122 calls, 283 s; it used delete_file twice and still did not satisfy the check); consolidate/split-ops (3 attempts, 113 calls, 168 s). Over runs 2 to 6 the same two steps pass and no third: with the server's refusals, the less-than sign, the measurement steps and the missing delete taken away, what is left is the worker's own reach on these steps.\n\nNote: Run 7, 2026-11-10 (tmp/loop-proof/demonstration-2026-11-10-run7.log), after search-untracked and delete-tool: 3 of 5 passed in 11m7s of wall over every attempt, the demonstration stopping at its third pass. Passed: fuzz-discovery/fail-listing (1 attempt, 8 calls, 24 s), stray-check/note-tests (1 attempt, 14 calls, 53 s) and test-reach/fuzz-or-delete (1 attempt, 18 calls, 76 s). Failed: one-rule-file/skill-sort (3 attempts, 111 calls, 207 s; it found and read skill_lines_test.go and skill.md, never ran the check, and searched more than forty test names for what each line should cite, four of them written as patterns the search does not take); ask-nothing/pointer (3 attempts, 94 calls, 231 s; it wrote CLAUDE.md as \"@AGENTS.md\" with no final newline, which its check wants, and searched for a line-ending setting it could not see). Causes taken away after it: edit-newline (an edit says when it leaves a file without a final newline) and search-literal (the search says it takes text as written, not a pattern). In run 6 consolidate/split-ops and test-reach/fuzz-or-delete searched more than ten times each for their check's test, held in a file git did not track, which search-untracked put in sight."
-        }
-      ]
-    },
-    {
-      "id": "serving-bounds",
-      "title": "A request past its size limit is refused on every JSON route, a provider declared over HTTP binds only a variable the operator named, and a stored artifact is served so a browser cannot run it",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": -450,
-        "reason": "Estimated from a reading of the three sites: five handlers moved onto the existing bounded decoder, one admission rule on a provider declaration's variable and endpoint, and three response headers on one route. No new component."
-      },
-      "steps": [
-        {
-          "id": "artifact-headers",
-          "title": "A stored artifact's bytes are answered with nosniff and, unless its media type is one the workbench draws, as an attachment",
-          "status": "open",
-          "verify": "go test ./internal/server -count=1 -run '^TestAStoredArtifactIsServedSoABrowserCannotRunIt$'",
-          "files": [
-            "internal/server"
-          ],
-          "rationale": "Serves: the workbench's own-origin protection, which its static files already carry.\n\nDisappears: the one route that answers stored bytes under their stored media type with none of the headers the static shell has (internal/server/artifact_gallery.go:111-116). No writer stores HTML or SVG today (the intake's allowlist, workspace_capabilities.go:223-237), so this is a missing second wall, not an open door: the first writer that stores one would give a page script on the server's origin.\n\nEvidence: the review of 2026-11-09, read at ac1935d75, exploit not demonstrated.\n\nPredicted effect: none on a measured cell.\n\nBatch: host lane.\n\nNote: The owner, 2026-11-09: this is the local worker's next proof, one real open step. After loop-proof/local-demonstrated, the local worker (Qwen3.8-27B through overgo's server) works this step from its prompt, with no help, and the gate lands what it writes; the landing's cost lines name the local worker, every attempt counted."
-        }
-      ]
-    },
-    {
-      "id": "clip-encode",
-      "title": "Every MP4 overgo writes carries the colours drawn, tagged BT.709, a finish whose runtime is missing is refused before anything is drawn, and a finished frame reaches FFmpeg as 8-bit bytes made on the card",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 182,
-        "reason": "Estimated: FFmpeg arguments for the colour conversion and tags, one admission call moved ahead of generation, and a transfer to 8-bit YUV on the card with a byte path through the MP4 encoder beside its float path."
-      },
-      "steps": [
-        {
-          "id": "device-bytes",
-          "title": "A finished frame is converted on the card to the 8-bit BT.709 YUV 4:2:0 FFmpeg encodes and handed to it as is, so the host reads an eighth of the bytes, keeps no float copy of the frame, and FFmpeg converts nothing",
-          "status": "open",
-          "verify": "OVERGO_NVVFX=C:/Users/jeffm/upscale/env/Lib/site-packages/nvvfx/libs OVERGO_FFMPEG=C:/Users/jeffm/upscale/ffmpeg.exe OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestAFinishedFrameReachesTheEncoderAsEightBitYUV$'",
-          "files": [
-            "internal/latentvideo",
-            "internal/cuda/nvvfx",
-            "internal/media"
-          ],
-          "needs_card": true,
-          "rationale": "Serves: finished clips written faster and in less memory, the effect no longer waiting on the host.\n\nDisappears: four host passes over every finished frame. Today a 3328 x 1920 frame comes back as 77 MB of float32 (finishingEncoder.add: MemcpyDtoH, then a loop rebuilding 19 million float32 values into a second 77 MB slice). The MP4 encoder then converts it value by value through a callback into 19 MB of rgb24, compares it pixel by pixel with bytes.Equal against a 19 MB copy of the frame before, and pipes it to FFmpeg, whose scaler converts it to YUV on the CPU. On rtx-vsr/nvenc's student clip, 81 frames finished at four times, the effect took 3.8 s of a 10.4 s write (7.8 frames a second), so about two thirds of the time is host work. Each stream holds about 197 MB of host buffers.\n\nThe fix: the effect already writes 8-bit RGBA on the card. NvCVImage_Transfer converts it there to BT.709 limited-range YUV 4:2:0 (8-bit RGB where the runtime writes no YUV), which is downloaded, 9.6 MB a frame at four times, and piped to FFmpeg as raw yuv420p tagged as clip-encode/colour-709 tags it. The float path stays for unfinished clips. ChangedPixels is counted on the bytes FFmpeg is handed, the change of what it counts named in the record.\n\nCheck: TestAFinishedFrameReachesTheEncoderAsEightBitYUV finishes the student clip at four times. The host must read width x height x 3/2 bytes a frame, the decoded frames must be within 40 dB PSNR of the float path's decoded frames, and two writes must be the same bytes. BenchmarkFinishedClipWrite (test-surface/judge-tests) gives frames a second and bytes allocated a frame, before and after, in the landing's message.\n\nPredicted effect: about 16 frames a second at four times (the effect alone runs 21), and about 30 MB of host buffers a stream in place of 197 MB.\n\nBatch: device lane."
-        }
-      ]
-    },
-    {
-      "id": "training-depth",
-      "title": "One text model trained through cmd/train shows a held-out gain clear of its cases' noise, the bar, the cases and the device hours fixed before the run, and its scorecard row reads against its base",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 120,
-        "reason": "Estimated: the objective route, the held-out verdict and the trained model's scorecard row exist (cmd/train -objective, evaluation.JudgeHeldout, scorecard). New is a held-out view of a few hundred cases and whatever the first real campaign finds wrong. Earlier training campaigns came in at several times their first figure, and this one is reset once its first run reads."
-      },
-      "steps": [
-        {
-          "id": "bounded-campaign",
-          "title": "Qwen2.5-0.5B is trained on a registered objective for a budget of device hours stated before the run, and judged on at least 300 held-out cases against its base by the verdict the store already reconstructs",
-          "status": "open",
-          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/train -count=1 -run '^TestATrainedModelsGainStandsClearOfItsNoise$' -timeout 120m",
-          "files": [
-            "cmd/train",
-            "internal/trainingworkflow",
-            "internal/evaluation",
-            "docs/verification"
-          ],
-          "needs_card": true,
-          "rationale": "Serves: held-out-quality for a trained model, and the system's purpose as skill.md states it: improvement through its own training, up to a judged candidate.\n\nDisappears: a loop no run has closed. docs/TRAINING_COMPATIBILITY.md holds 26 training claims, 25 of them real-artifact-smoke (a route executes and moves weights, most over 1 to 12 steps), and MOSS's 400 steps move a loss the MOSS document itself says is narrower than better pictures. The one trained-against-base cell on the scorecard is Qwen2.5-0.5B's token accuracy, 0.5167 against 0.5001 on 24 cases. HeldoutGain already says what a gain must clear (two standard errors of the paired differences, internal/evaluation/heldout_verdict.go:271), and 24 cases cannot tell a small gain from none.\n\nEvidence: both reviews of 2026-11-09 name training breadth ahead of its depth as the main gap between what the system is for and what it has shown. The optimizer's one rate rule (P to the -0.6) is held by tests on particular models; a real campaign is its first reading at length, and a run that does not gain is that reading, recorded as a null result with what the detectable gain was.\n\nThe model and objective here are the smallest that serve the purpose and are the owner's to change before the run: a person chooses what training starts from. The bar is fixed before the run: gain above the detectable gain on the held-out view, 300 cases or more, one run, no second run for a better result. The device hours are bounded from one measured step before launch.\n\nPredicted effect: held-out-quality of the trained row above its base's by more than its detectable gain, or a recorded null; the base's cells hold.\n\nBatch: device lane.\n\nEvidence limits: 300 cases is a proposed minimum, not a guarantee of power. Fix the detectable effect and uncertainty calculation for independent held-out units before exposure; correlated tokens or questions do not increase the independent sample count. Record an inconclusive or null result without relaxing the bar. Parameter-count learning-rate scaling is a versioned empirical policy for the workloads already measured. If training-side evidence contradicts it, compare a bounded alternative through the existing recipe-bound policy before the held-out judgment; do not tune by repeatedly consulting held-out results or add a second optimizer-policy framework. Keep smoke completion, loss improvement and improved user output as separate claims.\n\nNote: The owner, 2026-11-09: Qwen2.5-0.5B is fine to start from; do not stop to ask. The model and objective are settled for this run."
-        }
-      ]
-    },
-    {
-      "id": "card-budgets",
-      "title": "Flash-Next's chat, Krea's picture and Wan's clip at a person's size are each served under a 24 GiB and a 16 GiB device budget, read on the scorecard or answered with the limit that refuses them",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 365,
-        "reason": "Estimated: placement and residency are already derived from what the card has free (modeldevice, server resident fit). New is a declared budget those derivations read in place of installed capacity, and a budget on a scorecard reading's identity. Reset from the first step's survey of where installed capacity is read. Step budget-bound: +665 (665, the median of what 9 landings that changed internal/devicebudget, internal/cuda/driver, internal/runrecord, cmd/server, internal/server, internal/inferencesurface, docs/verification/surface-moves.txt counted)."
-      },
-      "steps": [
-        {
-          "id": "three-workloads",
-          "title": "Flash-Next's chat at 4,096 and 16,384 tokens, Krea's 512 x 512 picture and Wan's 81-frame 832 x 480 clip are read under 24 GiB and 16 GiB: time to first output, throughput and peak memory, or the limit that refused the request",
-          "status": "open",
-          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/validate -count=1 -run '^TestThreeWorkloadsAreReadUnderSmallerCards$' -timeout 120m",
-          "files": [
-            "cmd/validate",
-            "docs/verification"
-          ],
-          "needs_card": true,
-          "rationale": "Serves: first-output, throughput and peak-device-memory at two budgets, for the three workloads that hold the most memory.\n\nDisappears: an unsupported inference about memory-constrained serving from an uncapped reference run.\n\nEvidence: the owner's review of 2026-11-09. A request that does not fit is a reading too: the limit is recorded with the bytes it wanted.\n\nPredicted effect: new cells; no existing cell moves.\n\nBatch: device lane.\n\nReport these as capped-reference workloads unless actually measured on physical 16 GiB and 24 GiB cards. Record which was used rather than treating them as interchangeable. Use the existing serving and scorecard producers, the fixed request sizes and the shared capped-admission owner; do not add another workload driver or recurring benchmark. Reuse valid completed observations under identical code, artifacts, policy, budget and environment. A named early limit is an outcome, not a reason to retry unchanged invalid setup.",
-          "depends_on": [
-            "card-budgets/declared-budget"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "session-leftovers",
-      "title": "A session's scratch folder under the temporary directory ends as checkout:tmp/ does: it is listed wherever the harness keeps it, kept while its session runs or an open row names an entry in it, and deleted otherwise, a rehearsal copy of the store among its entries",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 180,
-        "reason": "Estimated: the session line of the leftovers table gains the list function and the finished rule the tmp line has (cmd/loop/leftovers.go scratchEntries, removeEntry), read over every harness folder that holds a recorded session; one record of a session's end beside the per-session state the checkout already keeps; and a marker a rehearsal copy of the store is made with. Reset from the first step's listing."
-      },
-      "steps": [
-        {
-          "id": "every-harness-folder",
-          "title": "The session line lists each session of this checkout under every folder of the temporary directory's claude folder that holds one, with its bytes and its registered worktrees, not only the folder named for the checkout's path",
-          "status": "open",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestSessionScratchIsListedUnderEveryHarnessFolder$'",
-          "files": [
-            "cmd/loop"
-          ],
-          "rationale": "Serves: the free space every landing's first stage reads.\n\nDisappears: session folders the listing cannot see. The line reads one path, the temporary directory's claude/C--Users-jeffm-overgo (cmd/loop/leftovers.go:1547, sessionFolderName). Since 2026-11-07 the harness also keeps this checkout's sessions under folders named by a hash: claude/bebbf49200dd4b2b holds 47 session folders (3.0 GiB, eleven registered worktrees among them) and claude/9a228ae3692e2402 a session's scratchpad, and the line names none of them.\n\nEvidence: the review of 2026-11-09, by du over C:/Users/jeffm/AppData/Local/Temp/claude: 107.6 GiB in all. A session folder is named by its session id whatever its parent, and the checkout already keeps a file per session id (.overgo-runtime holds 320 loop_state-\u003csession\u003e files), so the folders are found by the ids the checkout recorded, under any parent, and never by a guess at how the harness names the parent.\n\nPredicted effect: none on a measured cell.\n\nBatch: host lane."
-        },
-        {
-          "id": "linked-data",
-          "title": "Removing a session folder removes names and never data held elsewhere: a junction or symbolic link in it is never followed and holds the folder, and a file with another name under the models root, the data root or a store is whole after, bytes and read-only attribute both",
-          "status": "open",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestRemovingASessionFolderLeavesLinkedDataWhole$'",
-          "files": [
-            "cmd/loop"
-          ],
-          "rationale": "Serves: model, dataset and checkpoint inputs as immutable, under the one new line that deletes beside them. The owner's word of 2026-11-09: be careful not to delete links to data in other places like models.\n\nDisappears: the way 170 GB of weights were lost before, as removeCopy's own comment records (cmd/loop/leftovers.go:1168-1172): a removal that follows a junction out of the folder it is removing. The walk already refuses an entry that holds a link a recursive delete could follow (leftovers.go:236-238) and removeCopy never asks git to remove a directory. This step holds the session line to both, by a test that builds the three cases and reads the linked data after: a directory junction to a models folder, a symbolic link to a model file, and a hard link to one.\n\nEvidence: measured 2026-11-09 in the session folder the next step names: no junction or symbolic link to five levels deep (deeper was not walked), and 15.9 GiB of hard-linked files, the MOSS text encoder and VAE under moss-run/served and moss-run-void/served, four names each, the others in overgo_data/models/MOSS-Image-SFT-797fa8e678b4f and overgo_data/references/moss-image. Removing a hard link's name leaves the other names and the bytes, and frees nothing; the listing says so, giving an entry's bytes apart from the bytes its removal frees.\n\nOne thing to read before trusting it: on Windows a file's attributes belong to the file, not the name, so a removal that clears read-only to delete a name clears it on the model's own name too (Qwen3.5-9B-Q8_0.gguf in the models root is read-only). Whether Go's removal does so here is read by the test, and if it does the attribute is put back or the name is removed another way.\n\nPredicted effect: none on a measured cell.\n\nBatch: host lane.",
-          "depends_on": [
-            "session-leftovers/every-harness-folder"
-          ]
-        },
-        {
-          "id": "ended-session",
-          "title": "A session folder is finished only once its session's end is recorded, by a session-end hook or by the end of the process its hold names, and nothing in it is kept by a worktree the helper-copy line holds, an entry named for an open plan row, a committed line or a store registration; a folder whose session's end is unrecorded is reported, never deleted",
-          "status": "open",
-          "verify": "go test ./cmd/loop ./cmd/loophook -count=1 -run '^TestAnEndedSessionsScratchIsFinished$'",
-          "files": [
-            "cmd/loop",
-            "cmd/loophook"
-          ],
-          "rationale": "Serves: cleanup as deterministic code, for the largest place it does not yet reach.\n\nDisappears: a line with no end. session-scratch reads \"none this command can read\", action report (cmd/loop/leftovers.go:160), and sessionFolders answers unknown for every entry (:763-768). One folder shows what that costs: claude/C--Users-jeffm-overgo/9e3511d1-e85c-4667-93c7-a7f762cb886a holds 104.2 GiB of the 107.6, last written 2026-11-08, with 29 of the 51 worktrees git registers under the temporary directory. Its scratchpad holds five copies of the store (store-arm-a to -d and store-copy, 42.5 GiB), moss-run and moss-run-void (35.7 GiB), q9copy (8.9 GiB, a copy of Qwen3.5-9B-Q8_0.gguf) and trained-bf16 (2.8 GiB). 15.9 GiB of moss-run and moss-run-void is hard links to MOSS files in the models root, which a removal frees nothing of and must leave whole there (the step linked-data).\n\nEvidence: the review of 2026-11-09. The rule is the tmp line's (leftovers.go:164, TestTmpEntryBelongsToAnOpenRowOrIsFinished) with one more keeper, the running session: an entry named for an open row is kept, as tmp/\u003crow id\u003e/ is, and a session that wants its probe kept past its end names the folder for its row. Whether a session has ended is read from a signal, never from a folder's age, and only a positive one finishes a folder. The checkout keeps one hold, .overgo-runtime/implementing_session, for the implementing session alone, so its process ending (cmd/loophook, as TestAHoldWhoseProcessEndedIsTaken reads it) speaks for that one session only. Every other running session holds nothing, a review session among them (the session that filed this row wrote it from its own scratch folder while it ran). Reading a missing hold as an ended session would delete a running session's scratch. A session-end hook therefore records each session's end beside the per-session state the checkout keeps, and a folder whose session has neither that record nor an ended hold stays held and is reported. A session that ended before the record existed, such as 9e3511d1, is ended by the lead's own word (cmd/loop -leftovers -end-session \u003cid\u003e, which writes the same record) once read. A worktree is the helper-copy line's to judge first, so nothing uncommitted is deleted by this one.\n\nReviewed 2026-11-09 by the lead: the end signal is positive only, and an unrecorded end never deletes.\n\nPredicted effect: none on a measured cell.\n\nBatch: host lane.",
-          "depends_on": [
-            "session-leftovers/linked-data"
-          ]
-        },
-        {
-          "id": "rehearsal-copy",
-          "title": "A rehearsal copy of the store is made by a command that marks it with the plan row it is for, the leftovers lines tell it from a backup by that mark, and it is finished when its row leaves the plan",
-          "status": "open",
-          "verify": "go test ./cmd/loop ./cmd/overgodb -count=1 -run '^TestARehearsalCopyOfTheStoreEndsWithItsRow$'",
-          "files": [
-            "cmd/loop",
-            "cmd/overgodb",
-            "internal/overgodb"
-          ],
-          "rationale": "Serves: the same free space, and a hand step read as a system defect.\n\nDisappears: copies of the store that nothing can ever delete. A measure that writes records is rehearsed on a copy made by hand (cp -r, about 8.5 GiB each), and the leftovers walk holds any folder that holds a store: \"it holds a store or a store backup, which is never deleted\" (cmd/loop/leftovers.go:240). So a rehearsal copy reads as a backup. Ten stand today: five in the session folder above (42.5 GiB) and five under the data root's scratch (store-copy, store-copy-needle, store-copy-speech and the two in cells-ab, about 28 GiB), the oldest of 2026-10-06.\n\nEvidence: the review of 2026-11-09. A sealed backup (overgodb backup -dest) and a superseded store keep their rule: never deleted. The mark is the copy's own, written by the command that makes it, so no rule guesses from a folder's name.\n\nThe copies there now carry no mark. Under this step they stay held, and the listing names them; removing them is the owner's word (the decision stale-data of the data-layout draft names the data root's five).\n\nPredicted effect: none on a measured cell.\n\nBatch: host lane."
-        }
-      ]
-    },
-    {
-      "id": "rtx-vsr",
-      "title": "A clip or picture overgo draws or is given can be upscaled up to four times, denoised or deblurred on the card by NVIDIA's RTX Video Super Resolution, run from the nvidia-vfx runtime already on the machine, and each level is measured against the bicubic it replaces",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 159,
-        "reason": "Estimated from a survey: a syscall binding of about a dozen NvVFX and NvCVImage entry points beside internal/cuda/cudnn's, a finishing clipEncoder in front of the existing MP4 writer, a control and a record field, NVENC arguments for the existing FFmpeg pipe, and a VMAF reading through the same FFmpeg. Earlier media campaigns came in at three to seven times their first estimates, so this is about three times the sum of the parts. plan -add derives its own count from history beside this figure. Step nvenc: +653 (653, the median of what 12 landings that changed internal/latentvideo, internal/media, internal/server counted). Step supplied: +331 (331, the median of what 13 landings that changed internal/latentvideo, internal/media, internal/server, internal/mediacapability counted). Step judged: +417 (417, the median of what 21 landings that changed cmd/evaluate, internal/evaluation, internal/latentvideo counted). Step intake: +417 (417, the median of what 20 landings that changed internal/latentvideo, internal/mediacapability, internal/server, cmd/evaluate counted). Step oscillator-finish: +653 (653, the median of what 14 landings that changed internal/oscillatorimage, internal/latentvideo counted). Step judged-fidelity: +136 (136, the median of what 11 landings that changed cmd/evaluate counted)."
-      },
-      "steps": [
-        {
-          "id": "supplied",
-          "title": "A clip a person supplies is finished keeping its colour matrix, primaries, transfer and range, and its sound, copied where MP4 holds it and AAC otherwise",
-          "status": "open",
-          "verify": "OVERGO_NVVFX=C:/Users/jeffm/upscale/env/Lib/site-packages/nvvfx/libs OVERGO_FFMPEG=C:/Users/jeffm/upscale/ffmpeg.exe OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestASuppliedClipKeepsItsColourAndSound$'",
-          "files": [
-            "internal/latentvideo",
-            "internal/media",
-            "internal/server",
-            "internal/mediacapability"
-          ],
-          "needs_card": true,
-          "rationale": "A clip a person supplies can be cleaned or enlarged in overgo. Its colour matrix, primaries, transfer and range are read from the source (BT.601, BT.709 or BT.2020, limited or full, as upscale_video.py's detect_colorspace :116-128 and detect_full_range :131-142 read them) and written on the result, and its sound is copied when MP4 holds the codec, else re-encoded as AAC.\n\nServes: any video a person brings can be cleaned or enlarged in overgo.\n\nDisappears: the hand step of running upscale_video.py on a clip.\n\nEvidence: rtx-vsr/clips finishes a generated clip's frames; a supplied clip's decode path is media's."
-        },
-        {
-          "id": "pictures",
-          "title": "A picture overgo draws or is given can be upscaled two or four times by the same effect, its record naming the level and the effect's identity, and each level is read against bicubic on MOSS's 1024 x 1024 TIFA pictures downscaled and upscaled back, beside Real-ESRGAN on the same pairs once video-finishing/esrgan has landed",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/media -count=1 -run '^TestVideoSuperResUpscalesPicturesAgainstBicubic$'",
-          "files": [
-            "internal/media",
-            "internal/server",
-            "internal/mediacapability",
-            "cmd/evaluate"
-          ],
-          "needs_card": true,
-          "rationale": "Serves: 2048- and 4096-pixel pictures from MOSS, Krea and SenseNova in about the time of a frame, beside the slower Real-ESRGAN path the plan already holds.\n\nDisappears: nothing.\n\nEvidence: the effect works per frame on a planar RGB image (the binding's own example runs one 960 x 540 frame), so a picture is a one-frame clip. overgo_data/datasets/tifa_v1.0/moss-image-sft holds MOSS's 1024 x 1024 TIFA pictures, which, downscaled by two and four, give pairs with a ground truth. The bar is bicubic, level 0 of the same effect, by the exact paired test at 0.05 on PSNR, and the judge's fidelity questions are asked of a full-size upscale. Where video-finishing/esrgan has landed, Real-ESRGAN is read on the same pairs and the record names which is closer; neither waits for the other.\n\nPredicted effect: a capability overgo lacks for every image generator.\n\nBatch: device lane.",
-          "depends_on": [
-            "rtx-vsr/effect"
-          ]
+          "rationale": "Serves: development velocity and the owner's directions of 2026-11-10: before each commit, the whole plan refactored for the best and fastest way to its intent; every failure read as a possible automation, above all one found late; and deterministic code in place of doctrine a session must remember.\n\nDisappears: two rules held in memory and checked by nothing. skill.md says the plan is refactored from each result; on 2026-11-10 seven steps landed with the plan touched only where a step was added. And a refusal or a long run's failure was fixed and forgotten, never asked whether it could have been found earlier.\n\nThe change, read from facts the gate holds, not from wording: the landing reads the refusals its step met since its last landing (the refusal record the gate keeps, with class and recurrences) and refuses unless the message answers each by naming a plan step that the plan holds, filed to find that failure sooner, or says none can and why; and it refuses unless the plan was changed through cmd/plan since the trunk's last landing or the message says why it needed no change.\n\nCheck: TestALandingAnswersItsRefusalsAndItsPlan lands a step that met a refusal with a message naming no step for it and wants it refused, naming the refusal; with a step named that the plan holds, landed; with a step named the plan lacks, refused; and with the plan unchanged and no reason, refused. At the base all land.\n\nBatch: host lane."
         }
       ]
     },
@@ -1468,6 +1296,313 @@
           "depends_on": [
             "media-lora/unmerged",
             "quality-instruments/hard-cases"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "fail-early-runs",
+      "title": "A long model run proves its first request before its tasks, a landing needs nothing typed before it, and a session's own run on the card sends dispatch to the host's work",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 150,
+        "reason": "Estimated: a replay's first request, a landing's environment from its configuration, and a card hold in dispatch; about fifty nodes a step. Serves: development velocity: the owner's direction of 2026-11-10, that a failure is a possible automation, above all one found after a long test or evaluation run that an earlier check could have found.\n\nDisappears: refusals that cost a whole gate run, or a long model run, to say what a check of seconds could have said. 35 landings on 2026-11-10 spent 6.2 hours of gate wall, refused runs uncounted; in one stretch 7 steps took 14 gate runs, and one step (card-budgets/declared-budget) six, each 5 to 10 minutes: a check holding no passing test of its name in a package it names (found after the full lanes, twice, the second time with the message unchanged), an environment read no capability identity declares (found by a lane test), a set of names a text record repeats from the code (found by a lane test), and two rules the preflight would have found in seconds. The six-task thinking run spent 23 minutes on a first task whose every reply came back empty, which one request would have shown.\n\nBatch: host lane."
+      },
+      "steps": [
+        {
+          "id": "model-run-probe",
+          "title": "A replay of the local worker proves one request at the worker's settings before its tasks, and refuses at once naming why the reply ended",
+          "status": "open",
+          "verify": "go test ./cmd/loop -count=1 -run '^TestAReplayProbesTheWorkersSettingsFirst$'",
+          "files": [
+            "cmd/loop"
+          ],
+          "rationale": "Serves: development velocity (fail-early): a long model run proves its first request before its tasks.\n\nDisappears: the six-task thinking run of 2026-11-10 spent 23 minutes on its first task with every reply empty (greedy thinking, no tool call, no answer), and an earlier start ended at its first request, 400 from the server's reply bound. One request at the worker's settings would have shown either in under a minute.\n\nCheck: TestAReplayProbesTheWorkersSettingsFirst serves a route that answers an empty reply cut at its bound, and wants the replay refused before any task, the refusal naming the reason the reply ended; and a route answering a tool call to let the tasks start. At the base the replay starts its first task.\n\nBatch: host lane."
+        },
+        {
+          "id": "land-environment",
+          "title": "A landing takes its role and data roots from the loop's configuration and unsets what its gate must not inherit",
+          "status": "open",
+          "verify": "go test ./cmd/loop -count=1 -run '^TestALandingTakesItsEnvironmentFromTheConfiguration$'",
+          "files": [
+            "cmd/loop"
+          ],
+          "rationale": "Serves: development velocity (fail-early): a landing needs nothing typed before it.\n\nDisappears: every landing is started with a typed prefix (the automation role, the data root, the audio reference store, three variables unset), each a place to slip; a slip costs a refused run or one run under the wrong role.\n\nCheck: TestALandingTakesItsEnvironmentFromTheConfiguration starts a landing with none of the prefix and wants the role and roots the loop's configuration names, and the three variables unset in its gate. At the base it runs with the process's environment.\n\nBatch: host lane."
+        },
+        {
+          "id": "card-held",
+          "title": "While a session's own model run holds the card, dispatch passes over card steps, as it does for a measurement run",
+          "status": "open",
+          "verify": "go test ./internal/plan -count=1 -run '^TestDispatchPassesOverCardStepsWhileASessionsRunHoldsTheCard$'",
+          "files": [
+            "internal/plan",
+            "cmd/loop",
+            "cmd/loophook"
+          ],
+          "rationale": "Serves: development velocity (fail-early): while a session's own model run holds the card, the step offered next is one the host can do.\n\nDisappears: through a multi-hour model run the stop check said \"continue with the dispatched row\", a step needing the card the run held, so the host's work went undirected; dispatch passes over card steps only while a measurement run holds the card.\n\nCheck: TestDispatchPassesOverCardStepsWhileASessionsRunHoldsTheCard holds the card for a session's run and wants the next host step dispatched, and the card step once the hold ends. At the base the card step is dispatched.\n\nBatch: host lane."
+        }
+      ]
+    },
+    {
+      "id": "loop-proof",
+      "title": "The loop shows its worth end to end: the gate refuses deliberately bad alternatives, each landing records its full cost, and the local worker lands changes whose benefit an independent evaluation confirms and exceeds that cost",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": -581,
+        "reason": "The replay harness and ladder exist (cmd/loop replay.go, ladder.go); mutants of landed steps, a cost ledger per landing and a measured run of the local worker are new. Step grammar-draw: +0 (no landing changed internal/sampling/sampler.go, internal/sampling/greedy_grammar_test.go). Step worker-tools: +163 (163, the median of what 8 landings that changed cmd/loop/tools.go, cmd/loop/tools_test.go, cmd/loop/local_worker.go, cmd/loop/main.go, cmd/loop/init_config.go, cmd/loop/replay.go, cmd/loop/local_worker_windows_model_test.go, cmd/loop/worker_landing_test.go, internal/loop/driver.go, internal/loop/worker_landing_test.go counted). Step matched-ladder: +0 (no landing changed cmd/loop/ladder.go, cmd/loop/ladder_test.go, cmd/loop/ladder_matched_test.go). Step greedy-request: +257 (257, the median of what 1 landings that changed cmd/loop/local_worker.go, cmd/loop/local_worker_request_test.go counted). Step repeat-guard: +257 (257, the median of what 2 landings that changed cmd/loop/local_worker.go, cmd/loop/local_worker_repeat_test.go counted). Step attempt-lifecycle: +163 (163, the median of what 9 landings that changed internal/landing/costs.go, internal/landing/costs_test.go, internal/landing/interrupted_cost_test.go, cmd/loop/startup.go, cmd/loop/startup_test.go, cmd/loop/main.go, cmd/loop/costs.go, cmd/loop/costs_test.go counted). Step greedy-admission: +145 (145, the median of what 22 landings that changed internal/sampling, cmd/loop counted). Step local-default: +102 (102, the median of what 17 landings that changed cmd/loop counted). Step local-demonstrated: +102 (102, the median of what 17 landings that changed cmd/loop counted). Step tool-call-grammar: +145 (145, the median of what 8 landings that changed internal/inference, internal/sampling counted). Step write-the-test: +66 (66, the median of what 19 landings that changed cmd/loop counted). Step proxy-model: +66 (66, the median of what 19 landings that changed internal/modelswap, cmd/loop counted). Step search-untracked: +102 (102, the median of what 23 landings that changed cmd/loop counted). Step edit-newline: +76 (76, the median of what 26 landings that changed cmd/loop counted). Step search-literal: +70 (70, the median of what 27 landings that changed cmd/loop counted). Step reply-bound: +70 (70, the median of what 28 landings that changed internal/modelswap, cmd/swap, cmd/loop counted). Step live-reasoning: +98 (98, the median of what 40 landings that changed cmd/loop, cmd/plan, internal/plan counted). Step call-cost: +76 (76, the median of what 42 landings that changed cmd/loop, internal/server, internal/inference counted). Step sampling-by-mode: +136 (136, the median of what 10 landings that changed internal/modelartifact, internal/modelrecipe, internal/server counted). Step worker-settings: +66 (66, the median of what 31 landings that changed cmd/loop, internal/modelartifact counted)."
+      },
+      "steps": [
+        {
+          "id": "call-cost",
+          "title": "A tool call drawn at a model's thinking settings costs about what a greedy one does, measured before the worker samples",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/loop -count=1 -run '^TestASampledToolCallCostsWhatAGreedyOneDoes$' -timeout 30m",
+          "files": [
+            "cmd/loop",
+            "internal/server",
+            "internal/inference"
+          ],
+          "needs_card": true,
+          "rationale": "Serves: the owner's direction of 2026-11-10: before the worker samples at temperature 1.0, measure what a tool call costs per token at that setting; on 2026-11-09 a reply drawn other than greedily cost about a second a token, and if it still does, that is fixed first.\n\nDisappears: an untested premise. The 11-09 cost was measured under Qwen3.8's presence penalty of 1.5, which kept the server off its greedy draw and asked the tool call's grammar about the whole vocabulary each token; the developer's thinking settings (temperature 1.0, top-p 0.95, top-k 20, no penalty) cut to the top 20 before the grammar is asked, which may cost what greedy does.\n\nCheck: TestASampledToolCallCostsWhatAGreedyOneDoes serves Qwen3.8 through overgo's server and times one long edit_file call, thinking off, greedy and at the developer's thinking settings, the prompt cached, and wants the sampled call's time per token within 1.5 times the greedy one's. A failure names both times, and the fix comes before the worker samples.\n\nBatch: device lane."
+        },
+        {
+          "id": "sampling-by-mode",
+          "title": "A model's record holds its developer's sampling for each mode, and a request is served the set of its mode",
+          "status": "open",
+          "verify": "go test ./internal/modelrecipe -count=1 -run '^TestAModelIsServedTheSamplingOfItsMode$'",
+          "files": [
+            "internal/modelartifact",
+            "internal/modelrecipe",
+            "internal/server"
+          ],
+          "rationale": "Serves: the owner's direction of 2026-11-10: a model's record holds the sampling its developer recommends for each mode, and a model is served the set for the mode it runs in.\n\nDisappears: one sampling set a model. GenerationEssentials holds one Sampling, from the checkpoint's generation config, a model_card_sampling.json beside it, or the GGUF's general.sampling keys, and the runtime policy overlays it on every request (modelrecipe declarePolicy). Qwen3.8's page, saved beside its file, recommends two: thinking, temperature 1.0, top-p 0.95, top-k 20, min-p 0, no penalty; thinking off, temperature 0.7, top-p 0.80, top-k 20, min-p 0, presence penalty 1.5.\n\nThe change: the model's record holds a set per mode (thinking, thinking off), a declaration naming each; the policy carries them, and a request is served the set of its mode (chat_template_kwargs.enable_thinking), a request's own values standing over it; a model declaring one set is served it in both modes, as now. Qwen3.8's declaration is written from its saved page and its record taken again.\n\nCheck: TestAModelIsServedTheSamplingOfItsMode declares a model's two sets and wants a thinking request given the first and one with thinking off the second, a request's own temperature kept, and a model with one set given it in both. At the base the record holds one.\n\nBatch: host lane."
+        },
+        {
+          "id": "worker-settings",
+          "title": "The local worker sends its served model's settings for the mode it runs in, a measured exception named, and a thinking depth when it thinks",
+          "status": "open",
+          "verify": "go test ./cmd/loop -count=1 -run '^TestTheWorkerSendsItsModelsSettingsForItsMode$'",
+          "files": [
+            "cmd/loop",
+            "internal/modelartifact"
+          ],
+          "rationale": "Serves: the owner's direction of 2026-11-10: the local worker takes its settings from the served model's own record for the mode it runs in, a measured exception stated as one, and a thinking depth when it thinks.\n\nDisappears: settings fixed in the worker whatever the model: temperature 0, no penalty, and no thinking depth, so a thinking model thought at its deepest level (Qwen3.8's xhigh) on every reply, and greedily, which its page warns against; the six-task thinking run of 2026-11-10 came back with empty replies.\n\nThe change: the worker sends no sampling of its own; the server serves the model's set for the mode (loop-proof/sampling-by-mode). Where the model's record states an exception for a mode, with its measurement, the worker sends it: Qwen3.8 with thinking off keeps temperature 0 and no penalty, measured on 2026-11-09 (the presence penalty cost about a second a token through the tool grammar, and the greedy draw passed the steps it passed). Thinking on, the worker sends a reasoning_effort, low or medium on small steps.\n\nCheck: TestTheWorkerSendsItsModelsSettingsForItsMode serves a route that records each request and wants, thinking on, no temperature of the worker's own and a reasoning_effort; thinking off for a model whose record states the exception, temperature 0 and no penalty, with the exception named; and thinking off for one with none, no sampling of the worker's own. At the base every request carries temperature 0 and no depth.\n\nBatch: host lane."
+        },
+        {
+          "id": "local-demonstrated",
+          "title": "The local worker, the driver's only worker, lands three plan steps unaided from their landings' parents, each passing a check it did not write, in at most six tries, every attempt's wall and failure recorded beside its step",
+          "status": "open",
+          "verify": "OVERGO_LOOP_DEMONSTRATION=1 OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/loop -count=1 -run '^TestTheLocalWorkerLandsStepsUnaided$' -timeout 120m",
+          "files": [
+            "cmd/loop"
+          ],
+          "needs_card": true,
+          "rationale": "Serves: the owner's review priority 4, repeated useful improvements shown through the complete loop with costs and failures included, now with the local worker as the driver's only worker.\n\nDisappears: loop-proof/demonstrated's comparison with the Claude worker, which needed the claude CLI the owner will never use (2026-11-09). It priced the local worker's benefit as the Claude worker's wall it saved. With no other worker there is nothing to price it against, so the bar is the local worker's own record: steps landed unaided, every attempt's wall and every failure counted.\n\nEvidence: run 1 of 2026-11-09 (tmp/loop-proof/demonstration-2026-11-09-run1.log). At 28 ms a token the local worker passed fuzz-discovery/fail-listing unaided in 1 attempt, 18 calls and 105 s, then repeated four searches; the repeat guard (8e8d62236) has landed since.\n\nThe test: tmp/loop-proof/parked/demonstration_windows_model_test.go.txt is restored to cmd/loop as TestTheLocalWorkerLandsStepsUnaided, with claudeReplayWorker, the second replay of each step and the cascades sum taken out. It puts the local worker to the smallest landed steps whose check runs one test on the host, each from its landing's parent with the landing's tests in place, so the check is an evaluation the worker did not write, which fails there and passed at the landing. It stops at three passes or six tries, logs every record as -replay keeps it, and requires three passes. Each step's attempts, wall and outcome are logged beside it, failures included.\n\nThe verify sets OVERGO_LOOP_DEMONSTRATION=1, the test's opt-in for hours of work, and OVERGO_CUDA_TEST=1, since the worker is served on the card.\n\nBatch: device lane, the local worker served by overgo.\n\nInterpretation of the review's full-loop criterion: three passing unaided steps establish execution competence, not automatically positive net benefit. Use the existing independently authored checks and matched retained mutation evidence to show useful behavior and rejection of bad alternatives; report each chosen step's concrete benefit separately from total proposal, model setup, verification, failed-attempt and recovery cost. Removing the Claude comparison does not establish that benefit exceeds cost. Make that claim only where a declared comparison supports it, with units kept explicit; otherwise retain the measured competence result and say the economic benefit remains unestablished. Reuse existing replay and landing records instead of a second harness.\n\nNote: Run 2, 2026-11-09 (tmp/loop-proof/demonstration-2026-11-09-run2.log), the local worker alone: 2 of 6 passed in 23m22s of wall over every attempt, short of 3. Passed: fuzz-discovery/fail-listing (1 attempt, 18 calls, 108 s) and stray-check/note-tests (1 attempt, 18 calls, 104 s). Failed: one-rule-file/skill-sort (3 attempts, 179 calls, 292 s; the worker's edits never satisfied skill.md's check); vision-bridge/judge-9b (3 attempts, 102 calls, 518 s; the repeat guard ended it); and two ended by the server, not the worker: ask-nothing/pointer and vision-bridge/envelope-9b, each a 500 because Qwen3.8 drew a tool call the parser refuses (a required path missing; path given twice). loop-proof/tool-call-grammar comes first. The test is parked at tmp/loop-proof/parked/local_demonstration_windows_model_test.go.txt; restore it to cmd/loop/demonstration_windows_model_test.go to run again.\n\nNote: Run 3, 2026-11-10 (tmp/loop-proof/demonstration-2026-11-10-run3.log), after tool-call-grammar, write-the-test and proxy-model: 2 of 6 passed in 25m16s of wall over every attempt, short of 3; no attempt ended at the server. Passed: fuzz-discovery/fail-listing and stray-check/note-tests. Failed: one-rule-file/skill-sort (3 attempts, 99 calls, 186 s; its edits never satisfied skill.md's check); ask-nothing/pointer (3 attempts, 123 calls, 335 s; its 40 replies spent); vision-bridge/envelope-9b (115 calls, 308 s) and vision-bridge/judge-9b (107 calls, 512 s), both ended by the repeat guard, each check reading a docs/verification record the step's run wrote. Skipped as no task at their parents: loop-proof/survivors, start-admission/fixture, one-rule-file/rule-text.\n\nask-nothing/pointer shows a fault of the tool grammar, not of the worker: each of its five edits of AGENTS.md ended its new text exactly where the line goes on with \u003citem\u003e/\u003cstep\u003e, so the file was left cut there. The parameter form's value is drawn under tool-parameter-value ::= [^\u003c\\x00]* (internal/inference/chat_tool_grammar.go), which admits no less-than sign at all: no Go comparison, no channel receive, no type list, no markup. loop-proof/tool-value-markup is filed before this step to admit every value that holds no closing tag; the demonstration runs again after it.\n\nNote: Run 4, 2026-11-10 (tmp/loop-proof/demonstration-2026-11-10-run4.log), after tool-value-markup: 2 of 6 passed in 31m47s, short of 3. Passed: fuzz-discovery/fail-listing (1 attempt, 17 calls, 77 s) and stray-check/note-tests (2 attempts, 38 calls, 176 s). Failed: one-rule-file/skill-sort (3 attempts, 86 calls, 153 s); ask-nothing/pointer (3 attempts, 128 calls, 423 s), now writing \u003citem\u003e/\u003cstep\u003e whole, its AGENTS.md printing the same as the pointer the check wants, so parting from it only in what the failure does not show (its final newline the likeliest); vision-bridge/envelope-9b (135 calls, 379 s) and vision-bridge/judge-9b (117 calls, 618 s), each check reading a docs/verification record the step's own model run wrote.\n\nDeclared before run 5: a landed step whose landing wrote a record under docs/verification is a measurement, not a task the worker can do, since its check reads what a model run on the card wrote and the worker has no tool that runs a model. The demonstration leaves such a step out, logs it as left out with the record it names, and counts it as no try. Over four runs the two vision-bridge steps were tried 3 times each and could not pass.\n\nNote: Run 5, 2026-11-10 (tmp/loop-proof/demonstration-2026-11-10-run5.log), with the measurement steps left out as declared (vision-bridge/envelope-9b, judge-9b, judge, terms): 2 of 6 passed in 16m7s, short of 3. Passed: fuzz-discovery/fail-listing (1 attempt, 17 calls, 77 s) and stray-check/note-tests (1 attempt, 18 calls, 89 s). Failed: one-rule-file/skill-sort (3 attempts, 91 calls, 177 s); ask-nothing/pointer (3 attempts, 63 calls, 209 s; the repeat guard); test-reach/fuzz-or-delete (3 attempts, 102 calls, 209 s; its check wants scripts/stall_check.sh gone, and the worker's eight tools delete nothing, so the step could not pass); consolidate/split-ops (3 attempts, 88 calls, 133 s; moving kernels out of ops_f32.cu into their family headers; the repeat guard). loop-proof/delete-tool is filed before this step: a step whose change is a deletion is one the worker could not do.\n\nNote: Run 6, 2026-11-10 (tmp/loop-proof/demonstration-2026-11-10-run6.log), after delete-tool: 2 of 6 passed in 15m55s, short of 3. Passed: fuzz-discovery/fail-listing (1 attempt, 18 calls, 78 s) and stray-check/note-tests (1 attempt, 13 calls, 50 s). Failed: one-rule-file/skill-sort (3 attempts, 82 calls, 149 s); ask-nothing/pointer (3 attempts, 67 calls, 152 s); test-reach/fuzz-or-delete (3 attempts, 122 calls, 283 s; it used delete_file twice and still did not satisfy the check); consolidate/split-ops (3 attempts, 113 calls, 168 s). Over runs 2 to 6 the same two steps pass and no third: with the server's refusals, the less-than sign, the measurement steps and the missing delete taken away, what is left is the worker's own reach on these steps.\n\nNote: Run 7, 2026-11-10 (tmp/loop-proof/demonstration-2026-11-10-run7.log), after search-untracked and delete-tool: 3 of 5 passed in 11m7s of wall over every attempt, the demonstration stopping at its third pass. Passed: fuzz-discovery/fail-listing (1 attempt, 8 calls, 24 s), stray-check/note-tests (1 attempt, 14 calls, 53 s) and test-reach/fuzz-or-delete (1 attempt, 18 calls, 76 s). Failed: one-rule-file/skill-sort (3 attempts, 111 calls, 207 s; it found and read skill_lines_test.go and skill.md, never ran the check, and searched more than forty test names for what each line should cite, four of them written as patterns the search does not take); ask-nothing/pointer (3 attempts, 94 calls, 231 s; it wrote CLAUDE.md as \"@AGENTS.md\" with no final newline, which its check wants, and searched for a line-ending setting it could not see). Causes taken away after it: edit-newline (an edit says when it leaves a file without a final newline) and search-literal (the search says it takes text as written, not a pattern). In run 6 consolidate/split-ops and test-reach/fuzz-or-delete searched more than ten times each for their check's test, held in a file git did not track, which search-untracked put in sight.\n\nNote: Thinking run, 2026-11-10 (tmp/loop-proof/demonstration-2026-11-10-thinking-greedy.log), the six tasks of runs 6 and 7 with thinking on, stopped by the lead in its first task: this was thinking at temperature 0 (greedy, no penalty) and at the model's deepest level (no reasoning_effort sent, so Qwen3.8's default xhigh), not a test of thinking at the developer's settings (temperature 1.0, top-p 0.95, top-k 20, a chosen depth). Its first start ended at its first request, every child accepting at most 4096 tokens a reply (loop-proof/reply-bound came of it); its second, stopped to take the measure of a landing, did not finish a task; its third ran from 20:45 to 21:08 on fuzz-discovery/fail-listing alone, about 70 s a tool call: attempt 1 ended after 7 replies and 9 tool calls, attempt 2 after 3 replies and 3, each with a reply that held no tool call and no answer, which the worker took as its end. A greedy draw is what Qwen3.8's page warns thinking against, and the empty replies are what it warns of. Landings that ran beside it: clip-encode/admit-runtime's gate 20:46:59 to 20:55:36, and card-budgets/declared-budget's from 21:05."
+        }
+      ]
+    },
+    {
+      "id": "serving-bounds",
+      "title": "A request past its size limit is refused on every JSON route, a provider declared over HTTP binds only a variable the operator named, and a stored artifact is served so a browser cannot run it",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": -450,
+        "reason": "Estimated from a reading of the three sites: five handlers moved onto the existing bounded decoder, one admission rule on a provider declaration's variable and endpoint, and three response headers on one route. No new component."
+      },
+      "steps": [
+        {
+          "id": "artifact-headers",
+          "title": "A stored artifact's bytes are answered with nosniff and, unless its media type is one the workbench draws, as an attachment",
+          "status": "open",
+          "verify": "go test ./internal/server -count=1 -run '^TestAStoredArtifactIsServedSoABrowserCannotRunIt$'",
+          "files": [
+            "internal/server"
+          ],
+          "rationale": "Serves: the workbench's own-origin protection, which its static files already carry.\n\nDisappears: the one route that answers stored bytes under their stored media type with none of the headers the static shell has (internal/server/artifact_gallery.go:111-116). No writer stores HTML or SVG today (the intake's allowlist, workspace_capabilities.go:223-237), so this is a missing second wall, not an open door: the first writer that stores one would give a page script on the server's origin.\n\nEvidence: the review of 2026-11-09, read at ac1935d75, exploit not demonstrated.\n\nPredicted effect: none on a measured cell.\n\nBatch: host lane.\n\nNote: The owner, 2026-11-09: this is the local worker's next proof, one real open step. After loop-proof/local-demonstrated, the local worker (Qwen3.8-27B through overgo's server) works this step from its prompt, with no help, and the gate lands what it writes; the landing's cost lines name the local worker, every attempt counted."
+        }
+      ]
+    },
+    {
+      "id": "clip-encode",
+      "title": "Every MP4 overgo writes carries the colours drawn, tagged BT.709, a finish whose runtime is missing is refused before anything is drawn, and a finished frame reaches FFmpeg as 8-bit bytes made on the card",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 182,
+        "reason": "Estimated: FFmpeg arguments for the colour conversion and tags, one admission call moved ahead of generation, and a transfer to 8-bit YUV on the card with a byte path through the MP4 encoder beside its float path."
+      },
+      "steps": [
+        {
+          "id": "device-bytes",
+          "title": "A finished frame is converted on the card to the 8-bit BT.709 YUV 4:2:0 FFmpeg encodes and handed to it as is, so the host reads an eighth of the bytes, keeps no float copy of the frame, and FFmpeg converts nothing",
+          "status": "open",
+          "verify": "OVERGO_NVVFX=C:/Users/jeffm/upscale/env/Lib/site-packages/nvvfx/libs OVERGO_FFMPEG=C:/Users/jeffm/upscale/ffmpeg.exe OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestAFinishedFrameReachesTheEncoderAsEightBitYUV$'",
+          "files": [
+            "internal/latentvideo",
+            "internal/cuda/nvvfx",
+            "internal/media"
+          ],
+          "needs_card": true,
+          "rationale": "Serves: finished clips written faster and in less memory, the effect no longer waiting on the host.\n\nDisappears: four host passes over every finished frame. Today a 3328 x 1920 frame comes back as 77 MB of float32 (finishingEncoder.add: MemcpyDtoH, then a loop rebuilding 19 million float32 values into a second 77 MB slice). The MP4 encoder then converts it value by value through a callback into 19 MB of rgb24, compares it pixel by pixel with bytes.Equal against a 19 MB copy of the frame before, and pipes it to FFmpeg, whose scaler converts it to YUV on the CPU. On rtx-vsr/nvenc's student clip, 81 frames finished at four times, the effect took 3.8 s of a 10.4 s write (7.8 frames a second), so about two thirds of the time is host work. Each stream holds about 197 MB of host buffers.\n\nThe fix: the effect already writes 8-bit RGBA on the card. NvCVImage_Transfer converts it there to BT.709 limited-range YUV 4:2:0 (8-bit RGB where the runtime writes no YUV), which is downloaded, 9.6 MB a frame at four times, and piped to FFmpeg as raw yuv420p tagged as clip-encode/colour-709 tags it. The float path stays for unfinished clips. ChangedPixels is counted on the bytes FFmpeg is handed, the change of what it counts named in the record.\n\nCheck: TestAFinishedFrameReachesTheEncoderAsEightBitYUV finishes the student clip at four times. The host must read width x height x 3/2 bytes a frame, the decoded frames must be within 40 dB PSNR of the float path's decoded frames, and two writes must be the same bytes. BenchmarkFinishedClipWrite (test-surface/judge-tests) gives frames a second and bytes allocated a frame, before and after, in the landing's message.\n\nPredicted effect: about 16 frames a second at four times (the effect alone runs 21), and about 30 MB of host buffers a stream in place of 197 MB.\n\nBatch: device lane."
+        }
+      ]
+    },
+    {
+      "id": "training-depth",
+      "title": "One text model trained through cmd/train shows a held-out gain clear of its cases' noise, the bar, the cases and the device hours fixed before the run, and its scorecard row reads against its base",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 120,
+        "reason": "Estimated: the objective route, the held-out verdict and the trained model's scorecard row exist (cmd/train -objective, evaluation.JudgeHeldout, scorecard). New is a held-out view of a few hundred cases and whatever the first real campaign finds wrong. Earlier training campaigns came in at several times their first figure, and this one is reset once its first run reads."
+      },
+      "steps": [
+        {
+          "id": "bounded-campaign",
+          "title": "Qwen2.5-0.5B is trained on a registered objective for a budget of device hours stated before the run, and judged on at least 300 held-out cases against its base by the verdict the store already reconstructs",
+          "status": "open",
+          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/train -count=1 -run '^TestATrainedModelsGainStandsClearOfItsNoise$' -timeout 120m",
+          "files": [
+            "cmd/train",
+            "internal/trainingworkflow",
+            "internal/evaluation",
+            "docs/verification"
+          ],
+          "needs_card": true,
+          "rationale": "Serves: held-out-quality for a trained model, and the system's purpose as skill.md states it: improvement through its own training, up to a judged candidate.\n\nDisappears: a loop no run has closed. docs/TRAINING_COMPATIBILITY.md holds 26 training claims, 25 of them real-artifact-smoke (a route executes and moves weights, most over 1 to 12 steps), and MOSS's 400 steps move a loss the MOSS document itself says is narrower than better pictures. The one trained-against-base cell on the scorecard is Qwen2.5-0.5B's token accuracy, 0.5167 against 0.5001 on 24 cases. HeldoutGain already says what a gain must clear (two standard errors of the paired differences, internal/evaluation/heldout_verdict.go:271), and 24 cases cannot tell a small gain from none.\n\nEvidence: both reviews of 2026-11-09 name training breadth ahead of its depth as the main gap between what the system is for and what it has shown. The optimizer's one rate rule (P to the -0.6) is held by tests on particular models; a real campaign is its first reading at length, and a run that does not gain is that reading, recorded as a null result with what the detectable gain was.\n\nThe model and objective here are the smallest that serve the purpose and are the owner's to change before the run: a person chooses what training starts from. The bar is fixed before the run: gain above the detectable gain on the held-out view, 300 cases or more, one run, no second run for a better result. The device hours are bounded from one measured step before launch.\n\nPredicted effect: held-out-quality of the trained row above its base's by more than its detectable gain, or a recorded null; the base's cells hold.\n\nBatch: device lane.\n\nEvidence limits: 300 cases is a proposed minimum, not a guarantee of power. Fix the detectable effect and uncertainty calculation for independent held-out units before exposure; correlated tokens or questions do not increase the independent sample count. Record an inconclusive or null result without relaxing the bar. Parameter-count learning-rate scaling is a versioned empirical policy for the workloads already measured. If training-side evidence contradicts it, compare a bounded alternative through the existing recipe-bound policy before the held-out judgment; do not tune by repeatedly consulting held-out results or add a second optimizer-policy framework. Keep smoke completion, loss improvement and improved user output as separate claims.\n\nNote: The owner, 2026-11-09: Qwen2.5-0.5B is fine to start from; do not stop to ask. The model and objective are settled for this run."
+        }
+      ]
+    },
+    {
+      "id": "card-budgets",
+      "title": "Flash-Next's chat, Krea's picture and Wan's clip at a person's size are each served under a 24 GiB and a 16 GiB device budget, read on the scorecard or answered with the limit that refuses them",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 365,
+        "reason": "Estimated: placement and residency are already derived from what the card has free (modeldevice, server resident fit). New is a declared budget those derivations read in place of installed capacity, and a budget on a scorecard reading's identity. Reset from the first step's survey of where installed capacity is read. Step budget-bound: +665 (665, the median of what 9 landings that changed internal/devicebudget, internal/cuda/driver, internal/runrecord, cmd/server, internal/server, internal/inferencesurface, docs/verification/surface-moves.txt counted)."
+      },
+      "steps": [
+        {
+          "id": "three-workloads",
+          "title": "Flash-Next's chat at 4,096 and 16,384 tokens, Krea's 512 x 512 picture and Wan's 81-frame 832 x 480 clip are read under 24 GiB and 16 GiB: time to first output, throughput and peak memory, or the limit that refused the request",
+          "status": "open",
+          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/validate -count=1 -run '^TestThreeWorkloadsAreReadUnderSmallerCards$' -timeout 120m",
+          "files": [
+            "cmd/validate",
+            "docs/verification"
+          ],
+          "needs_card": true,
+          "rationale": "Serves: first-output, throughput and peak-device-memory at two budgets, for the three workloads that hold the most memory.\n\nDisappears: an unsupported inference about memory-constrained serving from an uncapped reference run.\n\nEvidence: the owner's review of 2026-11-09. A request that does not fit is a reading too: the limit is recorded with the bytes it wanted.\n\nPredicted effect: new cells; no existing cell moves.\n\nBatch: device lane.\n\nReport these as capped-reference workloads unless actually measured on physical 16 GiB and 24 GiB cards. Record which was used rather than treating them as interchangeable. Use the existing serving and scorecard producers, the fixed request sizes and the shared capped-admission owner; do not add another workload driver or recurring benchmark. Reuse valid completed observations under identical code, artifacts, policy, budget and environment. A named early limit is an outcome, not a reason to retry unchanged invalid setup.",
+          "depends_on": [
+            "card-budgets/declared-budget"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "session-leftovers",
+      "title": "A session's scratch folder under the temporary directory ends as checkout:tmp/ does: it is listed wherever the harness keeps it, kept while its session runs or an open row names an entry in it, and deleted otherwise, a rehearsal copy of the store among its entries",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 180,
+        "reason": "Estimated: the session line of the leftovers table gains the list function and the finished rule the tmp line has (cmd/loop/leftovers.go scratchEntries, removeEntry), read over every harness folder that holds a recorded session; one record of a session's end beside the per-session state the checkout already keeps; and a marker a rehearsal copy of the store is made with. Reset from the first step's listing."
+      },
+      "steps": [
+        {
+          "id": "every-harness-folder",
+          "title": "The session line lists each session of this checkout under every folder of the temporary directory's claude folder that holds one, with its bytes and its registered worktrees, not only the folder named for the checkout's path",
+          "status": "open",
+          "verify": "go test ./cmd/loop -count=1 -run '^TestSessionScratchIsListedUnderEveryHarnessFolder$'",
+          "files": [
+            "cmd/loop"
+          ],
+          "rationale": "Serves: the free space every landing's first stage reads.\n\nDisappears: session folders the listing cannot see. The line reads one path, the temporary directory's claude/C--Users-jeffm-overgo (cmd/loop/leftovers.go:1547, sessionFolderName). Since 2026-11-07 the harness also keeps this checkout's sessions under folders named by a hash: claude/bebbf49200dd4b2b holds 47 session folders (3.0 GiB, eleven registered worktrees among them) and claude/9a228ae3692e2402 a session's scratchpad, and the line names none of them.\n\nEvidence: the review of 2026-11-09, by du over C:/Users/jeffm/AppData/Local/Temp/claude: 107.6 GiB in all. A session folder is named by its session id whatever its parent, and the checkout already keeps a file per session id (.overgo-runtime holds 320 loop_state-\u003csession\u003e files), so the folders are found by the ids the checkout recorded, under any parent, and never by a guess at how the harness names the parent.\n\nPredicted effect: none on a measured cell.\n\nBatch: host lane."
+        },
+        {
+          "id": "linked-data",
+          "title": "Removing a session folder removes names and never data held elsewhere: a junction or symbolic link in it is never followed and holds the folder, and a file with another name under the models root, the data root or a store is whole after, bytes and read-only attribute both",
+          "status": "open",
+          "verify": "go test ./cmd/loop -count=1 -run '^TestRemovingASessionFolderLeavesLinkedDataWhole$'",
+          "files": [
+            "cmd/loop"
+          ],
+          "rationale": "Serves: model, dataset and checkpoint inputs as immutable, under the one new line that deletes beside them. The owner's word of 2026-11-09: be careful not to delete links to data in other places like models.\n\nDisappears: the way 170 GB of weights were lost before, as removeCopy's own comment records (cmd/loop/leftovers.go:1168-1172): a removal that follows a junction out of the folder it is removing. The walk already refuses an entry that holds a link a recursive delete could follow (leftovers.go:236-238) and removeCopy never asks git to remove a directory. This step holds the session line to both, by a test that builds the three cases and reads the linked data after: a directory junction to a models folder, a symbolic link to a model file, and a hard link to one.\n\nEvidence: measured 2026-11-09 in the session folder the next step names: no junction or symbolic link to five levels deep (deeper was not walked), and 15.9 GiB of hard-linked files, the MOSS text encoder and VAE under moss-run/served and moss-run-void/served, four names each, the others in overgo_data/models/MOSS-Image-SFT-797fa8e678b4f and overgo_data/references/moss-image. Removing a hard link's name leaves the other names and the bytes, and frees nothing; the listing says so, giving an entry's bytes apart from the bytes its removal frees.\n\nOne thing to read before trusting it: on Windows a file's attributes belong to the file, not the name, so a removal that clears read-only to delete a name clears it on the model's own name too (Qwen3.5-9B-Q8_0.gguf in the models root is read-only). Whether Go's removal does so here is read by the test, and if it does the attribute is put back or the name is removed another way.\n\nPredicted effect: none on a measured cell.\n\nBatch: host lane.",
+          "depends_on": [
+            "session-leftovers/every-harness-folder"
+          ]
+        },
+        {
+          "id": "ended-session",
+          "title": "A session folder is finished only once its session's end is recorded, by a session-end hook or by the end of the process its hold names, and nothing in it is kept by a worktree the helper-copy line holds, an entry named for an open plan row, a committed line or a store registration; a folder whose session's end is unrecorded is reported, never deleted",
+          "status": "open",
+          "verify": "go test ./cmd/loop ./cmd/loophook -count=1 -run '^TestAnEndedSessionsScratchIsFinished$'",
+          "files": [
+            "cmd/loop",
+            "cmd/loophook"
+          ],
+          "rationale": "Serves: cleanup as deterministic code, for the largest place it does not yet reach.\n\nDisappears: a line with no end. session-scratch reads \"none this command can read\", action report (cmd/loop/leftovers.go:160), and sessionFolders answers unknown for every entry (:763-768). One folder shows what that costs: claude/C--Users-jeffm-overgo/9e3511d1-e85c-4667-93c7-a7f762cb886a holds 104.2 GiB of the 107.6, last written 2026-11-08, with 29 of the 51 worktrees git registers under the temporary directory. Its scratchpad holds five copies of the store (store-arm-a to -d and store-copy, 42.5 GiB), moss-run and moss-run-void (35.7 GiB), q9copy (8.9 GiB, a copy of Qwen3.5-9B-Q8_0.gguf) and trained-bf16 (2.8 GiB). 15.9 GiB of moss-run and moss-run-void is hard links to MOSS files in the models root, which a removal frees nothing of and must leave whole there (the step linked-data).\n\nEvidence: the review of 2026-11-09. The rule is the tmp line's (leftovers.go:164, TestTmpEntryBelongsToAnOpenRowOrIsFinished) with one more keeper, the running session: an entry named for an open row is kept, as tmp/\u003crow id\u003e/ is, and a session that wants its probe kept past its end names the folder for its row. Whether a session has ended is read from a signal, never from a folder's age, and only a positive one finishes a folder. The checkout keeps one hold, .overgo-runtime/implementing_session, for the implementing session alone, so its process ending (cmd/loophook, as TestAHoldWhoseProcessEndedIsTaken reads it) speaks for that one session only. Every other running session holds nothing, a review session among them (the session that filed this row wrote it from its own scratch folder while it ran). Reading a missing hold as an ended session would delete a running session's scratch. A session-end hook therefore records each session's end beside the per-session state the checkout keeps, and a folder whose session has neither that record nor an ended hold stays held and is reported. A session that ended before the record existed, such as 9e3511d1, is ended by the lead's own word (cmd/loop -leftovers -end-session \u003cid\u003e, which writes the same record) once read. A worktree is the helper-copy line's to judge first, so nothing uncommitted is deleted by this one.\n\nReviewed 2026-11-09 by the lead: the end signal is positive only, and an unrecorded end never deletes.\n\nPredicted effect: none on a measured cell.\n\nBatch: host lane.",
+          "depends_on": [
+            "session-leftovers/linked-data"
+          ]
+        },
+        {
+          "id": "rehearsal-copy",
+          "title": "A rehearsal copy of the store is made by a command that marks it with the plan row it is for, the leftovers lines tell it from a backup by that mark, and it is finished when its row leaves the plan",
+          "status": "open",
+          "verify": "go test ./cmd/loop ./cmd/overgodb -count=1 -run '^TestARehearsalCopyOfTheStoreEndsWithItsRow$'",
+          "files": [
+            "cmd/loop",
+            "cmd/overgodb",
+            "internal/overgodb"
+          ],
+          "rationale": "Serves: the same free space, and a hand step read as a system defect.\n\nDisappears: copies of the store that nothing can ever delete. A measure that writes records is rehearsed on a copy made by hand (cp -r, about 8.5 GiB each), and the leftovers walk holds any folder that holds a store: \"it holds a store or a store backup, which is never deleted\" (cmd/loop/leftovers.go:240). So a rehearsal copy reads as a backup. Ten stand today: five in the session folder above (42.5 GiB) and five under the data root's scratch (store-copy, store-copy-needle, store-copy-speech and the two in cells-ab, about 28 GiB), the oldest of 2026-10-06.\n\nEvidence: the review of 2026-11-09. A sealed backup (overgodb backup -dest) and a superseded store keep their rule: never deleted. The mark is the copy's own, written by the command that makes it, so no rule guesses from a folder's name.\n\nThe copies there now carry no mark. Under this step they stay held, and the listing names them; removing them is the owner's word (the decision stale-data of the data-layout draft names the data root's five).\n\nPredicted effect: none on a measured cell.\n\nBatch: host lane."
+        }
+      ]
+    },
+    {
+      "id": "rtx-vsr",
+      "title": "A clip or picture overgo draws or is given can be upscaled up to four times, denoised or deblurred on the card by NVIDIA's RTX Video Super Resolution, run from the nvidia-vfx runtime already on the machine, and each level is measured against the bicubic it replaces",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 159,
+        "reason": "Estimated from a survey: a syscall binding of about a dozen NvVFX and NvCVImage entry points beside internal/cuda/cudnn's, a finishing clipEncoder in front of the existing MP4 writer, a control and a record field, NVENC arguments for the existing FFmpeg pipe, and a VMAF reading through the same FFmpeg. Earlier media campaigns came in at three to seven times their first estimates, so this is about three times the sum of the parts. plan -add derives its own count from history beside this figure. Step nvenc: +653 (653, the median of what 12 landings that changed internal/latentvideo, internal/media, internal/server counted). Step supplied: +331 (331, the median of what 13 landings that changed internal/latentvideo, internal/media, internal/server, internal/mediacapability counted). Step judged: +417 (417, the median of what 21 landings that changed cmd/evaluate, internal/evaluation, internal/latentvideo counted). Step intake: +417 (417, the median of what 20 landings that changed internal/latentvideo, internal/mediacapability, internal/server, cmd/evaluate counted). Step oscillator-finish: +653 (653, the median of what 14 landings that changed internal/oscillatorimage, internal/latentvideo counted). Step judged-fidelity: +136 (136, the median of what 11 landings that changed cmd/evaluate counted)."
+      },
+      "steps": [
+        {
+          "id": "supplied",
+          "title": "A clip a person supplies is finished keeping its colour matrix, primaries, transfer and range, and its sound, copied where MP4 holds it and AAC otherwise",
+          "status": "open",
+          "verify": "OVERGO_NVVFX=C:/Users/jeffm/upscale/env/Lib/site-packages/nvvfx/libs OVERGO_FFMPEG=C:/Users/jeffm/upscale/ffmpeg.exe OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestASuppliedClipKeepsItsColourAndSound$'",
+          "files": [
+            "internal/latentvideo",
+            "internal/media",
+            "internal/server",
+            "internal/mediacapability"
+          ],
+          "needs_card": true,
+          "rationale": "A clip a person supplies can be cleaned or enlarged in overgo. Its colour matrix, primaries, transfer and range are read from the source (BT.601, BT.709 or BT.2020, limited or full, as upscale_video.py's detect_colorspace :116-128 and detect_full_range :131-142 read them) and written on the result, and its sound is copied when MP4 holds the codec, else re-encoded as AAC.\n\nServes: any video a person brings can be cleaned or enlarged in overgo.\n\nDisappears: the hand step of running upscale_video.py on a clip.\n\nEvidence: rtx-vsr/clips finishes a generated clip's frames; a supplied clip's decode path is media's."
+        },
+        {
+          "id": "pictures",
+          "title": "A picture overgo draws or is given can be upscaled two or four times by the same effect, its record naming the level and the effect's identity, and each level is read against bicubic on MOSS's 1024 x 1024 TIFA pictures downscaled and upscaled back, beside Real-ESRGAN on the same pairs once video-finishing/esrgan has landed",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/media -count=1 -run '^TestVideoSuperResUpscalesPicturesAgainstBicubic$'",
+          "files": [
+            "internal/media",
+            "internal/server",
+            "internal/mediacapability",
+            "cmd/evaluate"
+          ],
+          "needs_card": true,
+          "rationale": "Serves: 2048- and 4096-pixel pictures from MOSS, Krea and SenseNova in about the time of a frame, beside the slower Real-ESRGAN path the plan already holds.\n\nDisappears: nothing.\n\nEvidence: the effect works per frame on a planar RGB image (the binding's own example runs one 960 x 540 frame), so a picture is a one-frame clip. overgo_data/datasets/tifa_v1.0/moss-image-sft holds MOSS's 1024 x 1024 TIFA pictures, which, downscaled by two and four, give pairs with a ground truth. The bar is bicubic, level 0 of the same effect, by the exact paired test at 0.05 on PSNR, and the judge's fidelity questions are asked of a full-size upscale. Where video-finishing/esrgan has landed, Real-ESRGAN is read on the same pairs and the record names which is closer; neither waits for the other.\n\nPredicted effect: a capability overgo lacks for every image generator.\n\nBatch: device lane.",
+          "depends_on": [
+            "rtx-vsr/effect"
           ]
         }
       ]

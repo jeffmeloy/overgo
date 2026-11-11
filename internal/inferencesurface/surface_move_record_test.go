@@ -441,12 +441,9 @@ func TestSurfaceMoveRecordDefinesClaimDependencies(t *testing.T) {
 	}
 
 	// The declared sets: the code's, name for name.
-	for key, want := range map[string][]string{
-		"set-surface-roots": surfaceRoots, "set-surface-kernels": surfaceKernels, "set-identity-addressed": identityAddressed,
-		"set-build-settings": buildSettings, "set-result-settings": resultSettings, "set-libraries": libraries,
-		"set-evaluation-binders": evaluationBinders, "set-capability-catalog": {capabilityCatalog},
-		"set-capability-executor": {capabilityExecutor}, "set-text-runner": {textRunner},
-	} {
+	// The set lines are the landing's to write (WriteSurfaceRecord, through go run ./cmd/validate -surface-record); this
+	// holds the record a landing wrote to the code it wrote it from.
+	for key, want := range recordSets() {
 		if got := strings.Fields(fields[key]); !slices.Equal(got, want) {
 			t.Fatalf("the record declares %s as %q, and the code declares %q", key, got, want)
 		}

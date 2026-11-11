@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"overgo/internal/testcheck"
@@ -43,9 +44,9 @@ func TestInvariantPackagesExist(t *testing.T) {
 }
 
 // TestGeneratorsAreThoseTheRepositoryHas holds the derived-file stage to the
-// commands a repository has: the API manifest and the compatibility claims are
-// regenerated and rebound when their commands exist, and a tree without them,
-// a fixture's, has nothing to derive.
+// commands a repository has: the API manifest, the compatibility claims and the
+// surface-move record's sets are regenerated and rebound when their commands
+// exist, and a tree without them, a fixture's, has nothing to derive.
 func TestGeneratorsAreThoseTheRepositoryHas(t *testing.T) {
 	t.Parallel()
 	for _, test := range []struct {
@@ -53,8 +54,8 @@ func TestGeneratorsAreThoseTheRepositoryHas(t *testing.T) {
 		want     []string
 	}{
 		{nil, nil},
-		{[]string{"api-manifest"}, []string{"./cmd/api-manifest"}},
-		{[]string{"api-manifest", "validate"}, []string{"./cmd/api-manifest", "./cmd/validate"}},
+		{[]string{"api-manifest"}, []string{"./cmd/api-manifest -update"}},
+		{[]string{"api-manifest", "validate"}, []string{"./cmd/api-manifest -update", "./cmd/validate -claims -run", "./cmd/validate -surface-record"}},
 	} {
 		root := t.TempDir()
 		for _, command := range test.commands {
@@ -62,7 +63,7 @@ func TestGeneratorsAreThoseTheRepositoryHas(t *testing.T) {
 		}
 		var got []string
 		for _, generator := range (&landing{Options: Options{Repo: root}}).generators() {
-			got = append(got, generator.arguments[1])
+			got = append(got, strings.Join(generator.arguments[1:], " "))
 		}
 		if !slices.Equal(got, test.want) {
 			t.Errorf("commands %v derive with %v, want %v", test.commands, got, test.want)

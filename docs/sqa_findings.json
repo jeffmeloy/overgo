@@ -39,7 +39,7 @@
         ],
         "adoption_scope": "Supersedes the absent repository-document reference at the owner's request; current external SHA is verified. Does not alter the executable plan."
       },
-    "assessment": "Video finishing now admits its existing NVIDIA runtime before generation and reuses it for stages. Worker search sees untracked held tests; descriptions expose literal matching, file creation and missing final newline. Full live reasoning and opt-in thinking/reply bounds reuse the current loop/launcher. Retained run7 reaches3of5; these are real incremental gains, not completion of the architecture target.",
+    "assessment": "Committed host-first verification remains credited. The inspected uncommitted changes aim to replace manual package and record edits with automatic repair; source review finds that ownership and evidence identity must be corrected before those repairs are safe.",
     "ast_surface_review": {
         "revision": "9bd406acafb89c44a439722419f1f7e85e71f691",
         "architectural_target": "Fewer independent product entry points and dependency owners; retain process isolation and existing compiled/runtime/development authority.",
@@ -55,44 +55,91 @@
         "cost": "Concrete parsed duplicate migrations total22production and150test AST removed; unimplemented estimates only. Three directories can disappear through349/351; command movement and all retained semantic constants must be charged. No overall refactor completion claimed."
       },
     "automation_follow_up": {
-        "architectural_progress": "Video finishing now admits its existing NVIDIA runtime before generation and reuses it for stages. Worker search sees untracked held tests; descriptions expose literal matching, file creation and missing final newline. Full live reasoning and opt-in thinking/reply bounds reuse the current loop/launcher. Retained run7 reaches3of5; these are real incremental gains, not completion of the architecture target.",
-        "conflicts": "374: worker prompt reassembles two independently read steps.375: native search tests repeat the same setup.356: plan prose labels package wall as attempt wall.372filesystem identity,373directory-based replay exclusion,366vacuous-test advice and371terminal-prefix grammar remain open in unchanged governing paths.",
-        "cost": "87577ce59..fc673760f:22changedGo paths,+318production/+1803test=+2121AST,+84/+326lines,1new production file and8new test files.0new command/package directory/static fixture/schema/CUDA entrypoint. Eight retained gate trailers total2820s, a cost not measured waste. No safe complete net-code reduction established.",
+        "architectural_progress": "Committed host-first verification remains credited. The inspected uncommitted changes aim to replace manual package and record edits with automatic repair; source review finds that ownership and evidence identity must be corrected before those repairs are safe.",
+        "conflicts": "Record repair synchronizes historical evidence with live code; package repair changes already accepted package obligations. answered-refusals still proposes another explanation/plan-mutation gate. Keep SQA-322 mixed-order and SQA-376 delivery obligations distinct.",
         "plan_recommendations": [
           {
-            "rows": "loop-proof/live-reasoning (landed); local-demonstrated",
+            "rows": "fail-early/answered-refusals",
             "findings": [
-              "SQA-374"
+              "SQA-376"
             ],
-            "recommendation": "Keep brief human and full worker presentation distinct, but project each from one identified step through the plan owner. Replace the live-plan-dependent proof with retained native fixture cases; delete the second prompt read."
+            "recommendation": "Extend and surface existing status with the five measures and actual blocker/ready work. Replace mandatory prose/plan-change conditions with evidence-led consolidation of repeated causes; no blanket new refusal or scheduler."
           },
           {
-            "rows": "loop-proof/search-untracked,search-literal (landed)",
+            "rows": "fail-early/verify-first (landed)",
             "findings": [
-              "SQA-375"
+              "SQA-322"
             ],
-            "recommendation": "Move unique search assertions into the retained native repository and delete the two redundant test files/setups."
+            "recommendation": "Credit host-first ordering, retain native evidence and finish mixed-step admission through the same verifier owner; no duplicate preflight or model run."
           },
           {
-            "rows": "loop-proof/local-demonstrated",
+            "rows": "fail-early/record-edit; draft record-written",
             "findings": [
-              "SQA-356",
-              "SQA-372",
-              "SQA-373",
-              "SQA-366",
-              "SQA-371"
+              "SQA-377"
             ],
-            "recommendation": "Credit run7's3of5, preserve all failures/skips, correct attempt-versus-package units and resolve remaining deterministic authority/admission defects through their owners. No unchanged confidence run; no inference of broad competence or benefit from selected repeated tasks."
+            "recommendation": "Remove historical/live synchronization; retain the recorded evidence and current identity tests. Avoid a new writer for a redundant obligation."
+          },
+          {
+            "rows": "fail-early/vacuous-names; draft packages-found",
+            "findings": [
+              "SQA-378"
+            ],
+            "recommendation": "Derive qualified check identity when it is admitted; preserve accepted meaning at landing. Remove late substitution based solely on candidate test names."
+          },
+          {
+            "rows": "draft fail-early/setting-reader",
+            "findings": [],
+            "recommendation": "Promising prevention direction, not yet implemented or proved: put classification with the actual environment read so adding a result-affecting setting cannot omit its identity declaration. Existing devicebudget and media readers demonstrate real callers. Reuse the existing identity collector and native unknown-read fixture; remove displaced resultSettings/neutralReads bookkeeping only after all real readers, build contexts and library/environment semantics migrate. A setting read only on a later branch must already affect identity before cache lookup. Keep unknown external reads rejected; do not claim a mutable runtime registry or marking everything neutral solves identity. New helper/package and migration costs must be included."
           }
+        ],
+        "retained_feedback": {
+          "window": "November8 and9,2026 America/New_York (UTC-05); local retained records read after58e8280",
+          "record_count": 2113,
+          "nov8": {
+            "entries": 122,
+            "successful_preflights": 24,
+            "landed_outcomes": 52,
+            "other_outcomes": 46,
+            "remaining_denominator": 98,
+            "limit": "Failed preflights and already-landed retries are not separately identifiable from existing outcome alone."
+          },
+          "nov9": {
+            "verify_refused_runs": 10,
+            "whole_run_minutes": 140.54,
+            "test_and_lane_minutes": 46.48
+          },
+          "limits": "User-reported seven-hour owner wait and report-work starvation are not independently proved by gate gaps. Mostly form is not established by stage labels alone. Records are local and appendable; reported counts are this snapshot, not Git-tracked evidence."
+        },
+        "draft_snapshot": {
+          "based_on": "58e8280e33b7899d00d4dc75d348b2f4e5427b16",
+          "sha256": {
+            "internal/landing/packages_found.go": "e0c27aa400745a079af262722e8cc22a819ba4d479b75ddec26167d0009609df",
+            "internal/landing/packages_found_test.go": "1532fd252469120e672c36b5fd98c5d23feafe38006cc2c8ed753757a94d7ba3",
+            "internal/runrecord/verify_command.go": "44960f2b691fd123c5bc4ac44c0450d6e3c97739d7a4ffc0763b03bf0f3f5709",
+            "internal/inferencesurface/surface_record.go": "d86b3bb437310d7e6dc98cd96bca77a6f04409ba56d59da30c2da04fb953f1c2",
+            "internal/inferencesurface/surface_record_test.go": "15395537e47c080947a4f9a8302628e70a6ad5a542100b0c97460c253ce565c9",
+            "internal/landing/landing.go": "486e71fc4ec9fa18d8159509912f42672b11f2f8308bc2c72ffa66e7fe23cc34",
+            "internal/inferencesurface/surface_move_record_test.go": "7fa50c4c1a5a32cb533ecb278388644f17c6de3a734b229d727118549d20c798",
+            "cmd/validate/main.go": "46b0d346594b1128a66f608370ec7e3c9e53d78d62bebcf6444ddfce444137ae",
+            "docs/plan.json": "08c2c37866eb6f484a0592715ef123dc33883ff64b27ba427fadd7831087c8d8"
+          },
+          "limits": "Draft source and plan inspected read-only for the requested design review. None is part of the master pin; no tests or implementation work executed."
+        },
+        "prevention_order": [
+          "Delete the unnecessary workflow or duplicate fact.",
+          "Construct valid input once through the existing authority.",
+          "Repair only derived form whose meaning stays unchanged.",
+          "Admit external prerequisites early, retain valid work and retry only after a relevant change.",
+          "Use the existing status projection to expose remaining recurring causes."
         ]
       },
-    "current_review_order": "Guidance/committed plan/target -> source/callers and provisional conclusions -> existing findings/owner responses -> selected AST/retained outcomes -> concurrent publication reconciliation.",
+    "current_review_order": "User prevention request -> committed guidance/plan and existing owners -> source/draft review -> retained records and findings -> complete bounded AST costs -> concurrent reconciliation.",
     "declined_candidates": [
-        "Do not unify brief CLI and full worker presentation by deleting their different contracts. Historical replay must keep its held step.",
-        "Do not merge MCP protocol or held-test protection into search tests merely because all use workerTools.",
-        "Do not interpret opt-in16384reply tokens as universal optimum or thinking as measured improvement.4096default remains; launcher0preserves recipe policy.",
-        "No per-request DLL cleanup recommendation: nvvfx declares process-lifetime libraries. Effect/worker/frame ownership remains separately releasable.",
-        "No new recipe language, scheduler, broad census or confidence run."
+        "Do not implement five separate monitors, another notes file or recurring model/test workload. One existing status projection is enough.",
+        "Do not count a successful preflight as a refused commit, an already-landed retry as a new commit, or a retired/renamed step as completed.",
+        "Do not infer seven hours waiting for a person from a gap between gate runs. Preserve independent host dispatch and explicit authority.",
+        "Do not require a plan edit or justification after every refusal merely to prove someone reviewed it; text presence does not establish a better plan.",
+        "Do not treat a high refusal percentage as permission to weaken correctness, identity, safety or numerical checks."
       ],
     "media_follow_up": {
         "architectural_progress": "359follow-up is verified: runtime admission moves to newFinishingEncoder before generation, with retained next.Close and device release owners.",
@@ -184,12 +231,12 @@
         "assessment": "delete-tool and measurement-skip landed. local-demonstrated is still first; runs5and6 each2of6. Shared mutation/replay owners should be retained while fixing372/373 before dependent repeated work.",
         "limits": "Plan unchanged by SQA. Legacy measurement steps lack Run/Record metadata, so merely reading those fields is insufficient. Current source does not close older recovery, grammar or diagnostic findings."
       },
-    "rank_basis": "Retain security/held-check correctness priority.374 precedes366 because prompt identity governs instructions;375 is a lower-priority native setup reduction.",
+    "rank_basis": "378 accepted-check integrity precedes performance-only improvements; 377 removes a historical/live ownership conflict. Existing safety priorities and canonical obligations remain.",
     "refactor_target_progress": {
-        "architectural_progress": "Video finishing now admits its existing NVIDIA runtime before generation and reuses it for stages. Worker search sees untracked held tests; descriptions expose literal matching, file creation and missing final newline. Full live reasoning and opt-in thinking/reply bounds reuse the current loop/launcher. Retained run7 reaches3of5; these are real incremental gains, not completion of the architecture target.",
-        "conflicts": "374: worker prompt reassembles two independently read steps.375: native search tests repeat the same setup.356: plan prose labels package wall as attempt wall.372filesystem identity,373directory-based replay exclusion,366vacuous-test advice and371terminal-prefix grammar remain open in unchanged governing paths.",
-        "next_useful_reductions": "One identified plan-owned worker prompt, one existing search fixture; retain earlier349binary consolidation,351scalar-package removal and307/329/367native reductions. No recipe extension is justified by these presentation changes.",
-        "cost": "87577ce59..fc673760f:22changedGo paths,+318production/+1803test=+2121AST,+84/+326lines,1new production file and8new test files.0new command/package directory/static fixture/schema/CUDA entrypoint. Eight retained gate trailers total2820s, a cost not measured waste. No safe complete net-code reduction established."
+        "architectural_progress": "a0cfebe16 lands device-budget wiring and includes the previously saved SQA report;58e8280 lands host-first verification and restores report-derived capability rows ahead of local-worker experiments. The current review verifies host ordering and existing status ownership, not a full independent validation of the budget implementation.",
+        "conflicts": "Feedback delivery remains manual while a new per-commit explanation rule is proposed. Fix the reader/delivery path before adding more gate policy.",
+        "next_useful_reductions": "Reuse status.json and existing dispatch/Git/spent owners, remove manual recounting and avoid a blanket reason gate; retain374/375 prompt/search consolidations and earlier binary/directory reductions.",
+        "cost": "Two implementation landings add625production/723test=1348AST: budget450/575 and verify-first175/148. No overall reduction or completion of the architecture target claimed."
       },
     "working_notes_review": {
         "finding": "SQA-334",
@@ -199,10 +246,10 @@
       }
   },
     "committed_plan": {
-    "git_blob": "b919e76de994a4030158d9f22542e217267933ae",
+    "git_blob": "aa6afaa09bad259e90af71c417ce77fc4908e9ff",
     "path": "docs/plan.json",
-    "revision": "fc673760f813afdf216be087fe586f717461cd3a",
-    "sha256": "50f53a21c8fcce6d29a10ade0efa2ec375b597713e1dced2f2bddf30b69a825d",
+    "revision": "58e8280e33b7899d00d4dc75d348b2f4e5427b16",
+    "sha256": "787cc0bae09362fad9c1a949511b661061a4bd612e1c2f7f5c274aca812cc24c",
     "working_tree_status": "Committed plan at review pin; prior draft assessment retains its own snapshot identity. Current working plan edits excluded."
   },
     "findings": [
@@ -6241,32 +6288,32 @@
   },
     {
     "category": "automation-prerequisite-order",
-    "classification": "source-established-late-verifier-with-unmeasured-avoided-work",
+    "classification": "host-only-order-fixed; mixed-verifier-admission-and-full-refusal-proof-remain",
     "closure_criteria": [
-        "Full Run executes its existing verify after invariants and before test/lanes; preflight and plan-only contracts remain.",
-        "The retained spent fixture refuses its existing false verifier in full mode without broad test/lanes/scorecard stages; preserve success, trunk conflict, preflight, wait, candidate and generator identity cases.",
-        "Keep planverify and added-check/base semantics. Recount the current fixture and complete setup cost; historical +13test AST is not a current measured replacement. No separate precheck or selector."
+        "Host-only and mixed-step accepted landings reject a failed host prerequisite before dependent broad tests/lanes; genuine long device checks retain appropriate scheduling.",
+        "Existing planverify, added-check/base and undo behavior executes once with the same identities; successful, preflight, plan-only, cancellation and trunk-conflict cases remain.",
+        "The retained full-mode false-verifier fixture observes no dependent stages; complete implementation/test/setup cost is recorded without treating all refused wall as avoidable."
       ],
-    "comparison": "During ordinary implementation validation use the existing full-mode false-verifier table case and recorded stage names. Historical +13-test-node alternative was sized before candidate isolation; re-count the final current fixture rather than treating that estimate as current exact AST. SQA runs no gate.",
-    "displaced_surface": "The late verify position disappears; no verifier execution or requirement is deleted. On refused full attempts, subsequent broad test/lane/scorecard invocations and their waits disappear. On successful attempts all stages remain once. Preserve preflight filtering, free-space-first and plan-only behavior, committed acceptance terms, verifier deduplication, added-check rejection on the base, real command exit/non-vacuous/repeat semantics, cancellation, candidate identity checks, private checkout/lock release and partial spent records. Initial commit/quiet-turn acquisition still precedes checks, so this does not promise to eliminate every wait. The moved-tree, successful landing, preflight refusal and measurement-wait cases all stay. No production export, configuration, file format, numerical, build-tag, data or confidentiality contract changes.",
-    "evidence": "At72ae3b9 checks still orders invariants, test, lanes, verify, scorecard. verify owns planverify.Execute, addedChecksFail and undo; its early preflight path already exists. TestLandingRecordsItsWaitsByCause only runs row/refused in preflight mode, so it does not hold full attempts to early verifier failure. The latest retained gate spent130.239s in broad tests and0.912s in lanes before1.362s verification. Those successful stages are context, not measured waste. The executor lock-order verifier took319.84s in its own landing: verification is not inherently cheap, but known refusal should still precede dependent broad work.",
-    "evidence_commit": "72ae3b9fce412a9d551c1127f32bcd0f3635504b",
+    "comparison": "Use the smallest existing native fixtures for host-only, device-only and mixed-step order and actual full-mode early refusal. No additional model run is needed to establish sequencing. Count every new helper, retained order fixture and full lifecycle case; source movement alone is not a saving.",
+    "displaced_surface": "The host-only late position is already displaced. Remaining removable work is broad/dependent execution preceding a failing host verifier in a mixed landing; no verifier or acceptance requirement is removed. Preserve space-first, preflight/plan-only filtering, candidate/generator identity, cancellation, compare-and-set commit, partial spent records and cleanup. No new scheduler, standalone precheck, generic selector or parsing framework.",
+    "evidence": "58e8280 lands host-first verification through the existing verify owner: checks orders invariants, verify, test, lanes, scorecard when no verifier is classified onTheCard. Its new order fixture covers one host command and each of two device spellings; retained production-undo fails an assertion. This fixes the common host-only late-refusal path. The existing landing admits multiple step verifiers, but slices.ContainsFunc sends the entire verify stage late if any one is device-bound. A valid combined host+device landing therefore still delays a known failing host prerequisite until after broad tests/lanes. The retained spent fixture still tests its false verifier only as preflight; the new fixture inspects stage names rather than executing a full refused attempt. Source-established remaining case, not an SQA reproduction. Retained November9 data records10 verify-refused runs totaling140.54minutes whole wall,46.48minutes test/lanes; these categories must not be equated with measured savings.",
+    "evidence_commit": "58e8280e33b7899d00d4dc75d348b2f4e5427b16",
     "expected_benefit": {
         "historical": "Earlier complete scratch-only alternative at efc02c5: landing.go5418->5418, spent_test.go682->695 (+13test AST/+103LF bytes); one existing Git/module fixture with4->5 table attempts. Kept as historical sizing, not current source after candidate isolation.",
-        "current": "Fresh committed AST: landing.go5624, spent_test.go682; checks order remains. Historical +13test-node alternative is retained below at its own revision, not a current parsed replacement. Move the same verifier once; successful stage work unchanged. Known failure avoids later broad test/lane/scorecard calls.0new phase/helper/selector/staticfixture/schema/dependency. Current replacement and setup delta await implementation.",
-        "uncertainty": "No compiled replacement or new execution by SQA. Retained stage walls are successful attempts, not measured avoided elapsed time. Preserve current candidate/generator/trunk-compare-and-set semantics."
+        "current": "58e8280 adds175production/148test=323AST; landing.go5624->5799, verify_first_test.go148 added, spent_test682 unchanged. onTheCard112nodes is included, not a separate saving.0new static fixture/schema/command. Retained verify23.314s and gate395s; no SQA rerun.",
+        "uncertainty": "The simple reorder proposal grew into host/device classification. Mixed-list behavior is source-derived; no replacement or avoided elapsed comparison measured. Earlier141-minute whole-run total includes required checks and waits, not solely avoidable work."
       },
     "id": "SQA-322",
     "impact": "A declared acceptance failure can refuse a full attempt before broad host/device checks. This is sequencing efficiency; it neither eliminates initial invariant/lock costs nor claims successful runs were wasted.",
     "likely_effort": "Small existing table reorder and one case in the retained lifecycle fixture; no new framework.",
-    "plan_coverage": "test-surface/test-costs landed diagnostics, not prerequisite reordering. landing-scenarios names setup consolidation but does not explicitly own the late verifier. Retain this distinct322 obligation and the existing verification owner; no extra admission phase.",
+    "plan_coverage": "Host-first fix is credited; retain the canonical obligation for mixed accepted step sets and full-mode refusal evidence. New376 owns automatic cost/progress delivery and critique of answered-refusals; it does not duplicate this sequencing repair.",
     "plan_references": [
-        "docs/plan.json at72ae3b9: test-surface/test-costs landed; landing-scenarios remains open",
-        "skill.md: known prerequisite failure before dependent work",
-        "Downloads extreme_refactor_plan.md: existing development control and early admission"
+        "fail-early/verify-first58e8280 (landed)",
+        "User feedback: late verification refusal costs",
+        "Downloads extreme_refactor_plan.md: early admission through existing owners"
       ],
-    "recommended_change": "Move the existing verify entry after invariants in checks, retaining the same planverify.Execute, judgeAdded and addedChecksFail owners. Extend TestLandingRecordsItsWaitsByCause's existing table with its false-verifier case in full mode and require no test/lanes/scorecard stage. Preserve current trunk-move conflict, candidate tree identity, generator isolation, cancellation, plan-only/preflight and partial records. Do not rerun a manual preflight as a second standing gate.",
-    "severity": "P3",
+    "recommended_change": "Retain the landed host-first behavior and the intentional scheduling of genuinely long device checks. In accepted mixed-step landings, admit known host prerequisites before dependent broad/device work through the existing verifier/resource owners, without a second standing preflight or duplicated undo/added-check execution. Keep each required verifier once and its original identity/stop semantics. Extend the retained native order case with a mixed list and the existing full landing lifecycle fixture with its false host verifier, requiring no dependent test/lanes/scorecard work. Do not force all long model checks ahead of cheap independent host checks.",
+    "severity": "P2",
     "sources": [
         {
           "path": "internal/landing/landing.go",
@@ -6295,6 +6342,10 @@
         {
           "path": "internal/landing/space_test.go",
           "symbol": "TestCommitChecksRefuseBelowTheFreeSpaceFloor"
+        },
+        {
+          "path": "internal/landing/verify_first_test.go",
+          "symbol": "TestAStepsCheckRunsBeforeTheLanes: host and device separately"
         }
       ],
     "status": "open",
@@ -8880,23 +8931,245 @@
         "Downloads extreme_refactor_plan.md: net deletion across native tests and setup"
       ],
       "plan_coverage": "One coordinated migration for the same search contract, counted once. Does not combine unrelated edit, protocol or replay safety requirements."
+    },
+    {
+    "category": "development-feedback-through-existing-owner",
+    "classification": "observed-reporting-gap-and-proposed-plan-surface-growth",
+    "closure_criteria": [
+        "The five measures arrive through an existing normal work boundary with source/window and unambiguous denominators; no manual status invocation is required to see a material stall.",
+        "Accepted progress and requested-report work are read from their actual plan/Git identities; retirements, retries, preflights and unknown history do not become success or failure by inference.",
+        "Current cause/ready work comes from existing dispatch/authority; no new approval wait, mandatory reason prose, forced plan edit or successful-work retry is introduced.",
+        "The retained status/landing fixtures cover the semantics and delivered output; replacement costs are recorded and duplicated manual reporting is removed."
+      ],
+    "comparison": "Extend the retained status fixture with committed versus already-landed retry, success/refusal/preflight/unknown run kinds, failed and successful stage costs, completed/added/retired/renamed steps and report-linked/unrelated landings. Verify the real existing session/driver output includes the same revision/window and blocker, not merely that a JSON file exists. Reuse existing dispatch waiting/independent-work cases. Check a repeat read makes no plan/store mutation and no new check/model run; a missing record is unknown, not zero. Count complete production/test/setup and output costs.",
+    "displaced_surface": "Manual recounts, stale on-demand-only summaries and the proposed blanket per-refusal/per-commit explanation gate can disappear. Reuse status.json, spent/refusal records, Git and plan dispatch; no second event ledger, new JSON note files, scheduler, polling loop, dashboard service, recurring workload, or new target/quota. Do not retire actual safety or numerical checks to improve a percentage. If run kind is necessary for truthful new records, add the smallest fact to the existing spent record and retain old values as unknown.",
+    "evidence": "The user asks for five automatic signals: commits, refused attempts, check hours, completed versus added steps, and commits advancing the requested report work. A reader already exists: WeekPace feeds writeStatus, called only by explicit loop -status in tracked Go. The retained status snapshot still names fc673760f after two newer landings. Session-start prints dispatch but not this feedback. Thus the missing link is routine delivery and useful attribution, not a missing ledger. At this read landing_waits holds2113 records since October18;2110 was the user's earlier snapshot. November8 (America/New_York, UTC-05) has122 entries:24 successful preflights,52 landed outcomes,46 other outcomes.70/122 counts successful preflights as refusals. Excluding them gives46/98=46.9%, but failed preflights have no run-kind field and remain indistinguishable. Run can also mark an already-landed retry as landed without making a new commit. November9's10 verification-refused runs total140.54minutes of whole run wall, including46.48minutes in test/lanes; this is not141minutes of demonstrated avoidable work. Stage labels alone do not prove most refusals were merely form. WeekPace's gaps measure absence of gate runs, not why a person/session waited; the reported seven-hour question stall and report-work starvation are user reports, not proved by that metric.",
+    "evidence_commit": "58e8280e33b7899d00d4dc75d348b2f4e5427b16",
+    "expected_benefit": {
+        "baseline": "status.go357AST + pace.go276 =633; retained status_test386. spent.go161, refusal.go584 and plan/progress178 already own records and accepted progress. No new owner is needed.",
+        "cost": "The five-field extension and delivery fixtures will likely add code; no safe net-node reduction or measured elapsed saving established. Avoided future answered-refusals machinery is a design saving, not already-deleted code. Current idleHours is a gate-gap diagnostic, not a causal waiting measure."
+      },
+    "id": "SQA-376",
+    "impact": "Makes growing check cost, plan churn and starvation of requested capability work visible without adding another source of refusals.",
+    "likely_effort": "Bounded existing status/Git projection and delivery integration; accurate historical run-kind attribution is limited by existing data.",
+    "plan_coverage": "Keep this separate from322 prerequisite ordering and356 truthful attempt lifecycle. This is their status consumer and delivery obligation. The report metric refers to the requested image/video capability work identified by the current plan's report-derived rows, not merely commits editing SQA or README. Plan/source provenance must be explicit before counting it.",
+    "plan_references": [
+        "driver-on/status eb9be1257 (landed)",
+        "fail-early/answered-refusals at58e8280",
+        "User feedback: five development signals; November8/9 examples",
+        "Downloads extreme_refactor_plan.md: existing owners, fewer independent decisions and automation surface"
+      ],
+    "recommended_change": "Extend the existing status projection and present it through the existing session-start/driver result path, using the same retained records and Git; remove dependence on manual progress requests. Use one explicit time window and source revision. Count (1) unique committed landings from Git, distinguishing report-only/plan-only commits, (2) refused attempts with preflight and unknown historical run kind explicit, grouped by known failing stage, (3) recorded stage wall with included waits named and no sum of overlapping worker/gate/package totals, (4) accepted completed step IDs versus added IDs from existing plan history/trailers, with retirement/rename separate, and (5) landings advancing the report-derived capability rows, bound to their existing plan/source identity rather than commit wording or document-touch counts. Include current blocker and an independently ready step from existing dispatch; never infer owner-caused waiting from idle gaps. Preserve stop/decision authority. Amend the proposed answered-refusals work to use this evidence for root-cause consolidation, rather than adding mandatory explanation text or plan mutation as a condition of every landing. Keep status publication best-effort: an observation failure must not refuse or repeat successful work. For each recurring cause, prefer eliminating an unnecessary obligation or duplicate representation first, then constructing valid input through its existing owner, then an idempotent semantics-preserving repair. Move unavoidable prerequisite checks early and resume valid completed work after the cause changes. A clearer refusal or a new metric is not itself prevention. Do not auto-change acceptance, evidence identity, numerical limits, stops or authority merely to obtain success.",
+    "severity": "P2",
+    "sources": [
+        {
+          "path": "cmd/loop/status.go",
+          "symbol": "writeStatus; statusOf; workStatus"
+        },
+        {
+          "path": "cmd/loop/main.go",
+          "symbol": "explicit -status branch"
+        },
+        {
+          "path": "cmd/loop/status_test.go",
+          "symbol": "TestTheDriverWritesItsStatus"
+        },
+        {
+          "path": "internal/landing/pace.go",
+          "symbol": "WeekPace"
+        },
+        {
+          "path": "internal/landing/spent.go",
+          "symbol": "spent; recordSpent"
+        },
+        {
+          "path": "internal/landing/refusal.go",
+          "symbol": "Refusal; RecordRefusal; stateRecords"
+        },
+        {
+          "path": "internal/landing/landing.go",
+          "symbol": "Run: Preflight, landedAs and recorded outcome"
+        },
+        {
+          "path": "internal/plan/progress.go",
+          "symbol": "LandedRowTrailer; AcceptedProgressSince"
+        },
+        {
+          "path": "cmd/loophook/main.go",
+          "symbol": "runDoctrine; nextDispatch"
+        },
+        {
+          "path": "docs/plan.json",
+          "symbol": "fail-early/answered-refusals; report-derived campaign rows"
+        }
+      ],
+    "status": "open",
+    "title": "Surface delivery and refusal costs through the existing status owner"
+  },
+    {
+      "id": "SQA-377",
+      "status": "open",
+      "severity": "P2",
+      "category": "historical-evidence-and-current-source-ownership",
+      "classification": "observed-cross-revision-coupling; proposed-automatic-rewrite-not-landed",
+      "title": "Remove live-source synchronization from the historical surface evidence",
+      "evidence_commit": "58e8280e33b7899d00d4dc75d348b2f4e5427b16",
+      "sources": [
+        {
+          "path": "docs/verification/surface-moves.txt",
+          "symbol": "tool/code/taken, range-head and set-* lines"
+        },
+        {
+          "path": "internal/inferencesurface/surface_move_record_test.go",
+          "symbol": "TestSurfaceMoveRecordDefinesClaimDependencies: definitions and declared sets"
+        },
+        {
+          "path": "internal/inferencesurface/identity.go",
+          "symbol": "resultSettings; neutralReads; environment; sources.read"
+        },
+        {
+          "path": "internal/inferencesurface/identity_test.go",
+          "symbol": "current environment, unknown-read and execution identity fixtures"
+        },
+        {
+          "path": "internal/inferencesurface/surface_record.go",
+          "symbol": "uncommitted WriteSurfaceRecord and recordSets"
+        },
+        {
+          "path": "cmd/validate/main.go",
+          "symbol": "uncommitted -surface-record branch"
+        }
+      ],
+      "evidence": "The 81,793-byte record identifies an October13 probe over 500 first-parent commits under range-head39c6bfcc445c566a0fb39a9680025fdab41eef47, explicitly using the keys at that head. Its retained test instead compares ten set-* lines with the current arrays and reads cited definitions from the current checkout. f9aeadd1a and a0cfebe16 updated the old record for OVERGO_NVVFX and OVERGO_DEVICE_BUDGET_GIB without changing that probe identity. The committed fail-early/record-edit rationale records a late lane failure from this coupling; the two record edits establish recurring maintenance, not two independently reproduced failures. The current draft replaces manual editing with WriteSurfaceRecord, preserving the historical header/figures while rewriting the sets from current code. That automates the disagreement between evidence identity and live declarations; it does not remove it. The draft is not committed or executed by SQA.",
+      "recommended_change": "Treat the historical probe as evidence of its recorded source revision. Remove its requirement to equal every future live identity list. Retain historical set values and unique arithmetic/claim assertions that explain the evidence; check source references against the recorded revision if that check remains necessary. Use the existing identity.go owner and native identity tests for current result settings and undeclared-read rejection. If a present-day listing has no consumer beyond this comparison, remove that listing requirement instead of adding a writer. If a current presentation is genuinely needed, derive it at its existing reader with its own current identity; do not relabel historical evidence implicitly. Retire the proposed -surface-record repair and writer when this unnecessary coupling disappears.",
+      "displaced_surface": "The live-array equality requirement, manual edits to historical set lines and associated routine refusal disappear. Avoid the draft WriteSurfaceRecord/recordSets/SurfaceRecord export, command flag and dedicated writer fixture. Do not delete the historical record or its whole 3,116-node test: range/counts, subsets, dependencies, provenance, calculations and closing judgements have unique retained coverage. Current environment and library identity validation remains with identity.go/identity_test.go.",
+      "expected_benefit": {
+        "committed": "surface_move_record_test.go 3,116 AST; identity.go 1,728 and identity_test.go 1,581 retained. Ten copied set lines occupy 876 bytes within the 81,793-byte record; these bytes are not a claimed saving because historical values may need to remain.",
+        "draft_cost": "Complete inspected surface-record slice: +210 production AST in surface_record.go, +28 in cmd/validate/main.go; +277 in surface_record_test.go and -36 in the existing record test. Net +238 production/+241 test=479 AST, two new Go files and one command option. One extra temporary-file fixture reads the existing record and performs two writer calls. No new static fixture or binary. The intended landing generator call is not yet wired in the inspected draft; its additional cost is unmeasured.",
+        "limit": "Prefer eliminating the synchronization requirement over paying this projected repair cost. No replacement implementation, measured final net deletion or timing saving is claimed."
+      },
+      "impact": "A legitimate environment or source change no longer requires editing October evidence or fails a late lane solely because the historical copy differs. Historical provenance becomes truthful.",
+      "likely_effort": "Bounded change to the retained evidence test and its historical reference; no production generator is needed for an obsolete synchronization obligation.",
+      "plan_references": [
+        "fail-early/record-edit at58e8280",
+        "Uncommitted fail-early/record-written, snapshot in candidate_review.automation_follow_up",
+        "Downloads extreme_refactor_plan.md: one owner for identity, fewer independent representations"
+      ],
+      "plan_coverage": "Replace the record-edit/record-written approach with removal of the cross-revision obligation. Keep this separate from SQA-378: historical evidence and accepted executable checks have different contracts.",
+      "comparison": "Simplify the existing record test so a legitimate current setting addition leaves the historical record untouched; preserve its arithmetic/dependency/provenance checks and the existing identity test that refuses an unknown result-affecting read. No new writer fixture or workload is needed. Recount all changed Go and retained evidence costs.",
+      "closure_criteria": [
+        "Current settings can change without rewriting the historical probe or weakening current identity validation.",
+        "Historical assertions refer to their recorded revision; retained numerical figures and unique dependencies still have an owner.",
+        "The displaced equality/repair path and any unnecessary draft generator/flag/tests are absent; full replacement costs are recorded."
+      ]
+    },
+    {
+      "id": "SQA-378",
+      "status": "open",
+      "severity": "P2",
+      "category": "acceptance-binding-and-automatic-repair",
+      "classification": "committed-late-vacuity-cause; uncommitted-acceptance-retargeting-risk",
+      "title": "Bind the intended test once instead of retargeting accepted checks during landing",
+      "evidence_commit": "58e8280e33b7899d00d4dc75d348b2f4e5427b16",
+      "sources": [
+        {
+          "path": "docs/plan.json",
+          "symbol": "committed fail-early/vacuous-names; draft packages-found"
+        },
+        {
+          "path": "internal/landing/packages_found.go",
+          "symbol": "uncommitted whereDeclared; singleTestName"
+        },
+        {
+          "path": "internal/landing/packages_found_test.go",
+          "symbol": "uncommitted TestALandingRunsANamedTestWhereItIs"
+        },
+        {
+          "path": "internal/landing/landing.go",
+          "symbol": "shipSet; verify; addedChecksFail"
+        },
+        {
+          "path": "internal/landing/terms.go",
+          "symbol": "checkChanges; rowChanges; Changed-Check"
+        },
+        {
+          "path": "internal/landing/terms_test.go",
+          "symbol": "TestChangeIsJudgedByTheTermsItStartedWith; TestANewRowLandsWithItsWork"
+        },
+        {
+          "path": "internal/runrecord/verify_command.go",
+          "symbol": "ParseVerify; draft VerifyCommand.InPackages"
+        },
+        {
+          "path": "internal/planverify/verify.go",
+          "symbol": "Execute"
+        },
+        {
+          "path": "internal/testevidence/evidence.go",
+          "symbol": "VerifyGoTestEvidence"
+        }
+      ],
+      "evidence": "The committed plan records two refusals after a hand-written verifier named three packages but its selected test existed in only one. That is an avoidable input-binding problem. The uncommitted whereDeclared searches candidate *_test.go files by function-name text and replaces all packages of a single anchored test command, whatever the accepted command named. verify then changes l.verifiers and l.added before checking. Its draft fixture explicitly accepts rewriting ./a ./b to ./c for TestBudget. A source-admitted counterexample is an accepted requirement to check a and b whose candidate only supplies a same-named test in c: the repair drops both accepted package obligations without a normal accepted-terms change. Searching a name does not establish equivalent behavior or build scope. Existing terms freezes original checks and separately records changed checks; the draft undermines that boundary. This is a source-reviewed draft risk, not a defect claimed to have landed or a failure reproduced by SQA.",
+      "recommended_change": "Remove the duplicated hand-maintained package spelling at the existing plan/check creation boundary: obtain and store a package-qualified test binding once, and derive the command from that binding where appropriate. Do not make callers type the same identity twice. Source discovery can prepare a binding, but must preserve intended package coverage and build context; an ambiguous or missing identity cannot be silently chosen. For a genuinely new test, use the existing new-row admission contract rather than requiring the test to exist before implementation. Once acceptance is bound, execute that identity unchanged. A legitimate move can use the existing explicit check-change/migration owner with old/new identity preserved; a same-named candidate test alone is not proof of that move. Remove the draft late package substitution, and retain ParseVerify, planverify and testevidence as the single parsing/execution/evidence owners.",
+      "displaced_surface": "Avoid manual duplicate package lists where one qualified reference suffices. Remove the proposed whereDeclared/singleTestName package-search path, InPackages/span rewriting and verify-time mutation of accepted terms. Preserve genuinely multi-package acceptance, skipped/zero-match refusal, build tags, command arguments, new-check/base failure and production-undo semantics. No second test registry, shell parser, generic resolver or retry loop.",
+      "expected_benefit": {
+        "complete_draft_slice": "packages_found.go +366 production AST; verify_command.go 1,470->1,660 (+190); landing.go 5,799->5,884 (+85); packages_found_test.go +250. Total +641 production/+250 test=891 AST, two new Go files, one new exported method and one extra temporary Git fixture with two inline test files. No new binary or static fixture. This count includes all inspected changes for this mechanism.",
+        "limit": "An earlier binding improvement may need some code and one extension of the existing terms fixture. No measured final net saving or runtime improvement is claimed. The saved failure must be eliminated by correct binding, never by shrinking accepted coverage."
+      },
+      "impact": "Prevents an automatic repair from granting a pass to a different check while eliminating an avoidable source of package/test mismatch at its input owner.",
+      "likely_effort": "Bounded existing plan/check binding and terms-fixture adjustment; preserve new-test and explicit-move cases without a new orchestration layer.",
+      "plan_references": [
+        "fail-early/vacuous-names at58e8280",
+        "Uncommitted fail-early/packages-found, snapshot in candidate_review.automation_follow_up",
+        "SQA-322 early host verification; SQA-366 non-vacuous evidence (distinct obligations)",
+        "Downloads extreme_refactor_plan.md: resolve intent once, preserve acceptance authority"
+      ],
+      "plan_coverage": "Recommend replacing late package substitution before it lands. SQA-366 owns truthful passing-test evidence; this finding owns how accepted check identity is created and preserved. Better diagnostics alone do not remove the duplicate-input failure.",
+      "comparison": "Extend the existing terms fixture through its existing entry point with accepted a+b coverage and a candidate same-named c test: the candidate must not earn the old check. Retain normal qualified tests, an explicitly admitted move and new-row/base-failure behavior. Fold any useful source-discovery cases into the existing owner; do not retain a standalone fixture whose success condition is changing acceptance. No application test executed for SQA.",
+      "closure_criteria": [
+        "The ordinary check creation path avoids contradictory duplicate package/test input where identity can be derived.",
+        "Accepted checks retain package, selector and build-context meaning through candidate verification, new-check proof and undo; source discovery cannot silently replace them.",
+        "Existing native terms/evidence fixtures retain genuine new-test and approved migration behavior; the displaced resolver/parser surface and complete costs are accounted for."
+      ]
     }
   ],
     "gate_test_assessment": {
     "assumptions": "Windows ordinary case-insensitive path identity differs from lexical spelling; apply actual filesystem semantics, not global case folding. docs/verification is a storage location, not a model-work type.6chosen steps/3required passes/40reply ceilings are explicit local demonstration policy; repeated runs on the same tasks are correlated. Keep package elapsed separate from attempt-wall sums.",
     "automation_follow_up": {
-        "cost": "87577ce59..fc673760f:22changedGo paths,+318production/+1803test=+2121AST,+84/+326lines,1new production file and8new test files.0new command/package directory/static fixture/schema/CUDA entrypoint. Eight retained gate trailers total2820s, a cost not measured waste. No safe complete net-code reduction established.",
-        "retained_results": "Run7:12records,7skipped,5attempted steps,3passes,9attempts,245tool calls. Attempt wall589753ms versus package667.548s. Both failures remain; no after-thinking result credited.",
-        "interpretation": "The stop at third pass satisfies this bounded demonstration threshold, not general competence or net benefit. Repeated selected tasks are correlated. No SQA execution."
+        "retained_feedback": {
+          "window": "November8 and9,2026 America/New_York (UTC-05); local retained records read after58e8280",
+          "record_count": 2113,
+          "nov8": {
+            "entries": 122,
+            "successful_preflights": 24,
+            "landed_outcomes": 52,
+            "other_outcomes": 46,
+            "remaining_denominator": 98,
+            "limit": "Failed preflights and already-landed retries are not separately identifiable from existing outcome alone."
+          },
+          "nov9": {
+            "verify_refused_runs": 10,
+            "whole_run_minutes": 140.54,
+            "test_and_lane_minutes": 46.48
+          },
+          "limits": "User-reported seven-hour owner wait and report-work starvation are not independently proved by gate gaps. Mostly form is not established by stage labels alone. Records are local and appendable; reported counts are this snapshot, not Git-tracked evidence."
+        },
+        "cost": "budget+450production/+575test; verify-first+175/+148. No static fixture growth. Prior report was carried by a0cf; do not count its prose as application AST.",
+        "interpretation": "Historical refusal wall motivates ordering and status delivery, but is not measured saved work. Query/window/outcome definitions must be explicit."
       },
     "automation_sequence": "Known prerequisite refusal now precedes moveReplay and worker execution. Driver already distinguishes declared Run/Record work from worker dispatch. Current373heuristic overgeneralizes that boundary;372can corrupt its held verifier. Existing plan stops, budgets, process supervision and partial records remain owners. No new scheduler, cache or gate.",
     "fresh_ast": {
-        "revision": "fc673760f813afdf216be087fe586f717461cd3a",
-        "method": "Existing external main.go parsed15committed Go files; day-count.go counted22changedGo endpoint paths including comments, no generated exclusions.",
-        "retained_result": "review-20261111-0219-ast.json; review-20261111-0219-delta.json",
-        "selected_counts": "reasoning138/test249; tools1752; search321+literal198+untracked241; loop/main3514; replay1990; plan/main4668; workflow_contract1085; plan_edits4527; finish1621/admission107; launcher1054/reply_bound276. Total21741.",
-        "comparison": "0exact full-body duplicate groups among127functions. Search fixture duplication is shared setup and actual contract, not a claim that assertions are clones. Prior binary/directory analysis is reused, not rerun.",
-        "limits": "4243parser-local links; no package type resolution. No representative whole-repo boilerplate percentage or completed replacement counts."
+        "revision": "58e8280e33b7899d00d4dc75d348b2f4e5427b16",
+        "method": "Reused main.go Go parser for selected committed files and candidate-ast.go for all eight changed draft Go files; source hashes stable before/after parse.",
+        "retained_result": [
+          "review-prevention-committed-ast.json",
+          "review-prevention-baseline-complete-ast.json",
+          "review-prevention-draft-complete-ast.json",
+          "review-prevention-draft-hashes.json"
+        ],
+        "committed_unique": "7 files, 16,649 AST, 71 functions, 3,902 parser-local links.",
+        "draft_complete": "4 prior files 12,855 AST -> 8 draft files 14,225; production 9,739->10,618 (+879), tests 3,116->3,607 (+491). Surface-record slice +479; package repair +891; combined 1,370 counted once.",
+        "limits": "Parse-only, no package type checking, generated build, application test or model execution; no whole-repository savings extrapolation."
       },
     "media_follow_up": {
         "revision": "fc673760f813afdf216be087fe586f717461cd3a",
@@ -9060,17 +9333,15 @@
       "retained_change_costs": "Two consolidation landings(2d59f642c exact folds andbb4fc706a parameter folds) remove744 production nodes but add1591 test nodes, net+847 across Go. Pilot retirementea8ed43a7 removes5926 production/9990 test nodes and one schema, while fixture bytes grow599; its test deletion is already included in the day's offsets and must not be subtracted twice. These retained gates are broader changes, not matched per-test performance comparisons."
     },
     "retained_results": [
-        "Eight committed landings:+318production/+1803testAST; retained gate trailers2820s. Thinking9546e3101 and reply-bound1cbe02bff explicitly record no behavioral undo because restored production does not compile with new signatures/fields; do not call compilation failure a behavioral proof.",
-        "fc673760f native missing-runtime verify13.12s and production-undo assertion retained. next.Close remains on admission refusal; nvvfx libraries retain declared process lifetime.",
-        "Run7after search-untracked/delete: fuzz-discovery1attempt8calls23937ms; skill-sort3/111/206968ms failed; stray-check1/14/52520ms; pointer3/94/230618ms failed; fuzz-or-delete1/18/75710ms.7skips outside denominator. Summed attempt589753ms; package667.548s.",
-        "No numerical claim improved by thinking or larger reply bounds established in this review. Known setup refusal is addressed through the existing launcher; repeated model work not requested."
+        "58e8280 retained host-order verification23.314s; undo fails an assertion; gate395s. Source confirms same planverify/added-check/undo owner.",
+        "November9:10verify refusals,140.54minutes whole wall versus46.48minutes test/lanes. November8:122records include24successful preflights; remaining98 include52landed and46other outcomes. Old failed-preflight run kind is unknown.",
+        "Current status file read22:11:31Nov10 still names fc673760f; source only invokes its reader through explicit-status. Writing a snapshot does not demonstrate delivered continuation."
       ],
-    "surface_reduction_analysis": "87577ce59..fc673760f:22changedGo paths,+318production/+1803test=+2121AST,+84/+326lines,1new production file and8new test files.0new command/package directory/static fixture/schema/CUDA entrypoint. Eight retained gate trailers total2820s, a cost not measured waste. No safe complete net-code reduction established.",
+    "surface_reduction_analysis": "Existing status/records/dispatch are sufficient owners. The requested extension has real code/test cost; avoid an additional reason gate, ledger or scheduler. No safe net reduction established yet.",
     "tests": [
-        "MERGE literal-description/miss and untracked/ignored assertions into existing search/read fixture; REMOVE the two standalone files after migration. Preserve tracked line/read and malformed-input byte checks.",
-        "SIMPLIFY full reasoning proof into fixed plan/worker fixture; RETAIN brief prompt, note order/once, read-only output, stop and historical replay contracts.",
-        "RETAIN thinking/default request and launcher0/explicit-bound cases within their existing native HTTP/child owners. They verify transport policy, not model improvement.",
-        "RETAIN missing-runtime generator-not-called fixture and next/stage/frame/worker cleanup. No test or workload executed by SQA."
+        "RETAIN the historical record fixture arithmetic, range, claim dependency and provenance cases; SIMPLIFY its wrong current-source equality. RETAIN current identity/unknown-read tests. Avoid the proposed writer-only fixture once the obligation disappears.",
+        "RETAIN the accepted-terms/new-row/undo and non-vacuous evidence fixtures. EXTEND the existing terms fixture with candidate retargeting, approved moves and genuine new-test admission as needed; remove or merge useful draft resolver cases instead of a second standalone Git setup.",
+        "RETAIN prior status/spent and mixed host/device-order recommendations in SQA-376/SQA-322. No new application tests, gate runs or workloads executed by SQA."
       ]
   },
     "hygiene_assessment": "No hygiene finding. Scratch analysis is outside the repository; concrete correctness and production/test cost take priority.",
@@ -10604,10 +10875,10 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
     "limitations": [
-      "No application tests, workers, model/device workloads, services, benchmarks, gates, agents/messages, plan/skill changes or pushes. Only external AST/report tooling executed.",
-      "Selected AST21741nodes/127functions/4243parser-local identifier links; no package type resolution and no exact full-body clone groups. No whole-tree boilerplate percentage inferred.",
-      "The mixed-step prompt is a source-established possible interleaving, not a reproduced failure. No replacement implementation was created or parsed; complete net savings remain unmeasured.",
-      "Current device-budget implementation is dirty and excluded. Recipe and format-independent execution target remains active; existing349..353 binary/directory/owner recommendations retain their prior measurements."
+      "Only docs/sqa_findings.json may change; no implementation, tests, workloads, agents/messages or plan/skill changes. Existing external analysis/report tooling only.",
+      "AST counts include comments and parser-local object links; no package/type resolution, runtime proof or repository-wide duplication percentage. Draft counterexamples are source-derived.",
+      "The complete inspected draft adds 879 production and 491 test AST (1,370 total), four Go files, no directory or binary. Further planned generator wiring and the setting-reader migration do not yet exist and are not counted as implemented.",
+      "No final replacement or safe net reduction established. Historical refusal counts and attribution limits from SQA-376 are retained; source/plan statements are not independent reproductions of each refused attempt."
     ],
     "master_lead_triage": {
     "at": "2026-11-10",
@@ -11483,14 +11754,14 @@
       }
     }
   },
-    "next_finding_number": 376,
+    "next_finding_number": 379,
     "publication_context": {
-    "assessment": "Substantive report-only update: coherent prompt and fixture consolidation findings, verified runtime admission and retained worker progress/cost correction.",
-    "checked_head": "fc673760f813afdf216be087fe586f717461cd3a",
-    "concurrent_changes": "Device-budget source, environment, API/plan/surface-moves edits and untracked files observed and excluded. Re-read master/report/owner state immediately before publishing.",
-    "current_pin": "fc673760f813afdf216be087fe586f717461cd3a",
-    "publication": "Normal report-only hook exception under existing landing_turn/gate ownership; no worker disturbance.",
-    "report_only": "Only docs/sqa_findings.json; unrelated index/worktree edits preserved."
+    "assessment": "Substantive prevention review: historical evidence coupling, accepted-check retargeting risk, conditional setting-reader direction and complete draft AST costs.",
+    "checked_head": "58e8280e33b7899d00d4dc75d348b2f4e5427b16",
+    "concurrent_changes": "Eight draft Go files and docs/plan.json separately hashed and re-read before report publication; all remain implementation-owned.",
+    "current_pin": "58e8280e33b7899d00d4dc75d348b2f4e5427b16",
+    "publication": "Normal report-only hook exception under existing landing_turn/gate ownership; if a landing owns publication, save report unstaged without advancing HEAD.",
+    "report_only": "Only docs/sqa_findings.json changed; pending prior report update retained, unrelated index/worktree preserved."
   },
     "ranked_active_finding_ids": [
     "SQA-363",
@@ -11501,12 +11772,15 @@
     "SQA-372",
     "SQA-373",
     "SQA-374",
+    "SQA-378",
+    "SQA-322",
+    "SQA-376",
+    "SQA-377",
     "SQA-366",
     "SQA-368",
     "SQA-369",
     "SQA-370",
     "SQA-371",
-    "SQA-322",
     "SQA-318",
     "SQA-283",
     "SQA-331",
@@ -11564,32 +11838,34 @@
     "repository": "C:\\Users\\jeffm\\overgo",
     "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
     "review_notes": [
-      "Preserved200prior stable IDs and raw-exact implementation/unknown fields. New374 owns coherent worker projection;375 combines the two search fixture migrations under one contract. No aliases or active requirements retired.",
-      "359 remains resolved with its admission follow-up now evidenced.356 cost labels refreshed from retained run7; original interruption obligations stay active.",
-      "Current bounded follow-up replaces older reviewer narrative; closure history and complete prior costs remain in findings/Git."
+      "377 and378 address distinct contracts, so they remain separate. 376 retains the five status signals and now requires considering root-cause elimination before more checks or reporting.",
+      "Current source legitimately needs result-setting identity. That trust-boundary requirement is retained; historical evidence need not be synchronized to every later setting.",
+      "Report-only recommendations; draft changes inspected without modification. All implementation-owned and unknown fields preserved."
     ],
-    "reviewed_at": "2026-11-11T02:29:32Z",
-    "reviewed_master": "fc673760f813afdf216be087fe586f717461cd3a",
+    "reviewed_at": "2026-11-11T04:30:42Z",
+    "reviewed_master": "58e8280e33b7899d00d4dc75d348b2f4e5427b16",
     "schema_version": 2,
     "scope": [
-      "Committed masterfc673760f813afdf216be087fe586f717461cd3a; plan blobb919e76de994a4030158d9f22542e217267933ae. Unchanged AGENTS/skill/Downloads architecture target rechecked; retained structural census reused.",
-      "Bounded live-worker prompt/dispatch, native search setup, reply policy and video finish admission/lifetime. Concrete brief/full prompt contracts and native callers traced beyond latest diff.",
-      "15committed Go files parsed; all22changedGo endpoint paths counted. External retained run7 read; no application execution.",
-      "This chat previously implemented Overgo and contributed plan wording; this is follow-up SQA, not independent third-party review."
+      "Committed master 58e8280e33b7899d00d4dc75d348b2f4e5427b16 and its committed plan, plus explicitly identified uncommitted fail-early drafts for the user-requested prevention design review.",
+      "Bounded end-to-end check binding, acceptance, evidence provenance, automatic record repair and existing environment identity ownership. Prior status/attempt/order results reused.",
+      "Actual selected-file AST: 7 distinct committed files, 16,649 nodes/71 functions/3,902 parser-local links; all 8 changed draft Go files counted, 14,225 nodes/63 functions/3,277 links. No application tests or workloads.",
+      "This chat previously implemented Overgo and contributed plan wording. This follow-up SQA is not an independent third-party review."
     ],
     "sqa_response": {
-    "assessment": "202stable IDs:67open,129resolved,4deferred,2aliases.359admission follow-up credited;356cost context corrected; two new canonical recommendations.",
+    "assessment": "205 stable IDs: 70 open, 129 resolved, 4 deferred, 2 aliases. 377/378 add distinct historical-evidence and accepted-check-identity obligations; 376 incorporates prevention before reporting.",
     "consolidated_findings": [],
     "deferred_findings": [],
-    "evidence": "Eight landings,15-file AST/22-path delta, concrete plan/search/finish owners and retained run7. No tests or workloads rerun.",
-    "implementation_response_context": "Owner blocks re-read and unchanged from committed report.359closure is extended with verified follow-up; no owner response rewritten.356/366/371..373remain open; unrelated historical obligations retained.",
+    "evidence": "Committed historical record and its current-source comparison; current identity and accepted-terms owners; hashed draft resolver/writer and complete changed-Go AST counts. Prior refusal/status results reused.",
+    "implementation_response_context": "Both implementation-owned blocks and all unknown fields preserved raw-exact. Prior uncommitted SQA-376/322 update retained. The inspected implementation changes remain owner drafts and are not treated as landed.",
     "new_findings": [
-        "SQA-374",
-        "SQA-375"
+        "SQA-377",
+        "SQA-378"
       ],
-    "partially_addressed_findings": [],
-    "priority_changes": "Add374coherent prompt identity before366;375fixture migration is lower priority.",
-    "recommendation": "Keep one plan-owned coherent worker projection and one native search setup; retain full/brief output contracts, early runtime refusal and truthful attempt/package accounting.",
+    "partially_addressed_findings": [
+        "SQA-322"
+      ],
+    "priority_changes": "Accepted-check integrity ranks before efficiency; avoid a new metric or automatic writer that preserves the underlying bad design.",
+    "recommendation": "Eliminate duplicate facts and invalid construction paths; automate only semantics-preserving repairs through existing owners. External failures still need early admission and exact recovery, not blind retries.",
     "refactor": {
       "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
       "history_path": "docs/sqa_findings.json",
@@ -11597,11 +11873,10 @@
     },
     "reopened_findings": [],
     "resolved_findings": [],
-    "reviewed_master": "fc673760f813afdf216be087fe586f717461cd3a",
-    "uncertainty": "Source interleaving not reproduced. No complete net-node saving or broad worker/economic success established. Device-budget drafts excluded.",
+    "reviewed_master": "58e8280e33b7899d00d4dc75d348b2f4e5427b16",
+    "uncertainty": "No proposed repair was executed. The setting-reader direction is conditional until its full identity/build/caching and migration contract is demonstrated; no net saving yet established.",
     "updated_findings": [
-        "SQA-359",
-        "SQA-356"
+        "SQA-376"
       ]
   }
   }

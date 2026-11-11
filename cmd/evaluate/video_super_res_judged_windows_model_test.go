@@ -107,7 +107,7 @@ func TestJudgedClipsAreDrawn(t *testing.T) {
 	drawn := map[string]map[string]string{}
 	for version, asked := range map[string]map[string]float64{"plain": settings, "default": upscaled} {
 		directory := filepath.Join(root, version)
-		keys := testcheck.Must(renderMedia(ctx, roots.Store, student, recipe.TaskVideoGen, directory, prompts, asked, judgedCommit))(t)
+		keys := testcheck.Must(renderMedia(ctx, roots.Store, student, recipe.TaskVideoGen, directory, prompts, asked, "", judgedCommit))(t)
 		var manifest renderManifest
 		testcheck.NoError(t, jsonfile.Decode(filepath.Join(directory, renderManifestFile), &manifest))
 		drawn[version] = map[string]string{}

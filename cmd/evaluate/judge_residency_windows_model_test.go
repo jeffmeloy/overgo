@@ -60,7 +60,7 @@ func drawResidencyPictures(t *testing.T, roots dataroot.Roots, root, directory s
 		prompts[index] = renderPrompt{ID: item.ID, Prompt: item.Caption}
 	}
 	settings := map[string]float64{"width": judgedWidth, "height": judgedHeight, "frames": motionFrames}
-	keys := testcheck.Must(renderMedia(ctx, roots.Store, roots.ResolveModelPath("Self-Forcing"), recipe.TaskVideoGen, directory, prompts, settings, residencyCommit))(t)
+	keys := testcheck.Must(renderMedia(ctx, roots.Store, roots.ResolveModelPath("Self-Forcing"), recipe.TaskVideoGen, directory, prompts, settings, "", residencyCommit))(t)
 	var manifest renderManifest
 	testcheck.NoError(t, jsonfile.Decode(filepath.Join(directory, renderManifestFile), &manifest))
 	suite := evaluation.GeneratedAnswerSuite{Kind: "generated-answer", Schema: "overgo/judge-residency/v1", Source: "judge-speed/residency",

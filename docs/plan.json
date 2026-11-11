@@ -23,7 +23,7 @@
             "internal/latentimage"
           ],
           "needs_card": true,
-          "rationale": "CFG-Zero* (arXiv 2503.18886, Apache-2.0) rescales the unconditioned prediction by its optimal projection and zeroes the first steps; it raised Wan 1.3B's VBench total from 80.52 to 80.91 at no cost. A guidance interval (arXiv 2404.07724) applies guidance only in the middle of the noise range and drops the unconditioned pass elsewhere, about 15 to 20 of MOSS's 100 passes. Wan's shift is 5 here (the reference script) and 8 to 12 on the model card, so a sweep of 3 to 12 is a cheap quality reading. MOSS's negative branch skips layer 22, so every change is re-read on its suite.\n\nEach lands as a named preset; the reference presets are unchanged.\n\nServes: held-out-quality, first-output.\nDisappears: nothing.\nEvidence: each preset's per-case sign test against its model's reference on its suite is recorded, and only a preset that does not lower quality is offered.\nBatch: device lane.",
+          "rationale": "CFG-Zero* (arXiv 2503.18886, Apache-2.0) rescales the unconditioned prediction by its optimal projection and zeroes the first steps; it raised Wan 1.3B's VBench total from 80.52 to 80.91 at no cost. A guidance interval (arXiv 2404.07724) applies guidance only in the middle of the noise range and drops the unconditioned pass elsewhere, about 15 to 20 of MOSS's 100 passes. Wan's shift is 5 here (the reference script) and 8 to 12 on the model card, so a sweep of 3 to 12 is a cheap quality reading. MOSS's negative branch skips layer 22, so every change is re-read on its suite.\n\nEach lands as a named preset; the reference presets are unchanged.\n\nNote: 2026-11-11 survey, before work: the guider (CFG-Zero*, the guidance interval) is in internal/sampling and Wan's 50-step loop already (7a1ae8c6f), and Wan's profile declares cfg-zero-star, guidance-interval and model-card (shift 8); MOSS's rotary loop compiles one update program and uses no sampling.Guider, so its presets need the guider stepped per index there and a guidance field on its image presets; SenseNova's two branches run in one routedlm session call, so skipping its unconditioned pass changes internal/routedlm and internal/sensenovarecipe, outside this step's files. Nothing admits a preset by a suite: judge-calibration/user-size, moved before this row, builds that rule, and this step's readings wait for it (the owner's order of 2026-11-11). Device cost at a person's size: Wan about 8 h an arm of 80 clips, its 832 reference drawn as GIF so drawn again as MP4; MOSS about 1 h an arm of 64; SenseNova about 2.5 h; a reference, two presets and a three-value shift sweep on Wan is 40 to 50 hours of the card.\n\nServes: held-out-quality, first-output.\nDisappears: nothing.\nEvidence: each preset's per-case sign test against its model's reference on its suite is recorded, and only a preset that does not lower quality is offered.\nBatch: device lane.",
           "depends_on": [
             "sampling-split/presets",
             "quality-instruments/soft-tifa"
@@ -61,30 +61,6 @@
             "sampling-split/block-override",
             "quality-instruments/soft-tifa"
           ]
-        }
-      ]
-    },
-    {
-      "id": "judge-calibration",
-      "title": "The media judges are shown to measure what they are used for: they score deliberately degraded outputs lower, a judge of another family ranks the same cases alike, a verdict counts media and not the questions asked of each, and a preset is admitted at the size a person asks for",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 615,
-        "reason": "Estimated from a survey: the judged suites, the paired exact test and the render path exist (cmd/evaluate render.go, internal/evaluation, internal/scorecard record.go judgeQuality); the degradations, a second judge's run and the medium pairing are new code with two card tests. Step owner-words: +255 (255, the median of what 12 landings that changed internal/plan/plan.go, cmd/plan/main.go, cmd/plan/answer_test.go counted). Step published-tower: +0 (no landing changed internal/gemma4convert, internal/projector, internal/hfconvert, internal/gguf). Step vision-judge: +395 (395, the median of what 9 landings that changed cmd/evaluate, internal/projector, internal/evaluation counted). Step published-names: +535 (535, the median of what 1 landings that changed internal/gemma4convert counted). Step processor-resize: +0 (no landing changed internal/projector/gemma4.go, internal/projector/gemma4_test.go). Step gemma-suite: +0 (no landing changed cmd/recipe/gemma_projection_fixtures_model_test.go, docs/verification/fixtures/gemma-4-12b)."
-      },
-      "steps": [
-        {
-          "id": "user-size",
-          "title": "A generation preset is admitted only by a suite drawn at the size, frames and format a person asks for, the person's request read from the page's controls (mediacapability.PersonRequest), and a suite drawn smaller is refused as its evidence",
-          "status": "open",
-          "verify": "go test ./internal/evaluation ./cmd/evaluate -count=1 -run '^TestAPresetIsAdmittedOnlyAtAPersonsSize$'",
-          "files": [
-            "internal/evaluation",
-            "cmd/evaluate",
-            "internal/mediacapability"
-          ],
-          "rationale": "Serves: held-out-quality and first-output for every media generator.\n\nDisappears: presets judged at a verification smoke's size.\n\nEvidence: the owner's review asks whether an improvement persists at the resolution and workload a person uses. The Wan student was first read at 81 frames and 832 x 480 against a base at 17 frames and 416 x 240; video-judge/same-settings fixed that one comparison by hand. The rule belongs where a preset is admitted.\n\nBatch: host lane.\n\nNote: 2026-11-09: no preset is admitted by a suite yet: a profile declares its presets and the page offers them (mediacapability offerPresets), and the first admission is guidance-ops/cfg-zero-interval's per-preset sign test. This step is that admission's rule, so it is built with that test: the render it reads is drawn at a person's request (mediacapability.PersonRequest) unless -render-set names another size, and a render drawn smaller is refused as a preset's evidence. Its check names ./internal/evaluation and ./cmd/evaluate, so a test of its name is written in each, or the check is narrowed by a landing before it.\n\nNote: Moved after guidance-ops (2026-11-09): this rule is built with guidance-ops/cfg-zero-interval's per-preset sign test, which awaits sampling-split/presets and quality-instruments/soft-tifa, so it is worked when that test is.\n\nComparison contract: read the actual request through the existing admission owner. Base and candidate use the same task, source artifacts, prompts/seeds, dimensions, frame count and format. Keep denoising steps, runtime policy and resource budget explicit; any intentional difference is the named treatment, not an accidental mismatch such as the earlier Wan comparison. Judge at that requested workload with calibrated evidence, grouping questions by medium. Reuse compatible render and answer records. A small smoke, a judge-agreement score or a training-loss improvement alone cannot establish generated-output quality. Extend the smallest existing admission fixture rather than creating two copies of the same test body."
         }
       ]
     },

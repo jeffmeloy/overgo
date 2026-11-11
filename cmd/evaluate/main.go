@@ -113,7 +113,12 @@ func run() error {
 	vidgenCaptions := flag.String("render-vidgen", "", "draw a clip of each of -cases VidGen captions with the video model -model-path names, and write the suite that asks the judge which of four captions each shows to -suite-out, the clips to -media-out: the argument is VidGen's caption file")
 	editClips := flag.String("render-edits", "", "change each of -cases captioned clips of this directory with the video editor -model-path names, by an instruction from a fixed list, and write the suite that asks the judge one question about each edited clip, whether it shows what it showed with the change made, to -suite-out, the edited clips to -media-out; -captions names the caption file")
 	editOneThing := flag.Bool("one-thing", false, "with -render-edits: tell the editor to change the colour of one worn thing each clip's caption names, and nothing else, where the fixed list changes the whole clip; a clip whose caption names no such thing is passed over")
+	admitPreset := flag.String("admit-preset", "", "a preset's render directory, read against -reference-render, its model's reference, on their judged evaluations -preset-evaluation and -reference-evaluation, at the size a person asks for from the page of the model -model-path: prints whether the preset is admitted")
+	referenceRender := flag.String("reference-render", "", "with -admit-preset: the render directory of the model's reference")
+	presetEvaluation := flag.String("preset-evaluation", "", "with -admit-preset: the judged evaluation record of the preset's suite")
+	referenceEvaluation := flag.String("reference-evaluation", "", "with -admit-preset: the judged evaluation record of the reference's suite")
 	drawnText := flag.Bool("render-drawn-text", false, "draw an infographic from each of -cases briefs of a fixed list with the image model -model-path names, each asked to hold a title, three lines with a figure and a line of small print, and write the suite that asks the judge which of four texts each picture holds to -suite-out, the pictures to -media-out")
+	renderPreset := flag.String("render-preset", "", "with -render-tifa, -render-drawn-text or -render-vidgen: the preset of the model's profile to draw with, none for its reference (the authors' recipe); its media go into a directory of their own")
 	renderSet := flag.String("render-set", "", "with -render-tifa, -render-drawn-text or -render-vidgen: comma-separated name=number settings that replace fields of the request the model's verification ran, such as width=416,height=240")
 	readText := flag.String("read-text", "", "read the text of each picture of this directory with the OCR model -reader names through its projector -reader-projector on -device, and print each reading, row by row with its box and the reader's model, recipe and projection, as a line of JSON")
 	readSuitePath := flag.String("read-suite", "", "read each picture of this drawn-text suite, from -media, with the OCR model -reader names, and write the suite with its readings to -suite-out: a judged reading of the suite records the share of the characters each picture was asked to hold that the reader read back")
@@ -265,12 +270,19 @@ func run() error {
 		// An edited clip moves as the clip it edits does, read from the directory it was cut from.
 		return writeMotion(context.Background(), strings.TrimSpace(*suiteOut), strings.TrimSpace(*mediaOut), clips, strings.TrimSpace(*screenEncoder), *device, strings.TrimSpace(*suiteOut))
 	}
+	if *admitPreset != "" {
+		if strings.TrimSpace(*referenceRender) == "" || strings.TrimSpace(*presetEvaluation) == "" || strings.TrimSpace(*referenceEvaluation) == "" || strings.TrimSpace(*modelPath) == "" {
+			return errors.New("usage: evaluate -admit-preset <preset render directory> -reference-render <directory> -preset-evaluation <record> -reference-evaluation <record> -model-path <generator directory> [-repo <store>]")
+		}
+		return admitPresetReading(context.Background(), *repository, strings.TrimSpace(*modelPath), strings.TrimSpace(*referenceRender), strings.TrimSpace(*admitPreset),
+			strings.TrimSpace(*referenceEvaluation), strings.TrimSpace(*presetEvaluation), os.Stdout)
+	}
 	if *drawnText {
 		if flag.NArg() != 0 || strings.TrimSpace(*suiteOut) == "" || strings.TrimSpace(*mediaOut) == "" || strings.TrimSpace(*speechJudge) == "" || strings.TrimSpace(*modelPath) == "" ||
 			strings.TrimSpace(*tifaQuestions) != "" || strings.TrimSpace(*vidgenCaptions) != "" {
 			return errors.New("usage: evaluate -render-drawn-text -model-path <generator directory> -judge <vision-language model> -media-out <directory> -suite-out <suite.json> [-repo <store>] [-render-set name=number,...] [-cases N] [-seed N]")
 		}
-		if err := writeDrawnText(context.Background(), strings.TrimSpace(*modelPath), *repository, strings.TrimSpace(*speechJudge), strings.TrimSpace(*mediaOut), strings.TrimSpace(*suiteOut), strings.TrimSpace(*renderSet), *captionCases, *captionSeed); err != nil ||
+		if err := writeDrawnText(context.Background(), strings.TrimSpace(*modelPath), *repository, strings.TrimSpace(*speechJudge), strings.TrimSpace(*mediaOut), strings.TrimSpace(*suiteOut), strings.TrimSpace(*renderSet), strings.TrimSpace(*renderPreset), *captionCases, *captionSeed); err != nil ||
 			strings.TrimSpace(*readerModel) == "" {
 			return err
 		}
@@ -285,7 +297,7 @@ func run() error {
 		if strings.TrimSpace(*vidgenCaptions) != "" {
 			draw = writeVidGenClips
 		}
-		if err := draw(context.Background(), source, strings.TrimSpace(*modelPath), *repository, strings.TrimSpace(*speechJudge), strings.TrimSpace(*mediaOut), strings.TrimSpace(*suiteOut), strings.TrimSpace(*renderSet), *captionCases, *captionSeed); err != nil ||
+		if err := draw(context.Background(), source, strings.TrimSpace(*modelPath), *repository, strings.TrimSpace(*speechJudge), strings.TrimSpace(*mediaOut), strings.TrimSpace(*suiteOut), strings.TrimSpace(*renderSet), strings.TrimSpace(*renderPreset), *captionCases, *captionSeed); err != nil ||
 			strings.TrimSpace(*vidgenCaptions) == "" || strings.TrimSpace(*screenEncoder) == "" {
 			return err
 		}

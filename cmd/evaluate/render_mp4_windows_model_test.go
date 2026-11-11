@@ -43,7 +43,7 @@ func TestARenderedClipIsAnMP4TheJudgeReads(t *testing.T) {
 	}
 	drawn := t.TempDir()
 	settings := map[string]float64{"width": width, "height": height, "frames": motionFrames}
-	keys := testcheck.Must(renderMedia(ctx, roots.Store, roots.ResolveModelPath("Self-Forcing"), recipe.TaskVideoGen, drawn, prompts, settings, "render-mp4-test"))(t)
+	keys := testcheck.Must(renderMedia(ctx, roots.Store, roots.ResolveModelPath("Self-Forcing"), recipe.TaskVideoGen, drawn, prompts, settings, "", "render-mp4-test"))(t)
 	var manifest renderManifest
 	testcheck.NoError(t, jsonfile.Decode(filepath.Join(drawn, renderManifestFile), &manifest))
 	if manifest.clipFormat() != "mp4" {

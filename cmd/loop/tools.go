@@ -152,7 +152,10 @@ func workerTools(root string, step workerStep) []workerTool {
 			}
 			return text.String(), nil
 		}},
-		{"search_files", "Find a text in the checkout's files, those git does not track yet among them: each line holding it, with its file and line number.", []string{"text"}, func(arguments map[string]string) (string, error) {
+		// The text is found as written within one line, which the worker took for a pattern and a span of lines ("func
+		// Test.*Store", "# overgo\n") in runs 3 to 7 of loop-proof/local-demonstrated, reading each miss as the code's
+		// absence (loop-proof/search-literal).
+		{"search_files", "Find a text in the checkout's files, those git does not track yet among them: each line holding it, with its file and line number. The text is found as written, within one line, not as a pattern.", []string{"text"}, func(arguments map[string]string) (string, error) {
 			if arguments["text"] == "" {
 				return "", errors.New("the text to find is empty")
 			}
@@ -161,7 +164,7 @@ func workerTools(root string, step workerStep) []workerTool {
 			// such a file, out of the worker's sight (loop-proof/search-untracked).
 			found, err := gitauthority.Query(context.Background(), root, "grep", "--untracked", "-n", "-I", "-F", "-e", arguments["text"])
 			if err != nil && len(found) == 0 {
-				return "no file of the checkout holds it", nil
+				return "no line of the checkout's files holds this text as written (the search takes no pattern)", nil
 			}
 			return string(found), nil
 		}},

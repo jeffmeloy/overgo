@@ -53,21 +53,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 197,
+        "nodes": 182,
         "reason": "Estimated: FFmpeg arguments for the colour conversion and tags, one admission call moved ahead of generation, and a transfer to 8-bit YUV on the card with a byte path through the MP4 encoder beside its float path."
       },
       "steps": [
-        {
-          "id": "admit-runtime",
-          "title": "A clip request asking for a finish whose runtime is missing is refused before the generation runs, not at its first frame",
-          "status": "open",
-          "verify": "go test ./internal/latentvideo -count=1 -run '^TestAFinishWithoutItsRuntimeIsRefusedBeforeAnythingIsDrawn$'",
-          "files": [
-            "internal/latentvideo",
-            "internal/cuda/nvvfx"
-          ],
-          "rationale": "Serves: the follow-up SQA-359's resolution names, a finish refused through the request's admission, not after costly work.\n\nDisappears: a generation run to its end before its finish is refused. newFinishingEncoder opens no runtime; build does, at the first frame (internal/latentvideo/finish_windows.go). Wan's 50-step path hands its first frame only after every step and the VAE decode, so a request whose OVERGO_NVVFX is unset or names a directory missing a DLL spends the whole generation before the refusal.\n\nThe fix: newServedEncoder opens the runtime (nvvfx.Open) when the finish is not zero, before the generation runs, and the refusal names the setting and the file.\n\nCheck: TestAFinishWithoutItsRuntimeIsRefusedBeforeAnythingIsDrawn calls WriteClip with an upscale and OVERGO_NVVFX naming an empty directory, through a generation that records whether it was called. It wants the refusal and no call. At base the generation runs and the refusal comes from its first frame.\n\nBatch: host lane.\n\nNote: The owner's proof of 2026-11-09: the driver gave this step to the local worker (Qwen3.8-27B through the swap proxy). Two attempts, 81 tool calls (51 searches, 28 reads, 2 check runs) and no edit; the first ended at 40 replies, the second at the repeat guard (tmp/loop-proof/local-real-step-2026-11-09.log). loop-proof/write-the-test answers what stopped it. The step is the lead's after the test costs."
-        },
         {
           "id": "device-bytes",
           "title": "A finished frame is converted on the card to the 8-bit BT.709 YUV 4:2:0 FFmpeg encodes and handed to it as is, so the host reads an eighth of the bytes, keeps no float copy of the frame, and FFmpeg converts nothing",

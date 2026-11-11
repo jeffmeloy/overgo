@@ -155,8 +155,10 @@ type finishingEncoder struct {
 	pixels PixelRange
 	// encodedBy is the encoder the clip after the finish is written by, and why where it is not NVENC.
 	encodedBy string
-	worker    *device.Worker
-	stages    []*nvvfx.Upscaler
+	// runtime is the effects' runtime, opened when the encoder is made, before any frame is drawn.
+	runtime *nvvfx.Runtime
+	worker  *device.Worker
+	stages  []*nvvfx.Upscaler
 	// frames are the device frames the stages read and write: the input, then each stage's output.
 	frames         []nvvfx.Image
 	upload, result []byte
@@ -168,19 +170,21 @@ func newFinishingEncoder(next clipEncoder, finish ClipFinish, pixels PixelRange)
 	if err := finish.Validate(); err != nil {
 		return nil, err
 	}
+	// The runtime is opened here, not at the first frame: a finish whose OVERGO_NVVFX is unset or misses a library is
+	// refused before the generation runs, where Wan's 50 steps and its decode ran first (clip-encode/admit-runtime).
+	runtime, err := nvvfx.Open()
+	if err != nil {
+		return nil, err
+	}
 	worker, err := device.New(0)
 	if err != nil {
 		return nil, err
 	}
-	return &finishingEncoder{next: next, finish: finish, pixels: pixels, worker: worker}, nil
+	return &finishingEncoder{next: next, finish: finish, pixels: pixels, runtime: runtime, worker: worker}, nil
 }
 
 // build builds the stages for frames of height by width, on the encoder's device worker.
-func (f *finishingEncoder) build(state *device.State, height, width int) error {
-	runtime, err := nvvfx.Open()
-	if err != nil {
-		return err
-	}
+func (f *finishingEncoder) build(state *device.State, height, width int) (err error) {
 	frame := nvvfx.Image{Width: width, Height: height}
 	if frame.Pixels, err = state.Driver.MemAlloc(frame.Bytes()); err != nil {
 		return err
@@ -192,7 +196,7 @@ func (f *finishingEncoder) build(state *device.State, height, width int) error {
 			return err
 		}
 		f.frames = append(f.frames, target)
-		upscaler, err := runtime.NewUpscaler(state.Driver, state.Stream, stage.level, frame, target)
+		upscaler, err := f.runtime.NewUpscaler(state.Driver, state.Stream, stage.level, frame, target)
 		if err != nil {
 			return err
 		}

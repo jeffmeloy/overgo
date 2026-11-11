@@ -173,8 +173,8 @@ func TestMOSSImageGenerationContract(t *testing.T) {
 		if c.Name == "guidance_scale" && (!c.Advanced || c.Bounds == nil || c.Bounds.Default != 3) {
 			t.Fatal("guidance declaration lost", c)
 		}
-		// The page offers the model's own presets beside the authors' recipe.
-		if c.Name == "preset" && (!c.Advanced || !slices.Equal(c.Choices, []string{"apg", "cfg-zero-star", "comfy-tutorial", "guidance-interval"})) {
+		// The page offers the model's own presets beside the authors' recipe, its guidance presets once their readings admit them.
+		if c.Name == "preset" && (!c.Advanced || !slices.Equal(c.Choices, []string{"comfy-tutorial"})) {
 			t.Fatal("MOSS's presets are not offered", c)
 		}
 	}

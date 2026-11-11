@@ -164,7 +164,10 @@ var controlProviders = map[recipe.ModuleID]func(string, []Control) ([]Control, e
 		}
 		applyBounds(controls, bounds)
 		presets, err := latentvideo.PresetNames(directory)
-		return offerPresets(controls, presets), err
+		if err != nil {
+			return nil, err
+		}
+		return offerPresets(controls, latentVideoPresets, presets)
 	},
 }
 
@@ -172,17 +175,22 @@ var controlProviders = map[recipe.ModuleID]func(string, []Control) ([]Control, e
 const presetControl = "preset"
 
 // offerPresets gives the preset control the model's declared presets as its choices, a tuning control beside the
-// authors' recipe, and removes it from a model that declares none.
-func offerPresets(controls []Control, presets []string) []Control {
-	if len(presets) == 0 {
-		return slices.DeleteFunc(controls, func(c Control) bool { return c.Name == presetControl })
+// authors' recipe, each one under reading only once its verdict admits it (offeredPresets), and removes the control
+// from a model that offers none.
+func offerPresets(controls []Control, family string, presets []string) ([]Control, error) {
+	readings, err := presetReadings()
+	if err != nil {
+		return nil, err
+	}
+	if presets = offeredPresets(readings, family, presets); len(presets) == 0 {
+		return slices.DeleteFunc(controls, func(c Control) bool { return c.Name == presetControl }), nil
 	}
 	for index := range controls {
 		if controls[index].Name == presetControl {
 			controls[index].Choices, controls[index].Advanced = presets, true
 		}
 	}
-	return controls
+	return controls, nil
 }
 
 // applyBounds binds each declared bound to the control of its name.

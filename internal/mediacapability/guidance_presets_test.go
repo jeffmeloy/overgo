@@ -8,10 +8,10 @@ import (
 	"overgo/internal/testcheck"
 )
 
-// TestWansPageOffersItsGuidancePresets: Wan's page offers CFG-Zero* and the guidance interval beside the model card's
-// preset, as the choices its preset control takes from the profile (latentvideo.PresetNames, which offerPresets
-// reads), each a preset the flow guider runs step by step (guidance-ops/guider).
-func TestWansPageOffersItsGuidancePresets(t *testing.T) {
+// TestWanDeclaresItsGuidancePresets: Wan declares CFG-Zero* and the guidance interval beside the model card's
+// preset in its profile (latentvideo.PresetNames), which its page offers once their readings admit them (offerPresets),
+// each a preset the flow guider runs step by step (guidance-ops/guider).
+func TestWanDeclaresItsGuidancePresets(t *testing.T) {
 	t.Parallel()
 	presets := testcheck.Must(latentvideo.PresetNames(t.TempDir()))(t)
 	for _, preset := range []string{"cfg-zero-star", "guidance-interval", "model-card"} {

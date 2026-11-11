@@ -28,7 +28,10 @@ func routedImageControls(_ string, controls []Control) ([]Control, error) {
 		"width": {Default: routedImageSide}, "height": {Default: routedImageSide}, "steps": {Default: routedImageSteps, Step: 1},
 	})
 	presets, err := sensenovarecipe.PresetNames()
-	return offerPresets(controls, presets), err
+	if err != nil {
+		return nil, err
+	}
+	return offerPresets(controls, senseNovaPresets, presets)
 }
 
 func imageControls(directory string, controls []Control) ([]Control, error) {
@@ -40,7 +43,9 @@ func imageControls(directory string, controls []Control) ([]Control, error) {
 	if err != nil {
 		return nil, err
 	}
-	controls = offerPresets(controls, presets)
+	if controls, err = offerPresets(controls, latentImagePresets, presets); err != nil {
+		return nil, err
+	}
 	if profile.Rotary == nil {
 		// A flow model offers the side its publisher draws (latentimage.PersonSize).
 		side, err := latentimage.PersonSize(directory)

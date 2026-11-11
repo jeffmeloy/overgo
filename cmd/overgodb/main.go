@@ -1,7 +1,7 @@
 // Command overgodb holds the store tools as subcommands, each with its own
 // flags: overgodb <subcommand> [flags]. They back up, check, import,
-// precheck, query, rebuild and repair an OvergoDB store, and count its
-// checkpoint by record family.
+// precheck, query, rebuild and repair an OvergoDB store, copy it for a
+// rehearsal, and count its checkpoint by record family.
 package main
 
 import (
@@ -24,6 +24,7 @@ var subcommands = map[string]func(flags *flag.FlagSet, args []string) error{
 	"precheck": precheckStore,
 	"query":    func(flags *flag.FlagSet, args []string) error { return query(flags, args, os.Stdout) },
 	"rebuild":  rebuild,
+	"rehearse": func(flags *flag.FlagSet, args []string) error { return rehearse(flags, args, os.Stdout) },
 	"repair":   repair,
 }
 

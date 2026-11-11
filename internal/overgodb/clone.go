@@ -1,6 +1,7 @@
 package overgodb
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -8,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"overgo/internal/processlock"
 )
 
 // CloneReport counts one store clone.
@@ -15,6 +18,17 @@ type CloneReport struct {
 	LinkedBlobs int
 	CopiedFiles int
 	CopiedBytes int64
+}
+
+// CloneLiveStore clones the store in service at root as CloneStore does, holding its writer's lock for the copy, so no
+// commit of another process lands while its journal and segments are read.
+func CloneLiveStore(ctx context.Context, root, destinationRoot string) (CloneReport, error) {
+	lock, err := processlock.AcquireContext(ctx, writerLockPath(root), storeFileMode)
+	if err != nil {
+		return CloneReport{}, err
+	}
+	defer lock.Close()
+	return CloneStore(root, destinationRoot)
 }
 
 // CloneStore clones the store under sourceRoot into a fresh destinationRoot:

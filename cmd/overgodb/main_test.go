@@ -11,7 +11,7 @@ import (
 var formerCommands = map[string]string{
 	"backup": "overgodb-backup", "check": "store-check", "checkpoint-families": "", "import": "overgodb-import",
 	"precheck": "store-precheck", "query": "overgodb-query", "rebuild": "overgodb-rebuild",
-	"repair": "overgodb-repair",
+	"rehearse": "", "repair": "overgodb-repair",
 }
 
 // TestOvergoDBSubcommandsReplaceTheirCommands holds each store subcommand to
@@ -37,7 +37,7 @@ func TestOvergoDBSubcommandsReplaceTheirCommands(t *testing.T) {
 	if len(subcommands) != len(formerCommands) {
 		t.Errorf("subcommands %d, replaced commands %d", len(subcommands), len(formerCommands))
 	}
-	if err := runSubcommand([]string{"absent"}); err == nil || !strings.Contains(err.Error(), "backup, check, checkpoint-families, import, precheck, query, rebuild, repair") {
+	if err := runSubcommand([]string{"absent"}); err == nil || !strings.Contains(err.Error(), "backup, check, checkpoint-families, import, precheck, query, rebuild, rehearse, repair") {
 		t.Errorf("unknown subcommand = %v, want the subcommands listed", err)
 	}
 }

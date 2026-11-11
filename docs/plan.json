@@ -1320,30 +1320,6 @@
       ]
     },
     {
-      "id": "session-leftovers",
-      "title": "A session's scratch folder under the temporary directory ends as checkout:tmp/ does: it is listed wherever the harness keeps it, kept while its session runs or an open row names an entry in it, and deleted otherwise, a rehearsal copy of the store among its entries",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": -724,
-        "reason": "Estimated: the session line of the leftovers table gains the list function and the finished rule the tmp line has (cmd/loop/leftovers.go scratchEntries, removeEntry), read over every harness folder that holds a recorded session; one record of a session's end beside the per-session state the checkout already keeps; and a marker a rehearsal copy of the store is made with. Reset from the first step's listing."
-      },
-      "steps": [
-        {
-          "id": "rehearsal-copy",
-          "title": "A rehearsal copy of the store is made by a command that marks it with the plan row it is for, the leftovers lines tell it from a backup by that mark, and it is finished when its row leaves the plan",
-          "status": "open",
-          "verify": "go test ./cmd/loop ./cmd/overgodb -count=1 -run '^TestARehearsalCopyOfTheStoreEndsWithItsRow$'",
-          "files": [
-            "cmd/loop",
-            "cmd/overgodb",
-            "internal/overgodb"
-          ],
-          "rationale": "Serves: the same free space, and a hand step read as a system defect.\n\nDisappears: copies of the store that nothing can ever delete. A measure that writes records is rehearsed on a copy made by hand (cp -r, about 8.5 GiB each), and the leftovers walk holds any folder that holds a store: \"it holds a store or a store backup, which is never deleted\" (cmd/loop/leftovers.go:240). So a rehearsal copy reads as a backup. Ten stand today: five in the session folder above (42.5 GiB) and five under the data root's scratch (store-copy, store-copy-needle, store-copy-speech and the two in cells-ab, about 28 GiB), the oldest of 2026-10-06.\n\nEvidence: the review of 2026-11-09. A sealed backup (overgodb backup -dest) and a superseded store keep their rule: never deleted. The mark is the copy's own, written by the command that makes it, so no rule guesses from a folder's name.\n\nThe copies there now carry no mark. Under this step they stay held, and the listing names them; removing them is the owner's word (the decision stale-data of the data-layout draft names the data root's five).\n\nPredicted effect: none on a measured cell.\n\nBatch: host lane."
-        }
-      ]
-    },
-    {
       "id": "rtx-vsr",
       "title": "A clip or picture overgo draws or is given can be upscaled up to four times, denoised or deblurred on the card by NVIDIA's RTX Video Super Resolution, run from the nvidia-vfx runtime already on the machine, and each level is measured against the bicubic it replaces",
       "owner": "master-lead",

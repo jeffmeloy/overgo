@@ -77,10 +77,10 @@ A line of this file reads by this notation, and cites the tests that hold its ru
 ## Writing
 
 - a rule = code => it cites the tests that fail when it is broken, or it goes (check: internal/repoanalysis TestEverySkillLineOutsideJudgementCitesItsCheck)
-- a rule no code can hold -> the Judgement section, saying why no code holds it (check: internal/landing TestAJudgementLineSaysWhyNoCodeHoldsIt)
-- a semicolon never joins two clauses of a rule, because it hides their relation (check: internal/landing TestTheDoctrineHoldsItsOwnForm)
-- history (a date, a commit id) -> the commit message, never the doctrine (check: internal/landing TestTheDoctrineHoldsItsOwnForm)
-- each rule has one line (check: internal/landing TestTheDoctrineHoldsItsOwnForm)
+- a rule no code can hold -> the Judgement section, saying why no code holds it (check: internal/repoanalysis TestAJudgementLineSaysWhyNoCodeHoldsIt)
+- a semicolon never joins two clauses of a rule, because it hides their relation (check: internal/repoanalysis TestTheDoctrineHoldsItsOwnForm)
+- history (a date, a commit id) -> the commit message, never the doctrine (check: internal/repoanalysis TestTheDoctrineHoldsItsOwnForm)
+- each rule has one line (check: internal/repoanalysis TestTheDoctrineHoldsItsOwnForm)
 - doc comment's first line = `Name <verb> ...`, one plain sentence (check: internal/repoanalysis TestGoStyleCensus)
 
 ## Fewer components

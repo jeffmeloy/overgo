@@ -47,15 +47,21 @@ type workerStep struct {
 
 // planStep is the plan's dispatched step in the checkout at root, shown and checked through its cmd/plan.
 func planStep(root string) workerStep {
-	plan := func(verb string) func() (string, error) {
-		return func() (string, error) { return runTool("go", "-C", root, "run", "./cmd/plan", verb) }
-	}
+	return planStepFrom(root, liveSource(root))
+}
+
+// planStepFrom is the worker's step as source gives it, checked by the plan command in root.
+func planStepFrom(root string, source stepSource) workerStep {
 	verify := func() (string, error) {
-		step, err := currentStep()
+		step, err := source.step()
 		return step.Verify, err
 	}
-	show := func() (string, error) { return reasonedPrompt(plan("-prompt")()) }
-	return workerStep{show: show, check: plan("-verify"), verify: verify, files: stepFiles}
+	files := func() ([]string, error) {
+		step, err := source.step()
+		return step.Files, err
+	}
+	check := func() (string, error) { return runTool("go", "-C", root, "run", "./cmd/plan", "-verify") }
+	return workerStep{show: source.reasoned, check: check, verify: verify, files: files}
 }
 
 // missingTest tells a worker whose check ran no test which test the check names and where it may write it: a real

@@ -365,7 +365,9 @@ type execWorld struct {
 	improvement
 	config       config
 	promptPrefix string
-	campaign     *processcontrol.Campaign
+	// steps is where the worker's step comes from: the checkout's plan where unset.
+	steps    stepSource
+	campaign *processcontrol.Campaign
 	// level is the worker the next runs go to: 0 for Worker, then each of Workers in turn (loop.LadderWorld).
 	level int
 }
@@ -394,12 +396,6 @@ func dispatchedStep(dispatch plan.Dispatch) (plan.Step, error) {
 	document, err := plan.Load("")
 	step, _ := plan.ExactStep(document, dispatch.Item, dispatch.Step)
 	return step, err
-}
-
-// stepFiles are the files the dispatched step lists, which the worker's edits stay inside.
-func stepFiles() ([]string, error) {
-	step, err := currentStep()
-	return step.Files, err
 }
 
 // currentStep is the step the plan dispatches now.
@@ -431,7 +427,11 @@ func (w *execWorld) awaitValidation() error {
 }
 
 func (w *execWorld) Prompt(loop.Step) (string, error) {
-	return reasonedPrompt(planCommand("-prompt"))
+	source := w.steps
+	if source.prompt == nil {
+		source = liveSource(".")
+	}
+	return source.reasoned()
 }
 
 // Workers counts the workers a step can go to: Worker, then each of Workers.

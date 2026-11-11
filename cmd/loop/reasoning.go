@@ -26,11 +26,28 @@ func withReasoning(prompt, rationale string) string {
 	return strings.TrimRight(prompt, "\n") + reasoningBreak + "REASONING\n" + strings.Join(kept, reasoningBreak) + "\n"
 }
 
-// reasonedPrompt is the plan's prompt with the dispatched step's reasoning after it, or what failed to make either.
-func reasonedPrompt(prompt string, err error) (string, error) {
+// stepSource is where a worker's step comes from: the plan's prompt for it and the step itself. It is the checkout's
+// plan (liveSource) unless a test gives a fixed one, so cmd/loop's tests read no plan a landing changes, which ran them
+// again at nearly every landing (fail-early/hermetic-tests).
+type stepSource struct {
+	prompt func() (string, error)
+	step   func() (plan.Step, error)
+}
+
+// liveSource is the dispatched step of the checkout's plan, its prompt made by the plan command in root.
+func liveSource(root string) stepSource {
+	return stepSource{
+		prompt: func() (string, error) { return runTool("go", "-C", root, "run", "./cmd/plan", "-prompt") },
+		step:   currentStep,
+	}
+}
+
+// reasoned is the step's prompt with its reasoning after it, or what failed to make either.
+func (s stepSource) reasoned() (string, error) {
+	prompt, err := s.prompt()
 	if err != nil {
 		return prompt, err
 	}
-	step, err := currentStep()
+	step, err := s.step()
 	return withReasoning(prompt, step.Rationale), err
 }

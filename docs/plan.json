@@ -8,23 +8,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": -56,
+        "nodes": -148,
         "reason": "Estimated from the day's refusals: a reordered stage list, two refusal messages, one rule moved before the lanes, and a check of the message read from the gate's own refusal record; about sixty nodes a step. Serves: development velocity: the owner's direction of 2026-11-10, that a failure is a possible automation, above all one found after a long test or evaluation run that an earlier check could have found.\n\nDisappears: refusals that cost a whole gate run, or a long model run, to say what a check of seconds could have said. 35 landings on 2026-11-10 spent 6.2 hours of gate wall, refused runs uncounted; in one stretch 7 steps took 14 gate runs, and one step (card-budgets/declared-budget) six, each 5 to 10 minutes: a check holding no passing test of its name in a package it names (found after the full lanes, twice, the second time with the message unchanged), an environment read no capability identity declares (found by a lane test), a set of names a text record repeats from the code (found by a lane test), and two rules the preflight would have found in seconds. The six-task thinking run spent 23 minutes on a first task whose every reply came back empty, which one request would have shown.\n\nBatch: host lane. Step packages-found: +255 (255, the median of what 23 landings that changed internal/landing, internal/planverify, internal/runrecord counted). Step record-written: +255 (255, the median of what 33 landings that changed internal/inferencesurface, internal/landing, cmd/validate, docs/verification/surface-moves.txt counted). Step setting-reader: +136 (136, the median of what 25 landings that changed internal/envsetting, internal/inferencesurface, internal/cuda, internal/media, internal/devicebudget, internal/dataroot, internal/clioptions, internal/remoteprovider, internal/agenttool, internal/processcontrol, internal/latentvideo, docs/verification/surface-moves.txt counted). Step hermetic-tests: +70 (70, the median of what 55 landings that changed cmd/loop, internal/landing, internal/repoanalysis, internal/testutil counted)."
       },
       "steps": [
-        {
-          "id": "hermetic-tests",
-          "title": "The commit tool's and the driver's tests run only when a file they depend on changes: they read fixed copies of the plan, skill.md and the README, and a process state of their own",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestTheCommitAndDriverTestsReadNoLiveState$' -timeout 20m",
-          "files": [
-            "cmd/loop",
-            "internal/landing",
-            "internal/repoanalysis",
-            "internal/testutil"
-          ],
-          "rationale": "Serves: development velocity (fail-early): the two test sets that set a landing's length run only when a file they depend on changed.\n\nDisappears: internal/landing's tests (about 93 s) and cmd/loop's (about 149 s) ran in 36 and 30 of the 37 landings since 2026-11-09, though their code changed in 2 and 11. The landing's test stage is go test ./..., whose cache keeps a package's result until its code, or a file inside the module its tests read, or a setting they read, changes. The survey (2026-11-10, each package's test binary run with -test.testlogfile): cmd/loop's tests read the live process state (.overgo-runtime itself, loop.json, loop_prompt.md, loop_pause, worker_attempts.json, driver_running.json, loop_supervisor.json; and docs/loop.json, docs/.loop_pause) and the live docs/plan.json, through tests that run the driver's world in the repository (the pause markers, progress, the authority lock, the campaign stop, the step's reasoning); every landing and every driver run writes the process state, so cmd/loop ran again even between two runs with nothing changed. internal/landing's tests read the live skill.md (the rule-citation tests), docs/plan.json and README.md, and the plan changes in every landing.\n\nThe change: those tests read fixed copies (the plan, skill.md and the README they hold, as files beside the tests) and a process state of their own (a temporary directory), so the only inputs of the two packages' tests are their code and their fixtures.\n\nCheck: TestTheCommitAndDriverTestsReadNoLiveState runs both packages' test binaries with an input log and wants no read of docs/plan.json, skill.md, README.md or the checkout's process state among their inputs. At the base it finds each.\n\nBatch: host lane."
-        },
         {
           "id": "setting-reader",
           "title": "A setting in a capability's code is read through one function of its kind, and reading it there declares it",

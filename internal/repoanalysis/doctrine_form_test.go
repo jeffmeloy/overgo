@@ -1,4 +1,4 @@
-package landing
+package repoanalysis
 
 import (
 	"encoding/json"

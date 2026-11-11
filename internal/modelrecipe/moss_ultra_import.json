@@ -1,0 +1,59 @@
+{
+  "name": "moss-ultra",
+  "files": [
+    {
+      "path": "transformer/moss_image_base_int8_convrot.safetensors",
+      "role": "weights",
+      "source": "ComfyUI/models/diffusion_models/moss_image_base_int8_convrot.safetensors",
+      "origin": "https://huggingface.co/Comfy-Org/MOSS-Image/resolve/main/diffusion_models/moss_image_base_int8_convrot.safetensors",
+      "license": "Apache-2.0",
+      "sha256": "f601c1e1161915fb3fea003da0c1782e374dd960fbb3978bc0e4e3fa1f2d8e6f",
+      "bytes": 5413698958
+    },
+    {
+      "path": "text_encoder/Qwen3.5-9B-abliterated_int8_convrot.safetensors",
+      "role": "weights",
+      "source": "ComfyUI/models/text_encoders/Qwen3.5-9B-abliterated_int8_convrot.safetensors",
+      "origin": "https://huggingface.co/beycanai/Qwen-LM/resolve/main/Qwen3.5-9B-abliterated_int8_convrot.safetensors",
+      "license": "not checked",
+      "sha256": "e7ba909fd9d9e2557eb566e00ffb34226706f3e7425dc3f187246382edc282f6",
+      "bytes": 9471076556
+    },
+    {
+      "path": "vae/flux2-vae_small.safetensors",
+      "role": "weights",
+      "source": "ComfyUI/models/vae/flux2-vae_small.safetensors",
+      "origin": "https://huggingface.co/Comfy-Org/MOSS-Image/resolve/main/vae/flux2-vae_small.safetensors",
+      "license": "Apache-2.0",
+      "sha256": "d8d52ba036475f5fb07c8b435e176d3d97ebfa82f0d1a1c317f9cc1e25bd013b",
+      "bytes": 249521340
+    },
+    {
+      "path": "adapters/8-steps-dmd2-lora.safetensors",
+      "role": "adapter",
+      "source": "ComfyUI/models/loras/8-steps-dmd2-lora.safetensors",
+      "origin": "https://huggingface.co/lodestones/Kromoss/resolve/main/8-steps-dmd2-lora.safetensors",
+      "license": "Apache-2.0",
+      "sha256": "7683fe1fb51f73f5d690f24dd6b7f46f31ab9a9873729a854ac5c9a420ffe6f2",
+      "bytes": 1189176800
+    },
+    {
+      "path": "adapters/moss_image_sft.safetensors",
+      "role": "adapter",
+      "source": "ComfyUI/models/loras/moss_image_sft.safetensors",
+      "origin": "https://civitai.com/models/3012507?modelVersionId=3419057",
+      "license": "not stated",
+      "sha256": "6b443a4597694769b527a43d5aed7f0c8265d59a9eceab164ab29eb4bb3af7bf",
+      "bytes": 285329336
+    },
+    {
+      "path": "adapters/moss-control.safetensors",
+      "role": "adapter",
+      "source": "ComfyUI/models/loras/moss-control.safetensors",
+      "origin": "https://huggingface.co/darask0/MOSS-Image-color-depth-control/resolve/main/moss-control.safetensors",
+      "license": "Apache-2.0",
+      "sha256": "e5c0c3efd05e4269207a39de6005798f14c90c6687c89c54eaffe4b76c43a763",
+      "bytes": 313063368
+    }
+  ]
+}

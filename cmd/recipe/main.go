@@ -39,7 +39,7 @@ func main() {
 func run() error {
 	args := os.Args[1:]
 	if len(args) == 0 {
-		return errors.New("usage: recipe <inspect|spec|register|verify|activate|retire|retire-orphan|run|status|policy> [options] <model>")
+		return errors.New("usage: recipe <inspect|spec|register|import-local|verify|activate|retire|retire-orphan|run|status|policy> [options] <model>")
 	}
 	verb, arguments := args[0], args[1:]
 	if verb == "inspect" {
@@ -47,6 +47,9 @@ func run() error {
 	}
 	if verb == "register" {
 		return registerModels(arguments)
+	}
+	if verb == "import-local" {
+		return importLocal(arguments)
 	}
 	if verb == "spec" {
 		return assembleSpecification(arguments)

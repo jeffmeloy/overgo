@@ -152,25 +152,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 2000,
-        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
+        "nodes": 1134,
+        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard). Step import: +83 (83, the median of what 3 landings that changed internal/modelrecipe, internal/discovery, local-models.json counted)."
       },
       "steps": [
-        {
-          "id": "import",
-          "title": "A local import hard-links the six files into overgo_data/models with receipts, the transformer, encoder and VAE as one recipe and the three LoRAs as its adapters",
-          "status": "open",
-          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/modelrecipe -count=1 -run '^TestTheUltraRecipeListsItsSixFilesByHash$'",
-          "files": [
-            "internal/modelrecipe",
-            "internal/discovery",
-            "local-models.json"
-          ],
-          "rationale": "The files are in ComfyUI_windows_portable/ComfyUI/models: diffusion_models/moss_image_base_int8_convrot.safetensors (5.41 GB, MOSS-Image Base, Apache-2.0), text_encoders/Qwen3.5-9B-abliterated_int8_convrot.safetensors (9.47 GB, licence not checked), vae/flux2-vae_small.safetensors (0.25 GB, Apache-2.0, not byte-identical to overgo's MOSS VAE), loras/8-steps-dmd2-lora.safetensors (1.19 GB, kohya rank 128 F32, Apache-2.0), loras/moss_image_sft.safetensors (0.29 GB, SFT minus Base, licence not stated) and loras/moss-control.safetensors (0.31 GB, PEFT rank 64 with a replacement video_embedder, Apache-2.0). The owner's instruction covers local use; publishing beyond that needs the two unchecked licences read.\n\nA local import hard-links each file into overgo_data/models; its receipt names the source path, the origin address from the workflow's notes, the licence and the SHA-256. No copy, conversion or download. The architecture is read from the tensor shapes and checked against MOSS's published configuration: 42 layers, width 3072, 24 heads, 128 latent channels.\n\nServes: setup-steps.\nDisappears: nothing.\nEvidence: the store lists the recipe with all six hashes and refuses a file whose hash has changed.\nBatch: host lane.",
-          "depends_on": [
-            "comfy-recorder/record"
-          ]
-        },
         {
           "id": "convrot",
           "title": "ConvRot int8 weights decode at load through per-row scales and the inverse 256-wide Hadamard rotation to the bf16 path, bit-equal to comfy_kitchen's decode, and the fused qkv splits",

@@ -20,6 +20,9 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/routedlm"
 	"overgo/internal/safetensors"
+	"overgo/internal/sampling"
+	"overgo/internal/tensor"
+	"overgo/internal/tensor/dtype"
 	"overgo/internal/torchrng"
 	"overgo/internal/workflowruntime"
 )
@@ -32,6 +35,9 @@ type GenerationRequest struct {
 	Seed          int64   `json:"seed"`
 	CFGScale      float32 `json:"cfg_scale"`
 	TimestepShift float64 `json:"timestep_shift"`
+	// Preset names one of SenseNova's presets (PresetNames), its guidance varying over the steps; none is the authors'
+	// recipe.
+	Preset string `json:"preset,omitzero"`
 }
 
 // GenerationStats partitions one production request without synchronizing
@@ -39,6 +45,9 @@ type GenerationRequest struct {
 type GenerationStats struct {
 	Prepare, Vision, Condition, Body, Flow, Guidance, Decode time.Duration
 	Steps                                                    int
+	// Passes are the branches the body ran over the steps: two a guided step, one a step its guidance reads no
+	// unconditioned output of, none a step it zeroes.
+	Passes int
 }
 
 func ValidateGenerationRequest(request GenerationRequest) error {
@@ -47,7 +56,8 @@ func ValidateGenerationRequest(request GenerationRequest) error {
 		request.TimestepShift <= 0 || math.IsNaN(request.TimestepShift) || math.IsInf(request.TimestepShift, 0) {
 		return errors.New("sensenova recipe: invalid generation request")
 	}
-	return nil
+	_, err := guidanceOf(request.Preset)
+	return err
 }
 
 // SessionKey identifies reusable resident state for the request.
@@ -57,7 +67,9 @@ func (request GenerationRequest) SessionKey() (string, error) {
 }
 
 type generationPlan struct {
-	request  GenerationRequest
+	request GenerationRequest
+	// guidance is how the request's preset varies the guidance over the steps.
+	guidance sampling.Guidance
 	image    routedlm.FlowImagePlan
 	schedule []float64
 	z        []float32
@@ -176,6 +188,10 @@ func (g *Generator) prepare(ctx context.Context, request GenerationRequest) (*ge
 	if err := g.Reset(ctx, request); err != nil {
 		return nil, err
 	}
+	guidance, err := guidanceOf(request.Preset)
+	if err != nil {
+		return nil, err
+	}
 	image, err := g.flow.ImagePlan(request.Width, request.Height)
 	if err != nil {
 		return nil, err
@@ -232,7 +248,7 @@ func (g *Generator) prepare(ctx context.Context, request GenerationRequest) (*ge
 		g.active, g.activeFlow = nil, nil
 		return nil, err
 	}
-	return &generationPlan{request: request, image: image, schedule: schedule, z: z, session: session, flow: flow}, nil
+	return &generationPlan{request: request, guidance: guidance, image: image, schedule: schedule, z: z, session: session, flow: flow}, nil
 }
 
 func (g *Generator) integrate(ctx context.Context, plan *generationPlan) (generationFeatures, error) {
@@ -245,9 +261,16 @@ func (g *Generator) integrate(ctx context.Context, plan *generationPlan) (genera
 		plan.session, plan.flow, g.active, g.activeFlow = nil, nil, nil, nil
 	}()
 	z := plan.z
+	guider := sampling.Guider{Scale: float64(plan.request.CFGScale), Guidance: plan.guidance}
 	for step := range plan.request.Steps {
 		if err := ctx.Err(); err != nil {
 			return generationFeatures{}, err
+		}
+		timestep := plan.schedule[step]
+		// A step the guidance zeroes gives no velocity: the latent stays, and neither branch runs.
+		at := guider.At(step, imageTime-timestep)
+		if at.Zeroed() {
+			continue
 		}
 		started := time.Now()
 		planar, err := media.UnpackPlanar(
@@ -263,7 +286,6 @@ func (g *Generator) integrate(ctx context.Context, plan *generationPlan) (genera
 		}
 		g.stats.Vision += time.Since(started)
 		started = time.Now()
-		timestep := plan.schedule[step]
 		condition, err := plan.flow.FlowConditionRow(
 			ctx, timestep, g.flow.NormalizedNoiseScale(plan.image.NoiseScale),
 		)
@@ -275,11 +297,18 @@ func (g *Generator) integrate(ctx context.Context, plan *generationPlan) (genera
 		}
 		g.stats.Condition += time.Since(started)
 		started = time.Now()
-		branches, _, err := plan.session.Run(ctx, hidden, nil, nil)
+		var branches [][]float32
+		if at.Unconditional() {
+			branches, _, err = plan.session.Run(ctx, hidden, nil, nil)
+		} else {
+			// A step outside the guidance interval reads no unconditioned output, so its branch does not run.
+			branches, _, err = plan.session.RunFirst(ctx, hidden)
+		}
 		if err != nil {
 			return generationFeatures{}, fmt.Errorf("sensenova recipe: step %d body: %w", step, err)
 		}
 		g.stats.Body += time.Since(started)
+		g.stats.Passes += len(branches)
 		started = time.Now()
 		velocities := make([][]float32, len(branches))
 		for branch := range branches {
@@ -290,7 +319,7 @@ func (g *Generator) integrate(ctx context.Context, plan *generationPlan) (genera
 		}
 		g.stats.Flow += time.Since(started)
 		started = time.Now()
-		guided, err := routedlm.GuidedFlowVelocity(velocities, []float32{plan.request.CFGScale, 1 - plan.request.CFGScale})
+		guided, err := guidedVelocity(at, plan.request.CFGScale, velocities)
 		if err != nil {
 			return generationFeatures{}, err
 		}
@@ -300,6 +329,32 @@ func (g *Generator) integrate(ctx context.Context, plan *generationPlan) (genera
 		g.stats.Guidance += time.Since(started)
 	}
 	return generationFeatures{patches: z, image: plan.image, flow: g.flow}, nil
+}
+
+// SenseNova's time runs from noise at zero to the image at imageTime, so a step's noise level is imageTime less its time.
+const imageTime = 1
+
+// A guided step runs the conditioned and the unconditioned branch, in that order (prepare's prefixes); a step that reads
+// no unconditioned output runs the first alone, conditionedBranch of them.
+const conditionedBranch = 1
+
+// guidedVelocity is the velocity a step steps by: the authors' combine of the two branches, the conditioned branch's alone
+// where the guider reads no unconditioned output, or CFG-Zero*'s projected combine (sampling.Guider), each stored as
+// BF16 as the authors' is.
+func guidedVelocity(at sampling.Guider, scale float32, velocities [][]float32) ([]float32, error) {
+	switch {
+	case !at.Unconditional():
+		return routedlm.GuidedFlowVelocity(velocities[:conditionedBranch], []float32{tensor.UnitScale})
+	case at.Guidance.Projected:
+		guided := make([]float32, len(velocities[0]))
+		if err := at.Combine(guided, velocities[0], velocities[1]); err != nil {
+			return nil, err
+		}
+		dtype.RoundBF16Slice(guided)
+		return guided, nil
+	default:
+		return routedlm.GuidedFlowVelocity(velocities, []float32{scale, 1 - scale})
+	}
 }
 
 func (g *Generator) decode(ctx context.Context, features generationFeatures) (latentimage.EncodedImage, error) {

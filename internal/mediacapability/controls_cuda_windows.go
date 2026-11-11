@@ -22,12 +22,13 @@ func init() {
 // (SenseNova-U1/apps/comfyui: T2I_RESOLUTIONS "1:1", num_steps).
 const routedImageSide, routedImageSteps = 2048, 50
 
-// routedImageControls offers SenseNova's own defaults as the page's.
+// routedImageControls offers SenseNova's own defaults as the page's, and its presets as the preset control's choices.
 func routedImageControls(_ string, controls []Control) ([]Control, error) {
 	applyBounds(controls, map[string]Bounds{
 		"width": {Default: routedImageSide}, "height": {Default: routedImageSide}, "steps": {Default: routedImageSteps, Step: 1},
 	})
-	return controls, nil
+	presets, err := sensenovarecipe.PresetNames()
+	return offerPresets(controls, presets), err
 }
 
 func imageControls(directory string, controls []Control) ([]Control, error) {

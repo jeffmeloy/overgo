@@ -181,10 +181,32 @@ func (s *DeviceGenerationSession) Stats() DeviceGenerationSessionStats {
 	return DeviceGenerationSessionStats{Graphs: len(s.branches), SetupWall: s.setupWall, PrefixBytes: s.prefixB}
 }
 
-// Run reuses retained layer weights and device-resident hidden state.
+// Run reuses retained layer weights and device-resident hidden state, running every branch.
 func (s *DeviceGenerationSession) Run(
 	ctx context.Context,
 	hidden []float32,
+	observedLayers []int,
+	observe func(branch, layer int, hidden []float32),
+) ([][]float32, DeviceGenerationStackStats, error) {
+	return s.run(ctx, hidden, everyBranch, observedLayers, observe)
+}
+
+// RunFirst runs the session's first branch alone, the conditioned one of a guided generation (its prefixes in that
+// order), for a step a guider asks no unconditioned output of.
+func (s *DeviceGenerationSession) RunFirst(ctx context.Context, hidden []float32) ([][]float32, DeviceGenerationStackStats, error) {
+	return s.run(ctx, hidden, firstBranch, nil, nil)
+}
+
+// everyBranch and firstBranch are the counts of branches run takes for all of a session's branches and for its first.
+const (
+	everyBranch = 0
+	firstBranch = 1
+)
+
+func (s *DeviceGenerationSession) run(
+	ctx context.Context,
+	hidden []float32,
+	count int,
 	observedLayers []int,
 	observe func(branch, layer int, hidden []float32),
 ) ([][]float32, DeviceGenerationStackStats, error) {
@@ -194,10 +216,17 @@ func (s *DeviceGenerationSession) Run(
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	stats := DeviceGenerationStackStats{Layers: s.cfg.NumHiddenLayers, Branches: len(s.branches)}
 	if s.closed {
-		return nil, stats, fmt.Errorf("routed lm generation session: closed")
+		return nil, DeviceGenerationStackStats{Layers: s.cfg.NumHiddenLayers}, fmt.Errorf("routed lm generation session: closed")
 	}
+	if count == everyBranch {
+		count = len(s.branches)
+	}
+	if count > len(s.branches) {
+		return nil, DeviceGenerationStackStats{}, fmt.Errorf("routed lm generation session: %d of %d branches", count, len(s.branches))
+	}
+	branches := s.branches[:count]
+	stats := DeviceGenerationStackStats{Layers: s.cfg.NumHiddenLayers, Branches: len(branches)}
 	if len(hidden) != s.image.Tokens*s.cfg.HiddenSize {
 		return nil, stats, fmt.Errorf("routed lm generation session: hidden elements=%d want=%d", len(hidden), s.image.Tokens*s.cfg.HiddenSize)
 	}
@@ -210,8 +239,8 @@ func (s *DeviceGenerationSession) Run(
 	}
 	if err := s.worker.Do(ctx, func(state *device.State) error {
 		raw := driver.Bytes(hidden)
-		for index := range s.branches {
-			if err := state.Driver.MemcpyHtoD(s.branches[index].row, raw); err != nil {
+		for index := range branches {
+			if err := state.Driver.MemcpyHtoD(branches[index].row, raw); err != nil {
 				return err
 			}
 		}
@@ -219,11 +248,11 @@ func (s *DeviceGenerationSession) Run(
 	}); err != nil {
 		return nil, stats, err
 	}
-	stats.HostToDevice += uint64(len(hidden)*len(s.branches)) * 4
-	out := make([][]float32, len(s.branches))
+	stats.HostToDevice += uint64(len(hidden)*len(branches)) * 4
+	out := make([][]float32, len(branches))
 	for layer := 0; layer < s.cfg.NumHiddenLayers; layer++ {
-		for index := range s.branches {
-			branch := &s.branches[index]
+		for index := range branches {
+			branch := &branches[index]
 			branch.inputs.bindWeights(branch.Inputs, s.weights[layer])
 			branch.bindPrefix(layer)
 			retained, err := s.cuda.ExecuteRetainedCompiled(
@@ -251,8 +280,8 @@ func (s *DeviceGenerationSession) Run(
 			}
 		}
 		if layer < s.cfg.NumHiddenLayers-1 {
-			for index := range s.branches {
-				branch := &s.branches[index]
+			for index := range branches {
+				branch := &branches[index]
 				branch.row, branch.output = branch.output, branch.row
 				rowSlot, err := compiledInputSlot(branch.Graph, branch.graph.Row)
 				if err != nil {

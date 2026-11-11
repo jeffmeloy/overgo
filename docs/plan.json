@@ -8,22 +8,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 1766,
+        "nodes": 1190,
         "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard). Step guider: +653 (653, the median of what 11 landings that changed internal/sampling, internal/latentvideo counted). Step moss-presets: +334 (334, the median of what 8 landings that changed internal/latentimage counted). Step sensenova-presets: +0 (no landing changed internal/sensenovarecipe, internal/routedlm). Step preset-readings: +331 (331, the median of what 9 landings that changed internal/mediacapability, docs/verification counted). Step moss-presets: +334 (334, the median of what 8 landings that changed internal/latentimage counted). Step sensenova-presets: +0 (no landing changed internal/sensenovarecipe, internal/routedlm)."
       },
       "steps": [
-        {
-          "id": "sensenova-presets",
-          "title": "SenseNova's request names CFG-Zero* or a guidance interval, and its step loop runs the branches the guider asks for",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/sensenovarecipe -count=1 -run '^TestSenseNovaRunsCFGZeroAndAGuidanceIntervalAsPresets$'",
-          "files": [
-            "internal/sensenovarecipe",
-            "internal/routedlm"
-          ],
-          "needs_card": true,
-          "rationale": "SenseNova's step loop (internal/sensenovarecipe) runs its two branches in one routed session call and guides on the host with routedlm.GuidedFlowVelocity, and its request names no preset (2026-11-11). Its request gains a preset of a declared set, CFG-Zero* and a guidance interval written as Wan's and MOSS's are, and each step asks sampling.Guider: a zeroed step runs neither branch and keeps the latent, a projected step combines through Guider.Combine, and a step outside the interval runs the conditioned branch alone, which needs the routed session to run one branch (internal/routedlm).\n\nCheck: TestSenseNovaRunsCFGZeroAndAGuidanceIntervalAsPresets runs SenseNova's card fixture for the reference and each preset and counts the branches each step runs, the reference's image unchanged. At the base the request has no preset.\n\nServes: held-out-quality, first-output.\nDisappears: SenseNova's guidance that could not vary by step.\nEvidence: the branch counts the check logs; quality is guidance-ops/preset-readings'.\nBatch: device lane."
-        },
         {
           "id": "apg",
           "title": "APG replaces the guidance combine for MOSS and SenseNova as a preset",

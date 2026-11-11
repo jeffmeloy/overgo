@@ -18,6 +18,7 @@ import (
 	"syscall"
 	"unsafe"
 
+	"overgo/internal/devicebudget"
 	"overgo/internal/processcontrol"
 )
 
@@ -393,11 +394,20 @@ func (l *Library) DeviceInfo(ordinal int) (DeviceInfo, error) {
 	}
 
 	runtime.KeepAlive(nameBytes)
+	budget, err := declaredBudget()
+	if err != nil {
+		return DeviceInfo{}, err
+	}
+	var budgetBytes uint64
+	if _, bound := devicebudget.Bound(totalMemory, totalMemory, budget); bound < totalMemory {
+		budgetBytes = bound
+	}
 	return DeviceInfo{
 		Ordinal:                ordinal,
 		UUID:                   uuid,
 		Name:                   strings.TrimRight(string(nameBytes), "\x00"),
 		TotalMemoryBytes:       totalMemory,
+		BudgetBytes:            budgetBytes,
 		ComputeCapabilityMajor: major,
 		ComputeCapabilityMinor: minor,
 		MultiprocessorCount:    multiprocessors,
@@ -657,7 +667,27 @@ func (l *Library) MemAlloc(bytes uint64) (DevicePtr, error) {
 // MemInfo: returns free and total device memory of the current context
 // (cuMemGetInfo_v2) -- driver-reported bytes, the basis for measured resident
 // capacity and real peak sampling (never a synthetic accounting sum).
+//   - under a declared device budget (devicebudget.Environment), as a card of the budget's size reports them: every
+//     placement, residency and admission decision, and MemAlloc's own admission, reads its capacity here, so each sees
+//     the smaller card with no limiter of its own (card-budgets/declared-budget)
 func (l *Library) MemInfo() (free, total uint64, err error) {
+	free, total, err = l.deviceMemInfo()
+	if err != nil {
+		return 0, 0, err
+	}
+	budget, err := declaredBudget()
+	if err != nil {
+		return 0, 0, err
+	}
+	free, total = devicebudget.Bound(free, total, budget)
+	return free, total, nil
+}
+
+// declaredBudget is the process's declared device budget, read once: the environment a process starts with.
+var declaredBudget = sync.OnceValues(devicebudget.Declared)
+
+// deviceMemInfo is free and total device memory as the card reports them.
+func (l *Library) deviceMemInfo() (free, total uint64, err error) {
 	var f, t uint64
 	var pinned runtime.Pinner
 	pinned.Pin(&f)

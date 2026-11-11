@@ -104,24 +104,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 150,
-        "reason": "Estimated: placement and residency are already derived from what the card has free (modeldevice, server resident fit). New is a declared budget those derivations read in place of installed capacity, and a budget on a scorecard reading's identity. Reset from the first step's survey of where installed capacity is read."
+        "nodes": 365,
+        "reason": "Estimated: placement and residency are already derived from what the card has free (modeldevice, server resident fit). New is a declared budget those derivations read in place of installed capacity, and a budget on a scorecard reading's identity. Reset from the first step's survey of where installed capacity is read. Step budget-bound: +665 (665, the median of what 9 landings that changed internal/devicebudget, internal/cuda/driver, internal/runrecord, cmd/server, internal/server, internal/inferencesurface, docs/verification/surface-moves.txt counted)."
       },
       "steps": [
-        {
-          "id": "declared-budget",
-          "title": "A declared device-memory budget bounds existing placement, residency and admission, and each serving reading records both its actual hardware and its memory cap",
-          "status": "open",
-          "verify": "go test ./internal/modeldevice ./internal/server ./internal/scorecard -count=1 -run '^TestADeclaredDeviceBudgetBoundsWhatACardWould$'",
-          "files": [
-            "internal/modeldevice",
-            "internal/server",
-            "internal/cuda/executor",
-            "internal/scorecard",
-            "internal/runrecord"
-          ],
-          "rationale": "Serves: peak-device-memory and failure-rate for a person whose card is not the reference machine's.\n\nDisappears: the inference that a run on the 48 GiB reference establishes smaller-card fitness; the reference readings remain valid for their own environment. The scorecard's memory column runs from 0.5 to 46.4 GiB on one RTX 4090 D; Flash-Next holds 46.4 GiB at every prompt length and Krea 25 GiB, so neither has been read on a 24 GiB card, and nothing says what a 16 GiB card gets. skill.md holds installed capacity apart from budget and asks for a resumable wait or a reported limit where nothing fits; no reading tests either below 48 GiB.\n\nEvidence: the owner's review of 2026-11-09, and the scorecard at ac1935d75. Timings under a declared budget are the budget's readings, kept apart from the full card's by the reading's identity as a runtime policy now is (scorecard-integrity/policy), so no full-card cell reads a decline from them.\n\nBatch: host lane.\n\nRetained owner: first trace the budget inputs already consumed by modeldevice and server residency/admission and reuse them; add only a missing connection, with no parallel limiter or configuration framework. A 16 or 24 GiB cap on the reference GPU tests memory-constrained behavior, not the compute rate, bandwidth, allocator reservations or driver behavior of a physical smaller card. Bind actual device, environment and cap to the observation; keep capped timings separate from uncapped timings and physical-card results. Unknown budget identity earns no matched reuse. Preserve resumable waiting, early refusal and valid partial results when a request cannot fit."
-        },
         {
           "id": "three-workloads",
           "title": "Flash-Next's chat at 4,096 and 16,384 tokens, Krea's 512 x 512 picture and Wan's 81-frame 832 x 480 clip are read under 24 GiB and 16 GiB: time to first output, throughput and peak memory, or the limit that refused the request",

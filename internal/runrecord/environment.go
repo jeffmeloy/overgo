@@ -7,6 +7,7 @@ import (
 	"runtime"
 
 	"overgo/internal/artifact"
+	"overgo/internal/devicebudget"
 	"overgo/internal/recipe"
 	"overgo/internal/textcheck"
 )
@@ -24,15 +25,19 @@ var environmentCodec = artifact.JSONDocumentCodec(
 
 // Environment defines immutable execution platform identity.
 type Environment struct {
-	Version uint16      `json:"version"`
-	Host    string      `json:"host"`
-	OS      string      `json:"os"`
-	Arch    string      `json:"arch"`
-	Device  string      `json:"device"`
-	Backend string      `json:"backend"`
-	Driver  string      `json:"driver"`
-	Runtime string      `json:"runtime,omitzero"`
-	ID      artifact.ID `json:"-"`
+	Version uint16 `json:"version"`
+	Host    string `json:"host"`
+	OS      string `json:"os"`
+	Arch    string `json:"arch"`
+	Device  string `json:"device"`
+	Backend string `json:"backend"`
+	Driver  string `json:"driver"`
+	Runtime string `json:"runtime,omitzero"`
+	// DeviceBudgetBytes is the declared device budget the run was read under (devicebudget), none where unset: a reading
+	// under a budget is its own environment, kept apart from the full card's, and an environment with none keeps its
+	// identity (card-budgets/declared-budget).
+	DeviceBudgetBytes uint64      `json:"device_budget_bytes,omitzero"`
+	ID                artifact.ID `json:"-"`
 }
 
 // NewEnvironment identifies a typed execution-platform record.
@@ -52,9 +57,13 @@ func CurrentEnvironment(device, backend string) (Environment, error) {
 	if err != nil {
 		host = "unknown"
 	}
+	budget, err := devicebudget.Declared()
+	if err != nil {
+		return Environment{}, err
+	}
 	return NewEnvironment(Environment{
 		Host: host, OS: runtime.GOOS, Arch: runtime.GOARCH,
-		Device: device, Backend: backend, Driver: "process", Runtime: runtime.Version(),
+		Device: device, Backend: backend, Driver: "process", Runtime: runtime.Version(), DeviceBudgetBytes: budget,
 	})
 }
 

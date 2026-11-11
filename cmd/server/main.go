@@ -493,7 +493,12 @@ func run() error {
 	if ffmpegErr != nil {
 		log.Printf("MP4 is not accepted: %v", ffmpegErr)
 	}
+	servingEnvironment, err := budgetedEnvironment(*modelFlags.DeviceOrdinal)
+	if err != nil {
+		return err
+	}
 	handler, err := llamaserver.New(llamaserver.Config{
+		Environment:        servingEnvironment,
 		RuntimePolicy:      policy,
 		ModelID:            *modelID,
 		MaxTokens:          *maxTokens,

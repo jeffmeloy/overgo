@@ -39,7 +39,7 @@
         ],
         "adoption_scope": "Supersedes the absent repository-document reference at the owner's request; current external SHA is verified. Does not alter the executable plan."
       },
-    "assessment": "Two useful existing-owner consolidations landed, but authority and prerequisite admission still rely on path spelling rather than the owned contract. Retained worker demonstration remains failed.",
+    "assessment": "Video finishing now admits its existing NVIDIA runtime before generation and reuses it for stages. Worker search sees untracked held tests; descriptions expose literal matching, file creation and missing final newline. Full live reasoning and opt-in thinking/reply bounds reuse the current loop/launcher. Retained run7 reaches3of5; these are real incremental gains, not completion of the architecture target.",
     "ast_surface_review": {
         "revision": "9bd406acafb89c44a439722419f1f7e85e71f691",
         "architectural_target": "Fewer independent product entry points and dependency owners; retain process isolation and existing compiled/runtime/development authority.",
@@ -55,59 +55,49 @@
         "cost": "Concrete parsed duplicate migrations total22production and150test AST removed; unimplemented estimates only. Three directories can disappear through349/351; command movement and all retained semantic constants must be charged. No overall refactor completion claimed."
       },
     "automation_follow_up": {
-        "architectural_progress": "edit_file and delete_file now share writable scope/ignore/protection admission, and replay wraps both with the held-test rule. Successful deletion also invalidates the existing read-result cache. Measurement exclusion moved from the demonstration into the existing replay boundary before checkout movement. These are useful consolidations, not a new runtime or net source reduction.",
-        "conflicts": "372: held-test spelling equality bypasses filesystem identity on Windows.373: a directory path is used as proof of model-produced prerequisites, excluding host-only refactors. Prior366 missing-test advice and371 grammar termination remain unchanged;356 durable interrupted-cost obligations remain distinct. Prior368..370 MMLU findings are untouched.",
-        "cost": "7aad643d7..8ac909a24:10changedGo paths,+205production/+584test=+789AST,+36/+102lines,0new production files and2new test files. No new command/package directory/schema/static fixture/CUDA entrypoint. Retained gate walls291+263=554s; these are costs, not avoidable-time measurements. No safe net code reduction established.",
+        "architectural_progress": "Video finishing now admits its existing NVIDIA runtime before generation and reuses it for stages. Worker search sees untracked held tests; descriptions expose literal matching, file creation and missing final newline. Full live reasoning and opt-in thinking/reply bounds reuse the current loop/launcher. Retained run7 reaches3of5; these are real incremental gains, not completion of the architecture target.",
+        "conflicts": "374: worker prompt reassembles two independently read steps.375: native search tests repeat the same setup.356: plan prose labels package wall as attempt wall.372filesystem identity,373directory-based replay exclusion,366vacuous-test advice and371terminal-prefix grammar remain open in unchanged governing paths.",
+        "cost": "87577ce59..fc673760f:22changedGo paths,+318production/+1803test=+2121AST,+84/+326lines,1new production file and8new test files.0new command/package directory/static fixture/schema/CUDA entrypoint. Eight retained gate trailers total2820s, a cost not measured waste. No safe complete net-code reduction established.",
         "plan_recommendations": [
           {
-            "rows": "loop-proof/delete-tool (landed); local-demonstrated",
+            "rows": "loop-proof/live-reasoning (landed); local-demonstrated",
             "findings": [
-              "SQA-372"
+              "SQA-374"
             ],
-            "recommendation": "Keep one writable owner for edit/delete and reuse existing pathidentity to preserve held checks across aliases. Extend the native fixture before another costly replay."
+            "recommendation": "Keep brief human and full worker presentation distinct, but project each from one identified step through the plan owner. Replace the live-plan-dependent proof with retained native fixture cases; delete the second prompt read."
           },
           {
-            "rows": "loop-proof/measurement-skip (landed); local-demonstrated",
+            "rows": "loop-proof/search-untracked,search-literal (landed)",
             "findings": [
-              "SQA-373"
+              "SQA-375"
             ],
-            "recommendation": "Use the step/check prerequisite, not directory membership. Keep known impossible measurement tasks out early without excluding host consolidation work or inventing a second classifier."
+            "recommendation": "Move unique search assertions into the retained native repository and delete the two redundant test files/setups."
           },
           {
             "rows": "loop-proof/local-demonstrated",
             "findings": [
               "SQA-356",
+              "SQA-372",
+              "SQA-373",
               "SQA-366",
               "SQA-371"
             ],
-            "recommendation": "Run6 remains2of6 after the latest prerequisites were addressed. Repeating the same selected steps supplies correlated failure evidence, not independent general competence. Use retained failing call/check traces to decide the next concrete change; do not start an unchanged demonstration merely for confidence. Respect existing stops/budgets; no plan edit or run by SQA."
+            "recommendation": "Credit run7's3of5, preserve all failures/skips, correct attempt-versus-package units and resolve remaining deterministic authority/admission defects through their owners. No unchanged confidence run; no inference of broad competence or benefit from selected repeated tasks."
           }
         ]
       },
-    "current_review_order": "Guidance/committed plan/target identity -> source/callers and provisional conclusions -> current findings/owner responses -> bounded AST and historical counterexample -> concurrent publication checks.",
+    "current_review_order": "Guidance/committed plan/target -> source/callers and provisional conclusions -> existing findings/owner responses -> selected AST/retained outcomes -> concurrent publication reconciliation.",
     "declined_candidates": [
-        "Do not merge MCP tool-list/protocol assertions with replay held-test assertions merely because both invoke workerTools. They enforce different caller contracts.",
-        "Use the current delete fixture to cover shared edit/delete alias refusal; no second path-guard package or test repository needed.",
-        "Use the current measurement repository fixture for genuine measurement versus host inventory; no generic dependency scanner or recurring confidence run.",
-        "Retain local read-cache invalidation after deletion through existing workLocally; no new cache owner. Same-name or similar setup alone does not establish removable tests.",
-        "No new recipe extension justified by these development-tool changes; plan/driver retain dispatch and authority. No safe net code reduction established."
+        "Do not unify brief CLI and full worker presentation by deleting their different contracts. Historical replay must keep its held step.",
+        "Do not merge MCP protocol or held-test protection into search tests merely because all use workerTools.",
+        "Do not interpret opt-in16384reply tokens as universal optimum or thinking as measured improvement.4096default remains; launcher0preserves recipe policy.",
+        "No per-request DLL cleanup recommendation: nvvfx declares process-lifetime libraries. Effect/worker/frame ownership remains separately releasable.",
+        "No new recipe language, scheduler, broad census or confidence run."
       ],
     "media_follow_up": {
-        "architectural_progress": "Mixed-format refusal now has one host fixture (354 closed). Calibration reuses the existing projection session/campaign and common answering helpers, with isolated records and established Close ownership. Scorecard comparison now reads the existing dataset's media groups instead of treating each question as independent. Stillness extends the existing motion record/display without a new runtime.",
-        "remaining": "342,346 and340 remain as last reviewed.355 is now closed by e9/8ad; current automation follow-up supersedes its prior proposal.349..353 still retain structural reductions.",
-        "plan_recommendations": [
-          {
-            "rows": "judge-calibration/independent,user-size",
-            "finding": "SQA-342",
-            "recommendation": "Use the same bound media and questions for judge comparison; report disagreement and uncertainty, not second-judge agreement as ground truth. Admit evidence at the actual resolved request's size/frames/format through current request/compiler owners. Keep fidelity and content identity separate; no second recipe/scheduler."
-          },
-          {
-            "rows": "judge-calibration/stillness (landed)",
-            "finding": "SQA-342",
-            "recommendation": "Keep source-relative motion descriptive; a stationary source can make the maximum1 and hide a freeze. A sample maximum is not a universal acceptance bound."
-          }
-        ],
-        "cost": "Prior calibration slice bc77/3cc/5c: +628 production/+2093 test; achieved354 deletion44 included. Historical slice only; current automation costs are separate."
+        "architectural_progress": "359follow-up is verified: runtime admission moves to newFinishingEncoder before generation, with retained next.Close and device release owners.",
+        "remaining": "clip-encode/device-bytes remains open; format-loader and recipe migration are not established by this change.365 still requires resolving a model before eviction.",
+        "cost": "fc673760f:+15production/+107test. Retained native assertion/undo, not a new model run."
       },
     "plan_review": {
         "draft": {
@@ -194,12 +184,12 @@
         "assessment": "delete-tool and measurement-skip landed. local-demonstrated is still first; runs5and6 each2of6. Shared mutation/replay owners should be retained while fixing372/373 before dependent repeated work.",
         "limits": "Plan unchanged by SQA. Legacy measurement steps lack Run/Record metadata, so merely reading those fields is insufficient. Current source does not close older recovery, grammar or diagnostic findings."
       },
-    "rank_basis": "Keep363security first.372/373 precede existing366 because held-check integrity and correct admission determine whether later worker evidence is meaningful. No general ranking rewrite.",
+    "rank_basis": "Retain security/held-check correctness priority.374 precedes366 because prompt identity governs instructions;375 is a lower-priority native setup reduction.",
     "refactor_target_progress": {
-        "architectural_progress": "edit_file and delete_file now share writable scope/ignore/protection admission, and replay wraps both with the held-test rule. Successful deletion also invalidates the existing read-result cache. Measurement exclusion moved from the demonstration into the existing replay boundary before checkout movement. These are useful consolidations, not a new runtime or net source reduction.",
-        "conflicts": "372: held-test spelling equality bypasses filesystem identity on Windows.373: a directory path is used as proof of model-produced prerequisites, excluding host-only refactors. Prior366 missing-test advice and371 grammar termination remain unchanged;356 durable interrupted-cost obligations remain distinct. Prior368..370 MMLU findings are untouched.",
-        "next_useful_reductions": "Reuse pathidentity in the shared mutation boundary; remove the directory-as-prerequisite rule without restoring a manual demonstration filter. Honor previous narrow307/329/367 deletion opportunities rather than creating new orchestration.",
-        "cost": "7aad643d7..8ac909a24:10changedGo paths,+205production/+584test=+789AST,+36/+102lines,0new production files and2new test files. No new command/package directory/schema/static fixture/CUDA entrypoint. Retained gate walls291+263=554s; these are costs, not avoidable-time measurements. No safe net code reduction established."
+        "architectural_progress": "Video finishing now admits its existing NVIDIA runtime before generation and reuses it for stages. Worker search sees untracked held tests; descriptions expose literal matching, file creation and missing final newline. Full live reasoning and opt-in thinking/reply bounds reuse the current loop/launcher. Retained run7 reaches3of5; these are real incremental gains, not completion of the architecture target.",
+        "conflicts": "374: worker prompt reassembles two independently read steps.375: native search tests repeat the same setup.356: plan prose labels package wall as attempt wall.372filesystem identity,373directory-based replay exclusion,366vacuous-test advice and371terminal-prefix grammar remain open in unchanged governing paths.",
+        "next_useful_reductions": "One identified plan-owned worker prompt, one existing search fixture; retain earlier349binary consolidation,351scalar-package removal and307/329/367native reductions. No recipe extension is justified by these presentation changes.",
+        "cost": "87577ce59..fc673760f:22changedGo paths,+318production/+1803test=+2121AST,+84/+326lines,1new production file and8new test files.0new command/package directory/static fixture/schema/CUDA entrypoint. Eight retained gate trailers total2820s, a cost not measured waste. No safe complete net-code reduction established."
       },
     "working_notes_review": {
         "finding": "SQA-334",
@@ -209,10 +199,10 @@
       }
   },
     "committed_plan": {
-    "git_blob": "24ee904a7933baf4ca59dfd68640529933f34a85",
+    "git_blob": "b919e76de994a4030158d9f22542e217267933ae",
     "path": "docs/plan.json",
-    "revision": "8ac909a24a1563852dc20e05a168439946f70de7",
-    "sha256": "02b68be37e57cdb98e70405fb1bb0cb5fa42343076b079402d4dd1f531d69818",
+    "revision": "fc673760f813afdf216be087fe586f717461cd3a",
+    "sha256": "50f53a21c8fcce6d29a10ade0efa2ec375b597713e1dced2f2bddf30b69a825d",
     "working_tree_status": "Committed plan at review pin; prior draft assessment retains its own snapshot identity. Current working plan edits excluded."
   },
     "findings": [
@@ -7914,10 +7904,10 @@
     "id": "SQA-356",
     "impact": "Prevents downtime and missing records being presented as measured worker effort, and prevents resumed work being credited to the wrong worker. Full-cost/benefit conclusions must remain limited until this path is truthful.",
     "likely_effort": "Small coordinated lifecycle/readout correction across existing driver, startup and landing owners; complete replacement must be counted.",
-    "plan_coverage": "At8ac909a24 local-demonstrated remains open after runs5and6 each passed2of6. The retained run6 log separates880217ms summed replay attempt wall from954.856s package wall; neither is a complete durable interruption accounting repair or proof of benefit. startup.go, landing/costs.go and cmd/loop/costs.go are unchanged since the prior review; main.go only changes tool-count wording. Original orphan-start/legacy/censored-cost obligations remain.",
+    "plan_coverage": "Atfc673760f local-demonstrated remains open although retained run7 reaches its stop at3passes/5attempted steps. Its12records include7skips;9attempts/245calls total589753ms (9m49.753s). Package wall667.548s is11m7.548s; committed plan prose calls11m7s wall over every attempt, while the records/log explicitly separate these quantities. Correct that label using existing records; do not rerun. startup.go, landing/costs.go and cmd/loop/costs.go remain unchanged; prompt/options changes do not repair orphan starts, legacy identity or censored costs. Broader competence and net economic benefit remain unestablished.",
     "plan_references": [
         "loop-proof/attempt-lifecycle6da610a60 (landed)",
-        "loop-proof/local-demonstrated at8ac909a24a1563852dc20e05a168439946f70de7",
+        "loop-proof/local-demonstrated atfc673760f813afdf216be087fe586f717461cd3a",
         "Downloads extreme_refactor_plan.md: one execution owner and truthful full costs"
       ],
     "recommended_change": "Finish the original retained-owner migration: use the existing driver start/exit/restart and processcontrol receipt as one durable attempt lifecycle, retaining terminal history and the unclean-start notice. Remove the displaced second active-start write/delete path; do not infer liveness from a start-only record. Preserve old interrupted evidence as unknown when exact identity cannot be recovered rather than charging downtime. Carry known-versus-unknown wall into the existing cost readout, keeping completed wall and actual worker order. Retain best-effort progress, stops, budgets and partial results; accounting failure must not rerun work.",
@@ -8037,12 +8027,13 @@
     {
     "category": "clip-output-contract-and-shared-owner",
     "classification": "source-established-admitted-request-counterexample",
-    "evidence": "Closed by ae6f10ea1. decodeVideo routes nonzero finish to renamed decodeVideoClip even for explicit GIF; that existing helper uses latentvideo.WriteClip. The unchanged no-finish branch retains Plan9 palette, truncating conversion, unscaled ChangedPixels and cancellation/reference behavior. New TestTheOscillatorFinishesTheGIFItIsAskedFor reuses loadArtifactModel and the real writer:4frames,scale8,upscale2 produces128x128 GIF with Finish.Scale2. Retained undo at e3 produces64x64/no finish and fails an assertion; retained package host tests pass. No SQA rerun. Required GIF routing is satisfied; the separate late runtime-DLL admission recommendation remains in current plan follow-up, not a reason to reopen the dispatch defect.",
-    "evidence_commit": "ae6f10ea1a1a33e372c716d6ac31337d1f8e3e49",
+    "evidence": "Closed by ae6f10ea1. decodeVideo routes nonzero finish to renamed decodeVideoClip even for explicit GIF; that existing helper uses latentvideo.WriteClip. The unchanged no-finish branch retains Plan9 palette, truncating conversion, unscaled ChangedPixels and cancellation/reference behavior. New TestTheOscillatorFinishesTheGIFItIsAskedFor reuses loadArtifactModel and the real writer:4frames,scale8,upscale2 produces128x128 GIF with Finish.Scale2. Retained undo at e3 produces64x64/no finish and fails an assertion; retained package host tests pass. No SQA rerun. Follow-up fc673760f now opens nvvfx in newFinishingEncoder before device creation and the WriteClip generator; build reuses that runtime. newServedEncoder closes the downstream encoder on admission error; normal stage/frame/worker release remains. The missing-runtime native Windows fixture proves the generator is not invoked, and retained production-undo fails an assertion. nvvfx DLLs explicitly live for the process; no per-request DLL-close defect inferred. GIF routing and this prerequisite follow-up are verified separately; no SQA workload ran.",
+    "evidence_commit": "fc673760f813afdf216be087fe586f717461cd3a",
     "expected_benefit": {
         "actual_cost": "video.go1397->1405 (+8production); new Windows/modeltest fixture244nodes, retained native files2403 unchanged. Selected before3800->after4052 (+252AST). CUDA lane membership adds1production node. Complete ae landing+9production/+193test=+202 includes360's51-node deletion, counted once; smoke-oracle JSON grows442bytes for the separately activated judge. No total shrinkage claimed.",
         "retained_contracts": "Fixed-palette no-finish reference GIF, cancellation/retry and MP4 contracts remain. Finished GIF uses the current numerical/identity/encoding owner. No new encoder/runtime/package/binary; one CUDA fixture execution added to existing lane.",
-        "limits": "Resolution is the admitted-GIF routing defect, not wholesale legacy-GIF removal or proof that runtime DLL prerequisites fail before generation. Full legacy retirement is unnecessary until exact differing output contracts can be retained at lower complete cost."
+        "limits": "Original admitted-GIF routing closure remains. Missing/unloadable runtime admission now precedes generation, but shape-dependent effect setup still occurs at the first frame; device-bytes is still open. No full legacy-GIF or host-staging retirement claimed.",
+        "admission_follow_up": "fc673760f adds15production/107test=122AST;0static fixtures/schemas/CUDA entrypoints. Existing ownership reused; one107-node Windows native fixture. Retained verify13.12s, gate511s; worker trailer213s may include its gate and is not additive. Growth buys early refusal, not source reduction."
       },
     "id": "SQA-359",
     "severity": "P2",
@@ -8078,6 +8069,14 @@
         {
           "path": "internal/landing/lanes.go",
           "symbol": "cudaPackages includes oscillatorimage"
+        },
+        {
+          "path": "internal/latentvideo/finish_admission_windows_test.go",
+          "symbol": "TestAFinishWithoutItsRuntimeIsRefusedBeforeAnythingIsDrawn"
+        },
+        {
+          "path": "internal/cuda/nvvfx/nvvfx_windows.go",
+          "symbol": "Open: process-lifetime libraries, missing-file and entrypoint admission"
         }
       ],
     "status": "resolved",
@@ -8769,74 +8768,140 @@
         "One existing replay boundary owns eligibility, with skips and failures retained, no extra classifier or recurring workload."
       ],
       "comparison": "Extend TestAMeasurementIsNoTaskForTheWorker with a host code step plus static inventory and an unrelated co-landed record, retaining the genuine model-record case. Check the existing replay early-return boundary without starting a worker or building an old checkout. Reuse the one repository; no full demonstration needed to decide this contract."
+    },
+    {
+      "id": "SQA-374",
+      "status": "open",
+      "severity": "P2",
+      "category": "worker-prompt-identity-and-owner",
+      "classification": "source-established-split-read-with-unexecuted-concurrency-counterexample",
+      "title": "Build the worker prompt from one identified step through the plan owner",
+      "evidence_commit": "fc673760f813afdf216be087fe586f717461cd3a",
+      "sources": [
+        {
+          "path": "cmd/loop/reasoning.go",
+          "symbol": "withReasoning; reasonedPrompt"
+        },
+        {
+          "path": "cmd/loop/main.go",
+          "symbol": "execWorld.Prompt; currentStep; dispatched; dispatchedStep"
+        },
+        {
+          "path": "cmd/loop/tools.go",
+          "symbol": "planStep.show"
+        },
+        {
+          "path": "cmd/plan/dispatch.go",
+          "symbol": "printDispatch: explicit item/step and located step"
+        },
+        {
+          "path": "cmd/plan/main.go",
+          "symbol": "printPromptStep"
+        },
+        {
+          "path": "cmd/plan/workflow_contract_test.go",
+          "symbol": "TestPromptContractProjection; TestPromptReadsWithoutWriting"
+        },
+        {
+          "path": "cmd/plan/plan_edits_test.go",
+          "symbol": "note projection assertions"
+        },
+        {
+          "path": "cmd/loop/reasoning_test.go",
+          "symbol": "TestTheLocalWorkerIsHandedTheStepsReasoning"
+        }
+      ],
+      "evidence": "e22fc0459 correctly gives live workers reasoning already supplied to replay workers. But reasonedPrompt appends reasoning from a fresh dispatch/plan read after plan -prompt produced the task. Both driver Prompt and show_step take this path; each incurs a second plan subprocess and an extra plan.Load. If dispatch changes from A to B between these reads, the returned prompt combines A task/files/check with B reasoning. The driver also ignores its supplied loop.Step. This is an admitted source-level interleaving, not an observed failed run. The new test reads the mutable real plan, skips when its current step has no non-note reasoning, and cannot establish prompt consistency. The ordinary plan prompt deliberately excludes rationale history: its native projection and note tests require that distinct brief contract.",
+      "recommended_change": "Give both live-worker callers a complete prompt from the existing plan dispatch/projection owner for one identified located step. Use the driver's supplied item/step and the existing explicit-reference admission where applicable; refuse a changed or missing task instead of mixing snapshots. Preserve the ordinary brief plan prompt and its stop/authority semantics. Remove the loop's second currentStep read and rationale reconstruction after projection; do not make every CLI prompt dump history. Reuse a fixed native plan fixture for full reasoning, notes once, and changed/missing identity. Keep historical replay bound to its own retained step rather than current dispatch.",
+      "displaced_surface": "Retire reasonedPrompt and the duplicated post-projection paragraph/Note filtering, ideally cmd/loop/reasoning.go after moving only necessary rendering to its owner. Replace the mutable-plan reasoning test with the smallest retained plan/worker fixture coverage. Keep currentStep where files/verify still use it; no new scheduler, process wrapper or general prompt framework.",
+      "comparison": "One deterministic native fixture with two distinct step identities proves each full worker prompt carries its own title/files/check/reasoning, notes appear once, and a stale supplied reference cannot receive another step's content. Retain the existing brief-output and read-only tests. Count the complete plan/loop production and test delta, including any typed dispatch fields; no local-model demonstration is needed for this projection contract.",
+      "closure_criteria": [
+        "Driver and show_step obtain coherent task and reasoning through one plan-owned projection; existing stops and explicit task admission remain authoritative.",
+        "Ordinary brief CLI output and historical replay retain their different presentation/identity contracts.",
+        "No ambient-plan skip is the sole reasoning evidence; obsolete loop reconstruction and duplicate read disappear, with complete replacement costs recorded."
+      ],
+      "impact": "Prevents misleading worker instructions during plan changes and removes repeated dispatch work from each prompt.",
+      "likely_effort": "Small cross-command ownership change; preserve existing brief/full consumer differences.",
+      "expected_benefit": {
+        "baseline": "reasoning.go138AST (withReasoning86; reasonedPrompt39); reasoning_test249; existing printPromptStep230. Full live-reasoning landing+171production/+249test=+420. These are baselines, not wholly removable totals.",
+        "cost": "One duplicate plan subprocess and extra plan read per live prompt can disappear. Replacement AST is unmeasured; no guaranteed net-node saving. Charge retained fixture growth and shared-owner migration.0new binary/directory/static fixture is needed."
+      },
+      "plan_references": [
+        "loop-proof/live-reasoning e22fc0459 (landed)",
+        "loop-proof/local-demonstrated",
+        "Downloads extreme_refactor_plan.md: one decision owner, exact execution identity, preserve development authority"
+      ],
+      "plan_coverage": "The reasoning delivery fix is credited. This follow-up concerns coherent ownership and deterministic evidence, not reversal of the requested full worker prompt."
+    },
+    {
+      "id": "SQA-375",
+      "status": "open",
+      "severity": "P3",
+      "category": "shared-native-search-fixture",
+      "classification": "source-and-ast-supported-coordinated-test-migration",
+      "title": "Keep literal, untracked and ignored search cases in the existing worker search fixture",
+      "evidence_commit": "fc673760f813afdf216be087fe586f717461cd3a",
+      "sources": [
+        {
+          "path": "cmd/loop/tools_search_test.go",
+          "symbol": "TestTheWorkerSearchesAndReadsOnlyTheLinesItNeeds; callTool"
+        },
+        {
+          "path": "cmd/loop/tools_search_untracked_test.go",
+          "symbol": "TestTheWorkerSearchFindsAFileGitDoesNotTrackYet"
+        },
+        {
+          "path": "cmd/loop/tools_search_literal_test.go",
+          "symbol": "TestTheWorkerIsToldASearchMatchesTextAsWritten"
+        },
+        {
+          "path": "cmd/loop/tools.go",
+          "symbol": "workerTools search_files"
+        }
+      ],
+      "evidence": "The two new search tests each create another temporary Git repository, build workerTools and locate search_files. The retained search/read fixture already owns the same native Git search contract and a repository with a tracked hit and line-number checks. Untracked visibility, ignored-file exclusion and literal-description/miss assertions need distinct cases, not independent repositories or new setup helpers. No full-function AST clone was found; redundancy is the proven shared setup/contract, not similar syntax alone.",
+      "recommended_change": "Move the untracked/ignored case and literal-description/miss assertions into TestTheWorkerSearchesAndReadsOnlyTheLinesItNeeds using its repository and tools. Put the literal miss against an admitted fixture containing a regex-like target, keep the ignored-only marker outside allowed source, and retain tracked hit/read-line and malformed-input byte-preservation assertions. Use the existing callTool/workerTools owner; do not add a fixture factory or generic table framework. Then delete tools_search_untracked_test.go and tools_search_literal_test.go.",
+      "displaced_surface": "Two standalone test bodies/files, two temporary Git repositories, two git init processes and repeated tool construction/lookup disappear. Keep every distinct assertion. MCP protocol/listing and replay held-test fixtures remain separate because their caller contracts differ.",
+      "comparison": "Parse the complete three-file baseline against the single retained file after migration and preserve all tracked/untracked/ignored/literal hit/miss, line and argument cases. Setup falls from3repositories/3git-init executions to1/1; tracked git add remains once.0production changes,0new helpers/packages/binaries/static fixtures. Native Go caching remains the gate owner.",
+      "closure_criteria": [
+        "One existing repository fixture retains all unique search and read/admission cases.",
+        "Both displaced test files are deleted, with no compensating setup wrapper or new suite.",
+        "Complete test AST is lower after counting moved assertions/imports; setup executions fall3to1."
+      ],
+      "impact": "Removes repeated native Git setup and two test entry points without dropping the fixes' evidence.",
+      "likely_effort": "Small test-only migration by the implementation owner.",
+      "expected_benefit": {
+        "baseline": "tools_search_test321 + untracked241 + literal198 =760AST. New files total439nodes, including necessary assertions that must move;439 is not the saving.",
+        "cost": "After AST unmeasured; claim only the two removable setup executions/file shells until complete replacement is parsed. No static fixture bytes are saved; embedded source markers remain. No wall-time saving measured."
+      },
+      "plan_references": [
+        "loop-proof/search-untracked b5eedb43b (landed)",
+        "loop-proof/search-literal 529e08062 (landed)",
+        "Downloads extreme_refactor_plan.md: net deletion across native tests and setup"
+      ],
+      "plan_coverage": "One coordinated migration for the same search contract, counted once. Does not combine unrelated edit, protocol or replay safety requirements."
     }
   ],
     "gate_test_assessment": {
     "assumptions": "Windows ordinary case-insensitive path identity differs from lexical spelling; apply actual filesystem semantics, not global case folding. docs/verification is a storage location, not a model-work type.6chosen steps/3required passes/40reply ceilings are explicit local demonstration policy; repeated runs on the same tasks are correlated. Keep package elapsed separate from attempt-wall sums.",
     "automation_follow_up": {
-        "landings": [
-          {
-            "commit": "7ca654005",
-            "production_ast": 23,
-            "test_ast": 431
-          },
-          {
-            "commit": "1cb0845d5",
-            "production_ast": 491,
-            "test_ast": 255
-          },
-          {
-            "commit": "55b766d46",
-            "production_ast": 693,
-            "test_ast": 549
-          },
-          {
-            "commit": "c122e6bae",
-            "production_ast": 1594,
-            "test_ast": 1053
-          }
-        ],
-        "total_production_ast": 2801,
-        "total_test_ast": 2288,
-        "total_ast": 5089,
-        "tracked_fixture_files": 0,
-        "tracked_fixture_bytes": 0,
-        "fixture_interpretation": "New embedded presentation metadata6663bytes; not a test fixture. Generated clips, temporary stores and model reloads remain actual setup costs.",
-        "retained_results": "7ca color assertion/undo retained; gate813s.1cb cause classifier verification17.1s; gate638s.55b four models/two variants: opener370/380 versus106/380 lettered, verification286.312s, gate893s. c122 README verification2.276s, gate373s. SQA did not rerun them; no cost treated as measured waste."
+        "cost": "87577ce59..fc673760f:22changedGo paths,+318production/+1803test=+2121AST,+84/+326lines,1new production file and8new test files.0new command/package directory/static fixture/schema/CUDA entrypoint. Eight retained gate trailers total2820s, a cost not measured waste. No safe complete net-code reduction established.",
+        "retained_results": "Run7:12records,7skipped,5attempted steps,3passes,9attempts,245tool calls. Attempt wall589753ms versus package667.548s. Both failures remain; no after-thinking result credited.",
+        "interpretation": "The stop at third pass satisfies this bounded demonstration threshold, not general competence or net benefit. Repeated selected tasks are correlated. No SQA execution."
       },
     "automation_sequence": "Known prerequisite refusal now precedes moveReplay and worker execution. Driver already distinguishes declared Run/Record work from worker dispatch. Current373heuristic overgeneralizes that boundary;372can corrupt its held verifier. Existing plan stops, budgets, process supervision and partial records remain owners. No new scheduler, cache or gate.",
     "fresh_ast": {
-        "revision": "8ac909a24a1563852dc20e05a168439946f70de7",
-        "method": "Existing external main.go parsed11committed files; day-count.go counted10changedGo endpoint paths.",
-        "retained_result": "review-20261110-1809-{ast,owners-ast,delta}.json",
-        "selected_counts": "tools1730;tools_test356;tools_delete299;replay1986;replay_measurement284;local_worker819;replay_model447;pathidentity393/test339;tools_search321;local_worker_repeat349. Total7323AST.",
-        "comparison": "writable is shared by two actual mutation callers. pathidentity is already used by this command. No exact full-body duplicate function groups; shared fixture opportunities preserve different transport/replay contracts.",
-        "limits": "31functions,1428parser-local identifier links, no package type resolution. No replacement parsed or whole-repo duplicate percentage."
+        "revision": "fc673760f813afdf216be087fe586f717461cd3a",
+        "method": "Existing external main.go parsed15committed Go files; day-count.go counted22changedGo endpoint paths including comments, no generated exclusions.",
+        "retained_result": "review-20261111-0219-ast.json; review-20261111-0219-delta.json",
+        "selected_counts": "reasoning138/test249; tools1752; search321+literal198+untracked241; loop/main3514; replay1990; plan/main4668; workflow_contract1085; plan_edits4527; finish1621/admission107; launcher1054/reply_bound276. Total21741.",
+        "comparison": "0exact full-body duplicate groups among127functions. Search fixture duplication is shared setup and actual contract, not a claim that assertions are clones. Prior binary/directory analysis is reused, not rerun.",
+        "limits": "4243parser-local links; no package type resolution. No representative whole-repo boilerplate percentage or completed replacement counts."
       },
     "media_follow_up": {
-        "landings": [
-          {
-            "commit": "bc77ee5e7",
-            "production_ast": 0,
-            "test_ast": 607
-          },
-          {
-            "commit": "3cc685278",
-            "production_ast": 503,
-            "test_ast": 902
-          },
-          {
-            "commit": "5c5113e7f",
-            "production_ast": 125,
-            "test_ast": 584
-          }
-        ],
-        "total_production_ast": 628,
-        "total_test_ast": 2093,
-        "total_ast": 2721,
-        "interpretation": "Calibration/correctness growth, not net reduction. Includes354's achieved44-test-node deletion. Gate fixtures category0 excludes generated media, installed corpora and setup executions.",
-        "tests": "RETAIN host format guard and real MP4 provenance/roundtrip/motion. REMOVE achieved354's duplicated tail. RETAIN content/fidelity questions as distinct measured claims and their common campaign/answer helpers. RETAIN output-pairing store fixture with2/4questions and3/6changed media. RETAIN four-clip stillness instrument check within its scope; do not treat it as general quality calibration. MERGE proposed355's message assertions into existing caught/unbuilt cases; REMOVE its duplicate entry after migration. No new tests run or created.",
-        "retained_results": "bc77: fidelity pictures12/0/0, clips9/0/1 lower/higher/tied; verification13m43.696s.3cc: output grouping10media,3losses tail0.125,6losses0.0156; duplication invariant.5c: four-source means0.9294,0.9803,0.9872,0.9950; frozen1.0000; verification5m26.221s. Successful walls are costs, not measured waste. No SQA rerun."
+        "revision": "fc673760f813afdf216be087fe586f717461cd3a",
+        "cost": "Admission follow-up+15production/+107test, included once in current total.",
+        "tests": "RETAIN107-node native Windows missing-runtime refusal and retained undo assertion. Existing finished/no-finish GIF, cancellation and MP4 contracts remain; no new SQA model/device check."
       },
     "requested_growth_analysis": {
       "window": {
@@ -8995,18 +9060,17 @@
       "retained_change_costs": "Two consolidation landings(2d59f642c exact folds andbb4fc706a parameter folds) remove744 production nodes but add1591 test nodes, net+847 across Go. Pilot retirementea8ed43a7 removes5926 production/9990 test nodes and one schema, while fixture bytes grow599; its test deletion is already included in the day's offsets and must not be subtracted twice. These retained gates are broader changes, not matched per-test performance comparisons."
     },
     "retained_results": [
-        "b6da70b52: delete-tool +76production/+300test; gate291s, verify31.807s. Retained undo fails native assertion when delete_file is absent. Shared writable/held guard, new299-node delete fixture; no new static fixture/schema.",
-        "8ac909a24: measurement-skip +129production/+284test; gate263s, verify30.78s. Production-only undo fails compilation, explicitly no behavioral undo. Same landing invalidates cached reads after delete.",
-        "Retained run6: six attempted steps,2passed; attempts1,3,1,3,3,3; calls18,82,13,67,122,113. Attempt wall880217ms (14m40.217s), package954.856s (15m54.856s);9records include3skips. The same two pass as previous runs; observed failures preserved. These distinct timings are not contradictory or additive.",
-        "3ef2c5d8f historical host-refactor counterexample: parent66b05cc1482c step Verify is the single native TestNoDeclarationIsReachedByNothing, no Run/Record/NeedsCard, and its inventory change matches the new measurement filter. This is source evidence, not a replay result."
+        "Eight committed landings:+318production/+1803testAST; retained gate trailers2820s. Thinking9546e3101 and reply-bound1cbe02bff explicitly record no behavioral undo because restored production does not compile with new signatures/fields; do not call compilation failure a behavioral proof.",
+        "fc673760f native missing-runtime verify13.12s and production-undo assertion retained. next.Close remains on admission refusal; nvvfx libraries retain declared process lifetime.",
+        "Run7after search-untracked/delete: fuzz-discovery1attempt8calls23937ms; skill-sort3/111/206968ms failed; stray-check1/14/52520ms; pointer3/94/230618ms failed; fuzz-or-delete1/18/75710ms.7skips outside denominator. Summed attempt589753ms; package667.548s.",
+        "No numerical claim improved by thinking or larger reply bounds established in this review. Known setup refusal is addressed through the existing launcher; repeated model work not requested."
       ],
-    "surface_reduction_analysis": "7aad643d7..8ac909a24:10changedGo paths,+205production/+584test=+789AST,+36/+102lines,0new production files and2new test files. No new command/package directory/schema/static fixture/CUDA entrypoint. Retained gate walls291+263=554s; these are costs, not avoidable-time measurements. No safe net code reduction established.",
+    "surface_reduction_analysis": "87577ce59..fc673760f:22changedGo paths,+318production/+1803test=+2121AST,+84/+326lines,1new production file and8new test files.0new command/package directory/static fixture/schema/CUDA entrypoint. Eight retained gate trailers total2820s, a cost not measured waste. No safe complete net-code reduction established.",
     "tests": [
-        "RETAIN tool protocol/listing/argument admission and separate replay hold contracts. EXTEND the existing delete fixture with both mutation operations against an alternate held-file spelling; reuse one repository.",
-        "RETAIN pathidentity filesystem semantics fixture; do not copy Same/Contains behavior into the worker package.",
-        "SIMPLIFY measurement helper/admission in the current replay owner and EXTEND its existing repository fixture with host inventory and co-landed-record cases. Preserve genuine measurement exclusion before worker execution.",
-        "RETAIN local repeat guard, read-cache invalidation and tagged real replay contract. No new model setup or confidence runs for deterministic admission changes.",
-        "REMOVE no application tests in SQA; no safe complete test-body deletion established in this sample."
+        "MERGE literal-description/miss and untracked/ignored assertions into existing search/read fixture; REMOVE the two standalone files after migration. Preserve tracked line/read and malformed-input byte checks.",
+        "SIMPLIFY full reasoning proof into fixed plan/worker fixture; RETAIN brief prompt, note order/once, read-only output, stop and historical replay contracts.",
+        "RETAIN thinking/default request and launcher0/explicit-bound cases within their existing native HTTP/child owners. They verify transport policy, not model improvement.",
+        "RETAIN missing-runtime generator-not-called fixture and next/stage/frame/worker cleanup. No test or workload executed by SQA."
       ]
   },
     "hygiene_assessment": "No hygiene finding. Scratch analysis is outside the repository; concrete correctness and production/test cost take priority.",
@@ -10540,10 +10604,10 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
     "limitations": [
-      "No application tests, workers, process/model/device workloads, benchmarks, gates, agents/messages, plan/skill changes or pushes. Only existing external AST/report tooling executed.",
-      "Parser counts include comments and1428local identifier links in31functions. No package type resolution, no exact full-body duplicates in11selected files, and no whole-tree boilerplate percentage inferred.",
-      "Windows case-alias and false-measurement counterexamples are source-derived; no destructive reproduction or replay executed. Failed worker outcomes come from committed notes and the retained run6 log.",
-      "Two landings grow total code. Existing shared owners reduce duplicated decisions; replacement costs remain unmeasured. No completed recipe/format architecture migration or general worker competence claim."
+      "No application tests, workers, model/device workloads, services, benchmarks, gates, agents/messages, plan/skill changes or pushes. Only external AST/report tooling executed.",
+      "Selected AST21741nodes/127functions/4243parser-local identifier links; no package type resolution and no exact full-body clone groups. No whole-tree boilerplate percentage inferred.",
+      "The mixed-step prompt is a source-established possible interleaving, not a reproduced failure. No replacement implementation was created or parsed; complete net savings remain unmeasured.",
+      "Current device-budget implementation is dirty and excluded. Recipe and format-independent execution target remains active; existing349..353 binary/directory/owner recommendations retain their prior measurements."
     ],
     "master_lead_triage": {
     "at": "2026-11-10",
@@ -11419,14 +11483,14 @@
       }
     }
   },
-    "next_finding_number": 374,
+    "next_finding_number": 376,
     "publication_context": {
-    "assessment": "Substantive report-only update: shared-owner progress, two admission defects and retained failed-run accounting.",
-    "checked_head": "8ac909a24a1563852dc20e05a168439946f70de7",
-    "concurrent_changes": "Live docs/plan.json edits observed and excluded; committed plan identity used. Re-read source/report/owner state immediately before publishing.",
-    "current_pin": "8ac909a24a1563852dc20e05a168439946f70de7",
+    "assessment": "Substantive report-only update: coherent prompt and fixture consolidation findings, verified runtime admission and retained worker progress/cost correction.",
+    "checked_head": "fc673760f813afdf216be087fe586f717461cd3a",
+    "concurrent_changes": "Device-budget source, environment, API/plan/surface-moves edits and untracked files observed and excluded. Re-read master/report/owner state immediately before publishing.",
+    "current_pin": "fc673760f813afdf216be087fe586f717461cd3a",
     "publication": "Normal report-only hook exception under existing landing_turn/gate ownership; no worker disturbance.",
-    "report_only": "Only docs/sqa_findings.json; other index/worktree changes preserved."
+    "report_only": "Only docs/sqa_findings.json; unrelated index/worktree edits preserved."
   },
     "ranked_active_finding_ids": [
     "SQA-363",
@@ -11436,6 +11500,7 @@
     "SQA-271",
     "SQA-372",
     "SQA-373",
+    "SQA-374",
     "SQA-366",
     "SQA-368",
     "SQA-369",
@@ -11493,37 +11558,38 @@
     "SQA-336",
     "SQA-361",
     "SQA-343",
-    "SQA-365"
+    "SQA-365",
+    "SQA-375"
   ],
     "repository": "C:\\Users\\jeffm\\overgo",
     "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
     "review_notes": [
-      "Preserved all198prior stable IDs and raw-exact owner/unknown fields. New372filesystem authority and373replay eligibility are distinct contracts; no forced consolidation.",
-      "356 retains its original lifecycle/censored-cost obligations, with current plan/run context refreshed.367retired-fixture recommendation and368..371remain unchanged.",
-      "Current bounded follow-up replaces older reviewer narrative; historical evidence remains in Git."
+      "Preserved200prior stable IDs and raw-exact implementation/unknown fields. New374 owns coherent worker projection;375 combines the two search fixture migrations under one contract. No aliases or active requirements retired.",
+      "359 remains resolved with its admission follow-up now evidenced.356 cost labels refreshed from retained run7; original interruption obligations stay active.",
+      "Current bounded follow-up replaces older reviewer narrative; closure history and complete prior costs remain in findings/Git."
     ],
-    "reviewed_at": "2026-11-10T18:15:24Z",
-    "reviewed_master": "8ac909a24a1563852dc20e05a168439946f70de7",
+    "reviewed_at": "2026-11-11T02:29:32Z",
+    "reviewed_master": "fc673760f813afdf216be087fe586f717461cd3a",
     "schema_version": 2,
     "scope": [
-      "Committed master8ac909a24a1563852dc20e05a168439946f70de7; committed plan blob24ee904a7933baf4ca59dfd68640529933f34a85. AGENTS/skill/Downloads architecture-target hashes unchanged; retained guidance reused.",
-      "Bounded worker mutation authority, replay eligibility/dispatch and retained failed-run review. Followed existing pathidentity, plan/driver, native fixtures and actual historical host-only counterexample beyond the latest diff.",
-      "11selected committed Go files parsed; all10changedGo endpoint paths counted. No whole-tree census or application execution.",
+      "Committed masterfc673760f813afdf216be087fe586f717461cd3a; plan blobb919e76de994a4030158d9f22542e217267933ae. Unchanged AGENTS/skill/Downloads architecture target rechecked; retained structural census reused.",
+      "Bounded live-worker prompt/dispatch, native search setup, reply policy and video finish admission/lifetime. Concrete brief/full prompt contracts and native callers traced beyond latest diff.",
+      "15committed Go files parsed; all22changedGo endpoint paths counted. External retained run7 read; no application execution.",
       "This chat previously implemented Overgo and contributed plan wording; this is follow-up SQA, not independent third-party review."
     ],
     "sqa_response": {
-    "assessment": "200stable IDs:65open,129resolved,4deferred,2aliases. Two new distinct admission findings;356current plan context refreshed. No closures or aliases changed.",
+    "assessment": "202stable IDs:67open,129resolved,4deferred,2aliases.359admission follow-up credited;356cost context corrected; two new canonical recommendations.",
     "consolidated_findings": [],
     "deferred_findings": [],
-    "evidence": "Two committed landings, native and historical caller/contract review,11-file AST and10-path endpoint costs, retained run6 failure record.",
-    "implementation_response_context": "Current report/owner blocks re-read.347 remains resolved for argument admission;372 is a distinct filesystem identity requirement.356/366/368..371 remain active in unchanged governing code. No implementation-owned response overwritten.",
+    "evidence": "Eight landings,15-file AST/22-path delta, concrete plan/search/finish owners and retained run7. No tests or workloads rerun.",
+    "implementation_response_context": "Owner blocks re-read and unchanged from committed report.359closure is extended with verified follow-up; no owner response rewritten.356/366/371..373remain open; unrelated historical obligations retained.",
     "new_findings": [
-        "SQA-372",
-        "SQA-373"
+        "SQA-374",
+        "SQA-375"
       ],
     "partially_addressed_findings": [],
-    "priority_changes": "Add372held-verifier authority and373replay prerequisite attribution; preserve security and correctness priority.",
-    "recommendation": "Keep one writable owner and one replay admission owner. Reuse existing filesystem identity and declared run/check contracts, preserve failed demonstrations, and decide deterministic repairs with retained native fixtures before further costly work.",
+    "priority_changes": "Add374coherent prompt identity before366;375fixture migration is lower priority.",
+    "recommendation": "Keep one plan-owned coherent worker projection and one native search setup; retain full/brief output contracts, early runtime refusal and truthful attempt/package accounting.",
     "refactor": {
       "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
       "history_path": "docs/sqa_findings.json",
@@ -11531,9 +11597,10 @@
     },
     "reopened_findings": [],
     "resolved_findings": [],
-    "reviewed_master": "8ac909a24a1563852dc20e05a168439946f70de7",
-    "uncertainty": "Source counterexamples not executed. Same2of6 measured result does not establish general competence or economic benefit. No safe net code reduction established.",
+    "reviewed_master": "fc673760f813afdf216be087fe586f717461cd3a",
+    "uncertainty": "Source interleaving not reproduced. No complete net-node saving or broad worker/economic success established. Device-budget drafts excluded.",
     "updated_findings": [
+        "SQA-359",
         "SQA-356"
       ]
   }

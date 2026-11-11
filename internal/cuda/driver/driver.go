@@ -42,10 +42,13 @@ type Dim3 struct {
 // DeviceInfo: stable subset of CUDA device properties used by
 // runtime and diagnostics
 type DeviceInfo struct {
-	Ordinal                int    `json:"ordinal"`
-	UUID                   string `json:"uuid"`
-	Name                   string `json:"name"`
-	TotalMemoryBytes       uint64 `json:"totalMemoryBytes"`
+	Ordinal          int    `json:"ordinal"`
+	UUID             string `json:"uuid"`
+	Name             string `json:"name"`
+	TotalMemoryBytes uint64 `json:"totalMemoryBytes"`
+	// BudgetBytes is the declared device budget the card is read under where it holds more (devicebudget), none where
+	// unset: TotalMemoryBytes stays the card's own, so a record names both.
+	BudgetBytes            uint64 `json:"budgetBytes,omitzero"`
 	ComputeCapabilityMajor int    `json:"computeCapabilityMajor"`
 	ComputeCapabilityMinor int    `json:"computeCapabilityMinor"`
 	MultiprocessorCount    int    `json:"multiprocessorCount"`

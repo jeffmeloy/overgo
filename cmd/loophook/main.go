@@ -668,7 +668,9 @@ func hasTurnCreatedDirt(session string) bool {
 	return len(turnCreatedDirt(base.Facts, current)) > 0
 }
 
-// turnCreatedDirt returns new or further-modified dirty facts.
+// turnCreatedDirt returns new or further-modified dirty facts. An edit of the plan is none: a plan review rides with
+// the next landing by design, so a turn that edits the plan while no step can land (the card held, every host step
+// waiting on it) leaves nothing orphaned; on 2026-11-11 such turns were blocked again and again until a code step landed.
 func turnCreatedDirt(base, current []dirtyFact) []dirtyFact {
 	parked := make(map[dirtyFact]bool, len(base))
 	for _, fact := range base {
@@ -676,7 +678,7 @@ func turnCreatedDirt(base, current []dirtyFact) []dirtyFact {
 	}
 	var created []dirtyFact
 	for _, fact := range current {
-		if !parked[fact] {
+		if fact.Path != plan.Path && !parked[fact] {
 			created = append(created, fact)
 		}
 	}

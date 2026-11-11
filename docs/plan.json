@@ -208,21 +208,6 @@
       },
       "steps": [
         {
-          "id": "formats",
-          "title": "A patched weight equals ComfyUI's for one tensor of each format, including adapters landing on slices of a fused qkv and a replaced input layer",
-          "status": "open",
-          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestEachAdapterFormatPatchesAsComfyUIDoes$'",
-          "files": [
-            "internal/latentimage",
-            "internal/media",
-            "fixtures/comfy"
-          ],
-          "rationale": "The workflow's adapters come in three formats: kohya lora_down/lora_up scaled by alpha over rank, PEFT lora_A/lora_B with alpha in the file's metadata, and full diff/diff_b deltas for norms and biases. Names drop the diffusion_model. prefix; adapters on q, k and v land on slices of a fused qkv; the control adapter's full video_embedder widens the input layer from 128 to 384 channels. How ComfyUI applies a LoRA to an 8-bit weight (decode, add and re-encode, or a separate low-rank pass) decides how exact overgo can be, so one patched weight per format is recorded by the golden script first.\n\nServes: setup-steps.\nDisappears: nothing.\nEvidence: patched weights equal ComfyUI's for one tensor of each format.\nBatch: host lane.",
-          "depends_on": [
-            "moss-ultra-import/convrot"
-          ]
-        },
-        {
           "id": "unmerged",
           "title": "Adapters run unmerged, y = xW + s(xA)B with the low-rank branch at the adapter's precision, so strength changes per request without rewriting weights",
           "status": "open",
@@ -235,7 +220,7 @@
             "kernels"
           ],
           "needs_card": true,
-          "rationale": "overgo serves image adapters merged (docs/MOSS_IMAGE.md). The DMD LoRAs warn that merging into BF16 discards most of the distillation, because the delta is near BF16's rounding step, so the eight-step adapters need an unmerged path kept at their own precision. ComfyUI's ModelPatcher records patches per key with a backup and shares one module between clones; the shape is taken from that description, not its code.\n\nServes: setup-steps; media-lora/moss-eight-step, krea-loras, sensenova-fast and moss-ultra-sections/depth-control apply adapters through it.\nDisappears: merging as the only way to serve an adapter.\nEvidence: at strength 1 an unmerged adapter's output matches the same adapter merged at F32 within a declared tolerance, and a second strength needs no reload.\nBatch: device lane.",
+          "rationale": "overgo serves image adapters merged (docs/MOSS_IMAGE.md). The DMD LoRAs warn that merging into BF16 discards most of the distillation, because the delta is near BF16's rounding step, so the eight-step adapters need an unmerged path kept at their own precision. ComfyUI's ModelPatcher records patches per key with a backup and shares one module between clones; the shape is taken from that description, not its code.\n\nNote: Absorbs media-lora/formats (retired 2026-11-11): reading each format's patch has no production caller until an adapter is applied while serving, which this step does, so the two land together, split by their first consumer. Read on 2026-11-11 from the imported files and the ComfyUI install's code:\n- The three formats: 8-steps-dmd2-lora is kohya, lora_up [out, 128] and lora_down [128, in] in F32 with an alpha tensor (128, its metadata saying rank 128), on layers.N.proj.q, k, v and o, each its own; moss_image_sft is kohya in F16 on the fused layers.N.proj.qkv, o, ffn_up_gate and ffn_down and on final_linear_video, shared_block_modulation and text_embedder.proj, with full deltas .diff for the norms (norm1, norm2, q_norm, k_norm, final_norm_video, the text embedder's) and .diff_b for biases, its metadata naming it inverted from moss_image_sft.safetensors; moss-control is PEFT, lora_A [64, in] and lora_B [out, 64] in BF16, alpha 64 in its metadata, on q, k, v, o and the FFNs and on the text embedder's blocks, and carries a full video_embedder.weight [3072, 384] and bias that replace the input layer's [3072, 128]. Names may carry a diffusion_model. prefix, which a graph's names do not.\n- Fused slices run both ways: overgo's graph reads q, k and v apart (as MOSS-Image SFT names them, and as moss-ultra-import/convrot splits the fused qkv), so a q adapter applies to q directly, and the SFT adapter's qkv delta, [9216, 3072], splits into thirds; in ComfyUI the q, k and v adapters land on slices of the fused weight.\n- ComfyUI's patched weight (comfy/model_patcher.py patch_weight_to_device): the weight is dequantized in the LoRA compute dtype, comfy.lora.calculate_weight adds strength * alpha / rank * (up @ down), or the diff, then a quantized layer's set_weight re-encodes it with a recalculated scale and stochastic rounding seeded by the weight's name (comfy/ops.py, requantize_from_float). That seeded rounding is torch's generator, which no Go code reproduces, and it is what serving unmerged avoids; the golden is calculate_weight's float result before re-encoding, its float32 sums held as moss-ultra-import/convrot holds comfy_kitchen's: overgo computes the exact value, and the golden records how far ComfyUI's lies from it.\n\nServes: setup-steps; media-lora/moss-eight-step, krea-loras, sensenova-fast and moss-ultra-sections/depth-control apply adapters through it.\nDisappears: merging as the only way to serve an adapter.\nEvidence: at strength 1 an unmerged adapter's output matches the same adapter merged at F32 within a declared tolerance, and a second strength needs no reload.\nBatch: device lane.",
           "depends_on": [
             "media-lora/formats"
           ]

@@ -30,7 +30,7 @@ func syntheticForwardInputs(t TransformerSpec, textSeq, imgSeq int) (latent, enc
 
 func TestIndexedMediaProgramBindings(t *testing.T) {
 	spec := syntheticSpec()
-	program := testcheck.Must(CompileDenoiserProgram(spec, syntheticEpsilon, []bool{true}, tensor.SingletonExtent, tensor.SingletonExtent, dtype.F32))(t)
+	program := testcheck.Must(CompileDenoiserProgram(spec, syntheticEpsilon, []bool{true}, nil, tensor.SingletonExtent, tensor.SingletonExtent, dtype.F32))(t)
 	first := program.weightInputs[0]
 	if program.weightInputs.Node(first.Name) != first {
 		t.Fatal("indexed binding does not resolve its compiled node")
@@ -47,7 +47,7 @@ func attendedTextMask(rows int) []bool {
 
 func TestDenoiserProgramMasksTextPadding(t *testing.T) {
 	program := testcheck.Must(CompileDenoiserProgram(
-		syntheticSpec(), 1e-5, []bool{true, false, true}, 1, 2, dtype.F32,
+		syntheticSpec(), 1e-5, []bool{true, false, true}, nil, 1, 2, dtype.F32,
 	))(t)
 	if program.keyBias == nil || len(program.keyData) != 5 ||
 		program.keyData[0] != 0 || program.keyData[1] != padKeyBias || program.keyData[2] != 0 ||
@@ -80,7 +80,7 @@ func TestDenoiserProgramMatchesHostReference(t *testing.T) {
 		t.Fatalf("host Forward: %v", err)
 	}
 
-	prog, err := CompileDenoiserProgram(spec, 1e-5, attendedTextMask(textSeq), gh, gw, dtype.F32)
+	prog, err := CompileDenoiserProgram(spec, 1e-5, attendedTextMask(textSeq), nil, gh, gw, dtype.F32)
 	if err != nil {
 		t.Fatalf("CompileDenoiserProgram: %v", err)
 	}

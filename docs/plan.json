@@ -656,25 +656,22 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 1500,
-        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
+        "nodes": 2248,
+        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard). Step store: +417 (417, the median of what 6 landings that changed internal/media counted). Step wired: +331 (331, the median of what 26 landings that changed internal/media, internal/latentvideo, internal/latentimage counted)."
       },
       "steps": [
         {
-          "id": "keys",
-          "title": "Text conditioning, an encoded source video, a sigma table and the latent before decode are stored under content keys and survive a restart, so a changed decode or preview size never denoises again",
+          "id": "wired",
+          "title": "Text conditioning, an encoded source video, a sigma table and the latent before decode are kept in the stage store, so a changed decode or preview size never denoises again",
           "status": "open",
-          "verify": "go test ./internal/media -count=1 -run '^TestAChangedDecodeReusesTheStoredLatent$'",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test ./internal/latentvideo -count=1 -run '^TestAChangedClipFormatDrawsNoStepAgain$'",
           "files": [
             "internal/media",
             "internal/latentvideo",
-            "internal/latentimage",
-            "internal/overgodb"
+            "internal/latentimage"
           ],
-          "rationale": "ComfyUI keys each node's output by its class, its change marker and its sorted inputs with every ancestor appended in a fixed order, so editing one input reruns only what follows it (taken from its description, not its code). overgo can go further: its Philox counter noise and pinned kernels make a stage's output a function of its inputs, so hits persist across restarts in the content-addressed store, which ComfyUI cannot do.\n\nServes: first-output on re-runs.\nDisappears: re-denoising to change a decode, tiling or preview size.\nEvidence: a second request differing only in decode settings runs no denoising step, and a restart keeps the hit.\nBatch: host lane.",
-          "depends_on": [
-            "umt5-resident/cache"
-          ]
+          "needs_card": true,
+          "rationale": "The stages of a generation keep their outputs in the stage store (media.StageStore, stage-cache/store): text conditioning, an encoded source video, a sigma table and the latent before decode, each under the operation, its package's execution identity, the request's settings that reach it and its inputs, so a request differing only in its decode or preview settings draws no step again, and a restart keeps the hit. Wan's production path first, then MOSS's.\n\nCheck: TestAChangedClipFormatDrawsNoStepAgain draws a Wan clip on the card at a small size, then the same request as an MP4 in place of a GIF: the second runs no denoising step and its decode is of the stored latent.\n\nNote: 2026-11-11: the stage store (media.StageStore, StageKey, an output kept as float32 content under an alias that digests its key, and found again after a restart) is written and held by TestAChangedDecodeReusesTheStoredLatent, parked in tmp/stage-cache/parked. It lands with this step, as it cannot land alone: the gate refuses an export no production code consumes and a declaration no command reaches, and every consumer (Wan's and MOSS's stages) draws on the card. Its check joins this step's: go test ./internal/media -run '^TestAChangedDecodeReusesTheStoredLatent$' beside the card test.\n\nServes: first-output on re-runs.\nDisappears: re-denoising to change a decode, tiling or preview size.\nEvidence: a second request differing only in decode settings runs no denoising step, and a restart keeps the hit.\nBatch: device lane."
         },
         {
           "id": "latent2rgb",
@@ -1099,8 +1096,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 900,
-        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
+        "nodes": 671,
+        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard). Step moss-weighting: +527 (527, the median of what 10 landings that changed internal/latentimage counted)."
       },
       "steps": [
         {
@@ -1118,14 +1115,14 @@
           ]
         },
         {
-          "id": "prompt-weighting",
-          "title": "A token's weight in a Krea or MOSS prompt scales its attention value, written from that one-sentence description",
+          "id": "moss-weighting",
+          "title": "A token's weight in a MOSS prompt scales its attention value in the joint attention, its rows found inside the chat template's rendering",
           "status": "open",
-          "verify": "go test ./internal/latentimage -count=1 -run '^TestAPromptWeightScalesItsTokensAttentionValue$'",
+          "verify": "go test ./internal/latentimage -count=1 -run '^TestAPromptWeightScalesMOSSTokensAttentionValue$'",
           "files": [
             "internal/latentimage"
           ],
-          "rationale": "KJNodes' Krea and MOSS prompt-weighting patches are GPL-3.0 and are not read; the idea, scaling a token's attention value by its weight, is one sentence, so overgo writes it from that with a clean-room provenance note.\n\nServes: a capability users expect.\nDisappears: nothing.\nEvidence: a weighted token's attention value is scaled by its weight and no other value changes.\nBatch: host lane."
+          "rationale": "krea-pack/prompt-weighting weighs Krea's prompt tokens (2026-11-11): Krea's template tokenizes its prefix, the prompt and its suffix apart, so a weighted prompt is tokenized a stretch at a time and each token's row is known. MOSS renders its prompt through its chat template and tokenizes the whole conversation at once, so a stretch's tokens are found by rendering the template with the prompt cut at each stretch's edges and reading where its tokens fall, and its joint attention (rotary joint program) scales the values of those rows as Krea's co-attention does.\n\nCheck: TestAPromptWeightScalesMOSSTokensAttentionValue: a weighted MOSS prompt's rows carry their stretches' weights inside the chat template's rendering, and in the joint program on synthetic weights, weights of one give the unweighted output bit for bit and a weight on a prompt token moves it.\n\nServes: a capability users expect.\nDisappears: nothing.\nBatch: host lane."
         },
         {
           "id": "best-of-n",

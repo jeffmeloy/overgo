@@ -49,6 +49,8 @@ type textInput struct {
 	IDs        []int
 	Mask       []bool
 	PromptRows int
+	// Weights are each row's attention-value weight (weightedSpans), none for a prompt that weights nothing.
+	Weights []float32
 }
 
 // renderTextInput builds templated ids plus the attention mask.
@@ -112,7 +114,19 @@ func renderTextInput(tok *hfbpe.Tokenizer, prompt string, tmpl textTemplate) (te
 	if !checked.NonemptyAll(prefixIDs, suffixIDs) {
 		return out, fmt.Errorf("image template prefix/suffix tokenized empty")
 	}
-	promptIDs, err := tok.Encode(prompt)
+	// A prompt that weights stretches of itself is tokenized a stretch at a time, so each token's weight is known; one
+	// that weights nothing is tokenized whole, as it always was.
+	spans, err := weightedSpans(prompt)
+	if err != nil {
+		return out, err
+	}
+	var tokens weightedTokens
+	if spans == nil {
+		tokens.ids, err = tok.Encode(prompt)
+	} else {
+		tokens, err = spanTokens(spans, tok.Encode)
+	}
+	promptIDs, promptWeights := tokens.ids, tokens.weights
 	if err != nil {
 		return out, fmt.Errorf("encode image prompt: %w", err)
 	}
@@ -120,5 +134,21 @@ func renderTextInput(tok *hfbpe.Tokenizer, prompt string, tmpl textTemplate) (te
 	if err != nil {
 		return out, fmt.Errorf("image text sequence: %w", err)
 	}
-	return textInput{IDs: sequence.IDs, Mask: sequence.Mask, PromptRows: sequence.PromptRows}, nil
+	return textInput{IDs: sequence.IDs, Mask: sequence.Mask, PromptRows: sequence.PromptRows, Weights: rowWeights(len(sequence.IDs), len(prefixIDs), sequence.PromptRows, promptWeights)}, nil
+}
+
+// rowWeights are the weights of rows rows of which the prompt's start after prefix and fill at most promptRows, the
+// prompt's tokens weighing promptWeights and every other row one; none for a prompt that weights nothing.
+func rowWeights(rows, prefix, promptRows int, promptWeights []float32) []float32 {
+	if promptWeights == nil {
+		return nil
+	}
+	weights := make([]float32, rows)
+	for index := range weights {
+		weights[index] = unweighted
+	}
+	for index, weight := range promptWeights[:min(len(promptWeights), promptRows)] {
+		weights[prefix+index] = weight
+	}
+	return weights
 }

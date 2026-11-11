@@ -38,7 +38,7 @@ func TestResidentImagePipelineRetainsTextAndLatentOnDevice(t *testing.T) {
 	))(t)
 	fusion := testcheck.Must(CompileFusionProgram(transformerSpec, 1e-5, attendedTextMask(fixtureSeq), dtype.F32))(t)
 	denoiser := testcheck.Must(CompileDenoiserProgram(
-		transformerSpec, 1e-5, attendedTextMask(fixtureSeq), fixtureGrid, fixtureGrid, dtype.F32,
+		transformerSpec, 1e-5, attendedTextMask(fixtureSeq), nil, fixtureGrid, fixtureGrid, dtype.F32,
 	))(t)
 	vaeDecoder := syntheticVAEDecoder(t)
 	vaeExtent := fixtureGrid * fixturePatch

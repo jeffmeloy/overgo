@@ -221,8 +221,13 @@ func (g *Generator) compilePrompt(prompt string, gridH, gridW int) (promptProgra
 	if err != nil {
 		return promptPrograms{}, err
 	}
+	// The denoiser reads the prompt's rows, as the mask, and their weights where the prompt weights any.
+	var textWeights []float32
+	if text.Weights != nil {
+		textWeights = text.Weights[len(text.Weights)-text.PromptRows:]
+	}
 	denoiser, err := CompileDenoiserProgram(
-		g.spec.Transformer, float32(g.spec.Transformer.NormEps), textMask, gridH, gridW, dtype.BF16,
+		g.spec.Transformer, float32(g.spec.Transformer.NormEps), textMask, textWeights, gridH, gridW, dtype.BF16,
 	)
 	return promptPrograms{embed: embed, encoder: encoder, fusion: fusion, denoiser: denoiser}, err
 }

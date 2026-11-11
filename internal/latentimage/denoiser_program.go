@@ -37,6 +37,10 @@ type DenoiserProgram struct {
 	InDelta   *tensor.Tensor // (1)                     flow Euler delta
 	keyBias   *tensor.Tensor
 	keyData   []float32
+	// valueScale scales each row's attention value (compileWeightedDenoiserProgram), none for a prompt that weights
+	// nothing.
+	valueScale *tensor.Tensor
+	valueData  []float32
 
 	weightInputs tensor.WeightBindings
 
@@ -51,8 +55,13 @@ type DenoiserProgram struct {
 // CompileDenoiserProgram builds the Krea2 step graph for one text/image
 // geometry. matmulType selects rank-2 weight storage (dtype.F32 exact, dtype.BF16
 // device path). imgSeq must equal gh*gw.
-func CompileDenoiserProgram(t TransformerSpec, eps float32, textMask []bool, gh, gw int, matmulType dtype.Type) (*DenoiserProgram, error) {
+// textWeights are each text row's attention-value weight (weightedSpans): the co-attention scales the values of the
+// text rows by them, the image rows' by one. None compile the graph as it was.
+func CompileDenoiserProgram(t TransformerSpec, eps float32, textMask []bool, textWeights []float32, gh, gw int, matmulType dtype.Type) (*DenoiserProgram, error) {
 	textSeq := len(textMask)
+	if textWeights != nil && len(textWeights) != textSeq {
+		return nil, fmt.Errorf("denoiser program: %d text weights for %d text rows", len(textWeights), textSeq)
+	}
 	if !checked.PositiveFinite32(eps) {
 		return nil, fmt.Errorf("denoiser program: eps must be positive, got %g", eps)
 	}
@@ -97,6 +106,15 @@ func CompileDenoiserProgram(t TransformerSpec, eps float32, textMask []bool, gh,
 	p.InTemb = b.Input("timestep_embed", dtype.F32, tensor.MustShape(h))
 	p.InTembMod = b.Input("timestep_mod", dtype.F32, tensor.MustShape(uint64(t.ModFields)*h))
 	p.InDelta = b.Input("flow_delta", dtype.F32, tensor.MustShape(tensor.SingletonExtent))
+	if textWeights != nil {
+		// The image rows weigh one: only a weighted prompt's tokens move.
+		p.valueScale = b.Input("denoiser_value_scale", dtype.F32, tensor.MustShape(tensor.SingletonExtent, tensor.SingletonExtent, uint64(seq)))
+		p.valueData = make([]float32, seq)
+		copy(p.valueData, textWeights)
+		for index := textSeq; index < seq; index++ {
+			p.valueData[index] = unweighted
+		}
+	}
 	for _, attended := range textMask {
 		if !attended {
 			p.keyBias = b.Input("denoiser_key_bias", dtype.F32, tensor.MustShape(uint64(seq)))
@@ -149,6 +167,9 @@ func CompileDenoiserProgram(t TransformerSpec, eps float32, textMask []bool, gh,
 		q = b.Reshape(q, headDim, heads, uint64(seq))
 		k = b.Reshape(k, headDim, kvHeads, uint64(seq))
 		v = b.Reshape(v, headDim, kvHeads, uint64(seq))
+		if p.valueScale != nil {
+			v = b.Multiply(v, p.valueScale)
+		}
 		q = zeroCenteredRMSNorm(b, q, bind.Input(prefix+"attn.norm_q.weight", headDim), eps)
 		k = zeroCenteredRMSNorm(b, k, bind.Input(prefix+"attn.norm_k.weight", headDim), eps)
 		q = buildInterleavedRoPE(b, q, axes, positions, theta)
@@ -274,6 +295,9 @@ func (p *DenoiserProgram) hostFeeds(
 	feeds[p.InDelta] = reference.Value{Shape: p.InDelta.Shape, Data: make([]float32, tensor.SingletonExtent)}
 	if p.keyBias != nil {
 		feeds[p.keyBias] = reference.Value{Shape: p.keyBias.Shape, Data: p.keyData}
+	}
+	if p.valueScale != nil {
+		feeds[p.valueScale] = reference.Value{Shape: p.valueScale.Shape, Data: p.valueData}
 	}
 	return feeds, nil
 }

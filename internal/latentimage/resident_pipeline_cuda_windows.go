@@ -4,6 +4,7 @@ package latentimage
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -167,6 +168,9 @@ func (p *ResidentImagePipeline) bindDenoiser(ctx context.Context, replaced *grap
 	)
 	if err == nil {
 		err = p.runtime.Release(ctx, replaced)
+	}
+	if err == nil && denoiser.valueScale != nil {
+		err = p.runtime.BindF32(ctx, program, fmt.Sprintf("static:resident image denoiser value scale:%x", sha256.Sum256(driver.Bytes(denoiser.valueData))), denoiser.valueScale, denoiser.valueData)
 	}
 	if err != nil || denoiser.keyBias == nil {
 		return program, err

@@ -39,7 +39,7 @@
         ],
         "adoption_scope": "Supersedes the absent repository-document reference at the owner's request; current external SHA is verified. Does not alter the executable plan."
       },
-    "assessment": "MOSS and SenseNova reuse sampling.Guider; loops retain model-specific numerical ordering, including SenseNova BF16 rounding. Current controls reuse model-owned preset names. This reduces duplicate guidance logic ownership but does not establish model quality, speed or complete refactor migration.",
+    "assessment": "Shared envsetting replaces two manual declarations; APG stays in sampling.Guider; whole-tree reads move out of ordinary driver/landing suites while native caching remains owner. Dispatch can choose host work under a recorded live card hold; replay probes one request before tasks. These are useful reductions in repeated manual work, with real code/test growth.",
     "ast_surface_review": {
         "revision": "9bd406acafb89c44a439722419f1f7e85e71f691",
         "architectural_target": "Fewer independent product entry points and dependency owners; retain process isolation and existing compiled/runtime/development authority.",
@@ -55,28 +55,45 @@
         "cost": "Concrete parsed duplicate migrations total22production and150test AST removed; unimplemented estimates only. Three directories can disappear through349/351; command movement and all retained semantic constants must be charged. No overall refactor completion claimed."
       },
     "automation_follow_up": {
-        "architectural_progress": "22151be7d isolates retained attempt files in the existing driver test setup; production0/test+84AST. Earlier accepted-check/history/status progress remains in its canonical findings.",
-        "remaining": "374/376/377 remain open under their prior scoped evidence. Current landing/plan changes are drafts and not credited. The next concrete sequencing risk is expensive preset readings before supported bound admission.",
+        "architectural_progress": "Shared envsetting replaces two manual declarations; APG stays in sampling.Guider; whole-tree reads move out of ordinary driver/landing suites while native caching remains owner. Dispatch can choose host work under a recorded live card hold; replay probes one request before tasks. These are useful reductions in repeated manual work, with real code/test growth.",
+        "remaining": "380 configuration admission;381 setting identity;377 historical source binding. Existing374/376 obligations retain their earlier scoped evidence. Card hold and one-request probe are bounded progress, not external-supervisor completion.",
         "plan_recommendations": [
           {
-            "rows": "judge-calibration/user-size (landed); guidance-ops/preset-readings",
+            "rows": "guidance-ops/preset-readings; setting-reader/do (landed)",
             "findings": [
               "SQA-342",
-              "SQA-379"
+              "SQA-379",
+              "SQA-381"
             ],
-            "recommendation": "Repair supported statistical admission and record/render binding before expensive measurements; make setting-reader identity work an actual prerequisite. Close the existing offering gate before exposing unjudged presets. Keep apg/nag numerical implementations with existing executors."
+            "recommendation": "Credit the landed setting reader and moving readings before NAG. Keep statistical approval and record/render binding unresolved; correct syntax-dependent identity discovery through its existing owner. Printed verdicts and a campaign start are not valid admission or completion."
+          },
+          {
+            "rows": "fail-early-runs/land-environment (landed)",
+            "findings": [
+              "SQA-380"
+            ],
+            "recommendation": "Use one effective filtered environment and surface existing-config errors before starting tool work."
+          },
+          {
+            "rows": "setting-reader/do; review-fixes/historical-record",
+            "findings": [
+              "SQA-377"
+            ],
+            "recommendation": "Stop rewriting the historical dependency interpretation for current symbols; keep it tied to its recorded revision."
           }
         ],
-        "complete_cost": "9290a89->d87c57c four complete changed-Go landings: +2334 production/+2005 test AST (+462/+331 lines; +3/+5 files). Split once: admission1231/766, attempt isolation0/84, MOSS527/533, SenseNova576/622. No binary or code-directory removal. Embedded production preset data: profiles.json1561->1754bytes (+193), SenseNova presets0->172bytes (+172); compatibility documentation also changes. Retained gates report0new fixture bytes/schemas/CUDA entrypoints. No runtime speed/memory saving measured by SQA. No safe net reduction established.",
+        "complete_cost": "d87c57c->5a2336fba six complete changed-Go migrations: +2334 production/+3227 test AST (+453/+562 lines; +4/+9 files), one envsetting package, no binary or directory deletion. Split once: test-reuse370/699, APG736/1181, setting-reader402/450, card-held332/322, probe274/258, landing-environment220/317. Embedded production presets grow94+83bytes; retained gates report0new fixture bytes/schemas/CUDA entries. No safe aggregate net reduction.",
         "separate_costs": {
-          "admission": "1231 production/766 test AST",
-          "attempt-isolation": "0 production/84 test AST",
-          "MOSS-presets": "527 production/533 test AST",
-          "SenseNova-presets": "576 production/622 test AST"
+          "test-reuse": "370 production/699 test",
+          "APG": "736/1181",
+          "setting-reader": "402/450",
+          "card-held": "332/322",
+          "worker-probe": "274/258",
+          "landing-environment": "220/317"
         },
-        "authority": "Report-only recommendations; no dispatch/worker messages or code/plan edits."
+        "authority": "Report-only; no dispatch, worker messages or execution changes."
       },
-    "current_review_order": "Pinned guidance/plan -> committed callers and provisional conclusions -> existing findings/owner responses -> targeted AST/costs -> concurrent publication reconciliation.",
+    "current_review_order": "Guidance/committed plan -> bounded concrete callers and provisional conclusions -> existing findings/owner responses -> AST/full costs -> concurrent publication reconciliation.",
     "declined_candidates": [
         "Do not implement five separate monitors, another notes file or recurring model/test workload. One existing status projection is enough.",
         "Do not count a successful preflight as a refused commit, an already-landed retry as a new commit, or a retired/renamed step as completed.",
@@ -85,17 +102,18 @@
         "Do not treat a high refusal percentage as permission to weaken correctness, identity, safety or numerical checks."
       ],
     "media_follow_up": {
-        "architectural_progress": "MOSS and SenseNova reuse sampling.Guider; loops retain model-specific numerical ordering, including SenseNova BF16 rounding. Current controls reuse model-owned preset names. This reduces duplicate guidance logic ownership but does not establish model quality, speed or complete refactor migration.",
-        "remaining": "342 numerical acceptance and379 provenance binding; declared presets are still offered before the planned reader. Existing media encoding/format-loader obligations retain their own evidence.",
-        "cost": "9290a89->d87c57c four complete changed-Go landings: +2334 production/+2005 test AST (+462/+331 lines; +3/+5 files). Split once: admission1231/766, attempt isolation0/84, MOSS527/533, SenseNova576/622. No binary or code-directory removal. Embedded production preset data: profiles.json1561->1754bytes (+193), SenseNova presets0->172bytes (+172); compatibility documentation also changes. Retained gates report0new fixture bytes/schemas/CUDA entrypoints. No runtime speed/memory saving measured by SQA. No safe net reduction established.",
+        "architectural_progress": "APG uses existing Guider; setting-reader landed before the now-first preset-readings. Existing execution loops retain numerical/lifetime ownership.",
+        "remaining": "342/379 admission and record binding files are unchanged.16a9f2367 reports readings started, but no valid approval or run completion is inferred.",
+        "cost": "APG736production/1181testAST plus177embedded preset bytes. Native retained checks do not establish held-out quality.",
         "plan_recommendations": [
           {
-            "rows": "judge-calibration/user-size (landed); guidance-ops/preset-readings",
+            "rows": "guidance-ops/preset-readings; setting-reader/do (landed)",
             "findings": [
               "SQA-342",
-              "SQA-379"
+              "SQA-379",
+              "SQA-381"
             ],
-            "recommendation": "Repair supported statistical admission and record/render binding before expensive measurements; make setting-reader identity work an actual prerequisite. Close the existing offering gate before exposing unjudged presets. Keep apg/nag numerical implementations with existing executors."
+            "recommendation": "Credit the landed setting reader and moving readings before NAG. Keep statistical approval and record/render binding unresolved; correct syntax-dependent identity discovery through its existing owner. Printed verdicts and a campaign start are not valid admission or completion."
           }
         ]
       },
@@ -186,10 +204,10 @@
       },
     "rank_basis": "378 closes after removing accepted-check retargeting. Remaining374/376/377 retain their canonical priorities and only residual obligations.",
     "refactor_target_progress": {
-        "architectural_progress": "MOSS and SenseNova reuse sampling.Guider; loops retain model-specific numerical ordering, including SenseNova BF16 rounding. Current controls reuse model-owned preset names. This reduces duplicate guidance logic ownership but does not establish model quality, speed or complete refactor migration.",
-        "conflicts": "Preset admission throws away available render/evaluation identity and mistakes a loss alarm for a quality guarantee. One coherent evidence-bound admission owner is needed, not another manifest or quality framework.",
-        "next_useful_reductions": "Delete unbound approval paths; merge duplicated native acceptance assertions; reuse CaseMedia and existing artifacts without merging distinct scorecard decline and preset admission policies. Prior binary/directory candidates remain scoped at their recorded revision.",
-        "cost": "9290a89->d87c57c four complete changed-Go landings: +2334 production/+2005 test AST (+462/+331 lines; +3/+5 files). Split once: admission1231/766, attempt isolation0/84, MOSS527/533, SenseNova576/622. No binary or code-directory removal. Embedded production preset data: profiles.json1561->1754bytes (+193), SenseNova presets0->172bytes (+172); compatibility documentation also changes. Retained gates report0new fixture bytes/schemas/CUDA entrypoints. No runtime speed/memory saving measured by SQA. No safe net reduction established."
+        "architectural_progress": "Shared envsetting replaces two manual declarations; APG stays in sampling.Guider; whole-tree reads move out of ordinary driver/landing suites while native caching remains owner. Dispatch can choose host work under a recorded live card hold; replay probes one request before tasks. These are useful reductions in repeated manual work, with real code/test growth.",
+        "conflicts": "Shared owners help only if their boundary is coherent: final environment filtering must follow merging, and identity must follow imported calls rather than spelling. Historical evidence still depends on current symbols.",
+        "next_useful_reductions": "380 remove repeated/silent config loading;381 replace the322-node scanner and consolidate duplicate tiny-module setup. Preserve Result/Neutral distinction, resource authority, historical evidence and numerical approval contracts.",
+        "cost": "d87c57c->5a2336fba six complete changed-Go migrations: +2334 production/+3227 test AST (+453/+562 lines; +4/+9 files), one envsetting package, no binary or directory deletion. Split once: test-reuse370/699, APG736/1181, setting-reader402/450, card-held332/322, probe274/258, landing-environment220/317. Embedded production presets grow94+83bytes; retained gates report0new fixture bytes/schemas/CUDA entries. No safe aggregate net reduction."
       },
     "working_notes_review": {
         "finding": "SQA-334",
@@ -199,10 +217,10 @@
       }
   },
     "committed_plan": {
-    "git_blob": "9f96a55d3c7edc4fa136979ec7c04944703ff75c",
+    "git_blob": "f9ec115f583b415e3950fc9757ef2d00541aa880",
     "path": "docs/plan.json",
-    "revision": "d87c57c33f294d7fdaaa6d32e33b75f866f764d7",
-    "sha256": "db4dd4c41abcf7e985d14b23a91a1c8dc77f983807e10d021cf4bf31f4465381",
+    "revision": "5a2336fbaf7dd4293bb5adc58119578783ae5566",
+    "sha256": "86b7d1b5a60290d05e940d4a098b97fa43207bbe98ab7ab738070a1bfae4e152",
     "working_tree_status": "Committed plan at review pin; prior draft assessment retains its own snapshot identity. Current working plan edits excluded."
   },
     "findings": [
@@ -7225,7 +7243,7 @@
     "comparison": "Retain prior semantic-screen, stationary-source, arithmetic/geometric and all-tied cases. For the new accuracy criterion, enumerate the nine equally likely outcomes of two3-choice questions: five have positive excess. Across32independent media the current nominal5%test has9.14273%false-positive probability for this component. A corrected criterion must respect its declared null and media dependence, while preserving both judges' accuracy and rank requirements. Compare complete native/helper/model-fixture cost; no SQA workloads. For preset admission, use the retained native fixture with four all-loss pairs (exact tail1/16), helper-empty input, all ties and repeated questions on one medium; preserve valid supported approval and existing size/format refusal. This is a proposed native check, not SQA execution.",
     "displaced_surface": "Existing unsupported screen admission can be removed while diagnostic consumers/validation stay. For the new comparison, delete cmpSign and use the standard library; do not export a second report reader or copy production soft-score logic into another helper. Reuse calibration.answer/openJudge/group identities and current numerical owners. Keep distinct exact-answer, probability and carried-report contracts; a reader handling one fresh generated report is not automatically interchangeable with CaseOutcomes/scoredReport. Achieved32f640e18 deletes the Gemma-only test/file and moves repair checks under the existing decoded-clips fixture. Remove only the invalid fair-sign assumption from the accuracy criterion; retain the separate accuracy obligation. No new quality-policy layer.",
     "evidence": "Original screen obligation remains: Candidate>Reseeded embedding distance is not established prompt-loss evidence; retain input/numerical/identity validation and diagnostic consumers. Source-relative stillness remains descriptive: a stationary source yields1 and hides strict-greater freeze; source extrema are not universal quality bounds. Matched80-clip8wins/9losses/63ties does not prove equivalence. Prior bc77 fidelity and3cc per-media grouping are retained improvements. ac1935d75's generated16-caption/cropped-middle-frame sharp/clean comparison (6clean-high versus10Lanczos, tails0.895/0.227) remains inconclusive and its post-run alarm is not noninferiority; source-reference VMAF is a separate requirement.\n32f640e18 now removes the separate Gemma opening fixture and repeated repair decode/worker setup. Accuracy and agreement use the retained answers with media as units; all questions/right flags remain, and judges close sequentially. However, comparing each medium's correct-count minus sum(1/choices) to zero does not create the fair binary pairs required by ExactPairedBinary. Admitted counterexample:32 independent media, each with two independent uniformly guessed3-choice questions. Positive excess means at least one correct, probability5/9 rather than1/2. The code first accepts22positive media at nominal tail0.0250512; uniform guessing reaches that threshold with probability0.0914273, exceeding calibrationLevel0.05. This exact enumeration concerns the accuracy component, not the joint rank gate or an observed failure. Within-media correlation can further alter the sign null. Keep the actual accuracy values, but do not label this tail an exact chance comparison.\nRemaining comparison code is unchanged: arithmetic probability means differ from production softShare's geometric mean ((.9,.1) versus(.45,.45) reverses rank); all finite constant scores yield NaN tau, all2000resamples are omitted and resampledTau indexes an empty slice before the later refusal. cmpSign remains a31-node private wrapper with two finite-number call sites. These are source/arithmetic counterexamples; no model experiment.\nAt d87c57c, the newly landed AdmitPreset turns the existing nonsignificance problem into approval: Admitted = ExactPairedBinary(losses,wins,ties).Tail > 0.05. Four paired cases all right for reference and all wrong for candidate produce 0 wins/4 losses and tail 0.0625, so the CLI can admit 100% observed degradation. Two empty maps also admit at helper level (tail1), although CaseOutcomes rejects empty reports on the current CLI path. Per-question case names are counted independently; repeating correlated questions on one output can change the decision. The tensorstats owner explicitly requires independent pairs and calls tail1 with no discordance nothing seen. Existing CaseMedia and scorecard.pairedByOutput already retain media grouping; instruction acceptance already distinguishes undecided from gain/loss. These are source and exact-arithmetic counterexamples, not an observed model-quality failure. The two new native tests cover equal outcomes and large loss, not insufficient evidence or a correlated group.",
-    "evidence_commit": "d87c57c33f294d7fdaaa6d32e33b75f866f764d7",
+    "evidence_commit": "5a2336fbaf7dd4293bb5adc58119578783ae5566",
     "expected_benefit": {
         "measured_baseline": "Historical pair-screen landing+1560production/+789test=2349AST. Clip motion reuses evaluation.Cosine: cmd/evaluate/screen1152->1093 (-59nodes); current former screen slice2290 including shared entrypoints. Clip landing+1586production/+1504test includes that consolidation and is overall growth. Both landings together+3146production/+2293test. No static fixtures added by either.",
         "minimum_change": "Diagnostic/acceptance separation estimated production-40..90AST, test0..25 with actual distance/refusal coverage retained: current former screen slice2290->2175..2250, estimated net40..115. No replacement compiled, no new helper/schema/fixture/setup.",
@@ -7239,7 +7257,7 @@
     "id": "SQA-342",
     "impact": "Prevents an extra gate from rejecting valid fast paths or presenting frozen video as temporally correct. Architectural benefit is one acceptance authority and fewer compulsory passes, rather than another quality framework.",
     "likely_effort": "Small separation of diagnostic output from acceptance; larger deletion only if no actual diagnostic consumer needs the path. SQA changes no code or plan.",
-    "plan_coverage": "judge-calibration/user-size landed2c7ac4ea4; size/format admission is progress, but quality approval remains unsound. guidance-ops/preset-readings is open after apg/nag and explicitly acknowledges all declared presets are currently offered without verdict. Fix this statistical contract and379 binding before expensive readings; use existing plan dependency/dispatch ownership. Earlier unique screen/calibration requirements remain open.",
+    "plan_coverage": "At5a2336fba, setting-reader/do has landed (e2ab11644) and preset-readings is first in guidance-ops, ahead of nag-wan/nag-krea; APG has landed. Credit both sequencing changes. The admission helper and CLI binding remain unchanged from d87c57c, so342 statistical and379 provenance requirements stay open.16a9f2367 reports the long reading campaign began; no model run or actual run completion checked by SQA. Finish the existing offer/admission owner before treating any reading as approval; no parallel dispatch plan.",
     "plan_references": [
         "media-screen/pair-screen and clip-consistency",
         "video-judge/same-settings 14188bb91",
@@ -8990,8 +9008,8 @@
       ],
     "comparison": "Use the retained historical-record fixture to demonstrate that a current symbol/file rename does not change the validity of references to the recorded source revision, while altered historical sets or broken internal dependency/arithmetic claims still fail. Reuse the existing Git source/cache owner and record; no new fixture corpus, writer or application workload.",
     "displaced_surface": "Already gone: production record writer/export, validate flag, landing generator and writer-only test. Still to remove: the historical-definition dependency on current files/symbols. Retain original set values, range/count arithmetic, unique claim dependencies and provenance. No application feature or current unknown-read guard is retired.",
-    "evidence": "ec17533e0 removes WriteSurfaceRecord/recordSets/SurfaceRecord, the validate flag and landing generator, restores the result-settings line to the original probe, and binds all ten set lines to original recording68f549f6c. Current identity tests remain. This fixes the observed setting-list drift. One part of the same root cause remains: TestSurfaceMoveRecordDefinesClaimDependencies still opens every dependency/key citation from the current checkout and checks its symbol by regex. The record says these are places in its range-head39c6bfcc445c566a0fb39a9680025fdab41eef47 tree. A legitimate present-day rename/deletion of a historical cited file or symbol therefore still makes historical evidence fail. This residual counterexample is source-derived, not an observed failed run. Retained verification25.334s and gate558s; no SQA rerun.",
-    "evidence_commit": "9290a897354af0f2e1e6afe667eb34b9a53072f1",
+    "evidence": "ec17533e0 removes WriteSurfaceRecord/recordSets/SurfaceRecord, the validate flag and landing generator, restores the result-settings line to the original probe, and binds all ten set lines to original recording68f549f6c. Current identity tests remain. This fixes the observed setting-list drift. One part of the same root cause remains: TestSurfaceMoveRecordDefinesClaimDependencies still opens every dependency/key citation from the current checkout and checks its symbol by regex. The record says these are places in its range-head39c6bfcc445c566a0fb39a9680025fdab41eef47 tree. A legitimate present-day rename/deletion of a historical cited file or symbol therefore still makes historical evidence fail. This residual counterexample is source-derived, not an observed failed run. Retained verification25.334s and gate558s; no SQA rerun. At e2ab11644 the same coupling caused a concrete documentation migration: dependency-process-environment in surface-moves.txt changed from environment/resultSettings to processEnvironment/settingValues and changed the statement to package-specific settings. The record reader still opens root/current-source at lines428-435. The old observed experiment is not evidence for the new per-package design; preserve the old interpretation/citations with its revision and put current design validity with the current identity owner. This strengthens the existing finding, not a new requirement.",
+    "evidence_commit": "5a2336fbaf7dd4293bb5adc58119578783ae5566",
     "expected_benefit": {
         "historical_slice": "Excluding the separately removed testinputs package, ec17533e0 removes256 production and64 test AST (320 total). Current main record test3077AST and set-history test217AST retain unique evidence. The record changes values, not its format; no fixture count reduction claimed.",
         "separate_meta_removal": "The same commit deletes internal/testinputs:5 production/529 test AST, one package, its two files and the nested runner that built/executed both suites. Count this once outside the historical slice. Full commit -261 production/-593 test AST.",
@@ -9000,7 +9018,7 @@
     "id": "SQA-377",
     "impact": "A legitimate environment or source change no longer requires editing October evidence or fails a late lane solely because the historical copy differs. Historical provenance becomes truthful.",
     "likely_effort": "Bounded change to the retained evidence test and its historical reference; no production generator is needed for an obsolete synchronization obligation.",
-    "plan_coverage": "Set synchronization is fixed. Keep the canonical finding open only for its pre-existing historical-definition/source-reference requirement; no duplicate finding.",
+    "plan_coverage": "review-fixes/historical-record removed set synchronization, but e2ab11644 again updates the historical dependency description to follow current implementation. Keep377 open for original revision/source semantics. Current identity validity is separate381; no historical writer should return.",
     "plan_references": [
         "review-fixes/historical-record ec17533e0 (landed; partial closure)",
         "Downloads extreme_refactor_plan.md: preserve evidence identity and remove duplicate representations"
@@ -9066,14 +9084,36 @@
     "title": "Bind the intended test once instead of retargeting accepted checks during landing"
   },
     {
-      "id": "SQA-379",
-      "status": "open",
-      "severity": "P2",
-      "category": "correctness",
-      "classification": "source-established-preset-evidence-binding-gap",
-      "title": "Bind preset approval to the renders and scoring records actually compared",
-      "evidence_commit": "d87c57c33f294d7fdaaa6d32e33b75f866f764d7",
-      "sources": [
+    "category": "correctness",
+    "classification": "source-established-preset-evidence-binding-gap",
+    "closure_criteria": [
+        "The real admitPresetReading path rejects swapped/foreign evaluation IDs and mismatched render model/task/recipe/output or scoring identity even with identical case names, dimensions and booleans.",
+        "A changed active recipe cannot silently reattribute old renders; exact valid carried scoring records remain reusable under their original identity. Full effective request and declared treatment define comparability.",
+        "The capability control consumes the same bound, applicable admission; missing/refused/inconclusive/stale evidence does not offer a preset. Preserve342 statistical requirements and existing stop/resource/activation authority.",
+        "Small native command fixture retains format/mixed-size/reuse and adds the binding counterexample; duplicate lower-level acceptance assertions/setup disappear, and complete production/test/storage/setup cost is reported."
+      ],
+    "comparison": "In the retained command fixture and existing temporary artifact store, construct two minimal valid bound arms, then swap one scored record or its rendered output while retaining all case names/outcomes/sizes; current source accepts what must be rejected. Change active recipe after recording to check historical binding. A legitimate carried record still works. No real rendering or judging is necessary to decide this defect; proposed checks only.",
+    "displaced_surface": "Remove unbound case-name-only comparison and the current-activation template substitution as authorities. Retain existing manifest, scoredReport/carried-result traversal, runrecord/artifact identity and modelrecipe lifecycle. Reuse read/validation only where the contract truly matches: alreadyDrawn can accept a missing file as a new render, so calling it blindly is not sufficient admission validation. Merge repeated numerical admission calls/right-map setup out of cmd/evaluate/preset_reading_test.go into the existing evaluation test; keep format fallback, mixed sizes and preset reuse cases, and extend the command fixture for actual record binding with existing native store/artifact setup. No second model fixture or new binary/package.",
+    "evidence": "admitPresetReading independently reads two manifests and two user-supplied evaluation IDs, reduces each manifest to preset/format/size and each evaluation to case-name booleans, then compares those booleans. It does not verify that either record scored the corresponding manifest outputs or that both sides share the intended model/task/recipe, question/judge contract and paired inputs. The loop overwrites drawn; ResolveActiveExecution therefore reads the candidate manifest model/task current activation, not the historical recipe that rendered either arm. Source-admitted case: differently produced or old render directories at matching size/format plus unrelated nonempty evaluations with the same case names satisfy the checked fields; a replacement activation can also supply the current template for old recipe evidence. renderManifest already retains Model/Recipe/Task/CodeCommit and each draw Input/Output/Run/Request; evaluation records already lead to the scoring report, plan and dataset. alreadyDrawn validates reuse identity but this command never calls its checks. Printed PresetVerdict holds only preset/counts/admitted and is not a bound admission record. Current controls offer declared preset names without reading a verdict; the plan explicitly leaves that consumer gating unfinished. No false approval was reproduced against a live store.",
+    "evidence_commit": "5a2336fbaf7dd4293bb5adc58119578783ae5566",
+    "expected_benefit": {
+        "baseline": "Shared full admission baseline/cost is charged once in342: +1231 production/+766 test AST. Selected command file719 nodes, command test429 nodes. No implemented after count or guaranteed net saving.",
+        "setup": "Existing native store/artifact fixtures suffice for identity counterexamples; no model/device workload, benchmark or new recurring gate requested. 0 new fixture files/bytes/schemas in the admission landing per retained gate.",
+        "cost": "Binding may grow code and the retained command fixture; remove duplicate assertion bodies/setup in the same migration and count all touched helpers, callers and storage/offer changes. Moving validation or writing another JSON file is not a saving.",
+        "uncertainty": "Static source establishes absent checks. Runtime reachability requires otherwise valid active model/defaults; no observed incorrect model decision, timed gain or complete end-to-end proof claimed."
+      },
+    "id": "SQA-379",
+    "impact": "A plausible quality verdict can be attached to media or a recipe it never evaluated, wasting hours and undermining future automatic preset offering. Correct statistics342 alone cannot repair wrong provenance. This is distinct from283 campaign publication attribution: this command must bind two supplied record/render pairs before a new comparison.",
+    "likely_effort": "Medium within current render/evaluation/controls owners; correctness may require growth before consolidation.",
+    "plan_coverage": "At5a2336fba, setting-reader/do has landed (e2ab11644) and preset-readings is first in guidance-ops, ahead of nag-wan/nag-krea; APG has landed. Credit both sequencing changes. The admission helper and CLI binding remain unchanged from d87c57c, so342 statistical and379 provenance requirements stay open.16a9f2367 reports the long reading campaign began; no model run or actual run completion checked by SQA. Finish the existing offer/admission owner before treating any reading as approval; no parallel dispatch plan.",
+    "plan_references": [
+        "judge-calibration/user-size landed2c7ac4ea4",
+        "guidance-ops/preset-readings at d87c57c",
+        "guidance-ops/moss-presets e9b82cdf6; sensenova-presets d87c57c"
+      ],
+    "recommended_change": "Use the existing render provenance and run/evaluation artifact owners to bind each judged dataset/media input to its exact rendered outputs and producer identity before calculating a verdict. Require the same intended model/task, comparable recipe/code and full effective request except declared preset treatment; preserve paired prompts/seeds and matching question/judge/scoring contracts. Do not substitute current activation for the historical recipe; reuse historical records only when their bound identities remain applicable. Missing or foreign provenance stays unknown/refused before expensive rendering or judging where knowable. Carry the bound record IDs and relevant recipe/request identity through the existing evidence storage to the existing capability controls; offer only a currently applicable, statistically supported admission. The setting-reader prerequisite is now landed; keep existing plan ordering and correct its remaining identity-discovery gap in381. No second scheduler, registry, notes file or evidence ledger.",
+    "severity": "P2",
+    "sources": [
         {
           "path": "cmd/evaluate/preset_reading.go",
           "symbol": "admitPresetReading; readRender; drawnArm"
@@ -9103,34 +9143,114 @@
           "symbol": "guidance-ops/preset-readings admission and setting-reader prerequisite"
         }
       ],
-      "evidence": "admitPresetReading independently reads two manifests and two user-supplied evaluation IDs, reduces each manifest to preset/format/size and each evaluation to case-name booleans, then compares those booleans. It does not verify that either record scored the corresponding manifest outputs or that both sides share the intended model/task/recipe, question/judge contract and paired inputs. The loop overwrites drawn; ResolveActiveExecution therefore reads the candidate manifest model/task current activation, not the historical recipe that rendered either arm. Source-admitted case: differently produced or old render directories at matching size/format plus unrelated nonempty evaluations with the same case names satisfy the checked fields; a replacement activation can also supply the current template for old recipe evidence. renderManifest already retains Model/Recipe/Task/CodeCommit and each draw Input/Output/Run/Request; evaluation records already lead to the scoring report, plan and dataset. alreadyDrawn validates reuse identity but this command never calls its checks. Printed PresetVerdict holds only preset/counts/admitted and is not a bound admission record. Current controls offer declared preset names without reading a verdict; the plan explicitly leaves that consumer gating unfinished. No false approval was reproduced against a live store.",
-      "impact": "A plausible quality verdict can be attached to media or a recipe it never evaluated, wasting hours and undermining future automatic preset offering. Correct statistics342 alone cannot repair wrong provenance. This is distinct from283 campaign publication attribution: this command must bind two supplied record/render pairs before a new comparison.",
-      "recommended_change": "Use the existing render provenance and run/evaluation artifact owners to bind each judged dataset/media input to its exact rendered outputs and producer identity before calculating a verdict. Require the same intended model/task, comparable recipe/code and full effective request except declared preset treatment; preserve paired prompts/seeds and matching question/judge/scoring contracts. Do not substitute current activation for the historical recipe; reuse historical records only when their bound identities remain applicable. Missing or foreign provenance stays unknown/refused before expensive rendering or judging where knowable. Carry the bound record IDs and relevant recipe/request identity through the existing evidence storage to the existing capability controls; offer only a currently applicable, statistically supported admission. Implement the plan's setting-reader identity prerequisite before long readings through existing dependencies, without a second scheduler, registry, notes file or evidence ledger.",
-      "displaced_surface": "Remove unbound case-name-only comparison and the current-activation template substitution as authorities. Retain existing manifest, scoredReport/carried-result traversal, runrecord/artifact identity and modelrecipe lifecycle. Reuse read/validation only where the contract truly matches: alreadyDrawn can accept a missing file as a new render, so calling it blindly is not sufficient admission validation. Merge repeated numerical admission calls/right-map setup out of cmd/evaluate/preset_reading_test.go into the existing evaluation test; keep format fallback, mixed sizes and preset reuse cases, and extend the command fixture for actual record binding with existing native store/artifact setup. No second model fixture or new binary/package.",
+    "status": "open",
+    "title": "Bind preset approval to the renders and scoring records actually compared"
+  },
+    {
+      "id": "SQA-380",
+      "status": "open",
+      "severity": "P2",
+      "category": "prerequisite-admission",
+      "classification": "source-established-landing-environment-policy-order-and-hidden-load-errors",
+      "title": "Apply landing environment rules after configuration and expose load errors early",
+      "evidence_commit": "5a2336fbaf7dd4293bb5adc58119578783ae5566",
+      "sources": [
+        {
+          "path": "cmd/loop/land.go",
+          "symbol": "execRowWorld.tool/Gate; configuredEnvironment; landingEnvironment; withheldFromLandings"
+        },
+        {
+          "path": "cmd/loop/main.go",
+          "symbol": "config.Environment; strict driver configuration load"
+        },
+        {
+          "path": "cmd/loop/session_prompt.go",
+          "symbol": "writeSessionPrompt reports configuration errors"
+        },
+        {
+          "path": "internal/processlock/state.go",
+          "symbol": "StateFile can return migration/permission errors"
+        },
+        {
+          "path": "cmd/loop/land_environment_test.go",
+          "symbol": "TestALandingTakesItsEnvironmentFromTheConfiguration"
+        }
+      ],
+      "evidence": "5a2336fba removes three lane/measurement opt-ins from inherited environ, then appends every absent configured key without filtering it. An admitted config.Environment containing OVERGO_CUDA_TEST=1, OVERGO_STORE_ACCEPTANCE=1 or OVERGO_CUDA_MEASUREMENT_TEST=1 therefore restores a forbidden opt-in; mixed case is also restored. The config is a general map with no corresponding restriction. configuredEnvironment also returns nil for every StateFile or DecodeStrict error, treating a malformed/unreadable existing config like an absent optional one. Both tool calls (gate build then gate launch) repeat the read. The native fixture checks missing session roots plus session opt-ins, but not configured opt-ins or malformed config. Source-admitted cases; no gate launched by SQA.",
+      "impact": "The fix can re-enable live-store/device test behavior across broad checks or silently repeat a missing-root failure after costly work. This differs from322 verifier stage order: the child environment must be valid before any tool work.",
+      "recommended_change": "Resolve the existing configuration once for the landing attempt, preserve intentional nonempty session overrides, then apply the existing withheld list to the effective merged environment. Distinguish a legitimately absent optional config from decode/access/migration failure; report the latter before building or starting the gate, consistent with the driver/session-prompt error contract. Keep config.Environment, StateFile and execRowWorld as owners; no new resolver framework or second preflight command.",
+      "displaced_surface": "Delete the append-after-filter bypass, repeated config read between build/launch, and nil-on-any-error fallback. Retain resource reservation inheritance, error-file transport, role/data-root defaults and explicit overrides. Extend the existing child-environment fixture/table, not a new subprocess suite.",
       "expected_benefit": {
-        "baseline": "Shared full admission baseline/cost is charged once in342: +1231 production/+766 test AST. Selected command file719 nodes, command test429 nodes. No implemented after count or guaranteed net saving.",
-        "setup": "Existing native store/artifact fixtures suffice for identity counterexamples; no model/device workload, benchmark or new recurring gate requested. 0 new fixture files/bytes/schemas in the admission landing per retained gate.",
-        "cost": "Binding may grow code and the retained command fixture; remove duplicate assertion bodies/setup in the same migration and count all touched helpers, callers and storage/offer changes. Moving validation or writing another JSON file is not a saving.",
-        "uncertainty": "Static source establishes absent checks. Runtime reachability requires otherwise valid active model/defaults; no observed incorrect model decision, timed gain or complete end-to-end proof claimed."
+        "baseline": "Full5a2336fba landing: +220 production/+317 test AST, +51/+58 lines, one test file. Current configuredEnvironment56nodes and landingEnvironment132nodes are included.",
+        "after": "Not implemented; no safe net deletion established. A correct merge/filter plus error propagation may grow code; charge all call-site and native-test changes. No new static fixtures/schema/binary/directory or model run needed.",
+        "setup": "One retained temporary config/child process fixture; add cases for configured forbidden keys, absent config, malformed config and preserved overrides. No claimed elapsed saving."
       },
-      "likely_effort": "Medium within current render/evaluation/controls owners; correctness may require growth before consolidation.",
+      "likely_effort": "Small change inside the existing landing command and its native fixture.",
       "plan_references": [
-        "judge-calibration/user-size landed2c7ac4ea4",
-        "guidance-ops/preset-readings at d87c57c",
-        "guidance-ops/moss-presets e9b82cdf6; sensenova-presets d87c57c"
+        "fail-early-runs/land-environment5a2336fba (landed)"
       ],
-      "plan_coverage": "The existing preset-readings row owns offer gating and record linkage. It follows apg/nag and its setting-reader prerequisite is only in rationale. Recommend binding/admission correctness and executable prerequisite order first; measurement cost is estimated in plan at roughly1h/2.5h/8h per arm, not measured by SQA. No new parallel dispatch plan.",
+      "plan_coverage": "Follow-up to the landed environment owner; no new dispatch mechanism.",
       "closure_criteria": [
-        "The real admitPresetReading path rejects swapped/foreign evaluation IDs and mismatched render model/task/recipe/output or scoring identity even with identical case names, dimensions and booleans.",
-        "A changed active recipe cannot silently reattribute old renders; exact valid carried scoring records remain reusable under their original identity. Full effective request and declared treatment define comparability.",
-        "The capability control consumes the same bound, applicable admission; missing/refused/inconclusive/stale evidence does not offer a preset. Preserve342 statistical requirements and existing stop/resource/activation authority.",
-        "Small native command fixture retains format/mixed-size/reuse and adds the binding counterexample; duplicate lower-level acceptance assertions/setup disappear, and complete production/test/storage/setup cost is reported."
+        "No withheld opt-in reaches the effective child environment from either input source, including mixed case; authorized lane owners can still opt in within their own execution.",
+        "Existing malformed/unreadable config refuses before any build/gate subprocess; missing optional config retains the intended standalone behavior.",
+        "One coherent effective environment serves build and gate; roots/role/overrides/resource authority remain intact and complete costs are reported."
       ],
-      "comparison": "In the retained command fixture and existing temporary artifact store, construct two minimal valid bound arms, then swap one scored record or its rendered output while retaining all case names/outcomes/sizes; current source accepts what must be rejected. Change active recipe after recording to check historical binding. A legitimate carried record still works. No real rendering or judging is necessary to decide this defect; proposed checks only."
+      "comparison": "Extend TestALandingTakesItsEnvironmentFromTheConfiguration: put each withheld setting in the configured map as well as inherited environ, and require absence in the child. A malformed config with empty session roots must yield its original load error before the child starts. Valid configured defaults and explicit nonempty overrides still work. Proposed native checks only."
+    },
+    {
+      "id": "SQA-381",
+      "status": "open",
+      "severity": "P2",
+      "category": "evidence-identity",
+      "classification": "source-established-syntax-dependent-setting-discovery",
+      "title": "Discover result-setting calls by their imported owner, not source spelling",
+      "evidence_commit": "5a2336fbaf7dd4293bb5adc58119578783ae5566",
+      "sources": [
+        {
+          "path": "internal/inferencesurface/identity.go",
+          "symbol": "environmentReads; sources.of/counting; Execution; settingValues"
+        },
+        {
+          "path": "internal/envsetting/envsetting.go",
+          "symbol": "Result; Neutral; NeutralLookup"
+        },
+        {
+          "path": "internal/envsetting/envsetting_test.go",
+          "symbol": "TestASettingReadThroughItsFunctionIsDeclared -> LinkFlag"
+        },
+        {
+          "path": "internal/inferencesurface/identity_test.go",
+          "symbol": "TestCapabilityIdentityMovesOnlyWithItsOwnSources"
+        },
+        {
+          "path": "internal/gosyntax/snapshot.go",
+          "symbol": "existing File.Syntax parser owner"
+        }
+      ],
+      "evidence": "e2ab11644 deletes both hand-maintained environment lists, but environmentReads first searches raw bytes for envsetting.Result( and then recognizes only the literal qualifier envsetting. Valid Go importing settings \"overgo/internal/envsetting\" and calling settings.Result(\"X\") is omitted; envsetting.Result /* reason */ (\"X\") also misses the byte prefilter when the file has no other matching read. Both compile without any direct Getenv in that caller. The helper package is exempt from undeclared-read rejection, so the caller can receive a held identity with no X value; changing X between executions can reuse that identity. This is a source-admitted spelling/alias counterexample, not a claim that current production callers use that form or stale results were observed. Current tests cover canonical spelling, dynamic names and direct reads only.",
+      "impact": "A shared reader meant to make omissions impossible can silently omit a result dependency, allowing stale execution/evaluation evidence.377 historical citations remain a distinct contract.",
+      "recommended_change": "Keep envsetting as the single declared result/neutral boundary, but inspect parsed calls against the imported package identity (and local shadowing), using standard Go syntax or existing gosyntax where it reduces work. Remove the raw spelling prefilter and manual token/parenthesis scanner. Count resolvable literal result reads regardless of alias/comments; refuse unsupported indirect/dynamic reads rather than silently treating them as neutral. Retain per-package dependency scoping and library facts. No new settings registry, manual list or package-wide type-loading framework is justified by these small cases.",
+      "displaced_surface": "Replace environmentReads'322-node spelling scanner including its byte prefilter/state machine. Merge the new280-node envsetting LinkFlag fixture's cases into the retained identity fixture when one temporary module can serve both; preserve the public LinkFlag observation, literal/dynamic/direct/neutral cases and package-specific value invalidation. Result and Neutral have identical bodies but different identity contracts: retain both; do not merge them on AST similarity.",
+      "expected_benefit": {
+        "baseline": "Full e2ab11644 migration across25 changed Go paths: +402 production/+450 test AST, +78/+78 lines, +1 production/+1 test file and one envsetting package. The two manual lists disappear, but complete migration grows. No binaries removed.",
+        "after": "Replacement not implemented; scanner322nodes and extra fixture280nodes are displacement ceilings, not net savings. Charge parsed-import/shadow/indirect handling, caller changes and merged fixture. No guaranteed reduction.",
+        "setup": "Retain one temporary Go module and its source/identity comparisons; consolidate duplicate fixture scaffolding without dropping public linker-flag and process-value coverage. No model files/static fixtures/gates required."
+      },
+      "likely_effort": "Bounded source-reader correction and native fixture consolidation.",
+      "plan_references": [
+        "setting-reader/do e2ab11644 (landed)"
+      ],
+      "plan_coverage": "The declared-reader architecture is progress; this follow-up makes its identity guarantee independent of incidental Go spelling.",
+      "closure_criteria": [
+        "Canonical, aliased and comment-separated literal calls have the same declared result dependency; changes to that value move only the appropriate execution identity.",
+        "Unsupported dynamic/indirect reads cannot silently earn a counted identity; neutral calls and unrelated selectors keep their distinct semantics.",
+        "The spelling scanner/manual lists stay removed, required current identity and public LinkFlag coverage has a retained owner, and full migration cost is counted."
+      ],
+      "comparison": "In the retained tiny module fixture, express the same Result(\"FIXTURE_PRECISION\") through a valid import alias and a comment before the call parenthesis. Both must retain the same dependency and invalidate when its value changes; a nonliteral and an unsupported indirect read must be explicitly refused. Preserve neutral and unrelated-package cases. No SQA test execution."
     }
   ],
     "gate_test_assessment": {
-    "assumptions": "0.05 is the existing error-rate policy, not evidence that a large tail proves no loss. Actual independent units are media, not correlated questions.81frames/832x480/50steps in the fixture illustrate person-sized requests, not universal supported shapes; reuse actual bound recipe/request defaults and existing validation. Keep numerical acceptance independent of timing.",
+    "assumptions": "Environment key case follows Windows for landing filtering; loader errors differ from an absent optional file. Go import aliases/comments are valid syntax, so source spelling is not dependency identity. PID liveness is a dispatch hint, not a reservation; model-loop numerical contracts remain separate from orchestration.",
     "automation_follow_up": {
         "retained_feedback": {
           "window": "November8 and9,2026 America/New_York (UTC-05); local retained records read after58e8280",
@@ -9155,17 +9275,19 @@
       },
     "automation_sequence": "Known prerequisite refusal now precedes moveReplay and worker execution. Driver already distinguishes declared Run/Record work from worker dispatch. Current373heuristic overgeneralizes that boundary;372can corrupt its held verifier. Existing plan stops, budgets, process supervision and partial records remain owners. No new scheduler, cache or gate.",
     "fresh_ast": {
-        "revision": "d87c57c33f294d7fdaaa6d32e33b75f866f764d7",
-        "method": "Existing Go parser and complete changed-file endpoint counter; no application execution.",
+        "revision": "5a2336fbaf7dd4293bb5adc58119578783ae5566",
+        "method": "Existing selected Go parser and complete changed-file counter; no application execution.",
         "retained_result": [
-          "review-d87c57c-selected-ast.json",
-          "review-d87c57c-admission-delta.json",
-          "review-d87c57c-isolation-delta.json",
-          "review-d87c57c-moss-delta.json",
-          "review-d87c57c-sensenova-delta.json"
+          "review-5a2336-selected-ast.json",
+          "review-5a2336-dd8f0d904-delta.json",
+          "review-5a2336-da371fdf5-delta.json",
+          "review-5a2336-e2ab11644-delta.json",
+          "review-5a2336-16a9f2367-delta.json",
+          "review-5a2336-9236fdeb3-delta.json",
+          "review-5a2336-5a2336fba-delta.json"
         ],
-        "counts": "7 files2796nodes/17functions/593parser-local links; no identical full function body hashes in this sample. This does not measure semantic boilerplate percentage.",
-        "limits": "Parse-only; no package/type resolution. Complete changed files counted; no broad census."
+        "counts": "9files5838nodes/39functions/1139parser-local links. Result and Neutral are the only identical full bodies in this sample; their contracts differ.",
+        "limits": "No package/type resolution or whole-repository census. Cost covers entire changed files; test relocation is not deletion."
       },
     "media_follow_up": {
         "revision": "fc673760f813afdf216be087fe586f717461cd3a",
@@ -9329,16 +9451,17 @@
       "retained_change_costs": "Two consolidation landings(2d59f642c exact folds andbb4fc706a parameter folds) remove744 production nodes but add1591 test nodes, net+847 across Go. Pilot retirementea8ed43a7 removes5926 production/9990 test nodes and one schema, while fixture bytes grow599; its test deletion is already included in the day's offsets and must not be subtracted twice. These retained gates are broader changes, not matched per-test performance comparisons."
     },
     "retained_results": [
-        "2c7ac4ea4 retained gate403s, native verify16.652s, CUDA2 executed/18 cached; this exercises size/format and large loss, not the new counterexamples.",
-        "22151be7d gate289s; e9b82cdf6 gate671s; d87c57c gate674s. MOSS/SenseNova verification20.27s/75.948s and retained lane caches are bounded implementation evidence, not held-out preset admission or measured end-to-end savings."
+        "Retained gate walls: test-reuse395s, APG1041s, setting-reader1459s, card-held298s, worker-probe245s, landing-environment255s. Required work and waits are included; these are not avoidable-time estimates.",
+        "dd8f0d904 reports native cache replay after an unrelated profile edit and separate whole-tree tests13s/10s. Later ordinary suites still run for own/shared dependency changes; no universal caching or matched elapsed gain is claimed.",
+        "9236fdeb3/5a2336fba retained native verify16.799s/17.326s and assertion-based undo. They miss malformed configured state and alternate setting-call spelling; successful gates do not close those source counterexamples."
       ],
-    "surface_reduction_analysis": "9290a89->d87c57c four complete changed-Go landings: +2334 production/+2005 test AST (+462/+331 lines; +3/+5 files). Split once: admission1231/766, attempt isolation0/84, MOSS527/533, SenseNova576/622. No binary or code-directory removal. Embedded production preset data: profiles.json1561->1754bytes (+193), SenseNova presets0->172bytes (+172); compatibility documentation also changes. Retained gates report0new fixture bytes/schemas/CUDA entrypoints. No runtime speed/memory saving measured by SQA. No safe net reduction established.",
+    "surface_reduction_analysis": "d87c57c->5a2336fba six complete changed-Go migrations: +2334 production/+3227 test AST (+453/+562 lines; +4/+9 files), one envsetting package, no binary or directory deletion. Split once: test-reuse370/699, APG736/1181, setting-reader402/450, card-held332/322, probe274/258, landing-environment220/317. Embedded production presets grow94+83bytes; retained gates report0new fixture bytes/schemas/CUDA entries. No safe aggregate net reduction.",
     "tests": [
-        "RETAIN internal/evaluation/preset_admission_test.go as the native numerical/size/format owner; extend it for insufficient evidence/four losses/media grouping. No model fixture.",
-        "SIMPLIFY cmd/evaluate/preset_reading_test.go by merging duplicate low-level approval/refusal assertions and right-map setup into the evaluation fixture. RETAIN format fallback, mixed dimensions and preset reuse; extend this command fixture to call the real binding path with existing temporary store/artifact setup.",
-        "RETAIN tensorstats exact arithmetic and scorecard output-grouping coverage; only share aggregation if matching rules agree. Their distinct loss-alarm and admission decisions must remain distinct.",
-        "RETAIN model-specific default guidance/rounding and executor tests; similar wiring is not enough to merge numerical, Windows/CUDA or resource-lifetime contracts.",
-        "No tests created or executed by SQA. Proposed minimal correctness extensions may increase test surface; no numerical saving claim."
+        "RETAIN the child landing-environment fixture317nodes; extend its existing input table for configured opt-ins, explicit overrides and load errors before subprocess start. No second subprocess suite.",
+        "MERGE envsetting's280-node tiny-module setup into the retained identity fixture where the public LinkFlag assertion and literal/dynamic/direct/neutral/package-scoped cases remain. SIMPLIFY the scanner; RETAIN distinct Result/Neutral contracts.",
+        "RETAIN whole-tree moved tests under their existing names, undo-renamed-test regression and ordinary suite coverage. suite_reads_test491nodes is an opt-in diagnostic that explicitly runs both suites; it is excluded from wholeTreeRun by filename and must not become a standing duplicate suite run.",
+        "RETAIN replay first-request refusal and card-held host-dispatch recovery cases. These do not prove full worker competence or physical card ownership; no speculative replacement fixture.",
+        "RETAIN APG numerical/default-path/platform coverage; no consolidation inferred from similar wiring. No test created or executed by SQA."
       ]
   },
     "hygiene_assessment": "No hygiene finding. Scratch analysis is outside the repository; concrete correctness and production/test cost take priority.",
@@ -10872,10 +10995,10 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
     "limitations": [
-      "No application tests, model/device workloads, production gates, benchmarks, agents/messages, plan/skill edits or pushes. Only report and existing external analysis tooling.",
-      "AST includes comments and parser-local identifier resolution; no package/type resolution or repository census. Structural similarity is not proof of contract equivalence or a repository-wide duplication percentage.",
-      "Four-all-loss approval and missing record/render binding are source-established counterexamples. Empty input approval is helper-level only; CaseOutcomes rejects empty reports on the current CLI route. No live-store false approval or model regression reproduced.",
-      "Prior historical/status/prompt findings retain their last scoped evidence; this slice does not close them or claim completed format-independent model migration."
+      "No application tests, model/device workloads, services, gates, agents/messages, implementation or plan/skill changes. Existing external parser/cost tooling only.",
+      "AST includes comments and parser-local resolution, not package/type analysis. The identical Result/Neutral bodies have different contracts and are not deletion candidates; no repository-wide boilerplate percentage inferred.",
+      "Configured-opt-in and alias/comment examples are admitted source cases; no live configuration leak, stale model result or new timing run claimed. Current working drafts are not closure evidence.",
+      "CardHold is a manually recorded dispatch hint backed by PID liveness, not proof of physical resource ownership or supervised continuation. A successful single worker probe does not prove completion or quality of the later tasks."
     ],
     "master_lead_triage": {
     "at": "2026-11-10",
@@ -11751,13 +11874,13 @@
       }
     }
   },
-    "next_finding_number": 380,
+    "next_finding_number": 382,
     "publication_context": {
-    "assessment": "Substantive342 statistical reconciliation and379 render/evaluation identity finding at d87c57c.",
-    "checked_head": "d87c57c33f294d7fdaaa6d32e33b75f866f764d7",
-    "concurrent_changes": "Code/report/owner state re-read before writing; working landing/tests/plan changes preserved and excluded.",
-    "current_pin": "d87c57c33f294d7fdaaa6d32e33b75f866f764d7",
-    "publication": "Existing landing_turn/gate ownership and normal report-only hooks; save unstaged if implementation owns publication.",
+    "assessment": "Substantive early-admission/identity follow-up and plan-progress reconciliation at5a2336fba.",
+    "checked_head": "5a2336fbaf7dd4293bb5adc58119578783ae5566",
+    "concurrent_changes": "Latest source/report/owner state re-read before publication; working latentimage/tests/plan edits untouched.",
+    "current_pin": "5a2336fbaf7dd4293bb5adc58119578783ae5566",
+    "publication": "Existing landing_turn/gate locks and report-only normal Git hook exception; save unstaged if implementation owns publication.",
     "report_only": "Only docs/sqa_findings.json; unrelated index/worktree preserved."
   },
     "ranked_active_finding_ids": [
@@ -11770,6 +11893,7 @@
     "SQA-373",
     "SQA-374",
     "SQA-322",
+    "SQA-380",
     "SQA-376",
     "SQA-377",
     "SQA-366",
@@ -11785,6 +11909,7 @@
     "SQA-356",
     "SQA-342",
     "SQA-379",
+    "SQA-381",
     "SQA-345",
     "SQA-277",
     "SQA-266",
@@ -11835,30 +11960,31 @@
     "repository": "C:\\Users\\jeffm\\overgo",
     "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
     "review_notes": [
-      "Consolidated preset statistical admission into342, which already requires independent media and rejects nonsignificance as equivalence; every earlier unique requirement remains.",
-      "379 is distinct provenance validation of two supplied render/evaluation arms, not another copy of283 campaign publication-state attribution.",
-      "Keep the existing numerical, evidence, runtime and control owners. Fix known invalid evidence before long measurements; no second scheduler/registry or additional model fixture."
+      "342/379 remain canonical; only stale plan sequencing text changes. Setting-reader is now landed and preset-readings precedes NAG.",
+      "377 now has an actual historical-citation rewrite, reinforcing its already-open source-identity obligation.",
+      "380/381 are distinct effective-environment and result-dependency contracts. Neither duplicates verifier ordering322 or historical evidence377."
     ],
-    "reviewed_at": "2026-11-11T14:26:58Z",
-    "reviewed_master": "d87c57c33f294d7fdaaa6d32e33b75f866f764d7",
+    "reviewed_at": "2026-11-11T16:28:30Z",
+    "reviewed_master": "5a2336fbaf7dd4293bb5adc58119578783ae5566",
     "schema_version": 2,
     "scope": [
-      "Committed master d87c57c33f294d7fdaaa6d32e33b75f866f764d7 and committed plan; bounded preset rendering -> scoring evidence -> admission -> capability offering review, with existing scorecard/media-group and instruction-decision owners.",
-      "Actual selected-file Go AST on7 files:2796nodes,17functions,593parser-local links. Complete changed-Go costs for four landings, retained gate results and prior binary/directory analysis reused.",
-      "Downloads architecture target remains active at verified SHA; working landing/test/plan edits are excluded. This chat previously implemented Overgo and contributed plan wording; not independent third-party validation."
+      "Committed master 5a2336fbaf7dd4293bb5adc58119578783ae5566 and committed plan; bounded review of setting identity, landing environment, replay admission, card dispatch and test reuse. Prior preset admission files rechecked unchanged.",
+      "Existing targeted Go AST on9 files:5838nodes/39functions/1139parser-local links; complete changed-Go costs for six landings. Retained verification and prior binary/directory analysis reused.",
+      "Repository guidance and Downloads architecture target retain verified prior hashes. Current latentimage/plan drafts excluded. This chat previously implemented Overgo and contributed plan wording; not independent third-party review."
     ],
     "sqa_response": {
-    "assessment": "206 stable IDs:70 open,130 resolved,4 deferred,2 aliases.342 updated;379 new. No closure inferred from successful gates alone.",
+    "assessment": "208 stable IDs:72 open,130 resolved,4 deferred,2 aliases. New380/381;377 strengthened;342/379 plan progress reconciled.",
     "consolidated_findings": [],
     "deferred_findings": [],
-    "evidence": "Committed source/callers, retained gate records,7-file AST and exact four-all-loss arithmetic. Prior owner responses re-read and preserved.",
-    "implementation_response_context": "user-size landed before MOSS/SenseNova presets and fixes size/format checks. Its tests do not establish sound quality admission or render/record binding. Current implementation drafts excluded.",
+    "evidence": "Pinned callers/tests/configuration, six retained landing records and nine-file AST. Report owner blocks and unknown fields preserved.",
+    "implementation_response_context": "Previous SQA report landed in da371fdf5. No new owner response asserts342/379 resolved. Setting-reader prerequisite and reading-before-NAG order are credited; current latentimage drafts excluded.",
     "new_findings": [
-        "SQA-379"
+        "SQA-380",
+        "SQA-381"
       ],
     "partially_addressed_findings": [],
-    "priority_changes": "342 quality-admission correction and379 evidence binding precede further long guidance comparisons; canonical order retains higher-severity correctness/security work.",
-    "recommendation": "Finish coherent admission through existing evaluation/render/evidence/control owners before expanding presets or collecting costly readings.",
+    "priority_changes": "Retain correctness/security ranking.380 prevents reintroduced costly lane opt-ins;381 prevents omitted evidence dependencies.342/379 still precede any claim of preset approval.",
+    "recommendation": "Finish guarantees inside current admission/identity owners; delete duplicate readers/scanners and merge compatible native fixture setup rather than add policy layers.",
     "refactor": {
       "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
       "history_path": "docs/sqa_findings.json",
@@ -11866,10 +11992,12 @@
     },
     "reopened_findings": [],
     "resolved_findings": [],
-    "reviewed_master": "d87c57c33f294d7fdaaa6d32e33b75f866f764d7",
-    "uncertainty": "No safe net code reduction established; necessary correctness coverage may grow. Numerical and binding counterexamples are source-based, not observed model failures.",
+    "reviewed_master": "5a2336fbaf7dd4293bb5adc58119578783ae5566",
+    "uncertainty": "Static counterexamples and bounded retained records only. Net growth is measured; future reductions are unimplemented and not guaranteed.",
     "updated_findings": [
-        "SQA-342"
+        "SQA-342",
+        "SQA-377",
+        "SQA-379"
       ]
   }
   }

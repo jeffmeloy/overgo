@@ -230,7 +230,7 @@ func TestCompileVAEProgramRefusesUnrepresentableExtents(t *testing.T) {
 	if _, err := compileRotaryDenoiserProgram(denoiserSpec(), syntheticEpsilon, hugeGrid, hugeGrid, tensor.SingletonExtent, nil, dtype.F32); err == nil {
 		t.Fatal("rotary denoiser compiled an unrepresentable extent")
 	}
-	if _, err := CompileDenoiserProgram(syntheticSpec(), syntheticEpsilon, []bool{true}, hugeGrid, hugeGrid, dtype.F32); err == nil {
+	if _, err := CompileDenoiserProgram(syntheticSpec(), syntheticEpsilon, []bool{true}, nil, hugeGrid, hugeGrid, dtype.F32); err == nil {
 		t.Fatal("denoiser compiled an unrepresentable extent")
 	}
 }

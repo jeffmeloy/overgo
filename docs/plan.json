@@ -3,6 +3,38 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "fail-early-runs",
+      "title": "A long model run proves its first request before its tasks, a landing needs nothing typed before it, and a session's own run on the card sends dispatch to the host's work",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": -106,
+        "reason": "Estimated: a replay's first request, a landing's environment from its configuration, and a card hold in dispatch; about fifty nodes a step. Serves: development velocity: the owner's direction of 2026-11-10, that a failure is a possible automation, above all one found after a long test or evaluation run that an earlier check could have found.\n\nDisappears: refusals that cost a whole gate run, or a long model run, to say what a check of seconds could have said. 35 landings on 2026-11-10 spent 6.2 hours of gate wall, refused runs uncounted; in one stretch 7 steps took 14 gate runs, and one step (card-budgets/declared-budget) six, each 5 to 10 minutes: a check holding no passing test of its name in a package it names (found after the full lanes, twice, the second time with the message unchanged), an environment read no capability identity declares (found by a lane test), a set of names a text record repeats from the code (found by a lane test), and two rules the preflight would have found in seconds. The six-task thinking run spent 23 minutes on a first task whose every reply came back empty, which one request would have shown.\n\nBatch: host lane. Step attempts-in-place: +76 (76, the median of what 32 landings that changed cmd/loop counted)."
+      },
+      "steps": [
+        {
+          "id": "model-run-probe",
+          "title": "A replay of the local worker proves one request at the worker's settings before its tasks, and refuses at once naming why the reply ended",
+          "status": "open",
+          "verify": "go test ./cmd/loop -count=1 -run '^TestAReplayProbesTheWorkersSettingsFirst$'",
+          "files": [
+            "cmd/loop"
+          ],
+          "rationale": "Serves: development velocity (fail-early): a long model run proves its first request before its tasks.\n\nDisappears: the six-task thinking run of 2026-11-10 spent 23 minutes on its first task with every reply empty (greedy thinking, no tool call, no answer), and an earlier start ended at its first request, 400 from the server's reply bound. One request at the worker's settings would have shown either in under a minute.\n\nCheck: TestAReplayProbesTheWorkersSettingsFirst serves a route that answers an empty reply cut at its bound, and wants the replay refused before any task, the refusal naming the reason the reply ended; and a route answering a tool call to let the tasks start. At the base the replay starts its first task.\n\nBatch: host lane."
+        },
+        {
+          "id": "land-environment",
+          "title": "A landing takes its role and data roots from the loop's configuration and unsets what its gate must not inherit",
+          "status": "open",
+          "verify": "go test ./cmd/loop -count=1 -run '^TestALandingTakesItsEnvironmentFromTheConfiguration$'",
+          "files": [
+            "cmd/loop"
+          ],
+          "rationale": "Serves: development velocity (fail-early): a landing needs nothing typed before it.\n\nDisappears: every landing is started with a typed prefix (the automation role, the data root, the audio reference store, three variables unset), each a place to slip; a slip costs a refused run or one run under the wrong role.\n\nCheck: TestALandingTakesItsEnvironmentFromTheConfiguration starts a landing with none of the prefix and wants the role and roots the loop's configuration names, and the three variables unset in its gate. At the base it runs with the process's environment.\n\nBatch: host lane.\n\nNote: 2026-11-11 evidence: guidance-ops/moss-presets was landed with no OVERGO_DATA_ROOT typed before it, and its cuda lane refused it after the full lanes: seven MOSS card tests in internal/latentimage (the generator's lifecycle, composition and workflow, the decoder golden, the encoder) found no cuDNN, as the data root a test resolves from its package folder holds no libraries folder. Set, the same tests pass. One gate run of the lanes spent on a setting the loop's configuration holds."
+        }
+      ]
+    },
+    {
       "id": "guidance-ops",
       "title": "CFG-Zero*, the guidance interval, APG and NAG are guider functions written from their papers, each a preset admitted per model by its held-out suite",
       "owner": "master-lead",
@@ -1205,50 +1237,6 @@
             "media-lora/unmerged",
             "quality-instruments/hard-cases"
           ]
-        }
-      ]
-    },
-    {
-      "id": "fail-early-runs",
-      "title": "A long model run proves its first request before its tasks, a landing needs nothing typed before it, and a session's own run on the card sends dispatch to the host's work",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 226,
-        "reason": "Estimated: a replay's first request, a landing's environment from its configuration, and a card hold in dispatch; about fifty nodes a step. Serves: development velocity: the owner's direction of 2026-11-10, that a failure is a possible automation, above all one found after a long test or evaluation run that an earlier check could have found.\n\nDisappears: refusals that cost a whole gate run, or a long model run, to say what a check of seconds could have said. 35 landings on 2026-11-10 spent 6.2 hours of gate wall, refused runs uncounted; in one stretch 7 steps took 14 gate runs, and one step (card-budgets/declared-budget) six, each 5 to 10 minutes: a check holding no passing test of its name in a package it names (found after the full lanes, twice, the second time with the message unchanged), an environment read no capability identity declares (found by a lane test), a set of names a text record repeats from the code (found by a lane test), and two rules the preflight would have found in seconds. The six-task thinking run spent 23 minutes on a first task whose every reply came back empty, which one request would have shown.\n\nBatch: host lane. Step attempts-in-place: +76 (76, the median of what 32 landings that changed cmd/loop counted)."
-      },
-      "steps": [
-        {
-          "id": "model-run-probe",
-          "title": "A replay of the local worker proves one request at the worker's settings before its tasks, and refuses at once naming why the reply ended",
-          "status": "open",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestAReplayProbesTheWorkersSettingsFirst$'",
-          "files": [
-            "cmd/loop"
-          ],
-          "rationale": "Serves: development velocity (fail-early): a long model run proves its first request before its tasks.\n\nDisappears: the six-task thinking run of 2026-11-10 spent 23 minutes on its first task with every reply empty (greedy thinking, no tool call, no answer), and an earlier start ended at its first request, 400 from the server's reply bound. One request at the worker's settings would have shown either in under a minute.\n\nCheck: TestAReplayProbesTheWorkersSettingsFirst serves a route that answers an empty reply cut at its bound, and wants the replay refused before any task, the refusal naming the reason the reply ended; and a route answering a tool call to let the tasks start. At the base the replay starts its first task.\n\nBatch: host lane."
-        },
-        {
-          "id": "land-environment",
-          "title": "A landing takes its role and data roots from the loop's configuration and unsets what its gate must not inherit",
-          "status": "open",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestALandingTakesItsEnvironmentFromTheConfiguration$'",
-          "files": [
-            "cmd/loop"
-          ],
-          "rationale": "Serves: development velocity (fail-early): a landing needs nothing typed before it.\n\nDisappears: every landing is started with a typed prefix (the automation role, the data root, the audio reference store, three variables unset), each a place to slip; a slip costs a refused run or one run under the wrong role.\n\nCheck: TestALandingTakesItsEnvironmentFromTheConfiguration starts a landing with none of the prefix and wants the role and roots the loop's configuration names, and the three variables unset in its gate. At the base it runs with the process's environment.\n\nBatch: host lane.\n\nNote: 2026-11-11 evidence: guidance-ops/moss-presets was landed with no OVERGO_DATA_ROOT typed before it, and its cuda lane refused it after the full lanes: seven MOSS card tests in internal/latentimage (the generator's lifecycle, composition and workflow, the decoder golden, the encoder) found no cuDNN, as the data root a test resolves from its package folder holds no libraries folder. Set, the same tests pass. One gate run of the lanes spent on a setting the loop's configuration holds."
-        },
-        {
-          "id": "card-held",
-          "title": "While a session's own model run holds the card, dispatch passes over card steps, as it does for a measurement run",
-          "status": "open",
-          "verify": "go test ./internal/plan -count=1 -run '^TestDispatchPassesOverCardStepsWhileASessionsRunHoldsTheCard$'",
-          "files": [
-            "internal/plan",
-            "cmd/loop",
-            "cmd/loophook"
-          ],
-          "rationale": "Serves: development velocity (fail-early): while a session's own model run holds the card, the step offered next is one the host can do.\n\nDisappears: through a multi-hour model run the stop check said \"continue with the dispatched row\", a step needing the card the run held, so the host's work went undirected; dispatch passes over card steps only while a measurement run holds the card.\n\nCheck: TestDispatchPassesOverCardStepsWhileASessionsRunHoldsTheCard holds the card for a session's run and wants the next host step dispatched, and the card step once the hold ends. At the base the card step is dispatched.\n\nBatch: host lane."
         }
       ]
     },

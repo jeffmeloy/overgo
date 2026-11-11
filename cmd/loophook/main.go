@@ -498,10 +498,16 @@ func beginTurn(input hookInput) (review bool) {
 // or nothing where none is kept: a run's end and times are read from the record
 // the run keeps of itself (plan.MeasurementRun), never reckoned.
 func measurementRun() string {
+	var lines []string
 	if run, kept := plan.ReadMeasurementRun("."); kept {
-		return "OVERGO MEASUREMENT RUN: " + run.Report() + "."
+		lines = append(lines, "OVERGO MEASUREMENT RUN: "+run.Report()+".")
 	}
-	return ""
+	// A session's own run holding the card is why dispatch passes over the steps that need it (plan.CardHold).
+	if hold, held := plan.ReadCardHold("."); held && hold.HoldsTheCard() {
+		lines = append(lines, fmt.Sprintf("OVERGO CARD HELD: process %d holds the card for %s, since %s; dispatch passes over card steps while it lives.",
+			hold.Process, hold.Purpose, hold.Started.Format(time.DateTime)))
+	}
+	return strings.Join(lines, "\n")
 }
 
 func runPrompt(hookJSON string) {

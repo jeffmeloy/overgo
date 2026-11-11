@@ -165,7 +165,7 @@ func workerTools(root string, step workerStep) []workerTool {
 			}
 			return string(found), nil
 		}},
-		{"edit_file", "Replace the one occurrence of old with new in a file the step may change; an empty old writes new as the whole file.", []string{"path", "old", "new"}, func(arguments map[string]string) (string, error) {
+		{"edit_file", "Replace the one occurrence of old with new in a file the step may change; an empty old writes new as the whole file, creating the file and its folders where they do not exist.", []string{"path", "old", "new"}, func(arguments map[string]string) (string, error) {
 			relative, err := writable(arguments["path"])
 			if err != nil {
 				return "", err

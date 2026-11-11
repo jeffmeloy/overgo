@@ -135,7 +135,7 @@ func TestRequestSamplingPresence(t *testing.T) {
 				t.Run(variant.name, func(t *testing.T) {
 					var request samplingParameters
 					testcheck.NoError(t, json.Unmarshal([]byte(variant.body), &request))
-					sampler := testcheck.Must(handler.newSampler(request))(t)
+					sampler := testcheck.Must(handler.newSampler(request, true))(t)
 					value := reflect.ValueOf(sampler.Config()).FieldByName(field.field)
 					got := value.Convert(reflect.TypeFor[float64]()).Float()
 					if got != variant.want {
@@ -149,7 +149,7 @@ func TestRequestSamplingPresence(t *testing.T) {
 		handler := &Handler{servingWorkspace: servingWorkspace{defaultSampling: sampling.Config{RepeatPenalty: 1, RepeatLastN: 1}}}
 		var request samplingParameters
 		testcheck.NoError(t, json.Unmarshal([]byte(`{"repeat_penalty":0}`), &request))
-		if _, err := handler.newSampler(request); err == nil {
+		if _, err := handler.newSampler(request, true); err == nil {
 			t.Fatal("explicit invalid zero was replaced by a valid default")
 		}
 	})

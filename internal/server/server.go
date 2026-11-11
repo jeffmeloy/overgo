@@ -475,9 +475,12 @@ func (stats *slotRuntimeStats) snapshot(includeText bool) (string, string, slotS
 // its session director, sampling defaults, slot accounting, and the
 // response-side helpers the OpenAI, native, and Anthropic protocols share.
 type servingWorkspace struct {
-	generator           Generator
-	sessions            *capabilityruntime.ModelSessionDirector[struct{}, Generator, struct{}]
-	defaultSampling     sampling.Config
+	generator       Generator
+	sessions        *capabilityruntime.ModelSessionDirector[struct{}, Generator, struct{}]
+	defaultSampling sampling.Config
+	// thinkingOffSampling is the default a request with thinking off starts from, where the model declares a set for
+	// that mode apart; none where defaultSampling serves both.
+	thinkingOffSampling *sampling.Config
 	defaultOutputTokens int
 	slotBusy            []atomic.Bool
 	slotTasks           []atomic.Uint64
@@ -669,6 +672,14 @@ func New(config Config, generator Generator) (*Handler, error) {
 	if err != nil {
 		return nil, fmt.Errorf("server defaults: %w", err)
 	}
+	var thinkingOffSampling *sampling.Config
+	if defaults.ThinkingOff != nil {
+		off, err := sampling.New(defaults.ThinkingOff.Config())
+		if err != nil {
+			return nil, fmt.Errorf("server thinking-off defaults: %w", err)
+		}
+		thinkingOffSampling = new(off.Config())
+	}
 	repository, environment, err := openServingRepository(config)
 	if err != nil {
 		return nil, err
@@ -728,6 +739,7 @@ func New(config Config, generator Generator) (*Handler, error) {
 			generator:           generator,
 			sessions:            sessions,
 			defaultSampling:     defaultSampler.Config(),
+			thinkingOffSampling: thinkingOffSampling,
 			defaultOutputTokens: defaults.OutputTokens,
 			slotBusy:            make([]atomic.Bool, config.MaxConcurrent),
 			slotTasks:           make([]atomic.Uint64, config.MaxConcurrent),
@@ -944,14 +956,19 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 	h.serveWebUI(response, request)
 }
 
-func (h *Handler) newSampler(body samplingParameters) (*sampling.Sampler, error) {
+// newSampler starts from the model's sampling for the request's mode, the thinking-off set where thinking is off and
+// the model declares one, and the request's own values stand over it.
+func (h *Handler) newSampler(body samplingParameters, thinking bool) (*sampling.Sampler, error) {
 	// Pointer presence preserves explicit zero; the sampler validates its meaning.
 	declared := h.defaultSampling
+	if !thinking && h.thinkingOffSampling != nil {
+		declared = *h.thinkingOffSampling
+	}
 	dryMultiplier := *cmp.Or(body.DryMultiplier, &declared.DryMultiplier)
 	var dryBreakers [][]int
 	breakerStrings := body.DryBreakers
 	if dryMultiplier != 0 && breakerStrings == nil {
-		breakerStrings = h.config.RuntimePolicy.Serving.Sampling.DryBreakers
+		breakerStrings = h.config.RuntimePolicy.SamplingFor(thinking).DryBreakers
 	}
 	if len(breakerStrings) > 0 {
 		breakerTokenizer, ok := h.generator.(dryBreakerTokenizer)
@@ -1018,7 +1035,7 @@ func (h *Handler) newSampler(body samplingParameters) (*sampling.Sampler, error)
 	}
 	// A request that names no chain runs the recipe's declared chain; a
 	// named chain, even an empty one, is authoritative.
-	samplerOrder := h.defaultSampling.Samplers
+	samplerOrder := declared.Samplers
 	if body.Samplers != nil {
 		var err error
 		samplerOrder, err = sampling.ParseSamplerNames(body.Samplers)

@@ -382,7 +382,8 @@ func (h *Handler) nativeCompletions(response http.ResponseWriter, request *http.
 		writeInvalidRequest(response, err)
 		return
 	}
-	sampler, err := h.newSampler(body.samplingParameters)
+	// A raw prompt names no mode: it is served the model's one set, or its set to think with.
+	sampler, err := h.newSampler(body.samplingParameters, true)
 	if err != nil {
 		writeInvalidRequest(response, err)
 		return

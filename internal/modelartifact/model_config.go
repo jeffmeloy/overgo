@@ -4,6 +4,7 @@
 package modelartifact
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -44,6 +45,9 @@ type GenerationEssentials struct {
 	EOSTokens     []int64             `json:"eos_tokens,omitempty"`
 	ContextLength uint64              `json:"context_length,omitzero"`
 	Sampling      *GenerationSampling `json:"sampling,omitempty"`
+	// ThinkingOffSampling is the set its maker recommends with thinking off, where it recommends one apart (Qwen3.8's
+	// page: temperature 0.7, top-p 0.8, presence penalty 1.5); none where Sampling serves both modes.
+	ThinkingOffSampling *GenerationSampling `json:"thinking_off_sampling,omitempty"`
 	// ImageAttention preserves an explicit text-model declaration. Empty means
 	// absent; causal and vision are distinct from an omitted or unknown value.
 	ImageAttention string `json:"image_attention,omitzero"`
@@ -84,6 +88,10 @@ type declaredSampling struct {
 // a checkpoint (or in a directory of its own for a GGUF-only model) to
 // record the sampling a model card recommends, with its source URL.
 const ModelCardSamplingFile = "model_card_sampling.json"
+
+// thinkingOffMode is the mode a model card declaration names for the set its maker recommends with thinking off; a
+// set of any other mode, or of none, is the set to think with, and serves both modes where it stands alone.
+const thinkingOffMode = "thinking-off"
 
 func (declared declaredSampling) sampling(origin string) *GenerationSampling {
 	if declared.DoSample == nil && declared.Temperature == nil && declared.TopP == nil && declared.TopK == nil &&
@@ -242,15 +250,33 @@ func ReadModelConfigComponents(directory string) (*SequenceExtensionConfig, *Gen
 	if data, ok, err := read(ModelCardSamplingFile); err != nil {
 		return nil, nil, nil, err
 	} else if ok {
-		var sampling declaredSampling
-		if err := json.Unmarshal(data, &sampling); err != nil {
-			return nil, nil, nil, fmt.Errorf("model config: parse %s: %w", ModelCardSamplingFile, err)
+		// One set, or a set for each mode its maker recommends one for, the thinking-off set named by its mode.
+		var sets []declaredSampling
+		if trimmed := bytes.TrimSpace(data); len(trimmed) > 0 && trimmed[0] == '[' {
+			if err := json.Unmarshal(data, &sets); err != nil {
+				return nil, nil, nil, fmt.Errorf("model config: parse %s: %w", ModelCardSamplingFile, err)
+			}
+		} else {
+			var one declaredSampling
+			if err := json.Unmarshal(data, &one); err != nil {
+				return nil, nil, nil, fmt.Errorf("model config: parse %s: %w", ModelCardSamplingFile, err)
+			}
+			sets = []declaredSampling{one}
 		}
-		declared := sampling.sampling(ModelCardSamplingFile)
-		if declared == nil || sampling.Source == "" {
-			return nil, nil, nil, fmt.Errorf("model config: %s declares no sampling or no source", ModelCardSamplingFile)
+		for _, set := range sets {
+			declared := set.sampling(ModelCardSamplingFile)
+			if declared == nil || set.Source == "" {
+				return nil, nil, nil, fmt.Errorf("model config: %s declares no sampling or no source", ModelCardSamplingFile)
+			}
+			if set.Mode == thinkingOffMode {
+				generation.ThinkingOffSampling = declared
+			} else {
+				generation.Sampling = declared
+			}
 		}
-		generation.Sampling = declared
+		if generation.Sampling == nil {
+			return nil, nil, nil, fmt.Errorf("model config: %s declares a set with thinking off and none to think with", ModelCardSamplingFile)
+		}
 		populated = true
 	}
 	if data, ok, err := read("config.json"); err != nil {

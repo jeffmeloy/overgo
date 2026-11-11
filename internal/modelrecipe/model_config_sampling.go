@@ -99,39 +99,52 @@ func BindServingPolicy(ctx context.Context, store artifact.Repository, observati
 // The declaration is the model's own recommendation; the catalog policy
 // is the fallback for models that ship none.
 // The derived policy receives its own content identity; the catalog stays intact.
-func withDeclaredSampling(policy RuntimePolicy, declared *modelartifact.GenerationSampling) (RuntimePolicy, error) {
+// A model whose maker recommends a set apart with thinking off has it overlaid on the catalog's serving sampling as the
+// set a request with thinking off is served (RuntimePolicy.SamplingFor); one set serves both modes.
+func withDeclaredSampling(policy RuntimePolicy, declared, thinkingOff *modelartifact.GenerationSampling) (RuntimePolicy, error) {
 	if err := policy.ValidateIdentity(); err != nil {
 		return RuntimePolicy{}, err
 	}
 	if declared == nil {
 		return policy, nil
 	}
+	catalog := policy.Serving.Sampling
 	for _, target := range []*sampling.Policy{&policy.Interactive.Sampling, &policy.Serving.Sampling} {
-		if !declared.DoSample {
-			target.Temperature = 0
-		} else if declared.Temperature != 0 {
-			target.Temperature = float32(declared.Temperature)
-		}
-		if declared.TopP != 0 {
-			target.TopP = float32(declared.TopP)
-		}
-		if declared.TopK != 0 {
-			target.TopK = declared.TopK
-		}
-		if declared.MinP != 0 {
-			target.MinP = float32(declared.MinP)
-		}
-		if declared.PresencePenalty != 0 {
-			target.PresencePenalty = float32(declared.PresencePenalty)
-		}
-		if declared.RepetitionPenalty != 0 {
-			target.RepeatPenalty = float32(declared.RepetitionPenalty)
-		}
-		// A declared penalty reads the text so far, as its maker's runtime applies it: the catalog's window of 0 idles it.
-		if target.RepeatLastN == 0 && (declared.PresencePenalty != 0 || declared.RepetitionPenalty != 0 && declared.RepetitionPenalty != 1) {
-			target.RepeatLastN = wholeHistory
-		}
+		overlaySampling(target, declared)
+	}
+	if thinkingOff != nil {
+		off := catalog
+		overlaySampling(&off, thinkingOff)
+		policy.Serving.ThinkingOff = &off
 	}
 	policy.Tasks = slices.Clone(policy.Tasks)
 	return runtimePolicyCodec.New(policy)
+}
+
+// overlaySampling sets on target each field declared declares, leaving the rest standing.
+func overlaySampling(target *sampling.Policy, declared *modelartifact.GenerationSampling) {
+	if !declared.DoSample {
+		target.Temperature = 0
+	} else if declared.Temperature != 0 {
+		target.Temperature = float32(declared.Temperature)
+	}
+	if declared.TopP != 0 {
+		target.TopP = float32(declared.TopP)
+	}
+	if declared.TopK != 0 {
+		target.TopK = declared.TopK
+	}
+	if declared.MinP != 0 {
+		target.MinP = float32(declared.MinP)
+	}
+	if declared.PresencePenalty != 0 {
+		target.PresencePenalty = float32(declared.PresencePenalty)
+	}
+	if declared.RepetitionPenalty != 0 {
+		target.RepeatPenalty = float32(declared.RepetitionPenalty)
+	}
+	// A declared penalty reads the text so far, as its maker's runtime applies it: the catalog's window of 0 idles it.
+	if target.RepeatLastN == 0 && (declared.PresencePenalty != 0 || declared.RepetitionPenalty != 0 && declared.RepetitionPenalty != 1) {
+		target.RepeatLastN = wholeHistory
+	}
 }

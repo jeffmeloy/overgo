@@ -51,17 +51,29 @@ type requestLimitPolicy struct {
 }
 
 type servingRuntimePolicy struct {
-	ModelID            string             `json:"model_id"`
-	OutputTokens       int                `json:"output_tokens"`
-	MaxTokens          int                `json:"max_tokens"`
-	MaxConcurrent      int                `json:"max_concurrent"`
-	PromptCacheEntries int                `json:"prompt_cache_entries"`
-	MaxEmbeddingInputs int                `json:"max_embedding_inputs"`
-	StoredResponses    int                `json:"stored_responses"`
-	ResponseStoreBytes int                `json:"response_store_bytes"`
-	Sampling           sampling.Policy    `json:"sampling"`
-	Video              videoInputPolicy   `json:"video"`
-	Limits             requestLimitPolicy `json:"limits"`
+	ModelID            string          `json:"model_id"`
+	OutputTokens       int             `json:"output_tokens"`
+	MaxTokens          int             `json:"max_tokens"`
+	MaxConcurrent      int             `json:"max_concurrent"`
+	PromptCacheEntries int             `json:"prompt_cache_entries"`
+	MaxEmbeddingInputs int             `json:"max_embedding_inputs"`
+	StoredResponses    int             `json:"stored_responses"`
+	ResponseStoreBytes int             `json:"response_store_bytes"`
+	Sampling           sampling.Policy `json:"sampling"`
+	// ThinkingOff is the sampling a request with thinking off is served, where the model declares a set for that mode
+	// apart; none where Sampling serves both modes.
+	ThinkingOff *sampling.Policy   `json:"thinking_off_sampling,omitempty"`
+	Video       videoInputPolicy   `json:"video"`
+	Limits      requestLimitPolicy `json:"limits"`
+}
+
+// SamplingFor is the sampling a request is served in its mode: the thinking-off set for a request with thinking off
+// where the model declares one, else the one set.
+func (policy RuntimePolicy) SamplingFor(thinking bool) sampling.Policy {
+	if !thinking && policy.Serving.ThinkingOff != nil {
+		return *policy.Serving.ThinkingOff
+	}
+	return policy.Serving.Sampling
 }
 
 // RuntimePolicy binds request defaults to supported recipe tasks.
@@ -268,6 +280,11 @@ func canonicalizeRuntimePolicy(policy *RuntimePolicy) error {
 	}
 	if err := serving.Sampling.Validate(); err != nil {
 		return fmt.Errorf("model recipe: serving sampling policy: %w", err)
+	}
+	if serving.ThinkingOff != nil {
+		if err := serving.ThinkingOff.Validate(); err != nil {
+			return fmt.Errorf("model recipe: thinking-off sampling policy: %w", err)
+		}
 	}
 	return nil
 }

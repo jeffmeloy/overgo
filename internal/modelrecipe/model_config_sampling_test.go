@@ -27,7 +27,7 @@ func TestApplyDeclaredSamplingOverlaysDeclaredFieldsOnly(t *testing.T) {
 	catalogMinP := policy.Serving.Sampling.MinP
 	policy = testcheck.Must(withDeclaredSampling(policy, &modelartifact.GenerationSampling{
 		Origin: "generation_config.json", DoSample: true, Temperature: 0.7, TopP: 0.8, PresencePenalty: 1.5,
-	}))(t)
+	}, nil))(t)
 	for _, overlaid := range []sampling.Policy{policy.Interactive.Sampling, policy.Serving.Sampling} {
 		if overlaid.Temperature != 0.7 || overlaid.TopP != 0.8 || overlaid.PresencePenalty != 1.5 {
 			t.Fatalf("declared fields not applied: %+v", overlaid)
@@ -39,12 +39,12 @@ func TestApplyDeclaredSamplingOverlaysDeclaredFieldsOnly(t *testing.T) {
 	if err := policy.Serving.Sampling.Validate(); err != nil {
 		t.Fatalf("overlaid policy is invalid: %v", err)
 	}
-	policy = testcheck.Must(withDeclaredSampling(policy, &modelartifact.GenerationSampling{Origin: "generation_config.json", DoSample: false}))(t)
+	policy = testcheck.Must(withDeclaredSampling(policy, &modelartifact.GenerationSampling{Origin: "generation_config.json", DoSample: false}, nil))(t)
 	if policy.Serving.Sampling.Temperature != 0 || policy.Interactive.Sampling.Temperature != 0 {
 		t.Fatalf("do_sample=false did not select greedy decoding: %+v", policy.Serving.Sampling)
 	}
 	unchanged := policy.Serving.Sampling.Config()
-	policy = testcheck.Must(withDeclaredSampling(policy, nil))(t)
+	policy = testcheck.Must(withDeclaredSampling(policy, nil, nil))(t)
 	if !reflect.DeepEqual(policy.Serving.Sampling.Config(), unchanged) {
 		t.Fatal("nil declaration changed the policy")
 	}
@@ -73,7 +73,7 @@ func TestFilesSamplingRecommendationOverlaysTheCatalog(t *testing.T) {
 		testutil.GGUFScalar("general.sampling.top_p", gguf.ValueTypeFloat32, float32(0.95)),
 		testutil.GGUFScalar("general.sampling.temp", gguf.ValueTypeFloat32, float32(1)),
 	)
-	policy := testcheck.Must(withDeclaredSampling(catalog, fileDeclaredSampling(flashNext)))(t)
+	policy := testcheck.Must(withDeclaredSampling(catalog, fileDeclaredSampling(flashNext), nil))(t)
 	for _, overlaid := range []sampling.Policy{policy.Serving.Sampling, policy.Interactive.Sampling} {
 		if overlaid.Temperature != 1 || overlaid.TopP != 0.95 || overlaid.TopK != 20 || overlaid.MinP != catalog.Serving.Sampling.MinP {
 			t.Fatalf("the file's sampling did not overlay the catalog's: %+v", overlaid)
@@ -82,13 +82,13 @@ func TestFilesSamplingRecommendationOverlaysTheCatalog(t *testing.T) {
 	if declared := fileDeclaredSampling(open()); declared != nil {
 		t.Fatalf("a file naming no sampling declared %+v", declared)
 	}
-	greedy, err := withDeclaredSampling(catalog, fileDeclaredSampling(open(testutil.GGUFScalar("general.sampling.temp", gguf.ValueTypeFloat32, float32(0)))))
+	greedy, err := withDeclaredSampling(catalog, fileDeclaredSampling(open(testutil.GGUFScalar("general.sampling.temp", gguf.ValueTypeFloat32, float32(0)))), nil)
 	if err != nil || greedy.Serving.Sampling.Temperature != 0 {
 		t.Fatalf("a file's zero temperature = %+v, %v", greedy.Serving.Sampling, err)
 	}
 	for _, malformed := range []float32{float32(math.NaN()), float32(math.Inf(-1))} {
 		declared := fileDeclaredSampling(open(testutil.GGUFScalar("general.sampling.temp", gguf.ValueTypeFloat32, malformed)))
-		if policy, err := withDeclaredSampling(catalog, declared); err == nil {
+		if policy, err := withDeclaredSampling(catalog, declared, nil); err == nil {
 			t.Fatalf("a file's temperature %v was accepted as %+v", malformed, policy.Serving.Sampling)
 		}
 	}
@@ -103,20 +103,20 @@ func TestDeclaredSamplingPreservesPolicyIdentity(t *testing.T) {
 	declaration := &modelartifact.GenerationSampling{
 		Origin: "generation_config.json", DoSample: true, Temperature: 0.7, TopP: 0.8,
 	}
-	policy = testcheck.Must(withDeclaredSampling(policy, declaration))(t)
+	policy = testcheck.Must(withDeclaredSampling(policy, declaration, nil))(t)
 	if err := policy.ValidateIdentity(); err != nil {
 		t.Fatalf("declared sampling policy cannot enter the HTTP handler: %v", err)
 	}
 	if policy.ID == original.ID || original.ValidateIdentity() != nil {
 		t.Fatal("overlay reused or mutated catalog identity")
 	}
-	repeated, err := withDeclaredSampling(original, declaration)
+	repeated, err := withDeclaredSampling(original, declaration, nil)
 	if err != nil || repeated.ID != policy.ID {
 		t.Fatalf("identical declaration changed policy identity: %v", err)
 	}
 	for _, invalid := range []float64{math.NaN(), math.Inf(1), -1} {
 		declaration.Temperature = invalid
-		if _, err := withDeclaredSampling(original, declaration); err == nil {
+		if _, err := withDeclaredSampling(original, declaration, nil); err == nil {
 			t.Fatalf("accepted invalid declared temperature %v", invalid)
 		}
 		if original.ValidateIdentity() != nil {
@@ -138,7 +138,7 @@ func TestDeclaredSamplingIsBoundToTheRun(t *testing.T) {
 	}
 	attempt := func(temperature float64) runrecord.ServingObservation {
 		t.Helper()
-		policy, err := withDeclaredSampling(catalog, &modelartifact.GenerationSampling{Origin: "generation_config.json", DoSample: true, Temperature: temperature})
+		policy, err := withDeclaredSampling(catalog, &modelartifact.GenerationSampling{Origin: "generation_config.json", DoSample: true, Temperature: temperature}, nil)
 		testcheck.NoError(t, err)
 		observation := runrecord.ServingObservation{
 			Version: artifact.InitialDocumentVersion, Task: recipe.TaskInference, Outcome: runrecord.OutcomeSucceeded, StartedUnixNS: 1,
@@ -181,7 +181,7 @@ func TestADeclaredPenaltyReachesTheSampler(t *testing.T) {
 		{modelartifact.GenerationSampling{DoSample: true}, true},
 	} {
 		declared.sampling.Origin = "generation_config.json"
-		policy := testcheck.Must(withDeclaredSampling(catalog, &declared.sampling))(t)
+		policy := testcheck.Must(withDeclaredSampling(catalog, &declared.sampling, nil))(t)
 		for _, overlaid := range []sampling.Policy{policy.Serving.Sampling, policy.Interactive.Sampling} {
 			if sampling.PenaltiesIdle(overlaid.Config()) != declared.idle {
 				t.Errorf("%+v leaves the penalties idle %t, want %t", declared.sampling, !declared.idle, declared.idle)

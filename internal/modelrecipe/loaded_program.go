@@ -135,13 +135,14 @@ func (l *LoadedProgram) bindActivation(ctx context.Context, store, reads artifac
 // store without typed document projections cannot hold a declaration, so the files' stands.
 func (l *LoadedProgram) declarePolicy(ctx context.Context, store artifact.Reader, policy RuntimePolicy) error {
 	declared := fileDeclaredSampling(l.state.File)
+	var thinkingOff *modelartifact.GenerationSampling
 	if directory := l.state.File.ViewDirectory(); directory != "" {
 		_, generation, _, err := modelartifact.ReadModelConfigComponents(directory)
 		if err != nil {
 			return err
 		}
 		if generation != nil && generation.Sampling != nil {
-			declared = generation.Sampling
+			declared, thinkingOff = generation.Sampling, generation.ThinkingOffSampling
 		}
 	}
 	if documents, ok := store.(overgodb.DocumentReader); ok {
@@ -150,11 +151,11 @@ func (l *LoadedProgram) declarePolicy(ctx context.Context, store artifact.Reader
 			return err
 		}
 		if found && config.Generation != nil && config.Generation.Sampling != nil {
-			declared = config.Generation.Sampling
+			declared, thinkingOff = config.Generation.Sampling, config.Generation.ThinkingOffSampling
 		}
 	}
 	var err error
-	l.state.Policy, err = withDeclaredSampling(policy, declared)
+	l.state.Policy, err = withDeclaredSampling(policy, declared, thinkingOff)
 	return err
 }
 

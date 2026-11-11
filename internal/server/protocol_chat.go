@@ -357,7 +357,12 @@ func (h *Handler) normalizeChatPrompt(
 	if err != nil {
 		return nativePrompt{}, err
 	}
-	return nativePrompt{Text: prompt, Response: prompt}, nil
+	// The prompt carries its mode, so its sampling is the model's for that mode.
+	thinking, _, err := chatTemplateKwargs(body.TemplateKwargs)
+	if err != nil {
+		return nativePrompt{}, err
+	}
+	return nativePrompt{Text: prompt, Response: prompt, Thinking: &thinking}, nil
 }
 
 // chatTemplateKwargs admits the declared template variables: the typed

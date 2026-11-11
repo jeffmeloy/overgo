@@ -166,7 +166,7 @@ func (h *Handler) prepareProtocolGenerationPlan(
 	maxTokens int,
 	stops []string,
 ) (*protocolGenerationPlan, bool) {
-	sampler, err := h.newSampler(parameters)
+	sampler, err := h.newSampler(parameters, prompt.Thinking == nil || *prompt.Thinking)
 	if err != nil {
 		writeInvalidRequest(response, err)
 		return nil, false

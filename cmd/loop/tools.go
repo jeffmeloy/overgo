@@ -152,13 +152,16 @@ func workerTools(root string, step workerStep) []workerTool {
 			}
 			return text.String(), nil
 		}},
-		{"search_files", "Find a text in the checkout's tracked files: each line holding it, with its file and line number.", []string{"text"}, func(arguments map[string]string) (string, error) {
+		{"search_files", "Find a text in the checkout's files, those git does not track yet among them: each line holding it, with its file and line number.", []string{"text"}, func(arguments map[string]string) (string, error) {
 			if arguments["text"] == "" {
 				return "", errors.New("the text to find is empty")
 			}
-			found, err := gitauthority.Query(context.Background(), root, "grep", "-n", "-I", "-F", "-e", arguments["text"])
+			// A file git does not track yet is searched too, short of what it ignores: a replay puts a landing's added
+			// test at its parent untracked, and in run 6 of loop-proof/local-demonstrated every failed step's check was
+			// such a file, out of the worker's sight (loop-proof/search-untracked).
+			found, err := gitauthority.Query(context.Background(), root, "grep", "--untracked", "-n", "-I", "-F", "-e", arguments["text"])
 			if err != nil && len(found) == 0 {
-				return "no tracked file holds it", nil
+				return "no file of the checkout holds it", nil
 			}
 			return string(found), nil
 		}},

@@ -801,20 +801,37 @@ func (l *landing) invariants(ctx context.Context) error {
 	if len(held) == 0 {
 		return nil
 	}
-	return l.goTest(ctx, "invariants", held...)
+	whole, err := wholeTreeRun(l.stageRoot())
+	if err != nil {
+		return err
+	}
+	return l.goTests(ctx, "invariants", held, whole)
 }
 
 // goTest runs the tests of packages and says which of them ran rather than
 // replayed, under the stage's name.
 func (l *landing) goTest(ctx context.Context, stage string, packages ...string) error {
-	output, err := l.runIn(ctx, l.stageRoot(), nil, "go", append([]string{"test", "-json", "-timeout=0"}, packages...)...)
-	if err != nil {
-		if summary := testevidence.FailureSummary(output); summary != "" {
-			return fmt.Errorf("failed tests/packages: %s", summary)
+	return l.goTests(ctx, stage, packages)
+}
+
+// goTests runs go test once with each set of arguments, a run with none skipped, and says which packages ran rather
+// than replayed over them all, under the stage's name.
+func (l *landing) goTests(ctx context.Context, stage string, runs ...[]string) error {
+	var outputs strings.Builder
+	for _, arguments := range runs {
+		if len(arguments) == 0 {
+			continue
 		}
-		return err
+		output, err := l.runIn(ctx, l.stageRoot(), nil, "go", append([]string{"test", "-json", "-timeout=0"}, arguments...)...)
+		if err != nil {
+			if summary := testevidence.FailureSummary(output); summary != "" {
+				return fmt.Errorf("failed tests/packages: %s", summary)
+			}
+			return err
+		}
+		outputs.WriteString(output)
 	}
-	l.details[stage] = ranPackages(output)
+	l.details[stage] = ranPackages(outputs.String())
 	return nil
 }
 

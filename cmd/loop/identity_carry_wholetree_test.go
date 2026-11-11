@@ -1,3 +1,9 @@
+//go:build wholetree
+
+// The identity carry copies the tree into a checkout of its own, so go test would count every file of it among this
+// package's inputs: built apart, it runs in the landing's invariants stage, and the driver's other tests are reused
+// until their own code changes (test-reuse).
+
 package main
 
 import (

@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -50,19 +52,31 @@ func (l *landing) undo(ctx context.Context) error {
 		return err
 	}
 	defer release()
-	// The change's other files, its tests among them, are kept; a file it deletes stays as it was.
+	// The change's other files, its tests among them, are kept, and so is its deletion of a file other than production
+	// Go, which stays as it was: a test the change moves to another file would otherwise be declared twice, and its
+	// package would build in neither tree (test-reuse, 2026-11-11).
 	kept, err := l.git(ctx, append([]string{"ls-tree", "-r", "--name-only", l.candidate, "--"}, l.paths...)...)
 	if err != nil {
 		return err
 	}
-	var carried []string
+	var carried, present []string
 	for path := range strings.Lines(kept) {
-		if path = strings.TrimSpace(path); !slices.Contains(restored, path) {
+		path = strings.TrimSpace(path)
+		present = append(present, path)
+		if !slices.Contains(restored, path) {
 			carried = append(carried, path)
 		}
 	}
 	if len(carried) > 0 {
 		if _, err := l.git(ctx, append([]string{"-C", tree, "checkout", l.candidate, "--"}, carried...)...); err != nil {
+			return err
+		}
+	}
+	for _, path := range l.paths {
+		if productionGo(path) || slices.Contains(present, path) {
+			continue
+		}
+		if err := os.Remove(filepath.Join(tree, filepath.FromSlash(path))); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return err
 		}
 	}

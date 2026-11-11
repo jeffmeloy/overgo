@@ -76,6 +76,31 @@ func TestTheLandingUndoesItsChangeAndTheCheckFails(t *testing.T) {
 	}
 }
 
+// TestAMovedTestIsUndoneWhereItMoved holds the undo to a change that moves its test to another file: on 2026-11-11 the
+// undo kept the file the change moved it from, so the test was declared in both, the package built in neither, and
+// test-reuse's check was refused as no evidence though it failed on its assertion with the old code. The moved test
+// runs once in the undone tree and catches the change.
+func TestAMovedTestIsUndoneWhereItMoved(t *testing.T) {
+	t.Parallel()
+	before := "func TestValue(t *testing.T) {\n\tt.Parallel()\n\tif Value() != 1 {\n\t\tt.Fatal(Value())\n\t}\n}\n"
+	fixture := newRowFixture(t, map[string]string{"p/p.go": undoneValue, "p/old_test.go": "package p\n\nimport \"testing\"\n\n" + before})
+	editPlan(t, fixture, func(document *plan.Plan) {
+		document.Items[0].Budget.Nodes = 100
+		document.Items[0].Steps[0].Verify = undoneCheck
+	})
+	fixture.git("add", "-A")
+	fixture.git("commit", "-q", "-m", "the row's check")
+	fixture.write("p/p.go", strings.Replace(undoneValue, "return 1", "return 2", 1))
+	fixture.git("mv", "p/old_test.go", "p/moved_test.go")
+	fixture.write("p/moved_test.go", "package p\n\nimport \"testing\"\n\n"+caughtTest)
+	l := fixture.candidate()
+	l.Log = &bytes.Buffer{}
+	err := l.verify(t.Context())
+	if undone := strings.Join(l.undone, "\n"); err != nil || !strings.Contains(undone, "TestValue") || strings.Contains(undone, "before a test asserts") {
+		t.Errorf("a change that moves its test ended as %v, its undo:\n%s\nprinting:\n%s", err, undone, printed(l))
+	}
+}
+
 // TestNoUndoEvidenceNeedsABoundaryTestOrAReason holds a change none of whose checks builds without it to a reason: on
 // 2026-11-09 such a landing said its checks were no evidence and landed (the owner's review). Its checks not building
 // with its production Go restored, it is refused, the refusal naming the two ways on: a test through an existing

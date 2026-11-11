@@ -129,7 +129,7 @@ const CycleTags = "modeltest,integration"
 const pairTag = "pairtest"
 
 // checkedTags are the tags vet and fix read the tree with, so every tagged file is still checked.
-const checkedTags = CycleTags + "," + pairTag
+const checkedTags = CycleTags + "," + pairTag + "," + wholeTreeTag
 
 // cycleLanes are what the improvement cycle runs in the gate's place: real
 // models, the live store and the served-model journeys, which guard what

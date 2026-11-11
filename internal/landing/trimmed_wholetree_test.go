@@ -1,3 +1,8 @@
+//go:build wholetree
+
+// The trimmed builds run other packages' tests in the tree as it stands, a read go test does not see: built apart,
+// they run in the landing's invariants stage on every landing (test-reuse).
+
 package landing
 
 import (

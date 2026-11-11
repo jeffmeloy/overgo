@@ -282,10 +282,14 @@ func (f *facts) directory(line place) string {
 // under reports whether path is root or lies beneath it, by file identity: a
 // short name, a link or another letter case is the same place, and a path
 // that does not exist lies where it would. A root that cannot be read holds
-// nothing.
+// nothing, and no path lies anywhere: an empty path is not resolved to the current folder, whose ancestors the walk
+// would read.
 func under(root, path string) bool {
+	if path == "" {
+		return false
+	}
 	inside, err := pathidentity.Contains(root, path)
-	return path != "" && err == nil && inside
+	return err == nil && inside
 }
 
 // failed is the one entry of a place whose source failed: a failed source is

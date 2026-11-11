@@ -74,7 +74,6 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	scorecardView := flags.Bool("scorecard", false, "print the user scorecard: for every activated model and task, time to first output, throughput, held-out quality, failures, load time, peak device memory and setup steps, each read from the store or listed as a gap with its reason, and the share of served models supported by declaration alone; runs nothing")
 	readme := flags.Bool("readme", false, "write the README's written parts, each between its two marker lines: the served-model table and the speed table from the newest scorecard record beside the store, and the training line from the training specifications and that record; reads them alone and runs nothing")
 	readmeCheck := flags.Bool("check", false, "with -readme: write nothing, and fail when any written part of the README is not what the record and the specifications give")
-	surfaceRecord := flags.Bool("surface-record", false, "write the set lines of the surface-move record (docs/verification/surface-moves.txt) as the capability identity code declares the sets, every other line as it stands; reads and writes the checkout alone")
 	publish := flags.Bool("publish", false, "with -scorecard: write it as the newest record in the scorecards directory beside the store and list what moved since the previous record")
 	gap := flags.String("gap", "", "with -scorecard: fail while the gap this key names is open on the scorecard the store holds, compared with the measurements published before it; the verifier of the row the loop proposed for it")
 	target := flags.Float64("target", math.NaN(), "with -gap, for the key of a decline: the value its cell is to be restored to, which the row carries from the cycle that found the decline")
@@ -115,7 +114,6 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 			"-inventory starts from the directories on disk, so a model nothing has registered is reported; it ties a converted model to its directory by the content of the config files the conversion recorded, never by a name",
 			"-scorecard reads the store and the serving source: it loads no model and opens no device",
 			"-readme reads the newest scorecard record and the training specifications and writes only the README's parts between their marker lines; with -check it writes nothing",
-			"-surface-record writes only the surface-move record's set lines, from the code, and reads nothing else",
 			"-onboard runs on a clean tree: the activation binds the commit it validated under",
 			"a trained model is measured once, by -trained or the first -run after its training; a later -run leaves it out unless -model names it",
 			"-claims reads the checkout only; a claim is rebound only by its own verify passing, never by hand",
@@ -157,9 +155,6 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	}
 	if *draftOf != "" {
 		return validateDraft(ctx, output, *repository, *draftOf)
-	}
-	if *surfaceRecord {
-		return inferencesurface.WriteSurfaceRecord(filepath.Join(*root, inferencesurface.SurfaceRecord))
 	}
 	if *readme || *readmeCheck {
 		if !*readme {

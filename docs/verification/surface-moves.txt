@@ -1051,7 +1051,7 @@ set-capability-executor: internal/capabilityruntime
 set-text-runner: internal/inference
 set-evaluation-binders: cmd/evaluate internal/evaluation internal/modelcli
 set-build-settings: GOOS GOARCH GOAMD64 GOARM64 CGO_ENABLED GOEXPERIMENT GOVERSION GOFLAGS
-set-result-settings: CUBLAS_WORKSPACE_CONFIG CUDA_PATH CUDA_VISIBLE_DEVICES ProgramFiles OVERGO_FFMPEG OVERGO_NVVFX OVERGO_DEVICE_BUDGET_GIB
+set-result-settings: CUDA_PATH CUDA_VISIBLE_DEVICES ProgramFiles OVERGO_FFMPEG
 set-libraries: nvcuda.dll cublas64_12.dll cublasLt64_12.dll cudnn64_9.dll cudnn_graph64_9.dll cudnn_ops64_9.dll cudnn_cnn64_9.dll cudnn_engines_precompiled64_9.dll cudnn_heuristic64_9.dll cudnn_engines_runtime_compiled64_9.dll
 
 == closing ==

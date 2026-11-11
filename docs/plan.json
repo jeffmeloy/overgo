@@ -3,6 +3,30 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "review-fixes",
+      "title": "The record of the work is truthful and in sight: historical evidence keeps its own revision, and the day's cost and progress are shown at session start from the records that hold them",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 461,
+        "reason": "Estimated from the review findings SQA-376 and SQA-377: a historical record's test and the removal of its writer, and five measures read into the existing status and printed at session start; about two hundred nodes, mostly the status's reading of commits and runs."
+      },
+      "steps": [
+        {
+          "id": "status-measures",
+          "title": "The status shows, at session start, the day's commits, refused runs by stage, the gate's hours, steps landed against steps added, and the report's rows landed",
+          "status": "open",
+          "verify": "go test ./cmd/loop -count=1 -run '^TestTheStatusSaysTheDaysFiveMeasures$'",
+          "files": [
+            "cmd/loop",
+            "cmd/loophook",
+            "internal/landing"
+          ],
+          "rationale": "Serves: the review finding SQA-376 and the owner's order of 2026-11-11: the work's cost and progress are seen at session start from the records that already hold them, with no new refusal source.\n\nDisappears: five signals counted by hand on request: commits, refused attempts, check hours, steps completed against steps added, and commits advancing the report's rows. The status (go run ./cmd/loop -status) reads a week's pace but runs only when asked, counts a preflight among refusals, and says nothing of steps or the report's rows; the session start prints the dispatched step alone.\n\nThe change: the existing status projection reads, over the last day to the head commit, (1) the commits, plan-only ones apart; (2) the gate's refused runs by the stage that refused them, preflights and runs of unknown kind apart, the run record naming its kind from now on; (3) the gate's wall over its runs, waits named; (4) the steps landed (Landed-Row), added (in the head plan and not the day's first) and retired (Retired-Row); (5) the landings of the report's rows (those 9479f5815 filed). The session start prints them under the dispatched step, read only, writing nothing; a missing record reads as unknown, not zero.\n\nCheck: TestTheStatusSaysTheDaysFiveMeasures builds a repository with a day of commits (a landing of a report row, a plan-only filing, a retirement) and run records (a landing, a refusal by a stage, a preflight, one of unknown kind) and wants each measure as they give it. At the base the status has none of them.\n\nBatch: host lane."
+        }
+      ]
+    },
+    {
       "id": "guidance-ops",
       "title": "CFG-Zero*, the guidance interval, APG and NAG are guider functions written from their papers, each a preset admitted per model by its held-out suite",
       "owner": "master-lead",

@@ -23,7 +23,7 @@ import (
 //   - check = the probe's result beside the code's own, equal in every part
 //   - claim kind = an answer, a score, a timing and an activation, each with its dependencies named
 //   - dependency = a statement with places in the tree, each a file that holds the name the place gives
-//   - declared set = the set the code declares, name for name
+//   - declared set = the set the probe recorded, held to its revision by TestTheSurfaceRecordKeepsItsProbesSets
 //   - closing = the largest cost, the candidate and the boundary that avoid most, as the figures give them
 //   - the record refuses a key stated twice, because a later line would replace an earlier one unseen
 func TestSurfaceMoveRecordDefinesClaimDependencies(t *testing.T) {
@@ -440,12 +440,11 @@ func TestSurfaceMoveRecordDefinesClaimDependencies(t *testing.T) {
 		}
 	}
 
-	// The declared sets: the code's, name for name.
-	// The set lines are the landing's to write (WriteSurfaceRecord, through go run ./cmd/validate -surface-record); this
-	// holds the record a landing wrote to the code it wrote it from.
-	for key, want := range recordSets() {
-		if got := strings.Fields(fields[key]); !slices.Equal(got, want) {
-			t.Fatalf("the record declares %s as %q, and the code declares %q", key, got, want)
+	// The declared sets: the probe's, as the record states them; today's sets are identity.go's, held by its own tests
+	// (SQA-377), and the record is evidence of its own revision, not a copy of the code.
+	for key, value := range fields {
+		if strings.HasPrefix(key, "set-") && len(strings.Fields(value)) == 0 {
+			t.Fatalf("the record states %s with no name", key)
 		}
 	}
 

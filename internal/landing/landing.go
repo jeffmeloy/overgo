@@ -765,8 +765,6 @@ func (l *landing) generators() []generator {
 		{"api-manifest", generator{arguments: []string{"run", "./cmd/api-manifest", "-update"}, writes: []string{"docs/api_manifest.json"}}},
 		{"validate", generator{arguments: []string{"run", "./cmd/validate", "-claims", "-run"}, environment: append(os.Environ(), cudaTestEnvironment),
 			writes: []string{"compatibility.json", "docs/COMPATIBILITY.md", "docs/TRAINING_COMPATIBILITY.md"}}},
-		// The surface-move record's set lines, written from the identity code's sets (fail-early/record-written).
-		{"validate", generator{arguments: []string{"run", "./cmd/validate", "-surface-record"}, writes: []string{"docs/verification/surface-moves.txt"}}},
 	} {
 		if _, err := os.Stat(filepath.Join(l.Repo, "cmd", candidate.command)); err == nil {
 			held = append(held, candidate.generator)

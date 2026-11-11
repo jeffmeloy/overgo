@@ -1236,7 +1236,8 @@
           "files": [
             "internal/server"
           ],
-          "rationale": "Serves: the workbench's own-origin protection, which its static files already carry.\n\nDisappears: the one route that answers stored bytes under their stored media type with none of the headers the static shell has (internal/server/artifact_gallery.go:111-116). No writer stores HTML or SVG today (the intake's allowlist, workspace_capabilities.go:223-237), so this is a missing second wall, not an open door: the first writer that stores one would give a page script on the server's origin.\n\nEvidence: the review of 2026-11-09, read at ac1935d75, exploit not demonstrated.\n\nPredicted effect: none on a measured cell.\n\nBatch: host lane.\n\nNote: The owner, 2026-11-09: this is the local worker's next proof, one real open step. After loop-proof/local-demonstrated, the local worker (Qwen3.8-27B through overgo's server) works this step from its prompt, with no help, and the gate lands what it writes; the landing's cost lines name the local worker, every attempt counted."
+          "needs_card": true,
+          "rationale": "Serves: the workbench's own-origin protection, which its static files already carry.\n\nDisappears: the one route that answers stored bytes under their stored media type with none of the headers the static shell has (internal/server/artifact_gallery.go:111-116). No writer stores HTML or SVG today (the intake's allowlist, workspace_capabilities.go:223-237), so this is a missing second wall, not an open door: the first writer that stores one would give a page script on the server's origin.\n\nEvidence: the review of 2026-11-09, read at ac1935d75, exploit not demonstrated.\n\nPredicted effect: none on a measured cell.\n\nBatch: device lane: the local worker that works it is served on the card, so dispatch passes it over while the card is held, and no session takes it before loop-proof/local-demonstrated (re-filed 2026-11-11 to carry needs_card, its text unchanged).\n\nNote: The owner, 2026-11-09: this is the local worker's next proof, one real open step. After loop-proof/local-demonstrated, the local worker (Qwen3.8-27B through overgo's server) works this step from its prompt, with no help, and the gate lands what it writes; the landing's cost lines name the local worker, every attempt counted."
         }
       ]
     },
@@ -1324,20 +1325,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 180,
+        "nodes": -45,
         "reason": "Estimated: the session line of the leftovers table gains the list function and the finished rule the tmp line has (cmd/loop/leftovers.go scratchEntries, removeEntry), read over every harness folder that holds a recorded session; one record of a session's end beside the per-session state the checkout already keeps; and a marker a rehearsal copy of the store is made with. Reset from the first step's listing."
       },
       "steps": [
-        {
-          "id": "every-harness-folder",
-          "title": "The session line lists each session of this checkout under every folder of the temporary directory's claude folder that holds one, with its bytes and its registered worktrees, not only the folder named for the checkout's path",
-          "status": "open",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestSessionScratchIsListedUnderEveryHarnessFolder$'",
-          "files": [
-            "cmd/loop"
-          ],
-          "rationale": "Serves: the free space every landing's first stage reads.\n\nDisappears: session folders the listing cannot see. The line reads one path, the temporary directory's claude/C--Users-jeffm-overgo (cmd/loop/leftovers.go:1547, sessionFolderName). Since 2026-11-07 the harness also keeps this checkout's sessions under folders named by a hash: claude/bebbf49200dd4b2b holds 47 session folders (3.0 GiB, eleven registered worktrees among them) and claude/9a228ae3692e2402 a session's scratchpad, and the line names none of them.\n\nEvidence: the review of 2026-11-09, by du over C:/Users/jeffm/AppData/Local/Temp/claude: 107.6 GiB in all. A session folder is named by its session id whatever its parent, and the checkout already keeps a file per session id (.overgo-runtime holds 320 loop_state-\u003csession\u003e files), so the folders are found by the ids the checkout recorded, under any parent, and never by a guess at how the harness names the parent.\n\nPredicted effect: none on a measured cell.\n\nBatch: host lane."
-        },
         {
           "id": "linked-data",
           "title": "Removing a session folder removes names and never data held elsewhere: a junction or symbolic link in it is never followed and holds the folder, and a file with another name under the models root, the data root or a store is whole after, bytes and read-only attribute both",

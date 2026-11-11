@@ -761,14 +761,49 @@ func scratchEntries(f *facts, line place) []leftover {
 	})
 }
 
-// sessionFolders lists the harness's folder of each session. Where the
-// folders are is computed from the checkout's path by a rule read off their
-// names, so an absent folder is reported as the path tried, not as no session.
+// sessionFolders lists the harness's folder of each session of this checkout: every folder in the one named for the
+// checkout's path, computed by a rule read off their names, so an absent one is reported as the path tried, not as no
+// session; and, in each other folder of the temporary directory's claude folder, the folders named by a session this
+// checkout recorded, its process state holding a loop_state-<session> file for each. Since 2026-11-07 the harness has
+// also kept this checkout's sessions under folders named by a hash (claude/bebbf49200dd4b2b held 47 of them, 3.0 GiB,
+// on 2026-11-09), and a session folder is named by its id whatever its parent, so the parent is never guessed.
 func sessionFolders(f *facts, line place) []leftover {
+	finished := func(os.DirEntry, string) (string, string) { return stateUnknown, line.finished }
+	var found []leftover
 	if _, err := os.Stat(f.sessions); err != nil {
-		return failed(f.sessions, err)
+		found = failed(f.sessions, err)
+	} else {
+		found = each(f.sessions, finished)
 	}
-	return each(f.sessions, func(os.DirEntry, string) (string, string) { return stateUnknown, line.finished })
+	stateDirectory := filepath.Join(f.checkout, processlock.StateDirectory)
+	states, err := os.ReadDir(stateDirectory)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return append(found, failed(stateDirectory, err)...)
+	}
+	recorded := map[string]bool{}
+	for _, state := range states {
+		if session, named := strings.CutPrefix(state.Name(), guard.SessionState("")+"-"); named {
+			recorded[session] = true
+		}
+	}
+	harness := filepath.Join(f.temporary, "claude")
+	parents, err := os.ReadDir(harness)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return append(found, failed(harness, err)...)
+	}
+	for _, parent := range parents {
+		directory := filepath.Join(harness, parent.Name())
+		if !parent.IsDir() || strings.EqualFold(filepath.Clean(directory), filepath.Clean(f.sessions)) {
+			continue
+		}
+		found = append(found, each(directory, func(child os.DirEntry, path string) (string, string) {
+			if child.IsDir() && recorded[child.Name()] {
+				return finished(child, path)
+			}
+			return "", ""
+		})...)
+	}
+	return found
 }
 
 // temporaryBuilds lists the folders whose name opens with the line's. The

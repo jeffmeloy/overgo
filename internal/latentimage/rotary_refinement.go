@@ -23,6 +23,9 @@ type rotaryGraph struct {
 	epsilon                                         float32
 	width, heads, headWidth, sequence, intermediate uint64
 	sine, cosine                                    *tensor.Tensor
+	// valueScale scales each row's attention value in the joint blocks (a weighted prompt's rows), none for a graph
+	// that weights nothing.
+	valueScale *tensor.Tensor
 }
 
 func newRotaryGraph(t TransformerSpec, epsilon float32, tokens int, storage dtype.Type, weights *tensor.WeightBindings) (*rotaryGraph, error) {

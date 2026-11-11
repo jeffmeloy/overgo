@@ -2,6 +2,7 @@ package latentimage
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -91,4 +92,37 @@ func spanTokens(spans []weightedSpan, encode func(string) ([]int, error)) (weigh
 		}
 	}
 	return tokens, nil
+}
+
+// promptMark stands for the prompt in a chat template's rendering, so the text the template puts before and after it is
+// found: no prompt or template holds it.
+const promptMark = "\x00overgo prompt\x00"
+
+// chatTokens are the tokens of a chat template's rendering of prompt (render) and the weight of each: a prompt that
+// weights nothing is rendered and tokenized whole, as it always was; one that weights its stretches is rendered around
+// promptMark, and the text before it, each stretch and the text after it are tokenized apart, every token but a
+// stretch's weighing one.
+func chatTokens(prompt string, render func(string) (string, error), encode func(string) ([]int, error)) (weightedTokens, error) {
+	spans, err := weightedSpans(prompt)
+	if err != nil {
+		return weightedTokens{}, err
+	}
+	if spans == nil {
+		formatted, err := render(prompt)
+		if err != nil {
+			return weightedTokens{}, err
+		}
+		ids, err := encode(formatted)
+		return weightedTokens{ids: ids}, err
+	}
+	formatted, err := render(promptMark)
+	if err != nil {
+		return weightedTokens{}, err
+	}
+	before, after, found := strings.Cut(formatted, promptMark)
+	if !found {
+		return weightedTokens{}, fmt.Errorf("latent image: the chat template's rendering holds no prompt to weigh")
+	}
+	stretches := append(append([]weightedSpan{{text: before, weight: unweighted}}, spans...), weightedSpan{text: after, weight: unweighted})
+	return spanTokens(slices.DeleteFunc(stretches, func(span weightedSpan) bool { return span.text == "" }), encode)
 }

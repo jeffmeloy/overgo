@@ -67,6 +67,9 @@ func (g *rotaryGraph) joint(input, modulation, unit *tensor.Tensor, index int) *
 	q := g.norm(prefix+"q_norm", b.Reshape(g.linear(prefix+"proj.q", y, g.width, g.width, false), g.headWidth, g.heads, g.sequence), g.headWidth)
 	k := g.norm(prefix+"k_norm", b.Reshape(g.linear(prefix+"proj.k", y, g.width, g.width, false), g.headWidth, g.heads, g.sequence), g.headWidth)
 	v := b.Reshape(g.linear(prefix+"proj.v", y, g.width, g.width, false), g.headWidth, g.heads, g.sequence)
+	if g.valueScale != nil {
+		v = b.Multiply(v, g.valueScale)
+	}
 	hidden = g.round(b.Add(hidden, g.round(b.Multiply(g.linear(prefix+"proj.o", g.attention(q, k, v), g.width, g.width, false), attentionGate))))
 	y = g.modulate(g.norm(prefix+"norm2", hidden, g.width), feedShift, feedScale, unit)
 	fused := g.linear(prefix+"proj.ffn_up_gate", y, g.width, tensor.PairedExtent*g.intermediate, false)

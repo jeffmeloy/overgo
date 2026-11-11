@@ -1096,7 +1096,7 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 671,
+        "nodes": 163,
         "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard). Step moss-weighting: +527 (527, the median of what 10 landings that changed internal/latentimage counted)."
       },
       "steps": [
@@ -1113,16 +1113,6 @@
           "depends_on": [
             "sampling-split/presets"
           ]
-        },
-        {
-          "id": "moss-weighting",
-          "title": "A token's weight in a MOSS prompt scales its attention value in the joint attention, its rows found inside the chat template's rendering",
-          "status": "open",
-          "verify": "go test ./internal/latentimage -count=1 -run '^TestAPromptWeightScalesMOSSTokensAttentionValue$'",
-          "files": [
-            "internal/latentimage"
-          ],
-          "rationale": "krea-pack/prompt-weighting weighs Krea's prompt tokens (2026-11-11): Krea's template tokenizes its prefix, the prompt and its suffix apart, so a weighted prompt is tokenized a stretch at a time and each token's row is known. MOSS renders its prompt through its chat template and tokenizes the whole conversation at once, so a stretch's tokens are found by rendering the template with the prompt cut at each stretch's edges and reading where its tokens fall, and its joint attention (rotary joint program) scales the values of those rows as Krea's co-attention does.\n\nCheck: TestAPromptWeightScalesMOSSTokensAttentionValue: a weighted MOSS prompt's rows carry their stretches' weights inside the chat template's rendering, and in the joint program on synthetic weights, weights of one give the unweighted output bit for bit and a weight on a prompt token moves it.\n\nServes: a capability users expect.\nDisappears: nothing.\nBatch: host lane."
         },
         {
           "id": "best-of-n",

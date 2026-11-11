@@ -60,21 +60,24 @@ func renderTextInput(tok *hfbpe.Tokenizer, prompt string, tmpl textTemplate) (te
 		return out, fmt.Errorf("image conditioning requires a tokenizer and positive max_tokens, got %d", tmpl.MaxTokens)
 	}
 	if tmpl.ChatTemplate != "" {
-		env := jinja.New()
-		env.SetLimits(jinja.ChatLimits())
-		formatted, err := env.Render(tmpl.ChatTemplate, map[string]any{
-			"messages":              []any{map[string]any{"role": "user", "content": prompt}},
-			"add_generation_prompt": true, "enable_thinking": tmpl.EnableThinking,
-			"tools": jinja.None, "documents": jinja.None,
-		})
-		if err != nil {
-			return out, fmt.Errorf("image conditioning template: %w", err)
+		render := func(content string) (string, error) {
+			env := jinja.New()
+			env.SetLimits(jinja.ChatLimits())
+			formatted, err := env.Render(tmpl.ChatTemplate, map[string]any{
+				"messages":              []any{map[string]any{"role": "user", "content": content}},
+				"add_generation_prompt": true, "enable_thinking": tmpl.EnableThinking,
+				"tools": jinja.None, "documents": jinja.None,
+			})
+			if err != nil {
+				return "", fmt.Errorf("image conditioning template: %w", err)
+			}
+			return formatted, nil
 		}
-		ids, err := tok.Encode(formatted)
+		tokens, err := chatTokens(prompt, render, tok.Encode)
 		if err != nil {
 			return out, err
 		}
-		ids = ids[:min(len(ids), tmpl.MaxTokens)]
+		ids := tokens.ids[:min(len(tokens.ids), tmpl.MaxTokens)]
 		if len(ids) == 0 {
 			return out, fmt.Errorf("image conditioning template produced no tokens")
 		}
@@ -82,7 +85,11 @@ func renderTextInput(tok *hfbpe.Tokenizer, prompt string, tmpl textTemplate) (te
 		for i := range mask {
 			mask[i] = true
 		}
-		return textInput{IDs: ids, Mask: mask, PromptRows: len(ids)}, nil
+		var weights []float32
+		if tokens.weights != nil {
+			weights = tokens.weights[:len(ids)]
+		}
+		return textInput{IDs: ids, Mask: mask, PromptRows: len(ids), Weights: weights}, nil
 	}
 	if !checked.NonzeroAll(tmpl.Prefix, tmpl.Suffix) {
 		return out, fmt.Errorf("image text template prefix/suffix is empty")

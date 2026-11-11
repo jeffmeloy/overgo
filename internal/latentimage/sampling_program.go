@@ -15,6 +15,9 @@ type rotarySamplingSpec struct {
 	varies sampling.Guidance
 	// override is what the negative branch changes of the transformer's blocks (sampling.BlockOverride).
 	override sampling.BlockOverride
+	// weights are the conditioned branch's text rows' attention-value weights (weightedSpans), none for a prompt that
+	// weights nothing.
+	weights []float32
 }
 
 func (s rotarySamplingSpec) validate(layers int) error {

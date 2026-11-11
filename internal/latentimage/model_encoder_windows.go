@@ -73,6 +73,13 @@ func (c *modelConditioner) input(prompt string) (textInput, []float32, error) {
 	return text, nil, fmt.Errorf("model conditioning has no source token embedding binding")
 }
 
+// weights are the attention-value weights of a prompt's rendered rows (weightedSpans), none for a prompt that weights
+// nothing: what the prompt says alone, so a prompt whose conditioning is kept is weighed without encoding it again.
+func (c *modelConditioner) weights(prompt string) ([]float32, error) {
+	text, err := renderTextInput(c.tokenizer, prompt, c.template)
+	return text.Weights, err
+}
+
 func (c *modelConditioner) encode(ctx context.Context, session *graphruntime.ResidentSession, text textInput, embedding []float32, observe func(string, []float32) error) ([]float32, error) {
 	return c.encodeHolding(ctx, session, nil, text, embedding, observe)
 }

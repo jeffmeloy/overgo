@@ -40,11 +40,11 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 		program *graphruntime.ResidentProgram
 	}
 	branches := map[string]branch{}
-	load := func(name string, conditioning []float32, skip []int) (branch, error) {
+	load := func(name string, conditioning []float32, skip []int, weights ...float32) (branch, error) {
 		if existing, ok := branches[name]; ok {
 			return existing, nil
 		}
-		p, e := compileRotaryDenoiserProgram(spec, mossRefinementEpsilon, height, width, len(conditioning)/spec.TextHidden, skip, dtype.BF16)
+		p, e := compileRotaryDenoiserProgram(spec, mossRefinementEpsilon, height, width, len(conditioning)/spec.TextHidden, skip, dtype.BF16, weights...)
 		if e != nil {
 			return branch{}, e
 		}
@@ -57,7 +57,10 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 			return branch{}, e
 		}
 		programs = append(programs, program)
-		for _, node := range []*tensor.Tensor{p.context, p.rope, p.unit} {
+		for _, node := range []*tensor.Tensor{p.context, p.rope, p.unit, p.valueScale} {
+			if node == nil {
+				continue
+			}
 			if _, required := program.Graph.InputSlot(node); !required {
 				continue
 			}
@@ -71,7 +74,8 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 		branches[name] = v
 		return v, nil
 	}
-	conditional, e := load("positive", positive, nil)
+	// The conditioned branch scales the values of a weighted prompt's rows; the negative prompt is weighed as written.
+	conditional, e := load("positive", positive, nil, settings.weights...)
 	if e != nil {
 		return nil, e
 	}

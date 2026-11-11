@@ -27,7 +27,9 @@ type rotaryGeneration struct {
 	decoder            *VAEProgram
 	latent             *residentLatent
 	positive, negative []float32
-	guidance           float32
+	// weights are the attention-value weights of the prompt's rows, none for a prompt that weights nothing.
+	weights  []float32
+	guidance float32
 }
 
 func loadRotaryGenerator(ctx context.Context, root string, profile Profile, request Request) (_ *Generator, err error) {
@@ -222,6 +224,9 @@ func (g *Generator) prepareRotary(ctx context.Context, request Request) (_ *Gene
 	if len(hidden) > negativeBranch {
 		g.rotary.negative = hidden[negativeBranch]
 	}
+	if g.rotary.weights, err = g.rotary.conditioner.weights(request.Prompt); err != nil {
+		return nil, err
+	}
 	g.prepared = true
 	return g, nil
 }
@@ -236,6 +241,7 @@ func (g *Generator) integrateRotary(ctx context.Context) (*Generator, error) {
 		return nil, err
 	}
 	settings := g.rotarySettings(g.schedule, g.rotary.guidance, g.request.Guidance)
+	settings.weights = g.rotary.weights
 	result, err := runRotarySampling(ctx, g.rotary.runtime, g.modelDir, g.rotary.transformer, g.shape.Height, g.shape.Width, initial, g.rotary.positive, g.rotary.negative, settings, g.observe)
 	if err != nil {
 		return nil, err

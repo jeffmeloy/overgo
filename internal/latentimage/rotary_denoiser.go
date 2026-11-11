@@ -23,14 +23,24 @@ const rotaryTimestepBase = 10000
 
 type rotaryDenoiserProgram struct {
 	latent, context, embedding, rope, unit *tensor.Tensor
-	output                                 *tensor.Tensor
-	boundaries                             map[string]*tensor.Tensor
-	weightInputs                           tensor.WeightBindings
-	spec                                   TransformerSpec
-	height, width, text                    int
+	// valueScale and valueData scale each row's attention value in the joint blocks, the image rows by one and the text
+	// rows by a weighted prompt's weights (weightedSpans); none for a program that weights nothing.
+	valueScale          *tensor.Tensor
+	valueData           []float32
+	output              *tensor.Tensor
+	boundaries          map[string]*tensor.Tensor
+	weightInputs        tensor.WeightBindings
+	spec                TransformerSpec
+	height, width, text int
 }
 
-func compileRotaryDenoiserProgram(t TransformerSpec, epsilon float32, height, width, text int, skip []int, storage dtype.Type) (*rotaryDenoiserProgram, error) {
+// compileRotaryDenoiserProgram compiles MOSS's denoiser for a picture of height by width patches and text rows of
+// conditioning, the blocks skip names set to identity; textWeights, where given, are the text rows' attention-value
+// weights, and none compile the graph as it was.
+func compileRotaryDenoiserProgram(t TransformerSpec, epsilon float32, height, width, text int, skip []int, storage dtype.Type, textWeights ...float32) (*rotaryDenoiserProgram, error) {
+	if len(textWeights) != 0 && len(textWeights) != text {
+		return nil, fmt.Errorf("rotary denoiser: %d text weights for %d text rows", len(textWeights), text)
+	}
 	if !checked.PositiveInts(height, width, text, t.InChannels, t.TextHidden, t.RefinerTextBlocks, t.Layers) || !checked.EvenInt(t.TimestepEmbed) || t.HeadDim%(rotaryCoordinateAxes*tensor.PairedExtent) != 0 || !checked.PositiveFinite64(t.RopeTheta) || t.ModFieldsOr6() != jointModulationFields {
 		return nil, errors.New("rotary denoiser: invalid geometry, frequency or modulation")
 	}
@@ -76,6 +86,17 @@ func compileRotaryDenoiserProgram(t TransformerSpec, epsilon float32, height, wi
 	refined, _ := textGraph.refine(t, p.context)
 	p.boundaries["text_refinement"] = refined
 	hidden := b.Concat(video, refined, tensor.SingletonExtent)
+	// The joint blocks read the image rows, then the text rows: a weighted prompt scales the values of its rows there, the
+	// text refinement before them left as it was.
+	if len(textWeights) != 0 {
+		p.valueScale = b.Input("value_scale", dtype.F32, tensor.MustShape(tensor.SingletonExtent, tensor.SingletonExtent, uint64(total)))
+		p.valueData = make([]float32, total)
+		for index := range image {
+			p.valueData[index] = unweighted
+		}
+		copy(p.valueData[image:], textWeights)
+		g.valueScale = p.valueScale
+	}
 	for index := range t.Layers {
 		if slices.Contains(skip, index) {
 			continue
@@ -114,10 +135,14 @@ func (p *rotaryDenoiserProgram) feeds(latent, context []float32, timestep float3
 	for i := range unit {
 		unit[i] = tensor.UnitScale
 	}
-	return map[*tensor.Tensor]reference.Value{
+	feeds := map[*tensor.Tensor]reference.Value{
 		p.latent: {Shape: p.latent.Shape, Data: latent}, p.context: {Shape: p.context.Shape, Data: context},
 		p.embedding: {Shape: p.embedding.Shape, Data: embedding}, p.rope: {Shape: p.rope.Shape, Data: rope}, p.unit: {Shape: p.unit.Shape, Data: unit},
-	}, nil
+	}
+	if p.valueScale != nil {
+		feeds[p.valueScale] = reference.Value{Shape: p.valueScale.Shape, Data: p.valueData}
+	}
+	return feeds, nil
 }
 
 // RotaryWeightShapes is the shape the denoiser's graph reads each of its weights at, as a checkpoint stores it, so a trainer

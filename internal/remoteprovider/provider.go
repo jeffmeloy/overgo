@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/envsetting"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 )
@@ -134,7 +135,7 @@ func Refusal(provider Provider) string {
 	if slices.Contains(serverSecrets, provider.KeyEnvironment) {
 		return provider.KeyEnvironment + " is the server's own secret"
 	}
-	if os.Getenv(provider.KeyEnvironment) == "" {
+	if envsetting.Neutral(provider.KeyEnvironment, "decides whether a remote provider is asked, not what a local capability computes") == "" {
 		return provider.KeyEnvironment + " is not set"
 	}
 	return ""
@@ -149,7 +150,7 @@ func Key(provider Provider) (string, error) {
 	if err := KeyTransport(provider.Endpoint); err != nil {
 		return "", err
 	}
-	return os.Getenv(provider.KeyEnvironment), nil
+	return envsetting.Neutral(provider.KeyEnvironment, "decides whether a remote provider is asked, not what a local capability computes"), nil
 }
 
 // Environment is the execution environment every run at the provider

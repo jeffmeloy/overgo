@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"maps"
 	"math"
-	"os"
 	"runtime"
 	"runtime/debug"
 	"sort"
@@ -19,6 +18,7 @@ import (
 	"unsafe"
 
 	"overgo/internal/devicebudget"
+	"overgo/internal/envsetting"
 	"overgo/internal/processcontrol"
 )
 
@@ -708,7 +708,7 @@ func (l *Library) MemFree(pointer DevicePtr) error {
 	if pointer == 0 {
 		return nil
 	}
-	if os.Getenv("OVERGO_LEDGER_TRACE") == "1" {
+	if envsetting.Neutral("OVERGO_LEDGER_TRACE", "prints the device ledger's trace") == "1" {
 		l.allocationMu.Lock()
 		_, live := l.allocations[pointer]
 		l.allocationMu.Unlock()

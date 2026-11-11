@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"overgo/internal/envsetting"
 	"overgo/internal/strictjson"
 )
 
@@ -47,7 +48,7 @@ func ResolveEnvironment(workingDirectory string) (Roots, []string, error) {
 	if err != nil {
 		return Roots{}, nil, err
 	}
-	base := cmp.Or(strings.TrimSpace(os.Getenv(Env)), workingDirectory)
+	base := cmp.Or(strings.TrimSpace(envsetting.Neutral(Env, "says where overgo's data is: the libraries found there are counted as libraries")), workingDirectory)
 	base, err = filepath.Abs(base)
 	if err != nil {
 		return Roots{}, nil, err
@@ -150,8 +151,8 @@ func ResolveStore(flag *string) error {
 // checkout's does, so a base that keeps its store beside a config pointing
 // at data in another home resolves the same from any tree.
 func Resolve(workingDirectory string) (Roots, error) {
-	if base := strings.TrimSpace(os.Getenv(Env)); base != "" {
-		if raw := os.Getenv(boundEnvironment); raw != "" {
+	if base := strings.TrimSpace(envsetting.Neutral(Env, "says where overgo's data is: the libraries found there are counted as libraries")); base != "" {
+		if raw := envsetting.Neutral(boundEnvironment, "says where overgo's data is bound: the libraries found there are counted as libraries"); raw != "" {
 			var binding environmentBinding
 			if err := strictjson.DecodeBytes([]byte(raw), &binding); err != nil {
 				return Roots{}, fmt.Errorf("dataroot: bound roots: %w", err)

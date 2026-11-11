@@ -12,6 +12,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/composition"
+	"overgo/internal/envsetting"
 	"overgo/internal/evaluation"
 	"overgo/internal/inference"
 	"overgo/internal/mediacapability"
@@ -96,7 +97,7 @@ func openCompositionSession(ctx context.Context, store *overgodb.Store, value ma
 	if err != nil {
 		return fail(err)
 	}
-	runtime := projectionRuntime{runner: runner, vision: vision, mediaFiles: &mediaFiles{root: request.MediaRoot}, ffmpeg: os.Getenv("OVERGO_FFMPEG")}
+	runtime := projectionRuntime{runner: runner, vision: vision, mediaFiles: &mediaFiles{root: request.MediaRoot}, ffmpeg: envsetting.Result("OVERGO_FFMPEG")}
 	runtime.identity = evaluation.MediaRuntime{Model: runner.ModelID(), Recipe: identity.Recipe, Projection: projection}
 	campaign, err := evaluation.NewIsolatedCampaign(store, runtime, identity, environment, value.CodeCommit)
 	if err != nil {

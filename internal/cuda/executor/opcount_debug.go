@@ -6,12 +6,13 @@ import (
 	"slices"
 	"sort"
 
+	"overgo/internal/envsetting"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/planner"
 )
 
 func dumpResourceMemory(resources *executorResources) {
-	if os.Getenv("OVERGO_MEMORY_PLAN") == "" || resources == nil {
+	if envsetting.Neutral("OVERGO_MEMORY_PLAN", "prints a graph's memory plan") == "" || resources == nil {
 		return
 	}
 	var pool, free uint64
@@ -31,10 +32,10 @@ func dumpResourceMemory(resources *executorResources) {
 
 // OVERGO_OP_COUNTS=1: dump per-graph launch composition at compile time.
 func dumpOpCounts(compiled *CompiledGraph) {
-	if os.Getenv("OVERGO_OP_COUNTS") == "" && os.Getenv("OVERGO_MEMORY_PLAN") == "" {
+	if envsetting.Neutral("OVERGO_OP_COUNTS", "prints a graph's operation counts") == "" && envsetting.Neutral("OVERGO_MEMORY_PLAN", "prints a graph's memory plan") == "" {
 		return
 	}
-	if os.Getenv("OVERGO_MEMORY_PLAN") != "" {
+	if envsetting.Neutral("OVERGO_MEMORY_PLAN", "prints a graph's memory plan") != "" {
 		allocations := make([]planner.Allocation, 0, len(compiled.memory.Allocations))
 		for _, allocation := range compiled.memory.Allocations {
 			allocations = append(allocations, allocation)
@@ -46,7 +47,7 @@ func dumpOpCounts(compiled *CompiledGraph) {
 				allocation.Tensor.ID, allocation.Tensor.Op, allocation.Size, allocation.First, allocation.Last, allocation.Tensor.Shape.Dims)
 		}
 	}
-	if os.Getenv("OVERGO_OP_COUNTS") == "" {
+	if envsetting.Neutral("OVERGO_OP_COUNTS", "prints a graph's operation counts") == "" {
 		return
 	}
 	counts := make(map[string]int)

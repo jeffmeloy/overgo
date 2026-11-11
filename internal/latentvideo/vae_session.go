@@ -12,7 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"os"
 	"runtime"
 	"slices"
 	"time"
@@ -23,6 +22,7 @@ import (
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/kernel"
+	"overgo/internal/envsetting"
 	"overgo/internal/media"
 	"overgo/internal/pytorchzip"
 	"overgo/internal/tensor"
@@ -96,7 +96,7 @@ func newVAECUDASession(checkpoint string, plan vaePlanCore, ordinal int) (sessio
 		buffers: make(map[media.CodecWorkspaceKey]vaeDeviceBuffer),
 		ctx:     context.Background(),
 	}
-	if os.Getenv("OVERGO_VAE_PROFILE") == "1" {
+	if envsetting.Neutral("OVERGO_VAE_PROFILE", "prints the VAE's stage times") == "1" {
 		session.profile = make(map[string]time.Duration)
 	}
 	defer func() {

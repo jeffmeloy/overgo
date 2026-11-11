@@ -13,6 +13,7 @@ import (
 	"overgo/internal/cuda/cublas"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/dataroot"
+	"overgo/internal/envsetting"
 )
 
 // load finds the library and resolves bindings in it. On a search path the
@@ -25,7 +26,7 @@ func load(bindings []cublas.Binding) (*syscall.DLL, error) {
 		dll, err := cublas.Load(Files[0], bindings)
 		return dll, errors.Join(err, searched.Release())
 	}
-	directories := []string{filepath.Join(os.Getenv("CUDA_PATH"), "bin")}
+	directories := []string{filepath.Join(envsetting.Result("CUDA_PATH"), "bin")}
 	if roots, err := dataroot.ResolveCurrent(); err == nil {
 		directories = append(directories, roots.Libraries())
 	}

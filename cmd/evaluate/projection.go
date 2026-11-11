@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 
 	"overgo/internal/artifact"
+	"overgo/internal/envsetting"
 	"overgo/internal/evaluation"
 	"overgo/internal/inference"
 	"overgo/internal/media"
@@ -158,7 +159,7 @@ func writeCaptionMatching(ctx context.Context, clips, captions, out, frames stri
 		if err != nil {
 			return err
 		}
-		if err := writeFrames(ctx, suite, clips, frames, os.Getenv("OVERGO_FFMPEG")); err != nil {
+		if err := writeFrames(ctx, suite, clips, frames, envsetting.Result("OVERGO_FFMPEG")); err != nil {
 			return err
 		}
 		return writeSuite(out, suite, len(suite.Cases), "frame description-matching")
@@ -240,7 +241,7 @@ func openProjectionInto(ctx context.Context, store, answers *overgodb.Store, val
 	if err != nil {
 		return fail(err)
 	}
-	runtime := projectionRuntime{runner: runner, vision: vision, mediaFiles: &mediaFiles{root: request.MediaRoot}, ffmpeg: os.Getenv("OVERGO_FFMPEG")}
+	runtime := projectionRuntime{runner: runner, vision: vision, mediaFiles: &mediaFiles{root: request.MediaRoot}, ffmpeg: envsetting.Result("OVERGO_FFMPEG")}
 	runtime.identity, err = projectionIdentity(ctx, store, runtime)
 	if err != nil {
 		return fail(err)

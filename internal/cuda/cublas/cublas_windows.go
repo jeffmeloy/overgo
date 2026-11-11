@@ -12,6 +12,7 @@ import (
 	"unsafe"
 
 	"overgo/internal/cuda/driver"
+	"overgo/internal/envsetting"
 )
 
 // Library: dynamically loaded cuBLAS library and the cuBLASLt entry
@@ -38,7 +39,7 @@ const workspaceConfig = ":4096:8"
 
 // init fixes the workspace before anything loads a library that reads it. A value the operator set stands.
 func init() {
-	if os.Getenv("CUBLAS_WORKSPACE_CONFIG") == "" {
+	if envsetting.Result("CUBLAS_WORKSPACE_CONFIG") == "" {
 		if err := os.Setenv("CUBLAS_WORKSPACE_CONFIG", workspaceConfig); err != nil {
 			panic(err)
 		}
@@ -85,7 +86,7 @@ func Open() (*Library, error) {
 // CUDA_PATH and resolves every binding.
 func Load(name string, bindings []Binding) (*syscall.DLL, error) {
 	candidates := []string{name}
-	if cudaPath := os.Getenv("CUDA_PATH"); cudaPath != "" {
+	if cudaPath := envsetting.Result("CUDA_PATH"); cudaPath != "" {
 		candidates = append(candidates, filepath.Join(cudaPath, "bin", name))
 	}
 	var dll *syscall.DLL

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 
+	"overgo/internal/envsetting"
 	"overgo/internal/evaluation"
 	"overgo/internal/inference"
 	"overgo/internal/latentvideo"
@@ -104,7 +105,7 @@ func openReconstructionSession(ctx context.Context, store *overgodb.Store, value
 		if err != nil {
 			return nil, nil, err
 		}
-		return reconstructionRuntime{autoencoder: autoencoder, root: request.MediaRoot, ffmpeg: os.Getenv("OVERGO_FFMPEG")}, autoencoder.Close, nil
+		return reconstructionRuntime{autoencoder: autoencoder, root: request.MediaRoot, ffmpeg: envsetting.Result("OVERGO_FFMPEG")}, autoencoder.Close, nil
 	})
 }
 

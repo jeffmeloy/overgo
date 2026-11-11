@@ -8,6 +8,7 @@ import (
 	"slices"
 
 	"overgo/internal/artifact"
+	"overgo/internal/envsetting"
 	"overgo/internal/evaluation"
 	"overgo/internal/inference"
 	"overgo/internal/mediacapability"
@@ -103,7 +104,7 @@ func openJudgedSession(ctx context.Context, store *overgodb.Store, value manifes
 			return nil, nil, errors.Join(err, vision.Close())
 		}
 		bind(runner)
-		runtime := projectionRuntime{runner: runner, vision: vision, mediaFiles: &mediaFiles{root: request.MediaRoot}, ffmpeg: os.Getenv("OVERGO_FFMPEG")}
+		runtime := projectionRuntime{runner: runner, vision: vision, mediaFiles: &mediaFiles{root: request.MediaRoot}, ffmpeg: envsetting.Result("OVERGO_FFMPEG")}
 		runtime.identity, err = projectionIdentity(ctx, store, runtime)
 		if err != nil {
 			return nil, nil, errors.Join(err, vision.Close(), runner.Close())

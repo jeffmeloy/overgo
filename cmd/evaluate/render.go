@@ -17,6 +17,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/atomicfile"
 	"overgo/internal/capabilityruntime"
+	"overgo/internal/envsetting"
 	"overgo/internal/evaluation"
 	"overgo/internal/jsonfile"
 	"overgo/internal/latentvideo"
@@ -469,7 +470,7 @@ func publishEditSources(ctx context.Context, repository, clips, model string, it
 	plane := width * height
 	for _, item := range items {
 		clip := filepath.Join(clips, item.ID+clipFileExtension)
-		frames, err := media.DecodeVideoFileAt(ctx, clip, os.Getenv("OVERGO_FFMPEG"), editSourceFPS, editSourceFrames, width, height)
+		frames, err := media.DecodeVideoFileAt(ctx, clip, envsetting.Result("OVERGO_FFMPEG"), editSourceFPS, editSourceFrames, width, height)
 		if err != nil || len(frames) != editSourceFrames {
 			return nil, fmt.Errorf("evaluate: %s gave %d of the %d frames an edit takes: %v", clip, len(frames), editSourceFrames, err)
 		}

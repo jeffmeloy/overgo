@@ -21,6 +21,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
+	"overgo/internal/envsetting"
 	"overgo/internal/processcontrol"
 	"overgo/internal/tensor"
 )
@@ -340,7 +341,7 @@ func decodeFFmpegFiltered(ctx context.Context, ffmpeg, input string, stdin io.Re
 // ResolveFFmpeg finds.
 //   - one resolution for the clip runtime and the server's intake, so an MP4 is accepted exactly when one can be written and read.
 func FFmpeg() (string, error) {
-	return ResolveFFmpeg(os.Getenv("OVERGO_FFMPEG"))
+	return ResolveFFmpeg(envsetting.Result("OVERGO_FFMPEG"))
 }
 
 func ResolveFFmpeg(configured string) (string, error) {
@@ -354,7 +355,7 @@ func ResolveFFmpeg(configured string) (string, error) {
 		return path, nil
 	}
 	if runtime.GOOS == "windows" {
-		if programFiles := os.Getenv("ProgramFiles"); programFiles != "" {
+		if programFiles := envsetting.Result("ProgramFiles"); programFiles != "" {
 			candidate := filepath.Join(programFiles, "DownloadHelper CoApp", "ffmpeg.exe")
 			if _, err := os.Stat(candidate); err == nil {
 				return candidate, nil

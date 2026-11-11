@@ -5,10 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"os"
 	"slices"
 	"strings"
 	"sync"
+
+	"overgo/internal/envsetting"
 )
 
 var resourceMu sync.Mutex
@@ -111,7 +112,7 @@ func ResourceTransactionHeld(name string) (bool, error) {
 // inheritedResources reacquires handles before launching further descendants.
 // Names carry identity only; the OS still proves membership or exclusivity.
 func inheritedResources() error {
-	value := os.Getenv(inheritedResourcesEnvironment)
+	value := envsetting.Neutral(inheritedResourcesEnvironment, "passes a campaign's resource bounds to a child process")
 	if value == "" {
 		return nil
 	}

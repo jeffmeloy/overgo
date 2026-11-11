@@ -5,8 +5,9 @@ package devicebudget
 
 import (
 	"fmt"
-	"os"
 	"strconv"
+
+	"overgo/internal/envsetting"
 )
 
 // gibibyte is the bytes of one GiB, the unit the budget is declared in; a declaration is read in base 10 (declaredBase)
@@ -24,7 +25,7 @@ const (
 // capability computes, and a run record's environment names it, so a reading under it is kept apart from the full
 // card's. The name is spelled where it is read, as a result setting is declared.
 func Declared() (uint64, error) {
-	text := os.Getenv("OVERGO_DEVICE_BUDGET_GIB")
+	text := envsetting.Result("OVERGO_DEVICE_BUDGET_GIB")
 	if text == "" {
 		return 0, nil
 	}

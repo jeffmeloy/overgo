@@ -110,9 +110,10 @@ func TestCapabilityIdentityMovesOnlyWithItsOwnSources(t *testing.T) {
 	if _, held := counted[speech]; held || len(refused[speech]) != 1 || !strings.HasSuffix(refused[speech][0], `speech.go reads "FIXTURE_PRECISION"`) || counted[picture] == "" {
 		t.Errorf("a read of the environment nothing declares counted %v and refused %v; want the package that reads it refused with the read, and the other counted", counted, refused)
 	}
-	write("internal/speech/speech.go", "package speech\n\nimport (\n\t\"os\"\n\n\t_ \"fixture/internal/shared\"\n)\n\nvar toolkit, trace = os.Getenv(\"CUDA_PATH\"), os.Getenv(\"OVERGO_LEDGER_TRACE\")\n")
-	if declared := count(); declared[speech] == "" {
-		t.Error("a package that reads only a result setting and a neutral name has no identity")
+	write("internal/envsetting/envsetting.go", "package envsetting\n\nimport \"os\"\n\nfunc Result(name string) string { return os.Getenv(name) }\n\nfunc Neutral(name, because string) string { return os.Getenv(name) }\n")
+	write("internal/speech/speech.go", "package speech\n\nimport (\n\t\"fixture/internal/envsetting\"\n\t_ \"fixture/internal/shared\"\n)\n\nvar toolkit, trace = envsetting.Result(\"CUDA_PATH\"), envsetting.Neutral(\"OVERGO_LEDGER_TRACE\", \"a trace\")\n")
+	if declared := count(); declared[speech] == "" || settingNames(strings.SplitN(declared[speech], settingsMark, 2)[1])[0] != "CUDA_PATH" {
+		t.Errorf("a package that reads a result setting and a neutral one through envsetting is counted %q: want the result setting among its settings", declared[speech])
 	}
 
 	// In a process: the libraries and the settings it computes under.
@@ -122,30 +123,30 @@ func TestCapabilityIdentityMovesOnlyWithItsOwnSources(t *testing.T) {
 	settings := map[string]string{"PATH": directory, "CUDA_PATH": `C:\toolkit\v1`}
 	lookup := func(name string) string { return settings[name] }
 	executable, beside := filepath.Join(t.TempDir(), "server.exe"), t.TempDir()
-	first := environment(lookup, executable, beside)
-	if again := environment(lookup, executable, beside); again != first || !strings.Contains(first, library) {
+	first := environment(lookup, settingNames("CUDA_PATH"), executable, beside)
+	if again := environment(lookup, settingNames("CUDA_PATH"), executable, beside); again != first || !strings.Contains(first, library) {
 		t.Fatalf("the environment reads %q then %q: want the same twice, naming the library on the search path", first, again)
 	}
 	testcheck.NoError(t, os.WriteFile(library, []byte("driver 2 is longer"), 0o644))
-	updated := environment(lookup, executable, beside)
+	updated := environment(lookup, settingNames("CUDA_PATH"), executable, beside)
 	if updated == first {
 		t.Error("a changed library left the environment where it was")
 	}
 	settings["CUDA_PATH"] = `C:\toolkit\v2`
-	if environment(lookup, executable, beside) == updated {
+	if environment(lookup, settingNames("CUDA_PATH"), executable, beside) == updated {
 		t.Error("a changed result setting left the environment where it was")
 	}
 	// A library the machine holds beside overgo's data and on no search path is one a result can depend on.
 	placed := filepath.Join(beside, libraries[len(libraries)-1])
-	unplaced := environment(lookup, executable, beside)
+	unplaced := environment(lookup, settingNames("CUDA_PATH"), executable, beside)
 	testcheck.NoError(t, os.WriteFile(placed, []byte("part"), 0o644))
-	if after := environment(lookup, executable, beside); after == unplaced || !strings.Contains(after, placed) {
+	if after := environment(lookup, settingNames("CUDA_PATH"), executable, beside); after == unplaced || !strings.Contains(after, placed) {
 		t.Error("a library placed beside overgo's data left the environment where it was")
 	}
 	settings["OVERGO_LEDGER_TRACE"] = "1"
-	withTrace := environment(lookup, executable, beside)
+	withTrace := environment(lookup, settingNames("CUDA_PATH"), executable, beside)
 	delete(settings, "OVERGO_LEDGER_TRACE")
-	if environment(lookup, executable, beside) != withTrace {
+	if environment(lookup, settingNames("CUDA_PATH"), executable, beside) != withTrace {
 		t.Error("a name that changes no result moved the environment")
 	}
 
@@ -167,6 +168,18 @@ func TestCapabilityIdentityMovesOnlyWithItsOwnSources(t *testing.T) {
 	stamp = picture + "=" + strings.Repeat("0", len(before[picture]))
 	if moved, _ := Execution(picture); moved == one {
 		t.Error("another count gave the same identity")
+	}
+	// A result setting a package's code reads moves its identity in a process, and not another package's.
+	stamp = picture + "=" + before[picture] + settingsMark + "FIXTURE_PRECISION," + speech + "=" + before[speech]
+	t.Setenv("FIXTURE_PRECISION", "bf16")
+	read, _ := Execution(picture)
+	spoken, _ := Execution(speech)
+	t.Setenv("FIXTURE_PRECISION", "f32")
+	if again, _ := Execution(picture); again == read {
+		t.Error("the value of a result setting the package reads left its identity where it was")
+	}
+	if again, _ := Execution(speech); again != spoken {
+		t.Error("the value of a result setting another package reads moved this one's identity")
 	}
 }
 
@@ -264,4 +277,10 @@ func TestEvaluationIdentityIsItsModelsWithTheSourcesThatAskIt(t *testing.T) {
 	if partial := count(); partial[evaluationCount] != "" || partial[runner] == "" {
 		t.Errorf("a tree without one of the binders counts %v; want no count of the binders, and the runner's identity still", partial)
 	}
+}
+
+// environment is what a process's identity joins, as lookup and the disk give it: the value of each result setting
+// names holds, then each library as a change to it shows, as processEnvironment reads them.
+func environment(lookup func(string) string, names []string, executable, beside string) string {
+	return settingValues(lookup, names) + libraryFacts(lookup, executable, beside)
 }

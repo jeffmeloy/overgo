@@ -18,6 +18,7 @@ import (
 	"unsafe"
 
 	"overgo/internal/cuda/driver"
+	"overgo/internal/envsetting"
 )
 
 // directoryEnvironment names the directory NVIDIA's Video Effects runtime is loaded from, as its nvidia-vfx wheel
@@ -81,9 +82,8 @@ type Runtime struct {
 // name before anything is loaded; nothing falls back to another upscaler. The libraries stay loaded for the life of the
 // process, as the runtime keeps them.
 func Open() (*Runtime, error) {
-	// Read by its spelled name, which the identity of a capability that finishes its clips names among its result
-	// settings (internal/inferencesurface resultSettings).
-	directory := os.Getenv("OVERGO_NVVFX")
+	// A result setting: the identity of a capability that finishes its clips counts its value (internal/envsetting).
+	directory := envsetting.Result("OVERGO_NVVFX")
 	if directory == "" {
 		return nil, fmt.Errorf("nvvfx: %s names no directory of NVIDIA's Video Effects runtime", directoryEnvironment)
 	}

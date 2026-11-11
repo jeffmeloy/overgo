@@ -15,6 +15,7 @@ import (
 	"slices"
 	"strings"
 
+	"overgo/internal/envsetting"
 	"overgo/internal/fsatomic"
 	"overgo/internal/processcontrol"
 )
@@ -78,9 +79,9 @@ func Preflighting() bool { return preflight }
 // Main: common command error exit. The error file and the preflight are this
 // command's alone: its subprocesses do not inherit the names.
 func Main(run func() error) {
-	errorFile := os.Getenv(ErrorFileEnvironment)
+	errorFile := envsetting.Neutral(ErrorFileEnvironment, "says where a command writes its final error")
 	_ = os.Unsetenv(ErrorFileEnvironment)
-	preflight = os.Getenv(PreflightEnvironment) != ""
+	preflight = envsetting.Neutral(PreflightEnvironment, "stops a command at its preflight, before anything is computed") != ""
 	_ = os.Unsetenv(PreflightEnvironment)
 	if err := run(); err != nil {
 		if errors.Is(err, errReady) {

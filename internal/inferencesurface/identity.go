@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -84,40 +85,21 @@ func Linked() string {
 // toolchain, and the flags every build is given.
 var buildSettings = []string{"GOOS", "GOARCH", "GOAMD64", "GOARM64", "CGO_ENABLED", "GOEXPERIMENT", "GOVERSION", "GOFLAGS"}
 
-// resultSettings are the names in a process's environment that a capability's
-// result can depend on; the value of each joins the identity of the process.
-// CUDA_PATH places the cuBLAS libraries when the search path does not hold
-// them, CUDA_VISIBLE_DEVICES decides which device the driver gives first, and
-// ProgramFiles places the FFmpeg a clip is decoded with when nothing else
-// names one, OVERGO_FFMPEG names one, CUBLAS_WORKSPACE_CONFIG decides whether cuBLAS repeats its results,
-// OVERGO_NVVFX places NVIDIA's Video Effects runtime a clip's frames are finished by, and OVERGO_DEVICE_BUDGET_GIB
-// bounds the device memory every placement and admission reads (internal/devicebudget), which may move experts off the
-// card or cut a prefill into smaller chunks.
-var resultSettings = []string{"CUBLAS_WORKSPACE_CONFIG", "CUDA_PATH", "CUDA_VISIBLE_DEVICES", "ProgramFiles", "OVERGO_FFMPEG", "OVERGO_NVVFX", "OVERGO_DEVICE_BUDGET_GIB"}
-
-// neutralReads are the other reads of the environment in the code of an
-// identity, each as its argument is spelled, none of which changes what a
-// capability computes: four print a diagnostic, and two pass a campaign's
-// session and its resource bounds to a child process. Two more say where
-// overgo's data is (internal/dataroot), which is where cuDNN is looked for
-// when no search path holds it: what that changes is the library found, and
-// the place and the files found there are counted with the libraries below.
-// One reads a remote provider's key (internal/remoteprovider), which decides
-// whether the provider is asked, not what a local capability computes. One
-// passes an agent tool the variables its manual names (internal/agenttool),
-// which reach that tool and no capability. Two are a command's own
-// (internal/clioptions): where it writes its final error, and whether it stops
-// at its preflight, before anything is computed. One places the CUDA driver
-// library whose identity a lane hands its tests (internal/cuda/driver), which
-// keys their cached passes and no capability's result; the library itself is
-// counted with the others below.
-// A read that is neither here nor a result setting leaves every identity that
-// reaches it uncounted, since nothing says whether an answer depends on it.
-var neutralReads = []string{
-	`"OVERGO_LEDGER_TRACE"`, `"OVERGO_MEMORY_PLAN"`, `"OVERGO_OP_COUNTS"`, `"OVERGO_VAE_PROFILE"`,
-	"CampaignEnvironment", "inheritedResourcesEnvironment", "Env", "boundEnvironment", "provider.KeyEnvironment", "toolVariable",
-	"ErrorFileEnvironment", "PreflightEnvironment", "systemRootEnvironment",
-}
+// A capability's code reads its settings through internal/envsetting (setting-reader): a result setting through
+// envsetting.Result, its name a quoted literal the count reads and its value joining the identity of the package whose
+// code reads it, and a neutral one through envsetting.Neutral with the reason it changes nothing computed. The count
+// keeps no list of either: the code it counts says them. A read of the environment through anything else leaves every
+// identity that reaches it uncounted, since nothing says whether an answer depends on it.
+const (
+	// settingPackage is the package a setting is read through, whose own reads of the environment are those.
+	settingPackage = "internal/envsetting"
+	// settingQualifier and resultReader are how a read of a result setting is spelled.
+	settingQualifier = "envsetting"
+	resultReader     = "Result"
+	// settingsMark separates, in a count, a package's digest from the names of the result settings its code reads, and
+	// those from each other: none is in a digest or a setting's name.
+	settingsMark = ";"
+)
 
 // readers are the functions a setting is read from the environment with.
 var readers = []string{"Getenv", "LookupEnv"}
@@ -160,7 +142,8 @@ func LinkFlag(ctx context.Context, root string) (string, error) {
 func Execution(pkg string) (identity string, held bool) {
 	for entry := range strings.SplitSeq(stamp, ",") {
 		if counted, found := strings.CutPrefix(entry, pkg+"="); found && pkg != "" {
-			sum := sha256.Sum256([]byte(counted + "\n" + processEnvironment()))
+			_, read, _ := strings.Cut(counted, settingsMark)
+			sum := sha256.Sum256([]byte(counted + "\n" + processEnvironment(read)))
 			return hex.EncodeToString(sum[:]), true
 		}
 	}
@@ -182,25 +165,42 @@ func Evaluation(pkg string) (identity string, held bool) {
 	return hex.EncodeToString(sum[:]), true
 }
 
-// processEnvironment reads this process's environment once: a library a
-// process has loaded stays the one it computes with.
-var processEnvironment = sync.OnceValue(func() string {
+// processEnvironment is this process's environment under the result settings a count names, read (settingsMark
+// between them): the value of each, and the libraries, read once, as a library a process has loaded stays the one it
+// computes with.
+func processEnvironment(read string) string {
+	return settingValues(os.Getenv, settingNames(read)) + processLibraries()
+}
+
+// processLibraries are this process's libraries, read once.
+var processLibraries = sync.OnceValue(func() string {
 	executable, _ := os.Executable()
 	roots, _ := dataroot.ResolveCurrent()
-	return environment(os.Getenv, executable, roots.Libraries())
+	return libraryFacts(os.Getenv, executable, roots.Libraries())
 })
 
-// environment describes what a result depends on that no build can count, as
-// lookup and the disk give it: the value of each result setting, and each
-// library as a change to it shows, its place, size and time, at every place a
-// loader may take it from: beside the executable, the system directory, the
-// search path, CUDA_PATH's bin, and beside, the directory of libraries beside
-// overgo's data.
-func environment(lookup func(string) string, executable, beside string) string {
+// settingNames are the names of the result settings a count names, read, none when it names none.
+func settingNames(read string) []string {
+	if read == "" {
+		return nil
+	}
+	return strings.Split(read, settingsMark)
+}
+
+// settingValues are the value of each setting names holds, as lookup gives it.
+func settingValues(lookup func(string) string, names []string) string {
 	var facts strings.Builder
-	for _, name := range resultSettings {
+	for _, name := range names {
 		fmt.Fprintf(&facts, "setting %s=%s\n", name, lookup(name))
 	}
+	return facts.String()
+}
+
+// libraryFacts describes each library as a change to it shows, its place, size and time, at every place a loader may
+// take it from: beside the executable, the system directory, the search path, CUDA_PATH's bin, and beside, the
+// directory of libraries beside overgo's data.
+func libraryFacts(lookup func(string) string, executable, beside string) string {
+	var facts strings.Builder
 	directories := append([]string{filepath.Dir(executable), filepath.Join(lookup("SystemRoot"), "System32")}, filepath.SplitList(lookup("PATH"))...)
 	directories = append(directories, filepath.Join(lookup("CUDA_PATH"), "bin"), beside)
 	for _, library := range libraries {
@@ -283,7 +283,7 @@ func identities(ctx context.Context, root string) (counted map[string]string, re
 		if len(undeclared) != 0 {
 			refused[entry] = undeclared
 		} else {
-			counted[entry] = identity
+			counted[entry] = read.counted(identity, files)
 		}
 	}
 	var binders []string
@@ -305,7 +305,7 @@ func identities(ctx context.Context, root string) (counted map[string]string, re
 	if len(undeclared) != 0 {
 		refused[evaluationCount] = undeclared
 	} else {
-		counted[evaluationCount] = identity
+		counted[evaluationCount] = read.counted(identity, binders)
 	}
 	return counted, refused, nil
 }
@@ -315,6 +315,8 @@ func identities(ctx context.Context, root string) (counted map[string]string, re
 type sourceFacts struct {
 	digest     []byte
 	undeclared []string
+	// results are the names of the result settings it reads (envsetting.Result).
+	results []string
 }
 
 // sources holds the files one count has read, each read once.
@@ -331,15 +333,28 @@ func (s sources) of(file string) (sourceFacts, error) {
 	sum := sha256.Sum256(content)
 	facts := sourceFacts{digest: sum[:]}
 	if strings.HasSuffix(file, ".go") {
-		for _, spelling := range environmentReads(file, content) {
-			if name, quoted := strings.CutPrefix(spelling, `"`); !slices.Contains(neutralReads, spelling) &&
-				!(quoted && slices.Contains(resultSettings, strings.TrimSuffix(name, `"`))) {
+		results, other := environmentReads(file, content)
+		facts.results = results
+		// The package a setting is read through reads the environment for each read through it.
+		if !strings.Contains(filepath.ToSlash(file), "/"+settingPackage+"/") {
+			for _, spelling := range other {
 				facts.undeclared = append(facts.undeclared, file+" reads "+spelling)
 			}
 		}
 	}
 	s[file] = facts
 	return facts, nil
+}
+
+// counted is a package's count: the digest of its files, then the names of the result settings they read, sorted,
+// settingsMark between each. The files are read already (digest).
+func (s sources) counted(digest string, files []string) string {
+	var names []string
+	for _, file := range files {
+		names = append(names, s[file].results...)
+	}
+	slices.Sort(names)
+	return strings.Join(append([]string{digest}, slices.Compact(names)...), settingsMark)
 }
 
 // digest hashes the files in path order, each as its root-relative slash path
@@ -372,30 +387,50 @@ func (s sources) digest(root string, files, modules []string, settings string) (
 	return hex.EncodeToString(surface.Sum(nil)), undeclared, nil
 }
 
-// environmentReads lists what a Go source asks the environment for, each as
-// the argument it is spelled with up to the first closing parenthesis: a
-// quoted name, or the constant that holds one.
-func environmentReads(name string, source []byte) []string {
-	if !slices.ContainsFunc(readers, func(reader string) bool { return bytes.Contains(source, []byte(reader+"(")) }) {
-		return nil
+// environmentReads lists what a Go source reads of the environment: the names it reads through envsetting.Result, each
+// written as one quoted literal, and every other read, through Getenv or LookupEnv, or through Result with a name no
+// count can read, as its argument is spelled up to the first closing parenthesis.
+func environmentReads(name string, source []byte) (results, other []string) {
+	resultCall := settingQualifier + "." + resultReader + "("
+	if !bytes.Contains(source, []byte(resultCall)) && !slices.ContainsFunc(readers, func(reader string) bool { return bytes.Contains(source, []byte(reader+"(")) }) {
+		return nil, nil
 	}
 	var scan scanner.Scanner
 	scan.Init(token.NewFileSet().AddFile(name, -1, len(source)), source, nil, 0)
-	var reads []string
 	var argument strings.Builder
-	called, reading := false, false
+	var parts int
+	var quoted bool
+	// before and last are the two tokens before this one, spelled, which say whether a Result is envsetting's.
+	var before, last string
+	called, viaResult, reading := false, false, false
 	for _, kind, literal := scan.Scan(); kind != token.EOF; _, kind, literal = scan.Scan() {
+		spelled := cmp.Or(literal, kind.String())
 		switch {
 		case reading && kind == token.RPAREN:
 			reading = false
-			reads = append(reads, argument.String())
+			read := argument.String()
+			setting, err := strconv.Unquote(read)
+			switch {
+			case !viaResult:
+				other = append(other, read)
+			case parts == 1 && quoted && err == nil:
+				results = append(results, setting)
+			default:
+				other = append(other, resultCall+read+")")
+			}
 		case reading:
-			argument.WriteString(cmp.Or(literal, kind.String()))
+			argument.WriteString(spelled)
+			parts++
+			quoted = kind == token.STRING
 		case called && kind == token.LPAREN:
-			reading = true
+			reading, parts = true, 0
 			argument.Reset()
 		}
-		called = !reading && kind == token.IDENT && slices.Contains(readers, literal)
+		if !reading {
+			viaResult = kind == token.IDENT && literal == resultReader && last == token.PERIOD.String() && before == settingQualifier
+			called = kind == token.IDENT && (slices.Contains(readers, literal) || viaResult)
+		}
+		before, last = last, spelled
 	}
-	return reads
+	return results, other
 }

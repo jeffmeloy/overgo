@@ -9,12 +9,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"slices"
 	"strings"
 	"sync"
 
 	"overgo/internal/artifact"
+	"overgo/internal/envsetting"
 	"overgo/internal/processcontrol"
 	"overgo/internal/strictjson"
 )
@@ -201,7 +201,7 @@ var toolBaseEnvironment = []string{
 func toolEnvironment(named []string) []string {
 	environment := []string{}
 	for _, toolVariable := range slices.Concat(toolBaseEnvironment, named) {
-		if value, set := os.LookupEnv(toolVariable); set {
+		if value, set := envsetting.NeutralLookup(toolVariable, "passes an agent tool a variable its manual names, which reaches that tool and no capability"); set {
 			environment = append(environment, toolVariable+"="+value)
 		}
 	}

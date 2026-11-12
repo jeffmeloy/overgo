@@ -100,6 +100,25 @@ func TestGoStyleDeltaKeysPackageDocByPackage(t *testing.T) {
 	}
 }
 
+// TestAnExportDocFindingNamesWhatItLacks holds an exported declaration's finding to an edit that supplies all a
+// name-led sentence needs, the name that opens it and the period that ends it, so a comment that opens with the name
+// and lacks only its period is told what it lacks.
+func TestAnExportDocFindingNamesWhatItLacks(t *testing.T) {
+	t.Parallel()
+	prior := testcheck.Must((gosyntax.Snapshot{}).Overlay(map[string][]byte{"p/a.go": []byte("// Package p is a fixture.\npackage p\n")}))(t)
+	current := testcheck.Must((gosyntax.Snapshot{}).Overlay(map[string][]byte{"p/a.go": []byte(
+		"// Package p is a fixture.\npackage p\n\n// Named opens with its name and lacks its period\nfunc Named() {}\n\n// It opens with another word.\nfunc Unnamed() {}\n")}))(t)
+	err := ValidateGoStyleDelta(current, prior)
+	for _, want := range []string{
+		"export-doc:Named (exported function needs a name-led sentence; edit: write a comment that opens with `// Named ` and ends with a period, above line 5)",
+		"export-doc:Unnamed (exported function needs a name-led sentence; edit: write a comment that opens with `// Unnamed ` and ends with a period, above line 8)",
+	} {
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Fatalf("the findings %v do not say %q", err, want)
+		}
+	}
+}
+
 func TestGoStyleApplicability(t *testing.T) {
 	t.Parallel()
 	snapshot := testcheck.Must((gosyntax.Snapshot{}).Overlay(map[string][]byte{

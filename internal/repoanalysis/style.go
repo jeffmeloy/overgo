@@ -84,7 +84,7 @@ func (f goStyleFinding) edit() string {
 	case goStylePackageDoc:
 		return "keep one comment opening `// Package " + f.Symbol[strings.LastIndex(f.Symbol, "#")+1:] + "` above a package clause of the package, in " + f.File + " or another of its files"
 	case goStyleExportDoc:
-		return "write a comment opening with `// " + f.Symbol + " ` on the line above line " + strconv.Itoa(f.Line)
+		return "write a comment that opens with `// " + f.Symbol + " ` and ends with a period, above line " + strconv.Itoa(f.Line)
 	case goStyleGetter:
 		return "rename " + f.Symbol + " to " + strings.TrimPrefix(f.Symbol, "Get")
 	case goStyleInitialism:

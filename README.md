@@ -204,13 +204,15 @@ from the context already read, in about 1.3 s.
 
 ### Sample outputs
 
-Each sample is an output of the attempts the scorecard reads, exported from
-the store into [assets](assets) by
-`go run ./cmd/validate -export-samples -media-scope measured -repo <store>` and
-named by the SHA-256 of its bytes, so it is checkable against the run that
-produced it. The time and memory beside it are the scorecard's: the time is the
-median of the newest attempts at a whole request and the memory the newest's peak
-on the card, so neither need be that output's own.
+Each sample is named by the SHA-256 of its bytes, so it is checkable against
+the run that produced it. A timing request is an output of the attempts the
+scorecard reads, exported from the store into [assets](assets) by
+`go run ./cmd/validate -export-samples -media-scope measured -repo <store>`; the
+time and memory beside it are the scorecard's: the time is the median of the
+newest attempts at a whole request and the memory the newest's peak on the
+card, so neither need be that output's own. A sample drawn at its developer's
+recommended settings says so, with its whole request, and was drawn by
+`go run ./cmd/recipe run -fresh` on the date and commit it names.
 
 **Krea-2-Turbo, text → image.** "a red fox licking a vanilla ice cream cone in
 snow", 512 × 512, 4 steps, seed 2026: 13.9 s, 25.1 GiB.
@@ -222,28 +224,34 @@ sunrise.", 1024 × 1024, 50 steps, guidance 3, seed 42: 95 s, 13.0 GiB.
 
 ![MOSS-Image-SFT: a small red sailboat on a quiet lake at sunrise](assets/cfab6e10e0551187ce87aec12beab4f438ad063b2b202def0d6e8bf5856903d8.png)
 
-**SenseNova-U1-8B-MoT-Infographic-V3, text → image.** "a minimal infographic
-of three rising bars labeled A B C", 512 × 512, 4 steps, guidance 4.5, seed
-2026: 13.1 s, 15.5 GiB. A 1536 × 2720 infographic in 50 steps from the frozen
-visual-review case:
+**SenseNova-U1-8B-MoT-Infographic-V3, text → image.** At the model card's
+settings for infographics: "a minimal infographic of three rising bars labeled
+A B C", 2048 × 2048, 50 steps, guidance 4.0, timestep shift 3.0, seed 2026,
+drawn on 2026-11-11 at d4d4b3708 in 2 min 35 s. The timing request the
+scorecard measures is the same prompt at 512 × 512 in 4 steps, guidance 4.5,
+seed 2026: 13.1 s, 15.5 GiB
+([picture](assets/2ff397c2af4142c28e0de7b09e510422e2bcd6a09731f3659d76055bb8d3e9fd.png)).
+A 1536 × 2720 infographic in 50 steps from the frozen visual-review case:
 [image](assets/5f3a56dff6b7a4a9e96d3d129082fdc349717357ff48d54454ff9535fb0cce68.png).
 
-![SenseNova: a minimal infographic of three rising bars labeled A B C](assets/2ff397c2af4142c28e0de7b09e510422e2bcd6a09731f3659d76055bb8d3e9fd.png)
+![SenseNova at the model card's settings: a minimal infographic of three rising bars labeled A B C](assets/458e63d1b4977ee502200a1f1901fc34c6ee0f154f73faadcd6d5260050a18aa.png)
 
 **SimpleDiffusion-TensorProductAttentionRope, noise → image.** 256 × 256 in 8
 steps, seed 2026: 0.92 s, 0.6 GiB.
 
 ![SimpleDiffusion: a 256 by 256 sample](assets/cd3f5feb951d9413f07060683035b12baaa909f67dead4b698c0fac24a629220.png)
 
-**Wan2.1-T2V 1.3B, text → video.** The measured request is a small one: "a red
-fox licking a vanilla ice cream cone on a snowy pine forest trail", 21 frames
-at 32 × 16, 2 steps: 13.0 s, 3.6 GiB
+**Wan2.1-T2V 1.3B, text → video.** At the model card's settings, with its own
+example prompt: "Two anthropomorphic cats in comfy boxing gear and bright gloves
+fight intensely on a spotlighted stage.", 81 frames at 832 × 480, 50 steps,
+guidance 6, shift 8, seed 2026, drawn on 2026-11-11 at d4d4b3708 in 5 min 51 s.
+It is not yet compared with a ComfyUI recording of the same request. The timing
+request the scorecard measures is a small one: "a red fox licking a vanilla ice
+cream cone on a snowy pine forest trail", 21 frames at 32 × 16, 2 steps: 13.0 s,
+3.6 GiB
 ([clip](assets/e6e246d2f322356bf07a83e137a2c4341a97eed8dd45b3f188736ba92e248865.gif)).
-The frozen visual-review case, 81 frames at 832 × 480 in 50 steps, took 6 min
-14 s when it was drawn at commit fcda318af (2026-09-12); its device memory was
-not recorded.
 
-![Wan2.1-T2V: 81 frames at 832 by 480](assets/d5c72f13e0bf07a1fb8268917b4da15f53e1343bfcdb3093a309591bb08f8ff9.gif)
+![Wan2.1-T2V at the model card's settings: two cats in boxing gear fight on a spotlighted stage, 81 frames at 832 by 480](assets/2e5d38659a857a3804aa4a6ce1530bad4f48f93add576ed82804c3e1fd224886.gif)
 
 **LiveEdit, video + instruction → video.** 21 source frames at 32 × 16 through
 four denoising steps, seed 7: 9.5 s, 3.5 GiB

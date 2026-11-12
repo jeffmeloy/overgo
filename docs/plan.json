@@ -26,30 +26,29 @@
           ],
           "needs_card": true,
           "rationale": "Serves: the owner's review of 2026-11-11: the README's SimpleDiffusion sample, 8 steps, is pale, blurred and noisy, while the author's sheet beside the weights (epoch_799.png, sixteen samples of sample() at its default 50 steps) shows crisp pixel-art characters.\n\nDisappears: a sampler held to the author's only at 8 steps and only as colour means over 8-pixel squares, a comparison too coarse to see the pixel art.\n\nThe change: scripts/python_golden_references/simplediffusion_upstream_sample.py writes fixtures/simplediffusion/upstream_sample.json again at 50 steps over 2-pixel squares, from the noise overgo draws for the seed; TestServedSampleMatchesTheUpstreamSampler holds the served sample to it at a floor measured on the card; the README shows overgo's 50-step picture, exported by cmd/validate. If the 50-step picture still looks like the 8-step one beside the author's sheet, that is a fault in overgo's sampler or its pixels, found and fixed in this step.\n\nCheck: the test passes at 50 steps over 2-pixel squares above the measured floor.\n\nBatch: device lane, in a gap between two readings.\n\nNote: 2026-11-11, on the card: the fault is the batch. The author's sampler at 50 steps from overgo's noise for seed 2026, drawn alone (batch 1) as overgo draws, gives the same pale, noisy picture as overgo's 8-step one (mean 0.62, standard deviation 0.20); drawn sixteen at once, as train.py's sample() draws (n_samples=16), the first sample from that same noise is crisp pixel art like epoch_799.png (standard deviation 0.53), and so are the other fifteen. models/uvit.py's TransformerBlock reads [B, C, H, W] as tokens by x.reshape(b, h*w, c), with no transpose, and writes back by x.permute(1, 2, 0).reshape(b, c, h, w), which interleaves every sample of the batch into each output; the weights were trained at batches of 16 to 128, so a sample drawn alone is out of their distribution. overgo agrees with the author's code at batch 1 (53 dB over 8-pixel squares at 8 steps), so it reproduces the broken single draw faithfully. The weights' tensors show residual blocks at every level and transformers only in the middle (16 blocks), as simplediffusion_upstream_sample.py builds it; train.py's text names thresholds 2 and 4, which these weights do not fit. The fix: the served request draws a batch of sixteen through a batch-capable graph, each noise from the seed in order, as sample() does, with the TransformerBlock's two reshapes reproduced exactly; the README shows the 4 x 4 sheet at 50 steps, as the author's does; the upstream fixture is written at --batch 16 over small squares and held per sample. simplediffusion_upstream_sample.py gains --batch (the first noise the file's, the rest torch's from seed 0) and --dtype (bfloat16 as train.py ran; it changes little: standard deviation 0.529 against 0.532). Pictures: tmp/readme-samples/author-sampler-batch1-50steps.png and author-sampler-batch16-50steps.png."
-        },
+        }
+      ]
+    },
+    {
+      "id": "readme-speed",
+      "title": "The README's speed table reads prompt processing at 4,096 and 16,384 tokens for every chat model, from readings that keep their token counts",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 0,
+        "reason": "Filed 2026-11-11 from the owner's review of the README's speed table: a measurement and a record, no code. The lead's figure."
+      },
+      "steps": [
         {
-          "id": "sensenova-recommended",
-          "title": "SenseNova's README picture is drawn at its model card's settings, 50 steps, guidance 4.0, timestep shift 3.0, and the 4-step request is labelled as the timing request",
+          "id": "measured",
+          "title": "Each chat model's prompt processing at 4,096 and 16,384 tokens is read again with its token counts, the record published, and the table written from it",
           "status": "open",
-          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestReadmeNamesEveryModelAndItsSamples$'",
+          "verify": "go run ./cmd/validate -readme -check",
           "files": [
-            "README.md",
-            "assets"
+            "README.md"
           ],
           "needs_card": true,
-          "rationale": "Serves: the owner's review of 2026-11-11: the README embeds SenseNova's 4-step timing request, 512 x 512 at guidance 4.5, and only links the 50-step picture. The model card recommends --cfg_scale 4.0 --timestep_shift 3.0 --num_steps 50 for infographics, at 2048 x 2048 by default.\n\nThe change: a picture drawn by today's code at those settings, the same prompt, is exported and embedded with its prompt, size, steps, guidance, shift and seed; the 4-step paragraph says it is the timing request the scorecard measures.\n\nCheck: TestReadmeNamesEveryModelAndItsSamples, which holds every embedded sample to a file under assets named by its bytes.\n\nBatch: device lane for the draw, in a gap between two readings."
-        },
-        {
-          "id": "wan-redraw",
-          "title": "Wan's README clip is drawn again by today's code at its frozen request, and the README prints its prompt, seed, steps and guidance",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestReadmeNamesEveryModelAndItsSamples$'",
-          "files": [
-            "README.md",
-            "assets"
-          ],
-          "needs_card": true,
-          "rationale": "Serves: the owner's review of 2026-11-11: the README's Wan clip was drawn at fcda318af on 2026-09-12 and prints no prompt, seed or guidance.\n\nThe change: the frozen visual-review request (docs/image_video_protocol.json, Wan2.1-T2V-1.3B/video-gen/3, its request the store's file:sha256:364be3ce...), 81 frames at 832 x 480 in 50 steps, is drawn again through recipe run -fresh at today's commit, exported and embedded; the README prints the request's prompt, seed, steps, guidance and shift, the commit, time and peak memory. Once a ComfyUI recording of Wan exists, the clip is compared with it, a step of its own.\n\nCheck: TestReadmeNamesEveryModelAndItsSamples.\n\nBatch: device lane for the draw, in a gap between two readings."
+          "rationale": "Serves: the owner's review of 2026-11-11: every row of the speed table shows no prompt processing at either length.\n\nDisappears: a table of dashes. The newest record, scorecard-20261107T192932Z.json, holds a prefill reading at 4,096 tokens for 12 rows and at 16,384 for 11 (Carbon-500M's 4,096-token prefill took 2,058 ms), but none keeps the tokens it read uncached (Cell.Rate), so SpeedTable gives no figure, as it should: a rate from the nominal size could count tokens a prefix cache served. The measurement run of 2026-11-08 filed no record, so no reading since has kept them.\n\nThe change: in a gap between two readings, go run ./cmd/recipe measure reads each chat model again on the card (its load, its first request, a fresh prompt of each length read once unmeasured and then measured, and its warm generation), recording each as an attempt with its token counts; go run ./cmd/validate -scorecard -publish writes the newest record from the store; go run ./cmd/validate -readme writes the table from it. A model whose context does not hold 16,384 tokens keeps its dash at that length.\n\nCheck: validate -readme -check, which fails while the README's written parts are not what the newest record gives.\n\nBatch: device lane for the readings, in a gap between two readings; the record and the README on the host."
         }
       ]
     },

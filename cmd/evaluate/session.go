@@ -248,7 +248,8 @@ func (s *nativeSession) Evaluate(ctx context.Context, path string) error {
 
 // evaluateSuiteFile compiles the suite file under the campaign's
 // authorities and campaigns it; every session evaluates named suites
-// this way.
+// this way. It prints the evaluation record it committed for the suite,
+// which a readings campaign reads (evaluatedRecord).
 func evaluateSuiteFile(ctx context.Context, campaign *evaluation.Campaign, path string) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -258,8 +259,12 @@ func evaluateSuiteFile(ctx context.Context, campaign *evaluation.Campaign, path 
 	if err != nil {
 		return fmt.Errorf("evaluate: compile suite %q: %w", path, err)
 	}
-	_, err = campaign.Evaluate(evaluation.WithProgress(ctx, printProgress), compiled)
-	return err
+	result, err := campaign.Evaluate(evaluation.WithProgress(ctx, printProgress), compiled)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%s%s%s%s\n", evaluatedLine, result.Evaluation, evaluatedOf, path)
+	return nil
 }
 
 // Report each completed case; geometric sampling hides progress on long suites.

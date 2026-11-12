@@ -154,6 +154,7 @@ func run() error {
 	reaskRecord := flag.String("reask", "", "ask the answers of this chat-template evaluation record that named no option because the token budget ended again, through the model file -model-path names, under -reask-opener and -reask-tokens, and print how many now name an option letter; the cases are published as development evidence before the model opens, and no answer is recorded")
 	reaskOpener := flag.String("reask-opener", "The answer is", "with -reask: the words the model's turn opens with; the protocol's own by default")
 	reaskTokens := flag.Int("reask-tokens", reaskDefaultTokens, "with -reask: how many tokens the answer is read from")
+	readingsPath := flag.String("readings", "", "run the preset-readings campaign this file declares (guidance-ops/preset-readings): each model's reference and each preset drawn at a person's size, judged once, and each preset read against the reference, every step a process of this build; its records, verdicts and logs go to the campaign's out directory, from which a run again resumes")
 	flag.Parse()
 	if err := dataroot.ResolveStore(repository); err != nil {
 		return err
@@ -269,6 +270,20 @@ func run() error {
 		}
 		// An edited clip moves as the clip it edits does, read from the directory it was cut from.
 		return writeMotion(context.Background(), strings.TrimSpace(*suiteOut), strings.TrimSpace(*mediaOut), clips, strings.TrimSpace(*screenEncoder), *device, strings.TrimSpace(*suiteOut))
+	}
+	if path := strings.TrimSpace(*readingsPath); path != "" {
+		if flag.NArg() != 0 {
+			return errors.New("usage: evaluate -readings <campaign.json>")
+		}
+		commit, err := runrecord.ExecutableCodeCommit(".")
+		if err != nil {
+			return err
+		}
+		executable, err := os.Executable()
+		if err != nil {
+			return err
+		}
+		return runReadings(context.Background(), path, processReadings(executable), commit, time.Now)
 	}
 	if *admitPreset != "" {
 		if strings.TrimSpace(*referenceRender) == "" || strings.TrimSpace(*presetEvaluation) == "" || strings.TrimSpace(*referenceEvaluation) == "" || strings.TrimSpace(*modelPath) == "" {

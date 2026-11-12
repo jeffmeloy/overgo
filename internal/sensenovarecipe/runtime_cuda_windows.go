@@ -98,6 +98,9 @@ type Generator struct {
 	active       *routedlm.DeviceGenerationSession
 	activeFlow   *routedlm.DeviceFlowPeripheralSession
 	stats        GenerationStats
+	// resident are both branches' weights on the card, lent to every request's prefix stacks (0) and generation
+	// session (1); none where the card held too little at load (holdBranches).
+	resident [2]*routedlm.DeviceBranchWeights
 }
 
 func LoadGenerator(
@@ -153,7 +156,49 @@ func LoadGenerator(
 	if generator.cuda, err = executor.NewWithWorker(generator.worker); err != nil {
 		return nil, err
 	}
+	if err := generator.holdBranches(ctx); err != nil {
+		return nil, err
+	}
 	return generator, nil
+}
+
+// residentBranchHeadroomBytes is the card memory a generation needs beside both branches' weights for the generator to
+// keep them resident: at 2048 x 2048 a run peaked at 17.6 GiB with branch 1's 16 GB of weights on the card, its
+// activations about 1.6 GiB, and this keeps more than twice that.
+const residentBranchHeadroomBytes = 4 << 30
+
+// holdBranches uploads both branches' weights once, which every request then borrows, where the card holds them beside
+// a generation (residentBranchHeadroomBytes): a request had read and uploaded both, about 32 GB and 10.5 s of a
+// 130 s picture at 2048 x 2048 (guidance-ops/resident-branches). Where the card holds less, as under a declared device
+// budget, each request uploads them as before.
+func (g *Generator) holdBranches(ctx context.Context) error {
+	need := uint64(residentBranchHeadroomBytes)
+	for branch := range g.resident {
+		bytes, err := routedlm.BranchWeightBytes(g.source, g.config, g.binding, branch)
+		if err != nil {
+			return err
+		}
+		need += bytes
+	}
+	var free uint64
+	if err := g.worker.Do(ctx, func(state *device.State) error {
+		var err error
+		free, _, err = state.Driver.MemInfo()
+		return err
+	}); err != nil {
+		return err
+	}
+	if free < need {
+		return nil
+	}
+	for branch := range g.resident {
+		weights, err := routedlm.NewDeviceBranchWeights(ctx, g.worker, g.source, g.config, g.binding, branch)
+		if err != nil {
+			return err
+		}
+		g.resident[branch] = weights
+	}
+	return nil
 }
 
 func (g *Generator) Reset(ctx context.Context, request GenerationRequest) error {
@@ -210,7 +255,7 @@ func (g *Generator) prepare(ctx context.Context, request GenerationRequest) (*ge
 		return nil, err
 	}
 	prefixes, _, err := routedlm.RunDevicePrefixStacks(
-		ctx, g.worker, g.cuda, g.source, g.config, g.binding, g.rope, nil,
+		ctx, g.worker, g.cuda, g.source, g.config, g.binding, g.rope, g.resident[0], nil,
 		routedlm.DevicePrefixInput{TokenIDs: conditional.IDs, ImageTime: len(conditional.IDs)},
 		routedlm.DevicePrefixInput{TokenIDs: unconditional.IDs, ImageTime: len(unconditional.IDs)},
 	)
@@ -218,7 +263,7 @@ func (g *Generator) prepare(ctx context.Context, request GenerationRequest) (*ge
 		return nil, err
 	}
 	session, err := routedlm.NewDeviceGenerationSession(
-		ctx, g.worker, g.cuda, g.source, g.config, g.binding, g.rope,
+		ctx, g.worker, g.cuda, g.source, g.config, g.binding, g.rope, g.resident[1],
 		image, prefixes[0], prefixes[1],
 	)
 	if err != nil {
@@ -392,6 +437,10 @@ func (g *Generator) Close(ctx context.Context) error {
 	if g.activeFlow != nil {
 		result = errors.Join(result, g.activeFlow.Close(ctx))
 		g.activeFlow = nil
+	}
+	for branch, weights := range g.resident {
+		result = errors.Join(result, weights.Close(ctx))
+		g.resident[branch] = nil
 	}
 	if g.cuda != nil {
 		result = errors.Join(result, g.cuda.Close())

@@ -68,6 +68,7 @@ func NewDeviceGenerationSession(
 	cfg Config,
 	binding BranchBinding,
 	rope RopePlan,
+	resident *DeviceBranchWeights,
 	image FlowImagePlan,
 	prefixes ...*PrefixState,
 ) (*DeviceGenerationSession, error) {
@@ -75,13 +76,17 @@ func NewDeviceGenerationSession(
 	if worker == nil || cuda == nil || source == nil || len(prefixes) == 0 {
 		return nil, fmt.Errorf("routed lm generation session: missing runtime or prefixes")
 	}
-	layers, err := compileBranchLayerPlans(source, cfg, binding, 1)
-	if err != nil {
-		return nil, err
+	// Branch 1's weights are read and uploaded here unless the caller lends them resident (DeviceBranchWeights).
+	var layers []branchLayerPlan
+	if _, held := resident.layer(1, 0); !held {
+		var err error
+		if layers, err = compileBranchLayerPlans(source, cfg, binding, 1); err != nil {
+			return nil, err
+		}
 	}
 	session := &DeviceGenerationSession{
 		worker: worker, cuda: cuda, cfg: cfg, image: image,
-		weights:   make([]branchDeviceWeights, len(layers)),
+		weights:   make([]branchDeviceWeights, cfg.NumHiddenLayers),
 		branches:  make([]generationStackBranch, len(prefixes)),
 		resources: device.NewAllocationSet(worker),
 	}
@@ -157,7 +162,11 @@ func NewDeviceGenerationSession(
 		}
 		session.branches[index] = branch
 	}
-	for layer := range layers {
+	for layer := range session.weights {
+		if lent, held := resident.layer(1, layer); held {
+			session.weights[layer] = lent
+			continue
+		}
 		loaded, err := layers[layer].load()
 		if err != nil {
 			return fail(fmt.Errorf("load layer %d: %w", layer, err))
@@ -325,13 +334,18 @@ type branchDeviceWeights struct {
 	pointers [11]driver.DevicePtr
 }
 
-func uploadBranchWeights(ctx context.Context, allocations *device.AllocationSet, w BranchLayerWeights) (branchDeviceWeights, error) {
-	var out branchDeviceWeights
-	raw := [][]byte{
+// branchWeightParts are a layer's weights as the card holds them, in the order its graphs bind them.
+func branchWeightParts(w BranchLayerWeights) [][]byte {
+	return [][]byte{
 		driver.Bytes(w.InputNorm), bf16MatrixBytes(w.Q), bf16MatrixBytes(w.K), bf16MatrixBytes(w.V),
 		bf16MatrixBytes(w.O), driver.Bytes(w.QNorm), driver.Bytes(w.KNorm), driver.Bytes(w.PostNorm),
 		bf16MatrixBytes(w.Gate), bf16MatrixBytes(w.Up), bf16MatrixBytes(w.Down),
 	}
+}
+
+func uploadBranchWeights(ctx context.Context, allocations *device.AllocationSet, w BranchLayerWeights) (branchDeviceWeights, error) {
+	var out branchDeviceWeights
+	raw := branchWeightParts(w)
 	for index := range raw {
 		pointer, err := allocations.Upload(ctx, raw[index])
 		if err != nil {

@@ -45,6 +45,7 @@ func RunDevicePrefixStacks(
 	cfg Config,
 	binding BranchBinding,
 	rope RopePlan,
+	resident *DeviceBranchWeights,
 	observe func(branch, layer int, hidden, key, value []float32),
 	inputs ...DevicePrefixInput,
 ) (_ []*PrefixState, stats DevicePrefixStackStats, result error) {
@@ -99,13 +100,16 @@ func RunDevicePrefixStacks(
 		result = errors.Join(result, cuda.ReleaseWeightStaging(cleanup), uploads.Close(cleanup))
 	}()
 	for layer := 0; layer < cfg.NumHiddenLayers; layer++ {
-		weights, err := LoadBranchLayerWeights(source, cfg, binding, layer, 0)
-		if err != nil {
-			return nil, stats, err
-		}
-		shared, err := uploadBranchWeights(ctx, &uploads, weights)
-		if err != nil {
-			return nil, stats, err
+		// Branch 0's layer is read and uploaded here unless the caller lends it resident (DeviceBranchWeights).
+		shared, held := resident.layer(0, layer)
+		if !held {
+			weights, err := LoadBranchLayerWeights(source, cfg, binding, layer, 0)
+			if err != nil {
+				return nil, stats, err
+			}
+			if shared, err = uploadBranchWeights(ctx, &uploads, weights); err != nil {
+				return nil, stats, err
+			}
 		}
 		for branchIndex := range branches {
 			branch := &branches[branchIndex]

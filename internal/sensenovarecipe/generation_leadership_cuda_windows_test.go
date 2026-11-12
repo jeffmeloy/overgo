@@ -131,8 +131,15 @@ func TestSenseNovaGenerationLeadership(t *testing.T) {
 			t.Fatalf("%s input identity differs", name)
 		}
 	}
+	// Both branches' weights resident, as a generator keeps them where the card holds them: the products are those of a
+	// request that reads and uploads its own.
+	var resident [2]*routedlm.DeviceBranchWeights
+	for branch := range resident {
+		resident[branch] = testcheck.Must(routedlm.NewDeviceBranchWeights(t.Context(), worker, source, cfg, binding, branch))(t)
+		defer resident[branch].Close(t.Context())
+	}
 	prefixes, prefixStats, err := routedlm.RunDevicePrefixStacks(
-		t.Context(), worker, cuda, source, cfg, binding, rope,
+		t.Context(), worker, cuda, source, cfg, binding, rope, resident[0],
 		nil,
 		routedlm.DevicePrefixInput{TokenIDs: prefixIDs[0], ImageTime: len(prefixIDs[0])},
 		routedlm.DevicePrefixInput{TokenIDs: prefixIDs[1], ImageTime: len(prefixIDs[1])},
@@ -141,7 +148,7 @@ func TestSenseNovaGenerationLeadership(t *testing.T) {
 	conditional, unconditional := prefixes[0], prefixes[1]
 	t.Logf("SenseNova shared prefix stream: layers=%d branches=%d wall=%.3fs", prefixStats.Layers, prefixStats.Branches, prefixStats.Wall.Seconds())
 	generation := testcheck.Must(routedlm.NewDeviceGenerationSession(
-		t.Context(), worker, cuda, source, cfg, binding, rope, image, conditional, unconditional,
+		t.Context(), worker, cuda, source, cfg, binding, rope, resident[1], image, conditional, unconditional,
 	))(t)
 	defer generation.Close(t.Context())
 	sessionStats := generation.Stats()

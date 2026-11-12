@@ -5,6 +5,7 @@ package adaptiveparity
 import (
 	"bytes"
 	"encoding/json"
+	"image"
 	"image/png"
 	"math"
 	"path/filepath"
@@ -97,15 +98,27 @@ func pictureServing(t *testing.T, directory, name string) pictureService {
 // gives a byte each, row by row.
 func (service pictureService) agreement(t *testing.T, request any, width, height, side int, reference []byte) float64 {
 	t.Helper()
+	return meansAgreement(t, service.picture(t, request), width, height, side, reference)
+}
+
+// picture serves one request for a picture and decodes it.
+func (service pictureService) picture(t *testing.T, request any) image.Image {
+	t.Helper()
 	raw := testcheck.Must(json.Marshal(request))(t)
 	output := testcheck.Must(service.capability.Execute(t.Context(), service.store, service.directory, service.execution, string(raw)))(t)
 	served, ok := capabilityruntime.Unwrap(output).(latentimage.EncodedImage)
 	if !ok {
 		t.Fatalf("a served picture is %T", capabilityruntime.Unwrap(output))
 	}
-	decoded := testcheck.Must(png.Decode(bytes.NewReader(served.Data)))(t)
-	means := squareMeans(decoded, side)
-	if bounds := decoded.Bounds(); bounds.Dx() != width || bounds.Dy() != height || len(means) != len(reference) {
+	return testcheck.Must(png.Decode(bytes.NewReader(served.Data)))(t)
+}
+
+// meansAgreement is how nearly a picture agrees with a reference's, in dB over the means of every colour in squares of
+// side pixels, which the reference gives a byte each, row by row.
+func meansAgreement(t *testing.T, picture image.Image, width, height, side int, reference []byte) float64 {
+	t.Helper()
+	means := squareMeans(picture, side)
+	if bounds := picture.Bounds(); bounds.Dx() != width || bounds.Dy() != height || len(means) != len(reference) {
 		t.Fatalf("served %v, %d square means; the reference is %dx%d, %d", bounds, len(means), width, height, len(reference))
 	}
 	var squared float64

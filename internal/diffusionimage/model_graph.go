@@ -13,6 +13,8 @@ import (
 type modelGraph struct {
 	builder *tensor.Builder
 	static  tensor.InputBindings[reference.Value]
+	// bound are the weights bound so far by name: each sample of a batch reads the one copy.
+	bound   map[string]*tensor.Tensor
 	bindErr error
 }
 
@@ -21,11 +23,15 @@ type imageGeometry struct {
 }
 
 func newModelGraph() *modelGraph {
-	return &modelGraph{builder: tensor.NewBuilder()}
+	return &modelGraph{builder: tensor.NewBuilder(), bound: map[string]*tensor.Tensor{}}
 }
 
 func (graph *modelGraph) bind(prefix, suffix string, data []float32, dimensions ...uint64) *tensor.Tensor {
+	if node, held := graph.bound[prefix+suffix]; held {
+		return node
+	}
 	node := graph.builder.Input(prefix+suffix, dtype.F32, tensor.MustShape(dimensions...))
+	graph.bound[prefix+suffix] = node
 	value, err := reference.NewValue(node.Shape, data)
 	if err != nil {
 		graph.bindErr = errors.Join(graph.bindErr, err)
@@ -141,13 +147,36 @@ func (graph *modelGraph) transformerTokens(block *attnBlock, config Config, inpu
 	return graph.builder.Add(residual, graph.builder.Scale(mlp, block.mlpScale))
 }
 
-func (graph *modelGraph) transformerImage(block *attnBlock, config Config, input *tensor.Tensor, channels, height, width int) *tensor.Tensor {
-	tokens := uint64(height * width)
-	hostSlab := graph.builder.Transpose2D(graph.builder.Reshape(input, uint64(channels), tokens))
-	hostTokens := graph.builder.Reshape(hostSlab, uint64(channels), tokens)
-	output := graph.transformerTokens(block, config, hostTokens, channels, int(tokens))
-	hostView := graph.builder.Reshape(output, tokens, uint64(channels))
-	return graph.builder.Reshape(graph.builder.Transpose2D(hostView), uint64(channels), uint64(width), uint64(height))
+// transformerImages runs a transformer block over a batch's images as models/uvit.py's TransformerBlock does: each
+// image's NCHW memory read as tokens by x.reshape(b, h*w, c), with no transpose, and the block's tokens written back by
+// x.permute(1, 2, 0).reshape(b, c, h, w), which interleaves the batch: the token outputs stacked sample by sample are
+// transposed, so each channel of each token holds every sample's value in turn, and each image is the next equal run
+// of that memory read as NCHW. Alone, an image is its own tokens read back; the weights were trained at batches of 16
+// to 128 (readme-samples/simplediffusion-fifty).
+func (graph *modelGraph) transformerImages(block *attnBlock, config Config, inputs []*tensor.Tensor, channels, height, width int) []*tensor.Tensor {
+	tokens, c := uint64(height*width), uint64(channels)
+	outputs := make([]*tensor.Tensor, len(inputs))
+	for index, input := range inputs {
+		hostSlab := graph.builder.Transpose2D(graph.builder.Reshape(input, c, tokens))
+		outputs[index] = graph.transformerTokens(block, config, graph.builder.Reshape(hostSlab, c, tokens), channels, int(tokens))
+	}
+	image := func(nchw *tensor.Tensor) *tensor.Tensor {
+		return graph.builder.Reshape(graph.builder.Transpose2D(nchw), c, uint64(width), uint64(height))
+	}
+	if len(outputs) == 1 {
+		return []*tensor.Tensor{image(graph.builder.Reshape(outputs[0], tokens, c))}
+	}
+	elements := c * tokens
+	stacked := graph.builder.Reshape(outputs[0], elements, 1)
+	for _, output := range outputs[1:] {
+		stacked = graph.builder.Concat(stacked, graph.builder.Reshape(output, elements, 1), 1)
+	}
+	interleaved := graph.builder.Transpose2D(stacked)
+	images := make([]*tensor.Tensor, len(outputs))
+	for index := range images {
+		images[index] = image(graph.builder.FlatSlice(interleaved, uint64(index)*elements, tokens, c))
+	}
+	return images
 }
 
 func (graph *modelGraph) projection(input *tensor.Tensor, binding convBinding, inputChannels, outputChannels, kernel, stride int) *tensor.Tensor {

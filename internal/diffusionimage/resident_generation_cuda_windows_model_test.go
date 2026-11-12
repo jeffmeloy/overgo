@@ -28,7 +28,7 @@ func TestRealResidentGenerationLeadership(t *testing.T) {
 		hostPixels = testcheck.Must(model.Sample(t.Context(), 1, size, size, steps, seed))(t)
 		hostDurations[index] = time.Since(started)
 	}
-	forward := testcheck.Must(CompileResidentForward(t.Context(), model, 0, size, size))(t)
+	forward := testcheck.Must(CompileResidentForward(t.Context(), model, 0, 1, size, size))(t)
 	defer forward.Close(context.Background())
 	if _, err := forward.Sample(t.Context(), steps, seed); err != nil {
 		t.Fatal(err)

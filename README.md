@@ -236,10 +236,21 @@ A 1536 × 2720 infographic in 50 steps from the frozen visual-review case:
 
 ![SenseNova at the model card's settings: a minimal infographic of three rising bars labeled A B C](assets/458e63d1b4977ee502200a1f1901fc34c6ee0f154f73faadcd6d5260050a18aa.png)
 
-**SimpleDiffusion-TensorProductAttentionRope, noise → image.** 256 × 256 in 8
-steps, seed 2026: 0.92 s, 0.6 GiB.
+**SimpleDiffusion-TensorProductAttentionRope, noise → image.** At its author's
+settings, as the training script's sample() draws them, sixteen 256 × 256
+pictures at once in 50 steps, `{"seed": 2026, "steps": 50, "height": 256,
+"width": 256, "batch": 16, "sheet": true}`, laid out four to a row as the
+author saves them, drawn on 2026-11-12 at 1ad2eb382 with this sample's change
+in 37 s. Each agrees with the author's sampler from the same noise at 49 to
+53 dB. The model mixes the pictures of a batch in its transformer blocks and
+was trained on batches of 16 to 128, so a picture drawn alone comes out pale
+and noisy. The author's saved sheets look darker because its script writes the
+model's -1 to 1 range straight to a picture that clips below 0; this sheet maps
+the range as the model was trained. The timing request the scorecard measures
+is one picture drawn alone in 8 steps at seed 2026: 0.92 s, 0.6 GiB
+([picture](assets/cd3f5feb951d9413f07060683035b12baaa909f67dead4b698c0fac24a629220.png)).
 
-![SimpleDiffusion: a 256 by 256 sample](assets/cd3f5feb951d9413f07060683035b12baaa909f67dead4b698c0fac24a629220.png)
+![SimpleDiffusion at its author's settings: sixteen 256 by 256 pixel-art characters in 50 steps](assets/e4efeb2e0744419f7e2102d60f62eeb6a107be5b2e14445e78dd9d19e584c6a1.png)
 
 **Wan2.1-T2V 1.3B, text → video.** At the model card's settings, with its own
 example prompt: "Two anthropomorphic cats in comfy boxing gear and bright gloves

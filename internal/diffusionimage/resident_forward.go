@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"slices"
 
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
@@ -15,71 +16,104 @@ import (
 )
 
 type ResidentForward struct {
-	session                        *graphruntime.ResidentSession
-	program                        *graphruntime.ResidentProgram
-	input                          *tensor.Tensor
-	output                         *tensor.Tensor
-	image                          imageGeometry
+	session *graphruntime.ResidentSession
+	program *graphruntime.ResidentProgram
+	input   *tensor.Tensor
+	output  *tensor.Tensor
+	image   imageGeometry
+	// batch is how many images of image's size the input and output hold, one after another.
+	batch                          int
 	sampling, upload               *graphruntime.ResidentProgram
 	delta, next, initial, interval *tensor.Tensor
 }
 
-func CompileResidentForward(ctx context.Context, model *Model, ordinal, imageHeight, imageWidth int) (*ResidentForward, error) {
-	if model == nil || imageHeight <= 0 || imageWidth <= 0 || imageHeight%model.Cfg.PatchSize != 0 || imageWidth%model.Cfg.PatchSize != 0 {
+// CompileResidentForward compiles the network over batch images of the size given at once: each image's path its own
+// but for the transformer blocks, which interleave the batch as the author's network does (transformerImages). The
+// input and output hold the batch's images one after another, each in the graph's layout.
+func CompileResidentForward(ctx context.Context, model *Model, ordinal, batch, imageHeight, imageWidth int) (*ResidentForward, error) {
+	if model == nil || batch <= 0 || imageHeight <= 0 || imageWidth <= 0 || imageHeight%model.Cfg.PatchSize != 0 || imageWidth%model.Cfg.PatchSize != 0 {
 		return nil, errors.New("diffusionimage: invalid resident forward request")
 	}
 	graph := newModelGraph()
 	input := graph.builder.Input("simplediffusion.input", dtype.F32, tensor.MustShape(
-		uint64(model.Cfg.InChannels), uint64(imageWidth), uint64(imageHeight),
+		uint64(model.Cfg.InChannels), uint64(imageWidth), uint64(imageHeight*batch),
 	))
-	cur := graph.projection(input, model.patch, model.Cfg.InChannels, model.Cfg.BaseChannels, model.Cfg.PatchSize, model.Cfg.PatchSize)
+	plane := uint64(model.Cfg.InChannels * imageWidth * imageHeight)
+	curs := []*tensor.Tensor{input}
+	if batch > 1 {
+		curs = make([]*tensor.Tensor, batch)
+		for index := range curs {
+			curs[index] = graph.builder.FlatSlice(input, uint64(index)*plane, uint64(model.Cfg.InChannels), uint64(imageWidth), uint64(imageHeight))
+		}
+	}
+	each := func(apply func(*tensor.Tensor) *tensor.Tensor) {
+		for index, cur := range curs {
+			curs[index] = apply(cur)
+		}
+	}
+	each(func(cur *tensor.Tensor) *tensor.Tensor {
+		return graph.projection(cur, model.patch, model.Cfg.InChannels, model.Cfg.BaseChannels, model.Cfg.PatchSize, model.Cfg.PatchSize)
+	})
 	channels := model.Cfg.BaseChannels
 	height, width := imageHeight/model.Cfg.PatchSize, imageWidth/model.Cfg.PatchSize
-	currResidual := cur
-	residuals := make([]*tensor.Tensor, 0, len(model.encoders)-1)
-	applyBlock := func(owner block, value *tensor.Tensor) *tensor.Tensor {
+	currResiduals := slices.Clone(curs)
+	residuals := make([][]*tensor.Tensor, 0, len(model.encoders)-1)
+	applyBlock := func(owner block) {
 		switch typed := owner.(type) {
 		case *resBlock:
-			return graph.resBlock(typed, model.Cfg, value, channels, height, width)
+			each(func(cur *tensor.Tensor) *tensor.Tensor {
+				return graph.resBlock(typed, model.Cfg, cur, channels, height, width)
+			})
 		case *attnBlock:
-			return graph.transformerImage(typed, model.Cfg, value, channels, height, width)
+			curs = graph.transformerImages(typed, model.Cfg, curs, channels, height, width)
 		default:
 			graph.bindErr = errors.Join(graph.bindErr, fmt.Errorf("unsupported block %T", owner))
-			return value
 		}
 	}
 	for levelIndex := range model.encoders {
 		level := &model.encoders[levelIndex]
 		for _, owner := range level.blocks {
-			cur = applyBlock(owner, cur)
+			applyBlock(owner)
 		}
 		if levelIndex < len(model.encoders)-1 {
-			residuals = append(residuals, currResidual)
-			cur = graph.downsample(cur, level.transition, channels, channels*2)
+			residuals = append(residuals, currResiduals)
+			each(func(cur *tensor.Tensor) *tensor.Tensor {
+				return graph.downsample(cur, level.transition, channels, channels*2)
+			})
 			channels, height, width = channels*2, height/2, width/2
-			currResidual = cur
+			currResiduals = slices.Clone(curs)
 		}
 	}
 	for _, owner := range model.middle {
-		cur = applyBlock(owner, cur)
+		applyBlock(owner)
 	}
-	cur = graph.builder.Add(cur, graph.builder.Scale(currResidual, -model.middleResidual))
+	for index := range curs {
+		curs[index] = graph.builder.Add(curs[index], graph.builder.Scale(currResiduals[index], -model.middleResidual))
+	}
 	for levelIndex := range model.decoders {
 		level := &model.decoders[levelIndex]
 		for _, owner := range level.blocks {
-			cur = applyBlock(owner, cur)
+			applyBlock(owner)
 		}
 		if levelIndex < len(model.decoders)-1 {
-			cur = graph.upsample(cur, level.transition, channels, channels/2)
+			each(func(cur *tensor.Tensor) *tensor.Tensor {
+				return graph.upsample(cur, level.transition, channels, channels/2)
+			})
 			channels, height, width = channels/2, height*2, width*2
 			residual := residuals[len(residuals)-1]
 			residuals = residuals[:len(residuals)-1]
-			cur = graph.builder.Add(cur, graph.builder.Scale(residual, model.middleResidual))
+			for index := range curs {
+				curs[index] = graph.builder.Add(curs[index], graph.builder.Scale(residual[index], model.middleResidual))
+			}
 		}
 	}
-	output := graph.finalProjection(cur, model.final, imageGeometry{
-		channels: channels, height: height, width: width,
-	}, model.Cfg.InChannels, model.Cfg.PatchSize)
+	each(func(cur *tensor.Tensor) *tensor.Tensor {
+		return graph.finalProjection(cur, model.final, imageGeometry{channels: channels, height: height, width: width}, model.Cfg.InChannels, model.Cfg.PatchSize)
+	})
+	output := curs[0]
+	for _, cur := range curs[1:] {
+		output = graph.builder.Concat(output, cur, 2)
+	}
 	delta, next := samplingUpdate(graph.builder, input, output)
 	initial, interval := graph.builder.Scale(input, 1), graph.builder.Scale(delta, 1)
 	if err := graph.err("resident forward"); err != nil {
@@ -115,7 +149,7 @@ func CompileResidentForward(ctx context.Context, model *Model, ordinal, imageHei
 	session.Seal()
 	return &ResidentForward{
 		session: session, program: program, input: input, output: output,
-		image:    imageGeometry{channels: model.Cfg.InChannels, height: imageHeight, width: imageWidth},
+		image: imageGeometry{channels: model.Cfg.InChannels, height: imageHeight, width: imageWidth}, batch: batch,
 		sampling: sampling, upload: upload, delta: delta, next: next, initial: initial, interval: interval,
 	}, nil
 }
@@ -127,10 +161,10 @@ func samplingUpdate(builder *tensor.Builder, input, velocity *tensor.Tensor) (*t
 }
 
 func (forward *ResidentForward) Execute(ctx context.Context, input []float32) ([]float32, error) {
-	if forward == nil || forward.session == nil || len(input) != forward.image.channels*forward.image.height*forward.image.width {
+	if forward == nil || forward.session == nil || len(input) != forward.batch*forward.image.channels*forward.image.height*forward.image.width {
 		return nil, errors.New("diffusionimage: resident forward input mismatch")
 	}
-	graphInput := nchwToGraphImage(input, forward.image.channels, forward.image.height, forward.image.width)
+	graphInput := forward.layout(input, nchwToGraphImage)
 	value, err := reference.NewValue(forward.input.Shape, graphInput)
 	if err != nil {
 		return nil, err
@@ -139,7 +173,7 @@ func (forward *ResidentForward) Execute(ctx context.Context, input []float32) ([
 	if err != nil {
 		return nil, err
 	}
-	return graphImageToNCHW(result[forward.output].Data, forward.image.channels, forward.image.height, forward.image.width), nil
+	return forward.layout(result[forward.output].Data, graphImageToNCHW), nil
 }
 
 func (forward *ResidentForward) Sample(ctx context.Context, steps int, seed int64) (pixels []float32, err error) {
@@ -150,7 +184,7 @@ func (forward *ResidentForward) Sample(ctx context.Context, steps int, seed int6
 		return nil, err
 	}
 	rng := rand.New(rand.NewSource(seed))
-	pixels = make([]float32, forward.image.channels*forward.image.height*forward.image.width)
+	pixels = make([]float32, forward.batch*forward.image.channels*forward.image.height*forward.image.width)
 	for index := range pixels {
 		pixels[index] = float32(rng.NormFloat64())
 	}
@@ -161,7 +195,7 @@ func (forward *ResidentForward) Sample(ctx context.Context, steps int, seed int6
 	}
 	delta := sampler.Delta(tensor.FirstOffset)
 	initial, err := forward.session.Retain(ctx, forward.upload, map[*tensor.Tensor]reference.Value{
-		forward.input: {Shape: forward.input.Shape, Data: nchwToGraphImage(pixels, forward.image.channels, forward.image.height, forward.image.width)},
+		forward.input: {Shape: forward.input.Shape, Data: forward.layout(pixels, nchwToGraphImage)},
 		forward.delta: {Shape: forward.delta.Shape, Data: []float32{delta}},
 	}, nil)
 	if err != nil {
@@ -195,7 +229,7 @@ func (forward *ResidentForward) Sample(ctx context.Context, steps int, seed int6
 	if err != nil {
 		return nil, err
 	}
-	return graphImageToNCHW(result.Data, forward.image.channels, forward.image.height, forward.image.width), nil
+	return forward.layout(result.Data, graphImageToNCHW), nil
 }
 
 func (forward *ResidentForward) Stats(ctx context.Context) (graphruntime.ResidentStats, error) {
@@ -214,4 +248,14 @@ func (forward *ResidentForward) Close(ctx context.Context) error {
 	forward.program = nil
 	forward.sampling, forward.upload = nil, nil
 	return err
+}
+
+// layout converts the batch's images, one after another, each by convert: to the graph's layout or back to NCHW.
+func (forward *ResidentForward) layout(pixels []float32, convert func([]float32, int, int, int) []float32) []float32 {
+	plane := forward.image.channels * forward.image.height * forward.image.width
+	converted := make([]float32, 0, len(pixels))
+	for start := 0; start+plane <= len(pixels); start += plane {
+		converted = append(converted, convert(pixels[start:start+plane], forward.image.channels, forward.image.height, forward.image.width)...)
+	}
+	return converted
 }

@@ -57,7 +57,7 @@ func TestResidentSamplingDeviceAcceptance(t *testing.T) {
 		B, H, W int
 		X, Out  []float32
 	}](t, "real_forward")
-	forward := testcheck.Must(CompileResidentForward(t.Context(), model, 0, golden.H, golden.W))(t)
+	forward := testcheck.Must(CompileResidentForward(t.Context(), model, 0, 1, golden.H, golden.W))(t)
 	t.Cleanup(testutil.Closer(t, context.WithoutCancel(t.Context()), forward))
 	actual := testcheck.Must(forward.Execute(t.Context(), golden.X))(t)
 	requireWithin(t, "independent vendor forward", actual, golden.Out, tolReal)
@@ -189,7 +189,7 @@ func measureSamplingSequence(t *testing.T, directory, mode string) samplingMeasu
 		return value
 	}
 	started := counter()
-	forward := testcheck.Must(CompileResidentForward(t.Context(), model, 0, size, size))(t)
+	forward := testcheck.Must(CompileResidentForward(t.Context(), model, 0, 1, size, size))(t)
 	t.Cleanup(testutil.Closer(t, context.WithoutCancel(t.Context()), forward))
 	result := samplingMeasurement{Compile: counter() - started}
 	sample := func() []float32 {

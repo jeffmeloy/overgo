@@ -31,7 +31,7 @@ func TestRealResidentForwardLeadership(t *testing.T) {
 		hostDurations[index] = time.Since(started)
 	}
 	compileStarted := time.Now()
-	forward := testcheck.Must(CompileResidentForward(t.Context(), model, 0, golden.H, golden.W))(t)
+	forward := testcheck.Must(CompileResidentForward(t.Context(), model, 0, 1, golden.H, golden.W))(t)
 	defer forward.Close(context.Background())
 	compileWall := time.Since(compileStarted)
 	before := testcheck.Must(forward.Stats(t.Context()))(t)

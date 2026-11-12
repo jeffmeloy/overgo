@@ -8,24 +8,23 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 60,
-        "reason": "Filed 2026-11-11 from the owner's review of the README's samples: three draws on the card in a gap between readings, a finer reference for SimpleDiffusion, and one README rule. The lead's figure."
+        "nodes": -691,
+        "reason": "Filed 2026-11-11 from the owner's review of the README's samples: three draws on the card in a gap between readings, a finer reference for SimpleDiffusion, and one README rule. The lead's figure. Step simplediffusion-default: +136 (136, the median of what 126 landings that changed internal/diffusionimage, docs, cmd/validate, assets counted)."
       },
       "steps": [
         {
-          "id": "simplediffusion-fifty",
-          "title": "SimpleDiffusion is drawn at the author's 50 steps and held to the author's sampler at 50 over small squares, and the README shows that picture",
+          "id": "simplediffusion-default",
+          "title": "A SimpleDiffusion request draws a batch of sixteen by default, its frozen review cases acquired again drawn so",
           "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -count=1 -run '^TestServedSampleMatchesTheUpstreamSampler$'",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/diffusionimage -count=1 -run '^TestFrozenDiffusionGeneration$'",
           "files": [
-            "internal/adaptiveparity",
-            "fixtures/simplediffusion",
             "internal/diffusionimage",
-            "README.md",
+            "docs",
+            "cmd/validate",
             "assets"
           ],
           "needs_card": true,
-          "rationale": "Serves: the owner's review of 2026-11-11: the README's SimpleDiffusion sample, 8 steps, is pale, blurred and noisy, while the author's sheet beside the weights (epoch_799.png, sixteen samples of sample() at its default 50 steps) shows crisp pixel-art characters.\n\nDisappears: a sampler held to the author's only at 8 steps and only as colour means over 8-pixel squares, a comparison too coarse to see the pixel art.\n\nThe change: scripts/python_golden_references/simplediffusion_upstream_sample.py writes fixtures/simplediffusion/upstream_sample.json again at 50 steps over 2-pixel squares, from the noise overgo draws for the seed; TestServedSampleMatchesTheUpstreamSampler holds the served sample to it at a floor measured on the card; the README shows overgo's 50-step picture, exported by cmd/validate. If the 50-step picture still looks like the 8-step one beside the author's sheet, that is a fault in overgo's sampler or its pixels, found and fixed in this step.\n\nCheck: the test passes at 50 steps over 2-pixel squares above the measured floor.\n\nBatch: device lane, in a gap between two readings.\n\nNote: 2026-11-11, on the card: the fault is the batch. The author's sampler at 50 steps from overgo's noise for seed 2026, drawn alone (batch 1) as overgo draws, gives the same pale, noisy picture as overgo's 8-step one (mean 0.62, standard deviation 0.20); drawn sixteen at once, as train.py's sample() draws (n_samples=16), the first sample from that same noise is crisp pixel art like epoch_799.png (standard deviation 0.53), and so are the other fifteen. models/uvit.py's TransformerBlock reads [B, C, H, W] as tokens by x.reshape(b, h*w, c), with no transpose, and writes back by x.permute(1, 2, 0).reshape(b, c, h, w), which interleaves every sample of the batch into each output; the weights were trained at batches of 16 to 128, so a sample drawn alone is out of their distribution. overgo agrees with the author's code at batch 1 (53 dB over 8-pixel squares at 8 steps), so it reproduces the broken single draw faithfully. The weights' tensors show residual blocks at every level and transformers only in the middle (16 blocks), as simplediffusion_upstream_sample.py builds it; train.py's text names thresholds 2 and 4, which these weights do not fit. The fix: the served request draws a batch of sixteen through a batch-capable graph, each noise from the seed in order, as sample() does, with the TransformerBlock's two reshapes reproduced exactly; the README shows the 4 x 4 sheet at 50 steps, as the author's does; the upstream fixture is written at --batch 16 over small squares and held per sample. simplediffusion_upstream_sample.py gains --batch (the first noise the file's, the rest torch's from seed 0) and --dtype (bfloat16 as train.py ran; it changes little: standard deviation 0.529 against 0.532). Pictures: tmp/readme-samples/author-sampler-batch1-50steps.png and author-sampler-batch16-50steps.png."
+          "rationale": "Serves: the owner's review of 2026-11-11: SimpleDiffusion's pictures look bad; readme-samples/simplediffusion-fifty found the cause, a picture drawn alone, and left the default at one because the frozen review cases pin it.\n\nDisappears: a SimpleDiffusion request that names no batch drawing one pale, noisy picture: the model mixes the pictures of a batch in its transformer blocks (models/uvit.py's TransformerBlock writes back by permute(1, 2, 0)) and was trained on batches of 16 to 128, and its author's sampler draws sixteen.\n\nThe change: the two frozen review cases of docs/image_video_protocol.json (SimpleDiffusion image-gen 1 and 2, seed 5 and 105, 8 steps at 256 x 256) are acquired again drawn in a batch of sixteen, through the campaign's acquisition and review as the protocol asks, the protocol's originals, docs/image_video_processing.json, docs/image_video_latent_images.json and the coverage record moved to them, and the request's batch defaults to sixteen; TestFrozenDiffusionGeneration pins the new originals.\n\nCheck: TestFrozenDiffusionGeneration draws the frozen cases at the default batch and finds the protocol's originals.\n\nBatch: device lane; the acquisition writes the store."
         }
       ]
     },

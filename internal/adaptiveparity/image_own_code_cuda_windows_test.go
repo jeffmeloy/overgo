@@ -3,11 +3,12 @@
 package adaptiveparity
 
 import (
+	"image"
+	"math"
 	"path/filepath"
 	"testing"
 
 	cudatest "overgo/internal/cuda/testutil"
-	"overgo/internal/diffusionimage"
 	"overgo/internal/jsonfile"
 	"overgo/internal/modeltest"
 	"overgo/internal/sensenovarecipe"
@@ -96,37 +97,42 @@ const upstreamSampleScript = "scripts/python_golden_references/simplediffusion_u
 
 // upstreamSample is what the diffusion model's upstream sampler drew: the
 // function sample() of the training script beside its weights, over the
-// network of its repository, from the noise overgo draws for Seed, at the size
-// and steps given. Means holds the picture as the mean of every colour over
-// squares of Square pixels, a byte each, row by row.
+// network of its repository, a batch of Batch pictures at once from the noise
+// overgo draws for Seed, at the size and steps given. Samples holds each
+// picture, in the batch's order, as the mean of every colour over squares of
+// Square pixels, a byte each, row by row.
 type upstreamSample struct {
-	Original string `json:"original"`
-	Torch    string `json:"torch"`
-	Width    int    `json:"width"`
-	Height   int    `json:"height"`
-	Steps    int    `json:"steps"`
-	Seed     int64  `json:"seed"`
-	Square   int    `json:"square"`
-	Means    []byte `json:"means"`
+	Original string   `json:"original"`
+	Torch    string   `json:"torch"`
+	Type     string   `json:"dtype"`
+	Width    int      `json:"width"`
+	Height   int      `json:"height"`
+	Steps    int      `json:"steps"`
+	Seed     int64    `json:"seed"`
+	Batch    int      `json:"batch"`
+	Square   int      `json:"square"`
+	Samples  [][]byte `json:"samples"`
 }
 
-// upstreamSampleFloor is the agreement, in dB over the fixture's squares, a
-// served sample is held to against the upstream sampler's. The served sample
-// agrees with it at 53 dB. The upstream sampler's own picture in one step
-// fewer stands at 42 dB from this one, and from another seed's noise at 23.
-const upstreamSampleFloor = 48
+// upstreamSheetColumns and upstreamSheetPadding lay a batch out as the author's sampler saves it (torchvision's
+// save_image, nrow=4, padding=2), as the served sheet lays it out.
+const upstreamSheetColumns, upstreamSheetPadding = 4, 2
 
-// TestServedSampleMatchesTheUpstreamSampler holds the picture a request is
-// served by SimpleDiffusion to its upstream sampler: the same size and steps,
-// from the same noise. The network's output is held to the upstream network's
-// on its real weights at 32 by 32; this is the request's path around it, the
-// steps taken along that output and the range the picture is written in, at
-// the size and steps of the model's accepted sample.
+// upstreamSampleFloor is the agreement, in dB over the fixture's squares, each served picture of the batch is held to
+// against the upstream sampler's of the same place in the batch. Seed 2026's sixteen agree at 49.1 to 53.2 dB over
+// 4-pixel squares; the upstream sampler's own picture of the batch's first noise drawn alone stands at 11.9 dB from it.
+const upstreamSampleFloor = 45
+
+// TestServedSampleMatchesTheUpstreamSampler holds the sheet a request is served by SimpleDiffusion to its upstream
+// sampler, picture by picture: the same size and steps, a batch of sixteen drawn at once from the same noise, at the
+// author's 50 steps. The network's output is held to the upstream network's on its real weights at 32 by 32; this is
+// the request's path around it, the batch the transformer blocks interleave (models/uvit.py's TransformerBlock writes
+// its tokens back by permute(1, 2, 0), so each picture reads every other: drawn alone, a picture is pale and noisy), the
+// steps taken along that output and the range the pictures are written in.
 //
-// The noise is overgo's own. The upstream sampler draws torch's, which a seed
-// of overgo's does not name, so the reference is given the noise overgo draws
-// for the seed and what is held is everything after it. A change to how
-// overgo draws its noise needs the fixture written again.
+// The noise is overgo's own. The upstream sampler draws torch's, which a seed of overgo's does not name, so the
+// reference is given the noise overgo draws for the seed, the whole batch's, and what is held is everything after it.
+// A change to how overgo draws its noise needs the fixture written again.
 func TestServedSampleMatchesTheUpstreamSampler(t *testing.T) {
 	cudatest.Require(t)
 	directory := modeltest.Directory(t, "SimpleDiffusion-TensorProductAttentionRope")
@@ -137,11 +143,26 @@ func TestServedSampleMatchesTheUpstreamSampler(t *testing.T) {
 	if cudatest.MeasurementProcess(t, 0) {
 		return
 	}
-	agreement := pictureServing(t, directory, "upstream-sample").agreement(t,
-		diffusionimage.Request{Seed: upstream.Seed, Steps: upstream.Steps, Height: upstream.Height, Width: upstream.Width},
-		upstream.Width, upstream.Height, upstream.Square, upstream.Means)
-	t.Logf("seed %d: the served sample against the upstream sampler's, %.2f dB over %d-pixel squares", upstream.Seed, agreement, upstream.Square)
-	if agreement < upstreamSampleFloor {
-		t.Errorf("the served sample agrees with the upstream sampler's at %.2f dB over %d-pixel squares, below %d", agreement, upstream.Square, upstreamSampleFloor)
+	// The request a page sends for the sheet, in its own words.
+	sheet := pictureServing(t, directory, "upstream-sample").picture(t, map[string]any{
+		"seed": upstream.Seed, "steps": upstream.Steps, "height": upstream.Height, "width": upstream.Width, "batch": upstream.Batch,
+		"sheet": true})
+	cutter, ok := sheet.(interface {
+		SubImage(image.Rectangle) image.Image
+	})
+	if !ok || len(upstream.Samples) != upstream.Batch {
+		t.Fatalf("a served sheet is %T and the fixture holds %d of its batch of %d", sheet, len(upstream.Samples), upstream.Batch)
+	}
+	least := math.Inf(1)
+	for index, reference := range upstream.Samples {
+		left := sheet.Bounds().Min.X + upstreamSheetPadding + index%upstreamSheetColumns*(upstream.Width+upstreamSheetPadding)
+		top := sheet.Bounds().Min.Y + upstreamSheetPadding + index/upstreamSheetColumns*(upstream.Height+upstreamSheetPadding)
+		tile := cutter.SubImage(image.Rect(left, top, left+upstream.Width, top+upstream.Height))
+		agreement := meansAgreement(t, tile, upstream.Width, upstream.Height, upstream.Square, reference)
+		t.Logf("seed %d, picture %d: the served picture against the upstream sampler's, %.2f dB over %d-pixel squares", upstream.Seed, index, agreement, upstream.Square)
+		least = min(least, agreement)
+	}
+	if least < upstreamSampleFloor {
+		t.Errorf("a served picture agrees with the upstream sampler's at %.2f dB over %d-pixel squares, below %d", least, upstream.Square, upstreamSampleFloor)
 	}
 }

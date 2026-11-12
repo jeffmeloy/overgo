@@ -12,6 +12,8 @@ var genericSegments = map[string]bool{
 	"text_encoder": true, "transformer": true, "vae": true,
 	"scheduler": true, "tokenizer": true,
 	"classification": true, "regression": true,
+	// A repository's weights folder: Self-Forcing keeps self_forcing_dmd.pt under checkpoints.
+	"checkpoints": true,
 }
 
 // LocationName derives a distinctive name from a recorded weights location:

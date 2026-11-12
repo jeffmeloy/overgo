@@ -15,6 +15,9 @@ func TestLocationNameNamesTheModelNotItsParts(t *testing.T) {
 		`C:\models\tabfm-1.0.0-pytorch\classification\model.safetensors`: "tabfm-1.0.0-pytorch",
 		`C:\models\LiveEdit\ar-forcing_002000.pt`:                        "LiveEdit",
 		`C:\models\Wan\model-00001-of-00008.safetensors`:                 "Wan",
+		// Self-Forcing keeps its weights in a checkpoints folder; its row was named "checkpoints" (readme-speed).
+		`C:\models\Self-Forcing\checkpoints\self_forcing_dmd.pt`: "Self-Forcing",
+		`C:\data\checkpoints\qwen25-05b-judged-proof`:            "qwen25-05b-judged-proof",
 	} {
 		if got := LocationName(location); got != want {
 			t.Errorf("LocationName(%q) = %q, want %q", location, got, want)

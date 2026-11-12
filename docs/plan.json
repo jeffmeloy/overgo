@@ -35,21 +35,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 491,
+        "nodes": 488,
         "reason": "Filed 2026-11-11 from the owner's review of the README's speed table: a measurement and a record, no code. The lead's figure. Step names: +491 (491, the median of what 8 landings that changed internal/discovery, internal/scorecard counted)."
       },
       "steps": [
-        {
-          "id": "names",
-          "title": "A model whose weights sit in a checkpoints folder is named by its repository, and the README's words name Self-Forcing and gemma-4-12B-it",
-          "status": "open",
-          "verify": "go test ./internal/discovery -count=1 -run '^TestLocationNameNamesTheModelNotItsParts$'",
-          "files": [
-            "internal/discovery",
-            "internal/scorecard"
-          ],
-          "rationale": "Serves: the owner's review of the README's speed table, 2026-11-11: writing it found two served rows the README's words file names no words for, so validate -readme refuses every record that holds them.\n\nThe change: discovery.LocationName takes a checkpoints folder for a repository's weights folder, as it takes transformer or vae, so Self-Forcing, whose weights are Self-Forcing/checkpoints/self_forcing_dmd.pt, is named Self-Forcing, not \"checkpoints\"; a trained model under the data root's checkpoints folder keeps its own folder's name. internal/scorecard/served_models.json names Self-Forcing (Wan2.1-T2V 1.3B, distilled; text to video) and gemma-4-12B-it (its published bf16 files; text and vision-language), both new to the catalog since 2026-11-07.\n\nCheck: TestLocationNameNamesTheModelNotItsParts wants Self-Forcing's weights named Self-Forcing and a trained model under checkpoints named by its own folder. At the base the first is named \"checkpoints\", and it fails there on its assertion.\n\nBatch: host lane."
-        },
         {
           "id": "measured",
           "title": "Each chat model's prompt processing at 4,096 and 16,384 tokens is read again with its token counts, the record published, and the table written from it",

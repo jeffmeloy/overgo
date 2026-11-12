@@ -31,7 +31,6 @@ import (
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelcli"
 	"overgo/internal/overgodb"
-	"overgo/internal/processcontrol"
 	"overgo/internal/processmeasure"
 	"overgo/internal/quietmachine"
 	"overgo/internal/recipe"
@@ -251,17 +250,13 @@ func run(args []string, output io.Writer) error {
 			return err
 		}
 		defer cuda.Close()
-		admissionStart := time.Now()
-		fmt.Fprintln(output, "long-form device admission: waiting for the device's holder; no models loaded")
-		err = processcontrol.AwaitResource(ctx, func() error {
-			info, err := cuda.ReserveDevice(options.Device)
-			options.deviceInfo = info
-			return err
-		})
-		if err != nil {
+		if err := cuda.Init(); err != nil {
 			return err
 		}
-		fmt.Fprintf(output, "long-form device admitted after %s\n", time.Since(admissionStart))
+		// The models' contexts wait for the card's turn as they are created, and say for whom.
+		if options.deviceInfo, err = cuda.DeviceInfo(options.Device); err != nil {
+			return err
+		}
 		return runTargets(ctx, output, options, targets, commit, surface, measure, publish)
 	})
 }

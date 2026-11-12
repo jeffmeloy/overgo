@@ -3,7 +3,6 @@
 package driver
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"maps"
@@ -447,43 +446,29 @@ func cardTurn(uuid string) string { return "overgo-card-turn:" + uuid }
 
 // ContextCreate creates CUDA context for device; calling goroutine
 // must remain locked to its OS thread while it uses context. The context
-// holds the device's shared claim for its life. While another process
-// holds the device exclusively, as a guard run or a lane measurement does,
-// creation waits until that holder releases the device or exits instead
-// of failing. No caller context ends the wait: the device worker that
-// creates every context carries none, and every holder is a process whose
-// claim the system ends when it exits.
-//   - in the card's one turn (card-turn/turn), taken after the shared claim, as every claim on the card is taken
-//     before its turn, so no claimer waits for a turn while its holder waits for the claim: a process holds the turn
-//     while any context of its lives, and one waiting for it says which process holds it and for what.
+// is created in the card's one turn, which every user of the card queues
+// for (card-turn): a process holds the turn while any context of its
+// lives, and one waiting for it says which process holds it and for what.
+// No caller context ends the wait: every holder is a process whose turn
+// the system hands on when it ends.
 func (l *Library) ContextCreate(device Device, flags uint32) (Context, error) {
 	var created Context
-	var uuid string
-	var shared func() error
-	// Each claim holds contextMu and the wait between claims does not, so
-	// a wait on another process's hold blocks no other call on the library.
-	err := processcontrol.AwaitResource(context.Background(), func() error {
+	uuid, err := func() (string, error) {
 		l.contextMu.Lock()
 		defer l.contextMu.Unlock()
 		if l.dll == nil {
-			return errors.New("CUDA library is closed")
+			return "", errors.New("CUDA library is closed")
 		}
-		var err error
-		if uuid, err = l.DeviceUUID(device); err != nil {
-			return err
-		}
-		shared, err = processcontrol.ShareResource(uuid)
-		return err
-	})
+		return l.DeviceUUID(device)
+	}()
 	if err != nil {
 		return 0, err
 	}
 	// The wait for the turn holds no lock of the library's.
-	turn, err := processcontrol.TakeTurn(cardTurn(uuid), processcontrol.CommandPurpose(), os.Stderr)
+	release, err := processcontrol.TakeTurn(cardTurn(uuid), processcontrol.CommandPurpose(), os.Stderr)
 	if err != nil {
-		return 0, errors.Join(err, shared())
+		return 0, err
 	}
-	release := func() error { return errors.Join(turn(), shared()) }
 	l.contextMu.Lock()
 	defer l.contextMu.Unlock()
 	if l.dll == nil {

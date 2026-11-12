@@ -6,9 +6,9 @@ import (
 )
 
 // TestADeviceRunRunsEverySelectedTestAfresh holds the device lane to running each test it selects, never replaying a
-// cached pass, since go test keys no file outside the module, the driver and the data root's models among them: the
-// correctness run and the measurement run each carry -count=1 once. The lane prints go test's line for each package
-// that passed and nothing else of the stream, so the landing counts them.
+// cached pass, since go test keys no file outside the module, the driver and the data root's models among them: each
+// test step carries -count=1 once. The lane prints go test's line for each package that passed, and each test's line
+// saying how long it waited for the card's turn, and nothing else of the stream, so the landing counts them.
 func TestADeviceRunRunsEverySelectedTestAfresh(t *testing.T) {
 	t.Parallel()
 	once := func(command []string) bool {
@@ -16,10 +16,7 @@ func TestADeviceRunRunsEverySelectedTestAfresh(t *testing.T) {
 	}
 	step := deviceTestStep("./pkg")
 	if !once(step) {
-		t.Fatalf("a correctness run is %v, want it run afresh once", step)
-	}
-	if _, measurement := splitTestStep(step, []string{"TestMeasured"}); !once(measurement) {
-		t.Fatalf("a measurement run is %v, want it run afresh once", measurement)
+		t.Fatalf("a test step is %v, want it run afresh once", step)
 	}
 	const stream = `{"Action":"start","Package":"overgo/a"}
 {"Action":"output","Package":"overgo/a","Output":"ok  \tovergo/a\t(cached)\n"}
@@ -27,9 +24,10 @@ func TestADeviceRunRunsEverySelectedTestAfresh(t *testing.T) {
 {"Action":"output","Package":"overgo/b","Test":"TestB","Output":"--- PASS: TestB (0.01s)\n"}
 {"Action":"output","Package":"overgo/b","Output":"ok  \tovergo/b\t1.250s\n"}
 {"Action":"output","Package":"overgo/c","Output":"FAIL\tovergo/c\t0.100s\n"}
+{"Action":"output","Package":"overgo/d","Output":"d.test.exe (pid 5) took the turn overgo-card-turn:GPU-1 after 2s\n"}
 not json
 `
-	if got, want := passedPackageLines(stream), "ok  \tovergo/a\t(cached)\nok  \tovergo/b\t1.250s\n"; got != want {
-		t.Fatalf("the lane prints %q of the stream, want the passed packages' lines %q", got, want)
+	if got, want := passedPackageLines(stream), "ok  \tovergo/a\t(cached)\nok  \tovergo/b\t1.250s\nd.test.exe (pid 5) took the turn overgo-card-turn:GPU-1 after 2s\n"; got != want {
+		t.Fatalf("the lane prints %q of the stream, want the passed packages' lines and the card's waits %q", got, want)
 	}
 }

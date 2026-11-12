@@ -49,16 +49,14 @@ func TestSliceRecordKeepsTheLandedIdentity(t *testing.T) {
 }
 
 // TestSliceClassifiesEachOutcome holds a slice that cannot run to a record,
-// never a process error: a claimed or exhausted device is unavailable and
-// says nothing of the code; any other error is a failure on one line with
-// a failure-rate of one, keeping what the slice had selected.
+// never a process error: any error, an exhausted card among them, since the
+// slice measures on the card alone in its turn, is a failure on one line
+// with a failure-rate of one, keeping what the slice had selected.
 func TestSliceClassifiesEachOutcome(t *testing.T) {
 	t.Parallel()
 	selected := metric.Record{Identity: "identity", Model: "small"}
-	for _, err := range []error{processcontrol.ErrResourceBusy, fmt.Errorf("load: %w", processcontrol.ErrDeviceMemory)} {
-		if record := failedSlice(selected, err); !strings.HasPrefix(record.Unmeasured, "unavailable: ") || record.Failure != "" || record.Metrics != nil {
-			t.Fatalf("%v gave %+v, want unavailable", err, record)
-		}
+	if record := failedSlice(selected, fmt.Errorf("load: %w", processcontrol.ErrDeviceMemory)); record.Failure == "" || record.Unmeasured != "" || record.Metrics[metric.Failures] != 1 {
+		t.Fatalf("an exhausted card gave %+v, want a failure", record)
 	}
 	record := failedSlice(selected, errors.New("decode:\n  panic in\tlayer 3"))
 	if record.Failure != "decode: panic in layer 3" || record.Metrics[metric.Failures] != 1 || record.Identity != "identity" {

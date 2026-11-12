@@ -142,7 +142,8 @@ func ResolveDispatch(ctx context.Context, root string, request DispatchRequest) 
 	if document.parked, err = readParked(repository, head); err != nil {
 		return Dispatch{}, err
 	}
-	document.cardHeld = cardHeld(repository)
+	run, recorded := ReadMeasurementRun(repository)
+	document.cardHeld = recorded && run.HoldsTheCard()
 	dispatch, err := selectDispatch(document, role, request.Reference)
 	if err != nil {
 		return Dispatch{}, err

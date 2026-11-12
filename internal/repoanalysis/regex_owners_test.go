@@ -14,7 +14,7 @@ import (
 // grammar is a pattern language by nature, not structured data a typed
 // decoder owns. Removing the last regexp from a file removes it here.
 var regexOwners = map[string]string{
-	"cmd/device-lane/admission.go":             "compiles a go test -run selector, which is a regular expression",
+	"cmd/device-lane/evidence.go":              "compiles a go test -run selector, which is a regular expression",
 	"cmd/device-lane/main.go":                  "compiles a go test -run selector, which is a regular expression",
 	"cmd/webui-lane/main.go":                   "compiles a go test -run selector, which is a regular expression",
 	"internal/cuda/testutil/require.go":        "quotes a test name into a go test -run selector",

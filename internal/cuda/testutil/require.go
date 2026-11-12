@@ -3,11 +3,9 @@ package testutil
 
 import (
 	"bytes"
-	"context"
 	"os"
 	"regexp"
 	"testing"
-	"time"
 
 	"overgo/internal/cuda/driver"
 	"overgo/internal/processcontrol"
@@ -30,30 +28,19 @@ func Require(t testing.TB) {
 	_ = os.Getenv(driver.IdentityEnvironment)
 }
 
-// MeasurementProcess runs this test in an exclusive child process. The caller
-// returns when true; false means the child owns admission and runs the test body.
-// Call after fixture admission and before creating contexts or changing inputs.
-func MeasurementProcess(t *testing.T, ordinal int) bool {
+// MeasurementProcess runs this test in a child process of its own, whose
+// contexts hold the card's turn while it measures, as every card user's do
+// (card-turn), so it measures on the card alone. The caller returns when
+// true; false means this is the child, which runs the test body. Call after
+// fixture admission and before creating contexts or changing inputs. The
+// ordinal is no longer read: the turn is the card's, taken as a context is.
+func MeasurementProcess(t *testing.T, _ int) bool {
 	t.Helper()
-	ctx := t.Context()
-	deadline, bounded := t.Deadline()
-	if bounded {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithDeadlineCause(ctx, deadline, context.DeadlineExceeded)
-		defer cancel()
-	}
 	const childEnvironment = "OVERGO_CUDA_MEASUREMENT_TEST"
 	if os.Getenv(childEnvironment) != t.Name() {
 		var stdout, stderr bytes.Buffer
-		args := []string{"-test.run=^" + regexp.QuoteMeta(t.Name()) + "$", "-test.v"}
-		if bounded {
-			remaining := time.Until(deadline)
-			if remaining <= 0 {
-				t.Fatal("measurement deadline exhausted before launch")
-			}
-			args = append(args, "-test.timeout="+remaining.String())
-		}
-		receipt, err := processcontrol.Run(ctx, processcontrol.Command{
+		args := []string{"-test.run=^" + regexp.QuoteMeta(t.Name()) + "$", "-test.v", "-test.timeout=0"}
+		receipt, err := processcontrol.Run(t.Context(), processcontrol.Command{
 			Path:   os.Args[0],
 			Args:   args,
 			Env:    append(os.Environ(), childEnvironment+"="+t.Name()),
@@ -71,17 +58,6 @@ func MeasurementProcess(t *testing.T, ordinal int) bool {
 			t.Fatal(err)
 		}
 		return true
-	}
-	library, err := driver.Open()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer library.Close()
-	if err := processcontrol.AwaitResource(ctx, func() error {
-		_, err := library.ReserveDevice(ordinal)
-		return err
-	}); err != nil {
-		t.Fatal(err)
 	}
 	return false
 }

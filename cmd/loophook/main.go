@@ -510,11 +510,6 @@ func measurementRun() string {
 	if run, kept := plan.ReadMeasurementRun("."); kept {
 		lines = append(lines, "OVERGO MEASUREMENT RUN: "+run.Report()+".")
 	}
-	// A session's own run holding the card is why dispatch passes over the steps that need it (plan.CardHold).
-	if hold, held := plan.ReadCardHold("."); held && hold.HoldsTheCard() {
-		lines = append(lines, fmt.Sprintf("OVERGO CARD HELD: process %d holds the card for %s, since %s; dispatch passes over card steps while it lives.",
-			hold.Process, hold.Purpose, hold.Started.Format(time.DateTime)))
-	}
 	return strings.Join(lines, "\n")
 }
 

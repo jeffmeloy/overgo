@@ -150,17 +150,8 @@ func run(args []string) error {
 	endSession := flags.String("end-session", "", "with -leftovers: record that the session of this id has ended, as the session-end hook does, for a session that ended before the hook was there; its scratch folder may then be finished, and nothing is removed")
 	confirmToken := flags.String("confirm", "", "with -leftovers -delete or -withdraw: the token the listing printed; removes or withdraws exactly the entries that listing showed, a line each, appended to a receipt in the trunk checkout's process state, and is refused when the listing is no longer the same")
 	closeout := flags.Bool("closeout", false, "the campaign's close-out check: list every place files accumulate, without sizes, write the listing to the trunk checkout's process state, and fail while an entry of a line whose action is delete is finished; removes nothing, and takes no -delete and no -withdraw")
-	holdCard := flags.String("hold-card", "", "record that the run of -process holds the graphics card for what this names (a campaign of readings, a training run), in this checkout's process state: while that process lives dispatch passes over the steps that need the card, as it does for a measurement run, and the hold lapses as the process ends")
-	holdProcess := flags.Int("process", 0, "with -hold-card: the process of the run that holds the card")
 	if err := flags.Parse(args); err != nil {
 		return err
-	}
-	if *holdCard != "" {
-		if err := plan.HoldCard(loopWorktree, *holdProcess, *holdCard); err != nil {
-			return err
-		}
-		fmt.Printf("loop: process %d holds the card for %s; dispatch passes over card steps while it lives\n", *holdProcess, *holdCard)
-		return nil
 	}
 	// A close-out is never a removal: with -closeout a place or a run's directory is refused as it is without -leftovers.
 	if err := removalFlags(*leftovers && !*closeout, *deletePlace, *withdrawRun, *confirmToken); err != nil {

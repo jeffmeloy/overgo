@@ -320,7 +320,7 @@ func measureArms(options options, prompts []string, loaded func(benchmarkResult)
 	if err := cuda.Init(); err != nil {
 		return benchmarkResult{}, nil, nil, err
 	}
-	device, err := cuda.ReserveDevice(options.Device)
+	device, err := cuda.DeviceInfo(options.Device)
 	if err != nil {
 		return benchmarkResult{}, nil, nil, err
 	}

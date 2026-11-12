@@ -3,38 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "card-turn",
-      "title": "Every card user queues on one card turn, taken where a CUDA context is created, in place of the admissions, the card hold and the unavailable pass",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": -2095,
-        "reason": "Filed 2026-11-12 from the owner's direction: a simplification, not an addition. The turn is one ResourceTransaction taken in the driver, as laneTurn already is, and a place a child inherits; it retires the shared and claimed card admissions (driver_windows.go context creation, cuda/testutil MeasurementProcess and ReserveDevice, cmd/device-lane's admission), the card hold (internal/plan/card_hold.go, loop -hold-card, loophook's notice) and the scorecard's unavailable pass, which together hold more than the turn adds. The lead's figure."
-      },
-      "steps": [
-        {
-          "id": "retire-admissions",
-          "title": "The card's shared and claimed admissions, the card hold and the scorecard's unavailable pass are gone, the card turn their one replacement",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestTheCardTurnIsTheOnlyCardAdmission$'",
-          "files": [
-            "internal/processcontrol",
-            "internal/cuda",
-            "internal/plan",
-            "cmd/loop",
-            "cmd/loophook",
-            "internal/landing",
-            "cmd/device-lane",
-            "cmd/benchmark",
-            "cmd/longform",
-            "internal/modelswap",
-            "internal/repoanalysis"
-          ],
-          "rationale": "Serves: the owner's direction of 2026-11-12: this retires ShareResource/ClaimResource admission in MeasurementProcess and context creation, the card_hold.json note, and the scorecard's \"unavailable\" pass.\n\nDisappears: four ways of saying who has the card, each read by some users and not others: the shared admission at context creation and the claimed one of a measurement (cuda/testutil MeasurementProcess, ReserveDevice in cmd/benchmark and cmd/longform, cmd/device-lane's admission), the card hold a session writes for the plan's dispatch (internal/plan/card_hold.go, loop -hold-card, loophook's notice), and the scorecard stage's unavailable record when the card is claimed. Dispatch passes over a card step while the card turn is held, read from the turn itself.\n\nCheck: TestTheCardTurnIsTheOnlyCardAdmission reads the module and wants no card admission but the turn: no ShareResource, ClaimResource or HoldResource of a device's identity, no ReserveDevice, no card hold file, and no unavailable pass in the scorecard stage; the quiet machine's own holds are not the card's.\n\nBatch: host lane."
-        }
-      ]
-    },
-    {
       "id": "refusal-advice",
       "title": "A refusal's advice fixes what it names, and a refusal whose fix the tool knows is not a refusal",
       "class": "consolidation",

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"regexp"
 	"slices"
 
 	"overgo/internal/devicescope"
@@ -33,4 +34,17 @@ func verifyDeviceContracts(command []string, output string) error {
 		return fmt.Errorf("device contract: %w", err)
 	}
 	return nil
+}
+
+// stepTestPattern returns the step's own selection under flag, or nil when it selects every test.
+func stepTestPattern(step []string, flag string) *regexp.Regexp {
+	var selected *regexp.Regexp
+	for index, argument := range step {
+		if argument == flag && index+1 < len(step) {
+			if pattern, err := regexp.Compile(step[index+1]); err == nil {
+				selected = pattern
+			}
+		}
+	}
+	return selected
 }

@@ -32,7 +32,7 @@ var lockResources = map[string]string{
 	"internal/landing/candidate.go:.lock": "one worktree a landing's stages read its candidate in",
 	"internal/overgodb/backup.go:.lock":   "a store backup's destination",
 	"internal/overgodb/store.go:.lock":    "one store's journal, segments and checkpoints",
-	"internal/processcontrol/resource_shared_windows.go:.lock": "a machine-wide resource by its name: the card, the quiet machine",
+	"internal/processcontrol/resource_shared_windows.go:.lock": "a machine-wide resource by its name: the quiet machine, a campaign's resources",
 }
 
 // TestEachResourceHasOneLock holds the production code's locks to lockResources: every lock file a source names is

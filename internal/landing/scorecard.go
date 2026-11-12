@@ -101,8 +101,8 @@ func measured(record metric.Record) bool {
 // runSlice runs the benchmark over the slice and returns its outcome. The
 // benchmark prints what it selected before it measures, so a run that ends
 // without an outcome keeps the model it selected and fails with the
-// benchmark's own error. A claimed or exhausted device is printed as an
-// unavailable record, so no exit stands for one.
+// benchmark's own error. The benchmark measures in the card's turn, on the
+// card alone (card-turn), so an exhausted card is its failure.
 func (l *landing) runSlice(ctx context.Context, directory, binary string) (metric.Record, error) {
 	errorFile, err := os.CreateTemp(directory, "error-*.txt")
 	if err != nil {

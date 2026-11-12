@@ -15,7 +15,6 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
-	"slices"
 	"strings"
 	"time"
 	"unicode"
@@ -69,10 +68,6 @@ func run() error {
 		return err
 	}
 	defer os.RemoveAll(buildDir)
-	identity, err := deviceIdentity()
-	if err != nil {
-		return runrecord.LaneError(runrecord.LaneUnavailable, err.Error())
-	}
 	for index, step := range steps {
 		began := time.Now()
 		done, stopped := make(chan struct{}), make(chan struct{})
@@ -85,35 +80,18 @@ func run() error {
 			return runrecord.LaneError(runrecord.LaneFailed, err.Error())
 		}
 		var stdout, stderr bytes.Buffer
-		var receipt processcontrol.Receipt
-		// Commands and correctness tests share admission. Measurement tests
-		// run outside that lease so their exclusive children can acquire.
-		run := func(ctx context.Context, command []string) (int, error) {
-			stdout.Reset()
-			stderr.Reset()
-			var err error
-			receipt, err = processcontrol.Run(ctx, processcontrol.Command{
-				Path: command[0], Args: command[1:], Env: append(os.Environ(), cudaTestEnv+"=1"),
-				Stdout: &stdout, Stderr: &stderr,
-			})
-			fmt.Print(passedPackageLines(stdout.String()))
-			if err == nil && receipt.ExitCode == 0 {
-				err = verifyDeviceContracts(command, stdout.String())
-			}
-			return receipt.ExitCode, err
-		}
-		var code int
-		if index == 0 {
-			// Device metadata creates no context and needs no GPU lease.
-			code, err = run(ctx, command)
-		} else if slices.Equal(command, step) {
-			code, err = runTestStep(ctx, os.Stdout, identity, step, run)
-		} else {
-			code, err = runStepAdmitted(ctx, os.Stdout, identity, deviceAdmissionBudget, func(ctx context.Context) (int, error) { return run(ctx, command) })
+		// Each step's contexts wait for the card's turn as they are created, and say for whom.
+		receipt, err := processcontrol.Run(ctx, processcontrol.Command{
+			Path: command[0], Args: command[1:], Env: append(os.Environ(), cudaTestEnv+"=1"),
+			Stdout: &stdout, Stderr: &stderr,
+		})
+		fmt.Print(passedPackageLines(stdout.String()))
+		if err == nil && receipt.ExitCode == 0 {
+			err = verifyDeviceContracts(command, stdout.String())
 		}
 		out := stdout.String() + stderr.String()
-		if err == nil && code != 0 {
-			err = fmt.Errorf("exit code %d", code)
+		if err == nil && receipt.ExitCode != 0 {
+			err = fmt.Errorf("exit code %d", receipt.ExitCode)
 		}
 		close(done)
 		<-stopped
@@ -224,13 +202,16 @@ func deviceTestStep(arguments ...string) []string {
 // freshRun is go test's flag that runs a test again whatever its cache holds.
 const freshRun = "-count=1"
 
-// passedPackageLines is go test's line for each package that passed in stream, a go test -json stream, so the
-// landing reads from the lane's output how many packages ran and how many go test replayed from its cache.
+// passedPackageLines is go test's line for each package that passed in stream, a go test -json stream, and each test's
+// line saying it waited for the card's turn and how long (processcontrol.TurnTakenSaid), so the landing reads from the
+// lane's output how many packages ran, how many go test replayed from its cache, and how long the lane waited for the
+// card.
 func passedPackageLines(stream string) string {
 	var lines strings.Builder
 	for line := range strings.Lines(stream) {
 		var event struct{ Action, Output string }
-		if json.Unmarshal([]byte(line), &event) == nil && event.Action == "output" && strings.HasPrefix(event.Output, "ok  \t") {
+		if json.Unmarshal([]byte(line), &event) == nil && event.Action == "output" &&
+			(strings.HasPrefix(event.Output, "ok  \t") || strings.Contains(event.Output, processcontrol.TurnTakenSaid)) {
 			lines.WriteString(event.Output)
 		}
 	}

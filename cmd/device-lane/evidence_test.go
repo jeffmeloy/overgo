@@ -80,9 +80,8 @@ func TestDeviceDeclaredEvidence(t *testing.T) {
 	if err := verifyDeviceContracts([]string{"cuda-smoke.exe"}, ""); err != nil {
 		t.Fatalf("probe without declared test scope: %v", err)
 	}
-	// Last -run wins, as in go test. Each side of a measurement split only
-	// requires its own selected tests, while the complete step owns both sides.
-	correctness, measurement := splitTestStep(step, names[:1])
-	testcheck.NoError(t, verifyDeviceContracts(correctness, stream(names[0], "")))
-	testcheck.NoError(t, verifyDeviceContracts(measurement, stream(names[1], "")))
+	// Last -run wins, as in go test: a step that selects some tests requires only those, and -skip passes over its
+	// own.
+	testcheck.NoError(t, verifyDeviceContracts(append(slices.Clone(step), "-run", "^"+names[1]+"$"), stream(names[0], "")))
+	testcheck.NoError(t, verifyDeviceContracts(append(slices.Clone(step), "-skip", "^"+names[1]+"$"), stream(names[1], "")))
 }

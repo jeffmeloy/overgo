@@ -1250,9 +1250,7 @@ func BenchmarkMoEGroupedMatrices(b *testing.B) {
 		b.Fatal(err)
 	}
 	defer library.Close()
-	if _, err := library.ReserveDevice(0); err != nil {
-		b.Fatal(err)
-	}
+	testcheck.NoError(b, library.Init())
 	for _, tokens := range []uint64{1, 4, 128} {
 		b.Run(fmt.Sprintf("tokens=%d", tokens), func(b *testing.B) {
 			var c moePinnedCase

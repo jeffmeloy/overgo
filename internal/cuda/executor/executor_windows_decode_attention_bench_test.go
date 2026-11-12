@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/cuda/driver"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testcheck"
 )
 
 // BenchmarkDecodeAttention times resident decode across narrow and wide heads.
@@ -20,9 +21,7 @@ func BenchmarkDecodeAttention(b *testing.B) {
 		b.Fatal(err)
 	}
 	defer device.Close()
-	if _, err := device.ReserveDevice(0); err != nil {
-		b.Fatal(err)
-	}
+	testcheck.NoError(b, device.Init())
 	for _, geometry := range []struct{ width, queryHeads, keyHeads uint64 }{{64, 14, 2}, {128, 16, 2}, {256, 4, 1}} {
 		b.Run(fmt.Sprintf("width=%d/heads=%d/kv=%d", geometry.width, geometry.queryHeads, geometry.keyHeads), func(b *testing.B) {
 			// A short context in a long cache is the chat decode's common

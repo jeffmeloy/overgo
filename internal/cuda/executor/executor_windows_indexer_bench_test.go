@@ -12,6 +12,7 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 )
 
 // BenchmarkBlockIndexerScore measures complete resident scoring and selection.
@@ -23,9 +24,7 @@ func BenchmarkBlockIndexerScore(b *testing.B) {
 		b.Fatal(err)
 	}
 	defer device.Close()
-	if _, err := device.ReserveDevice(0); err != nil {
-		b.Fatal(err)
-	}
+	testcheck.NoError(b, device.Init())
 	// The target model declares width 128, four heads, four-token blocks and
 	// a 2048-token budget. The cases cover a prefill chunk and 256K decode.
 	const width, heads, block, budget = 128, 4, 4, 2048

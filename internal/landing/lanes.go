@@ -493,21 +493,19 @@ func (l *landing) lanes(ctx context.Context) error {
 // plain output and in the output events of -json alike.
 const passedPackage = "ok  \t"
 
-// admittedMarker precedes the wait in the line the device lane prints when
-// the device admits one of its steps (cmd/device-lane's holdSharedLease).
-const admittedMarker = "state=admitted wait="
-
 // describeLane is a passed lane's entry in the measurement: its wall time;
-// the device admission wait its admitted lines add up to, where the lane
-// claims the device; and, where its output carries go test's package lines,
-// how many packages go test executed and how many it replayed from cache. The
-// admission wait is returned beside the entry, for the landing's record.
+// the waits for the card's turn its processes said they took
+// (processcontrol.TurnTakenSaid), added up, where one waited; and, where its
+// output carries go test's package lines, how many packages go test executed
+// and how many it replayed from cache. The wait is returned beside the entry,
+// for the landing's record.
 func describeLane(name string, wall time.Duration, output string) (entry string, admission time.Duration) {
 	claimed := false
 	executed, cached := 0, 0
 	for line := range strings.Lines(output) {
-		_, wait, found := strings.Cut(line, admittedMarker)
-		if waited, err := time.ParseDuration(strings.TrimSpace(wait)); found && err == nil {
+		_, taken, found := strings.Cut(line, processcontrol.TurnTakenSaid)
+		_, wait, after := strings.Cut(taken, processcontrol.TurnWaitedSaid)
+		if waited, err := time.ParseDuration(strings.TrimSpace(wait)); found && after && err == nil {
 			claimed, admission = true, admission+waited
 		}
 		switch {
@@ -520,7 +518,7 @@ func describeLane(name string, wall time.Duration, output string) (entry string,
 	}
 	entry = fmt.Sprintf("%s passed %s", name, wall)
 	if claimed {
-		entry += fmt.Sprintf(" admission %s", admission)
+		entry += fmt.Sprintf(" card wait %s", admission)
 	}
 	if executed+cached > 0 {
 		entry += fmt.Sprintf(" executed %d cached %d", executed, cached)

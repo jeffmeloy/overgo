@@ -13,7 +13,6 @@ import (
 	"slices"
 	"strings"
 
-	"overgo/internal/processcontrol"
 	"overgo/internal/recipe"
 	"overgo/internal/scorecard/metric"
 	"overgo/internal/strictjson"
@@ -118,16 +117,12 @@ func inferenceRecord(chosen metric.Record, result benchmarkResult) metric.Record
 	return chosen
 }
 
-// failedSlice is the record of a slice that did not measure: unavailable
-// when the device is claimed or out of memory, which says nothing of the
-// code, and failed otherwise, with the cause on one line and a failure-rate
-// of one. It keeps what the slice selected, if it got that far.
+// failedSlice is the record of a slice that did not measure: failed, with the
+// cause on one line and a failure-rate of one, an exhausted card among them,
+// since the slice measures in the card's turn, on the card alone (card-turn).
+// It keeps what the slice selected, if it got that far.
 func failedSlice(chosen metric.Record, err error) metric.Record {
 	cause := strings.Join(strings.Fields(err.Error()), " ")
-	if errors.Is(err, processcontrol.ErrResourceBusy) || errors.Is(err, processcontrol.ErrDeviceMemory) {
-		chosen.Unmeasured = "unavailable: " + cause
-		return chosen
-	}
 	chosen.Failure = cause
 	chosen.Metrics = map[metric.Name]float64{metric.Failures: 1}
 	return chosen

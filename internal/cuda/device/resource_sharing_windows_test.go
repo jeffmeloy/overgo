@@ -4,7 +4,6 @@ package device
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -15,7 +14,6 @@ import (
 
 	"overgo/internal/cuda/driver"
 	cudatest "overgo/internal/cuda/testutil"
-	"overgo/internal/processcontrol"
 	"overgo/internal/testcheck"
 )
 
@@ -80,7 +78,6 @@ func TestCUDAContextSharedAdmission(t *testing.T) {
 	// A second context waits for the card's turn, held by the first, and says so.
 	two, inputTwo, outputTwo, saidTwo := start("shared")
 	waits(saidTwo, one)
-	probe("exclusive-busy")
 	// The first holder's death hands the turn on.
 	testcheck.NoError(t, one.Process.Kill())
 	if err := one.Wait(); err == nil {
@@ -92,39 +89,21 @@ func TestCUDAContextSharedAdmission(t *testing.T) {
 		t.Fatal(err)
 	}
 	expect(outputTwo, "checked")
-	probe("exclusive-busy")
 	if _, err := io.WriteString(inputTwo, "release\n"); err != nil {
 		t.Fatal(err)
 	}
 	expect(outputTwo, "released")
 	probe("shared-probe")
-	// Other interactive users may remain. Positive exclusive admission is proved
-	// on isolated resource identities by processcontrol's lifecycle tests.
 	_ = inputTwo.Close()
 	if _, err := io.Copy(io.Discard, outputTwo); err != nil {
 		t.Fatal(err)
 	}
 	testcheck.NoError(t, two.Wait())
-	t.Log("a CUDA context allocates and executes in the card's turn; a second waits for the turn and names its holder; the holder's death hands the turn on; physical capacity refusal; process-local byte accounting; context closure and readmission; explicit measurement contention")
+	t.Log("a CUDA context allocates and executes in the card's turn; a second waits for the turn and names its holder; the holder's death hands the turn on; physical capacity refusal; process-local byte accounting; context closure and readmission")
 }
 
 func runContextAdmissionConsumer(t *testing.T, role string) {
 	t.Helper()
-	if strings.HasPrefix(role, "exclusive-") {
-		library, err := driver.Open()
-		testcheck.NoError(t, err)
-		defer library.Close()
-		_, err = library.ReserveDevice(0)
-		if role == "exclusive-busy" {
-			if !errors.Is(err, processcontrol.ErrResourceBusy) {
-				t.Fatalf("wanted typed GPU contention: %v", err)
-			}
-		} else if err != nil {
-			t.Fatal(err)
-		}
-		fmt.Println("verified")
-		return
-	}
 	worker, err := New(0)
 	testcheck.NoError(t, err)
 	defer worker.Close()

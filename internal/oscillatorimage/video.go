@@ -102,7 +102,7 @@ func (m *Model) decodeVideo(ctx context.Context, features videoFeatures) (Encode
 	}
 	// A finished clip, a GIF among them, is written by the encoder every finished clip is, which finishes its frames on
 	// the card first; the GIF below finishes nothing (SQA-359).
-	if !features.format.IsZero() || !features.finish.IsZero() {
+	if !features.format.IsZero() || !features.finish.None() {
 		return m.decodeVideoClip(ctx, features)
 	}
 	animation := &gif.GIF{}

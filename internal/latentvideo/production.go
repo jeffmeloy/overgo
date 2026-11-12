@@ -318,7 +318,7 @@ func newServedEncoder(ctx context.Context, format ClipFormat, finish ClipFinish,
 	if err := errors.Join(format.Validate(), finish.Validate()); err != nil {
 		return nil, err
 	}
-	if finish.IsZero() {
+	if finish.None() {
 		encoder, _, err := newFormatEncoder(ctx, format, fps, pixels, false)
 		return encoder, err
 	}
@@ -647,7 +647,7 @@ func ValidateReferenceEditRequest(request ReferenceEditRequest) error {
 	if !request.Format.IsZero() {
 		return fmt.Errorf("latent video: a resolved LiveEdit request names format %q beside its condition, which is where it carries one", request.Format)
 	}
-	if !request.ClipFinish.IsZero() {
+	if !request.ClipFinish.None() {
 		return errors.New("latent video: a resolved LiveEdit request names a finish beside its condition, which is where it carries one")
 	}
 	if err := errors.Join(c.Format.Validate(), c.ClipFinish.Validate()); err != nil {

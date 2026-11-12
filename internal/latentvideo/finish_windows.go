@@ -86,8 +86,11 @@ func (UpscaleLevel) Choices() []string {
 // Default is the level a page shows where the request names none.
 func (UpscaleLevel) Default() string { return string(defaultUpscaleLevel) }
 
-// IsZero says the request asks for no finish.
-func (finish ClipFinish) IsZero() bool {
+// None says the request asks for no finish. It is not named IsZero: the finish is embedded in Wan's request, LiveEdit's
+// request, its condition and its record, which would each take an IsZero as their own, and encoding/json's omitzero
+// reads it, so from 2026-11-09 an edit's condition that asked for no finish was left out of its request's JSON
+// (finish-embed/keep-condition).
+func (finish ClipFinish) None() bool {
 	return finish.Upscale == 0 && finish.Denoise == 0 && finish.Deblur == 0 && finish.UpscaleLevel == ""
 }
 

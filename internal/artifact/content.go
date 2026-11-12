@@ -58,8 +58,15 @@ func (c Content) Validate() error {
 	if err := c.Descriptor.Validate(); err != nil {
 		return err
 	}
-	if len(c.Data) == 0 || len(c.Data) > MaxContentBytes || c.Descriptor.Size != uint64(len(c.Data)) {
-		return errors.New("artifact: invalid content size")
+	// Each bound is said apart, with the sizes: one message for all three left a failed draw of MOSS's reading
+	// (partiprompt_592, 2026-11-11) without its cause.
+	switch {
+	case len(c.Data) == 0:
+		return errors.New("artifact: content is empty")
+	case len(c.Data) > MaxContentBytes:
+		return fmt.Errorf("artifact: content is %d bytes, over the inline limit of %d", len(c.Data), MaxContentBytes)
+	case c.Descriptor.Size != uint64(len(c.Data)):
+		return fmt.Errorf("artifact: content is %d bytes, and its descriptor says %d", len(c.Data), c.Descriptor.Size)
 	}
 	want, err := IdentifyBytes(c.Descriptor.ID.Kind(), c.Data)
 	if err != nil {

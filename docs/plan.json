@@ -3,6 +3,31 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "cheap-first",
+      "title": "A step's check is read for what its form gets wrong in seconds, card or not, and runs once; only a check that uses the card keeps its run late",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 120,
+        "reason": "Filed 2026-11-11 from the owner's suggestions while the readings campaign holds the card, weighed and taken: one cheap stage in the gate, the repeat run removed. The lead's figure."
+      },
+      "steps": [
+        {
+          "id": "form",
+          "title": "A cheap stage lists each check's tests in the change and at the base before any long run, a check is on the card only by its setting, and each check runs once",
+          "status": "open",
+          "verify": "go test ./internal/landing ./internal/planverify -count=1 -run '^(TestAChecksFormIsReadBeforeItRuns|TestACheckRunsOnce)$'",
+          "files": [
+            "internal/landing",
+            "internal/planverify",
+            "internal/runrecord",
+            "internal/testevidence"
+          ],
+          "rationale": "Serves: the owner's suggestions of 2026-11-11, weighed and taken: run the cheap parts of every step's check first, card or not; needing model files is not needing the card; run each check once.\n\nDisappears: refusals found after the long stages that a read of seconds finds. A check on the card ran its verify, which holds the vacuous-name rule and the undo run, after every package's tests and the lanes, so a check naming a package without its test, or a change whose tests do not build without it on a step without its note, was refused after about eight minutes. A check with the modeltest tag alone was put there too, though without OVERGO_CUDA_TEST=1 cudatest.Require skips every test that reaches the card. And each host check ran twice (planverify's repeat), while no refusal recorded and no commit message names a repeat that disagreed.\n\nThe change: a cheap stage, form, runs after the rules for every check: go test -list in the change, where each package the check names must list a test the check runs; and in the undo tree, the base with the change's tests kept, where a check whose tests do not build is known to give no undo evidence, so a step without its \"No boundary test:\" line is refused there, and the undo run does not run that check again. A check is on the card only by OVERGO_CUDA_TEST=1. planverify.Execute runs a check once, and the repeat's agreement code goes.\n\nCheck: TestAChecksFormIsReadBeforeItRuns wants the form stage before the tests and the lanes for a host check and a card check alike, a model-files check's verify before the lanes, and the form stage to refuse a check naming a package that holds no test of its name; TestACheckRunsOnce wants a check whose test counts its runs to have run once. At the base no stage is named form and a check runs twice, so both fail there on their assertions.\n\nBatch: host lane."
+        }
+      ]
+    },
+    {
       "id": "replay-waits",
       "title": "A decode step's replay waits the same on a token whose experts move whatever the card's free memory, so the device lane does not fail beside another process on the card",
       "owner": "master-lead",
@@ -31,8 +56,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 2021,
-        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard). Step guider: +653 (653, the median of what 11 landings that changed internal/sampling, internal/latentvideo counted). Step moss-presets: +334 (334, the median of what 8 landings that changed internal/latentimage counted). Step sensenova-presets: +0 (no landing changed internal/sensenovarecipe, internal/routedlm). Step preset-readings: +331 (331, the median of what 9 landings that changed internal/mediacapability, docs/verification counted). Step moss-presets: +334 (334, the median of what 8 landings that changed internal/latentimage counted). Step sensenova-presets: +0 (no landing changed internal/sensenovarecipe, internal/routedlm). Step apg-presets: +334 (334, the median of what 13 landings that changed internal/sampling, internal/latentimage, internal/sensenovarecipe, internal/mediacapability/moss_controls_windows_test.go, internal/mediacapability/sensenova_presets_windows_test.go, internal/server/moss_generation_windows_test.go counted). Step nag-wan: +145 (145, the median of what 23 landings that changed internal/model, internal/latentvideo, internal/sampling counted). Step nag-krea: +334 (334, the median of what 13 landings that changed internal/latentimage, internal/sampling counted). Step nag-wan: +145 (145, the median of what 23 landings that changed internal/model, internal/latentvideo, internal/sampling counted). Step nag-krea: +334 (334, the median of what 13 landings that changed internal/latentimage, internal/sampling counted). Step preset-gate: +527 (527, the median of what 15 landings that changed internal/mediacapability, internal/server counted)."
+        "nodes": 1992,
+        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard). Step guider: +653 (653, the median of what 11 landings that changed internal/sampling, internal/latentvideo counted). Step moss-presets: +334 (334, the median of what 8 landings that changed internal/latentimage counted). Step sensenova-presets: +0 (no landing changed internal/sensenovarecipe, internal/routedlm). Step preset-readings: +331 (331, the median of what 9 landings that changed internal/mediacapability, docs/verification counted). Step moss-presets: +334 (334, the median of what 8 landings that changed internal/latentimage counted). Step sensenova-presets: +0 (no landing changed internal/sensenovarecipe, internal/routedlm). Step apg-presets: +334 (334, the median of what 13 landings that changed internal/sampling, internal/latentimage, internal/sensenovarecipe, internal/mediacapability/moss_controls_windows_test.go, internal/mediacapability/sensenova_presets_windows_test.go, internal/server/moss_generation_windows_test.go counted). Step nag-wan: +145 (145, the median of what 23 landings that changed internal/model, internal/latentvideo, internal/sampling counted). Step nag-krea: +334 (334, the median of what 13 landings that changed internal/latentimage, internal/sampling counted). Step nag-wan: +145 (145, the median of what 23 landings that changed internal/model, internal/latentvideo, internal/sampling counted). Step nag-krea: +334 (334, the median of what 13 landings that changed internal/latentimage, internal/sampling counted). Step preset-gate: +527 (527, the median of what 15 landings that changed internal/mediacapability, internal/server counted). Step content-size: +0 (no landing changed internal/artifact)."
       },
       "steps": [
         {
@@ -175,10 +200,21 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 187,
-        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard). Step import: +83 (83, the median of what 3 landings that changed internal/modelrecipe, internal/discovery, local-models.json counted)."
+        "nodes": 518,
+        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard). Step import: +83 (83, the median of what 3 landings that changed internal/modelrecipe, internal/discovery, local-models.json counted). Step refusal-fixture: +331 (331, the median of what 12 landings that changed cmd/recipe, internal/modelrecipe counted)."
       },
       "steps": [
+        {
+          "id": "refusal-fixture",
+          "title": "An import of changed bytes is refused through the command, on small fixture files, in seconds and with no model installed",
+          "status": "open",
+          "verify": "go test ./cmd/recipe -count=1 -run '^TestAnImportOfChangedBytesIsRefused$'",
+          "files": [
+            "cmd/recipe",
+            "internal/modelrecipe"
+          ],
+          "rationale": "Serves: the owner's suggestion of 2026-11-11, weighed and taken: the import's refusal of changed bytes is held by a test of seconds that runs on any machine, through the command a person runs.\n\nDisappears: a refusal held only where the six installed files are. TestTheUltraRecipeListsItsSixFilesByHash, a model test, called modelartifact.ImportLocal, not recipe import-local, so it ran only with the models installed and passed over the command's own path.\n\nThe change: TestAnImportOfChangedBytesIsRefused in cmd/recipe runs recipe import-local over two small files in a temporary install, its declaration pinning their hashes, into a temporary data root and store: the import links both and publishes the model; an install one of whose files holds other bytes is refused, the links it made removed and the store's head unmoved. The model test keeps its reading of the live store and gives up the refusal half it held.\n\nCheck: TestAnImportOfChangedBytesIsRefused. The change writes no production Go, so the landing runs no undo; with ImportLocal's comparison of each file's hash removed it fails on its assertion, read by hand.\n\nBatch: host lane."
+        },
         {
           "id": "encoder",
           "title": "The abliterated Qwen3.5-9B conditions MOSS under the workflow's template, and its language-model head serves the same file as a chat model",

@@ -20,6 +20,22 @@ func FreshRun(ctx context.Context) context.Context {
 	return context.WithValue(ctx, freshRunContextKey{}, rand.Text())
 }
 
+type holdSessionsContextKey struct{}
+
+// HoldSessions keeps a request-scoped session loaded when its request ends, for the requests of ctx: a render that
+// draws a whole suite of one model in its own process reloaded MOSS for each picture, its card falling from 11 GiB to
+// 0.4 and its load about 10 s of each 70 s picture (guidance-ops/held-renders). Its sessions stay as idle ones do,
+// and ReleaseIdleSessions retires them.
+func HoldSessions(ctx context.Context) context.Context {
+	return context.WithValue(ctx, holdSessionsContextKey{}, true)
+}
+
+// heldSessions says the requests of ctx keep a request-scoped session loaded (HoldSessions).
+func heldSessions(ctx context.Context) bool {
+	held, _ := ctx.Value(holdSessionsContextKey{}).(bool)
+	return held
+}
+
 // Measured wraps a capability output with the run's measured
 // decomposition: the persisted workflow run, the per-node phase walls the
 // runtime observed, how long the run's own model load took, the peak device

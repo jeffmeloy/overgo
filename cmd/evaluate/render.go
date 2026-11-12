@@ -223,12 +223,19 @@ func withDeclaredDefaults(selected modelrecipe.CapabilityEvidenceSelection, dire
 // the digest of its bytes, and writes the manifest that binds them to the recipe. It
 // returns the request key of each prompt's media. A model whose verified request takes no
 // prompt draws nothing from a caption and is refused.
-func renderMedia(ctx context.Context, repository, path string, task recipe.Task, directory string, prompts []renderPrompt, settings map[string]float64, preset, commit string) (map[string]string, error) {
+func renderMedia(ctx context.Context, repository, path string, task recipe.Task, directory string, prompts []renderPrompt, settings map[string]float64, preset, commit string) (names map[string]string, err error) {
 	store, err := overgodb.OpenContext(ctx, repository)
 	if err != nil {
 		return nil, err
 	}
 	defer store.Close()
+	// The model stays loaded from one draw to the next, its session given back when the suite is drawn: a
+	// request-scoped recipe had reloaded MOSS for each picture, about 10 s of each 70 s one (guidance-ops/held-renders).
+	ctx = capabilityruntime.HoldSessions(ctx)
+	defer func() {
+		_, releaseErr := capabilityruntime.ReleaseIdleSessions(context.WithoutCancel(ctx))
+		err = errors.Join(err, releaseErr)
+	}()
 	capability := mediacapability.Catalog[task]
 	source, err := capability.Resolve(ctx, path)
 	if err != nil {
@@ -270,7 +277,7 @@ func renderMedia(ctx context.Context, repository, path string, task recipe.Task,
 	save := func() error {
 		return jsonfile.Write(filepath.Join(directory, renderManifestFile), manifest, renderFileMode)
 	}
-	names := map[string]string{}
+	names = map[string]string{}
 	for index, item := range prompts {
 		encoded, key, err := renderRequest(template, settings, item, index)
 		if err != nil {

@@ -395,7 +395,7 @@ func (c *ModelSessionDirector[Input, Model, Output]) LeaseComponent(
 	lease := &SessionLease[Model]{model: entry.model}
 	lease.release = func() error {
 		var closeErr error
-		if component.Session == recipe.SessionRequest {
+		if component.Session == recipe.SessionRequest && !heldSessions(ctx) {
 			closeErr = c.retire(ctx, key, entry, nil)
 		}
 		c.release(entry)
@@ -608,7 +608,7 @@ func (c *ModelSessionDirector[Input, Model, Output]) serve(
 	measured.Input = content
 	if executeErr != nil {
 		err = c.retire(ctx, key, entry, executeErr)
-	} else if resources.RequestScoped() {
+	} else if resources.RequestScoped() && !heldSessions(ctx) {
 		err = c.retire(ctx, key, entry, nil)
 	}
 	return measured, err

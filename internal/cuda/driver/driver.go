@@ -90,6 +90,21 @@ type MemoryStats struct {
 	// class names one buffer, while an excess spread across many small
 	// classes is genuinely diffuse.
 	PeakLedger []AllocationSizeClass `json:"peakLedger,omitempty"`
+	// PinnedHostBytes and PeakPinnedHostBytes are the host memory this library holds pinned now and has at most: a
+	// model whose experts live pinned on the host takes most of the machine's memory there (flash-next-load).
+	PinnedHostBytes     uint64 `json:"pinnedHostBytes,omitzero"`
+	PeakPinnedHostBytes uint64 `json:"peakPinnedHostBytes,omitzero"`
+}
+
+// Commit is the machine's commit charge: Windows backs every pinned host byte and every card byte a process allocates
+// with commit (8 GiB on the card took 8 GiB of it and no memory, tmp/flash-next-load/cardcommit), whose limit is the
+// memory and the page file together, so a pin or a card allocation fails once the machine's commit is spent however
+// much memory is free (flash-next-load).
+type Commit struct{ Left, Limit uint64 }
+
+// String names the commit left of its limit, in GiB.
+func (c Commit) String() string {
+	return fmt.Sprintf("%.1f GiB of commit left of %.1f", float64(c.Left)/(1<<30), float64(c.Limit)/(1<<30))
 }
 
 // AllocationSizeClass counts the live allocations of one exact size at

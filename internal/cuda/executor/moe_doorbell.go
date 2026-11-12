@@ -98,7 +98,7 @@ func (d *moeDoorbell) ensure(state *device.State, slots, width uint64) error {
 	rowBytes := moeAlign(slots * width * f32ScalarBytes)
 	host, mapped, err := state.Driver.MemHostAlloc(doorbellWordCount*uint64(unsafe.Sizeof(uint32(0))) + idBytes + rowBytes + rowBytes)
 	if err != nil {
-		return err
+		return fmt.Errorf("pinning the MoE doorbell for %d slots: %w", slots, err)
 	}
 	idsAt := mapped + doorbellWordCount*driver.DevicePtr(unsafe.Sizeof(uint32(0)))
 	rowsAt := idsAt + driver.DevicePtr(idBytes)

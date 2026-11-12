@@ -187,6 +187,11 @@ func (l *Library) MemsetD32Async(DevicePtr, uint32, uint64, Stream) error {
 	return errors.New("CUDA driver loading is currently supported only on Windows")
 }
 
+// MachineCommit reports that the machine's commit is read on Windows.
+func MachineCommit() (Commit, error) {
+	return Commit{}, errors.New("the machine's commit is read only on Windows")
+}
+
 // MemHostAlloc reports that pinned, device-mapped host memory needs the Windows driver.
 func (l *Library) MemHostAlloc(uint64) ([]byte, DevicePtr, error) {
 	return nil, 0, errors.New("CUDA driver loading is currently supported only on Windows")

@@ -268,6 +268,20 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 			return nil, errors.Join(err, runner.Close())
 		}
 	}
+	// The card's experts get their copies in host memory last, from the machine's commit the rest of the open left:
+	// Windows counts a card byte against it as it counts a pinned one, and Flash-Next's every expert pinned beside its
+	// card share, the round's staging for the full context and the drafter outran a 98 GB machine's (flash-next-load).
+	if rawWeights.HasExpertResidency() {
+		homed := processmeasure.Stage(ctx, "expert copies")
+		err := worker.Do(ctx, func(state *device.State) error {
+			_, err := rawWeights.HomeExperts(ctx, state)
+			return err
+		})
+		homed()
+		if err != nil {
+			return nil, errors.Join(err, runner.Close())
+		}
+	}
 	return runner, nil
 }
 

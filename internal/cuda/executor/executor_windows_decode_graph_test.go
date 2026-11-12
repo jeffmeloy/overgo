@@ -229,6 +229,7 @@ func TestDecodeStepReplaysAsOneGraph(t *testing.T) {
 	if err := loader.Load(t.Context(), nil); err != nil {
 		t.Fatal(err)
 	}
+	homeFixtureExperts(t, replayed.worker, weights)
 	if err := replayed.SetExpertBanks(weights); err != nil {
 		t.Fatal(err)
 	}
@@ -347,4 +348,13 @@ func relativeRMS(got, want []byte) float64 {
 		norm += float64(expected) * float64(expected)
 	}
 	return math.Sqrt(difference / norm)
+}
+
+// homeFixtureExperts gives a fixture residency's card experts their host copies, as an open gives them.
+func homeFixtureExperts(t testing.TB, worker *device.Worker, weights *modeldevice.DeviceWeights) {
+	t.Helper()
+	testcheck.NoError(t, worker.Do(t.Context(), func(state *device.State) error {
+		_, err := weights.HomeExperts(t.Context(), state)
+		return err
+	}))
 }

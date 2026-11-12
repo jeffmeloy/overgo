@@ -42,6 +42,11 @@ func TestExpertPromotionsCopyBesideTheRunsOnTheCard(t *testing.T) {
 	loader.Experts(weights, file.Tensors, tableBytes+2*(gateStride+downStride))
 	testcheck.NoError(t, loader.Load(t.Context(), nil))
 	defer weights.Close()
+	// The card experts get their host copies, as an open gives them.
+	testcheck.NoError(t, worker.Do(t.Context(), func(state *device.State) error {
+		_, err := weights.HomeExperts(t.Context(), state)
+		return err
+	}))
 	cache := weights.experts
 	builder := tensor.NewBuilder()
 	nodes := []*tensor.Tensor{

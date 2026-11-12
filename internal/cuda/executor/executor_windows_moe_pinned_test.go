@@ -414,6 +414,7 @@ func (c moePinnedCase) prepare(t testing.TB, cuda *Executor, bankType dtype.Type
 		if err := loader.Load(t.Context(), nil); err != nil {
 			t.Fatal(err)
 		}
+		homeFixtureExperts(t, cuda.worker, weights)
 		if err := cuda.SetExpertBanks(weights); err != nil {
 			t.Fatal(err)
 		}

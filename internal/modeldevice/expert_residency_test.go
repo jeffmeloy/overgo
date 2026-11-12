@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
 	"math/rand/v2"
 	"slices"
 	"testing"
@@ -34,6 +35,23 @@ type fakeExpertDevice struct {
 	streams int
 	// ordered counts the writes queued behind the compute stream's work (writeOrdered).
 	ordered int
+	// commitLeft is the machine's commit the fake reports left.
+	commitLeft uint64
+}
+
+func (d *fakeExpertDevice) read(_ context.Context, destination []byte, source driver.DevicePtr) error {
+	data, err := d.at(source, uint64(len(destination)))
+	if err != nil {
+		return err
+	}
+	copy(destination, data)
+	return nil
+}
+
+func (d *fakeExpertDevice) commit(context.Context) (driver.Commit, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return driver.Commit{Left: d.commitLeft, Limit: d.commitLeft}, nil
 }
 
 func (d *fakeExpertDevice) newStream(context.Context) (driver.Stream, error) {
@@ -85,7 +103,7 @@ func (d *fakeExpertDevice) available(context.Context) (uint64, error) {
 }
 
 func newFakeExpertDevice() *fakeExpertDevice {
-	return &fakeExpertDevice{fakeDevice: newFakeDevice(), pinned: make(map[*byte]driver.DevicePtr)}
+	return &fakeExpertDevice{fakeDevice: newFakeDevice(), pinned: make(map[*byte]driver.DevicePtr), commitLeft: math.MaxUint64}
 }
 
 func (d *fakeExpertDevice) hostAlloc(_ context.Context, size uint64) ([]byte, driver.DevicePtr, error) {
@@ -127,13 +145,17 @@ func (d *fakeExpertDevice) weights() *DeviceWeights {
 	return weights
 }
 
-// loadExperts fills a residency of every bank of the file through a load pass
-// on the fake, verifying expect when given.
+// loadExperts fills a residency of every bank of the file through a load pass on the fake, verifying expect when
+// given, and gives its card experts their host copies as the fake's commit allows, as an open does.
 func (d *fakeExpertDevice) loadExperts(ctx context.Context, file *gguf.File, limit uint64, expect []artifact.ID) (*DeviceWeights, error) {
 	weights := d.weights()
 	loader := NewLoader(file)
 	loader.Experts(weights, file.Tensors, limit)
-	return weights, loader.Load(ctx, expect)
+	if err := loader.Load(ctx, expect); err != nil {
+		return weights, err
+	}
+	_, err := weights.HomeExperts(ctx, nil)
+	return weights, err
 }
 
 // at returns the bytes of a range inside one live allocation.
@@ -228,9 +250,9 @@ func TestFlashNextExpertResidency(t *testing.T) {
 	t.Run("fill-splits-card-and-host", func(t *testing.T) {
 		cache, mem := open(t, oneEach)
 		readable(t, cache, mem, map[string][]uint32{"gate": {0}, "down": {0}})
-		// The tables, the card flags of experts on host, the pinned route flags, and one card allocation and one
-		// pinned allocation a bank.
-		if len(cache.cards) != 2 || len(cache.pinned) != 3 || mem.liveCount() != 7 {
+		// The tables, the card flags of experts on host, the pinned route flags, and a bank's card allocation, the pinned
+		// allocation of its experts in host memory and that of its card experts' copies (HomeExperts).
+		if len(cache.cards) != 2 || len(cache.pinned) != 5 || mem.liveCount() != 9 {
 			t.Fatalf("fill made %d card and %d pinned allocations, %d live", len(cache.cards), len(cache.pinned), mem.liveCount())
 		}
 		reclaimable, err := (&DeviceWeights{experts: cache}).ExpertMemory(nil)
@@ -922,9 +944,10 @@ func TestALayersBanksShareOneBlob(t *testing.T) {
 			t.Error(err)
 		}
 	})
-	if len(cache.blobs) != 1 || cache.blobs[0].stride != stride || len(cache.cards) != 1 || len(cache.pinned) != 2 {
-		t.Fatalf("%d blobs, %d card and %d pinned allocations, want one blob of stride %d in one of each", len(cache.blobs),
-			len(cache.cards), len(cache.pinned), stride)
+	// The route flags, the blob's experts in host memory and its card expert's copy are pinned.
+	if len(cache.blobs) != 1 || cache.blobs[0].stride != stride || len(cache.cards) != 1 || len(cache.pinned) != 3 {
+		t.Fatalf("%d blobs, %d card and %d pinned allocations, want one blob of stride %d in one card and three pinned",
+			len(cache.blobs), len(cache.cards), len(cache.pinned), stride)
 	}
 	for part, name := range names {
 		if bank := cache.blobs[0].banks[part]; bank.info.Name != name || bank.offset != uint64(part)*gateBytes {

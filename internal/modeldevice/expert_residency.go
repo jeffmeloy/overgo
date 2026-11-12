@@ -104,8 +104,9 @@ type expertBank struct {
 	head        *expertBank
 	onHostStale bool
 	// entries are the bank's card experts by index, nil for one in host memory; home holds a card expert's copy in
-	// pinned host memory, which every expert keeps; moving marks an expert whose copy is in flight. An advance reads
-	// them for every routed expert, where maps keyed by bank and index took about 0.5 ms of a Flash-Next window.
+	// pinned host memory, empty for one the card alone holds (HomeExperts); moving marks an expert whose copy is in
+	// flight. An advance reads them for every routed expert, where maps keyed by bank and index
+	// took about 0.5 ms of a Flash-Next window.
 	entries []*list.Element
 	home    []expertSlot
 	moving  []bool
@@ -257,6 +258,10 @@ type expertMemory interface {
 	copied(ctx context.Context, stream driver.Stream, wait bool) (bool, error)
 	// copyOnCard copies bytes between two places on the card, synchronously.
 	copyOnCard(ctx context.Context, destination, source driver.DevicePtr, bytes uint64) error
+	// read copies bytes on the card into host memory, synchronously.
+	read(ctx context.Context, destination []byte, source driver.DevicePtr) error
+	// commit reads the machine's commit, which every pinned and every card byte takes (driver.Commit).
+	commit(ctx context.Context) (driver.Commit, error)
 	// writeOrdered queues a write of data behind the work the compute stream holds, data copied before it returns, so
 	// the next run reads it without the host waiting for the run in flight: a table published while a decode window's
 	// draft ran waited about 1 ms a window for the draft to end.
@@ -264,12 +269,13 @@ type expertMemory interface {
 }
 
 // expertResidency keeps every expert of the file-backed banks readable by
-// the card: a card copy, or pinned host memory the card maps. Every expert's
-// bytes stay in pinned host memory, as Strata's expert arena keeps them, and
-// the card holds copies: its share is filled once under the limit, by the
-// load pass that reads the file; between runs the experts the last run routed
-// to host memory take the card slots of experts it did not route, which read
-// their host copies at once.
+// the card: a card copy, or pinned host memory the card maps. The card's share
+// is filled once under the limit, by the load pass that reads the file, and the
+// rest lie in pinned host memory; the open then gives the card's experts their
+// copies there as the machine's commit allows (home), so the card holds copies
+// of host experts, as Strata's expert arena keeps every expert's bytes; between
+// runs the experts the last run routed to host memory take the card slots of
+// experts it did not route that have a copy, which read it at once.
 // routed is pinned host memory the card maps at routedMap, one byte an expert, which the route kernel sets and the advance after the run reads and clears.
 // onHost is the card's flags at onHostFlags, laid out as routed, a routed node's first bank's byte set where every
 // bank of the node holds the expert in host memory; the CPU computes those experts of a decode step (ExpertsOnHost).
@@ -380,6 +386,9 @@ func newExpertResidency(ctx context.Context, file *gguf.File, infos []gguf.Tenso
 		first = last
 	}
 	routed, mapped, err := mem.hostAlloc(ctx, flags)
+	if err != nil {
+		err = fmt.Errorf("pinning the experts' routing flags: %w", err)
+	}
 	if err == nil {
 		clear(routed)
 		c.pinned, c.routedMap, c.routed = append(c.pinned, routed), mapped, routed
@@ -403,8 +412,9 @@ func newExpertResidency(ctx context.Context, file *gguf.File, infos []gguf.Tenso
 }
 
 // allocate places experts on the card while the limit allows and every other expert in pinned host memory: one card
-// allocation and one pinned allocation a bank. Without a profile it fills in index order across the banks, so each
-// bank keeps the same share there; with one, each layer's top-ranked experts, its banks together.
+// allocation and one pinned allocation a blob. Without a profile it fills in index order across the banks, so each
+// bank keeps the same share there; with one, each layer's top-ranked experts, its banks together. A card expert gets
+// its pinned copy once the open has taken what else it pins (home).
 //   - one card allocation a bank, not a few experts each: Flash-Next's experts in allocations of 32 (some 540) decoded
 //     at a third of the rate, Windows' driver making each allocation resident for every submission, and lost 500 MB
 //     to its 2 MiB rounding
@@ -434,21 +444,131 @@ func (c *expertResidency) allocate(ctx context.Context, limit uint64, profile *E
 			}
 			c.cards = append(c.cards, expertChunk{card, onCard * blob.stride, blob.stride, nil})
 		}
-		// Every expert keeps its bytes in pinned host memory, as Strata's expert arena does: a card expert's copy there
-		// is its home for good, so a demotion copies nothing back and the card is a cache of the host's experts.
-		if host, mapped, err = c.mem.hostAlloc(ctx, experts*blob.stride); err != nil {
+		// The experts the card does not hold lie in pinned host memory. A card expert's copy waits for the open's other
+		// pins (home): each pinned and each card byte takes the machine's commit, and Flash-Next's every expert pinned
+		// beside its card share outran the commit of a 98 GB machine with a 16 GB page file (flash-next-load).
+		if onCard < experts {
+			if host, mapped, err = c.mem.hostAlloc(ctx, (experts-onCard)*blob.stride); err != nil {
+				return fmt.Errorf("pinning a layer's %d experts in host memory: %w", experts-onCard, err)
+			}
+			c.pinned = append(c.pinned, host)
+		}
+		var cardSlot, hostSlot uint64
+		for index := range experts {
+			if marks[blob][index] {
+				c.placeOnCard(blob, uint32(index), card+driver.DevicePtr(cardSlot*blob.stride), expertSlot{})
+				cardSlot++
+				continue
+			}
+			offset := hostSlot * blob.stride
+			c.placeOnHost(blob, uint32(index), expertSlot{device: mapped + driver.DevicePtr(offset), host: host[offset : offset+blob.stride]})
+			hostSlot++
+		}
+	}
+	return nil
+}
+
+// expertHomeCommitReserveBytes is the machine's commit a homing (HomeExperts) leaves beyond the card memory still free,
+// which a request's own allocations may take: Flash-Next's reads up to 262,000 tokens took 2.0 GiB of commit past its
+// open on the whole card (its pins 0.3 of it; 0.9 under a 22 GiB card budget), and twice that is kept.
+const expertHomeCommitReserveBytes = 4 << 30
+
+// ExpertHomes is what a homing gave the card's experts: Homed their pinned copies, CardOnly those left to the card
+// alone, their bytes, and the machine's commit it read.
+type ExpertHomes struct {
+	Homed, CardOnly           uint64
+	HomedBytes, CardOnlyBytes uint64
+	Commit                    driver.Commit
+}
+
+// HomeExperts gives the card's experts their copies in pinned host memory, the coldest first, as far as the machine's
+// commit allows once the open has taken what else it pins, less the card memory still free and
+// expertHomeCommitReserveBytes: Windows counts every card byte against the commit as it counts a pinned one, so a card
+// expert with a pinned copy takes twice its bytes. A card expert without a copy stays on the card through the decode:
+// no promotion or adaptive swap displaces it, and a reclaim moves it within the card where a slot is and otherwise
+// gives it its copy as it leaves (drop). On a machine with commit to spare every card expert has its copy, as Strata's
+// expert arena keeps every expert's bytes.
+func (w *DeviceWeights) HomeExperts(ctx context.Context, state *device.State) (ExpertHomes, error) {
+	if w == nil || w.experts == nil || w.experts.state != state {
+		return ExpertHomes{}, errors.New("expert homing requires its owning worker")
+	}
+	c := w.experts
+	commit, err := c.mem.commit(ctx)
+	if err != nil {
+		return ExpertHomes{}, err
+	}
+	free, err := c.mem.available(ctx)
+	if err != nil {
+		return ExpertHomes{}, err
+	}
+	homes, err := c.home(ctx, commit.Left-min(commit.Left, free+expertHomeCommitReserveBytes))
+	homes.Commit = commit
+	return homes, err
+}
+
+// home gives the card experts without a copy one in pinned host memory, the coldest first (colderKey), while their
+// bytes fit budget: one pinned allocation a blob, each expert's bytes read from its card slot.
+func (c *expertResidency) home(ctx context.Context, budget uint64) (ExpertHomes, error) {
+	// Copies in flight land first: a promoted expert keeps the copy it was promoted from.
+	if err := c.land(ctx, true); err != nil {
+		return ExpertHomes{}, errors.Join(err, c.publish(context.WithoutCancel(ctx)))
+	}
+	var homes ExpertHomes
+	var keys []expertKey
+	for _, blob := range c.blobs {
+		head := blob.head()
+		for index, entry := range head.entries {
+			switch {
+			case entry == nil:
+			case head.home[index].host != nil:
+				homes.Homed, homes.HomedBytes = homes.Homed+1, homes.HomedBytes+blob.stride
+			default:
+				keys = append(keys, expertKey{head, uint32(index)})
+			}
+		}
+	}
+	slices.SortStableFunc(keys, c.colderKey)
+	taken, bytes := 0, uint64(0)
+	for taken < len(keys) && bytes+keys[taken].bank.stride <= budget {
+		bytes += keys[taken].bank.stride
+		taken++
+	}
+	for _, key := range keys[taken:] {
+		homes.CardOnly, homes.CardOnlyBytes = homes.CardOnly+1, homes.CardOnlyBytes+key.bank.stride
+	}
+	homes.Homed, homes.HomedBytes = homes.Homed+uint64(taken), homes.HomedBytes+bytes
+	return homes, c.giveCopies(ctx, keys[:taken])
+}
+
+// giveCopies gives card experts without a host copy one in pinned host memory, one pinned allocation a blob, each
+// expert's bytes read from its card slot.
+func (c *expertResidency) giveCopies(ctx context.Context, keys []expertKey) error {
+	byBlob := make(map[*expertBlob][]expertKey)
+	for _, key := range keys {
+		byBlob[key.bank.blob] = append(byBlob[key.bank.blob], key)
+	}
+	for _, blob := range c.blobs {
+		homing := byBlob[blob]
+		if len(homing) == 0 {
+			continue
+		}
+		if err := ctx.Err(); err != nil {
 			return err
 		}
+		host, mapped, err := c.mem.hostAlloc(ctx, uint64(len(homing))*blob.stride)
+		if err != nil {
+			return fmt.Errorf("pinning copies of a layer's %d card experts: %w", len(homing), err)
+		}
 		c.pinned = append(c.pinned, host)
-		var cardSlot uint64
-		for index := range experts {
-			offset := uint64(index) * blob.stride
+		for at, key := range homing {
+			offset := uint64(at) * blob.stride
 			slot := expertSlot{device: mapped + driver.DevicePtr(offset), host: host[offset : offset+blob.stride]}
-			if marks[blob][index] {
-				c.placeOnCard(blob, uint32(index), card+driver.DevicePtr(cardSlot*blob.stride), slot)
-				cardSlot++
-			} else {
-				c.placeOnHost(blob, uint32(index), slot)
+			// The blob's first bank lies at its slot's start, so its pointer is the card slot's.
+			if err := c.mem.read(ctx, slot.host[:blob.bytes], key.bank.pointers[key.index]); err != nil {
+				return err
+			}
+			for _, bank := range blob.banks {
+				bank.home[key.index] = bankSlot(bank, slot)
 			}
 		}
 	}
@@ -494,9 +614,18 @@ func (c *expertResidency) markResident(blob *expertBlob, index uint32, onCard bo
 	c.residentHost[int(blob.layer)*c.residentExperts+int(index)], c.residentStale = value, true
 }
 
-// bankSlot is a bank's part of its blob's slot: from the bank's offset to the slot's end.
+// bankSlot is a bank's part of its blob's slot: from the bank's offset to the slot's end; none of no slot.
 func bankSlot(bank *expertBank, slot expertSlot) expertSlot {
+	if slot.host == nil {
+		return expertSlot{}
+	}
 	return expertSlot{device: slot.device + driver.DevicePtr(bank.offset), host: slot.host[bank.offset:]}
+}
+
+// cardOnly reports a card expert with no copy in host memory (HomeExperts).
+func cardOnly(entry *list.Element) bool {
+	key := entry.Value.(*residentExpert).key
+	return key.bank.home[key.index].host == nil
 }
 
 // placeOnCard names a blob's expert on the card at card, its host copy home, every bank's table naming its part, and
@@ -585,8 +714,8 @@ func (c *expertResidency) place(ctx context.Context, onDevice expertDevice, bank
 
 // ExpertPlacement is where a residency's experts are and where its runs found the experts they routed.
 //   - experts are blobs, a layer's banks' expert once; bytes are slot bytes, card memory and pinned host memory;
-//     every expert keeps its pinned copy, a card expert's too, so HostExperts and HostBytes count them all and overlap
-//     CardExperts and CardBytes
+//     HostExperts and HostBytes count every pinned copy, a card expert's too, so they overlap CardExperts and
+//     CardBytes, except the CardOnlyExperts the machine's commit left without one (HomeExperts)
 //   - Routes counts the experts the runs' routes named, a bank's expert once a run
 //   - CardRoutes counts those a run read on the card, and the rest it read over the PCIe link
 //   - LoadCardExperts counts the experts the load placed on the card, few when it found the card held
@@ -597,6 +726,8 @@ type ExpertPlacement struct {
 	CardBytes, HostBytes     uint64
 	Routes, CardRoutes       uint64
 	LoadCardExperts          uint64
+	CardOnlyExperts          uint64 `json:",omitzero"`
+	CardOnlyBytes            uint64 `json:",omitzero"`
 }
 
 // IsExpertBank reports a bank whose experts are found through its table on the owning worker.
@@ -647,9 +778,15 @@ func (w *DeviceWeights) ExpertPlacement(state *device.State) (ExpertPlacement, e
 		placement.CardBytes += uint64(class.order.Len()) * class.stride
 	}
 	for _, blob := range c.blobs {
-		placement.HostExperts += uint64(len(blob.head().pointers))
-		placement.HostBytes += uint64(len(blob.head().pointers)) * blob.stride
+		head := blob.head()
+		for index := range head.pointers {
+			if head.entries[index] == nil || head.home[index].host != nil {
+				placement.HostExperts++
+				placement.HostBytes += blob.stride
+			}
+		}
 	}
+	placement.CardOnlyExperts, placement.CardOnlyBytes = c.cardOnlyExperts()
 	return placement, nil
 }
 
@@ -746,7 +883,7 @@ type ExpertSwap struct{ Layer, In, Out int }
 // SwapExperts queues the adaptive tier's swaps: each Out goes to its host copy at once (the CPU computes it meanwhile),
 // each In is copied into Out's card slot on the residency's stream and stays in host memory until its copy lands
 // (LandExperts); the tables are published. A held residency swaps nothing, nor a swap whose In is not in host memory or
-// whose Out is not on the card. It answers the swaps queued.
+// whose Out is not on the card with a host copy (HomeExperts). It answers the swaps queued.
 func (w *DeviceWeights) SwapExperts(ctx context.Context, state *device.State, swaps []ExpertSwap) (int, error) {
 	if w == nil || w.experts == nil || w.experts.state != state {
 		return 0, errors.New("expert residency requires its owning CUDA worker")
@@ -764,7 +901,7 @@ func (w *DeviceWeights) SwapExperts(ctx context.Context, state *device.State, sw
 		head := layer.blob.head()
 		in, out := uint32(swap.In), uint32(swap.Out)
 		if int(max(in, out)) >= len(head.pointers) || head.entries[in] != nil || head.moving[in] || head.entries[out] == nil ||
-			head.moving[out] {
+			head.moving[out] || cardOnly(head.entries[out]) {
 			continue
 		}
 		c.promoting = append(c.promoting, expertMove{expertKey{head, in}, head.pointers[out], expertSlot{head.pointers[in], head.hosted[in]}})
@@ -1058,10 +1195,11 @@ func (c *expertResidency) spare(ctx context.Context, missed []expertKey) error {
 }
 
 // promote moves a host expert the routes named to the card. It takes the card
-// slot of the coldest card expert the routes did not name this step, which
-// reads its host copy at once, and is copied there beside the next run,
-// staying in host memory until the copy lands. Where the routes named every
-// card expert of its stride this step it stays in host memory.
+// slot of the least recently routed card expert with a host copy the routes did
+// not name this step, which reads its host copy at once, and is copied there
+// beside the next run, staying in host memory until the copy lands. Where the
+// routes named every such card expert of its stride this step it stays in host
+// memory.
 func (c *expertResidency) promote(ctx context.Context, key expertKey) error {
 	bank := key.bank
 	if err := ctx.Err(); err != nil {
@@ -1075,8 +1213,15 @@ func (c *expertResidency) promote(ctx context.Context, key expertKey) error {
 		bank.blob.setMoving(key.index, true)
 		return nil
 	}
-	victim := c.classes[bank.stride].order.Front()
-	if victim == nil || victim.Value.(*residentExpert).step == c.step {
+	// A card expert without a host copy is never the victim: it goes to the back of the order, each once a search.
+	order := &c.classes[bank.stride].order
+	victim := order.Front()
+	for passed := order.Len(); victim != nil && cardOnly(victim) && passed > 0; passed-- {
+		next := victim.Next()
+		order.MoveToBack(victim)
+		victim = next
+	}
+	if victim == nil || cardOnly(victim) || victim.Value.(*residentExpert).step == c.step {
 		return nil
 	}
 	// The copy starts once the next run is launched (start); the run reads the victim's host copy and the promoted
@@ -1243,6 +1388,18 @@ func (c *expertResidency) release(ctx context.Context) error {
 	return c.drop(ctx, func(candidate expertChunk) bool { return candidate.pointer == chosen.pointer }, &c.reclaimed)
 }
 
+// cardOnlyExperts counts the card experts without a host copy and their bytes.
+func (c *expertResidency) cardOnlyExperts() (experts, bytes uint64) {
+	for _, class := range c.classes {
+		for entry := class.order.Front(); entry != nil; entry = entry.Next() {
+			if cardOnly(entry) {
+				experts, bytes = experts+1, bytes+class.stride
+			}
+		}
+	}
+	return experts, bytes
+}
+
 // colder orders two card experts the colder first: the less routed, and where the routes tie, as before any decode,
 // the lower in the profile the load ranked by, as Strata's cache gives up its lowest-ranked slots first.
 func (c *expertResidency) colder(a, b *list.Element) int {
@@ -1276,6 +1433,9 @@ func (c *expertResidency) owned() int {
 // freed whole banks of the last layers had left those layers' every expert on host for the decode after it, as had a
 // round's first request, before any decode had used an expert, its buffers taking Flash-Next's layer 46. It publishes the tables once, frees the chunks the residency allocated and
 // gives the lent ones back to their loans. The experts it moves to host memory are added to moved where it is set.
+// A card expert without a host copy (HomeExperts) takes a slot before the others and displaces only one with a copy;
+// where no slot is left it leaves with a copy read from its slot, as an open's reservation before the homing finds
+// every card expert (Flash-Next's round reserved 826 MB with 150 KB free).
 func (c *expertResidency) drop(ctx context.Context, leaves func(expertChunk) bool, moved *[]expertKey) error {
 	if !slices.ContainsFunc(c.cards, leaves) {
 		return nil
@@ -1308,6 +1468,8 @@ func (c *expertResidency) drop(ctx context.Context, leaves func(expertChunk) boo
 		}
 		c.demote(entry)
 	}
+	// leavingAlone are the card experts without a host copy that find no slot on the card.
+	var leavingAlone []*list.Element
 	for stride := range strides {
 		class := c.classes[stride]
 		class.free = slices.DeleteFunc(class.free, func(pointer driver.DevicePtr) bool { return inSlots(stride, pointer) })
@@ -1316,12 +1478,22 @@ func (c *expertResidency) drop(ctx context.Context, leaves func(expertChunk) boo
 			key := entry.Value.(*residentExpert).key
 			if inSlots(stride, key.bank.pointers[key.index]) {
 				held = append(held, entry)
-			} else {
+			} else if !cardOnly(entry) {
+				// Only an expert with a host copy can be displaced.
 				others = append(others, entry)
 			}
 		}
-		slices.SortStableFunc(held, func(a, b *list.Element) int { return colder(b, a) })
-		// Free slots take the hottest first, so only the rest of them can displace an expert.
+		// The experts the card alone holds take slots first, then the hottest.
+		slices.SortStableFunc(held, func(a, b *list.Element) int {
+			if cardOnly(a) != cardOnly(b) {
+				if cardOnly(a) {
+					return -1
+				}
+				return 1
+			}
+			return colder(b, a)
+		})
+		// Free slots take the first held, so only the rest of them can displace an expert.
 		others = coldestFirst(others, len(held)-min(len(held), len(class.free)), colder)
 		victims := 0
 		for _, entry := range held {
@@ -1331,10 +1503,14 @@ func (c *expertResidency) drop(ctx context.Context, leaves func(expertChunk) boo
 			switch {
 			case len(class.free) > 0:
 				slot, class.free = class.free[len(class.free)-1], class.free[:len(class.free)-1]
-			case victims < len(others) && colder(others[victims], entry) < 0:
+			case victims < len(others) && (cardOnly(entry) || colder(others[victims], entry) < 0):
 				victim, victims = others[victims], victims+1
 				cold := victim.Value.(*residentExpert).key
 				slot = cold.bank.pointers[cold.index]
+			case cardOnly(entry):
+				// It leaves with a copy read from its slot, which stays the card's until the chunks go below.
+				leavingAlone = append(leavingAlone, entry)
+				continue
 			default:
 				out(entry)
 				continue
@@ -1348,6 +1524,18 @@ func (c *expertResidency) drop(ctx context.Context, leaves func(expertChunk) boo
 			for _, bank := range key.bank.blob.banks {
 				bank.pointers[key.index], bank.changed = slot+driver.DevicePtr(bank.offset), true
 			}
+		}
+	}
+	if len(leavingAlone) > 0 {
+		keys := make([]expertKey, len(leavingAlone))
+		for at, entry := range leavingAlone {
+			keys[at] = entry.Value.(*residentExpert).key
+		}
+		if err := c.giveCopies(ctx, keys); err != nil {
+			return errors.Join(err, c.publish(context.WithoutCancel(ctx)))
+		}
+		for _, entry := range leavingAlone {
+			out(entry)
 		}
 	}
 	if err := c.publish(ctx); err != nil {
@@ -1601,3 +1789,9 @@ func (m stateMemory) available(context.Context) (uint64, error) {
 	free, _, err := m.state.Driver.MemInfo()
 	return free, err
 }
+
+// read copies card bytes to the host; the copies' caller asks after its context (giveCopies).
+func (m stateMemory) read(_ context.Context, destination []byte, source driver.DevicePtr) error {
+	return m.state.Driver.MemcpyDtoH(destination, source)
+}
+func (stateMemory) commit(context.Context) (driver.Commit, error) { return driver.MachineCommit() }

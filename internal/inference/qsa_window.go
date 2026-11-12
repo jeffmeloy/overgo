@@ -278,7 +278,7 @@ func (r *Runner) qsaWindowControl(ctx context.Context) (*qsaWindowScratch, error
 	}
 	scratch := &qsaWindowScratch{control: buffer, snapshots: make([]executor.DeviceValue, len(r.qsaLayers))}
 	if scratch.words, err = r.cuda.AllocatePinnedHost(ctx, words*i32Bytes); err != nil {
-		return nil, errors.Join(err, buffer.Release(context.WithoutCancel(ctx)))
+		return nil, errors.Join(fmt.Errorf("pinning the QSA window's %d control words: %w", words, err), buffer.Release(context.WithoutCancel(ctx)))
 	}
 	whole, err := buffer.Value(tensor.MustShape(total / f32Bytes))
 	if err != nil {

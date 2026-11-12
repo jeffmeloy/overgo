@@ -25,10 +25,27 @@ import (
 const cudaDeviceNameBytes = 256
 
 var (
-	kernel32      = syscall.NewLazyDLL("kernel32.dll")
-	lstrlenA      = kernel32.NewProc("lstrlenA")
-	rtlMoveMemory = kernel32.NewProc("RtlMoveMemory")
+	kernel32             = syscall.NewLazyDLL("kernel32.dll")
+	lstrlenA             = kernel32.NewProc("lstrlenA")
+	rtlMoveMemory        = kernel32.NewProc("RtlMoveMemory")
+	globalMemoryStatusEx = kernel32.NewProc("GlobalMemoryStatusEx")
 )
+
+// MachineCommit reads the machine's commit left and its limit (GlobalMemoryStatusEx).
+func MachineCommit() (Commit, error) {
+	// status is MEMORYSTATUSEX: its length, the memory load, then the physical, page-file and virtual totals and
+	// what of each is available; the page-file pair is the commit limit and the commit left.
+	var status struct {
+		length, load                                      uint32
+		totalPhysical, availablePhysical, limit, left     uint64
+		totalVirtual, availableVirtual, availableExtended uint64
+	}
+	status.length = uint32(unsafe.Sizeof(status))
+	if ok, _, err := globalMemoryStatusEx.Call(uintptr(unsafe.Pointer(&status))); ok == 0 {
+		return Commit{}, fmt.Errorf("GlobalMemoryStatusEx: %w", err)
+	}
+	return Commit{Left: status.left, Limit: status.limit}, nil
+}
 
 // processCurrentBytes and processPeakBytes are the device memory every
 // Library of the process holds together and its high-water mark. Libraries
@@ -79,6 +96,11 @@ type Library struct {
 	currentBytes        uint64
 	peakBytes           uint64
 	peakAllocationBytes uint64
+	// pinned are the host bytes MemHostAlloc holds pinned, by the address it answered, and pinnedBytes their sum: a pin
+	// that fails says what this process already holds (flash-next-load).
+	pinned          map[uintptr]uint64
+	pinnedBytes     uint64
+	peakPinnedBytes uint64
 
 	kernelLaunches         atomic.Uint64
 	streamSynchronizations atomic.Uint64
@@ -828,6 +850,8 @@ func (l *Library) MemoryStats() MemoryStats {
 		PeakAllocationBytes: l.peakAllocationBytes,
 		LargestLiveBytes:    largest,
 		PeakLedger:          ledger,
+		PinnedHostBytes:     l.pinnedBytes,
+		PeakPinnedHostBytes: l.peakPinnedBytes,
 	}
 }
 
@@ -1014,13 +1038,26 @@ func (l *Library) MemHostAlloc(bytes uint64) ([]byte, DevicePtr, error) {
 	defer pinned.Unpin()
 	result, _, _ := l.cuMemHostAlloc.Call(uintptr(unsafe.Pointer(&host)), uintptr(bytes), hostAllocPortable|hostAllocDeviceMap)
 	if err := l.result("cuMemHostAlloc", result); err != nil {
-		return nil, 0, err
+		commit, commitErr := MachineCommit()
+		l.allocationMu.Lock()
+		pinnedBytes, cardBytes := l.pinnedBytes, l.currentBytes
+		l.allocationMu.Unlock()
+		return nil, 0, errors.Join(fmt.Errorf("pinning %d bytes of host memory, with %d pinned and %d on the card by this library already, "+
+			"the machine at %s: %w", bytes, pinnedBytes, cardBytes, commit, err), commitErr)
 	}
 	result, _, _ = l.cuMemHostDevice.Call(uintptr(unsafe.Pointer(&pointer)), uintptr(host), 0)
 	if err := l.result("cuMemHostGetDevicePointer_v2", result); err != nil {
 		freed, _, _ := l.cuMemFreeHost.Call(uintptr(host))
 		return nil, 0, errors.Join(err, l.result("cuMemFreeHost", freed))
 	}
+	l.allocationMu.Lock()
+	if l.pinned == nil {
+		l.pinned = map[uintptr]uint64{}
+	}
+	l.pinned[uintptr(host)] = bytes
+	l.pinnedBytes += bytes
+	l.peakPinnedBytes = max(l.peakPinnedBytes, l.pinnedBytes)
+	l.allocationMu.Unlock()
 	return unsafe.Slice((*byte)(host), bytes), pointer, nil
 }
 
@@ -1030,7 +1067,15 @@ func (l *Library) MemFreeHost(data []byte) error {
 	if len(data) == 0 {
 		return nil
 	}
-	return l.call(l.cuMemFreeHost, uintptr(unsafe.Pointer(&data[0])))
+	address := uintptr(unsafe.Pointer(&data[0]))
+	if err := l.call(l.cuMemFreeHost, address); err != nil {
+		return err
+	}
+	l.allocationMu.Lock()
+	l.pinnedBytes -= l.pinned[address]
+	delete(l.pinned, address)
+	l.allocationMu.Unlock()
+	return nil
 }
 
 func (l *Library) ownsDeviceRange(pointer DevicePtr, bytes uint64) bool {

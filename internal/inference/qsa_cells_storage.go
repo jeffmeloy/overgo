@@ -202,7 +202,7 @@ func (r *Runner) allocateQSACells(ctx context.Context, capacity uint32) (*qsaCel
 	var hostBase driver.DevicePtr
 	if slots > 0 {
 		if cells.host, err = r.cuda.AllocatePinnedHost(ctx, layout.hostTotal); err != nil {
-			return fail(err)
+			return fail(fmt.Errorf("pinning the QSA cells of %d layers at %d tokens: %w", r.qsaLayerCount(), capacity, err))
 		}
 		hostBase = cells.host.Device
 	}

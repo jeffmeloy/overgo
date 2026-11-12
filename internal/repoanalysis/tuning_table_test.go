@@ -162,4 +162,7 @@ var tuningTable = []tuningValue{
 	{file: tuningDevice + "expert_residency.go", name: "expertSpareSlots",
 		trades: "an allocation's cost (Windows clears about 18 ms a GB) against slots held empty until misses fill them",
 		basis:  "measured here: an allocation's clearing on Windows"},
+	{file: tuningDevice + "expert_residency.go", name: "expertHomeCommitReserveBytes",
+		trades: "card experts without a host copy, which no promotion or swap displaces, against a request's allocation finding the machine's commit spent",
+		basis:  "measured here: Flash-Next's reads up to 262,000 tokens took 2.0 GiB of commit past its open on the whole card, twice kept"},
 }

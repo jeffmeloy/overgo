@@ -3,32 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "flash-next-load",
-      "title": "Qwen3.8 Flash-Next opens or is refused with its cause: a round's load is never streamed, and the open keeps the pinned host memory a request needs",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 97,
-        "reason": "Filed 2026-11-12 at the owner's direction to fix Flash-Next before anything else: one refusal now, and a pinned-memory budget measured on the card. The lead's figure."
-      },
-      "steps": [
-        {
-          "id": "pinned-budget",
-          "title": "Flash-Next's open measures the pinned host memory its experts and a request's buffers take against what the machine can pin, and keeps a request's share or refuses naming both; each pinned allocation that fails names what it was for",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/inference -count=1 -run '^TestFlashNextOpensAndAnswersThreeTimes$'",
-          "files": [
-            "internal/inference",
-            "internal/modeldevice",
-            "internal/cuda/executor",
-            "internal/cuda/driver"
-          ],
-          "needs_card": true,
-          "rationale": "Serves: the owner's direction of 2026-11-12, fix Flash-Next before anything else; software never just fails.\n\nThe cause: the open pins each layer's whole expert bank in host memory (modeldevice expert_residency.go:439, experts*blob.stride), most of an 89 GB model on a 98 GB machine, and a request pins more beside it (the round's drafter and plan, the QSA cells). Whether both fit is the machine's state: at 23:41, after 14 loads back to back, the load ran out; at 00:0x from a clean checkout everything fit; minutes later the load fit and the first request's cuMemHostAlloc ran out, its error naming no allocation.\n\nThe change: each cuMemHostAlloc failure names its purpose and size; the open sums what its experts will pin and what a request's buffers take, reads what the machine can pin, and keeps the request's share (fewer experts pinned, the rest read from the mapped file) or refuses naming both figures, before it pins any.\n\nCheck: TestFlashNextOpensAndAnswersThreeTimes opens Flash-Next and answers a request three times in a row in one process each, on an idle machine.\n\nBatch: device lane, the card and nothing else."
-        }
-      ]
-    },
-    {
       "id": "readme-samples",
       "title": "Each picture and clip the README shows is drawn at its developer's recommended settings by today's code, and names its prompt, seed, steps and guidance; a timing request is labelled as one",
       "owner": "master-lead",

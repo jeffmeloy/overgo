@@ -2,6 +2,7 @@ package executor
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"runtime"
 	"unsafe"
@@ -115,7 +116,7 @@ func pinned(state *device.State, buffer *[]byte, bytes uint64) error {
 	}
 	data, _, err := state.Driver.MemHostAlloc(bytes)
 	if err != nil {
-		return err
+		return fmt.Errorf("pinning %d bytes for the experts the CPU computes: %w", bytes, err)
 	}
 	*buffer = data
 	return nil

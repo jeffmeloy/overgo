@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"maps"
 	"math"
+	"os"
 	"runtime"
 	"runtime/debug"
 	"sort"
@@ -441,6 +442,9 @@ func (l *Library) DeviceInfo(ordinal int) (DeviceInfo, error) {
 	}, nil
 }
 
+// cardTurn names the turn every user of the card queues for (processcontrol.TakeTurn).
+func cardTurn(uuid string) string { return "overgo-card-turn:" + uuid }
+
 // ContextCreate creates CUDA context for device; calling goroutine
 // must remain locked to its OS thread while it uses context. The context
 // holds the device's shared claim for its life. While another process
@@ -449,8 +453,13 @@ func (l *Library) DeviceInfo(ordinal int) (DeviceInfo, error) {
 // of failing. No caller context ends the wait: the device worker that
 // creates every context carries none, and every holder is a process whose
 // claim the system ends when it exits.
+//   - in the card's one turn (card-turn/turn), taken after the shared claim, as every claim on the card is taken
+//     before its turn, so no claimer waits for a turn while its holder waits for the claim: a process holds the turn
+//     while any context of its lives, and one waiting for it says which process holds it and for what.
 func (l *Library) ContextCreate(device Device, flags uint32) (Context, error) {
 	var created Context
+	var uuid string
+	var shared func() error
 	// Each claim holds contextMu and the wait between claims does not, so
 	// a wait on another process's hold blocks no other call on the library.
 	err := processcontrol.AwaitResource(context.Background(), func() error {
@@ -459,32 +468,40 @@ func (l *Library) ContextCreate(device Device, flags uint32) (Context, error) {
 		if l.dll == nil {
 			return errors.New("CUDA library is closed")
 		}
-		uuid, err := l.DeviceUUID(device)
-		if err != nil {
+		var err error
+		if uuid, err = l.DeviceUUID(device); err != nil {
 			return err
 		}
-		release, err := processcontrol.ShareResource(uuid)
-		if err != nil {
-			return err
-		}
-		var pinned runtime.Pinner
-		pinned.Pin(&created)
-		defer pinned.Unpin()
-		err = processcontrol.ResourceTransaction(uuid, func() error {
-			return l.call(l.cuCtxCreate, uintptr(unsafe.Pointer(&created)), uintptr(flags), uintptr(device))
-		})
-		if err != nil {
-			return errors.Join(err, release())
-		}
-		if l.contextClaims == nil {
-			l.contextClaims = make(map[Context]func() error)
-		}
-		l.contextClaims[created] = release
-		return nil
+		shared, err = processcontrol.ShareResource(uuid)
+		return err
 	})
 	if err != nil {
 		return 0, err
 	}
+	// The wait for the turn holds no lock of the library's.
+	turn, err := processcontrol.TakeTurn(cardTurn(uuid), processcontrol.CommandPurpose(), os.Stderr)
+	if err != nil {
+		return 0, errors.Join(err, shared())
+	}
+	release := func() error { return errors.Join(turn(), shared()) }
+	l.contextMu.Lock()
+	defer l.contextMu.Unlock()
+	if l.dll == nil {
+		return 0, errors.Join(errors.New("CUDA library is closed"), release())
+	}
+	var pinned runtime.Pinner
+	pinned.Pin(&created)
+	defer pinned.Unpin()
+	err = processcontrol.ResourceTransaction(uuid, func() error {
+		return l.call(l.cuCtxCreate, uintptr(unsafe.Pointer(&created)), uintptr(flags), uintptr(device))
+	})
+	if err != nil {
+		return 0, errors.Join(err, release())
+	}
+	if l.contextClaims == nil {
+		l.contextClaims = make(map[Context]func() error)
+	}
+	l.contextClaims[created] = release
 	return created, nil
 }
 

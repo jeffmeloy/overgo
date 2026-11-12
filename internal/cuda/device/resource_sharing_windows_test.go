@@ -27,18 +27,34 @@ func TestCUDAContextSharedAdmission(t *testing.T) {
 		runContextAdmissionConsumer(t, role)
 		return
 	}
-	start := func(role string) (*exec.Cmd, io.WriteCloser, *bufio.Reader) {
+	start := func(role string) (*exec.Cmd, io.WriteCloser, *bufio.Reader, *bufio.Reader) {
 		t.Helper()
-		command := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^TestCUDAContextSharedAdmission$", "-test.timeout=1m")
+		command := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^TestCUDAContextSharedAdmission$", "-test.timeout=0")
 		command.Env = append(os.Environ(), contextAdmissionProbeEnvironment+"="+role)
-		input, err := command.StdinPipe()
-		testcheck.NoError(t, err)
-		output, err := command.StdoutPipe()
-		testcheck.NoError(t, err)
-		command.Stderr = os.Stderr
+		input := testcheck.Must(command.StdinPipe())(t)
+		output := testcheck.Must(command.StdoutPipe())(t)
+		said := testcheck.Must(command.StderrPipe())(t)
 		testcheck.NoError(t, command.Start())
 		t.Cleanup(func() { _ = input.Close(); _ = command.Process.Kill(); _ = command.Wait() })
-		return command, input, bufio.NewReader(output)
+		return command, input, bufio.NewReader(output), bufio.NewReader(said)
+	}
+	// relay passes what a process says on its error output on to this test's.
+	relay := func(said *bufio.Reader) { go func() { _, _ = io.Copy(os.Stderr, said) }() }
+	// waits reads what a process says on its error output until it says it waits for the card's turn, held by holder.
+	waits := func(said *bufio.Reader, holder *exec.Cmd) {
+		t.Helper()
+		for {
+			// The process ending before it says it waits fails the read.
+			line := testcheck.Must(said.ReadString('\n'))(t)
+			if strings.Contains(line, "waits for the turn overgo-card-turn:") {
+				if !strings.Contains(line, fmt.Sprintf("(pid %d)", holder.Process.Pid)) {
+					t.Fatalf("the second CUDA process waits on another holder than the first: %s", line)
+				}
+				t.Logf("the second CUDA process said: %s", strings.TrimSpace(line))
+				relay(said)
+				return
+			}
+		}
 	}
 	expect := func(output *bufio.Reader, want string) {
 		t.Helper()
@@ -49,7 +65,8 @@ func TestCUDAContextSharedAdmission(t *testing.T) {
 	}
 	probe := func(role string) {
 		t.Helper()
-		command, input, output := start(role)
+		command, input, output, said := start(role)
+		relay(said)
 		expect(output, "verified")
 		_ = input.Close()
 		if _, err := io.Copy(io.Discard, output); err != nil {
@@ -57,16 +74,20 @@ func TestCUDAContextSharedAdmission(t *testing.T) {
 		}
 		testcheck.NoError(t, command.Wait())
 	}
-	one, inputOne, outputOne := start("shared")
+	one, inputOne, outputOne, saidOne := start("shared")
+	relay(saidOne)
 	expect(outputOne, "admitted")
-	two, inputTwo, outputTwo := start("shared")
-	expect(outputTwo, "admitted")
+	// A second context waits for the card's turn, held by the first, and says so.
+	two, inputTwo, outputTwo, saidTwo := start("shared")
+	waits(saidTwo, one)
 	probe("exclusive-busy")
+	// The first holder's death hands the turn on.
 	testcheck.NoError(t, one.Process.Kill())
 	if err := one.Wait(); err == nil {
 		t.Fatal("CUDA consumer death was not injected")
 	}
 	_ = inputOne.Close()
+	expect(outputTwo, "admitted")
 	if _, err := io.WriteString(inputTwo, "check\n"); err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +105,7 @@ func TestCUDAContextSharedAdmission(t *testing.T) {
 		t.Fatal(err)
 	}
 	testcheck.NoError(t, two.Wait())
-	t.Log("two independent CUDA contexts allocate and execute; physical capacity refusal; process-local byte accounting; survivor remains correct after peer death; context closure and shared readmission; explicit measurement contention")
+	t.Log("a CUDA context allocates and executes in the card's turn; a second waits for the turn and names its holder; the holder's death hands the turn on; physical capacity refusal; process-local byte accounting; context closure and readmission; explicit measurement contention")
 }
 
 func runContextAdmissionConsumer(t *testing.T, role string) {

@@ -3,6 +3,103 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "card-turn",
+      "title": "Every card user queues on one card turn, taken where a CUDA context is created, in place of the admissions, the card hold and the unavailable pass",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": -1617,
+        "reason": "Filed 2026-11-12 from the owner's direction: a simplification, not an addition. The turn is one ResourceTransaction taken in the driver, as laneTurn already is, and a place a child inherits; it retires the shared and claimed card admissions (driver_windows.go context creation, cuda/testutil MeasurementProcess and ReserveDevice, cmd/device-lane's admission), the card hold (internal/plan/card_hold.go, loop -hold-card, loophook's notice) and the scorecard's unavailable pass, which together hold more than the turn adds. The lead's figure."
+      },
+      "steps": [
+        {
+          "id": "readings-turn",
+          "title": "A readings run takes the card turn for each picture, and closes its session before giving the turn up when another waits",
+          "status": "open",
+          "verify": "go test ./cmd/evaluate -count=1 -run '^TestAReadingGivesTheCardUpBetweenPicturesToAWaiter$'",
+          "files": [
+            "cmd/evaluate",
+            "internal/capabilityruntime"
+          ],
+          "rationale": "Serves: the owner's direction of 2026-11-12: the readings run takes the turn per picture and, when a waiter is present, closes its session before giving it up.\n\nDisappears: a campaign of 40 hours of card holding it whole, so no card step, landing lane or check could run until it ended or was stopped by hand.\n\nThe change: a render (renderMedia) takes the card turn for each picture and gives it up after it; where the turn has a waiter, it first closes its held sessions (capabilityruntime's HoldSessions), so the waiter has the card's memory, and loads them again at its next picture. With no waiter the session stays, as held-renders keeps it.\n\nCheck: TestAReadingGivesTheCardUpBetweenPicturesToAWaiter draws three pictures on a fake model while a waiter appears after the first: the session closes before the turn is given up, the waiter runs, and the next picture loads the session again; with no waiter the session is loaded once.\n\nBatch: host lane."
+        },
+        {
+          "id": "retire-admissions",
+          "title": "The card's shared and claimed admissions, the card hold and the scorecard's unavailable pass are gone, the card turn their one replacement",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestTheCardTurnIsTheOnlyCardAdmission$'",
+          "files": [
+            "internal/processcontrol",
+            "internal/cuda",
+            "internal/plan",
+            "cmd/loop",
+            "cmd/loophook",
+            "internal/landing",
+            "cmd/device-lane",
+            "cmd/benchmark",
+            "cmd/longform",
+            "internal/modelswap",
+            "internal/repoanalysis"
+          ],
+          "rationale": "Serves: the owner's direction of 2026-11-12: this retires ShareResource/ClaimResource admission in MeasurementProcess and context creation, the card_hold.json note, and the scorecard's \"unavailable\" pass.\n\nDisappears: four ways of saying who has the card, each read by some users and not others: the shared admission at context creation and the claimed one of a measurement (cuda/testutil MeasurementProcess, ReserveDevice in cmd/benchmark and cmd/longform, cmd/device-lane's admission), the card hold a session writes for the plan's dispatch (internal/plan/card_hold.go, loop -hold-card, loophook's notice), and the scorecard stage's unavailable record when the card is claimed. Dispatch passes over a card step while the card turn is held, read from the turn itself.\n\nCheck: TestTheCardTurnIsTheOnlyCardAdmission reads the module and wants no card admission but the turn: no ShareResource, ClaimResource or HoldResource of a device's identity, no ReserveDevice, no card hold file, and no unavailable pass in the scorecard stage; the quiet machine's own holds are not the card's.\n\nBatch: host lane."
+        }
+      ]
+    },
+    {
+      "id": "no-clocks",
+      "title": "Inside the machine a clock measures, reports and schedules; it never ends or refuses work",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": -120,
+        "reason": "Filed 2026-11-12 from the owner's rule: a simplification, each budget, its flag and its error deleted for a wait on the event. The lead's figure."
+      },
+      "steps": [
+        {
+          "id": "own-budgets",
+          "title": "overgo's own work runs with no clock that ends it: evaluate, longform and the smoke take a limit only where the user sets one, test evidence and the web UI lane wait on the event, and every go test a plan check runs is unbounded",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestNoClockEndsOvergosOwnWork$'",
+          "files": [
+            "cmd/evaluate",
+            "cmd/longform",
+            "cmd/validate",
+            "internal/testevidence",
+            "internal/webuilane",
+            "internal/repoanalysis"
+          ],
+          "rationale": "Serves: the owner's rule of 2026-11-12: inside the machine a clock measures, reports and schedules; it never ends or refuses work. Waits are on the event; a dead process is learned from the OS; the requester cancels. Allowed: network peers and a limit the user set.\n\nDisappears: the clocks that end overgo's own work by default or by requirement: cmd/evaluate's -budget, 6 hours by default, cutting a model at its slice (all.go) and bounding the speech and transcription evaluations (main.go); cmd/longform's -budget, required, and its model budget; cmd/validate's smoke -budget, required; internal/testevidence/deadline.go's budget, which cancels; the web UI lane's page budget (internal/webuilane/browser.go), the lane's own and not the user's; and the three plan checks run with -timeout 120m (loop-proof/local-demonstrated, training-depth, card-budgets/three-workloads), which become -timeout=0, since a go test given none ends at Go's default of 10 minutes. On 2026-11-12 a 4-minute go test alarm named a healthy test after a measuring test waited 204 s for the card, and on 2026-11-08 the measurement run filed no rows on two clocks (preflight did not pass in 10m0s, lanes did not pass in 1h41m0s).\n\nThe change: each limit is the user's alone, none unless set, and a wait without one waits on its event (a process's end, read from the OS; a page's answer or its browser's end; a test's end) and says what it waits for and for how long, as cmd/validate/lane_walls.go's timer reports a wall and ends nothing. The plan checks are set to -timeout=0 through plan -setverify.\n\nCheck: TestNoClockEndsOvergosOwnWork lists every context.WithTimeout, WithTimeoutCause, WithDeadline and WithDeadlineCause, every time.AfterFunc whose function cancels or stops, and every go test a plan check or a gate lane runs, and fails on a clock outside the allowed list (network peers: the hub's downloads, cmd/hf-hub, media fetch, the server's connection limits; a flag whose default is none) and on a go test without -timeout=0. This step's list still holds the server's local requests and drain and modelswap's grace (step local-serving) and cudatest.MeasurementProcess and cmd/device-lane's admission (card-turn/retire-admissions), each named with the step that removes it.\n\nBatch: host lane."
+        },
+        {
+          "id": "local-serving",
+          "title": "A local request is ended by its requester, not a clock: the server's request timeout applies to network peers, and a model swap drains its old child's streams to their end",
+          "status": "open",
+          "verify": "go test ./internal/server ./internal/modelswap -count=1 -run '^TestALocalRequestEndsWhenItsRequesterEndsIt$'",
+          "files": [
+            "internal/server",
+            "cmd/server",
+            "internal/modelswap",
+            "internal/repoanalysis"
+          ],
+          "rationale": "Serves: the owner's rule of 2026-11-12, its cases the server's -request-timeout on local requests and modelswap's grace.\n\nDisappears: a local request ended by the server's -request-timeout (internal/server/server.go) and a drain bounded by it (cmd/server/main.go), and a swap that severs the old child's lingering streams after its 15 s grace (internal/modelswap/supervisor.go drainGrace). The idle stop of a served model (supervisor.go idleStop) schedules and stays.\n\nThe change: the request timeout and the drain bound apply to a connection from a network peer; a request from the machine ends when it ends or its requester cancels. A swap stops routing to the old child at once and stops it when its last stream ends or its requester cancels, saying what it waits for and how long.\n\nCheck: TestALocalRequestEndsWhenItsRequesterEndsIt holds, in each package, that a local request outlasting the request timeout completes, that cancelling it ends it, and that a swap waits for the old child's stream to end rather than its grace; and the repoanalysis list drops these sites.\n\nBatch: host lane."
+        },
+        {
+          "id": "rule",
+          "title": "skill.md says the rule and names its check, whose allowed list holds network peers and a limit the user set alone",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestNoClockEndsWorkInsideTheMachine$'",
+          "files": [
+            "skill.md",
+            "internal/repoanalysis"
+          ],
+          "rationale": "Serves: the owner's rule of 2026-11-12, made the written rule with the check that holds it.\n\nDisappears: a list of pending clocks: once own-budgets, local-serving and card-turn/retire-admissions have landed, the list holds only the allowed.\n\nThe change: skill.md: inside the machine a clock measures, reports and schedules; it never ends or refuses work. Waits are on the event; a dead process is learned from the OS; the requester cancels. Allowed: network peers (the hub, media fetch, the server's connection limits) and a limit the user set. Its check is TestNoClockEndsWorkInsideTheMachine, TestNoClockEndsOvergosOwnWork with its pending list empty.\n\nCheck: TestNoClockEndsWorkInsideTheMachine fails on any clock that ends work outside the allowed list, and on a pending entry left in the list.\n\nBatch: host lane.",
+          "depends_on": [
+            "card-turn/retire-admissions"
+          ]
+        }
+      ]
+    },
+    {
       "id": "readme-speed",
       "title": "The README's speed table reads prompt processing at 4,096 and 16,384 tokens for every chat model, from readings that keep their token counts",
       "owner": "master-lead",
@@ -335,7 +432,7 @@
             "internal/media",
             "internal/latentimage"
           ],
-          "rationale": "The workflow sharpens its output and sizes its canvas from an aspect ratio and a megapixel count rounded to 32.\n\nServes: setup-steps for moss-ultra-compare.\nDisappears: nothing.\nEvidence: the sharpened image is within one 8-bit level of the recorded one, and every recorded size is reproduced exactly.\nBatch: host lane.",
+          "rationale": "The workflow sharpens its output and sizes its canvas from an aspect ratio and a megapixel count rounded to 32.\n\nNote: 2026-11-12, the evidence read against what the recording holds: the recorded sharpened picture was sharpened from float values the recording does not keep, and its original is saved at 8 bits (SaveImage writes the floor of 255 times each value), which the sharpening's kernel, 8 at its centre less 7 times a blur, amplifies. Sharpened from the recorded original at its levels' middles, the turbo text-to-image picture's 1,769,472 values differ from the recorded sharpened ones by 0 levels at 397,339, by 1 at 714,320, by 2 at 516,724, by 3 at 136,446 and by 4 at 4,643, symmetric about 0, so the formula holds and the 8-bit input is the spread. The check holds overgo's sharpening to ComfyUI's ImageSharpen run on the same 8-bit input instead, a 96 × 96 crop of the recorded original read as LoadImage reads it (scripts/python_golden_references/comfy_finishing_golden.py): within one level, 27,627 of its 27,648 values exact. The sizes are ResolutionSelector's own over eight aspect ratios, eleven megapixels and five multiples, 440 in all, the workflow's 1024 × 576 among them, each reproduced exactly.\n\nNote: No boundary test: the finishing is new code of internal/media (Sharpen, Sharpening, Canvas, AspectSize) that no test building at the base can name; the check, TestFinishingMatchesTheRecordedImage, and the tests the change adds beside it, TestSharpenRefusesWhatItCannotSharpen and TestARequestsCanvasAndSharpeningFinishItsPicture, each call it.\n\nServes: setup-steps for moss-ultra-compare.\nDisappears: nothing.\nEvidence: the sharpened image is within one 8-bit level of the recorded one, and every recorded size is reproduced exactly.\nBatch: host lane.",
           "depends_on": [
             "comfy-recorder/record"
           ]

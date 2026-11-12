@@ -179,7 +179,7 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 			cuda.PreloadBLAS()
 		}
 		uploaded := processmeasure.Stage(ctx, "weights")
-		recovered, err = loadWithHostRecovery(residency.hostRecovery, func() error {
+		recovered, err = loadWithHostRecovery(residency.hostRecovery, strataRound, func() error {
 			return loadResidentWeights(
 				ctx, file, weights, outputProjection, loraAdapters, residency, worker, claims, draft, expertProfile, strataRound,
 				&deviceWeights, &rawWeights, &decodeWeights,
@@ -300,10 +300,17 @@ func bindResidency(policy recipe.ResidencyPolicy) (residencyBinding, error) {
 
 // loadWithHostRecovery keeps an OOM fallback and partial-store release on one
 // testable path. A release failure cannot become a successful streamed open.
-func loadWithHostRecovery(recoverOOM bool, load, release func() error) (bool, error) {
+//
+// A Strata round runs on the weights the card holds, so a round's load that does not fit is refused with its cause,
+// never streamed: streamed, the open left no device weights and readied the round anyway, which indexed the layers'
+// cache kinds it had not made and panicked (Qwen3.8 Flash-Next's measure, 2026-11-11, with the card's memory short).
+func loadWithHostRecovery(recoverOOM, round bool, load, release func() error) (bool, error) {
 	err := load()
 	if err == nil {
 		return false, nil
+	}
+	if round && driver.IsOutOfMemory(err) {
+		return false, fmt.Errorf("inference: the Strata round runs on the weights the card holds, and the card could not hold them: %w", err)
 	}
 	if !recoverOOM || !driver.IsOutOfMemory(err) {
 		return false, err

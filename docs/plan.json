@@ -3,6 +3,32 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "flash-next-load",
+      "title": "Qwen3.8 Flash-Next opens or is refused with its cause: a round's load is never streamed, and the open keeps the pinned host memory a request needs",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 97,
+        "reason": "Filed 2026-11-12 at the owner's direction to fix Flash-Next before anything else: one refusal now, and a pinned-memory budget measured on the card. The lead's figure."
+      },
+      "steps": [
+        {
+          "id": "pinned-budget",
+          "title": "Flash-Next's open measures the pinned host memory its experts and a request's buffers take against what the machine can pin, and keeps a request's share or refuses naming both; each pinned allocation that fails names what it was for",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/inference -count=1 -run '^TestFlashNextOpensAndAnswersThreeTimes$'",
+          "files": [
+            "internal/inference",
+            "internal/modeldevice",
+            "internal/cuda/executor",
+            "internal/cuda/driver"
+          ],
+          "needs_card": true,
+          "rationale": "Serves: the owner's direction of 2026-11-12, fix Flash-Next before anything else; software never just fails.\n\nThe cause: the open pins each layer's whole expert bank in host memory (modeldevice expert_residency.go:439, experts*blob.stride), most of an 89 GB model on a 98 GB machine, and a request pins more beside it (the round's drafter and plan, the QSA cells). Whether both fit is the machine's state: at 23:41, after 14 loads back to back, the load ran out; at 00:0x from a clean checkout everything fit; minutes later the load fit and the first request's cuMemHostAlloc ran out, its error naming no allocation.\n\nThe change: each cuMemHostAlloc failure names its purpose and size; the open sums what its experts will pin and what a request's buffers take, reads what the machine can pin, and keeps the request's share (fewer experts pinned, the rest read from the mapped file) or refuses naming both figures, before it pins any.\n\nCheck: TestFlashNextOpensAndAnswersThreeTimes opens Flash-Next and answers a request three times in a row in one process each, on an idle machine.\n\nBatch: device lane, the card and nothing else."
+        }
+      ]
+    },
+    {
       "id": "readme-samples",
       "title": "Each picture and clip the README shows is drawn at its developer's recommended settings by today's code, and names its prompt, seed, steps and guidance; a timing request is labelled as one",
       "owner": "master-lead",
@@ -35,10 +61,21 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "Filed 2026-11-11 from the owner's review of the README's speed table: a measurement and a record, no code. The lead's figure."
+        "nodes": 491,
+        "reason": "Filed 2026-11-11 from the owner's review of the README's speed table: a measurement and a record, no code. The lead's figure. Step names: +491 (491, the median of what 8 landings that changed internal/discovery, internal/scorecard counted)."
       },
       "steps": [
+        {
+          "id": "names",
+          "title": "A model whose weights sit in a checkpoints folder is named by its repository, and the README's words name Self-Forcing and gemma-4-12B-it",
+          "status": "open",
+          "verify": "go test ./internal/discovery -count=1 -run '^TestLocationNameNamesTheModelNotItsParts$'",
+          "files": [
+            "internal/discovery",
+            "internal/scorecard"
+          ],
+          "rationale": "Serves: the owner's review of the README's speed table, 2026-11-11: writing it found two served rows the README's words file names no words for, so validate -readme refuses every record that holds them.\n\nThe change: discovery.LocationName takes a checkpoints folder for a repository's weights folder, as it takes transformer or vae, so Self-Forcing, whose weights are Self-Forcing/checkpoints/self_forcing_dmd.pt, is named Self-Forcing, not \"checkpoints\"; a trained model under the data root's checkpoints folder keeps its own folder's name. internal/scorecard/served_models.json names Self-Forcing (Wan2.1-T2V 1.3B, distilled; text to video) and gemma-4-12B-it (its published bf16 files; text and vision-language), both new to the catalog since 2026-11-07.\n\nCheck: TestLocationNameNamesTheModelNotItsParts wants Self-Forcing's weights named Self-Forcing and a trained model under checkpoints named by its own folder. At the base the first is named \"checkpoints\", and it fails there on its assertion.\n\nBatch: host lane."
+        },
         {
           "id": "measured",
           "title": "Each chat model's prompt processing at 4,096 and 16,384 tokens is read again with its token counts, the record published, and the table written from it",
@@ -48,7 +85,7 @@
             "README.md"
           ],
           "needs_card": true,
-          "rationale": "Serves: the owner's review of 2026-11-11: every row of the speed table shows no prompt processing at either length.\n\nDisappears: a table of dashes. The newest record, scorecard-20261107T192932Z.json, holds a prefill reading at 4,096 tokens for 12 rows and at 16,384 for 11 (Carbon-500M's 4,096-token prefill took 2,058 ms), but none keeps the tokens it read uncached (Cell.Rate), so SpeedTable gives no figure, as it should: a rate from the nominal size could count tokens a prefix cache served. The measurement run of 2026-11-08 filed no record, so no reading since has kept them.\n\nThe change: in a gap between two readings, go run ./cmd/recipe measure reads each chat model again on the card (its load, its first request, a fresh prompt of each length read once unmeasured and then measured, and its warm generation), recording each as an attempt with its token counts; go run ./cmd/validate -scorecard -publish writes the newest record from the store; go run ./cmd/validate -readme writes the table from it. A model whose context does not hold 16,384 tokens keeps its dash at that length.\n\nCheck: validate -readme -check, which fails while the README's written parts are not what the newest record gives.\n\nBatch: device lane for the readings, in a gap between two readings; the record and the README on the host."
+          "rationale": "Serves: the owner's review of 2026-11-11: every row of the speed table shows no prompt processing at either length.\n\nDisappears: a table of dashes. The newest record, scorecard-20261107T192932Z.json, holds a prefill reading at 4,096 tokens for 12 rows and at 16,384 for 11 (Carbon-500M's 4,096-token prefill took 2,058 ms), but none keeps the tokens it read uncached (Cell.Rate), so SpeedTable gives no figure, as it should: a rate from the nominal size could count tokens a prefix cache served. The measurement run of 2026-11-08 filed no record, so no reading since has kept them.\n\nThe change: in a gap between two readings, go run ./cmd/recipe measure reads each chat model again on the card (its load, its first request, a fresh prompt of each length read once unmeasured and then measured, and its warm generation), recording each as an attempt with its token counts; go run ./cmd/validate -scorecard -publish writes the newest record from the store; go run ./cmd/validate -readme writes the table from it. A model whose context does not hold 16,384 tokens keeps its dash at that length.\n\nCheck: validate -readme -check, which fails while the README's written parts are not what the newest record gives.\n\nBatch: device lane for the readings, in a gap between two readings; the record and the README on the host.\n\nNote: 2026-11-11, in the gap between readings: 14 of the 15 chat models were read again by recipe measure, each prefill now with its token counts (Bonsai-27B 1,969 and 1,603 tok/s at 4,096 and 16,384 tokens; Qwen3.8-27B 1,927 and 1,570; Qwen3.5-9B 5,854 and 4,310; gemma-4-12B-it-fp8-native 3,649 and 3,181; Carbon-500M 59,861 at 4,096, its context holding no 16,384). Qwen3.8 Flash-Next no longer opens (finding evidence:sha256:44390623...: strataRoundConversions indexes an empty qsaLayers). The table is not written yet, and is not written by publishing a record by hand: a record counts a cell current only where it was measured since the record before it, so validate -scorecard -publish after these readings blanked every cell not read again since 2026-11-07 (peak memory, the MMLU-Pro readings), and a second publish four minutes later blanked nearly every row. Both records are withdrawn to overgo_data/scorecards/withdrawn-2026-11-11 and the README is as it was. The table fills from the next measurement run's record, which reads every cell. Publishing also found two rows served_models.json named no words for, new since 2026-11-07: gemma-4-12B-it (its published bf16 files) and Self-Forcing, whose row was named \"checkpoints\", the folder its weights sit in; readme-speed/names lands those."
         }
       ]
     },
@@ -107,8 +144,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": -4881,
-        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard). Step client: +0 (no landing changed cmd/comfy-reference)."
+        "nodes": -2872,
+        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard). Step client: +0 (no landing changed cmd/comfy-reference). Step record-rest: +2009 (2009, the median of what 2 landings that changed cmd/comfy-reference, fixtures/comfy counted)."
       },
       "steps": [
         {
@@ -126,6 +163,18 @@
           "depends_on": [
             "comfy-recorder/request"
           ]
+        },
+        {
+          "id": "record-rest",
+          "title": "Each recording holds its samplers' sigmas, the time of each step, the model files' hashes, and the workflow's prompt modes 2 and 3",
+          "status": "open",
+          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/comfy-reference -count=1 -run '^TestTheUltraRecordingsAgreeAndParseStrictly$'",
+          "files": [
+            "cmd/comfy-reference",
+            "fixtures/comfy"
+          ],
+          "needs_card": true,
+          "rationale": "Serves: setup-steps; the rest of what comfy-recorder/record's rationale names, which the 2026-11-11 recordings do not hold.\n\nThe recordings of 2026-11-11 keep each section's request hash, the inputs set over it, ComfyUI's version and the commits of it and each node pack, the final prompts (each PreviewAny node's text), the final latent (a SaveLatent after the section's KSampler), every picture by its SHA-256, the run's whole time, the card's most memory in use and the nodes answered from ComfyUI's cache. They do not hold: the sigmas each sampler ran, the time each step took, each model file's SHA-256 as ComfyUI loaded it, and the workflow's prompt modes 2 and 3, which the sections were recorded in mode 1 alone.\n\nThe change: the recorder reads ComfyUI's progress events over its websocket for the time each step took; each sampler's sigmas are recorded by a node of ComfyUI's own that outputs them (BasicScheduler, or KSampler's scheduler and steps read through ComfyUI's /object_info and the sigmas computed by a node added beside it, whichever ComfyUI's install holds), saved as a file; the model files' hashes are those moss_ultra_import.json pins, named by the recording with the install's paths read through ComfyUI's /models; and each prompt mode is recorded by the input that selects it, set over the section's own.\n\nCheck: TestTheUltraRecordingsAgreeAndParseStrictly, widened to hold each recording to its sigmas, its step times, its model hashes and the three prompt modes.\n\nBatch: device lane; a recording runs only while no reading holds the card."
         }
       ]
     },

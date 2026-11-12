@@ -12,7 +12,7 @@ import (
 func TestHybridNativeFallbackRealizedResidency(t *testing.T) {
 	oom := &driver.ResultError{Operation: "injected resident allocation", Code: 2}
 	partial, releases := false, 0
-	recovered, err := loadWithHostRecovery(true, func() error {
+	recovered, err := loadWithHostRecovery(true, false, func() error {
 		partial = true
 		return oom
 	}, func() error {
@@ -64,15 +64,35 @@ func TestHybridNativeFallbackRealizedResidency(t *testing.T) {
 			t.Fatal("expert residency accepted under another policy")
 		}
 	}
-	if recovered, err := loadWithHostRecovery(false, func() error { return oom }, func() error {
+	if recovered, err := loadWithHostRecovery(false, false, func() error { return oom }, func() error {
 		t.Fatal("non-recoverable policy released for fallback")
 		return nil
 	}); recovered || !errors.Is(err, oom) {
 		t.Fatalf("non-recoverable preload = %v, %v", recovered, err)
 	}
 	cleanupFailure := errors.New("injected release failure")
-	if recovered, err := loadWithHostRecovery(true, func() error { return oom }, func() error { return cleanupFailure }); recovered || !errors.Is(err, oom) || !errors.Is(err, cleanupFailure) {
+	if recovered, err := loadWithHostRecovery(true, false, func() error { return oom }, func() error { return cleanupFailure }); recovered || !errors.Is(err, oom) || !errors.Is(err, cleanupFailure) {
 		t.Fatalf("failed cleanup became streamed success: %v, %v", recovered, err)
+	}
+}
+
+// TestARoundsLoadThatDoesNotFitIsRefusedNotStreamed holds a Strata round's load to the card (flash-next-load): a
+// round runs on the weights the card holds, so a load the card cannot hold is refused with the out-of-memory error it
+// met, and nothing is released to stream; streamed, Qwen3.8 Flash-Next's open on 2026-11-11 left no device weights,
+// readied the round anyway, and panicked indexing the layers' cache kinds it had not made.
+func TestARoundsLoadThatDoesNotFitIsRefusedNotStreamed(t *testing.T) {
+	t.Parallel()
+	oom := &driver.ResultError{Operation: "injected expert tier allocation", Code: 2}
+	recovered, err := loadWithHostRecovery(true, true, func() error { return oom }, func() error {
+		t.Fatal("a round's load released its stores to stream")
+		return nil
+	})
+	if recovered || !errors.Is(err, oom) || !driver.IsOutOfMemory(err) {
+		t.Fatalf("a round's load that did not fit gave recovered=%v err=%v; want it refused with its out-of-memory cause", recovered, err)
+	}
+	other := errors.New("injected file read failure")
+	if _, err := loadWithHostRecovery(true, true, func() error { return other }, func() error { return nil }); !errors.Is(err, other) {
+		t.Fatalf("a round's load failing otherwise gave %v; want its own error", err)
 	}
 }
 
@@ -84,7 +104,7 @@ func TestHybridFallbackReleasesPartialStoresWithoutADecodeStore(t *testing.T) {
 	var decode *modeldevice.DeviceConvertedWeights
 	raw, f32 := &modeldevice.DeviceWeights{}, &modeldevice.DeviceConvertedWeights{}
 	oom := &driver.ResultError{Operation: "injected resident allocation", Code: 2}
-	recovered, err := loadWithHostRecovery(true, func() error { return oom }, func() error {
+	recovered, err := loadWithHostRecovery(true, false, func() error { return oom }, func() error {
 		return releasePartialStores(&decode, &raw, &f32)
 	})
 	if err != nil || !recovered || decode != nil || raw != nil || f32 != nil {

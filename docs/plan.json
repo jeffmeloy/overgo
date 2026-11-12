@@ -80,20 +80,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": -2872,
+        "nodes": -4881,
         "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard). Step client: +0 (no landing changed cmd/comfy-reference)."
       },
       "steps": [
-        {
-          "id": "client",
-          "title": "The recorder posts a section's request to ComfyUI, inputs given over it, and keeps what the run gave: its files by SHA-256, its texts, its time, the card's peak memory and the commits it ran",
-          "status": "open",
-          "verify": "go test ./cmd/comfy-reference -count=1 -run '^TestARecordingIsTakenFromComfyUIsAnswers$'",
-          "files": [
-            "cmd/comfy-reference"
-          ],
-          "rationale": "Serves: the owner's suggestion of 2026-11-11, weighed and taken: write and test the recorder's host part while the readings campaign holds the card, so the recording itself needs the card only to run. The request a section posts is comfy-recorder/request's, landed 2026-11-08; what was left on the host is the client that posts it and keeps what ComfyUI's run gave.\n\nThe change: comfy-reference -record \u003csection\u003e -server \u003curl\u003e -install \u003cComfyUI folder\u003e -out \u003cfolder\u003e [-set node.input=\u003cJSON\u003e]... [-save-latent node]... builds the section's request, sets each input given over the section's own (refusing one the request does not hold), adds a SaveLatent fed by each node named, reads ComfyUI's /system_stats, posts /prompt, reads /history/\u003cid\u003e and /system_stats each second until the run ends, and keeps each file the history names through /view by its SHA-256, each node's text, the run's time from ComfyUI's execution_start and execution_success stamps, the most of the card's memory in use as /system_stats reports it, ComfyUI's version, and the commit of the install's ComfyUI and of each custom-node pack it holds as a checkout. A run ComfyUI fails is refused with its messages. The choices that are the workflow's, which inputs give 1024 x 576 and which node's latent is the final one, are the record step's, given on the command line.\n\nCheck: TestARecordingIsTakenFromComfyUIsAnswers runs the command as a child process against a fake ComfyUI built from its API's answers: the request posted carries the seed set and the latent saver; the recording names the workflow's hash, the time stamped (2500 ms), the most memory in use (700 of 1000 bytes), the commits of the install and its one checked-out pack, the final prompt's text and both files by their bytes' SHA-256; and a run that fails in ComfyUI is refused with what it said. At the base the command has no -record flag, so the child fails and the test fails on its assertion.\n\nBatch: host lane."
-        },
         {
           "id": "record",
           "title": "Each section and prompt mode is recorded at 1024 x 576 on the install's own files, ComfyUI listening on the machine only with API nodes and the manager's network checks off",

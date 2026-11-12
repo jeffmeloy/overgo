@@ -1,8 +1,6 @@
 package main
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -95,8 +93,7 @@ func importFixture(folder, workflowPath, objectInfoPath, saved string) error {
 	if err := os.MkdirAll(filepath.Join(folder, requestsFolder), fsatomic.DirectoryMode); err != nil {
 		return err
 	}
-	sum := sha256.Sum256(workflow)
-	kept := source{Workflow: filepath.Base(workflowPath), SHA256: hex.EncodeToString(sum[:]), Requests: map[string]string{}}
+	kept := source{Workflow: filepath.Base(workflowPath), SHA256: hashOf(workflow), Requests: map[string]string{}}
 	for title := range sections {
 		request, err := os.ReadFile(filepath.Join(saved, savedRequest+slug(title)+".json"))
 		if err != nil {
@@ -138,7 +135,7 @@ func readFixture(folder string) (*fixture, error) {
 	if err != nil {
 		return nil, err
 	}
-	if sum := sha256.Sum256(workflow); hex.EncodeToString(sum[:]) != kept.SHA256 {
+	if hashOf(workflow) != kept.SHA256 {
 		return nil, fmt.Errorf("comfy-reference: %s is not the %s kept with SHA-256 %s", workflowFile, kept.Workflow, kept.SHA256)
 	}
 	f.workflow, f.requests = workflow, kept.Requests

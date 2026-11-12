@@ -3,6 +3,7 @@ package runrecord
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode"
@@ -91,6 +92,12 @@ func compileGoTestSelector(pattern string) (*GoTestTarget, error) {
 		start = i + 1
 	}
 	return target, nil
+}
+
+// RunsTest says the selector runs the top-level test name, the test itself or any subtest of it, as go test -list
+// names tests.
+func (target *GoTestTarget) RunsTest(name string) bool {
+	return slices.ContainsFunc(target.paths, func(path []*regexp.Regexp) bool { return len(path) > 0 && path[0].MatchString(name) })
 }
 
 // MatchString requires a complete selected path; parent discovery is insufficient.

@@ -123,7 +123,7 @@ func TestCommitChecksRefuseBelowTheFreeSpaceFloor(t *testing.T) {
 	// A run given no reader is held to no floor: the fixtures of every other test.
 	log, record, err = run(true, nil)
 	stages := slices.Sorted(maps.Keys(record.Stages))
-	if want := []string{"fix", "format", "invariants", "rules", "verify", "vet"}; err != nil || strings.Contains(log, spaceClass) || !slices.Equal(stages, want) {
+	if want := []string{"fix", "form", "format", "invariants", "rules", "verify", "vet"}; err != nil || strings.Contains(log, spaceClass) || !slices.Equal(stages, want) {
 		t.Fatalf("a preflight with no reader ended as %v after the stages %v, want it passed after %v and its log free of the stage:\n%s", err, stages, want, log)
 	}
 

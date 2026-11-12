@@ -1,26 +1,13 @@
 package testevidence
 
 import (
-	"strings"
 	"testing"
 
 	"overgo/internal/runrecord"
-	"overgo/internal/testcheck"
 )
 
-func verdictEvidence(action string) string {
-	lines := []string{
-		`{"Action":"run","Package":"overgo/internal/example","Test":"TestStable"}`,
-		`{"Action":"pass","Package":"overgo/internal/example","Test":"TestStable"}`,
-		`{"Action":"run","Package":"overgo/internal/example","Test":"TestWatched"}`,
-		`{"Action":"` + action + `","Package":"overgo/internal/example","Test":"TestWatched"}`,
-		`{"Action":"pass","Package":"overgo/internal/example"}`,
-	}
-	return strings.Join(lines, "\n") + "\n"
-}
-
-// TestVerdictClassificationAndRepeatAgreement pins command classification and repeat identity.
-func TestVerdictClassificationAndRepeatAgreement(t *testing.T) {
+// TestVerdictClassification pins command classification.
+func TestVerdictClassification(t *testing.T) {
 	classifications := []struct {
 		command string
 		want    runrecord.VerdictClass
@@ -44,32 +31,5 @@ func TestVerdictClassificationAndRepeatAgreement(t *testing.T) {
 	}
 	if _, err := runrecord.ClassifyVerifyCommandForPolicy(runrecord.VerifyPolicy("verify-classifier-v2"), "go test ./..."); err == nil {
 		t.Fatal("unknown future verify classifier policy accepted")
-	}
-
-	if err := repeatAgreement(verdictEvidence("pass"), verdictEvidence("pass"), false); err != nil {
-		t.Fatalf("identical runs disagreed: %v", err)
-	}
-	err := repeatAgreement(verdictEvidence("pass"), verdictEvidence("fail"), false)
-	if err == nil || !strings.Contains(err.Error(), "TestWatched") ||
-		!strings.Contains(err.Error(), "pass") || !strings.Contains(err.Error(), "fail") {
-		t.Fatalf("flipped verdict not named: %v", err)
-	}
-	missing := strings.ReplaceAll(verdictEvidence("pass"), `"Test":"TestWatched"`, `"Test":"TestStable"`)
-	if err := repeatAgreement(verdictEvidence("pass"), missing, false); err == nil ||
-		!strings.Contains(err.Error(), "absent") {
-		t.Fatalf("vanished test not reported as absent: %v", err)
-	}
-	if err := repeatAgreement("not json", verdictEvidence("pass"), false); err == nil {
-		t.Fatal("undecodable first evidence accepted")
-	}
-}
-
-func TestRepeatAgreementForMixedVerifier(t *testing.T) {
-	command := "go test ./internal/repoanalysis -run '^TestExample$' && go run ./cmd/validate -tests ./..."
-	first := verdictEvidence("pass") + "validate -tests: PASS packages=1 tests=1\n"
-	second := verdictEvidence("pass") + "validate -tests: PASS packages=1 tests=1\n"
-	testcheck.NoError(t, RepeatAgreementForCommand(command, first, second))
-	if err := RepeatAgreementForCommand(command, first+"{malformed\n", second); err == nil {
-		t.Fatal("malformed JSON-looking auxiliary output was accepted")
 	}
 }

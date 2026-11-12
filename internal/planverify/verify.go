@@ -30,8 +30,7 @@ var ErrAssertion = fmt.Errorf("%w on an assertion", ErrFailed)
 var ErrVacuous = errors.New("VACUOUS")
 
 // Execute runs one plan verifier from directory and validates that a
-// successful process produced non-vacuous evidence. Deterministic Go-test
-// claims are repeated against the same working tree and must agree exactly.
+// successful process produced non-vacuous evidence. It runs the command once.
 // Overrides bind caller-owned inputs without changing the acceptance command.
 func Execute(ctx context.Context, directory, command string, overrides []string) (runrecord.VerdictClass, error) {
 	if ctx == nil {
@@ -75,20 +74,9 @@ func Execute(ctx context.Context, directory, command string, overrides []string)
 	if err != nil {
 		return "", fmt.Errorf("%w: %v", ErrVacuous, err)
 	}
-	verdict := runrecord.ClassifyVerifyCommand(command)
-	if structuredGoTest && verdict == runrecord.VerdictBitwiseDeterministic {
-		repeat, repeatErr := executeShell(ctx, shell, directory, executable, environment)
-		if repeatErr != nil {
-			return "", fmt.Errorf("REPEAT failed: %w: %s", repeatErr, clioptions.Tail(repeat, clioptions.DiagnosticTailBytes))
-		}
-		if err := testevidence.VerifyGoTestEvidence(command, repeat); err != nil {
-			return "", fmt.Errorf("REPEAT vacuous: %w", err)
-		}
-		if err := testevidence.RepeatAgreementForCommand(command, first, repeat); err != nil {
-			return "", fmt.Errorf("NOT deterministic: %w", err)
-		}
-	}
-	return verdict, nil
+	// A check runs once (cheap-first/form): a second run of every host check, held to agree with the first, doubled
+	// each check's time, and no refusal recorded nor any commit names a run that disagreed.
+	return runrecord.ClassifyVerifyCommand(command), nil
 }
 
 func executeShell(ctx context.Context, shell, directory, command string, environment []string) (string, error) {

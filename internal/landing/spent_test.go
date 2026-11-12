@@ -49,10 +49,10 @@ func TestLandingRecordsItsWaitsByCause(t *testing.T) {
 		preflight          bool
 		stages             []string
 	}{
-		{"row/do", outcomePreflight, true, []string{"format", "fix", "vet", "rules", "invariants", "verify"}},
-		{"row/refused", "verify", true, []string{"format", "fix", "vet", "rules", "invariants", "verify"}},
-		{"row/moved", outcomeConflict, false, []string{"format", "fix", "vet", "rules", "invariants", "test", "lanes", "verify", "scorecard"}},
-		{"row/do", outcomeLanded, false, []string{"format", "fix", "vet", "rules", "invariants", "test", "lanes", "verify", "scorecard"}},
+		{"row/do", outcomePreflight, true, []string{"format", "fix", "vet", "rules", "form", "invariants", "verify"}},
+		{"row/refused", "verify", true, []string{"format", "fix", "vet", "rules", "form", "invariants", "verify"}},
+		{"row/moved", outcomeConflict, false, []string{"format", "fix", "vet", "rules", "form", "invariants", "test", "lanes", "verify", "scorecard"}},
+		{"row/do", outcomeLanded, false, []string{"format", "fix", "vet", "rules", "form", "invariants", "test", "lanes", "verify", "scorecard"}},
 	} {
 		fixture.write("a.txt", "changed for "+run.outcome+"\n")
 		before := len(recorded())

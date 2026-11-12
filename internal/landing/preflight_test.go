@@ -24,7 +24,7 @@ func TestPreflightRunsTheCheapStagesOnly(t *testing.T) {
 			long = append(long, check.name)
 		}
 	}
-	if want := []string{"format", "fix", "vet", "rules", "invariants", "verify"}; !slices.Equal(cheap, want) {
+	if want := []string{"format", "fix", "vet", "rules", "form", "invariants", "verify"}; !slices.Equal(cheap, want) {
 		t.Errorf("the preflight runs %v, want %v", cheap, want)
 	}
 	if want := []string{"test", "lanes", "scorecard"}; !slices.Equal(long, want) {

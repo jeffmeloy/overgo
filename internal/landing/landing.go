@@ -148,6 +148,9 @@ type landing struct {
 	// unevidenced are the checks that did not build with the change's production Go restored, so no assertion of
 	// theirs is shown to catch the change's absence (undo).
 	unevidenced []string
+	// unbuilt are the checks the form stage found not building with the change's production Go restored, each with
+	// how it failed, which the undo run does not run again.
+	unbuilt map[string]string
 	// boundaryReasons are why no test through an existing boundary is practical, each a landed step's own, from the
 	// line its rationale opens with noBoundaryLine (undo).
 	boundaryReasons []string
@@ -300,7 +303,8 @@ type check struct {
 // checks are the gate's stages in the order they run; a refusal names the
 // stage that refused, and Classify reads the name back. The cheap ones are
 // the stages that take seconds and refuse what the change itself got wrong:
-// the files' form, the style and growth rules, and the invariant tests the
+// the files' form, the style and growth rules, the form of each step's check
+// whatever it runs on (cheap-first/form), and the invariant tests the
 // repository holds itself to, which also run first in a full landing so the
 // refusal comes before the tests of every package. The step's own check, its
 // undo evidence included, runs with them when it runs on the host, seconds
@@ -309,7 +313,7 @@ type check struct {
 func (l *landing) checks() []check {
 	early := []check{
 		{"format", l.format, true}, {"fix", l.fix, true}, {"vet", l.vet, true}, {"rules", l.rules, true},
-		{"invariants", l.invariants, true},
+		{"form", l.form, true}, {"invariants", l.invariants, true},
 	}
 	long := []check{{"test", l.test, false}, {"lanes", l.lanes, false}}
 	verify, scorecard := check{"verify", l.verify, true}, check{"scorecard", l.scorecard, false}
@@ -319,36 +323,18 @@ func (l *landing) checks() []check {
 	return slices.Concat(early, []check{verify}, long, []check{scorecard})
 }
 
-// onTheCard says a step's check runs on the graphics card: it sets OVERGO_CUDA_TEST=1 or builds with the modeltest
-// tag, the two ways a check reaches a model.
+// onTheCard says a step's check runs on the graphics card: it sets OVERGO_CUDA_TEST=1, without which cudatest.Require
+// skips every test that reaches the card. A check that needs model files alone (the modeltest tag) runs on the host
+// (cheap-first/form).
 func onTheCard(verify string) bool {
 	parsed, err := runrecord.ParseVerify(verify)
-	if err != nil {
-		return false
-	}
-	for _, segment := range parsed.Segments {
-		if slices.Contains(segment.Env, cudaTestSetting) {
-			return true
-		}
-		for at, field := range segment.Fields {
-			tags, named := strings.CutPrefix(field, "-tags=")
-			if !named && field == "-tags" && at+1 < len(segment.Fields) {
-				tags, named = segment.Fields[at+1], true
-			}
-			if named && slices.Contains(strings.Split(tags, ","), modelTestTag) {
-				return true
-			}
-		}
-	}
-	return false
+	return err == nil && slices.ContainsFunc(parsed.Segments, func(segment runrecord.VerifySegment) bool {
+		return slices.Contains(segment.Env, cudaTestSetting)
+	})
 }
 
-// cudaTestSetting and modelTestTag are how a check asks for the card: the setting cudatest.Require reads, and the
-// build tag of the tests that load a model.
-const (
-	cudaTestSetting = "OVERGO_CUDA_TEST=1"
-	modelTestTag    = "modeltest"
-)
+// cudaTestSetting is how a check asks for the card: the setting cudatest.Require reads.
+const cudaTestSetting = "OVERGO_CUDA_TEST=1"
 
 // stagePrefix opens the refusal of a stage, before the stage's name.
 const stagePrefix = "land: "

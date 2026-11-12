@@ -79,13 +79,7 @@ func TestLogsPass(t *testing.T) { t.Log("--- PASS: TestLogsPass (0.00s)"); t.Ski
 	if err := VerifyGoTestEvidence(guarded, passing+passing); err == nil {
 		t.Fatal("first selector hid a missing second selector")
 	}
-	if err := RepeatAgreementForCommand(compound, passing+other, other+passing); err == nil {
-		t.Fatal("merged test names hid changed invocation verdicts")
-	}
 	otherPackage := strings.ReplaceAll(passing, "command-line-arguments", "example/other")
-	if err := RepeatAgreementForCommand(command, passing+otherPackage, otherPackage+passing); err != nil {
-		t.Fatalf("independent package ordering changed verdicts: %v", err)
-	}
 	// A same-named test skipped in another package keeps its own verdict
 	// in either event order: neither package lends the other its outcome.
 	otherSkipped := strings.ReplaceAll(otherPackage, `"Action":"pass","Package":"example/other","Test":"TestProbe/child"`, `"Action":"skip","Package":"example/other","Test":"TestProbe/child"`)
@@ -135,9 +129,6 @@ func TestLogsPass(t *testing.T) { t.Log("--- PASS: TestLogsPass (0.00s)"); t.Ski
 			}
 			if err := VerifyGoTestEvidence(compound, passing+out.String()); (err == nil) != (mutation == "unrelated skip") {
 				t.Fatalf("earlier pass hid later incomplete invocation: %v", err)
-			}
-			if err := RepeatAgreementForCommand(command, passing, out.String()); err == nil && mutation != "package terminal" && mutation != "package contradicted" {
-				t.Fatal("changed verdicts received repeat credit")
 			}
 		})
 	}

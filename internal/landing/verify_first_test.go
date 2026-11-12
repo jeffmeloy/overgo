@@ -23,12 +23,8 @@ func TestAStepsCheckRunsBeforeTheLanes(t *testing.T) {
 	if verify := slices.Index(host, "verify"); verify > slices.Index(host, "test") || verify > slices.Index(host, "lanes") {
 		t.Errorf("a landing whose check runs on the host orders its stages %v; want the verify before the tests and the lanes", host)
 	}
-	for _, device := range []string{
-		"OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/data go test -tags modeltest ./cmd/loop -count=1 -run '^TestTheLocalWorkerLandsStepsUnaided$' -timeout 120m",
-		"OVERGO_DATA_ROOT=C:/data go test -tags modeltest ./cmd/validate -count=1 -run '^TestThreeWorkloadsAreReadUnderSmallerCards$' -timeout 120m",
-	} {
-		if card := order(device); slices.Index(card, "verify") < slices.Index(card, "lanes") {
-			t.Errorf("a landing whose check runs on the card orders its stages %v; want the verify after the lanes", card)
-		}
+	card := order("OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/data go test -tags modeltest ./cmd/loop -count=1 -run '^TestTheLocalWorkerLandsStepsUnaided$' -timeout 120m")
+	if slices.Index(card, "verify") < slices.Index(card, "lanes") {
+		t.Errorf("a landing whose check runs on the card orders its stages %v; want the verify after the lanes", card)
 	}
 }

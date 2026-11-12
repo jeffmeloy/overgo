@@ -24,31 +24,6 @@ func TestMixedVerifierRepeatEvidence(t *testing.T) {
 			source:    "package probe\nimport \"testing\"\nfunc TestBehavior(t *testing.T) {}\n",
 			auxiliary: "printf '{malformed\\n'", wantError: "VACUOUS",
 		},
-		{
-			name: "repeat skipped with unchanged verdict",
-			source: `package probe
-import ("os"; "testing")
-func TestBehavior(t *testing.T) {
- if _, err := os.Stat("seen"); os.IsNotExist(err) {
-  if err := os.WriteFile("seen", nil, 0600); err != nil { t.Fatal(err) }
- } else { t.Skip("repeat fixture absent") }
-}
-`,
-			auxiliary: "printf 'smoke: passed=1 failed=0\n'", wantError: "REPEAT vacuous",
-		},
-		{
-			name: "changed repeat verdict",
-			source: `package probe
-import ("os"; "testing")
-func TestBehavior(t *testing.T) {
- if _, err := os.Stat("seen"); os.IsNotExist(err) {
-  t.Run("first-only", func(t *testing.T) {})
-  if err := os.WriteFile("seen", nil, 0600); err != nil { t.Fatal(err) }
- }
-}
-`,
-			auxiliary: "printf 'smoke: passed=1 failed=0\\n'", wantError: "NOT deterministic",
-		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			directory := t.TempDir()

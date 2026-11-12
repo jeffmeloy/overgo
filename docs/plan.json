@@ -3,31 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "cheap-first",
-      "title": "A step's check is read for what its form gets wrong in seconds, card or not, and runs once; only a check that uses the card keeps its run late",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 120,
-        "reason": "Filed 2026-11-11 from the owner's suggestions while the readings campaign holds the card, weighed and taken: one cheap stage in the gate, the repeat run removed. The lead's figure."
-      },
-      "steps": [
-        {
-          "id": "form",
-          "title": "A cheap stage lists each check's tests in the change and at the base before any long run, a check is on the card only by its setting, and each check runs once",
-          "status": "open",
-          "verify": "go test ./internal/landing ./internal/planverify -count=1 -run '^(TestAChecksFormIsReadBeforeItRuns|TestACheckRunsOnce)$'",
-          "files": [
-            "internal/landing",
-            "internal/planverify",
-            "internal/runrecord",
-            "internal/testevidence"
-          ],
-          "rationale": "Serves: the owner's suggestions of 2026-11-11, weighed and taken: run the cheap parts of every step's check first, card or not; needing model files is not needing the card; run each check once.\n\nDisappears: refusals found after the long stages that a read of seconds finds. A check on the card ran its verify, which holds the vacuous-name rule and the undo run, after every package's tests and the lanes, so a check naming a package without its test, or a change whose tests do not build without it on a step without its note, was refused after about eight minutes. A check with the modeltest tag alone was put there too, though without OVERGO_CUDA_TEST=1 cudatest.Require skips every test that reaches the card. And each host check ran twice (planverify's repeat), while no refusal recorded and no commit message names a repeat that disagreed.\n\nThe change: a cheap stage, form, runs after the rules for every check: go test -list in the change, where each package the check names must list a test the check runs; and in the undo tree, the base with the change's tests kept, where a check whose tests do not build is known to give no undo evidence, so a step without its \"No boundary test:\" line is refused there, and the undo run does not run that check again. A check is on the card only by OVERGO_CUDA_TEST=1. planverify.Execute runs a check once, and the repeat's agreement code goes.\n\nCheck: TestAChecksFormIsReadBeforeItRuns wants the form stage before the tests and the lanes for a host check and a card check alike, a model-files check's verify before the lanes, and the form stage to refuse a check naming a package that holds no test of its name; TestACheckRunsOnce wants a check whose test counts its runs to have run once. At the base no stage is named form and a check runs twice, so both fail there on their assertions.\n\nBatch: host lane."
-        }
-      ]
-    },
-    {
       "id": "replay-waits",
       "title": "A decode step's replay waits the same on a token whose experts move whatever the card's free memory, so the device lane does not fail beside another process on the card",
       "owner": "master-lead",
@@ -106,9 +81,19 @@
       "status": "open",
       "budget": {
         "nodes": -2872,
-        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
+        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard). Step client: +0 (no landing changed cmd/comfy-reference)."
       },
       "steps": [
+        {
+          "id": "client",
+          "title": "The recorder posts a section's request to ComfyUI, inputs given over it, and keeps what the run gave: its files by SHA-256, its texts, its time, the card's peak memory and the commits it ran",
+          "status": "open",
+          "verify": "go test ./cmd/comfy-reference -count=1 -run '^TestARecordingIsTakenFromComfyUIsAnswers$'",
+          "files": [
+            "cmd/comfy-reference"
+          ],
+          "rationale": "Serves: the owner's suggestion of 2026-11-11, weighed and taken: write and test the recorder's host part while the readings campaign holds the card, so the recording itself needs the card only to run. The request a section posts is comfy-recorder/request's, landed 2026-11-08; what was left on the host is the client that posts it and keeps what ComfyUI's run gave.\n\nThe change: comfy-reference -record \u003csection\u003e -server \u003curl\u003e -install \u003cComfyUI folder\u003e -out \u003cfolder\u003e [-set node.input=\u003cJSON\u003e]... [-save-latent node]... builds the section's request, sets each input given over the section's own (refusing one the request does not hold), adds a SaveLatent fed by each node named, reads ComfyUI's /system_stats, posts /prompt, reads /history/\u003cid\u003e and /system_stats each second until the run ends, and keeps each file the history names through /view by its SHA-256, each node's text, the run's time from ComfyUI's execution_start and execution_success stamps, the most of the card's memory in use as /system_stats reports it, ComfyUI's version, and the commit of the install's ComfyUI and of each custom-node pack it holds as a checkout. A run ComfyUI fails is refused with its messages. The choices that are the workflow's, which inputs give 1024 x 576 and which node's latent is the final one, are the record step's, given on the command line.\n\nCheck: TestARecordingIsTakenFromComfyUIsAnswers runs the command as a child process against a fake ComfyUI built from its API's answers: the request posted carries the seed set and the latent saver; the recording names the workflow's hash, the time stamped (2500 ms), the most memory in use (700 of 1000 bytes), the commits of the install and its one checked-out pack, the final prompt's text and both files by their bytes' SHA-256; and a run that fails in ComfyUI is refused with what it said. At the base the command has no -record flag, so the child fails and the test fails on its assertion.\n\nBatch: host lane."
+        },
         {
           "id": "record",
           "title": "Each section and prompt mode is recorded at 1024 x 576 on the install's own files, ComfyUI listening on the machine only with API nodes and the manager's network checks off",
@@ -213,7 +198,7 @@
             "cmd/recipe",
             "internal/modelrecipe"
           ],
-          "rationale": "Serves: the owner's suggestion of 2026-11-11, weighed and taken: the import's refusal of changed bytes is held by a test of seconds that runs on any machine, through the command a person runs.\n\nDisappears: a refusal held only where the six installed files are. TestTheUltraRecipeListsItsSixFilesByHash, a model test, called modelartifact.ImportLocal, not recipe import-local, so it ran only with the models installed and passed over the command's own path.\n\nThe change: TestAnImportOfChangedBytesIsRefused in cmd/recipe runs recipe import-local over two small files in a temporary install, its declaration pinning their hashes, into a temporary data root and store: the import links both and publishes the model; an install one of whose files holds other bytes is refused, the links it made removed and the store's head unmoved. The model test keeps its reading of the live store and gives up the refusal half it held.\n\nCheck: TestAnImportOfChangedBytesIsRefused. The change writes no production Go, so the landing runs no undo; with ImportLocal's comparison of each file's hash removed it fails on its assertion, read by hand.\n\nBatch: host lane."
+          "rationale": "Serves: the owner's suggestion of 2026-11-11, weighed and taken: the import's refusal of changed bytes is held by a test of seconds that runs on any machine, through the command a person runs.\n\nDisappears: a refusal held only where the six installed files are. TestTheUltraRecipeListsItsSixFilesByHash, a model test, called modelartifact.ImportLocal, not recipe import-local, so it ran only with the models installed and passed over the command's own path.\n\nThe change: TestAnImportOfChangedBytesIsRefused in cmd/recipe runs recipe import-local over two small files in a temporary install, its declaration pinning their hashes, into a temporary data root and store: the import links both and publishes the model; an install one of whose files holds other bytes is refused, the links it made removed and the store's head unmoved. The model test keeps its reading of the live store and gives up the refusal half it held.\n\nCheck: TestAnImportOfChangedBytesIsRefused. The change writes no production Go, so the landing runs no undo; with ImportLocal's comparison of each file's hash removed it fails on its assertion, read by hand.\n\nBatch: host lane.\n\nNote: Writing the test found a defect the library test passed over: recipe import-local linked into dataroot's StoreModels, which a data root of the default layout leaves empty (it is set only where local-models.json keeps the models elsewhere), so the model's folder went into the current directory; the import takes roots.ModelRoots()[0], the models folder beside the store on either layout. The change so writes production Go, and the test fails at the base on its assertion (the links are not in the models folder), read by hand."
         },
         {
           "id": "encoder",

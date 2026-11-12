@@ -80,8 +80,11 @@ type Library struct {
 	peakBytes           uint64
 	peakAllocationBytes uint64
 
-	kernelLaunches          atomic.Uint64
-	streamSynchronizations  atomic.Uint64
+	kernelLaunches         atomic.Uint64
+	streamSynchronizations atomic.Uint64
+	// streamWaits counts each stream's host waits apart (StreamSynchronizations), so a worker reports those on the
+	// stream it computes on without its side streams' (replay-waits/own-waits).
+	streamWaits             sync.Map
 	contextSynchronizations atomic.Uint64
 	hostToDeviceCopies      atomic.Uint64
 	hostToDeviceBytes       atomic.Uint64
@@ -515,6 +518,8 @@ func (l *Library) StreamCreate(flags uint32) (Stream, error) {
 
 // StreamDestroy destroys stream
 func (l *Library) StreamDestroy(stream Stream) error {
+	// A later stream may take the handle: it starts its count afresh.
+	l.streamWaits.Delete(stream)
 	return l.call(l.cuStreamDestroy, uintptr(stream))
 }
 
@@ -541,7 +546,17 @@ func (l *Library) StreamSynchronize(stream Stream) error {
 		return err
 	}
 	l.streamSynchronizations.Add(1)
+	counter, _ := l.streamWaits.LoadOrStore(stream, new(atomic.Uint64))
+	counter.(*atomic.Uint64).Add(1)
 	return nil
+}
+
+// StreamSynchronizations is how many times the host has waited for stream.
+func (l *Library) StreamSynchronizations(stream Stream) uint64 {
+	if counter, counted := l.streamWaits.Load(stream); counted {
+		return counter.(*atomic.Uint64).Load()
+	}
+	return 0
 }
 
 // StreamWait makes the work waiter takes from now on wait for the work

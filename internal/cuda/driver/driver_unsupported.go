@@ -79,6 +79,9 @@ func (l *Library) StreamSynchronize(stream Stream) error {
 	return errors.New("CUDA driver loading is currently supported only on Windows")
 }
 
+// StreamSynchronizations is zero off Windows, where no stream is waited for.
+func (l *Library) StreamSynchronizations(stream Stream) uint64 { return 0 }
+
 // StreamQuery reports that no stream's work can be submitted off Windows.
 func (l *Library) StreamQuery(Stream) (bool, error) {
 	return false, errors.New("CUDA driver loading is currently supported only on Windows")

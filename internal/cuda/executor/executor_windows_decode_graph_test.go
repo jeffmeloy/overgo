@@ -319,8 +319,11 @@ func TestDecodeStepReplaysAsOneGraph(t *testing.T) {
 		if token == 0 {
 			continue
 		}
-		if kernels, waits := after.KernelLaunches-before.KernelLaunches, after.StreamSynchronizations-before.StreamSynchronizations; kernels != 0 || waits != 1 {
-			t.Fatalf("token %d launched %d kernels and waited for the stream %d times, want a replay with one wait", token, kernels, waits)
+		// The replay's own waits are on the stream it computes on; a side stream's (the copies of experts landing, the host
+		// experts' inputs read) depend on how fast the card moved them beside its neighbours, and are not the replay's
+		// (replay-waits/own-waits: one failed the device lane on 2026-11-11 while a draw shared the card).
+		if kernels, waits := after.KernelLaunches-before.KernelLaunches, after.ComputeStreamSynchronizations-before.ComputeStreamSynchronizations; kernels != 0 || waits != 1 {
+			t.Fatalf("token %d launched %d kernels and waited for its compute stream %d times, want a replay with one wait", token, kernels, waits)
 		}
 		moved += after.HostToDeviceBytes - before.HostToDeviceBytes
 		if token%3 == 0 {

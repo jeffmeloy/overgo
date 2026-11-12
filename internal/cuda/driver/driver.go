@@ -102,20 +102,24 @@ type AllocationSizeClass struct {
 // ExecutionStats: reports successful CUDA Driver API work submitted through
 // one Library instance; Counters are monotonic for library lifetime
 type ExecutionStats struct {
-	KernelLaunches          uint64 `json:"kernelLaunches"`
-	StreamSynchronizations  uint64 `json:"streamSynchronizations"`
-	ContextSynchronizations uint64 `json:"contextSynchronizations"`
-	HostToDeviceCopies      uint64 `json:"hostToDeviceCopies"`
-	HostToDeviceBytes       uint64 `json:"hostToDeviceBytes"`
-	DeviceToHostCopies      uint64 `json:"deviceToHostCopies"`
-	DeviceToHostBytes       uint64 `json:"deviceToHostBytes"`
-	DeviceToDeviceCopies    uint64 `json:"deviceToDeviceCopies"`
-	DeviceToDeviceBytes     uint64 `json:"deviceToDeviceBytes"`
-	DeviceMemsets           uint64 `json:"deviceMemsets"`
-	DeviceMemsetBytes       uint64 `json:"deviceMemsetBytes"`
-	GraphInstantiations     uint64 `json:"graphInstantiations"`
-	GraphUpdates            uint64 `json:"graphUpdates"`
-	GraphLaunches           uint64 `json:"graphLaunches"`
+	KernelLaunches         uint64 `json:"kernelLaunches"`
+	StreamSynchronizations uint64 `json:"streamSynchronizations"`
+	// ComputeStreamSynchronizations are the waits on the stream a worker computes on, without its side streams' (the
+	// copies of experts landing, the host experts' inputs read), which depend on how fast the card moved them beside
+	// its neighbours; a worker's ExecutionStats fills it (replay-waits/own-waits).
+	ComputeStreamSynchronizations uint64 `json:"computeStreamSynchronizations"`
+	ContextSynchronizations       uint64 `json:"contextSynchronizations"`
+	HostToDeviceCopies            uint64 `json:"hostToDeviceCopies"`
+	HostToDeviceBytes             uint64 `json:"hostToDeviceBytes"`
+	DeviceToHostCopies            uint64 `json:"deviceToHostCopies"`
+	DeviceToHostBytes             uint64 `json:"deviceToHostBytes"`
+	DeviceToDeviceCopies          uint64 `json:"deviceToDeviceCopies"`
+	DeviceToDeviceBytes           uint64 `json:"deviceToDeviceBytes"`
+	DeviceMemsets                 uint64 `json:"deviceMemsets"`
+	DeviceMemsetBytes             uint64 `json:"deviceMemsetBytes"`
+	GraphInstantiations           uint64 `json:"graphInstantiations"`
+	GraphUpdates                  uint64 `json:"graphUpdates"`
+	GraphLaunches                 uint64 `json:"graphLaunches"`
 }
 
 // CardReading is one live reading of a card's load, by the name /metrics gives it after overgo_card_.

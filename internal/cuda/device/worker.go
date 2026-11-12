@@ -170,6 +170,7 @@ func (w *Worker) ExecutionStats(ctx context.Context) (driver.ExecutionStats, err
 	var result driver.ExecutionStats
 	err := w.Do(ctx, func(state *State) error {
 		result = state.Driver.ExecutionStats()
+		result.ComputeStreamSynchronizations = state.Driver.StreamSynchronizations(state.Stream)
 		return nil
 	})
 	return result, err

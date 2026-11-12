@@ -40,7 +40,7 @@ const parameterCeiling = 1917
 // which a helper would not shorten.
 const (
 	surfaceRepeatCeiling    = 111
-	surfaceParameterCeiling = 1429
+	surfaceParameterCeiling = 1390
 )
 
 // bodyShape reads a body as the checker resolves it: its skeleton, each node's kind and each operator, with each local

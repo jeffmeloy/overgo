@@ -788,7 +788,7 @@
      "contains": "func (w *Worker) Do(",
      "path": "internal/cuda/device/worker.go",
      "role": "source",
-     "identity": "file:sha256:b4c838176bf3141833533effae990bc9ab40c50984c55bacb58d0312586610ad"
+     "identity": "file:sha256:c033633114bf51ed5965f2ef4cb932e70e5ff39366e5dea81b7a27642b01c2ae"
     },
     {
      "contains": "func TestWorkerMemoryRoundTrip(",

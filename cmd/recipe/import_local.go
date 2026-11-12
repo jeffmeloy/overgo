@@ -41,7 +41,10 @@ func importLocal(args []string) error {
 		store = *repository
 	}
 	ctx := context.Background()
-	batch, err := modelartifact.ImportLocal(ctx, declared, *from, roots.StoreModels)
+	// The models folder beside the store is where a model of the store is found first; on a data root whose models are
+	// kept there already, StoreModels is empty and the folder is Models (moss-ultra-import/refusal-fixture).
+	models := roots.ModelRoots()[0]
+	batch, err := modelartifact.ImportLocal(ctx, declared, *from, models)
 	if err != nil {
 		return err
 	}
@@ -56,6 +59,6 @@ func importLocal(args []string) error {
 	if _, err := artifact.Publish(ctx, opened, batch); err != nil {
 		return err
 	}
-	fmt.Printf("imported %s: %d files hard-linked into %s, model %s; bytes copied=0\n", declared.Name, len(declared.Files), roots.StoreModels, batch.Manifests[0].ID)
+	fmt.Printf("imported %s: %d files hard-linked into %s, model %s; bytes copied=0\n", declared.Name, len(declared.Files), models, batch.Manifests[0].ID)
 	return nil
 }

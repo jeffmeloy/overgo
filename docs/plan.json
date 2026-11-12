@@ -26,6 +26,57 @@
       ]
     },
     {
+      "id": "readme-samples",
+      "title": "Each picture and clip the README shows is drawn at its developer's recommended settings by today's code, and names its prompt, seed, steps and guidance; a timing request is labelled as one",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 60,
+        "reason": "Filed 2026-11-11 from the owner's review of the README's samples: three draws on the card in a gap between readings, a finer reference for SimpleDiffusion, and one README rule. The lead's figure."
+      },
+      "steps": [
+        {
+          "id": "simplediffusion-fifty",
+          "title": "SimpleDiffusion is drawn at the author's 50 steps and held to the author's sampler at 50 over small squares, and the README shows that picture",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -count=1 -run '^TestServedSampleMatchesTheUpstreamSampler$'",
+          "files": [
+            "internal/adaptiveparity",
+            "fixtures/simplediffusion",
+            "internal/diffusionimage",
+            "README.md",
+            "assets"
+          ],
+          "needs_card": true,
+          "rationale": "Serves: the owner's review of 2026-11-11: the README's SimpleDiffusion sample, 8 steps, is pale, blurred and noisy, while the author's sheet beside the weights (epoch_799.png, sixteen samples of sample() at its default 50 steps) shows crisp pixel-art characters.\n\nDisappears: a sampler held to the author's only at 8 steps and only as colour means over 8-pixel squares, a comparison too coarse to see the pixel art.\n\nThe change: scripts/python_golden_references/simplediffusion_upstream_sample.py writes fixtures/simplediffusion/upstream_sample.json again at 50 steps over 2-pixel squares, from the noise overgo draws for the seed; TestServedSampleMatchesTheUpstreamSampler holds the served sample to it at a floor measured on the card; the README shows overgo's 50-step picture, exported by cmd/validate. If the 50-step picture still looks like the 8-step one beside the author's sheet, that is a fault in overgo's sampler or its pixels, found and fixed in this step.\n\nCheck: the test passes at 50 steps over 2-pixel squares above the measured floor.\n\nBatch: device lane, in a gap between two readings."
+        },
+        {
+          "id": "sensenova-recommended",
+          "title": "SenseNova's README picture is drawn at its model card's settings, 50 steps, guidance 4.0, timestep shift 3.0, and the 4-step request is labelled as the timing request",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestReadmeNamesEveryModelAndItsSamples$'",
+          "files": [
+            "README.md",
+            "assets"
+          ],
+          "needs_card": true,
+          "rationale": "Serves: the owner's review of 2026-11-11: the README embeds SenseNova's 4-step timing request, 512 x 512 at guidance 4.5, and only links the 50-step picture. The model card recommends --cfg_scale 4.0 --timestep_shift 3.0 --num_steps 50 for infographics, at 2048 x 2048 by default.\n\nThe change: a picture drawn by today's code at those settings, the same prompt, is exported and embedded with its prompt, size, steps, guidance, shift and seed; the 4-step paragraph says it is the timing request the scorecard measures.\n\nCheck: TestReadmeNamesEveryModelAndItsSamples, which holds every embedded sample to a file under assets named by its bytes.\n\nBatch: device lane for the draw, in a gap between two readings."
+        },
+        {
+          "id": "wan-redraw",
+          "title": "Wan's README clip is drawn again by today's code at its frozen request, and the README prints its prompt, seed, steps and guidance",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestReadmeNamesEveryModelAndItsSamples$'",
+          "files": [
+            "README.md",
+            "assets"
+          ],
+          "needs_card": true,
+          "rationale": "Serves: the owner's review of 2026-11-11: the README's Wan clip was drawn at fcda318af on 2026-09-12 and prints no prompt, seed or guidance.\n\nThe change: the frozen visual-review request (docs/image_video_protocol.json, Wan2.1-T2V-1.3B/video-gen/3, its request the store's file:sha256:364be3ce...), 81 frames at 832 x 480 in 50 steps, is drawn again through recipe run -fresh at today's commit, exported and embedded; the README prints the request's prompt, seed, steps, guidance and shift, the commit, time and peak memory. Once a ComfyUI recording of Wan exists, the clip is compared with it, a step of its own.\n\nCheck: TestReadmeNamesEveryModelAndItsSamples.\n\nBatch: device lane for the draw, in a gap between two readings."
+        }
+      ]
+    },
+    {
       "id": "guidance-ops",
       "title": "CFG-Zero*, the guidance interval, APG and NAG are guider functions written from their papers, each a preset admitted per model by its held-out suite",
       "owner": "master-lead",
@@ -175,21 +226,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 518,
+        "nodes": 514,
         "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard). Step import: +83 (83, the median of what 3 landings that changed internal/modelrecipe, internal/discovery, local-models.json counted). Step refusal-fixture: +331 (331, the median of what 12 landings that changed cmd/recipe, internal/modelrecipe counted)."
       },
       "steps": [
-        {
-          "id": "refusal-fixture",
-          "title": "An import of changed bytes is refused through the command, on small fixture files, in seconds and with no model installed",
-          "status": "open",
-          "verify": "go test ./cmd/recipe -count=1 -run '^TestAnImportOfChangedBytesIsRefused$'",
-          "files": [
-            "cmd/recipe",
-            "internal/modelrecipe"
-          ],
-          "rationale": "Serves: the owner's suggestion of 2026-11-11, weighed and taken: the import's refusal of changed bytes is held by a test of seconds that runs on any machine, through the command a person runs.\n\nDisappears: a refusal held only where the six installed files are. TestTheUltraRecipeListsItsSixFilesByHash, a model test, called modelartifact.ImportLocal, not recipe import-local, so it ran only with the models installed and passed over the command's own path.\n\nThe change: TestAnImportOfChangedBytesIsRefused in cmd/recipe runs recipe import-local over two small files in a temporary install, its declaration pinning their hashes, into a temporary data root and store: the import links both and publishes the model; an install one of whose files holds other bytes is refused, the links it made removed and the store's head unmoved. The model test keeps its reading of the live store and gives up the refusal half it held.\n\nCheck: TestAnImportOfChangedBytesIsRefused. The change writes no production Go, so the landing runs no undo; with ImportLocal's comparison of each file's hash removed it fails on its assertion, read by hand.\n\nBatch: host lane.\n\nNote: Writing the test found a defect the library test passed over: recipe import-local linked into dataroot's StoreModels, which a data root of the default layout leaves empty (it is set only where local-models.json keeps the models elsewhere), so the model's folder went into the current directory; the import takes roots.ModelRoots()[0], the models folder beside the store on either layout. The change so writes production Go, and the test fails at the base on its assertion (the links are not in the models folder), read by hand."
-        },
         {
           "id": "encoder",
           "title": "The abliterated Qwen3.5-9B conditions MOSS under the workflow's template, and its language-model head serves the same file as a chat model",

@@ -5,7 +5,6 @@ package modelrecipe
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"os"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -20,8 +19,9 @@ import (
 
 // TestTheUltraRecipeListsItsSixFilesByHash holds the MOSS Ultra workflow's six files to their import
 // (moss-ultra-import/import): the store locates each by the SHA-256 its declaration pins, hard-linked into the data
-// root's model folder under moss-ultra, the transformer, encoder and VAE as weights and the three LoRAs as adapters,
-// and an import whose file's bytes are not the declared ones is refused, its link removed and nothing published.
+// root's model folder under moss-ultra, the transformer, encoder and VAE as weights and the three LoRAs as adapters.
+// An import of changed bytes is refused through the command, on small files (cmd/recipe
+// TestAnImportOfChangedBytesIsRefused).
 func TestTheUltraRecipeListsItsSixFilesByHash(t *testing.T) {
 	declared := testcheck.Must(modelartifact.ReadLocalImport("moss_ultra_import.json"))(t)
 	if len(declared.Files) != 6 {
@@ -42,18 +42,5 @@ func TestTheUltraRecipeListsItsSixFilesByHash(t *testing.T) {
 		if !slices.ContainsFunc(located, func(location artifact.Location) bool { return filepath.Clean(location.Value) == want }) {
 			t.Errorf("the store locates %s (%s) at %v; want it at %s", file.Path, id, located, want)
 		}
-	}
-
-	install, root := t.TempDir(), t.TempDir()
-	testcheck.NoError(t, os.WriteFile(filepath.Join(install, "weights.safetensors"), []byte("changed bytes"), 0o600))
-	changed := modelartifact.LocalImport{Name: "changed", Files: []modelartifact.LocalImportFile{{
-		Path: "adapters/weights.safetensors", Role: "adapter", Source: "weights.safetensors",
-		SHA256: hex.EncodeToString(make([]byte, sha256.Size)), Bytes: int64(len("changed bytes")),
-	}}}
-	if _, err := modelartifact.ImportLocal(t.Context(), changed, install, root); err == nil {
-		t.Fatal("an import whose file's bytes are not the declared ones was accepted")
-	}
-	if _, err := os.Stat(filepath.Join(root, "changed", "adapters", "weights.safetensors")); !os.IsNotExist(err) {
-		t.Errorf("the refused import left its link (%v)", err)
 	}
 }

@@ -108,8 +108,10 @@ func (p turnProcess) say(t *testing.T, line string) {
 func TestOneCardTurnQueuesEveryUser(t *testing.T) {
 	name := "overgo-test-turn:" + t.Name() + ":" + fmt.Sprint(os.Getpid())
 	t.Cleanup(func() {
-		if path, err := turnRecordPath(name); err == nil {
-			_ = os.Remove(path)
+		for _, kind := range []string{turnRecordFile, turnWaitingFile} {
+			if path, err := turnFile(name, kind); err == nil {
+				_ = os.Remove(path)
+			}
 		}
 	})
 	first := startTurnProcess(t, turnProbe{Name: name, Purpose: "the first holder", Part: "hold"})

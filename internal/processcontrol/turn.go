@@ -78,29 +78,60 @@ func TakeTurn(name, purpose string, output io.Writer) (func() error, error) {
 			return nil
 		}
 		delete(turns, name)
+		if hold.give == nil {
+			return nil
+		}
 		return hold.give()
 	}), nil
 }
 
-// takePlace gives this process a place on the turn: its holder's, where the holder started it, else its own, waited
-// for.
+// TurnWaited says whether another process waits for a turn this process holds in its own place (TakeTurn): a holder
+// that can give its turn up between pieces of work, as a reading between pictures, gives it up only to a waiter.
+func TurnWaited() (bool, error) {
+	turnMu.Lock()
+	var held []string
+	for name, hold := range turns {
+		select {
+		case <-hold.taken:
+			if hold.err == nil && hold.give != nil {
+				held = append(held, name)
+			}
+		default:
+		}
+	}
+	turnMu.Unlock()
+	for _, name := range held {
+		if waiters, err := turnWaiters(name); err != nil || len(waiters) > 0 {
+			return err == nil, err
+		}
+	}
+	return false, nil
+}
+
+// takePlace gives this process a place on the turn: its holder's, where the holder started it, and nothing to give up,
+// else its own, waited for, and how it is given up.
 func takePlace(name, purpose string, output io.Writer) (func() error, error) {
 	if holder, riding := heldTurns()[name]; riding {
 		if record, held, err := turnHolder(name); err != nil {
 			return nil, err
 		} else if held && record.Process == holder {
-			return func() error { return nil }, nil
+			return nil, nil
 		}
 	}
 	started := time.Now()
-	waited := false
-	if busy, err := ResourceTransactionHeld(name); err != nil {
+	busy, err := ResourceTransactionHeld(name)
+	if err != nil {
 		return nil, err
-	} else if busy {
-		waited = true
+	}
+	unmark := func() error { return nil }
+	if busy {
+		// The holder reads the mark (TurnWaited) while this process waits.
+		if unmark, err = markTurnWaiter(name); err != nil {
+			return nil, err
+		}
 		record, held, err := turnHolder(name)
 		if err != nil {
-			return nil, err
+			return nil, errors.Join(err, unmark())
 		}
 		holder := "a process that has written no record"
 		if held {
@@ -110,9 +141,12 @@ func takePlace(name, purpose string, output io.Writer) (func() error, error) {
 	}
 	leave, err := enterTurn(name)
 	if err != nil {
-		return nil, err
+		return nil, errors.Join(err, unmark())
 	}
-	if waited {
+	if err := unmark(); err != nil {
+		return nil, errors.Join(err, leave())
+	}
+	if busy {
 		fmt.Fprintf(output, "%s took the turn %s after %s\n", processLabel(uint32(os.Getpid())), name, time.Since(started).Round(time.Millisecond))
 	}
 	unrecord, err := recordTurn(name, turnRecord{Process: uint32(os.Getpid()), Purpose: purpose, Since: time.Now()})

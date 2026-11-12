@@ -25,6 +25,7 @@ import (
 	"overgo/internal/mediacapability"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/processcontrol"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 )
@@ -318,8 +319,25 @@ func renderMedia(ctx context.Context, repository, path string, task recipe.Task,
 			return nil, err
 		}
 		fmt.Printf("  drew %d/%d: %s\n", index+1, len(prompts), item.ID)
+		if gave, err := giveTheCardToAWaiter(ctx, capabilityruntime.ReleaseIdleSessions); err != nil {
+			return nil, err
+		} else if gave {
+			fmt.Printf("  gave the card to a waiting process after %d/%d\n", index+1, len(prompts))
+		}
 	}
 	return names, save()
+}
+
+// giveTheCardToAWaiter closes the sessions release closes where another process waits for the card's turn this one
+// holds (processcontrol.TurnWaited), so the turn passes to it between pictures, a held session's contexts holding it,
+// and the next picture loads them again in its turn (card-turn/readings-turn); with no waiter they stay loaded.
+func giveTheCardToAWaiter(ctx context.Context, release func(context.Context) (int, error)) (bool, error) {
+	waited, err := processcontrol.TurnWaited()
+	if err != nil || !waited {
+		return false, err
+	}
+	_, err = release(ctx)
+	return true, err
 }
 
 // composedShare is how many captions a picture suite picks for each it composes of 3 to 10 atoms beside them

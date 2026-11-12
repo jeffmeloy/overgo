@@ -55,6 +55,21 @@ func compileNearestGridFlowSchedule(ctx context.Context, steps, total int, shift
 	return result, nil
 }
 
+// sigmaFlowSchedule is the Euler walk over sigmas as given: each timestep the sigma at total levels, each delta the
+// float32 difference to the next sigma, as compileNearestGridFlowSchedule makes them from its snapped knots.
+func sigmaFlowSchedule(sigmas []float32, total int) FlowSchedule {
+	steps := len(sigmas) - 1
+	result := FlowSchedule{Steps: steps, NumTrainTimesteps: total, Sigmas: make([]float64, len(sigmas)), Timesteps: make([]float64, steps), Deltas: make([]float64, steps)}
+	for i, sigma := range sigmas {
+		result.Sigmas[i] = float64(sigma)
+	}
+	for i := range steps {
+		result.Timesteps[i] = float64(sigmas[i] * float32(total))
+		result.Deltas[i] = float64(sigmas[i+1] - sigmas[i])
+	}
+	return result
+}
+
 // nearestGridSigma preserves the pinned CPU linspace and unfused float32 shift arithmetic.
 func nearestGridSigma(index, count, total int, shift float64) float32 {
 	lower := float32(shift / (float64(total) + shift - 1))

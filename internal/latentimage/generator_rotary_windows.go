@@ -100,14 +100,12 @@ func (g *Generator) configureRotary(ctx context.Context, request Request) error 
 	if request.DynamicShiftMu != 0 || (request.NumTrainTimesteps != 0 && request.NumTrainTimesteps != g.profile.Sampling.TrainTimesteps) {
 		return errors.New("rotary image: request cannot override the source training grid")
 	}
-	if request.Steps == 0 {
-		request.Steps = g.profile.Sampling.DefaultSteps
-	}
 	request.NumTrainTimesteps = g.profile.Sampling.TrainTimesteps
-	schedule, err := compileNearestGridFlowSchedule(ctx, request.Steps, request.NumTrainTimesteps, g.profile.Rotary.Shift, g.profile.Rotary.TrainingShift)
+	schedule, err := g.profile.rotarySchedule(ctx, request)
 	if err != nil {
 		return err
 	}
+	request.Steps = schedule.Steps
 	guidance := g.profile.Rotary.Guidance
 	if request.GuidanceScale != nil {
 		guidance = *request.GuidanceScale
@@ -118,6 +116,29 @@ func (g *Generator) configureRotary(ctx context.Context, request Request) error 
 	g.request, g.schedule = request, schedule
 	g.rotary.guidance = guidance
 	return nil
+}
+
+// rotarySchedule is a rotary request's schedule at its steps, the profile's default where it names none: the profile's
+// own, its shifted knots snapped to its training grid, or the request's (Request.Schedule), drawn over the profile's
+// flow levels as ComfyUI's KSampler draws it and not snapped, since ComfyUI samples the sigmas as drawn
+// (moss-ultra-sections/schedules). A list of the request's own sigmas is its steps.
+func (p Profile) rotarySchedule(ctx context.Context, request Request) (FlowSchedule, error) {
+	total := p.Sampling.TrainTimesteps
+	if request.Steps == 0 && (request.Schedule == nil || request.Schedule.Name != "") {
+		request.Steps = p.Sampling.DefaultSteps
+	}
+	if request.Schedule == nil {
+		return compileNearestGridFlowSchedule(ctx, request.Steps, total, p.Rotary.Shift, p.Rotary.TrainingShift)
+	}
+	table, err := sampling.ShiftedFlowTable(total, p.Rotary.Shift)
+	if err != nil {
+		return FlowSchedule{}, err
+	}
+	sigmas, err := request.Schedule.Draw(request.Steps, table)
+	if err != nil {
+		return FlowSchedule{}, fmt.Errorf("rotary image: %w", err)
+	}
+	return sigmaFlowSchedule(sigmas, total), nil
 }
 
 // rotarySettings is the sampling a rotary request runs: its schedule, its guidance scale and how the guidance varies over

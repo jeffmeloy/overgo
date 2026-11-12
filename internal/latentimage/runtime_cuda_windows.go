@@ -43,6 +43,21 @@ type Request struct {
 	Guidance sampling.Guidance `json:"guidance,omitzero"`
 	// Preset names a recipe of the model's catalog presets, its steps and guidance filling what the request leaves unset.
 	Preset string `json:"preset,omitzero"`
+	// Schedule is the sigmas a rotary profile (MOSS) samples by in place of its own: a scheduler by name (bong_tangent,
+	// beta57) or a list of the request's own, as ComfyUI's KSampler takes them.
+	Schedule *sampling.Schedule `json:"schedule,omitempty"`
+}
+
+// errDrawsItsOwnSchedule refuses a request's schedule on a profile that samples its model's own (a flow profile's
+// dynamic shift): only a rotary profile draws a request's schedule.
+var errDrawsItsOwnSchedule = errors.New("latent image: this model samples its own schedule; a request's schedule runs on a rotary profile (MOSS)")
+
+// flowSchedule is a flow profile's schedule for a request, its model's own.
+func flowSchedule(request Request) (FlowSchedule, error) {
+	if request.Schedule != nil {
+		return FlowSchedule{}, errDrawsItsOwnSchedule
+	}
+	return CompileFlowSchedule(request.Steps, request.NumTrainTimesteps, request.DynamicShiftMu)
 }
 
 type Generator struct {
@@ -97,6 +112,11 @@ func ValidateRequest(request Request) error {
 	}
 	if err := request.Guidance.Validate(); err != nil {
 		return fmt.Errorf("latent image: %w", err)
+	}
+	if request.Schedule != nil {
+		if err := request.Schedule.Validate(); err != nil {
+			return fmt.Errorf("latent image: %w", err)
+		}
 	}
 	return validatePrompt(request.PromptMode, request.Prompt, request.Width, request.Height)
 }
@@ -171,7 +191,7 @@ func LoadGenerator(ctx context.Context, modelDir string, profile Profile, reques
 	if err := admitPicture(ctx, pipeline.runtime, gridH*gridW, spec.Transformer.Hidden); err != nil {
 		return nil, errors.Join(err, pipeline.Close(context.WithoutCancel(ctx)))
 	}
-	schedule, err := CompileFlowSchedule(request.Steps, request.NumTrainTimesteps, request.DynamicShiftMu)
+	schedule, err := flowSchedule(request)
 	if err != nil {
 		_ = pipeline.Close(ctx)
 		return nil, err
@@ -303,7 +323,7 @@ func (g *Generator) Reset(ctx context.Context, request Request) error {
 		}
 		g.embed = prompt.embed
 	}
-	schedule, err := CompileFlowSchedule(request.Steps, request.NumTrainTimesteps, request.DynamicShiftMu)
+	schedule, err := flowSchedule(request)
 	if err != nil {
 		return err
 	}

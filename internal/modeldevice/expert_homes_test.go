@@ -36,6 +36,8 @@ func TestACardExpertWithoutAHostCopyStaysOnTheCard(t *testing.T) {
 	weights := mem.weights()
 	loader := NewLoader(file)
 	loader.Experts(weights, file.Tensors, twoEach)
+	// A machine whose commit holds no copy of a card expert at the load: the copies wait for the homing.
+	mem.commitLeft = 0
 	testcheck.NoError(t, loader.Load(t.Context(), nil))
 	cache := weights.experts
 	t.Cleanup(residencyClosed(t, cache, mem))

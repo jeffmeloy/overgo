@@ -35,8 +35,8 @@ type fakeExpertDevice struct {
 	streams int
 	// ordered counts the writes queued behind the compute stream's work (writeOrdered).
 	ordered int
-	// commitLeft is the machine's commit the fake reports left.
-	commitLeft uint64
+	// commitLeft is the machine's commit the fake reports left, and keptCommit the reservation a homing kept.
+	commitLeft, keptCommit uint64
 }
 
 func (d *fakeExpertDevice) read(_ context.Context, destination []byte, source driver.DevicePtr) error {
@@ -52,6 +52,14 @@ func (d *fakeExpertDevice) commit(context.Context) (driver.Commit, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return driver.Commit{Left: d.commitLeft, Limit: d.commitLeft}, nil
+}
+
+// keepCommit records the reservation a homing keeps.
+func (d *fakeExpertDevice) keepCommit(_ context.Context, bytes uint64) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.keptCommit = bytes
+	return nil
 }
 
 func (d *fakeExpertDevice) newStream(context.Context) (driver.Stream, error) {
@@ -250,9 +258,9 @@ func TestFlashNextExpertResidency(t *testing.T) {
 	t.Run("fill-splits-card-and-host", func(t *testing.T) {
 		cache, mem := open(t, oneEach)
 		readable(t, cache, mem, map[string][]uint32{"gate": {0}, "down": {0}})
-		// The tables, the card flags of experts on host, the pinned route flags, and a bank's card allocation, the pinned
-		// allocation of its experts in host memory and that of its card experts' copies (HomeExperts).
-		if len(cache.cards) != 2 || len(cache.pinned) != 5 || mem.liveCount() != 9 {
+		// The tables, the card flags of experts on host, the pinned route flags, and one card allocation and one
+		// pinned allocation a bank, every expert's copy pinned with the load where the commit holds them.
+		if len(cache.cards) != 2 || len(cache.pinned) != 3 || mem.liveCount() != 7 {
 			t.Fatalf("fill made %d card and %d pinned allocations, %d live", len(cache.cards), len(cache.pinned), mem.liveCount())
 		}
 		reclaimable, err := (&DeviceWeights{experts: cache}).ExpertMemory(nil)
@@ -944,10 +952,9 @@ func TestALayersBanksShareOneBlob(t *testing.T) {
 			t.Error(err)
 		}
 	})
-	// The route flags, the blob's experts in host memory and its card expert's copy are pinned.
-	if len(cache.blobs) != 1 || cache.blobs[0].stride != stride || len(cache.cards) != 1 || len(cache.pinned) != 3 {
-		t.Fatalf("%d blobs, %d card and %d pinned allocations, want one blob of stride %d in one card and three pinned",
-			len(cache.blobs), len(cache.cards), len(cache.pinned), stride)
+	if len(cache.blobs) != 1 || cache.blobs[0].stride != stride || len(cache.cards) != 1 || len(cache.pinned) != 2 {
+		t.Fatalf("%d blobs, %d card and %d pinned allocations, want one blob of stride %d in one of each", len(cache.blobs),
+			len(cache.cards), len(cache.pinned), stride)
 	}
 	for part, name := range names {
 		if bank := cache.blobs[0].banks[part]; bank.info.Name != name || bank.offset != uint64(part)*gateBytes {

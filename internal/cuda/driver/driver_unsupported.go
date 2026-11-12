@@ -192,6 +192,17 @@ func MachineCommit() (Commit, error) {
 	return Commit{}, errors.New("the machine's commit is read only on Windows")
 }
 
+// ReserveCommit reports that a commit reservation is made on Windows.
+func (l *Library) ReserveCommit(uint64) error {
+	return errors.New("a commit reservation is made only on Windows")
+}
+
+// ReleaseCommit holds no reservation to release.
+func (l *Library) ReleaseCommit(uint64) error { return nil }
+
+// Commit reports that the machine's commit is read on Windows.
+func (l *Library) Commit() (Commit, error) { return MachineCommit() }
+
 // MemHostAlloc reports that pinned, device-mapped host memory needs the Windows driver.
 func (l *Library) MemHostAlloc(uint64) ([]byte, DevicePtr, error) {
 	return nil, 0, errors.New("CUDA driver loading is currently supported only on Windows")

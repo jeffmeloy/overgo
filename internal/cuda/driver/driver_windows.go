@@ -101,6 +101,8 @@ type Library struct {
 	pinned          map[uintptr]uint64
 	pinnedBytes     uint64
 	peakPinnedBytes uint64
+	// reservation is the ordinary commit the library's allocations take their commit from (ReserveCommit).
+	reservation commitReservation
 
 	kernelLaunches         atomic.Uint64
 	streamSynchronizations atomic.Uint64
@@ -343,7 +345,7 @@ func (l *Library) Close() error {
 	if len(l.contextClaims) != 0 {
 		return errors.New("CUDA library still owns live contexts")
 	}
-	err := l.dll.Release()
+	err := errors.Join(l.ReleaseCommit(0), l.dll.Release())
 	l.dll = nil
 	return err
 }
@@ -688,6 +690,8 @@ func (l *Library) MemAlloc(bytes uint64) (DevicePtr, error) {
 			return &ResultError{Operation: "physical GPU memory admission", Code: cudaErrorOutOfMemory,
 				Name: "insufficient device capacity", Message: fmt.Sprintf("requested %d bytes; available %d", bytes, free)}
 		}
+		// Windows charges a card allocation to the machine's commit as it does a pinned one.
+		l.handOver(bytes)
 		result, _, _ := l.cuMemAlloc.Call(uintptr(unsafe.Pointer(&pointer)), uintptr(bytes))
 		if err := l.result("cuMemAlloc_v2", result); err != nil {
 			return err
@@ -1036,6 +1040,7 @@ func (l *Library) MemHostAlloc(bytes uint64) ([]byte, DevicePtr, error) {
 	pinned.Pin(&host)
 	pinned.Pin(&pointer)
 	defer pinned.Unpin()
+	l.handOver(bytes)
 	result, _, _ := l.cuMemHostAlloc.Call(uintptr(unsafe.Pointer(&host)), uintptr(bytes), hostAllocPortable|hostAllocDeviceMap)
 	if err := l.result("cuMemHostAlloc", result); err != nil {
 		commit, commitErr := MachineCommit()

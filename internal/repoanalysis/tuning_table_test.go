@@ -165,4 +165,7 @@ var tuningTable = []tuningValue{
 	{file: tuningDevice + "expert_residency.go", name: "expertHomeCommitReserveBytes",
 		trades: "card experts without a host copy, which no promotion or swap displaces, against a request's allocation finding the machine's commit spent",
 		basis:  "measured here: Flash-Next's reads up to 262,000 tokens took 2.0 GiB of commit past its open on the whole card, twice kept"},
+	{file: tuningDevice + "expert_residency.go", name: "expertOpenStagingCommitBytes",
+		trades: "page file grown for an open's reservation and given back after it against pins after the load meeting the commit limit",
+		basis:  "measured here: Flash-Next's round, drafter and doorbell pinned 3.8 GiB at its full context, twice reserved"},
 }

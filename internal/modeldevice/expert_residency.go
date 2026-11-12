@@ -260,8 +260,10 @@ type expertMemory interface {
 	copyOnCard(ctx context.Context, destination, source driver.DevicePtr, bytes uint64) error
 	// read copies bytes on the card into host memory, synchronously.
 	read(ctx context.Context, destination []byte, source driver.DevicePtr) error
-	// commit reads the machine's commit, which every pinned and every card byte takes (driver.Commit).
+	// commit reads the machine's commit, which every pinned and every card byte takes, what the library's reservation
+	// holds counted as left (driver.Library.Commit); keepCommit keeps that much of the reservation and gives back the rest.
 	commit(ctx context.Context) (driver.Commit, error)
+	keepCommit(ctx context.Context, bytes uint64) error
 	// writeOrdered queues a write of data behind the work the compute stream holds, data copied before it returns, so
 	// the next run reads it without the host waiting for the run in flight: a table published while a decode window's
 	// draft ran waited about 1 ms a window for the draft to end.
@@ -428,6 +430,13 @@ func (c *expertResidency) allocate(ctx context.Context, limit uint64, profile *E
 	} else {
 		marks = c.indexCardExperts(limit)
 	}
+	// Every expert's copy is pinned with the load, filled as the pass reads the file, where the machine's commit holds it
+	// beside the card's share and what the open pins after (ReserveOpenCommit), as Strata's expert arena keeps every
+	// expert's bytes: copied back from the card after the load, Flash-Next's 40 GiB of card experts took 11 s of its
+	// open. Where the commit does not hold them, a card expert's copy waits for the open's other pins (HomeExperts):
+	// each pinned and each card byte takes the commit, and Flash-Next's every expert pinned beside its card share
+	// outran a 98 GB machine's with a 16 GB page file (flash-next-load).
+	whole := c.copiesFit(ctx, marks)
 	for _, blob := range c.blobs {
 		experts, onCard := uint64(len(blob.head().pointers)), uint64(0)
 		for _, card := range marks[blob] {
@@ -444,25 +453,30 @@ func (c *expertResidency) allocate(ctx context.Context, limit uint64, profile *E
 			}
 			c.cards = append(c.cards, expertChunk{card, onCard * blob.stride, blob.stride, nil})
 		}
-		// The experts the card does not hold lie in pinned host memory. A card expert's copy waits for the open's other
-		// pins (home): each pinned and each card byte takes the machine's commit, and Flash-Next's every expert pinned
-		// beside its card share outran the commit of a 98 GB machine with a 16 GB page file (flash-next-load).
-		if onCard < experts {
-			if host, mapped, err = c.mem.hostAlloc(ctx, (experts-onCard)*blob.stride); err != nil {
-				return fmt.Errorf("pinning a layer's %d experts in host memory: %w", experts-onCard, err)
+		pinned := experts - onCard
+		if whole {
+			pinned = experts
+		}
+		if pinned > 0 {
+			if host, mapped, err = c.mem.hostAlloc(ctx, pinned*blob.stride); err != nil {
+				return fmt.Errorf("pinning a layer's %d experts in host memory: %w", pinned, err)
 			}
 			c.pinned = append(c.pinned, host)
 		}
 		var cardSlot, hostSlot uint64
 		for index := range experts {
-			if marks[blob][index] {
-				c.placeOnCard(blob, uint32(index), card+driver.DevicePtr(cardSlot*blob.stride), expertSlot{})
-				cardSlot++
-				continue
+			var slot expertSlot
+			if whole || !marks[blob][index] {
+				offset := hostSlot * blob.stride
+				slot = expertSlot{device: mapped + driver.DevicePtr(offset), host: host[offset : offset+blob.stride]}
+				hostSlot++
 			}
-			offset := hostSlot * blob.stride
-			c.placeOnHost(blob, uint32(index), expertSlot{device: mapped + driver.DevicePtr(offset), host: host[offset : offset+blob.stride]})
-			hostSlot++
+			if marks[blob][index] {
+				c.placeOnCard(blob, uint32(index), card+driver.DevicePtr(cardSlot*blob.stride), slot)
+				cardSlot++
+			} else {
+				c.placeOnHost(blob, uint32(index), slot)
+			}
 		}
 	}
 	return nil
@@ -472,6 +486,30 @@ func (c *expertResidency) allocate(ctx context.Context, limit uint64, profile *E
 // which a request's own allocations may take: Flash-Next's reads up to 262,000 tokens took 2.0 GiB of commit past its
 // open on the whole card (its pins 0.3 of it; 0.9 under a 22 GiB card budget), and twice that is kept.
 const expertHomeCommitReserveBytes = 4 << 30
+
+// expertOpenStagingCommitBytes is what an open pins after its load beside the experts, which ReserveOpenCommit reserves:
+// Flash-Next's round, drafter and doorbell pinned 3.8 GiB at its full context of 262,144 tokens (59.2 GiB pinned at
+// the open, 55.4 of it experts), and twice that is reserved.
+const expertOpenStagingCommitBytes = 8 << 30
+
+// ReserveOpenCommit reserves, with one ordinary commit, what an open allocates from its load on: the card memory free
+// now, a host copy of every expert of the file-backed banks, expertOpenStagingCommitBytes and
+// expertHomeCommitReserveBytes. Windows grows a system-managed page file at once for an ordinary commit past its limit
+// but not for the driver's requests (driver.Library.ReserveCommit), so the allocations then take their commit from it,
+// and HomeExperts gives every card expert its copy where it holds. It answers whether the machine made it: where the
+// page file cannot grow so far, the open goes on without it and the homing gives copies from the commit left.
+func ReserveOpenCommit(state *device.State, experts []gguf.TensorInfo) bool {
+	free, _, err := state.Driver.MemInfo()
+	if err != nil {
+		return false
+	}
+	need := free + expertOpenStagingCommitBytes + expertHomeCommitReserveBytes
+	for _, info := range experts {
+		// Each expert lies in a slot rounded up to expertSlotAlignment.
+		need += info.Size + info.Shape[expertBankAxis]*expertSlotAlignment
+	}
+	return state.Driver.ReserveCommit(need) == nil
+}
 
 // ExpertHomes is what a homing gave the card's experts: Homed their pinned copies, CardOnly those left to the card
 // alone, their bytes, and the machine's commit it read.
@@ -503,7 +541,11 @@ func (w *DeviceWeights) HomeExperts(ctx context.Context, state *device.State) (E
 	}
 	homes, err := c.home(ctx, commit.Left-min(commit.Left, free+expertHomeCommitReserveBytes))
 	homes.Commit = commit
-	return homes, err
+	if err != nil {
+		return homes, err
+	}
+	// What the open reserved and did not take is given back, but for its requests' allocations (ReserveOpenCommit).
+	return homes, c.mem.keepCommit(ctx, expertHomeCommitReserveBytes)
 }
 
 // home gives the card experts without a copy one in pinned host memory, the coldest first (colderKey), while their
@@ -573,6 +615,25 @@ func (c *expertResidency) giveCopies(ctx context.Context, keys []expertKey) erro
 		}
 	}
 	return nil
+}
+
+// copiesFit says the machine's commit, a reservation's counted, holds a copy of every expert in host memory beside the
+// card's share the marks place and what the open pins after its load.
+func (c *expertResidency) copiesFit(ctx context.Context, marks map[*expertBlob][]bool) bool {
+	commit, err := c.mem.commit(ctx)
+	if err != nil {
+		return false
+	}
+	need := uint64(expertOpenStagingCommitBytes + expertHomeCommitReserveBytes)
+	for _, blob := range c.blobs {
+		for _, card := range marks[blob] {
+			need += blob.stride
+			if card {
+				need += blob.stride
+			}
+		}
+	}
+	return commit.Left >= need
 }
 
 // allocateResident makes the card's residency table where every routed layer holds the same expert count: every expert
@@ -1794,4 +1855,7 @@ func (m stateMemory) available(context.Context) (uint64, error) {
 func (m stateMemory) read(_ context.Context, destination []byte, source driver.DevicePtr) error {
 	return m.state.Driver.MemcpyDtoH(destination, source)
 }
-func (stateMemory) commit(context.Context) (driver.Commit, error) { return driver.MachineCommit() }
+func (m stateMemory) commit(context.Context) (driver.Commit, error) { return m.state.Driver.Commit() }
+func (m stateMemory) keepCommit(_ context.Context, bytes uint64) error {
+	return m.state.Driver.ReleaseCommit(bytes)
+}

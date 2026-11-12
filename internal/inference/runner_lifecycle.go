@@ -483,6 +483,17 @@ func loadResidentWeights(
 			if err != nil {
 				return err
 			}
+			// The open's allocations take their commit from an ordinary commit made first, which Windows grows the page
+			// file for at once, as it does not for the driver's requests; where the machine cannot make it, the homing
+			// gives the card's experts their copies from the commit left (HomeExperts).
+			if len(fileBackedExperts) != 0 {
+				if err := worker.Do(ctx, func(state *device.State) error {
+					modeldevice.ReserveOpenCommit(state, fileBackedExperts)
+					return nil
+				}); err != nil {
+					return err
+				}
+			}
 		}
 		// A Strata round's runner keeps its token embedding in mapped host memory, as Strata does, where the output head
 		// is its own: a step reads a few rows of it, and its card memory goes to the expert cache.

@@ -56,9 +56,10 @@ type recorded struct {
 	Milliseconds  int64               `json:"milliseconds"`
 	PeakCardBytes uint64              `json:"peak_card_bytes"`
 	Texts         map[string][]string `json:"texts"`
+	Cached        []string            `json:"cached"`
 	Files         []struct {
-		Node, Kind, Name, SHA256 string
-		Bytes                    int
+		Node, Kind, Type, Name, SHA256 string
+		Bytes                          int
 	} `json:"files"`
 }
 
@@ -88,7 +89,7 @@ func (f *fakeComfyUI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case r.URL.Path == "/history/p1":
 		answer(w, map[string]any{"p1": map[string]any{
 			"status": map[string]any{"status_str": "success", "completed": true, "messages": []any{
-				[]any{"execution_start", map[string]any{"timestamp": 1000}}, []any{"execution_cached", map[string]any{"nodes": []any{}}},
+				[]any{"execution_start", map[string]any{"timestamp": 1000}}, []any{"execution_cached", map[string]any{"nodes": []any{"707:706"}, "timestamp": 1001}},
 				[]any{"execution_success", map[string]any{"timestamp": 3500}},
 			}},
 			"outputs": map[string]map[string]any{
@@ -163,6 +164,9 @@ func TestARecordingIsTakenFromComfyUIsAnswers(t *testing.T) {
 		if len(taken.Commits) != len(want) || taken.Commits["."] != want["."] || taken.Commits["custom_nodes/pack"] != want["custom_nodes/pack"] {
 			t.Errorf("the recording names the commits %v; want %v, a pack that is no checkout left out", taken.Commits, want)
 		}
+		if !slices.Equal(taken.Cached, []string{"707:706"}) {
+			t.Errorf("the recording names %v as answered from ComfyUI's cache; want 707:706, as its history said", taken.Cached)
+		}
 		if !slices.Equal(taken.Texts["35"], []string{"the final prompt"}) || taken.Set["598.seed"] != 7.0 {
 			t.Errorf("the recording keeps the texts %v and the inputs set %v; want node 35's final prompt and 598.seed 7", taken.Texts, taken.Set)
 		}
@@ -171,7 +175,7 @@ func TestARecordingIsTakenFromComfyUIsAnswers(t *testing.T) {
 		}
 		for _, file := range taken.Files {
 			data := testcheck.Must(os.ReadFile(filepath.Join(out, "text-to-image", file.Name)))(t)
-			if file.SHA256 != fmt.Sprintf("%x", sha256.Sum256(data)) || !slices.Contains([]string{served["original.png"], served["latent.latent"]}, string(data)) {
+			if file.SHA256 != fmt.Sprintf("%x", sha256.Sum256(data)) || file.Type != "output" || !slices.Contains([]string{served["original.png"], served["latent.latent"]}, string(data)) {
 				t.Errorf("the recording keeps %+v holding %q; want a file the run wrote, by its SHA-256", file, data)
 			}
 		}

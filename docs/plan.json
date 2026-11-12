@@ -3,32 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "readme-samples",
-      "title": "Each picture and clip the README shows is drawn at its developer's recommended settings by today's code, and names its prompt, seed, steps and guidance; a timing request is labelled as one",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": -691,
-        "reason": "Filed 2026-11-11 from the owner's review of the README's samples: three draws on the card in a gap between readings, a finer reference for SimpleDiffusion, and one README rule. The lead's figure. Step simplediffusion-default: +136 (136, the median of what 126 landings that changed internal/diffusionimage, docs, cmd/validate, assets counted)."
-      },
-      "steps": [
-        {
-          "id": "simplediffusion-default",
-          "title": "A SimpleDiffusion request draws a batch of sixteen by default, its frozen review cases acquired again drawn so",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/diffusionimage -count=1 -run '^TestFrozenDiffusionGeneration$'",
-          "files": [
-            "internal/diffusionimage",
-            "docs",
-            "cmd/validate",
-            "assets"
-          ],
-          "needs_card": true,
-          "rationale": "Serves: the owner's review of 2026-11-11: SimpleDiffusion's pictures look bad; readme-samples/simplediffusion-fifty found the cause, a picture drawn alone, and left the default at one because the frozen review cases pin it.\n\nDisappears: a SimpleDiffusion request that names no batch drawing one pale, noisy picture: the model mixes the pictures of a batch in its transformer blocks (models/uvit.py's TransformerBlock writes back by permute(1, 2, 0)) and was trained on batches of 16 to 128, and its author's sampler draws sixteen.\n\nThe change: the two frozen review cases of docs/image_video_protocol.json (SimpleDiffusion image-gen 1 and 2, seed 5 and 105, 8 steps at 256 x 256) are acquired again drawn in a batch of sixteen, through the campaign's acquisition and review as the protocol asks, the protocol's originals, docs/image_video_processing.json, docs/image_video_latent_images.json and the coverage record moved to them, and the request's batch defaults to sixteen; TestFrozenDiffusionGeneration pins the new originals.\n\nCheck: TestFrozenDiffusionGeneration draws the frozen cases at the default batch and finds the protocol's originals.\n\nBatch: device lane; the acquisition writes the store."
-        }
-      ]
-    },
-    {
       "id": "readme-speed",
       "title": "The README's speed table reads prompt processing at 4,096 and 16,384 tokens for every chat model, from readings that keep their token counts",
       "owner": "master-lead",
@@ -106,26 +80,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": -2872,
+        "nodes": -2927,
         "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard). Step client: +0 (no landing changed cmd/comfy-reference). Step record-rest: +2009 (2009, the median of what 2 landings that changed cmd/comfy-reference, fixtures/comfy counted)."
       },
       "steps": [
-        {
-          "id": "record",
-          "title": "Each section and prompt mode is recorded at 1024 x 576 on the install's own files, ComfyUI listening on the machine only with API nodes and the manager's network checks off",
-          "status": "open",
-          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/comfy-reference -count=1 -run '^TestTheUltraRecordingsAgreeAndParseStrictly$'",
-          "files": [
-            "cmd/comfy-reference",
-            "fixtures/comfy",
-            "cmd/hf-hub"
-          ],
-          "needs_card": true,
-          "rationale": "Each recording names the workflow's hash, the commits of ComfyUI and each custom-node pack, each model file's SHA-256, the seed, size, final prompts and sigmas, the final latent, the decoded and sharpened images, time per step and peak card memory. The small fixture goes to fixtures/comfy/moss-ultra/; latents and images go to overgo_data/references/comfy/moss-ultra/.\n\nThe depth section runs the workflow's own depth step: before its first recording, cmd/hf-hub downloads depth_anything_v2_vits.pth (99.2 MB, Apache-2.0, decided 2026-11-05) with a receipt and hard-links it where comfyui_controlnet_aux reads it, so ComfyUI stays offline; the depth map is a golden of its own. The workflow is recorded as saved, defects included: its 50-step row runs on Base without the SFT LoRA, its turbo row runs er_sde with bong_tangent, its 50-step image to image runs at denoise 1.0. The workflow's own size (16:9 at 3 MP) is recorded once, for the speed comparison.\n\nServes: setup-steps.\nDisappears: nothing.\nEvidence: a second recording agrees with the first above a measured floor, and every fixture parses strictly.\nBatch: device lane; a recording runs only while no device test holds the card.",
-          "depends_on": [
-            "comfy-recorder/request"
-          ]
-        },
         {
           "id": "record-rest",
           "title": "Each recording holds its samplers' sigmas, the time of each step, the model files' hashes, and the workflow's prompt modes 2 and 3",

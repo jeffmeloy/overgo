@@ -39,12 +39,16 @@ type recording struct {
 	PeakCardBytes uint64              `json:"peak_card_bytes"`
 	Files         []recordedFile      `json:"files"`
 	Texts         map[string][]string `json:"texts,omitzero"`
+	// Cached are the nodes ComfyUI answered from its cache of an earlier prompt, none of whose outputs this run computed.
+	Cached []string `json:"cached,omitzero"`
 }
 
 // recordedFile is one file a run wrote, as ComfyUI's history names it, kept beside the recording.
 type recordedFile struct {
-	Node   string `json:"node"`
-	Kind   string `json:"kind"`
+	Node string `json:"node"`
+	Kind string `json:"kind"`
+	// Type is where ComfyUI put the file: output, what the workflow saves, or temp, a preview its page shows.
+	Type   string `json:"type"`
 	Name   string `json:"name"`
 	SHA256 string `json:"sha256"`
 	Bytes  int    `json:"bytes"`
@@ -121,7 +125,7 @@ func (r recorder) record(ctx context.Context, title string) (recording, error) {
 		return recording{}, fmt.Errorf("comfy-reference: %q: %w", title, err)
 	}
 	taken.PeakCardBytes = peak
-	taken.Milliseconds, err = run.elapsed()
+	taken.Milliseconds, taken.Cached, err = run.events()
 	if err != nil {
 		return recording{}, err
 	}
@@ -164,24 +168,31 @@ type history struct {
 	Outputs map[string]map[string]json.RawMessage `json:"outputs"`
 }
 
-// elapsed is the time from the run's start to its success, in milliseconds, as ComfyUI stamps the two events.
-func (h history) elapsed() (int64, error) {
+// events are the time from the run's start to its success, in milliseconds, as ComfyUI stamps the two events, and the
+// nodes its execution_cached event names, which it answered from an earlier prompt's outputs.
+func (h history) events() (int64, []string, error) {
 	stamps := map[string]int64{}
+	var cached []string
 	for _, message := range h.Status.Messages {
 		var event string
 		var detail struct {
-			Timestamp int64 `json:"timestamp"`
+			Timestamp int64    `json:"timestamp"`
+			Nodes     []string `json:"nodes"`
 		}
 		if len(message) == 2 && json.Unmarshal(message[0], &event) == nil && json.Unmarshal(message[1], &detail) == nil {
 			stamps[event] = detail.Timestamp
+			if event == "execution_cached" {
+				cached = append(cached, detail.Nodes...)
+			}
 		}
 	}
 	start, started := stamps["execution_start"]
 	end, ended := stamps["execution_success"]
 	if !started || !ended {
-		return 0, errors.New("comfy-reference: ComfyUI's history stamps no start and success of the run")
+		return 0, nil, errors.New("comfy-reference: ComfyUI's history stamps no start and success of the run")
 	}
-	return end - start, nil
+	slices.Sort(cached)
+	return end - start, cached, nil
 }
 
 // systemStats is what ComfyUI's /system_stats says of itself and the card.
@@ -247,7 +258,7 @@ func (r recorder) keep(ctx context.Context, folder, node, kind, name, subfolder,
 	if err != nil {
 		return recordedFile{}, err
 	}
-	kept := recordedFile{Node: node, Kind: kind, Name: strings.NewReplacer(":", "-", "/", "-").Replace(node) + "-" + filepath.Base(name), SHA256: hashOf(data), Bytes: len(data)}
+	kept := recordedFile{Node: node, Kind: kind, Type: place, Name: strings.NewReplacer(":", "-", "/", "-").Replace(node) + "-" + filepath.Base(name), SHA256: hashOf(data), Bytes: len(data)}
 	return kept, os.WriteFile(filepath.Join(folder, kept.Name), data, fixtureMode)
 }
 

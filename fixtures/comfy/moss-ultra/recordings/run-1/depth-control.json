@@ -1,0 +1,111 @@
+{
+  "workflow_sha256": "60bf094f438d07deda059b85eefc305fe519b289e7cfe62abfe12792526a0e4a",
+  "section": "DEPTH CONTROL",
+  "request_sha256": "1b67ec6a91ef64c93192fd687268437ef2d0b6556577098c5e101a808e29dd47",
+  "set": {
+    "513.image": "overgo-recorder-input.png",
+    "690.megapixels": 0.5625
+  },
+  "comfyui_version": "0.42.0",
+  "commits": {
+    ".": "7cebca52227c63b4180ceed448cbd7ad22903b6d",
+    "custom_nodes/ComfyUI-KJNodes": "ab72eda7ffad6280422d71ab7d54d3fb87c0ba18",
+    "custom_nodes/ComfyUI-Manager": "4c50a2bc8b9e684d8a85930567957470b952bebe",
+    "custom_nodes/RES4LYF": "6780724de0ddb98e7454d54bb80387836a911ece",
+    "custom_nodes/comfyui_controlnet_aux": "a587a4c1594524c1d2de5cd1a86cd868ff448e1c",
+    "custom_nodes/rgthree-comfy": "bc48c6aaeca87bedbc14245d89f9bc6be37a630e"
+  },
+  "prompt_id": "6cfdbe09-81bd-4eca-a78b-42dad0e25938",
+  "milliseconds": 9967,
+  "peak_card_bytes": 42300161985,
+  "files": [
+    {
+      "node": "445",
+      "kind": "images",
+      "type": "output",
+      "name": "445-depth_control_00005_.png",
+      "sha256": "26321cca752e2b9d135cffb41425376db15a3a047aaf54d401ec817b54db59f4",
+      "bytes": 803389
+    },
+    {
+      "node": "610",
+      "kind": "images",
+      "type": "output",
+      "name": "610-sharpened_00005_.png",
+      "sha256": "b8179dc5780d84ec332c4f2a63b397d1fe61a4e69c7a1abaa51018bfd0819c23",
+      "bytes": 1192758
+    },
+    {
+      "node": "611",
+      "kind": "a_images",
+      "type": "temp",
+      "name": "611-rgthree.compare._temp_hrejv_00001_.png",
+      "sha256": "fb7f1b1285b44ab45fd1016bf0c7fc451530d9553893d6a5afed17ee08ec121f",
+      "bytes": 1036649
+    },
+    {
+      "node": "611",
+      "kind": "b_images",
+      "type": "temp",
+      "name": "611-rgthree.compare._temp_hrejv_00002_.png",
+      "sha256": "ff18cc2e93c2c3597c772c7030b8ffeb28d169984545658996f8316a60cec8be",
+      "bytes": 1655918
+    },
+    {
+      "node": "667",
+      "kind": "images",
+      "type": "temp",
+      "name": "667-ComfyUI_temp_ybzkm_00001_.png",
+      "sha256": "c2020a46ad85603776f179975505e96d3ebecc79d7d9564f172f696387e0d283",
+      "bytes": 202036
+    },
+    {
+      "node": "669",
+      "kind": "a_images",
+      "type": "temp",
+      "name": "669-rgthree.compare._temp_ottpe_00001_.png",
+      "sha256": "fb7f1b1285b44ab45fd1016bf0c7fc451530d9553893d6a5afed17ee08ec121f",
+      "bytes": 1036649
+    },
+    {
+      "node": "669",
+      "kind": "b_images",
+      "type": "temp",
+      "name": "669-rgthree.compare._temp_ottpe_00002_.png",
+      "sha256": "4d0974404a78845ff0ccd90480c01ee908d17b38331fec0b1620e27f6e310a36",
+      "bytes": 1213222
+    },
+    {
+      "node": "overgo-latent-443",
+      "kind": "latents",
+      "type": "output",
+      "name": "overgo-latent-443-depth-control_00003_.latent",
+      "sha256": "72d6051a28599ab0d6e2517170d0b92ad8179f350b1ad1fab8bcdb927fb516ec",
+      "bytes": 1208688
+    }
+  ],
+  "texts": {
+    "607": [
+      ""
+    ],
+    "608": [
+      "unwanted rendering artifacts, unintended distortion, accidental duplicate subjects, inconsistent perspective, unrequested text overlays, unwanted watermarks"
+    ]
+  },
+  "cached": [
+    "1",
+    "2",
+    "3",
+    "513",
+    "587",
+    "612:616:631",
+    "612:616:633",
+    "612:634:643",
+    "612:634:665",
+    "612:692:693",
+    "614",
+    "690",
+    "691",
+    "92"
+  ]
+}

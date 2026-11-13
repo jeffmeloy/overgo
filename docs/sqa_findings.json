@@ -39,7 +39,7 @@
         ],
         "adoption_scope": "Supersedes the absent repository-document reference at the owner's request; current external SHA is verified. Does not alter the executable plan."
       },
-    "assessment": "Owner feedback verified and consolidated:266 failed full-run/system-evidence scope;379 both stale reuse and stranded compatible partial sets;376 reuse existing refusal cause/rule storage and current recovery control.391 tracks test checkout lifetime and392 the already-planned local-serving gap.261 receives actual-card migration progress but stays open for its probe/acquisition race;390 encoder release remains resolved. No new workload, implementation or cleanup executed.",
+    "assessment": "Fourlandings deliver finishing,counts,cause-firstwording andearliercard ownership.802b6da23 now holds the existingcardturn beforeinvariants throughscorecard for changesreachingdevice lanes.393finishingadmission and394mutableprogressinheritance remain in unchangedcode;261probe/acquisition and391incarnation remainopen.",
     "ast_surface_review": {
         "revision": "9bd406acafb89c44a439722419f1f7e85e71f691",
         "architectural_target": "Fewer independent product entry points and dependency owners; retain process isolation and existing compiled/runtime/development authority.",
@@ -55,40 +55,34 @@
         "cost": "Concrete parsed duplicate migrations total22production and150test AST removed; unimplemented estimates only. Three directories can disappear through349/351; command movement and all retained semantic constants must be charged. No overall refactor completion claimed."
       },
     "automation_follow_up": {
-        "architectural_progress": "03a941f92 fixes the old lane-lock/resource-name mismatch and passes one job turn to children. Current native fixture covers a turn held before the probe; it does not cover acquisition between probe and wait.",
-        "remaining": "261 probe/acquisition gap;266 failed full-run cause;379 partial/completed-stage identity;376 cause-driven worklist/current control;391 test-checkout recovery;392 local serving.",
+        "architectural_progress": "Actual done/total/time and stage-start lines replace a15-second device heartbeat. AGENTS/default worker/session messages now require finding cause before editing and removing/fixing before adding.",
+        "remaining": "261probe/acquisition andwaitermark;394progress/inheritance;391incarnation;266qualifiedhistoricaltiming andpostrehearsal measurement;376cause-worklist. Stage-placement migration haslanded.",
         "plan_recommendations": [
           {
-            "rows": "post-rehearsal measurement",
+            "rows": "card-stages/whole-landing",
             "findings": [
+              "SQA-261",
               "SQA-266"
             ],
-            "recommendation": "Recover stop cause first, then one owner-requested full run under exclusive actual-card turn and current publication/filing owner; no repeated full runs per fix."
+            "recommendation": "802b6da23landed earlierwhole-landingownership fordevice-reachingchanges;verify actualwait/use accounting andcharge the longerexclusiveinterval. Preserve independenthostprogress and261acquisitionguarantees;retainedtypereach remainsanupperbound."
           },
           {
-            "rows": "guidance-ops/preset-readings",
+            "rows": "process-identity/start-time",
             "findings": [
-              "SQA-379"
+              "SQA-391"
             ],
-            "recommendation": "Preserve compatible partial results with original per-output producers; invalidate changed numerical/request dependencies, not every HEAD or no inputs at all."
+            "recommendation": "Use shared PID/start identity in current liveness consumers;historical missing incarnation remains uncertain. Do not infer it caused all12test trees."
           },
           {
             "rows": "refusal-advice/worklist",
             "findings": [
               "SQA-376"
             ],
-            "recommendation": "Consume existing Cause/Rules and original available diagnostics; historical unavailable/edit detail is unknown. No duplicate cause field or ledger."
-          },
-          {
-            "rows": "no-clocks/local-serving",
-            "findings": [
-              "SQA-392"
-            ],
-            "recommendation": "Complete local requester/drain ownership with peer trust protections and explicit cancellation/budgets intact."
+            "recommendation": "Use existingCause/Rules and the current driver/status;new wording is progress,not a second schema or actual remediation proof."
           }
         ],
-        "complete_cost": "03a941f92 adds91production/133testAST (+224),+22/+23lines across14Go paths;0newfiles/packages/binaries/staticfixtures. Entire five-step card-turn/encoder/handover migration is+271production/-226testAST,net+45, including the large retirement and its replacements. All17implementation commits since6bab03cca total+8465production/+7062testAST (+15527); prior fixture/sample growth remains. No net binary/directory reduction.",
-        "authority": "Report-only; recommendations are not execution or cleanup."
+        "complete_cost": "8796648c2->802b6da23:4complete landings,22changedGo paths,+1232production/+1499testAST (+2731),+223/+234lines,net+1production/+2testGo files. Finishing+867/+977,counts+191/+189,words+2/+66,stage-turn+172/+267. Threefinishingfixtures add108126bytes;0newexecutables/package directories andnone removed. The15-second device heartbeat andobsolete lifecycle lines disappear within this aggregate growth;no safe net code reduction established.",
+        "authority": "Report-only;no execution or task dispatch."
       },
     "current_review_order": "Current guidance/pin/plan -> direct callers and local retained facts -> existing canonical obligations -> selected AST/full cost -> concurrent reconciliation.",
     "declined_candidates": [
@@ -99,18 +93,16 @@
         "Do not treat a high refusal percentage as permission to weaken correctness, identity, safety or numerical checks."
       ],
     "media_follow_up": {
-        "architectural_progress": "SimpleDiffusion uses an explicit1..16batch with batch-keyed session; retained50-step golden compares all16positions,49.1..53.2dB over4-pixel means. Default1/frozen evidence preserved.13Comfy recordings retain cache/type provenance; held sessions and resident SenseNova branches remove repeated loading.",
-        "remaining": "Comfy record-rest explicitly still lacks sigma trajectories, per-step times, model hashes and prompt modes2/3; only mode1 was recorded.345 old UI compiler,388 accepted-prompt recovery and389 sampled-memory wording remain.342 unsupported approval/379 unbound consumer and resume remain.",
-        "cost": "Reference fixture/testdata growth311046bytes and sample1182831bytes; no new binary. No new SQA media runs.",
+        "architectural_progress": "Finishinggolden:96x96crop,27627/27648values exact and worst1level;440canvas cases exact. Canvas resolves before request validation;rotary output is sharpened after parity-observed decode and before PNG. Flow profiles refuse this unsupported field.",
+        "remaining": "393late geometry andadmitted numerical domain;392local serving;345UI compiler/388accepted-prompt recovery/389sampled memory and379producer recovery unchanged. No full-MOSS/preset-quality claim from one crop.",
+        "cost": "Finishing+867production/+977test AST and108126fixturebytes;newfeature growth,not consolidation.",
         "plan_recommendations": [
           {
-            "rows": "comfy-recorder/record-rest",
+            "rows": "moss-ultra-sections/finishing (landed)",
             "findings": [
-              "SQA-345",
-              "SQA-388",
-              "SQA-389"
+              "SQA-393"
             ],
-            "recommendation": "Complete provenance through exported requests and the current recorder while preserving accepted remote work and honest sampled-memory semantics."
+            "recommendation": "Admit effective operation shape/numerical constraints in the existing primitive/request owner before model work;keep the same recorded fixture."
           }
         ]
       },
@@ -195,18 +187,18 @@
         ]
       },
     "plan_review_follow_up": {
-        "pin": "03a941f92028cf9d0815984d03e5c4306be986fd",
-        "assessment": "card-handover/lane-turn landed; counts remains open. refusal-advice/worklist exists and should reuse current records. no-clocks/local-serving remains open, as the source confirms. Owner asks one exclusive full run after rehearsal and failure diagnosis.",
-        "recommendation": "Fix evidenced shared causes before dependent work; bind379 recovery once through existing identity owners. Consolidate the worklist/status/hook consumer, with AGENTS only pointing to current executable guidance; do not restore archived doctrine or add another policy file.",
-        "limits": "No plan/skill changes by SQA. Proposed clock or progress wording is not an implemented outcome; typed/review/stop hook valves remain real behavior.",
-        "sources": "Current committed plan/source and bounded local retained records/manifests."
+        "pin": "802b6da23f9687208fe758fa26d495e3b12343fd",
+        "assessment": "37activeitems;card-stages/whole-landing nowlanded duringreview. process-identity isfirst. Finishing,counts andcause-firstwording landed;393/394areconcrete follow-ups inunchanged code.",
+        "recommendation": "Useexisting rehearsal toassess actualexclusivecost andtiming afterstageplacement;do nottreat the313s hostgate asdeviceconfirmation. Fixparameter/recordauthority contracts through currentowners,not another pipeline/ownershipledger.",
+        "limits": "Uncommitted process-identity/sampler/lifecycle work excluded. NoSQAworkloads ordispatch.",
+        "sources": "Newpin source/plan,retained4landingrecords andselectedAST."
       },
-    "rank_basis": "Keep261 open for the admitted probe/acquisition gap while crediting the repaired resource name. Keep266 actual system evidence and379 recovery ahead of speculative savings;392 is an existing product contract gap and391 is lower-priority resource recovery.",
+    "rank_basis": "New393known late finishing/numerical correctness and394possible inherited self-wait join existing recovery priorities. No quota,prototype deletion or generalized duplication percentage.",
     "refactor_target_progress": {
-        "architectural_progress": "Actual card-turn naming, job acquisition and child inheritance are now unified. The separate preliminary availability probe still leaves261 open for an admitted concurrent-acquisition gap. Encoder lifetime remains resolved through its existing release owner.",
-        "conflicts": "Whole-commit render refusal strands compatible sets while name-only campaign resume overcredits completion;392 local-serving policy and391 abnormal test-checkout lifetime are incomplete. System-wide speed evidence is still absent from the latest full-run record.",
-        "next_useful_reductions": "Reuse existing execution/run identities for379, phase diagnostics/publication for266, refusal cause/status for376, process/leftovers for391 and handler/supervisor for392. No duplicate records, selectors or scheduler.",
-        "cost": "03a941f92 adds91production/133testAST (+224),+22/+23lines across14Go paths;0newfiles/packages/binaries/staticfixtures. Entire five-step card-turn/encoder/handover migration is+271production/-226testAST,net+45, including the large retirement and its replacements. All17implementation commits since6bab03cca total+8465production/+7062testAST (+15527); prior fixture/sample growth remains. No net binary/directory reduction."
+        "architectural_progress": "Existing media/rotary path carries finishing;counts replace thedeviceheartbeat;cause-firstwording reachesAGENTS/worker/session;802b6da23folds laneownership into oneearlier holdCard throughlandingend.",
+        "conflicts": "Finishing admission/numerics andprogress-mutatedinheritance remain. The broader cardinterval fixes identifiedstage-placement,but its guard is lane reach andits exclusivehosttime/measurementbenefit still need retainedrehearsal evidence.261probe/acquisition remains.",
+        "next_useful_reductions": "Complete393through the two actual operation consumers and394through existing turn/record ownership. Preserve261acquisition/cancellation and391exact holder identity. Repair measurement attribution before the single authorized full validation,without a new selector or scheduler.",
+        "cost": "8796648c2->802b6da23:4complete landings,22changedGo paths,+1232production/+1499testAST (+2731),+223/+234lines,net+1production/+2testGo files. Finishing+867/+977,counts+191/+189,words+2/+66,stage-turn+172/+267. Threefinishingfixtures add108126bytes;0newexecutables/package directories andnone removed. The15-second device heartbeat andobsolete lifecycle lines disappear within this aggregate growth;no safe net code reduction established."
       },
     "working_notes_review": {
         "finding": "SQA-334",
@@ -216,10 +208,10 @@
       }
   },
     "committed_plan": {
-    "git_blob": "7cf86a433e51b1c9c5bb5226abb311333558dd88",
+    "git_blob": "4f3ef7326f2d53f4c35881c6c56277f78c3c24bf",
     "path": "docs/plan.json",
-    "revision": "03a941f92028cf9d0815984d03e5c4306be986fd",
-    "sha256": "1b60e9cd47cda790183245db7c95d54b5147517d96897869411e5d6d5c84eb1f",
+    "revision": "802b6da23f9687208fe758fa26d495e3b12343fd",
+    "sha256": "2187b18942e8133f0da8d426b3310c33f3e018085e9490660d4dbbaac8a749fd",
     "working_tree_status": "Committed plan at review pin; prior draft assessment retains its own snapshot identity. Current working plan edits excluded."
   },
     "findings": [
@@ -816,8 +808,8 @@
       ],
     "comparison": "After an ordinarily authorized full run, compare only the named duplicated package/requirement with its exact retained owner and affected-change scope, including full production/test/fixture/setup/gate cost. No SQA-triggered run, elapsed extrapolation from missing walls, or timing-dependent numerical acceptance.",
     "displaced_surface": "Repeated full file reads across phases and the writer path that erased phase packages/digests are displaced. Existing plan.RecordDigests/jsonfile and runRecorder own the state. Full hash-once change+261production/+581test; no static fixture file, schema-version, dependency or new scheduler, but new map fields, serialization and one tiny weights/store setup do cost maintenance. Later-phase reads fall; fixture/store setup and program/test surface grow.",
-    "evidence": "Existing paired-test ownership and explicit model-selection scope remain. dd1dce514 now reuses model-file digests across a run's phases: bindCells calls runDigests/keepDigests, RecordDigests uses the existing measurement record, and runRecorder.write preserves digests plus failed tests/packages for the same Started identity. A new begin clears that identity and rehashes, preserving restart invalidation. The native fixture changes bytes mid-run and expects the old binding, then a new run sees changed bytes; this deliberately establishes the within-run immutability assumption. The implementation observed8.9GiB hashed in6.5s and extrapolated12-18minutes from~500GiB/two-to-three avoided passes; no matched full-run saved wall is retained here. 14409487b retires separate answer-score work from its measured commit-frequency argument; no new identity abstraction recommended. The former past-adoptions step is now retired at66b05cc14 pending ordinary package-wall evidence. The retained2026-10-31 run had no such walls according to current triage; .overgo-runtime/lane_walls.json was read as {} during this review. Its timestamp is not evidence of execution, completion or delivered continuation. Browser file-import narrowing is a separate change, not proof that paired numerical requirements are redundant.\nOwner feedback rechecked: the landing scorecard slice is one fixed input on the smallest local text model, reporting without refusal; it is not whole-system speed evidence. .overgo-runtime/measurement_run.json still names fdd4ab1cea379541604905e9b913b1a5f3d92bc8, started2026-11-08 01:15:52ET, with preflight ended01:29:38 and lanes ended03:10:33, neither passed, run ended03:10:34, no filed rows. It contains no failed-test names/error cause for those phases; roughly10m/1h41m walls alone do not identify why. No newer full run is established by this latest record. Current measurePhases uses phase/error receipts, runs preflight then lanes, and refuses cells after failed lanes; retain that existing diagnostic owner. The committed guidance-ops note also corrects bcdf4bbc4: MOSS already retained its session, with load0.6/0/0s; the between-picture drop was released stage memory, not repeated model loads. Do not credit HoldSessions with an observed MOSS loading saving.",
-    "evidence_commit": "03a941f92028cf9d0815984d03e5c4306be986fd",
+    "evidence": "Existing paired-test ownership and explicit model-selection scope remain. dd1dce514 now reuses model-file digests across a run's phases: bindCells calls runDigests/keepDigests, RecordDigests uses the existing measurement record, and runRecorder.write preserves digests plus failed tests/packages for the same Started identity. A new begin clears that identity and rehashes, preserving restart invalidation. The native fixture changes bytes mid-run and expects the old binding, then a new run sees changed bytes; this deliberately establishes the within-run immutability assumption. The implementation observed8.9GiB hashed in6.5s and extrapolated12-18minutes from~500GiB/two-to-three avoided passes; no matched full-run saved wall is retained here. 14409487b retires separate answer-score work from its measured commit-frequency argument; no new identity abstraction recommended. The former past-adoptions step is now retired at66b05cc14 pending ordinary package-wall evidence. The retained2026-10-31 run had no such walls according to current triage; .overgo-runtime/lane_walls.json was read as {} during this review. Its timestamp is not evidence of execution, completion or delivered continuation. Browser file-import narrowing is a separate change, not proof that paired numerical requirements are redundant.\nOwner feedback rechecked: the landing scorecard slice is one fixed input on the smallest local text model, reporting without refusal; it is not whole-system speed evidence. .overgo-runtime/measurement_run.json still names fdd4ab1cea379541604905e9b913b1a5f3d92bc8, started2026-11-08 01:15:52ET, with preflight ended01:29:38 and lanes ended03:10:33, neither passed, run ended03:10:34, no filed rows. It contains no failed-test names/error cause for those phases; roughly10m/1h41m walls alone do not identify why. No newer full run is established by this latest record. Current measurePhases uses phase/error receipts, runs preflight then lanes, and refuses cells after failed lanes; retain that existing diagnostic owner. The committed guidance-ops note also corrects bcdf4bbc4: MOSS already retained its session, with load0.6/0/0s; the between-picture drop was released stage memory, not repeated model loads. Do not credit HoldSessions with an observed MOSS loading saving.\nThe finishing rehearsal now supplies ordinary retained cost evidence:3e7b49d0c gate6276s, host-test stage4016.556s versus612.431s in03a941f92. Its identical slice identity/outputs/peak carried load-time477955.9058ms, while0f7438554 records1994.2612ms. The committed card-stages rationale attributes the former to waiting for the card inside timing, not a model-load regression. The lane-only turn excludes invariant tests, host verify/tests with indirect optimizer/device.New calls, and the later scorecard. Its retained rapid type analysis reports an upper bound2787tests/81packages (2491ungated/61packages), explicitly overapproximating interfaces/function values; SQA did not rerun that analysis or treat every reachable test as an actual CUDA execution. Holding the card from invariants through scorecard is proposed, with render blocking estimated35minutes versus20for lanes alone. The gain/cost and independent host progress must both be charged.\n802b6da23 lands the broader interval: for a change that reaches a device lane,Run acquires holdCard before invariants and keeps it to landing end,including scorecard. holdCard folds the former lane-only ownership andrecords the wait once. The prospective35minute versus20minute render exclusion is still a cost to measure;its313s gate reached no device/webui/CUDA lane andno scorecard,so it does not establish a fresh loaded-model improvement. Current native fixture checks stage membership andmanual holdCard/environment;it is not a fullstage/card rehearsal.",
+    "evidence_commit": "802b6da23f9687208fe758fa26d495e3b12343fd",
     "expected_benefit": {
         "outcome": "Per-run hashing removes two or three potential model-file passes and preserves package/failure/digest records at phase boundaries. The retained12-18minute estimate is an extrapolation, not measured saved elapsed time. Earlier chosen-model recorded-cost estimate remains separate.",
         "uncertainty": "No new matched full-run wall/peak. Within-run mutated bytes deliberately retain earlier digest; next begin rehashes. Package peak remains cumulative at callback, not isolated package or tree memory. New long-sequence cycle lane separately adds +35production/+259test and predicted~3minutes; count against any future whole-run savings."
@@ -825,10 +817,10 @@
     "id": "SQA-266",
     "impact": "Hours of retained paired execution justify attention, but stale credit or losing reference-vs-optimized evidence hides numerical regressions. Preserve recipe/tokenizer/kernel/environment/lifetime bindings. No blanket minutes-only validation claim.",
     "likely_effort": "No current implementation task authorized by this report. Reassess the smallest named overlap from the next ordinary retained package record; keep completed digest/phase reuse credit.",
-    "plan_coverage": "Owner explicitly requests stop-cause repair first, then one exclusive full run after rehearsal. Existing no-clocks/own-budgets and actual-card-turn work are relevant, but elapsed duration alone is not causal evidence. No run dispatched by SQA.",
+    "plan_coverage": "card-stages/whole-landing has landed for changes reaching a device lane. Verify the largerinterval against the existing rehearsal andmeasurement owner;the wait-contaminated historical load andfailedfullrun remain qualified. Do not infer hardware timing from the313s hostgate.",
     "plan_references": [],
     "raised_by": "Review session e8549e3e at the owner's request, 2026-10-31 (owner: \"there is fundamental problem with this system to re-do testing over, and over, and over and over, and never finish\"; \"don't run the whole scorecard until code is fixed\")",
-    "recommended_change": "Recover the actual November8 phase failure from existing run/error/test records and fix or establish its prerequisite before another expensive cycle. Keep the existing phase/run/scorecard and native Go cache owners. After the requested handover rehearsal, the owner requests one full run with the card exclusively held through the existing turn, publishing results and filing rows through the existing driver. This is an implementation recommendation, not SQA execution. Preserve valid completed evidence/explicit numerical owners, partial failures and exact identity; do not turn this into a full run after every fix, add a scheduler, or accept the small landing slice as system-wide proof. Investigate the corrected stage/judge cost before optimizing a presumed reload that did not occur.",
+    "recommended_change": "Recover the actual November8 phase failure from existing run/error/test records and fix or establish its prerequisite before another expensive cycle. Keep the existing phase/run/scorecard and native Go cache owners. After the requested handover rehearsal, the owner requests one full run with the card exclusively held through the existing turn, publishing results and filing rows through the existing driver. This is an implementation recommendation, not SQA execution. Preserve valid completed evidence/explicit numerical owners, partial failures and exact identity; do not turn this into a full run after every fix, add a scheduler, or accept the small landing slice as system-wide proof. Investigate the corrected stage/judge cost before optimizing a presumed reload that did not occur. Use the existing stage/turn and measurement owners to admit every actual card consumer before its work and keep card-wait time distinct from useful model load time. Qualify the477955ms historical reading instead of silently treating it as a model regression or rewriting its producer. Preserve early cheap failure and host-only progress while counting the larger exclusive interval proposed by card-stages; no new selector/scheduler or repeating a full system run merely to investigate reach. Treat the retained type reach as an upper bound, not measured device use.",
     "severity": "P2",
     "sources": [
         {
@@ -4462,12 +4454,13 @@
         "An external render holding only the card turn makes the landing release its commit slot before waiting; another host-only landing can finish.",
         "Device children ride one job turn; the obsolete lane queue/wait-line parser disappear. The waiting candidate still refuses publication if trunk changed, and cancellation/process-end cleanup remains correct.",
         "Existing fixtures cover the real card-turn path, not only the retired lane lock, with complete production/test/setup costs.",
-        "If the card becomes held between the preliminary availability probe and actual turn acquisition, the landing still releases commit ownership before waiting. Cover this controlled interleaving in the existing turn/checkout fixture."
+        "If the card becomes held between the preliminary availability probe and actual turn acquisition, the landing still releases commit ownership before waiting. Cover this controlled interleaving in the existing turn/checkout fixture.",
+        "A resource acquired between takePlace's free probe and enterTurn still exposes a real waiter to the current holder, without missing handover or retaining the commit slot. All actual stage consumers use the retained owner."
       ],
     "comparison": "Extend TestALandingWaitingOnTheDeviceGivesUpItsCommitTurn/checkout-free fixture: hold the card turn while the old lane turn is free, start the landing, acquire the commit slot with independent host work, then release the card. Preserve the changed-trunk refusal and checked-candidate assertions. Use the existing controlled process/turn fixture; no model pressure run or SQA execution. Add the controlled interleaving where the initial availability probe sees free, another process takes that same turn, then actual acquisition begins: an independent host commit must acquire its slot while the device wait persists. Use the existing fake/named-turn process fixture, not real GPU pressure.",
     "displaced_surface": "Retire the old laneTurn lock/second queue and duplicate child wait accounting. Retain landing.letGo/takeTurnBack, processcontrol.TakeTurn and the existing checked-tree/publication owners; update existing checkout-free/run-beside/host-lane fixtures instead of a parallel driver.",
-    "evidence": "Prior verified closure at c2f24f16a27d27890f0cc716a4490d72117a8e82 remains historical evidence: landing.Run now owns a releasable commit turn. letGo first captures its candidate checkout, then releases the turn when the lane is already held. takeTurnBack reacquires before publication and refuses a tip different from builtOn; commit CAS remains. TestALandingWaitingOnTheDeviceGivesUpItsCommitTurn acquires the commit turn during device wait, moves trunk, then requires refusal without changing the successor head. Existing checkout-free test still covers checked bytes, later edits and private-worktree cleanup. Quiet ownership is shared; no lock-inversion defect established in this trace.\nReopened at fc5147e61 after the card-turn migration. letGo still tests ResourceTransactionHeld(laneTurn) and keeps the commit turn if that old lane lock is free. inLaneTurn then takes that lane lock, while child CUDA contexts independently wait on driver.CardTurnOf through processcontrol.TakeTurn. An external render can hold only the card turn while the old lane lock is free, so the landing retains its commit ownership throughout the child GPU wait. Retained eb9d59fc1 gate wall24581s includes22153.784s card wait; the plan separately reports51 turns behind51 SenseNova pictures and the Wan encoder hold. These establish costly GPU waits, not that another commit was actually attempted and blocked. The independent-host starvation path is source-established. The card-handover/lane-turn draft addresses the right root but is uncommitted at this pin.\n03a941f92 now uses driver.CardTurnOf(0) for laneTurn; letGo tests ResourceTransactionHeld of that actual turn before releasing commit ownership. The landing/measurement takes processcontrol.TakeTurn once and child processes inherit its place. The old lane lock/child wait parser are removed. Existing checkout-free and TestALandingWaitingOnTheDeviceGivesUpItsCommitTurn fixtures now name the same dynamic turn; the latter acquires the commit slot while the device is held, advances trunk and asserts refusal without changing it. TestALandingsLanesRideOnTheCardTurnItTakes proves inherited environment is present only inside the turn, and host-only lane fixture remains. Retained1950s gate reports passing checks; the new test does not build under undo, so that undo is not behavioral proof. The named old-lock mismatch is repaired; no SQA concurrency workload.\nResidual source-admitted race: letGo probes ResourceTransactionHeld and returns without releasing the commit slot when the card is free; only later inLaneTurn calls TakeTurn. Another process can acquire the card between those operations, so the landing then waits while retaining its commit slot. Current retained fixture starts with the resource already held, so it does not exercise this transition. No new occurrence or delay was measured. One actual acquisition/wait owner must decide commit release rather than treating an earlier availability probe as authoritative.",
-    "evidence_commit": "03a941f92028cf9d0815984d03e5c4306be986fd",
+    "evidence": "Prior verified closure at c2f24f16a27d27890f0cc716a4490d72117a8e82 remains historical evidence: landing.Run now owns a releasable commit turn. letGo first captures its candidate checkout, then releases the turn when the lane is already held. takeTurnBack reacquires before publication and refuses a tip different from builtOn; commit CAS remains. TestALandingWaitingOnTheDeviceGivesUpItsCommitTurn acquires the commit turn during device wait, moves trunk, then requires refusal without changing the successor head. Existing checkout-free test still covers checked bytes, later edits and private-worktree cleanup. Quiet ownership is shared; no lock-inversion defect established in this trace.\nReopened at fc5147e61 after the card-turn migration. letGo still tests ResourceTransactionHeld(laneTurn) and keeps the commit turn if that old lane lock is free. inLaneTurn then takes that lane lock, while child CUDA contexts independently wait on driver.CardTurnOf through processcontrol.TakeTurn. An external render can hold only the card turn while the old lane lock is free, so the landing retains its commit ownership throughout the child GPU wait. Retained eb9d59fc1 gate wall24581s includes22153.784s card wait; the plan separately reports51 turns behind51 SenseNova pictures and the Wan encoder hold. These establish costly GPU waits, not that another commit was actually attempted and blocked. The independent-host starvation path is source-established. The card-handover/lane-turn draft addresses the right root but is uncommitted at this pin.\n03a941f92 now uses driver.CardTurnOf(0) for laneTurn; letGo tests ResourceTransactionHeld of that actual turn before releasing commit ownership. The landing/measurement takes processcontrol.TakeTurn once and child processes inherit its place. The old lane lock/child wait parser are removed. Existing checkout-free and TestALandingWaitingOnTheDeviceGivesUpItsCommitTurn fixtures now name the same dynamic turn; the latter acquires the commit slot while the device is held, advances trunk and asserts refusal without changing it. TestALandingsLanesRideOnTheCardTurnItTakes proves inherited environment is present only inside the turn, and host-only lane fixture remains. Retained1950s gate reports passing checks; the new test does not build under undo, so that undo is not behavioral proof. The named old-lock mismatch is repaired; no SQA concurrency workload.\nResidual source-admitted race: letGo probes ResourceTransactionHeld and returns without releasing the commit slot when the card is free; only later inLaneTurn calls TakeTurn. Another process can acquire the card between those operations, so the landing then waits while retaining its commit slot. Current retained fixture starts with the resource already held, so it does not exercise this transition. No new occurrence or delay was measured. One actual acquisition/wait owner must decide commit release rather than treating an earlier availability probe as authoritative.\n0f7438554 retains the preliminary probe/acquisition gap. takePlace also probes ResourceTransactionHeld to decide whether to mark a waiter before enterTurn. If another process acquires after that free probe, this process blocks without a waiter mark; a render relying on TurnWaited cannot see the new waiter. This is the same acquisition-root obligation, not another finding. The committed rehearsal additionally locates actual card users outside the lane interval; card-stages proposes moving ownership earlier but must preserve commit-release and host-progress protections. No new interleaving or delay was reproduced by SQA.\n802b6da23 now holds the card frombeforeinvariants throughlandingend when reachesCard is true,folding inLaneTurn intoholdCard. holdCard still calls letGo separately before takeLaneTurn,so the probe/acquisition gap andmissing waiter-mark interleaving remain. Earlierstage ownership is credited,not closure of thisrace.",
+    "evidence_commit": "802b6da23f9687208fe758fa26d495e3b12343fd",
     "expected_benefit": {
         "closure": "Actual resource-name and child-job ownership mismatch repaired; preliminary availability probe remains insufficient to guarantee commit release under a concurrent acquisition.",
         "complete_cost": "03a941f92 +91production/+133test AST,+22/+23lines across14Go paths,0files/packages/binaries/fixturebytes. Five card-turn/encoder/handover landings together +271production/-226test AST, net+45: count the entire migration, not just its -4249AST retirement step.",
@@ -4475,7 +4468,7 @@
       },
     "id": "SQA-261",
     "impact": "A GPU wait can again serialize unrelated host-only/report landings behind the waiting commit; per-context queueing also repeatedly yields between tests.",
-    "plan_coverage": "Current plan names both queues and one job-scoped turn; working edits are excluded until committed and verified.",
+    "plan_coverage": "card-stages/whole-landing now landed;counts andjobownership areprogress. Its earlier/broaderhold stilluses the separateletGo probe andTakeTurn acquisition,so261remainsopen.",
     "plan_references": [
         "card-turn/turn,readings-turn,retire-admissions (landed)",
         "card-handover/lane-turn (open at pin)",
@@ -8999,8 +8992,8 @@
       ],
     "comparison": "One retained status setup distinguishes absent versus empty records, known preflight versus unknown history, unique commit versus two step trailers, and an already-landed retry. Verify the existing session-start/status boundary emits the same source/window and preserves dispatch/owner decisions; failure to read measurements must not prevent work. Keep partial history explicit and do not sum overlapping stage/whole-run times.",
     "displaced_surface": "Already removed: mandatory answered-refusals work and dependence on a manual command to see day feedback at session start. Next removal: contradictory old weekly outcome/idle interpretation and duplicated status arithmetic/assertions. Keep spent/refusal records, Git, dispatch and current DayDelivery as the existing owners; no new ledger, dashboard, polling or policy suite.",
-    "evidence": "9290a89 adds DayDelivery through existing status and session-start output, records new run Kind, separates historical unknown-kind refusals and preflights, and derives report membership from filing9479f5815. 5f2e763cf retires answered-refusals, removing the proposed prose/plan-mutation gate. These are substantive improvements. Remaining source-established cases: readRuns returns nil on a missing ledger, leaving refusals/hours at zero despite the unknown-data requirement; ReportLandings increments per Landed-Row rather than per commit, so one coordinated commit advancing two report steps counts twice; writeStatus still prints WeekPace's landed-outcome/preflight-ambiguous refusal percentage and idle-gap inference beside the corrected day measures. DayDelivery.String names the head but omits its exact window; it reports summed run wall and waits, not check-stage hours. The new747AST fixture verifies the projection/String helper, not actual session-start delivery. Source confirms the hook call is best-effort and does not block work; no live hook or workload was executed. Historical November8/9 counts and uncertainty remain as recorded in prior revisions, not reread or recast as newly measured savings. 39b457deb now stores the first cause line (UTF-8-safe240-byte cap) in the existing refusal record. No production consumer of Cause was found beyond assignment/serialization in this bounded search, so this improves retained diagnostics, not automatic cause delivery or the remaining count/window semantics. The earlier residuals are unchanged.\nOwner correction verified: Refusal already has Cause (first line,240-byte UTF-8-safe cap) and Rules, persisted by RecordRefusal. The current local ledger has402entries,24with nonempty cause and34with rules; historical missing values cannot be reconstructed as observed causes. Existing cause data must be consumed, not duplicated in a new field. The proposed refusal-advice/worklist still asks for rule/test/edit information, but a truncated first line does not prove whether the old full detail contained an edit. AGENTS last line still gives generic keep-going advice, and stopDecision returns continue for an untyped open-plan turn, with explicit typed/review/stop/gate/wait valves. It is not unconditional. Only archived owner-doctrine.md copies were found under Downloads memory-archive-2026-11-02; no current alternate guidance was established. Do not restore an archive or claim its method is enforced.",
-    "evidence_commit": "03a941f92028cf9d0815984d03e5c4306be986fd",
+    "evidence": "9290a89 adds DayDelivery through existing status and session-start output, records new run Kind, separates historical unknown-kind refusals and preflights, and derives report membership from filing9479f5815. 5f2e763cf retires answered-refusals, removing the proposed prose/plan-mutation gate. These are substantive improvements. Remaining source-established cases: readRuns returns nil on a missing ledger, leaving refusals/hours at zero despite the unknown-data requirement; ReportLandings increments per Landed-Row rather than per commit, so one coordinated commit advancing two report steps counts twice; writeStatus still prints WeekPace's landed-outcome/preflight-ambiguous refusal percentage and idle-gap inference beside the corrected day measures. DayDelivery.String names the head but omits its exact window; it reports summed run wall and waits, not check-stage hours. The new747AST fixture verifies the projection/String helper, not actual session-start delivery. Source confirms the hook call is best-effort and does not block work; no live hook or workload was executed. Historical November8/9 counts and uncertainty remain as recorded in prior revisions, not reread or recast as newly measured savings. 39b457deb now stores the first cause line (UTF-8-safe240-byte cap) in the existing refusal record. No production consumer of Cause was found beyond assignment/serialization in this bounded search, so this improves retained diagnostics, not automatic cause delivery or the remaining count/window semantics. The earlier residuals are unchanged.\nOwner correction verified: Refusal already has Cause (first line,240-byte UTF-8-safe cap) and Rules, persisted by RecordRefusal. The current local ledger has402entries,24with nonempty cause and34with rules; historical missing values cannot be reconstructed as observed causes. Existing cause data must be consumed, not duplicated in a new field. The proposed refusal-advice/worklist still asks for rule/test/edit information, but a truncated first line does not prove whether the old full detail contained an edit. 1c3f6be52 now replaces generic keep-going advice in AGENTS.md, defaultPrompt and sessionInstructions with cause-first/removal-first wording. The worker/session fixture and pointer assertion retain that text. This resolves the identified stale wording; matching prose does not prove refusal-cause consumption or automatic remediation. stopDecision remains conditional for typed/review/stop/gate/wait cases. Only archived owner-doctrine copies were found; no alternate current guidance authority is restored. Existing Cause/Rules worklist and delivery/count semantics remain open.",
+    "evidence_commit": "802b6da23f9687208fe758fa26d495e3b12343fd",
     "expected_benefit": {
         "landed_cost": "9290a89 adds1385 production/747 test AST,275 production/101 test lines and two Go files; no new package, binary or static fixture. delivery.go1260AST, status.go405, spent.go197. The retained status_test386 and new status_measures_test747 exercise different current contracts; they are not automatically duplicates.",
         "reduction_candidate": "Retire obsolete WeekPace/projection assertions only after current decision and necessary status cases move to the retained status owner. Reuse the existing fixture rather than another Git setup. Full replacement cost unmeasured; no net-saving claim.",
@@ -9010,7 +9003,7 @@
     "id": "SQA-376",
     "impact": "Makes growing check cost, plan churn and starvation of requested capability work visible without adding another source of refusals.",
     "likely_effort": "Bounded existing status/Git projection and delivery integration; accurate historical run-kind attribution is limited by existing data.",
-    "plan_coverage": "refusal-advice/worklist should reuse existing cause/rule storage. Owner correction supersedes the claim that the ledger lacks cause text; it does not imply every historical entry has a cause. Keep existing status correctness requirements.",
+    "plan_coverage": "find-the-cause/words landed the current guidance/prompt migration. refusal-advice/worklist and ceilings-fall remain open; retain existing storage/status/authority owners. No closure from a string-matching test alone.",
     "plan_references": [
         "review-fixes/status-measures9290a89 (landed; partial closure)",
         "fail-early/answered-refusals retired5f2e763cf",
@@ -9883,14 +9876,33 @@
     "title": "Release the cached video encoder before reporting GPU handover"
   },
     {
-      "id": "SQA-391",
-      "status": "open",
-      "severity": "P3",
-      "category": "test-checkout-lifetime",
-      "classification": "observed-retained-checkouts-with-unproven-abandonment-cause",
-      "title": "Recover abandoned replay test checkouts through the existing owner",
-      "evidence_commit": "03a941f92028cf9d0815984d03e5c4306be986fd",
-      "sources": [
+    "category": "test-checkout-lifetime",
+    "classification": "observed-retained-checkouts-with-unproven-abandonment-cause",
+    "closure_criteria": [
+        "Each named tree is classified by current process/session/dirty/retained-evidence ownership; active or required trees are retained.",
+        "Normal and abnormal exit cleanup/recovery are owned by current replay/leftovers code; verified abandoned trees are removed with retained receipts/evidence and complete cost."
+      ],
+    "comparison": "In one existing tiny Git fixture, create a replay checkout, end its owner before normal cleanup and classify/recover it through existing leftovers; an active owner or dirty/retained-evidence tree must stay protected. No model-backed test rerun.",
+    "displaced_surface": "Remove verified abandoned registrations/checkouts and repeated ad-hoc cleanup. Retain historical replay producer commits/results, worktree locks and dirty/ignored state. Do not add duplicate t.Cleanup or revive retired model-backed test bodies.",
+    "evidence": "Read-only Git inventory contains81registered checkouts,12under temporary roots named TestLandedStepsReplayForAWorker(4),TestTheLocalWorkerPaysForItself(5),TestTheLocalWorkerWorksTheSixTasks(3). These identify test-created sets, not proof that all are idle or safely deletable. The current replay fixture already registers t.Cleanup(git worktree remove --force); merely adding cleanup again does not repair abnormal-exit recovery. moveReplay creates/reuses detached checkouts and writes data-root setup; the two historical local-worker test names are absent from current source. Existing leftovers.worktrees already covers temporary helper copies and checks locks/session/commit/dirt/ignored/process-state ownership. Whether prior tests were killed, cleanup failed or evidence retention was intended is unconfirmed.\nThe new committed process-identity/start-time row retains a relevant liveness counterexample: under concurrent test process churn, ProcessAlive(PID) accepted a reused PID after the original process exited; the implementation reproduced reuse on the307th subsequent process. Its planned current ProcessAlive/guard/campaign/leftovers migration will bind PID plus start. This supports exact owner identity for391 classification; it does not establish that PID reuse caused the twelve earlier retained replay trees. The patch is uncommitted and no closure is credited.",
+    "evidence_commit": "802b6da23f9687208fe758fa26d495e3b12343fd",
+    "expected_benefit": {
+        "baseline": "81registered trees;12test-named replay paths. No size/liveness/deletability census or reclaimed bytes measured. Current TestLandedStepsReplayForAWorker254AST/moveReplay124AST are retained owners, not wholesale deletion estimates.",
+        "after": "No safe source/byte reduction yet established; recovery integration and native fixture may grow. Count that against verified removed setup/registrations, never move the trees elsewhere as savings.",
+        "setup": "Use existing Git/process fixture and leftovers classification; no real model, historical replay execution or SQA deletion."
+      },
+    "id": "SQA-391",
+    "impact": "Test setup can accumulate registered checkouts and recovery ambiguity across interrupted runs, increasing disk/setup/maintenance surface.",
+    "likely_effort": "Bounded lifetime/recovery integration after classifying the twelve named trees.",
+    "plan_coverage": "Normal cleanup already exists; process-identity/start-time is open for the shared holder-incarnation primitive. Verify abandoned-tree cause and lifetime separately; do not assume the planned PID repair removes all retained trees.",
+    "plan_references": [
+        "loop-proof/local-demonstrated existing replay owner",
+        "Existing leftovers helper-copy rule",
+        "Owner feedback:81checkouts/12test-derived"
+      ],
+    "recommended_change": "Keep moveReplay and the existing test cleanup as creation/normal-exit owners. Route abnormal-exit recovery through the existing process/scratch/worktree and leftovers lifetime: identify the creating test process/run and retained consumers, classify ended/clean unneeded checkouts and remove only those through the current worktree-removal owner. Reuse an existing fixture for cleanup failure/process end. Do not delete active/dirty/evidence-bearing trees, infer abandonment from a test-name prefix, add a daemon or a second checkout registry. For the existing liveness decision, consume the exact PID/start identity from the pending shared ProcessAlive migration; a reused PID must not retain a dead test owner, and older records lacking an incarnation remain explicitly uncertain. Reuse guard/campaign/leftovers consumers rather than a test-specific process tracker. Count that shared migration once.",
+    "severity": "P3",
+    "sources": [
         {
           "path": "cmd/loop/replay_windows_model_test.go",
           "symbol": "TestLandedStepsReplayForAWorker; existing t.Cleanup worktree removal"
@@ -9908,28 +9920,9 @@
           "symbol": "local observation81registrations,12test-named replay paths"
         }
       ],
-      "evidence": "Read-only Git inventory contains81registered checkouts,12under temporary roots named TestLandedStepsReplayForAWorker(4),TestTheLocalWorkerPaysForItself(5),TestTheLocalWorkerWorksTheSixTasks(3). These identify test-created sets, not proof that all are idle or safely deletable. The current replay fixture already registers t.Cleanup(git worktree remove --force); merely adding cleanup again does not repair abnormal-exit recovery. moveReplay creates/reuses detached checkouts and writes data-root setup; the two historical local-worker test names are absent from current source. Existing leftovers.worktrees already covers temporary helper copies and checks locks/session/commit/dirt/ignored/process-state ownership. Whether prior tests were killed, cleanup failed or evidence retention was intended is unconfirmed.",
-      "impact": "Test setup can accumulate registered checkouts and recovery ambiguity across interrupted runs, increasing disk/setup/maintenance surface.",
-      "recommended_change": "Keep moveReplay and the existing test cleanup as creation/normal-exit owners. Route abnormal-exit recovery through the existing process/scratch/worktree and leftovers lifetime: identify the creating test process/run and retained consumers, classify ended/clean unneeded checkouts and remove only those through the current worktree-removal owner. Reuse an existing fixture for cleanup failure/process end. Do not delete active/dirty/evidence-bearing trees, infer abandonment from a test-name prefix, add a daemon or a second checkout registry.",
-      "displaced_surface": "Remove verified abandoned registrations/checkouts and repeated ad-hoc cleanup. Retain historical replay producer commits/results, worktree locks and dirty/ignored state. Do not add duplicate t.Cleanup or revive retired model-backed test bodies.",
-      "expected_benefit": {
-        "baseline": "81registered trees;12test-named replay paths. No size/liveness/deletability census or reclaimed bytes measured. Current TestLandedStepsReplayForAWorker254AST/moveReplay124AST are retained owners, not wholesale deletion estimates.",
-        "after": "No safe source/byte reduction yet established; recovery integration and native fixture may grow. Count that against verified removed setup/registrations, never move the trees elsewhere as savings.",
-        "setup": "Use existing Git/process fixture and leftovers classification; no real model, historical replay execution or SQA deletion."
-      },
-      "likely_effort": "Bounded lifetime/recovery integration after classifying the twelve named trees.",
-      "plan_references": [
-        "loop-proof/local-demonstrated existing replay owner",
-        "Existing leftovers helper-copy rule",
-        "Owner feedback:81checkouts/12test-derived"
-      ],
-      "plan_coverage": "No competing cleanup task/registry is needed. Current test already has normal cleanup; investigate the actual abnormal path.",
-      "closure_criteria": [
-        "Each named tree is classified by current process/session/dirty/retained-evidence ownership; active or required trees are retained.",
-        "Normal and abnormal exit cleanup/recovery are owned by current replay/leftovers code; verified abandoned trees are removed with retained receipts/evidence and complete cost."
-      ],
-      "comparison": "In one existing tiny Git fixture, create a replay checkout, end its owner before normal cleanup and classify/recover it through existing leftovers; an active owner or dirty/retained-evidence tree must stay protected. No model-backed test rerun."
-    },
+    "status": "open",
+    "title": "Recover abandoned replay test checkouts through the existing owner"
+  },
     {
       "id": "SQA-392",
       "status": "open",
@@ -9981,10 +9974,107 @@
         "Process death, held-open activity streams and cleanup remain covered in existing fixtures; full production/test/setup costs recorded."
       ],
       "comparison": "Extend the existing timeout and supervisor fixtures with the same slow fake work as local versus network/proxied external requests, plus cancellation and a deliberate caller budget. Assert local completion/drain, peer protection and cancellation independently of speed; no SQA execution."
+    },
+    {
+      "id": "SQA-393",
+      "status": "open",
+      "severity": "P2",
+      "category": "finishing-admission-and-numerical-domain",
+      "classification": "source-admitted-late-shape-refusal-and-nan-sigma",
+      "title": "Admit the full sharpening contract before model execution",
+      "evidence_commit": "802b6da23f9687208fe758fa26d495e3b12343fd",
+      "sources": [
+        {
+          "path": "internal/media/finishing.go",
+          "symbol": "Sharpening.Validate; Sharpen Gaussian/geometry"
+        },
+        {
+          "path": "internal/latentimage/runtime_cuda_windows.go",
+          "symbol": "LoadGenerator -> withPreset -> ValidateRequest"
+        },
+        {
+          "path": "internal/latentimage/generator_rotary_windows.go",
+          "symbol": "decodeRotary -> media.Sharpen after decode"
+        },
+        {
+          "path": "internal/media/finishing_test.go",
+          "symbol": "TestFinishingMatchesTheRecordedImage; TestSharpenRefusesWhatItCannotSharpen"
+        },
+        {
+          "path": "internal/latentimage/request_finishing_windows_test.go",
+          "symbol": "TestARequestsCanvasAndSharpeningFinishItsPicture"
+        }
+      ],
+      "evidence": "Request admission checks Radius>=1 and positive finite Sigma/nonnegative finite Alpha, but radius<min(outputHeight,outputWidth) is checked only by Sharpen after all denoising/VAE decode. The existing1024x576 request geometry with Radius576,Sigma0.6,Alpha0.7 passes the shallow finishing validation and necessarily fails at the finishing call. A second admitted parameter case is Radius1,Sigma1e-300,Alpha0.7 on a valid small RGB image: sigma*sigma underflows to0, the centre exponent computes0/0 and total/kernel/output becomeNaN. Sigma is finite and positive, so the current check admits it. These are source/IEEE arithmetic counterexamples, not SQA application executions. The golden covers one96x96crop at radius1/sigma0.6/alpha0.7 and440canvas cases; it establishes that reference point, not the whole admitted numerical domain.",
+      "impact": "Known invalid finishing can consume a full expensive render before rejection, and admitted finite settings can produce nonfinite output instead of a valid finished image.",
+      "recommended_change": "Keep media.Sharpening/Sharpen as the operation owner and make its actual shape/numerical domain available to Request.ValidateRequest after effective canvas/preset resolution, before model opening. Reuse the same checks for direct Sharpen callers; preserve runtime buffer integrity checks. Either compute Gaussian normalization safely over the supported positive-sigma domain or enforce an evidence-backed operation bound before execution; do not invent a model-specific cutoff. Keep finite output and recorded1-level parity independent of timing. No new validator framework, image pipeline or arbitrary capacity knob.",
+      "displaced_surface": "Remove shallow-only request admission and the avoidable late parameter refusal; replace unstable sigma-squared normalization where its supported domain requires it. Retain HWC RGB/reflect-padding semantics, sharpenGain10,clamp/order,ComfyUI-compatible canvas units/rounding and no-finishing behavior. Two real consumers share this contract: request admission and Sharpen itself.",
+      "expected_benefit": {
+        "baseline": "Finishing landing+867production/+977test AST and108126fixturebytes. Sharpening.Validate56/Sharpen364/AspectSize146nodes are operation boundaries, not wholesale deletion estimates. The full new operation andgolden remain required.",
+        "after": "Correction not implemented; early shared admission/stable arithmetic and native coverage may grow. No safe net reduction or elapsed saving measured; charge helper/caller/test cost against displaced checks, not code movement.",
+        "setup": "Extend existing request bounds and same tiny native image fixture; keep the recorded crop/440size evidence without adding another golden family or model run."
+      },
+      "likely_effort": "Bounded existing-operation validation/arithmetic correction.",
+      "plan_references": [
+        "moss-ultra-sections/finishing3e7b49d0c (landed)",
+        "Downloads target: admit known bad prerequisites and preserve numerical/layout contracts"
+      ],
+      "plan_coverage": "The finisher is wired through the existing media/runtime owner, but its new request test checks radius0 only and does not decide these admitted cases.",
+      "closure_criteria": [
+        "An unsupported radius for the resolved output is refused before model loading/inference; direct-call shape validation remains.",
+        "All admitted supported Sigma/Alpha cases yield finite output, or unsupported cases are explicitly rejected before work under a justified bound. Recorded settings retain their1-level oracle and exact canvas sizes.",
+        "No duplicate admission/arithmetic owner or fixture framework; complete production/test/setup costs counted."
+      ],
+      "comparison": "Extend the retained1024x576 request-bounds case with Radius576 and require early refusal; use an existing tiny RGB image with Sigma1e-300 to require finite supported output or justified admission refusal. Keep the unchanged crop oracle and no-finishing path; no SQA tests or model execution."
+    },
+    {
+      "id": "SQA-394",
+      "status": "open",
+      "severity": "P2",
+      "category": "turn-ownership-versus-progress",
+      "classification": "source-admitted-in-place-record-read-interleaving",
+      "title": "Keep live progress updates from invalidating turn inheritance",
+      "evidence_commit": "802b6da23f9687208fe758fa26d495e3b12343fd",
+      "sources": [
+        {
+          "path": "internal/processcontrol/turn_windows.go",
+          "symbol": "recordTurn rewrite Seek/Write/SetEndOfFile; turnHolder ReadFile/Unmarshal/FileUsers"
+        },
+        {
+          "path": "internal/processcontrol/turn.go",
+          "symbol": "TurnCount; takePlace inherited holder; enterTurn"
+        },
+        {
+          "path": "internal/processcontrol/turn_windows_test.go",
+          "symbol": "TestAWaiterSaysTheHoldersCount; TestOneCardTurnQueuesEveryUser"
+        }
+      ],
+      "evidence": "TurnCount now rewrites the authoritative live holder JSON in place through Seek(0),Write andSetEndOfFile; a different process reads it through os.ReadFile with no shared record transaction. A shorter record (for example a shorter valid count/timestamp representation) has a window afterWrite before truncation containing the new JSON plus an old tail. turnHolder treats malformed JSON as no holder. If a child carrying TurnEnvironment reads then, takePlace rejects inherited ownership and calls enterTurn for the turn its still-live parent holds; a parent waiting for that child can deadlock. This is a source-admitted interleaving, not a newly observed hang. Initial holder publication previously preceded environment inheritance; mutable progress adds reads during later rewrites. The current count fixture updates3/5 completely before starting its waiter, so it tests a quiescent snapshot only.",
+      "impact": "Advisory progress publication can change execution admission and turn a safe child inheritance into self-queueing behind its parent.",
+      "recommended_change": "Keep authoritative turn/holder inheritance independent of partially updated progress. Reuse existing OS-held transaction/file ownership and the current record publication/read owner to provide a coherent holder view while counts change; unavailable progress must not be treated as evidence that an otherwise proven live holder vanished. Preserve verification of the actual inherited holder and never trust an environment PID alone. Do not add another scheduler, ownership ledger, polling loop or wait-line parser merely for counts.",
+      "displaced_surface": "Remove the live-progress rewrite window as authority for borrowing/queuing. Retain once-only wait output,actual done/total/time data,OS abandonment recovery,live-holder verification and aggregate turn ownership. Do not delete count reporting or weaken the inherited-owner check.",
+      "expected_benefit": {
+        "baseline": "Counts landing+191production/+189test AST; recordTurn176/turnHolder127/TurnCount52nodes. No deletion estimate for these whole owners.",
+        "after": "Not implemented; coherent publication/ownership checks may grow. Count full record/caller/native fixture cost; no net or elapsed saving promised.",
+        "setup": "Extend the existing controlled turn-process fixture with a read during a shorter/incomplete progress update. No real card,parent/model workload or SQA concurrency execution."
+      },
+      "likely_effort": "Bounded existing ownership/record contract correction.",
+      "plan_references": [
+        "card-handover/counts0f7438554 (landed)",
+        "SQA-261 is separate preliminary acquisition/waiter admission",
+        "Downloads target: separate execution authority from presentation/progress"
+      ],
+      "plan_coverage": "counts supplies useful visibility, but its current native check cannot establish concurrent snapshot/inheritance safety. Keep this separate from PID/start identity and probe/acquisition sequencing.",
+      "closure_criteria": [
+        "A legitimate inherited child cannot self-queue because a concurrent progress update was read incompletely; exact live holder identity remains required.",
+        "Ordinary waiters still serialize,counts remain available/coherent and dead owners release through existing OS mechanisms.",
+        "The existing native fixture decides this boundary; no second ownership framework or recurring stress workload."
+      ],
+      "comparison": "In the retained named-turn process fixture, keep the parent's turn and file ownership live, expose the shorter-record pre-truncation interval, then start the inherited child. It must retain its parent's place without waiting on that parent; an unrelated or dead-holder claim must still refuse borrowing. Recommendation only; no SQA execution."
     }
   ],
     "gate_test_assessment": {
-    "assumptions": "262000actual-token allocation coverage differs from original retrieval/recovery acceptance. SimpleDiffusion batch is learned layout compatibility, not a universal independent-image optimization. JSON IsZero promotion is behavior, not a mere field-name edit. Local clocks, explicit cancellation and OS process death are distinct contracts.",
+    "assumptions": "Gain10 and1024squared-megapixel units are operation semantics;radius1/sigma0.6/alpha0.7 are the retained reference point,not proof of the whole admitted domain. Radius<imageextent makes one reflection fold sufficient;do not add impossible padding branches. Tiny positive finite sigma remains admitted. Numerical acceptance and timing stay separate.",
     "automation_follow_up": {
         "retained_feedback": {
           "window": "November8 and9,2026 America/New_York (UTC-05); local retained records read after58e8280",
@@ -10007,17 +10097,18 @@
         "cost": "budget+450production/+575test; verify-first+175/+148. No static fixture growth. Prior report was carried by a0cf; do not count its prose as application AST.",
         "interpretation": "Historical refusal wall motivates ordering and status delivery, but is not measured saved work. Query/window/outcome definitions must be explicit."
       },
-    "automation_sequence": "Retained no-op release now fails truthfully in the host boundary. Actual card ownership still must reach landing.letGo before a device wait; remove the obsolete second queue through the planned migration. No broad checks rerun by SQA.",
+    "automation_sequence": "holdCard nowbegins beforeinvariants throughlandingend forchangesreachingdevice lanes;no independentper-lane acquisition. Preserve earlycheapadmission/hostprogress and261atomicwait contract. Numerical/recordcounterexamples areunchanged.",
     "fresh_ast": {
-        "revision": "03a941f92028cf9d0815984d03e5c4306be986fd",
-        "method": "Existing external go/parser on9feedback files plus3queue files; complete14changed-Go delta. Local live records read without execution.",
+        "revision": "802b6da23f9687208fe758fa26d495e3b12343fd",
+        "method": "Existingexternal go/parser on10unchangedfiles at1c3f6be52 and3newstagefiles at802b6da23;complete4landingbefore/after costs.",
         "retained_result": [
-          "review-03a941-feedback-ast.json",
-          "review-03a941-queue-ast.json",
-          "review-03a941-total-delta.json"
+          "review-1c3f6-selected-ast.json",
+          "review-802b6-stage-ast.json",
+          "review-802b6-stage-delta.json",
+          "review-802b6-total-delta.json"
         ],
-        "counts": "12files33026AST/197functions/6400parser-local links. Scorecard249,ServeHTTP358,replay fixture254,moveReplay124,RecordRefusal84,stopDecision40,letGo103,commit-wait fixture375,child-turn fixture180nodes. These are concrete owner boundaries, not wholesale deletion estimates.",
-        "limits": "No package/type resolution, whole-repository duplicate percentage or workload. Existing test cleanup already exists; another identical cleanup call is not a fix."
+        "counts": "13files18197AST/113functions/3513parser-local links. Prior10-file count8112;new3files10085. holdCard153,reachesCard66,stagefixture254;finishing/recordcounts retained. Noexactduplicatefullbodies found inoriginal10-file selectedscope.",
+        "limits": "No package/type resolution/globalcensus orSQAexecution. Stagefixturechecks list/method/environment,not a fullrehearsal. UnchangedfileAST identities retained explicitly."
       },
     "media_follow_up": {
         "revision": "fc673760f813afdf216be087fe586f717461cd3a",
@@ -10181,20 +10272,19 @@
       "retained_change_costs": "Two consolidation landings(2d59f642c exact folds andbb4fc706a parameter folds) remove744 production nodes but add1591 test nodes, net+847 across Go. Pilot retirementea8ed43a7 removes5926 production/9990 test nodes and one schema, while fixture bytes grow599; its test deletion is already included in the day's offsets and must not be subtracted twice. These retained gates are broader changes, not matched per-test performance comparisons."
     },
     "retained_results": [
-        "Current latest measurement record is fdd4ab1,Nov8,preflight and lanes not passed,0filed, no detailed phase cause. Landing slice is one fixed smallest-text-model input and reports without refusing; neither establishes a completed full-system run.",
-        "Local refusal ledger402entries:24nonemptyCause,34Rules. User correction that Cause exists is confirmed; complete historical coverage is not.",
-        "Read-only81worktrees,12matching three test-name roots (4/5/3). Current replay fixture already removes its tree on normal cleanup; cause of retained trees remains unknown.",
-        "MOSS APG40draws at6bb2359a3; Wan reference36draws atae76871f4 (owner earlier35). New draws refuse at different HEAD while complete outputs retain verification; no SQA resume executed.",
-        "03a941f92 retained gate1950s, current native queue/child/environment fixtures reported passing; undo compile failure supplies no behavioral assertion. No SQA rerun."
+        "Finishing3e7b49d0c gate6276s;counts0f7438554 gate1488s;words1c3f6be52 gate541s. Successful walls include waiting and are not measured wasted checks. No SQA reruns.",
+        "3e7b slice load477955.9058ms versus0f7438554 1994.2612ms under identicalsliceidentity/outputs/peak;plan attributes difference to card waiting inside timing,not proven load-speed regression. Hostteststage4016.556s versus prior612.431s.",
+        "Finishing reference27627/27648exact,worst1level at96x96/radius1/sigma0.6/alpha0.7;440sizecases exact. New behaviorchecksdidnotbuild atbase,so undo is not behavioral proof.",
+        "Process-identity plan retains a reproduced reused-PID case on307th laterprocess;this isimplementationevidence only. No newProcessAlive orprocess-churn experiment bySQA.",
+        "802b6da23gate313s;stagefix+172production/+267testAST. Nativehelper/stage fixture reportedpassing;device/webui/CUDA skipped,scorecardnotreached. No freshhardwareperformanceclaim."
       ],
-    "surface_reduction_analysis": "03a941f92 adds91production/133testAST (+224),+22/+23lines across14Go paths;0newfiles/packages/binaries/staticfixtures. Entire five-step card-turn/encoder/handover migration is+271production/-226testAST,net+45, including the large retirement and its replacements. All17implementation commits since6bab03cca total+8465production/+7062testAST (+15527); prior fixture/sample growth remains. No net binary/directory reduction.",
+    "surface_reduction_analysis": "8796648c2->802b6da23:4complete landings,22changedGo paths,+1232production/+1499testAST (+2731),+223/+234lines,net+1production/+2testGo files. Finishing+867/+977,counts+191/+189,words+2/+66,stage-turn+172/+267. Threefinishingfixtures add108126bytes;0newexecutables/package directories andnone removed. The15-second device heartbeat andobsolete lifecycle lines disappear within this aggregate growth;no safe net code reduction established.",
     "tests": [
-        "RETAIN checkout-free,commit-slot/changed-trunk and child-turn environment fixtures; actual turn naming is repaired. Extend the same commit-slot fixture for a free probe followed by another process acquiring the turn before the landing does. Existing already-held coverage and compile-only undo do not decide that interleaving.",
-        "RETAIN render/campaign identity fixtures; extend for one completed/one pending output across operational-compatible repair and changed numerical/request identity. Keep original per-output provenance and stale-completed-arm refusal in the same owner.",
-        "RETAIN original loop phase/error,publication and status fixtures; extend existing native cases for failed diagnostic preservation, one final filing and missing historical cause values. No all-model SQA run.",
-        "RETAIN current replay t.Cleanup and tiny Git/leftovers lifecycle fixtures. Extend abnormal owner-exit/recovery rather than creating another model replay or treating path name as deletion authority.",
-        "RETAIN current timeout/cancellation and supervisor/held-stream fixtures; adapt local versus real/proxied peer contracts, explicit budget and requester cancellation. Preserve security and stream cleanup.",
-        "SIMPLIFY guidance/status consumers by reusing existing Cause/Rules and current doctrine pointer. Do not add a test whose only assertion is prose contains the new method; test the actual recovery/continuation transition in the existing hook/driver owner."
+        "RETAIN TestFinishingMatchesTheRecordedImage and its single crop/440case fixture. The1-level tolerance reflects recorded rounding at those settings;do not infer arbitrary-parameter parity.",
+        "EXTEND existing request/finishing bounds cases for oversized radius and tiny positive sigma;share the actual operation contract,not another model fixture. RETAIN no-finishing and unsupported-flow behavior.",
+        "RETAIN TestAWaiterSaysTheHoldersCount for quiescent3/5publication;extend current named-turn/child fixture for a read during rewrite. No new stress runner or real GPU test.",
+        "RETAIN current prompt/pointer text checks as wiring checks;they do not establish diagnosis orcause consumption. Existing driver/refusal fixture should own behavior;no prose-presence policy suite.",
+        "RETAIN separate351/349binary/package opportunities at their original evidence identity;these landings add no new command package and remove none. No safe selected duplicate-body deletion established."
       ]
   },
     "hygiene_assessment": "No hygiene finding. Scratch analysis is outside the repository; concrete correctness and production/test cost take priority.",
@@ -11728,9 +11818,9 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
     "limitations": [
-      "No implementation, tests, workloads, services, agents/messages, plan/skill edits or worktree deletion. User requested one full run after rehearsal; it is recorded for the implementation owner, not run by report-only SQA.",
-      "9feedback+3queue files parsed with local object links, not package/type resolution. Retained loopback/deadline and abandoned-checkout examples are source/state evidence, not runtime reproductions.",
-      "Only archived owner-doctrine copies were found; no current external method is treated as authority. Measurement phase durations show failure, not cause.12test-named trees do not establish abandonment/deletability."
+      "No application tests,models,device work,gates,services,agents/messages,implementation or plan/skill edits. Source/arithmetic counterexamples and retained implementation records only.",
+      "13selectedfiles use parser-local links,not package/type resolution. Separate retained rapid type reach is an upper bound,not newSQAanalysis. The10earlier files are unchanged at the newpin.",
+      "No newrender/concurrent record update/child hang reproduced. Crop parity is scoped to recorded settings. Stage helper/nativefixture is not a completed real-device rehearsal;active process-identity edits excluded."
     ],
     "master_lead_triage": {
     "at": "2026-11-10",
@@ -12606,13 +12696,13 @@
       }
     }
   },
-    "next_finding_number": 393,
+    "next_finding_number": 395,
     "publication_context": {
-    "assessment": "Substantive six-item feedback reconciliation plus actual-card migration progress and residual race; prior report/closure evidence retained.",
-    "checked_head": "03a941f92028cf9d0815984d03e5c4306be986fd",
-    "concurrent_changes": "Extensive active finishing/progress edits excluded.03a941f92 already carried the earlier pending report snapshot; current owner/unknown fields reread and preserved. Final publisher guards HEAD/report and existing locks.",
-    "current_pin": "03a941f92028cf9d0815984d03e5c4306be986fd",
-    "publication": "Only report committed through existing hooks if ownership permits; no implementation or resource deletion.",
+    "assessment": "Substantive three-landing/contract reconciliation;no timestamp-only edit.",
+    "checked_head": "802b6da23f9687208fe758fa26d495e3b12343fd",
+    "concurrent_changes": "802b6da23landed duringpreview;reconciled its4Go changes,plan,retainedtests andcost beforepublication. Earlier10selectedsourcefiles unchanged. Activeprocess/sampler/lifecycle patchesexcluded;ownerreport reread underlocks.",
+    "current_pin": "802b6da23f9687208fe758fa26d495e3b12343fd",
+    "publication": "Only report viaexistinghooks/ownership;no implementation orworkloads.",
     "report_only": true
   },
     "ranked_active_finding_ids": [
@@ -12626,6 +12716,8 @@
     "SQA-373",
     "SQA-374",
     "SQA-261",
+    "SQA-394",
+    "SQA-393",
     "SQA-392",
     "SQA-322",
     "SQA-385",
@@ -12703,33 +12795,33 @@
     "repository": "C:\\Users\\jeffm\\overgo",
     "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
     "review_notes": [
-      "Retain the substantive pending absence review.390 is closed by a subsequent committed fix;261 reopened queue ownership and379 stale resume remain actionable.",
-      "No new finding or consolidation; distinct close-once/native handover and commit-queue contracts stay separate. Costs count the existing registry bridge and fixtures honestly.",
-      "The two-hour heartbeat is active with its existing prompt and schedule; no duplicate automation or recurring workloads added."
+      "393admission/numerical finishing and394mutable progress/inheritance are distinct contracts.261still owns probe/acquisition race;391retains checkout-lifetime uncertainty and can reuse the pending process-incarnation owner.",
+      "376stale wording is now corrected inAGENTS/worker/session prompts; matching text alone does not complete cause delivery/worklist or prove automatic recovery.",
+      "No new closure/consolidation. Keep numerical acceptance independent of timing,qualify the queued-load measurement and count all helper/test/fixture growth."
     ],
-    "reviewed_at": "2026-11-13T00:59:44Z",
-    "reviewed_master": "03a941f92028cf9d0815984d03e5c4306be986fd",
+    "reviewed_at": "2026-11-13T04:12:42Z",
+    "reviewed_master": "802b6da23f9687208fe758fa26d495e3b12343fd",
     "schema_version": 2,
     "scope": [
-      "Pinned committed master 03a941f92028cf9d0815984d03e5c4306be986fd; six owner feedback items checked through current callers, local retained run/refusal/manifests and Git worktree metadata.",
-      "12selected Go files33026AST/197functions/6400parser-local links, plus complete new-landing cost. No whole-repository duplication census, tests, models or cleanup.",
-      "Architecture target and guidance hashes unchanged. This chat previously implemented Overgo and contributed plan wording; internal review, not independent third-party review."
+      "Committed master 802b6da23f9687208fe758fa26d495e3b12343fd versus8796648c2;bounded finishing admission,live progress,stage ownership/timing andcause-first prompt adoption across4landings.",
+      "10unchangedselectedfiles at1c3f6be52 plus3stage files at802b6da23:13files18197AST/113functions/3513parser-local links;complete22changed-Go costs. No global census.",
+      "This chat previously implemented Overgo and contributed plan wording; internal review, not independent third-party review."
     ],
     "sqa_response": {
-    "assessment": "219stable IDs:83open,130resolved,4deferred,2aliases.261actual-card migration credited but remains open for the probe/acquisition gap;390closure retained.391checkout-lifetime and392local-serving added.266/376/379 consolidate six feedback items.",
+    "assessment": "221stable IDs:85open,130resolved,4deferred,2aliases.393finishingadmission and394mutableturninheritance new;261/266/376/391 updated. Concurrent802b6stageplacement reconciled;no closure/consolidation.",
     "consolidated_findings": [],
     "deferred_findings": [],
-    "evidence": "Pinned source/callers, local measurement/refusal/manifests/worktree metadata and12-file AST/full new-landing cost. Implementation-owned and unknown fields preserved.",
-    "implementation_response_context": "Owner correction about existing refusal Cause accepted with historical population limits. Current implementation_review/master_lead_triage retained exactly. Current lane-turn source/native evidence partially addresses261; the concurrent-acquisition case remains; no new ownership claim from uncommitted work.",
+    "evidence": "Pinned source/arithmetic,13-file selectedAST andcomplete4landingcosts. Sameowner/unknownfields preserved;concurrentstagefix credited without assuming hardwareverification.",
+    "implementation_response_context": "Currentownerblocks reread at retained identities. Stale guidance words are fixed;cause-worklist andrecord/identity behavior notclosed by text alone.",
     "new_findings": [
-        "SQA-391",
-        "SQA-392"
+        "SQA-393",
+        "SQA-394"
       ],
     "partially_addressed_findings": [
-        "SQA-261"
+        "SQA-376"
       ],
-    "priority_changes": "Preserve valid progress via379 compatible identity; diagnose266 stopped full run before the one requested exclusive validation.392 local-lifetime and391 test-checkout recovery use existing planned/cleanup owners.",
-    "recommendation": "Act through current identities, run/scorecard diagnostics, Cause/Rules,status/hook,handler/supervisor and leftovers. No replacement ledgers, guidance files, scheduler or workload from SQA.",
+    "priority_changes": "Keep393earlyadmission/numerics and394ownershipauthority near261;qualify266measurementwait and391PID-incarnation evidence. No duplicated PID/worklist backlog.",
+    "recommendation": "Use existing media validation,turn ownership,record/status andprocess identity owners;delete displaced late/advisory authority andheartbeat work without another pipeline/daemon.",
     "refactor": {
         "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
         "history_path": "docs/sqa_findings.json",
@@ -12737,13 +12829,13 @@
       },
     "reopened_findings": [],
     "resolved_findings": [],
-    "reviewed_master": "03a941f92028cf9d0815984d03e5c4306be986fd",
-    "uncertainty": "Phase times do not identify stop cause; no completed full run established from latest record. Test-named checkouts are not all proven deletable. Current archived doctrine is not active authority. Net+45AST for the five-step GPU migration; no unearned speed/deletion claim.",
+    "reviewed_master": "802b6da23f9687208fe758fa26d495e3b12343fd",
+    "uncertainty": "No newfailure/concurrencyexperiment. Overall+2731AST/108126fixturebytes,notnetcode reduction. Stageplacement haslanded;its broaderexclusiveinterval/typereach limits retained. Architecturetargetactive.",
     "updated_findings": [
         "SQA-261",
         "SQA-266",
         "SQA-376",
-        "SQA-379"
+        "SQA-391"
       ]
   }
   }

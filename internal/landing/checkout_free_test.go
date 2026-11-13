@@ -154,6 +154,17 @@ func TestALandingWaitingOnTheDeviceGivesUpItsCommitTurn(t *testing.T) {
 	}
 }
 
+// TestALandingWaitsForALaneTurnAnotherProcessHolds holds the tests beside a run to a run's lane turn: held by another
+// process, the landing waits for it and says so. Held in the test's own process, the landing rode it and went on at
+// once, and the commit its test made "during the wait" raced the landing's taking its commit turn back (admission-words
+// was refused on 2026-11-13 by TestALandingWaitingOnTheDeviceGivesUpItsCommitTurn).
+func TestALandingWaitsForALaneTurnAnotherProcessHolds(t *testing.T) {
+	_, _, said, _ := landBesideACommit(t)
+	if !strings.Contains(said, "waits for the turn") {
+		t.Fatalf("the landing said no wait for the lane turn another process held:\n%s", said)
+	}
+}
+
 // TestALandingTakesItsCommitTurnBackOnceTheCardIsItsOwn holds the commit turn's release to the card's wait alone: a
 // commit made while the landing waited refuses it as the card's turn becomes its own, before a stage that runs tests
 // starts. On 2026-11-12 the landing had given the commit turn up for its whole run, and a commit another session made

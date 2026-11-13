@@ -39,7 +39,7 @@
         ],
         "adoption_scope": "Supersedes the absent repository-document reference at the owner's request; current external SHA is verified. Does not alter the executable plan."
       },
-    "assessment": "Fifteen landings improve Flash-Next allocation admission, SimpleDiffusion batch parity, ComfyUI references, held render sessions, SenseNova resident branches, checked campaign orchestration and named schedules. Card-turn consolidation achieves a real net862AST reduction. LiveEdit JSON loss is fixed by removing an unintended promoted IsZero method plus a153-node host fixture. However, actual card ownership is not yet integrated with commit release or the cached Wan encoder, and campaign resume trusts names instead of bound identities. Overall tree growth remains14620AST.",
+    "assessment": "Owner feedback verified and consolidated:266 failed full-run/system-evidence scope;379 both stale reuse and stranded compatible partial sets;376 reuse existing refusal cause/rule storage and current recovery control.391 tracks test checkout lifetime and392 the already-planned local-serving gap.261 receives actual-card migration progress but stays open for its probe/acquisition race;390 encoder release remains resolved. No new workload, implementation or cleanup executed.",
     "ast_surface_review": {
         "revision": "9bd406acafb89c44a439722419f1f7e85e71f691",
         "architectural_target": "Fewer independent product entry points and dependency owners; retain process isolation and existing compiled/runtime/development authority.",
@@ -55,41 +55,42 @@
         "cost": "Concrete parsed duplicate migrations total22production and150test AST removed; unimplemented estimates only. Three directories can disappear through349/351; command movement and all retained semantic constants must be charged. No overall refactor completion claimed."
       },
     "automation_follow_up": {
-        "architectural_progress": "Card admission paths/card_hold and unavailable-scorecard pass retired; context ownership now shares processcontrol turn. Campaign uses supervised existing evaluate commands and exact suite IDs instead of newest record.",
-        "remaining": "261 actual card waits bypass old commit-release predicate;390 cached encoder prevents truthful handover;379 completed campaign arms/verdicts bypass changed-input validation.322 mixed verification ordering remains.",
+        "architectural_progress": "03a941f92 fixes the old lane-lock/resource-name mismatch and passes one job turn to children. Current native fixture covers a turn held before the probe; it does not cover acquisition between probe and wait.",
+        "remaining": "261 probe/acquisition gap;266 failed full-run cause;379 partial/completed-stage identity;376 cause-driven worklist/current control;391 test-checkout recovery;392 local serving.",
         "plan_recommendations": [
           {
-            "rows": "card-handover/lane-turn",
+            "rows": "post-rehearsal measurement",
             "findings": [
-              "SQA-261"
+              "SQA-266"
             ],
-            "recommendation": "One actual card turn per job, release commit ownership before waiting, preserve independent host progress, exact candidate and changed-trunk refusal."
+            "recommendation": "Recover stop cause first, then one owner-requested full run under exclusive actual-card turn and current publication/filing owner; no repeated full runs per fix."
           },
           {
-            "rows": "card-handover/encoder-release",
+            "rows": "guidance-ops/preset-readings",
             "findings": [
-              "SQA-390"
+              "SQA-379"
             ],
-            "recommendation": "Close the cached encoder through current idle-session ownership and report release only when it occurred."
+            "recommendation": "Preserve compatible partial results with original per-output producers; invalidate changed numerical/request dependencies, not every HEAD or no inputs at all."
           },
           {
-            "rows": "guidance-ops/readings-campaign/preset-readings",
+            "rows": "refusal-advice/worklist",
             "findings": [
-              "SQA-379",
-              "SQA-342"
+              "SQA-376"
             ],
-            "recommendation": "Keep exact-suite record selection; validate bound inputs on resume and preserve independent numerical acceptance."
+            "recommendation": "Consume existing Cause/Rules and original available diagnostics; historical unavailable/edit detail is unknown. No duplicate cause field or ledger."
+          },
+          {
+            "rows": "no-clocks/local-serving",
+            "findings": [
+              "SQA-392"
+            ],
+            "recommendation": "Complete local requester/drain ownership with peer trust protections and explicit cancellation/budgets intact."
           }
         ],
-        "complete_cost": "6bab03cca->fc5147e61:15 implementation commits,94 changed Go paths; +8115production/+6505test AST (total+14620),+1481/+994lines and net+6/+13Go files. Changed fixture/testdata paths add14files and311046bytes; one sample asset adds1182831bytes. No new command entry point or package directory; no binary/directory reduction. All three card-turn steps together remove79production/783test AST (net862), including new turn machinery; that saving is already included in the aggregate growth.",
-        "separate_costs": {
-          "card-turn": "turn+1417/+1024,readings-turn+478/+468,retire-1974/-2275; complete-79/-783",
-          "readings-campaign": "+2246production/+1029test AST",
-          "liveedit-json": "+3production/+153test AST"
-        },
-        "authority": "Report-only; no task dispatch or execution changes."
+        "complete_cost": "03a941f92 adds91production/133testAST (+224),+22/+23lines across14Go paths;0newfiles/packages/binaries/staticfixtures. Entire five-step card-turn/encoder/handover migration is+271production/-226testAST,net+45, including the large retirement and its replacements. All17implementation commits since6bab03cca total+8465production/+7062testAST (+15527); prior fixture/sample growth remains. No net binary/directory reduction.",
+        "authority": "Report-only; recommendations are not execution or cleanup."
       },
-    "current_review_order": "Pinned guidance/plan and landed progress -> concrete source/callers/provisional conclusions -> existing findings/owner responses -> AST/full costs -> concurrent reconciliation.",
+    "current_review_order": "Current guidance/pin/plan -> direct callers and local retained facts -> existing canonical obligations -> selected AST/full cost -> concurrent reconciliation.",
     "declined_candidates": [
         "Do not implement five separate monitors, another notes file or recurring model/test workload. One existing status projection is enough.",
         "Do not count a successful preflight as a refused commit, an already-landed retry as a new commit, or a retired/renamed step as completed.",
@@ -194,18 +195,18 @@
         ]
       },
     "plan_review_follow_up": {
-        "pin": "fc5147e610c95ba02378bb46c2943dc112756f9c",
-        "assessment": "Active plan32->34items and63->67steps.15landings include work filed and completed between snapshots; only3previously-open steps disappear and7new steps remain, so removed rows are not a completed-step count. Current first item correctly prioritizes card-handover; readme-speed readings and Comfy record-rest remain open.",
-        "recommendation": "Keep ownership fixes first. no-clocks should remove unsupported elapsed-time failures while preserving explicit user budgets/cancellation, process-end recovery and visible waits; waiting on an event alone does not fix a still-live holder that never releases it. Keep numerical acceptance independent of waiting/timing. refusal-advice/ceilings-fall should update the existing declaration without a second refusal policy or weakening ceilings.",
-        "limits": "Plan proposals and dirty work are not landed improvements. No plan edits or dispatch by SQA.",
-        "sources": "Pinned plan and retained landing records; actual card/commit ownership and campaign source."
+        "pin": "03a941f92028cf9d0815984d03e5c4306be986fd",
+        "assessment": "card-handover/lane-turn landed; counts remains open. refusal-advice/worklist exists and should reuse current records. no-clocks/local-serving remains open, as the source confirms. Owner asks one exclusive full run after rehearsal and failure diagnosis.",
+        "recommendation": "Fix evidenced shared causes before dependent work; bind379 recovery once through existing identity owners. Consolidate the worklist/status/hook consumer, with AGENTS only pointing to current executable guidance; do not restore archived doctrine or add another policy file.",
+        "limits": "No plan/skill changes by SQA. Proposed clock or progress wording is not an implemented outcome; typed/review/stop hook valves remain real behavior.",
+        "sources": "Current committed plan/source and bounded local retained records/manifests."
       },
-    "rank_basis": "Restore261 and add390 near the existing recovery/identity priorities; consolidate379 rather than a second campaign backlog. Overall growth is acknowledged, and correctness fixes outrank speculative savings.",
+    "rank_basis": "Keep261 open for the admitted probe/acquisition gap while crediting the repaired resource name. Keep266 actual system evidence and379 recovery ahead of speculative savings;392 is an existing product contract gap and391 is lower-priority resource recovery.",
     "refactor_target_progress": {
-        "architectural_progress": "Fifteen landings improve Flash-Next allocation admission, SimpleDiffusion batch parity, ComfyUI references, held render sessions, SenseNova resident branches, checked campaign orchestration and named schedules. Card-turn consolidation achieves a real net862AST reduction. LiveEdit JSON loss is fixed by removing an unintended promoted IsZero method plus a153-node host fixture. However, actual card ownership is not yet integrated with commit release or the cached Wan encoder, and campaign resume trusts names instead of bound identities. Overall tree growth remains14620AST.",
-        "conflicts": "Two GPU queues and an out-of-director encoder lifetime remain; the new campaign also adds arm-name/file-existence completion authority. Formats still require existing271/266 migration; nothing here establishes completion.",
-        "next_useful_reductions": "Finish planned261/390 handover through existing process/session owners before more GPU work. Replace379 campaign skip authority with existing bound manifests/run records. Retain345 UI compiler deletion and earlier349-353 binary/package/helper opportunities; do not invent more scheduling/record layers.",
-        "cost": "6bab03cca->fc5147e61:15 implementation commits,94 changed Go paths; +8115production/+6505test AST (total+14620),+1481/+994lines and net+6/+13Go files. Changed fixture/testdata paths add14files and311046bytes; one sample asset adds1182831bytes. No new command entry point or package directory; no binary/directory reduction. All three card-turn steps together remove79production/783test AST (net862), including new turn machinery; that saving is already included in the aggregate growth."
+        "architectural_progress": "Actual card-turn naming, job acquisition and child inheritance are now unified. The separate preliminary availability probe still leaves261 open for an admitted concurrent-acquisition gap. Encoder lifetime remains resolved through its existing release owner.",
+        "conflicts": "Whole-commit render refusal strands compatible sets while name-only campaign resume overcredits completion;392 local-serving policy and391 abnormal test-checkout lifetime are incomplete. System-wide speed evidence is still absent from the latest full-run record.",
+        "next_useful_reductions": "Reuse existing execution/run identities for379, phase diagnostics/publication for266, refusal cause/status for376, process/leftovers for391 and handler/supervisor for392. No duplicate records, selectors or scheduler.",
+        "cost": "03a941f92 adds91production/133testAST (+224),+22/+23lines across14Go paths;0newfiles/packages/binaries/staticfixtures. Entire five-step card-turn/encoder/handover migration is+271production/-226testAST,net+45, including the large retirement and its replacements. All17implementation commits since6bab03cca total+8465production/+7062testAST (+15527); prior fixture/sample growth remains. No net binary/directory reduction."
       },
     "working_notes_review": {
         "finding": "SQA-334",
@@ -215,10 +216,10 @@
       }
   },
     "committed_plan": {
-    "git_blob": "df0ed896f3a375cafc7442356fea1416e532fab3",
+    "git_blob": "7cf86a433e51b1c9c5bb5226abb311333558dd88",
     "path": "docs/plan.json",
-    "revision": "fc5147e610c95ba02378bb46c2943dc112756f9c",
-    "sha256": "4f417c3c7ba040090df4a2d64c43bd5f7bf38da20fdc9b170d175a2dc5e93298",
+    "revision": "03a941f92028cf9d0815984d03e5c4306be986fd",
+    "sha256": "1b60e9cd47cda790183245db7c95d54b5147517d96897869411e5d6d5c84eb1f",
     "working_tree_status": "Committed plan at review pin; prior draft assessment retains its own snapshot identity. Current working plan edits excluded."
   },
     "findings": [
@@ -805,30 +806,31 @@
       "comparison": "One smallest extension of the existing native claim-binding fixture: init assignment3->4 must move no-Symbol evidence, alongside retained changed-source cases. Compare full claims/test AST before and after and normal claim-rebind results during implementation. SQA only parsed the complete counterfactual and traced current code; it ran neither the fixture nor claim verification."
     },
     {
-      "category": "measurement-cost",
-      "classification": "open-with-action-deferred-until-ordinary-package-evidence",
-      "closure_criteria": [
+    "category": "measurement-cost",
+    "classification": "open-with-action-deferred-until-ordinary-package-evidence",
+    "closure_criteria": [
         "Name retained owner for each paired requirement before removing a standing invocation; preserve numerical differences and original assertions.",
         "Credit existing evidence only under its actual identity contract; unchanged source does not prove stationary performance.",
-        "Count full production/test/tag/fixture/setup/maintenance change; no new selector/cache framework or unsupported elapsed saving."
+        "Count full production/test/tag/fixture/setup/maintenance change; no new selector/cache framework or unsupported elapsed saving.",
+        "The failed November8 phases have an evidenced cause and retained correction/prerequisite; one authorized exclusive post-rehearsal full run reaches publication/row filing or retains a specific actionable failure. Small report-only slices are labelled by their scope."
       ],
-      "comparison": "After an ordinarily authorized full run, compare only the named duplicated package/requirement with its exact retained owner and affected-change scope, including full production/test/fixture/setup/gate cost. No SQA-triggered run, elapsed extrapolation from missing walls, or timing-dependent numerical acceptance.",
-      "displaced_surface": "Repeated full file reads across phases and the writer path that erased phase packages/digests are displaced. Existing plan.RecordDigests/jsonfile and runRecorder own the state. Full hash-once change+261production/+581test; no static fixture file, schema-version, dependency or new scheduler, but new map fields, serialization and one tiny weights/store setup do cost maintenance. Later-phase reads fall; fixture/store setup and program/test surface grow.",
-      "evidence": "Existing paired-test ownership and explicit model-selection scope remain. dd1dce514 now reuses model-file digests across a run's phases: bindCells calls runDigests/keepDigests, RecordDigests uses the existing measurement record, and runRecorder.write preserves digests plus failed tests/packages for the same Started identity. A new begin clears that identity and rehashes, preserving restart invalidation. The native fixture changes bytes mid-run and expects the old binding, then a new run sees changed bytes; this deliberately establishes the within-run immutability assumption. The implementation observed8.9GiB hashed in6.5s and extrapolated12-18minutes from~500GiB/two-to-three avoided passes; no matched full-run saved wall is retained here. 14409487b retires separate answer-score work from its measured commit-frequency argument; no new identity abstraction recommended. The former past-adoptions step is now retired at66b05cc14 pending ordinary package-wall evidence. The retained2026-10-31 run had no such walls according to current triage; .overgo-runtime/lane_walls.json was read as {} during this review. Its timestamp is not evidence of execution, completion or delivered continuation. Browser file-import narrowing is a separate change, not proof that paired numerical requirements are redundant.",
-      "evidence_commit": "3ef2c5d8fa073138ceafe28e4df1994b864787f1",
-      "expected_benefit": {
+    "comparison": "After an ordinarily authorized full run, compare only the named duplicated package/requirement with its exact retained owner and affected-change scope, including full production/test/fixture/setup/gate cost. No SQA-triggered run, elapsed extrapolation from missing walls, or timing-dependent numerical acceptance.",
+    "displaced_surface": "Repeated full file reads across phases and the writer path that erased phase packages/digests are displaced. Existing plan.RecordDigests/jsonfile and runRecorder own the state. Full hash-once change+261production/+581test; no static fixture file, schema-version, dependency or new scheduler, but new map fields, serialization and one tiny weights/store setup do cost maintenance. Later-phase reads fall; fixture/store setup and program/test surface grow.",
+    "evidence": "Existing paired-test ownership and explicit model-selection scope remain. dd1dce514 now reuses model-file digests across a run's phases: bindCells calls runDigests/keepDigests, RecordDigests uses the existing measurement record, and runRecorder.write preserves digests plus failed tests/packages for the same Started identity. A new begin clears that identity and rehashes, preserving restart invalidation. The native fixture changes bytes mid-run and expects the old binding, then a new run sees changed bytes; this deliberately establishes the within-run immutability assumption. The implementation observed8.9GiB hashed in6.5s and extrapolated12-18minutes from~500GiB/two-to-three avoided passes; no matched full-run saved wall is retained here. 14409487b retires separate answer-score work from its measured commit-frequency argument; no new identity abstraction recommended. The former past-adoptions step is now retired at66b05cc14 pending ordinary package-wall evidence. The retained2026-10-31 run had no such walls according to current triage; .overgo-runtime/lane_walls.json was read as {} during this review. Its timestamp is not evidence of execution, completion or delivered continuation. Browser file-import narrowing is a separate change, not proof that paired numerical requirements are redundant.\nOwner feedback rechecked: the landing scorecard slice is one fixed input on the smallest local text model, reporting without refusal; it is not whole-system speed evidence. .overgo-runtime/measurement_run.json still names fdd4ab1cea379541604905e9b913b1a5f3d92bc8, started2026-11-08 01:15:52ET, with preflight ended01:29:38 and lanes ended03:10:33, neither passed, run ended03:10:34, no filed rows. It contains no failed-test names/error cause for those phases; roughly10m/1h41m walls alone do not identify why. No newer full run is established by this latest record. Current measurePhases uses phase/error receipts, runs preflight then lanes, and refuses cells after failed lanes; retain that existing diagnostic owner. The committed guidance-ops note also corrects bcdf4bbc4: MOSS already retained its session, with load0.6/0/0s; the between-picture drop was released stage memory, not repeated model loads. Do not credit HoldSessions with an observed MOSS loading saving.",
+    "evidence_commit": "03a941f92028cf9d0815984d03e5c4306be986fd",
+    "expected_benefit": {
         "outcome": "Per-run hashing removes two or three potential model-file passes and preserves package/failure/digest records at phase boundaries. The retained12-18minute estimate is an extrapolation, not measured saved elapsed time. Earlier chosen-model recorded-cost estimate remains separate.",
         "uncertainty": "No new matched full-run wall/peak. Within-run mutated bytes deliberately retain earlier digest; next begin rehashes. Package peak remains cumulative at callback, not isolated package or tree memory. New long-sequence cycle lane separately adds +35production/+259test and predicted~3minutes; count against any future whole-run savings."
       },
-      "id": "SQA-266",
-      "impact": "Hours of retained paired execution justify attention, but stale credit or losing reference-vs-optimized evidence hides numerical regressions. Preserve recipe/tokenizer/kernel/environment/lifetime bindings. No blanket minutes-only validation claim.",
-      "likely_effort": "No current implementation task authorized by this report. Reassess the smallest named overlap from the next ordinary retained package record; keep completed digest/phase reuse credit.",
-      "plan_coverage": "66b05cc14 retires run-once/past-adoptions and the empty run-once row because its deciding package-wall/peak evidence arrives in the next ordinarily authorized full run, which begins when the plan empties. Current lead triage explicitly defers action and keeps this finding open. There is no active adopted row now; file work again only from that retained record. No SQA run or plan edit.",
-      "plan_references": [],
-      "raised_by": "Review session e8549e3e at the owner's request, 2026-10-31 (owner: \"there is fundamental problem with this system to re-do testing over, and over, and over and over, and never finish\"; \"don't run the whole scorecard until code is fixed\")",
-      "recommended_change": "Keep this canonical obligation open with action deferred until an ordinarily authorized full run supplies package walls/peak and exact retained requirement owners. Credit existing model selection, digest/phase reuse and native Go caching now; do not launch another run, add a selector/cache/scheduler or revive the retired plan row merely to obtain review evidence. Name the retained numerical owner before deleting any past-adoption invocation. The live empty wall file cannot decide this comparison.",
-      "severity": "P2",
-      "sources": [
+    "id": "SQA-266",
+    "impact": "Hours of retained paired execution justify attention, but stale credit or losing reference-vs-optimized evidence hides numerical regressions. Preserve recipe/tokenizer/kernel/environment/lifetime bindings. No blanket minutes-only validation claim.",
+    "likely_effort": "No current implementation task authorized by this report. Reassess the smallest named overlap from the next ordinary retained package record; keep completed digest/phase reuse credit.",
+    "plan_coverage": "Owner explicitly requests stop-cause repair first, then one exclusive full run after rehearsal. Existing no-clocks/own-budgets and actual-card-turn work are relevant, but elapsed duration alone is not causal evidence. No run dispatched by SQA.",
+    "plan_references": [],
+    "raised_by": "Review session e8549e3e at the owner's request, 2026-10-31 (owner: \"there is fundamental problem with this system to re-do testing over, and over, and over and over, and never finish\"; \"don't run the whole scorecard until code is fixed\")",
+    "recommended_change": "Recover the actual November8 phase failure from existing run/error/test records and fix or establish its prerequisite before another expensive cycle. Keep the existing phase/run/scorecard and native Go cache owners. After the requested handover rehearsal, the owner requests one full run with the card exclusively held through the existing turn, publishing results and filing rows through the existing driver. This is an implementation recommendation, not SQA execution. Preserve valid completed evidence/explicit numerical owners, partial failures and exact identity; do not turn this into a full run after every fix, add a scheduler, or accept the small landing slice as system-wide proof. Investigate the corrected stage/judge cost before optimizing a presumed reload that did not occur.",
+    "severity": "P2",
+    "sources": [
         {
           "path": "cmd/validate/selection.go",
           "symbol": "SelectValidation default 'run: re-acquired every cycle'"
@@ -876,11 +878,27 @@
         {
           "path": "cmd/loop/run_record_test.go",
           "symbol": "TestARunRecordsItsEnd"
+        },
+        {
+          "path": "internal/landing/scorecard.go",
+          "symbol": "sliceDocument; scorecard reports never refuses"
+        },
+        {
+          "path": ".overgo-runtime/measurement_run.json",
+          "symbol": "local latest record fdd4ab1, November8; retained observation, not committed source"
+        },
+        {
+          "path": "cmd/loop/improve.go",
+          "symbol": "measurePhases; phase error receipt and cells/row publication"
+        },
+        {
+          "path": "docs/plan.json",
+          "symbol": "guidance-ops note correcting held-renders attribution"
         }
       ],
-      "status": "open",
-      "title": "Reduce repeated cycle work through existing evidence and verification owners"
-    },
+    "status": "open",
+    "title": "Reduce repeated cycle work through existing evidence and verification owners"
+  },
     {
       "id": "SQA-257",
       "status": "open",
@@ -4439,20 +4457,21 @@
     },
     {
     "category": "development-serialization",
-    "classification": "reopened-card-turn-migration-leaves-commit-release-on-old-lock",
+    "classification": "actual-card-name-repaired-probe-acquire-gap-remains",
     "closure_criteria": [
         "An external render holding only the card turn makes the landing release its commit slot before waiting; another host-only landing can finish.",
         "Device children ride one job turn; the obsolete lane queue/wait-line parser disappear. The waiting candidate still refuses publication if trunk changed, and cancellation/process-end cleanup remains correct.",
-        "Existing fixtures cover the real card-turn path, not only the retired lane lock, with complete production/test/setup costs."
+        "Existing fixtures cover the real card-turn path, not only the retired lane lock, with complete production/test/setup costs.",
+        "If the card becomes held between the preliminary availability probe and actual turn acquisition, the landing still releases commit ownership before waiting. Cover this controlled interleaving in the existing turn/checkout fixture."
       ],
-    "comparison": "Extend TestALandingWaitingOnTheDeviceGivesUpItsCommitTurn/checkout-free fixture: hold the card turn while the old lane turn is free, start the landing, acquire the commit slot with independent host work, then release the card. Preserve the changed-trunk refusal and checked-candidate assertions. Use the existing controlled process/turn fixture; no model pressure run or SQA execution.",
+    "comparison": "Extend TestALandingWaitingOnTheDeviceGivesUpItsCommitTurn/checkout-free fixture: hold the card turn while the old lane turn is free, start the landing, acquire the commit slot with independent host work, then release the card. Preserve the changed-trunk refusal and checked-candidate assertions. Use the existing controlled process/turn fixture; no model pressure run or SQA execution. Add the controlled interleaving where the initial availability probe sees free, another process takes that same turn, then actual acquisition begins: an independent host commit must acquire its slot while the device wait persists. Use the existing fake/named-turn process fixture, not real GPU pressure.",
     "displaced_surface": "Retire the old laneTurn lock/second queue and duplicate child wait accounting. Retain landing.letGo/takeTurnBack, processcontrol.TakeTurn and the existing checked-tree/publication owners; update existing checkout-free/run-beside/host-lane fixtures instead of a parallel driver.",
-    "evidence": "Prior verified closure at c2f24f16a27d27890f0cc716a4490d72117a8e82 remains historical evidence: landing.Run now owns a releasable commit turn. letGo first captures its candidate checkout, then releases the turn when the lane is already held. takeTurnBack reacquires before publication and refuses a tip different from builtOn; commit CAS remains. TestALandingWaitingOnTheDeviceGivesUpItsCommitTurn acquires the commit turn during device wait, moves trunk, then requires refusal without changing the successor head. Existing checkout-free test still covers checked bytes, later edits and private-worktree cleanup. Quiet ownership is shared; no lock-inversion defect established in this trace.\nReopened at fc5147e61 after the card-turn migration. letGo still tests ResourceTransactionHeld(laneTurn) and keeps the commit turn if that old lane lock is free. inLaneTurn then takes that lane lock, while child CUDA contexts independently wait on driver.CardTurnOf through processcontrol.TakeTurn. An external render can hold only the card turn while the old lane lock is free, so the landing retains its commit ownership throughout the child GPU wait. Retained eb9d59fc1 gate wall24581s includes22153.784s card wait; the plan separately reports51 turns behind51 SenseNova pictures and the Wan encoder hold. These establish costly GPU waits, not that another commit was actually attempted and blocked. The independent-host starvation path is source-established. The card-handover/lane-turn draft addresses the right root but is uncommitted at this pin.",
-    "evidence_commit": "fc5147e610c95ba02378bb46c2943dc112756f9c",
+    "evidence": "Prior verified closure at c2f24f16a27d27890f0cc716a4490d72117a8e82 remains historical evidence: landing.Run now owns a releasable commit turn. letGo first captures its candidate checkout, then releases the turn when the lane is already held. takeTurnBack reacquires before publication and refuses a tip different from builtOn; commit CAS remains. TestALandingWaitingOnTheDeviceGivesUpItsCommitTurn acquires the commit turn during device wait, moves trunk, then requires refusal without changing the successor head. Existing checkout-free test still covers checked bytes, later edits and private-worktree cleanup. Quiet ownership is shared; no lock-inversion defect established in this trace.\nReopened at fc5147e61 after the card-turn migration. letGo still tests ResourceTransactionHeld(laneTurn) and keeps the commit turn if that old lane lock is free. inLaneTurn then takes that lane lock, while child CUDA contexts independently wait on driver.CardTurnOf through processcontrol.TakeTurn. An external render can hold only the card turn while the old lane lock is free, so the landing retains its commit ownership throughout the child GPU wait. Retained eb9d59fc1 gate wall24581s includes22153.784s card wait; the plan separately reports51 turns behind51 SenseNova pictures and the Wan encoder hold. These establish costly GPU waits, not that another commit was actually attempted and blocked. The independent-host starvation path is source-established. The card-handover/lane-turn draft addresses the right root but is uncommitted at this pin.\n03a941f92 now uses driver.CardTurnOf(0) for laneTurn; letGo tests ResourceTransactionHeld of that actual turn before releasing commit ownership. The landing/measurement takes processcontrol.TakeTurn once and child processes inherit its place. The old lane lock/child wait parser are removed. Existing checkout-free and TestALandingWaitingOnTheDeviceGivesUpItsCommitTurn fixtures now name the same dynamic turn; the latter acquires the commit slot while the device is held, advances trunk and asserts refusal without changing it. TestALandingsLanesRideOnTheCardTurnItTakes proves inherited environment is present only inside the turn, and host-only lane fixture remains. Retained1950s gate reports passing checks; the new test does not build under undo, so that undo is not behavioral proof. The named old-lock mismatch is repaired; no SQA concurrency workload.\nResidual source-admitted race: letGo probes ResourceTransactionHeld and returns without releasing the commit slot when the card is free; only later inLaneTurn calls TakeTurn. Another process can acquire the card between those operations, so the landing then waits while retaining its commit slot. Current retained fixture starts with the resource already held, so it does not exercise this transition. No new occurrence or delay was measured. One actual acquisition/wait owner must decide commit release rather than treating an earlier availability probe as authoritative.",
+    "evidence_commit": "03a941f92028cf9d0815984d03e5c4306be986fd",
     "expected_benefit": {
-        "historical_closure": "c2f24f16a verified the old lane-wait case; that evidence is retained and not a current fix.",
-        "complete_migration": "Three committed card-turn steps sum -79production/-783test AST, net-862; the final retirement alone is -1974/-2275 and cannot be counted as the entire saving. Pending handover changes must be charged before closing261/390; combined cost counted once.",
-        "uncertainty": "No SQA concurrency run or measured avoided time. Retained successful wall includes waiting; not all of it is wasted checks."
+        "closure": "Actual resource-name and child-job ownership mismatch repaired; preliminary availability probe remains insufficient to guarantee commit release under a concurrent acquisition.",
+        "complete_cost": "03a941f92 +91production/+133test AST,+22/+23lines across14Go paths,0files/packages/binaries/fixturebytes. Five card-turn/encoder/handover landings together +271production/-226test AST, net+45: count the entire migration, not just its -4249AST retirement step.",
+        "uncertainty": "The probe/acquisition interleaving is source-admitted, not an observed new wait. Existing retained test covers an already-held resource only. Undo compile failure is not behavioral evidence."
       },
     "id": "SQA-261",
     "impact": "A GPU wait can again serialize unrelated host-only/report landings behind the waiting commit; per-context queueing also repeatedly yields between tests.",
@@ -4462,7 +4481,7 @@
         "card-handover/lane-turn (open at pin)",
         "Downloads architecture target: one resource owner and independent host progress"
       ],
-    "recommended_change": "Complete the existing card-handover/lane-turn migration: use the actual card turn as the landing/measurement lane owner, acquire once per device job and pass its held place to child processes. Release the commit turn before that actual wait; preserve isolated candidate bytes, cancellation/process cleanup, host-only progress, reacquisition and changed-trunk refusal before publication. Delete the obsolete lane queue and per-test wait-line parsing. Do not add a second scheduler or bypass ownership.",
+    "recommended_change": "Retain the actual card-turn migration and child inheritance. Remove the separate probe as authority for retaining the commit slot: integrate release with the existing acquisition/wait transition, or use a safe unconditional release/reacquisition arrangement with existing candidate/trunk checks so another process taking the card between probe and acquisition cannot strand host commits. Preserve independent host work, cancellation/process cleanup, exact checked bytes and changed-trunk refusal; no new scheduler, polling or wait-line parsing.",
     "severity": "P2",
     "sources": [
         {
@@ -8975,12 +8994,13 @@
         "The existing automatic boundary delivers the five measures with exact source/window and truthful unknowns.",
         "Report commits and completed steps are distinct; preflights/retries/unknown history do not distort the refusal or commit denominator.",
         "The conflicting old projection is removed or corrected through the same owner; status failure never refuses successful work.",
-        "Retained native status coverage verifies the actual output boundary and complete costs without another recurring workload."
+        "Retained native status coverage verifies the actual output boundary and complete costs without another recurring workload.",
+        "The worklist reads existing cause/rule records and marks unavailable historical/edit details unknown; no duplicate cause field or parallel ledger. Hook/driver continuation follows the agreed current recovery transition while preserving explicit stops, typed replies, review exclusions and authority."
       ],
     "comparison": "One retained status setup distinguishes absent versus empty records, known preflight versus unknown history, unique commit versus two step trailers, and an already-landed retry. Verify the existing session-start/status boundary emits the same source/window and preserves dispatch/owner decisions; failure to read measurements must not prevent work. Keep partial history explicit and do not sum overlapping stage/whole-run times.",
     "displaced_surface": "Already removed: mandatory answered-refusals work and dependence on a manual command to see day feedback at session start. Next removal: contradictory old weekly outcome/idle interpretation and duplicated status arithmetic/assertions. Keep spent/refusal records, Git, dispatch and current DayDelivery as the existing owners; no new ledger, dashboard, polling or policy suite.",
-    "evidence": "9290a89 adds DayDelivery through existing status and session-start output, records new run Kind, separates historical unknown-kind refusals and preflights, and derives report membership from filing9479f5815. 5f2e763cf retires answered-refusals, removing the proposed prose/plan-mutation gate. These are substantive improvements. Remaining source-established cases: readRuns returns nil on a missing ledger, leaving refusals/hours at zero despite the unknown-data requirement; ReportLandings increments per Landed-Row rather than per commit, so one coordinated commit advancing two report steps counts twice; writeStatus still prints WeekPace's landed-outcome/preflight-ambiguous refusal percentage and idle-gap inference beside the corrected day measures. DayDelivery.String names the head but omits its exact window; it reports summed run wall and waits, not check-stage hours. The new747AST fixture verifies the projection/String helper, not actual session-start delivery. Source confirms the hook call is best-effort and does not block work; no live hook or workload was executed. Historical November8/9 counts and uncertainty remain as recorded in prior revisions, not reread or recast as newly measured savings. 39b457deb now stores the first cause line (UTF-8-safe240-byte cap) in the existing refusal record. No production consumer of Cause was found beyond assignment/serialization in this bounded search, so this improves retained diagnostics, not automatic cause delivery or the remaining count/window semantics. The earlier residuals are unchanged.",
-    "evidence_commit": "bf1651186c635603e1081d32712bcc9f4040bb75",
+    "evidence": "9290a89 adds DayDelivery through existing status and session-start output, records new run Kind, separates historical unknown-kind refusals and preflights, and derives report membership from filing9479f5815. 5f2e763cf retires answered-refusals, removing the proposed prose/plan-mutation gate. These are substantive improvements. Remaining source-established cases: readRuns returns nil on a missing ledger, leaving refusals/hours at zero despite the unknown-data requirement; ReportLandings increments per Landed-Row rather than per commit, so one coordinated commit advancing two report steps counts twice; writeStatus still prints WeekPace's landed-outcome/preflight-ambiguous refusal percentage and idle-gap inference beside the corrected day measures. DayDelivery.String names the head but omits its exact window; it reports summed run wall and waits, not check-stage hours. The new747AST fixture verifies the projection/String helper, not actual session-start delivery. Source confirms the hook call is best-effort and does not block work; no live hook or workload was executed. Historical November8/9 counts and uncertainty remain as recorded in prior revisions, not reread or recast as newly measured savings. 39b457deb now stores the first cause line (UTF-8-safe240-byte cap) in the existing refusal record. No production consumer of Cause was found beyond assignment/serialization in this bounded search, so this improves retained diagnostics, not automatic cause delivery or the remaining count/window semantics. The earlier residuals are unchanged.\nOwner correction verified: Refusal already has Cause (first line,240-byte UTF-8-safe cap) and Rules, persisted by RecordRefusal. The current local ledger has402entries,24with nonempty cause and34with rules; historical missing values cannot be reconstructed as observed causes. Existing cause data must be consumed, not duplicated in a new field. The proposed refusal-advice/worklist still asks for rule/test/edit information, but a truncated first line does not prove whether the old full detail contained an edit. AGENTS last line still gives generic keep-going advice, and stopDecision returns continue for an untyped open-plan turn, with explicit typed/review/stop/gate/wait valves. It is not unconditional. Only archived owner-doctrine.md copies were found under Downloads memory-archive-2026-11-02; no current alternate guidance was established. Do not restore an archive or claim its method is enforced.",
+    "evidence_commit": "03a941f92028cf9d0815984d03e5c4306be986fd",
     "expected_benefit": {
         "landed_cost": "9290a89 adds1385 production/747 test AST,275 production/101 test lines and two Go files; no new package, binary or static fixture. delivery.go1260AST, status.go405, spent.go197. The retained status_test386 and new status_measures_test747 exercise different current contracts; they are not automatically duplicates.",
         "reduction_candidate": "Retire obsolete WeekPace/projection assertions only after current decision and necessary status cases move to the retained status owner. Reuse the existing fixture rather than another Git setup. Full replacement cost unmeasured; no net-saving claim.",
@@ -8990,14 +9010,14 @@
     "id": "SQA-376",
     "impact": "Makes growing check cost, plan churn and starvation of requested capability work visible without adding another source of refusals.",
     "likely_effort": "Bounded existing status/Git projection and delivery integration; accurate historical run-kind attribution is limited by existing data.",
-    "plan_coverage": "Automatic delivery and retirement of the blanket gate are credited. Keep remaining measure semantics in this canonical finding; SQA-322 ordering and356 run lifecycle remain separate. Credit cause retention39b457deb without claiming a new automatic status reader or resolving the old projection.",
+    "plan_coverage": "refusal-advice/worklist should reuse existing cause/rule storage. Owner correction supersedes the claim that the ledger lacks cause text; it does not imply every historical entry has a cause. Keep existing status correctness requirements.",
     "plan_references": [
         "review-fixes/status-measures9290a89 (landed; partial closure)",
         "fail-early/answered-refusals retired5f2e763cf",
         "User request: five signals and prevention before more refusal rules",
         "Downloads extreme_refactor_plan.md: existing ownership and delivered continuation"
       ],
-    "recommended_change": "Retain DayDelivery and its normal best-effort session-start call. Represent unavailable run history as unknown separately from an observed empty ledger. Count unique Git commits that advance report rows, keeping completed-step totals separate; a multi-step landing must not inflate the commit metric. Remove the obsolete WeekPace status projection or derive compatible measures from the same correctly classified records, preserving owner-decision/dispatch output and avoiding a second recount. Display the actual time window and distinguish gate-run wall including waits from check-stage time if the latter is claimed. Extend the retained status fixture for absent history, a two-step single report commit, retries, known refused preflight and actual boundary delivery. Preserve stop/authority and best-effort publication. Do not introduce further refusal rules, periodic runs or a new metrics owner.",
+    "recommended_change": "Retain DayDelivery and its normal best-effort session-start call. Represent unavailable run history as unknown separately from an observed empty ledger. Count unique Git commits that advance report rows, keeping completed-step totals separate; a multi-step landing must not inflate the commit metric. Remove the obsolete WeekPace status projection or derive compatible measures from the same correctly classified records, preserving owner-decision/dispatch output and avoiding a second recount. Display the actual time window and distinguish gate-run wall including waits from check-stage time if the latter is claimed. Extend the retained status fixture for absent history, a two-step single report commit, retries, known refused preflight and actual boundary delivery. Preserve stop/authority and best-effort publication. Do not introduce further refusal rules, periodic runs or a new metrics owner. Build the requested worklist from existing Refusal.Cause/Rules and available original diagnostics using this same status/loop owner; missing historical causes or fix-edit detail remain unknown. Add no replacement cause field/ledger. Group precise retained rules/tests before stage-only fallback; preserve count/window semantics and distinguish refused attempts from commits. Have the existing driver/stop-hook consume actionable cause/fix results so automatic continuation does not mean blindly repeating an unchanged failure. Keep AGENTS as the single guidance pointer and put any agreed recovery transition in the current skill/code owner with its existing check; do not promote archived owner-doctrine prose or add another markdown authority.",
     "severity": "P2",
     "sources": [
         {
@@ -9149,12 +9169,13 @@
         "A changed active recipe cannot silently reattribute old renders; exact valid carried scoring records remain reusable under their original identity. Full effective request and declared treatment define comparability.",
         "The capability control consumes the same bound admission for its actual model/recipe/request; a Krea/MOSS same-name preset and a changed recipe cannot share approval solely by family/name. Missing/refused/inconclusive/stale evidence does not offer a judged candidate. Preserve342 statistics and existing authority.",
         "Small native command fixture retains format/mixed-size/reuse and adds the binding counterexample; duplicate lower-level acceptance assertions/setup disappear, and complete production/test/storage/setup cost is reported.",
-        "A completed campaign arm/verdict is reusable only for the same bound inputs/evaluator/producer contract. Changing the judge, model/request, dataset/media or record invalidates only affected stages; truncated bookkeeping cannot count as completed."
+        "A completed campaign arm/verdict is reusable only for the same bound inputs/evaluator/producer contract. Changing the judge, model/request, dataset/media or record invalidates only affected stages; truncated bookkeeping cannot count as completed.",
+        "An operational handover/progress-only change can continue a valid partial set without recomputing its verified outputs or rewriting their producer identities. A changed numerical dependency/effective request is refused or invalidates only the affected work; arbitrary commits are not presumed compatible."
       ],
-    "comparison": "In the retained command fixture and existing temporary artifact store, construct two minimal valid bound arms, then swap one scored record or its rendered output while retaining all case names/outcomes/sizes; current source accepts what must be rejected. Change active recipe after recording to check historical binding. A legitimate carried record still works. No real rendering or judging is necessary to decide this defect; proposed checks only. Extend the retained controls boundary with the same preset name on two model/recipe identities and one stale recipe: only the actually bound admitted identity is offered. Do not duplicate numerical acceptance or copy a model fixture. In the existing readingsFake fixture, keep Out and arm names after a complete run but change the judge or source/media; require validation/invalidation, not zero calls. A valid unchanged resume still runs only unfinished work; preserve unrelated-record interleaving and failed-arm continuation. This is a recommendation only.",
+    "comparison": "In the retained command fixture and existing temporary artifact store, construct two minimal valid bound arms, then swap one scored record or its rendered output while retaining all case names/outcomes/sizes; current source accepts what must be rejected. Change active recipe after recording to check historical binding. A legitimate carried record still works. No real rendering or judging is necessary to decide this defect; proposed checks only. Extend the retained controls boundary with the same preset name on two model/recipe identities and one stale recipe: only the actually bound admitted identity is offered. Do not duplicate numerical acceptance or copy a model fixture. In the existing readingsFake fixture, keep Out and arm names after a complete run but change the judge or source/media; require validation/invalidation, not zero calls. A valid unchanged resume still runs only unfinished work; preserve unrelated-record interleaving and failed-arm continuation. This is a recommendation only. Extend the retained render-manifest/run fixture with one complete output and one pending output: a compatible orchestration repair retains the first and computes only the second, each under its original/actual producer. A changed sampler/request dependency fails compatibility. No live render is needed for this identity decision.",
     "displaced_surface": "Remove unbound case-name-only comparison and the current-activation template substitution as authorities. Retain existing manifest, scoredReport/carried-result traversal, runrecord/artifact identity and modelrecipe lifecycle. Reuse read/validation only where the contract truly matches: alreadyDrawn can accept a missing file as a new render, so calling it blindly is not sufficient admission validation. Merge repeated numerical admission calls/right-map setup out of cmd/evaluate/preset_reading_test.go into the existing evaluation test; keep format fallback, mixed sizes and preset reuse cases, and extend the command fixture for actual record binding with existing native store/artifact setup. No second model fixture or new binary/package. Replace the embedded family-status approval table and its duplicate schema checks once the existing bound evidence owner feeds controls; do not add a second registry beside it.",
-    "evidence": "admitPresetReading independently reads two manifests and two user-supplied evaluation IDs, reduces each manifest to preset/format/size and each evaluation to case-name booleans, then compares those booleans. It does not verify that either record scored the corresponding manifest outputs or that both sides share the intended model/task/recipe, question/judge contract and paired inputs. The loop overwrites drawn; ResolveActiveExecution therefore reads the candidate manifest model/task current activation, not the historical recipe that rendered either arm. Source-admitted case: differently produced or old render directories at matching size/format plus unrelated nonempty evaluations with the same case names satisfy the checked fields; a replacement activation can also supply the current template for old recipe evidence. renderManifest already retains Model/Recipe/Task/CodeCommit and each draw Input/Output/Run/Request; evaluation records already lead to the scoring report, plan and dataset. alreadyDrawn validates reuse identity but this command never calls its checks. Printed PresetVerdict holds only preset/counts/admitted and is not a bound admission record. bf1651186 now hides the named pending/refused presets through offerPresets; all embedded entries are currently pending. This is useful conservative presentation progress. However, preset_readings.json is a separate299-byte family->preset->status table: no model/task/recipe/request or evaluation/render identity, and no production writer/read from AdmitPreset. A future admitted latentimage/apg label would apply to both Krea and MOSS and survive recipe changes without checking which arm was evaluated; unlisted names pass through. The fixture checks declaration/status consistency and current SenseNova offerings, not a bound verdict or stale/foreign evidence. No current admitted label or false live offer was observed. No false approval was reproduced against a live store.\nAt 1926e19a2 the plan records a SenseNova guidance-interval verdict, but neither new landing changes AdmitPreset, the embedded family-label table or their binding. README hashes identify bytes and the commit discloses draws made at d4d4b3708 with the uncommitted wait-counter changes; this is useful provenance, not proof that preset approval consumed the matching renders/evaluations. No false live offer was observed by SQA.\n6bb2359a3 adds a supervised campaign and takes the evaluation ID printed for each exact suite, correctly avoiding a concurrent newest-record lookup. But readings.arm returns immediately for records[arm.name], draw skips on suite-file existence, and admit skips for verdicts[arm.name]. Retain the same Out/model.Name/preset and change model path, judge/projector, source/case set, media bytes or producing build: completed arms/verdicts are accepted without calling render/identity validation. readArmLines also accepts an incomplete final line as a record when it contains a space. The existing fake fixture proves unchanged retry and continuation past a failed arm, not invalidated-input recovery. This is the same producer/evidence-binding root as379, not a separate backlog. No stale live approval was executed by SQA.",
-    "evidence_commit": "fc5147e610c95ba02378bb46c2943dc112756f9c",
+    "evidence": "admitPresetReading independently reads two manifests and two user-supplied evaluation IDs, reduces each manifest to preset/format/size and each evaluation to case-name booleans, then compares those booleans. It does not verify that either record scored the corresponding manifest outputs or that both sides share the intended model/task/recipe, question/judge contract and paired inputs. The loop overwrites drawn; ResolveActiveExecution therefore reads the candidate manifest model/task current activation, not the historical recipe that rendered either arm. Source-admitted case: differently produced or old render directories at matching size/format plus unrelated nonempty evaluations with the same case names satisfy the checked fields; a replacement activation can also supply the current template for old recipe evidence. renderManifest already retains Model/Recipe/Task/CodeCommit and each draw Input/Output/Run/Request; evaluation records already lead to the scoring report, plan and dataset. alreadyDrawn validates reuse identity but this command never calls its checks. Printed PresetVerdict holds only preset/counts/admitted and is not a bound admission record. bf1651186 now hides the named pending/refused presets through offerPresets; all embedded entries are currently pending. This is useful conservative presentation progress. However, preset_readings.json is a separate299-byte family->preset->status table: no model/task/recipe/request or evaluation/render identity, and no production writer/read from AdmitPreset. A future admitted latentimage/apg label would apply to both Krea and MOSS and survive recipe changes without checking which arm was evaluated; unlisted names pass through. The fixture checks declaration/status consistency and current SenseNova offerings, not a bound verdict or stale/foreign evidence. No current admitted label or false live offer was observed. No false approval was reproduced against a live store.\nAt 1926e19a2 the plan records a SenseNova guidance-interval verdict, but neither new landing changes AdmitPreset, the embedded family-label table or their binding. README hashes identify bytes and the commit discloses draws made at d4d4b3708 with the uncommitted wait-counter changes; this is useful provenance, not proof that preset approval consumed the matching renders/evaluations. No false live offer was observed by SQA.\n6bb2359a3 adds a supervised campaign and takes the evaluation ID printed for each exact suite, correctly avoiding a concurrent newest-record lookup. But readings.arm returns immediately for records[arm.name], draw skips on suite-file existence, and admit skips for verdicts[arm.name]. Retain the same Out/model.Name/preset and change model path, judge/projector, source/case set, media bytes or producing build: completed arms/verdicts are accepted without calling render/identity validation. readArmLines also accepts an incomplete final line as a record when it contains a space. The existing fake fixture proves unchanged retry and continuation past a failed arm, not invalidated-input recovery. This is the same producer/evidence-binding root as379, not a separate backlog. No stale live approval was executed by SQA.\nOwner feedback exposes the opposite reuse failure in renderMedia: existing draws are verified, but every new draw refuses when manifest.CodeCommit != current commit. Actual local manifests read in this review: moss-image-sft-person-apg has40draws at6bb2359a363a558797b3dcc2356912b28643f1bf; wan2.1-person-mp4 has36draws atae76871f46f0b17032e41d3e965b58cd5cfe7038 (owner earlier observed35). Code-only handover repairs therefore strand still-valid partial work at HEAD. The campaign skips completed arm names too eagerly while the renderer rejects unfinished arms too broadly. Both need the existing producer/dependency identity contract, not unconditional reuse or unconditional restart.",
+    "evidence_commit": "03a941f92028cf9d0815984d03e5c4306be986fd",
     "expected_benefit": {
         "baseline": "Shared full admission baseline/cost is charged once in342: +1231 production/+766 test AST. Selected command file719 nodes, command test429 nodes. No implemented after count or guaranteed net saving.",
         "setup": "Existing native store/artifact fixtures suffice for identity counterexamples; no model/device workload, benchmark or new recurring gate requested. 0 new fixture files/bytes/schemas in the admission landing per retained gate.",
@@ -9165,14 +9186,14 @@
     "id": "SQA-379",
     "impact": "A plausible quality verdict can be attached to media or a recipe it never evaluated, wasting hours and undermining future automatic preset offering. Correct statistics342 alone cannot repair wrong provenance. This is distinct from283 campaign publication attribution: this command must bind two supplied record/render pairs before a new comparison.",
     "likely_effort": "Medium within current render/evaluation/controls owners; correctness may require growth before consolidation.",
-    "plan_coverage": "guidance-ops/readings-campaign is landed producer-selection progress. Its filename/arm-name recovery shortcuts add an unbound reuse path; preset-readings and the existing379 migration remain open.",
+    "plan_coverage": "The campaign needs one coordinated producer/recovery identity migration: prevent both stale completed-arm reuse and stranding partially completed compatible sets. Do not count the two symptoms as independent savings.",
     "plan_references": [
         "judge-calibration/user-size landed2c7ac4ea4",
         "guidance-ops/preset-readings at d87c57c",
         "guidance-ops/moss-presets e9b82cdf6; sensenova-presets d87c57c",
         "guidance-ops/preset-gate bf1651186 (landed; partial consumer progress)"
       ],
-    "recommended_change": "Use the existing render provenance and run/evaluation artifact owners to bind each judged dataset/media input to its exact rendered outputs and producer identity before calculating a verdict. Require the same intended model/task, comparable recipe/code and full effective request except declared preset treatment; preserve paired prompts/seeds and matching question/judge/scoring contracts. Do not substitute current activation for the historical recipe; reuse historical records only when their bound identities remain applicable. Missing or foreign provenance stays unknown/refused before expensive rendering or judging where knowable. Carry the bound record IDs and relevant recipe/request identity through the existing evidence storage to the existing capability controls; offer only a currently applicable, statistically supported admission. Retain the conservative UI filtering, but replace family-wide manual labels as admission authority with a projection of the existing bound evidence for the actual model/recipe/request. Keep any explicitly supported unevaluated/reference choices distinct from judged candidate admission. The setting-reader prerequisite is now landed; keep existing plan ordering and correct its remaining identity-discovery gap in381. No second scheduler, registry, notes file or evidence ledger. Extend that same identity contract to readings campaign resume: validate the exact model/recipe/request, dataset/media, judge/evaluator and producer identities through existing render/evaluation/run records before reuse. Replace arm-name/file-existence authority with those records; reject incomplete bookkeeping rather than skipping work. Retain valid completed stages selectively and the printed exact-suite ID. Reuse the existing manifest/atomic-publication and process owners; no additional ledger, scheduler or workflow language.",
+    "recommended_change": "Use the existing render provenance and run/evaluation artifact owners to bind each judged dataset/media input to its exact rendered outputs and producer identity before calculating a verdict. Require the same intended model/task, comparable recipe/code and full effective request except declared preset treatment; preserve paired prompts/seeds and matching question/judge/scoring contracts. Do not substitute current activation for the historical recipe; reuse historical records only when their bound identities remain applicable. Missing or foreign provenance stays unknown/refused before expensive rendering or judging where knowable. Carry the bound record IDs and relevant recipe/request identity through the existing evidence storage to the existing capability controls; offer only a currently applicable, statistically supported admission. Retain the conservative UI filtering, but replace family-wide manual labels as admission authority with a projection of the existing bound evidence for the actual model/recipe/request. Keep any explicitly supported unevaluated/reference choices distinct from judged candidate admission. The setting-reader prerequisite is now landed; keep existing plan ordering and correct its remaining identity-discovery gap in381. No second scheduler, registry, notes file or evidence ledger. Extend that same identity contract to readings campaign resume: validate the exact model/recipe/request, dataset/media, judge/evaluator and producer identities through existing render/evaluation/run records before reuse. Replace arm-name/file-existence authority with those records; reject incomplete bookkeeping rather than skipping work. Retain valid completed stages selectively and the printed exact-suite ID. Reuse the existing manifest/atomic-publication and process owners; no additional ledger, scheduler or workflow language. Refine the partial-render boundary: whole-commit inequality alone is not evidence that unchanged numerical execution is incompatible. Use existing declared execution dependencies and bound effective requests to decide which completed draws remain valid after an operational-only repair. Preserve original producer/run/code identity per output; never relabel old media as produced by HEAD. Permit continued work only under a demonstrably compatible execution contract, recording the actual producer of new draws; incompatible numerical/layout/randomness changes still invalidate the affected stage. Delete the blanket commit-only refusal and name-only skips as their contract moves to the retained identity owner; do not simply remove safety validation.",
     "severity": "P2",
     "sources": [
         {
@@ -9809,14 +9830,18 @@
       "comparison": "Use the existing fake-server fixture where history completes before a further stats read. The observed maximum remains a sample, with actual peak unknown; retain ordinary sampled values without claiming an upper bound. No new SQA execution."
     },
     {
-      "id": "SQA-390",
-      "status": "open",
-      "severity": "P2",
-      "category": "resource-lifetime-and-handover",
-      "classification": "source-and-retained-run-confirmed-unreleased-cached-encoder",
-      "title": "Release the cached video encoder before reporting GPU handover",
-      "evidence_commit": "fc5147e610c95ba02378bb46c2943dc112756f9c",
-      "sources": [
+    "category": "resource-lifetime-and-handover",
+    "classification": "resolved-source-and-retained-native-boundary-evidence",
+    "evidence": "ad23357f4 registers latentvideo.ReleaseCardEncoders with capabilityruntime.ReleasesIdle and the existing idle-session registry. Release snapshots cached encoders, holds each encoder.mu shared with encodePrompts, calls the existing umt5Device.Close -> ResidentSession.Close resource owner and clears only the card pointer. Host tokenizer/plan/rows remain; onCard opens the card again when a missing prompt requires it. giveTheCardToAWaiter no longer reports success when release returns an error or the process still holds a waited-on turn. TestAReadingThatKeepsTheCardSaysSo uses the existing controlled waiter to prove no-op release refuses; the retained behavioral undo fails on its assertion. TestCardEncodersCloseWithTheIdleSessions proves a counted encoder closes once, clears and does not close twice. Reopen/encode exclusion is source-verified through the nil-open path and shared mutex, not a newly run model experiment. Retained gate1038s,verify6.713s,lanes705.257s and identical Bonsai output/peak5389.8MiB. This closes the encoder/false-handover contract;261 actual-card commit release remains open. SQA ran no tests or workloads.",
+    "evidence_commit": "ad23357f4648c9c52af045a02f5c72ccf3b6235a",
+    "expected_benefit": {
+        "closure": "Cached GPU lifetime now belongs to the existing idle-release owner and false successful handover is refused; retained host data remains reusable.",
+        "complete_cost": "ad23357f4 adds259production/424test AST,+60/+77lines across7changedGo files,net+1testfile;0fixturebytes,newbinaries or package directories. Sixselectedfiles8208AST/50functions/1681parser-local links. Three prior card-turn steps net-862AST; this repair adds683, so those four committed steps together net-179AST. The pending lane-turn migration still must be charged. All16implementation commits since6bab03cca total+8374production/+6929testAST (+15303); prior fixture/sample growth is unchanged.",
+        "uncertainty": "No SQA runtime or concurrent-use experiment. Native no-op/close-once boundary plus source lock/open/close trace support this closure; no measured saved waiting or full card-migration completion claimed."
+      },
+    "id": "SQA-390",
+    "severity": "P2",
+    "sources": [
         {
           "path": "internal/latentvideo/prompt_encoder.go",
           "symbol": "promptEncoders; promptEncoder.card; cardEncoder; onCard"
@@ -9836,31 +9861,126 @@
         {
           "path": "docs/plan.json",
           "symbol": "card-handover/encoder-release"
+        },
+        {
+          "path": "internal/latentvideo/umt5_device_windows.go",
+          "symbol": "umt5Device.Close -> ResidentSession.Close"
+        },
+        {
+          "path": "internal/graphruntime/resident.go",
+          "symbol": "ResidentSession.Close"
+        },
+        {
+          "path": "internal/latentvideo/prompt_encoder_test.go",
+          "symbol": "TestCardEncodersCloseWithTheIdleSessions"
+        },
+        {
+          "path": "cmd/evaluate/readings_turn_windows_test.go",
+          "symbol": "TestAReadingThatKeepsTheCardSaysSo"
         }
       ],
-      "evidence": "At the pin, promptEncoder.card is held in the process-wide cache, and cardEncoder exposes encode but no release. ReleaseIdleSessions enumerates registered session directors only. giveTheCardToAWaiter sees a waiter, calls release, ignores the number closed and returns true on nil error without checking that the resource was released. The committed plan records31 Wan messages claiming handover while an executor waited from14:14 to17:35ET and attributes the remaining11GB/context to this encoder. Existing test uses one fake session whose close necessarily releases the turn; it omits a second retained context/no-op release. The working encoder-release patch is not committed and cannot close this finding.",
-      "impact": "The renderer can report a handover that never occurred, leaving other GPU work waiting and judges short of memory after idle release.",
-      "recommended_change": "Register the encoder GPU lifetime with the existing idle-release owner and close it only between active encodes; preserve reusable host tokenizer/plan/row data and reopen the card session on demand. Report handover only after the actual held resource has been released; otherwise identify the remaining hold/error. Reuse the current session/turn owners and truthful progress output, with no polling supervisor, extra scheduler or blanket cache flush.",
-      "displaced_surface": "Remove the process-lifetime-only GPU hold and unconditional successful handover report. Retain host prompt caching, active-encode exclusion, source identity, numerical behavior and existing session eviction. Extend current controlled handover/encoder fixtures; no new model fixture or service.",
+    "status": "resolved",
+    "title": "Release the cached video encoder before reporting GPU handover"
+  },
+    {
+      "id": "SQA-391",
+      "status": "open",
+      "severity": "P3",
+      "category": "test-checkout-lifetime",
+      "classification": "observed-retained-checkouts-with-unproven-abandonment-cause",
+      "title": "Recover abandoned replay test checkouts through the existing owner",
+      "evidence_commit": "03a941f92028cf9d0815984d03e5c4306be986fd",
+      "sources": [
+        {
+          "path": "cmd/loop/replay_windows_model_test.go",
+          "symbol": "TestLandedStepsReplayForAWorker; existing t.Cleanup worktree removal"
+        },
+        {
+          "path": "cmd/loop/replay.go",
+          "symbol": "moveReplay worktree creation/reuse"
+        },
+        {
+          "path": "cmd/loop/leftovers.go",
+          "symbol": "worktrees; copyState; removeCopy; helper-copy lifetime"
+        },
+        {
+          "path": "git worktree list --porcelain",
+          "symbol": "local observation81registrations,12test-named replay paths"
+        }
+      ],
+      "evidence": "Read-only Git inventory contains81registered checkouts,12under temporary roots named TestLandedStepsReplayForAWorker(4),TestTheLocalWorkerPaysForItself(5),TestTheLocalWorkerWorksTheSixTasks(3). These identify test-created sets, not proof that all are idle or safely deletable. The current replay fixture already registers t.Cleanup(git worktree remove --force); merely adding cleanup again does not repair abnormal-exit recovery. moveReplay creates/reuses detached checkouts and writes data-root setup; the two historical local-worker test names are absent from current source. Existing leftovers.worktrees already covers temporary helper copies and checks locks/session/commit/dirt/ignored/process-state ownership. Whether prior tests were killed, cleanup failed or evidence retention was intended is unconfirmed.",
+      "impact": "Test setup can accumulate registered checkouts and recovery ambiguity across interrupted runs, increasing disk/setup/maintenance surface.",
+      "recommended_change": "Keep moveReplay and the existing test cleanup as creation/normal-exit owners. Route abnormal-exit recovery through the existing process/scratch/worktree and leftovers lifetime: identify the creating test process/run and retained consumers, classify ended/clean unneeded checkouts and remove only those through the current worktree-removal owner. Reuse an existing fixture for cleanup failure/process end. Do not delete active/dirty/evidence-bearing trees, infer abandonment from a test-name prefix, add a daemon or a second checkout registry.",
+      "displaced_surface": "Remove verified abandoned registrations/checkouts and repeated ad-hoc cleanup. Retain historical replay producer commits/results, worktree locks and dirty/ignored state. Do not add duplicate t.Cleanup or revive retired model-backed test bodies.",
       "expected_benefit": {
-        "baseline": "prompt_encoder.go1778AST, idle_release.go346AST, giveTheCardToAWaiter59AST and existing handover test file458AST are ownership boundaries, not wholesale deletion estimates.",
-        "after": "Not implemented at pin. Safe encoder release/reopen coverage may add code; count it with deletion of duplicate lane ownership in261. The committed three-step card migration net-862AST is counted once, not credited again here.",
-        "setup": "Use counted fake encoder/session and the existing controlled turn waiter; retain needed GPU integration evidence from implementation without adding an SQA workload.",
-        "uncertainty": "Recorded waiting is real; the11GB attribution is the implementation retained diagnosis and source-supported missing close, not a new SQA memory measurement."
+        "baseline": "81registered trees;12test-named replay paths. No size/liveness/deletability census or reclaimed bytes measured. Current TestLandedStepsReplayForAWorker254AST/moveReplay124AST are retained owners, not wholesale deletion estimates.",
+        "after": "No safe source/byte reduction yet established; recovery integration and native fixture may grow. Count that against verified removed setup/registrations, never move the trees elsewhere as savings.",
+        "setup": "Use existing Git/process fixture and leftovers classification; no real model, historical replay execution or SQA deletion."
       },
-      "likely_effort": "Bounded GPU-lifetime registration and truthful handover correction; already in the active plan.",
+      "likely_effort": "Bounded lifetime/recovery integration after classifying the twelve named trees.",
       "plan_references": [
-        "card-handover/encoder-release (open)",
-        "card-handover/lane-turn and SQA-261 (distinct commit/queue contract)",
-        "Downloads target: resources have one lifetime owner"
+        "loop-proof/local-demonstrated existing replay owner",
+        "Existing leftovers helper-copy rule",
+        "Owner feedback:81checkouts/12test-derived"
       ],
-      "plan_coverage": "The plan identifies this defect and working edits exist. Verify committed behavior before closure; do not create a competing task.",
+      "plan_coverage": "No competing cleanup task/registry is needed. Current test already has normal cleanup; investigate the actual abnormal path.",
       "closure_criteria": [
-        "Idle release closes the cached encoder GPU context once no encode uses it, preserves host cache data and safely reopens for the next prompt.",
-        "A retained context/no-op release cannot print or return successful handover; the reported outcome follows actual resource ownership.",
-        "Required failure/cancellation and numerical behavior stay covered in existing fixtures; complete code/test/setup costs recorded."
+        "Each named tree is classified by current process/session/dirty/retained-evidence ownership; active or required trees are retained.",
+        "Normal and abnormal exit cleanup/recovery are owned by current replay/leftovers code; verified abandoned trees are removed with retained receipts/evidence and complete cost."
       ],
-      "comparison": "Extend the existing handover fixture with another retained encoder context and a release that initially closes nothing: it must not report success. Release the encoder, observe the waiter acquire the existing turn, then encode again and verify one reopen. Reuse counted native fixtures; no tests or device work run by SQA."
+      "comparison": "In one existing tiny Git fixture, create a replay checkout, end its owner before normal cleanup and classify/recover it through existing leftovers; an active owner or dirty/retained-evidence tree must stay protected. No model-backed test rerun."
+    },
+    {
+      "id": "SQA-392",
+      "status": "open",
+      "severity": "P2",
+      "category": "local-request-lifetime",
+      "classification": "source-confirmed-local-deadline-and-forced-drain-vs-planned-contract",
+      "title": "Keep local request and model-drain lifetime under requester control",
+      "evidence_commit": "03a941f92028cf9d0815984d03e5c4306be986fd",
+      "sources": [
+        {
+          "path": "internal/server/server.go",
+          "symbol": "Handler.ServeHTTP897:positive RequestTimeout wraps every request"
+        },
+        {
+          "path": "internal/modelswap/supervisor.go",
+          "symbol": "drainGrace15s; time.AfterFunc then stopCurrentLocked"
+        },
+        {
+          "path": "internal/server/server_test.go",
+          "symbol": "TestServerRequestTimeoutCancelsGeneration"
+        },
+        {
+          "path": "internal/modelswap/supervisor_test.go",
+          "symbol": "TestModelSwapCanceledDrainAndArtifactIdentity"
+        },
+        {
+          "path": "docs/plan.json",
+          "symbol": "no-clocks/local-serving (open)"
+        }
+      ],
+      "evidence": "At pin, ServeHTTP applies any positive configured RequestTimeout before classifying request origin, including a loopback/local request. Model swap waits for non-held-open references only until the15-second grace, then stops the old child despite unfinished streams. This is unchanged and the plan explicitly marks local-serving open. Existing native timeout test expects the configured cancellation; swap/cancellation fixtures retain the separate routing/drain contract. This is an observed source/plan mismatch, not an SQA reproduction or a claim that default RequestTimeout is always positive.",
+      "impact": "A legitimate long local computation or active old-model response can be ended by an internal protection timer rather than its requester, contrary to the intended local-serving behavior.",
+      "recommended_change": "Implement the already-planned change in the existing handler/proxy/supervisor: separate network-peer protection from a local operation lifetime, preserve explicitly requested operation budgets and request-context cancellation, stop routing new work to the retiring child and drain/cancel through its existing reference owner. Determine origin at the established trusted connection/forwarding boundary; a spoofable forwarded header or a loopback proxy carrying an external request must not bypass peer protections. Preserve process-death cleanup and held-open activity-stream semantics. Remove the displaced implicit local deadline/forced-grace path; no second watchdog, clock ban framework or new serving abstraction.",
+      "displaced_surface": "Remove only the implicit local-request timeout and forced local drain grace from their existing owners. Retain network request limits, explicit caller budgets, idle scheduling, authorization and request cancellation. Extend the existing handler/supervisor fixtures rather than another HTTP/model harness.",
+      "expected_benefit": {
+        "baseline": "ServeHTTP358AST is a shared handler boundary, not removable wholesale; drain is part of the existing supervisor. No measured source/runtime saving or live failure asserted.",
+        "after": "Pending implementation; count origin classification, routing/drain changes and retained coverage against deleted timer/branch/setup. No guaranteed net reduction.",
+        "setup": "Use existing fake generator and fake child/held-stream cases with local,peer,cancelled and explicitly budgeted inputs; no device/model test."
+      },
+      "likely_effort": "Bounded serving/drain policy change across current owners; already planned.",
+      "plan_references": [
+        "no-clocks/local-serving (open)",
+        "Owner feedback:ServeHTTP897 still applies timeout"
+      ],
+      "plan_coverage": "Keep the current row; this finding preserves concrete origin/cancellation/security and drain requirements without a second plan.",
+      "closure_criteria": [
+        "A supported local request and old-child active stream can outlast the peer-protection limit and finish, while requester cancellation/explicit operation budget still ends them.",
+        "Peer and proxied-external requests retain their trust-boundary protections; new routing stops using a retiring child immediately.",
+        "Process death, held-open activity streams and cleanup remain covered in existing fixtures; full production/test/setup costs recorded."
+      ],
+      "comparison": "Extend the existing timeout and supervisor fixtures with the same slow fake work as local versus network/proxied external requests, plus cancellation and a deliberate caller budget. Assert local completion/drain, peer protection and cancellation independently of speed; no SQA execution."
     }
   ],
     "gate_test_assessment": {
@@ -9887,19 +10007,17 @@
         "cost": "budget+450production/+575test; verify-first+175/+148. No static fixture growth. Prior report was carried by a0cf; do not count its prose as application AST.",
         "interpretation": "Historical refusal wall motivates ordering and status delivery, but is not measured saved work. Query/window/outcome definitions must be explicit."
       },
-    "automation_sequence": "Known GPU ownership/setup failures must be resolved before repeating costly lanes; retain early host admission and one actual card acquisition per job. Recorded eb9d gate24581s includes device card wait22153.784s. LiveEdit serialization defect, introducedNov9 per retained bisect, now fails cheaply through a host JSON roundtrip.",
+    "automation_sequence": "Retained no-op release now fails truthfully in the host boundary. Actual card ownership still must reach landing.letGo before a device wait; remove the obsolete second queue through the planned migration. No broad checks rerun by SQA.",
     "fresh_ast": {
-        "revision": "fc5147e610c95ba02378bb46c2943dc112756f9c",
-        "method": "Existing external go/parser on11pinned files; full94changed-Go AST deltas and changed fixture/asset bytes. No tests/gates.",
+        "revision": "03a941f92028cf9d0815984d03e5c4306be986fd",
+        "method": "Existing external go/parser on9feedback files plus3queue files; complete14changed-Go delta. Local live records read without execution.",
         "retained_result": [
-          "review-fc514-selected-ast.json",
-          "review-fc514-total-delta.json",
-          "review-fc514-turn-delta.json",
-          "review-fc514-readings-turn-delta.json",
-          "review-fc514-retire-delta.json"
+          "review-03a941-feedback-ast.json",
+          "review-03a941-queue-ast.json",
+          "review-03a941-total-delta.json"
         ],
-        "counts": "11files12312AST/68functions/2536parser-local links; no exact full-body duplicates>20nodes. readings.go2146/test1029; arm161/draw169/admit192 are unbound skip boundaries. giveTheCardToAWaiter59,ReleaseIdleSessions90 and prompt_encoder.go1778 identify ownership crossings, not wholesale deletions.",
-        "limits": "No package/type resolution, global clone percentage, benchmark or device work. Semantic duplicate authority was found despite no equal selected bodies."
+        "counts": "12files33026AST/197functions/6400parser-local links. Scorecard249,ServeHTTP358,replay fixture254,moveReplay124,RecordRefusal84,stopDecision40,letGo103,commit-wait fixture375,child-turn fixture180nodes. These are concrete owner boundaries, not wholesale deletion estimates.",
+        "limits": "No package/type resolution, whole-repository duplicate percentage or workload. Existing test cleanup already exists; another identical cleanup call is not a fix."
       },
     "media_follow_up": {
         "revision": "fc673760f813afdf216be087fe586f717461cd3a",
@@ -10063,19 +10181,20 @@
       "retained_change_costs": "Two consolidation landings(2d59f642c exact folds andbb4fc706a parameter folds) remove744 production nodes but add1591 test nodes, net+847 across Go. Pilot retirementea8ed43a7 removes5926 production/9990 test nodes and one schema, while fixture bytes grow599; its test deletion is already included in the day's offsets and must not be subtracted twice. These retained gates are broader changes, not matched per-test performance comparisons."
     },
     "retained_results": [
-        "15successful landing Gate-Wall-Seconds sum37108s; eb9d59fc1 alone24581s with22153.784s card wait. Successful waiting is not automatically wasted tests; no daily failure/attempt census.",
-        "Card-turn three-step migration net-79production/-783test AST; final retirement alone-1974/-2275 overstates completed-migration deletion.",
-        "fc5147e61 fixes LiveEdit condition omission by renaming embedded ClipFinish.IsZero to None; retained host roundtrip undo fails on an assertion, and implementation reports device activation passes again.",
-        "edd278553 reports16-image upstream parity at50steps,49.1..53.2dB over4-pixel squares; batch1 remains default to preserve frozen protocol. Flash-Next retained tests cover actual token lengths and repeated opens; no SQA reruns."
+        "Current latest measurement record is fdd4ab1,Nov8,preflight and lanes not passed,0filed, no detailed phase cause. Landing slice is one fixed smallest-text-model input and reports without refusing; neither establishes a completed full-system run.",
+        "Local refusal ledger402entries:24nonemptyCause,34Rules. User correction that Cause exists is confirmed; complete historical coverage is not.",
+        "Read-only81worktrees,12matching three test-name roots (4/5/3). Current replay fixture already removes its tree on normal cleanup; cause of retained trees remains unknown.",
+        "MOSS APG40draws at6bb2359a3; Wan reference36draws atae76871f4 (owner earlier35). New draws refuse at different HEAD while complete outputs retain verification; no SQA resume executed.",
+        "03a941f92 retained gate1950s, current native queue/child/environment fixtures reported passing; undo compile failure supplies no behavioral assertion. No SQA rerun."
       ],
-    "surface_reduction_analysis": "6bab03cca->fc5147e61:15 implementation commits,94 changed Go paths; +8115production/+6505test AST (total+14620),+1481/+994lines and net+6/+13Go files. Changed fixture/testdata paths add14files and311046bytes; one sample asset adds1182831bytes. No new command entry point or package directory; no binary/directory reduction. All three card-turn steps together remove79production/783test AST (net862), including new turn machinery; that saving is already included in the aggregate growth.",
+    "surface_reduction_analysis": "03a941f92 adds91production/133testAST (+224),+22/+23lines across14Go paths;0newfiles/packages/binaries/staticfixtures. Entire five-step card-turn/encoder/handover migration is+271production/-226testAST,net+45, including the large retirement and its replacements. All17implementation commits since6bab03cca total+8465production/+7062testAST (+15527); prior fixture/sample growth remains. No net binary/directory reduction.",
     "tests": [
-        "RETAIN the153-node TestAnEditRequestKeepsItsConditionThroughJSON: it proves the serialization loss at the host boundary and behaviorally fails under retained undo. Do not duplicate it with a model-backed JSON check.",
-        "RETAIN and extend existing checkout-free/commit-turn fixtures for actual card-turn waiting, including independent host landing and changed-trunk refusal. The retired lane-lock case alone no longer decides261.",
-        "RETAIN the existing458-node handover fixture; add the cached encoder/no-op release case there and retain active-use protection/reopen. No new pressure harness.",
-        "RETAIN readingsFake failed-arm continuation/exact-suite lookup; extend it for changed inputs and truncated records before reuse. No live campaign is needed to decide379.",
-        "RETAIN distinct Flash-Next allocation and real-document retrieval/recovery fixtures; they test different contracts. Use the existing token-count owner to complete215, not another suite.",
-        "RETAIN per-position batch reference and host layout/session-key coverage. Charge the expanded fixture and16-way setup; smaller AST alone cannot justify dropping numerical parity."
+        "RETAIN checkout-free,commit-slot/changed-trunk and child-turn environment fixtures; actual turn naming is repaired. Extend the same commit-slot fixture for a free probe followed by another process acquiring the turn before the landing does. Existing already-held coverage and compile-only undo do not decide that interleaving.",
+        "RETAIN render/campaign identity fixtures; extend for one completed/one pending output across operational-compatible repair and changed numerical/request identity. Keep original per-output provenance and stale-completed-arm refusal in the same owner.",
+        "RETAIN original loop phase/error,publication and status fixtures; extend existing native cases for failed diagnostic preservation, one final filing and missing historical cause values. No all-model SQA run.",
+        "RETAIN current replay t.Cleanup and tiny Git/leftovers lifecycle fixtures. Extend abnormal owner-exit/recovery rather than creating another model replay or treating path name as deletion authority.",
+        "RETAIN current timeout/cancellation and supervisor/held-stream fixtures; adapt local versus real/proxied peer contracts, explicit budget and requester cancellation. Preserve security and stream cleanup.",
+        "SIMPLIFY guidance/status consumers by reusing existing Cause/Rules and current doctrine pointer. Do not add a test whose only assertion is prose contains the new method; test the actual recovery/continuation transition in the existing hook/driver owner."
       ]
   },
     "hygiene_assessment": "No hygiene finding. Scratch analysis is outside the repository; concrete correctness and production/test cost take priority.",
@@ -11609,9 +11728,9 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
     "limitations": [
-      "No application tests, device/model work, gates, services, agents/messages, implementation or plan/skill edits. Retained commit/plan evidence and external static analysis only.",
-      "11file AST uses parser-local resolution, not package/type analysis. Committed source is read by pin; extensive active working edits are excluded.",
-      "The15commits were not all reviewed line by line. Performance/parity outcomes are attributed to retained implementation evidence; no global quality/refactor-completion claim. The LiveEdit commit attributes delayed detection to selection; that selector explanation was not independently proved here."
+      "No implementation, tests, workloads, services, agents/messages, plan/skill edits or worktree deletion. User requested one full run after rehearsal; it is recorded for the implementation owner, not run by report-only SQA.",
+      "9feedback+3queue files parsed with local object links, not package/type resolution. Retained loopback/deadline and abandoned-checkout examples are source/state evidence, not runtime reproductions.",
+      "Only archived owner-doctrine copies were found; no current external method is treated as authority. Measurement phase durations show failure, not cause.12test-named trees do not establish abandonment/deletability."
     ],
     "master_lead_triage": {
     "at": "2026-11-10",
@@ -12487,13 +12606,13 @@
       }
     }
   },
-    "next_finding_number": 391,
+    "next_finding_number": 393,
     "publication_context": {
-    "assessment": "Substantive absence review, with one reopened and one new finding plus consolidated identity progress.",
-    "checked_head": "fc5147e610c95ba02378bb46c2943dc112756f9c",
-    "concurrent_changes": "Extensive active handover, sampler and media-finishing edits observed; only committed master reviewed. Final publication rereads code/report/owner changes and preserves unrelated index/worktree under existing ownership.",
-    "current_pin": "fc5147e610c95ba02378bb46c2943dc112756f9c",
-    "publication": "Report-only path-limited commit through existing hooks if ownership is available; never disturb an implementation gate.",
+    "assessment": "Substantive six-item feedback reconciliation plus actual-card migration progress and residual race; prior report/closure evidence retained.",
+    "checked_head": "03a941f92028cf9d0815984d03e5c4306be986fd",
+    "concurrent_changes": "Extensive active finishing/progress edits excluded.03a941f92 already carried the earlier pending report snapshot; current owner/unknown fields reread and preserved. Final publisher guards HEAD/report and existing locks.",
+    "current_pin": "03a941f92028cf9d0815984d03e5c4306be986fd",
+    "publication": "Only report committed through existing hooks if ownership permits; no implementation or resource deletion.",
     "report_only": true
   },
     "ranked_active_finding_ids": [
@@ -12507,7 +12626,7 @@
     "SQA-373",
     "SQA-374",
     "SQA-261",
-    "SQA-390",
+    "SQA-392",
     "SQA-322",
     "SQA-385",
     "SQA-380",
@@ -12544,6 +12663,7 @@
     "SQA-352",
     "SQA-353",
     "SQA-350",
+    "SQA-391",
     "SQA-257",
     "SQA-303",
     "SQA-285",
@@ -12583,47 +12703,46 @@
     "repository": "C:\\Users\\jeffm\\overgo",
     "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
     "review_notes": [
-      "Reopen261 for actual-card wait versus old lane-lock admission; retain its prior closure evidence at c2f24f16a.390 covers the distinct cached-encoder lifetime/false-handover contract already in the plan.",
-      "Consolidate campaign stale-resume evidence into379.215 receives near-limit allocation progress without losing its original retrieval/recovery boundary.345/388/389 remain despite recorded ComfyUI samples.",
-      "Successful landing walls total37108s across15commits, including waiting; this sum is not check CPU time, exclusive elapsed time or measured waste. No attempt/refusal-rate census was run."
+      "Retain the substantive pending absence review.390 is closed by a subsequent committed fix;261 reopened queue ownership and379 stale resume remain actionable.",
+      "No new finding or consolidation; distinct close-once/native handover and commit-queue contracts stay separate. Costs count the existing registry bridge and fixtures honestly.",
+      "The two-hour heartbeat is active with its existing prompt and schedule; no duplicate automation or recurring workloads added."
     ],
-    "reviewed_at": "2026-11-13T00:02:28Z",
-    "reviewed_master": "fc5147e610c95ba02378bb46c2943dc112756f9c",
+    "reviewed_at": "2026-11-13T00:59:44Z",
+    "reviewed_master": "03a941f92028cf9d0815984d03e5c4306be986fd",
     "schema_version": 2,
     "scope": [
-      "Committed master fc5147e610c95ba02378bb46c2943dc112756f9c versus last report commit6bab03cca;15landings summarized, with bounded source review of card lifetime/queueing, campaign resume, JSON serialization and long-context evidence.",
-      "11selected-file Go AST plus full changed-Go delta and fixture/asset byte metadata. Prior binary/directory results retained at their identities; no repository-wide census.",
-      "This chat previously implemented Overgo and contributed plan wording: internal review, not independent third-party review. Unchanged guidance and Downloads target hashes reconfirmed."
+      "Pinned committed master 03a941f92028cf9d0815984d03e5c4306be986fd; six owner feedback items checked through current callers, local retained run/refusal/manifests and Git worktree metadata.",
+      "12selected Go files33026AST/197functions/6400parser-local links, plus complete new-landing cost. No whole-repository duplication census, tests, models or cleanup.",
+      "Architecture target and guidance hashes unchanged. This chat previously implemented Overgo and contributed plan wording; internal review, not independent third-party review."
     ],
     "sqa_response": {
-    "assessment": "217stable IDs:82open,129resolved,4deferred,2aliases.261 reopened with historical closure retained;390 added for cached encoder/false handover.379 consolidated new recovery evidence;215 credited distinct allocation progress.",
+    "assessment": "219stable IDs:83open,130resolved,4deferred,2aliases.261actual-card migration credited but remains open for the probe/acquisition gap;390closure retained.391checkout-lifetime and392local-serving added.266/376/379 consolidate six feedback items.",
     "consolidated_findings": [],
     "deferred_findings": [],
-    "evidence": "Pinned callers/fixtures,15retained landing messages and committed plan,11-file AST and full changed-Go/fixture costs. Unknown/implementation fields preserved.",
-    "implementation_response_context": "Retained implementation_review and master_lead_triage identities unchanged; no new closure claims. Working handover/finishing changes are excluded.",
+    "evidence": "Pinned source/callers, local measurement/refusal/manifests/worktree metadata and12-file AST/full new-landing cost. Implementation-owned and unknown fields preserved.",
+    "implementation_response_context": "Owner correction about existing refusal Cause accepted with historical population limits. Current implementation_review/master_lead_triage retained exactly. Current lane-turn source/native evidence partially addresses261; the concurrent-acquisition case remains; no new ownership claim from uncommitted work.",
     "new_findings": [
-        "SQA-390"
+        "SQA-391",
+        "SQA-392"
       ],
     "partially_addressed_findings": [
-        "SQA-215",
-        "SQA-379"
+        "SQA-261"
       ],
-    "priority_changes": "Restore261 for the old-lock/new-turn mismatch and track390 already planned encoder release. Keep379 bound recovery and342 acceptance ahead of further inferred approvals.",
-    "recommendation": "Finish the existing resource-owner migration and validate completed-work identities; preserve concrete correctness fixtures and remove displaced authority instead of adding monitors or refusal rules.",
+    "priority_changes": "Preserve valid progress via379 compatible identity; diagnose266 stopped full run before the one requested exclusive validation.392 local-lifetime and391 test-checkout recovery use existing planned/cleanup owners.",
+    "recommendation": "Act through current identities, run/scorecard diagnostics, Cause/Rules,status/hook,handler/supervisor and leftovers. No replacement ledgers, guidance files, scheduler or workload from SQA.",
     "refactor": {
         "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
         "history_path": "docs/sqa_findings.json",
         "layout": "Full canonical open/deferred; compact resolved closure sources/revision/costs; explicit aliases, including aliases to closed canonical findings. Prior narratives remain in Git."
       },
-    "reopened_findings": [
-        "SQA-261"
-      ],
+    "reopened_findings": [],
     "resolved_findings": [],
-    "reviewed_master": "fc5147e610c95ba02378bb46c2943dc112756f9c",
-    "uncertainty": "No new workloads. Recorded delays/parity are implementation evidence; selection as the cause of delayed LiveEdit detection was not independently verified. Aggregate+14620AST despite real card-owner reduction; refactor remains active.",
+    "reviewed_master": "03a941f92028cf9d0815984d03e5c4306be986fd",
+    "uncertainty": "Phase times do not identify stop cause; no completed full run established from latest record. Test-named checkouts are not all proven deletable. Current archived doctrine is not active authority. Net+45AST for the five-step GPU migration; no unearned speed/deletion claim.",
     "updated_findings": [
-        "SQA-215",
         "SQA-261",
+        "SQA-266",
+        "SQA-376",
         "SQA-379"
       ]
   }

@@ -84,11 +84,11 @@
           "id": "do",
           "title": "TabFM's objective test holds enough held-out cases to tell its gain from noise",
           "status": "open",
-          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/train -count=1 -run '^TestTabFMObjectiveApprovesOnHeldOutRows$' -timeout=0",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/train -count=1 -run '^TestTabFMObjectiveApprovesOnHeldOutRows$' -timeout=0",
           "files": [
             "cmd/train"
           ],
-          "rationale": "Serves: one full measurement run with the card to itself, which fails on two known causes until they are cured (owner, 2026-11-13).\n\nThe evidence (run-stop-cause/causes, eb0080dcc): held-out accuracy rises 0.7115 to 0.7885, a gain of 0.0769 over 26 cases, below the 0.0991 those cases can tell from noise, so the gain is not supported (gainDeviates = 2). The head trains no worse; its held-out set is too small to show this gain."
+          "rationale": "Serves: one full measurement run with the card to itself, which fails on two known causes until they are cured (owner, 2026-11-13).\n\nThe evidence (run-stop-cause/causes, eb0080dcc): held-out accuracy rises 0.7115 to 0.7885, a gain of 0.0769 over 26 cases, below the 0.0991 those cases can tell from noise, so the gain is not supported (gainDeviates = 2). The head trains no worse; its held-out set is too small to show this gain.\n\nNote: files set to cmd/train: the test reads credit-g's rows, whose held-out half makes enough requests"
         }
       ]
     },

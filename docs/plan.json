@@ -3,51 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "session-resume",
-      "title": "A session that resumes after its end was recorded is live, so its new work is never cleared as finished (SQA-384)",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 282,
-        "reason": "Filed from history: 282, the median of what 10 landings that changed internal/guard, cmd/loophook counted"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "A session that resumes after its end was recorded is live, so its new work is never cleared as finished (SQA-384)",
-          "status": "open",
-          "verify": "go test ./internal/guard -count=1 -run '^TestASessionThatResumesIsNotEnded$'",
-          "files": [
-            "internal/guard",
-            "cmd/loophook"
-          ],
-          "rationale": "Note: Serves: SQA-384 (P1): Invalidate a past session end before resumed work becomes deletable.\n\nThe evidence (SQA-384): guard.SessionEnded returns true as soon as loop_state-\u003cid\u003e-ended exists, before it reads the checkout's hold and its process; nothing removes that record when the same session resumes, though holdWorktree supports a restarted session and keeps its process current. So a session recorded as ended and then resumed has its new scratch read as finished, and session-scratch is deleted by clearFinished after a commit without asking again. The tests use distinct sessions for the recorded end and the live hold, so never combine them.\n\nThe change: a sign of life outranks an old end: a session the checkout's hold names with a running process is not ended, whatever was recorded, and a session that starts again removes its end's record (cmd/loophook, at session start), so a resumed session that holds nothing is not read as ended either.\n\nCheck: TestASessionThatResumesIsNotEnded records a session's end, then holds the checkout for it with a running process, and finds it not ended; and after the hook's session start for it, finds its end's record gone."
-        }
-      ]
-    },
-    {
-      "id": "provider-redirect",
-      "title": "A provider's key follows no redirect off its admitted endpoint (SQA-363)",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 665,
-        "reason": "Filed from history: 665, the median of what 1 landings that changed internal/remoterelay counted"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "A provider's key follows no redirect off its admitted endpoint (SQA-363)",
-          "status": "open",
-          "verify": "go test ./internal/remoterelay -count=1 -run '^TestAProvidersKeyFollowsNoRedirectOffItsEndpoint$'",
-          "files": [
-            "internal/remoterelay"
-          ],
-          "rationale": "Note: Serves: SQA-363 (P1): Keep provider credentials inside the admitted endpoint across redirects.\n\nThe evidence (SQA-363): 38b24b610 admits a provider's starting URL through KeyTransport, but remoterelay's listing (listing.go) and generation (generator.go) call http.Client.Do with the supplied client or http.DefaultClient, which follows redirects, and both attach the key as an Authorization header. Go's client keeps sensitive headers on a redirect to the same host name, a changed port among them, and does not refuse a change from https to http, so an admitted https endpoint answering with a redirect to http on the same host has its bearer token sent in cleartext on the next request; a 307 or 308 on generation replays the request too.\n\nThe change: a request that carries a provider's key follows no redirect off its admitted endpoint: a redirect to another scheme, host or port is refused before the key is sent again, naming where it led.\n\nCheck: TestAProvidersKeyFollowsNoRedirectOffItsEndpoint serves an https provider that redirects to plain http on its own host, and to another port, and finds the key never sent to either and the listing and the generation refused, naming the redirect."
-        }
-      ]
-    },
-    {
       "id": "readme-speed",
       "title": "The README's speed table reads prompt processing at 4,096 and 16,384 tokens for every chat model, from readings that keep their token counts",
       "owner": "master-lead",
@@ -71,24 +26,6 @@
       ]
     },
     {
-      "id": "smoke-budget",
-      "title": "validate -smoke with no -budget runs past discovery, as the DNA re-acquisition that passes none must (SQA-398)",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "validate -smoke with no -budget runs past discovery, as the DNA re-acquisition that passes none must (SQA-398)",
-          "status": "open",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestASmokeWithNoBudgetRunsPastDiscovery$'",
-          "files": [
-            "cmd/validate"
-          ],
-          "rationale": "Serves: SQA-398 (P2): no-clocks/own-budgets (c0905decb) made the smoke's budget the user's alone and removed the DNA re-acquisition's -budget 15m, but runSmoke still refused a budget of zero after discovery (\"explicit positive -budget required\"), so every smoke over a store that serves a model failed before it checked anything; the no-budget tests used empty stores, which end earlier.\n\nThe change: the refusal goes.\n\nCheck: TestASmokeWithNoBudgetRunsPastDiscovery publishes one hermetic GGUF as served into a store and runs validate -smoke on it with no -budget: it goes past discovery, failing later at the oracle declarations the fixture leaves out."
-        }
-      ]
-    },
-    {
       "id": "ceiling-files",
       "title": "Every ceiling a change's counts fell under is lowered in its file, alone or in a grouped block, and a refusal writes nothing (SQA-399)",
       "owner": "master-lead",
@@ -103,24 +40,6 @@
             "internal/landing"
           ],
           "rationale": "Serves: SQA-399 (P2), a refusal whose fix the tool knows is not a refusal.\n\nThe evidence: ceiling-fall/do (889e328f7) lowers a ceiling by replacing the text \"const NAME = N\": the surface ceilings stand in a grouped const block, aligned, where that text occurs nowhere, so their fall refuses with manual advice; two falls in one file refuse at the second, which rereads the candidate's bytes while the checkout holds the first's edit; and a refusal after a write leaves a partial edit before the candidate is taken again.\n\nThe change: each constant is found by its syntax wherever it is declared; every fall of a file is applied to one reading of it; every file is checked before any is written, so a refusal leaves the checkout as it was.\n\nCheck: TestALandingLowersEveryCeilingOfAFile lands a change under a fixture whose ceiling test holds two ceilings in one grouped, aligned block and both fall: the commit holds both lowered; and with one fall naming a constant the file does not hold, the landing refuses and the checkout's file is as it was."
-        }
-      ]
-    },
-    {
-      "id": "findings-dispatch",
-      "title": "The findings a lead must answer reach every dispatch: their ids are printed with the step, an unanswered P1 goes first, a declined finding is answered, and a step sees the findings its files touch before it starts",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Every dispatch prints the findings to file with the step, and an unanswered P1 is dispatched ahead of the rows",
-          "status": "open",
-          "verify": "go test ./internal/plan -count=1 -run '^TestAnUnansweredP1IsDispatchedFirst$'",
-          "files": [
-            "internal/plan"
-          ],
-          "rationale": "Serves: the owner's review of 2026-11-13: the findings hand-off stalled.\n\nThe cause: plan.Next reads FindingsToFile only under if dispatch.Complete (internal/plan/dispatch.go:152). The plan has not been empty since about 11 November, so no finding has been dispatched since; master_lead_triage is dated 2026-11-10. FindingsToFile returned 34 on 2026-11-13: 2 P1 (SQA-363, SQA-384, filed as rows that day) and 32 P2.\n\nThe change, a condition changed rather than a mechanism added: FindingsToFile is read on every dispatch and its ids printed with the step; an unanswered P1 is dispatched ahead of the rows until a row names it or the triage answers it; a triage action \"declined\" answers a finding as \"deferred\" and \"implemented\" do, with its note (findings_fall_through.go:88).\n\nCheck: TestAnUnansweredP1IsDispatchedFirst: a plan with an open row and a register holding a P1 no row names dispatches the P1 and prints the P2's id with it; a row naming the P1 dispatches that row; a P2 the triage declined is not printed."
         }
       ]
     },

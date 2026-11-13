@@ -15,6 +15,7 @@ import (
 	"cmp"
 	"encoding/json"
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -132,20 +133,33 @@ func RecordSessionEnd(root, session string) error {
 	return os.WriteFile(filepath.Join(root, processlock.StateDirectory, sessionEnd(session)), []byte(time.Now().UTC().Format(time.RFC3339)+"\n"), 0o600)
 }
 
-// SessionEnded reports whether session has ended, by a positive sign alone: its end recorded, or the checkout's hold
-// naming it and a process that has exited. A session with neither may be running, a review session among them, which
-// holds nothing, so it is never taken to have ended; a folder's age is no sign.
+// SessionEnded reports whether session has ended, by a positive sign alone: the checkout's hold naming it and a process
+// that has exited, or, where the hold names it with no process, its end recorded. A sign of life outranks an old end: a
+// session the hold names with a running process resumed after its end was recorded, and its new scratch is not
+// finished (SQA-384). A session with no sign may be running, a review session among them, which holds nothing, so it
+// is never taken to have ended; a folder's age is no sign.
 func SessionEnded(root, session string) bool {
 	state := filepath.Join(root, processlock.StateDirectory)
-	if _, err := os.Stat(filepath.Join(state, sessionEnd(session))); err == nil {
-		return true
+	if raw, err := os.ReadFile(filepath.Join(state, WorktreeHolder)); err == nil {
+		if held, process, start := ReadHold(raw); held == session && process > 0 {
+			return !processcontrol.Running(process, start)
+		}
 	}
-	raw, err := os.ReadFile(filepath.Join(state, WorktreeHolder))
-	if err != nil {
-		return false
+	_, err := os.Stat(filepath.Join(state, sessionEnd(session)))
+	return err == nil
+}
+
+// SessionResumed removes the record of session's end, as the session-start hook does for a session that starts again:
+// its end was its last incarnation's, and its new work is not finished (SQA-384).
+func SessionResumed(root, session string) error {
+	if SessionState(session) == SessionState("") {
+		return nil
 	}
-	held, process, start := ReadHold(raw)
-	return held == session && process > 0 && !processcontrol.Running(process, start)
+	err := os.Remove(filepath.Join(root, processlock.StateDirectory, sessionEnd(session)))
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	return err
 }
 
 // Landing reports whether a command lands a change through the gate: what makes a session an implementing one, whose

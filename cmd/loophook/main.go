@@ -435,6 +435,10 @@ const reviewNotice = "OVERGO REVIEW SESSION. This session reviews: it lands noth
 
 func runDoctrine(hookJSON string) {
 	session := parseHook(hookJSON).Session
+	// A session that starts again is not ended, whatever its last incarnation recorded (SQA-384).
+	if err := guard.SessionResumed(".", session); err != nil {
+		fmt.Fprintln(os.Stderr, "loophook:", err)
+	}
 	// A session that declared itself a review session stays one when it is
 	// resumed or compacted, and is told so in place of the turn contract.
 	base, ok := readTurnBase(session)

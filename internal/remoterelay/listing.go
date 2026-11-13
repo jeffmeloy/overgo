@@ -63,10 +63,28 @@ func ListModels(ctx context.Context, store *overgodb.Store, limit int, listing L
 	return listModels(ctx, provider.Endpoint, key, client)
 }
 
+// keyed is client, the default where none is given, refusing a redirect off the endpoint a provider's key was admitted
+// to: Go's client keeps the Authorization header on a redirect to the same host name, another port among them, and
+// from https to http, so the key would leave in cleartext or reach another service (SQA-363).
+func keyed(client *http.Client) *http.Client {
+	copied := *cmp.Or(client, http.DefaultClient)
+	followed := copied.CheckRedirect
+	copied.CheckRedirect = func(request *http.Request, via []*http.Request) error {
+		if admitted := via[0].URL; request.URL.Scheme != admitted.Scheme || request.URL.Host != admitted.Host {
+			return fmt.Errorf("remote relay: %s redirected the request to %s, off the endpoint the provider's key was admitted to", admitted.Redacted(), request.URL.Redacted())
+		}
+		if followed != nil {
+			return followed(request, via)
+		}
+		return nil
+	}
+	return &copied
+}
+
 // listModels GETs the endpoint's models route: the OpenAI-compatible listing carries each model's id, and OpenRouter's adds
 // its name and context length.
 func listModels(ctx context.Context, endpoint, key string, client *http.Client) ([]Listed, error) {
-	client = cmp.Or(client, http.DefaultClient)
+	client = keyed(client)
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint+modelsPath, nil)
 	if err != nil {
 		return nil, err

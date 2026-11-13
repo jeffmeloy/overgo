@@ -62,9 +62,6 @@ func runSmoke(ctx context.Context, output io.Writer, repository string, budget t
 	if len(entries) == 0 {
 		return errors.Join(runrecord.LaneError(runrecord.LaneEmpty, "servable matrix has no models"), reader.Close())
 	}
-	if budget <= 0 {
-		return errors.Join(errors.New("smoke: explicit positive -budget required"), reader.Close())
-	}
 	oracles, err := readSmokeOracles(smokeOraclePath, entries, model)
 	if err != nil {
 		return errors.Join(err, reader.Close())

@@ -52,7 +52,7 @@ func New(provider remoteprovider.Provider, definition recipe.Definition, client 
 	if _, err := remoteprovider.Key(provider); err != nil {
 		return nil, err
 	}
-	return &Generator{provider: provider, definition: definition, client: cmp.Or(client, http.DefaultClient)}, nil
+	return &Generator{provider: provider, definition: definition, client: keyed(client)}, nil
 }
 
 // FormatChat renders the conversation the generator forwards; media parts

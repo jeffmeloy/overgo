@@ -27,12 +27,13 @@ type openFinding struct {
 }
 
 // findingOpen is the status of a finding the reviewer has not closed; triageDeferred is the lead's triage of one whose
-// deciding evidence the next measurement run records, and triageImplemented of one the lead answered with rows, which
-// waits for the reviewer's closure.
+// deciding evidence the next measurement run records, triageImplemented of one the lead answered with rows, which
+// waits for the reviewer's closure, and triageDeclined of one the lead will not work, its note saying why.
 const (
 	findingOpen       = "open"
 	triageDeferred    = "deferred"
 	triageImplemented = "implemented"
+	triageDeclined    = "declined"
 )
 
 // readFindings reads the register's findings. It holds more, its reviewer's fields among them, so it is read for the
@@ -85,7 +86,7 @@ func FindingsToFile(document Plan, register []byte) ([]string, error) {
 	}
 	findings = slices.DeleteFunc(findings, func(finding openFinding) bool {
 		return finding.Status != findingOpen || !slices.Contains(fallThroughSeverities, finding.Severity) || namedByARow(document, finding.ID) ||
-			slices.Contains([]string{triageDeferred, triageImplemented}, triage.Triage.Findings[finding.ID].Action)
+			slices.Contains([]string{triageDeferred, triageImplemented, triageDeclined}, triage.Triage.Findings[finding.ID].Action)
 	})
 	slices.SortStableFunc(findings, func(a, b openFinding) int {
 		return cmp.Compare(slices.Index(fallThroughSeverities, a.Severity), slices.Index(fallThroughSeverities, b.Severity))

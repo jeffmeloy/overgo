@@ -91,8 +91,32 @@ func dispatchLine(dispatch Dispatch) string {
 	case dispatch.Step == ".":
 		return fmt.Sprintf("%s: %s -- open the rung (define its steps)", dispatch.Item, dispatch.ItemTitle) + decidedNote(dispatch)
 	default:
-		return fmt.Sprintf("%s / %s: %s -- %s", dispatch.Item, dispatch.Step, dispatch.ItemTitle, dispatch.StepTitle) + decidedNote(dispatch)
+		return firstP1(dispatch) + fmt.Sprintf("%s / %s: %s -- %s", dispatch.Item, dispatch.Step, dispatch.ItemTitle, dispatch.StepTitle) +
+			decidedNote(dispatch) + findingsNote(dispatch)
 	}
+}
+
+// firstP1 puts an unanswered P1 finding no row names ahead of the step, until a row names it or the triage answers it.
+func firstP1(dispatch Dispatch) string {
+	for _, finding := range dispatch.Findings {
+		if strings.Contains(finding, " (P1): ") {
+			return "first file as a row the P1 finding no row names, " + finding + "; then "
+		}
+	}
+	return ""
+}
+
+// findingsNote names by id the open findings no row names, which a step is dispatched beside.
+func findingsNote(dispatch Dispatch) string {
+	ids := make([]string, 0, len(dispatch.Findings))
+	for _, finding := range dispatch.Findings {
+		id, _, _ := strings.Cut(finding, " ")
+		ids = append(ids, id)
+	}
+	if len(ids) == 0 {
+		return ""
+	}
+	return " (findings no row names: " + strings.Join(ids, ", ") + ")"
 }
 
 // decidedNote says which unanswered decisions a row goes on under, at their recommended options.
@@ -148,15 +172,14 @@ func ResolveDispatch(ctx context.Context, root string, request DispatchRequest) 
 	if err != nil {
 		return Dispatch{}, err
 	}
-	// An empty plan falls through to the register's open P1 and P2 findings no row names, before the measurement run.
-	if dispatch.Complete {
-		register, readErr := os.ReadFile(filepath.Join(repository, filepath.FromSlash(FindingsRegister)))
-		if readErr == nil {
-			if dispatch.Findings, err = FindingsToFile(document, register); err != nil {
-				return Dispatch{}, err
-			}
-			dispatch.Line = dispatchLine(dispatch)
+	// Every dispatch reads the register's open P1 and P2 findings no row names: an empty plan falls through to them
+	// before the measurement run, and a step is dispatched with them, an unanswered P1 ahead of it. Read only for an
+	// empty plan, none was dispatched from 11 November, while the plan held rows (owner, 2026-11-13).
+	if register, readErr := os.ReadFile(filepath.Join(repository, filepath.FromSlash(FindingsRegister))); readErr == nil {
+		if dispatch.Findings, err = FindingsToFile(document, register); err != nil {
+			return Dispatch{}, err
 		}
+		dispatch.Line = dispatchLine(dispatch)
 	}
 	if stop.State != stopAbsent {
 		dispatch.Stop = &stop

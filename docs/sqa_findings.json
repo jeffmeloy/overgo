@@ -39,7 +39,7 @@
         ],
         "adoption_scope": "Supersedes the absent repository-document reference at the owner's request; current external SHA is verified. Does not alter the executable plan."
       },
-    "assessment": "Five landings repair physical wait fixtures, account for15 former failures, clarify preset output, remove forced drain and share replay/checker setup.392closed on source plus retained behavioral evidence;397 identifies unnecessary checker execution setup and lost causes.395 now removes71estimatedtestAST/two setups. Complete netGo+1226: no overall reduction.",
+    "assessment": "397 repaired through shared source-only tree owner. Default deadline removal is real; Worklist consumes existing records.398 smoke default,399 ceiling shape/batch and400 checker duplication remain. Production-575/test+817AST,net+242.",
     "ast_surface_review": {
         "revision": "9bd406acafb89c44a439722419f1f7e85e71f691",
         "architectural_target": "Fewer independent product entry points and dependency owners; retain process isolation and existing compiled/runtime/development authority.",
@@ -55,34 +55,42 @@
         "cost": "Concrete parsed duplicate migrations total22production and150test AST removed; unimplemented estimates only. Three directories can disappear through349/351; command movement and all retained semantic constants must be charged. No overall refactor completion claimed."
       },
     "automation_follow_up": {
-        "architectural_progress": "The real replay test shares replaySteps checkout/lock; committed checker source is isolated through the existing tree mover. A separate child now holds the real turn in wait fixtures. All15 prior test names have current retained outcomes.",
-        "remaining": "397 source-only checker prerequisite/error transport;391 twelve old trees/legacy PID assertion;261 availability-probe/acquisition;380 effective environment;266 two named readiness causes/full publication;376 refusal worklist.",
+        "architectural_progress": "Worklist/status reuse Refusal ledger; ceilings reuse invariant output instead of another run; checker shares moveTree while replay retains roots.",
+        "remaining": "398smoke;399actual ceiling batch/shape;376Rules withoutCause,unknown edits/history and automatic delivery;380environment;261acquisition;391old trees.",
         "plan_recommendations": [
           {
-            "rows": "clean-checker/do (landed)",
+            "rows": "checker-setup/do landed",
             "findings": [
-              "SQA-397"
+              "SQA-397",
+              "SQA-400"
             ],
-            "recommendation": "Keep committed source, remove replay-only prerequisite and propagate original setup errors before confirmation."
+            "recommendation": "Close setup defect,retain unique negative case in one checker fixture."
           },
           {
-            "rows": "run-stop-cause/causes (landed)",
+            "rows": "ceiling-fall/do landed",
             "findings": [
+              "SQA-399"
+            ],
+            "recommendation": "Handle actual declaration shapes/all same-file edits before mutation."
+          },
+          {
+            "rows": "own-budgets/rule landed",
+            "findings": [
+              "SQA-398",
               "SQA-266"
             ],
-            "recommendation": "Credit15 accounting; resolve TabFM evidence/catalog origin through existing owners before full cycle."
+            "recommendation": "Remove obsolete smoke admission; retain explicit limits/cancellation without new analysis machinery."
           },
           {
-            "rows": "real-holder/do (landed)",
+            "rows": "refusal-advice/worklist landed",
             "findings": [
-              "SQA-261",
-              "SQA-395"
+              "SQA-376"
             ],
-            "recommendation": "Retain physical holder; merge three same-result assertion bodies/setup into one."
+            "recommendation": "Count known Rules withoutCause; disclose unknown edit/history and reuse automatic status boundary."
           }
         ],
-        "complete_cost": "b5a5bcbea->e969f619a: five landings/17changed-Go paths, +169production/+1057testAST (net+1226), +28/+198lines,0production/+4testfiles. Drain -138production/+59test (net-79); real-holder0/+251; stop-cause0/+15; admission words+52/+269; replay+checker+255/+463.0staticfixture files/bytes,command binaries or package-directory removals. Checker adds one reusable worktree/lock per checkout; existing temporary gate executable remains. No measured elapsed or disk saving.",
-        "authority": "Report-only; no implementation,workloads or dispatch."
+        "complete_cost": "e969f619a->c0d39cb64:5landings/49changed-Go paths; production-575AST/-108lines/+2files; tests+817AST/+196lines/+4files; combined+242AST/+6files. Ceiling+352/+426; worklist+375/+156; own-budgets-1342/+35; rule0/-32; checker+40/+232.0staticfixture bytes/files,binary orpackage-directory removals. Own-budgets net-1307GoAST is real; whole interval grows242. No measured elapsed/disk saving.",
+        "authority": "Report-only,no implementation/dispatch/workloads."
       },
     "current_review_order": "Current guidance/pin/plan -> direct callers and local retained facts -> existing canonical obligations -> selected AST/full cost -> concurrent reconciliation.",
     "declined_candidates": [
@@ -187,18 +195,18 @@
         ]
       },
     "plan_review_follow_up": {
-        "pin": "e969f619a89e45c3380e30853b01af393d55ba47",
-        "assessment": "34items. First:refusal-advice, no-clocks, host-card, readme-speed, guidance-ops. Fifteen-cause row landed; current TabFM/catalog causes and absent full publication remain explicit. Uncommitted ceilings/plan edits excluded.",
-        "recommendation": "Use retained cause evidence to admit the one requested cycle; avoid repeating known invalid setup. Reduce overlapping native setup and keep build-only responsibilities separate from runtime roots.",
-        "limits": "No plan edits,application tests,model/device runs or dispatch.",
-        "sources": "Pinned plan/callers/commit records and root/nested measurement snapshots."
+        "pin": "c0d39cb649dbf066634570fc3fa28bbce3bdee92",
+        "assessment": "32items;host-card/readme-speed/guidance-ops first. Five reviewed rows landed. Current host-card driver/plan drafts excluded; latest full measurement stillfdd4ab1.",
+        "recommendation": "Repair actual producer/consumer setup before dependent expensive checks; preserve numerical/catalog readiness and authority.",
+        "limits": "No plan edits/tests/model/device/agents/messages/cleanup.",
+        "sources": "Pinned plan/callers,retained gates,local bounded snapshots."
       },
-    "rank_basis": "Correctness/recovery/setup causes precede local reductions.392 is closed with explicit retirement of unnecessary earlier origin/routing proposals.397 is a distinct checker boundary, not another environment-policy backlog.395 uses complete assertion/setup cost.",
+    "rank_basis": "Actual398/399 admission failures precede local400 consolidation.397 closed;400 retains unique coverage.376 owns known-rule/history/delivery obligations.",
     "refactor_target_progress": {
-        "architectural_progress": "Request lifetime uses existing release/condition owner, deleting timer state. Real replay shares its production setup; checker uses committed code. No new recipe runtime, scheduler or format adapter.",
-        "conflicts": "Checker now inherits model-runtime root setup and loses setup errors. Separate wait tests repeat same native work. Statistical approval remains unchanged beneath clearer words. Existing source/format execution migration remains incomplete.",
-        "next_useful_reductions": "395 combine three card-wait results, net71testAST estimate/setup3->1.397 remove unnecessary source-build prerequisite through existing owners. Retain the net79GoAST drain deletion and its recovery tests.",
-        "cost": "b5a5bcbea->e969f619a: five landings/17changed-Go paths, +169production/+1057testAST (net+1226), +28/+198lines,0production/+4testfiles. Drain -138production/+59test (net-79); real-holder0/+251; stop-cause0/+15; admission words+52/+269; replay+checker+255/+463.0staticfixture files/bytes,command binaries or package-directory removals. Checker adds one reusable worktree/lock per checkout; existing temporary gate executable remains. No measured elapsed or disk saving."
+        "architectural_progress": "Default deadline owner/tests removed. Limited shares actual optional caller bounds. moveTree separates source from runtime-root setup. Worklist reads existing ledger.",
+        "conflicts": "Clock inventory837AST does not prove smoke budget-value admission. Ceiling updater misses actual syntax/batch; checker fixtures duplicate build. No model-format/binary/package migration.",
+        "next_useful_reductions": "400estimated200testAST/onebuild;395estimated71/twosetups still open.398 deletes stale guard;399 necessary growth unknown.",
+        "cost": "e969f619a->c0d39cb64:5landings/49changed-Go paths; production-575AST/-108lines/+2files; tests+817AST/+196lines/+4files; combined+242AST/+6files. Ceiling+352/+426; worklist+375/+156; own-budgets-1342/+35; rule0/-32; checker+40/+232.0staticfixture bytes/files,binary orpackage-directory removals. Own-budgets net-1307GoAST is real; whole interval grows242. No measured elapsed/disk saving."
       },
     "working_notes_review": {
         "finding": "SQA-334",
@@ -208,10 +216,10 @@
       }
   },
     "committed_plan": {
-    "git_blob": "b131b05f337367f73ba18a3098fbdce7f6a31946",
+    "git_blob": "378b57a354ce574930fc1d36a33f6a78d0843495",
     "path": "docs/plan.json",
-    "revision": "e969f619a89e45c3380e30853b01af393d55ba47",
-    "sha256": "b324cd7c3cef008d7b47075d6e630b961209c4b1030912d10047a030e98b4eb9",
+    "revision": "c0d39cb649dbf066634570fc3fa28bbce3bdee92",
+    "sha256": "7d54177f150db203a428670e0732df0575acf30cc7e6ae469b6965f6fcaa37d2",
     "working_tree_status": "Committed plan at review pin; prior draft assessment retains its own snapshot identity. Current working plan edits excluded."
   },
     "findings": [
@@ -810,8 +818,8 @@
       ],
     "comparison": "Use the retained15-test accounting and current numerical/catalog requirements to decide readiness before the one authorized full cycle. Preserve bounds and actual artifact identities; no SQA rerun. Continue comparing moved/removed tests with retained owners and delivered lane receipts; global source setters are not execution proof.",
     "displaced_surface": "Existing plan.RecordDigests/runRecorder already displace repeated file reads and erased phase metadata (+261production/+581test for that earlier full change). Current opt-in migration removes five one-shot probe/benchmark files and duplicate Gemma4 prompt wrappers, relocates model-only tests and adds1248policy nodes; complete current landing net -2832 Go AST, not gross deletion. Native Kimi/T5 fixtures and multimodal production input matrix retain the named shared contracts; remaining external-catalog/identity requirements need explicit disposition. No fixture bytes or binaries/directories disappear. A correction to the global-set heuristic may remove its228-node setVariables reader plus callers, but complete after-cost/admission coverage is undecided; no speculative saving credited.",
-    "evidence": "eb0080dcc accounts for all15 retained failing names at4dcd2df02 with modeltest,integration and -timeout=0 under exclusive card ownership:12pass; Un-0 fails immediately because its fixture gives Open a nonexistent store, fixed by giving the empty directory used by the retained adapter fixture; TabFM gains0.0769(0.7115->0.7885) over26held-out cases, below its detectable0.0991 at gainDeviates2; the viewed-model check finds native Gemma4 registered through its two GGUF conversions rather than the named files. The latter two remain actionable prerequisites through existing training-evidence and catalog/onboarding owners, not a reason to lower acceptance or activate a model as SQA. Prior15-name/9-selector coverage is superseded by this retained full accounting. The retired verifier also omitted integration, excluding Wan, and inherited Go's10minute alarm; MOSS ended at600.3s. Historical November8 messages were not retained, so present causes cannot be assigned retroactively to that stop. Keep the uncertainty explicit.\nThe root and nested measurement records still name fdd4ab1cea379541604905e9b913b1a5f3d92bc8; no new full run/publication is established. The landing scorecard remains one fixed text input, not system-wide evidence. Keep the corrected distinction between card-wait time and useful model load, the existing digest/phase owner and all unique opt-in coverage obligations below.\nHash-once/phase preservation is already owned by plan.RecordDigests and runRecorder: same Started identity reuses digests, a new begin rehashes. The native fixture deliberately mutates bytes within a run yet retains the first digest. The historical12-18minute saving is extrapolated, not measured. Existing paired numerical owners, exact identities, partial failures and phase/package/digest preservation remain obligations.\n4dcd2df02 now removes/relocates the31 flagged opt-ins and related cases. The complete landing is +3production/-2835testAST, after charging the1248-node runs_somewhere policy; no fixture bytes disappear. Five deleted probe/benchmark files retain one-shot decision sources: adapter33e96a505, composition3716051ea, chain e88d0033a, dose1b446104a, loader72bc4248d. The obsolete eight-row identity probe used an empty repository store and3of7 goldens no longer match; preserve any still-required record identity through its existing owner rather than reviving that setup. Gemma4 image/audio prompt tests are actual duplicate contracts: TestMultimodalInputMatrix/gemma4-12b-image-audio-video retains the same SHA-pinned goldens/questions, full TokenIDs and production BuildImagePrompt/BuildAudioPrompt, plus first-token/video checks. Leadership/generation checks move to windows&&modeltest and existing CycleLanes model ownership; added baseline flags deliberately increase future cycle work, which is not measured by deleted AST.\nDeleted Kimi/Gemma3/UMT5 real-catalog tests checked external ReadSpec/ReadWeights, layer counts and hybrid/postnorm/relative-bias bindings. Existing TestReadWeightsKimiLinearHybrid and TestReadWeightsT5Encoder retain small native hybrid/bias bindings through readFixtureWeights->ReadWeights. That is partial requirement ownership, not proof of equivalent external metadata or checkpoint completeness.48/24 were checkpoint expectations, not universal architecture limits. Missing installed checkpoints alone is not a retirement reason; map remaining unique requirements or explicitly retire checkpoint-specific assertions. Do not replace these with new heavy model runs.\nTestEveryTestRunsSomewhere globally accepts a gate if any source contains NAME=value or Setenv(NAME,...). A setter after that test's own skip, or only in an unrelated fixture, therefore supplies apparent ownership without delivering the variable to the guarded process. This is a source-admitted counterexample, not an executed regression. Treat the scan as guard inventory, not proof of execution; four explicit awaitingPin reference-build gates remain. Retained implementation evidence reports Krea velocity median -0.0153 versus0.0354 outside0.012 while latent acceptance passes. Diagnose that existing numerical cause; do not relax its bound or add a second ledger/run. SQA ran no tests.",
-    "evidence_commit": "e969f619a89e45c3380e30853b01af393d55ba47",
+    "evidence": "eb0080dcc accounts for all15 retained failing names at4dcd2df02 with modeltest,integration and -timeout=0 under exclusive card ownership:12pass; Un-0 fails immediately because its fixture gives Open a nonexistent store, fixed by giving the empty directory used by the retained adapter fixture; TabFM gains0.0769(0.7115->0.7885) over26held-out cases, below its detectable0.0991 at gainDeviates2; the viewed-model check finds native Gemma4 registered through its two GGUF conversions rather than the named files. The latter two remain actionable prerequisites through existing training-evidence and catalog/onboarding owners, not a reason to lower acceptance or activate a model as SQA. Prior15-name/9-selector coverage is superseded by this retained full accounting. The retired verifier also omitted integration, excluding Wan, and inherited Go's10minute alarm; MOSS ended at600.3s. Historical November8 messages were not retained, so present causes cannot be assigned retroactively to that stop. Keep the uncertainty explicit.\nThe root and nested measurement records still name fdd4ab1cea379541604905e9b913b1a5f3d92bc8; no new full run/publication is established. The landing scorecard remains one fixed text input, not system-wide evidence. Keep the corrected distinction between card-wait time and useful model load, the existing digest/phase owner and all unique opt-in coverage obligations below.\nHash-once/phase preservation is already owned by plan.RecordDigests and runRecorder: same Started identity reuses digests, a new begin rehashes. The native fixture deliberately mutates bytes within a run yet retains the first digest. The historical12-18minute saving is extrapolated, not measured. Existing paired numerical owners, exact identities, partial failures and phase/package/digest preservation remain obligations.\n4dcd2df02 now removes/relocates the31 flagged opt-ins and related cases. The complete landing is +3production/-2835testAST, after charging the1248-node runs_somewhere policy; no fixture bytes disappear. Five deleted probe/benchmark files retain one-shot decision sources: adapter33e96a505, composition3716051ea, chain e88d0033a, dose1b446104a, loader72bc4248d. The obsolete eight-row identity probe used an empty repository store and3of7 goldens no longer match; preserve any still-required record identity through its existing owner rather than reviving that setup. Gemma4 image/audio prompt tests are actual duplicate contracts: TestMultimodalInputMatrix/gemma4-12b-image-audio-video retains the same SHA-pinned goldens/questions, full TokenIDs and production BuildImagePrompt/BuildAudioPrompt, plus first-token/video checks. Leadership/generation checks move to windows&&modeltest and existing CycleLanes model ownership; added baseline flags deliberately increase future cycle work, which is not measured by deleted AST.\nDeleted Kimi/Gemma3/UMT5 real-catalog tests checked external ReadSpec/ReadWeights, layer counts and hybrid/postnorm/relative-bias bindings. Existing TestReadWeightsKimiLinearHybrid and TestReadWeightsT5Encoder retain small native hybrid/bias bindings through readFixtureWeights->ReadWeights. That is partial requirement ownership, not proof of equivalent external metadata or checkpoint completeness.48/24 were checkpoint expectations, not universal architecture limits. Missing installed checkpoints alone is not a retirement reason; map remaining unique requirements or explicitly retire checkpoint-specific assertions. Do not replace these with new heavy model runs.\nTestEveryTestRunsSomewhere globally accepts a gate if any source contains NAME=value or Setenv(NAME,...). A setter after that test's own skip, or only in an unrelated fixture, therefore supplies apparent ownership without delivering the variable to the guarded process. This is a source-admitted counterexample, not an executed regression. Treat the scan as guard inventory, not proof of execution; four explicit awaitingPin reference-build gates remain. Retained implementation evidence reports Krea velocity median -0.0153 versus0.0354 outside0.012 while latent acceptance passes. Diagnose that existing numerical cause; do not relax its bound or add a second ledger/run. SQA ran no tests.\nc0905decb removes active-test deadline owner/tests, default evaluation/guard deadlines and wall-based post-failure skipping. RunCommand supplies -timeout=0 only when absent, preserving explicit supplied timeouts; Limited shares optional caller bounds. Failure output/run records, event progress and cancellation remain. All lane packages now finish after failure to collect independent diagnostic results; future expensive work counts. The removed15minute heuristic was not a declared dependency: do not restore it or assume all queued checks redundant. Admit actual shared setup dependencies through current owners before dependent work, preserving independent progress.398 finds the missed default-zero smoke guard. Root full record remainsfdd4ab1; no new full publication established.",
+    "evidence_commit": "c0d39cb649dbf066634570fc3fa28bbce3bdee92",
     "expected_benefit": {
         "outcome": "Already-landed digest reuse avoids potential repeated model-file reads. Current opt-in migration is net -2832 Go AST (+3production/-2835test), including1248policy nodes. Duplicate prompt setup disappears; moved model checks now charge the measurement cycle. Neither historical hashing estimates nor different gate walls establish elapsed savings.",
         "uncertainty": "No newer full measurement run or matched runtime/peak comparison established. Within-run digest immutability remains explicit. Three deleted external catalog cases need unique-requirement disposition; the global-set scan is a heuristic. The earlier long-sequence lane +35production/+259test and predicted~3minutes remain separate costs, not saved work."
@@ -819,7 +827,7 @@
     "id": "SQA-266",
     "impact": "Hours of retained paired execution justify attention, but stale credit or losing reference-vs-optimized evidence hides numerical regressions. Preserve recipe/tokenizer/kernel/environment/lifetime bindings. No blanket minutes-only validation claim.",
     "likely_effort": "No current implementation task authorized by this report. Reassess the smallest named overlap from the next ordinary retained package record; keep completed digest/phase reuse credit.",
-    "plan_coverage": "run-stop-cause/causes landedeb0080dcc, retiring the incomplete fifteen verifier. Current full accounting is credited; two named prerequisites and the requested full measurement remain. Opt-in requirement mapping and source-scan limits remain under this same canonical owner.",
+    "plan_coverage": "own-budgets/rule landed; deadline machinery genuinely removed. Existing readiness causes, opt-in ownership/full publication and398 smoke admission remain. No SQA workload.",
     "plan_references": [],
     "raised_by": "Review session e8549e3e at the owner's request, 2026-10-31 (owner: \"there is fundamental problem with this system to re-do testing over, and over, and over and over, and never finish\"; \"don't run the whole scorecard until code is fixed\")",
     "recommended_change": "Credit the retained all15 accounting and Un-0 native setup correction. Resolve TabFM's insufficient-evidence requirement through its existing held-out/training owner and reconcile the viewed artifact's source/executable registration through existing catalog/onboarding authority before the single requested full cycle. Do not weaken the statistical bound, force conversion or mutate/activate the store as SQA. Reuse actual compatible evidence and retain partial failures. The one post-rehearsal exclusive full run still belongs to the existing measurement/publication driver, not another recurring workload. Distinguish the current causes from unrecoverable historical messages. Keep card-wait measurement separate from useful work and independent host progress.\nRetain the Gemma4 prompt oracle under the multimodal production-path fixture and the moved model checks under CycleLanes. For removed catalog/identity probes, transfer only unique supported requirements into existing native ReadWeights/record fixtures, or explicitly document why the checkpoint-specific requirement is retired. Keep one-shot refusal/SHIP evidence in Git; do not reinstate retired experiments as standing tests. Diagnose the exposed Krea failure before dependent performance/quality claims.\nRemove global incidental Setenv/string presence as proof that admission reaches a test. Retain declared CycleLanes and scoped child-process admission as owners, using actual selected/passed/skipped receipts from an ordinarily authorized run to decide coverage. Any retained static guard inventory must state that limit. Do not build a control-flow analyzer, selector, new cache or scheduler to perfect the heuristic; count the check's own maintenance and future newly enabled work.",
@@ -9028,7 +9036,7 @@
     },
     {
     "category": "development-feedback-through-existing-owner",
-    "classification": "automatic-day-delivery-landed; truthful-counts-and-old-projection-remain",
+    "classification": "worklist-consumption-landed; known-rule-omission-and-history-delivery-remain",
     "closure_criteria": [
         "The existing automatic boundary delivers the five measures with exact source/window and truthful unknowns.",
         "Report commits and completed steps are distinct; preflights/retries/unknown history do not distort the refusal or commit denominator.",
@@ -9036,27 +9044,28 @@
         "Retained native status coverage verifies the actual output boundary and complete costs without another recurring workload.",
         "The worklist reads existing cause/rule records and marks unavailable historical/edit details unknown; no duplicate cause field or parallel ledger. Hook/driver continuation follows the agreed current recovery transition while preserving explicit stops, typed replies, review exclusions and authority."
       ],
-    "comparison": "One retained status setup distinguishes absent versus empty records, known preflight versus unknown history, unique commit versus two step trailers, and an already-landed retry. Verify the existing session-start/status boundary emits the same source/window and preserves dispatch/owner decisions; failure to read measurements must not prevent work. Keep partial history explicit and do not sum overlapping stage/whole-run times.",
+    "comparison": "Extend existing Worklist fixture with Rules:[pins] and emptyCause: retain attribution, label cause/edit unknown. Keep absent/empty history, two-step/one-commit, retry/window and best-effort automatic status cases in current fixtures; no new suite.",
     "displaced_surface": "Already removed: mandatory answered-refusals work and dependence on a manual command to see day feedback at session start. Next removal: contradictory old weekly outcome/idle interpretation and duplicated status arithmetic/assertions. Keep spent/refusal records, Git, dispatch and current DayDelivery as the existing owners; no new ledger, dashboard, polling or policy suite.",
-    "evidence": "9290a89 adds DayDelivery through existing status and session-start output, records new run Kind, separates historical unknown-kind refusals and preflights, and derives report membership from filing9479f5815. 5f2e763cf retires answered-refusals, removing the proposed prose/plan-mutation gate. These are substantive improvements. Remaining source-established cases: readRuns returns nil on a missing ledger, leaving refusals/hours at zero despite the unknown-data requirement; ReportLandings increments per Landed-Row rather than per commit, so one coordinated commit advancing two report steps counts twice; writeStatus still prints WeekPace's landed-outcome/preflight-ambiguous refusal percentage and idle-gap inference beside the corrected day measures. DayDelivery.String names the head but omits its exact window; it reports summed run wall and waits, not check-stage hours. The new747AST fixture verifies the projection/String helper, not actual session-start delivery. Source confirms the hook call is best-effort and does not block work; no live hook or workload was executed. Historical November8/9 counts and uncertainty remain as recorded in prior revisions, not reread or recast as newly measured savings. 39b457deb now stores the first cause line (UTF-8-safe240-byte cap) in the existing refusal record. No production consumer of Cause was found beyond assignment/serialization in this bounded search, so this improves retained diagnostics, not automatic cause delivery or the remaining count/window semantics. The earlier residuals are unchanged.\nOwner correction verified: Refusal already has Cause (first line,240-byte UTF-8-safe cap) and Rules, persisted by RecordRefusal. The current local ledger has402entries,24with nonempty cause and34with rules; historical missing values cannot be reconstructed as observed causes. Existing cause data must be consumed, not duplicated in a new field. The proposed refusal-advice/worklist still asks for rule/test/edit information, but a truncated first line does not prove whether the old full detail contained an edit. 1c3f6be52 now replaces generic keep-going advice in AGENTS.md, defaultPrompt and sessionInstructions with cause-first/removal-first wording. The worker/session fixture and pointer assertion retain that text. This resolves the identified stale wording; matching prose does not prove refusal-cause consumption or automatic remediation. stopDecision remains conditional for typed/review/stop/gate/wait cases. Only archived owner-doctrine copies were found; no alternate current guidance authority is restored. Existing Cause/Rules worklist and delivery/count semantics remain open.",
-    "evidence_commit": "802b6da23f9687208fe758fa26d495e3b12343fd",
+    "evidence": "9290a89 adds DayDelivery through existing status and session-start output, records new run Kind, separates historical unknown-kind refusals and preflights, and derives report membership from filing9479f5815. 5f2e763cf retires answered-refusals, removing the proposed prose/plan-mutation gate. These are substantive improvements. Remaining source-established cases: readRuns returns nil on a missing ledger, leaving refusals/hours at zero despite the unknown-data requirement; ReportLandings increments per Landed-Row rather than per commit, so one coordinated commit advancing two report steps counts twice; writeStatus still prints WeekPace's landed-outcome/preflight-ambiguous refusal percentage and idle-gap inference beside the corrected day measures. DayDelivery.String names the head but omits its exact window; it reports summed run wall and waits, not check-stage hours. The new747AST fixture verifies the projection/String helper, not actual session-start delivery. Source confirms the hook call is best-effort and does not block work; no live hook or workload was executed. Historical November8/9 counts and uncertainty remain as recorded in prior revisions, not reread or recast as newly measured savings. 39b457deb now stores the first cause line (UTF-8-safe240-byte cap) in the existing refusal record. No production consumer of Cause was found beyond assignment/serialization in this bounded search, so this improves retained diagnostics, not automatic cause delivery or the remaining count/window semantics. The earlier residuals are unchanged.\nOwner correction verified: Refusal already has Cause (first line,240-byte UTF-8-safe cap) and Rules, persisted by RecordRefusal. The current local ledger has402entries,24with nonempty cause and34with rules; historical missing values cannot be reconstructed as observed causes. Existing cause data must be consumed, not duplicated in a new field. The proposed refusal-advice/worklist still asks for rule/test/edit information, but a truncated first line does not prove whether the old full detail contained an edit. 1c3f6be52 now replaces generic keep-going advice in AGENTS.md, defaultPrompt and sessionInstructions with cause-first/removal-first wording. The worker/session fixture and pointer assertion retain that text. This resolves the identified stale wording; matching prose does not prove refusal-cause consumption or automatic remediation. stopDecision remains conditional for typed/review/stop/gate/wait cases. Only archived owner-doctrine copies were found; no alternate current guidance authority is restored. Existing Cause/Rules worklist and delivery/count semantics remain open.\n713568035 consumes existing Cause/Rules through Worklist and explicit loop -status, without another ledger/field. Local snapshot417entries:39Cause,37Rules,378withoutCause;30of those retain Rules. Worklist skips emptyCause before refusedBy and loses these30 known-rule records. Native156-node fixture covers cause-less records only without Rules. Cause remains first-line/240UTF-8-byte capped: absent edit text is unknown, not proof of no edit. Edits counts observed substrings only; attribution to multiple tests/rules is not a distinct-attempt sum. Session-start still calls DayDelivery directly, not Worklist; manual status consumption is not automatic cause delivery/recovery. Existing unknown-ledger, unique-report-commit, window/wall-label and conflicting weekly projection obligations remain.",
+    "evidence_commit": "c0d39cb649dbf066634570fc3fa28bbce3bdee92",
     "expected_benefit": {
         "landed_cost": "9290a89 adds1385 production/747 test AST,275 production/101 test lines and two Go files; no new package, binary or static fixture. delivery.go1260AST, status.go405, spent.go197. The retained status_test386 and new status_measures_test747 exercise different current contracts; they are not automatically duplicates.",
         "reduction_candidate": "Retire obsolete WeekPace/projection assertions only after current decision and necessary status cases move to the retained status owner. Reuse the existing fixture rather than another Git setup. Full replacement cost unmeasured; no net-saving claim.",
         "retained_validation": "Implementation verifier18.423s; gate232s. Its undo attempt failed to compile, which is not assertion-based absence proof. Source call tracing establishes wiring; actual new fixture covers the helper/String only.",
-        "current_increment": "Cause retention adds59production/286testAST,12/57lines andone test file. Existing record growth is real even though no new schema file/binary is reported. Current total counts it once."
+        "current_increment": "Cause retention adds59production/286testAST,12/57lines andone test file. Existing record growth is real even though no new schema file/binary is reported. Current total counts it once.",
+        "worklist_increment": "Complete+375production/+156testAST,0staticfixtures. Worklist164/refusedBy110/status473AST are owners,not deletion estimates. No measured saved wall."
       },
     "id": "SQA-376",
     "impact": "Makes growing check cost, plan churn and starvation of requested capability work visible without adding another source of refusals.",
     "likely_effort": "Bounded existing status/Git projection and delivery integration; accurate historical run-kind attribution is limited by existing data.",
-    "plan_coverage": "find-the-cause/words landed the current guidance/prompt migration. refusal-advice/worklist and ceilings-fall remain open; retain existing storage/status/authority owners. No closure from a string-matching test alone.",
+    "plan_coverage": "refusal-advice/worklist landed713568035 and carried the prior report. Count retained Rules withoutCause and qualify unknown edit/history. Automatic cause delivery and existing projection semantics remain open.399 is separate auto-edit ownership.",
     "plan_references": [
         "review-fixes/status-measures9290a89 (landed; partial closure)",
         "fail-early/answered-refusals retired5f2e763cf",
         "User request: five signals and prevention before more refusal rules",
         "Downloads extreme_refactor_plan.md: existing ownership and delivered continuation"
       ],
-    "recommended_change": "Retain DayDelivery and its normal best-effort session-start call. Represent unavailable run history as unknown separately from an observed empty ledger. Count unique Git commits that advance report rows, keeping completed-step totals separate; a multi-step landing must not inflate the commit metric. Remove the obsolete WeekPace status projection or derive compatible measures from the same correctly classified records, preserving owner-decision/dispatch output and avoiding a second recount. Display the actual time window and distinguish gate-run wall including waits from check-stage time if the latter is claimed. Extend the retained status fixture for absent history, a two-step single report commit, retries, known refused preflight and actual boundary delivery. Preserve stop/authority and best-effort publication. Do not introduce further refusal rules, periodic runs or a new metrics owner. Build the requested worklist from existing Refusal.Cause/Rules and available original diagnostics using this same status/loop owner; missing historical causes or fix-edit detail remain unknown. Add no replacement cause field/ledger. Group precise retained rules/tests before stage-only fallback; preserve count/window semantics and distinguish refused attempts from commits. Have the existing driver/stop-hook consume actionable cause/fix results so automatic continuation does not mean blindly repeating an unchanged failure. Keep AGENTS as the single guidance pointer and put any agreed recovery transition in the current skill/code owner with its existing check; do not promote archived owner-doctrine prose or add another markdown authority.",
+    "recommended_change": "Retain DayDelivery and its normal best-effort session-start call. Represent unavailable run history as unknown separately from an observed empty ledger. Count unique Git commits that advance report rows, keeping completed-step totals separate; a multi-step landing must not inflate the commit metric. Remove the obsolete WeekPace status projection or derive compatible measures from the same correctly classified records, preserving owner-decision/dispatch output and avoiding a second recount. Display the actual time window and distinguish gate-run wall including waits from check-stage time if the latter is claimed. Extend the retained status fixture for absent history, a two-step single report commit, retries, known refused preflight and actual boundary delivery. Preserve stop/authority and best-effort publication. Do not introduce further refusal rules, periodic runs or a new metrics owner. Build the requested worklist from existing Refusal.Cause/Rules and available original diagnostics using this same status/loop owner; missing historical causes or fix-edit detail remain unknown. Add no replacement cause field/ledger. Group precise retained rules/tests before stage-only fallback; preserve count/window semantics and distinguish refused attempts from commits. Have the existing driver/stop-hook consume actionable cause/fix results so automatic continuation does not mean blindly repeating an unchanged failure. Keep AGENTS as the single guidance pointer and put any agreed recovery transition in the current skill/code owner with its existing check; do not promote archived owner-doctrine prose or add another markdown authority. Consume known Rules even when Cause is empty. Describe Edits as retained observed edit substrings, not complete fixable-refusal counts; disclose omitted/unknown history through existing status output. Do not add fields to the cause ledger.",
     "severity": "P2",
     "sources": [
         {
@@ -9110,6 +9119,10 @@
         {
           "path": "internal/landing/refusal_cause_test.go",
           "symbol": "TestARefusalKeepsItsCause"
+        },
+        {
+          "path": "internal/landing/worklist_test.go",
+          "symbol": "TestRefusalsAreListedByTheRuleThatRefusedThem"
         }
       ],
     "status": "open",
@@ -10211,60 +10224,172 @@
       "comparison": "The smallest deciding comparison is one NaN-valued got element through the retained error decision: it must refuse while unchanged finite reference cases keep the same tolerance. Check infinity handling as well. Reuse the existing native fixture/inline comparison; no SQA-triggered test or model run."
     },
     {
-      "id": "SQA-397",
-      "status": "open",
-      "severity": "P2",
-      "category": "checker-prerequisite-and-error-propagation",
-      "classification": "source-admitted-unneeded-runtime-root-prerequisite-and-lost-setup-cause",
-      "title": "Build the committed checker without replay-only prerequisites and retain setup errors",
-      "evidence_commit": "e969f619a89e45c3380e30853b01af393d55ba47",
-      "sources": [
+    "category": "checker-prerequisite-and-error-propagation",
+    "classification": "verified-source-only-checker-and-nonempty-setup-refusal",
+    "evidence": "c0d39cb64 separates moveTree (Git-only checker/replay owner) from moveReplay (runtime roots for replay/mutants). buildChecker uses moveTree and a named-result defer ensures nonempty refusal for every setup/build error. Gate stops landRow at gate phase and landCommand records the original refusal. Both native checker fixtures omit roots; committed-versus-dirty output/preservation remains. Retained checker-setup regression fails on an assertion with land.go/replay.go restored; SQA ran none. Complete fix+40production/+232testAST,0staticfixtures.400 retains remaining duplicate native setup/unique error assertion;380 remains distinct.",
+    "evidence_commit": "c0d39cb649dbf066634570fc3fa28bbce3bdee92",
+    "expected_benefit": {
+        "complete_cost": "Fix+40production/+232testAST,0staticfixtures,binaries/packages. Two native files547AST;400 estimates200testAST/onebuild removable.",
+        "limits": "Retained307s gate/assertion undo, not SQA execution or measured speedup. Runtime-root propagation and build lock preserved."
+      },
+    "id": "SQA-397",
+    "severity": "P2",
+    "sources": [
         {
           "path": "cmd/loop/land.go",
-          "symbol": "buildChecker; execRowWorld.Gate; landRow; landCommand"
+          "symbol": "buildChecker -> Gate -> landRow -> landCommand"
         },
         {
           "path": "cmd/loop/replay.go",
-          "symbol": "moveReplay reads/writes dataroot.ConfigFile after Git tree movement"
+          "symbol": "moveTree; moveReplay"
         },
         {
-          "path": "cmd/loop/mutants.go",
-          "symbol": "mutant: existing execution caller of moveReplay"
+          "path": "cmd/loop/checker_setup_test.go",
+          "symbol": "TestACheckerThatCannotBeBuiltRefusesWithWhatStoppedIt; retained assertion undo"
         },
         {
           "path": "cmd/loop/clean_checker_test.go",
-          "symbol": "TestALandingsCheckerIsBuiltFromCommittedCode supplies an otherwise unneeded {} data-root file"
-        },
-        {
-          "path": "cmd/loop/land_test.go",
-          "symbol": "TestRowSequenceStateMachine: existing gate refusal/error transport"
+          "symbol": "TestALandingsCheckerIsBuiltFromCommittedCode without roots"
         }
       ],
-      "evidence": "e969f619a correctly builds cmd/gate in a committed tree, but reuses moveReplay, which unconditionally reads the caller data-root file and copies it into that tree. A source-only gate build needs no model/store roots; the standalone -land branch returns before driver configuration loading, and configuredEnvironment explicitly allows absent optional configuration. A valid source checkout without dataroot.ConfigFile now fails before go build, although the checker itself has no such prerequisite. The new native fixture supplies {}, hiding this case. For this or any Git/state/lock/move error, buildChecker returns empty text plus error. Gate only runs on err==nil then returns refusal,nil, discarding that error; landRow therefore calls Landed instead of stopping at phaseGate. The resulting missing-trailer/ancestor error replaces the setup cause, and landCommand records refusals only for nonempty Detail. Source-admitted control-flow counterexample, not an SQA execution. No unsafe publication is established: Landed still verifies trailers/ancestry.",
-      "impact": "A needless prerequisite can strand a valid checker build, while lost cause text defeats early actionable diagnosis and existing refusal accounting. It can recur unchanged as a misleading landing-confirmation failure.",
-      "recommended_change": "Retain committed-source buildChecker, the existing Git tree movement and build lock. Keep replay/mutant runtime-root propagation with their execution owners so a pure checker build does not require or manufacture a model/store configuration. Propagate setup errors through the existing Gate/rowWorld failure and Detail transport before Landed; preserve useful build stderr and original causes in existing refusal/error records. No dummy config, skip flag, second checkout manager, new preflight or generic resolver.",
-      "displaced_surface": "Remove replay-only root-file admission/copy from source-only checker preparation and the Gate return that discards setup errors. Keep runtime data roots for actual replay/mutant checks, normal committed-tree isolation, worktree serialization and caller dirt. SQA-380 remains distinct: effective environment/config merge order and optional-config decode errors.",
+    "status": "resolved",
+    "title": "Build the committed checker without replay-only prerequisites and retain setup errors"
+  },
+    {
+      "id": "SQA-398",
+      "status": "open",
+      "severity": "P2",
+      "category": "optional-budget-admission",
+      "classification": "source-established-default-smoke-refusal",
+      "title": "Remove the obsolete positive-budget refusal from smoke admission",
+      "evidence_commit": "c0d39cb649dbf066634570fc3fa28bbce3bdee92",
+      "sources": [
+        {
+          "path": "cmd/validate/smoke_records.go",
+          "symbol": "smokeCommand no longer emits -budget; dnaGuard"
+        },
+        {
+          "path": "cmd/validate/main.go",
+          "symbol": "budget defaults0 and is optional; runArgs -> runSmoke"
+        },
+        {
+          "path": "cmd/validate/smoke.go",
+          "symbol": "runSmoke budget<=0 after nonempty discovery"
+        },
+        {
+          "path": "cmd/validate/smoke_test.go",
+          "symbol": "empty native stores return before stale guard"
+        }
+      ],
+      "evidence": "c0905decb removes -budget15m from DNA smokeCommand and documents default0 as unbounded. runSmoke uses Limited but still refuses budget<=0 after nonempty discovery with explicit positive -budget required. Every valid nonempty default selection, including DNA reacquisition, therefore fails before oracle/serving/publication, potentially after hashing model bytes. Existing no-budget tests use empty stores and exit earlier. This is a source-admitted regression, not an SQA model run.",
+      "impact": "Default smoke evidence cannot reacquire; a full cycle repeats a known setup failure.",
+      "recommended_change": "Delete the obsolete positive-budget requirement. Preserve explicit positive caller bounds/cancellation through Limited, validating invalid flags before discovery. Keep empty catalog, exact selection/oracle/recipe identity and bound publication. No fallback budget, skip flag or new runner. Extend one existing native store/activation fixture to nonempty inference admission; stop at deliberately missing oracle without loading a model.",
+      "displaced_surface": "Remove stale three-line guard. Retain smokeCommand,runSmoke,recordSmokeTransaction and existing oracle/empty/identity fixtures; no new schema/binary/fixture family.",
       "expected_benefit": {
-        "baseline": "buildChecker166AST; execRowWorld.Gate170; moveReplay124; clean checker native file315. Complete replay+checker landing +255production/+463test, one persistent checker tree/lock, no new staticfixture/command binary.",
-        "after": "Not implemented. Error propagation and retained native coverage may grow; splitting the unnecessary execution prerequisite may remove work but no safe complete net deletion or elapsed saving is yet established. Keep full caller/helper/setup cost.",
-        "setup": "Extend the existing tiny Git/committed-versus-dirty checker fixture at the command boundary; no model/device setup or second subprocess suite."
+        "baseline": "runSmoke624AST/file1374; smokeCommand34. Own-budgets full-1342production/+35test included once.",
+        "after": "Small production deletion; necessary native admission coverage may grow. Complete after-cost unmeasured,no safe net/elapsed saving established.0model/device setup needed."
       },
-      "likely_effort": "Bounded correction in current checker/replay setup and landing error boundary.",
+      "likely_effort": "Small retained admission correction.",
       "plan_references": [
-        "clean-checker/do and replay-checkout/do landede969f619a",
-        "Downloads architecture target: build responsibility excludes model execution setup; expose known prerequisites before expensive work"
+        "no-clocks/own-budgets landedc0905decb",
+        "Downloads target: producer/consumer prerequisites agree"
       ],
-      "plan_coverage": "Committed source isolation is progress. Existing positive helper test/compile-only undo does not cover absent optional roots or actual Gate error transport.",
+      "plan_coverage": "Clock inventory checks syntax/owners, not actual budget0 admission; fix behavior without another policy analyzer.",
       "closure_criteria": [
-        "A source-only checker builds from the committed tree without dataroot.ConfigFile; actual replay/mutant executions retain needed root propagation.",
-        "Git/state/lock/checkout/build failure remains the original gate-phase cause/Detail; no Landed call or misleading confirmation error follows it.",
-        "Dirty caller source stays untouched and build serialization retained; use existing native fixture/records and count all costs."
+        "Default smoke command reaches nonempty oracle admission without a positive budget.",
+        "Explicit user limits/cancellation, empty-catalog refusal and exact evidence ownership preserved; native/full costs recorded."
       ],
-      "comparison": "In the retained tiny checker fixture, omit the unused root file and require the same committed gate output. Exercise one deterministic setup refusal at the existing Gate/landing boundary and require its original cause before Landed. Keep the dirty-source preservation assertion and runtime-root replay coverage; proposed native comparison only, no SQA execution."
+      "comparison": "Use existing store/modelrecipetest activation for tiny nonempty selected inference plus missing oracle. Zero and positive budget must reach that same oracle admission, not a budget refusal. No model load or SQA execution."
+    },
+    {
+      "id": "SQA-399",
+      "status": "open",
+      "severity": "P2",
+      "category": "automatic-ceiling-edit-batch",
+      "classification": "source-established-real-shape-and-same-file-update-conflicts",
+      "title": "Apply all ceiling reductions in a file through one retained edit owner",
+      "evidence_commit": "c0d39cb649dbf066634570fc3fa28bbce3bdee92",
+      "sources": [
+        {
+          "path": "internal/landing/ceilings.go",
+          "symbol": "lowerCeilings original-stage read/full-file equality/standalone replacement/late shipSet"
+        },
+        {
+          "path": "internal/repoanalysis/production_repeats_test.go",
+          "symbol": "grouped surfaceRepeatCeiling111/surfaceParameterCeiling1390; standalone repeat/parameter ceilings; fellUnder callers"
+        },
+        {
+          "path": "internal/repoanalysis/ceiling_fall_test.go",
+          "symbol": "fellUnder"
+        },
+        {
+          "path": "internal/landing/ceilings_test.go",
+          "symbol": "one standalone reduction/foreign-dirt fixture"
+        }
+      ],
+      "evidence": "Updater only matches const NAME = OLD. Actual surface ceilings use a grouped const block; both expected standalone matches occur zero times, so any valid fall refuses with manual-edit advice. Two valid fall events for separate standalone constants in the same production_repeats_test.go also fail: first writes live bytes; second rereads original stage bytes and held!=read because of its own edit. shipSet is after the loop, so refusal can leave a partial automatic edit before recapture. Source-admitted cases, not observed new failures/SQA execution. Native fixture has one standalone count and does not decide these shapes.",
+      "impact": "Legitimate reductions trigger manual refusal/retry and partial-fix recovery despite automatic-remediation claims.",
+      "recommended_change": "Retain lowerCeilings/fellUnder and one shipSet owner. Validate/apply all edits for a file against one original equality check, render together before mutation. Align the two current grouped declarations to the narrow standalone contract if smallest, or reuse existing syntax support; keep numerical values. Preserve foreign-dirt/ambiguity refusal and scope inclusion. No generic rewrite engine, extra invariant run or second fix stage.",
+      "displaced_surface": "Remove actual grouped-declaration mismatch and stale original comparison after the updater changes that same file. Keep over-ceiling failures, declaration/value identity, foreign dirt and one recapture.",
+      "expected_benefit": {
+        "baseline": "Ceiling landing+352production/+426testAST; lowerCeilings292/file313; native fixture356;0staticfixtures.",
+        "after": "Per-file correction/native extension may grow; no net deletion established. Charge state/helpers/recapture and all caller costs.",
+        "setup": "Extend same tiny fixture to two reductions in one file and actual grouped shape or deliberate normalization; retain its foreign-dirt arm."
+      },
+      "likely_effort": "Bounded existing per-file updater correction.",
+      "plan_references": [
+        "ceiling-fall/do landed889e328f7",
+        "Downloads target: prevent manual failures through existing owner"
+      ],
+      "plan_coverage": "One-count retained assertion undo is credited, not generalized to admitted multi-event/declaration shapes.",
+      "closure_criteria": [
+        "Two valid same-file reductions and actual surface declarations update/commit without manual refusal or stranded partial fix.",
+        "Foreign uncommitted bytes/ambiguous declarations stay protected; values only fall; one native fixture/recapture and full costs."
+      ],
+      "comparison": "Extend TestALandingLowersACeilingItsChangeFellUnder with two constants in one file, including actual grouped syntax or chosen normalization. Require both committed values and preserved foreign dirt on refusal; no SQA test."
+    },
+    {
+      "id": "SQA-400",
+      "status": "open",
+      "severity": "P3",
+      "category": "duplicate-native-checker-setup",
+      "classification": "AST-and-contract-confirmed-redundant-positive-build",
+      "title": "Keep checker isolation and setup-refusal assertions in one native fixture",
+      "evidence_commit": "c0d39cb649dbf066634570fc3fa28bbce3bdee92",
+      "sources": [
+        {
+          "path": "cmd/loop/clean_checker_test.go",
+          "symbol": "TestALandingsCheckerIsBuiltFromCommittedCode"
+        },
+        {
+          "path": "cmd/loop/checker_setup_test.go",
+          "symbol": "TestACheckerThatCannotBeBuiltRefusesWithWhatStoppedIt final two statements"
+        }
+      ],
+      "evidence": "Both tests create go1.26 Git fixtures, commit cmd/gate, omit roots and use the same exec.Command build closure. The retained clean-checker fixture also dirties source, executes committed output and preserves dirt: it subsumes the newer successful-build-only assertion. Only the bad-directory buildChecker call and original-error refusal assertion are unique,11+28=39AST. Existing checker/build variables/imports serve them.",
+      "impact": "A second Git/build setup repeats a successful compile without another contract.",
+      "recommended_change": "Retain TestALandingsCheckerIsBuiltFromCommittedCode; move final39-node call/assertion into it and delete checker_setup_test.go. Keep committed/rootless output,dirt and original setup-error cause. No alias/table/helper/new fixture.",
+      "displaced_surface": "Remove239-node file/test and one successful Git/go-build setup; retain308-node fixture+39unique nodes. Distinct environment/landing contracts stay separate.",
+      "expected_benefit": {
+        "before": "Two files547AST;2Git/build setups.",
+        "after": "One file347AST:estimatednet200testAST removed,1file/function,setup2->1.0production/helpers/staticfixturebytes/binary/package changes;~36.6%of these files,not repository duplication.",
+        "uncertainty": "Unimplemented,not timed; comment adjustments charged.397 correctness closure stays valid."
+      },
+      "likely_effort": "Small assertion consolidation.",
+      "plan_references": [
+        "clean-checker/do;checker-setup/do landed",
+        "SQA-397 closure retains400 as native consolidation owner"
+      ],
+      "plan_coverage": "Unique assertion-based regression preserved under stronger fixture; historical pinned selectors need no alias.",
+      "closure_criteria": [
+        "One invocation proves committed/rootless build,preserved dirt and original setup cause.",
+        "Duplicate file/build gone and full local costs support200-node estimate."
+      ],
+      "comparison": "Move existing final two statements under retained checker/build variables; keep original error relation and prior regression behavior. No new fixture/SQA execution."
     }
   ],
     "gate_test_assessment": {
-    "assumptions": "A positive explicit RequestTimeout is a caller budget, while all sampled production constructors default0. Do not add origin classification for a deadline that is unset. Virtual synctest hour is not a one-hour workload. Matching same-model reuse remains the established demand-router contract.",
+    "assumptions": "Optional duration0 means no deadline; positive user limits/cancellation remain. Timer inventories do not prove admission. Grouped constants/multiple same-file events are actual admitted shapes. No new flow analyzer.",
     "automation_follow_up": {
         "retained_feedback": {
           "window": "November8 and9,2026 America/New_York (UTC-05); local retained records read after58e8280",
@@ -10287,38 +10412,39 @@
         "cost": "budget+450production/+575test; verify-first+175/+148. No static fixture growth. Prior report was carried by a0cf; do not count its prose as application AST.",
         "interpretation": "Historical refusal wall motivates ordering and status delivery, but is not measured saved work. Query/window/outcome definitions must be explicit."
       },
-    "automation_sequence": "Checker preparation must reject its actual setup cause before confirmation, without runtime model roots. Retained all15 accounting supersedes the old9-selector gap; two current known readiness causes precede the single requested full cycle. Current source-policy and guard admission limits remain.",
+    "automation_sequence": "397 source-only preparation/error channel fixed.398 DNA producer supplies0 to a consumer still requiring positive after discovery.399 edit fails on current producers. Repair through existing owners before expensive dependent work; independent diagnostic outcomes remain useful.",
     "constants_and_geometry": {
-        "assessment": "15-second drain is removed rather than renamed. Explicit timeout default0/idle scheduling retain their declared meanings. Preset wording fixture400cases/400ties context is synthetic label coverage; it does not establish independence/noninferiority. Existing342 four-loss tail0.0625 at0.05 still admits; TabFM26cases/0.0991 detectability is retained evidence, not permission to loosen2-deviation acceptance. No hardware-calibration or numerical threshold changes recommended.",
+        "assessment": "Preserve grouped surface ceilings111/1390 while aligning actual edit syntax. Cause240-byte first-line cap makes missing edit evidence unknown. Historical15minute skip removed; six-hour unmeasured benchmark cost only orders work. No numerical/hardware calibration changes.",
         "sources": [
           {
-            "path": "internal/modelswap/supervisor.go",
-            "symbol": "removed drainGrace and timer state"
+            "path": "internal/repoanalysis/production_repeats_test.go",
+            "symbol": "grouped bounds"
           },
           {
-            "path": "internal/clioptions/overrides.go",
-            "symbol": "DurationOverride0 default"
+            "path": "internal/landing/refusal.go",
+            "symbol": "causeBytes;Worklist"
           },
           {
-            "path": "internal/evaluation/preset_says_test.go",
-            "symbol": "three400-case label fixtures"
+            "path": "cmd/validate/smoke.go",
+            "symbol": "stale budget guard"
           },
           {
-            "path": "cmd/train/route_tabular_tabfm_test.go",
-            "symbol": "held-out gain/cases/detectability diagnostic"
+            "path": "cmd/validate/run.go",
+            "symbol": "unmeasured cost/failure collection"
           }
         ]
       },
     "fresh_ast": {
-        "revision": "e969f619a89e45c3380e30853b01af393d55ba47",
-        "method": "Existing external go/parser on12selected pinned files, full17changed-Go before/after and two unique assertion counts.",
+        "revision": "c0d39cb649dbf066634570fc3fa28bbce3bdee92",
+        "method": "Existing external go/parser selected19files and all49changed-Go before/after; actual declarations/callers plus unique checker statements.",
         "retained_result": [
-          "review-e969-selected-ast.json",
-          "review-e969-total-delta.json",
-          "review-e969-assertion-count.go"
+          "review-c0d39-selected-ast.json",
+          "review-c0d39-smoke-ast.json",
+          "review-c0d39-total-delta.json",
+          "review-c0d39-checker-unique.go"
         ],
-        "counts": "12files9978AST/61functions/1750local links. buildChecker166/Gate170/moveReplay124; holdReplay103; cleaner native315/replayhold141. Three commit-wait tests68/40/83 + helper358=549; move21HEAD+16wait into83 =>478(-71),setup3->1.",
-        "limits": "No package/type/global analysis or application execution.71 is unimplemented local deletion estimate,~6.5% of1097-node testfile,not a repository boilerplate percentage."
+        "counts": "19files13808AST/74functions/2799local links. lowerCeilings292/file313; clock inventory837; smoke624/file1374. Checker308+239=547,unique39 =>347(-200),setup2->1.",
+        "limits": "No types/global flow/application execution.400 is unimplemented local estimate before comment edits,not a repo boilerplate percentage."
       },
     "media_follow_up": {
         "revision": "e969f619a89e45c3380e30853b01af393d55ba47",
@@ -10482,18 +10608,18 @@
       "retained_change_costs": "Two consolidation landings(2d59f642c exact folds andbb4fc706a parameter folds) remove744 production nodes but add1591 test nodes, net+847 across Go. Pilot retirementea8ed43a7 removes5926 production/9990 test nodes and one schema, while fixture bytes grow599; its test deletion is already included in the day's offsets and must not be subtracted twice. These retained gates are broader changes, not matched per-test performance comparisons."
     },
     "retained_results": [
-        "440physical-holder cause/retained assertion; eb0080dcc all15 current outcomes/12passes/Un-0 fix/two named blockers. Original November8 messages unavailable.",
-        "7e94d5d99 native requester-owned drain and assertion-based undo;453s gate. Synctest hour virtual; no SQA run.",
-        "99faac805 improves labels; predicate unchanged. e969f619a positive native helper fixtures, compile-only undo not behavioral recovery proof. Retained gates496/2182/1138/453/397s are different workloads.",
-        "Local root and nested measurement records still namefdd4ab1; no new full publication established."
+        "Checker307s gate/assertion undo,rootless committed/dirt and original Git cause. Ceiling1706s gate/one-constant undo does not decide399.",
+        "Worklist377s helper check omits knownRules-withoutCause/automatic delivery. Own-budgets1753s/rule504s gates retained native optional-bound/browser/cancel evidence. Different walls are not speed comparisons.",
+        "Prior SQA report carried713568035; full measurement stillfdd4ab1 startedNovember8."
       ],
-    "surface_reduction_analysis": "b5a5bcbea->e969f619a: five landings/17changed-Go paths, +169production/+1057testAST (net+1226), +28/+198lines,0production/+4testfiles. Drain -138production/+59test (net-79); real-holder0/+251; stop-cause0/+15; admission words+52/+269; replay+checker+255/+463.0staticfixture files/bytes,command binaries or package-directory removals. Checker adds one reusable worktree/lock per checkout; existing temporary gate executable remains. No measured elapsed or disk saving.",
+    "surface_reduction_analysis": "e969f619a->c0d39cb64:5landings/49changed-Go paths; production-575AST/-108lines/+2files; tests+817AST/+196lines/+4files; combined+242AST/+6files. Ceiling+352/+426; worklist+375/+156; own-budgets-1342/+35; rule0/-32; checker+40/+232.0staticfixture bytes/files,binary orpackage-directory removals. Own-budgets net-1307GoAST is real; whole interval grows242. No measured elapsed/disk saving.",
     "tests": [
-        "MERGE three commit-wait tests into retained early-refusal name; move21HEAD+16wait assertions,delete68+40-node declarations. Setup3->1,estimatednet71testAST. RETAIN corrected physical child holder and distinct checked-tree/host inheritance cases.",
-        "RETAIN requester-owned drain/cancel/held-open/process/idle contracts. REMOVE old forced-grace expiry expectation and timer setters;392 net-79GoAST closure includes native growth.",
-        "RETAIN shared replay hold/refusal/reacquisition and real model test under its declared owner. REMOVE per-test real-repository checkout setup; classify older trees separately. No SQA replay.",
-        "EXTEND retained tiny committed-checker fixture for absent optional roots and actual Gate error propagation; no second model/subprocess suite. New positive helper check alone does not decide397.",
-        "RETAIN distinct preset size/format/case pairing and label counts, plus independent insufficient-evidence obligations. New words are not evidence of numerical correction."
+        "RETAIN checker isolation/error contracts; MERGE400 unique39nodes into308-node fixture,delete239-node file/setup.",
+        "EXTEND same ceiling fixture for actual grouped/two-fall shape and foreign dirt; no second rewrite/gate suite.",
+        "RETAIN explicit limits/cancellation/browser events; REMOVE obsolete default active-deadline machinery/tests.",
+        "EXTEND native smoke admission for nonempty selection/budget0 without model load; empty cases stop before defect.",
+        "EXTEND existing Worklist/status fixtures for knownRules withoutCause and unknown edits/history; no new ledger/workload.",
+        "RETAIN395 prospective71-node setup merge and396 finite acceptance unchanged."
       ]
   },
     "hygiene_assessment": "No hygiene finding. Scratch analysis is outside the repository; concrete correctness and production/test cost take priority.",
@@ -12027,9 +12153,9 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
     "limitations": [
-      "No application tests,model/device workloads,gates,services,agents/messages,implementation,plan/skill edits or deletion by SQA. Static Go parsing/call tracing and retained implementation records only.",
-      "Parser-local resolution, not package/type/global analysis. Source-admitted checker counterexample not executed; different landing walls do not measure savings. No broad census.",
-      "Current ceilings and plan drafts excluded. Root/nested full-run records still namefdd4ab1. Twelve old tree ownership/removal and original November8 messages remain unproved; one later pass is not a historic cause."
+      "No application tests,model/device workloads,gates,services,agents/messages,implementation,plan/skill changes or deletion by SQA. Static parsing/call tracing and retained results only.",
+      "Parser-local resolution,not package/type/global proof. Smoke/ceiling are source-admitted cases,not SQA executions. No broad census.",
+      "Host-card driver/plan draft excluded. Local417refusals/39causes/37Rules snapshot is appendable; no new full publication."
     ],
     "master_lead_triage": {
     "at": "2026-11-10",
@@ -12905,13 +13031,13 @@
       }
     }
   },
-    "next_finding_number": 398,
+    "next_finding_number": 401,
     "publication_context": {
-    "assessment": "Substantive five-landing reconciliation with one verified closure, one checker cause and expanded same-fixture reduction.",
-    "checked_head": "e969f619a89e45c3380e30853b01af393d55ba47",
-    "concurrent_changes": "Ceilings/landing/plan drafts excluded. Final publication rereads pin/report/owner state under existing locks and preserves unrelated index/worktree changes.",
-    "current_pin": "e969f619a89e45c3380e30853b01af393d55ba47",
-    "publication": "Report only through existing hooks; no implementation/application tests.",
+    "assessment": "Five-landing reconciliation,verified closure and three concrete admission/consolidation findings.",
+    "checked_head": "c0d39cb649dbf066634570fc3fa28bbce3bdee92",
+    "concurrent_changes": "Host-card driver/plan drafts excluded. Re-read pin/report/owners under current locks,preserve other work.",
+    "current_pin": "c0d39cb649dbf066634570fc3fa28bbce3bdee92",
+    "publication": "Report only through existing hooks;no implementation/workloads.",
     "report_only": true
   },
     "ranked_active_finding_ids": [
@@ -12928,10 +13054,11 @@
     "SQA-394",
     "SQA-393",
     "SQA-396",
+    "SQA-398",
     "SQA-322",
     "SQA-385",
     "SQA-380",
-    "SQA-397",
+    "SQA-399",
     "SQA-376",
     "SQA-377",
     "SQA-366",
@@ -12967,6 +13094,7 @@
     "SQA-350",
     "SQA-391",
     "SQA-395",
+    "SQA-400",
     "SQA-257",
     "SQA-303",
     "SQA-285",
@@ -13006,35 +13134,35 @@
     "repository": "C:\\Users\\jeffm\\overgo",
     "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
     "review_notes": [
-      "392closed: implicit drain removed; earlier origin/routing additions explicitly retired as unnecessary, preserving valid caller budgets and same-model reuse.",
-      "Credit all15 current outcomes without assigning present causes to historical failures. Two known readiness causes/full-cycle publication remain266.",
-      "397 retains original setup failures and removes replay-only prerequisites from pure builds.395 now consolidates three invocations,not two. Whole review+1226GoAST; no overall saving claimed."
+      "397closed;400 explicitly retains unique native error coverage.",
+      "398/399 identify concrete missed behavior despite inventories/one-case fixtures; reuse actual owners.",
+      "Own-budgets net-1307GoAST offset to+242overall.400-200 and395-71 remain prospective; no binary/directory or elapsed reduction."
     ],
-    "reviewed_at": "2026-11-13T10:11:47Z",
-    "reviewed_master": "e969f619a89e45c3380e30853b01af393d55ba47",
+    "reviewed_at": "2026-11-13T12:24:36Z",
+    "reviewed_master": "c0d39cb649dbf066634570fc3fa28bbce3bdee92",
     "schema_version": 2,
     "scope": [
-      "Committed mastere969f619a versus last reportb5a5bcbea: bounded real card wait,15-test cause accounting, request/proxy drain and replay/committed-checker setup, plus preset decision callers.",
-      "12selected pinned Go files9978AST/61functions/1750parser-local links; full17changed-Go before/after and unique21/16-node assertion counts. Prior unrelated findings/results reused.",
-      "Architecture target/guidance hashes unchanged. This chat previously implemented Overgo and plan wording: internal review with disclosed overlap, not independent third-party review."
+      "Committed masterc0d39cb64 versus reviewed e969f619a; prior report landed713568035. Bounded checker,replay,ceiling edit,refusal/status and optional budget consumers including actual DNA smoke.",
+      "19selected files13808AST/74functions/2799parser-local links; all49changed-Go full cost and39unique assertion nodes. Changed skill rule read; unchanged architecture target/results reused.",
+      "Prior Overgo/plan implementation involvement disclosed: internal review,not independent third-party review."
     ],
     "sqa_response": {
-    "assessment": "224stable IDs:87open,131resolved,4deferred,2aliases.392closed,397new;261/266/342/391/395reconciled. No consolidation/reopening.",
+    "assessment": "227stable IDs:89open,132resolved,4deferred,2aliases.397closed;398smoke,399ceiling,400checker duplication added.266/376updated.",
     "consolidated_findings": [],
     "deferred_findings": [],
-    "evidence": "12-file AST/full17changed-Go cost, concrete callers and retained cause/native assertion records. Owner/unknown fields preserved; prior implementation involvement disclosed.",
-    "implementation_response_context": "implementation_review/master_lead_triage remain raw-exact; source/native closure392 is reviewer assessment, not an owner-field rewrite.",
+    "evidence": "19-file AST,full49changed-Go costs,concrete callers/retained gates and bounded local record snapshot. Owner/unknown fields preserved.",
+    "implementation_response_context": "Existing owner blocks raw-exact;397 closure is pinned reviewer assessment,not owner-field rewrite.",
     "new_findings": [
-        "SQA-397"
+        "SQA-398",
+        "SQA-399",
+        "SQA-400"
       ],
     "partially_addressed_findings": [
-        "SQA-261",
         "SQA-266",
-        "SQA-342",
-        "SQA-391"
+        "SQA-376"
       ],
-    "priority_changes": "Close verified forced-timer issue; keep actual setup/error/admission and numerical obligations before speculative reduction.",
-    "recommendation": "Reuse current lifecycle/checker/replay/evidence owners. Remove unnecessary build prerequisite and duplicate native setup; no framework/new workloads.",
+    "priority_changes": "Fix supported default/auto-edit failures before expanding work;400 follows actual correctness/recovery.",
+    "recommendation": "Existing smoke,lowerCeilings,checker and status owners; remove stale/duplicate work,preserve limits,dirt,original causes.",
     "refactor": {
         "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
         "history_path": "docs/sqa_findings.json",
@@ -13042,16 +13170,13 @@
       },
     "reopened_findings": [],
     "resolved_findings": [
-        "SQA-392"
+        "SQA-397"
       ],
-    "reviewed_master": "e969f619a89e45c3380e30853b01af393d55ba47",
-    "uncertainty": "Net+1226GoAST across five landings; drain alone net-79,395 prospective-71.0binary/package reductions; new checker tree costs count. No runtime/disk savings measured.",
+    "reviewed_master": "c0d39cb649dbf066634570fc3fa28bbce3bdee92",
+    "uncertainty": "Production-575/test+817,net+242GoAST. Necessary corrections may grow;400-200/onebuild and395-71/twosetups unimplemented.0binary/package removal,no elapsed saving.",
     "updated_findings": [
-        "SQA-261",
         "SQA-266",
-        "SQA-342",
-        "SQA-391",
-        "SQA-395"
+        "SQA-376"
       ]
   }
   }

@@ -89,14 +89,14 @@ func parseOptions(args []string) (options, error) {
 	flags.BoolVar(&result.Guard, "guard", false, "continue past sampled EOG to measure full output budgets on the same greedy device path; require complete recipe-bound quality, rate and allocation evidence through the regression ceiling")
 	flags.IntVar(&result.OutputPrefix, "show", 240, "characters of the judged generation to print")
 	flags.StringVar(&result.Corpus, "corpus", "", "fixed UTF-8 corpus file; required for -guard")
-	flags.DurationVar(&result.Budget, "budget", 0, "required aggregate measurement deadline")
-	flags.DurationVar(&result.ModelBudget, "model-budget", 0, "optional per-model deadline within the aggregate budget")
+	flags.DurationVar(&result.Budget, "budget", 0, "a deadline you set on the whole measurement; none by default")
+	flags.DurationVar(&result.ModelBudget, "model-budget", 0, "a deadline you set on each model's measurement; none by default")
 	if err := flags.Parse(args); err != nil {
 		return options{}, err
 	}
 	result.Models = flags.Args()
-	if result.Budget <= 0 || result.ModelBudget < 0 {
-		return options{}, errors.New("longform: measurement requires positive -budget; -model-budget cannot be negative")
+	if result.Budget < 0 || result.ModelBudget < 0 {
+		return options{}, errors.New("longform: -budget and -model-budget cannot be negative")
 	}
 	if result.Guard && result.Corpus == "" {
 		return options{}, errors.New("longform: -guard requires a fixed -corpus")
@@ -215,7 +215,7 @@ func run(args []string, output io.Writer) error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
-	ctx, cancel := context.WithTimeoutCause(ctx, options.Budget, fmt.Errorf("longform: aggregate budget %s exhausted: %w", options.Budget, context.DeadlineExceeded))
+	ctx, cancel := clioptions.Limited(ctx, options.Budget, fmt.Errorf("longform: aggregate budget %s exhausted: %w", options.Budget, context.DeadlineExceeded))
 	defer cancel()
 	if options.Corpus != "" {
 		options.corpusText, err = readCorpus(options, 0)
@@ -300,11 +300,7 @@ func runTargets(ctx context.Context, output io.Writer, options options, targets 
 			}
 			return errors.Join(append(failures, err)...)
 		}
-		modelContext := ctx
-		cancelModel := func() {}
-		if options.ModelBudget > 0 {
-			modelContext, cancelModel = context.WithTimeoutCause(ctx, options.ModelBudget, fmt.Errorf("longform: model budget %s exhausted: %w", options.ModelBudget, context.DeadlineExceeded))
-		}
+		modelContext, cancelModel := clioptions.Limited(ctx, options.ModelBudget, fmt.Errorf("longform: model budget %s exhausted: %w", options.ModelBudget, context.DeadlineExceeded))
 		started++
 		start := processmeasure.NewStopwatch()
 		result, err := measure(modelContext, output, options, target, commit, surface, floors, ceiling)

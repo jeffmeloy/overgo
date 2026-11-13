@@ -55,7 +55,7 @@ func TestModelInventory(t *testing.T) {
 	}
 	want := []string{
 		"Converted activated converted-from:activated converted-from:registered commands=go run ./cmd/recipe verify -task TASK -input SUITE.json " + superseded.String(),
-		"Located registered location:registered commands=go run ./cmd/longform -guard -publish -repo C:/stores/selected -corpus " + guardCorpus + " -budget " + guardBudget + " -model-budget " + guardModelBudget + ` C:\models\Located\weights.safetensors`,
+		"Located registered location:registered commands=go run ./cmd/longform -guard -publish -repo C:/stores/selected -corpus " + guardCorpus + ` C:\models\Located\weights.safetensors`,
 		"Unregistered unregistered commands=go run ./cmd/validate -onboard C:/models/Unregistered",
 		"docs not-a-model commands=",
 	}

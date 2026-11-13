@@ -18,9 +18,9 @@ import (
 const LegRecordsEnvironment = "OVERGO_WEBUI_LANE_LEGS"
 
 // WaitBudgetEnvironment names how long a browser a leg opens may wait for
-// one answer from its page, as time.ParseDuration reads it. The lane declares
-// it for the page acceptances; with none declared a wait is bounded by its
-// caller alone.
+// one answer from its page, as time.ParseDuration reads it: the limit the
+// user set with webui-lane -wait. With none set a wait ends at the page's
+// answer, its browser's end or its caller's cancellation.
 const WaitBudgetEnvironment = "OVERGO_WEBUI_LANE_WAIT"
 
 // LegRecord is one browser leg's typed outcome: the package and test that

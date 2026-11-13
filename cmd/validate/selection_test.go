@@ -296,7 +296,7 @@ func TestEveryComparedContractHasACell(t *testing.T) {
 		name, args, err := reacquireCommand(sel.ModelValidation, store)
 		want := []string{
 			"run", "./cmd/evaluate", "-all", "-worker", "-repo", store, "-model-path", sel.Location,
-			"-family", sel.Validation, "-budget", benchmarkBudget.String(),
+			"-family", sel.Validation,
 		}
 		if contract.Protocol == chat {
 			want = append(want, "-protocol", chat)

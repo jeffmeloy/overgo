@@ -125,15 +125,21 @@ func (c VerifyCommand) Short() bool {
 	return slices.ContainsFunc(c.Segments, func(segment VerifySegment) bool { return segment.Short })
 }
 
-// JSONCommand returns command with -json added to every go test invocation
-// that lacks it, inserted where the parse found each `go test`, so text a
-// segment merely quotes is never rewritten.
-func (c VerifyCommand) JSONCommand(command string) string {
+// RunCommand returns command with -json added to every go test invocation
+// that lacks it, and -timeout=0 to every one that names no timeout, inserted
+// where the parse found each `go test`, so text a segment merely quotes is
+// never rewritten. A go test given no timeout ends at Go's ten minutes, and
+// inside the machine no clock ends work (no-clocks/own-budgets).
+func (c VerifyCommand) RunCommand(command string) string {
 	for _, test := range slices.Backward(c.GoTests()) {
-		if slices.Contains(test.Flags, "-json") {
-			continue
+		added := ""
+		if !slices.Contains(test.Flags, "-json") {
+			added += " -json"
 		}
-		command = command[:test.testEnd] + " -json" + command[test.testEnd:]
+		if !slices.ContainsFunc(test.Flags, func(flag string) bool { return strings.HasPrefix(flag, "-timeout") }) {
+			added += " -timeout=0"
+		}
+		command = command[:test.testEnd] + added + command[test.testEnd:]
 	}
 	return command
 }

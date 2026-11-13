@@ -12,7 +12,8 @@ import (
 	"overgo/internal/processcontrol"
 )
 
-// GoTestOptions binds evidence, diagnostics and optional active-test timing.
+// GoTestOptions binds evidence, diagnostics and progress. No clock ends a run: the process's end, or its caller's
+// cancellation, does (no-clocks/own-budgets).
 type GoTestOptions struct {
 	Short           bool
 	DiagnosticBytes int
@@ -22,10 +23,6 @@ type GoTestOptions struct {
 	Progress func(PackageProgress)
 	// Tests receives each top-level test's start and end as the stream reports them, in stream order.
 	Tests func(TestProgress)
-	// ActiveTimeout bounds each top-level test's unpaused time and event silence.
-	// Zero leaves timing to the command and parent context. Callers disabling
-	// Go's aggregate timeout must supply this budget or an explicit parent limit.
-	ActiveTimeout time.Duration
 }
 
 // PackageProgress is one package's terminal event: the action go test
@@ -49,15 +46,14 @@ type TestProgress struct {
 	Output                string
 }
 
-// testProgressObserver forwards every event to next and each top-level test's start and end to tests, keeping the
-// newest tail bytes of each running test's output for its failure.
-func testProgressObserver(tests func(TestProgress), tail int, next func(goTestEvent)) func(goTestEvent) {
+// testProgressObserver sends each top-level test's start and end to tests, keeping the newest tail bytes of each
+// running test's output for its failure.
+func testProgressObserver(tests func(TestProgress), tail int) func(goTestEvent) {
 	if tests == nil {
-		return next
+		return func(goTestEvent) {}
 	}
 	outputs := map[string][]byte{}
 	return func(event goTestEvent) {
-		next(event)
 		top, _, _ := strings.Cut(event.Test, "/")
 		key := event.Package + " " + top
 		if top != "" && event.Action == "output" && tail > 0 {
@@ -103,14 +99,12 @@ func packageProgressObserver(progress func(PackageProgress), next func(goTestEve
 // RunGoTestCommand drains a test process through the bounded evidence parser.
 // The caller owns command arguments, environment, diagnostic budget and verdict.
 func RunGoTestCommand(ctx context.Context, command processcontrol.Command, options GoTestOptions) (GoTestReport, error) {
-	if options.DiagnosticBytes <= 0 || options.ActiveTimeout < 0 {
-		return GoTestReport{}, errors.New("test diagnostics must be positive and active timeout nonnegative")
+	if options.DiagnosticBytes <= 0 {
+		return GoTestReport{}, errors.New("test diagnostics must be positive")
 	}
 	ctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
 	observe, flush := queuedPackageUpdates(options.Observe)
-	deadline := newTestDeadline(options.ActiveTimeout, cancel)
-	defer deadline.stop()
 	reader, writer := io.Pipe()
 	defer reader.Close()
 	command.Stdout, command.Stderr = writer, writer
@@ -134,13 +128,12 @@ func RunGoTestCommand(ctx context.Context, command processcontrol.Command, optio
 			options.Progress(done)
 		}
 	}
-	report, parseErr := readGoTestJSON(reader, options.Short, false, options.DiagnosticBytes, observe, packageProgressObserver(progress, testProgressObserver(options.Tests, options.DiagnosticBytes, deadline.observe)))
+	report, parseErr := readGoTestJSON(reader, options.Short, false, options.DiagnosticBytes, observe, packageProgressObserver(progress, testProgressObserver(options.Tests, options.DiagnosticBytes)))
 	if parseErr != nil {
 		cancel(parseErr)
 	}
 	// Even an oversized or unreadable event must not strand a writer on a full pipe.
 	_, drainErr := io.Copy(io.Discard, reader)
 	runErr := <-finished
-	deadline.stop()
 	return report, errors.Join(parseErr, drainErr, runErr, context.Cause(ctx), flush())
 }

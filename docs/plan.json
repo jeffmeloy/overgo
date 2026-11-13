@@ -8,25 +8,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 60,
+        "nodes": 1402,
         "reason": "Filed 2026-11-12 from the owner's rule: a simplification, each budget, its flag and its error deleted for a wait on the event. The lead's figure. Step swap-drain: +42 (42, the median of what 3 landings that changed internal/modelswap counted)."
       },
       "steps": [
-        {
-          "id": "own-budgets",
-          "title": "overgo's own work runs with no clock that ends it: evaluate, longform and the smoke take a limit only where the user sets one, test evidence and the web UI lane wait on the event, and every go test a plan check runs is unbounded",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestNoClockEndsOvergosOwnWork$'",
-          "files": [
-            "cmd/evaluate",
-            "cmd/longform",
-            "cmd/validate",
-            "internal/testevidence",
-            "internal/webuilane",
-            "internal/repoanalysis"
-          ],
-          "rationale": "Serves: the owner's rule of 2026-11-12: inside the machine a clock measures, reports and schedules; it never ends or refuses work. Waits are on the event; a dead process is learned from the OS; the requester cancels. Allowed: network peers and a limit the user set.\n\nDisappears: the clocks that end overgo's own work by default or by requirement: cmd/evaluate's -budget, 6 hours by default, cutting a model at its slice (all.go) and bounding the speech and transcription evaluations (main.go); cmd/longform's -budget, required, and its model budget; cmd/validate's smoke -budget, required; internal/testevidence/deadline.go's budget, which cancels; the web UI lane's page budget (internal/webuilane/browser.go), the lane's own and not the user's; and the three plan checks run with -timeout 120m (loop-proof/local-demonstrated, training-depth, card-budgets/three-workloads), which become -timeout=0, since a go test given none ends at Go's default of 10 minutes. On 2026-11-12 a 4-minute go test alarm named a healthy test after a measuring test waited 204 s for the card, and on 2026-11-08 the measurement run filed no rows on two clocks (preflight did not pass in 10m0s, lanes did not pass in 1h41m0s).\n\nThe change: each limit is the user's alone, none unless set, and a wait without one waits on its event (a process's end, read from the OS; a page's answer or its browser's end; a test's end) and says what it waits for and for how long, as cmd/validate/lane_walls.go's timer reports a wall and ends nothing. The plan checks are set to -timeout=0 through plan -setverify.\n\nCheck: TestNoClockEndsOvergosOwnWork lists every context.WithTimeout, WithTimeoutCause, WithDeadline and WithDeadlineCause, every time.AfterFunc whose function cancels or stops, and every go test a plan check or a gate lane runs, and fails on a clock outside the allowed list (network peers: the hub's downloads, cmd/hf-hub, media fetch, the server's connection limits; a flag whose default is none) and on a go test without -timeout=0. This step's list still holds the server's local requests and drain and modelswap's grace (step local-serving) and cudatest.MeasurementProcess and cmd/device-lane's admission (card-turn/retire-admissions), each named with the step that removes it.\n\nBatch: host lane.\n\nNote: The clocks left at 3a3aa64f5 (owner's reading of every clock call in the automation code, 2026-11-13): internal/landing, cmd/loop, cmd/device-lane and internal/processcontrol end no work (-timeout=0, INFINITE waits). Left to cure:\n- cmd/validate/run.go: benchmarkBudget 6 h, guardBudget 90 min, guardModelBudget 25 min.\n- cmd/validate/smoke_records.go: smokeBudget 15 min.\n- the web UI lane's page wait.\n- Go's 10-minute default on a verify, or a child go test, given no -timeout.\n- cmd/validate/lane_walls.go: skippedAfterFailure (15 min) decides which queued packages a lane that failed still runs, so a run names fewer breaks than exist.\nRemoved as dead, no cure needed: internal/testevidence's ActiveTimeout, which no production caller sets (only deadline_test.go), and newTestDeadline with it.\n\nNote: Correction (owner, 2026-11-13): the 8 November run did not file no rows on two clocks. MeasurementRun.Report prints each phase's wall, not a limit; the record shows 15 failed tests, which run-stop-cause/fifteen runs at the head. drainGrace is live at the head, so no-clocks/swap-drain stands; the server's -request-timeout defaults to zero and nothing passes it, so local-serving's server half was retired."
-        },
         {
           "id": "rule",
           "title": "skill.md says the rule and names its check, whose allowed list holds network peers and a limit the user set alone",
@@ -84,6 +69,28 @@
           ],
           "needs_card": true,
           "rationale": "Serves: the owner's review of 2026-11-11: every row of the speed table shows no prompt processing at either length.\n\nDisappears: a table of dashes. The newest record, scorecard-20261107T192932Z.json, holds a prefill reading at 4,096 tokens for 12 rows and at 16,384 for 11 (Carbon-500M's 4,096-token prefill took 2,058 ms), but none keeps the tokens it read uncached (Cell.Rate), so SpeedTable gives no figure, as it should: a rate from the nominal size could count tokens a prefix cache served. The measurement run of 2026-11-08 filed no record, so no reading since has kept them.\n\nThe change: in a gap between two readings, go run ./cmd/recipe measure reads each chat model again on the card (its load, its first request, a fresh prompt of each length read once unmeasured and then measured, and its warm generation), recording each as an attempt with its token counts; go run ./cmd/validate -scorecard -publish writes the newest record from the store; go run ./cmd/validate -readme writes the table from it. A model whose context does not hold 16,384 tokens keeps its dash at that length.\n\nCheck: validate -readme -check, which fails while the README's written parts are not what the newest record gives.\n\nBatch: device lane for the readings, in a gap between two readings; the record and the README on the host.\n\nNote: 2026-11-11, in the gap between readings: 14 of the 15 chat models were read again by recipe measure, each prefill now with its token counts (Bonsai-27B 1,969 and 1,603 tok/s at 4,096 and 16,384 tokens; Qwen3.8-27B 1,927 and 1,570; Qwen3.5-9B 5,854 and 4,310; gemma-4-12B-it-fp8-native 3,649 and 3,181; Carbon-500M 59,861 at 4,096, its context holding no 16,384). Qwen3.8 Flash-Next no longer opens (finding evidence:sha256:44390623...: strataRoundConversions indexes an empty qsaLayers). The table is not written yet, and is not written by publishing a record by hand: a record counts a cell current only where it was measured since the record before it, so validate -scorecard -publish after these readings blanked every cell not read again since 2026-11-07 (peak memory, the MMLU-Pro readings), and a second publish four minutes later blanked nearly every row. Both records are withdrawn to overgo_data/scorecards/withdrawn-2026-11-11 and the README is as it was. The table fills from the next measurement run's record, which reads every cell. Publishing also found two rows served_models.json named no words for, new since 2026-11-07: gemma-4-12B-it (its published bf16 files) and Self-Forcing, whose row was named \"checkpoints\", the folder its weights sit in; readme-speed/names lands those."
+        }
+      ]
+    },
+    {
+      "id": "checker-setup",
+      "title": "A landing's checker builds from the trunk's commit with no data roots, and a checker that cannot be built refuses with what stopped it",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 102,
+        "reason": "Filed from history: 102, the median of what 48 landings that changed cmd/loop counted"
+      },
+      "steps": [
+        {
+          "id": "do",
+          "title": "A landing's checker builds from the trunk's commit with no data roots, and a checker that cannot be built refuses with what stopped it",
+          "status": "open",
+          "verify": "go test ./cmd/loop -count=1 -run '^TestACheckerThatCannotBeBuiltRefusesWithWhatStoppedIt$'",
+          "files": [
+            "cmd/loop"
+          ],
+          "rationale": "Note: Serves: one refusal is broken code; a commit is checked by committed code, and a checker that cannot be built says why (SQA-397, P2).\n\nDisappears: two defects of clean-checker/do (e969f619a). buildChecker moves the checker worktree with moveReplay, which then copies the checkout's data-root file into it and fails where the checkout has none, though building cmd/gate needs no model or store root. And Gate runs the checker only when buildChecker returned no error, then returns the refusal it holds with no error: a git, lock or move error before the build leaves that refusal empty, so landRow goes on to confirm a landing that never ran, and the error that stopped it is lost for a misleading confirmation failure; landCommand records no refusal with an empty detail.\n\nThe change: the checker worktree is moved by git alone; the data-root file is copied only where a replay's tests read it. A checker that did not build refuses with what stopped it: the build's output, or the error before it.\n\nCheck: TestALandingsCheckerIsBuiltFromCommittedCode builds the checker in a fixture checkout with no data-root file, and a checker whose setup fails, in a directory that is no repository, refuses with that error's text.\n\nBatch: host lane."
         }
       ]
     },

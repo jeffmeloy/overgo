@@ -95,7 +95,7 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	reason := flags.String("reason", "", "with -accept-census: why the changed census is accepted; without it nothing is written")
 	recordVerification := flags.String("record-verification", "", "commit a typed model-verification record from a JSON spec (model, name, evidenced capability claims) into the store")
 	smoke := flags.Bool("smoke", false, "serve every active inference model, or the one -model names, against its declared oracle in docs/verification/smoke-oracles.json and record a bound run into the store")
-	budget := flags.Duration("budget", 0, "with -smoke: the total discovery and execution budget; required")
+	budget := flags.Duration("budget", 0, "with -smoke: a limit you set on discovery and execution together; none by default")
 	smokeModel := flags.String("model", "", "with -smoke: the exact model identity to serve; omitted models receive no evidence credit. Otherwise: plan, and with -run measure, that model's cells alone, and no lane, the model named by its scorecard row, its file or its identity, so a decline's row is judged without a run of every model")
 	cellValidation := flags.String("validation", "", "with -model: only that model's cells of this validation, the one a decline's metric is read from (serving for first-output, throughput, load-time or peak-device-memory; mmlu, bbh, ifeval and the other suites for held-out-quality)")
 	diagnostic := flags.Bool("diagnostic", false, "with -smoke: inspect behavior without recording a run")

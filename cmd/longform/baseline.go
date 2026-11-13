@@ -49,9 +49,11 @@ func validateGuard(result longform.Result) error {
 		result.ContextLength == 0 || result.Device.Name == "" || result.Device.TotalMemoryBytes == 0 {
 		return errors.New("guard: missing recipe, execution, device or context identity")
 	}
-	if result.BudgetNS <= 0 || result.WallNS <= 0 || result.WallNS > result.BudgetNS || result.ModelBudgetNS < 0 ||
+	// A deadline is the user's alone and none by default (no-clocks/own-budgets); a measurement that set one finished
+	// inside it.
+	if result.WallNS <= 0 || result.BudgetNS < 0 || result.BudgetNS > 0 && result.WallNS > result.BudgetNS || result.ModelBudgetNS < 0 ||
 		result.ModelBudgetNS > 0 && result.WallNS > result.ModelBudgetNS {
-		return errors.New("guard: measurement lacks a completed bounded execution")
+		return errors.New("guard: measurement lacks a completed execution inside the deadline it set")
 	}
 	if result.Shape.PromptTokens != floors.ShortPromptTokens || result.Shape.Measure.PromptTokens != floors.ShortPromptTokens ||
 		math.IsNaN(result.Shape.NLL) || math.IsInf(result.Shape.NLL, 0) || result.Shape.NLL < 0 {

@@ -64,7 +64,7 @@ func TestDNAGuardBindsTheSmokeLane(t *testing.T) {
 		t.Fatalf("a DNA guard did not run every cycle: run=%+v", plan.Run)
 	}
 	name, args, err := reacquireCommand(plan.Run[0].ModelValidation, store)
-	want := []string{"run", "./cmd/validate", "-smoke", "-budget", "15m", "-model", carbon.String(), "-repo", store}
+	want := []string{"run", "./cmd/validate", "-smoke", "-model", carbon.String(), "-repo", store}
 	if err != nil || name != "go" || !slices.Equal(args, want) {
 		t.Fatalf("a DNA cell bound (%q, %v, %v), want go %v", name, args, err, want)
 	}

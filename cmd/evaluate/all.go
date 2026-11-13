@@ -83,9 +83,6 @@ var errEvaluationSliceElapsed = errors.New("evaluate: the model's evaluation-bud
 // same isolation the manifest path uses: a model that dies cannot take
 // the remaining evaluations with it.
 func runAllParent(ctx context.Context, repository string, device int, family string, limit int, protocol string, budget time.Duration) error {
-	if budget <= 0 {
-		return errors.New("evaluate: the evaluation budget must be positive")
-	}
 	// The claim precondition holds once, up front: every worker binds
 	// its evidence to the verifying commit, so a dirty tree refuses the
 	// pass here in one line instead of once per model after each load.
@@ -103,19 +100,20 @@ func runAllParent(ctx context.Context, repository string, device int, family str
 	deadline := time.Now().Add(budget)
 	var failures []error
 	for index, model := range targets {
-		remaining := time.Until(deadline)
-		if remaining <= 0 {
-			failures = append(failures, fmt.Errorf(
-				"model %q: unevaluated; the %s evaluation budget elapsed", model, budget))
+		// Under a budget the user set, each model gets an equal share of the budget still unspent, so a single heavy
+		// model (the 27B over the 5761-case BBH suite) is bounded to its slice rather than starving the models after
+		// it; slices left unused by fast models widen the shares that follow. With none, each model runs to its end.
+		var slice time.Duration
+		if remaining := time.Until(deadline); budget <= 0 {
+			fmt.Printf("evaluating %d/%d: %s\n", index+1, len(targets), model)
+		} else if remaining <= 0 {
+			failures = append(failures, fmt.Errorf("model %q: unevaluated; the %s evaluation budget elapsed", model, budget))
 			continue
+		} else {
+			slice = remaining / time.Duration(len(targets)-index)
+			fmt.Printf("evaluating %d/%d (%.1fh slice, %.1fh budget left): %s\n",
+				index+1, len(targets), slice.Hours(), remaining.Hours(), model)
 		}
-		// Each model gets an equal share of the budget still unspent, so a
-		// single heavy model (the 27B over the 5761-case BBH suite) is
-		// bounded to its slice rather than starving the models after it;
-		// slices left unused by fast models widen the shares that follow.
-		slice := remaining / time.Duration(len(targets)-index)
-		fmt.Printf("evaluating %d/%d (%.1fh slice, %.1fh budget left): %s\n",
-			index+1, len(targets), slice.Hours(), remaining.Hours(), model)
 		// The worker receives the model path: the parent already listed
 		// and hashed every servable file once, and a worker that listed
 		// again would hash the whole catalog before loading one model.
@@ -126,12 +124,10 @@ func runAllParent(ctx context.Context, repository string, device int, family str
 		if family != "" {
 			arguments = append(arguments, "-family", family)
 		}
-		// The remaining budget bounds this one worker: a single model that
-		// would run past the ceiling is terminated and recorded as
-		// budget-exceeded, so no model can consume the whole pass -- the
-		// exact gap the 27B BBH run exposed, where a per-model floor cannot
-		// preempt a model already inside its suite set.
-		workerCtx, cancel := context.WithTimeoutCause(ctx, slice, errEvaluationSliceElapsed)
+		// The slice bounds this one worker: a single model that would run past the user's budget is terminated and
+		// recorded as budget-exceeded, so no model can consume the whole pass -- the exact gap the 27B BBH run
+		// exposed, where a per-model floor cannot preempt a model already inside its suite set.
+		workerCtx, cancel := clioptions.Limited(ctx, slice, errEvaluationSliceElapsed)
 		receipt, runErr := processcontrol.Run(workerCtx, processcontrol.Command{
 			Path: executable, Args: arguments, Stdout: os.Stdout, Stderr: os.Stderr,
 		})
@@ -158,10 +154,9 @@ func runAllParent(ctx context.Context, repository string, device int, family str
 // runAllWorker evaluates one servable model against the store's
 // derived suites and publishes the evidence through the campaign
 // ledger -- the same session the manifest path opens, fed by suites
-// compiled from the store instead of files. The budget bounds the
-// worker's own pass: a worker launched by hand is the same bounded
-// pass the parent runs, not an unbounded one (the 12B BBH chat pass
-// ran 2h18m past a 2h ceiling the worker accepted and ignored).
+// compiled from the store instead of files. A budget the user set bounds
+// the worker's own pass (the 12B BBH chat pass ran 2h18m past a 2h ceiling
+// the worker accepted and ignored).
 func runAllWorker(ctx context.Context, repository string, device int, family, modelPath, protocol string, budget time.Duration) error {
 	if strings.TrimSpace(modelPath) == "" {
 		return errors.New("evaluate: worker model path is required")
@@ -171,15 +166,12 @@ func runAllWorker(ctx context.Context, repository string, device int, family, mo
 	})
 }
 
-// runBudgetedPass runs one model's pass under the budget and turns
-// budget exhaustion into the recorded outcome the parent reports: the
-// suites committed before the ceiling are evidence, the rest are not
-// scored, and the pass is not a failure.
+// runBudgetedPass runs one model's pass under the budget the user set, none
+// by default, and turns budget exhaustion into the recorded outcome the
+// parent reports: the suites committed before the ceiling are evidence, the
+// rest are not scored, and the pass is not a failure.
 func runBudgetedPass(ctx context.Context, budget time.Duration, model string, pass func(context.Context) error) error {
-	if budget <= 0 {
-		return errors.New("evaluate: the evaluation budget must be positive")
-	}
-	ctx, cancel := context.WithTimeoutCause(ctx, budget, errEvaluationSliceElapsed)
+	ctx, cancel := clioptions.Limited(ctx, budget, errEvaluationSliceElapsed)
 	defer cancel()
 	err := pass(ctx)
 	if errors.Is(context.Cause(ctx), errEvaluationSliceElapsed) {

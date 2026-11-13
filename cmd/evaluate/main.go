@@ -84,7 +84,7 @@ func run() error {
 	worker := flag.Bool("worker", false, "run one model worker")
 	modelIndex := flag.Int("model-index", -1, "worker model index")
 	modelPath := flag.String("model-path", "", "worker model path for -all (the parent lists the catalog once and hands each worker its model), or the image model -render-tifa draws with")
-	budget := flag.Duration("budget", evaluationBudget, "wall-clock ceiling on one -all pass, shared as equal slices across the models still to run; a model cut at its slice is recorded budget-exceeded")
+	budget := flag.Duration("budget", 0, "a limit you set on one -all pass, shared as equal slices across the models still to run (a model cut at its slice is recorded budget-exceeded), or on one speech or transcription evaluation; none by default")
 	importCache := flag.String("import-hf-cache", "", "scan a HuggingFace dataset cache root, import every recognized benchmark, and publish the active catalog")
 	listSuites := flag.Bool("list-derived-suites", false, "compile the store's benchmark catalog into suites and list their descriptors")
 	repository := flag.String("repo", "", "OvergoDB root for -import-hf-cache, -list-derived-suites, and -all; empty resolves through the data root")
@@ -171,10 +171,7 @@ func run() error {
 		if *alignmentManifest != "" && *diarizationManifest != "" {
 			return errors.New("evaluate: select one speech analysis manifest")
 		}
-		if *budget <= 0 {
-			return errors.New("evaluate: speech analysis requires a positive budget")
-		}
-		ctx, cancel := context.WithTimeoutCause(context.Background(), *budget, errors.New("speech analysis evaluation budget exhausted"))
+		ctx, cancel := clioptions.Limited(context.Background(), *budget, errors.New("speech analysis evaluation budget exhausted"))
 		defer cancel()
 		if *diarizationManifest != "" {
 			return evaluateDiarizationManifest(ctx, *repository, path)
@@ -214,10 +211,7 @@ func run() error {
 		if flag.NArg() != 0 || *worker || strings.TrimSpace(*manifestPath) != "" || *allModels {
 			return errors.New("usage: evaluate -transcription-resource-manifest <manifest.json> [-repo <store>]")
 		}
-		if *budget <= 0 {
-			return errors.New("evaluate: transcription execution requires a positive budget")
-		}
-		ctx, cancel := context.WithTimeoutCause(context.Background(), *budget, errors.New("transcription evaluation budget exhausted"))
+		ctx, cancel := clioptions.Limited(context.Background(), *budget, errors.New("transcription evaluation budget exhausted"))
 		defer cancel()
 		return evaluateTranscriptionResourceManifest(ctx, *repository, path)
 	}
@@ -601,25 +595,13 @@ func catalogBenchmarks(ctx context.Context, value manifest) error {
 	return store.Close()
 }
 
-// evaluationBudget is the owner ceiling on one full evaluation pass
-// (2026-09-01): a pass that cannot finish inside it must fail loudly with
-// the models it never reached named, so the operator scales suites or
-// hardware -- exceeding the ceiling silently is not an option, and neither
-// is reporting a truncated pass as complete.
-const evaluationBudget = 6 * time.Hour
-
+// runParent runs each model of the manifest to its end, one worker at a time.
 func runParent(ctx context.Context, value manifest, launch workerLauncher) error {
 	if ctx == nil || launch == nil || len(value.Models) == 0 {
 		return errors.New("evaluate: incomplete parent execution")
 	}
-	deadline := time.Now().Add(evaluationBudget)
 	var failures []error
 	for index, model := range value.Models {
-		if time.Now().After(deadline) {
-			failures = append(failures, fmt.Errorf(
-				"model %q: unevaluated; the %s evaluation budget elapsed", model.Path, evaluationBudget))
-			continue
-		}
 		if err := launch(ctx, index); err != nil {
 			failures = append(failures, fmt.Errorf("model %q: %w", model.Path, err))
 		}

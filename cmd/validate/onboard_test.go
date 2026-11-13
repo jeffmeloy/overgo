@@ -103,7 +103,7 @@ func TestOnboardingAQwen35DirectoryWritesNoGGUF(t *testing.T) {
 	want := []string{
 		"go run ./cmd/model-config -source " + directory + " -repo STORE " + directory,
 		"go run ./cmd/benchmark -publish -repo STORE " + directory + " " + shortBenchmarkPrompt,
-		"go run ./cmd/longform -guard -publish -repo STORE -corpus " + guardCorpus + " -budget " + guardBudget + " -model-budget " + guardModelBudget + " " + directory,
+		"go run ./cmd/longform -guard -publish -repo STORE -corpus " + guardCorpus + " " + directory,
 	}
 	if !slices.Equal(fixture.ran, want) || !slices.Equal(fixture.validated, []string{directory + "|"}) || !slices.Equal(fixture.retired, []artifact.ID{conversion}) {
 		t.Fatalf("onboarding ran %q, validated %q and retired %v; want %q, the directory, and its conversion", fixture.ran, fixture.validated, fixture.retired, want)
@@ -174,7 +174,7 @@ func TestTextModelsOnboardFromTheirSafetensors(t *testing.T) {
 		want := []string{
 			"go run ./cmd/model-config -source " + directory + " -repo STORE " + directory,
 			"go run ./cmd/benchmark -publish -repo STORE " + directory + " " + shortBenchmarkPrompt,
-			"go run ./cmd/longform -guard -publish -repo STORE -corpus " + guardCorpus + " -budget " + guardBudget + " -model-budget " + guardModelBudget + " " + directory,
+			"go run ./cmd/longform -guard -publish -repo STORE -corpus " + guardCorpus + " " + directory,
 		}
 		if !slices.Equal(fixture.ran, want) || !slices.Equal(fixture.validated, []string{directory + "|"}) {
 			t.Errorf("%s onboarding ran %q and validated %q; want %q and the directory itself", modelType, fixture.ran, fixture.validated, want)
@@ -208,7 +208,7 @@ func TestOneCommandOnboardsADeclaredModel(t *testing.T) {
 	want := []string{
 		"go run ./cmd/gguf convert -source " + directory + " -output " + converted + " -record STORE",
 		"go run ./cmd/benchmark -publish -repo STORE " + converted + " " + shortBenchmarkPrompt,
-		"go run ./cmd/longform -guard -publish -repo STORE -corpus " + guardCorpus + " -budget " + guardBudget + " -model-budget " + guardModelBudget + " " + converted,
+		"go run ./cmd/longform -guard -publish -repo STORE -corpus " + guardCorpus + " " + converted,
 	}
 	if !slices.Equal(fixture.ran, want) || !slices.Equal(fixture.validated, []string{converted + "|"}) {
 		t.Fatalf("onboarding ran %q and validated %q, want %q and %q", fixture.ran, fixture.validated, want, converted)

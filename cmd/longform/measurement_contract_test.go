@@ -76,9 +76,13 @@ func TestCampaignMeasurementContract(t *testing.T) {
 			t.Fatal("in-flight corpus snapshot changed")
 		}
 	})
-	t.Run("measurement requires a budget", func(t *testing.T) {
-		if _, err := parseOptions([]string{"model.gguf"}); err == nil {
-			t.Fatal("unbounded measurement accepted")
+	t.Run("a measurement's deadline is the user's alone", func(t *testing.T) {
+		// None by default (no-clocks/own-budgets), and a negative one is refused.
+		if parsed, err := parseOptions([]string{"model.gguf"}); err != nil || parsed.Budget != 0 || parsed.ModelBudget != 0 {
+			t.Fatalf("a measurement with no deadline set parsed as %+v, %v; want it accepted with none", parsed, err)
+		}
+		if _, err := parseOptions([]string{"-budget", "-1s", "model.gguf"}); err == nil {
+			t.Fatal("a negative deadline accepted")
 		}
 	})
 	t.Run("input changes and missing rungs refuse", func(t *testing.T) {

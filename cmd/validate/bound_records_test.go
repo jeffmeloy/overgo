@@ -80,7 +80,7 @@ func TestBenchmarkDoesNotReuseUnknownExecution(t *testing.T) {
 		return value
 	}
 	raw := evaluation.PromptingRawCompletion.Label()
-	if value := read(cell); value.Cost != int64(benchmarkBudget) || value.Protocol != raw {
+	if value := read(cell); value.Cost != int64(unmeasuredBenchmarkCost) || value.Protocol != raw {
 		t.Errorf("unknown execution was bound: %+v, want a fresh raw measurement at the budget's cost", value)
 	}
 	platform := testcheck.Must(runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture", Backend: "host", Driver: "fixture"}))(t)

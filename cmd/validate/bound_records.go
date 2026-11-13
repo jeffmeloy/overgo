@@ -110,7 +110,7 @@ func (benchmarks benchmarkEvidence) bind(ctx context.Context, store *overgodb.St
 	if slices.Contains(templateFamilies, cell.Validation) {
 		protocol = evaluation.PromptingChatTemplate.Label()
 	}
-	cell.Protocol, cell.Cost = cmp.Or(cell.Protocol, protocol), int64(benchmarkBudget)
+	cell.Protocol, cell.Cost = cmp.Or(cell.Protocol, protocol), int64(unmeasuredBenchmarkCost)
 	return cell, nil
 }
 

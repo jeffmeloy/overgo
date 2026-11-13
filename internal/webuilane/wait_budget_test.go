@@ -11,18 +11,18 @@ import (
 )
 
 // TestDeclaredBudgetEndsAWaitThePageNeverAnswers holds every wait on a page
-// to the budget its lane declared. A page that is alive and never answers
-// held its test until someone killed the run, and what the page showed was
-// never printed, since a killed test prints nothing.
+// to a limit the user set with webui-lane -wait (WaitBudgetEnvironment): a
+// wait that ends there prints what the page showed, where a killed test
+// prints nothing. With none set, no clock of the lane's ends a wait
+// (no-clocks/own-budgets).
 //
 // Over a scripted DevTools socket, with no browser and on a simulated clock,
 // the page reports its state and then goes quiet. A predicate it never makes
 // true, an expression it never answers and an event it never sends each end
-// when the budget has passed, with the caller's context still alive: the
-// failure is a deadline's, names the budget, and for the predicate carries
-// what the page last reported. A page that answers inside the budget is
-// answered as before. And a budget the lane declared that cannot be read
-// starts no browser.
+// when the limit has passed, with the caller's context still alive: the
+// failure is a deadline's, names the limit, and for the predicate carries
+// what the page last reported. A page that answers inside the limit is
+// answered as before. And a limit set that cannot be read starts no browser.
 func TestDeclaredBudgetEndsAWaitThePageNeverAnswers(t *testing.T) {
 	// declared is the budget this test declares for its sockets, on the simulated clock.
 	const declared = 90 * time.Second

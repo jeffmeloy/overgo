@@ -50,7 +50,7 @@ func Execute(ctx context.Context, directory, command string, overrides []string)
 		return "", err
 	}
 	structuredGoTest := len(parsed.GoTests()) != 0
-	executable := parsed.JSONCommand(command)
+	executable := parsed.RunCommand(command)
 	first, err := executeShell(ctx, shell, directory, executable, environment)
 	if err != nil {
 		detail, failed := clioptions.Tail(first, clioptions.DiagnosticTailBytes), ErrFailed

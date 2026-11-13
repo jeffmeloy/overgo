@@ -24,8 +24,8 @@ import (
 
 // runSmoke is validate -smoke: it checks the declared behavior of every
 // active inference model, or of the one model names, in the store repository
-// names, and records each run there unless diagnostic. budget bounds
-// discovery and execution together and must be positive.
+// names, and records each run there unless diagnostic. A budget the user
+// set bounds discovery and execution together; none bounds nothing.
 func runSmoke(ctx context.Context, output io.Writer, repository string, budget time.Duration, model string, diagnostic bool) error {
 	if model != "" {
 		id, err := artifact.ParseID(model)
@@ -37,11 +37,8 @@ func runSmoke(ctx context.Context, output io.Writer, repository string, budget t
 	if err != nil {
 		return err
 	}
-	if budget > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeoutCause(ctx, budget, errors.New("smoke: execution budget exhausted"))
-		defer cancel()
-	}
+	ctx, cancel := clioptions.Limited(ctx, budget, errors.New("smoke: execution budget exhausted"))
+	defer cancel()
 	reader, err := overgodb.OpenReadOnly(storeRoot)
 	if err != nil {
 		return err

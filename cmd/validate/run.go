@@ -29,17 +29,13 @@ import (
 	"overgo/internal/trainingworkflow"
 )
 
-// Guard re-acquisition policy: the fixed corpus and budgets a text guard cell
-// re-acquires under, so a re-run binds evidence at the current surface.
-const (
-	guardCorpus      = "cmd/longform/testdata/guard-corpus.txt"
-	guardBudget      = "90m"
-	guardModelBudget = "25m"
-)
+// guardCorpus is the fixed corpus a text guard cell re-acquires under, so a re-run binds evidence at the current
+// surface; it runs to its end, under no deadline (no-clocks/own-budgets).
+const guardCorpus = "cmd/longform/testdata/guard-corpus.txt"
 
-// benchmarkBudget bounds one benchmark re-acquisition at evaluate's own
-// ceiling on a pass; a benchmark with no measured wall is ordered by it.
-const benchmarkBudget = 6 * time.Hour
+// unmeasuredBenchmarkCost is what a benchmark with no measured wall is ordered by: the six hours evaluate's pass was
+// once bounded to. It orders the work and ends none of it.
+const unmeasuredBenchmarkCost = 6 * time.Hour
 
 // videoUserSize and imageUserSize are the cells that time a model's request at the size a person asks for, the page's
 // defaults (mediacapability.PersonRequest), where its proof times a small one: 81 frames at 832 by 480 for Wan, about
@@ -80,8 +76,7 @@ func reacquireCommand(cell ModelValidation, store string) (string, []string, err
 		}
 		return "go", []string{
 			"run", "./cmd/longform", "-guard", "-publish", "-repo", store,
-			"-corpus", guardCorpus, "-budget", guardBudget, "-model-budget", guardModelBudget,
-			cell.Location,
+			"-corpus", guardCorpus, cell.Location,
 		}, nil
 	case "image-proof", "video-proof", "speech-proof", "vqa-proof", "specialized-proof", servingValidation:
 		// A media, specialized or inference model is measured the way its
@@ -115,7 +110,7 @@ func reacquireCommand(cell ModelValidation, store string) (string, []string, err
 	// suite, under the protocol of the record it replaces.
 	args := []string{
 		"run", "./cmd/evaluate", "-all", "-worker", "-repo", store, "-model-path", cell.Location,
-		"-family", cell.Validation, "-budget", benchmarkBudget.String(),
+		"-family", cell.Validation,
 	}
 	if cell.Protocol == evaluation.PromptingChatTemplate.Label() {
 		args = append(args, "-protocol", cell.Protocol)
@@ -474,69 +469,24 @@ func acquire(ctx context.Context, output io.Writer, root, name string, args []st
 	inherited := slices.DeleteFunc(os.Environ(), func(variable string) bool {
 		return strings.HasPrefix(variable, clioptions.MeasurementRunEnvironment+"=")
 	})
-	packages, skipped := invocation.Packages, []string(nil)
-	for {
-		run, stop := context.WithCancel(ctx)
-		var ended []string
-		stopped := false
-		report, err := testevidence.RunGoTestCommand(run, processcontrol.Command{
-			Path: name, Args: slices.Insert(laneArguments(args, invocation.Packages, packages), 1, "-json"), Dir: root,
-			Env: append(slices.Clone(inherited), environment...),
-		}, testevidence.GoTestOptions{DiagnosticBytes: clioptions.DiagnosticTailBytes, Progress: func(done testevidence.PackageProgress) {
-			fmt.Fprintf(output, "%s\t%s\t%s\n", done.Action, done.Package, done.Elapsed)
-			ended = append(ended, done.Package)
-			watch.ran(done)
-			// A failed lane runs no cell: once a test has failed, a long package still queued is not waited for.
-			if !stopped && len(watch.failed()) > 0 && slices.ContainsFunc(queued(packages, ended), watch.long) {
-				stopped = true
-				stop()
-			}
-		}, Tests: watch.observe})
-		stop()
-		watch.close()
-		for _, diagnostic := range report.Diagnostics {
-			fmt.Fprintf(output, "validate -run: diagnostic: %s\n", diagnostic)
-		}
-		if !stopped {
-			required := requiredPass(report, packages, selected)
-			if err == nil && len(skipped) == 0 {
-				return required
-			}
-			if required != nil {
-				err = errors.Join(err, required)
-			}
-			if len(skipped) > 0 {
-				err = errors.Join(fmt.Errorf("%s failed; %s skipped after the failure", strings.Join(watch.failed(), ", "), strings.Join(skipped, ", ")), err)
-			}
-			return err
-		}
-		rest := queued(packages, ended)
-		long := slices.DeleteFunc(slices.Clone(rest), func(pkg string) bool { return !watch.long(pkg) })
-		skipped = append(skipped, long...)
-		fmt.Fprintf(output, "validate -run: %s failed, so %s, whose lane tests took %s or more in the runs before, are skipped: no cell runs after a failed lane\n",
-			strings.Join(watch.failed(), ", "), strings.Join(long, ", "), skippedAfterFailure)
-		if packages = slices.DeleteFunc(rest, watch.long); len(packages) == 0 {
-			return fmt.Errorf("%s failed; %s skipped after the failure", strings.Join(watch.failed(), ", "), strings.Join(skipped, ", "))
-		}
+	// Every package the lane names runs to its end after a failure too, so a run names every break there is: a failed
+	// lane's queued packages were skipped by their walls before, and the run named fewer (no-clocks/own-budgets).
+	report, err := testevidence.RunGoTestCommand(ctx, processcontrol.Command{
+		Path: name, Args: slices.Insert(slices.Clone(args), 1, "-json"), Dir: root, Env: append(inherited, environment...),
+	}, testevidence.GoTestOptions{DiagnosticBytes: clioptions.DiagnosticTailBytes, Progress: func(done testevidence.PackageProgress) {
+		fmt.Fprintf(output, "%s\t%s\t%s\n", done.Action, done.Package, done.Elapsed)
+		watch.ran(done)
+	}, Tests: watch.observe})
+	watch.close()
+	for _, diagnostic := range report.Diagnostics {
+		fmt.Fprintf(output, "validate -run: diagnostic: %s\n", diagnostic)
 	}
+	return errors.Join(err, requiredPass(report, invocation.Packages, selected))
 }
 
 // samePackage is whether the package go test reports as path is the one a command names as pkg (./directory).
 func samePackage(pkg, path string) bool {
 	return path == pkg || strings.HasSuffix(path, "/"+strings.TrimPrefix(pkg, "./"))
-}
-
-// queued are the packages a command names that no reported package end is.
-func queued(packages, ended []string) []string {
-	return slices.DeleteFunc(slices.Clone(packages), func(pkg string) bool {
-		return slices.ContainsFunc(ended, func(path string) bool { return samePackage(pkg, path) })
-	})
-}
-
-// laneArguments are a go test command's arguments with each of the packages it names that kept does not hold left
-// out.
-func laneArguments(args, named, kept []string) []string {
-	return slices.DeleteFunc(slices.Clone(args), func(arg string) bool { return slices.Contains(named, arg) && !slices.Contains(kept, arg) })
 }
 
 // requiredPass says why one go test run's report does not prove what the run

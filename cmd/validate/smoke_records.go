@@ -16,13 +16,10 @@ import (
 // dnaModality is the declared evaluation domain of a DNA model.
 const dnaModality = "dna"
 
-// smokeBudget is validate -smoke's execution budget for one DNA model's run.
-const smokeBudget = "15m"
-
 // smokeCommand re-acquires a DNA model's smoke run into the store validate
 // selected and read, so the lane never resolves a default store of its own.
 func smokeCommand(model artifact.ID, store string) []string {
-	return []string{"run", "./cmd/validate", "-smoke", "-budget", smokeBudget, "-model", model.String(), "-repo", store}
+	return []string{"run", "./cmd/validate", "-smoke", "-model", model.String(), "-repo", store}
 }
 
 // dnaGuard reports a DNA model's inference cell, whose evidence is its smoke

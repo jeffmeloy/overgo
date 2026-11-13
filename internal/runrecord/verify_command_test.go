@@ -4,6 +4,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestParseVerify holds the one verifier parser to what the shell runs:
@@ -33,9 +35,14 @@ func TestParseVerify(t *testing.T) {
 	if targets := parsed.Targets(); len(targets) != 2 || !parsed.Short() {
 		t.Fatalf("targets = %d short = %v", len(targets), parsed.Short())
 	}
-	json := parsed.JSONCommand(command)
+	json := parsed.RunCommand(command)
 	if !strings.Contains(json, "OVERGO_CUDA_TEST=1 go test -json -timeout 20m") || strings.Contains(json, "go run -json") {
 		t.Fatalf("json command = %s", json)
+	}
+	// A go test that names no timeout runs with none, where Go's default would end it at ten minutes.
+	unbounded := testcheck.Must(ParseVerify("go test ./a -count=1"))(t)
+	if run := unbounded.RunCommand("go test ./a -count=1"); run != "go test -json -timeout=0 ./a -count=1" {
+		t.Fatalf("a go test naming no timeout runs as %q, want -timeout=0 added", run)
 	}
 	for _, composite := range []string{"go run ./cmd/x > /dev/null && go test ./a -count=1", "go test ./a | tee log", "test $(ls | wc -l) -eq 0", `test -n "$HOME" && go test ./a`} {
 		parsed, err := ParseVerify(composite)

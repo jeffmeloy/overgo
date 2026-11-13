@@ -28,12 +28,6 @@ import (
 
 const cudaTestEnv = "OVERGO_CUDA_TEST"
 
-// deviceTestTimeout is go test's no-timeout setting, the gate's convention for a lane that runs real
-// device suites (adaptiveparity alone measured 624 s): a limit of two default windows had no
-// derivation, and a stalled suite is diagnosed from its own state, with the lane's cancellation and
-// process cleanup, not cut off by a clock.
-const deviceTestTimeout = "0"
-
 var (
 	pathsFlag     = flag.String("paths", "", "comma-separated changed paths; empty runs the full device set")
 	pathsFileFlag = flag.String("paths-file", "", "file of newline-separated changed paths; overrides -paths (Windows caps the command line)")
@@ -177,8 +171,10 @@ func deviceSteps(plan devicescope.VerificationPlan) [][]string {
 
 // deviceTestStep is the go test command of the device tests arguments select, each run afresh: go test's cache keys
 // no file outside the module, so a cached pass would outlive a driver update or a changed model under the data root.
+// No clock ends it: a stalled suite is diagnosed from its own state, with the lane's cancellation and process cleanup
+// (adaptiveparity alone measured 624 s).
 func deviceTestStep(arguments ...string) []string {
-	command := []string{"go", "test", "-json", "-p=1", "-timeout=" + deviceTestTimeout}
+	command := []string{"go", "test", "-json", "-p=1", "-timeout=0"}
 	command = append(command, arguments...)
 	return append(command, freshRun)
 }

@@ -20,7 +20,6 @@ import (
 	"slices"
 	"strings"
 	"syscall"
-	"time"
 
 	"overgo/internal/clioptions"
 	"overgo/internal/processcontrol"
@@ -29,25 +28,6 @@ import (
 	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
-
-// waitBudget is how long a page acceptance may wait for one answer from its
-// page before the wait fails with what the page showed. It is a little over
-// twice the longest the whole page lane has taken on record, 1 m 42 s beside
-// the device tests on 2026-10-11: no wait of a healthy leg outlasts the lane
-// it runs in, and a leg hung on a live page was otherwise found only when
-// someone killed the run. It is the lane's declaration, which -wait replaces.
-const waitBudget = 4 * time.Minute
-
-// journeyWait is how long a model journey may wait for one answer from its page, which may build, serve or validate a
-// model meanwhile, before the wait fails with what the page showed: the longest the journeys have taken in all on
-// record, 6 m 44 s on 2026-10-25, which no single wait of a healthy journey outlasts. Unbounded, a journey whose
-// registration the page refused waited 10 h 21 m on 2026-10-28 until it was killed.
-const journeyWait = 7 * time.Minute
-
-// journeyBudget is how long the model journeys may run in all before go test stops them and prints every goroutine's
-// stack, which bounds the waits that are not the page's (an operation's state, a child's exit): a little over twice
-// the longest the journeys have taken on record.
-const journeyBudget = 14 * time.Minute
 
 func main() {
 	clioptions.MainNamed("webui lane", run)
@@ -61,7 +41,7 @@ func run() error {
 	screens := flags.String("screens", "", "write the captures (every tab and the picker, desktop and phone) as PNGs into this directory")
 	pageURL := flags.String("url", "", "capture and audit a running server's page at this address instead of running the tests")
 	design := flags.Bool("design", false, "derive "+webuilane.DesignDocumentPath+" from "+webuilane.StylesheetPath+" and write it, instead of running the tests")
-	wait := flags.Duration("wait", waitBudget, "how long a page acceptance may wait for one answer from the page before the wait fails with what the page showed")
+	wait := flags.Duration("wait", 0, "a limit you set on each wait for one answer from the page, past which the wait fails with what the page showed; none by default")
 	var required []string
 	flags.Func("leg", "a leg a passing test must record (repeatable), named as the test's webuilane.Leg call names it", func(leg string) error { required = append(required, leg); return nil })
 	if err := flags.Parse(os.Args[1:]); err != nil || flags.NArg() != 0 {
@@ -76,12 +56,9 @@ func run() error {
 		return writeDesign()
 	}
 	var extra []string
-	// Each wait for the page's answer is bounded in the wait's owner (waitBudget, a journey's journeyWait), where the
-	// failure can say what the page showed; the page acceptances take no go test timeout, and the journeys, whose other
-	// waits are not the page's, are bounded as a whole (journeyBudget).
-	timeout, pageWait := time.Duration(0), *wait
+	// A wait for the page's answer ends at the page's answer, or its browser's end, or a limit the user set with -wait,
+	// where the failure says what the page showed; no go test timeout ends the lane (no-clocks/own-budgets).
 	if *journeys {
-		timeout, pageWait = journeyBudget, journeyWait
 		if *run == "^"+webuilane.BrowserTestPrefix {
 			*run = "^" + webuilane.ModelJourneyPrefix
 		}
@@ -89,7 +66,9 @@ func run() error {
 		// opts into the store acceptances its fixtures are held behind.
 		extra = append(extra, webuilane.ModelJourneyEnvironment+"=1", testskip.StoreAcceptanceEnv+"=1")
 	}
-	extra = append(extra, webuilane.WaitBudgetEnvironment+"="+pageWait.String())
+	if *wait > 0 {
+		extra = append(extra, webuilane.WaitBudgetEnvironment+"="+wait.String())
+	}
 	if *screens != "" {
 		absolute, err := filepath.Abs(*screens)
 		if err != nil {
@@ -97,7 +76,7 @@ func run() error {
 		}
 		extra = append(extra, "OVERGO_WEBUI_LANE_SCREENS="+absolute)
 	}
-	return runLane(ctx, os.Stdout, *run, extra, required, timeout)
+	return runLane(ctx, os.Stdout, *run, extra, required)
 }
 
 // captureLive captures and audits a running server's page: every tab and
@@ -132,8 +111,8 @@ func captureLive(ctx context.Context, stdout io.Writer, pageURL, dir string) err
 // by its typed report and leg records against the required legs, so a plan
 // verify naming the lane gets evidence, never a silent pass. No browser is
 // a typed unavailable outcome, never a pass. extra carries the screens
-// test's capture directory and page address; timeout is go test's, zero for none.
-func runLane(ctx context.Context, stdout io.Writer, run string, extra, required []string, timeout time.Duration) error {
+// test's capture directory and page address. No go test timeout ends it.
+func runLane(ctx context.Context, stdout io.Writer, run string, extra, required []string) error {
 	var listing bytes.Buffer
 	if !strings.Contains(run, "/") {
 		// Empty -list executes tests instead of listing them.
@@ -184,7 +163,7 @@ func runLane(ctx context.Context, stdout io.Writer, run string, extra, required 
 	env = append(env, extra...)
 	args := append([]string{"test"}, packages...)
 	// Browser processes share host transport buffers, so test packages and bodies run serially.
-	args = append(args, "-run", run, "-count=1", "-timeout="+timeout.String(), "-json", "-p=1", "-parallel=1")
+	args = append(args, "-run", run, "-count=1", "-timeout=0", "-json", "-p=1", "-parallel=1")
 	report, runErr := testevidence.RunGoTestCommand(ctx, processcontrol.Command{Path: "go", Args: args, Env: env}, testevidence.GoTestOptions{
 		DiagnosticBytes: clioptions.DiagnosticTailBytes,
 		Progress: func(done testevidence.PackageProgress) {

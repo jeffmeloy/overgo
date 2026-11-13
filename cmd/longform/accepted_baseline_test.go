@@ -124,7 +124,7 @@ func TestGuardEvidenceContract(t *testing.T) {
 			"nonfinite rate":      func(r *longform.Result) { r.Shape.Measure.DecodeTokensPerSecond = math.Inf(1) },
 			"nonfinite benchmark": func(r *longform.Result) { r.Short.DecodeTokensPerSecond = math.NaN() },
 			"zero rate":           func(r *longform.Result) { r.Rungs[0].Measure.DecodeTokensPerSecond = 0 },
-			"unbounded":           func(r *longform.Result) { r.BudgetNS = 0 },
+			"negative budget":     func(r *longform.Result) { r.BudgetNS = -1 },
 			"over budget":         func(r *longform.Result) { r.WallNS = r.BudgetNS + 1 },
 		} {
 			t.Run(name, func(t *testing.T) {

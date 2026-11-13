@@ -46,6 +46,11 @@ type Request struct {
 	// Schedule is the sigmas a rotary profile (MOSS) samples by in place of its own: a scheduler by name (bong_tangent,
 	// beta57) or a list of the request's own, as ComfyUI's KSampler takes them.
 	Schedule *sampling.Schedule `json:"schedule,omitempty"`
+	// Canvas sizes the picture from an aspect ratio and megapixels, as ComfyUI's ResolutionSelector does, in place of a
+	// width and height the request then leaves unset.
+	Canvas *media.Canvas `json:"canvas,omitempty"`
+	// Sharpen sharpens a rotary profile's picture after it is decoded, as ComfyUI's ImageSharpen does.
+	Sharpen *media.Sharpening `json:"sharpen,omitempty"`
 }
 
 // errDrawsItsOwnSchedule refuses a request's schedule on a profile that samples its model's own (a flow profile's
@@ -115,6 +120,11 @@ func ValidateRequest(request Request) error {
 	}
 	if request.Schedule != nil {
 		if err := request.Schedule.Validate(); err != nil {
+			return fmt.Errorf("latent image: %w", err)
+		}
+	}
+	if request.Sharpen != nil {
+		if err := request.Sharpen.Validate(); err != nil {
 			return fmt.Errorf("latent image: %w", err)
 		}
 	}
@@ -474,6 +484,16 @@ func RegisterRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, gene
 // so a request naming a preset and one stating its values are one request. A request naming none is the authors'
 // recipe, its profile's.
 func (r Request) withPreset(directory string) (Request, error) {
+	if r.Canvas != nil {
+		if r.Width != 0 || r.Height != 0 {
+			return Request{}, errors.New("latent image: a request gives its width and height or its canvas, not both")
+		}
+		var err error
+		if r.Width, r.Height, err = r.Canvas.Size(); err != nil {
+			return Request{}, fmt.Errorf("latent image: %w", err)
+		}
+		r.Canvas = nil
+	}
 	if r.Preset == "" {
 		return r, nil
 	}
@@ -495,7 +515,7 @@ func (r Request) withPreset(directory string) (Request, error) {
 }
 
 // rotaryOnly is whether the request asks what only a rotary profile runs: a negative prompt, a guidance scale of its
-// own or guidance over its steps, or layout validation.
+// own or guidance over its steps, layout validation, or a sharpening of its picture.
 func (r Request) rotaryOnly() bool {
-	return r.NegativePrompt != "" || r.GuidanceScale != nil || r.Guidance != (sampling.Guidance{}) || r.PromptMode == promptLayout
+	return r.NegativePrompt != "" || r.GuidanceScale != nil || r.Guidance != (sampling.Guidance{}) || r.PromptMode == promptLayout || r.Sharpen != nil
 }

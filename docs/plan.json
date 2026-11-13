@@ -21,9 +21,10 @@
             "internal/processcontrol",
             "cmd/evaluate",
             "internal/landing",
-            "cmd/device-lane"
+            "cmd/device-lane",
+            "internal/runrecord"
           ],
-          "rationale": "Serves: the owner's suggestion of 2026-11-12: replace guessed waits with the job's own counts, on parts that exist; counts only, no estimated percentages; a stall judged against the job's own measured time per unit and only reported.\n\nDisappears: a wait whose reader cannot tell a working holder from a stuck one. On 2026-11-12 a test waited from 14:14 for a render that drew a video every 5 min 34 s and never handed over; the waiter's one line named the render and when it took the card, nothing of how far it had come. The device lane printed a heartbeat every 15 s, a clock's line that says only that time passed, and the landing printed a stage only when it ended.\n\nThe change:\n- The turn's record carries the holder's count and when it was reached: processcontrol.TurnCount(done, total), which a render calls as it prints \"drew n/N\", rewrites the record its holder keeps open; a waiter's line says the count and when it was reached beside the holder's process and purpose.\n- The landing says each stage as it starts, \"stage k of N\", and the device lane says each step as it starts, its count already in its line; the device lane's heartbeat goes.\n\nCheck: a test holds a waiter's line to the holder's count: a holder that has counted 3 of 5 is named by a waiter at 3/5 and the time it was reached.\n\nBatch: host lane."
+          "rationale": "Serves: the owner's suggestion of 2026-11-12: replace guessed waits with the job's own counts, on parts that exist; counts only, no estimated percentages; a stall judged against the job's own measured time per unit and only reported.\n\nDisappears: a wait whose reader cannot tell a working holder from a stuck one. On 2026-11-12 a test waited from 14:14 for a render that drew a video every 5 min 34 s and never handed over; the waiter's one line named the render and when it took the card, nothing of how far it had come. The device lane printed a heartbeat every 15 s, a clock's line that says only that time passed, and the landing printed a stage only when it ended.\n\nThe change:\n- The turn's record carries the holder's count and when it was reached: processcontrol.TurnCount(done, total), which a render calls as it prints \"drew n/N\", rewrites the record its holder keeps open; a waiter's line says the count and when it was reached beside the holder's process and purpose.\n- The landing says each stage as it starts, \"stage k of N\", and the device lane says each step as it starts, its count already in its line; the device lane's heartbeat goes.\n\nCheck: a test holds a waiter's line to the holder's count: a holder that has counted 3 of 5 is named by a waiter at 3/5 and the time it was reached.\n\nBatch: host lane.\n\nNote: files set to internal/processcontrol, cmd/evaluate, internal/landing, cmd/device-lane, internal/runrecord: the device lane's heartbeat goes, and with it runrecord.DefaultHeartbeatStaleAfter, which only it read"
         }
       ]
     },
@@ -359,7 +360,7 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 2333,
+        "nodes": 1466,
         "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
       },
       "steps": [
@@ -438,20 +439,6 @@
           "rationale": "The recorder reads the enhancer's system prompts and request templates out of the workflow file as data. Sampling follows the workflow: temperature 0.7, top-k 20, top-p 0.8, presence penalty 1.5, seed 0, thinking off. The 450-word test with one retry, the negative written from the final positive, the photo-or-other choice and the negative clean-up are Go string code, not regular expressions. Mode 3 converts 0 to 1000 boxes to centred-pixel yxyx layout JSON, which overgo already validates.\n\nServes: capabilities MOSS lacks.\nDisappears: nothing.\nEvidence: given the same generated text, the cleaned negative equals ComfyUI's string exactly; the generated text is held token for token under greedy decoding; sampled text is compared only through the image; mode 3's layout equals the recorded string.\nBatch: device lane.",
           "depends_on": [
             "moss-ultra-import/encoder"
-          ]
-        },
-        {
-          "id": "finishing",
-          "title": "Sharpening (radius 1, sigma 0.6, amount 0.7) is within one 8-bit level of the recorded image, and the aspect-and-megapixel size rounds to exactly the recorded width and height",
-          "status": "open",
-          "verify": "go test ./internal/media -count=1 -run '^TestFinishingMatchesTheRecordedImage$'",
-          "files": [
-            "internal/media",
-            "internal/latentimage"
-          ],
-          "rationale": "The workflow sharpens its output and sizes its canvas from an aspect ratio and a megapixel count rounded to 32.\n\nNote: 2026-11-12, the evidence read against what the recording holds: the recorded sharpened picture was sharpened from float values the recording does not keep, and its original is saved at 8 bits (SaveImage writes the floor of 255 times each value), which the sharpening's kernel, 8 at its centre less 7 times a blur, amplifies. Sharpened from the recorded original at its levels' middles, the turbo text-to-image picture's 1,769,472 values differ from the recorded sharpened ones by 0 levels at 397,339, by 1 at 714,320, by 2 at 516,724, by 3 at 136,446 and by 4 at 4,643, symmetric about 0, so the formula holds and the 8-bit input is the spread. The check holds overgo's sharpening to ComfyUI's ImageSharpen run on the same 8-bit input instead, a 96 × 96 crop of the recorded original read as LoadImage reads it (scripts/python_golden_references/comfy_finishing_golden.py): within one level, 27,627 of its 27,648 values exact. The sizes are ResolutionSelector's own over eight aspect ratios, eleven megapixels and five multiples, 440 in all, the workflow's 1024 × 576 among them, each reproduced exactly.\n\nNote: No boundary test: the finishing is new code of internal/media (Sharpen, Sharpening, Canvas, AspectSize) that no test building at the base can name; the check, TestFinishingMatchesTheRecordedImage, and the tests the change adds beside it, TestSharpenRefusesWhatItCannotSharpen and TestARequestsCanvasAndSharpeningFinishItsPicture, each call it.\n\nServes: setup-steps for moss-ultra-compare.\nDisappears: nothing.\nEvidence: the sharpened image is within one 8-bit level of the recorded one, and every recorded size is reproduced exactly.\nBatch: host lane.",
-          "depends_on": [
-            "comfy-recorder/record"
           ]
         }
       ]

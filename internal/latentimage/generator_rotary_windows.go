@@ -313,6 +313,12 @@ func (g *Generator) decodeRotary(ctx context.Context) (result EncodedImage, err 
 	if err = ctx.Err(); err != nil {
 		return result, err
 	}
+	// The picture is sharpened as it is finished, after the decoded pixels a parity observes.
+	if g.request.Sharpen != nil {
+		if pixels, err = media.Sharpen(pixels, p.OutH, p.OutW, *g.request.Sharpen); err != nil {
+			return result, err
+		}
+	}
 	result, err = encodeUnitPNG(pixels, p.OutH, p.OutW)
 	if err != nil {
 		return result, err

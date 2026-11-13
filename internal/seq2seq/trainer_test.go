@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/checkpointtest"
+	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/hostmath"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/testcheck"
@@ -15,6 +16,7 @@ import (
 // trainer once, publishes its parameters and optimizer state as a
 // checkpoint, and reads both back bit for bit under every parameter name.
 func TestTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
+	cudatest.Require(t)
 	model := tinyModel()
 	config := testcheck.Must(trainingprogram.BuiltinOptimizerPolicy().Config(model.TrainableParameterCount()))(t)
 	trainer := testcheck.Must(NewTrainer(model, config))(t)

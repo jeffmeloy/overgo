@@ -449,6 +449,9 @@ func (l *Library) DeviceInfo(ordinal int) (DeviceInfo, error) {
 // No caller context ends the wait: every holder is a process whose turn
 // the system hands on when it ends.
 func (l *Library) ContextCreate(device Device, flags uint32) (Context, error) {
+	if err := hostTestReach(); err != nil {
+		return 0, err
+	}
 	var created Context
 	uuid, err := func() (string, error) {
 		l.contextMu.Lock()

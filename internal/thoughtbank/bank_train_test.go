@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"overgo/internal/checkpointtest"
+	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
 )
@@ -20,6 +21,7 @@ import (
 // and holds the checkpoint it publishes to its bank tensors and optimizer
 // state bit for bit.
 func TestBankTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
+	cudatest.Require(t)
 	rng := rand.New(rand.NewSource(20260930))
 	weights, input, memory, rows, slots := newFastWeightBankFixture(rng, false)
 	config := testcheck.Must(trainingprogram.BuiltinOptimizerPolicy().Config(len(weights.FWA) + len(weights.FWB) + len(weights.FWO) + len(weights.NormWeight)))(t)

@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"overgo/internal/checkpointtest"
+	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/tensor"
 	"overgo/internal/trainingprogram"
 )
@@ -94,6 +95,7 @@ func ditTestTrainer(t *testing.T) (*ditTrainer, DiTTrainBatch) {
 }
 
 func TestDiTTrainerDerivedHyperparameters(t *testing.T) {
+	cudatest.Require(t)
 	trainer, _ := ditTestTrainer(t)
 	want := trainingprogram.BuiltinOptimizerPolicy().BaseLearningRate(trainer.ParameterCount())
 	if trainer.Config().BaseLearningRate != want {
@@ -110,6 +112,7 @@ func TestDiTTrainerDerivedHyperparameters(t *testing.T) {
 // (patch embed, text/time embeddings, time projection, head) and the shared
 // conditioning tensors that accumulate from every block.
 func TestDiTTrainerGradientMatchesFiniteDifference(t *testing.T) {
+	cudatest.Require(t)
 	trainer, batch := ditTestTrainer(t)
 	if _, _, err := trainer.lossAndGradients(batch); err != nil {
 		t.Fatal(err)
@@ -161,6 +164,7 @@ func TestDiTTrainerGradientMatchesFiniteDifference(t *testing.T) {
 // TestDiTTrainerStepDescends: repeated steps on the fixed batch must reduce
 // the flow-matching MSE.
 func TestDiTTrainerStepDescends(t *testing.T) {
+	cudatest.Require(t)
 	trainer, batch := ditTestTrainer(t)
 	first := testcheck.Must(trainer.Loss(batch))(t)
 	var last ditTrainStepResult
@@ -180,6 +184,7 @@ func TestDiTTrainerStepDescends(t *testing.T) {
 // trainer's masters and optimizer state as a checkpoint, and reads both back
 // bit for bit under every checkpoint tensor name.
 func TestDiTTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
+	cudatest.Require(t)
 	trainer, batch := ditTestTrainer(t)
 	if _, err := trainer.Step(batch); err != nil {
 		t.Fatal(err)
@@ -200,6 +205,7 @@ func TestDiTTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
 // BITWISE identical to the fully retained pass -- same hidden chain,
 // same block outputs, same predicted velocity.
 func TestDiTTrainerCheckpointedForwardMatchesRetained(t *testing.T) {
+	cudatest.Require(t)
 	trainer, batch := ditTestTrainer(t)
 	text := testcheck.Must(trainer.projectText(batch.RawText, batch.TextTokens))(t)
 	timeActs := testcheck.Must(trainer.timestepConditioning(batch.Timestep))(t)

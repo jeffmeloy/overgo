@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/checkpointtest"
+	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/optimizer"
 	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
@@ -69,6 +70,7 @@ func testOptimizerConfig(t *testing.T, model *Model) optimizer.Config {
 }
 
 func TestTrainerDecreasesForecastLossTiny(t *testing.T) {
+	cudatest.Require(t)
 	model := tinyTrainableModel()
 	trainer := testcheck.Must(NewTrainer(model, testOptimizerConfig(t, model)))(t)
 	defer trainer.Close()
@@ -99,6 +101,7 @@ func TestTrainerDecreasesForecastLossTiny(t *testing.T) {
 }
 
 func TestTrainerPublishesCompiledParameterAuthority(t *testing.T) {
+	cudatest.Require(t)
 	model := tinyTrainableModel()
 	trainer := testcheck.Must(NewTrainer(model, testOptimizerConfig(t, model)))(t)
 	defer trainer.Close()
@@ -117,6 +120,7 @@ func TestTrainerPublishesCompiledParameterAuthority(t *testing.T) {
 // trainer's weights and optimizer state as a checkpoint, and reads both back
 // bit for bit.
 func TestTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
+	cudatest.Require(t)
 	model := tinyTrainableModel()
 	trainer := testcheck.Must(NewTrainer(model, testOptimizerConfig(t, model)))(t)
 	defer trainer.Close()
@@ -131,6 +135,7 @@ func TestTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
 }
 
 func TestTrainerRefusesGradientsOutsidePack(t *testing.T) {
+	cudatest.Require(t)
 	model := tinyTrainableModel()
 	trainer, err := NewTrainer(model, testOptimizerConfig(t, model))
 	testcheck.NoError(t, err)

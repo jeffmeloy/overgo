@@ -9,6 +9,7 @@ import (
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
 
+	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/tensor/dtype"
 )
 
@@ -39,6 +40,7 @@ func tinyBridge(hidden, latent int) LatentBridgeWeights {
 }
 
 func TestLatentBridgeTrainerDescends(t *testing.T) {
+	cudatest.Require(t)
 	trainer := testcheck.Must(NewLatentBridgeTrainer(tinyBridge(10, 3), trainingprogram.BuiltinOptimizerPolicy()))(t)
 	defer trainer.Close()
 	if got, want := trainer.Config().Momentum, 29.0/31.0; math.Abs(got-want) > 1e-12 {
@@ -76,6 +78,7 @@ func TestLatentBridgeTrainerDescends(t *testing.T) {
 // publishes the trainer's pair and optimizer state as a checkpoint, and
 // reads both back bit for bit under every projection tensor name.
 func TestLatentBridgeTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
+	cudatest.Require(t)
 	trainer := testcheck.Must(NewLatentBridgeTrainer(tinyBridge(10, 3), trainingprogram.BuiltinOptimizerPolicy()))(t)
 	defer trainer.Close()
 	hidden, _, _ := flowStimulus(6, trainer.hidden, 1)
@@ -91,6 +94,7 @@ func TestLatentBridgeTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
 }
 
 func TestLatentBridgeGradientMatchesFiniteDifference(t *testing.T) {
+	cudatest.Require(t)
 	const epsilon, limit = 1e-3, 2e-2
 	weights := tinyBridge(7, 2)
 	hidden := make([]float32, 3*7)

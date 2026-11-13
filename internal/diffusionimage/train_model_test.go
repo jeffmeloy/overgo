@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/optimizer"
 	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
@@ -16,6 +17,7 @@ import (
 // on the reference's deterministic OT path (fixedFlowPath), every step is
 // observed, and descent is the same pair's loss falling across the steps.
 func TestRealCheckpointTrainingSmoke(t *testing.T) {
+	cudatest.Require(t)
 	requireLongTest(t)
 	const (
 		steps    = 3

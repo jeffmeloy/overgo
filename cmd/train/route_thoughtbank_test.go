@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"testing"
 
+	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/pytorchzip"
 	"overgo/internal/safetensors"
 	"overgo/internal/testcheck"
@@ -22,6 +23,7 @@ import (
 // holds the route to publishing the trained bank, and only the bank, as a
 // checkpoint recorded in the store.
 func TestThoughtBankRoutePublishesCheckpoint(t *testing.T) {
+	cudatest.Require(t)
 	root := t.TempDir()
 	model := writeTinyThoughtBank(t, filepath.Join(root, "model"))
 	dataset := filepath.Join(root, "dataset.txt")

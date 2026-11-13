@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/checkpointtest"
+	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/optimizer"
 	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
@@ -14,6 +15,7 @@ import (
 )
 
 func TestDecoderTrainerRealArtifacts(t *testing.T) {
+	cudatest.Require(t)
 	testskip.Short(t, "loads both TabFM heads")
 	golden := readGolden(t)
 	for _, task := range Tasks() {
@@ -87,6 +89,7 @@ func tinyRegressionHead() *Head {
 // publishes the trainer's weights and optimizer state as a checkpoint, and
 // reads both back bit for bit.
 func TestDecoderTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
+	cudatest.Require(t)
 	head := tinyRegressionHead()
 	config := testcheck.Must(trainingprogram.BuiltinOptimizerPolicy().Config(head.TrainableParameterCount()))(t)
 	trainer := testcheck.Must(NewTrainer(head, config))(t)

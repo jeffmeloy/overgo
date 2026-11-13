@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"overgo/internal/checkpointtest"
+	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/optimizer"
 	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
@@ -19,6 +20,7 @@ func testTrainingConfig() optimizer.Config {
 }
 
 func TestTrainerDecreasesBootstrapLossTiny(t *testing.T) {
+	cudatest.Require(t)
 	m := tinyModel()
 	trainer := testcheck.Must(NewTrainer(m, testTrainingConfig(), 11))(t)
 	defer trainer.Close()
@@ -47,6 +49,7 @@ func TestTrainerDecreasesBootstrapLossTiny(t *testing.T) {
 }
 
 func TestTrainerUpdatesModelFieldsInPlace(t *testing.T) {
+	cudatest.Require(t)
 	m := tinyModel()
 	trainer := testcheck.Must(NewTrainer(m, testTrainingConfig(), 11))(t)
 	defer trainer.Close()
@@ -70,6 +73,7 @@ func TestTrainerUpdatesModelFieldsInPlace(t *testing.T) {
 // trainer's weights and optimizer state as a checkpoint, and reads both back
 // bit for bit as the model fields the forward reads.
 func TestTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
+	cudatest.Require(t)
 	m := tinyModel()
 	trainer := testcheck.Must(NewTrainer(m, testTrainingConfig(), 11))(t)
 	defer trainer.Close()
@@ -85,6 +89,7 @@ func TestTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
 }
 
 func TestTrainerRefusesGradientsOutsidePack(t *testing.T) {
+	cudatest.Require(t)
 	m := tinyModel()
 	trainer := testcheck.Must(NewTrainer(m, testTrainingConfig(), 11))(t)
 	defer trainer.Close()
@@ -96,6 +101,7 @@ func TestTrainerRefusesGradientsOutsidePack(t *testing.T) {
 
 // TestRealArtifactBootstrapTraining verifies objective band and scratch descent.
 func TestRealArtifactBootstrapTraining(t *testing.T) {
+	cudatest.Require(t)
 	testskip.Short(t)
 	real, err := Load(artifactDir(t))
 	if err != nil {

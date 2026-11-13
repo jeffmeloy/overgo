@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/checkpointtest"
+	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
 )
@@ -92,6 +93,7 @@ func motTestTrainer(t *testing.T) (*ModalityTransformerTrainer, []float32, []int
 }
 
 func TestModalityTransformerDerivedHyperparameters(t *testing.T) {
+	cudatest.Require(t)
 	trainer, _, _, _ := motTestTrainer(t)
 	want := trainingprogram.BuiltinOptimizerPolicy().BaseLearningRate(trainer.ParameterCount())
 	if trainer.Config().BaseLearningRate != want {
@@ -106,6 +108,7 @@ func TestModalityTransformerDerivedHyperparameters(t *testing.T) {
 // differences on the packed masters against the analytic VJP, sampled from
 // every tensor role in every layer.
 func TestModalityTransformerGradientMatchesFiniteDifference(t *testing.T) {
+	cudatest.Require(t)
 	trainer, hidden, mask, targets := motTestTrainer(t)
 	if _, _, err := trainer.lossAndGradients(hidden, mask, targets); err != nil {
 		t.Fatal(err)
@@ -162,6 +165,7 @@ func TestModalityTransformerGradientMatchesFiniteDifference(t *testing.T) {
 // TestModalityTransformerStepDescends: repeated steps on the fixed prompt
 // must reduce the pipeline's own cross-entropy.
 func TestModalityTransformerStepDescends(t *testing.T) {
+	cudatest.Require(t)
 	trainer, hidden, mask, targets := motTestTrainer(t)
 	first := testcheck.Must(trainer.Loss(hidden, mask, targets))(t)
 	var last MoTTrainStepResult
@@ -181,6 +185,7 @@ func TestModalityTransformerStepDescends(t *testing.T) {
 // publishes the trainer's vision fork and optimizer state as a checkpoint,
 // and reads both back bit for bit under every layer tensor name.
 func TestModalityTransformerCheckpointRoundTripIsBitExact(t *testing.T) {
+	cudatest.Require(t)
 	trainer, hidden, mask, targets := motTestTrainer(t)
 	if _, err := trainer.Step(hidden, mask, targets); err != nil {
 		t.Fatal(err)

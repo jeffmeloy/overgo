@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
 	"overgo/internal/safetensors"
@@ -20,6 +21,7 @@ import (
 
 // TestTrainRoutesReachTheMediaTrainers publishes diffusion training through the command route.
 func TestTrainRoutesReachTheMediaTrainers(t *testing.T) {
+	cudatest.Require(t)
 	t.Run("diffusionimage", func(t *testing.T) {
 		root := t.TempDir()
 		model := writeTinyDiffusionImage(t, filepath.Join(root, "model"))

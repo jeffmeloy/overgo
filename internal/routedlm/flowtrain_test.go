@@ -9,6 +9,7 @@ import (
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
 
+	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/tensor/dtype"
 )
 
@@ -62,6 +63,7 @@ func flowStimulus(rows, hidden, flowDim int) (x, z, target []float32) {
 }
 
 func TestFlowHeadTrainerDescendsAndDerivesHyperparameters(t *testing.T) {
+	cudatest.Require(t)
 	plan, head := tinyFlowHead(6, 4)
 	trainer := testcheck.Must(NewFlowHeadTrainer(plan, head, trainingprogram.BuiltinOptimizerPolicy()))(t)
 	defer trainer.Close()
@@ -95,6 +97,7 @@ func TestFlowHeadTrainerDescendsAndDerivesHyperparameters(t *testing.T) {
 // publishes the trainer's organ and optimizer state as a checkpoint, and
 // reads both back bit for bit under every fm_head tensor name.
 func TestFlowHeadTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
+	cudatest.Require(t)
 	plan, head := tinyFlowHead(6, 4)
 	trainer := testcheck.Must(NewFlowHeadTrainer(plan, head, trainingprogram.BuiltinOptimizerPolicy()))(t)
 	defer trainer.Close()
@@ -110,6 +113,7 @@ func TestFlowHeadTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
 }
 
 func TestFlowHeadStepGradientMatchesFiniteDifference(t *testing.T) {
+	cudatest.Require(t)
 	const epsilon, limit = 1e-3, 2e-2
 	plan, head := tinyFlowHead(5, 3)
 	x, z, target := flowStimulus(2, plan.Hidden, plan.FlowDim)

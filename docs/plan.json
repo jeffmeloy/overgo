@@ -3,23 +3,47 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "host-card",
-      "title": "A landing holds the card's turn from its first test stage wherever a stage it runs reaches the card, not only where its change reaches a card lane",
+      "id": "session-resume",
+      "title": "A session that resumes after its end was recorded is live, so its new work is never cleared as finished (SQA-384)",
+      "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 175,
-        "reason": "Filed from history: 175, the median of what 35 landings that changed internal/landing counted"
+        "nodes": 282,
+        "reason": "Filed from history: 282, the median of what 10 landings that changed internal/guard, cmd/loophook counted"
       },
       "steps": [
         {
           "id": "do",
-          "title": "A landing holds the card's turn from its first test stage wherever a stage it runs reaches the card, not only where its change reaches a card lane",
+          "title": "A session that resumes after its end was recorded is live, so its new work is never cleared as finished (SQA-384)",
           "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestALandingWhoseHostTestsReachTheCardHoldsItsTurn$'",
+          "verify": "go test ./internal/guard -count=1 -run '^TestASessionThatResumesIsNotEnded$'",
           "files": [
-            "internal/landing"
+            "internal/guard",
+            "cmd/loophook"
           ],
-          "rationale": "Note: Serves: a landing waits for the card once, measured where it waits (card-stages/whole-landing; owner, 2026-11-12).\n\nThe evidence: render-resume/same-bytes (cmd/evaluate) reached no lane on the card, so the landing took no card turn. Its test stage ran beside the second rehearsal's two renders. 26 minutes in, six of its test binaries were waiting for the card's turn: diffusionimage, seriesforecast, oscillatorimage, latentvideo, latentimage and routedlm. They were listed as holders of the turn's waiting file (fsatomic.FileUsers), behind the renders. The same latentimage host test, run alone, was ended by go test's ten minutes while it waited for the turn.\n\nThe cause: holdCard takes the turn only where the change reaches a lane that shares the device (reachesCard). The host stages' tests reach the card on their own, through contexts each takes as it opens one. So a change that reaches no card lane runs card tests that each wait behind whatever holds the card, and the wait is not measured.\n\nTo decide: whether the landing holds the card from its first test stage wherever a stage it runs reaches the card (which tests do, the cardreach search lists as an upper bound), or always, and what a landing that reaches the card by no stage then waits for."
+          "rationale": "Note: Serves: SQA-384 (P1): Invalidate a past session end before resumed work becomes deletable.\n\nThe evidence (SQA-384): guard.SessionEnded returns true as soon as loop_state-\u003cid\u003e-ended exists, before it reads the checkout's hold and its process; nothing removes that record when the same session resumes, though holdWorktree supports a restarted session and keeps its process current. So a session recorded as ended and then resumed has its new scratch read as finished, and session-scratch is deleted by clearFinished after a commit without asking again. The tests use distinct sessions for the recorded end and the live hold, so never combine them.\n\nThe change: a sign of life outranks an old end: a session the checkout's hold names with a running process is not ended, whatever was recorded, and a session that starts again removes its end's record (cmd/loophook, at session start), so a resumed session that holds nothing is not read as ended either.\n\nCheck: TestASessionThatResumesIsNotEnded records a session's end, then holds the checkout for it with a running process, and finds it not ended; and after the hook's session start for it, finds its end's record gone."
+        }
+      ]
+    },
+    {
+      "id": "provider-redirect",
+      "title": "A provider's key follows no redirect off its admitted endpoint (SQA-363)",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 665,
+        "reason": "Filed from history: 665, the median of what 1 landings that changed internal/remoterelay counted"
+      },
+      "steps": [
+        {
+          "id": "do",
+          "title": "A provider's key follows no redirect off its admitted endpoint (SQA-363)",
+          "status": "open",
+          "verify": "go test ./internal/remoterelay -count=1 -run '^TestAProvidersKeyFollowsNoRedirectOffItsEndpoint$'",
+          "files": [
+            "internal/remoterelay"
+          ],
+          "rationale": "Note: Serves: SQA-363 (P1): Keep provider credentials inside the admitted endpoint across redirects.\n\nThe evidence (SQA-363): 38b24b610 admits a provider's starting URL through KeyTransport, but remoterelay's listing (listing.go) and generation (generator.go) call http.Client.Do with the supplied client or http.DefaultClient, which follows redirects, and both attach the key as an Authorization header. Go's client keeps sensitive headers on a redirect to the same host name, a changed port among them, and does not refuse a change from https to http, so an admitted https endpoint answering with a redirect to http on the same host has its bearer token sent in cleartext on the next request; a 307 or 308 on generation replays the request too.\n\nThe change: a request that carries a provider's key follows no redirect off its admitted endpoint: a redirect to another scheme, host or port is refused before the key is sent again, naming where it led.\n\nCheck: TestAProvidersKeyFollowsNoRedirectOffItsEndpoint serves an https provider that redirects to plain http on its own host, and to another port, and finds the key never sent to either and the listing and the generation refused, naming the redirect."
         }
       ]
     },
@@ -43,6 +67,60 @@
           ],
           "needs_card": true,
           "rationale": "Serves: the owner's review of 2026-11-11: every row of the speed table shows no prompt processing at either length.\n\nDisappears: a table of dashes. The newest record, scorecard-20261107T192932Z.json, holds a prefill reading at 4,096 tokens for 12 rows and at 16,384 for 11 (Carbon-500M's 4,096-token prefill took 2,058 ms), but none keeps the tokens it read uncached (Cell.Rate), so SpeedTable gives no figure, as it should: a rate from the nominal size could count tokens a prefix cache served. The measurement run of 2026-11-08 filed no record, so no reading since has kept them.\n\nThe change: in a gap between two readings, go run ./cmd/recipe measure reads each chat model again on the card (its load, its first request, a fresh prompt of each length read once unmeasured and then measured, and its warm generation), recording each as an attempt with its token counts; go run ./cmd/validate -scorecard -publish writes the newest record from the store; go run ./cmd/validate -readme writes the table from it. A model whose context does not hold 16,384 tokens keeps its dash at that length.\n\nCheck: validate -readme -check, which fails while the README's written parts are not what the newest record gives.\n\nBatch: device lane for the readings, in a gap between two readings; the record and the README on the host.\n\nNote: 2026-11-11, in the gap between readings: 14 of the 15 chat models were read again by recipe measure, each prefill now with its token counts (Bonsai-27B 1,969 and 1,603 tok/s at 4,096 and 16,384 tokens; Qwen3.8-27B 1,927 and 1,570; Qwen3.5-9B 5,854 and 4,310; gemma-4-12B-it-fp8-native 3,649 and 3,181; Carbon-500M 59,861 at 4,096, its context holding no 16,384). Qwen3.8 Flash-Next no longer opens (finding evidence:sha256:44390623...: strataRoundConversions indexes an empty qsaLayers). The table is not written yet, and is not written by publishing a record by hand: a record counts a cell current only where it was measured since the record before it, so validate -scorecard -publish after these readings blanked every cell not read again since 2026-11-07 (peak memory, the MMLU-Pro readings), and a second publish four minutes later blanked nearly every row. Both records are withdrawn to overgo_data/scorecards/withdrawn-2026-11-11 and the README is as it was. The table fills from the next measurement run's record, which reads every cell. Publishing also found two rows served_models.json named no words for, new since 2026-11-07: gemma-4-12B-it (its published bf16 files) and Self-Forcing, whose row was named \"checkpoints\", the folder its weights sit in; readme-speed/names lands those."
+        }
+      ]
+    },
+    {
+      "id": "smoke-budget",
+      "title": "validate -smoke with no -budget runs past discovery, as the DNA re-acquisition that passes none must (SQA-398)",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "validate -smoke with no -budget runs past discovery, as the DNA re-acquisition that passes none must (SQA-398)",
+          "status": "open",
+          "verify": "go test ./cmd/validate -count=1 -run '^TestASmokeWithNoBudgetRunsPastDiscovery$'",
+          "files": [
+            "cmd/validate"
+          ],
+          "rationale": "Serves: SQA-398 (P2): no-clocks/own-budgets (c0905decb) made the smoke's budget the user's alone and removed the DNA re-acquisition's -budget 15m, but runSmoke still refused a budget of zero after discovery (\"explicit positive -budget required\"), so every smoke over a store that serves a model failed before it checked anything; the no-budget tests used empty stores, which end earlier.\n\nThe change: the refusal goes.\n\nCheck: TestASmokeWithNoBudgetRunsPastDiscovery publishes one hermetic GGUF as served into a store and runs validate -smoke on it with no -budget: it goes past discovery, failing later at the oracle declarations the fixture leaves out."
+        }
+      ]
+    },
+    {
+      "id": "ceiling-files",
+      "title": "Every ceiling a change's counts fell under is lowered in its file, alone or in a grouped block, and a refusal writes nothing (SQA-399)",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Every ceiling a change's counts fell under is lowered in its file, alone or in a grouped block, and a refusal writes nothing (SQA-399)",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestALandingLowersEveryCeilingOfAFile$'",
+          "files": [
+            "internal/landing"
+          ],
+          "rationale": "Serves: SQA-399 (P2), a refusal whose fix the tool knows is not a refusal.\n\nThe evidence: ceiling-fall/do (889e328f7) lowers a ceiling by replacing the text \"const NAME = N\": the surface ceilings stand in a grouped const block, aligned, where that text occurs nowhere, so their fall refuses with manual advice; two falls in one file refuse at the second, which rereads the candidate's bytes while the checkout holds the first's edit; and a refusal after a write leaves a partial edit before the candidate is taken again.\n\nThe change: each constant is found by its syntax wherever it is declared; every fall of a file is applied to one reading of it; every file is checked before any is written, so a refusal leaves the checkout as it was.\n\nCheck: TestALandingLowersEveryCeilingOfAFile lands a change under a fixture whose ceiling test holds two ceilings in one grouped, aligned block and both fall: the commit holds both lowered; and with one fall naming a constant the file does not hold, the landing refuses and the checkout's file is as it was."
+        }
+      ]
+    },
+    {
+      "id": "findings-dispatch",
+      "title": "The findings a lead must answer reach every dispatch: their ids are printed with the step, an unanswered P1 goes first, a declined finding is answered, and a step sees the findings its files touch before it starts",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Every dispatch prints the findings to file with the step, and an unanswered P1 is dispatched ahead of the rows",
+          "status": "open",
+          "verify": "go test ./internal/plan -count=1 -run '^TestAnUnansweredP1IsDispatchedFirst$'",
+          "files": [
+            "internal/plan"
+          ],
+          "rationale": "Serves: the owner's review of 2026-11-13: the findings hand-off stalled.\n\nThe cause: plan.Next reads FindingsToFile only under if dispatch.Complete (internal/plan/dispatch.go:152). The plan has not been empty since about 11 November, so no finding has been dispatched since; master_lead_triage is dated 2026-11-10. FindingsToFile returned 34 on 2026-11-13: 2 P1 (SQA-363, SQA-384, filed as rows that day) and 32 P2.\n\nThe change, a condition changed rather than a mechanism added: FindingsToFile is read on every dispatch and its ids printed with the step; an unanswered P1 is dispatched ahead of the rows until a row names it or the triage answers it; a triage action \"declined\" answers a finding as \"deferred\" and \"implemented\" do, with its note (findings_fall_through.go:88).\n\nCheck: TestAnUnansweredP1IsDispatchedFirst: a plan with an open row and a register holding a P1 no row names dispatches the P1 and prints the P2's id with it; a row naming the P1 dispatches that row; a P2 the triage declined is not printed."
         }
       ]
     },

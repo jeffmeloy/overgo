@@ -248,6 +248,8 @@ var cudaPackages = []string{
 	"./internal/e4btrain", "./internal/devicegrad", "./internal/densecausaltrain", "./internal/controllertrain", "./internal/trainingprogram",
 	"./internal/torchrng", "./internal/routedlm", "./internal/longform", "./internal/inference", "./cmd/train", "./internal/graphruntime",
 	"./internal/trainingworkflow", "./internal/mosstrain", "./internal/oscillatorimage",
+	// Their trainer tests step the optimizer on the card (card-reach).
+	"./internal/seq2seq", "./internal/seriesforecast", "./internal/speechsynth", "./internal/tabularicl", "./internal/thoughtbank",
 }
 
 // modelPackages are the packages whose real-model tests the cycle's models

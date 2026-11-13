@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/inference"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modeltest"
@@ -25,6 +26,7 @@ import (
 // GGUF. Only -short excludes this device integration check.
 func TestAnalyzeAttentionEndToEnd(t *testing.T) {
 	t.Parallel()
+	cudatest.Require(t)
 	testskip.Short(t)
 	loaded := testcheck.Must(servingtest.ResolveActiveGGUFWithPolicy(
 		modeltest.GGUF(t, "qwen2"), recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyDeviceNative,

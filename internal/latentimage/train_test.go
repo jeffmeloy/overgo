@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/checkpointtest"
+	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
@@ -50,6 +51,7 @@ func finalStimulus(rows, hidden, out int) (x, temb, target []float64) {
 }
 
 func TestFinalLayerTrainerDescends(t *testing.T) {
+	cudatest.Require(t)
 	trainer := testcheck.Must(NewFinalLayerTrainer(tinyFinalLayer(8, 4), 1e-6, trainingprogram.BuiltinOptimizerPolicy()))(t)
 	defer trainer.Close()
 	if got, want := trainer.Config().Momentum, 29.0/31.0; math.Abs(got-want) > 1e-12 {
@@ -80,6 +82,7 @@ func TestFinalLayerTrainerDescends(t *testing.T) {
 // publishes the trainer's organ and optimizer state as a checkpoint, and
 // reads both back bit for bit under every head tensor name.
 func TestFinalLayerTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
+	cudatest.Require(t)
 	trainer := testcheck.Must(NewFinalLayerTrainer(tinyFinalLayer(8, 4), 1e-6, trainingprogram.BuiltinOptimizerPolicy()))(t)
 	defer trainer.Close()
 	x, temb, target := finalStimulus(5, 8, 4)
@@ -95,6 +98,7 @@ func TestFinalLayerTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
 }
 
 func TestFinalLayerLayerNormVariantDescendsAndMatchesFiniteDifference(t *testing.T) {
+	cudatest.Require(t)
 	weights := tinyFinalLayer(7, 3)
 	weights.Norm = nil // the Wan2.1 head: non-parametric LayerNorm
 	trainer := testcheck.Must(NewFinalLayerTrainer(weights, 1e-6, trainingprogram.BuiltinOptimizerPolicy()))(t)
@@ -137,6 +141,7 @@ func TestFinalLayerLayerNormVariantDescendsAndMatchesFiniteDifference(t *testing
 }
 
 func TestFinalLayerGradientMatchesFiniteDifference(t *testing.T) {
+	cudatest.Require(t)
 	const epsilon, limit = 1e-4, 2e-2
 	weights := tinyFinalLayer(7, 3)
 	x, temb, target := finalStimulus(3, 7, 3)

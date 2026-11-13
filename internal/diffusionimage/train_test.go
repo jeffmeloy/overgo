@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/checkpointtest"
+	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/optimizer"
 	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
@@ -54,6 +55,7 @@ func fixedFlowPath(t *testing.T, x1 []float32, batch int, sigmaMin float64) (x, 
 
 // TestTinyModelTrainDescends: Muon on a fixed OT-flow path.
 func TestTinyModelTrainDescends(t *testing.T) {
+	cudatest.Require(t)
 	fx := loadGolden[uditTinyFixture](t, "udit_tiny")
 	m := compileTiny(t, fx)
 	const (
@@ -89,6 +91,7 @@ func TestTinyModelTrainDescends(t *testing.T) {
 // publishes every tensor and the optimizer state as a checkpoint, and reads
 // both back bit for bit.
 func TestTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
+	cudatest.Require(t)
 	fx := loadGolden[uditTinyFixture](t, "udit_tiny")
 	m := compileTiny(t, fx)
 	config := testcheck.Must(trainingprogram.BuiltinOptimizerPolicy().Config(m.TrainableParameterCount()))(t)
@@ -106,6 +109,7 @@ func TestTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
 
 // TestRealCheckpointMuonPlanCompiles: every real tensor has Muon geometry.
 func TestRealCheckpointMuonPlanCompiles(t *testing.T) {
+	cudatest.Require(t)
 	requireLongTest(t)
 	dir := artifactDir(t)
 	m, err := Load(dir)

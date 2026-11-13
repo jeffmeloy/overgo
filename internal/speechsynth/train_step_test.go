@@ -9,12 +9,14 @@ import (
 	"testing"
 
 	"overgo/internal/checkpointtest"
+	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/optimizer"
 	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
 )
 
 func TestJointMuonStepTinyDecreasesLoss(t *testing.T) {
+	cudatest.Require(t)
 	rng := rand.New(rand.NewSource(31))
 	m := tinyJointModel(rng)
 	const frames, seed = 2, 91

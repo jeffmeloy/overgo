@@ -39,7 +39,7 @@
         ],
         "adoption_scope": "Supersedes the absent repository-document reference at the owner's request; current external SHA is verified. Does not alter the executable plan."
       },
-    "assessment": "Product progress: image presets now have six explicit readings and five offers; TabFM route approval passes under its unchanged gain predicate. Stronger-than-declared policy demand removed. Binding/unit proof and automatic recovery remain specific existing-owner obligations. No new IDs.",
+    "assessment": "The clip hot path now crosses the device boundary in its consumer format through the existing runtime/stream owners. Retained measurements show a large byte/memory/time reduction with bounded colour evidence. Code and verification costs grow; no additional consolidation safely established.",
     "ast_surface_review": {
         "revision": "9bd406acafb89c44a439722419f1f7e85e71f691",
         "architectural_target": "Fewer independent product entry points and dependency owners; retain process isolation and existing compiled/runtime/development authority.",
@@ -170,10 +170,10 @@
       },
     "rank_basis": "Actual398/399 admission failures precede local400 consolidation.397 closed;400 retains unique coverage.376 owns known-rule/history/delivery obligations.",
     "refactor_target_progress": {
-        "architectural_progress": "Existing admission, typed request/group split, training objective and landing turn owners remain authoritative; new direct-device verification joins the same turn owner. TabFM removes CSV metadata/sign-log setup in favor of existing JSON requests.",
-        "conflicts": "Runtime family status and committed manual verdict still duplicate authority without a bound projection; the new test repeats Admitted rather than deriving it. Question units do not establish independent media. Whole-run publication remains distinct from small accepted steps.",
-        "next_useful_reductions": "Project status/verdict from existing bound evidence and retain one derivation owner; do not add another policy, registry or recurring run. Native record fixture should reuse that owner. Existing395/400 test/setup merges remain bounded suggestions; input transport340 is separate.",
-        "cost": "Image record+297testAST; TabFM test-61AST, but about11.5min model acceptance versus2min before. Concurrent turn fix+51production/+339testAST. Whole slice+51production/+575testAST, two test files,3335recordbytes and embedded status299->304bytes. No new binary/package, net production deletion or measured runtime saving."
+        "architectural_progress": "nvvfx owns device colour/layout conversion; finishingEncoder owns device/host frame lifetime; mp4Encoder owns ordered input, geometry, process and output. Existing runtime transfer replaces manual host work. Frame/FrameYUV share source/effect execution, RGB/YUV writers share validation and FFmpeg lifetime.",
+        "conflicts": "This is a concrete transfer improvement, not format-independent model execution completion. Different RGB/YUV representations keep their actual contracts; platform arithmetic helpers and float fallback are not automatically redundant.",
+        "next_useful_reductions": "Retain the actual removal and avoid another converter or wrapper. Keep optional YUV capability for the real MP4/GIF split, preserve colour calibration and current stream/process owners. Existing395/400 measured test/setup merges remain separate; no speculative new reduction or recurring benchmark.",
+        "cost": "Complete+755production/+1364testAST,+146/+211lines,2test files; zero new package/directory/binary/staticfixture files.4x finished transfer76,677,120->9,584,640bytes/frame; derived steady buffers196,485,120->33,546,240bytes. Frame reference buffers add verification cost; no net code deletion claimed."
       },
     "working_notes_review": {
         "finding": "SQA-334",
@@ -183,10 +183,10 @@
       }
   },
     "committed_plan": {
-    "git_blob": "d97ccc648f058e757bc5d33d35a0f289b140c265",
+    "git_blob": "e42d82f426978a858b71be65101ee745daed2853",
     "path": "docs/plan.json",
-    "revision": "f79132c42b6c3db91882eadb3aa8f7b7d869bb18",
-    "sha256": "1b3eeb83c7b021f1a01e2115a39ad0ef7bd9f0834b701e5a0b096488e2f74262",
+    "revision": "68301d8275250ef49785328d60bacadbeca53d51",
+    "sha256": "0074e54b9ab43a76912adaa86080deeb8acaef971415d85de8f85ecd8ad514c9",
     "working_tree_status": "Committed plan at review pin; prior draft assessment retains its own snapshot identity. Current working plan edits excluded."
   },
     "findings": [
@@ -10302,18 +10302,17 @@
         ]
       },
     "fresh_ast": {
-        "revision": "f79132c42b6c3db91882eadb3aa8f7b7d869bb18",
-        "method": "Existing selected-file Go parser over actual product evidence/offer, request grouping, admission and turn consumers; complete changed-file before/after count.",
-        "counts": "13files23415AST/133functions/4487parser-local links. tabfmRequests384/native objective424; record fixture265/whole file293; AdmitPreset291,CaseOutcomes290,admitPresetReading324,offeredPresets60.",
+        "revision": "68301d8275250ef49785328d60bacadbeca53d51",
+        "method": "Existing Go parser over committed runtime, both encoding owners and retained fixtures/geometry consumer; full changed-file cost. No runtime execution.",
+        "counts": "8files15242AST/121functions/2788local links. Upscaler Frame61/FrameYUV58/shared run109; mp4 addYUV83/write276; size helpers27/31. Colour native692; clip native380 plus PSNR161.",
         "retained_result": [
-          "review-ddfb-selected-ast.json",
-          "review-ddfb-cost.json",
-          "review-ddfb-records.json",
-          "review-f791-selected-ast.json",
-          "review-f791-cost.json",
-          "review-f791-total-cost.json"
+          "review-6830-selected-ast.json",
+          "review-6830-cost.json",
+          "review-6830-retained-evidence.json"
         ],
-        "limits": "No global duplication percentage, package/type proof or SQA test execution. Concurrent landing.go read as committed afterf791; earlier dirty draft not credited."
+        "limits": "No type/global dependency/duplication percentage claim. Windows nvvfx uint64 and cross-platform MP4 int size helpers are not merged solely for similar arithmetic.",
+        "constants_and_geometry": "12bytes/pixel floatRGB versus1.5bytes/pixel even-sized I420 explains8x final download reduction; old FFmpeg rgb24 input3bytes/pixel becomes1.5, a different2x ratio. MP4.start retains positive/even validation; interstitial2x2 chroma and limited-range luma/chroma spans219/224 are format semantics. Colour64x32 and pipeline832x480->3328x1920 are fixture shapes, not generic domain proof. FrameYUV ABI10/layout3/offset25/colour9 remain runtime calibration. No odd-layout or hardware error-injection execution by SQA.",
+        "lifetime": "Final float device frame is omitted only for real YUV consumers; intermediate frames remain for multi-stage finish. Stream synchronization precedes readback; release skips zero placeholders and frees yuvFrame/stages before closing the worker. Existing FFmpeg supervisor/pipe-exit handling and cancellation remain."
       },
     "media_follow_up": {
         "revision": "e969f619a89e45c3380e30853b01af393d55ba47",
@@ -10477,17 +10476,18 @@
       "retained_change_costs": "Two consolidation landings(2d59f642c exact folds andbb4fc706a parameter folds) remove744 production nodes but add1591 test nodes, net+847 across Go. Pilot retirementea8ed43a7 removes5926 production/9990 test nodes and one schema, while fixture bytes grow599; its test deletion is already included in the day's offsets and must not be subtracted twice. These retained gates are broader changes, not matched per-test performance comparisons."
     },
     "retained_results": [
-        "8ab8 six records:524questions/80images, all stored tails and admission bits match independent-binomial harm-screen arithmetic; five admitted/no-gain, MOSS interval refused. This arithmetic match does not prove independence or record-to-render binding.",
-        "Native TestTheReadPresetsHoldTheirVerdicts has retained assertion undo against old embedded statuses. Current test does not read Tail or evaluate referenced IDs; a certain-loss tuple retaining admitted bit passes its checked conditions.",
-        "ddfba TabFM reading0.5739->0.6164, gain0.0425 over159cases against0.0257, two retained runs agree; current request grouping keeps pooled rows off other membership. Predicate unchanged. Root measurement_run stillfdd4ab1 fromNovember8, no new full publication.",
-        "f791 TestACheckOnTheCardHoldsTheCardsTurn retained native physical holder and assertion undo; gate6m28s.261 preliminary probe/waiter gap unchanged. No SQA native/model rerun."
+        "4d6803 native assertion-based undo restores nvvfx/finish/mp4/production Go and fails the new pipeline check. The64x32 probe checks luma within1level/chroma within3 of block mean; those are retained bounded hardware evidence, not SQA calibration.",
+        "BenchmarkFinishedClipWrite retained three81-frame writes with exclusive card ownership:2x19.69->51.89fps/76.8->30.1MB allocated per write;4x6.631->24.65fps/264.9->102.0MB. Per-write allocation differs from steady buffer sizes; no standing performance gate added.",
+        "Pipeline fixture writes YUV twice, requires identical MP4 bytes and no finished float copy, then writes the retained float path. First8frames compare each lossy encode to finished frames: retained39.39-42.03dB and0.03-0.10dB above old path. It does not establish direct decoded-path40dB.",
+        "6830 plan moves NAG acceptance to the served student request boundary and retains paper-equation unit coverage. verify-mention is an already-filed typed-command inference repair; plan text is not delivered implementation or a new SQA task."
       ],
     "surface_reduction_analysis": "29196812c->0b5a70f89:34changed-Go paths,+759production/+1671testAST,net+2430,+140/+312lines,+1production/+7testfiles,0staticfixtures/binary/package additions. This is necessary capability/recovery growth,not net reduction. Historical closure reductions kept separate. Historical whole-file-669 and one-verdict-287 remain separate; current metadata adds no application code.",
     "tests": [
-        "RETAIN the current TabFM objective route fixture and existing typed group-split ownership: dataset-specific held-out gain, categorical columns, promotion and load phases are distinct needed contracts. Removed CSV metadata/log-transform fixture code is61testAST saved; heavier model setup is real growth.",
-        "RETAIN new preset record fixture but derive verdict/status through the existing admission/evidence owner and extend its smallest invalid-count/binding case; totals/nonempty strings alone do not validate admission. No parallel policy suite.",
-        "RETAIN two MOSS control boundary tests: declaration and served route differ; expanded choices do not fix340 untouched overrides. No merge from similar arrays alone.",
-        "RETAIN direct-device turn and reached-lane wait fixtures as different triggers; actual-holder/candidate/early-trunk cases stay.395/400 existing exact setup reductions remain separate. No tests created/run."
+        "RETAIN new colour probe and end-to-end clip fixture: one decides ABI/layout/range, the other actual transfer/no-float/encoder integration/determinism. Similar device setup is not duplicate coverage.",
+        "RETAIN floatOnly as a test adapter to the supported non-YUV path and common finished-source reference. Three pipeline writes reuse one existing decoded studentClipFeed; no new model fixture/schema package.",
+        "Verification cost:81input float frames388,177,920bytes and8kept finished float references613,416,960bytes, plus decoded image sets/encoded clips/runtime buffers. These are size-derived allocations, not measured peak. Do not claim the new test itself uses33.5MB.",
+        "ChangedPixels now counts YUV luma versus RGB colour bytes; sampled actual consumers are records/logs and format-specific tests, not a new rejection rule. Keep the explicit record/Encoding distinction. No unsupported motion equivalence inferred.",
+        "No new merge/removal justified here; earlier395/400 bounded setup reductions remain. No tests created or run."
       ]
   },
     "hygiene_assessment": "No hygiene finding. Scratch analysis is outside the repository; concrete correctness and production/test cost take priority.",
@@ -12021,9 +12021,10 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
     "limitations": [
-      "No application tests, workloads, benchmarks, services, gates, agents/messages, implementation, plan/skill edits or cleanup. AST/arithmetic/read-only retained evidence only.",
-      "Parser-local resolution is not package/type proof. Current records match declared arithmetic, but SQA did not load/render/rescore the referenced media or establish independent question outcomes.",
-      "TabFM159held-out requests are one dataset/route result, not159datasets or a broad accuracy claim. No new full-cycle publication established. Draft onCard implementation was excluded until itsf791 commit."
+      "No application tests, models/devices, benchmarks, profiles, services, gates, agents/messages, implementation, plan/skill changes or cleanup. Source/AST and retained records only.",
+      "Parser-local resolution is not package/type or ABI proof. NvCV format10/descriptor byte25/colour9 are retained runtime calibration, not independently reproduced constants or universal allocation rules.",
+      "Performance is three writes of one81-frame clip on the retained hardware/runtime. Quality compares the first8frames and a64x32 colour fixture. No all-model, all-size, x264-fallback or throughput generalization.",
+      "Prework plan40dB between decoded paths and landed0.5dB relative-to-common-source PSNR measure different contracts. The owner explains the reference change; the new check does not prove the old40dB bound. Earlier37dB figures were untagged, not proof the corrected tagged path fails40dB."
     ],
     "master_lead_triage": {
     "at": "2026-11-13",
@@ -12933,11 +12934,11 @@
   },
     "next_finding_number": 402,
     "publication_context": {
-    "assessment": "Substantive product progress, policy-scope correction and evidence reconciliation; report only.",
-    "checked_head": "f79132c42b6c3db91882eadb3aa8f7b7d869bb18",
-    "concurrent_changes": "8ab8 carried the prior report. f791 landed during review; current code/plan reread, direct-check native/undo and complete cost reconciled. Preserve raw owner fields and every unrelated edit.",
-    "current_pin": "f79132c42b6c3db91882eadb3aa8f7b7d869bb18",
-    "publication": "Only docs/sqa_findings.json through current hooks/ownership; no implementation, plan or skill edits.",
+    "assessment": "Substantive architectural/byte-memory progress and complete evidence/cost reconciliation; report only.",
+    "checked_head": "68301d8275250ef49785328d60bacadbeca53d51",
+    "concurrent_changes": "Current source pin and committed plan read; NAG working changes excluded. Fresh report/owner/code checks immediately before replacement.",
+    "current_pin": "68301d8275250ef49785328d60bacadbeca53d51",
+    "publication": "Only docs/sqa_findings.json via existing hooks/ownership, preserving unknown/implementation fields and unrelated work.",
     "report_only": true
   },
     "ranked_active_finding_ids": [
@@ -13028,20 +13029,21 @@
     "repository": "C:\\Users\\jeffm\\overgo",
     "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
     "review_notes": [
-      "No new findings or queue growth. Existing342 is narrowed to declared-policy statistics; the previous stronger noninferiority/mandatory-inconclusive demand is retired with an explicit reason and existing empty-report owner.",
-      "379 credits actual six-record/offer progress but retains binding and the source-proved test-without-derived-verdict case.266 credits the scoped passing TabFM prerequisite.340 untouched-default transport is unchanged by expanded choice assertions.",
-      "Concurrentf791 repairs direct device-verifier turn admission;261 retains only its remaining acquisition transitions. Required growth and heavier TabFM acceptance are charged honestly."
+      "No new findings, closures or backlog obligations. Credit actual hot-path deletion: finished float download/reconstruction and CPU RGB/YUV conversion disappear on the MP4 YUV path; GIF/non-YUV float behavior retains its owner.",
+      "Shared Upscaler.run has two actual callers; shared mp4.write owns both real RGB/YUV frame paths. No need for another pipeline, generic converter or format abstraction.",
+      "Full change grows755production/1364testAST and two test files. Measured byte/memory gains are not a production-code reduction. Native verification holds substantial buffers; no safe additional test/code deletion established.",
+      "NAG plan now chooses an existing served-request boundary that builds at the base, preserving the paper-equation unit check. Source implementation remains pending;341 is not closed by a plan or unrelated encoding change."
     ],
-    "reviewed_at": "2026-11-13T20:14:44Z",
-    "reviewed_master": "f79132c42b6c3db91882eadb3aa8f7b7d869bb18",
+    "reviewed_at": "2026-11-13T22:22:02Z",
+    "reviewed_master": "68301d8275250ef49785328d60bacadbeca53d51",
     "schema_version": 2,
     "scope": [
-      "Committed image preset records, TabFM dataset/check changes and concurrent direct-device-check turn repair throughf79132c4. Current committed plan32items/59steps read; architecture target/guidance hashes unchanged.",
-      "Selected13committed Go files23415AST/133functions/4487parser-local links, complete6-file change cost, retained verdict arithmetic and bounded gate/measurement records. No model/device execution.",
-      "This chat previously implemented Overgo changes: internal review, not independent third-party review. Downloads/extreme_refactor_plan.md remains active; this slice concerns evidence/owner boundaries, not full model-format migration."
+      "Committed4d6803c78 frame conversion, device/host transfers, finishing lifetime, MP4 writer and native fixtures;68301d827 NAG boundary-check plan read. Current committed plan32items/59steps; in-flight NAG source excluded.",
+      "Selected8Go files15242AST/121functions/2788parser-local links, complete6-file before/after cost and concrete symbol callers. Retained native/benchmark/probe evidence reused; no workloads.",
+      "Architecture target Downloads/extreme_refactor_plan.md hash fe13a4bd47c8c41ea6dbf766c0acf3dc41ab7dab0c6d8bd926863313d4f34395 remains active. This chat previously implemented Overgo: internal review, not independent third-party review."
     ],
     "sqa_response": {
-    "assessment": "228stable IDs:83open,139resolved,4deferred,2aliases. No new IDs or closures. Product progress credited and342 overbroad policy obligation retired;379 binding/derivation,266 full-run ownership and261 acquisition remain.",
+    "assessment": "228stable IDs:83open,139resolved,4deferred,2aliases. No new findings or closures. Credit measured clip transfer/host-work removal through existing owners; disclose complete code/test and acceptance-comparison costs.",
     "concurrent_reconciliation": {
         "SQA-398": "Resolved; lead native/undo response agrees with retained closure.",
         "SQA-399": "Resolved; grouped/same-file validation-first response agrees with retained closure.",
@@ -13051,7 +13053,7 @@
     "consolidated_findings": [],
     "deferred_findings": [],
     "dispatch_alignment": "Field ready for reader,not printed by committed dispatch yet. Current code still lists all eligible unfiled IDs; use affected step contracts/files excluding incidental plan/report citations. No new dispatcher implemented by SQA.",
-    "evidence": "13-file committed AST, whole +51production/+575testAST cost, six-record arithmetic reconstruction and retained product/native/turn evidence. New policy is harm-screen only, so no unrequested noninferiority work.",
+    "evidence": "Actual8-file AST and complete+755production/+1364testAST delta, committed native/undo/benchmark/calibration records and source callers/lifetime. No SQA device/benchmark run.",
     "implementation_claim_audit": {
         "SQA-257": "closed: duplicate runtime verdict gone; native default/served fixtures are distinct; speculative generalization is not additional required work",
         "SQA-316": "closed: no-symbol whole-file identity and normal claim rebinding",
@@ -13067,14 +13069,9 @@
       },
     "implementation_response_context": "All implementation_review/master_lead_triage blocks preserved raw-exact; implemented claims are answered in reviewer implementation_claim_audit without overwriting owner history.",
     "new_findings": [],
-    "partially_addressed_findings": [
-        "SQA-342",
-        "SQA-379",
-        "SQA-266",
-        "SQA-261"
-      ],
+    "partially_addressed_findings": [],
     "priority_changes": [],
-    "recommendation": "Continue product plan order. Retain declared harm-screen/no-gain behavior; fix its actual independent-unit and bound-projection contracts through existing owners. Keep the passing TabFM route evidence scoped and reuse it under its real identity. No new campaign or approval ritual.",
+    "recommendation": "Keep the existing byte-format conversion and stream/process owners; retain the float path for actual non-YUV consumers. Credit only measured scope and the stated common-reference quality comparison, not an inferred40dB compatibility bound. NAG work follows the current plan.",
     "refactor": {
         "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
         "history_path": "docs/sqa_findings.json",
@@ -13095,7 +13092,7 @@
         "review_focus": "Name served cell/route/output impact,or material data/security/recovery/work-stoppage/repeated-waste impact. Minor process cleanup rides planned work; no guessed committee ratio or extra policy gate.",
         "measurement": "Use existing delivery/check-cost records as advisory. Automated report commits are distinct from master implementation effort; measure useful capability/scorecard outcomes,not findings closed."
       },
-    "reviewed_master": "f79132c42b6c3db91882eadb3aa8f7b7d869bb18",
+    "reviewed_master": "68301d8275250ef49785328d60bacadbeca53d51",
     "run_cost_correction": {
         "source": ".overgo-runtime/landing_waits.json",
         "query": "started on2026-11-09 America/New_York UTC-05; outcome exactly verify",
@@ -13115,12 +13112,7 @@
         },
         "correction": "140.54 is aggregate recorded wall across ten verify-refused runs,not one141-minute failed run and not all checking/wasted time. The earlier single-run phrasing was wrong; November8 measurement is a separate114.70-minute run. Historical run kinds may be unknown."
       },
-    "uncertainty": "No SQA rendering, model training, rescoring or live false admission. Correlated-unit support and bound verdict applicability are not established by correct arithmetic or nonempty IDs. Direct-turn repair does not close the independent probe/acquisition gap.",
-    "updated_findings": [
-        "SQA-342",
-        "SQA-379",
-        "SQA-266",
-        "SQA-261"
-      ]
+    "uncertainty": "No safe extra production/test deletion established. Retained small-frame colour probe and first8clip frames do not establish every supported resolution/codec. ABI and numerical thresholds were not independently recalibrated; in-progress NAG changes excluded.",
+    "updated_findings": []
   }
   }

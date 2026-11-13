@@ -31,8 +31,9 @@ func TestLandedStepsReplayForAWorker(t *testing.T) {
 	ctx := t.Context()
 	root := testutil.RepoRoot(t)
 	landed := testcheck.Must(landedSteps(ctx, root, "2026-11-01"))(t)
-	checkout := filepath.Join(t.TempDir(), "replay")
-	t.Cleanup(func() { testcheck.NoError(t, gitWrite(root, "worktree", "remove", "--force", checkout)) })
+	hold := testcheck.Must(holdReplayCheckout(root))(t)
+	t.Cleanup(func() { testcheck.NoError(t, hold.lock.Close()) })
+	checkout := hold.checkout
 	for _, reference := range replayFixtureSteps {
 		at := slices.IndexFunc(landed, func(step replayed) bool { return step.reference == reference })
 		if at < 0 {

@@ -206,6 +206,31 @@ func (r replayed) measurement(ctx context.Context, root string) ([]string, error
 	return strings.Fields(string(names)), err
 }
 
+// replayHold is the one replay checkout, under the repository's process state, held by a replay until it closes lock.
+// A replay cut short leaves it for the next to move (moveReplay), not a worktree of its own: a test's replay in a
+// checkout of its own left 12 worktrees when go test's timeout ended it before its cleanup ran (replay-checkout/do).
+type replayHold struct {
+	checkout string
+	lock     *processlock.Lock
+}
+
+// holdReplayCheckout holds the replay checkout, or refuses where another replay holds it.
+func holdReplayCheckout(root string) (replayHold, error) {
+	state := filepath.Join(root, processlock.StateDirectory)
+	if err := processlock.EnsureStateDirectory(root); err != nil {
+		return replayHold{}, err
+	}
+	checkout, err := filepath.Abs(filepath.Join(state, replayCheckout))
+	if err != nil {
+		return replayHold{}, err
+	}
+	lock, err := processlock.Acquire(filepath.Join(state, replayLock), clioptions.PrivateFileMode)
+	if err != nil {
+		return replayHold{}, fmt.Errorf("another replay holds the replay checkout: %w", err)
+	}
+	return replayHold{checkout: checkout, lock: lock}, nil
+}
+
 // replay works step with worker in checkout, from the step's parent with the landing's tests in place: the check must
 // fail there first, then the worker works up to attempts times, each after the first told the last failure.
 func replay(ctx context.Context, root, checkout string, step replayed, worker replayWorker, attempts int) (replayRecord, error) {
@@ -270,19 +295,12 @@ func replaySteps(ctx context.Context, root, since string, limit int, worker repl
 	if err != nil {
 		return err
 	}
-	state := filepath.Join(root, processlock.StateDirectory)
-	if err := processlock.EnsureStateDirectory(root); err != nil {
-		return err
-	}
-	lock, err := processlock.Acquire(filepath.Join(state, replayLock), clioptions.PrivateFileMode)
-	if err != nil {
-		return fmt.Errorf("another replay holds the replay checkout: %w", err)
-	}
-	defer lock.Close()
-	checkout, err := filepath.Abs(filepath.Join(state, replayCheckout))
+	hold, err := holdReplayCheckout(root)
 	if err != nil {
 		return err
 	}
+	defer hold.lock.Close()
+	checkout := hold.checkout
 	encoder, passed, tasks := json.NewEncoder(out), 0, 0
 	for _, step := range steps[:min(limit, len(steps))] {
 		record, err := replay(ctx, root, checkout, step, worker, defaultAttempts)

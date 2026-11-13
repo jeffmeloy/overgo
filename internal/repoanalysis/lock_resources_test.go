@@ -27,6 +27,7 @@ var lockResources = map[string]string{
 	"removal.lock":                        "the removal of leftovers and its receipt",
 	"overgodb.lock":                       "nothing any longer: an older store's lock file, which a clone leaves behind",
 	"cmd/loop/improve.go:.lock":           "the measurement cycle's checkout and its state",
+	"cmd/loop/land.go:.lock":              "the checker worktree a landing's gate is built in, at the trunk's commit",
 	"cmd/loop/replay.go:.lock":            "the replay checkout a landed step is replayed in",
 	"internal/hfhub/download.go:.lock":    "one file a download writes",
 	"internal/landing/candidate.go:.lock": "one worktree a landing's stages read its candidate in",

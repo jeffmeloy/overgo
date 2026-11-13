@@ -99,48 +99,6 @@
       ]
     },
     {
-      "id": "clean-checker",
-      "title": "A commit is checked by committed code: the checker is built from the trunk's commit, not the working tree",
-      "status": "open",
-      "budget": {
-        "nodes": 92,
-        "reason": "Filed from history: 92, the median of what 46 landings that changed cmd/loop counted"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "A commit is checked by committed code: the checker is built from the trunk's commit, not the working tree",
-          "status": "open",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestALandingsCheckerIsBuiltFromCommittedCode$'",
-          "files": [
-            "cmd/loop"
-          ],
-          "rationale": "Note: Serves: a commit is checked by committed code, so what checked it can be named (owner, 2026-11-13).\n\nThe cause: cmd/loop's Gate builds the checker with go build ./cmd/gate in the working tree (cmd/loop/land.go), and go run ./cmd/loop is itself built there, so uncommitted files of the landing, the plan, process control or any package the checker imports change how a commit is checked. 3e7b49d0c was checked with the uncommitted counts code of card-handover/counts. The candidate the stages read is clean; the checker is not.\n\nWhere else: every go run ./cmd/... a session or hook makes in the checkout, the loop's own build among them; the device lane's and the scorecard's binaries, built by the stages in the candidate, are clean.\n\nThe change: the gate is built from a tree that holds the trunk's commit alone, so the checker is the committed one, and the commit names it.\n\nNote: No boundary test: buildChecker is new code of cmd/loop that no test building at the base can name; at the base the check runs no test."
-        }
-      ]
-    },
-    {
-      "id": "replay-checkout",
-      "title": "A test that replays a landed step works in the one replay checkout, so a replay cut short leaves no worktree of its own",
-      "status": "open",
-      "budget": {
-        "nodes": 92,
-        "reason": "Filed from history: 92, the median of what 46 landings that changed cmd/loop counted"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "A test that replays a landed step works in the one replay checkout, so a replay cut short leaves no worktree of its own",
-          "status": "open",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestAReplayWorksInTheOneReplayCheckout$'",
-          "files": [
-            "cmd/loop"
-          ],
-          "rationale": "Note: Serves: a test leaves the repository as it found it (owner's problem list, 2026-11-12: 81 worktrees, 12 left by tests).\n\nThe cause: TestLandedStepsReplayForAWorker adds a worktree of the real repository under t.TempDir and removes it in t.Cleanup, which does not run when go test's timeout ends the process; each check at an old commit compiles anew, about 100 s, three of them near the ten minutes. Four of its worktrees are registered, and eight of TestTheLocalWorkerPaysForItself and TestTheLocalWorkerWorksTheSixTasks, tests since removed.\n\nWhere else: the other tests that add worktrees add them to fixture repositories in their own temporary directories.\n\nThe change: the test works in the replay checkout under the repository's process state, under the replay's lock, as replaySteps does, so a replay cut short leaves the one checkout the next replay moves (moveReplay) rather than one of its own. The twelve registered worktrees are the owner's to remove.\n\nNote: No boundary test: holdReplayCheckout is new code of cmd/loop that no test building at the base can name; at the base the check runs no test."
-        }
-      ]
-    },
-    {
       "id": "readme-speed",
       "title": "The README's speed table reads prompt processing at 4,096 and 16,384 tokens for every chat model, from readings that keep their token counts",
       "owner": "master-lead",

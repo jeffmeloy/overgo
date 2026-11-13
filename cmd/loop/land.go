@@ -121,6 +121,37 @@ func (w *execRowWorld) tool(echo, said io.Writer, arguments ...string) (string, 
 	return cmp.Or(strings.TrimSpace(string(final)), err.Error()), err
 }
 
+// checkerCheckout is the worktree under the repository's process state the checker is built in, beside the replay's.
+const checkerCheckout = "checker"
+
+// buildChecker builds the gate into output from the trunk's commit alone, in a worktree of its own moved there
+// (moveReplay), one build at a time, so a commit is checked by committed code: built in the checkout, the uncommitted
+// files of the landing, the plan or process control changed how a commit was checked, and 3e7b49d0c was checked with
+// uncommitted counts code (clean-checker/do).
+func buildChecker(root, output string, build func(arguments ...string) (string, error)) (string, error) {
+	head, err := gitauthority.Query(context.Background(), root, "rev-parse", "HEAD")
+	if err != nil {
+		return "", err
+	}
+	if err := processlock.EnsureStateDirectory(root); err != nil {
+		return "", err
+	}
+	state := filepath.Join(root, processlock.StateDirectory)
+	lock, err := processlock.AcquireContext(context.Background(), filepath.Join(state, checkerCheckout+".lock"), clioptions.PrivateFileMode)
+	if err != nil {
+		return "", err
+	}
+	defer lock.Close()
+	tree, err := filepath.Abs(filepath.Join(state, checkerCheckout))
+	if err != nil {
+		return "", err
+	}
+	if err := moveReplay(root, tree, strings.TrimSpace(string(head))); err != nil {
+		return "", err
+	}
+	return build("go", "-C", tree, "build", "-o", output, "./cmd/gate")
+}
+
 // Gate lands the row through the small gate, built from the tree it lands
 // into a directory of its own: a fixed path collided with the previous
 // landing's gate while Windows still released its executable, and the build
@@ -132,7 +163,9 @@ func (w *execRowWorld) Gate(reference, messageFile string) (string, error) {
 	}
 	defer os.RemoveAll(directory)
 	gate := filepath.Join(directory, "gate.exe")
-	refusal, err := w.tool(io.Discard, io.Discard, "go", "build", "-o", gate, "./cmd/gate")
+	refusal, err := buildChecker(loopWorktree, gate, func(arguments ...string) (string, error) {
+		return w.tool(io.Discard, io.Discard, arguments...)
+	})
 	if err == nil {
 		var said bytes.Buffer
 		arguments := []string{gate, "-plan", reference}

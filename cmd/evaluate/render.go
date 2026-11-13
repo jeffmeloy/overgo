@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -83,6 +84,8 @@ type renderedMedia struct {
 	Run     artifact.ID     `json:"run,omitzero"`
 	// Encoding is the FFmpeg and the arguments that wrote an MP4 (media.EncodingOf); a GIF or a picture holds none.
 	Encoding media.Encoding `json:"encoding,omitzero"`
+	// Build is the build that drew it, where it is not the manifest's (sameAtThisBuild); none is the manifest's.
+	Build string `json:"build,omitempty"`
 }
 
 // alreadyDrawn admits a directory only for its declared model, recipe, task, settings and clip format.
@@ -274,46 +277,88 @@ func renderMedia(ctx context.Context, repository, path string, task recipe.Task,
 	if err != nil {
 		return nil, err
 	}
+	set := renderSet{store: store, directory: directory, manifest: manifest, commit: commit,
+		request: func(item renderPrompt, index int) ([]byte, string, error) {
+			return renderRequest(template, settings, item, index)
+		},
+		draw: func(encoded []byte) (drawnMedia, error) {
+			output, err := capability.Execute(capabilityruntime.FreshRun(ctx), store, path, selected, string(encoded))
+			if err != nil {
+				return drawnMedia{}, err
+			}
+			content, extension, err := drawn(output)
+			if err != nil || len(content.Data) == 0 {
+				return drawnMedia{}, errors.Join(err, fmt.Errorf("evaluate: %s drew nothing", path))
+			}
+			measured, known := output.(capabilityruntime.Measured)
+			if !known || measured.Run.Kind() != artifact.KindRun || !measured.Input.Descriptor.ID.Valid() {
+				return drawnMedia{}, errors.New("evaluate: rendered output has unknown producing run or request")
+			}
+			return drawnMedia{data: content.Data, extension: extension, entry: renderedMedia{
+				Request: encoded, Input: measured.Input.Descriptor.ID, Output: content.Descriptor.ID, Run: measured.Run,
+				Encoding: media.EncodingOf(capabilityruntime.Unwrap(output)),
+			}}, nil
+		}}
+	return set.drawEach(ctx, prompts)
+}
+
+// drawnMedia is one draw's bytes, the extension its file is written under and the entry the manifest binds it by,
+// its file and build not yet named.
+type drawnMedia struct {
+	data      []byte
+	extension string
+	entry     renderedMedia
+}
+
+// renderSet is a directory's render as it is drawn: the manifest that binds what it holds, the build that draws now,
+// the request each prompt makes and the draw of one.
+type renderSet struct {
+	store     artifact.Reader
+	directory string
+	manifest  renderManifest
+	commit    string
+	request   func(item renderPrompt, index int) (encoded []byte, key string, err error)
+	draw      func(encoded []byte) (drawnMedia, error)
+}
+
+// drawEach takes each prompt's media the manifest holds and draws the rest, each draw naming its build. Where the
+// last item taken was drawn at another build, it is drawn again before the next is drawn, and the set continues only
+// where the bytes are the same (sameAtThisBuild).
+func (s *renderSet) drawEach(ctx context.Context, prompts []renderPrompt) (map[string]string, error) {
 	// The manifest is written after every draw, so a render that is cut short resumes.
 	save := func() error {
-		return jsonfile.Write(filepath.Join(directory, renderManifestFile), manifest, renderFileMode)
+		return jsonfile.Write(filepath.Join(s.directory, renderManifestFile), s.manifest, renderFileMode)
 	}
-	names = map[string]string{}
+	names := map[string]string{}
+	var last renderPrompt
 	for index, item := range prompts {
-		encoded, key, err := renderRequest(template, settings, item, index)
+		encoded, key, err := s.request(item, index)
 		if err != nil {
 			return nil, err
 		}
-		if _, exists := manifest.Draws[key]; exists {
-			if _, err := verifyRendered(ctx, store, directory, manifest.Model, manifest.Recipe, key); err != nil {
+		if _, exists := s.manifest.Draws[key]; exists {
+			if _, err := verifyRendered(ctx, s.store, s.directory, s.manifest.Model, s.manifest.Recipe, key); err != nil {
 				return nil, err
 			}
-			names[item.ID] = key
+			names[item.ID], last = key, item
 			continue
 		}
-		if manifest.CodeCommit != commit {
-			return nil, fmt.Errorf("evaluate: media were drawn at %.12s, this build is %.12s; finish with the producing build or use another directory", manifest.CodeCommit, commit)
+		if last.ID != "" {
+			if err := s.sameAtThisBuild(last.ID, names[last.ID]); err != nil {
+				return nil, err
+			}
+			last = renderPrompt{}
 		}
-		output, err := capability.Execute(capabilityruntime.FreshRun(ctx), store, path, selected, string(encoded))
+		drawn, err := s.draw(encoded)
 		if err != nil {
 			return nil, fmt.Errorf("evaluate: draw %s: %w", item.ID, err)
 		}
-		content, extension, err := drawn(output)
-		if err != nil || len(content.Data) == 0 {
-			return nil, errors.Join(err, fmt.Errorf("evaluate: %s drew nothing for %s", path, item.ID))
-		}
-		measured, known := output.(capabilityruntime.Measured)
-		if !known || measured.Run.Kind() != artifact.KindRun || !measured.Input.Descriptor.ID.Valid() {
-			return nil, errors.New("evaluate: rendered output has unknown producing run or request")
-		}
-		name := content.Descriptor.ID.DigestHex() + extension
-		if err := atomicfile.Write(filepath.Join(directory, name), content.Data, renderFileMode); err != nil {
+		name := drawn.entry.Output.DigestHex() + drawn.extension
+		if err := atomicfile.Write(filepath.Join(s.directory, name), drawn.data, renderFileMode); err != nil {
 			return nil, err
 		}
-		manifest.Draws[key] = renderedMedia{
-			File: name, Request: encoded, Input: measured.Input.Descriptor.ID, Output: content.Descriptor.ID, Run: measured.Run,
-			Encoding: media.EncodingOf(capabilityruntime.Unwrap(output)),
-		}
+		drawn.entry.File, drawn.entry.Build = name, s.commit
+		s.manifest.Draws[key] = drawn.entry
 		names[item.ID] = key
 		if err := save(); err != nil {
 			return nil, err
@@ -330,6 +375,28 @@ func renderMedia(ctx context.Context, repository, path string, task recipe.Task,
 		}
 	}
 	return names, save()
+}
+
+// sameAtThisBuild draws the item named again where another build drew it, and refuses the render where this build
+// draws other bytes, naming the item and both builds: a set drawn at one build continues at another only where the
+// new build draws the same, so a fix to code the set does not run no longer strands it (render-resume/same-bytes),
+// where MOSS's APG set stood at 40 of 80 and Wan's reference at 35 of 100 on 2026-11-12, each refused by the build
+// alone.
+func (s *renderSet) sameAtThisBuild(item, key string) error {
+	held := s.manifest.Draws[key]
+	build := cmp.Or(held.Build, s.manifest.CodeCommit)
+	if build == s.commit {
+		return nil
+	}
+	again, err := s.draw(held.Request)
+	if err != nil {
+		return fmt.Errorf("evaluate: draw %s again at %.12s: %w", item, s.commit, err)
+	}
+	if again.entry.Output != held.Output {
+		return fmt.Errorf("evaluate: %s drawn at %.12s is drawn otherwise at this build %.12s; finish with the producing build or use another directory", item, build, s.commit)
+	}
+	fmt.Printf("  drew %s again at %.12s the same as at %.12s: the set continues\n", item, s.commit, build)
+	return nil
 }
 
 // giveTheCardToAWaiter closes the sessions release closes where another process waits for the card's turn this one
@@ -604,7 +671,7 @@ func verifyRendered(ctx context.Context, store artifact.Reader, directory string
 	}
 	produced, err := runrecord.RequireRun(ctx, store, held.Run)
 	// A capability run records no commit; one that does names the build that drew it.
-	otherBuild := produced.CodeCommit != "" && produced.CodeCommit != manifest.CodeCommit
+	otherBuild := produced.CodeCommit != "" && produced.CodeCommit != cmp.Or(held.Build, manifest.CodeCommit)
 	if err != nil || produced.Outcome != runrecord.OutcomeSucceeded || produced.Recipe != recipeID || otherBuild || !slices.Contains(produced.Inputs, held.Input) || !slices.Contains(produced.Outputs, held.Output) {
 		return renderedMedia{}, errors.Join(err, errors.New("evaluate: producing run does not bind this request and output"))
 	}

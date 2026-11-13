@@ -23,7 +23,10 @@ func (l *landing) form(ctx context.Context) error {
 		}
 	}
 	l.unbuilt = map[string]string{}
-	restored, checks, none := l.undoable()
+	restored, checks, none, err := l.undoable(ctx)
+	if err != nil {
+		return err
+	}
 	if none != "" {
 		return nil
 	}

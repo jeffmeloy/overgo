@@ -2,10 +2,14 @@ package landing
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
+	"maps"
 	"os"
+	pathpkg "path"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -24,6 +28,57 @@ func productionGo(path string) bool {
 	return strings.HasSuffix(path, ".go") && !strings.HasSuffix(path, "_test.go") && !strings.Contains("/"+path, "/testdata/")
 }
 
+// production says which of the change's written and named paths are production: production Go, and a file a package
+// of the build embeds, as the kernels' PTX and a package's own records are. An undo run that restored the Go alone ran
+// the old Go on a change's new kernels, and the check of their fixed-order sums passed there (fixed-order/do). A file
+// is embedded only by a package in a directory above it, so those directories alone are listed.
+func (l *landing) production(ctx context.Context) (map[string]bool, error) {
+	if l.produced != nil {
+		return l.produced, nil
+	}
+	produced, above := map[string]bool{}, map[string]bool{}
+	for _, path := range slices.Concat(l.written, l.paths) {
+		if productionGo(path) {
+			produced[path] = true
+			continue
+		}
+		for directory := pathpkg.Dir(path); directory != "."; directory = pathpkg.Dir(directory) {
+			above["./"+directory] = true
+		}
+	}
+	if len(above) > 0 {
+		root, err := filepath.Abs(l.stageRoot())
+		if err != nil {
+			return nil, err
+		}
+		listed, err := l.runIn(ctx, root, nil, "go", append([]string{"list", "-e", "-json=Dir,EmbedFiles"}, slices.Sorted(maps.Keys(above))...)...)
+		if err != nil {
+			return nil, err
+		}
+		decoder := json.NewDecoder(strings.NewReader(listed))
+		for {
+			var listing struct {
+				Dir        string
+				EmbedFiles []string
+			}
+			if err := decoder.Decode(&listing); errors.Is(err, io.EOF) {
+				break
+			} else if err != nil {
+				return nil, err
+			}
+			for _, file := range listing.EmbedFiles {
+				relative, err := filepath.Rel(root, filepath.Join(listing.Dir, filepath.FromSlash(file)))
+				if err != nil {
+					return nil, err
+				}
+				produced[filepath.ToSlash(relative)] = true
+			}
+		}
+	}
+	l.produced = produced
+	return produced, nil
+}
+
 // undo runs the landed steps' checks on the change with the production Go it wrote restored to the commit it builds
 // on, and its tests and the stages' own rewrites kept. A check that passes there proves nothing of the change and is
 // refused; one that fails on a test's assertion caught it; one that fails before any test ran, its tests not building
@@ -31,7 +86,10 @@ func productionGo(path string) bool {
 // run (SQA-332), nor does a check that runs no go test, whose failure cannot be told from a build's. What it found goes
 // into the message.
 func (l *landing) undo(ctx context.Context) error {
-	restored, checks, none := l.undoable()
+	restored, checks, none, err := l.undoable(ctx)
+	if err != nil {
+		return err
+	}
 	if none != "" {
 		l.undone = []string{none}
 		return nil
@@ -83,10 +141,14 @@ func (l *landing) undo(ctx context.Context) error {
 	return nil
 }
 
-// undoable is what the undo run restores, the production Go the change wrote, and the checks it runs, those that run
+// undoable is what the undo run restores, the production the change wrote, and the checks it runs, those that run
 // a go test; or, where it runs none, what the message says instead.
-func (l *landing) undoable() (restored, checks []string, none string) {
-	restored = slices.DeleteFunc(slices.Clone(l.written), func(path string) bool { return !productionGo(path) })
+func (l *landing) undoable(ctx context.Context) (restored, checks []string, none string, err error) {
+	produced, err := l.production(ctx)
+	if err != nil {
+		return nil, nil, "", err
+	}
+	restored = slices.DeleteFunc(slices.Clone(l.written), func(path string) bool { return !produced[path] })
 	checks = slices.DeleteFunc(slices.Clone(l.verifiers), func(check string) bool {
 		parsed, err := runrecord.ParseVerify(check)
 		return err != nil || len(parsed.GoTests()) == 0
@@ -99,7 +161,7 @@ func (l *landing) undoable() (restored, checks []string, none string) {
 	case len(checks) == 0:
 		none = "none run: no check runs a go test"
 	}
-	return restored, checks, none
+	return restored, checks, none, nil
 }
 
 // restoredTo says which production Go the undo run restored, and to which commit.
@@ -145,7 +207,7 @@ func (l *landing) undoTree(ctx context.Context, restored []string) (tree, said s
 			}
 		}
 		for _, path := range l.paths {
-			if productionGo(path) || slices.Contains(present, path) {
+			if l.produced[path] || slices.Contains(present, path) {
 				continue
 			}
 			if err := os.Remove(filepath.Join(tree, filepath.FromSlash(path))); err != nil && !errors.Is(err, fs.ErrNotExist) {

@@ -26,6 +26,32 @@
       ]
     },
     {
+      "id": "fixed-order",
+      "title": "The card's trainers sum the norm-weight and embedding gradients in a fixed order, so a session stopped and resumed ends at the bytes of the uninterrupted one",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "The card's trainers sum the norm-weight and embedding gradients in a fixed order, so a session stopped and resumed ends at the bytes of the uninterrupted one",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/devicemath -count=1 -run '^TestTheCardsGradientSumsRepeatBitForBit$'",
+          "files": [
+            "kernels",
+            "internal/cuda/kernel",
+            "internal/cuda/executor",
+            "internal/devicemath",
+            "internal/mosstrain",
+            "internal/scratchtrain",
+            "SBOM.cdx.json",
+            "docs/verification/unreached-declarations.txt"
+          ],
+          "needs_card": true,
+          "rationale": "Serves: a reward session on the card samples each group from the weights as they stand, and stopped at its checkpoint and resumed ends at the bytes it ends at uninterrupted (TestDeviceSamplerDrawsWhatTheHostSamplerDraws, 1662794d5).\n\nThe evidence (guidance-ops/image-readings, 2026-11-13): the CUDA lane refused two attempts on that test, the stopped and resumed session ending with other bytes than the uninterrupted one, and passed it in a third landing unchanged; run six times alone with the card's turn held, it failed three. rms_norm_backward_f32 sums the norm-weight gradient over rows by atomic adds, in the order the threads reach them: run 50 times on the same inputs, its gradient's bytes differed from the first in 49 of 49 repeats over 300 rows, and in none over 12 or 40, one block. indexed_row_scatter_add_f32, the embedding gradient's sum over repeated tokens, adds the same way. Both are the resident dense trainer's (devicemath's layer and causal tail), and the norm's MOSS's trainer's too.\n\nThe cure: each sum runs in a fixed order, the norm's weight gradient a pass over the columns that adds the rows in turn, from the row pass's scale, and the scatter a pass over the columns that adds the indexed rows in turn.\n\nNote: files set to kernels, internal/cuda/kernel, internal/cuda/executor, internal/devicemath, internal/mosstrain, internal/scratchtrain, SBOM.cdx.json, docs/verification/unreached-declarations.txt: RMSNormBackward, in the register's hybrid-device-resident-lane group, is shorter by the passes it now leaves to the shared helper, and the register says so"
+        }
+      ]
+    },
+    {
       "id": "guidance-ops",
       "title": "CFG-Zero*, the guidance interval, APG and NAG are guider functions written from their papers, each a preset admitted per model by its held-out suite on no loss beyond chance, a gain claimed only where the paired test shows one",
       "owner": "master-lead",

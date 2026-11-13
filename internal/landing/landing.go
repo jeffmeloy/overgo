@@ -153,6 +153,8 @@ type landing struct {
 	// unbuilt are the checks the form stage found not building with the change's production Go restored, each with
 	// how it failed, which the undo run does not run again.
 	unbuilt map[string]string
+	// produced are the change's paths that are production, nil until the form stage reads them (production).
+	produced map[string]bool
 	// boundaryReasons are why no test through an existing boundary is practical, each a landed step's own, from the
 	// line its rationale opens with noBoundaryLine (undo).
 	boundaryReasons []string

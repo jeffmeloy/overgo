@@ -122,3 +122,26 @@ func TestNoUndoEvidenceNeedsABoundaryTestOrAReason(t *testing.T) {
 		t.Errorf("a change whose check does not build without it and whose step says why ended as %v, its message:\n%s\nprinting:\n%s", err, message, printed(unbuilt))
 	}
 }
+
+// TestAnUndoRestoresWhatAPackageEmbeds undoes a change to a file its package embeds, which changes what the package
+// does as Go would (undo-embeds/do): with the file restored the check fails on its assertion, and the message says so.
+// The undo had restored production Go alone, so a change that wrote no Go was said to touch none, and fixed-order/do's
+// rebuilt kernels, which the kernel package embeds, stayed in the tree its check passed in with the Go restored.
+func TestAnUndoRestoresWhatAPackageEmbeds(t *testing.T) {
+	t.Parallel()
+	const embedding = "// Package p is a fixture.\npackage p\n\nimport _ \"embed\"\n\n// value is the fixture's value, as its file holds it.\n//\n//go:embed value.txt\nvar value string\n"
+	fixture := newRowFixture(t, map[string]string{"p/p.go": embedding, "p/value.txt": "base"})
+	editPlan(t, fixture, func(document *plan.Plan) {
+		document.Items[0].Steps[0].Verify = undoneCheck
+	})
+	fixture.git("add", "-A")
+	fixture.git("commit", "-q", "-m", "the row's check")
+	fixture.write("p/value.txt", "shipped")
+	fixture.write("p/p_test.go", "package p\n\nimport \"testing\"\n\nfunc TestValue(t *testing.T) {\n\tt.Parallel()\n\tif value != \"shipped\" {\n\t\tt.Fatal(value)\n\t}\n}\n")
+	l := fixture.candidate()
+	l.Log = &bytes.Buffer{}
+	err := l.verify(t.Context())
+	if message := l.message(); err != nil || !strings.Contains(message, undoSection+"\n- with p/value.txt restored to ") || !strings.Contains(message, "TestValue") {
+		t.Errorf("a change to an embedded file ended as %v, its message:\n%s\nprinting:\n%s", err, message, printed(l))
+	}
+}

@@ -31,6 +31,8 @@ type workStatus struct {
 	Week            landing.Pace `json:"week"`
 	// Day is the day's delivery, the five measures the session start prints too (review-fixes/status-measures).
 	Day landing.Delivery `json:"day"`
+	// Worklist is the refusals by the rule or test that made each, most first (refusal-advice/worklist).
+	Worklist []landing.WorkItem `json:"worklist,omitzero"`
 }
 
 // statusOf is the status of a checkout whose dispatch line, last commit, plan and pace are given.
@@ -70,6 +72,9 @@ func writeStatus(root string, said io.Writer) error {
 	if status.Day, err = landing.DayDelivery(ctx, root, now, landing.ReportFiling); err != nil {
 		return err
 	}
+	if status.Worklist, err = landing.Worklist(root); err != nil {
+		return err
+	}
 	path, err := statePath(root, statusFile)
 	if err != nil {
 		return err
@@ -82,6 +87,13 @@ func writeStatus(root string, said io.Writer) error {
 	if err != nil {
 		return err
 	}
-	_, err = fmt.Fprintln(said, status.Day)
-	return err
+	if _, err = fmt.Fprintln(said, status.Day); err != nil {
+		return err
+	}
+	for _, item := range status.Worklist {
+		if _, err := fmt.Fprintf(said, "refused by %s: %d (%d said its edit); latest: %s\n", item.By, item.Refusals, item.Edits, item.Latest); err != nil {
+			return err
+		}
+	}
+	return nil
 }

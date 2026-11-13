@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"syscall"
+	"unicode/utf8"
 
 	"overgo/internal/clioptions"
 	"overgo/internal/jsonfile"
@@ -137,4 +138,66 @@ func RecordRefusal(root string, refusal Refusal) (Refusal, error) {
 		}
 	}
 	return refusal, jsonfile.Write(record, append(earlier, refusal), clioptions.PrivateFileMode)
+}
+
+// WorkItem is a rule or test on the worklist: the refusals it made, how many of them said the edit that clears them,
+// which the tool could make instead, and the latest one's cause.
+type WorkItem struct {
+	By       string `json:"by"`
+	Refusals int    `json:"refusals"`
+	Edits    int    `json:"edits,omitzero"`
+	Latest   string `json:"latest"`
+}
+
+// Worklist lists the refusals the record at root keeps a cause for by what made each, most first: a refusal of the
+// rules stage by its rules, one of failed tests by each test, and any other by its stage. Of each the question is what
+// its refusals prevented: if nothing, it goes; otherwise its fix moves into the fix stage (the owner's review,
+// 2026-11-12). The record kept no cause before session-leftovers/ended-session, so those refusals are not listed.
+func Worklist(root string) ([]WorkItem, error) {
+	_, refusals, err := stateRecords[Refusal](root, refusalRecord)
+	if err != nil {
+		return nil, err
+	}
+	var list []WorkItem
+	for _, refusal := range refusals {
+		if refusal.Cause == "" {
+			continue
+		}
+		for _, by := range refusedBy(refusal) {
+			at := slices.IndexFunc(list, func(item WorkItem) bool { return item.By == by })
+			if at < 0 {
+				list, at = append(list, WorkItem{By: by}), len(list)
+			}
+			list[at].Refusals++
+			list[at].Latest = refusal.Cause
+			if strings.Contains(refusal.Cause, "edit: ") {
+				list[at].Edits++
+			}
+		}
+	}
+	slices.SortStableFunc(list, func(left, right WorkItem) int { return right.Refusals - left.Refusals })
+	return list, nil
+}
+
+// refusedBy names what made a refusal: its rules, else each test it names failed, else its stage.
+func refusedBy(refusal Refusal) []string {
+	if len(refusal.Rules) > 0 {
+		return refusal.Rules
+	}
+	_, failed, _ := strings.Cut(refusal.Cause, failedTests)
+	names := strings.Split(failed, ", ")
+	// A cause cut to causeBytes may end inside a name, which is left out.
+	if len(refusal.Cause) > causeBytes-utf8.UTFMax {
+		names = names[:len(names)-1]
+	}
+	var tests []string
+	for _, name := range names {
+		if strings.Contains(name, ": Test") {
+			tests = append(tests, name)
+		}
+	}
+	if len(tests) == 0 {
+		return []string{refusal.Class}
+	}
+	return tests
 }

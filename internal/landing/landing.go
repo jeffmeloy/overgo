@@ -831,6 +831,9 @@ func (l *landing) goTest(ctx context.Context, stage string, packages ...string) 
 	return err
 }
 
+// failedTests opens a test stage's refusal, before the tests and packages that failed (refusedBy).
+const failedTests = "failed tests/packages: "
+
 // goTests runs go test once with each set of arguments, a run with none skipped, and says which packages ran rather
 // than replayed over them all, under the stage's name; it returns what the runs said.
 func (l *landing) goTests(ctx context.Context, stage string, runs ...[]string) (string, error) {
@@ -842,7 +845,7 @@ func (l *landing) goTests(ctx context.Context, stage string, runs ...[]string) (
 		output, err := l.runIn(ctx, l.stageRoot(), nil, "go", append([]string{"test", "-json", "-timeout=0"}, arguments...)...)
 		if err != nil {
 			if summary := testevidence.FailureSummary(output); summary != "" {
-				return "", fmt.Errorf("failed tests/packages: %s", summary)
+				return "", errors.New(failedTests + summary)
 			}
 			return "", err
 		}

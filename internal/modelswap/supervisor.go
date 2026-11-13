@@ -80,17 +80,10 @@ func (lease *Lease) Release() { lease.release() }
 // keeps the child resident, but a swap no longer waits for it to end.
 func (lease *Lease) HoldOpen() { lease.hold() }
 
-// drainGrace bounds how long a swap waits for the old child's
-// in-flight requests: the workbench holds endless streams (the
-// activity stream stays open for the life of the page), and an
-// endless stream must not veto the model the user asked for. Past the
-// grace the old child stops and lingering streams sever.
-const drainGrace = 15 * time.Second
-
 // Supervisor owns the exclusive child lifecycle: Acquire hands out the
 // running child's address for the requested model, swapping when a
 // different model is asked for -- in-flight requests on the old child
-// drain (bounded by the grace) before it stops, callers for the new
+// drain to their end before it stops, callers for the new
 // model queue on the swap, and an idle child past the timeout stops so
 // the device frees.
 type Supervisor struct {
@@ -98,7 +91,6 @@ type Supervisor struct {
 	drained  *sync.Cond
 	launcher Launcher
 	idle     time.Duration
-	grace    time.Duration
 	current  *upstream
 	// loading is the load outside the lock bringing a child up: the device has room for one.
 	loading *pendingLoad
@@ -121,7 +113,7 @@ func New(launcher Launcher, idle time.Duration) (*Supervisor, error) {
 	if launcher == nil {
 		return nil, errors.New("model swap: a launcher is required")
 	}
-	supervisor := &Supervisor{launcher: launcher, idle: idle, grace: drainGrace}
+	supervisor := &Supervisor{launcher: launcher, idle: idle}
 	supervisor.drained = sync.NewCond(&supervisor.mu)
 	return supervisor, nil
 }
@@ -143,15 +135,6 @@ func (s *Supervisor) Acquire(ctx context.Context, servable Servable) (*Lease, er
 		s.drained.Broadcast()
 	})
 	defer wake()
-	// The grace is the current child's: when it changes, another load having come between, the grace starts again.
-	var deadline *time.Timer
-	var graced *upstream
-	graceOver := false
-	defer func() {
-		if deadline != nil {
-			deadline.Stop()
-		}
-	}()
 	var swap SwapTimes
 	var queued *pendingLoad
 	draining := time.Now()
@@ -182,29 +165,11 @@ func (s *Supervisor) Acquire(ctx context.Context, servable Servable) (*Lease, er
 		if s.current == nil {
 			break
 		}
-		// A different model is running: wait for its in-flight requests
-		// to drain, then stop it and fall through to launch. The drain is
-		// bounded -- endless streams held open on the old child that do not
-		// declare themselves held open must not veto the swap, so past the
-		// grace the old child stops anyway. The streams that do declare it
-		// (the workbench's activity stream) are not waited for at all.
-		if graced != s.current {
-			graced, graceOver = s.current, false
-			if deadline != nil {
-				deadline.Stop()
-				deadline = nil
-			}
-		}
-		if s.current.refs-s.current.held > 0 && !graceOver {
-			if deadline == nil {
-				owner := s.current
-				deadline = time.AfterFunc(s.grace, func() {
-					s.mu.Lock()
-					graceOver = graceOver || graced == owner
-					s.mu.Unlock()
-					s.drained.Broadcast()
-				})
-			}
+		// A different model is running: wait for its in-flight requests to end, each when its requester ends it, then
+		// stop it and fall through to launch. No clock cuts a request short: a 15-second grace had stopped the old child
+		// under a local stream still answering (no-clocks/local-serving). The streams that declare themselves held open
+		// (the workbench's activity stream, open for the page's life) are not waited for at all.
+		if s.current.refs-s.current.held > 0 {
 			s.drained.Wait()
 			continue
 		}

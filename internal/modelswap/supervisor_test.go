@@ -177,42 +177,17 @@ func TestModelSwapSupervisor(t *testing.T) {
 	if _, running := supervisor.Status(); running {
 		t.Fatal("failed launch left a child registered")
 	}
-
-	// A never-released acquire (an endless stream through the proxy)
-	// cannot veto a swap: past the drain grace the old child stops
-	// anyway and the requested model launches.
-	supervisor.mu.Lock()
-	supervisor.grace = 50 * time.Millisecond
-	supervisor.mu.Unlock()
-	if _, err := supervisor.Acquire(ctx, Servable{Name: "gamma"}); err != nil {
-		t.Fatal(err)
-	}
-	// The gamma acquire above is deliberately never released.
-	if deltaLease, err := supervisor.Acquire(ctx, Servable{Name: "delta"}); err != nil {
-		t.Fatalf("bounded drain did not admit the swap: %v", err)
-	} else {
-		deltaLease.Release()
-	}
-	if !launcher.processes["gamma"].stopped.Load() {
-		t.Fatal("grace expiry left the streamed-on child running")
-	}
-	if running, ok := supervisor.Status(); !ok || running.Name != "delta" {
-		t.Fatalf("running after bounded drain = (%+v, %t)", running, ok)
-	}
 }
 
 // TestSwapReportsItsPhasesAndDoesNotWaitOnAHeldOpenStream holds a swap to what a person
 // choosing a model waits for: the old child's requests that are finishing, not the
-// subscription the page keeps open for its own life, however long the drain grace is;
+// subscription the page keeps open for its own life;
 // the request that caused the swap is told what each part of it cost; and a request
 // that did not swap is told nothing.
 func TestSwapReportsItsPhasesAndDoesNotWaitOnAHeldOpenStream(t *testing.T) {
 	ctx := t.Context()
 	supervisor := testcheck.Must(New(&fakeLauncher{}, 0))(t)
 	defer supervisor.Close()
-	supervisor.mu.Lock()
-	supervisor.grace = time.Hour
-	supervisor.mu.Unlock()
 	stream := testcheck.Must(supervisor.Acquire(ctx, Servable{Name: "alpha"}))(t)
 	stream.HoldOpen()
 	stream.HoldOpen()
@@ -234,7 +209,7 @@ func TestSwapReportsItsPhasesAndDoesNotWaitOnAHeldOpenStream(t *testing.T) {
 	if err := <-cancelled; !errors.Is(err, context.Canceled) {
 		t.Fatalf("a swap did not wait for the request that was finishing: %v", err)
 	}
-	// Once that request finishes the swap does not wait for the held-open stream, whatever the grace.
+	// Once that request finishes the swap does not wait for the held-open stream.
 	swapped := make(chan *Lease, 1)
 	go func() {
 		lease, err := supervisor.Acquire(ctx, Servable{Name: "beta"})

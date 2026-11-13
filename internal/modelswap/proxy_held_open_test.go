@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"overgo/internal/apimanifest"
 	"overgo/internal/testcheck"
@@ -46,14 +45,11 @@ func (heldOpenLauncher) Launch(_ context.Context, servable Servable) (Process, e
 }
 
 // TestModelSwapProxyDoesNotWaitOnAHeldOpenStream holds the proxy to what choosing a model waits for: a page's own
-// subscription, which the child names held open, is not waited for however long the drain grace is, and the answer
-// to the request that swapped says what each part of the swap cost while an answer that did not swap says nothing.
+// subscription, which the child names held open, is not waited for, and the answer to the request that swapped says
+// what each part of the swap cost while an answer that did not swap says nothing.
 func TestModelSwapProxyDoesNotWaitOnAHeldOpenStream(t *testing.T) {
 	supervisor := testcheck.Must(New(heldOpenLauncher{}, 0))(t)
 	defer supervisor.Close()
-	supervisor.mu.Lock()
-	supervisor.grace = time.Hour
-	supervisor.mu.Unlock()
 	proxy := &Proxy{Supervisor: supervisor, Resolver: mapResolver{"alpha": {Name: "alpha", Location: "alpha.gguf"}, "beta": {Name: "beta", Location: "beta.gguf"}}}
 	front := httptest.NewServer(proxy)
 	defer front.Close()

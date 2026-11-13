@@ -216,7 +216,7 @@ func (l *swapLifecycle) cancelOne() {
 }
 
 func (l *swapLifecycle) wait() {
-	wait := []time.Duration{swapIdle / 2, swapIdle * 2, drainGrace + time.Second}[l.rng.IntN(3)]
+	wait := []time.Duration{swapIdle / 2, swapIdle * 2, time.Hour}[l.rng.IntN(3)]
 	l.trace = append(l.trace, "wait "+wait.String())
 	time.Sleep(wait)
 }
@@ -230,7 +230,7 @@ var swapActions = []func(*swapLifecycle){
 }
 
 // settle waits for the bubble to block, takes the leases acquires returned, and holds each to a child that was alive
-// at its return and that no stop cut short of drainGrace.
+// at its return and that nothing stopped before its requester released it.
 func (l *swapLifecycle) settle() {
 	synctest.Wait()
 	for _, request := range l.pending {
@@ -244,8 +244,8 @@ func (l *swapLifecycle) settle() {
 		l.world.mu.Unlock()
 		if request.deadAtReturn {
 			l.fail("an acquire of %s was given child %s, which was dead at its return", request.name, request.lease.Target)
-		} else if stopped && time.Since(request.granted) < drainGrace {
-			l.fail("an acquire of %s was severed %v after its grant", request.name, time.Since(request.granted).Round(time.Second))
+		} else if stopped {
+			l.fail("an acquire of %s was severed %v after its grant, before its requester released it", request.name, time.Since(request.granted).Round(time.Second))
 		}
 		request.lease = nil
 	}
@@ -295,7 +295,7 @@ func swapRun(t *testing.T, seed uint64) (string, []string) {
 			lease.Release()
 		}
 		lifecycle.closeErr = supervisor.Close()
-		time.Sleep(slices.Max(swapLoads) + drainGrace)
+		time.Sleep(slices.Max(swapLoads))
 		synctest.Wait()
 		for _, child := range world.live() {
 			if lifecycle.closeErr == nil || !strings.Contains(lifecycle.closeErr.Error(), strconv.Quote(child.name)) {
@@ -309,8 +309,8 @@ func swapRun(t *testing.T, seed uint64) (string, []string) {
 // TestGeneratedSwapLifecycles drives swapSeeds generated lifecycles of acquires, releases, holds, cancels, children that
 // exit by themselves, refused launches, readies and stops, loads of several lengths, waits and a close through the
 // supervisor, and holds it to its promises: at most one live child, a model named only while a child lives or loads, a
-// lease on a live child that lives drainGrace unless it exits by itself, and no child left after Close unless Close
-// names it.
+// lease on a live child that lives until its requester releases it unless it exits by itself, and no child left after
+// Close unless Close names it.
 func TestGeneratedSwapLifecycles(t *testing.T) {
 	t.Parallel()
 	classes := map[string]int{}

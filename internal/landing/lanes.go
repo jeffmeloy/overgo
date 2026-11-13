@@ -316,40 +316,37 @@ func HoldLaneTurn(work func() error) error {
 // 2026-10-30 a landing waited on the run's turn for hours, and as a landing ships the checkout's dirty tree, no other
 // row could be edited until it landed. The stages read the candidate in a worktree of its own (checkOut), and the
 // commit publishes it whatever the checkout holds by then (settled), so only the commit turn is left to give up. A turn
-// that is free is taken as before, and a merge keeps its commit turn.
-func (l *landing) letGo() error {
+// that is free is taken as before, and a merge keeps its commit turn. It says whether it gave the commit turn up.
+func (l *landing) letGo() (bool, error) {
 	name, err := laneTurn()
 	if err != nil {
-		return err
+		return false, err
 	}
 	if held, err := processcontrol.ResourceTransactionHeld(name); err != nil || !held || len(l.merging) > 0 {
-		return err
+		return false, err
 	}
 	// The wait is the device's and no other commit's, so the commit turn goes free for it: on 2026-10-30 a report-only
 	// commit waited hours behind a landing that was itself waiting on a measurement run.
-	if l.turn != nil {
-		release := l.turn
-		l.turn, l.turnLet = nil, true
+	release := l.turn
+	if release != nil {
+		l.turn = nil
 		if err := release(); err != nil {
-			return err
+			return true, err
 		}
 	}
 	fmt.Fprintf(l.Log, "land: the card's turn is held, so the landing waits on the change as it stood, in %s: the checkout is free\n", l.tree)
-	return nil
+	return release != nil, nil
 }
 
-// takeTurnBack takes the commit turn again after a wait that gave it up. A commit may have landed meanwhile, and the
-// checks passed on the tree as it was, so a trunk that moved refuses the landing rather than publish what nothing
-// checked. It lands again on the trunk as it stands, which takes the lanes again and no longer waits on the device.
+// takeTurnBack takes the commit turn again after the card's wait gave it up. A commit may have landed meanwhile, and
+// the change was brought up to the tree as it was, so a trunk that moved refuses the landing rather than check and
+// publish onto what it was not brought up to. It lands again on the trunk as it stands.
 func (l *landing) takeTurnBack(ctx context.Context) error {
-	if !l.turnLet {
-		return nil
-	}
 	turn, err := l.holdTurn(ctx)
 	if err != nil {
 		return err
 	}
-	l.turn, l.turnLet = turn, false
+	l.turn = turn
 	tip, err := gitauthority.Query(ctx, l.Repo, "rev-parse", cmp.Or(l.onto, "HEAD"))
 	if err != nil {
 		return err
@@ -371,7 +368,8 @@ func (l *landing) holdCard(ctx context.Context) error {
 	if l.card != nil {
 		return nil
 	}
-	if err := l.letGo(); err != nil {
+	freed, err := l.letGo()
+	if err != nil {
 		return err
 	}
 	machine := l.quietMachine
@@ -395,7 +393,13 @@ func (l *landing) holdCard(ctx context.Context) error {
 		}
 		l.quiet = quiet
 	}
-	return nil
+	// The commit turn is taken back once the card is the landing's, so the checkout is free for the wait alone: a
+	// commit another session made while the landing ran its stages refused it after them, 30 minutes of checks in
+	// (process-identity/start, 2026-11-12), where one made during the wait refuses it now, before them.
+	if !freed {
+		return nil
+	}
+	return l.takeTurnBack(ctx)
 }
 
 // reachesCard says whether the change reaches a lane that shares the device, so the landing holds the card's turn from
@@ -475,7 +479,7 @@ func (l *landing) lanes(ctx context.Context) error {
 	}
 	beside, shared := splitLanes(reached)
 	// The card's turn is the landing's from its first stage that runs tests (holdCard), and its wait is measured there.
-	err = l.inTurnFor(ctx, shared, func() error {
+	return l.inTurnFor(ctx, shared, func() error {
 		turnWait := l.spent.Turn
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
@@ -527,10 +531,6 @@ func (l *landing) lanes(ctx context.Context) error {
 		l.details["lanes"] = describeLanes(discovery, turnWait, passed, skipped)
 		return nil
 	})
-	if err != nil {
-		return err
-	}
-	return l.takeTurnBack(ctx)
 }
 
 // passedPackage opens go test's line for a package that passed, in its

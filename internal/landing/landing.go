@@ -123,10 +123,9 @@ type landing struct {
 	card func() error
 	// candidate is the tree the checks validate and the commit publishes.
 	candidate string
-	// turn gives back the repository's commit turn while the run holds it (holdTurn); letGo gives it back for a wait
-	// on the device, and turnLet says the lanes must take it again before anything is published (takeTurnBack).
-	turn    func() error
-	turnLet bool
+	// turn gives back the repository's commit turn while the run holds it (holdTurn); the card's wait gives it up and
+	// takes it again (holdCard).
+	turn func() error
 	// tree is the worktree of its own the candidate is checked out in, where the generators derive from it and every
 	// stage after format and fix reads it (checkOut); treeHolds is the candidate it holds, and treeHeld gives the
 	// worktree back for the next landing.

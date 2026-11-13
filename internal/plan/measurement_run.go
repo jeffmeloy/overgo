@@ -25,12 +25,14 @@ const measurementRunFile = "measurement_run.json"
 // process, when it began, each phase as it runs, and when it ended with the
 // rows it filed.
 type MeasurementRun struct {
-	Commit  string             `json:"commit"`
-	Process int                `json:"process"`
-	Started time.Time          `json:"started"`
-	Phases  []MeasurementPhase `json:"phases"`
-	Ended   time.Time          `json:"ended,omitzero"`
-	Filed   int                `json:"filed,omitzero"`
+	Commit  string `json:"commit"`
+	Process int    `json:"process"`
+	// ProcessStart is the process's start (processcontrol.ProcessStart), which with Process names it alone.
+	ProcessStart int64              `json:"process_start,omitzero"`
+	Started      time.Time          `json:"started"`
+	Phases       []MeasurementPhase `json:"phases"`
+	Ended        time.Time          `json:"ended,omitzero"`
+	Filed        int                `json:"filed,omitzero"`
 	// Digests is each model file's digest as the run hashed it, by path, which its later phases read instead of
 	// hashing the file again (RecordDigests).
 	Digests map[string]string `json:"digests,omitempty"`
@@ -129,7 +131,7 @@ func ReadMeasurementRun(root string) (MeasurementRun, bool) {
 // HoldsTheCard says the run is measuring now, holding the graphics card: it has not ended and its process lives. On
 // Oct 31 the run held the card from 1:55 AM to 11:00 AM while the lead sat idle with host work open.
 func (run MeasurementRun) HoldsTheCard() bool {
-	return run.Ended.IsZero() && processcontrol.ProcessAlive(run.Process)
+	return run.Ended.IsZero() && processcontrol.Running(run.Process, run.ProcessStart)
 }
 
 // Wall is how long the phase named took in the run, and whether it ended there.
@@ -174,7 +176,7 @@ func (run MeasurementRun) Report() string {
 	switch {
 	case !run.Ended.IsZero():
 		fmt.Fprintf(&b, "; ended %s, after %s, filing %d rows", at(run.Ended), run.Ended.Sub(run.Started).Round(time.Minute), run.Filed)
-	case !processcontrol.ProcessAlive(run.Process):
+	case !processcontrol.Running(run.Process, run.ProcessStart):
 		b.WriteString("; its process is gone with no end recorded: the run was cut short")
 	default:
 		b.WriteString("; running: a landing's lanes wait for its device turn with the checkout free, no device tests by hand, no push until it ends")

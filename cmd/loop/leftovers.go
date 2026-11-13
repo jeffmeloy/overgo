@@ -399,7 +399,7 @@ func (f *facts) copyState(tree landing.Worktree, helper bool) (state, rule strin
 		return stateHeld, fmt.Sprintf("its commit %.*s is not on the trunk", commitAbbreviation, tree.Head)
 	}
 	if holder, err := os.ReadFile(filepath.Join(written, guard.WorktreeHolder)); err == nil {
-		held, _ := guard.ReadHold(holder)
+		held, _, _ := guard.ReadHold(holder)
 		return stateHeld, "the session " + held + " holds it"
 	}
 	locked, ran := false, !helper

@@ -369,7 +369,7 @@ func holdWorktree(session string, takeover bool) (holder string) {
 	// A hold whose session's process has exited names a session that has ended, a worker the driver ran or a session
 	// closed or cut off, and is free: on 2026-11-07 two such holds refused the lead's every edit until it was cleared.
 	if raw, err := os.ReadFile(path); err == nil {
-		if held, process := guard.ReadHold(raw); held != session && process > 0 && !processcontrol.ProcessAlive(process) {
+		if held, process, start := guard.ReadHold(raw); held != session && process > 0 && !processcontrol.Running(process, start) {
 			_ = os.Remove(path)
 		}
 	}
@@ -383,7 +383,7 @@ func holdWorktree(session string, takeover bool) (holder string) {
 		return ""
 	}
 	raw, _ := os.ReadFile(path)
-	held, process := guard.ReadHold(raw)
+	held, process, _ := guard.ReadHold(raw)
 	// A file another session has created and not yet written names it no less.
 	if holder = cmp.Or(held, "that began as this one did"); holder == session {
 		// The session that holds it keeps its process current, across a restart of its Claude Code.
@@ -409,7 +409,7 @@ func sessionProcess() int {
 func releaseWorktree(session string) {
 	path, err := filepath.Join(processlock.StateDirectory, guard.WorktreeHolder), processlock.EnsureStateDirectory(".")
 	if raw, readErr := os.ReadFile(path); err == nil && readErr == nil && session != "" {
-		if held, _ := guard.ReadHold(raw); held != session {
+		if held, _, _ := guard.ReadHold(raw); held != session {
 			return
 		}
 		_ = os.Remove(path)

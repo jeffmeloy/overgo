@@ -22,8 +22,8 @@ func heldBy(root, session string) string {
 	if err != nil {
 		return ""
 	}
-	held, process := ReadHold(raw)
-	if held == session || process > 0 && !processcontrol.ProcessAlive(process) {
+	held, process, start := ReadHold(raw)
+	if held == session || process > 0 && !processcontrol.Running(process, start) {
 		return ""
 	}
 	return held

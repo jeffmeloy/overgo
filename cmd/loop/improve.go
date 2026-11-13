@@ -25,6 +25,7 @@ import (
 	"overgo/internal/jsonfile"
 	"overgo/internal/landing"
 	"overgo/internal/plan"
+	"overgo/internal/processcontrol"
 	"overgo/internal/processlock"
 	"overgo/internal/scorecard"
 )
@@ -67,7 +68,8 @@ func (r *runRecorder) begin(commit string) {
 		return
 	}
 	r.before, _ = plan.ReadMeasurementRun(r.root)
-	r.run = plan.MeasurementRun{Commit: commit, Process: os.Getpid(), Started: time.Now()}
+	start, _ := processcontrol.ProcessStart(os.Getpid())
+	r.run = plan.MeasurementRun{Commit: commit, Process: os.Getpid(), ProcessStart: start, Started: time.Now()}
 	r.write()
 }
 

@@ -83,18 +83,25 @@ const WorktreeHolder = "implementing_session"
 // holds it, when that session is gone or its work here is this one's to continue. No worker prompt opens with it.
 const TakeoverDeclaration = "take over this worktree"
 
-// HoldText is the hold file's content for session: the session, and on the next line the process its Claude Code
-// runs as, by which a later session knows whether the holder still runs.
+// HoldText is the hold file's content for session: the session, on the next line the process its Claude Code runs as,
+// and on the next its start (processcontrol.ProcessStart), by which a later session knows whether the holder still
+// runs: the process's id alone is given to another process once it ends (process-identity/start-time).
 func HoldText(session string, process int) string {
-	return session + "\n" + strconv.Itoa(process)
+	start, _ := processcontrol.ProcessStart(process)
+	return session + "\n" + strconv.Itoa(process) + "\n" + strconv.FormatInt(start, 10)
 }
 
-// ReadHold reads a hold file's content: the holding session and its process, zero where the hold names none, as a
-// hold written before the process was recorded does.
-func ReadHold(raw []byte) (session string, process int) {
-	first, rest, _ := strings.Cut(strings.TrimSpace(string(raw)), "\n")
-	process, _ = strconv.Atoi(strings.TrimSpace(rest))
-	return strings.TrimSpace(first), process
+// ReadHold reads a hold file's content: the holding session, its process and the process's start, zero where the
+// hold names none, as a hold written before either was recorded does.
+func ReadHold(raw []byte) (session string, process int, start int64) {
+	lines := strings.Split(strings.TrimSpace(string(raw)), "\n")
+	if len(lines) > 1 {
+		process, _ = strconv.Atoi(strings.TrimSpace(lines[1]))
+	}
+	if len(lines) > 2 {
+		start, _ = strconv.ParseInt(strings.TrimSpace(lines[2]), 10, 64)
+	}
+	return strings.TrimSpace(lines[0]), process, start
 }
 
 // SessionState names the file, in a checkout's process state, where the
@@ -137,8 +144,8 @@ func SessionEnded(root, session string) bool {
 	if err != nil {
 		return false
 	}
-	held, process := ReadHold(raw)
-	return held == session && process > 0 && !processcontrol.ProcessAlive(process)
+	held, process, start := ReadHold(raw)
+	return held == session && process > 0 && !processcontrol.Running(process, start)
 }
 
 // Landing reports whether a command lands a change through the gate: what makes a session an implementing one, whose

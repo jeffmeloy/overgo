@@ -66,6 +66,9 @@ func ProcessAlive(pid int) bool {
 	return pid > 0 && syscall.Kill(pid, 0) == nil
 }
 
+// ProcessStart reads no start where the system's process times are Windows'.
+func ProcessStart(int) (int64, bool) { return 0, false }
+
 func (t processTree) wait() error { return nil }
 
 // releaseWaiter would observe a resource's holders; contention itself is Windows-only.

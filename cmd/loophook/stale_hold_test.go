@@ -34,7 +34,8 @@ func TestAHoldWhoseProcessEndedIsTaken(t *testing.T) {
 	}
 	held := func() (string, int) {
 		t.Helper()
-		return guard.ReadHold(testcheck.Must(os.ReadFile(hold))(t))
+		session, process, _ := guard.ReadHold(testcheck.Must(os.ReadFile(hold))(t))
+		return session, process
 	}
 
 	written(guard.HoldText("ended-worker", ended.Process.Pid))

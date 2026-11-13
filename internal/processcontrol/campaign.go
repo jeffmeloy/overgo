@@ -36,9 +36,11 @@ const (
 const campaignNonceBytes = 32
 
 type campaignLocator struct {
-	Root    string `json:"root"`
-	Worker  string `json:"worker"`
-	PID     int    `json:"pid"`
+	Root   string `json:"root"`
+	Worker string `json:"worker"`
+	PID    int    `json:"pid"`
+	// Start is the owner process's start (ProcessStart), which with PID names it alone.
+	Start   int64  `json:"start,omitzero"`
 	Session string `json:"session"`
 	Address string `json:"address"`
 }
@@ -73,7 +75,8 @@ func BeginCampaign(root, worker string) (*Campaign, error) {
 		_ = lock.Close()
 		return nil, err
 	}
-	owner := campaignLocator{Root: root, Worker: worker, PID: os.Getpid(), Session: hex.EncodeToString(nonce)}
+	start, _ := ProcessStart(os.Getpid())
+	owner := campaignLocator{Root: root, Worker: worker, PID: os.Getpid(), Start: start, Session: hex.EncodeToString(nonce)}
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		_ = lock.Close()
@@ -129,7 +132,7 @@ func NotifyCampaignStop(ctx context.Context, root string) error {
 		}
 		return err
 	}
-	if !ProcessAlive(owner.PID) {
+	if !Running(owner.PID, owner.Start) {
 		return nil
 	}
 	host, _, err := net.SplitHostPort(owner.Address)
@@ -165,7 +168,7 @@ func CampaignRunning(root string) (bool, error) {
 		}
 		return false, err
 	}
-	if !ProcessAlive(owner.PID) {
+	if !Running(owner.PID, owner.Start) {
 		return false, nil
 	}
 	lock, err := processlock.Acquire(filepath.Join(root, campaignLockPath), campaignFileMode)

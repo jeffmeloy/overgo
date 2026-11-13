@@ -127,6 +127,21 @@ func Start(ctx context.Context, command Command) (*Supervised, error) {
 	return supervised, nil
 }
 
+// Running says whether the process of pid that started at start (ProcessStart) still runs: a running process with the
+// id that started at another time is another process, and the one asked about has ended. On 2026-11-12 the 307th
+// process started after one with id 13696 had exited was given 13696, and ProcessAlive said the first ran; a landing's
+// test stage starts hundreds. A start of zero, a record written before starts were kept, asks about the id alone.
+func Running(pid int, start int64) bool {
+	if !ProcessAlive(pid) {
+		return false
+	}
+	if start == 0 {
+		return true
+	}
+	now, read := ProcessStart(pid)
+	return read && now == start
+}
+
 // lockedWriter serializes two drains aimed at one shared sink, so a
 // caller asking for combined output never races its own buffer.
 type lockedWriter struct {

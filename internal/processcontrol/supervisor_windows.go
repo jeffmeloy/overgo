@@ -78,6 +78,25 @@ func ProcessAlive(pid int) bool {
 	return ok != 0 && code == stillActive
 }
 
+// ProcessStart is when the process of pid started, in the system's count of 100-nanosecond intervals since 1601
+// (GetProcessTimes' creation time), and whether it was read: with its id it names one process, where the id alone names
+// any the system has given it to since (process-identity/start-time).
+func ProcessStart(pid int) (int64, bool) {
+	if pid <= 0 {
+		return 0, false
+	}
+	handle, _, _ := procOpenProcess.Call(processQueryLimitedInformation, windowsFalse, uintptr(pid))
+	if handle == 0 {
+		return 0, false
+	}
+	defer procCloseHandle.Call(handle)
+	var creation, exit, kernel, user syscall.Filetime
+	if err := syscall.GetProcessTimes(syscall.Handle(handle), &creation, &exit, &kernel, &user); err != nil {
+		return 0, false
+	}
+	return int64(creation.HighDateTime)<<32 | int64(creation.LowDateTime), true
+}
+
 type jobBasicLimits struct {
 	PerProcessUserTimeLimit int64
 	PerJobUserTimeLimit     int64

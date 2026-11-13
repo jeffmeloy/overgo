@@ -3,32 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "no-clocks",
-      "title": "Inside the machine a clock measures, reports and schedules; it never ends or refuses work",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 1402,
-        "reason": "Filed 2026-11-12 from the owner's rule: a simplification, each budget, its flag and its error deleted for a wait on the event. The lead's figure. Step swap-drain: +42 (42, the median of what 3 landings that changed internal/modelswap counted)."
-      },
-      "steps": [
-        {
-          "id": "rule",
-          "title": "skill.md says the rule and names its check, whose allowed list holds network peers and a limit the user set alone",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestNoClockEndsWorkInsideTheMachine$'",
-          "files": [
-            "skill.md",
-            "internal/repoanalysis"
-          ],
-          "rationale": "Serves: the owner's rule of 2026-11-12, made the written rule with the check that holds it.\n\nDisappears: a list of pending clocks: once own-budgets, local-serving and card-turn/retire-admissions have landed, the list holds only the allowed.\n\nThe change: skill.md: inside the machine a clock measures, reports and schedules; it never ends or refuses work. Waits are on the event; a dead process is learned from the OS; the requester cancels. Allowed: network peers (the hub, media fetch, the server's connection limits) and a limit the user set. Its check is TestNoClockEndsWorkInsideTheMachine, TestNoClockEndsOvergosOwnWork with its pending list empty.\n\nCheck: TestNoClockEndsWorkInsideTheMachine fails on any clock that ends work outside the allowed list, and on a pending entry left in the list.\n\nBatch: host lane.",
-          "depends_on": [
-            "card-turn/retire-admissions"
-          ]
-        }
-      ]
-    },
-    {
       "id": "host-card",
       "title": "A landing holds the card's turn from its first test stage wherever a stage it runs reaches the card, not only where its change reaches a card lane",
       "status": "open",
@@ -1207,7 +1181,7 @@
           "id": "local-demonstrated",
           "title": "The local worker, the driver's only worker, lands three plan steps unaided from their landings' parents, each passing a check it did not write, in at most six tries, every attempt's wall and failure recorded beside its step",
           "status": "open",
-          "verify": "OVERGO_LOOP_DEMONSTRATION=1 OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/loop -count=1 -run '^TestTheLocalWorkerLandsStepsUnaided$' -timeout 120m",
+          "verify": "OVERGO_LOOP_DEMONSTRATION=1 OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/loop -count=1 -run '^TestTheLocalWorkerLandsStepsUnaided$' -timeout=0",
           "files": [
             "cmd/loop"
           ],
@@ -1278,7 +1252,7 @@
           "id": "bounded-campaign",
           "title": "Qwen2.5-0.5B is trained on a registered objective for a budget of device hours stated before the run, and judged on at least 300 held-out cases against its base by the verdict the store already reconstructs",
           "status": "open",
-          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/train -count=1 -run '^TestATrainedModelsGainStandsClearOfItsNoise$' -timeout 120m",
+          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/train -count=1 -run '^TestATrainedModelsGainStandsClearOfItsNoise$' -timeout=0",
           "files": [
             "cmd/train",
             "internal/trainingworkflow",
@@ -1304,7 +1278,7 @@
           "id": "three-workloads",
           "title": "Flash-Next's chat at 4,096 and 16,384 tokens, Krea's 512 x 512 picture and Wan's 81-frame 832 x 480 clip are read under 24 GiB and 16 GiB: time to first output, throughput and peak memory, or the limit that refused the request",
           "status": "open",
-          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/validate -count=1 -run '^TestThreeWorkloadsAreReadUnderSmallerCards$' -timeout 120m",
+          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/validate -count=1 -run '^TestThreeWorkloadsAreReadUnderSmallerCards$' -timeout=0",
           "files": [
             "cmd/validate",
             "docs/verification"

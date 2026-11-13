@@ -40,24 +40,16 @@ var limitSetters = map[string]string{
 	"internal/webuilane/browser.go": "webui-lane -wait, through WaitBudgetEnvironment",
 }
 
-// pendingTimeouts are the open steps whose checks still name a go test timeout: a step is held to the check it was
-// first accepted with, and a check changed in the plan is judged as added, so each is filed again with -timeout=0 when
-// its row is worked. A check that names none runs with none (runrecord.VerifyCommand.RunCommand).
-var pendingTimeouts = map[string]string{
-	"loop-proof/local-demonstrated":   "-timeout 120m, filed again when the local worker's demonstration is worked",
-	"training-depth/bounded-campaign": "-timeout 120m, filed again when the bounded campaign is worked",
-	"card-budgets/three-workloads":    "-timeout 120m, filed again when the three workloads are read",
-}
-
 // contextClocks are the context package's functions that end a context by a clock.
 var contextClocks = []string{"WithTimeout", "WithTimeoutCause", "WithDeadline", "WithDeadlineCause"}
 
-// TestNoClockEndsOvergosOwnWork holds overgo's production code to the owner's rule that no clock ends its own work: a
-// context ended by a clock, or a time.AfterFunc whose function cancels, stops, kills or closes, stands only in
-// clockOwners; a limit handed to clioptions.Limited comes only from limitSetters' flags; no go test a command runs
-// names a timeout but -timeout=0; and an open plan check names none except pendingTimeouts'. Its fixture pins the
-// reading of a clock: a timeout, a deadline and an AfterFunc that stops count, and an AfterFunc that reports does not.
-func TestNoClockEndsOvergosOwnWork(t *testing.T) {
+// TestNoClockEndsWorkInsideTheMachine holds skill.md's rule that inside the machine a clock measures, reports and
+// schedules and never ends or refuses work: a context ended by a clock, or a time.AfterFunc whose function cancels,
+// stops, kills or closes, stands only in clockOwners; a limit handed to clioptions.Limited comes only from
+// limitSetters' flags; no go test a command runs names a timeout but -timeout=0; and no open plan check names one, a
+// check that names none running with none (runrecord.VerifyCommand.RunCommand). Its fixture pins the reading of a
+// clock: a timeout, a deadline and an AfterFunc that stops count, and an AfterFunc that reports does not.
+func TestNoClockEndsWorkInsideTheMachine(t *testing.T) {
 	t.Parallel()
 	const fixture = `package p
 
@@ -109,7 +101,6 @@ func waits(ctx context.Context, cancel func()) {
 	held("clock that ends work", clocked, clockOwners)
 	held("limit for clioptions.Limited", limited, limitSetters)
 	document := testcheck.Must(plan.Load(filepath.Join(checkoutRoot, filepath.FromSlash(plan.Path))))(t)
-	timed := map[string]bool{}
 	for _, item := range document.Items {
 		for _, step := range item.Steps {
 			parsed, err := runrecord.ParseVerify(step.Verify)
@@ -118,12 +109,11 @@ func waits(ctx context.Context, cancel func()) {
 			}
 			for _, test := range parsed.GoTests() {
 				if slices.ContainsFunc(test.Flags, func(flag string) bool { return strings.HasPrefix(flag, "-timeout=") && flag != "-timeout=0" }) {
-					timed[item.ID+"/"+step.ID] = true
+					t.Errorf("%s/%s's check runs a go test under a timeout, which ends it by a clock; set it to -timeout=0 or name none", item.ID, step.ID)
 				}
 			}
 		}
 	}
-	held("go test timeout in its check", timed, pendingTimeouts)
 }
 
 // clockReadings counts a file's clocks that end work, its limits handed to clioptions.Limited, and the go test

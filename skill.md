@@ -203,7 +203,7 @@ A line of this file reads by this notation, and cites the tests that hold its ru
 - honor guards and authorization (check: internal/guard TestGuardCorpus, internal/server TestCrossOriginMutationProtection, internal/agentloop TestCoordinatorGatesMutationBehindInspectionAndApproval)
 - never a silent reset, a semantic change or a weakened acceptance (check: internal/landing TestChangeIsJudgedByTheTermsItStartedWith, internal/trainingworkflow TestSelectionNeverRestoresEligibility, internal/scorecard TestADeclineKeepsItsKeyAndItsOriginalRestorationTarget)
 - failing check => fixed, never relabeled (check: internal/landing TestChangeIsJudgedByTheTermsItStartedWith, cmd/plan TestRunVerifyRejectsSkippedGoTest, internal/repoanalysis TestIntegrationSkipReasonNamesItsGate)
-- no clock decides failure => signals decide (check: internal/repoanalysis TestNoFixedTimers, internal/processcontrol TestResourceAdmissionWakesOnHolderExit, internal/processcontrol TestDeterministicCancellationContracts)
+- inside the machine a clock measures, reports and schedules, never ends or refuses work => a wait is on its event, a dead process is learned from the OS, the requester cancels, and a limit = a network peer's or a flag's, none by default (check: internal/repoanalysis TestNoClockEndsWorkInsideTheMachine, internal/repoanalysis TestNoFixedTimers, internal/processcontrol TestResourceAdmissionWakesOnHolderExit, internal/processcontrol TestDeterministicCancellationContracts)
 
 ## Efficiency
 

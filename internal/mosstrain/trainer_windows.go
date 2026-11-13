@@ -523,16 +523,14 @@ func (p *program) normBackward(dy, x, weight driver.DevicePtr, rows, width int) 
 	}
 	mark := arena.cursor
 	defer func() { arena.cursor = mark }()
-	unused, err := arena.f32(width)
+	// The weight is not trained: the row pass's scales, which its weight gradient would be summed from, go unread.
+	inverse, err := arena.f32(rows)
 	if err != nil {
-		return 0, err
-	}
-	if err = p.ops.Zero(unused, width); err != nil {
 		return 0, err
 	}
 	rowsU, widthU, epsilon := uint32(rows), uint32(width), float32(normEpsilon)
 	return dx, p.launch("rms_norm_backward_f32", rows, unsafe.Pointer(&dy), unsafe.Pointer(&x), unsafe.Pointer(&weight),
-		unsafe.Pointer(&dx), unsafe.Pointer(&unused), unsafe.Pointer(&rowsU), unsafe.Pointer(&widthU), unsafe.Pointer(&epsilon))
+		unsafe.Pointer(&dx), unsafe.Pointer(&inverse), unsafe.Pointer(&rowsU), unsafe.Pointer(&widthU), unsafe.Pointer(&epsilon))
 }
 
 // affineRows writes out = x*scale + shift with one vector of each for every row.

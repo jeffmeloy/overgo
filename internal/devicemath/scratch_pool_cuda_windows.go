@@ -44,10 +44,11 @@ func forwardScratchElems(d layerDims) int {
 
 // backwardScratchElems: transient VJP storage:
 // 4*(seq*inter) + 9*(seq*hidden) + 7*(seq*width) + 6*(seq*kvWidth)
-// + 4*(heads*seq*seq) + optional bias-transpose (seq*width).
+// + 4*(heads*seq*seq) + optional bias-transpose (seq*width)
+// + 2*seq, the two norms' row scales (rmsBackward).
 // Optional bias transpose included.
 func backwardScratchElems(d layerDims) int {
-	return 4*d.seq*d.inter + 9*d.seq*d.hidden + 8*d.seq*d.width + 6*d.seq*d.kvWidth + 4*d.heads*d.seq*d.seq
+	return 4*d.seq*d.inter + 9*d.seq*d.hidden + 8*d.seq*d.width + 6*d.seq*d.kvWidth + 4*d.heads*d.seq*d.seq + 2*d.seq
 }
 
 // maxScratchElems: larger layer pass.

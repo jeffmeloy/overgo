@@ -31,14 +31,14 @@ extern "C" __global__ void attention_score_affine_backward_f32(
 }
 
 // rms_norm_backward_f32: VJP of affine RMSNorm y = x * rsqrt(mean(x^2)+eps) * w.
-// One thread per row. dscale (the weight gradient) accumulates across rows via
-// atomicAdd, so the caller must zero-initialize it before launch.
+// One thread per row writes the row's input gradient and its scale into inverse,
+// from which rms_norm_weight_backward_f32 sums the weight gradient.
 extern "C" __global__ void rms_norm_backward_f32(
         const float * dy,
         const float * x,
         const float * weight,
         float * dx,
-        float * dscale,
+        float * inverse,
         unsigned int rows,
         unsigned int d,
         float eps) {
@@ -59,8 +59,30 @@ extern "C" __global__ void rms_norm_backward_f32(
     const float coef = inv * inv * inv / (float)d * dotGX;
     for (unsigned int i = 0; i < d; i++) {
         dxr[i] = inv * weight[i] * dyr[i] - coef * xr[i];
-        atomicAdd(&dscale[i], dyr[i] * xr[i] * inv);
     }
+    inverse[row] = inv;
+}
+
+// rms_norm_weight_backward_f32 adds affine RMSNorm's weight gradient into dscale, one thread per column summing the
+// rows in order from the scales rms_norm_backward_f32 wrote, so its bytes are the same run to run: the atomic sum over
+// rows it replaced differed in 49 of 49 repeats over 300 rows (fixed-order/do).
+extern "C" __global__ void rms_norm_weight_backward_f32(
+        const float * dy,
+        const float * x,
+        const float * inverse,
+        float * dscale,
+        unsigned int rows,
+        unsigned int d) {
+    const unsigned int column = blockIdx.x * blockDim.x + threadIdx.x;
+    if (column >= d) {
+        return;
+    }
+    float sum = 0.0f;
+    for (unsigned int row = 0; row < rows; row++) {
+        const size_t at = (size_t)row * d + column;
+        sum += dy[at] * x[at] * inverse[row];
+    }
+    dscale[column] += sum;
 }
 
 // rms_norm_input_backward_f32 is rms_norm_backward_f32's input gradient alone, for a weight no step trains: no weight

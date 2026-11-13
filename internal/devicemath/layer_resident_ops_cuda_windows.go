@@ -12,7 +12,7 @@ import (
 // Resident layer kernel sets.
 var (
 	layerForwardFnNames  = []string{"weighted_rms_norm_f32", "rope_half_f32", "scale_f32", "add_f32", "broadcast_add_f32", "attention_online_f32", "silu_f32", "multiply_f32"}
-	layerBackwardFnNames = []string{"multiply_f32", "add_f32", "scale_f32", "silu_backward_f32", "rms_norm_backward_f32", "rope_half_backward_f32", "softmax_backward_f32", "causal_softmax_batched_f32", "reduce_gqa_heads_f32", "head_major_f32", "head_major_inverse_f32", "transpose_2d_f32", "sum_rows_f32"}
+	layerBackwardFnNames = []string{"multiply_f32", "add_f32", "scale_f32", "silu_backward_f32", "rope_half_backward_f32", "softmax_backward_f32", "causal_softmax_batched_f32", "reduce_gqa_heads_f32", "head_major_f32", "head_major_inverse_f32", "transpose_2d_f32", "sum_rows_f32"}
 )
 
 // layerDims: validated shape and derived widths.
@@ -168,11 +168,11 @@ func (o *layerOps) rmsBackward(xIn, wIn, dy, dxOut, dscaleOut driver.DevicePtr) 
 	if err := o.s.state.Driver.MemsetD32Async(dscaleOut, 0, uint64(o.d.hidden), o.s.state.Stream); err != nil {
 		return err
 	}
-	rowsU, dU, epsF := uint32(o.d.seq), uint32(o.d.hidden), float32(o.d.rmsEps)
-	return o.s.launch1D(o.fns["rms_norm_backward_f32"], rowsU,
-		unsafe.Pointer(&dy), unsafe.Pointer(&xIn), unsafe.Pointer(&wIn),
-		unsafe.Pointer(&dxOut), unsafe.Pointer(&dscaleOut),
-		unsafe.Pointer(&rowsU), unsafe.Pointer(&dU), unsafe.Pointer(&epsF))
+	inverse, err := o.scratch(o.d.seq)
+	if err != nil {
+		return err
+	}
+	return o.s.rmsNormBackward(dy, xIn, wIn, dxOut, dscaleOut, inverse, o.d.seq, o.d.hidden, o.d.rmsEps)
 }
 
 // layerWeightPtrs are one layer's weights, device-resident (uploaded once and

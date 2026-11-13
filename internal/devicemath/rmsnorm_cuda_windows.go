@@ -56,9 +56,7 @@ func RMSNormForward(worker *device.Worker, x, weight []float32, rows, d int, eps
 //	y = x * rsqrt(mean(x^2 over d) + eps) * weight
 //
 // given the output cotangent dY[rows,d]. It returns dx[rows,d] and dscale[d]
-// (the weight gradient, summed over rows). Uses the fused rms_norm_backward_f32
-// kernel (one thread per row; dscale accumulates via atomicAdd from a zeroed
-// buffer).
+// (the weight gradient, summed over rows in order: rmsNormBackward).
 func RMSNormBackward(worker *device.Worker, x, weight, dY []float32, rows, d int, eps float64) (dx, dscale []float32, err error) {
 	if rows <= 0 || d <= 0 || len(x) != rows*d || len(dY) != rows*d || len(weight) != d {
 		return nil, nil, fmt.Errorf("RMSNormBackward: shape mismatch (rows=%d d=%d x=%d dY=%d w=%d)", rows, d, len(x), len(dY), len(weight))
@@ -70,23 +68,11 @@ func RMSNormBackward(worker *device.Worker, x, weight, dY []float32, rows, d int
 	dscale = make([]float32, d) // zeros: the device dscale starts at 0
 
 	err = withCUDA(worker, func(scope *cudaScope) error {
-		fn, err := scope.function("rms_norm_backward_f32")
-		if err != nil {
+		var dyPtr, xPtr, wPtr, dxPtr, dsPtr, inversePtr driver.DevicePtr
+		if err := scope.fill([]deviceSlot{{&dyPtr, dY, 0}, {&xPtr, x, 0}, {&wPtr, weight, 0}, {&dxPtr, nil, rows * d}, {&dsPtr, dscale, 0}, {&inversePtr, nil, rows}}); err != nil {
 			return err
 		}
-		var dyPtr, xPtr, wPtr, dxPtr, dsPtr driver.DevicePtr
-		if err := scope.fill([]deviceSlot{{&dyPtr, dY, 0}, {&xPtr, x, 0}, {&wPtr, weight, 0}, {&dxPtr, nil, rows * d}, {&dsPtr, dscale, 0}}); err != nil {
-			return err
-		}
-
-		rowsU := uint32(rows)
-		dU := uint32(d)
-		epsF := float32(eps)
-		if err := scope.launch1D(fn, rowsU,
-			unsafe.Pointer(&dyPtr), unsafe.Pointer(&xPtr), unsafe.Pointer(&wPtr),
-			unsafe.Pointer(&dxPtr), unsafe.Pointer(&dsPtr),
-			unsafe.Pointer(&rowsU), unsafe.Pointer(&dU), unsafe.Pointer(&epsF),
-		); err != nil {
+		if err := scope.rmsNormBackward(dyPtr, xPtr, wPtr, dxPtr, dsPtr, inversePtr, rows, d, eps); err != nil {
 			return err
 		}
 		return scope.finish(cudaDownload{dx, dxPtr}, cudaDownload{dscale, dsPtr})
@@ -95,4 +81,26 @@ func RMSNormBackward(worker *device.Worker, x, weight, dY []float32, rows, d int
 		return nil, nil, err
 	}
 	return dx, dscale, nil
+}
+
+// rmsNormBackward writes affine RMSNorm's input gradient over rows of width into dx, a thread to a row, and adds its
+// weight gradient into dscale, a thread to a column summing the rows in order from each row's scale, which inverse
+// holds between the two passes: an atomic sum over the rows gave other bytes run to run, so a training session stopped
+// and resumed ended apart from the uninterrupted one (fixed-order/do).
+func (s *cudaScope) rmsNormBackward(dy, x, weight, dx, dscale, inverse driver.DevicePtr, rows, width int, eps float64) error {
+	rowPass, err := s.function("rms_norm_backward_f32")
+	if err != nil {
+		return err
+	}
+	columnPass, err := s.function("rms_norm_weight_backward_f32")
+	if err != nil {
+		return err
+	}
+	rowsU, widthU, epsF := uint32(rows), uint32(width), float32(eps)
+	if err := s.launch1D(rowPass, rowsU, unsafe.Pointer(&dy), unsafe.Pointer(&x), unsafe.Pointer(&weight),
+		unsafe.Pointer(&dx), unsafe.Pointer(&inverse), unsafe.Pointer(&rowsU), unsafe.Pointer(&widthU), unsafe.Pointer(&epsF)); err != nil {
+		return err
+	}
+	return s.launch1D(columnPass, widthU, unsafe.Pointer(&dy), unsafe.Pointer(&x), unsafe.Pointer(&inverse),
+		unsafe.Pointer(&dscale), unsafe.Pointer(&rowsU), unsafe.Pointer(&widthU))
 }

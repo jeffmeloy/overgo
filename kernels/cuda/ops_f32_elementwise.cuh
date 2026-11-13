@@ -678,16 +678,20 @@ extern "C" __global__ void strided_row_copy_f32(
     }
 }
 
+// indexed_row_scatter_add_f32 adds each source row into the destination row its index names, one thread per column
+// adding the source rows in order, so rows that share an index sum to the same bytes run to run, as an atomic add per
+// element did not (fixed-order/do).
 extern "C" __global__ void indexed_row_scatter_add_f32(
         const float * source,
         const unsigned int * rows,
         float * destination,
         unsigned int count,
         unsigned int width) {
-    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-    if (index < count * width) {
-        const unsigned int row = index / width;
-        const unsigned int column = index - row * width;
-        atomicAdd(&destination[(size_t) rows[row] * width + column], source[index]);
+    const unsigned int column = blockIdx.x * blockDim.x + threadIdx.x;
+    if (column >= width) {
+        return;
+    }
+    for (unsigned int row = 0; row < count; row++) {
+        destination[(size_t) rows[row] * width + column] += source[(size_t) row * width + column];
     }
 }

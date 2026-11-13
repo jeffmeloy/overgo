@@ -80,7 +80,7 @@
         },
         {
           "path": "kernels/cuda/ops_f32_activations.cuh",
-          "sha256": "19ba415467651ae6db1a3a8c6b7c75bb591670abcef84270f5a5a1fce2c8daf6"
+          "sha256": "cba9465d22eaeb7a26737ea4144a4f7ca231537866d59d9e7a2943aa82315cc6"
         },
         {
           "path": "kernels/cuda/ops_f32_attention.cuh",
@@ -92,7 +92,7 @@
         },
         {
           "path": "kernels/cuda/ops_f32_elementwise.cuh",
-          "sha256": "befcbdea18b1f265b8b813c8fded219af7ec612f380c423a14e0a48aeec6d6e9"
+          "sha256": "44a1367416176442b6dd9c084a09f608260283a3b1245b37c1cdcdd7ddf97012"
         },
         {
           "path": "kernels/cuda/ops_f32_experts.cuh",
@@ -144,7 +144,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "c8e53a5ba4df879da92b76354f1e46c9c448214313e97bc3781e62976e146021",
+      "assetSha256": "9f400a55df919e882e3cd763e164efb7f8f3cff014ac786b467e23541c47f163",
       "functions": [
         "activated_gate_f32",
         "activated_gate_q8_0_f32",
@@ -353,6 +353,7 @@
         "rms_norm_input_backward_f32",
         "rms_norm_mean_bf16_round_f32",
         "rms_norm_mean_f32",
+        "rms_norm_weight_backward_f32",
         "rope_append_neox_f32",
         "rope_append_normal_f32",
         "rope_half_backward_f32",
@@ -496,6 +497,7 @@
             "activated_gate_q8_0_f32",
             "moss_row_affine_f32",
             "mul_mat_bf16_add_f32",
+            "rms_norm_weight_backward_f32",
             "softmax_ce_grad_scaled_rows_f32"
           ]
         },

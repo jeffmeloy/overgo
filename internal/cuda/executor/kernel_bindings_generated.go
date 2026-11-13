@@ -214,6 +214,7 @@ const (
 	kernelRmsNormInputBackwardF32
 	kernelRmsNormMeanBf16RoundF32
 	kernelRmsNormMeanF32
+	kernelRmsNormWeightBackwardF32
 	kernelRopeAppendNeoxF32
 	kernelRopeAppendNormalF32
 	kernelRopeHalfBackwardF32
@@ -699,6 +700,7 @@ var kernelFunctionNames = [...]string{
 	"rms_norm_input_backward_f32",
 	"rms_norm_mean_bf16_round_f32",
 	"rms_norm_mean_f32",
+	"rms_norm_weight_backward_f32",
 	"rope_append_neox_f32",
 	"rope_append_normal_f32",
 	"rope_half_backward_f32",
@@ -1183,6 +1185,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	7,
 	5,
 	5,
+	6,
 	18,
 	18,
 	5,
@@ -1668,6 +1671,7 @@ var kernelFunctionArgumentWidths = [...][]uint16{
 	{8, 8, 8, 8, 4, 4, 4},
 	{8, 8, 4, 4, 4},
 	{8, 8, 4, 4, 4},
+	{8, 8, 8, 8, 4, 4},
 	{8, 8, 8, 8, 8, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
 	{8, 8, 8, 8, 8, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
 	{8, 8, 4, 4, 4},
@@ -1949,6 +1953,7 @@ var kernelFunctionArgumentWidths = [...][]uint16{
 const kernelModuleCount = 4
 
 var kernelFunctionModules = [...]uint8{
+	0,
 	0,
 	0,
 	0,

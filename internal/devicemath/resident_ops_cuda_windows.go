@@ -374,7 +374,7 @@ func (o *ResidentOps) IndexedRowScatterAdd(source, rows, destination driver.Devi
 		return err
 	}
 	countU, widthU := uint32(count), uint32(width)
-	return o.session.launch1D(function, countU*widthU,
+	return o.session.launch1D(function, widthU,
 		unsafe.Pointer(&source), unsafe.Pointer(&rows), unsafe.Pointer(&destination),
 		unsafe.Pointer(&countU), unsafe.Pointer(&widthU))
 }

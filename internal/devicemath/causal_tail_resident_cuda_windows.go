@@ -238,8 +238,8 @@ func (s *CausalTrainingSession) run(tokens []int, scales []float32, vectorWeight
 // scatterEmbeddingGradient adds each position's embedding-input gradient
 // row onto its token's row of the embedding gradient. The tied head's
 // gradient already holds the tail's contribution; an untied embedding's
-// gradient starts from zero. Repeated tokens accumulate by atomic adds, as
-// the norm-weight gradients of the stack do.
+// gradient starts from zero. Repeated tokens add in the positions' order, a
+// thread to a column (indexed_row_scatter_add_f32).
 func (s *CausalTrainingSession) scatterEmbeddingGradient(embeddingInput driver.DevicePtr) error {
 	if s.lexical.EmbeddingGrad != s.lexical.HeadGrad {
 		if err := s.cuda.state.Driver.MemsetD32Async(s.lexical.EmbeddingGrad, 0, uint64(s.vocab*s.hidden), s.cuda.state.Stream); err != nil {
@@ -251,7 +251,7 @@ func (s *CausalTrainingSession) scatterEmbeddingGradient(embeddingInput driver.D
 		return err
 	}
 	rowsU, widthU := uint32(s.seq), uint32(s.hidden)
-	return s.cuda.launch1D(scatter, rowsU*widthU,
+	return s.cuda.launch1D(scatter, widthU,
 		unsafe.Pointer(&embeddingInput), unsafe.Pointer(&s.idPtr), unsafe.Pointer(&s.lexical.EmbeddingGrad),
 		unsafe.Pointer(&rowsU), unsafe.Pointer(&widthU))
 }
@@ -352,8 +352,8 @@ func residentLayerPointers(session *cudaBLAS, dW, dG driver.DevicePtr, offsets [
 }
 
 type causalTailBuffers struct {
-	seq, vocab, hidden                       int
-	normed, logits, losses, dNormed, dHidden driver.DevicePtr
+	seq, vocab, hidden                                int
+	normed, logits, losses, dNormed, dHidden, inverse driver.DevicePtr
 }
 
 func (s *cudaBLAS) causalTailBuffers(seq, vocab, hidden int) (*causalTailBuffers, error) {
@@ -367,6 +367,7 @@ func (s *cudaBLAS) causalTailBuffers(seq, vocab, hidden int) (*causalTailBuffers
 	b := &causalTailBuffers{seq: seq, vocab: vocab, hidden: hidden}
 	if err := s.fill([]deviceSlot{
 		{&b.normed, nil, seq * hidden}, {&b.logits, nil, (seq - 1) * vocab}, {&b.losses, nil, seq - 1}, {&b.dNormed, nil, seq * hidden}, {&b.dHidden, nil, seq * hidden},
+		{&b.inverse, nil, seq},
 	}); err != nil {
 		return nil, err
 	}
@@ -438,15 +439,7 @@ func residentCausalHiddenGradient(session *cudaBLAS, dNormed, final, finalNorm, 
 		return 0, fmt.Errorf("resident causal tail: hidden buffer unavailable")
 	}
 	dHidden := session.causalTail.dHidden
-	backward, err := session.function("rms_norm_backward_f32")
-	if err != nil {
-		return 0, err
-	}
-	rowsU, widthU, epsF := uint32(seq), uint32(hidden), float32(eps)
-	if err := session.launch1D(backward, rowsU,
-		unsafe.Pointer(&dNormed), unsafe.Pointer(&final), unsafe.Pointer(&finalNorm),
-		unsafe.Pointer(&dHidden), unsafe.Pointer(&finalNormGrad),
-		unsafe.Pointer(&rowsU), unsafe.Pointer(&widthU), unsafe.Pointer(&epsF)); err != nil {
+	if err := session.rmsNormBackward(dNormed, final, finalNorm, dHidden, finalNormGrad, session.causalTail.inverse, seq, hidden, eps); err != nil {
 		return 0, err
 	}
 	return dHidden, nil

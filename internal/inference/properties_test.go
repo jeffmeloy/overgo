@@ -71,9 +71,11 @@ func TestModelPropertiesReturnsDetachedGGUFMetadata(t *testing.T) {
 	}
 }
 
+// TestModelPropertiesFromRealGGUF holds the properties of the smallest registered Qwen2 GGUF to its metadata. The file
+// type is not held: the GGUFs overgo converts declare none (finding evidence:sha256:8deb002ede8a0b41).
 func TestModelPropertiesFromRealGGUF(t *testing.T) {
 	requireIntegration(t)
-	path := modeltest.GGUF(t, "qwen3")
+	path := modeltest.GGUF(t, "qwen2")
 	file := testcheck.Must(gguf.Open(path))(t)
 	defer file.Close()
 	spec := testcheck.Must(model.ReadSpec(file))(t)
@@ -86,8 +88,7 @@ func TestModelPropertiesFromRealGGUF(t *testing.T) {
 	properties := runner.ModelProperties()
 	if properties.Path != path ||
 		properties.Name == "" ||
-		properties.Architecture != "qwen3" ||
-		properties.FileType == "" ||
+		properties.Architecture != "qwen2" ||
 		properties.ContextLength == 0 ||
 		properties.EmbeddingLength == 0 ||
 		properties.BlockCount == 0 ||

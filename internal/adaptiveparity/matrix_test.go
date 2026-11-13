@@ -2,15 +2,12 @@ package adaptiveparity
 
 import (
 	"os"
-	"path/filepath"
 	"testing"
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
-	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
 
@@ -39,34 +36,6 @@ func TestInferenceTextAndStructuredMatrix(t *testing.T) {
 	}
 }
 
-func TestInferenceTextAndStructuredEvidenceIdentity(t *testing.T) {
-	testskip.Short(t)
-	if os.Getenv("OVERGO_ADAPTIVE_PARITY") != "1" {
-		testskip.NotApplicable(t, "set OVERGO_ADAPTIVE_PARITY=1 to verify external evidence identities")
-	}
-	snapshot := textStructuredSnapshot(t)
-	store := overgodbtest.Create(t, filepath.Join(testutil.RepoRoot(t), "overgodb-store"))
-	goldenPaths := map[string]string{
-		"dense-carbon": "carbon_serving_golden.json", "dense-minicpm5": "minicpm5_serving_golden.json",
-		"dense-qwen25": "qwen25_serving_golden.json", "hybrid-qwen35": "qwen35_4b_serving_golden.json",
-		"forecast-timesfm": "timesfm_golden.json", "tabular-classification": "tabfm_predict_golden.json",
-		"tabular-regression": "tabfm_predict_golden.json", "seq2seq-needle": "needle_forward_oracle.json",
-	}
-	for _, capability := range snapshot.Capabilities {
-		if capability.State == PromotionRefused {
-			continue
-		}
-		if len(capability.Artifacts) != 1 || len(capability.Corpora) != 1 || len(capability.Goldens) != 1 {
-			t.Fatalf("row %q evidence cardinality is not singular", capability.ID)
-		}
-		artifactPath := testcheck.Must(artifact.AvailablePath(t.Context(), store, capability.Artifacts[0].Identity, artifact.LocationFile))(t)
-		assertFileIdentity(t, artifactPath, capability.Artifacts[0].Identity)
-		golden := testutil.FixturePath(t, goldenPaths[capability.ID])
-		assertFileIdentity(t, golden, capability.Corpora[0].Identity)
-		assertFileIdentity(t, golden, capability.Goldens[0].Identity)
-	}
-}
-
 func textStructuredSnapshot(t *testing.T) Snapshot {
 	t.Helper()
 	raw, err := os.ReadFile(testutil.FixturePath(t, "adaptive_text_structured_snapshot.json"))
@@ -76,25 +45,6 @@ func textStructuredSnapshot(t *testing.T) Snapshot {
 	snapshot, _, err := Normalize(raw)
 	testcheck.NoError(t, err)
 	return snapshot
-}
-
-func assertFileIdentity(t *testing.T, path string, want artifact.ID) {
-	t.Helper()
-	file, err := os.Open(path)
-	if err != nil {
-		t.Fatalf("UNAVAILABLE: evidence file %s absent; parity NOT verified: %v", path, err)
-	}
-	got, _, identifyErr := artifact.Identify(want.Kind(), file)
-	closeErr := file.Close()
-	if identifyErr != nil {
-		t.Fatal(identifyErr)
-	}
-	if closeErr != nil {
-		t.Fatal(closeErr)
-	}
-	if got != want {
-		t.Fatalf("evidence file %s identity = %s, want %s", path, got, want)
-	}
 }
 
 func TestInferenceModalityMatrixDerivedFromRecipes(t *testing.T) {

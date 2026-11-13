@@ -170,7 +170,9 @@ var cycleLanes = []lane{
 		command: func(string) []string {
 			return append([]string{"test", "-count=1", "-p=1", "-timeout=0"}, modelPackages...)
 		},
-		environment: []string{cudaTestEnvironment, "OVERGO_WAN_FULL=1"},
+		// The frozen Krea and SenseNova generations, Krea's runtime baselines and the Fractale leaderships run here,
+		// behind the variables their records name, where they had run nowhere (opt-in-tests/run-or-remove).
+		environment: []string{cudaTestEnvironment, "OVERGO_WAN_FULL=1", "OVERGO_KREA_BASELINE=1", "OVERGO_SENSENOVA_FULL=1", "OVERGO_FRACTALE_BASELINE=1"},
 	},
 	{
 		name: "needle-reference", packages: []string{"./internal/seq2seq"}, tags: CycleTags,

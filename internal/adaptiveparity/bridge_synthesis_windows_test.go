@@ -1,4 +1,4 @@
-//go:build windows
+//go:build windows && modeltest
 
 package adaptiveparity_test
 
@@ -10,7 +10,6 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/composition"
-	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/modeltest"
 	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
@@ -39,7 +38,6 @@ const (
 // to a committed decision -- either verdict -- and fails only when it could
 // not execute.
 func TestBridgeSynthesisProducesEvidenceOrRefusal(t *testing.T) {
-	cudatest.RequireProbe(t)
 	targetDir := modeltest.Directory(t, "Qwen2.5-0.5B")
 	donorDir := modeltest.Directory(t, "Carbon-500M")
 	for _, directory := range []string{targetDir, donorDir} {

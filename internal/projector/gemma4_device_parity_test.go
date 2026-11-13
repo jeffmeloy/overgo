@@ -9,22 +9,16 @@ import (
 
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/testcheck"
-	"overgo/internal/testskip"
 )
 
 // TestGemma4RealDeviceHostParity: real 12B mmproj GGUF, device projector
 // forward == host oracle. Bit-exact where achievable; reports max abs diff,
-// forward ms, and peak device MiB. Gated on the real model + a real image.
-//
-//	OVERGO_CUDA_TEST=1 OVERGO_GEMMA4_MMPROJ=... OVERGO_GEMMA4_IMAGE=...
+// forward ms, and peak device MiB. Gated on the card's lane and on this machine holding the real projector and image
+// (realProjectorFile).
 func TestGemma4RealDeviceHostParity(t *testing.T) {
 	classifyProjectorIntegration(t)
 	cudatest.Require(t)
-	projectorPath := os.Getenv("OVERGO_GEMMA4_MMPROJ")
-	imagePath := os.Getenv("OVERGO_GEMMA4_IMAGE")
-	if projectorPath == "" || imagePath == "" {
-		testskip.NotApplicable(t, "set OVERGO_GEMMA4_MMPROJ and OVERGO_GEMMA4_IMAGE")
-	}
+	projectorPath, imagePath := realProjectorFile(t, gemma4Projector), realProjectorFile(t, "gemma4_mm_image.png")
 	handle := testcheck.Must(os.Open(imagePath))(t)
 	input, err := png.Decode(handle)
 	_ = handle.Close()

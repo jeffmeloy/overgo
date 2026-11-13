@@ -9,7 +9,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math"
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -24,7 +23,6 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/testcheck"
-	"overgo/internal/testskip"
 )
 
 type prefixProbe struct {
@@ -60,9 +58,6 @@ type generationTextOracle struct {
 
 func TestSenseNovaPrefixStackMatchesOracle(t *testing.T) {
 	cudatest.Require(t)
-	if os.Getenv("OVERGO_SENSENOVA_BASELINE") != "1" {
-		testskip.NotApplicable(t, "set OVERGO_SENSENOVA_BASELINE=1 for SenseNova prefix evidence")
-	}
 	var oracle prefixOracle
 	testcheck.NoError(t, jsonfile.Decode(filepath.Join("..", "..", "fixtures", "sensenova", "prefix_oracle.json"), &oracle))
 	if oracle.Schema != "overgo.sensenova-prefix-oracle.v1" {

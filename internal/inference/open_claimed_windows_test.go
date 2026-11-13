@@ -17,16 +17,12 @@ import (
 	"overgo/internal/modelartifact"
 	"overgo/internal/modeldevice"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/modeltest"
 	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/servingtest"
 	"overgo/internal/testcheck"
-	"overgo/internal/testskip"
 )
-
-// singlePassEnvironment names a real, small GGUF this test opens; it is copied
-// first, so the original is never written.
-const singlePassEnvironment = "OVERGO_SINGLE_PASS_GGUF"
 
 // residentDigests opens the program and digests every tensor it holds on the
 // device, by store; the runner is closed before it returns.
@@ -72,10 +68,8 @@ func residentDigests(t *testing.T, loaded modelrecipe.LoadedProgram) map[string]
 func TestOpenWithProgramClaimedLoadMatchesTheVerifiedLoad(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
-	original := os.Getenv(singlePassEnvironment)
-	if original == "" {
-		testskip.NotApplicable(t, "set "+singlePassEnvironment+" to a small GGUF path")
-	}
+	// The smallest registered Qwen2 GGUF, copied first so the original is never written.
+	original := modeltest.GGUF(t, "qwen2")
 	path := filepath.Join(t.TempDir(), "model.gguf")
 	source, err := os.Open(original)
 	testcheck.NoError(t, err)

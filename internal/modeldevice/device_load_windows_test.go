@@ -16,13 +16,10 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/gguf"
 	"overgo/internal/model"
+	"overgo/internal/modeltest"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/testcheck"
-	"overgo/internal/testskip"
 )
-
-// loadGGUFEnvironment names a real, small GGUF the device tests load.
-const loadGGUFEnvironment = "OVERGO_SINGLE_PASS_GGUF"
 
 type deviceStores struct {
 	worker *device.Worker
@@ -110,10 +107,8 @@ func TestLoaderUploadsVerifiedBytesToTheDevice(t *testing.T) {
 func TestLoaderRealModelResidentBytesMatchTheFile(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
-	path := os.Getenv(loadGGUFEnvironment)
-	if path == "" {
-		testskip.NotApplicable(t, "set "+loadGGUFEnvironment+" to a small GGUF path")
-	}
+	// The smallest registered Qwen2 GGUF.
+	path := modeltest.GGUF(t, "qwen2")
 	file := testcheck.Must(gguf.Open(path))(t)
 	defer file.Close()
 	var claim []artifact.ID

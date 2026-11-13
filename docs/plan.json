@@ -3,37 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "opt-in-tests",
-      "title": "Every test runs somewhere: the 31 tests gated on a variable or a model no lane sets run in the measurement run where their model is on the machine, or are removed",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 0,
-        "reason": "Filed 2026-11-12 from the full card run: tests that run nowhere are moved to where they run or removed; nothing is added."
-      },
-      "steps": [
-        {
-          "id": "run-or-remove",
-          "title": "Each of the 31 opt-in tests either runs in the measurement run, gated on its model's presence where it was gated on a variable, or is removed with what it measured named",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestEveryTestRunsSomewhere$'",
-          "files": [
-            "internal/adaptiveparity",
-            "internal/densecausaltrain",
-            "internal/inference",
-            "internal/latentimage",
-            "internal/mediacapability",
-            "internal/model",
-            "internal/modeldevice",
-            "internal/projector",
-            "internal/sensenovarecipe",
-            "internal/repoanalysis"
-          ],
-          "rationale": "Serves: the owner's review of 2026-11-12: file the 31 tests the full card run found gated on a variable or a model no lane sets, or remove the ones nothing will ever run.\n\nDisappears: tests that run nowhere. The full card run at ad23357f4 ran 42 packages, 5,272 tests passing and 144 skipped; 113 of the skips are the server's browser legs, which the webui lane runs; 31 wait on a variable no lane or measurement run sets, or a model the machine does not hold: OVERGO_PROBE_TEST (5, adaptiveparity), OVERGO_ADAPTIVE_PARITY and OVERGO_GEMMA4_BASELINE (adaptiveparity), OVERGO_DENSE_TRAIN_BASELINE (2, densecausaltrain), OVERGO_KREA_BASELINE (2 latentimage, 1 mediacapability), OVERGO_SENSENOVA_BASELINE (2) and OVERGO_SENSENOVA_FULL (2) (sensenovarecipe), OVERGO_GEMMA4_* (6) and OVERGO_QWEN35_* (2) (projector), OVERGO_SINGLE_PASS_GGUF (inference, modeldevice), OVERGO_LOAD_BENCH_GGUF (modeldevice), and absent models: a qwen3 GGUF (inference), gemma-3-12b-it-IQ4_XS.gguf, a kimi-linear GGUF and umt5-xxl-encoder-Q5_K_S.gguf (model).\n\nThe change: each is read for what it measures; one whose model is on the machine has its variable gate replaced by the model's presence (modeltest.Directory) and runs with the measurement run's model tests; one whose model is not, or whose probe nobody reads, is removed, its commit naming what it measured.\n\nCheck: TestEveryTestRunsSomewhere refuses a test that skips on a variable no lane or the measurement run sets.\n\nBatch: host lane."
-        }
-      ]
-    },
-    {
       "id": "run-stop-cause",
       "title": "The measurement run of 8 November stopped on 15 model tests; each is run at the head and its cause found before the next full run",
       "owner": "master-lead",

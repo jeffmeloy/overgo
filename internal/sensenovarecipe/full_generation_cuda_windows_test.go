@@ -1,4 +1,4 @@
-//go:build windows
+//go:build windows && modeltest
 
 package sensenovarecipe
 
@@ -20,7 +20,6 @@ import (
 
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/jsonfile"
-	"overgo/internal/testskip"
 )
 
 type fullGenerationOracle struct {
@@ -53,9 +52,6 @@ type fullGenerationPromptRow struct {
 
 func TestSenseNovaFullGenerationLeadership(t *testing.T) {
 	cudatest.Require(t)
-	if os.Getenv("OVERGO_SENSENOVA_FULL") != "1" {
-		testskip.NotApplicable(t, "set OVERGO_SENSENOVA_FULL=1 for the 50-step quality gate")
-	}
 	var oracle fullGenerationOracle
 	if err := jsonfile.Decode(filepath.Join("..", "..", "fixtures", "sensenova", "full_generation_quality.json"), &oracle); err != nil {
 		t.Fatal(err)

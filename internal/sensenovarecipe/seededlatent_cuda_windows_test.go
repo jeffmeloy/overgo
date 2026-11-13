@@ -3,7 +3,6 @@
 package sensenovarecipe
 
 import (
-	"os"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -15,7 +14,6 @@ import (
 	"overgo/internal/routedlm"
 	"overgo/internal/safetensors"
 	"overgo/internal/testcheck"
-	"overgo/internal/testskip"
 	"overgo/internal/torchrng"
 )
 
@@ -51,9 +49,6 @@ type seededLatentOracle struct {
 
 func TestSenseNovaSeededLatentMatchesOracle(t *testing.T) {
 	cudatest.Require(t)
-	if os.Getenv("OVERGO_SENSENOVA_BASELINE") != "1" {
-		testskip.NotApplicable(t, "set OVERGO_SENSENOVA_BASELINE=1 for SenseNova generation evidence")
-	}
 	var oracle seededLatentOracle
 	testcheck.NoError(t, jsonfile.Decode(senseNovaGenerationGold, &oracle))
 	if len(oracle.Steps) == 0 {

@@ -15,18 +15,9 @@ import (
 	"testing"
 
 	"overgo/internal/gguf"
-	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
-
-// gemma4ImagePromptText: independent render oracle for the Gemma 4 image
-// prompt the session produces.
-func gemma4ImagePromptText(question string, imageTokens int) string {
-	return "<bos><|turn>user\n<|image>" + strings.Repeat("<|image|>", imageTokens) +
-		"<image|>" + strings.TrimSpace(question) +
-		"<turn|>\n<|turn>model\n<|channel>thought\n<channel|>"
-}
 
 type gemma4PromptTokenizer struct{}
 
@@ -270,12 +261,8 @@ func TestOrderedVariableTokenRunsPreserveMediaKinds(t *testing.T) {
 
 func TestGemma4RealFixture(t *testing.T) {
 	classifyProjectorIntegration(t)
-	projectorPath := os.Getenv("OVERGO_GEMMA4_MMPROJ")
-	imagePath := os.Getenv("OVERGO_GEMMA4_IMAGE")
-	goldenPath := os.Getenv("OVERGO_GEMMA4_GOLDEN")
-	if projectorPath == "" || imagePath == "" || goldenPath == "" {
-		testskip.NotApplicable(t, "set OVERGO_GEMMA4_MMPROJ, OVERGO_GEMMA4_IMAGE, and OVERGO_GEMMA4_GOLDEN")
-	}
+	projectorPath, imagePath := realProjectorFile(t, gemma4Projector), realProjectorFile(t, "gemma4_mm_image.png")
+	goldenPath := realProjectorFile(t, "gemma4_mm_golden.json")
 	type probeRecord struct {
 		Shape      []int     `json:"shape"`
 		ProbeIndex []int     `json:"probe_index"`
@@ -322,9 +309,6 @@ func TestGemma4RealFixture(t *testing.T) {
 		if len(position) != 2 || processed.Positions[row*2] != position[0] || processed.Positions[row*2+1] != position[1] {
 			t.Fatalf("position %d = %v, want %v", row, processed.Positions[row*2:row*2+2], position)
 		}
-	}
-	if os.Getenv("OVERGO_GEMMA4_PROJECTOR_FULL") == "" {
-		return
 	}
 	stages := map[string]probeRecord{
 		"patch_ln1":            golden.ProjectorIntermediates.PatchLN1,
@@ -392,42 +376,10 @@ func gemma4InterleavePatchRows(values []float32, width int) []float32 {
 	return result
 }
 
-func TestGemma4RealPromptTokens(t *testing.T) {
-	classifyProjectorIntegration(t)
-	vocabPath := os.Getenv("OVERGO_GEMMA4_VOCAB")
-	goldenPath := os.Getenv("OVERGO_GEMMA4_GOLDEN")
-	if vocabPath == "" || goldenPath == "" {
-		testskip.NotApplicable(t, "set OVERGO_GEMMA4_VOCAB and OVERGO_GEMMA4_GOLDEN")
-	}
-	var golden struct {
-		InputIDs                  []tokenizer.TokenID `json:"input_ids"`
-		NumImagePlaceholderTokens int                 `json:"num_image_placeholder_tokens"`
-	}
-	data := testcheck.Must(os.ReadFile(goldenPath))(t)
-	testcheck.NoError(t, json.Unmarshal(data, &golden))
-	file := testcheck.Must(gguf.Open(vocabPath))(t)
-	defer file.Close()
-	vocab := testcheck.Must(tokenizer.Load(file))(t)
-	text := gemma4ImagePromptText("What color dominates this image? One word.", golden.NumImagePlaceholderTokens)
-	ids := testcheck.Must(vocab.Encode(text, tokenizer.EncodeOptions{ParseSpecial: true}))(t)
-	if len(ids) != len(golden.InputIDs) {
-		t.Fatalf("prompt tokens = %d, want %d", len(ids), len(golden.InputIDs))
-	}
-	for index, id := range ids {
-		if id != golden.InputIDs[index] {
-			t.Fatalf("prompt token %d = %d, want %d", index, id, golden.InputIDs[index])
-		}
-	}
-}
-
 func TestGemma4RealAudioFixture(t *testing.T) {
 	classifyProjectorIntegration(t)
-	projectorPath := os.Getenv("OVERGO_GEMMA4_MMPROJ")
-	wavePath := os.Getenv("OVERGO_GEMMA4_AUDIO_WAVE")
-	goldenPath := os.Getenv("OVERGO_GEMMA4_AUDIO_GOLDEN")
-	if projectorPath == "" || wavePath == "" || goldenPath == "" {
-		testskip.NotApplicable(t, "set OVERGO_GEMMA4_MMPROJ, OVERGO_GEMMA4_AUDIO_WAVE, and OVERGO_GEMMA4_AUDIO_GOLDEN")
-	}
+	projectorPath, wavePath := realProjectorFile(t, gemma4Projector), realProjectorFile(t, "gemma4_audio_wave.f32")
+	goldenPath := realProjectorFile(t, "gemma4_audio_golden.json")
 	type probeRecord struct {
 		Shape      []int     `json:"shape"`
 		ProbeIndex []int     `json:"probe_index"`
@@ -474,42 +426,10 @@ func TestGemma4RealAudioFixture(t *testing.T) {
 	}
 }
 
-func TestGemma4RealAudioPromptTokens(t *testing.T) {
-	classifyProjectorIntegration(t)
-	vocabPath := os.Getenv("OVERGO_GEMMA4_VOCAB")
-	goldenPath := os.Getenv("OVERGO_GEMMA4_AUDIO_GOLDEN")
-	if vocabPath == "" || goldenPath == "" {
-		testskip.NotApplicable(t, "set OVERGO_GEMMA4_VOCAB and OVERGO_GEMMA4_AUDIO_GOLDEN")
-	}
-	var golden struct {
-		InputIDs       []tokenizer.TokenID `json:"input_ids"`
-		NumAudioTokens int                 `json:"num_audio_placeholder_tokens"`
-	}
-	data := testcheck.Must(os.ReadFile(goldenPath))(t)
-	testcheck.NoError(t, json.Unmarshal(data, &golden))
-	file := testcheck.Must(gguf.Open(vocabPath))(t)
-	defer file.Close()
-	vocab := testcheck.Must(tokenizer.Load(file))(t)
-	text := gemma4AudioPromptText("What note do you hear? One word.", golden.NumAudioTokens, gemma4ClosedThought)
-	ids := testcheck.Must(vocab.Encode(text, tokenizer.EncodeOptions{ParseSpecial: true}))(t)
-	if len(ids) != len(golden.InputIDs) {
-		t.Fatalf("audio prompt tokens = %d, want %d", len(ids), len(golden.InputIDs))
-	}
-	for index, id := range ids {
-		if id != golden.InputIDs[index] {
-			t.Fatalf("audio prompt token %d = %d, want %d", index, id, golden.InputIDs[index])
-		}
-	}
-}
-
 func TestGemma4RealResizeFixture(t *testing.T) {
 	classifyProjectorIntegration(t)
-	projectorPath := os.Getenv("OVERGO_GEMMA4_MMPROJ")
-	imagePath := os.Getenv("OVERGO_GEMMA4_RESIZE_IMAGE")
-	goldenPath := os.Getenv("OVERGO_GEMMA4_RESIZE_GOLDEN")
-	if projectorPath == "" || imagePath == "" || goldenPath == "" {
-		testskip.NotApplicable(t, "set OVERGO_GEMMA4_MMPROJ, OVERGO_GEMMA4_RESIZE_IMAGE, and OVERGO_GEMMA4_RESIZE_GOLDEN")
-	}
+	projectorPath, imagePath := realProjectorFile(t, gemma4Projector), realProjectorFile(t, "gemma4_mm_resize_image.png")
+	goldenPath := realProjectorFile(t, "gemma4_mm_resize_golden.json")
 	type probeRecord struct {
 		ProbeIndex []int     `json:"probe_index"`
 		ProbeValue []float32 `json:"probe_value"`

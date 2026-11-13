@@ -1,9 +1,12 @@
 package projector
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"overgo/internal/dataroot"
 	"overgo/internal/gguf"
 	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
@@ -14,6 +17,29 @@ import (
 func classifyProjectorIntegration(t *testing.T) {
 	t.Helper()
 	testskip.Short(t)
+}
+
+// The converted projectors the real tests read: Gemma 4 12B's, and Qwen3.5 4B's with its facts.
+const (
+	gemma4Projector = "gemma-4-12B-it-fp8-mmproj-bf16.gguf"
+	qwen35Projector = "Qwen3.5-4B-mmproj-bf16-facts-v2.gguf"
+)
+
+// realProjectorFile is a real file a projector test reads, which skips the test as inapplicable where this machine
+// holds none: a converted projector under the checkpoints' overgo-hfconvert, else a fixture beside the models, as
+// adaptiveparity's TestMultimodalInputMatrix finds them. Each had been named by a variable no lane set, so the tests
+// ran nowhere (opt-in-tests/run-or-remove).
+func realProjectorFile(t *testing.T, name string) string {
+	t.Helper()
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
+	path := filepath.Join(filepath.Dir(roots.Models), "fixtures", name)
+	if strings.HasSuffix(name, ".gguf") {
+		path = filepath.Join(roots.Checkpoints, "overgo-hfconvert", name)
+	}
+	if _, err := os.Stat(path); err != nil {
+		testskip.NotApplicable(t, "this machine holds no "+name)
+	}
+	return path
 }
 
 func writeProjectorFixture(

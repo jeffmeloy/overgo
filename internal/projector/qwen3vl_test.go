@@ -18,7 +18,6 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/jsonfile"
 	"overgo/internal/tensor"
-	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -55,12 +54,8 @@ func (qwen3VLPromptTokenizer) TokenizeText(text string, _, _ bool) ([]tokenizer.
 
 func TestQwen3VLRealFixture(t *testing.T) {
 	classifyProjectorIntegration(t)
-	projectorPath := os.Getenv("OVERGO_QWEN35_MMPROJ")
-	imagePath := os.Getenv("OVERGO_QWEN35_IMAGE")
-	goldenPath := os.Getenv("OVERGO_QWEN35_GOLDEN")
-	if projectorPath == "" || imagePath == "" || goldenPath == "" {
-		t.Skip(testskip.Inapplicable + ": set OVERGO_QWEN35_MMPROJ, OVERGO_QWEN35_IMAGE, and OVERGO_QWEN35_GOLDEN")
-	}
+	projectorPath, imagePath := realProjectorFile(t, qwen35Projector), realProjectorFile(t, "qwen35_mm_image.png")
+	goldenPath := realProjectorFile(t, "qwen35_mm_golden.json")
 	type probeRecord struct {
 		Shape      []int     `json:"shape"`
 		ProbeIndex []int     `json:"probe_index"`
@@ -91,9 +86,6 @@ func TestQwen3VLRealFixture(t *testing.T) {
 		t.Fatalf("pixel values = %d, want shape %v", len(processed.PixelValues), golden.PixelValues.Shape)
 	}
 	compareProbes(t, "pixel values", processed.PixelValues, golden.PixelValues, 0.15)
-	if os.Getenv("OVERGO_QWEN35_PROJECTOR_FULL") == "" {
-		return
-	}
 	output := testcheck.Must(runner.EncodeImage(t.Context(), input, fixtureMediaPreprocessProfile(t).Image))(t)
 	if !output.Embeddings.Shape.Equal(mustShape(uint64(runner.Spec().OutputHidden), uint64(golden.NumImageTokens))) {
 		t.Fatalf("merger shape = %v, want [%d %d]", output.Embeddings.Shape, runner.Spec().OutputHidden, golden.NumImageTokens)
@@ -484,11 +476,7 @@ func TestPreprocessQwen3VLFramesTemporalOrder(t *testing.T) {
 
 func TestQwen3VLRealVideoFixture(t *testing.T) {
 	classifyProjectorIntegration(t)
-	projectorPath := os.Getenv("OVERGO_QWEN35_MMPROJ")
-	goldenPath := os.Getenv("OVERGO_QWEN35_VIDEO_GOLDEN")
-	if projectorPath == "" || goldenPath == "" {
-		t.Skip(testskip.Inapplicable + ": set OVERGO_QWEN35_MMPROJ and OVERGO_QWEN35_VIDEO_GOLDEN")
-	}
+	projectorPath, goldenPath := realProjectorFile(t, qwen35Projector), realProjectorFile(t, "qwen35_video_golden.json")
 	type probeRecord struct {
 		Shape      []int     `json:"shape"`
 		ProbeIndex []int     `json:"probe_index"`
@@ -532,9 +520,6 @@ func TestQwen3VLRealVideoFixture(t *testing.T) {
 		t.Fatal("video prompt differs from golden")
 	}
 	compareProbes(t, "video pixel values", processed.PixelValues, golden.PixelValues, 0.15)
-	if os.Getenv("OVERGO_QWEN35_VIDEO_FULL") == "" {
-		return
-	}
 	output := testcheck.Must(runner.EncodeFrames(t.Context(), frames, fixtureMediaPreprocessProfile(t).Video))(t)
 	if !output.Embeddings.Shape.Equal(mustShape(uint64(runner.Spec().OutputHidden), uint64(golden.NumVideoTokens))) {
 		t.Fatalf("merger shape = %v", output.Embeddings.Shape)

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
@@ -13,9 +12,10 @@ import (
 
 func TestDecodeVideoFileFFmpeg(t *testing.T) {
 	requireIntegration(t)
-	ffmpeg := os.Getenv("OVERGO_FFMPEG_TEST")
-	if ffmpeg == "" {
-		testskip.NotApplicable(t, "set OVERGO_FFMPEG_TEST to run FFmpeg integration tests")
+	// The FFmpeg a served clip is written and read with (media.FFmpeg), where this machine has one.
+	ffmpeg, err := media.FFmpeg()
+	if err != nil {
+		testskip.NotApplicable(t, err.Error())
 	}
 	path := filepath.Join(t.TempDir(), "input.mkv")
 	command := exec.Command(

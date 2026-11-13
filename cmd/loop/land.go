@@ -100,16 +100,17 @@ type execRowWorld struct {
 const landedAs = " landed as "
 
 // tool runs one repository tool, echoing its standard output -- a tool's
-// verdict; its progress is standard error -- and returns a failed run's
-// refusal: the final error the tool wrote to its error file, or the tail of
-// its standard error when it wrote none, as a build that never ran it.
-func (w *execRowWorld) tool(echo io.Writer, arguments ...string) (string, error) {
+// verdict -- to echo and its standard error -- its progress -- to said as it
+// comes, and returns a failed run's refusal: the final error the tool wrote to
+// its error file, or the tail of its standard error when it wrote none, as a
+// build that never ran it.
+func (w *execRowWorld) tool(echo, said io.Writer, arguments ...string) (string, error) {
 	errorFile := filepath.Join(os.TempDir(), fmt.Sprintf("overgo-loop-%d.error", os.Getpid()))
 	_ = os.Remove(errorFile)
 	// A failed run's file is read below and is then nobody's: it does not outlive the run.
 	defer os.Remove(errorFile)
 	progress := clioptions.NewTailWriter(clioptions.DiagnosticTailBytes)
-	err := runToolEnv(append(landingEnvironment(os.Environ(), configuredEnvironment()), clioptions.ErrorFileEnvironment+"="+errorFile), bytes.NewReader(w.message), echo, progress, arguments...)
+	err := runToolEnv(append(landingEnvironment(os.Environ(), configuredEnvironment()), clioptions.ErrorFileEnvironment+"="+errorFile), bytes.NewReader(w.message), echo, io.MultiWriter(progress, said), arguments...)
 	if err == nil {
 		return "", nil
 	}
@@ -131,14 +132,16 @@ func (w *execRowWorld) Gate(reference, messageFile string) (string, error) {
 	}
 	defer os.RemoveAll(directory)
 	gate := filepath.Join(directory, "gate.exe")
-	refusal, err := w.tool(io.Discard, "go", "build", "-o", gate, "./cmd/gate")
+	refusal, err := w.tool(io.Discard, io.Discard, "go", "build", "-o", gate, "./cmd/gate")
 	if err == nil {
 		var said bytes.Buffer
 		arguments := []string{gate, "-plan", reference}
 		if messageFile != "" {
 			arguments = append(arguments, "-message-file", messageFile)
 		}
-		refusal, _ = w.tool(io.MultiWriter(os.Stderr, &said), arguments...)
+		// The gate's progress is said as it comes, a wait for the card's turn among it, whom it waits for and since
+		// when: a landing's output had said nothing for the 6.8 hours its lanes waited (card-handover/lane-turn).
+		refusal, _ = w.tool(io.MultiWriter(os.Stderr, &said), os.Stderr, arguments...)
 		if _, commit, found := strings.Cut(said.String(), landedAs); found {
 			w.reported, _, _ = strings.Cut(commit, "\n")
 		}

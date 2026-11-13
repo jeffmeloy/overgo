@@ -441,9 +441,6 @@ func (l *Library) DeviceInfo(ordinal int) (DeviceInfo, error) {
 	}, nil
 }
 
-// cardTurn names the turn every user of the card queues for (processcontrol.TakeTurn).
-func cardTurn(uuid string) string { return "overgo-card-turn:" + uuid }
-
 // ContextCreate creates CUDA context for device; calling goroutine
 // must remain locked to its OS thread while it uses context. The context
 // is created in the card's one turn, which every user of the card queues
@@ -465,7 +462,7 @@ func (l *Library) ContextCreate(device Device, flags uint32) (Context, error) {
 		return 0, err
 	}
 	// The wait for the turn holds no lock of the library's.
-	release, err := processcontrol.TakeTurn(cardTurn(uuid), processcontrol.CommandPurpose(), os.Stderr)
+	release, err := processcontrol.TakeTurn(CardTurn(uuid), processcontrol.CommandPurpose(), os.Stderr)
 	if err != nil {
 		return 0, err
 	}

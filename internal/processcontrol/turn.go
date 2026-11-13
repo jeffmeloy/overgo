@@ -19,18 +19,6 @@ import (
 // quietmachine.HeldEnvironment does for the quiet machine, so a child its holder waits on never waits for its parent.
 const TurnEnvironment = "OVERGO_TURNS_HELD"
 
-// What a waiter says on its output (TakeTurn): "<process> waits for the turn <name>, held by <holder> for <purpose>
-// since <time>" once, and "<process> took the turn <name> after <wait>" when it takes it, so a reader of a run's output
-// finds each wait and how long it took (the landing's measurement of its lanes).
-const (
-	// TurnWaitSaid follows the waiter's process in the line it says once as it starts to wait.
-	TurnWaitSaid = " waits for the turn "
-	// TurnTakenSaid follows the waiter's process in the line it says as it takes the turn.
-	TurnTakenSaid = " took the turn "
-	// TurnWaitedSaid follows the turn's name in that line, before how long the wait took.
-	TurnWaitedSaid = " after "
-)
-
 // turnRecord is what a holder writes where a waiter reads it: its process, what it holds the turn for and since when.
 type turnRecord struct {
 	Process uint32    `json:"process"`
@@ -149,7 +137,7 @@ func takePlace(name, purpose string, output io.Writer) (func() error, error) {
 		if held {
 			holder = fmt.Sprintf("%s for %s since %s", processLabel(record.Process), record.Purpose, record.Since.Format(time.DateTime))
 		}
-		fmt.Fprintf(output, "%s%s%s, held by %s\n", processLabel(uint32(os.Getpid())), TurnWaitSaid, name, holder)
+		fmt.Fprintf(output, "%s waits for the turn %s, held by %s\n", processLabel(uint32(os.Getpid())), name, holder)
 	}
 	leave, err := enterTurn(name)
 	if err != nil {
@@ -159,7 +147,7 @@ func takePlace(name, purpose string, output io.Writer) (func() error, error) {
 		return nil, errors.Join(err, leave())
 	}
 	if busy {
-		fmt.Fprintf(output, "%s%s%s%s%s\n", processLabel(uint32(os.Getpid())), TurnTakenSaid, name, TurnWaitedSaid, time.Since(started).Round(time.Millisecond))
+		fmt.Fprintf(output, "%s took the turn %s after %s\n", processLabel(uint32(os.Getpid())), name, time.Since(started).Round(time.Millisecond))
 	}
 	unrecord, err := recordTurn(name, turnRecord{Process: uint32(os.Getpid()), Purpose: purpose, Since: time.Now()})
 	if err != nil {

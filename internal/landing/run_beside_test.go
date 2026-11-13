@@ -22,7 +22,7 @@ import (
 func TestALandingBesideARunWaitsOnlyForTheDevice(t *testing.T) {
 	// Serial: it names the lane turn the tests take, not the host's own.
 	turn := laneTurn
-	laneTurn = "overgo-test-lane-turn"
+	laneTurn = func() (string, error) { return "overgo-test-lane-turn", nil }
 	t.Cleanup(func() { laneTurn = turn })
 	const machine = "overgo-test-quiet-machine-lanes"
 	ctx := t.Context()

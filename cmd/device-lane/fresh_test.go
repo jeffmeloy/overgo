@@ -7,8 +7,8 @@ import (
 
 // TestADeviceRunRunsEverySelectedTestAfresh holds the device lane to running each test it selects, never replaying a
 // cached pass, since go test keys no file outside the module, the driver and the data root's models among them: each
-// test step carries -count=1 once. The lane prints go test's line for each package that passed, and each test's line
-// saying how long it waited for the card's turn, and nothing else of the stream, so the landing counts them.
+// test step carries -count=1 once. The lane prints go test's line for each package that passed and nothing else of the
+// stream, so the landing counts them: its tests ride on the landing's card turn and wait for no card of their own.
 func TestADeviceRunRunsEverySelectedTestAfresh(t *testing.T) {
 	t.Parallel()
 	once := func(command []string) bool {
@@ -27,7 +27,7 @@ func TestADeviceRunRunsEverySelectedTestAfresh(t *testing.T) {
 {"Action":"output","Package":"overgo/d","Output":"d.test.exe (pid 5) took the turn overgo-card-turn:GPU-1 after 2s\n"}
 not json
 `
-	if got, want := passedPackageLines(stream), "ok  \tovergo/a\t(cached)\nok  \tovergo/b\t1.250s\nd.test.exe (pid 5) took the turn overgo-card-turn:GPU-1 after 2s\n"; got != want {
-		t.Fatalf("the lane prints %q of the stream, want the passed packages' lines and the card's waits %q", got, want)
+	if got, want := passedPackageLines(stream), "ok  \tovergo/a\t(cached)\nok  \tovergo/b\t1.250s\n"; got != want {
+		t.Fatalf("the lane prints %q of the stream, want the passed packages' lines %q", got, want)
 	}
 }

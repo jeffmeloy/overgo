@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -42,7 +43,7 @@ func TestALandingTakesItsEnvironmentFromTheConfiguration(t *testing.T) {
 	t.Setenv("OVERGO_CUDA_TEST", "1")
 	t.Setenv("OVERGO_STORE_ACCEPTANCE", "1")
 	var printed bytes.Buffer
-	testcheck.Must((&execRowWorld{}).tool(&printed, os.Args[0], "-test.run=^TestALandingTakesItsEnvironmentFromTheConfiguration$"))(t)
+	testcheck.Must((&execRowWorld{}).tool(&printed, io.Discard, os.Args[0], "-test.run=^TestALandingTakesItsEnvironmentFromTheConfiguration$"))(t)
 	got := map[string]string{}
 	for line := range strings.Lines(printed.String()) {
 		if name, value, found := strings.Cut(strings.TrimSpace(line), "="); found {

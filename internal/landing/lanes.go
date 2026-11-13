@@ -9,6 +9,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io"
 	"io/fs"
 	"maps"
 	"os"
@@ -285,15 +286,30 @@ func (candidate lane) arguments(changed string) []string {
 	return slices.Insert(candidate.command(changed), 1, "-tags", candidate.tags)
 }
 
-// laneTurn names the host-wide turn a landing holds while its lanes run, and a measurement run while its phases that
-// use the device run (HoldLaneTurn); a test names its own.
-var laneTurn = "overgo-landing-lanes"
+// laneTurn names the turn a landing holds while its lanes that use the card run, and a measurement run while its
+// phases on the card run (HoldLaneTurn): the card's own turn (driver.CardTurnOf), which every context is created in, so
+// the processes of those lanes and phases ride on the holder's place, and a render beside them gives the card up once
+// for them all, where each test had waited out a picture (card-handover/lane-turn); a test names its own.
+var laneTurn = func() (string, error) { return driver.CardTurnOf(0) }
+
+// takeLaneTurn takes the lane turn for purpose, saying on output, once, whom it waits for and how long it waited.
+func takeLaneTurn(purpose string, output io.Writer) (func() error, error) {
+	name, err := laneTurn()
+	if err != nil {
+		return nil, err
+	}
+	return processcontrol.TakeTurn(name, purpose, output)
+}
 
 // HoldLaneTurn runs work in the host's lane turn: a measurement run's phases that use the device hold it, so a landing
 // beside the run runs its host stages and its lanes wait for the device in code, where every build, test and commit
 // was once held for the run by a written rule.
 func HoldLaneTurn(work func() error) error {
-	return processcontrol.ResourceTransaction(laneTurn, work)
+	release, err := takeLaneTurn("a measurement run's phases on the card", os.Stderr)
+	if err != nil {
+		return err
+	}
+	return errors.Join(work(), release())
 }
 
 // letGo frees the checkout while the lanes wait for a lane turn another holds, a measurement run's above all: on
@@ -302,7 +318,11 @@ func HoldLaneTurn(work func() error) error {
 // commit publishes it whatever the checkout holds by then (settled), so only the commit turn is left to give up. A turn
 // that is free is taken as before, and a merge keeps its commit turn.
 func (l *landing) letGo() error {
-	if held, err := processcontrol.ResourceTransactionHeld(laneTurn); err != nil || !held || len(l.merging) > 0 {
+	name, err := laneTurn()
+	if err != nil {
+		return err
+	}
+	if held, err := processcontrol.ResourceTransactionHeld(name); err != nil || !held || len(l.merging) > 0 {
 		return err
 	}
 	// The wait is the device's and no other commit's, so the commit turn goes free for it: on 2026-10-30 a report-only
@@ -352,7 +372,12 @@ func (l *landing) inLaneTurn(ctx context.Context, work func() error) error {
 			return released
 		}
 	}
-	return processcontrol.ResourceTransaction(laneTurn, func() error {
+	// The wait is said in the landing's log as it starts, whom it waits for and since when, not when the lanes end.
+	release, err := takeLaneTurn("the commit checks of "+l.Ref, l.Log)
+	if err != nil {
+		return err
+	}
+	err = func() error {
 		if machine != "" {
 			release, err := l.holdQuiet(ctx, machine)
 			if err != nil {
@@ -361,7 +386,8 @@ func (l *landing) inLaneTurn(ctx context.Context, work func() error) error {
 			l.quiet = release
 		}
 		return work()
-	})
+	}()
+	return errors.Join(err, release())
 }
 
 // inTurnFor runs work in the lane turn when one of shared needs the device, the resource the turn guards. Lanes that
@@ -453,9 +479,7 @@ func (l *landing) lanes(ctx context.Context) error {
 				cancel()
 				return
 			}
-			var admission time.Duration
-			entries[candidate.name], admission = describeLane(candidate.name, wall, output)
-			l.spent.Device += admission
+			entries[candidate.name] = describeLane(candidate.name, wall, output)
 		}
 		var group sync.WaitGroup
 		for _, candidate := range beside {
@@ -493,21 +517,13 @@ func (l *landing) lanes(ctx context.Context) error {
 // plain output and in the output events of -json alike.
 const passedPackage = "ok  \t"
 
-// describeLane is a passed lane's entry in the measurement: its wall time;
-// the waits for the card's turn its processes said they took
-// (processcontrol.TurnTakenSaid), added up, where one waited; and, where its
-// output carries go test's package lines, how many packages go test executed
-// and how many it replayed from cache. The wait is returned beside the entry,
-// for the landing's record.
-func describeLane(name string, wall time.Duration, output string) (entry string, admission time.Duration) {
-	claimed := false
+// describeLane is a passed lane's entry in the measurement: its wall time
+// and, where its output carries go test's package lines, how many packages go
+// test executed and how many it replayed from cache. Its processes ride on the
+// landing's card turn, whose wait the lanes' measurement says once.
+func describeLane(name string, wall time.Duration, output string) string {
 	executed, cached := 0, 0
 	for line := range strings.Lines(output) {
-		_, taken, found := strings.Cut(line, processcontrol.TurnTakenSaid)
-		_, wait, after := strings.Cut(taken, processcontrol.TurnWaitedSaid)
-		if waited, err := time.ParseDuration(strings.TrimSpace(wait)); found && after && err == nil {
-			claimed, admission = true, admission+waited
-		}
 		switch {
 		case !strings.HasPrefix(line, passedPackage):
 		case strings.Contains(line, cachedMarker):
@@ -516,23 +532,20 @@ func describeLane(name string, wall time.Duration, output string) (entry string,
 			executed++
 		}
 	}
-	entry = fmt.Sprintf("%s passed %s", name, wall)
-	if claimed {
-		entry += fmt.Sprintf(" card wait %s", admission)
-	}
+	entry := fmt.Sprintf("%s passed %s", name, wall)
 	if executed+cached > 0 {
 		entry += fmt.Sprintf(" executed %d cached %d", executed, cached)
 	}
-	return entry, admission
+	return entry
 }
 
 // describeLanes is the lanes stage's measurement: the time finding the
-// reached lanes took, the wait for the host's lane turn when a lane ran,
+// reached lanes took, the wait for the card's turn when a lane ran,
 // each passed lane's entry, and the lanes the change did not reach.
 func describeLanes(discovery, turnWait time.Duration, passed, skipped []string) string {
 	entries := []string{"discovery " + discovery.String()}
 	if len(passed) > 0 {
-		entries = append(entries, "turn wait "+turnWait.String())
+		entries = append(entries, "card wait "+turnWait.String())
 	}
 	entries = append(entries, passed...)
 	if len(skipped) > 0 {

@@ -30,7 +30,7 @@ func (f freedLog) Write(p []byte) (int, error) {
 func TestALandingWaitingOnARunLeavesTheCheckoutFree(t *testing.T) {
 	// Serial: it names the lane turn and the lanes the tests take, not the host's own.
 	turn, gated := laneTurn, lanes
-	laneTurn = "overgo-test-checkout-free-turn"
+	laneTurn = func() (string, error) { return "overgo-test-checkout-free-turn", nil }
 	lanes = []lane{{name: "fixture", packages: []string{"./internal/p"}, command: func(string) []string { return []string{"test", "-count=1", "./internal/p"} }}}
 	t.Cleanup(func() { laneTurn, lanes = turn, gated })
 	answer := func(value string) string {
@@ -90,7 +90,7 @@ func TestALandingWaitingOnARunLeavesTheCheckoutFree(t *testing.T) {
 func TestALandingWaitingOnTheDeviceGivesUpItsCommitTurn(t *testing.T) {
 	// Serial: it names the lane turn and the lanes the tests take, not the host's own.
 	turn, gated := laneTurn, lanes
-	laneTurn = "overgo-test-commit-turn"
+	laneTurn = func() (string, error) { return "overgo-test-commit-turn", nil }
 	lanes = []lane{{name: "fixture", packages: []string{"./internal/p"}, command: func(string) []string { return []string{"test", "-count=1", "./internal/p"} }}}
 	t.Cleanup(func() { laneTurn, lanes = turn, gated })
 	fixture := newRowFixture(t, map[string]string{"internal/p/p.go": "package p\n\nfunc a() string { return \"base\" }\n", "docs/notes.txt": "base\n"})

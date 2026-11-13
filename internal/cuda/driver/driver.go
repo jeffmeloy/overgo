@@ -6,6 +6,29 @@ import (
 	"strconv"
 )
 
+// CardTurn names the turn every user of the card whose identity is uuid queues for (processcontrol.TakeTurn): each
+// context is created in it.
+func CardTurn(uuid string) string { return "overgo-card-turn:" + uuid }
+
+// CardTurnOf names the turn of the card of ordinal (CardTurn), for a job that takes it once for the processes it runs
+// on the card, which ride on its place (processcontrol.TurnEnvironment): a landing's lanes and a measurement run's
+// phases on the card, where each test had waited out a picture of a render beside them (card-handover/lane-turn).
+func CardTurnOf(ordinal int) (name string, err error) {
+	library, err := Open()
+	if err != nil {
+		return "", err
+	}
+	defer func() { err = errors.Join(err, library.Close()) }()
+	if err := library.Init(); err != nil {
+		return "", err
+	}
+	info, err := library.DeviceInfo(ordinal)
+	if err != nil {
+		return "", err
+	}
+	return CardTurn(info.UUID), nil
+}
+
 // Device: CUDA device ordinal
 type Device int32
 

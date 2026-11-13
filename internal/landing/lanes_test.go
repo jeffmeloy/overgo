@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"overgo/internal/processcontrol"
 	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 )
@@ -194,12 +193,6 @@ func TestCUDATestsNeedALane(t *testing.T) {
 	}
 }
 
-// TestLanesMeasurementLine pins the lanes stage's entry in the Measured line
-// over fake lane results: the discovery time, the turn wait, each passed
-// lane with the admission waits its device lines add up to and the packages
-// its go test lines executed or replayed from cache, a lane whose output
-// carries neither with its time alone, and the unreached lanes as skipped.
-// With no lane reached there is no turn to wait for.
 // TestCPULanesOverlapTheDeviceLane holds the lanes a change reaches to the schedule that shares the
 // device and no more: the lanes that need none start at once, beside the rest, and the lanes that
 // share it keep their order and run one at a time; the page's lane is the one that needs no
@@ -229,32 +222,31 @@ func TestCPULanesOverlapTheDeviceLane(t *testing.T) {
 	}
 }
 
+// TestLanesMeasurementLine pins the lanes stage's entry in the Measured line
+// over fake lane results: the discovery time, the wait for the card's turn the
+// landing takes once for its lanes, each passed lane with the packages its go
+// test lines executed or replayed from cache, a lane whose output carries none
+// with its time alone, and the unreached lanes as skipped. With no lane
+// reached there is no turn to wait for.
 func TestLanesMeasurementLine(t *testing.T) {
 	t.Parallel()
 	device := "[device] phase=1/3 heartbeat=running elapsed=0.0s command=go run ./cmd/cuda-info\n" +
-		"kernel.test.exe (pid 7)" + processcontrol.TurnWaitSaid + "overgo-card-turn:GPU-1, held by evaluate.exe (pid 9) for a reading since 2026-11-12 10:00:00\n" +
-		"kernel.test.exe (pid 7)" + processcontrol.TurnTakenSaid + "overgo-card-turn:GPU-1" + processcontrol.TurnWaitedSaid + "1.5s\n" +
-		"device.test.exe (pid 8)" + processcontrol.TurnTakenSaid + "overgo-card-turn:GPU-1" + processcontrol.TurnWaitedSaid + "250ms\n"
+		"ok  \tovergo/internal/cuda/kernel\t12.5s\n"
 	cuda := "ok  \tovergo/internal/hybridtrain\t61.204s\n" +
 		"ok  \tovergo/internal/torchrng\t(cached)\n" +
 		"ok  \tovergo/cmd/recipe\t(cached)\n" +
 		"    trainer_test.go:12: ok  \tquoted by a test log\n" +
 		"?   \tovergo/internal/fixture\t[no test files]\n"
 	var passed []string
-	var admission time.Duration
 	for _, described := range []struct {
 		name   string
 		wall   time.Duration
 		output string
 	}{{"device", 2 * time.Minute, device}, {"cuda", 30*time.Minute + time.Second, cuda}, {"webui", 3 * time.Second, "webui lane: PASS browser=edge\n"}} {
-		entry, waited := describeLane(described.name, described.wall, described.output)
-		passed, admission = append(passed, entry), admission+waited
-	}
-	if admission != 1750*time.Millisecond {
-		t.Errorf("the lanes waited %s for the card, want the device lane's two waits for the card's turn added", admission)
+		passed = append(passed, describeLane(described.name, described.wall, described.output))
 	}
 	got := describeLanes(41200*time.Millisecond, 12*time.Minute, passed, []string{"audio", "e4b"})
-	want := "discovery 41.2s, turn wait 12m0s, device passed 2m0s card wait 1.75s, " +
+	want := "discovery 41.2s, card wait 12m0s, device passed 2m0s executed 1 cached 0, " +
 		"cuda passed 30m1s executed 1 cached 2, webui passed 3s, skipped audio e4b"
 	if got != want {
 		t.Errorf("lanes measurement = %q, want %q", got, want)

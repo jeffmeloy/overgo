@@ -8,24 +8,22 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": -9,
-        "reason": "Filed 2026-11-12 after the retire-admissions landing waited 6.2 of its 6.8 hours for the card. Two causes, each cured by fixing what exists: the idle release that frees the card between pictures missed Wan's text encoder, and the card turn was taken by each test's context rather than once by the landing that runs them. The landing's lane turn becomes the card's own turn, so two queues become one, and the parsing of each test's wait lines goes. The encoder's release and the render's honest check add about 25 statements; the lane change removes about as much as it adds. The lead's figure."
+        "nodes": 152,
+        "reason": "Filed 2026-11-12 after the retire-admissions landing waited 6.2 of its 6.8 hours for the card. Two causes, each cured by fixing what exists: the idle release that frees the card between pictures missed Wan's text encoder, and the card turn was taken by each test's context rather than once by the landing that runs them. The landing's lane turn becomes the card's own turn, so two queues become one, and the parsing of each test's wait lines goes. The encoder's release and the render's honest check add about 25 statements; the lane change removes about as much as it adds. The lead's figure. Step counts: +252 (252, the median of what 59 landings that changed internal/processcontrol, cmd/evaluate, internal/landing, cmd/device-lane counted)."
       },
       "steps": [
         {
-          "id": "lane-turn",
-          "title": "A landing takes the card's turn once for its lanes on the card, their processes riding on its place, and says its wait as it waits",
+          "id": "counts",
+          "title": "A waiter says how far the turn's holder has come, its own count and when it reached it, and the landing and the device lane say each stage and step as it starts, by count, where the device lane printed a heartbeat",
           "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestALandingsLanesRideOnTheCardTurnItTakes$'",
+          "verify": "go test ./internal/processcontrol -count=1 -run '^TestAWaiterSaysTheHoldersCount$'",
           "files": [
-            "internal/landing",
-            "internal/cuda/driver",
-            "internal/cuda/device",
             "internal/processcontrol",
-            "cmd/device-lane",
-            "cmd/loop"
+            "cmd/evaluate",
+            "internal/landing",
+            "cmd/device-lane"
           ],
-          "rationale": "Serves: the owner's review of 2026-11-12: take the turn once per job, the lane's tests riding on its place, and print each wait for the turn into the commit's output as it happens, an event, not a clock.\n\nDisappears: a landing's tests each queued behind a picture. From 11:37 to 13:46 on 2026-11-12 executor.test.exe got 51 turns behind 51 SenseNova pictures and about 1.5 minutes of card use, since every context took the card's turn as it was created and gave it up as it closed; and the landing's output said nothing for its 6.8 hours, since the loop kept the gate's progress as a tail for a refusal and the device lane kept its tests' lines for the end. Two queues guarded the card: the host's lane turn, held by landings and measurement runs, and the card's turn, held by contexts.\n\nThe change: the lane turn is the card's own turn (driver.CardTurnOf), taken with processcontrol.TakeTurn by the landing for its lanes on the card and by a measurement run for its phases on it; their processes, started in the landing's environment, ride on its place, so a render beside them gives the card up once for them all and the landing waits once. The turn says, on the landing's log, whom it waits for and since when; the loop passes the gate's progress on as it comes. The landing measures its card wait itself, so the lanes' wait lines are no longer parsed: describeLane reads only go test's package lines, the device lane passes no turn lines, and processcontrol's exported wait words go. TestCUDAContextSharedAdmission takes the card's turn and runs its CUDA processes riding on it side by side, as a lane's tests now do; queueing for a turn another holds stays processcontrol's own test on a turn of its own.\n\nCheck: TestALandingsLanesRideOnTheCardTurnItTakes holds a landing's lanes to its turn: inside it the lanes' environment carries the landing's place, and after it nothing. The original case is the rehearsal: moss-ultra-sections/finishing lands beside a real Wan render and a real picture render, its lanes waiting once.\n\nNo boundary test: the check names laneTurn as the function this step makes it, which does not build at the base, where it was a string.\n\nBatch: host lane."
+          "rationale": "Serves: the owner's suggestion of 2026-11-12: replace guessed waits with the job's own counts, on parts that exist; counts only, no estimated percentages; a stall judged against the job's own measured time per unit and only reported.\n\nDisappears: a wait whose reader cannot tell a working holder from a stuck one. On 2026-11-12 a test waited from 14:14 for a render that drew a video every 5 min 34 s and never handed over; the waiter's one line named the render and when it took the card, nothing of how far it had come. The device lane printed a heartbeat every 15 s, a clock's line that says only that time passed, and the landing printed a stage only when it ended.\n\nThe change:\n- The turn's record carries the holder's count and when it was reached: processcontrol.TurnCount(done, total), which a render calls as it prints \"drew n/N\", rewrites the record its holder keeps open; a waiter's line says the count and when it was reached beside the holder's process and purpose.\n- The landing says each stage as it starts, \"stage k of N\", and the device lane says each step as it starts, its count already in its line; the device lane's heartbeat goes.\n\nCheck: a test holds a waiter's line to the holder's count: a holder that has counted 3 of 5 is named by a waiter at 3/5 and the time it was reached.\n\nBatch: host lane."
         }
       ]
     },
@@ -36,8 +34,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "doc-advice changes only the words of the export-doc advice, and ceilings-fall moves a refusal into the landing; neither need shrink production code, so the row may not grow rather than must shrink: the lead filed it as a consolidation in error"
+        "nodes": 102,
+        "reason": "doc-advice changes only the words of the export-doc advice, and ceilings-fall moves a refusal into the landing; neither need shrink production code, so the row may not grow rather than must shrink: the lead filed it as a consolidation in error Step worklist: +102 (102, the median of what 66 landings that changed internal/landing, cmd/loop counted)."
       },
       "steps": [
         {
@@ -50,6 +48,17 @@
             "internal/landing"
           ],
           "rationale": "Serves: the owner's rule of 2026-11-10: the tool does it \u003e a check that refuses.\n\nDisappears: a refusal for an improvement: on 2026-11-12 card-turn/turn took three of a test's pipes in one expression each, the module's value-then-check pairs fell from 179 to 177, and TestATestTakesACallsValueInOneExpression refused it with \"lower the ceiling to 177, since it only falls\", the number it knew; four ceilings of internal/repoanalysis only fall this way.\n\nThe change: a ceiling check fails only above its ceiling; under it, it reports the lower count, and the landing writes that count into the ceiling's declaration in the change it commits.\n\nCheck: TestALandingLowersACeilingItsChangeFellUnder lands a change that lowers a counted pattern and finds the ceiling lowered in its commit and no refusal.\n\nBatch: host lane."
+        },
+        {
+          "id": "worklist",
+          "title": "Each refused attempt records the rule or test that refused it and whether its detail carried an edit, and the loop lists the refusals by rule with their counts, the worklist",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestRefusalsAreListedByTheRuleThatRefusedThem$'",
+          "files": [
+            "internal/landing",
+            "cmd/loop"
+          ],
+          "rationale": "Serves: the owner's review of 2026-11-12: every refusal is a defect of the orchestration or the implementation; the tool sorts refusals itself, and that list is the worklist. For each rule on it: ask what its refusals prevented and delete it if nothing; otherwise move its fix into the fix stage, which rewrites instead of refusing. Judged by check time per commit made.\n\nDisappears: refusals counted only by stage. landing_waits.json records each attempt's outcome as its stage (rules, invariants, lanes, verify), so the daily line says \"rules 4\" and nothing of which rule refused or whether its own detail carried the edit that fixes it; 20 of 62 refusals since 9 November carried \"edit: ...\" in their detail, all at the rules stage.\n\nThe change: a refused attempt's record carries the rule or test that refused it and whether its detail carried an edit; the loop prints the refusals by rule, with their counts and how many carried an edit, the worklist.\n\nCheck: a test holds the worklist to the refusals recorded: two attempts refused by one rule, one with an edit, and one by a test, are listed as the rule with 2 (1 with an edit) and the test with 1.\n\nBatch: host lane."
         }
       ]
     },

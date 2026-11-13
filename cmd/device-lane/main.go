@@ -80,7 +80,8 @@ func run() error {
 			return runrecord.LaneError(runrecord.LaneFailed, err.Error())
 		}
 		var stdout, stderr bytes.Buffer
-		// Each step's contexts wait for the card's turn as they are created, and say for whom.
+		// Each step's contexts are created in the card's turn, which a landing takes once for its lanes, its processes
+		// riding on the landing's place (card-handover/lane-turn).
 		receipt, err := processcontrol.Run(ctx, processcontrol.Command{
 			Path: command[0], Args: command[1:], Env: append(os.Environ(), cudaTestEnv+"=1"),
 			Stdout: &stdout, Stderr: &stderr,
@@ -202,16 +203,13 @@ func deviceTestStep(arguments ...string) []string {
 // freshRun is go test's flag that runs a test again whatever its cache holds.
 const freshRun = "-count=1"
 
-// passedPackageLines is go test's line for each package that passed in stream, a go test -json stream, and each test's
-// line saying it waited for the card's turn and how long (processcontrol.TurnTakenSaid), so the landing reads from the
-// lane's output how many packages ran, how many go test replayed from its cache, and how long the lane waited for the
-// card.
+// passedPackageLines is go test's line for each package that passed in stream, a go test -json stream, so the landing
+// reads from the lane's output how many packages ran and how many go test replayed from its cache.
 func passedPackageLines(stream string) string {
 	var lines strings.Builder
 	for line := range strings.Lines(stream) {
 		var event struct{ Action, Output string }
-		if json.Unmarshal([]byte(line), &event) == nil && event.Action == "output" &&
-			(strings.HasPrefix(event.Output, "ok  \t") || strings.Contains(event.Output, processcontrol.TurnTakenSaid)) {
+		if json.Unmarshal([]byte(line), &event) == nil && event.Action == "output" && strings.HasPrefix(event.Output, "ok  \t") {
 			lines.WriteString(event.Output)
 		}
 	}

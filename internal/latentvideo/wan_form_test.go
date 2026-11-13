@@ -36,6 +36,8 @@ func TestWanRequestFormAdmitsPromptOrTensors(t *testing.T) {
 		"noise plan with prompt": {Prompt: "a fox", Noise: sampling.CounterNoisePlan{Seed: 1, Grid: 1, Block: 256, Unroll: 4}},
 		"sample with prompt":     {Prompt: "a fox", InitialSample: []float32{0}},
 		"prompt beside contexts": {Prompt: "a fox", CondContext: []float32{1}},
+		"negative zeroed steps":  {Prompt: "a fox", Guidance: sampling.Guidance{ZeroSteps: -1}},
+		"reversed interval":      {Prompt: "a fox", Guidance: sampling.Guidance{Interval: sampling.NoiseInterval{Low: 0.8, High: 0.2}}},
 	} {
 		if ValidateWanRequestForm(request) == nil {
 			t.Errorf("%s: admitted %+v", name, request)

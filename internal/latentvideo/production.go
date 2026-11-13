@@ -105,10 +105,12 @@ type generationPolicy struct {
 
 // profileEntry is the catalog's Wan profile and its presets: the profile is the authors' recipe, which a recipe binds,
 // and each preset another recipe of the same model named beside it, which a request may name. The presets are no part
-// of the profile a recipe binds, so stating one moves no recipe.
+// of the profile a recipe binds, so stating one moves no recipe. A few-step student of Wan has its own presets, which
+// change nothing its distillation fixed: its steps, shift and guidance scale.
 type profileEntry struct {
 	Profile
-	Presets map[string]generationPolicy `json:"presets,omitempty"`
+	Presets        map[string]generationPolicy `json:"presets,omitempty"`
+	StudentPresets map[string]generationPolicy `json:"student_presets,omitempty"`
 }
 
 // declaredEntry is the supported Wan profile and its presets as the catalog declares them, before any artifact is read
@@ -142,18 +144,23 @@ func (p Profile) complete(request WanRequest) (WanRequest, error) {
 }
 
 // PresetNames are the presets the model in directory may be asked for, in order, for a page to offer: the Wan
-// profile's, and none of a student's, whose schedule its distillation fixed.
+// profile's, or a student's own.
 func PresetNames(directory string) ([]string, error) {
-	if IsWanStudent(directory) {
-		return nil, nil
-	}
 	entry, err := declaredEntry()
+	if IsWanStudent(directory) {
+		return slices.Sorted(maps.Keys(entry.StudentPresets)), err
+	}
 	return slices.Sorted(maps.Keys(entry.Presets)), err
 }
 
 // withPreset fills what a request leaves unset from the preset it names, and clears the name, so a request naming a
 // preset and one stating its values are one request. A request naming none is the authors' recipe, its profile's.
 func (request WanRequest) withPreset() (WanRequest, error) {
+	return request.withPresetOf(func(entry profileEntry) map[string]generationPolicy { return entry.Presets })
+}
+
+// withPresetOf is withPreset from the presets of the catalog entry that presets gives.
+func (request WanRequest) withPresetOf(presets func(profileEntry) map[string]generationPolicy) (WanRequest, error) {
 	if request.Preset == "" {
 		return request, nil
 	}
@@ -161,7 +168,7 @@ func (request WanRequest) withPreset() (WanRequest, error) {
 	if err != nil {
 		return WanRequest{}, err
 	}
-	preset, declared := entry.Presets[request.Preset]
+	preset, declared := presets(entry)[request.Preset]
 	if !declared {
 		return WanRequest{}, fmt.Errorf("latent video: the profile declares no preset %q", request.Preset)
 	}

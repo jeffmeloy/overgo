@@ -44,9 +44,9 @@ func BenchmarkWanRealArtifactLeadership(b *testing.B) {
 
 	config, weights := denoiserFixture(b)
 	geometry := testcheck.Must(config.CompileLatentGeometry(81, 832, 480))(b)
-	program := testcheck.Must(CompileDenoiserProgramPrecision(config, weights, geometry, DenoiserPrecision{
+	program := testcheck.Must(compileDenoiserProgram(config, weights, geometry, DenoiserPrecision{
 		MatmulWeights: dtype.BF16, RoundAttentionStorage: true,
-	}))(b)
+	}, denoiserHistory{}, sampling.NormalizedAttention{}))(b)
 	fixtureDir := testutil.FixturePath(b, "wan")
 	contextElements := config.TextLen * config.Dim
 	cond := loadRawContext(b, fixtureDir, "raw/g1_cond_context.f32le", contextElements)

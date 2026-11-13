@@ -35,6 +35,11 @@
       "model-card": {
         "shift": 8
       }
+    },
+    "student_presets": {
+      "nag": {
+        "guidance": {"attention": {"scale": 4, "tau": 2.5, "alpha": 0.25}}
+      }
     }
   }
 ]

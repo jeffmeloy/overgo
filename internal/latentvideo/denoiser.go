@@ -362,16 +362,20 @@ type DenoiserProgram struct {
 	contextKeys         []*tensor.Tensor
 	contextValues       []*tensor.Tensor
 
-	stepPatch        *tensor.Tensor
-	stepBlockE       *tensor.Tensor
-	stepHeadE        *tensor.Tensor
-	stepCrossKeys    []*tensor.Tensor
-	stepCrossValues  []*tensor.Tensor
-	stepHistoryKeys  []*tensor.Tensor
-	stepHistoryVals  []*tensor.Tensor
-	currentSelfKeys  []*tensor.Tensor
-	currentSelfVals  []*tensor.Tensor
-	stepWeightInputs tensor.WeightBindings
+	stepPatch       *tensor.Tensor
+	stepBlockE      *tensor.Tensor
+	stepHeadE       *tensor.Tensor
+	stepCrossKeys   []*tensor.Tensor
+	stepCrossValues []*tensor.Tensor
+	// stepNegativeKeys and stepNegativeValues are each block's inputs of a negative context's keys and values, which
+	// NAG guides its cross-attention away from; a program without NAG has none.
+	stepNegativeKeys   []*tensor.Tensor
+	stepNegativeValues []*tensor.Tensor
+	stepHistoryKeys    []*tensor.Tensor
+	stepHistoryVals    []*tensor.Tensor
+	currentSelfKeys    []*tensor.Tensor
+	currentSelfVals    []*tensor.Tensor
+	stepWeightInputs   tensor.WeightBindings
 
 	// Blocks expose every intra-block seam for parity probes; Head is the
 	// [patchOut, seq] pre-unpatchify output.
@@ -412,21 +416,17 @@ type denoiserHistory struct {
 	StartFrame int
 }
 
-// CompileDenoiserProgramPrecision: builds both graphs under one precision
-// declaration.
-func CompileDenoiserProgramPrecision(c DenoiserConfig, weights *DenoiserWeights, geometry LatentGeometry, precision DenoiserPrecision) (*DenoiserProgram, error) {
-	return compileDenoiserProgram(c, weights, geometry, precision, denoiserHistory{})
-}
-
 // compileDenoiserProgramHistory adds retained rotated-K/value inputs.
-func compileDenoiserProgramHistory(c DenoiserConfig, weights *DenoiserWeights, geometry LatentGeometry, precision DenoiserPrecision, history denoiserHistory) (*DenoiserProgram, error) {
+func compileDenoiserProgramHistory(c DenoiserConfig, weights *DenoiserWeights, geometry LatentGeometry, precision DenoiserPrecision, history denoiserHistory, attention sampling.NormalizedAttention) (*DenoiserProgram, error) {
 	if !checked.PositiveInts(history.Tokens, history.StartFrame) {
 		return nil, fmt.Errorf("denoiser history: tokens/start frame must be positive")
 	}
-	return compileDenoiserProgram(c, weights, geometry, precision, history)
+	return compileDenoiserProgram(c, weights, geometry, precision, history, attention)
 }
 
-func compileDenoiserProgram(c DenoiserConfig, weights *DenoiserWeights, geometry LatentGeometry, precision DenoiserPrecision, history denoiserHistory) (*DenoiserProgram, error) {
+// compileDenoiserProgram builds the context and step graphs; where attention is NAG's, each block's step graph takes a
+// negative context's keys and values beside the prompt's (stepNegativeKeys) and guides its cross-attention by them.
+func compileDenoiserProgram(c DenoiserConfig, weights *DenoiserWeights, geometry LatentGeometry, precision DenoiserPrecision, history denoiserHistory, attention sampling.NormalizedAttention) (*DenoiserProgram, error) {
 	matmulWeightType := precision.MatmulWeights
 	if weights == nil {
 		return nil, fmt.Errorf("denoiser program: weights are nil")
@@ -457,6 +457,7 @@ func compileDenoiserProgram(c DenoiserConfig, weights *DenoiserWeights, geometry
 		RotaryBase:            float32(c.Policy.RotaryFrequencyBase),
 		AxisChannels:          model.ThreeAxisRotaryChannels(headWidth),
 		RoundAttentionStorage: precision.RoundAttentionStorage,
+		Attention:             attention,
 	}
 	for axis := range options.AxisPositions {
 		options.AxisPositions[axis] = make([]uint32, geometry.Seq)
@@ -525,15 +526,27 @@ func compileDenoiserProgram(c DenoiserConfig, weights *DenoiserWeights, geometry
 			FFNContractBias: bind.Input(prefix+"ffn.2.bias", d),
 		}
 		var result model.ConditionedDiffusionBlockResult
+		var historyKey, historyValue *tensor.Tensor
 		if checked.PositiveInts(history.Tokens) {
-			historyKey := builder.Input(prefix+"self_history_key", dtype.F32, tensor.MustShape(headWidth, heads, uint64(history.Tokens)))
-			historyValue := builder.Input(prefix+"self_history_value", dtype.F32, tensor.MustShape(headWidth, heads, uint64(history.Tokens)))
+			historyKey = builder.Input(prefix+"self_history_key", dtype.F32, tensor.MustShape(headWidth, heads, uint64(history.Tokens)))
+			historyValue = builder.Input(prefix+"self_history_value", dtype.F32, tensor.MustShape(headWidth, heads, uint64(history.Tokens)))
 			program.stepHistoryKeys = append(program.stepHistoryKeys, historyKey)
 			program.stepHistoryVals = append(program.stepHistoryVals, historyValue)
+		}
+		switch {
+		case attention.On():
+			negativeKey := builder.Input(prefix+"negative_cross_key", dtype.F32, tensor.MustShape(headWidth, heads, textLen))
+			negativeValue := builder.Input(prefix+"negative_cross_value", dtype.F32, tensor.MustShape(headWidth, heads, textLen))
+			program.stepNegativeKeys = append(program.stepNegativeKeys, negativeKey)
+			program.stepNegativeValues = append(program.stepNegativeValues, negativeValue)
+			result, err = diffusion.BuildGuidedBlock(
+				builder, hidden, program.stepBlockE, crossKey, crossValue, negativeKey, negativeValue, historyKey, historyValue, blockWeights,
+			)
+		case historyKey != nil:
 			result, err = diffusion.BuildBlockWithSelfHistory(
 				builder, hidden, program.stepBlockE, crossKey, crossValue, historyKey, historyValue, blockWeights,
 			)
-		} else {
+		default:
 			result, err = diffusion.BuildBlock(
 				builder, hidden, program.stepBlockE, crossKey, crossValue, blockWeights,
 			)

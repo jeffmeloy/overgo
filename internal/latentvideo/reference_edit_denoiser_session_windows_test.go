@@ -17,6 +17,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/dataroot"
 	"overgo/internal/pytorchzip"
+	"overgo/internal/sampling"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
@@ -49,9 +50,9 @@ func TestLiveEditRetainedDenoiser(t *testing.T) {
 	}
 	context := readRetainedDenoiserF32(t, testutil.FixturePath(t, "wan", "raw", "g1_cond_context.f32le"), base.TextLen*base.Dim)
 	started := time.Now()
-	session, err := newReferenceEditDenoiserCUDASession(t.Context(), checkpoint, geometry, 2, 1, 1, 2, 0)
+	session, err := newReferenceEditDenoiserCUDASession(t.Context(), checkpoint, geometry, 2, 1, 1, 2, 0, sampling.NormalizedAttention{})
 	if err == nil {
-		err = session.projectContext(context)
+		err = session.projectContexts(context, nil)
 	}
 	testcheck.NoError(t, err)
 	defer func() {
@@ -95,9 +96,9 @@ func TestLiveEditRetainedDenoiser(t *testing.T) {
 	retainedWall := time.Since(started)
 	testcheck.NoError(t, session.Close())
 	session = nil
-	fresh, err := newReferenceEditDenoiserCUDASession(t.Context(), checkpoint, geometry, 2, 1, 1, 2, 0)
+	fresh, err := newReferenceEditDenoiserCUDASession(t.Context(), checkpoint, geometry, 2, 1, 1, 2, 0, sampling.NormalizedAttention{})
 	if err == nil {
-		err = fresh.projectContext(context)
+		err = fresh.projectContexts(context, nil)
 	}
 	testcheck.NoError(t, err)
 	defer fresh.Close()
@@ -135,9 +136,9 @@ func TestLiveEditRetainedDenoiserReplaysExactly(t *testing.T) {
 	}
 	layers := 2
 	context := readRetainedDenoiserF32(t, testutil.FixturePath(t, "wan", "raw", "g1_cond_context.f32le"), base.TextLen*base.Dim)
-	session, err := newReferenceEditDenoiserCUDASession(t.Context(), checkpoint, geometry, layers, 3, 21, 21, 0)
+	session, err := newReferenceEditDenoiserCUDASession(t.Context(), checkpoint, geometry, layers, 3, 21, 21, 0, sampling.NormalizedAttention{})
 	if err == nil {
-		err = session.projectContext(context)
+		err = session.projectContexts(context, nil)
 	}
 	testcheck.NoError(t, err)
 	defer session.Close()

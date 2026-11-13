@@ -9,6 +9,7 @@ import (
 
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/processmeasure"
+	"overgo/internal/sampling"
 	"overgo/internal/testcheck"
 )
 
@@ -31,7 +32,7 @@ func TestADenoiserLoadHoldsOneTensorOnTheHost(t *testing.T) {
 	if held := slices.Sorted(maps.Keys(weights.values)); !slices.Equal(held, slices.Sorted(slices.Values(timestepTensors))) {
 		t.Fatalf("the opened weights hold %v decoded, want the timestep conditioning's alone", held)
 	}
-	program := testcheck.Must(CompileDenoiserProgramPrecision(config, weights, geometry, DenoiserPrecision{}))(t)
+	program := testcheck.Must(compileDenoiserProgram(config, weights, geometry, DenoiserPrecision{}, denoiserHistory{}, sampling.NormalizedAttention{}))(t)
 	session := testcheck.Must(NewDenoiserCUDASession(program, 0))(t)
 	defer session.Close()
 	after := testcheck.Must(processmeasure.SelfPeakWorkingSet())(t)

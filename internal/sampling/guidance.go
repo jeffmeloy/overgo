@@ -19,6 +19,8 @@ type Guidance struct {
 	Interval  NoiseInterval `json:"interval,omitzero"`
 	// Adaptive is APG, which combines with the sample a step denoises (AdaptiveGuider).
 	Adaptive Adaptive `json:"adaptive,omitzero"`
+	// Attention is NAG, which guides each cross-attention away from a negative prompt's at no extra model pass.
+	Attention NormalizedAttention `json:"attention,omitzero"`
 }
 
 // projectionFloor is what CFG-Zero*'s appendix code adds to the unconditioned output's squared norm, so an output of
@@ -37,7 +39,8 @@ func (i NoiseInterval) holds(sigma float64) bool {
 	return i == NoiseInterval{} || i.Low <= sigma && sigma <= i.High
 }
 
-// Validate refuses guidance no generation can run: negative zeroed steps, or an interval not ordered within [0, 1].
+// Validate refuses guidance no generation can run: negative zeroed steps, an interval not ordered within [0, 1], two
+// combines, NAG beside APG, or either's settings out of range.
 func (g Guidance) Validate() error {
 	if g.ZeroSteps < 0 {
 		return fmt.Errorf("guidance: %d zeroed steps", g.ZeroSteps)
@@ -48,7 +51,10 @@ func (g Guidance) Validate() error {
 	if g.Projected && g.Adaptive.On() {
 		return errors.New("guidance: CFG-Zero*'s projection and APG are two combines, and a step takes one")
 	}
-	return g.Adaptive.validate()
+	if g.Adaptive.On() && g.Attention.On() {
+		return errors.New("guidance: APG's guider is handed APG's settings alone (AdaptiveGuider), so a NAG beside it would go unread")
+	}
+	return errors.Join(g.Adaptive.validate(), g.Attention.Validate())
 }
 
 // At is the guider for the step at index step, whose noise level is sigma: one that gives no velocity on a step

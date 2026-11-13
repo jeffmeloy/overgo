@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/sampling"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
@@ -95,9 +96,9 @@ func TestDenoiserCUDASessionBF16G3(t *testing.T) {
 	manifest, dir := loadDenoiseManifest(t, "g3_denoise.json")
 	config, weights := denoiserFixture(t)
 	geometry := testcheck.Must(config.CompileLatentGeometry(manifest.Request.Frames, manifest.Request.Width, manifest.Request.Height))(t)
-	program := testcheck.Must(CompileDenoiserProgramPrecision(config, weights, geometry, DenoiserPrecision{
+	program := testcheck.Must(compileDenoiserProgram(config, weights, geometry, DenoiserPrecision{
 		MatmulWeights: dtype.BF16, RoundAttentionStorage: true,
-	}))(t)
+	}, denoiserHistory{}, sampling.NormalizedAttention{}))(t)
 	session := testcheck.Must(NewDenoiserCUDASession(program, 0))(t)
 	defer func() {
 		if err := session.Close(); err != nil {

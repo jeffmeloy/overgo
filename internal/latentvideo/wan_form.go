@@ -121,7 +121,7 @@ func ValidateWanRequestForm(request WanRequest) error {
 	if len(request.InitialSample) != 0 || request.Noise != (sampling.CounterNoisePlan{}) {
 		return errors.New("latent video: a prompt-form Wan request carries no sample or noise plan")
 	}
-	return nil
+	return request.Guidance.Validate()
 }
 
 // withGeneration fills every generation parameter the request leaves at

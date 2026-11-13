@@ -142,6 +142,8 @@ func (g Guider) Combine(out, conditional, unconditional []float32) error {
 		}
 	}
 	switch {
+	case g.Guidance.Attention.On():
+		return errors.New("guidance: NAG guides a model's cross-attention, which only a model that runs it reads, and that model hands its guider the guidance without it")
 	case g.zeroed:
 		clear(out)
 	case g.Unconditional() && g.Guidance.Adaptive.On():

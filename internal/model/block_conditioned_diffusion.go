@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"overgo/internal/hostmath"
+	"overgo/internal/sampling"
 	"overgo/internal/tensor"
 )
 
@@ -57,6 +58,9 @@ type ConditionedDiffusionBlockOptions struct {
 	AxisPositions      [3][]uint32
 	// RoundAttentionStorage inserts BF16 storage rounds.
 	RoundAttentionStorage bool
+	// Attention is NAG on each block's cross-attention, which a block given a negative context runs
+	// (BuildGuidedBlock); its zero value guides nothing.
+	Attention sampling.NormalizedAttention
 }
 
 // conditionedDiffusionProgram owns validated geometry.
@@ -79,6 +83,9 @@ func CompileConditionedDiffusionProgram(options ConditionedDiffusionBlockOptions
 			options.AxisChannels, headWidth,
 		)
 	}
+	if err := options.Attention.Validate(); err != nil {
+		return conditionedDiffusionProgram{}, fmt.Errorf("conditioned diffusion: %w", err)
+	}
 	return conditionedDiffusionProgram{options: options}, nil
 }
 
@@ -98,7 +105,7 @@ func (p conditionedDiffusionProgram) BuildBlock(
 	weights ConditionedDiffusionBlockWeights,
 ) (ConditionedDiffusionBlockResult, error) {
 	return buildConditionedDiffusionBlock(
-		builder, input, conditioning, crossKey, crossValue, nil, nil, p.options, weights,
+		builder, input, conditioning, crossKey, crossValue, nil, nil, nil, nil, p.options, weights,
 	)
 }
 
@@ -110,7 +117,23 @@ func (p conditionedDiffusionProgram) BuildBlockWithSelfHistory(
 	weights ConditionedDiffusionBlockWeights,
 ) (ConditionedDiffusionBlockResult, error) {
 	return buildConditionedDiffusionBlock(
-		builder, input, conditioning, crossKey, crossValue, historyKey, historyValue, p.options, weights,
+		builder, input, conditioning, crossKey, crossValue, nil, nil, historyKey, historyValue, p.options, weights,
+	)
+}
+
+// BuildGuidedBlock is a block whose cross-attention the program's NAG guides away from a negative context, its keys
+// and values preprojected as the prompt's are (BuildCrossContext); historyKey and historyValue are the retained
+// self-attention history, both nil where there is none.
+func (p conditionedDiffusionProgram) BuildGuidedBlock(
+	builder *tensor.Builder,
+	input, conditioning, crossKey, crossValue, negativeKey, negativeValue, historyKey, historyValue *tensor.Tensor,
+	weights ConditionedDiffusionBlockWeights,
+) (ConditionedDiffusionBlockResult, error) {
+	if !p.options.Attention.On() || negativeKey == nil || negativeValue == nil {
+		return ConditionedDiffusionBlockResult{}, errors.New("conditioned diffusion block: NAG needs the program's guidance and a negative context")
+	}
+	return buildConditionedDiffusionBlock(
+		builder, input, conditioning, crossKey, crossValue, negativeKey, negativeValue, historyKey, historyValue, p.options, weights,
 	)
 }
 
@@ -144,6 +167,7 @@ type ConditionedDiffusionBlockResult struct {
 	SelfAttention                                            *tensor.Tensor // pre-projection SDPA output
 	SelfProjected                                            *tensor.Tensor // post output projection
 	SelfResidual                                             *tensor.Tensor
+	CrossAttention                                           *tensor.Tensor // pre-projection SDPA output, guided where NAG runs
 	CrossProjected                                           *tensor.Tensor
 	CrossResidual                                            *tensor.Tensor
 	FeedForward                                              *tensor.Tensor
@@ -235,11 +259,13 @@ func buildConditionedDiffusionCrossContext(
 // transformer block. conditioning is the per-execution [6*dim] timestep
 // embedding added to the block's learned modulation; chunk order is
 // (self shift, self scale, self gate, ffn shift, ffn scale, ffn gate).
-// crossKey/crossValue: preprojected fixed context.
+// crossKey/crossValue: preprojected fixed context; negativeKey/negativeValue:
+// a negative context's, which NAG guides the cross-attention away from, or nil.
 func buildConditionedDiffusionBlock(
 	builder *tensor.Builder,
 	input, conditioning *tensor.Tensor,
 	crossKey, crossValue *tensor.Tensor,
+	negativeKey, negativeValue *tensor.Tensor,
 	historyKey, historyValue *tensor.Tensor,
 	options ConditionedDiffusionBlockOptions,
 	weights ConditionedDiffusionBlockWeights,
@@ -247,6 +273,9 @@ func buildConditionedDiffusionBlock(
 	var result ConditionedDiffusionBlockResult
 	if builder == nil || input == nil || conditioning == nil || crossKey == nil || crossValue == nil {
 		return result, errors.New("conditioned diffusion block input is nil")
+	}
+	if (negativeKey == nil) != (negativeValue == nil) || negativeKey != nil && !negativeKey.Shape.Equal(negativeValue.Shape) {
+		return result, errors.New("conditioned diffusion block negative context shape is incompatible")
 	}
 	required := graphWeights{
 		weights.Modulation,
@@ -340,13 +369,18 @@ func buildConditionedDiffusionBlock(
 		buildBiasedProjection(builder, weights.CrossAttention.Query, weights.CrossAttention.QueryBias, crossIn),
 		weights.CrossAttention.QueryNorm, options.Epsilon,
 	)
-	crossAttention := builder.AttentionWithOptions(
-		roundStorage(builder.Reshape(crossQuery, headWidth, heads, tokens)),
-		roundStorage(crossKey), roundStorage(crossValue), tensor.AttentionOptions{Scale: attentionScale, Causal: false})
+	crossHeads := roundStorage(builder.Reshape(crossQuery, headWidth, heads, tokens))
+	attend := func(key, value *tensor.Tensor) *tensor.Tensor {
+		return builder.Reshape(builder.AttentionWithOptions(crossHeads, roundStorage(key), roundStorage(value),
+			tensor.AttentionOptions{Scale: attentionScale, Causal: false}), dim, tokens)
+	}
+	result.CrossAttention = attend(crossKey, crossValue)
+	if negativeKey != nil {
+		result.CrossAttention = buildNormalizedAttention(builder, result.CrossAttention, attend(negativeKey, negativeValue), options.Attention)
+	}
 
 	result.CrossProjected = buildBiasedProjection(
-		builder, weights.CrossAttention.Output, weights.CrossAttention.OutputBias,
-		builder.Reshape(crossAttention, dim, tokens),
+		builder, weights.CrossAttention.Output, weights.CrossAttention.OutputBias, result.CrossAttention,
 	)
 	result.CrossResidual = builder.Add(result.SelfResidual, result.CrossProjected)
 
@@ -361,6 +395,21 @@ func buildConditionedDiffusionBlock(
 		return ConditionedDiffusionBlockResult{}, err
 	}
 	return result, nil
+}
+
+// buildNormalizedAttention is NAG's Eqs. 7 to 10 (sampling.NormalizedAttention) on a cross-attention's outputs for the
+// prompt and the negative prompt, each [dim, tokens], a token's heads together as the norm takes them:
+// Z~ = Z+ + phi (Z+ - Z-); each token's L1 ratio R = |Z~|_1 / |Z+|_1; Z^ = min(R, tau) / R Z~;
+// Z = alpha Z^ + (1 - alpha) Z+. The absolute value is ReLU(x) + ReLU(-x).
+func buildNormalizedAttention(builder *tensor.Builder, positive, negative *tensor.Tensor, guidance sampling.NormalizedAttention) *tensor.Tensor {
+	scale, tau, alpha := float32(guidance.Scale), float32(guidance.Tau), float32(guidance.Alpha)
+	extrapolated := builder.Add(builder.Scale(positive, 1+scale), builder.Scale(negative, -scale))
+	norm := func(x *tensor.Tensor) *tensor.Tensor {
+		return builder.SumRows(builder.Add(builder.ReLU(x), builder.ReLU(builder.Scale(x, -1))))
+	}
+	ratio := builder.Divide(norm(extrapolated), norm(positive))
+	bounded := builder.Multiply(extrapolated, builder.Divide(builder.Clamp(ratio, 0, tau), ratio))
+	return builder.Add(builder.Scale(bounded, alpha), builder.Scale(positive, 1-alpha))
 }
 
 // buildConditionedDiffusionHead: final modulated projection. conditioning is

@@ -11,6 +11,7 @@ import (
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
+	"overgo/internal/sampling"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
@@ -39,19 +40,24 @@ type referenceEditDenoiserCUDASession struct {
 	headBuffer             *executor.DeviceBuffer
 	cacheKeys, cacheValues []*executor.DeviceBuffer
 	contextRetained        *executor.RetainedOutputs
-	historyProgram         *DenoiserProgram
-	historyFrames          int
-	ctx                    context.Context
-	stats                  referenceEditDenoiserStats
+	// negativeRetained is the negative context's keys and values, bound to every step graph, where the session runs
+	// NAG.
+	negativeRetained *executor.RetainedOutputs
+	historyProgram   *DenoiserProgram
+	historyFrames    int
+	ctx              context.Context
+	stats            referenceEditDenoiserStats
 }
 
-// newReferenceEditDenoiserCUDASession compiles each bounded prefix shape. The
-// session it gives has no text context yet: projectContext gives it one.
+// newReferenceEditDenoiserCUDASession compiles each bounded prefix shape, each
+// block guided by attention where it is NAG's. The session it gives has no
+// text context yet: projectContext gives it one.
 func newReferenceEditDenoiserCUDASession(
 	ctx context.Context,
 	checkpoint referenceEditCheckpoint,
 	geometry LatentGeometry,
 	layers, framesPerChunk, localAttentionFrames, totalFrames, ordinal int,
+	attention sampling.NormalizedAttention,
 ) (session *referenceEditDenoiserCUDASession, err error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -76,7 +82,7 @@ func newReferenceEditDenoiserCUDASession(
 	defer func() { err = errors.Join(err, weights.Close()) }()
 	config.NumLayers = layers
 	precision := DenoiserPrecision{MatmulWeights: dtype.BF16, RoundAttentionStorage: true}
-	cold, err := CompileDenoiserProgramPrecision(config, weights, geometry, precision)
+	cold, err := compileDenoiserProgram(config, weights, geometry, precision, denoiserHistory{}, attention)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +103,7 @@ func newReferenceEditDenoiserCUDASession(
 	for startFrame := framesPerChunk; startFrame < totalFrames; startFrame += framesPerChunk {
 		session.warm[startFrame], err = compileDenoiserProgramHistory(config, weights, geometry, precision, denoiserHistory{
 			Tokens: startFrame * geometry.Seq / framesPerChunk, StartFrame: startFrame,
-		})
+		}, attention)
 		if err != nil {
 			return session, err
 		}
@@ -291,29 +297,47 @@ func (s *referenceEditDenoiserCUDASession) uploadWeights(weights *DenoiserWeight
 	})
 }
 
-// projectContext gives the session the text context its chunks attend to:
+// projectContexts gives the session the text context its chunks attend to:
 // each layer's keys and values of it, kept on the device and bound to every
-// step graph. A session that had a context lets that one's go once the new
-// one is bound, so a resident session edits under one instruction after
-// another.
-func (s *referenceEditDenoiserCUDASession) projectContext(textContext []float32) (err error) {
-	value, err := feedValue(s.cold.contextInput, textContext, "reference edit context")
+// step graph, and where the session runs NAG, the negative context's beside
+// them, which a session that runs none is not given. A session that had
+// contexts lets those go once the new ones are bound, so a resident session
+// edits under one instruction after another.
+func (s *referenceEditDenoiserCUDASession) projectContexts(textContext, negativeContext []float32) (err error) {
+	guided := len(s.cold.stepNegativeKeys) > 0
+	if guided == (negativeContext == nil) {
+		return fmt.Errorf("reference edit denoiser: a session that runs NAG takes a negative context and one that runs none takes none, and this one runs NAG %t", guided)
+	}
+	project := func(values []float32) (*executor.RetainedOutputs, error) {
+		value, err := feedValue(s.cold.contextInput, values, "reference edit context")
+		if err != nil {
+			return nil, err
+		}
+		return s.cuda.ExecuteRetainedCompiled(
+			s.ctx, s.contextExecution.Graph,
+			map[*tensor.Tensor]reference.Value{s.cold.contextInput: value},
+			s.contextExecution.Inputs, nil, nil,
+		)
+	}
+	text, err := project(textContext)
 	if err != nil {
 		return err
 	}
-	previous := s.contextRetained
-	s.contextRetained, err = s.cuda.ExecuteRetainedCompiled(
-		s.ctx, s.contextExecution.Graph,
-		map[*tensor.Tensor]reference.Value{s.cold.contextInput: value},
-		s.contextExecution.Inputs, nil, nil,
-	)
-	if err != nil {
-		s.contextRetained = previous
-		return err
+	var negative *executor.RetainedOutputs
+	if guided {
+		if negative, err = project(negativeContext); err != nil {
+			return errors.Join(err, text.Release(context.WithoutCancel(s.ctx)))
+		}
 	}
-	if previous != nil {
-		defer func() { err = errors.Join(err, previous.Release(context.WithoutCancel(s.ctx))) }()
-	}
+	previous := []*executor.RetainedOutputs{s.contextRetained, s.negativeRetained}
+	s.contextRetained, s.negativeRetained = text, negative
+	defer func() {
+		for _, held := range previous {
+			if held != nil {
+				err = errors.Join(err, held.Release(context.WithoutCancel(s.ctx)))
+			}
+		}
+	}()
 	targets := []struct {
 		program   *DenoiserProgram
 		execution *executor.IndexedGraph
@@ -324,20 +348,33 @@ func (s *referenceEditDenoiserCUDASession) projectContext(textContext []float32)
 			execution *executor.IndexedGraph
 		}{program, s.warmExecutions[startFrame]})
 	}
-	for _, target := range targets {
-		for layer := range s.cold.contextKeys {
-			key, keyOK := s.contextRetained.Value(s.cold.contextKeys[layer])
-			value, valueOK := s.contextRetained.Value(s.cold.contextValues[layer])
-			if !keyOK || !valueOK {
-				return fmt.Errorf("reference edit denoiser context layer %d is not retained", layer)
+	bind := func(retained *executor.RetainedOutputs, keys, values func(*DenoiserProgram) []*tensor.Tensor) error {
+		for _, target := range targets {
+			for layer := range s.cold.contextKeys {
+				key, keyOK := retained.Value(s.cold.contextKeys[layer])
+				value, valueOK := retained.Value(s.cold.contextValues[layer])
+				if !keyOK || !valueOK {
+					return fmt.Errorf("reference edit denoiser context layer %d is not retained", layer)
+				}
+				keySlot, keyOK := target.execution.Graph.InputSlot(keys(target.program)[layer])
+				valueSlot, valueOK := target.execution.Graph.InputSlot(values(target.program)[layer])
+				if !keyOK || !valueOK {
+					return fmt.Errorf("reference edit denoiser cross layer %d is not compiled", layer)
+				}
+				target.execution.Inputs.Pointers[keySlot] = key.Pointer
+				target.execution.Inputs.Pointers[valueSlot] = value.Pointer
 			}
-			keySlot, keyOK := target.execution.Graph.InputSlot(target.program.stepCrossKeys[layer])
-			valueSlot, valueOK := target.execution.Graph.InputSlot(target.program.stepCrossValues[layer])
-			if !keyOK || !valueOK {
-				return fmt.Errorf("reference edit denoiser cross layer %d is not compiled", layer)
-			}
-			target.execution.Inputs.Pointers[keySlot] = key.Pointer
-			target.execution.Inputs.Pointers[valueSlot] = value.Pointer
+		}
+		return nil
+	}
+	if err := bind(text, func(p *DenoiserProgram) []*tensor.Tensor { return p.stepCrossKeys },
+		func(p *DenoiserProgram) []*tensor.Tensor { return p.stepCrossValues }); err != nil {
+		return err
+	}
+	if guided {
+		if err := bind(negative, func(p *DenoiserProgram) []*tensor.Tensor { return p.stepNegativeKeys },
+			func(p *DenoiserProgram) []*tensor.Tensor { return p.stepNegativeValues }); err != nil {
+			return err
 		}
 	}
 	s.stats.ContextProjections++
@@ -435,10 +472,12 @@ func (s *referenceEditDenoiserCUDASession) Close() error {
 		return nil
 	}
 	var errs []error
-	if s.contextRetained != nil {
-		errs = append(errs, s.contextRetained.Release(context.WithoutCancel(s.ctx)))
-		s.contextRetained = nil
+	for _, held := range []*executor.RetainedOutputs{s.contextRetained, s.negativeRetained} {
+		if held != nil {
+			errs = append(errs, held.Release(context.WithoutCancel(s.ctx)))
+		}
 	}
+	s.contextRetained, s.negativeRetained = nil, nil
 	errs = append(errs, executor.ReleaseDeviceBuffers(context.WithoutCancel(s.ctx), append(s.cacheKeys, s.cacheValues...)...))
 	s.cacheKeys, s.cacheValues = nil, nil
 	if s.headBuffer != nil {

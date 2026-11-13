@@ -12,6 +12,7 @@ import (
 	"overgo/internal/cuda/device"
 	"overgo/internal/media"
 	"overgo/internal/recipe"
+	"overgo/internal/sampling"
 	"overgo/internal/workflowruntime"
 )
 
@@ -31,6 +32,9 @@ type WanStudentRuntime struct {
 	projectionBytes int64
 	memo            wanConditioning
 	runs            int
+	// attention is the NAG the student's blocks were compiled with, which a request asks through its nag preset;
+	// a request asking other is refused at Reset, so its director loads a runtime for it.
+	attention sampling.NormalizedAttention
 }
 
 // LoadWanStudentRuntime loads the student in path for the clip a request asks, its omitted parameters the profile's.
@@ -39,11 +43,14 @@ func LoadWanStudentRuntime(ctx context.Context, store artifact.Repository, path 
 	if err != nil {
 		return nil, err
 	}
+	// A request the student does not run as it asks is refused before any of its files is read.
+	if request, err = resolveStudentRequest(profile, request); err != nil {
+		return nil, err
+	}
 	student, err := resolveWanStudent(path)
 	if err != nil {
 		return nil, err
 	}
-	request = request.withGeneration(profile.Generation)
 	volume, err := media.DownsampledVolume(request.Frames, request.Height, request.Width, profile.Policy.VAEStride)
 	if err != nil {
 		return nil, err
@@ -70,7 +77,7 @@ func LoadWanStudentRuntime(ctx context.Context, store artifact.Repository, path 
 		Source:         SourceVideoShape{Channels: media.RGBChannels, Frames: request.Frames, Height: request.Height, Width: request.Width},
 		FramesPerChunk: schedule.FramesPerChunk, LocalAttentionFrames: schedule.LocalAttention,
 		Timesteps: schedule.Timesteps, Sigmas: schedule.Sigmas, ContextTimestep: schedule.ContextTimestep, Warp: schedule.Warp,
-		Layers: config.NumLayers, DeviceOrdinal: device.DefaultOrdinal(), CodecLibrary: true,
+		Layers: config.NumLayers, DeviceOrdinal: device.DefaultOrdinal(), CodecLibrary: true, Attention: request.Guidance.Attention,
 	})
 	if err != nil {
 		return nil, err
@@ -82,30 +89,46 @@ func LoadWanStudentRuntime(ctx context.Context, store artifact.Repository, path 
 	// The student's projection is not the base's, so its contexts are kept under its checkpoint too.
 	return &WanStudentRuntime{
 		runtime: runtime, profile: profile, text: text, encoder: named + "\x00" + student.checkpoint,
-		projection: projection, projectionBytes: projectionBytes,
+		projection: projection, projectionBytes: projectionBytes, attention: request.Guidance.Attention,
 	}, nil
 }
 
-// admit refuses a request the student does not run as it asks: one with no prompt, one naming a preset, or with steps,
-// a shift or guidance other than the student's own, which its distillation fixed.
-func (r *WanStudentRuntime) admit(request WanRequest) error {
-	generation := r.profile.Generation
-	if !request.PromptForm() || request.Preset != "" {
-		return errors.New("latent video: a few-step student is asked by prompt and declares no preset")
+// studentPresets are a student's own presets in the catalog.
+func studentPresets(entry profileEntry) map[string]generationPolicy { return entry.StudentPresets }
+
+// resolveStudentRequest fills what a request leaves unset from the student preset it names, then from the student's
+// generation in its profile, and refuses one the student does not run as it asks: one with no prompt, one with steps,
+// a shift or a guidance scale other than the student's own, which its distillation fixed, or with any guidance but NAG,
+// which guides its attention and reads no unconditioned pass.
+func resolveStudentRequest(profile Profile, request WanRequest) (WanRequest, error) {
+	request, err := request.withPresetOf(studentPresets)
+	if err != nil {
+		return WanRequest{}, err
+	}
+	request = request.withGeneration(profile.Generation)
+	generation := profile.Generation
+	if !request.PromptForm() {
+		return WanRequest{}, errors.New("latent video: a few-step student is asked by prompt")
 	}
 	if !checked.Equal(request.Steps, generation.Steps) || !checked.Equal(request.Shift, generation.Shift) || !checked.Equal(request.GuideScale, generation.GuideScale) {
-		return fmt.Errorf("latent video: the student runs %d steps at shift %g unguided, asked %d at shift %g with guidance %g",
+		return WanRequest{}, fmt.Errorf("latent video: the student runs %d steps at shift %g unguided, asked %d at shift %g with guidance %g",
 			generation.Steps, generation.Shift, request.Steps, request.Shift, request.GuideScale)
 	}
-	return nil
+	if request.Guidance != (sampling.Guidance{Attention: request.Guidance.Attention}) {
+		return WanRequest{}, errors.New("latent video: the student runs unguided, so of guidance it reads NAG alone, which guides its attention")
+	}
+	return request, request.Guidance.Validate()
 }
 
-// Reset admits a request of the geometry the runtime was compiled for.
+// Reset admits a request of the geometry and the NAG the runtime was compiled for.
 func (r *WanStudentRuntime) Reset(_ context.Context, request WanRequest) error {
 	if r == nil || r.runtime == nil {
 		return errors.New("latent video: student runtime is closed")
 	}
-	request = request.withGeneration(r.profile.Generation)
+	request, err := resolveStudentRequest(r.profile, request)
+	if err != nil {
+		return err
+	}
 	volume, err := media.DownsampledVolume(request.Frames, request.Height, request.Width, r.profile.Policy.VAEStride)
 	if err != nil {
 		return err
@@ -114,20 +137,30 @@ func (r *WanStudentRuntime) Reset(_ context.Context, request WanRequest) error {
 	if !checked.Equal(media.VolumeGeometry{Frames: latent.LatentFrames, Height: latent.LatentHeight, Width: latent.LatentWidth}, volume) {
 		return errors.New("latent video: request differs from the resident student's geometry")
 	}
-	return r.admit(request)
+	if request.Guidance.Attention != r.attention {
+		return errors.New("latent video: request differs from the resident student's NAG")
+	}
+	return nil
 }
 
 // Generate draws the clip a prompt-form request asks, the prompt's context the one kept for it where a request before
-// asked it.
+// asked it, and under NAG the negative prompt's beside it.
 func (r *WanStudentRuntime) Generate(ctx context.Context, request WanRequest) (EncodedVideo, error) {
 	if r == nil || r.runtime == nil {
 		return EncodedVideo{}, errors.New("latent video: student runtime is closed")
 	}
-	request = request.withGeneration(r.profile.Generation)
-	if err := r.admit(request); err != nil {
+	request, err := resolveStudentRequest(r.profile, request)
+	if err != nil {
 		return EncodedVideo{}, err
 	}
-	contexts, err := r.memo.recall(r.encoder, []string{request.Prompt}, func(prompts []string) ([][]float32, error) {
+	if request.Guidance.Attention != r.attention {
+		return EncodedVideo{}, errors.New("latent video: request differs from the resident student's NAG")
+	}
+	prompts := []string{request.Prompt}
+	if r.attention.On() {
+		prompts = append(prompts, request.NegativePrompt)
+	}
+	contexts, err := r.memo.recall(r.encoder, prompts, func(prompts []string) ([][]float32, error) {
 		conditioned, err := textConditioningsWithWeights(ctx, r.text, r.projection, r.projectionBytes, prompts...)
 		contexts := make([][]float32, len(conditioned))
 		for index, result := range conditioned {
@@ -142,8 +175,12 @@ func (r *WanStudentRuntime) Generate(ctx context.Context, request WanRequest) (E
 	if err != nil {
 		return EncodedVideo{}, err
 	}
+	var negative []float32
+	if r.attention.On() {
+		negative = contexts[1]
+	}
 	video, err := writeClip(ctx, encoder, func(sink VideoFrameSink) error {
-		_, err := r.runtime.Run(ctx, contexts[0], int64(request.Seed), nil, nil, sink)
+		_, err := r.runtime.RunGuided(ctx, contexts[0], negative, int64(request.Seed), nil, nil, sink)
 		return err
 	})
 	if err == nil {

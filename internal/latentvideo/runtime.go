@@ -85,7 +85,7 @@ func NewGenerator(config GeneratorConfig) (generator *Generator, err error) {
 	if err != nil {
 		return nil, err
 	}
-	program, err := CompileDenoiserProgramPrecision(denoiserConfig, weights, geometry, config.Precision)
+	program, err := compileDenoiserProgram(denoiserConfig, weights, geometry, config.Precision, denoiserHistory{}, sampling.NormalizedAttention{})
 	if err != nil {
 		return nil, err
 	}

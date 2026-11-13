@@ -35,6 +35,9 @@ type ReferenceEditRuntimeConfig struct {
 	// CodecLibrary has the autoencoder convolve a clip large enough to repay
 	// it through cuDNN, on a machine that has it (libraryRoute).
 	CodecLibrary bool
+	// Attention is NAG in each block's cross-attention, which a run given a
+	// negative context guides by (RunGuided); its zero value guides nothing.
+	Attention sampling.NormalizedAttention
 }
 
 type referenceEditRuntimeResult struct {
@@ -155,7 +158,7 @@ func NewReferenceEditRuntime(config ReferenceEditRuntimeConfig) (runtime *refere
 	if err == nil {
 		runtime.denoiser, err = newReferenceEditDenoiserCUDASession(
 			context.Background(), checkpoint, chunkGeometry, config.Layers,
-			config.FramesPerChunk, config.LocalAttentionFrames, latent.LatentFrames, config.DeviceOrdinal,
+			config.FramesPerChunk, config.LocalAttentionFrames, latent.LatentFrames, config.DeviceOrdinal, config.Attention,
 		)
 	}
 	if err != nil {
@@ -179,7 +182,13 @@ func NewReferenceEditRuntime(config ReferenceEditRuntimeConfig) (runtime *refere
 // keys and values of the context it was last given and projects another only
 // when a request's differs, as the encoder keeps the latent of the source it
 // was last given.
-func (r *referenceEditRuntime) Run(ctx context.Context, textContext []float32, seed int64, source, initialNoise []float32, sink VideoFrameSink) (result referenceEditRuntimeResult, err error) {
+func (r *referenceEditRuntime) Run(ctx context.Context, textContext []float32, seed int64, source, initialNoise []float32, sink VideoFrameSink) (referenceEditRuntimeResult, error) {
+	return r.RunGuided(ctx, textContext, nil, seed, source, initialNoise, sink)
+}
+
+// RunGuided is Run with each block's cross-attention guided away from a negative prompt's context by the runtime's
+// NAG; a runtime with NAG is given one, and one without is given none.
+func (r *referenceEditRuntime) RunGuided(ctx context.Context, textContext, negativeContext []float32, seed int64, source, initialNoise []float32, sink VideoFrameSink) (result referenceEditRuntimeResult, err error) {
 	if r == nil {
 		return result, errors.New("reference edit runtime: closed")
 	}
@@ -200,9 +209,13 @@ func (r *referenceEditRuntime) Run(ctx context.Context, textContext []float32, s
 	if err := r.denoiser.ResetHistory(); err != nil {
 		return result, err
 	}
-	if given := sha256.Sum256(driver.Bytes(textContext)); given != r.contextFingerprint {
+	// The contexts are of the denoiser's one extent, so their bytes one after the other name the pair.
+	fingerprint := sha256.New()
+	fingerprint.Write(driver.Bytes(textContext))
+	fingerprint.Write(driver.Bytes(negativeContext))
+	if given := [sha256.Size]byte(fingerprint.Sum(nil)); given != r.contextFingerprint {
 		projected := processmeasure.Stage(ctx, "text context projected")
-		err := r.denoiser.projectContext(textContext)
+		err := r.denoiser.projectContexts(textContext, negativeContext)
 		projected()
 		if err != nil {
 			return result, err

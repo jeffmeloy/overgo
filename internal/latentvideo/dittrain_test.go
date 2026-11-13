@@ -1,6 +1,7 @@
 package latentvideo
 
 import (
+	"overgo/internal/sampling"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/testcheck"
 
@@ -237,5 +238,5 @@ func TestDiTTrainerCheckpointedForwardMatchesRetained(t *testing.T) {
 // CompileDenoiserProgram: builds the context and step graphs for one latent
 // geometry with exact F32 storage everywhere.
 func CompileDenoiserProgram(c DenoiserConfig, weights *DenoiserWeights, geometry LatentGeometry) (*DenoiserProgram, error) {
-	return CompileDenoiserProgramPrecision(c, weights, geometry, DenoiserPrecision{MatmulWeights: dtype.F32})
+	return compileDenoiserProgram(c, weights, geometry, DenoiserPrecision{MatmulWeights: dtype.F32}, denoiserHistory{}, sampling.NormalizedAttention{})
 }

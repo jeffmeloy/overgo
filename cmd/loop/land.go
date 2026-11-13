@@ -124,11 +124,19 @@ func (w *execRowWorld) tool(echo, said io.Writer, arguments ...string) (string, 
 // checkerCheckout is the worktree under the repository's process state the checker is built in, beside the replay's.
 const checkerCheckout = "checker"
 
-// buildChecker builds the gate into output from the trunk's commit alone, in a worktree of its own moved there
-// (moveReplay), one build at a time, so a commit is checked by committed code: built in the checkout, the uncommitted
+// buildChecker builds the gate into output from the trunk's commit alone, in a worktree of its own moved there by git
+// (moveTree), one build at a time, so a commit is checked by committed code: built in the checkout, the uncommitted
 // files of the landing, the plan or process control changed how a commit was checked, and 3e7b49d0c was checked with
-// uncommitted counts code (clean-checker/do).
-func buildChecker(root, output string, build func(arguments ...string) (string, error)) (string, error) {
+// uncommitted counts code (clean-checker/do). Building cmd/gate reads no data root, so none is copied in. A checker
+// that cannot be set up refuses with what stopped it, as one that does not build refuses with the build's output: Gate
+// took an empty refusal for a checker that ran, and its landing went on to confirm a commit that was never made
+// (SQA-397).
+func buildChecker(root, output string, build func(arguments ...string) (string, error)) (refusal string, err error) {
+	defer func() {
+		if err != nil && refusal == "" {
+			refusal = err.Error()
+		}
+	}()
 	head, err := gitauthority.Query(context.Background(), root, "rev-parse", "HEAD")
 	if err != nil {
 		return "", err
@@ -146,7 +154,7 @@ func buildChecker(root, output string, build func(arguments ...string) (string, 
 	if err != nil {
 		return "", err
 	}
-	if err := moveReplay(root, tree, strings.TrimSpace(string(head))); err != nil {
+	if err := moveTree(root, tree, strings.TrimSpace(string(head))); err != nil {
 		return "", err
 	}
 	return build("go", "-C", tree, "build", "-o", output, "./cmd/gate")

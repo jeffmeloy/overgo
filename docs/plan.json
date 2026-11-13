@@ -47,28 +47,6 @@
       ]
     },
     {
-      "id": "checker-setup",
-      "title": "A landing's checker builds from the trunk's commit with no data roots, and a checker that cannot be built refuses with what stopped it",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 102,
-        "reason": "Filed from history: 102, the median of what 48 landings that changed cmd/loop counted"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "A landing's checker builds from the trunk's commit with no data roots, and a checker that cannot be built refuses with what stopped it",
-          "status": "open",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestACheckerThatCannotBeBuiltRefusesWithWhatStoppedIt$'",
-          "files": [
-            "cmd/loop"
-          ],
-          "rationale": "Note: Serves: one refusal is broken code; a commit is checked by committed code, and a checker that cannot be built says why (SQA-397, P2).\n\nDisappears: two defects of clean-checker/do (e969f619a). buildChecker moves the checker worktree with moveReplay, which then copies the checkout's data-root file into it and fails where the checkout has none, though building cmd/gate needs no model or store root. And Gate runs the checker only when buildChecker returned no error, then returns the refusal it holds with no error: a git, lock or move error before the build leaves that refusal empty, so landRow goes on to confirm a landing that never ran, and the error that stopped it is lost for a misleading confirmation failure; landCommand records no refusal with an empty detail.\n\nThe change: the checker worktree is moved by git alone; the data-root file is copied only where a replay's tests read it. A checker that did not build refuses with what stopped it: the build's output, or the error before it.\n\nCheck: TestALandingsCheckerIsBuiltFromCommittedCode builds the checker in a fixture checkout with no data-root file, and a checker whose setup fails, in a directory that is no repository, refuses with that error's text.\n\nBatch: host lane."
-        }
-      ]
-    },
-    {
       "id": "guidance-ops",
       "title": "CFG-Zero*, the guidance interval, APG and NAG are guider functions written from their papers, each a preset admitted per model by its held-out suite on no loss beyond chance, a gain claimed only where the paired test shows one",
       "owner": "master-lead",

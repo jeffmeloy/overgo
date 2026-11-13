@@ -181,14 +181,19 @@ func (r replayed) tests(ctx context.Context, root string) ([]string, error) {
 	return strings.Fields(string(changed)), nil
 }
 
-// moveReplay checks the replay checkout out at commit, adding the worktree on first use, discarding what an earlier
-// replay's worker wrote there, and gives it the data roots the main checkout reads.
-func moveReplay(root, checkout, commit string) error {
+// moveTree checks a worktree of root's repository out at commit, adding it on first use and discarding what its last
+// use wrote there.
+func moveTree(root, checkout, commit string) error {
 	if _, err := os.Lstat(filepath.Join(checkout, ".git")); errors.Is(err, os.ErrNotExist) {
-		if err := gitWrite(root, "worktree", "add", "--quiet", "--detach", checkout, commit); err != nil {
-			return err
-		}
-	} else if err := errors.Join(gitWrite(checkout, "checkout", "--quiet", "--detach", "--force", commit), gitWrite(checkout, "clean", "--quiet", "-d", "--force")); err != nil {
+		return gitWrite(root, "worktree", "add", "--quiet", "--detach", checkout, commit)
+	}
+	return errors.Join(gitWrite(checkout, "checkout", "--quiet", "--detach", "--force", commit), gitWrite(checkout, "clean", "--quiet", "-d", "--force"))
+}
+
+// moveReplay moves the replay checkout to commit (moveTree) and gives it the data roots the main checkout reads, which
+// a replay's tests open models through.
+func moveReplay(root, checkout, commit string) error {
+	if err := moveTree(root, checkout, commit); err != nil {
 		return err
 	}
 	roots, err := os.ReadFile(filepath.Join(root, dataroot.ConfigFile))

@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"overgo/internal/dataroot"
 	"overgo/internal/testcheck"
 )
 
@@ -22,7 +21,7 @@ func TestALandingsCheckerIsBuiltFromCommittedCode(t *testing.T) {
 		return "package main\n\nimport \"fmt\"\n\nfunc main() { fmt.Print(\"" + says + "\") }\n"
 	}
 	for path, content := range map[string]string{
-		"go.mod": "module fixture\n\ngo 1.26\n", "cmd/gate/main.go": gate("committed"), dataroot.ConfigFile: "{}\n",
+		"go.mod": "module fixture\n\ngo 1.26\n", "cmd/gate/main.go": gate("committed"),
 	} {
 		testcheck.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(root, path)), 0o755))
 		testcheck.NoError(t, os.WriteFile(filepath.Join(root, path), []byte(content), 0o644))

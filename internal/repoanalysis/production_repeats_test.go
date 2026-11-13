@@ -198,9 +198,9 @@ func bodyRepeats(skeletons map[string][]bodySite, most int) ([][]string, int) {
 	return groups, repeated
 }
 
-// holdCeiling refuses repeated nodes of the production code where names over ceiling, and under it, since a ceiling
-// only falls, logging each repeat.
-func holdCeiling(t *testing.T, where, kind string, groups [][]string, repeated, ceiling int) {
+// holdCeiling refuses repeated nodes of the production code where over the ceiling the constant name holds, and
+// lowers it under it, since a ceiling only falls (fellUnder), logging each repeat.
+func holdCeiling(t *testing.T, where, kind string, groups [][]string, repeated, ceiling int, name string) {
 	t.Helper()
 	for _, group := range groups {
 		t.Logf("%s nodes x%d: %s", group[0], len(group)-1, strings.Join(group[1:], " "))
@@ -208,9 +208,7 @@ func holdCeiling(t *testing.T, where, kind string, groups [][]string, repeated, 
 	if repeated > ceiling {
 		t.Errorf("production %s repeats %d nodes beyond one copy of each %s, over the ceiling of %d, so fold the copy into the body it repeats", where, repeated, kind, ceiling)
 	}
-	if repeated < ceiling {
-		t.Errorf("production %s repeats %d nodes beyond one copy of each %s, under the ceiling of %d, so lower the ceiling to %d, since it only falls", where, repeated, kind, ceiling, repeated)
-	}
+	fellUnder(t, "production_repeats_test.go", name, ceiling, repeated)
 }
 
 // repeatFixture is a module of bodies of one skeleton: A and B differ only in their locals' names, C from A in one
@@ -266,16 +264,16 @@ func TestRepeatedProductionBodiesStayUnderTheirCeiling(t *testing.T) {
 	t.Run("outside the inference surface", func(t *testing.T) {
 		outside := productionBodies(load, linked, func(directory string) bool { return inside[directory] })
 		groups, repeated := bodyRepeats(outside, 0)
-		holdCeiling(t, "outside the inference surface", "body", groups, repeated, repeatCeiling)
+		holdCeiling(t, "outside the inference surface", "body", groups, repeated, repeatCeiling, "repeatCeiling")
 		groups, repeated = bodyRepeats(outside, parameterLeast)
-		holdCeiling(t, "outside the inference surface", "parameterised body", groups, repeated, parameterCeiling)
+		holdCeiling(t, "outside the inference surface", "parameterised body", groups, repeated, parameterCeiling, "parameterCeiling")
 	})
 	t.Run("inside the inference surface", func(t *testing.T) {
 		surface := productionBodies(load, linked, func(directory string) bool { return !inside[directory] })
 		groups, repeated := bodyRepeats(surface, 0)
-		holdCeiling(t, "inside the inference surface", "body", groups, repeated, surfaceRepeatCeiling)
+		holdCeiling(t, "inside the inference surface", "body", groups, repeated, surfaceRepeatCeiling, "surfaceRepeatCeiling")
 		groups, repeated = bodyRepeats(surface, parameterLeast)
-		holdCeiling(t, "inside the inference surface", "parameterised body", groups, repeated, surfaceParameterCeiling)
+		holdCeiling(t, "inside the inference surface", "parameterised body", groups, repeated, surfaceParameterCeiling, "surfaceParameterCeiling")
 	})
 	t.Run("local forwarders", func(t *testing.T) {
 		fixture := fixtureModule(t, map[string]string{
@@ -302,9 +300,7 @@ func TestRepeatedProductionBodiesStayUnderTheirCeiling(t *testing.T) {
 		if total > forwarderCeiling {
 			t.Errorf("production outside the inference surface declares %d local forwarders of %d nodes, over the ceiling of %d, so say each call in place", len(found), total, forwarderCeiling)
 		}
-		if total < forwarderCeiling {
-			t.Errorf("production outside the inference surface declares %d local forwarders of %d nodes, under the ceiling of %d, so lower the ceiling to %d, since it only falls", len(found), total, forwarderCeiling, total)
-		}
+		fellUnder(t, "local_forwarders_test.go", "forwarderCeiling", forwarderCeiling, total)
 	})
 	tests := testBodies(t, load)
 	t.Run("test bodies", func(t *testing.T) {

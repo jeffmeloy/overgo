@@ -138,7 +138,5 @@ func checked(t *testing.T) {
 	if total > threeLineCheckCeiling {
 		t.Errorf("the module's tests hold %d three-line error checks, over the ceiling of %d, so say each in one call with testcheck.NoError", total, threeLineCheckCeiling)
 	}
-	if total < threeLineCheckCeiling {
-		t.Errorf("the module's tests hold %d three-line error checks, under the ceiling of %d, so lower the ceiling to %d, since it only falls", total, threeLineCheckCeiling, total)
-	}
+	fellUnder(t, "error_check_test.go", "threeLineCheckCeiling", threeLineCheckCeiling, total)
 }

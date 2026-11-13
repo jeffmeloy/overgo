@@ -131,7 +131,5 @@ func opened(t *testing.T) {
 	if total > threeLineStoreCeiling {
 		t.Errorf("the module's tests hold %d three-line store openings, over the ceiling of %d, so open each with overgodbtest", total, threeLineStoreCeiling)
 	}
-	if total < threeLineStoreCeiling {
-		t.Errorf("the module's tests hold %d three-line store openings, under the ceiling of %d, so lower the ceiling to %d, since it only falls", total, threeLineStoreCeiling, total)
-	}
+	fellUnder(t, "store_opening_test.go", "threeLineStoreCeiling", threeLineStoreCeiling, total)
 }

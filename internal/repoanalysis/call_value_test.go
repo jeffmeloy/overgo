@@ -80,7 +80,5 @@ func checked(t *testing.T) {
 	if total > valueThenCheckCeiling {
 		t.Errorf("the module's tests hold %d value-then-check pairs, over the ceiling of %d, so take each value in one expression with testcheck.Must", total, valueThenCheckCeiling)
 	}
-	if total < valueThenCheckCeiling {
-		t.Errorf("the module's tests hold %d value-then-check pairs, under the ceiling of %d, so lower the ceiling to %d, since it only falls", total, valueThenCheckCeiling, total)
-	}
+	fellUnder(t, "call_value_test.go", "valueThenCheckCeiling", valueThenCheckCeiling, total)
 }

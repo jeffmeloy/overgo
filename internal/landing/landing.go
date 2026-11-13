@@ -803,7 +803,8 @@ func (l *landing) test(ctx context.Context) error {
 var invariantPackages = []string{"./internal/repoanalysis", "./internal/commanddoc", "./internal/landing", "./internal/plan"}
 
 // invariants runs the invariant packages' tests alone, those the repository
-// has: a tree without them, a fixture's, has no invariant to hold.
+// has: a tree without them, a fixture's, has no invariant to hold. A ceiling
+// they say a count fell under is lowered in the commit (lowerCeilings).
 func (l *landing) invariants(ctx context.Context) error {
 	held := slices.DeleteFunc(slices.Clone(invariantPackages), func(pattern string) bool {
 		_, err := os.Stat(filepath.Join(l.stageRoot(), filepath.FromSlash(pattern)))
@@ -816,18 +817,23 @@ func (l *landing) invariants(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return l.goTests(ctx, "invariants", held, whole)
+	output, err := l.goTests(ctx, "invariants", held, whole)
+	if err != nil {
+		return err
+	}
+	return l.lowerCeilings(ctx, output)
 }
 
 // goTest runs the tests of packages and says which of them ran rather than
 // replayed, under the stage's name.
 func (l *landing) goTest(ctx context.Context, stage string, packages ...string) error {
-	return l.goTests(ctx, stage, packages)
+	_, err := l.goTests(ctx, stage, packages)
+	return err
 }
 
 // goTests runs go test once with each set of arguments, a run with none skipped, and says which packages ran rather
-// than replayed over them all, under the stage's name.
-func (l *landing) goTests(ctx context.Context, stage string, runs ...[]string) error {
+// than replayed over them all, under the stage's name; it returns what the runs said.
+func (l *landing) goTests(ctx context.Context, stage string, runs ...[]string) (string, error) {
 	var outputs strings.Builder
 	for _, arguments := range runs {
 		if len(arguments) == 0 {
@@ -836,14 +842,14 @@ func (l *landing) goTests(ctx context.Context, stage string, runs ...[]string) e
 		output, err := l.runIn(ctx, l.stageRoot(), nil, "go", append([]string{"test", "-json", "-timeout=0"}, arguments...)...)
 		if err != nil {
 			if summary := testevidence.FailureSummary(output); summary != "" {
-				return fmt.Errorf("failed tests/packages: %s", summary)
+				return "", fmt.Errorf("failed tests/packages: %s", summary)
 			}
-			return err
+			return "", err
 		}
 		outputs.WriteString(output)
 	}
 	l.details[stage] = ranPackages(outputs.String())
-	return nil
+	return outputs.String(), nil
 }
 
 // reportedRuns is how many of the packages go test ran, and of their tests,

@@ -14,17 +14,6 @@
       },
       "steps": [
         {
-          "id": "ceilings-fall",
-          "title": "A count that falls under its ceiling passes, and the landing writes the lower ceiling into its commit",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestALandingLowersACeilingItsChangeFellUnder$'",
-          "files": [
-            "internal/repoanalysis",
-            "internal/landing"
-          ],
-          "rationale": "Serves: the owner's rule of 2026-11-10: the tool does it \u003e a check that refuses.\n\nDisappears: a refusal for an improvement: on 2026-11-12 card-turn/turn took three of a test's pipes in one expression each, the module's value-then-check pairs fell from 179 to 177, and TestATestTakesACallsValueInOneExpression refused it with \"lower the ceiling to 177, since it only falls\", the number it knew; four ceilings of internal/repoanalysis only fall this way.\n\nThe change: a ceiling check fails only above its ceiling; under it, it reports the lower count, and the landing writes that count into the ceiling's declaration in the change it commits.\n\nCheck: TestALandingLowersACeilingItsChangeFellUnder lands a change that lowers a counted pattern and finds the ceiling lowered in its commit and no refusal.\n\nBatch: host lane."
-        },
-        {
           "id": "worklist",
           "title": "Each refused attempt records the rule or test that refused it and whether its detail carried an edit, and the loop lists the refusals by rule with their counts, the worklist",
           "status": "open",

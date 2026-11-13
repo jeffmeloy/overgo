@@ -174,28 +174,6 @@
       ]
     },
     {
-      "id": "admission-words",
-      "title": "A preset's verdict says it was admitted on no loss beyond chance, with its wins, losses and ties, and claims a gain only where the paired test shows one",
-      "status": "open",
-      "budget": {
-        "nodes": 201,
-        "reason": "Filed from history: 201, the median of what 37 landings that changed internal/evaluation, cmd/evaluate counted"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "A preset's verdict says it was admitted on no loss beyond chance, with its wins, losses and ties, and claims a gain only where the paired test shows one",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -count=1 -run '^TestAPresetVerdictSaysItScreensHarm$'",
-          "files": [
-            "internal/evaluation",
-            "cmd/evaluate"
-          ],
-          "rationale": "Note: Serves: a reading says what it measured (owner, 2026-11-13).\n\nThe cause: AdmitPreset admits a preset when the exact paired test finds no loss beyond chance (internal/evaluation/preset_admission.go:66). It screens harm and cannot show a gain. cfg-zero-star (5 wins, 6 losses) and SenseNova's APG (13, 15) were admitted at about 97% ties. The verdict prints a bare \"Admitted\": true, and the plan's rows promise presets \"admitted per model by its held-out suite\" (guidance-ops, eight-bit-attention).\n\nThe change: the verdict and every place a preset's admission is described say it is admitted on no loss beyond chance, with its wins, losses and ties, and a gain is claimed only where the paired test shows one.\n\nNote: No boundary test: Says is new to PresetVerdict, and no test building at the base can name it; at the base the check runs no test."
-        }
-      ]
-    },
-    {
       "id": "guidance-ops",
       "title": "CFG-Zero*, the guidance interval, APG and NAG are guider functions written from their papers, each a preset admitted per model by its held-out suite on no loss beyond chance, a gain claimed only where the paired test shows one",
       "owner": "master-lead",

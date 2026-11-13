@@ -18,11 +18,14 @@ type PresetArm struct {
 }
 
 // PresetVerdict is a preset's reading against its model's reference on one suite: the paired cases (a win the preset
-// right where the reference was wrong) and whether it is admitted.
+// right where the reference was wrong), whether it is admitted, and what the reading says in words (Says). Admission
+// screens harm: a preset that loses no case beyond chance is admitted, which shows no gain, as cfg-zero-star's 5 wins
+// and 6 losses and SenseNova's APG's 13 and 15, among about 97% ties, were admitted (admission-words/do).
 type PresetVerdict struct {
 	Preset   string
 	Paired   tensorstats.PairedBinary
 	Admitted bool
+	Says     string
 }
 
 // AdmitPreset reads a preset against its model's reference on one suite (judge-calibration/user-size). Its evidence
@@ -64,5 +67,14 @@ func AdmitPreset(person map[string]float64, reference, candidate PresetArm, refe
 	lost := tensorstats.ExactPairedBinary(losses, wins, ties)
 	verdict := PresetVerdict{Preset: candidate.Preset, Paired: tensorstats.ExactPairedBinary(wins, losses, ties)}
 	verdict.Admitted = lost.Tail > falseGain
+	counts := fmt.Sprintf("%d wins, %d losses and %d ties", wins, losses, ties)
+	switch {
+	case !verdict.Admitted:
+		verdict.Says = "refused: a loss beyond chance, " + counts
+	case verdict.Paired.Tail <= falseGain:
+		verdict.Says = "admitted: a gain beyond chance, " + counts
+	default:
+		verdict.Says = "admitted on no loss beyond chance, which shows no gain: " + counts
+	}
 	return verdict, nil
 }

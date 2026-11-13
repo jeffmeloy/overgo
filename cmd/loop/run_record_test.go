@@ -114,7 +114,7 @@ func TestARunRecordsItsEnd(t *testing.T) {
 	if cells := first.Phases[2]; len(cells.Packages) != 1 || cells.Packages[0].Package != "overgo/cmd/benchmark" || first.Digests["run-1.gguf"] != "digest" {
 		t.Fatalf("the run keeps the cells phase's packages %+v and digests %v, want what its process recorded", cells.Packages, first.Digests)
 	}
-	if report := first.Report(); !strings.Contains(report, "cells did not pass") || !strings.Contains(report, "filing 0 rows") ||
+	if report := first.Report(); !strings.Contains(report, "cells ran 0s and did not pass") || !strings.Contains(report, "filing 0 rows") ||
 		!strings.Contains(report, "failed: overgo/cmd/benchmark TestACellMeasures") {
 		t.Fatalf("the first run reads %q", report)
 	}

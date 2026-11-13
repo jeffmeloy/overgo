@@ -75,6 +75,67 @@
       ]
     },
     {
+      "id": "lanes-turn",
+      "title": "A landing holds the card's turn for its lanes and scorecard alone, since no host test reaches the card",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A landing holds the card's turn for its lanes and scorecard alone, since no host test reaches the card",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestALandingHoldsTheCardForItsCardStagesAlone$'",
+          "files": [
+            "internal/landing"
+          ],
+          "rationale": "Serves: a landing waits for the card once, measured where it waits, and holds it no longer than its card stages need (owner, 2026-11-13).\n\nThe evidence: once card-reach/do refuses a host test a context, holdCard from the invariants stage (802b6da23) guards nothing in the host stages, which hold the card idle for their whole run, about ten minutes of each landing whose change reaches a card lane, while a campaign waits: card-reach's own landings held it from the invariants through the test stage. The turn moves to the lanes and the scorecard.\n\nFirst the evidence that no host stage reaches the card through a child program, which hostTestReach does not see (testing.Testing() alone): the host run of 2026-11-13 with the guard, beside the campaign holding the card, printed no wait for the turn from any process, but a test may swallow its child's output; holdCard's comment names 70 of cmd/loop's tests in the invariants, to be read for the children they start and whether those set OVERGO_CUDA_TEST."
+        }
+      ]
+    },
+    {
+      "id": "lane-cause",
+      "title": "A lanes refusal names the lane that failed first and its failed tests; a lane its failure cancelled is not the cause",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A lanes refusal names the lane that failed first and its failed tests; a lane its failure cancelled is not the cause",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestALanesRefusalNamesTheLaneThatFailedFirst$'",
+          "files": [
+            "internal/landing"
+          ],
+          "rationale": "Serves: the worklist lists refusals by the rule or test that made them (refusal-advice/worklist; owner, 2026-11-13).\n\nThe evidence: landing_refusals.json records no-clocks/own-budgets' first refusal as \"lane device: ... context canceled\", the lane cancelled when the web UI lane's TestWebUIBrowserWaitDeadline failed; opt-in-tests/run-or-remove's lanes cause was cut to \"exit 1: ...09s\", the tail of output, where the failed test was. The worklist reads the cause's first line, so it counts the cancelled lane and not the test."
+        }
+      ]
+    },
+    {
+      "id": "tabfm-cases",
+      "title": "TabFM's objective test holds enough held-out cases to tell its gain from noise",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "TabFM's objective test holds enough held-out cases to tell its gain from noise",
+          "status": "open",
+          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/train -count=1 -run '^TestTabFMObjectiveApprovesOnHeldOutRows$' -timeout=0",
+          "files": [
+            "cmd/train"
+          ],
+          "rationale": "Serves: one full measurement run with the card to itself, which fails on two known causes until they are cured (owner, 2026-11-13).\n\nThe evidence (run-stop-cause/causes, eb0080dcc): held-out accuracy rises 0.7115 to 0.7885, a gain of 0.0769 over 26 cases, below the 0.0991 those cases can tell from noise, so the gain is not supported (gainDeviates = 2). The head trains no worse; its held-out set is too small to show this gain."
+        }
+      ]
+    },
+    {
+      "id": "full-run",
+      "title": "One full measurement run with the card to itself, once its known causes are cured: TabFM's held-out cases, gemma-4-12B-it-fp8 onboarded, and the owner's answer to speed-table-run",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": []
+    },
+    {
       "id": "comfy-recorder",
       "title": "A ComfyUI recorder runs a saved workflow in ComfyUI's own process and records each section's settings, sigmas, latents and images as goldens, first the MOSS Ultra workflow",
       "owner": "master-lead",

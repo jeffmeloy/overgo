@@ -46,7 +46,7 @@ func TestTheHooksPrintTheRunsEnd(t *testing.T) {
 	began := time.Date(2026, 10, 30, 2, 21, 0, 0, time.UTC)
 	lanes := plan.MeasurementPhase{Name: "lanes", Started: began, Ended: began.Add(5*time.Hour + 23*time.Minute), Passed: true}
 	keep(plan.MeasurementRun{Commit: "bc1d47e13606fddb", Process: os.Getpid(), Started: began, Phases: []plan.MeasurementPhase{lanes}, Ended: began.Add(6 * time.Hour), Filed: 3})
-	if printed := prompted(); !strings.Contains(printed, "began "+at(began)) || !strings.Contains(printed, "lanes passed in 5h23m") ||
+	if printed := prompted(); !strings.Contains(printed, "began "+at(began)) || !strings.Contains(printed, "lanes ran 5h23m0s and passed") ||
 		!strings.Contains(printed, "ended "+at(began.Add(6*time.Hour))) || !strings.Contains(printed, "filing 3 rows") {
 		t.Fatalf("the prompt hook printed %q for a run that ended", printed)
 	}

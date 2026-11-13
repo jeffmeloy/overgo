@@ -160,7 +160,8 @@ func (run MeasurementRun) Report() string {
 			if !phase.Passed {
 				verdict = "did not pass"
 			}
-			fmt.Fprintf(&b, "; %s %s in %s", phase.Name, verdict, phase.Ended.Sub(phase.Started).Round(time.Minute))
+			// The phase's wall is what it ran, not a limit it was held to: "did not pass in 10m" read as one (owner, 2026-11-13).
+			fmt.Fprintf(&b, "; %s ran %s and %s", phase.Name, phase.Ended.Sub(phase.Started).Round(time.Minute), verdict)
 		case phase.Expected.IsZero():
 			fmt.Fprintf(&b, "; %s running since %s, no earlier run timed it", phase.Name, at(phase.Started))
 		default:

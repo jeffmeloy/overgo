@@ -46,9 +46,36 @@ type promptEncoder struct {
 	card cardEncoder
 }
 
-// cardEncoder encodes one sequence of attended tokens on the card into its final rows, as the host pass encodes them.
+// cardEncoder encodes one sequence of attended tokens on the card into its final rows, as the host pass encodes them,
+// and gives its weights and its context back to the card when it closes.
 type cardEncoder interface {
 	encode(ctx context.Context, tokens []int) ([]float32, error)
+	Close(ctx context.Context) error
+}
+
+// ReleaseCardEncoders closes every text encoder this process keeps on the card, each between two of its encodes, and
+// says how many it closed. The encoder is kept for the process, beside the sessions of every model that reads it, so
+// closing a Wan model's sessions left its 11 GB and its context on the card, and with them the card's turn a waiting
+// process asked for (card-turn/honest-handover); the next prompt that needs it opens it again.
+func ReleaseCardEncoders(ctx context.Context) (int, error) {
+	promptEncoders.Lock()
+	encoders := make([]*promptEncoder, 0, len(promptEncoders.byKey))
+	for _, encoder := range promptEncoders.byKey {
+		encoders = append(encoders, encoder)
+	}
+	promptEncoders.Unlock()
+	closed := 0
+	var result error
+	for _, encoder := range encoders {
+		encoder.mu.Lock()
+		if encoder.card != nil {
+			result = errors.Join(result, encoder.card.Close(ctx))
+			encoder.card = nil
+			closed++
+		}
+		encoder.mu.Unlock()
+	}
+	return closed, result
 }
 
 // openCardEncoder opens the checkpoint's encoder on the card under its plan, where a card runs here.

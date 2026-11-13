@@ -16,6 +16,11 @@ import (
 	"overgo/internal/recipe"
 )
 
+// Wan's text encoder, kept on the card for every session that reads it, is given back with the idle sessions.
+func init() {
+	capabilityruntime.ReleasesIdle(latentvideo.ReleaseCardEncoders)
+}
+
 func videoCapability() Capability {
 	// Both read the base model's text encoder and tokenizer, which no
 	// inventory holds, so their answers are kept under those files too.

@@ -330,14 +330,24 @@ func renderMedia(ctx context.Context, repository, path string, task recipe.Task,
 
 // giveTheCardToAWaiter closes the sessions release closes where another process waits for the card's turn this one
 // holds (processcontrol.TurnWaited), so the turn passes to it between pictures, a held session's contexts holding it,
-// and the next picture loads them again in its turn (card-turn/readings-turn); with no waiter they stay loaded.
+// and the next picture loads them again in its turn (card-turn/readings-turn); with no waiter they stay loaded. A
+// release that leaves the turn held refuses the render, naming it: a Wan render said it gave the card up after each of
+// 31 videos while its text encoder, kept outside its sessions, held the turn, and a landing's test waited 3.5 hours
+// (card-handover/encoder-release).
 func giveTheCardToAWaiter(ctx context.Context, release func(context.Context) (int, error)) (bool, error) {
 	waited, err := processcontrol.TurnWaited()
 	if err != nil || !waited {
 		return false, err
 	}
-	_, err = release(ctx)
-	return true, err
+	closed, err := release(ctx)
+	if err != nil {
+		return false, err
+	}
+	// The waiter cannot take a turn this process holds, so one still waiting waits for this process.
+	if held, err := processcontrol.TurnWaited(); err != nil || !held {
+		return err == nil, err
+	}
+	return false, fmt.Errorf("evaluate: a process waits for the card, and closing %d idle sessions left this render holding its turn: a context is kept outside them", closed)
 }
 
 // composedShare is how many captions a picture suite picks for each it composes of 3 to 10 atoms beside them

@@ -3,6 +3,7 @@ package latentvideo
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"encoding/binary"
 	"errors"
 	"io/fs"
@@ -360,6 +361,10 @@ func TestTextPipelineNamesItsCheckpointThroughTheStore(t *testing.T) {
 // forgetPromptEncoders releases the process-owned admissions and cached rows for a cold fixture.
 func forgetPromptEncoders(t *testing.T) {
 	t.Helper()
+	// An encoder a test opened on the card gives its context back before it is forgotten.
+	if _, err := ReleaseCardEncoders(context.Background()); err != nil {
+		t.Error(err)
+	}
 	promptEncoders.Lock()
 	defer promptEncoders.Unlock()
 	clear(promptEncoders.byKey)

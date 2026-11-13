@@ -30,8 +30,26 @@ func holdsSessions(director idleReleaser, holds bool) {
 	delete(idleSessions.directors, director)
 }
 
+// idleHolder is a part a model keeps on the card beside its sessions, given back as they are (ReleasesIdle).
+type idleHolder struct {
+	release func(context.Context) (int, error)
+}
+
+// releaseIdle gives the part back.
+func (holder *idleHolder) releaseIdle(ctx context.Context) (int, error) {
+	return holder.release(ctx)
+}
+
+// ReleasesIdle adds release to what ReleaseIdleSessions gives back, for the life of the process: a part a model keeps
+// on the card beside its sessions and between its requests, as Wan's text encoder, read by every Wan session, kept its
+// context and the card's turn when they closed (card-turn/honest-handover).
+func ReleasesIdle(release func(context.Context) (int, error)) {
+	holdsSessions(&idleHolder{release: release}, true)
+}
+
 // ReleaseIdleSessions closes every session no lease holds, of every session director of this process, as the
-// director's own eviction closes one, and says how many it closed. A model about to open calls it so it is not refused
+// director's own eviction closes one, and every part a model keeps beside them (ReleasesIdle), and says how many it
+// closed. A model about to open calls it so it is not refused
 // room the idle sessions hold (judge-speed/media-residency: beside two clips the Wan student had drawn, a judge's
 // projector found 10 MB of the card free for a 72 MB encode); each session loads again on its next request, and a
 // session in use is left as it is.

@@ -8,23 +8,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 250,
+        "nodes": -9,
         "reason": "Filed 2026-11-12 after the retire-admissions landing waited 6.2 of its 6.8 hours for the card. Two causes, each cured by fixing what exists: the idle release that frees the card between pictures missed Wan's text encoder, and the card turn was taken by each test's context rather than once by the landing that runs them. The landing's lane turn becomes the card's own turn, so two queues become one, and the parsing of each test's wait lines goes. The encoder's release and the render's honest check add about 25 statements; the lane change removes about as much as it adds. The lead's figure."
       },
       "steps": [
-        {
-          "id": "encoder-release",
-          "title": "Wan's text encoder closes with the idle sessions, and a render that closes them and still holds the card's turn refuses, naming it, where it had said it gave the card up",
-          "status": "open",
-          "verify": "go test ./cmd/evaluate -count=1 -run '^TestAReadingThatKeepsTheCardSaysSo$'",
-          "files": [
-            "cmd/evaluate",
-            "internal/latentvideo",
-            "internal/capabilityruntime",
-            "internal/mediacapability"
-          ],
-          "rationale": "Serves: the owner's review of 2026-11-12: report a hand-over only when the turn was released, and close what holds the Wan model's context; every failure is a defect, cured by fixing what exists before adding.\n\nDisappears: a render that says it gave the card up and kept it. On 2026-11-12 the Wan reference render printed \"gave the card to a waiting process\" after each of 31 videos while executor.test.exe waited for the card's turn from 14:14 to 17:35, the retire-admissions landing with it. Cause, shown in the code: Wan's umT5 text encoder is opened on the card once a process and kept in latentvideo's process-wide promptEncoders (prompt_encoder.go, promptEncoder.card, a graphruntime.ResidentSession and its context), outside every session director, so capabilityruntime.ReleaseIdleSessions closed the Wan session and left the encoder's 11 GB and its context, and with them the turn; giveTheCardToAWaiter (cmd/evaluate/render.go) returned true whenever a waiter was there, whatever the release did. Where else: every context opener in internal and cmd was read; among the media paths the encoder cache is the only card holder outside a session (the caption conditioner, the picture and video autoencoders, the denoisers and the upscaler are each a session's and close with it; nvvfx.Open loads libraries and opens no context); the same miss left the encoder on the card when modelcli released the idle sessions to make room for a judge.\n\nThe change: latentvideo.ReleaseCardEncoders closes every encoder kept on the card, between its encodes, and the next prompt opens it again; capabilityruntime.ReleasesIdle adds it to what ReleaseIdleSessions gives back, mediacapability registering it with the video capability. giveTheCardToAWaiter, after the release, asks again whether a waiter waits for this process: one still waiting waits for a turn the render holds, and the render refuses, naming the sessions it closed and the turn it kept, rather than saying it gave the card up.\n\nCheck: TestAReadingGivesTheCardUpBetweenPicturesToAWaiter adds a fourth picture whose release closes nothing while a waiter waits: the reading refuses naming the turn it kept and gives no card up. TestCardEncodersCloseWithTheIdleSessions holds the encoder's release on a counted card. The original case is the rehearsal: moss-ultra-sections/finishing lands beside a real Wan render and a real picture render.\n\nBatch: host lane."
-        },
         {
           "id": "lane-turn",
           "title": "A landing takes the card's turn once for its lanes on the card, their processes riding on its place, and says its wait as it waits",

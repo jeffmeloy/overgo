@@ -276,9 +276,9 @@ func Run(ctx context.Context, options Options) (landed string, err error) {
 				return "", fmt.Errorf("%scandidate worktree: %w", stagePrefix, err)
 			}
 		}
-		// A change that reaches a lane on the card has the card's turn held from its first stage on the card to its end.
-		if slices.Contains(cardStages, check.name) && !options.Preflight && l.card == nil {
-			if card, err := l.reachesCard(); err != nil {
+		// The card's turn is held from the landing's first stage on the card to its end.
+		if !options.Preflight && l.card == nil {
+			if card, err := l.onCard(check.name); err != nil {
 				return "", refused(fmt.Errorf("%scard turn: %w", stagePrefix, err))
 			} else if card {
 				if err := l.holdCard(ctx); err != nil {
@@ -351,6 +351,20 @@ func (l *landing) checks() []check {
 // invariants start git, the plan command, and a fixture's go test and checker. The host stages had held the card idle
 // about ten minutes of each landing whose change reaches a card lane, while a campaign waited (lanes-turn/do).
 var cardStages = []string{"lanes", "scorecard"}
+
+// onCard says a stage uses the card: a step's check that runs on it, whatever the change reaches, or the lanes and the
+// scorecard of a change that reaches a lane on it (reachesCard). A check on the card that held no turn took the card
+// per context and waited out a render's clip at each: tabfm-cases/do's waited on its first context for a Wan clip
+// while its trainer, run with the turn held, takes 11.5 minutes in all (check-turn/do).
+func (l *landing) onCard(stage string) (bool, error) {
+	if stage == "verify" && slices.ContainsFunc(l.verifiers, onTheCard) {
+		return true, nil
+	}
+	if !slices.Contains(cardStages, stage) {
+		return false, nil
+	}
+	return l.reachesCard()
+}
 
 // onTheCard says a step's check runs on the graphics card: it sets OVERGO_CUDA_TEST=1, without which cudatest.Require
 // skips every test that reaches the card. A check that needs model files alone (the modeltest tag) runs on the host

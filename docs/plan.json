@@ -3,25 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "run-stop-cause",
-      "title": "The measurement run of 8 November stopped on 15 model tests; each is run at the head and its cause found before the next full run",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 0,
-        "reason": "Filed 2026-11-12 from the owner's review: the cause of the stop first, then one full run with the card to itself after the rehearsal."
-      },
-      "steps": [
-        {
-          "id": "fifteen",
-          "title": "The 15 tests that failed the 8 November run's lanes are run at the head with the card to themselves, and each failure's cause is shown or each passes",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo ./internal/diffusionimage ./internal/latentimage -count=1 -run '^(TestWanProductionRuntime|TestWanLifecycleAcceptance|TestRealResidentForwardLeadership|TestMOSSRotaryRefinementCheckpoint|TestMOSSRotaryJointCheckpoint|TestMOSSRotaryDenoiserCheckpoint|TestMOSSSamplingCheckpoint|TestMOSSDecoderCheckpoint|TestMOSSGenerationCheckpoint)$'",
-          "rationale": "Serves: the owner's review of 2026-11-12: measurement_run.json still shows the run of 8 Nov at fdd4ab1cea37 (preflight did not pass in 10m, lanes did not pass in 1h41m, 0 rows filed), and none has run since; the cause of that stop first, then one full run with the card to itself after the rehearsal.\n\nThe evidence: the cycle checkout's record (.overgo-runtime/cycle/.overgo-runtime/measurement_run.json) names the lanes' 15 failures: internal/latentvideo TestWanProductionRuntime and TestWanLifecycleAcceptance; internal/diffusionimage TestRealResidentForwardLeadership; internal/latentimage TestMOSSRotaryRefinementCheckpoint, TestMOSSRotaryJointCheckpoint, TestMOSSRotaryDenoiserCheckpoint, TestMOSSSamplingCheckpoint, TestMOSSDecoderCheckpoint and TestMOSSGenerationCheckpoint; internal/inference TestServingGoldenEvidence; cmd/evaluate TestGenerationSoakSurvivesLengthSweep; cmd/train TestCodecRouteTrainsADecoderOrNamesTheMissingOperator, TestTabFMObjectiveApprovesOnHeldOutRows and TestUn0RoutePublishesCheckpoint; cmd/validate TestEveryViewedTextModelServesFromItsDirectory. The run kept their names and none of their messages.\n\nThe work: each is run at the head with the card to itself; a failure's cause is found in the code or reproduced and cured by its own step; one that passes is named as passing. Then one full measurement run.\n\nBatch: card lane."
-        }
-      ]
-    },
-    {
       "id": "refusal-advice",
       "title": "A refusal's advice fixes what it names, and a refusal whose fix the tool knows is not a refusal",
       "class": "consolidation",

@@ -93,7 +93,8 @@ func TestTabFMObjectiveApprovesOnHeldOutRows(t *testing.T) {
 	}
 	t.Logf("TabFM label accuracy on the held-out requests' query rows (%d requests split in all): %.4f -> %.4f (verdict %s)", len(tables), verdict.BaselineValue, verdict.CandidateValue, result.Verdict)
 	if !result.Passed {
-		t.Fatal("the trained TabFM head did not gain held-out label accuracy")
+		t.Fatalf("the trained TabFM head's held-out gain was not approved: gain %.4f over %d cases against the %.4f these cases can tell from noise (supported %t)",
+			result.Gain.Gain, result.Gain.Cases, result.Gain.Detectable, result.Gain.Supported)
 	}
 	if _, err := trainingworkflow.PromoteObjectiveAdaptive(ctx, store, tableObjectiveAlias, []artifact.ID{result.Observation}); err != nil {
 		t.Fatal(err)

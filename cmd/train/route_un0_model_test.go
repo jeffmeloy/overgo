@@ -29,7 +29,7 @@ func TestUn0RoutePublishesCheckpoint(t *testing.T) {
 	out := filepath.Join(t.TempDir(), "checkpoint")
 	if err := runRoute(t.Context(), []string{"oscillatorimage", "-model", model, "-steps", "2",
 		"-stimulus", filepath.Join(repository, "docs", "verification", "un0-training-dataset.txt"),
-		"-store", filepath.Join(t.TempDir(), "store"), "-out", out}); err != nil {
+		"-store", t.TempDir(), "-out", out}); err != nil {
 		t.Fatalf("oscillatorimage route on Un-0: %v", err)
 	}
 	checkpoint, err := trainingprogram.LoadCheckpoint(out)

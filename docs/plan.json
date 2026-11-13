@@ -131,7 +131,7 @@
             "internal/scorecard"
           ],
           "needs_card": true,
-          "rationale": "LiveEdit pays the VAE twice, encode and decode, and the Wan student decodes the same way chunk by chunk. The causal VAE keeps a per-chunk feature cache, so chunk k can decode while chunk k + 1 denoises, hiding most of the decode behind the network. The kernels are unchanged, so the frames are bit-identical.\n\nNote: files set to internal/latentvideo, internal/cuda, internal/media, internal/capabilityruntime, internal/servingattempt, internal/runrecord, cmd/recipe, internal/scorecard: a measuring step records its time through the timing chain the owner named (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard), so its landing may write there\n\nServes: first-output for LiveEdit and the Wan student.\nDisappears: decode time added after the last denoise.\nEvidence: the frames are bit-identical to the sequential decode, and the user-size cell's decode stage shrinks.\nBatch: device lane.",
+          "rationale": "LiveEdit pays the VAE twice, encode and decode, and the Wan student decodes the same way chunk by chunk. The causal VAE keeps a per-chunk feature cache, so chunk k can decode while chunk k + 1 denoises, hiding most of the decode behind the network. The kernels are unchanged, so the frames are bit-identical.\n\nNote: files set to internal/latentvideo, internal/cuda, internal/media, internal/capabilityruntime, internal/servingattempt, internal/runrecord, cmd/recipe, internal/scorecard: a measuring step records its time through the timing chain the owner named (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard), so its landing may write there\n\nNote: Measured 2026-11-13 at f79132c42, before building: TestSelfForcingMatchesItsUpstreamGolden, the card's turn held, denoised its seven chunks in 11.6 s and decoded the clip in 8.0 s, so the decode is about 40% of the clip's card time. Sampled every 250 ms, nvidia-smi read the card busy through the denoise (a kernel running, which does not say how many SMs ran). The decoder's session and the denoiser's are separate card sessions; two contexts on one card take turns rather than run together, so the overlap needs the decoder to run on a second stream in the denoiser's context. The cheap test before the 800-node build: one chunk's decode launched on a second stream of the denoiser's context during the next chunk's denoise, its wall against the two run in turn.\n\nServes: first-output for LiveEdit and the Wan student.\nDisappears: decode time added after the last denoise.\nEvidence: the frames are bit-identical to the sequential decode, and the user-size cell's decode stage shrinks.\nBatch: device lane.",
           "depends_on": [
             "media-user-size/stages"
           ]
@@ -1174,31 +1174,6 @@
           ],
           "needs_card": true,
           "rationale": "Serves: the workbench's own-origin protection, which its static files already carry.\n\nDisappears: the one route that answers stored bytes under their stored media type with none of the headers the static shell has (internal/server/artifact_gallery.go:111-116). No writer stores HTML or SVG today (the intake's allowlist, workspace_capabilities.go:223-237), so this is a missing second wall, not an open door: the first writer that stores one would give a page script on the server's origin.\n\nEvidence: the review of 2026-11-09, read at ac1935d75, exploit not demonstrated.\n\nPredicted effect: none on a measured cell.\n\nBatch: device lane: the local worker that works it is served on the card, so dispatch passes it over while the card is held, and no session takes it before loop-proof/local-demonstrated (re-filed 2026-11-11 to carry needs_card, its text unchanged).\n\nNote: The owner, 2026-11-09: this is the local worker's next proof, one real open step. After loop-proof/local-demonstrated, the local worker (Qwen3.8-27B through overgo's server) works this step from its prompt, with no help, and the gate lands what it writes; the landing's cost lines name the local worker, every attempt counted."
-        }
-      ]
-    },
-    {
-      "id": "clip-encode",
-      "title": "Every MP4 overgo writes carries the colours drawn, tagged BT.709, a finish whose runtime is missing is refused before anything is drawn, and a finished frame reaches FFmpeg as 8-bit bytes made on the card",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 182,
-        "reason": "Estimated: FFmpeg arguments for the colour conversion and tags, one admission call moved ahead of generation, and a transfer to 8-bit YUV on the card with a byte path through the MP4 encoder beside its float path."
-      },
-      "steps": [
-        {
-          "id": "device-bytes",
-          "title": "A finished frame is converted on the card to the 8-bit BT.709 YUV 4:2:0 FFmpeg encodes and handed to it as is, so the host reads an eighth of the bytes, keeps no float copy of the frame, and FFmpeg converts nothing",
-          "status": "open",
-          "verify": "OVERGO_NVVFX=C:/Users/jeffm/upscale/env/Lib/site-packages/nvvfx/libs OVERGO_FFMPEG=C:/Users/jeffm/upscale/ffmpeg.exe OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestAFinishedFrameReachesTheEncoderAsEightBitYUV$'",
-          "files": [
-            "internal/latentvideo",
-            "internal/cuda/nvvfx",
-            "internal/media"
-          ],
-          "needs_card": true,
-          "rationale": "Serves: finished clips written faster and in less memory, the effect no longer waiting on the host.\n\nDisappears: four host passes over every finished frame. Today a 3328 x 1920 frame comes back as 77 MB of float32 (finishingEncoder.add: MemcpyDtoH, then a loop rebuilding 19 million float32 values into a second 77 MB slice). The MP4 encoder then converts it value by value through a callback into 19 MB of rgb24, compares it pixel by pixel with bytes.Equal against a 19 MB copy of the frame before, and pipes it to FFmpeg, whose scaler converts it to YUV on the CPU. On rtx-vsr/nvenc's student clip, 81 frames finished at four times, the effect took 3.8 s of a 10.4 s write (7.8 frames a second), so about two thirds of the time is host work. Each stream holds about 197 MB of host buffers.\n\nThe fix: the effect already writes 8-bit RGBA on the card. NvCVImage_Transfer converts it there to BT.709 limited-range YUV 4:2:0 (8-bit RGB where the runtime writes no YUV), which is downloaded, 9.6 MB a frame at four times, and piped to FFmpeg as raw yuv420p tagged as clip-encode/colour-709 tags it. The float path stays for unfinished clips. ChangedPixels is counted on the bytes FFmpeg is handed, the change of what it counts named in the record.\n\nCheck: TestAFinishedFrameReachesTheEncoderAsEightBitYUV finishes the student clip at four times. The host must read width x height x 3/2 bytes a frame, the decoded frames must be within 40 dB PSNR of the float path's decoded frames, and two writes must be the same bytes. BenchmarkFinishedClipWrite (test-surface/judge-tests) gives frames a second and bytes allocated a frame, before and after, in the landing's message.\n\nPredicted effect: about 16 frames a second at four times (the effect alone runs 21), and about 30 MB of host buffers a stream in place of 197 MB.\n\nBatch: device lane."
         }
       ]
     },

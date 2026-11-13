@@ -70,6 +70,20 @@ const (
 	statusTextBytes   = 256
 )
 
+// A YUV 4:2:0 NvCVImage, as the runtime takes it (probed 2026-11-13, clip-encode/device-bytes): the pixel format the
+// runtime initialises as three 8-bit components a pixel, the planar I420 layout (luma, then U, then V), and the
+// descriptor byte that holds the colour space, NVCV_709 | NVCV_VIDEO_RANGE | NVCV_CHROMA_INTSTITIAL: without it the
+// transfer converts by BT.601, and with cosited chroma it takes each block's chroma from its top-left pixel alone;
+// interstitial chroma is its block's mean (TestAYUVFrameIsBT709LimitedRange).
+const (
+	pixelFormatYUV420  = 10
+	layoutI420         = 3
+	colorspaceByte     = 25
+	colorspace709Video = 9
+	yuv420Numerator    = 3
+	yuv420Denominator  = 2
+)
+
 // Runtime is NVIDIA's Video Effects runtime loaded from its directory, its entry points resolved.
 type Runtime struct {
 	directory                                          string
@@ -156,6 +170,12 @@ func (image Image) Bytes() uint64 {
 	return uint64(image.Width) * uint64(image.Height) * rgbChannels * float32Bytes
 }
 
+// YUV420Bytes is the size of a width by height frame in 8-bit YUV 4:2:0, a luma plane and two chroma planes of a
+// quarter of it each, the bytes FFmpeg's yuv420p takes.
+func YUV420Bytes(width, height int) uint64 {
+	return uint64(width) * uint64(height) * yuv420Numerator / yuv420Denominator
+}
+
 // vfxEffect is one created effect of the runtime.
 type vfxEffect struct {
 	runtime *Runtime
@@ -217,6 +237,22 @@ func (r *Runtime) describe(pixels driver.DevicePtr, width, height int, planarFlo
 	code, _, _ := r.imageInit.Call(uintptr(unsafe.Pointer(image)), uintptr(width), uintptr(height), uintptr(pitch), uintptr(pixels),
 		format, component, layout, memoryGPU)
 	return image, r.status("describe an image", code)
+}
+
+// describeYUV420 is the descriptor of a width by height 8-bit YUV 4:2:0 frame at pixels, its planes I420, its colour
+// space BT.709 limited range.
+func (r *Runtime) describeYUV420(pixels driver.DevicePtr, width, height int) (*descriptor, error) {
+	if width <= 0 || height <= 0 || pixels == 0 {
+		return nil, fmt.Errorf("nvvfx: a YUV image of %dx%d at %#x", width, height, pixels)
+	}
+	image := new(descriptor)
+	code, _, _ := r.imageInit.Call(uintptr(unsafe.Pointer(image)), uintptr(width), uintptr(height), uintptr(width), uintptr(pixels),
+		pixelFormatYUV420, componentU8, layoutI420, memoryGPU)
+	if err := r.status("describe a YUV image", code); err != nil {
+		return nil, err
+	}
+	image[colorspaceByte] = colorspace709Video
+	return image, nil
 }
 
 // transfer converts source into target on stream by the runtime's own NvCVImage_Transfer, each value multiplied by
@@ -325,11 +361,29 @@ func (u *Upscaler) build(level uint32) error {
 
 // Frame runs the effect on the frame at source, writing it at target, both planar float32 RGB of the Upscaler's sizes.
 func (u *Upscaler) Frame(source, target driver.DevicePtr) error {
-	from, err := u.runtime.describe(source, u.source.Width, u.source.Height, true)
+	to, err := u.runtime.describe(target, u.target.Width, u.target.Height, true)
 	if err != nil {
 		return err
 	}
-	to, err := u.runtime.describe(target, u.target.Width, u.target.Height, true)
+	// The inverse is taken in float32: 1/byteScale of two untyped integer constants is 0.
+	return u.run(source, to, 1/float32(byteScale))
+}
+
+// FrameYUV runs the effect on the planar float32 RGB frame at source and writes it at target in 8-bit BT.709
+// limited-range YUV 4:2:0, YUV420Bytes of the Upscaler's target size: the effect's 8-bit output is converted on the
+// card, so a finished frame leaves it as the bytes an encoder takes, an eighth of its float32 RGB.
+func (u *Upscaler) FrameYUV(source, target driver.DevicePtr) error {
+	to, err := u.runtime.describeYUV420(target, u.target.Width, u.target.Height)
+	if err != nil {
+		return err
+	}
+	return u.run(source, to, 1)
+}
+
+// run converts the planar float32 RGB frame at source to the effect's 8-bit source, runs the effect, and converts its
+// 8-bit output into target, each value multiplied by scale.
+func (u *Upscaler) run(source driver.DevicePtr, target *descriptor, scale float32) error {
+	from, err := u.runtime.describe(source, u.source.Width, u.source.Height, true)
 	if err != nil {
 		return err
 	}
@@ -339,8 +393,7 @@ func (u *Upscaler) Frame(source, target driver.DevicePtr) error {
 	if err := u.effect.Run(); err != nil {
 		return err
 	}
-	// The inverse is taken in float32: 1/byteScale of two untyped integer constants is 0.
-	return u.runtime.transfer(u.stagedTarget, to, 1/float32(byteScale), u.stream)
+	return u.runtime.transfer(u.stagedTarget, target, scale, u.stream)
 }
 
 // Close destroys the effect and frees its staging.

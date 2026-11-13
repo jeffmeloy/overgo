@@ -236,15 +236,17 @@ func IsLiveEdit(path string) bool {
 
 // EncodedVideo owns a deterministic clip artifact, a GIF or an MP4.
 type EncodedVideo struct {
-	Data          []byte `json:"data"`
-	MediaType     string `json:"media_type"`
-	Frames        int    `json:"frames"`
-	Channels      int    `json:"channels"`
-	Height        int    `json:"height"`
-	Width         int    `json:"width"`
-	FPS           int    `json:"fps"`
-	ChangedPixels int    `json:"changed_pixels"`
-	ResidentRun   int    `json:"resident_run"`
+	Data      []byte `json:"data"`
+	MediaType string `json:"media_type"`
+	Frames    int    `json:"frames"`
+	Channels  int    `json:"channels"`
+	Height    int    `json:"height"`
+	Width     int    `json:"width"`
+	FPS       int    `json:"fps"`
+	// ChangedPixels are the pixels whose bytes changed from the frame before, counted on the bytes the encoder was
+	// handed: an MP4's rgb24 colour, or a finished clip's YUV luma, as Encoding's input -pix_fmt names.
+	ChangedPixels int `json:"changed_pixels"`
+	ResidentRun   int `json:"resident_run"`
 	// Preset is what the generation that made the clip ran; a clip decoded from its bytes holds none.
 	Preset media.Preset `json:"preset,omitzero"`
 	// Encoding is the FFmpeg and the arguments that wrote an MP4; a GIF, and a clip decoded from its bytes, holds none.

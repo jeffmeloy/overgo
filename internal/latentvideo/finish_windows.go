@@ -14,6 +14,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/cuda/device"
+	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/nvvfx"
 	"overgo/internal/media"
 )
@@ -162,10 +163,21 @@ type finishingEncoder struct {
 	runtime *nvvfx.Runtime
 	worker  *device.Worker
 	stages  []*nvvfx.Upscaler
-	// frames are the device frames the stages read and write: the input, then each stage's output.
+	// frames are the device frames the stages read and write: the input, then each stage's output, the last of which
+	// holds no float32 frame where it is written as YUV.
 	frames         []nvvfx.Image
 	upload, result []byte
 	finished       []float32
+	// yuv is the encoder after the finish where it takes 8-bit YUV 4:2:0, and yuvFrame the device frame the last stage
+	// writes it into: the frame is converted on the card and read back as the bytes FFmpeg encodes, an eighth of its
+	// float32 RGB, where it was read as float32, rebuilt, and converted value by value again on the host.
+	yuv      yuvEncoder
+	yuvFrame driver.DevicePtr
+}
+
+// yuvEncoder takes frames already in 8-bit BT.709 limited-range YUV 4:2:0 (mp4Encoder.addYUV).
+type yuvEncoder interface {
+	addYUV(ctx context.Context, index int, yuv []byte, height, width int) error
 }
 
 // newFinishingEncoder finishes frames in the pixel range given before next, which takes them in [0, 1].
@@ -193,10 +205,14 @@ func (f *finishingEncoder) build(state *device.State, height, width int) (err er
 		return err
 	}
 	f.frames = append(f.frames, frame)
-	for _, stage := range f.finish.levels() {
+	f.yuv, _ = f.next.(yuvEncoder)
+	levels := f.finish.levels()
+	for index, stage := range levels {
 		target := nvvfx.Image{Width: frame.Width * stage.scale, Height: frame.Height * stage.scale}
-		if target.Pixels, err = state.Driver.MemAlloc(target.Bytes()); err != nil {
-			return err
+		if f.yuv == nil || index < len(levels)-1 {
+			if target.Pixels, err = state.Driver.MemAlloc(target.Bytes()); err != nil {
+				return err
+			}
 		}
 		f.frames = append(f.frames, target)
 		upscaler, err := f.runtime.NewUpscaler(state.Driver, state.Stream, stage.level, frame, target)
@@ -206,7 +222,15 @@ func (f *finishingEncoder) build(state *device.State, height, width int) (err er
 		f.stages = append(f.stages, upscaler)
 		frame = target
 	}
-	f.upload, f.result = make([]byte, f.frames[0].Bytes()), make([]byte, frame.Bytes())
+	f.upload = make([]byte, f.frames[0].Bytes())
+	if f.yuv != nil {
+		if f.yuvFrame, err = state.Driver.MemAlloc(nvvfx.YUV420Bytes(frame.Width, frame.Height)); err != nil {
+			return err
+		}
+		f.result = make([]byte, nvvfx.YUV420Bytes(frame.Width, frame.Height))
+		return nil
+	}
+	f.result = make([]byte, frame.Bytes())
 	f.finished = make([]float32, len(f.result)/float32Bytes)
 	return nil
 }
@@ -239,23 +263,33 @@ func (f *finishingEncoder) add(ctx context.Context, index int, frame []float32, 
 		if err := state.Driver.MemcpyHtoD(f.frames[0].Pixels, f.upload); err != nil {
 			return err
 		}
+		result := f.frames[len(f.frames)-1].Pixels
 		for stage, upscaler := range f.stages {
-			if err := upscaler.Frame(f.frames[stage].Pixels, f.frames[stage+1].Pixels); err != nil {
+			var err error
+			if f.yuv != nil && stage == len(f.stages)-1 {
+				result, err = f.yuvFrame, upscaler.FrameYUV(f.frames[stage].Pixels, f.yuvFrame)
+			} else {
+				err = upscaler.Frame(f.frames[stage].Pixels, f.frames[stage+1].Pixels)
+			}
+			if err != nil {
 				return err
 			}
 		}
 		if err := state.Driver.StreamSynchronize(state.Stream); err != nil {
 			return err
 		}
-		return state.Driver.MemcpyDtoH(f.result, f.frames[len(f.frames)-1].Pixels)
+		return state.Driver.MemcpyDtoH(f.result, result)
 	})
 	if err != nil {
 		return err
 	}
+	last := f.frames[len(f.frames)-1]
+	if f.yuv != nil {
+		return f.yuv.addYUV(ctx, index, f.result, last.Height, last.Width)
+	}
 	for index := range f.finished {
 		f.finished[index] = math.Float32frombits(binary.LittleEndian.Uint32(f.result[index*float32Bytes:]))
 	}
-	last := f.frames[len(f.frames)-1]
 	return f.next.add(ctx, index, f.finished, last.Height, last.Width)
 }
 
@@ -293,12 +327,18 @@ func (f *finishingEncoder) release() error {
 		for _, upscaler := range f.stages {
 			failed = errors.Join(failed, upscaler.Close())
 		}
+		held := []driver.DevicePtr{f.yuvFrame}
 		for _, frame := range f.frames {
-			failed = errors.Join(failed, state.Driver.MemFree(frame.Pixels))
+			held = append(held, frame.Pixels)
+		}
+		for _, pixels := range held {
+			if pixels != 0 {
+				failed = errors.Join(failed, state.Driver.MemFree(pixels))
+			}
 		}
 		return failed
 	})
-	f.stages, f.frames = nil, nil
+	f.stages, f.frames, f.yuvFrame = nil, nil, 0
 	err = errors.Join(err, f.worker.Close())
 	f.worker = nil
 	return err

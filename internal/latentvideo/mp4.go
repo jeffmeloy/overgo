@@ -23,6 +23,18 @@ import (
 // yuv420p.
 const chromaSubsampling = 2
 
+// lumaBytes are the bytes of a pixel's luma, which a changed pixel of a YUV frame is counted on.
+const lumaBytes = 1
+
+// chromaPlanes are the planes a 4:2:0 frame holds beside its luma, U and V.
+const chromaPlanes = 2
+
+// yuv420Bytes is a frame's size in 8-bit YUV 4:2:0: its luma plane and its chroma planes of a chroma sample a
+// chromaSubsampling square.
+func yuv420Bytes(height, width int) int {
+	return height*width + chromaPlanes*(height/chromaSubsampling)*(width/chromaSubsampling)
+}
+
 // x264Codec is a clip's encoder unless it is finished: x264's slow preset at a constant rate factor of 14, one thread.
 // On two VidGen clips cut to 81 frames at 832 x 480 it read back at 40.1 and 40.4 dB in 2.6 and 2.4 MB, where ultrafast
 // at 18 read 38.4 and 38.6 in 3.1 and 2.7 MB (ultrafast turns off the deblocking filter and adaptive quantization),
@@ -42,8 +54,15 @@ var nvencCodec = []string{"-c:v", "hevc_nvenc", "-preset", "p7", "-rc", "vbr", "
 // bt709Conversion converts a clip's RGB to 4:2:0 YUV by BT.709's limited-range coefficients and tags the stream with
 // BT.709's primaries, transfer, matrix and range, so a player shows the colours drawn: with no colour options FFmpeg's
 // scaler converts by BT.601 and writes no tags, and a player shows untagged HD as BT.709 (clip-encode/colour-709).
-var bt709Conversion = []string{"-vf", "scale=out_color_matrix=bt709:out_range=tv", "-pix_fmt", "yuv420p",
-	"-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv"}
+var bt709Conversion = append([]string{"-vf", "scale=out_color_matrix=bt709:out_range=tv"}, bt709Tags...)
+
+// bt709Tags write 4:2:0 YUV tagged with BT.709's primaries, transfer, matrix and range: a frame handed to FFmpeg
+// already in BT.709 limited-range yuv420p, as a finished frame is (clip-encode/device-bytes), is encoded as it is.
+var bt709Tags = []string{"-pix_fmt", "yuv420p", "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv"}
+
+// centredChroma tags a YUV 4:2:0 frame whose chroma is its 2 x 2 block's mean, sited at the block's centre, as the
+// effects runtime converts it (nvvfx.Upscaler.FrameYUV).
+var centredChroma = []string{"-chroma_sample_location", "center"}
 
 // nvencEncoder is the name FFmpeg lists NVENC's HEVC encoder by.
 const nvencEncoder = "hevc_nvenc"
@@ -63,6 +82,8 @@ type mp4Encoder struct {
 	fps, height, width, frames, changed int
 	// codec is the encoder's options, x264Codec where none is set.
 	codec []string
+	// yuv says the clip's frames come as 8-bit BT.709 limited-range YUV 4:2:0 (addYUV), set by its first frame.
+	yuv bool
 }
 
 // newFinishedMP4Encoder writes a finished clip on NVENC where the FFmpeg at ffmpeg lists it, and with x264 otherwise,
@@ -146,11 +167,16 @@ func (s *mp4Encoder) start(height, width int) error {
 	if len(codec) == 0 {
 		codec = x264Codec
 	}
-	s.encoding.Args = append(append(append([]string{
-		"-nostdin", "-hide_banner", "-loglevel", "error",
-		"-f", "rawvideo", "-pix_fmt", "rgb24", "-s", fmt.Sprintf("%dx%d", width, height),
-		"-r", strconv.Itoa(s.fps), "-i", "pipe:0", "-an",
-	}, codec...), bt709Conversion...), "-movflags", "frag_keyframe+empty_moov", "-f", "mp4", "pipe:1")
+	input, conversion, frameBytes := []string{"-pix_fmt", "rgb24"}, bt709Conversion, media.RGBChannels*height*width
+	if s.yuv {
+		// The frame is tagged as it comes, so FFmpeg converts nothing: untagged, it was read as BT.601 and converted.
+		input = append(slices.Clone(bt709Tags), centredChroma...)
+		conversion, frameBytes = input, yuv420Bytes(height, width)
+	}
+	s.encoding.Args = append(append(append(append(append([]string{
+		"-nostdin", "-hide_banner", "-loglevel", "error", "-f", "rawvideo"}, input...),
+		"-s", fmt.Sprintf("%dx%d", width, height), "-r", strconv.Itoa(s.fps), "-i", "pipe:0", "-an"),
+		codec...), conversion...), "-movflags", "frag_keyframe+empty_moov", "-f", "mp4", "pipe:1")
 	frameInput, frameSource := io.Pipe()
 	supervised, err := processcontrol.Start(s.wait, processcontrol.Command{
 		Path:   s.ffmpeg,
@@ -168,7 +194,7 @@ func (s *mp4Encoder) start(height, width int) error {
 		_ = frameInput.CloseWithError(errors.New("latent video: FFmpeg exited before the clip's last frame"))
 	}()
 	s.supervised, s.input = supervised, frameSource
-	s.height, s.width, s.raw = height, width, make([]byte, media.RGBChannels*height*width)
+	s.height, s.width, s.raw = height, width, make([]byte, frameBytes)
 	return nil
 }
 
@@ -177,9 +203,32 @@ func (s *mp4Encoder) Add(index int, frame []float32, height, width int) error {
 	return s.add(context.Background(), index, frame, height, width)
 }
 
-// add writes the frame to FFmpeg and counts the pixels that changed since the
-// frame before; the first frame starts FFmpeg at its size.
+// add writes the frame to FFmpeg as rgb24 and counts the pixels whose bytes changed since the frame before; the first
+// frame starts FFmpeg at its size.
 func (s *mp4Encoder) add(_ context.Context, index int, frame []float32, height, width int) error {
+	return s.write(index, height, width, false, func(raw []byte) error {
+		return media.EncodePlanarRGB8Into(raw, frame, height, width, func(value float32) uint8 {
+			return encodeVideoByte(value, s.pixels)
+		})
+	})
+}
+
+// addYUV writes a frame already in 8-bit BT.709 limited-range YUV 4:2:0 to FFmpeg, which encodes it as it is, and
+// counts the pixels whose luma changed since the frame before: the bytes FFmpeg is handed, where an rgb24 frame's
+// pixels are counted on their colour bytes.
+func (s *mp4Encoder) addYUV(_ context.Context, index int, yuv []byte, height, width int) error {
+	return s.write(index, height, width, true, func(raw []byte) error {
+		if len(yuv) != len(raw) {
+			return fmt.Errorf("latent video: a %dx%d YUV 4:2:0 frame of %d bytes, want %d", width, height, len(yuv), len(raw))
+		}
+		copy(raw, yuv)
+		return nil
+	})
+}
+
+// write fills the clip's frame buffer by fill, counts the pixels that changed since the frame before, and hands the
+// frame to FFmpeg; the first frame starts FFmpeg at its size, its frames YUV 4:2:0 or rgb24 as yuv says.
+func (s *mp4Encoder) write(index, height, width int, yuv bool, fill func(raw []byte) error) error {
 	if s == nil {
 		return errors.New("latent video: invalid MP4 frame")
 	}
@@ -187,25 +236,27 @@ func (s *mp4Encoder) add(_ context.Context, index int, frame []float32, height, 
 		return errors.New("latent video: frame index is out of order")
 	}
 	if s.frames == 0 && s.supervised == nil {
+		s.yuv = yuv
 		if err := s.start(height, width); err != nil {
 			return err
 		}
 	}
-	if s.input == nil {
+	if s.input == nil || yuv != s.yuv {
 		return errors.New("latent video: invalid MP4 frame")
 	}
 	if !checked.Equal(height, s.height) || !checked.Equal(width, s.width) {
 		return errors.New("latent video: invalid MP4 frame geometry")
 	}
-	if err := media.EncodePlanarRGB8Into(s.raw, frame, height, width, func(value float32) uint8 {
-		return encodeVideoByte(value, s.pixels)
-	}); err != nil {
+	if err := fill(s.raw); err != nil {
 		return err
 	}
-	plane := height * width
-	for index := range plane {
-		base := index * media.RGBChannels
-		if s.prior != nil && !bytes.Equal(s.raw[base:base+media.RGBChannels], s.prior[base:base+media.RGBChannels]) {
+	pixelBytes := media.RGBChannels
+	if yuv {
+		pixelBytes = lumaBytes
+	}
+	for index := range height * width {
+		base := index * pixelBytes
+		if s.prior != nil && !bytes.Equal(s.raw[base:base+pixelBytes], s.prior[base:base+pixelBytes]) {
 			s.changed++
 		}
 	}

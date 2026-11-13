@@ -36,19 +36,6 @@
       },
       "steps": [
         {
-          "id": "image-readings",
-          "title": "MOSS-Image-SFT's and SenseNova's guidance presets each hold their verdict, admitted on no loss beyond chance or refused, and only an admitted one is offered",
-          "status": "open",
-          "verify": "go test ./internal/mediacapability -count=1 -run '^TestTheReadPresetsHoldTheirVerdicts$'",
-          "files": [
-            "internal/mediacapability",
-            "internal/server",
-            "docs/verification",
-            "docs/sqa_findings.json"
-          ],
-          "rationale": "Serves: a preset is offered only once its held-out suite admits it, on no loss beyond chance, a gain claimed only where the paired test shows one (owner, 2026-11-13).\n\nThe readings so far: MOSS-Image-SFT's and SenseNova's guidance presets, each judged on the 524 TIFA questions of its 80 cases at a person's size against its model's reference, by Qwen3.8-27B. Wan's three arms are hours of rendering away and stay pending (guidance-ops/preset-readings), so the image models' verdicts are offered now, not held for them.\n\nThe change: preset_readings.json holds each read preset as admitted or refused, and docs/verification/guidance-preset-readings.json each verdict with the evaluations it compared, its wins, losses and ties and its tail, saying what it shows.\n\nCheck: TestTheReadPresetsHoldTheirVerdicts holds every admitted or refused preset to its verdict in the record, and every verdict's pairs to its counts and its evaluations.\n\nNote: files set to internal/mediacapability, docs/verification, docs/sqa_findings.json: the readings' record and its check, and the lead's triage of the findings answered today, which rides with this commit\n\nNote: files set to internal/mediacapability, internal/server, docs/verification, docs/sqa_findings.json: the server's MOSS contract test pins the page's preset choices, which the readings change"
-        },
-        {
           "id": "preset-readings",
           "title": "Each model's guidance presets and Wan's model-card shift are read against its reference at a person's size, and only an admitted preset is offered",
           "status": "open",

@@ -39,7 +39,7 @@
         ],
         "adoption_scope": "Supersedes the absent repository-document reference at the owner's request; current external SHA is verified. Does not alter the executable plan."
       },
-    "assessment": "1217 improves two existing owners: first-cause cancellation/diagnostics and card ownership restricted to actual device stages. No format-independent execution migration is claimed by this operational slice. Remaining advisory376 is P3; acquisition261 remains separate. No new IDs.",
+    "assessment": "Embedded PTX/records now restore with Go through one cached set shared by form and undo.401 records admitted root/tag discovery omissions; current unconditional kernel/preset repair remains valid. No independent scheduler, source registry or model-format migration is implied.",
     "ast_surface_review": {
         "revision": "9bd406acafb89c44a439722419f1f7e85e71f691",
         "architectural_target": "Fewer independent product entry points and dependency owners; retain process isolation and existing compiled/runtime/development authority.",
@@ -170,10 +170,10 @@
       },
     "rank_basis": "Actual398/399 admission failures precede local400 consolidation.397 closed;400 retains unique coverage.376 owns known-rule/history/delivery obligations.",
     "refactor_target_progress": {
-        "architectural_progress": "Go context cause now owns first failure while siblings cancel; testevidence.Failures formats the actual shared diagnostic contract for device, web UI and landing consumers. Existing landing/processcontrol owners retain stage, process and turn authority.",
-        "conflicts": "A preliminary availability probe still controls commit release and waiter marking before a separate acquisition. Status keeps competing projections and treats missing retained data inconsistently. Neither requires another framework.",
-        "next_useful_reductions": "Finish the acquisition transition through the current turn owner; advisory status cleanup rides related work. Existing395/400 exact test/setup reductions remain bounded candidates. Keep recipe/model executors and numerical contracts with their established owners.",
-        "cost": "Current10changed Go files +135production/+561testAST (+28/+79lines), one additional test file, zero new production files/packages/binaries/staticfixtures. deviceDiagnostic plus failure formatting271->230AST locally; full migration still grows. No speed saving or refactor completion established."
+        "architectural_progress": "Embedded executable/data inputs now belong to the same immutable-candidate restoration owner as Go, with one cached discovery result for form and undo. Existing gosource typed metadata is the shared reference owner, and verifier parsing already owns build contexts.",
+        "conflicts": "The new local metadata reader uses a separate default context and excludes the module root. Metadata duplication is a reuse candidate, but correctness requires preserving caller-specific selection and error/log semantics rather than moving the loop behind another wrapper.",
+        "next_useful_reductions": "Repair the admitted discovery omissions at the existing input owner; evaluate deleting its local decoder only against complete call/context/error costs. Existing395/400 test/setup reductions remain separate ride-along candidates. Keep numerical loops with current executors.",
+        "cost": "Four changedGo files +331production/+164testAST, +67/+23lines, zero added production/test files, packages, binaries or staticfixtures. One new native temp-module/candidate setup and at most one cached metadata query. No safe net reduction or end-to-end gain established."
       },
     "working_notes_review": {
         "finding": "SQA-334",
@@ -183,10 +183,10 @@
       }
   },
     "committed_plan": {
-    "git_blob": "2bac9a91b1a57bbb25eca64effe86e19b8e64a2d",
+    "git_blob": "9f4491bc90f4614e21cbdb426aafe92131a81437",
     "path": "docs/plan.json",
-    "revision": "1217b98a6ca574b3e4c1458729ed272383fde96c",
-    "sha256": "5d755ec7c409644c71ad040807c367e57ce0530c945eaf897bf3eebbe382042b",
+    "revision": "78fdeebb752fb63e8cd513362c877c66cc2d1b67",
+    "sha256": "686b93764a7cbe4086fa504970e8c05002d9f8d6671f787baf3d40a466e46eb6",
     "working_tree_status": "Committed plan at review pin; prior draft assessment retains its own snapshot identity. Current working plan edits excluded."
   },
     "findings": [
@@ -6209,9 +6209,9 @@
       ],
     "comparison": "Use the smallest existing native fixtures for host-only, device-only and mixed-step order and actual full-mode early refusal. No additional model run is needed to establish sequencing. Count every new helper, retained order fixture and full lifecycle case; source movement alone is not a saving.",
     "displaced_surface": "Host-only late verification and unconditional second host execution are displaced. Remaining removable work is broad/dependent execution before a failing host assertion in a mixed landing. Retain form and existing planverify/undo/added-check owners, one acceptance per declared command and exact candidate/base identity. MERGE verify_first_test.go into form_test.go: retain its explicit verify-before-test assertion as well as before-lanes, then remove the old139-AST file/order helper and duplicate host/card cases. Keep native mixed-list and full refused-run proof; do not remove space, cancellation, cleanup or conflict coverage.",
-    "evidence": "0afbb6366 adds form before invariants/test/lanes: selected Go tests are listed in the candidate and undo tree, unknown names/build failures are refused early, and known nonbuilding undo checks are not run again. onTheCard now uses OVERGO_CUDA_TEST=1 rather than modeltest alone. planverify.Execute removes its second host run and repeat-comparison code. Retained local records show comfy-recorder/client refused in form (6.002s stage, no test/lanes), then in invariants (40.375s stage, again no test/lanes), before its successful landing. This is observed early admission, not hypothetical saved wall. The existing slices.ContainsFunc still sends the entire verify stage late if any accepted verifier needs the card; form does not execute a host assertion. A mixed landing with a host check that builds but fails still reaches broad tests/lanes first. The full-mode false-verifier case remains absent; spent_test still exercises false only as preflight.",
+    "evidence": "0afbb6366 adds form before invariants/test/lanes: check names/builds are listed in candidate and undo trees and known nonbuilding undo checks are not rerun. Retained comfy-recorder/client refusals at form6.002s and invariants40.375s show early admission before broad work; planverify no longer executes the same host check twice.78fdeebb7 repairs embedded PTX/record restoration and caches its discovered set across form/undo/undoTree. Its native assertion-based undo is retained, with complete +331production/+164testAST counted once in this review. That useful input repair does not execute a host assertion in form. checks still sends the entire verify stage after broad tests/lanes if any accepted check needs the card, so a mixed landing with a building but false host prerequisite remains late. spent_test still covers a false verifier as preflight, not full mixed mode.401 separately tracks root/build-context input discovery; do not merge that distinct identity contract into this sequencing finding.",
     "evidence_basis": "shown_from_source",
-    "evidence_commit": "7daa461d05051a53bceb25d5ae05a66e2c2c096e",
+    "evidence_commit": "78fdeebb752fb63e8cd513362c877c66cc2d1b67",
     "expected_benefit": {
         "historical": "Earlier complete scratch-only alternative at efc02c5: landing.go5418->5418, spent_test.go682->695 (+13test AST/+103LF bytes); one existing Git/module fixture with4->5 table attempts. Kept as historical sizing, not current source after candidate isolation.",
         "current": "58e8280 host-first +175 production/+148 test AST retained. New0afbb6366 full change adds252 production/311 test AST (+28/+31lines, net0/+2files), including deletion of testevidence/verdict.go and repeat-comparison tests. No static fixture/schema/command growth. Removes the second planverify execution, but adds candidate/base go-test listings and prepares the undo checkout in both form and later undo where checks build. Native Go cache is retained; no aggregate wall saving measured.",
@@ -6220,7 +6220,7 @@
     "id": "SQA-322",
     "impact": "A declared acceptance failure can refuse a full attempt before broad host/device checks. This is sequencing efficiency; it neither eliminates initial invariant/lock costs nor claims successful runs were wasted.",
     "likely_effort": "Small existing table reorder and one case in the retained lifecycle fixture; no new framework.",
-    "plan_coverage": "Form and once-only execution improve the existing gate; the retained mixed-list obligation is not closed by compile/list admission. No new preflight command or selector is needed.",
+    "plan_coverage": "undo-embeds/do landed78fdeebb7 and improves form/undo input fidelity. Existing host-first/form work remains credited; mixed host/card assertion ordering is still the bounded322 obligation.401 is distinct input-set correctness.",
     "plan_references": [
         "fail-early/verify-first58e8280 (landed)",
         "User feedback: late verification refusal costs",
@@ -10189,7 +10189,69 @@
       ],
     "status": "open",
     "title": "Keep checker isolation and setup-refusal assertions in one native fixture"
-  }
+  },
+    {
+      "id": "SQA-401",
+      "status": "open",
+      "severity": "P2",
+      "category": "verification-input-identity",
+      "classification": "source-shown-undo-input-omission",
+      "evidence_basis": "shown_from_source",
+      "evidence_commit": "78fdeebb752fb63e8cd513362c877c66cc2d1b67",
+      "title": "Discover undo inputs in the accepted verifier build context, including the module root",
+      "sources": [
+        {
+          "path": "internal/landing/undo.go",
+          "symbol": "production; undoable; undoTree"
+        },
+        {
+          "path": "internal/landing/form.go",
+          "symbol": "form; list uses parsed segment.Env and Flags"
+        },
+        {
+          "path": "internal/runrecord/verify_command.go",
+          "symbol": "VerifySegment; goTestValueFlags; parsed -tags and package arguments"
+        },
+        {
+          "path": "internal/landing/undo_test.go",
+          "symbol": "TestAnUndoRestoresWhatAPackageEmbeds"
+        },
+        {
+          "path": "internal/gosource/graph.go",
+          "symbol": "Package; ListGraph metadata owner"
+        },
+        {
+          "path": "internal/gosource/build.go",
+          "symbol": "HostBuildSelection; HostBuildClosure; goOutput"
+        },
+        {
+          "path": "cmd/loop/trigger.go",
+          "symbol": "surfaceClosure existing embedded-input graph consumer"
+        }
+      ],
+      "evidence": "78fdeebb7 repairs the actual PTX/preset class: production now includes go list EmbedFiles once per landing, and form, undoable and undoTree reuse it. The retained native fixture changes p/value.txt and fails on an assertion under undo. Two concrete admitted shapes remain. (1) A root package embedding value.txt, checked by go test . -run TestValue: path.Dir(value.txt) is \".\", and the ancestor loop stops before adding \".\". Root Go unchanged, asset changed, tests kept: produced never contains the asset, restored is empty, and undoable says no production Go, so no absence check runs. The current typed verifier accepts \".\"; there is no package-root exclusion. (2) An accepted go test -tags=fixturelane ./p check of a production file gated by that tag and embedding value.txt: list passes the flags, but production calls go list with nil overrides and no verifier flags. Its host-context listing omits that embed, so the same asset-only change skips undo. These are source-proved accepted-candidate counterexamples, not SQA executions or claims that current unconditional PTX/preset inputs are missed. No tagged production embed was found in the bounded current-owner search; the second case describes the already-admitted verifier contract, not an observed current-model failure.",
+      "impact": "An admitted behavior change can receive no undo check even though its changed asset is compiled into the verifier program. This is the P2 check-without-checking class; it does not imply a wrong served output was observed.",
+      "recommended_change": "Keep the embedded-kernel/preset repair and one cached input set per immutable candidate. Include the module root when walking actual candidate ancestors and derive embedded production inputs in the build contexts already declared by accepted checks, rather than a separate default-context guess. Preserve genuinely test-only/consolidation admission and retain candidate/base identities. Consult the existing gosource.Package/ListGraph owner for shared Go metadata; reuse it only if it removes the local decoder without adding an adapter or losing landing diagnostics and the actual check environment. Distinguish expected non-package ancestors from failed real-package discovery instead of treating unavailable metadata as proof of no production. No new selector, configuration, source graph or workflow.",
+      "displaced_surface": "Remove the root/default-context omission in landing.production, retaining the existing form/undo/undoTree owner. A justified metadata migration can delete its local listing struct/JSON decoding loop in favor of gosource, already used by cycle source identity and lane build selection; these consumers share metadata, not their different selection policies. Do not create another input registry or merge distinct policies. RETAIN the native p/value.txt repair case and all consolidation/test-only/compile-failure/boundary cases.",
+      "expected_benefit": {
+        "baseline": "Complete78fdeebb7 change: +331production/+164testAST, +67/+23lines over4Go files, no new files/packages/binaries/staticfixtures. production268AST; typed ListGraph178AST already exists and has actual consumers. One added native temp-module/candidate setup; at most one cached go list query per landing.",
+        "after": "Unimplemented. Root/context correction and native cases may grow; no safe net deletion or speed saving established. Count any metadata-call/diagnostic/environment changes against decoder removal; moving code alone is not a saving.",
+        "fixtures": "Extend the existing native fixture with root and tagged package placements, retaining current subpackage case. Charge extra setup executions and inlined fixture bytes; no new application test or model/device workload created or run by SQA."
+      },
+      "likely_effort": "Small root-path correction; bounded build-context integration with the existing typed verifier and metadata owners.",
+      "plan_references": [
+        "undo-embeds/do landed78fdeebb7",
+        "fixed-order/do current prerequisite benefits from the repair",
+        "Downloads/extreme_refactor_plan.md: exact inputs and existing shared owners"
+      ],
+      "plan_coverage": "No new dispatch row is required by this report. Current fixed-order/PTX and preset work retain the verified repair. Handle remaining admitted discovery shapes with related input/verification owner work; SQA-332 stays resolved for its distinct plan-only consolidation contract.",
+      "closure_criteria": [
+        "Asset-only changes embedded by root and declared-tag production packages enter the same cached restoration set used by form and undoTree.",
+        "The existing native fixture proves an unchanged current test fails on its assertion with the embedded input restored; no silent no-production bypass. Retain consolidation/test-only and unavailable-build evidence semantics.",
+        "Current PTX/preset inputs, diagnostics, candidate/base identity and supported verifier contexts remain intact; full production/test/setup cost supports the chosen owner reuse."
+      ],
+      "comparison": "Extend TestAnUndoRestoresWhatAPackageEmbeds through the existing temp-module fixture: root value.txt with go test ., and tagged p source with matching -tags check. In each, changing only the embedded bytes must produce a restoration/old-value assertion failure rather than no undo run. Keep the existing default-context p case. Source comparison decides the gap here; implementation may use these smallest native cases, never a SQA workload."
+    }
   ],
     "gate_test_assessment": {
     "assumptions": "Evidence labels describe principal current support,not independent certification or all mixed subclaims. Severity is impact; source proof can establish a false-check defect without SQA execution. No fixed open-count cap.",
@@ -10239,16 +10301,15 @@
         ]
       },
     "fresh_ast": {
-        "revision": "1217b98a6ca574b3e4c1458729ed272383fde96c",
-        "method": "Existing selected-file go/parser tool over committed changed files plus turn/resource owners; whole before/after changed-Go AST cost. No application execution.",
-        "counts": "12files19901AST/132functions/3712local links. letGo105/holdCard164/runLanes252/testFailure66/takePlace419. Parser-local resolution only.",
+        "revision": "78fdeebb752fb63e8cd513362c877c66cc2d1b67",
+        "method": "Existing selected-file Go parser over committed restoration, verifier/graph owners and actual PTX/preset producers; complete changed-Go before/after count.",
+        "counts": "9files11140AST/72functions/2176local links. production268/undoable153/undoTree255/form183/list147/ListGraph178; new native fixture164.",
         "retained_result": [
-          "review-1217-selected-ast.json",
-          "review-1217-before-ast.json",
-          "review-1217-cost.json",
-          "review-1217-retained-records.json"
+          "review-78fd-selected-ast.json",
+          "review-78fd-cost.json",
+          "review-78fd-retained-records.json"
         ],
-        "limits": "Normalized bodies and syntax counts guide owner/caller comparison; no type/build-global equivalence or global boilerplate percentage claimed. Current draft files excluded."
+        "limits": "Parser-local symbol links only, no application or device execution. Existing metadata owners inspected; no general equivalence or global census claimed."
       },
     "media_follow_up": {
         "revision": "e969f619a89e45c3380e30853b01af393d55ba47",
@@ -10412,17 +10473,16 @@
       "retained_change_costs": "Two consolidation landings(2d59f642c exact folds andbb4fc706a parameter folds) remove744 production nodes but add1591 test nodes, net+847 across Go. Pilot retirementea8ed43a7 removes5926 production/9990 test nodes and one schema, while fixture bytes grow599; its test deletion is already included in the day's offsets and must not be subtracted twice. These retained gates are broader changes, not matched per-test performance comparisons."
     },
     "retained_results": [
-        "1217 native TestALanesRefusalNamesTheLaneThatFailedFirst and replacement TestALandingHoldsTheCardForItsCardStagesAlone have retained assertion-based undo failures; SQA ran neither.",
-        "Local landing_waits snapshot2257: lane-cause/do,lanes-turn/do landed09:48:10.2469518-05 through10:21:29.5707383-05 on2026-11-13; wall1999.324s, card wait239.891s, lanes1350.312s. These are one attempt wall/stages, not savings or summed parallel elapsed.",
-        "Local refusal snapshot424:46retained causes,37Rules,30Rules without Cause. Latest sampled guidance refusal now names the actual trainingworkflow sampler test; past generic cancellation/command-tail records stay historical unknowns.",
-        "Prior seven closures,141-minute aggregate correction and their individual source/native/cost evidence remain in canonical entries and sqa_response.run_cost_correction."
+        "78fdeebb7 native TestAnUndoRestoresWhatAPackageEmbeds changes p/value.txt; retained undo of form/landing/undo.go fails on an assertion. SQA ran none. Root/tag cases are not covered by that fixture.",
+        "Local landing_waits retains fixed-order/do verify refusal11:57:19.0593052-05 to12:31:22.627947-05 on2026-11-13 after lanes1351.149s; undo-embeds/do landed12:35:32.873746-05 to12:44:01.2823038-05. These records establish attempt outcomes/wall, not saved time or a proven numerical fix.",
+        "Previous causal-lane/card-stage progress, seven historical closures and141-minute aggregate correction remain in their canonical evidence/history; no SQA reruns."
       ],
     "surface_reduction_analysis": "29196812c->0b5a70f89:34changed-Go paths,+759production/+1671testAST,net+2430,+140/+312lines,+1production/+7testfiles,0staticfixtures/binary/package additions. This is necessary capability/recovery growth,not net reduction. Historical closure reductions kept separate. Historical whole-file-669 and one-verdict-287 remain separate; current metadata adds no application code.",
     "tests": [
-        "RETAIN285-node new first-cause native fixture: actual two-lane process cancellation and Worklist attribution, distinct from diagnostic parser tests.",
-        "RETAIN replacement card-stage fixture254->511AST and existing inheritance/host-only/checkout cases: success timing, environment lifetime and changed-trunk refusal are different contracts.",
-        "RETAIN device launch/build/early-failure diagnostic and existing FailureSummary tests; shared formatting does not erase their consumer boundaries.",
-        "Existing395 MERGE recommendation remains three identical landBesideACommit setups3->1 with71testAST estimated removal; preserve physical holder and unique wait/HEAD/early-refusal assertions.400 retains its own200-node setup merge. No new tests created or run."
+        "RETAIN164-node TestAnUndoRestoresWhatAPackageEmbeds: the only new current fixture directly covers a production embedded asset. Extend its existing module/candidate setup for root/tag placements; charge extra executions honestly.",
+        "RETAIN current undo assertion/build-failure, consolidation, test-only and explicit boundary-reason cases: these contracts differ. No merge inferred merely from the same helper.",
+        "RETAIN form and typed-verifier context tests;322 mixed-stage assertion and401 input-set cases are distinct. No tests created/run.",
+        "Prior395 MERGE three identical turn setups and400 checker-setup reduction remain separate suggestions; no additional deletion established by this sample."
       ]
   },
     "hygiene_assessment": "No hygiene finding. Scratch analysis is outside the repository; concrete correctness and production/test cost take priority.",
@@ -11956,9 +12016,9 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
     "limitations": [
-      "No application tests, model/device workloads, gates, services, benchmarks, agents/messages, implementation, plan/skill changes or cleanup. Source, AST and retained ledger/native/undo records only.",
-      "Parser-local links are not package/type or whole-build proof. No repository-wide duplication percentage or binary census inferred from this sample.",
-      "The observed sampler test name identifies the failed contract, not its numerical root cause. In-progress kernel/training and preset changes are excluded. No end-to-end speed gain measured by SQA."
+      "No application tests, model/device workloads, gates, benchmarks, services, agents/messages, implementation, plan/skill edits or cleanup. Only source/AST and retained native/undo/ledger evidence.",
+      "Parser-local links are not package/type or runtime proof. Root/tag omission is shown from admitted source paths, not executed by SQA; current unconditional PTX/preset repair is credited.",
+      "Current kernel/trainer/preset drafts are not assessed as landed. Current model numerical recovery is not closed by a verifier plumbing repair; no broad duplication percentage or speed saving inferred."
     ],
     "master_lead_triage": {
     "at": "2026-11-13",
@@ -12862,13 +12922,13 @@
       }
     }
   },
-    "next_finding_number": 401,
+    "next_finding_number": 402,
     "publication_context": {
-    "assessment": "Substantive source/evidence reconciliation and advisory-priority correction; report-only update.",
-    "checked_head": "1217b98a6ca574b3e4c1458729ed272383fde96c",
-    "concurrent_changes": "1217 carried the preceding report. Fresh committed plan/HEAD and current owner fields reread before replacement; numerical/preset/plan drafts excluded.",
-    "current_pin": "1217b98a6ca574b3e4c1458729ed272383fde96c",
-    "publication": "Only docs/sqa_findings.json through current hooks/ownership. Preserve raw implementation/unknown fields and all unrelated edits.",
+    "assessment": "Substantive input-identity finding and repair/cost reconciliation; report only.",
+    "checked_head": "78fdeebb752fb63e8cd513362c877c66cc2d1b67",
+    "concurrent_changes": "Previous report carried by78fdeebb7. Current committed plan, report and owner fields reread; dirty fixed-order/preset paths excluded. Recheck immediately before write.",
+    "current_pin": "78fdeebb752fb63e8cd513362c877c66cc2d1b67",
+    "publication": "Only docs/sqa_findings.json through current hooks/ownership; preserve unrelated index/worktree and raw implementation/unknown fields.",
     "report_only": true
   },
     "ranked_active_finding_ids": [
@@ -12907,6 +12967,7 @@
     "SQA-388",
     "SQA-277",
     "SQA-266",
+    "SQA-401",
     "SQA-325",
     "SQA-330",
     "SQA-344",
@@ -12958,20 +13019,20 @@
     "repository": "C:\\Users\\jeffm\\overgo",
     "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
     "review_notes": [
-      "1217 commits the preceding SQA update. Current review adds no finding or closure; it credits causal diagnostics and host/card separation.",
-      "376 moves to P3: its remaining status discrepancies are advisory and should ride related work.261 remains the distinct acquisition/handover issue; changing the stage interval does not close it.",
-      "Complete current growth is +135production/+561testAST. Local formatting reuse is real, but no safe net deletion or runtime gain established.395/400 prior small test consolidations remain recommendations."
+      "78fdeebb7 committed the preceding SQA update and repairs the real embedded-kernel/record undo omission. It adds331production/164testAST; no net deletion established.",
+      "One canonical newP2,401, covers the same production-input discovery owner root/context omissions. It is explicitly source-shown check-without-checking, not a reproduced model failure or new work quota.",
+      "332 remains resolved for its distinct plan-only admission correction.322 retains only its mixed-stage assertion sequencing obligation. Existing plan retains dispatch and product priorities."
     ],
-    "reviewed_at": "2026-11-13T16:17:08Z",
-    "reviewed_master": "1217b98a6ca574b3e4c1458729ed272383fde96c",
+    "reviewed_at": "2026-11-13T18:16:36Z",
+    "reviewed_master": "78fdeebb752fb63e8cd513362c877c66cc2d1b67",
     "schema_version": 2,
     "scope": [
-      "Committed1217b98a6 lane failure attribution and card-stage ownership, traced through landing, device/web UI lanes, testevidence, refusal/status and processcontrol. Committed plan33items/61steps read; current implementation/plan drafts excluded.",
-      "Actual selected-file Go AST:12files19901nodes/132functions/3712parser-local links; complete before/after changed-Go cost across10files. Prior closure and acquisition results reused.",
-      "Architecture target Downloads/extreme_refactor_plan.md SHA256 fe13a4bd47c8c41ea6dbf766c0acf3dc41ab7dab0c6d8bd926863313d4f34395 remains active. This chat previously implemented Overgo changes: internal review, not independent third-party review."
+      "Committed78fdeebb7 embedded-input undo migration through production/form/undoTree, typed verifier contexts and existing gosource metadata consumers. Committed plan34items/62steps read first; active numerical/preset drafts excluded.",
+      "Actual selected-file Go AST:9files11140nodes/72functions/2176parser-local links; complete4-file before/after cost. Prior lane/acquisition and closure results reused.",
+      "Downloads architecture target SHA256 fe13a4bd47c8c41ea6dbf766c0acf3dc41ab7dab0c6d8bd926863313d4f34395 unchanged and active. Prior Overgo implementation involvement disclosed: internal review, not independent third-party review."
     ],
     "sqa_response": {
-    "assessment": "227stable IDs:82open,139resolved,4deferred,2aliases. No new IDs or closures. Credit1217 causal diagnostic/card-stage repairs;376 remaining advisory scope P3.",
+    "assessment": "228stable IDs:83open,139resolved,4deferred,2aliases. New401 source-shown input discovery omission;322 progress reconciled. No closure reopened or retired.",
     "concurrent_reconciliation": {
         "SQA-398": "Resolved; lead native/undo response agrees with retained closure.",
         "SQA-399": "Resolved; grouped/same-file validation-first response agrees with retained closure.",
@@ -12981,7 +13042,7 @@
     "consolidated_findings": [],
     "deferred_findings": [],
     "dispatch_alignment": "Field ready for reader,not printed by committed dispatch yet. Current code still lists all eligible unfiled IDs; use affected step contracts/files excluding incidental plan/report citations. No new dispatcher implemented by SQA.",
-    "evidence": "Committed callers and actual12-file AST, full +135/+561AST delta, retained native/undo records and bounded local ledger snapshots. No fresh SQA workload.",
+    "evidence": "Nine-file committed AST and exact +331/+164AST delta, retained embedded-asset native/undo and targeted landing ledger records. Root/tag proof follows production -> undoable -> no-run and compares actual list context; no SQA execution.",
     "implementation_claim_audit": {
         "SQA-257": "closed: duplicate runtime verdict gone; native default/served fixtures are distinct; speculative generalization is not additional required work",
         "SQA-316": "closed: no-symbol whole-file identity and normal claim rebinding",
@@ -12996,15 +13057,16 @@
         "SQA-271": "remains open P3/possible: CLI fixed; app equivalence unproved"
       },
     "implementation_response_context": "All implementation_review/master_lead_triage blocks preserved raw-exact; implemented claims are answered in reviewer implementation_claim_audit without overwriting owner history.",
-    "new_findings": [],
+    "new_findings": [
+        "SQA-401"
+      ],
     "partially_addressed_findings": [
-        "SQA-261",
-        "SQA-376"
+        "SQA-322"
       ],
     "priority_changes": [
-        "SQA-376 P2->P3: causal lane attribution fixed; remaining advisory bookkeeping/output does not decide acceptance or demonstrably stop work. Related product work retains plan order."
+        "401 P2: accepted behavior input can bypass absence checking. Ordinary process suggestions remain P3; no automatic new plan row or interruption of current product work."
       ],
-    "recommendation": "Keep planned capability work moving; use the now precise failure cause for recovery. Retain261 acquisition transition as the real handover concern; advisory376 and small test reductions ride related owner work.",
+    "recommendation": "Credit current PTX/preset repair; finish root/declared-context discovery through its existing owner during related work. Reuse metadata only where it displaces the local parser without another wrapper or lost semantics.",
     "refactor": {
         "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
         "history_path": "docs/sqa_findings.json",
@@ -13025,7 +13087,7 @@
         "review_focus": "Name served cell/route/output impact,or material data/security/recovery/work-stoppage/repeated-waste impact. Minor process cleanup rides planned work; no guessed committee ratio or extra policy gate.",
         "measurement": "Use existing delivery/check-cost records as advisory. Automated report commits are distinct from master implementation effort; measure useful capability/scorecard outcomes,not findings closed."
       },
-    "reviewed_master": "1217b98a6ca574b3e4c1458729ed272383fde96c",
+    "reviewed_master": "78fdeebb752fb63e8cd513362c877c66cc2d1b67",
     "run_cost_correction": {
         "source": ".overgo-runtime/landing_waits.json",
         "query": "started on2026-11-09 America/New_York UTC-05; outcome exactly verify",
@@ -13045,10 +13107,9 @@
         },
         "correction": "140.54 is aggregate recorded wall across ten verify-refused runs,not one141-minute failed run and not all checking/wasted time. The earlier single-run phrasing was wrong; November8 measurement is a separate114.70-minute run. Historical run kinds may be unknown."
       },
-    "uncertainty": "The latest sampler refusal is observed, its cause is not diagnosed from a test name alone. No new blocked-host interleaving, overall time saving or format-execution migration demonstrated.",
+    "uncertainty": "No present unconditional PTX/preset miss or numerical failure reproduced by SQA. The two401 shapes are already admitted verifier contracts; their native cases have not been executed in this review. Full corrective cost remains unmeasured.",
     "updated_findings": [
-        "SQA-261",
-        "SQA-376"
+        "SQA-322"
       ]
   }
   }

@@ -1,5 +1,5 @@
 {
-  "latentimage": {"apg": "pending", "cfg-zero-star": "pending", "guidance-interval": "pending"},
+  "latentimage": {"apg": "admitted", "cfg-zero-star": "admitted", "guidance-interval": "refused"},
   "latentvideo": {"cfg-zero-star": "pending", "guidance-interval": "pending", "model-card": "pending"},
-  "sensenova": {"apg": "pending", "cfg-zero-star": "pending", "guidance-interval": "pending"}
+  "sensenova": {"apg": "admitted", "cfg-zero-star": "admitted", "guidance-interval": "admitted"}
 }

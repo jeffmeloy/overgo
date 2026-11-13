@@ -110,7 +110,7 @@ func (g *Generator) configureRotary(ctx context.Context, request Request) error 
 	if request.GuidanceScale != nil {
 		guidance = *request.GuidanceScale
 	}
-	if err = g.rotarySettings(schedule, guidance, request.Guidance).validate(g.rotary.transformer.Layers); err != nil {
+	if err = g.rotarySettings(request, schedule, guidance).validate(g.rotary.transformer.Layers); err != nil {
 		return err
 	}
 	g.request, g.schedule = request, schedule
@@ -124,10 +124,12 @@ func (g *Generator) configureRotary(ctx context.Context, request Request) error 
 // (moss-ultra-sections/schedules). A list of the request's own sigmas is its steps.
 func (p Profile) rotarySchedule(ctx context.Context, request Request) (FlowSchedule, error) {
 	total := p.Sampling.TrainTimesteps
-	if request.Steps == 0 && (request.Schedule == nil || request.Schedule.Name != "") {
+	// A schedule that names a sampler alone samples by the profile's own sigmas.
+	own := request.Schedule != nil && request.Schedule.OwnSigmas()
+	if request.Steps == 0 && (!own || request.Schedule.Name != "") {
 		request.Steps = p.Sampling.DefaultSteps
 	}
-	if request.Schedule == nil {
+	if !own {
 		return compileNearestGridFlowSchedule(ctx, request.Steps, total, p.Rotary.Shift, p.Rotary.TrainingShift)
 	}
 	table, err := sampling.ShiftedFlowTable(total, p.Rotary.Shift)
@@ -142,9 +144,13 @@ func (p Profile) rotarySchedule(ctx context.Context, request Request) (FlowSched
 }
 
 // rotarySettings is the sampling a rotary request runs: its schedule, its guidance scale and how the guidance varies over
-// the steps, the negative branch changing the profile's blocks.
-func (g *Generator) rotarySettings(schedule FlowSchedule, guidance float32, varies sampling.Guidance) rotarySamplingSpec {
-	return rotarySamplingSpec{schedule: schedule, guidance: guidance, varies: varies, override: g.profile.Rotary.negativeOverride()}
+// the steps, the negative branch changing the profile's blocks, and the sampler it names and its seed.
+func (g *Generator) rotarySettings(request Request, schedule FlowSchedule, guidance float32) rotarySamplingSpec {
+	settings := rotarySamplingSpec{schedule: schedule, guidance: guidance, varies: request.Guidance, override: g.profile.Rotary.negativeOverride(), seed: request.Seed}
+	if request.Schedule != nil {
+		settings.sampler = request.Schedule.Sampler
+	}
+	return settings
 }
 
 func (g *Generator) resetRotary(ctx context.Context, request Request) error {
@@ -261,7 +267,7 @@ func (g *Generator) integrateRotary(ctx context.Context) (*Generator, error) {
 	if err != nil {
 		return nil, err
 	}
-	settings := g.rotarySettings(g.schedule, g.rotary.guidance, g.request.Guidance)
+	settings := g.rotarySettings(g.request, g.schedule, g.rotary.guidance)
 	settings.weights = g.rotary.weights
 	result, err := runRotarySampling(ctx, g.rotary.runtime, g.modelDir, g.rotary.transformer, g.shape.Height, g.shape.Width, initial, g.rotary.positive, g.rotary.negative, settings, g.observe)
 	if err != nil {
@@ -323,8 +329,12 @@ func (g *Generator) decodeRotary(ctx context.Context) (result EncodedImage, err 
 	if err != nil {
 		return result, err
 	}
+	sampler := "flow Euler"
+	if g.request.Schedule != nil && g.request.Schedule.Sampler == sampling.SamplerERSDE {
+		sampler = "ER-SDE"
+	}
 	result.Preset = media.Preset{Width: g.request.Width, Height: g.request.Height, Steps: g.request.Steps, Guidance: float64(state.guidance),
-		Sampler: "flow Euler", Shift: g.profile.Rotary.Shift}
+		Sampler: sampler, Shift: g.profile.Rotary.Shift}
 	if err = ctx.Err(); err != nil {
 		return EncodedImage{}, err
 	}

@@ -216,19 +216,37 @@ func NamedSchedule(name string, steps int, denoise float64, table []float32) ([]
 	return sigmas, ValidateFlowSigmas(sigmas)
 }
 
-// Schedule is the sigmas a flow request samples by in place of its model's own, as ComfyUI's KSampler takes a scheduler
-// by name or a list of custom sigmas: a named schedule (Name), drawn at the request's steps, or the request's own list
-// (Sigmas), one more than its steps. A request names one or the other.
+// Samplers a flow request may sample by, as ComfyUI's KSampler names them.
+const (
+	// SamplerEuler names the flow Euler step a model samples by unless a request names another.
+	SamplerEuler = "euler"
+	// SamplerERSDE names ERSDE, which the MOSS Ultra workflow and ComfyUI's MOSS template sample with.
+	SamplerERSDE = "er_sde"
+)
+
+// Schedule is how a flow request samples in place of its model's own way, as ComfyUI's KSampler takes a sampler and a
+// scheduler by name or a list of custom sigmas: its sampler (Sampler, flow Euler where it names none), and its sigmas,
+// a named schedule (Name) drawn at the request's steps or the request's own list (Sigmas), one more than its steps, or
+// neither, where the model's own schedule serves.
 type Schedule struct {
-	Name   string    `json:"name,omitzero"`
-	Sigmas []float32 `json:"sigmas,omitempty"`
+	Sampler string    `json:"sampler,omitzero"`
+	Name    string    `json:"name,omitzero"`
+	Sigmas  []float32 `json:"sigmas,omitempty"`
 }
 
-// Validate holds a schedule to one of a known name or a valid list of its own.
+// Validate holds a schedule to a known sampler, and to a known name or a valid list of its own, not both.
 func (s Schedule) Validate() error {
+	if s.Sampler != "" && s.Sampler != SamplerEuler && s.Sampler != SamplerERSDE {
+		return fmt.Errorf("sampling: no sampler is named %q (%s or %s)", s.Sampler, SamplerEuler, SamplerERSDE)
+	}
 	switch {
-	case (s.Name == "") == (len(s.Sigmas) == 0):
-		return errors.New("sampling: a schedule names a scheduler or lists its sigmas, one of the two")
+	case s.Name != "" && len(s.Sigmas) != 0:
+		return errors.New("sampling: a schedule names a scheduler or lists its sigmas, not both")
+	case s.Name == "" && len(s.Sigmas) == 0:
+		if s.Sampler == "" {
+			return errors.New("sampling: a schedule names a sampler, a scheduler or its sigmas")
+		}
+		return nil
 	case s.Name != "":
 		if s.Name != ScheduleBongTangent && s.Name != ScheduleBeta57 {
 			return fmt.Errorf("sampling: no schedule is named %q (%s or %s)", s.Name, ScheduleBongTangent, ScheduleBeta57)
@@ -238,11 +256,17 @@ func (s Schedule) Validate() error {
 	return ValidateFlowSigmas(s.Sigmas)
 }
 
+// OwnSigmas is whether the schedule gives sigmas of its own, by name or as a list, rather than the model's.
+func (s Schedule) OwnSigmas() bool { return s.Name != "" || len(s.Sigmas) != 0 }
+
 // Draw is the schedule's sigmas at steps over a model's noise levels (table, least first): a named schedule drawn
 // whole, or the request's own list, whose steps are its own, which steps names again or leaves 0.
 func (s Schedule) Draw(steps int, table []float32) ([]float32, error) {
 	if err := s.Validate(); err != nil {
 		return nil, err
+	}
+	if !s.OwnSigmas() {
+		return nil, errors.New("sampling: the schedule gives no sigmas of its own; the model's serve")
 	}
 	if s.Name != "" {
 		return NamedSchedule(s.Name, steps, 1, table)

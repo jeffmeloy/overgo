@@ -109,7 +109,7 @@
             "internal/webuilane",
             "internal/repoanalysis"
           ],
-          "rationale": "Serves: the owner's rule of 2026-11-12: inside the machine a clock measures, reports and schedules; it never ends or refuses work. Waits are on the event; a dead process is learned from the OS; the requester cancels. Allowed: network peers and a limit the user set.\n\nDisappears: the clocks that end overgo's own work by default or by requirement: cmd/evaluate's -budget, 6 hours by default, cutting a model at its slice (all.go) and bounding the speech and transcription evaluations (main.go); cmd/longform's -budget, required, and its model budget; cmd/validate's smoke -budget, required; internal/testevidence/deadline.go's budget, which cancels; the web UI lane's page budget (internal/webuilane/browser.go), the lane's own and not the user's; and the three plan checks run with -timeout 120m (loop-proof/local-demonstrated, training-depth, card-budgets/three-workloads), which become -timeout=0, since a go test given none ends at Go's default of 10 minutes. On 2026-11-12 a 4-minute go test alarm named a healthy test after a measuring test waited 204 s for the card, and on 2026-11-08 the measurement run filed no rows on two clocks (preflight did not pass in 10m0s, lanes did not pass in 1h41m0s).\n\nThe change: each limit is the user's alone, none unless set, and a wait without one waits on its event (a process's end, read from the OS; a page's answer or its browser's end; a test's end) and says what it waits for and for how long, as cmd/validate/lane_walls.go's timer reports a wall and ends nothing. The plan checks are set to -timeout=0 through plan -setverify.\n\nCheck: TestNoClockEndsOvergosOwnWork lists every context.WithTimeout, WithTimeoutCause, WithDeadline and WithDeadlineCause, every time.AfterFunc whose function cancels or stops, and every go test a plan check or a gate lane runs, and fails on a clock outside the allowed list (network peers: the hub's downloads, cmd/hf-hub, media fetch, the server's connection limits; a flag whose default is none) and on a go test without -timeout=0. This step's list still holds the server's local requests and drain and modelswap's grace (step local-serving) and cudatest.MeasurementProcess and cmd/device-lane's admission (card-turn/retire-admissions), each named with the step that removes it.\n\nBatch: host lane."
+          "rationale": "Serves: the owner's rule of 2026-11-12: inside the machine a clock measures, reports and schedules; it never ends or refuses work. Waits are on the event; a dead process is learned from the OS; the requester cancels. Allowed: network peers and a limit the user set.\n\nDisappears: the clocks that end overgo's own work by default or by requirement: cmd/evaluate's -budget, 6 hours by default, cutting a model at its slice (all.go) and bounding the speech and transcription evaluations (main.go); cmd/longform's -budget, required, and its model budget; cmd/validate's smoke -budget, required; internal/testevidence/deadline.go's budget, which cancels; the web UI lane's page budget (internal/webuilane/browser.go), the lane's own and not the user's; and the three plan checks run with -timeout 120m (loop-proof/local-demonstrated, training-depth, card-budgets/three-workloads), which become -timeout=0, since a go test given none ends at Go's default of 10 minutes. On 2026-11-12 a 4-minute go test alarm named a healthy test after a measuring test waited 204 s for the card, and on 2026-11-08 the measurement run filed no rows on two clocks (preflight did not pass in 10m0s, lanes did not pass in 1h41m0s).\n\nThe change: each limit is the user's alone, none unless set, and a wait without one waits on its event (a process's end, read from the OS; a page's answer or its browser's end; a test's end) and says what it waits for and for how long, as cmd/validate/lane_walls.go's timer reports a wall and ends nothing. The plan checks are set to -timeout=0 through plan -setverify.\n\nCheck: TestNoClockEndsOvergosOwnWork lists every context.WithTimeout, WithTimeoutCause, WithDeadline and WithDeadlineCause, every time.AfterFunc whose function cancels or stops, and every go test a plan check or a gate lane runs, and fails on a clock outside the allowed list (network peers: the hub's downloads, cmd/hf-hub, media fetch, the server's connection limits; a flag whose default is none) and on a go test without -timeout=0. This step's list still holds the server's local requests and drain and modelswap's grace (step local-serving) and cudatest.MeasurementProcess and cmd/device-lane's admission (card-turn/retire-admissions), each named with the step that removes it.\n\nBatch: host lane.\n\nNote: The clocks left at 3a3aa64f5 (owner's reading of every clock call in the automation code, 2026-11-13): internal/landing, cmd/loop, cmd/device-lane and internal/processcontrol end no work (-timeout=0, INFINITE waits). Left to cure:\n- cmd/validate/run.go: benchmarkBudget 6 h, guardBudget 90 min, guardModelBudget 25 min.\n- cmd/validate/smoke_records.go: smokeBudget 15 min.\n- the web UI lane's page wait.\n- Go's 10-minute default on a verify, or a child go test, given no -timeout.\n- cmd/validate/lane_walls.go: skippedAfterFailure (15 min) decides which queued packages a lane that failed still runs, so a run names fewer breaks than exist.\nRemoved as dead, no cure needed: internal/testevidence's ActiveTimeout, which no production caller sets (only deadline_test.go), and newTestDeadline with it.\n\nNote: Correction (owner, 2026-11-13): the 8 November run did not file no rows on two clocks. MeasurementRun.Report prints each phase's wall, not a limit; the record shows 15 failed tests, which run-stop-cause/fifteen runs at the head. drainGrace is live at the head, so no-clocks/swap-drain stands; the server's -request-timeout defaults to zero and nothing passes it, so local-serving's server half was retired."
         },
         {
           "id": "swap-drain",
@@ -134,6 +134,27 @@
           "depends_on": [
             "card-turn/retire-admissions"
           ]
+        }
+      ]
+    },
+    {
+      "id": "host-card",
+      "title": "A landing holds the card's turn from its first test stage wherever a stage it runs reaches the card, not only where its change reaches a card lane",
+      "status": "open",
+      "budget": {
+        "nodes": 175,
+        "reason": "Filed from history: 175, the median of what 35 landings that changed internal/landing counted"
+      },
+      "steps": [
+        {
+          "id": "do",
+          "title": "A landing holds the card's turn from its first test stage wherever a stage it runs reaches the card, not only where its change reaches a card lane",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestALandingWhoseHostTestsReachTheCardHoldsItsTurn$'",
+          "files": [
+            "internal/landing"
+          ],
+          "rationale": "Note: Serves: a landing waits for the card once, measured where it waits (card-stages/whole-landing; owner, 2026-11-12).\n\nThe evidence: render-resume/same-bytes (cmd/evaluate) reached no lane on the card, so the landing took no card turn. Its test stage ran beside the second rehearsal's two renders. 26 minutes in, six of its test binaries were waiting for the card's turn: diffusionimage, seriesforecast, oscillatorimage, latentvideo, latentimage and routedlm. They were listed as holders of the turn's waiting file (fsatomic.FileUsers), behind the renders. The same latentimage host test, run alone, was ended by go test's ten minutes while it waited for the turn.\n\nThe cause: holdCard takes the turn only where the change reaches a lane that shares the device (reachesCard). The host stages' tests reach the card on their own, through contexts each takes as it opens one. So a change that reaches no card lane runs card tests that each wait behind whatever holds the card, and the wait is not measured.\n\nTo decide: whether the landing holds the card from its first test stage wherever a stage it runs reaches the card (which tests do, the cardreach search lists as an upper bound), or always, and what a landing that reaches the card by no stage then waits for."
         }
       ]
     },
@@ -175,7 +196,7 @@
           "files": [
             "cmd/loop"
           ],
-          "rationale": "Note: Serves: a test leaves the repository as it found it (owner's problem list, 2026-11-12: 81 worktrees, 12 left by tests).\n\nThe cause: TestLandedStepsReplayForAWorker adds a worktree of the real repository under t.TempDir and removes it in t.Cleanup, which does not run when go test's timeout ends the process; each check at an old commit compiles anew, about 100 s, three of them near the ten minutes. Four of its worktrees are registered, and eight of TestTheLocalWorkerPaysForItself and TestTheLocalWorkerWorksTheSixTasks, tests since removed.\n\nWhere else: the other tests that add worktrees add them to fixture repositories in their own temporary directories.\n\nThe change: the test works in the replay checkout under the repository's process state, under the replay's lock, as replaySteps does, so a replay cut short leaves the one checkout the next replay moves (moveReplay) rather than one of its own. The twelve registered worktrees are the owner's to remove."
+          "rationale": "Note: Serves: a test leaves the repository as it found it (owner's problem list, 2026-11-12: 81 worktrees, 12 left by tests).\n\nThe cause: TestLandedStepsReplayForAWorker adds a worktree of the real repository under t.TempDir and removes it in t.Cleanup, which does not run when go test's timeout ends the process; each check at an old commit compiles anew, about 100 s, three of them near the ten minutes. Four of its worktrees are registered, and eight of TestTheLocalWorkerPaysForItself and TestTheLocalWorkerWorksTheSixTasks, tests since removed.\n\nWhere else: the other tests that add worktrees add them to fixture repositories in their own temporary directories.\n\nThe change: the test works in the replay checkout under the repository's process state, under the replay's lock, as replaySteps does, so a replay cut short leaves the one checkout the next replay moves (moveReplay) rather than one of its own. The twelve registered worktrees are the owner's to remove.\n\nNote: No boundary test: holdReplayCheckout is new code of cmd/loop that no test building at the base can name; at the base the check runs no test."
         }
       ]
     },
@@ -444,26 +465,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 1466,
+        "nodes": 183,
         "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
       },
       "steps": [
-        {
-          "id": "er-sde",
-          "title": "ER-SDE (three-stage) is written from arXiv 2309.06169, its fresh noise drawn as torch's CUDA generator draws it",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/sampling ./internal/torchrng -count=1 -run '^TestERSDEDrawsNoiseAsTorchDoes$'",
-          "files": [
-            "internal/sampling",
-            "internal/torchrng",
-            "internal/latentimage"
-          ],
-          "needs_card": true,
-          "rationale": "The workflow's turbo row and ComfyUI's MOSS template (25 steps at guidance 2.5) use er_sde, which in ComfyUI is a GPL implementation of a public paper, so overgo writes it from the paper. Its fresh noise each step comes from torch's CUDA generator seeded from the request; overgo's internal/torchrng already reproduces CUDA Philox draws for Krea and SenseNova, so what remains is the order of consecutive draws from one generator. MOSS's 25-step preset lands as data once this exists.\n\nNote: No boundary test: ERSDE is new code of internal/sampling that no test building at the base can name; at the base the check runs no test.\n\nServes: first-output (the 25-step preset halves MOSS's passes), held-out-quality.\nDisappears: nothing.\nEvidence: noise draws equal torch's for the golden shapes, and the turbo section meets its latent floor.\nBatch: device lane.",
-          "depends_on": [
-            "moss-ultra-sections/schedules"
-          ]
-        },
         {
           "id": "img2img",
           "title": "Image to image follows ComfyUI's denoise rule: a schedule for steps / denoise keeping its last steps + 1 values, started from noise times sigma0 plus (1 - sigma0) times the encoded latent",

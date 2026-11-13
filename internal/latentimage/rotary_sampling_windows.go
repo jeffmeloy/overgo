@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/graphruntime"
 	"overgo/internal/media"
@@ -16,6 +17,7 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/torchrng"
 )
 
 // runRotarySampling retains latents through guidance and Euler updates.
@@ -121,16 +123,24 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 		return nil, e
 	}
 	programs = append(programs, upload)
-	retained, e := runtime.Retain(ctx, upload, map[*tensor.Tensor]reference.Value{input: {Shape: shape, Data: initial}}, nil)
+	// hold holds what the host made on the device: the initial latent, a velocity the host guided, a latent the host
+	// stepped.
+	hold := func(data []float32) (*residentLatent, error) {
+		held, e := runtime.Retain(ctx, upload, map[*tensor.Tensor]reference.Value{input: {Shape: shape, Data: data}}, nil)
+		if e != nil {
+			return nil, e
+		}
+		value, ok := held.Value(uploaded)
+		if !ok {
+			held.Release(context.WithoutCancel(ctx))
+			return nil, errors.New("rotary sampling: uploaded latent missing")
+		}
+		return &residentLatent{outputs: held, node: uploaded, value: value}, nil
+	}
+	current, e := hold(initial)
 	if e != nil {
 		return nil, e
 	}
-	value, ok := retained.Value(uploaded)
-	if !ok {
-		retained.Release(context.WithoutCancel(ctx))
-		return nil, errors.New("rotary sampling: uploaded latent missing")
-	}
-	current := &residentLatent{outputs: retained, node: uploaded, value: value}
 	// APG carries its momentum over the generation's steps.
 	adaptive := &sampling.AdaptiveGuider{Adaptive: settings.varies.Adaptive, Scale: float64(settings.guidance)}
 	// hosted guides a step on the host and holds the guided velocity on the device: as CFG-Zero* does, the
@@ -158,16 +168,46 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 		} else if e := at.Combine(velocity, conditioned.Data, unconditioned.Data); e != nil {
 			return nil, e
 		}
-		held, e := runtime.Retain(ctx, upload, map[*tensor.Tensor]reference.Value{input: {Shape: shape, Data: velocity}}, nil)
+		return hold(velocity)
+	}
+	// ER-SDE (sampling.ERSDE) takes each step on the host from the step's data prediction, which the update gives at a
+	// delta of −σ, the Euler step to σ = 0, and draws its fresh noise as ComfyUI's er_sde does, from torch's CUDA
+	// generator seeded with the request's seed (moss-ultra-sections/er-sde).
+	var solver *sampling.ERSDE
+	var noise *torchrng.Stream
+	if settings.sampler == sampling.SamplerERSDE {
+		sigmas := make([]float32, len(settings.schedule.Sigmas))
+		for i, sigma := range settings.schedule.Sigmas {
+			sigmas[i] = float32(sigma)
+		}
+		if solver, e = sampling.NewERSDE(sigmas, sampling.ERSDEStages); e != nil {
+			return nil, e
+		}
+		noise = torchrng.NewStream(settings.seed)
+		defer func() { err = errors.Join(err, runtime.Do(context.WithoutCancel(ctx), noise.Close)) }()
+	}
+	// stepped is ER-SDE's step from the current latent and the step's data prediction, held on the device.
+	stepped := func(index int, prediction *residentLatent) (*residentLatent, error) {
+		x, e := current.outputs.CopyToHost(ctx, current.node)
 		if e != nil {
 			return nil, e
 		}
-		value, ok := held.Value(uploaded)
-		if !ok {
-			held.Release(context.WithoutCancel(ctx))
-			return nil, errors.New("rotary sampling: guided velocity missing")
+		denoised, e := prediction.outputs.CopyToHost(ctx, prediction.node)
+		if e != nil {
+			return nil, e
 		}
-		return &residentLatent{outputs: held, node: uploaded, value: value}, nil
+		var fresh []float32
+		if solver.Draws(index) {
+			fresh = make([]float32, len(x.Data))
+			if e := runtime.Do(ctx, func(state *device.State) error { return noise.FillHost(state, fresh) }); e != nil {
+				return nil, e
+			}
+		}
+		next, e := solver.Step(x.Data, denoised.Data, fresh)
+		if e != nil {
+			return nil, e
+		}
+		return hold(next)
 	}
 	defer func() {
 		if current != nil {
@@ -192,6 +232,11 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 		// A step the guidance zeroes gives no velocity: the latent stays, and neither pass runs.
 		at := guider.At(index, settings.schedule.Sigmas[index])
 		if at.Zeroed() {
+			if solver != nil {
+				if e := solver.Skip(); e != nil {
+					return nil, e
+				}
+			}
 			continue
 		}
 		embedding, e := (media.SinusoidalProgram{Dimensions: spec.TimestepEmbed, FrequencyBase: rotaryTimestepBase, InputScale: float64(tensor.UnitScale)}).Encode32(time)
@@ -253,7 +298,12 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 					step, pointers = plain, []driver.DevicePtr{current.value.Pointer, velocity.value.Pointer}
 				}
 			}
-			next, e := runtime.Retain(ctx, step.program, map[*tensor.Tensor]reference.Value{step.plan.delta: {Shape: step.plan.delta.Shape, Data: []float32{sampler.Delta(index)}}}, pointers)
+			// Under ER-SDE the update steps to σ = 0, the step's data prediction, from which the host steps.
+			delta, reached := sampler.Delta(index), "latents"
+			if solver != nil {
+				delta, reached = -float32(settings.schedule.Sigmas[index]), "denoised"
+			}
+			next, e := runtime.Retain(ctx, step.program, map[*tensor.Tensor]reference.Value{step.plan.delta: {Shape: step.plan.delta.Shape, Data: []float32{delta}}}, pointers)
 			if e != nil {
 				return e
 			}
@@ -266,7 +316,7 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 				for _, item := range []struct {
 					name string
 					node *tensor.Tensor
-				}{{fmt.Sprintf("velocity.%d", index), step.plan.velocity}, {fmt.Sprintf("latents.%d", index), step.plan.next}} {
+				}{{fmt.Sprintf("velocity.%d", index), step.plan.velocity}, {fmt.Sprintf("%s.%d", reached, index), step.plan.next}} {
 					host, e := next.CopyToHost(ctx, item.node)
 					if e == nil {
 						e = observe(item.name, host.Data)
@@ -277,11 +327,22 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 					}
 				}
 			}
+			following := &residentLatent{outputs: next, node: step.plan.next, value: value}
+			if solver != nil {
+				prediction := following
+				following, e = stepped(index, prediction)
+				if e = errors.Join(e, prediction.outputs.Release(context.WithoutCancel(ctx))); e != nil {
+					if following != nil {
+						following.outputs.Release(context.WithoutCancel(ctx))
+					}
+					return e
+				}
+			}
 			if e := current.outputs.Release(context.WithoutCancel(ctx)); e != nil {
-				next.Release(context.WithoutCancel(ctx))
+				following.outputs.Release(context.WithoutCancel(ctx))
 				return e
 			}
-			current = &residentLatent{outputs: next, node: step.plan.next, value: value}
+			current = following
 			return nil
 		}()
 		if advanceErr != nil {

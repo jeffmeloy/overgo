@@ -18,6 +18,10 @@ type rotarySamplingSpec struct {
 	// weights are the conditioned branch's text rows' attention-value weights (weightedSpans), none for a prompt that
 	// weights nothing.
 	weights []float32
+	// sampler is the request's sampler (sampling.Schedule), flow Euler where it names none, and seed the request's seed,
+	// from which ER-SDE draws its fresh noise.
+	sampler string
+	seed    int64
 }
 
 func (s rotarySamplingSpec) validate(layers int) error {

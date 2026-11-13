@@ -3,6 +3,28 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "card-stages",
+      "title": "A landing holds the card's one turn from its first stage that runs tests to its last, so every process it starts rides on it",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 40,
+        "reason": "Filed 2026-11-12 from the card-handover rehearsal: the turn the lanes take moves to the invariants stage; the lanes' own taking folds into it. The lead's figure."
+      },
+      "steps": [
+        {
+          "id": "whole-landing",
+          "title": "The landing takes the card's turn as its invariants stage starts and holds it through verify, the host tests, the lanes and the scorecard, its wait said once and measured where it is taken",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestALandingHoldsTheCardFromItsFirstTestStage$'",
+          "files": [
+            "internal/landing"
+          ],
+          "rationale": "Serves: the owner's review of the card-handover rehearsal (2026-11-12): the same cause in a third place; list every place by search before writing the cure, say which stage runs each, and state the cure's cost.\n\nDisappears: card users of a landing that queue on their own. In the rehearsal beside a Wan render and a SenseNova render, the moss-ultra-sections/finishing landing took 1h44m37s: its host test stage 1h06m57s against 10m12s with the card free, since host tests that train through the optimizer's card stepper (internal/optimizer/stepper_windows.go, device.New) took the card's turn per context and waited out clips and pictures (seen: diffusionimage, speechsynth, tabularicl, routedlm, oscillatorimage); and its scorecard ran after the lanes outside the turn, so the benchmark waited for the card inside its timing and 3e7b49d0c's Scorecard-Slice trailer records load-time 477955 ms, where 0f7438554 measured 1994 ms with the card free. describeSlice prints timed cells without comparing them, so nothing refused; that record is wrong.\n\nWhere else, by search: TakeTurn has one production caller, (*driver.Library).ContextCreate. A rapid type analysis of each package's test binary (scratch probe cardreach, golang.org/x/tools v0.50.0) finds at most 2,787 tests in 81 packages that can reach it, 296 of them behind cudatest.Require and run by the lanes, 2,491 ungated in 61 packages, an upper bound since calls through interfaces and function values count every implementation a binary links. By stage: the invariants stage runs cmd/loop, 70 of whose tests can reach it (internal/repoanalysis, internal/plan, internal/commanddoc and internal/landing none); a host verify runs whatever test a step names; the host test stage runs the 61 packages; the lanes run the gated ones; the scorecard runs the benchmark.\n\nThe change: the landing takes the card's turn as the invariants stage starts, with the quiet machine given up while it waits as the lanes did, and holds it to the end of the scorecard; every process it starts rides on its place, whatever reaches the card. The lanes take nothing of their own; the wait is said once on the landing's output and measured where it is taken.\n\nCost: a render beside a landing waits for the invariants, verify, the host tests, the lanes and the scorecard, about 35 minutes a landing with the card free, where it waited about 20 for the lanes alone; in return none of the landing's processes waits per context, which stretched the host test stage from 10 minutes to 67.\n\nCheck: TestALandingHoldsTheCardFromItsFirstTestStage holds a landing to its turn: from the invariants stage on, the environment its processes start in carries the landing's place.\n\nBatch: host lane."
+        }
+      ]
+    },
+    {
       "id": "process-identity",
       "title": "A process named as a holder is known by its id and its start, so a dead holder whose id another process took is known dead",
       "owner": "master-lead",

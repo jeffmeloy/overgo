@@ -22,7 +22,7 @@ Work the plan, one step after another, until it is empty or a stop is recorded:
 - Commit it: go run ./cmd/loop -land <item>/<step>, run in the background, unpiped. The landing writes the commit message from the step, the change, the plan and the findings it touches.
 - Then take the next step.
 
-A command that refuses says what to do: do it and keep going. Never stop to ask; a choice between options takes the one that changes least and can be undone, recorded with go run ./cmd/plan -note. If the guard says another session holds this worktree, end this run at once: the session working it goes on.`
+When a command refuses or something breaks, find its cause in the code or by reproducing it before changing anything, and where else it occurs; cure it by removing what failed, else fixing what exists, adding last. Never stop to ask; a choice between options takes the one that changes least and can be undone, recorded with go run ./cmd/plan -note. If the guard says another session holds this worktree, end this run at once: the session working it goes on.`
 
 // writeSessionPrompt prints sessionInstructions and the environment every command of the session runs with: the
 // driver's configuration at configPath names the data root and the role, and the session works as the lane's worker.

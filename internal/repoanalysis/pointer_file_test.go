@@ -16,7 +16,9 @@ import (
 const pointerText = "# overgo\n\nskill.md is the only written guidance; each of its rules names the check that holds it.\n\n" +
 	"- Next step: `go run ./cmd/plan -next`\n- Check it: `go run ./cmd/plan -verify`\n" +
 	"- Commit it: `go run ./cmd/loop -land <item>/<step>`\n\n" +
-	"When a command refuses, do what its message says and keep going. Don't stop to ask.\n"
+	"When a command refuses or something breaks, find its cause in the code or by reproducing it before changing " +
+	"anything, and where else it occurs; cure it by removing what failed, else fixing what exists, adding last. " +
+	"Don't stop to ask.\n"
 
 // firstDifference says where got first parts from want: the line, each side quoted, so a space or a missing final
 // newline, which two printed files do not show, does. A file that only prints alike told the local worker nothing of

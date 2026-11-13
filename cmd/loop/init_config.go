@@ -39,7 +39,8 @@ var defaultWorker = []string{"go", "run", "./cmd/loop", "-local-worker", localSe
 // away. The plan's prompt for the dispatched step follows it.
 const defaultPrompt = "You are the overgo driver's worker, in the repository's main checkout. Work the one step below until its " +
 	"check passes, and end there: the driver lands it through the gate. skill.md is the written " +
-	"guidance. A command that refuses says what to do: do it and keep going, and never stop to ask.\n"
+	"guidance. When a command refuses or something breaks, find its cause in the code or by reproducing it before " +
+	"changing anything, and cure it by removing what failed, else fixing what exists, adding last; never stop to ask.\n"
 
 // writeDefaultConfig writes the driver's default configuration at path and its worker's prompt beside it, the worker
 // named as the lane's worker, and refuses to write over either.

@@ -39,3 +39,16 @@ func TestTheScheduledSessionPromptWorksThePlan(t *testing.T) {
 		}
 	}
 }
+
+// TestEveryWorkerIsToldToFindTheCause holds what the worker and a scheduled session are told to do with a refusal or a
+// break to the owner's method of 2026-11-12: find its cause in the code or by reproducing it before changing anything,
+// and cure it by removing what failed first. Both had said to do what the refusal says and keep going, which patched a
+// symptom and built the next mechanism on it.
+func TestEveryWorkerIsToldToFindTheCause(t *testing.T) {
+	for name, said := range map[string]string{"the worker's prompt": defaultPrompt, "a scheduled session's instructions": sessionInstructions} {
+		if !strings.Contains(said, "find its cause in the code or by reproducing it before changing anything") ||
+			!strings.Contains(said, "removing what failed, else fixing what exists, adding last") || strings.Contains(said, "keep going") {
+			t.Errorf("%s does not say to find a refusal's cause and remove what failed first: %q", name, said)
+		}
+	}
+}

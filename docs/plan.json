@@ -26,24 +26,6 @@
       ]
     },
     {
-      "id": "ceiling-files",
-      "title": "Every ceiling a change's counts fell under is lowered in its file, alone or in a grouped block, and a refusal writes nothing (SQA-399)",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Every ceiling a change's counts fell under is lowered in its file, alone or in a grouped block, and a refusal writes nothing (SQA-399)",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestALandingLowersEveryCeilingOfAFile$'",
-          "files": [
-            "internal/landing"
-          ],
-          "rationale": "Serves: SQA-399 (P2), a refusal whose fix the tool knows is not a refusal.\n\nThe evidence: ceiling-fall/do (889e328f7) lowers a ceiling by replacing the text \"const NAME = N\": the surface ceilings stand in a grouped const block, aligned, where that text occurs nowhere, so their fall refuses with manual advice; two falls in one file refuse at the second, which rereads the candidate's bytes while the checkout holds the first's edit; and a refusal after a write leaves a partial edit before the candidate is taken again.\n\nThe change: each constant is found by its syntax wherever it is declared; every fall of a file is applied to one reading of it; every file is checked before any is written, so a refusal leaves the checkout as it was.\n\nCheck: TestALandingLowersEveryCeilingOfAFile lands a change under a fixture whose ceiling test holds two ceilings in one grouped, aligned block and both fall: the commit holds both lowered; and with one fall naming a constant the file does not hold, the landing refuses and the checkout's file is as it was."
-        }
-      ]
-    },
-    {
       "id": "guidance-ops",
       "title": "CFG-Zero*, the guidance interval, APG and NAG are guider functions written from their papers, each a preset admitted per model by its held-out suite on no loss beyond chance, a gain claimed only where the paired test shows one",
       "owner": "master-lead",

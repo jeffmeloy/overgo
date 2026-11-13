@@ -39,7 +39,7 @@
         ],
         "adoption_scope": "Supersedes the absent repository-document reference at the owner's request; current external SHA is verified. Does not alter the executable plan."
       },
-    "assessment": "Fourlandings deliver finishing,counts,cause-firstwording andearliercard ownership.802b6da23 now holds the existingcardturn beforeinvariants throughscorecard for changesreachingdevice lanes.393finishingadmission and394mutableprogressinheritance remain in unchangedcode;261probe/acquisition and391incarnation remainopen.",
+    "assessment": "Three landings improve early commit refusal, exact new-record process identity and per-draw render provenance.395 identifies a47-node native setup reduction.261 probe/acquisition,379 sampled compatibility and391 legacy/fixture limits remain.15 retained failure names were located,but only9 are in the current verifier.",
     "ast_surface_review": {
         "revision": "9bd406acafb89c44a439722419f1f7e85e71f691",
         "architectural_target": "Fewer independent product entry points and dependency owners; retain process isolation and existing compiled/runtime/development authority.",
@@ -55,34 +55,33 @@
         "cost": "Concrete parsed duplicate migrations total22production and150test AST removed; unimplemented estimates only. Three directories can disappear through349/351; command movement and all retained semantic constants must be charged. No overall refactor completion claimed."
       },
     "automation_follow_up": {
-        "architectural_progress": "Actual done/total/time and stage-start lines replace a15-second device heartbeat. AGENTS/default worker/session messages now require finding cause before editing and removing/fixing before adding.",
-        "remaining": "261probe/acquisition andwaitermark;394progress/inheritance;391incarnation;266qualifiedhistoricaltiming andpostrehearsal measurement;376cause-worklist. Stage-placement migration haslanded.",
+        "architectural_progress": "Early reacquisition fixes a retained30-minute late refusal; behavioral undo now fails on the native assertion. Exact process starts reach current state owners.",
+        "remaining": "261probe/acquisition;394progress/inheritance;391legacy0/test assertion/retained trees;266failed messages/6unchecked names;376worklist.",
         "plan_recommendations": [
           {
-            "rows": "card-stages/whole-landing",
+            "rows": "run-stop-cause/fifteen",
             "findings": [
-              "SQA-261",
               "SQA-266"
             ],
-            "recommendation": "802b6da23landed earlierwhole-landingownership fordevice-reachingchanges;verify actualwait/use accounting andcharge the longerexclusiveinterval. Preserve independenthostprogress and261acquisitionguarantees;retainedtypereach remainsanupperbound."
+            "recommendation": "Map all15 names to existing checks/evidence before full run; current verifier covers9."
           },
           {
-            "rows": "process-identity/start-time",
+            "rows": "opt-in-tests/run-or-remove",
+            "findings": [
+              "SQA-266"
+            ],
+            "recommendation": "Retain or explicitly retire required contracts; absent model/flag alone is not redundancy."
+          },
+          {
+            "rows": "process-identity/start (landed)",
             "findings": [
               "SQA-391"
             ],
-            "recommendation": "Use shared PID/start identity in current liveness consumers;historical missing incarnation remains uncertain. Do not infer it caused all12test trees."
-          },
-          {
-            "rows": "refusal-advice/worklist",
-            "findings": [
-              "SQA-376"
-            ],
-            "recommendation": "Use existingCause/Rules and the current driver/status;new wording is progress,not a second schema or actual remediation proof."
+            "recommendation": "Keep shared PID/start and legacy limits; remove deadPID-only assumption or use captured child identity in the existing fixture."
           }
         ],
-        "complete_cost": "8796648c2->802b6da23:4complete landings,22changedGo paths,+1232production/+1499testAST (+2731),+223/+234lines,net+1production/+2testGo files. Finishing+867/+977,counts+191/+189,words+2/+66,stage-turn+172/+267. Threefinishingfixtures add108126bytes;0newexecutables/package directories andnone removed. The15-second device heartbeat andobsolete lifecycle lines disappear within this aggregate growth;no safe net code reduction established.",
-        "authority": "Report-only;no execution or task dispatch."
+        "complete_cost": "c73779d2f->9d585bc9a:3landings/18changedGo paths,+653production/+848testAST (+1501),+117/+148lines,net0production/+2testGo files. Commit-turn -16/+156; PID/start+282/+152; render-resume+387/+540.0newstaticfixtures/bytes,executables orpackages;0binary/directory removal.395offers an additional unimplemented47testAST/one-setup reduction.",
+        "authority": "Report-only; no dispatch/workload."
       },
     "current_review_order": "Current guidance/pin/plan -> direct callers and local retained facts -> existing canonical obligations -> selected AST/full cost -> concurrent reconciliation.",
     "declined_candidates": [
@@ -93,16 +92,16 @@
         "Do not treat a high refusal percentage as permission to weaken correctness, identity, safety or numerical checks."
       ],
     "media_follow_up": {
-        "architectural_progress": "Finishinggolden:96x96crop,27627/27648values exact and worst1level;440canvas cases exact. Canvas resolves before request validation;rotary output is sharpened after parity-observed decode and before PNG. Flow profiles refuse this unsupported field.",
-        "remaining": "393late geometry andadmitted numerical domain;392local serving;345UI compiler/388accepted-prompt recovery/389sampled memory and379producer recovery unchanged. No full-MOSS/preset-quality claim from one crop.",
-        "cost": "Finishing+867production/+977test AST and108126fixturebytes;newfeature growth,not consolidation.",
+        "architectural_progress": "renderedMedia.Build and verifyRendered retain actual producer per output; matching last-item redraw now allows some stranded resumes.",
+        "remaining": "379 sampled compatibility and completed-arm/approval identity;393/394 unchanged.",
+        "cost": "Resume+387production/+540testAST; extra image/clip estimated70s/5min by implementation,not SQA measured.",
         "plan_recommendations": [
           {
-            "rows": "moss-ultra-sections/finishing (landed)",
+            "rows": "render-resume/same-bytes",
             "findings": [
-              "SQA-393"
+              "SQA-379"
             ],
-            "recommendation": "Admit effective operation shape/numerical constraints in the existing primitive/request owner before model work;keep the same recorded fixture."
+            "recommendation": "Keep provenance and native fake; use execution/request dependencies rather than last-sample equality to authorize the set."
           }
         ]
       },
@@ -187,18 +186,18 @@
         ]
       },
     "plan_review_follow_up": {
-        "pin": "802b6da23f9687208fe758fa26d495e3b12343fd",
-        "assessment": "37activeitems;card-stages/whole-landing nowlanded duringreview. process-identity isfirst. Finishing,counts andcause-firstwording landed;393/394areconcrete follow-ups inunchanged code.",
-        "recommendation": "Useexisting rehearsal toassess actualexclusivecost andtiming afterstageplacement;do nottreat the313s hostgate asdeviceconfirmation. Fixparameter/recordauthority contracts through currentowners,not another pipeline/ownershipledger.",
-        "limits": "Uncommitted process-identity/sampler/lifecycle work excluded. NoSQAworkloads ordispatch.",
-        "sources": "Newpin source/plan,retained4landingrecords andselectedAST."
+        "pin": "9d585bc9addc4f4c0352ec3126627512b7beb857",
+        "assessment": "38items. Opt-in and15-stop-cause rows lead. Nested failure names located; verifier covers9of15. Current replay/drain changes are drafts.",
+        "recommendation": "Give remaining6 existing failure checks/evidence; preserve explicit numerical owners before retiring opt-ins. Use the existing measurement/publication owner for the one authorized full run after diagnosis.",
+        "limits": "No plan edits,model test or dispatch by SQA.",
+        "sources": "Pinned plan/source and nested cycle record."
       },
-    "rank_basis": "New393known late finishing/numerical correctness and394possible inherited self-wait join existing recovery priorities. No quota,prototype deletion or generalized duplication percentage.",
+    "rank_basis": "Existing correctness/identity stays first;395 is a small measured local code/setup opportunity,not a reason to delay repairs.",
     "refactor_target_progress": {
-        "architectural_progress": "Existing media/rotary path carries finishing;counts replace thedeviceheartbeat;cause-firstwording reachesAGENTS/worker/session;802b6da23folds laneownership into oneearlier holdCard throughlandingend.",
-        "conflicts": "Finishing admission/numerics andprogress-mutatedinheritance remain. The broader cardinterval fixes identifiedstage-placement,but its guard is lane reach andits exclusivehosttime/measurementbenefit still need retainedrehearsal evidence.261probe/acquisition remains.",
-        "next_useful_reductions": "Complete393through the two actual operation consumers and394through existing turn/record ownership. Preserve261acquisition/cancellation and391exact holder identity. Repair measurement attribution before the single authorized full validation,without a new selector or scheduler.",
-        "cost": "8796648c2->802b6da23:4complete landings,22changedGo paths,+1232production/+1499testAST (+2731),+223/+234lines,net+1production/+2testGo files. Finishing+867/+977,counts+191/+189,words+2/+66,stage-turn+172/+267. Threefinishingfixtures add108126bytes;0newexecutables/package directories andnone removed. The15-second device heartbeat andobsolete lifecycle lines disappear within this aggregate growth;no safe net code reduction established."
+        "architectural_progress": "Commit reacquisition moves into holdCard, removing later call/state. Running PID/start is shared by existing guard/campaign/measurement/leftovers. Render entries preserve their producer while allowing some cross-build continuation.",
+        "conflicts": "Same native setup runs twice; dead PID-only assertion remains racy; one matching sample is not set identity.261 acquisition and394 mutable-record authority remain.",
+        "next_useful_reductions": "395merge assertions;391 use captured process identity;379 bind compatible reuse through existing dependencies.266 map all15 failures without another ledger/selector/run.",
+        "cost": "c73779d2f->9d585bc9a:3landings/18changedGo paths,+653production/+848testAST (+1501),+117/+148lines,net0production/+2testGo files. Commit-turn -16/+156; PID/start+282/+152; render-resume+387/+540.0newstaticfixtures/bytes,executables orpackages;0binary/directory removal.395offers an additional unimplemented47testAST/one-setup reduction."
       },
     "working_notes_review": {
         "finding": "SQA-334",
@@ -208,10 +207,10 @@
       }
   },
     "committed_plan": {
-    "git_blob": "4f3ef7326f2d53f4c35881c6c56277f78c3c24bf",
+    "git_blob": "a6c316940bd2ac57fd803143adc164f78bec1c04",
     "path": "docs/plan.json",
-    "revision": "802b6da23f9687208fe758fa26d495e3b12343fd",
-    "sha256": "2187b18942e8133f0da8d426b3310c33f3e018085e9490660d4dbbaac8a749fd",
+    "revision": "9d585bc9addc4f4c0352ec3126627512b7beb857",
+    "sha256": "a9491f3e960e61b37a215324f9125647e2210de802de853b4ac720cab5bd7559",
     "working_tree_status": "Committed plan at review pin; prior draft assessment retains its own snapshot identity. Current working plan edits excluded."
   },
     "findings": [
@@ -808,8 +807,8 @@
       ],
     "comparison": "After an ordinarily authorized full run, compare only the named duplicated package/requirement with its exact retained owner and affected-change scope, including full production/test/fixture/setup/gate cost. No SQA-triggered run, elapsed extrapolation from missing walls, or timing-dependent numerical acceptance.",
     "displaced_surface": "Repeated full file reads across phases and the writer path that erased phase packages/digests are displaced. Existing plan.RecordDigests/jsonfile and runRecorder own the state. Full hash-once change+261production/+581test; no static fixture file, schema-version, dependency or new scheduler, but new map fields, serialization and one tiny weights/store setup do cost maintenance. Later-phase reads fall; fixture/store setup and program/test surface grow.",
-    "evidence": "Existing paired-test ownership and explicit model-selection scope remain. dd1dce514 now reuses model-file digests across a run's phases: bindCells calls runDigests/keepDigests, RecordDigests uses the existing measurement record, and runRecorder.write preserves digests plus failed tests/packages for the same Started identity. A new begin clears that identity and rehashes, preserving restart invalidation. The native fixture changes bytes mid-run and expects the old binding, then a new run sees changed bytes; this deliberately establishes the within-run immutability assumption. The implementation observed8.9GiB hashed in6.5s and extrapolated12-18minutes from~500GiB/two-to-three avoided passes; no matched full-run saved wall is retained here. 14409487b retires separate answer-score work from its measured commit-frequency argument; no new identity abstraction recommended. The former past-adoptions step is now retired at66b05cc14 pending ordinary package-wall evidence. The retained2026-10-31 run had no such walls according to current triage; .overgo-runtime/lane_walls.json was read as {} during this review. Its timestamp is not evidence of execution, completion or delivered continuation. Browser file-import narrowing is a separate change, not proof that paired numerical requirements are redundant.\nOwner feedback rechecked: the landing scorecard slice is one fixed input on the smallest local text model, reporting without refusal; it is not whole-system speed evidence. .overgo-runtime/measurement_run.json still names fdd4ab1cea379541604905e9b913b1a5f3d92bc8, started2026-11-08 01:15:52ET, with preflight ended01:29:38 and lanes ended03:10:33, neither passed, run ended03:10:34, no filed rows. It contains no failed-test names/error cause for those phases; roughly10m/1h41m walls alone do not identify why. No newer full run is established by this latest record. Current measurePhases uses phase/error receipts, runs preflight then lanes, and refuses cells after failed lanes; retain that existing diagnostic owner. The committed guidance-ops note also corrects bcdf4bbc4: MOSS already retained its session, with load0.6/0/0s; the between-picture drop was released stage memory, not repeated model loads. Do not credit HoldSessions with an observed MOSS loading saving.\nThe finishing rehearsal now supplies ordinary retained cost evidence:3e7b49d0c gate6276s, host-test stage4016.556s versus612.431s in03a941f92. Its identical slice identity/outputs/peak carried load-time477955.9058ms, while0f7438554 records1994.2612ms. The committed card-stages rationale attributes the former to waiting for the card inside timing, not a model-load regression. The lane-only turn excludes invariant tests, host verify/tests with indirect optimizer/device.New calls, and the later scorecard. Its retained rapid type analysis reports an upper bound2787tests/81packages (2491ungated/61packages), explicitly overapproximating interfaces/function values; SQA did not rerun that analysis or treat every reachable test as an actual CUDA execution. Holding the card from invariants through scorecard is proposed, with render blocking estimated35minutes versus20for lanes alone. The gain/cost and independent host progress must both be charged.\n802b6da23 lands the broader interval: for a change that reaches a device lane,Run acquires holdCard before invariants and keeps it to landing end,including scorecard. holdCard folds the former lane-only ownership andrecords the wait once. The prospective35minute versus20minute render exclusion is still a cost to measure;its313s gate reached no device/webui/CUDA lane andno scorecard,so it does not establish a fresh loaded-model improvement. Current native fixture checks stage membership andmanual holdCard/environment;it is not a fullstage/card rehearsal.",
-    "evidence_commit": "802b6da23f9687208fe758fa26d495e3b12343fd",
+    "evidence": "Existing paired-test ownership and explicit model-selection scope remain. dd1dce514 now reuses model-file digests across a run's phases: bindCells calls runDigests/keepDigests, RecordDigests uses the existing measurement record, and runRecorder.write preserves digests plus failed tests/packages for the same Started identity. A new begin clears that identity and rehashes, preserving restart invalidation. The native fixture changes bytes mid-run and expects the old binding, then a new run sees changed bytes; this deliberately establishes the within-run immutability assumption. The implementation observed8.9GiB hashed in6.5s and extrapolated12-18minutes from~500GiB/two-to-three avoided passes; no matched full-run saved wall is retained here. 14409487b retires separate answer-score work from its measured commit-frequency argument; no new identity abstraction recommended. The former past-adoptions step is now retired at66b05cc14 pending ordinary package-wall evidence. The retained2026-10-31 run had no such walls according to current triage; .overgo-runtime/lane_walls.json was read as {} during this review. Its timestamp is not evidence of execution, completion or delivered continuation. Browser file-import narrowing is a separate change, not proof that paired numerical requirements are redundant.\nOwner feedback rechecked: the landing scorecard slice is one fixed input on the smallest local text model, reporting without refusal; it is not whole-system speed evidence. .overgo-runtime/measurement_run.json still names fdd4ab1cea379541604905e9b913b1a5f3d92bc8, started2026-11-08 01:15:52ET, with preflight ended01:29:38 and lanes ended03:10:33, neither passed, run ended03:10:34, no filed rows. It contains no failed-test names/error cause for those phases; roughly10m/1h41m walls alone do not identify why. No newer full run is established by this latest record. Current measurePhases uses phase/error receipts, runs preflight then lanes, and refuses cells after failed lanes; retain that existing diagnostic owner. The committed guidance-ops note also corrects bcdf4bbc4: MOSS already retained its session, with load0.6/0/0s; the between-picture drop was released stage memory, not repeated model loads. Do not credit HoldSessions with an observed MOSS loading saving.\nThe finishing rehearsal now supplies ordinary retained cost evidence:3e7b49d0c gate6276s, host-test stage4016.556s versus612.431s in03a941f92. Its identical slice identity/outputs/peak carried load-time477955.9058ms, while0f7438554 records1994.2612ms. The committed card-stages rationale attributes the former to waiting for the card inside timing, not a model-load regression. The lane-only turn excludes invariant tests, host verify/tests with indirect optimizer/device.New calls, and the later scorecard. Its retained rapid type analysis reports an upper bound2787tests/81packages (2491ungated/61packages), explicitly overapproximating interfaces/function values; SQA did not rerun that analysis or treat every reachable test as an actual CUDA execution. Holding the card from invariants through scorecard is proposed, with render blocking estimated35minutes versus20for lanes alone. The gain/cost and independent host progress must both be charged.\n802b6da23 lands the broader interval: for a change that reaches a device lane,Run acquires holdCard before invariants and keeps it to landing end,including scorecard. holdCard folds the former lane-only ownership andrecords the wait once. The prospective35minute versus20minute render exclusion is still a cost to measure;its313s gate reached no device/webui/CUDA lane andno scorecard,so it does not establish a fresh loaded-model improvement. Current native fixture checks stage membership andmanual holdCard/environment;it is not a fullstage/card rehearsal.\nThe nested cycle record .overgo-runtime/cycle/.overgo-runtime/measurement_run.json was read: the same fdd4ab1 run retains15 failing lane test names but no messages. The root record was incomplete evidence, not proof no failure names existed. run-stop-cause/fifteen lists all15 in its rationale, but Verify selects9 in latentvideo/diffusionimage/latentimage. Six others (inference1,evaluate1,train3,validate1) lack checks in that step. Map each to retained current evidence before declaring the cause audit complete. The opt-in-tests row reports31 gated/absent-model skips in a42-package run; missing a model/flag does not prove its numerical contract redundant.",
+    "evidence_commit": "9d585bc9addc4f4c0352ec3126627512b7beb857",
     "expected_benefit": {
         "outcome": "Per-run hashing removes two or three potential model-file passes and preserves package/failure/digest records at phase boundaries. The retained12-18minute estimate is an extrapolation, not measured saved elapsed time. Earlier chosen-model recorded-cost estimate remains separate.",
         "uncertainty": "No new matched full-run wall/peak. Within-run mutated bytes deliberately retain earlier digest; next begin rehashes. Package peak remains cumulative at callback, not isolated package or tree memory. New long-sequence cycle lane separately adds +35production/+259test and predicted~3minutes; count against any future whole-run savings."
@@ -817,10 +816,10 @@
     "id": "SQA-266",
     "impact": "Hours of retained paired execution justify attention, but stale credit or losing reference-vs-optimized evidence hides numerical regressions. Preserve recipe/tokenizer/kernel/environment/lifetime bindings. No blanket minutes-only validation claim.",
     "likely_effort": "No current implementation task authorized by this report. Reassess the smallest named overlap from the next ordinary retained package record; keep completed digest/phase reuse credit.",
-    "plan_coverage": "card-stages/whole-landing has landed for changes reaching a device lane. Verify the largerinterval against the existing rehearsal andmeasurement owner;the wait-contaminated historical load andfailedfullrun remain qualified. Do not infer hardware timing from the313s hostgate.",
+    "plan_coverage": "run-stop-cause/fifteen and opt-in-tests/run-or-remove lead the plan. The15-name/9-test mismatch needs retained coverage for the remaining6; no SQA workload.",
     "plan_references": [],
     "raised_by": "Review session e8549e3e at the owner's request, 2026-10-31 (owner: \"there is fundamental problem with this system to re-do testing over, and over, and over and over, and never finish\"; \"don't run the whole scorecard until code is fixed\")",
-    "recommended_change": "Recover the actual November8 phase failure from existing run/error/test records and fix or establish its prerequisite before another expensive cycle. Keep the existing phase/run/scorecard and native Go cache owners. After the requested handover rehearsal, the owner requests one full run with the card exclusively held through the existing turn, publishing results and filing rows through the existing driver. This is an implementation recommendation, not SQA execution. Preserve valid completed evidence/explicit numerical owners, partial failures and exact identity; do not turn this into a full run after every fix, add a scheduler, or accept the small landing slice as system-wide proof. Investigate the corrected stage/judge cost before optimizing a presumed reload that did not occur. Use the existing stage/turn and measurement owners to admit every actual card consumer before its work and keep card-wait time distinct from useful model load time. Qualify the477955ms historical reading instead of silently treating it as a model regression or rewriting its producer. Preserve early cheap failure and host-only progress while counting the larger exclusive interval proposed by card-stages; no new selector/scheduler or repeating a full system run merely to investigate reach. Treat the retained type reach as an upper bound, not measured device use.",
+    "recommended_change": "Recover the actual November8 phase failure from existing run/error/test records and fix or establish its prerequisite before another expensive cycle. Keep the existing phase/run/scorecard and native Go cache owners. After the requested handover rehearsal, the owner requests one full run with the card exclusively held through the existing turn, publishing results and filing rows through the existing driver. This is an implementation recommendation, not SQA execution. Preserve valid completed evidence/explicit numerical owners, partial failures and exact identity; do not turn this into a full run after every fix, add a scheduler, or accept the small landing slice as system-wide proof. Investigate the corrected stage/judge cost before optimizing a presumed reload that did not occur. Use the existing stage/turn and measurement owners to admit every actual card consumer before its work and keep card-wait time distinct from useful model load time. Qualify the477955ms historical reading instead of silently treating it as a model regression or rewriting its producer. Preserve early cheap failure and host-only progress while counting the larger exclusive interval proposed by card-stages; no new selector/scheduler or repeating a full system run merely to investigate reach. Treat the retained type reach as an upper bound, not measured device use. Surface nested retained failure names through the existing run/diagnostic owner; preserve original messages where available without another ledger. Map all15 tests, including6 outside the current verifier, to existing checks and causes/passing evidence before the one authorized full run. For31 opt-ins, name a retained numerical/recovery owner or evidenced retirement; no duplicate recurring run or selector.",
     "severity": "P2",
     "sources": [
         {
@@ -4459,8 +4458,8 @@
       ],
     "comparison": "Extend TestALandingWaitingOnTheDeviceGivesUpItsCommitTurn/checkout-free fixture: hold the card turn while the old lane turn is free, start the landing, acquire the commit slot with independent host work, then release the card. Preserve the changed-trunk refusal and checked-candidate assertions. Use the existing controlled process/turn fixture; no model pressure run or SQA execution. Add the controlled interleaving where the initial availability probe sees free, another process takes that same turn, then actual acquisition begins: an independent host commit must acquire its slot while the device wait persists. Use the existing fake/named-turn process fixture, not real GPU pressure.",
     "displaced_surface": "Retire the old laneTurn lock/second queue and duplicate child wait accounting. Retain landing.letGo/takeTurnBack, processcontrol.TakeTurn and the existing checked-tree/publication owners; update existing checkout-free/run-beside/host-lane fixtures instead of a parallel driver.",
-    "evidence": "Prior verified closure at c2f24f16a27d27890f0cc716a4490d72117a8e82 remains historical evidence: landing.Run now owns a releasable commit turn. letGo first captures its candidate checkout, then releases the turn when the lane is already held. takeTurnBack reacquires before publication and refuses a tip different from builtOn; commit CAS remains. TestALandingWaitingOnTheDeviceGivesUpItsCommitTurn acquires the commit turn during device wait, moves trunk, then requires refusal without changing the successor head. Existing checkout-free test still covers checked bytes, later edits and private-worktree cleanup. Quiet ownership is shared; no lock-inversion defect established in this trace.\nReopened at fc5147e61 after the card-turn migration. letGo still tests ResourceTransactionHeld(laneTurn) and keeps the commit turn if that old lane lock is free. inLaneTurn then takes that lane lock, while child CUDA contexts independently wait on driver.CardTurnOf through processcontrol.TakeTurn. An external render can hold only the card turn while the old lane lock is free, so the landing retains its commit ownership throughout the child GPU wait. Retained eb9d59fc1 gate wall24581s includes22153.784s card wait; the plan separately reports51 turns behind51 SenseNova pictures and the Wan encoder hold. These establish costly GPU waits, not that another commit was actually attempted and blocked. The independent-host starvation path is source-established. The card-handover/lane-turn draft addresses the right root but is uncommitted at this pin.\n03a941f92 now uses driver.CardTurnOf(0) for laneTurn; letGo tests ResourceTransactionHeld of that actual turn before releasing commit ownership. The landing/measurement takes processcontrol.TakeTurn once and child processes inherit its place. The old lane lock/child wait parser are removed. Existing checkout-free and TestALandingWaitingOnTheDeviceGivesUpItsCommitTurn fixtures now name the same dynamic turn; the latter acquires the commit slot while the device is held, advances trunk and asserts refusal without changing it. TestALandingsLanesRideOnTheCardTurnItTakes proves inherited environment is present only inside the turn, and host-only lane fixture remains. Retained1950s gate reports passing checks; the new test does not build under undo, so that undo is not behavioral proof. The named old-lock mismatch is repaired; no SQA concurrency workload.\nResidual source-admitted race: letGo probes ResourceTransactionHeld and returns without releasing the commit slot when the card is free; only later inLaneTurn calls TakeTurn. Another process can acquire the card between those operations, so the landing then waits while retaining its commit slot. Current retained fixture starts with the resource already held, so it does not exercise this transition. No new occurrence or delay was measured. One actual acquisition/wait owner must decide commit release rather than treating an earlier availability probe as authoritative.\n0f7438554 retains the preliminary probe/acquisition gap. takePlace also probes ResourceTransactionHeld to decide whether to mark a waiter before enterTurn. If another process acquires after that free probe, this process blocks without a waiter mark; a render relying on TurnWaited cannot see the new waiter. This is the same acquisition-root obligation, not another finding. The committed rehearsal additionally locates actual card users outside the lane interval; card-stages proposes moving ownership earlier but must preserve commit-release and host-progress protections. No new interleaving or delay was reproduced by SQA.\n802b6da23 now holds the card frombeforeinvariants throughlandingend when reachesCard is true,folding inLaneTurn intoholdCard. holdCard still calls letGo separately before takeLaneTurn,so the probe/acquisition gap andmissing waiter-mark interleaving remain. Earlierstage ownership is credited,not closure of thisrace.",
-    "evidence_commit": "802b6da23f9687208fe758fa26d495e3b12343fd",
+    "evidence": "Prior verified closure at c2f24f16a27d27890f0cc716a4490d72117a8e82 remains historical evidence: landing.Run now owns a releasable commit turn. letGo first captures its candidate checkout, then releases the turn when the lane is already held. takeTurnBack reacquires before publication and refuses a tip different from builtOn; commit CAS remains. TestALandingWaitingOnTheDeviceGivesUpItsCommitTurn acquires the commit turn during device wait, moves trunk, then requires refusal without changing the successor head. Existing checkout-free test still covers checked bytes, later edits and private-worktree cleanup. Quiet ownership is shared; no lock-inversion defect established in this trace.\nReopened at fc5147e61 after the card-turn migration. letGo still tests ResourceTransactionHeld(laneTurn) and keeps the commit turn if that old lane lock is free. inLaneTurn then takes that lane lock, while child CUDA contexts independently wait on driver.CardTurnOf through processcontrol.TakeTurn. An external render can hold only the card turn while the old lane lock is free, so the landing retains its commit ownership throughout the child GPU wait. Retained eb9d59fc1 gate wall24581s includes22153.784s card wait; the plan separately reports51 turns behind51 SenseNova pictures and the Wan encoder hold. These establish costly GPU waits, not that another commit was actually attempted and blocked. The independent-host starvation path is source-established. The card-handover/lane-turn draft addresses the right root but is uncommitted at this pin.\n03a941f92 now uses driver.CardTurnOf(0) for laneTurn; letGo tests ResourceTransactionHeld of that actual turn before releasing commit ownership. The landing/measurement takes processcontrol.TakeTurn once and child processes inherit its place. The old lane lock/child wait parser are removed. Existing checkout-free and TestALandingWaitingOnTheDeviceGivesUpItsCommitTurn fixtures now name the same dynamic turn; the latter acquires the commit slot while the device is held, advances trunk and asserts refusal without changing it. TestALandingsLanesRideOnTheCardTurnItTakes proves inherited environment is present only inside the turn, and host-only lane fixture remains. Retained1950s gate reports passing checks; the new test does not build under undo, so that undo is not behavioral proof. The named old-lock mismatch is repaired; no SQA concurrency workload.\nResidual source-admitted race: letGo probes ResourceTransactionHeld and returns without releasing the commit slot when the card is free; only later inLaneTurn calls TakeTurn. Another process can acquire the card between those operations, so the landing then waits while retaining its commit slot. Current retained fixture starts with the resource already held, so it does not exercise this transition. No new occurrence or delay was measured. One actual acquisition/wait owner must decide commit release rather than treating an earlier availability probe as authoritative.\n0f7438554 retains the preliminary probe/acquisition gap. takePlace also probes ResourceTransactionHeld to decide whether to mark a waiter before enterTurn. If another process acquires after that free probe, this process blocks without a waiter mark; a render relying on TurnWaited cannot see the new waiter. This is the same acquisition-root obligation, not another finding. The committed rehearsal additionally locates actual card users outside the lane interval; card-stages proposes moving ownership earlier but must preserve commit-release and host-progress protections. No new interleaving or delay was reproduced by SQA.\n802b6da23 now holds the card frombeforeinvariants throughlandingend when reachesCard is true,folding inLaneTurn intoholdCard. holdCard still calls letGo separately before takeLaneTurn,so the probe/acquisition gap andmissing waiter-mark interleaving remain. Earlierstage ownership is credited,not closure of thisrace.\n5f29b024d now reacquires the commit turn immediately after taking the card and refuses a changed trunk before test stages. The obsolete end-of-lanes call and turnLet field disappear. Its new early-refusal native check behaviorally fails under undo. This fixes the retained 30-minute late-refusal case, but letGo still probes availability separately and takePlace marks a waiter only when initially busy:261 remains open for those interleavings.395 tracks duplicate setup in the two current native checks.",
+    "evidence_commit": "9d585bc9addc4f4c0352ec3126627512b7beb857",
     "expected_benefit": {
         "closure": "Actual resource-name and child-job ownership mismatch repaired; preliminary availability probe remains insufficient to guarantee commit release under a concurrent acquisition.",
         "complete_cost": "03a941f92 +91production/+133test AST,+22/+23lines across14Go paths,0files/packages/binaries/fixturebytes. Five card-turn/encoder/handover landings together +271production/-226test AST, net+45: count the entire migration, not just its -4249AST retirement step.",
@@ -4468,7 +4467,7 @@
       },
     "id": "SQA-261",
     "impact": "A GPU wait can again serialize unrelated host-only/report landings behind the waiting commit; per-context queueing also repeatedly yields between tests.",
-    "plan_coverage": "card-stages/whole-landing now landed;counts andjobownership areprogress. Its earlier/broaderhold stilluses the separateletGo probe andTakeTurn acquisition,so261remainsopen.",
+    "plan_coverage": "commit-turn/do landed earlier reacquisition/refusal; free-probe/acquisition and waiter-mark obligations remain.",
     "plan_references": [
         "card-turn/turn,readings-turn,retire-admissions (landed)",
         "card-handover/lane-turn (open at pin)",
@@ -9163,12 +9162,13 @@
         "The capability control consumes the same bound admission for its actual model/recipe/request; a Krea/MOSS same-name preset and a changed recipe cannot share approval solely by family/name. Missing/refused/inconclusive/stale evidence does not offer a judged candidate. Preserve342 statistics and existing authority.",
         "Small native command fixture retains format/mixed-size/reuse and adds the binding counterexample; duplicate lower-level acceptance assertions/setup disappear, and complete production/test/storage/setup cost is reported.",
         "A completed campaign arm/verdict is reusable only for the same bound inputs/evaluator/producer contract. Changing the judge, model/request, dataset/media or record invalidates only affected stages; truncated bookkeeping cannot count as completed.",
-        "An operational handover/progress-only change can continue a valid partial set without recomputing its verified outputs or rewriting their producer identities. A changed numerical dependency/effective request is refused or invalidates only the affected work; arbitrary commits are not presumed compatible."
+        "An operational handover/progress-only change can continue a valid partial set without recomputing its verified outputs or rewriting their producer identities. A changed numerical dependency/effective request is refused or invalidates only the affected work; arbitrary commits are not presumed compatible.",
+        "One matching last item cannot authorize incompatible retained requests; original producer identity and selective unchanged reuse remain."
       ],
-    "comparison": "In the retained command fixture and existing temporary artifact store, construct two minimal valid bound arms, then swap one scored record or its rendered output while retaining all case names/outcomes/sizes; current source accepts what must be rejected. Change active recipe after recording to check historical binding. A legitimate carried record still works. No real rendering or judging is necessary to decide this defect; proposed checks only. Extend the retained controls boundary with the same preset name on two model/recipe identities and one stale recipe: only the actually bound admitted identity is offered. Do not duplicate numerical acceptance or copy a model fixture. In the existing readingsFake fixture, keep Out and arm names after a complete run but change the judge or source/media; require validation/invalidation, not zero calls. A valid unchanged resume still runs only unfinished work; preserve unrelated-record interleaving and failed-arm continuation. This is a recommendation only. Extend the retained render-manifest/run fixture with one complete output and one pending output: a compatible orchestration repair retains the first and computes only the second, each under its original/actual producer. A changed sampler/request dependency fails compatibility. No live render is needed for this identity decision.",
+    "comparison": "In the retained command fixture and existing temporary artifact store, construct two minimal valid bound arms, then swap one scored record or its rendered output while retaining all case names/outcomes/sizes; current source accepts what must be rejected. Change active recipe after recording to check historical binding. A legitimate carried record still works. No real rendering or judging is necessary to decide this defect; proposed checks only. Extend the retained controls boundary with the same preset name on two model/recipe identities and one stale recipe: only the actually bound admitted identity is offered. Do not duplicate numerical acceptance or copy a model fixture. In the existing readingsFake fixture, keep Out and arm names after a complete run but change the judge or source/media; require validation/invalidation, not zero calls. A valid unchanged resume still runs only unfinished work; preserve unrelated-record interleaving and failed-arm continuation. This is a recommendation only. Extend the retained render-manifest/run fixture with one complete output and one pending output: a compatible orchestration repair retains the first and computes only the second, each under its original/actual producer. A changed sampler/request dependency fails compatibility. No live render is needed for this identity decision. Extend render_resume_test to two retained items/one pending: change the non-last request while the last sentinel matches. The dependency contract must reject/invalidate only affected work. Keep same-build and differing-sentinel cases in the same native fixture.",
     "displaced_surface": "Remove unbound case-name-only comparison and the current-activation template substitution as authorities. Retain existing manifest, scoredReport/carried-result traversal, runrecord/artifact identity and modelrecipe lifecycle. Reuse read/validation only where the contract truly matches: alreadyDrawn can accept a missing file as a new render, so calling it blindly is not sufficient admission validation. Merge repeated numerical admission calls/right-map setup out of cmd/evaluate/preset_reading_test.go into the existing evaluation test; keep format fallback, mixed sizes and preset reuse cases, and extend the command fixture for actual record binding with existing native store/artifact setup. No second model fixture or new binary/package. Replace the embedded family-status approval table and its duplicate schema checks once the existing bound evidence owner feeds controls; do not add a second registry beside it.",
-    "evidence": "admitPresetReading independently reads two manifests and two user-supplied evaluation IDs, reduces each manifest to preset/format/size and each evaluation to case-name booleans, then compares those booleans. It does not verify that either record scored the corresponding manifest outputs or that both sides share the intended model/task/recipe, question/judge contract and paired inputs. The loop overwrites drawn; ResolveActiveExecution therefore reads the candidate manifest model/task current activation, not the historical recipe that rendered either arm. Source-admitted case: differently produced or old render directories at matching size/format plus unrelated nonempty evaluations with the same case names satisfy the checked fields; a replacement activation can also supply the current template for old recipe evidence. renderManifest already retains Model/Recipe/Task/CodeCommit and each draw Input/Output/Run/Request; evaluation records already lead to the scoring report, plan and dataset. alreadyDrawn validates reuse identity but this command never calls its checks. Printed PresetVerdict holds only preset/counts/admitted and is not a bound admission record. bf1651186 now hides the named pending/refused presets through offerPresets; all embedded entries are currently pending. This is useful conservative presentation progress. However, preset_readings.json is a separate299-byte family->preset->status table: no model/task/recipe/request or evaluation/render identity, and no production writer/read from AdmitPreset. A future admitted latentimage/apg label would apply to both Krea and MOSS and survive recipe changes without checking which arm was evaluated; unlisted names pass through. The fixture checks declaration/status consistency and current SenseNova offerings, not a bound verdict or stale/foreign evidence. No current admitted label or false live offer was observed. No false approval was reproduced against a live store.\nAt 1926e19a2 the plan records a SenseNova guidance-interval verdict, but neither new landing changes AdmitPreset, the embedded family-label table or their binding. README hashes identify bytes and the commit discloses draws made at d4d4b3708 with the uncommitted wait-counter changes; this is useful provenance, not proof that preset approval consumed the matching renders/evaluations. No false live offer was observed by SQA.\n6bb2359a3 adds a supervised campaign and takes the evaluation ID printed for each exact suite, correctly avoiding a concurrent newest-record lookup. But readings.arm returns immediately for records[arm.name], draw skips on suite-file existence, and admit skips for verdicts[arm.name]. Retain the same Out/model.Name/preset and change model path, judge/projector, source/case set, media bytes or producing build: completed arms/verdicts are accepted without calling render/identity validation. readArmLines also accepts an incomplete final line as a record when it contains a space. The existing fake fixture proves unchanged retry and continuation past a failed arm, not invalidated-input recovery. This is the same producer/evidence-binding root as379, not a separate backlog. No stale live approval was executed by SQA.\nOwner feedback exposes the opposite reuse failure in renderMedia: existing draws are verified, but every new draw refuses when manifest.CodeCommit != current commit. Actual local manifests read in this review: moss-image-sft-person-apg has40draws at6bb2359a363a558797b3dcc2356912b28643f1bf; wan2.1-person-mp4 has36draws atae76871f46f0b17032e41d3e965b58cd5cfe7038 (owner earlier observed35). Code-only handover repairs therefore strand still-valid partial work at HEAD. The campaign skips completed arm names too eagerly while the renderer rejects unfinished arms too broadly. Both need the existing producer/dependency identity contract, not unconditional reuse or unconditional restart.",
-    "evidence_commit": "03a941f92028cf9d0815984d03e5c4306be986fd",
+    "evidence": "admitPresetReading independently reads two manifests and two user-supplied evaluation IDs, reduces each manifest to preset/format/size and each evaluation to case-name booleans, then compares those booleans. It does not verify that either record scored the corresponding manifest outputs or that both sides share the intended model/task/recipe, question/judge contract and paired inputs. The loop overwrites drawn; ResolveActiveExecution therefore reads the candidate manifest model/task current activation, not the historical recipe that rendered either arm. Source-admitted case: differently produced or old render directories at matching size/format plus unrelated nonempty evaluations with the same case names satisfy the checked fields; a replacement activation can also supply the current template for old recipe evidence. renderManifest already retains Model/Recipe/Task/CodeCommit and each draw Input/Output/Run/Request; evaluation records already lead to the scoring report, plan and dataset. alreadyDrawn validates reuse identity but this command never calls its checks. Printed PresetVerdict holds only preset/counts/admitted and is not a bound admission record. bf1651186 now hides the named pending/refused presets through offerPresets; all embedded entries are currently pending. This is useful conservative presentation progress. However, preset_readings.json is a separate299-byte family->preset->status table: no model/task/recipe/request or evaluation/render identity, and no production writer/read from AdmitPreset. A future admitted latentimage/apg label would apply to both Krea and MOSS and survive recipe changes without checking which arm was evaluated; unlisted names pass through. The fixture checks declaration/status consistency and current SenseNova offerings, not a bound verdict or stale/foreign evidence. No current admitted label or false live offer was observed. No false approval was reproduced against a live store.\nAt 1926e19a2 the plan records a SenseNova guidance-interval verdict, but neither new landing changes AdmitPreset, the embedded family-label table or their binding. README hashes identify bytes and the commit discloses draws made at d4d4b3708 with the uncommitted wait-counter changes; this is useful provenance, not proof that preset approval consumed the matching renders/evaluations. No false live offer was observed by SQA.\n6bb2359a3 adds a supervised campaign and takes the evaluation ID printed for each exact suite, correctly avoiding a concurrent newest-record lookup. But readings.arm returns immediately for records[arm.name], draw skips on suite-file existence, and admit skips for verdicts[arm.name]. Retain the same Out/model.Name/preset and change model path, judge/projector, source/case set, media bytes or producing build: completed arms/verdicts are accepted without calling render/identity validation. readArmLines also accepts an incomplete final line as a record when it contains a space. The existing fake fixture proves unchanged retry and continuation past a failed arm, not invalidated-input recovery. This is the same producer/evidence-binding root as379, not a separate backlog. No stale live approval was executed by SQA.\n9d585bc9a removes the blanket build-only refusal that stranded partial sets (prior observation:MOSS40/Wan36). renderedMedia.Build now preserves each actual producer, legacy absence falls back to manifest.CodeCommit, and verifyRendered uses that per-draw build. But sameAtThisBuild authorizes continuation by redrawing only the last retained item and comparing Output ID. Admitted counterexample: two old completed cat/dog requests; a new numerical branch changes cat while the last dog output is identical. The sentinel passes and the incompatible old cat remains. Current native fixture has only one retained/one pending item, so does not decide this case. No SQA live resume or false approval executed. One extra image/clip per new-build resume costs about70s/5min according to the implementation estimate. Completed-campaign name skips and downstream approval binding remain.",
+    "evidence_commit": "9d585bc9addc4f4c0352ec3126627512b7beb857",
     "expected_benefit": {
         "baseline": "Shared full admission baseline/cost is charged once in342: +1231 production/+766 test AST. Selected command file719 nodes, command test429 nodes. No implemented after count or guaranteed net saving.",
         "setup": "Existing native store/artifact fixtures suffice for identity counterexamples; no model/device workload, benchmark or new recurring gate requested. 0 new fixture files/bytes/schemas in the admission landing per retained gate.",
@@ -9179,14 +9179,14 @@
     "id": "SQA-379",
     "impact": "A plausible quality verdict can be attached to media or a recipe it never evaluated, wasting hours and undermining future automatic preset offering. Correct statistics342 alone cannot repair wrong provenance. This is distinct from283 campaign publication attribution: this command must bind two supplied record/render pairs before a new comparison.",
     "likely_effort": "Medium within current render/evaluation/controls owners; correctness may require growth before consolidation.",
-    "plan_coverage": "The campaign needs one coordinated producer/recovery identity migration: prevent both stale completed-arm reuse and stranding partially completed compatible sets. Do not count the two symptoms as independent savings.",
+    "plan_coverage": "render-resume/same-bytes lands per-draw provenance and partial stranding relief.379 still owns sampled compatibility, completed-arm skips and downstream approval identity.",
     "plan_references": [
         "judge-calibration/user-size landed2c7ac4ea4",
         "guidance-ops/preset-readings at d87c57c",
         "guidance-ops/moss-presets e9b82cdf6; sensenova-presets d87c57c",
         "guidance-ops/preset-gate bf1651186 (landed; partial consumer progress)"
       ],
-    "recommended_change": "Use the existing render provenance and run/evaluation artifact owners to bind each judged dataset/media input to its exact rendered outputs and producer identity before calculating a verdict. Require the same intended model/task, comparable recipe/code and full effective request except declared preset treatment; preserve paired prompts/seeds and matching question/judge/scoring contracts. Do not substitute current activation for the historical recipe; reuse historical records only when their bound identities remain applicable. Missing or foreign provenance stays unknown/refused before expensive rendering or judging where knowable. Carry the bound record IDs and relevant recipe/request identity through the existing evidence storage to the existing capability controls; offer only a currently applicable, statistically supported admission. Retain the conservative UI filtering, but replace family-wide manual labels as admission authority with a projection of the existing bound evidence for the actual model/recipe/request. Keep any explicitly supported unevaluated/reference choices distinct from judged candidate admission. The setting-reader prerequisite is now landed; keep existing plan ordering and correct its remaining identity-discovery gap in381. No second scheduler, registry, notes file or evidence ledger. Extend that same identity contract to readings campaign resume: validate the exact model/recipe/request, dataset/media, judge/evaluator and producer identities through existing render/evaluation/run records before reuse. Replace arm-name/file-existence authority with those records; reject incomplete bookkeeping rather than skipping work. Retain valid completed stages selectively and the printed exact-suite ID. Reuse the existing manifest/atomic-publication and process owners; no additional ledger, scheduler or workflow language. Refine the partial-render boundary: whole-commit inequality alone is not evidence that unchanged numerical execution is incompatible. Use existing declared execution dependencies and bound effective requests to decide which completed draws remain valid after an operational-only repair. Preserve original producer/run/code identity per output; never relabel old media as produced by HEAD. Permit continued work only under a demonstrably compatible execution contract, recording the actual producer of new draws; incompatible numerical/layout/randomness changes still invalidate the affected stage. Delete the blanket commit-only refusal and name-only skips as their contract moves to the retained identity owner; do not simply remove safety validation.",
+    "recommended_change": "Use the existing render provenance and run/evaluation artifact owners to bind each judged dataset/media input to its exact rendered outputs and producer identity before calculating a verdict. Require the same intended model/task, comparable recipe/code and full effective request except declared preset treatment; preserve paired prompts/seeds and matching question/judge/scoring contracts. Do not substitute current activation for the historical recipe; reuse historical records only when their bound identities remain applicable. Missing or foreign provenance stays unknown/refused before expensive rendering or judging where knowable. Carry the bound record IDs and relevant recipe/request identity through the existing evidence storage to the existing capability controls; offer only a currently applicable, statistically supported admission. Retain the conservative UI filtering, but replace family-wide manual labels as admission authority with a projection of the existing bound evidence for the actual model/recipe/request. Keep any explicitly supported unevaluated/reference choices distinct from judged candidate admission. The setting-reader prerequisite is now landed; keep existing plan ordering and correct its remaining identity-discovery gap in381. No second scheduler, registry, notes file or evidence ledger. Extend that same identity contract to readings campaign resume: validate the exact model/recipe/request, dataset/media, judge/evaluator and producer identities through existing render/evaluation/run records before reuse. Replace arm-name/file-existence authority with those records; reject incomplete bookkeeping rather than skipping work. Retain valid completed stages selectively and the printed exact-suite ID. Reuse the existing manifest/atomic-publication and process owners; no additional ledger, scheduler or workflow language. Refine the partial-render boundary: whole-commit inequality alone is not evidence that unchanged numerical execution is incompatible. Use existing declared execution dependencies and bound effective requests to decide which completed draws remain valid after an operational-only repair. Preserve original producer/run/code identity per output; never relabel old media as produced by HEAD. Permit continued work only under a demonstrably compatible execution contract, recording the actual producer of new draws; incompatible numerical/layout/randomness changes still invalidate the affected stage. Retain removal of the blanket commit-only refusal; replace name-only skips and sampled compatibility authority through the retained identity owner. Keep per-draw producer provenance. Establish set compatibility through existing bound execution/request/dependency identity; equality of one sampled output is evidence about that item only. Do not redraw every retained item or add another identity registry instead of that contract.",
     "severity": "P2",
     "sources": [
         {
@@ -9236,6 +9236,14 @@
         {
           "path": "cmd/evaluate/readings_test.go",
           "symbol": "TestAReadingsCampaignReadsEachArmsOwnRecord"
+        },
+        {
+          "path": "cmd/evaluate/render_resume_test.go",
+          "symbol": "TestARenderContinuesAtABuildThatDrawsItsLastItemTheSame"
+        },
+        {
+          "path": "cmd/evaluate/render.go",
+          "symbol": "renderSet.drawEach/sameAtThisBuild; renderedMedia.Build"
         }
       ],
     "status": "open",
@@ -9884,8 +9892,8 @@
       ],
     "comparison": "In one existing tiny Git fixture, create a replay checkout, end its owner before normal cleanup and classify/recover it through existing leftovers; an active owner or dirty/retained-evidence tree must stay protected. No model-backed test rerun.",
     "displaced_surface": "Remove verified abandoned registrations/checkouts and repeated ad-hoc cleanup. Retain historical replay producer commits/results, worktree locks and dirty/ignored state. Do not add duplicate t.Cleanup or revive retired model-backed test bodies.",
-    "evidence": "Read-only Git inventory contains81registered checkouts,12under temporary roots named TestLandedStepsReplayForAWorker(4),TestTheLocalWorkerPaysForItself(5),TestTheLocalWorkerWorksTheSixTasks(3). These identify test-created sets, not proof that all are idle or safely deletable. The current replay fixture already registers t.Cleanup(git worktree remove --force); merely adding cleanup again does not repair abnormal-exit recovery. moveReplay creates/reuses detached checkouts and writes data-root setup; the two historical local-worker test names are absent from current source. Existing leftovers.worktrees already covers temporary helper copies and checks locks/session/commit/dirt/ignored/process-state ownership. Whether prior tests were killed, cleanup failed or evidence retention was intended is unconfirmed.\nThe new committed process-identity/start-time row retains a relevant liveness counterexample: under concurrent test process churn, ProcessAlive(PID) accepted a reused PID after the original process exited; the implementation reproduced reuse on the307th subsequent process. Its planned current ProcessAlive/guard/campaign/leftovers migration will bind PID plus start. This supports exact owner identity for391 classification; it does not establish that PID reuse caused the twelve earlier retained replay trees. The patch is uncommitted and no closure is credited.",
-    "evidence_commit": "802b6da23f9687208fe758fa26d495e3b12343fd",
+    "evidence": "Read-only Git inventory contains81registered checkouts,12under temporary roots named TestLandedStepsReplayForAWorker(4),TestTheLocalWorkerPaysForItself(5),TestTheLocalWorkerWorksTheSixTasks(3). These identify test-created sets, not proof that all are idle or safely deletable. The current replay fixture already registers t.Cleanup(git worktree remove --force); merely adding cleanup again does not repair abnormal-exit recovery. moveReplay creates/reuses detached checkouts and writes data-root setup; the two historical local-worker test names are absent from current source. Existing leftovers.worktrees already covers temporary helper copies and checks locks/session/commit/dirt/ignored/process-state ownership. Whether prior tests were killed, cleanup failed or evidence retention was intended is unconfirmed.\n3a3aa64f5 lands shared Running(pid,start) and PID/start records in guard/worktree, campaign and measurement readers. Windows ProcessStart reads GetProcessTimes creation units (100ns since1601); non-Windows start is unknown. Legacy start0 deliberately retains PID-only ambiguity. The new fixture checks exact/mismatched start and live legacy compatibility, but then requires Running(exitedChildPID,0)==false. Under concurrent PID reuse that is legitimately true, the original demonstrated failure mode. Its other disjunct uses the parent start rather than the captured child identity. This is a source-admitted fixture race, not an observed new failure. Prior307th-process reuse is retained implementation evidence. None establishes that the twelve replay trees are abandoned/deletable.",
+    "evidence_commit": "9d585bc9addc4f4c0352ec3126627512b7beb857",
     "expected_benefit": {
         "baseline": "81registered trees;12test-named replay paths. No size/liveness/deletability census or reclaimed bytes measured. Current TestLandedStepsReplayForAWorker254AST/moveReplay124AST are retained owners, not wholesale deletion estimates.",
         "after": "No safe source/byte reduction yet established; recovery integration and native fixture may grow. Count that against verified removed setup/registrations, never move the trees elsewhere as savings.",
@@ -9894,13 +9902,13 @@
     "id": "SQA-391",
     "impact": "Test setup can accumulate registered checkouts and recovery ambiguity across interrupted runs, increasing disk/setup/maintenance surface.",
     "likely_effort": "Bounded lifetime/recovery integration after classifying the twelve named trees.",
-    "plan_coverage": "Normal cleanup already exists; process-identity/start-time is open for the shared holder-incarnation primitive. Verify abandoned-tree cause and lifetime separately; do not assume the planned PID repair removes all retained trees.",
+    "plan_coverage": "process-identity/start landed exact new-record identity. Legacy0 and the dead-PID-only fixture assertion remain; replay cleanup drafts are excluded.",
     "plan_references": [
         "loop-proof/local-demonstrated existing replay owner",
         "Existing leftovers helper-copy rule",
         "Owner feedback:81checkouts/12test-derived"
       ],
-    "recommended_change": "Keep moveReplay and the existing test cleanup as creation/normal-exit owners. Route abnormal-exit recovery through the existing process/scratch/worktree and leftovers lifetime: identify the creating test process/run and retained consumers, classify ended/clean unneeded checkouts and remove only those through the current worktree-removal owner. Reuse an existing fixture for cleanup failure/process end. Do not delete active/dirty/evidence-bearing trees, infer abandonment from a test-name prefix, add a daemon or a second checkout registry. For the existing liveness decision, consume the exact PID/start identity from the pending shared ProcessAlive migration; a reused PID must not retain a dead test owner, and older records lacking an incarnation remain explicitly uncertain. Reuse guard/campaign/leftovers consumers rather than a test-specific process tracker. Count that shared migration once.",
+    "recommended_change": "Keep moveReplay and the existing test cleanup as creation/normal-exit owners. Route abnormal-exit recovery through the existing process/scratch/worktree and leftovers lifetime: identify the creating test process/run and retained consumers, classify ended/clean unneeded checkouts and remove only those through the current worktree-removal owner. Reuse an existing fixture for cleanup failure/process end. Do not delete active/dirty/evidence-bearing trees, infer abandonment from a test-name prefix, add a daemon or a second checkout registry. For the existing liveness decision, consume the exact PID/start identity from the pending shared ProcessAlive migration; a reused PID must not retain a dead test owner, and older records lacking an incarnation remain explicitly uncertain. Reuse guard/campaign/leftovers consumers rather than a test-specific process tracker. Count that shared migration once. Keep the landed shared Running/ProcessStart owner and legacy/platform limits. Remove the unsupported dead-child-PID-only assertion or use the existing controlled-child fixture to capture its actual start before exit. Retain live zero-start compatibility and mismatched-start refusal. No repeated spawn confidence run or separate process tracker.",
     "severity": "P3",
     "sources": [
         {
@@ -10071,10 +10079,45 @@
         "The existing native fixture decides this boundary; no second ownership framework or recurring stress workload."
       ],
       "comparison": "In the retained named-turn process fixture, keep the parent's turn and file ownership live, expose the shorter-record pre-truncation interval, then start the inherited child. It must retain its parent's place without waiting on that parent; an unrelated or dead-holder claim must still refuse borrowing. Recommendation only; no SQA execution."
+    },
+    {
+      "id": "SQA-395",
+      "status": "open",
+      "severity": "P3",
+      "category": "duplicate-native-landing-setup",
+      "classification": "ast-and-contract-confirmed-duplicate-fixture-execution",
+      "title": "Keep commit-turn refusal and unchanged-head assertions in one fixture",
+      "evidence_commit": "9d585bc9addc4f4c0352ec3126627512b7beb857",
+      "sources": [
+        {
+          "path": "internal/landing/checkout_free_test.go",
+          "symbol": "landBesideACommit; TestALandingWaitingOnTheDeviceGivesUpItsCommitTurn; TestALandingTakesItsCommitTurnBackOnceTheCardIsItsOwn"
+        }
+      ],
+      "evidence": "Both tests call the same358-node landBesideACommit with identical state. It creates Git setup, holds the card, starts a landing, takes the freed commit slot, commits, unblocks and joins. The68-node older test checks generic moved-trunk refusal and unchanged HEAD. The83-node new test checks a stricter card-turn-prefixed refusal and no test-stage start. Its error assertion implies the old error assertion; the unique old HEAD assertion is21ASTnodes measured by go/parser. Source search finds no current caller requiring the old name. Current accepted verifier is the new name; history remains pinned.",
+      "impact": "One coordinated refusal boundary performs identical Git/landing setup twice per package execution.",
+      "recommended_change": "Retain TestALandingTakesItsCommitTurnBackOnceTheCardIsItsOwn and landBesideACommit. Bind fixture/moved instead of blanks, move the unchanged-HEAD assertion into this test, and delete the older test. Preserve freed-slot admission, early refusal/no test start and unchanged successor HEAD. Add no alias, wrapper, table or fixture.",
+      "displaced_surface": "Delete68-node old test, move21-node unique assertion; retain358-node shared helper and distinct checked-tree/checkout-free contracts. No production change or new imports/setup.",
+      "expected_benefit": {
+        "before": "Helper and two test functions509ASTnodes;2identical Git/landing setup executions.",
+        "after": "Same helper and retained test plus HEAD assertion462nodes:net47testAST removed,1testfunction removed,setup2->1.0production/helpers/fixturebytes/binaries/packages changed. Exact local estimate,not implemented or timed.",
+        "uncertainty": "No elapsed saving measured. Historical old-name selectors stay at old source; current verifier name retained."
+      },
+      "likely_effort": "Small assertion consolidation.",
+      "plan_references": [
+        "commit-turn/do5f29b024d (landed)",
+        "SQA-261 retains different free-probe/acquisition obligation"
+      ],
+      "plan_coverage": "Keep the new early-refusal contract while eliminating duplicate execution of its shared fixture.",
+      "closure_criteria": [
+        "One invocation proves freed commit slot, early moved-trunk refusal/no test start and unchanged HEAD.",
+        "Old test/extra setup disappears without alias or replacement helper; full cost supports47-node estimate."
+      ],
+      "comparison": "Retain the new test name and move the existing HEAD assertion under its same landBesideACommit result. Existing behavioral undo must still fail the early-refusal assertion. No new fixture or SQA test execution."
     }
   ],
     "gate_test_assessment": {
-    "assumptions": "Gain10 and1024squared-megapixel units are operation semantics;radius1/sigma0.6/alpha0.7 are the retained reference point,not proof of the whole admitted domain. Radius<imageextent makes one reflection fold sufficient;do not add impossible padding branches. Tiny positive finite sigma remains admitted. Numerical acceptance and timing stay separate.",
+    "assumptions": "One equal output does not establish all requests compatible. Exact process identity includes start; a dead PID may have been reused. Live legacy compatibility differs from asserting a dead PID cannot be reused.",
     "automation_follow_up": {
         "retained_feedback": {
           "window": "November8 and9,2026 America/New_York (UTC-05); local retained records read after58e8280",
@@ -10097,18 +10140,17 @@
         "cost": "budget+450production/+575test; verify-first+175/+148. No static fixture growth. Prior report was carried by a0cf; do not count its prose as application AST.",
         "interpretation": "Historical refusal wall motivates ordering and status delivery, but is not measured saved work. Query/window/outcome definitions must be explicit."
       },
-    "automation_sequence": "holdCard nowbegins beforeinvariants throughlandingend forchangesreachingdevice lanes;no independentper-lane acquisition. Preserve earlycheapadmission/hostprogress and261atomicwait contract. Numerical/recordcounterexamples areunchanged.",
+    "automation_sequence": "Moved-trunk rejection now follows actual card acquisition before expensive stages. Separate261 probe gap remains. One extra resume render is costed but cannot establish the entire execution contract.",
     "fresh_ast": {
-        "revision": "802b6da23f9687208fe758fa26d495e3b12343fd",
-        "method": "Existingexternal go/parser on10unchangedfiles at1c3f6be52 and3newstagefiles at802b6da23;complete4landingbefore/after costs.",
+        "revision": "9d585bc9addc4f4c0352ec3126627512b7beb857",
+        "method": "Existing external go/parser on10 pinned files, full changed-Go counts and an AST count of the unique HEAD assertion.",
         "retained_result": [
-          "review-1c3f6-selected-ast.json",
-          "review-802b6-stage-ast.json",
-          "review-802b6-stage-delta.json",
-          "review-802b6-total-delta.json"
+          "review-9d585-selected-ast.json",
+          "review-9d585-total-delta.json",
+          "selected-branch-count.go"
         ],
-        "counts": "13files18197AST/113functions/3513parser-local links. Prior10-file count8112;new3files10085. holdCard153,reachesCard66,stagefixture254;finishing/recordcounts retained. Noexactduplicatefullbodies found inoriginal10-file selectedscope.",
-        "limits": "No package/type resolution/globalcensus orSQAexecution. Stagefixturechecks list/method/environment,not a fullrehearsal. UnchangedfileAST identities retained explicitly."
+        "counts": "10files16180AST/115functions/3087local links. Helper358/oldtest68/newtest83; unique assertion21 gives509->462(-47),setup2->1. Running46/ProcessStart104/ReadHold90/sameAtThisBuild116 are owner boundaries,not deletion estimates.",
+        "limits": "No package/type/global analysis or application execution. Windows100ns creation units are ABI,not calibration; non-Windows start unsupported andlegacy0explicit."
       },
     "media_follow_up": {
         "revision": "fc673760f813afdf216be087fe586f717461cd3a",
@@ -10272,19 +10314,16 @@
       "retained_change_costs": "Two consolidation landings(2d59f642c exact folds andbb4fc706a parameter folds) remove744 production nodes but add1591 test nodes, net+847 across Go. Pilot retirementea8ed43a7 removes5926 production/9990 test nodes and one schema, while fixture bytes grow599; its test deletion is already included in the day's offsets and must not be subtracted twice. These retained gates are broader changes, not matched per-test performance comparisons."
     },
     "retained_results": [
-        "Finishing3e7b49d0c gate6276s;counts0f7438554 gate1488s;words1c3f6be52 gate541s. Successful walls include waiting and are not measured wasted checks. No SQA reruns.",
-        "3e7b slice load477955.9058ms versus0f7438554 1994.2612ms under identicalsliceidentity/outputs/peak;plan attributes difference to card waiting inside timing,not proven load-speed regression. Hostteststage4016.556s versus prior612.431s.",
-        "Finishing reference27627/27648exact,worst1level at96x96/radius1/sigma0.6/alpha0.7;440sizecases exact. New behaviorchecksdidnotbuild atbase,so undo is not behavioral proof.",
-        "Process-identity plan retains a reproduced reused-PID case on307th laterprocess;this isimplementationevidence only. No newProcessAlive orprocess-churn experiment bySQA.",
-        "802b6da23gate313s;stagefix+172production/+267testAST. Nativehelper/stage fixture reportedpassing;device/webui/CUDA skipped,scorecardnotreached. No freshhardwareperformanceclaim."
+        "Commit-turn gate364s,PID/start2141s,resume1947s; retained successful wall is not measured saved time.",
+        "Commit-turn behavioral undo fails on assertion. New PID/render helper checks do not build at base; those undos are not behavioral proof.",
+        "Nested fdd4ab1record retains15 names,no messages,0filed. Latest verifier covers9.42-package run5272passed/144skipped,31 flagged opt-ins are retained implementation counts,not SQA execution."
       ],
-    "surface_reduction_analysis": "8796648c2->802b6da23:4complete landings,22changedGo paths,+1232production/+1499testAST (+2731),+223/+234lines,net+1production/+2testGo files. Finishing+867/+977,counts+191/+189,words+2/+66,stage-turn+172/+267. Threefinishingfixtures add108126bytes;0newexecutables/package directories andnone removed. The15-second device heartbeat andobsolete lifecycle lines disappear within this aggregate growth;no safe net code reduction established.",
+    "surface_reduction_analysis": "c73779d2f->9d585bc9a:3landings/18changedGo paths,+653production/+848testAST (+1501),+117/+148lines,net0production/+2testGo files. Commit-turn -16/+156; PID/start+282/+152; render-resume+387/+540.0newstaticfixtures/bytes,executables orpackages;0binary/directory removal.395offers an additional unimplemented47testAST/one-setup reduction.",
     "tests": [
-        "RETAIN TestFinishingMatchesTheRecordedImage and its single crop/440case fixture. The1-level tolerance reflects recorded rounding at those settings;do not infer arbitrary-parameter parity.",
-        "EXTEND existing request/finishing bounds cases for oversized radius and tiny positive sigma;share the actual operation contract,not another model fixture. RETAIN no-finishing and unsupported-flow behavior.",
-        "RETAIN TestAWaiterSaysTheHoldersCount for quiescent3/5publication;extend current named-turn/child fixture for a read during rewrite. No new stress runner or real GPU test.",
-        "RETAIN current prompt/pointer text checks as wiring checks;they do not establish diagnosis orcause consumption. Existing driver/refusal fixture should own behavior;no prose-presence policy suite.",
-        "RETAIN separate351/349binary/package opportunities at their original evidence identity;these landings add no new command package and remove none. No safe selected duplicate-body deletion established."
+        "MERGE two commit-turn tests: retain new verifier,move21-node HEAD assertion,delete68-node old test; helper remains,setup2->1,net47testnodes. No new helper or test.",
+        "RETAIN current/mismatched start and live legacy checks; REMOVE dead-PID-only assumption or use the existing controlled child and captured start. No spawn-confidence loop.",
+        "RETAIN same-build,matched/mismatched sentinel and per-draw provenance cases; EXTEND same native fake to two old items/one pending where only a non-last old request changes.",
+        "RETAIN separate checked-tree,cancellation and numerical contracts.31opt-ins need requirement mapping or evidenced retirement,not deletion by missing model."
       ]
   },
     "hygiene_assessment": "No hygiene finding. Scratch analysis is outside the repository; concrete correctness and production/test cost take priority.",
@@ -11818,9 +11857,9 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
     "limitations": [
-      "No application tests,models,device work,gates,services,agents/messages,implementation or plan/skill edits. Source/arithmetic counterexamples and retained implementation records only.",
-      "13selectedfiles use parser-local links,not package/type resolution. Separate retained rapid type reach is an upper bound,not newSQAanalysis. The10earlier files are unchanged at the newpin.",
-      "No newrender/concurrent record update/child hang reproduced. Crop parity is scoped to recorded settings. Stage helper/nativefixture is not a completed real-device rehearsal;active process-identity edits excluded."
+      "No application tests,model/device workloads,gates,services,agents/messages,implementation,plan/skill edits orworktree deletion. Static source and retained results only.",
+      "Parser-local resolution,not package/type analysis. PID fixture and sampled-render counterexamples not executed.31opt-in scope is retained implementation evidence,not a new SQA census.",
+      "Active replay/drain/sampler patches excluded. New nested record retains15 names,no messages; one passing rerun alone cannot identify an intermittent cause."
     ],
     "master_lead_triage": {
     "at": "2026-11-10",
@@ -12696,13 +12735,13 @@
       }
     }
   },
-    "next_finding_number": 395,
+    "next_finding_number": 396,
     "publication_context": {
-    "assessment": "Substantive three-landing/contract reconciliation;no timestamp-only edit.",
-    "checked_head": "802b6da23f9687208fe758fa26d495e3b12343fd",
-    "concurrent_changes": "802b6da23landed duringpreview;reconciled its4Go changes,plan,retainedtests andcost beforepublication. Earlier10selectedsourcefiles unchanged. Activeprocess/sampler/lifecycle patchesexcluded;ownerreport reread underlocks.",
-    "current_pin": "802b6da23f9687208fe758fa26d495e3b12343fd",
-    "publication": "Only report viaexistinghooks/ownership;no implementation orworkloads.",
+    "assessment": "Substantive three-landing reconciliation and concrete setup reduction.",
+    "checked_head": "9d585bc9addc4f4c0352ec3126627512b7beb857",
+    "concurrent_changes": "Replay/local-drain/sampler drafts excluded. Final publication rereads HEAD/report/owner fields under existing locks and preserves other work.",
+    "current_pin": "9d585bc9addc4f4c0352ec3126627512b7beb857",
+    "publication": "Only report via existing hooks/ownership; no implementation or tests.",
     "report_only": true
   },
     "ranked_active_finding_ids": [
@@ -12756,6 +12795,7 @@
     "SQA-353",
     "SQA-350",
     "SQA-391",
+    "SQA-395",
     "SQA-257",
     "SQA-303",
     "SQA-285",
@@ -12795,33 +12835,34 @@
     "repository": "C:\\Users\\jeffm\\overgo",
     "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
     "review_notes": [
-      "393admission/numerical finishing and394mutable progress/inheritance are distinct contracts.261still owns probe/acquisition race;391retains checkout-lifetime uncertainty and can reuse the pending process-incarnation owner.",
-      "376stale wording is now corrected inAGENTS/worker/session prompts; matching text alone does not complete cause delivery/worklist or prove automatic recovery.",
-      "No new closure/consolidation. Keep numerical acceptance independent of timing,qualify the queued-load measurement and count all helper/test/fixture growth."
+      "395merges actual same-contract setup; keep distinct checked-tree/cancellation/numerical fixtures.",
+      "Credit261 early reacquisition/refusal,391 exact new-record identity and379 per-output producers; no broad closure from helper, one probe or compile-only undo.",
+      "No new duplicate identity backlog. Keep full costs, legacy/platform limits and original producer identities explicit."
     ],
-    "reviewed_at": "2026-11-13T04:12:42Z",
-    "reviewed_master": "802b6da23f9687208fe758fa26d495e3b12343fd",
+    "reviewed_at": "2026-11-13T06:16:05Z",
+    "reviewed_master": "9d585bc9addc4f4c0352ec3126627512b7beb857",
     "schema_version": 2,
     "scope": [
-      "Committed master 802b6da23f9687208fe758fa26d495e3b12343fd versus8796648c2;bounded finishing admission,live progress,stage ownership/timing andcause-first prompt adoption across4landings.",
-      "10unchangedselectedfiles at1c3f6be52 plus3stage files at802b6da23:13files18197AST/113functions/3513parser-local links;complete22changed-Go costs. No global census.",
-      "This chat previously implemented Overgo and contributed plan wording; internal review, not independent third-party review."
+      "Committed master 9d585bc9addc4f4c0352ec3126627512b7beb857 versus c73779d2f; bounded commit/card wait, native fixture duplication, PID/start and cross-build render recovery.",
+      "10selected files16180AST/115functions/3087parser-local links; full18changed-Go cost and21-node unique assertion count. Prior393/394 evidence retained unchanged.",
+      "Guidance/Downloads architecture target unchanged. Prior Overgo implementation and plan-wording involvement disclosed: internal review,not independent third-party review."
     ],
     "sqa_response": {
-    "assessment": "221stable IDs:85open,130resolved,4deferred,2aliases.393finishingadmission and394mutableturninheritance new;261/266/376/391 updated. Concurrent802b6stageplacement reconciled;no closure/consolidation.",
+    "assessment": "222stable IDs:86open,130resolved,4deferred,2aliases.395duplicate native setup added;261/266/379/391updated. No closure/consolidation.",
     "consolidated_findings": [],
     "deferred_findings": [],
-    "evidence": "Pinned source/arithmetic,13-file selectedAST andcomplete4landingcosts. Sameowner/unknownfields preserved;concurrentstagefix credited without assuming hardwareverification.",
-    "implementation_response_context": "Currentownerblocks reread at retained identities. Stale guidance words are fixed;cause-worklist andrecord/identity behavior notclosed by text alone.",
+    "evidence": "10-file AST, unique assertion/full costs, pinned callers/native cases andnested retained record; owner/unknown fields preserved.",
+    "implementation_response_context": "No changed owner closure blocks. Source/native progress credited with legacy/sample/compile-only limits.",
     "new_findings": [
-        "SQA-393",
-        "SQA-394"
+        "SQA-395"
       ],
     "partially_addressed_findings": [
-        "SQA-376"
+        "SQA-261",
+        "SQA-379",
+        "SQA-391"
       ],
-    "priority_changes": "Keep393earlyadmission/numerics and394ownershipauthority near261;qualify266measurementwait and391PID-incarnation evidence. No duplicated PID/worklist backlog.",
-    "recommendation": "Use existing media validation,turn ownership,record/status andprocess identity owners;delete displaced late/advisory authority andheartbeat work without another pipeline/daemon.",
+    "priority_changes": "Keep serious existing obligations ahead of395 local47-node/setup reduction.",
+    "recommendation": "Merge actual duplicate setup, preserve exact holder/provenance and cover all15 failed contracts before full run. No new framework or workloads.",
     "refactor": {
         "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
         "history_path": "docs/sqa_findings.json",
@@ -12829,12 +12870,12 @@
       },
     "reopened_findings": [],
     "resolved_findings": [],
-    "reviewed_master": "802b6da23f9687208fe758fa26d495e3b12343fd",
-    "uncertainty": "No newfailure/concurrencyexperiment. Overall+2731AST/108126fixturebytes,notnetcode reduction. Stageplacement haslanded;its broaderexclusiveinterval/typereach limits retained. Architecturetargetactive.",
+    "reviewed_master": "9d585bc9addc4f4c0352ec3126627512b7beb857",
+    "uncertainty": "Source-admitted cases only. Overall+1501AST,no binary/package reduction.47-node reduction is unimplemented; no elapsed saving claim.",
     "updated_findings": [
         "SQA-261",
         "SQA-266",
-        "SQA-376",
+        "SQA-379",
         "SQA-391"
       ]
   }

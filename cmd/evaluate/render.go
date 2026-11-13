@@ -319,6 +319,10 @@ func renderMedia(ctx context.Context, repository, path string, task recipe.Task,
 			return nil, err
 		}
 		fmt.Printf("  drew %d/%d: %s\n", index+1, len(prompts), item.ID)
+		// A waiter for the card says how far the render has come, by this count (card-handover/counts).
+		if err := processcontrol.TurnCount(index+1, len(prompts)); err != nil {
+			return nil, err
+		}
 		if gave, err := giveTheCardToAWaiter(ctx, capabilityruntime.ReleaseIdleSessions); err != nil {
 			return nil, err
 		} else if gave {

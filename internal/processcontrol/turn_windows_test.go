@@ -44,6 +44,9 @@ func TestTurnProcess(t *testing.T) {
 			case "give":
 				testcheck.NoError(t, release())
 				fmt.Println("given")
+			case "count":
+				testcheck.NoError(t, TurnCount(3, 5))
+				fmt.Println("counted")
 			}
 		}
 	case "ride":
@@ -102,10 +105,9 @@ func (p turnProcess) say(t *testing.T, line string) {
 	testcheck.Must(io.WriteString(p.input, line+"\n"))(t)
 }
 
-// TestOneCardTurnQueuesEveryUser holds the card turn's queue across three processes: the first takes the turn; the
-// second waits for it, saying once which process holds it and for what; the first's child takes its parent's place
-// without waiting, while the second still waits; and the second takes the turn as the first gives it up.
-func TestOneCardTurnQueuesEveryUser(t *testing.T) {
+// testTurn names a turn of the test alone, its files removed when the test ends.
+func testTurn(t *testing.T) string {
+	t.Helper()
 	name := "overgo-test-turn:" + t.Name() + ":" + fmt.Sprint(os.Getpid())
 	t.Cleanup(func() {
 		for _, kind := range []string{turnRecordFile, turnWaitingFile} {
@@ -114,6 +116,38 @@ func TestOneCardTurnQueuesEveryUser(t *testing.T) {
 			}
 		}
 	})
+	return name
+}
+
+// TestAWaiterSaysTheHoldersCount holds a waiter's line to its holder's own count (card-handover/counts): a holder that
+// has counted 3 of 5 (TurnCount) is named by a waiter at 3/5 and the time it got there, where on 2026-11-12 a test's
+// one line said only which render held the card and since when, and nothing of the 31 videos it drew meanwhile.
+func TestAWaiterSaysTheHoldersCount(t *testing.T) {
+	name := testTurn(t)
+	holder := startTurnProcess(t, turnProbe{Name: name, Purpose: "a render", Part: "hold"})
+	if got := holder.line(t); got != "taken" {
+		t.Fatalf("the holder: %q, want taken", got)
+	}
+	holder.say(t, "count")
+	if got := holder.line(t); got != "counted" {
+		t.Fatalf("the holder: %q, want counted", got)
+	}
+	waiter := startTurnProcess(t, turnProbe{Name: name, Purpose: "a test", Part: "take"})
+	if waiting := waiter.line(t); !strings.Contains(waiting, "for a render since") || !strings.Contains(waiting, ", at 3/5 reached ") {
+		t.Fatalf("the waiter said %q, want its holder's count, 3/5, and when it got there", waiting)
+	}
+	holder.say(t, "give")
+	if got := holder.line(t); got != "given" {
+		t.Fatalf("the holder: %q, want given", got)
+	}
+	testcheck.NoError(t, waiter.command.Wait())
+}
+
+// TestOneCardTurnQueuesEveryUser holds the card turn's queue across three processes: the first takes the turn; the
+// second waits for it, saying once which process holds it and for what; the first's child takes its parent's place
+// without waiting, while the second still waits; and the second takes the turn as the first gives it up.
+func TestOneCardTurnQueuesEveryUser(t *testing.T) {
+	name := testTurn(t)
 	first := startTurnProcess(t, turnProbe{Name: name, Purpose: "the first holder", Part: "hold"})
 	if got := first.line(t); got != "taken" {
 		t.Fatalf("the first process: %q, want taken", got)

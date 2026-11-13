@@ -70,13 +70,9 @@ func run() error {
 	defer os.RemoveAll(buildDir)
 	for index, step := range steps {
 		began := time.Now()
-		done, stopped := make(chan struct{}), make(chan struct{})
-		fmt.Println(deviceProgress(step, index, len(steps), 0))
-		go deviceHeartbeat(step, index, len(steps), began, done, stopped)
+		fmt.Println(deviceProgress(step, index, len(steps)))
 		command, err := executableStep(ctx, ".", buildDir, step)
 		if err != nil {
-			close(done)
-			<-stopped
 			return runrecord.LaneError(runrecord.LaneFailed, err.Error())
 		}
 		var stdout, stderr bytes.Buffer
@@ -94,8 +90,6 @@ func run() error {
 		if err == nil && receipt.ExitCode != 0 {
 			err = fmt.Errorf("exit code %d", receipt.ExitCode)
 		}
-		close(done)
-		<-stopped
 		fmt.Printf("[device] %-60s %6.1fs %s\n", strings.Join(step[1:], " "), time.Since(began).Seconds(), clioptions.Verdict(err))
 		if receipt.WallNS > 0 {
 			fmt.Printf("[device] phase=%d/%d resource=not_busy scope=task process_tree=exited\n", index+1, len(steps))
@@ -150,21 +144,10 @@ func deviceDiagnostic(out string, err error) string {
 	return builder.String()
 }
 
-func deviceHeartbeat(step []string, index, total int, began time.Time, done <-chan struct{}, stopped chan<- struct{}) {
-	defer close(stopped)
-	ticker := time.Tick(runrecord.DefaultHeartbeatStaleAfter / 2)
-	for {
-		select {
-		case <-done:
-			return
-		case <-ticker:
-			fmt.Println(deviceProgress(step, index, total, time.Since(began)))
-		}
-	}
-}
-
-func deviceProgress(step []string, index, total int, elapsed time.Duration) string {
-	return fmt.Sprintf("[device] phase=%d/%d heartbeat=running elapsed=%.1fs command=%s", index+1, total, elapsed.Seconds(), strings.Join(step, " "))
+// deviceProgress is the line a step says as it starts, by its count: the lane's progress is its own count of steps, where
+// a heartbeat every 15 s said only that time passed (card-handover/counts).
+func deviceProgress(step []string, index, total int) string {
+	return fmt.Sprintf("[device] step %d of %d: %s", index+1, total, strings.Join(step, " "))
 }
 
 func deviceSteps(plan devicescope.VerificationPlan) [][]string {

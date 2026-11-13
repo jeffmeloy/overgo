@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -19,20 +21,25 @@ import (
 // quietmachine.HeldEnvironment does for the quiet machine, so a child its holder waits on never waits for its parent.
 const TurnEnvironment = "OVERGO_TURNS_HELD"
 
-// turnRecord is what a holder writes where a waiter reads it: its process, what it holds the turn for and since when.
+// turnRecord is what a holder writes where a waiter reads it: its process, what it holds the turn for and since when,
+// and, where it counts its work (TurnCount), how far it has come and when it got there.
 type turnRecord struct {
 	Process uint32    `json:"process"`
 	Purpose string    `json:"purpose"`
 	Since   time.Time `json:"since"`
+	Done    int       `json:"done,omitzero"`
+	Total   int       `json:"total,omitzero"`
+	Reached time.Time `json:"reached,omitzero"`
 }
 
-// turnHold is this process's place on one turn: the holds taken on it, and how the place is given up once none is
-// left (nothing, where the process rides its holder's place).
+// turnHold is this process's place on one turn: the holds taken on it, how the place is given up once none is left,
+// and how its count is recorded (nothing of either, where the process rides its holder's place).
 type turnHold struct {
 	taken chan struct{}
 	err   error
 	holds int
 	give  func() error
+	count func(done, total int) error
 }
 
 var (
@@ -59,7 +66,7 @@ func TakeTurn(name, purpose string, output io.Writer) (func() error, error) {
 	hold.holds++
 	turnMu.Unlock()
 	if !placed {
-		hold.give, hold.err = takePlace(name, purpose, output)
+		hold.give, hold.count, hold.err = takePlace(name, purpose, output)
 		close(hold.taken)
 	}
 	<-hold.taken
@@ -89,16 +96,7 @@ func TakeTurn(name, purpose string, output io.Writer) (func() error, error) {
 // that can give its turn up between pieces of work, as a reading between pictures, gives it up only to a waiter.
 func TurnWaited() (bool, error) {
 	turnMu.Lock()
-	var held []string
-	for name, hold := range turns {
-		select {
-		case <-hold.taken:
-			if hold.err == nil && hold.give != nil {
-				held = append(held, name)
-			}
-		default:
-		}
-	}
+	held := slices.Collect(maps.Keys(ownTurns()))
 	turnMu.Unlock()
 	for _, name := range held {
 		if waiters, err := turnWaiters(name); err != nil || len(waiters) > 0 {
@@ -108,55 +106,91 @@ func TurnWaited() (bool, error) {
 	return false, nil
 }
 
-// takePlace gives this process a place on the turn: its holder's, where the holder started it, and nothing to give up,
-// else its own, waited for, and how it is given up.
-func takePlace(name, purpose string, output io.Writer) (func() error, error) {
+// TurnCount records, where a waiter reads it, how far this process has come in the work it holds its turns for, done
+// of total, and when it got there, as a render does where it says "drew n/N": a waiter says its holder's count, so a
+// reader tells a holder that advances from one that does not by the holder's own count, not a clock.
+func TurnCount(done, total int) error {
+	turnMu.Lock()
+	defer turnMu.Unlock()
+	var result error
+	for _, hold := range ownTurns() {
+		result = errors.Join(result, hold.count(done, total))
+	}
+	return result
+}
+
+// ownTurns are the turns this process holds in its own place, by name, with turnMu held.
+func ownTurns() map[string]*turnHold {
+	own := map[string]*turnHold{}
+	for name, hold := range turns {
+		select {
+		case <-hold.taken:
+			if hold.err == nil && hold.give != nil {
+				own[name] = hold
+			}
+		default:
+		}
+	}
+	return own
+}
+
+// takePlace gives this process a place on the turn: its holder's, where the holder started it, and nothing to give up
+// or count, else its own, waited for, how it is given up and how its count is recorded.
+func takePlace(name, purpose string, output io.Writer) (give func() error, count func(done, total int) error, err error) {
 	if holder, riding := heldTurns()[name]; riding {
 		if record, held, err := turnHolder(name); err != nil {
-			return nil, err
+			return nil, nil, err
 		} else if held && record.Process == holder {
-			return nil, nil
+			return nil, nil, nil
 		}
 	}
 	started := time.Now()
 	busy, err := ResourceTransactionHeld(name)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	unmark := func() error { return nil }
 	if busy {
 		// The holder reads the mark (TurnWaited) while this process waits.
 		if unmark, err = markTurnWaiter(name); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		record, held, err := turnHolder(name)
 		if err != nil {
-			return nil, errors.Join(err, unmark())
+			return nil, nil, errors.Join(err, unmark())
 		}
 		holder := "a process that has written no record"
 		if held {
 			holder = fmt.Sprintf("%s for %s since %s", processLabel(record.Process), record.Purpose, record.Since.Format(time.DateTime))
+			if record.Total > 0 {
+				holder += fmt.Sprintf(", at %d/%d reached %s", record.Done, record.Total, record.Reached.Format(time.DateTime))
+			}
 		}
 		fmt.Fprintf(output, "%s waits for the turn %s, held by %s\n", processLabel(uint32(os.Getpid())), name, holder)
 	}
 	leave, err := enterTurn(name)
 	if err != nil {
-		return nil, errors.Join(err, unmark())
+		return nil, nil, errors.Join(err, unmark())
 	}
 	if err := unmark(); err != nil {
-		return nil, errors.Join(err, leave())
+		return nil, nil, errors.Join(err, leave())
 	}
 	if busy {
 		fmt.Fprintf(output, "%s took the turn %s after %s\n", processLabel(uint32(os.Getpid())), name, time.Since(started).Round(time.Millisecond))
 	}
-	unrecord, err := recordTurn(name, turnRecord{Process: uint32(os.Getpid()), Purpose: purpose, Since: time.Now()})
+	record := turnRecord{Process: uint32(os.Getpid()), Purpose: purpose, Since: time.Now()}
+	rewrite, unrecord, err := recordTurn(name, record)
 	if err != nil {
-		return nil, errors.Join(err, leave())
+		return nil, nil, errors.Join(err, leave())
 	}
 	if err := setHeldTurn(name, true); err != nil {
-		return nil, errors.Join(err, unrecord(), leave())
+		return nil, nil, errors.Join(err, unrecord(), leave())
 	}
-	return func() error { return errors.Join(setHeldTurn(name, false), unrecord(), leave()) }, nil
+	count = func(done, total int) error {
+		record.Done, record.Total, record.Reached = done, total, time.Now()
+		return rewrite(record)
+	}
+	return func() error { return errors.Join(setHeldTurn(name, false), unrecord(), leave()) }, count, nil
 }
 
 // enterTurn holds the turn's transaction (ResourceTransaction) on a thread of its own until leave runs: the system

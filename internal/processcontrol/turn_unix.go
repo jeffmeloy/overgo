@@ -7,8 +7,8 @@ import (
 	"fmt"
 )
 
-func recordTurn(string, turnRecord) (func() error, error) {
-	return nil, errors.New("processcontrol: turns require Windows")
+func recordTurn(string, turnRecord) (func(turnRecord) error, func() error, error) {
+	return nil, nil, errors.New("processcontrol: turns require Windows")
 }
 
 func turnHolder(string) (turnRecord, bool, error) {

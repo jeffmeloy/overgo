@@ -2,19 +2,15 @@ package main
 
 import (
 	"slices"
-	"strings"
 	"testing"
-	"time"
 
 	"overgo/internal/devicescope"
 )
 
+// TestDeviceLaneProgress holds a step's line to its count and its command, said as the step starts.
 func TestDeviceLaneProgress(t *testing.T) {
-	line := deviceProgress([]string{"go", "test", "./internal/cuda/..."}, 1, 3, 2*time.Second)
-	for _, field := range []string{"phase=2/3", "heartbeat=running", "elapsed=2.0s", "go test ./internal/cuda/..."} {
-		if !strings.Contains(line, field) {
-			t.Fatalf("progress %q lacks %q", line, field)
-		}
+	if line := deviceProgress([]string{"go", "test", "./internal/cuda/..."}, 1, 3); line != "[device] step 2 of 3: go test ./internal/cuda/..." {
+		t.Fatalf("progress %q, want the step's count and command", line)
 	}
 }
 

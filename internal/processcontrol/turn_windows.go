@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -74,20 +75,30 @@ func turnWaiters(name string) ([]uint32, error) {
 }
 
 // recordTurn writes the holder's record and keeps it open until unrecord runs: a waiter believes the record only of
-// a process that has it open, so a record left by a holder that has gone names no one.
-func recordTurn(name string, record turnRecord) (unrecord func() error, err error) {
-	data, err := json.Marshal(record)
-	if err != nil {
-		return nil, err
-	}
+// a process that has it open, so a record left by a holder that has gone names no one. rewrite writes a later record
+// over it through the same handle (TurnCount).
+func recordTurn(name string, record turnRecord) (rewrite func(turnRecord) error, unrecord func() error, err error) {
 	handle, err := openTurnFile(name, turnRecordFile, syscall.GENERIC_WRITE, syscall.CREATE_ALWAYS)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	if _, err := syscall.Write(handle, data); err != nil {
-		return nil, errors.Join(fmt.Errorf("processcontrol: record the turn %q: %w", name, err), syscall.CloseHandle(handle))
+	rewrite = func(record turnRecord) error {
+		data, err := json.Marshal(record)
+		if err != nil {
+			return err
+		}
+		if _, err := syscall.Seek(handle, 0, io.SeekStart); err != nil {
+			return fmt.Errorf("processcontrol: record the turn %q: %w", name, err)
+		}
+		if _, err := syscall.Write(handle, data); err != nil {
+			return fmt.Errorf("processcontrol: record the turn %q: %w", name, err)
+		}
+		return syscall.SetEndOfFile(handle)
 	}
-	return func() error { return syscall.CloseHandle(handle) }, nil
+	if err := rewrite(record); err != nil {
+		return nil, nil, errors.Join(err, syscall.CloseHandle(handle))
+	}
+	return rewrite, func() error { return syscall.CloseHandle(handle) }, nil
 }
 
 // turnHolder reads the turn's record, and whether the process it names holds it open, so holds the turn.

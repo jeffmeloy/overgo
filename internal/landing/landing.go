@@ -260,12 +260,14 @@ func Run(ctx context.Context, options Options) (landed string, err error) {
 	if l.Free != nil {
 		checks = slices.Insert(checks, 0, check{spaceClass, l.space, true})
 	}
-	for _, check := range checks {
+	for index, check := range checks {
 		if readsCandidate(check.name) {
 			if err := l.checkOut(ctx); err != nil {
 				return "", fmt.Errorf("%scandidate worktree: %w", stagePrefix, err)
 			}
 		}
+		// Each stage is said as it starts, by its count, so a reader knows how far the landing has come without a clock.
+		fmt.Fprintf(options.Log, "land: stage %d of %d: %s\n", index+1, len(checks), check.name)
 		started := time.Now()
 		l.spent.Outcome = check.name
 		err := check.run(ctx)

@@ -3,28 +3,27 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "card-handover",
-      "title": "A render gives the card up only when its turn is free, and a landing waits for the card once for all its lanes",
+      "id": "process-identity",
+      "title": "A process named as a holder is known by its id and its start, so a dead holder whose id another process took is known dead",
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 152,
-        "reason": "Filed 2026-11-12 after the retire-admissions landing waited 6.2 of its 6.8 hours for the card. Two causes, each cured by fixing what exists: the idle release that frees the card between pictures missed Wan's text encoder, and the card turn was taken by each test's context rather than once by the landing that runs them. The landing's lane turn becomes the card's own turn, so two queues become one, and the parsing of each test's wait lines goes. The encoder's release and the render's honest check add about 25 statements; the lane change removes about as much as it adds. The lead's figure. Step counts: +252 (252, the median of what 59 landings that changed internal/processcontrol, cmd/evaluate, internal/landing, cmd/device-lane counted)."
+        "nodes": 120,
+        "reason": "Filed 2026-11-12 from a refusal's cause: a hold names its process by id alone, and Windows gives a dead process's id to a new one. The cure fixes what exists: the holds record the process's start beside its id, and the one liveness check compares it. The lead's figure."
       },
       "steps": [
         {
-          "id": "counts",
-          "title": "A waiter says how far the turn's holder has come, its own count and when it reached it, and the landing and the device lane say each stage and step as it starts, by count, where the device lane printed a heartbeat",
+          "id": "start-time",
+          "title": "ProcessAlive is asked about a process by its id and its start, and a running process with that id that started later is not it; the worktree hold, the campaign owner and the leftovers' reading of them record and compare the start",
           "status": "open",
-          "verify": "go test ./internal/processcontrol -count=1 -run '^TestAWaiterSaysTheHoldersCount$'",
+          "verify": "go test ./internal/processcontrol -count=1 -run '^TestAHolderWhoseIdWasGivenOutAgainIsDead$'",
           "files": [
             "internal/processcontrol",
-            "cmd/evaluate",
-            "internal/landing",
-            "cmd/device-lane",
-            "internal/runrecord"
+            "internal/guard",
+            "cmd/loophook",
+            "cmd/loop"
           ],
-          "rationale": "Serves: the owner's suggestion of 2026-11-12: replace guessed waits with the job's own counts, on parts that exist; counts only, no estimated percentages; a stall judged against the job's own measured time per unit and only reported.\n\nDisappears: a wait whose reader cannot tell a working holder from a stuck one. On 2026-11-12 a test waited from 14:14 for a render that drew a video every 5 min 34 s and never handed over; the waiter's one line named the render and when it took the card, nothing of how far it had come. The device lane printed a heartbeat every 15 s, a clock's line that says only that time passed, and the landing printed a stage only when it ended.\n\nThe change:\n- The turn's record carries the holder's count and when it was reached: processcontrol.TurnCount(done, total), which a render calls as it prints \"drew n/N\", rewrites the record its holder keeps open; a waiter's line says the count and when it was reached beside the holder's process and purpose.\n- The landing says each stage as it starts, \"stage k of N\", and the device lane says each step as it starts, its count already in its line; the device lane's heartbeat goes.\n\nCheck: a test holds a waiter's line to the holder's count: a holder that has counted 3 of 5 is named by a waiter at 3/5 and the time it was reached.\n\nBatch: host lane.\n\nNote: files set to internal/processcontrol, cmd/evaluate, internal/landing, cmd/device-lane, internal/runrecord: the device lane's heartbeat goes, and with it runrecord.DefaultHeartbeatStaleAfter, which only it read"
+          "rationale": "Serves: every failure is a defect, its cause shown and cured by fixing what exists (owner, 2026-11-12).\n\nDisappears: a hold believed alive because its dead process's id was given to another. The card-handover/counts landing of 2026-11-12 was refused by cmd/loop's TestAnEndedSessionsScratchIsFinished, which passes alone and in a whole run of its package (three times, 12 s each) and failed in the landing's test stage, 107 s under hundreds of processes: its fixture names a hold by the id of a git --version that has exited, and listLeftovers, through processcontrol.ProcessAlive, found the id running. Reproduced (tmp/card-handover/pidreuse): a process that exited had id 13696; the 307th process started after it was given 13696, and ProcessAlive(13696) said true. ProcessAlive (supervisor_windows.go) opens a process by its id and asks whether it still runs, so any process with the id counts.\n\nWhere else: the worktree hold (guard checkout.go heldBy, guard.go, loophook), the campaign owner (processcontrol campaign.go), and the leftovers' session line read a holder by id alone; a session believed to hold the worktree ends every other session's run.\n\nThe change: a holder is recorded by its id and its start (GetProcessTimes' creation time), and the liveness check takes both: a running process with the id whose start differs is another process, and the holder is dead.\n\nCheck: TestAHolderWhoseIdWasGivenOutAgainIsDead starts processes until one is given the id of a process that exited, and asks about the first by its id and start: dead.\n\nBatch: host lane."
         }
       ]
     },

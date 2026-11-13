@@ -230,7 +230,7 @@ func TestCPULanesOverlapTheDeviceLane(t *testing.T) {
 // reached there is no turn to wait for.
 func TestLanesMeasurementLine(t *testing.T) {
 	t.Parallel()
-	device := "[device] phase=1/3 heartbeat=running elapsed=0.0s command=go run ./cmd/cuda-info\n" +
+	device := "[device] step 1 of 3: go run ./cmd/cuda-info\n" +
 		"ok  \tovergo/internal/cuda/kernel\t12.5s\n"
 	cuda := "ok  \tovergo/internal/hybridtrain\t61.204s\n" +
 		"ok  \tovergo/internal/torchrng\t(cached)\n" +

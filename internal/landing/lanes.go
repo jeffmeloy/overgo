@@ -334,7 +334,7 @@ func (l *landing) letGo() error {
 			return err
 		}
 	}
-	fmt.Fprintf(l.Log, "land: the lane turn is held, so the lanes wait on the change as it stood, in %s: the checkout is free\n", l.tree)
+	fmt.Fprintf(l.Log, "land: the card's turn is held, so the landing waits on the change as it stood, in %s: the checkout is free\n", l.tree)
 	return nil
 }
 
@@ -360,10 +360,20 @@ func (l *landing) takeTurnBack(ctx context.Context) error {
 	return nil
 }
 
-// inLaneTurn runs work in the lane turn, waiting for it with no side of the quiet machine held, which it takes again
-// once the turn is its own: a timed cell of a run that holds the turn takes the machine alone, and would otherwise
-// wait on a landing that waits on the run.
-func (l *landing) inLaneTurn(ctx context.Context, work func() error) error {
+// holdCard takes the card's turn for the rest of the landing, which gives it up as it ends (Run): every process it starts
+// from then rides on its place, the lanes', a host test's that trains through the optimizer's card stepper and the
+// scorecard's benchmark alike, where each had taken the card per context and waited out a render's clip, and the
+// benchmark timed its wait as its load (card-stages/whole-landing). It waits with the checkout let go (letGo) and no
+// side of the quiet machine held, which it takes again once the turn is its own: a timed cell of a run that holds the
+// turn takes the machine alone, and would otherwise wait on a landing that waits on the run. The wait is said on the
+// landing's log as it starts and measured here.
+func (l *landing) holdCard(ctx context.Context) error {
+	if l.card != nil {
+		return nil
+	}
+	if err := l.letGo(); err != nil {
+		return err
+	}
 	machine := l.quietMachine
 	if l.quiet != nil {
 		released := l.quiet()
@@ -372,32 +382,49 @@ func (l *landing) inLaneTurn(ctx context.Context, work func() error) error {
 			return released
 		}
 	}
-	// The wait is said in the landing's log as it starts, whom it waits for and since when, not when the lanes end.
+	waiting := time.Now()
 	release, err := takeLaneTurn("the commit checks of "+l.Ref, l.Log)
 	if err != nil {
 		return err
 	}
-	err = func() error {
-		if machine != "" {
-			release, err := l.holdQuiet(ctx, machine)
-			if err != nil {
-				return err
-			}
-			l.quiet = release
+	l.card, l.spent.Turn = release, time.Since(waiting).Round(time.Millisecond)
+	if machine != "" {
+		quiet, err := l.holdQuiet(ctx, machine)
+		if err != nil {
+			return err
 		}
-		return work()
-	}()
-	return errors.Join(err, release())
+		l.quiet = quiet
+	}
+	return nil
 }
 
-// inTurnFor runs work in the lane turn when one of shared needs the device, the resource the turn guards. Lanes that
-// need none run at once, the landing's side of the quiet machine held, so a measurement run's phases keep them waiting
-// for nothing they use: on 2026-10-31 a landing whose one lane was webui waited 7.99 h for a run's turn (e63fd568a).
+// reachesCard says whether the change reaches a lane that shares the device, so the landing holds the card's turn from
+// its first stage that runs tests (holdCard). A landing that reaches none takes no turn, so a measurement run's phases
+// keep it waiting for nothing it uses: on 2026-10-31 a landing whose one lane was webui waited 7.99 h for a run's turn
+// (e63fd568a).
+func (l *landing) reachesCard() (bool, error) {
+	reaches, err := discover(l.stageRoot(), lanes...)
+	if err != nil {
+		return false, err
+	}
+	for _, candidate := range lanes {
+		if !candidate.hostOnly && reaches(candidate, l.paths).by != "" {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// inTurnFor runs work in the card's turn when one of shared needs the device, the resource the turn guards, taking it
+// if the landing holds it not yet (holdCard). Lanes that need none run at once.
 func (l *landing) inTurnFor(ctx context.Context, shared []lane, work func() error) error {
 	if len(shared) == 0 {
 		return work()
 	}
-	return l.inLaneTurn(ctx, work)
+	if err := l.holdCard(ctx); err != nil {
+		return err
+	}
+	return work()
 }
 
 // lanes runs every lane the change reaches: the lanes that share the device one
@@ -447,16 +474,9 @@ func (l *landing) lanes(ctx context.Context) error {
 		return nil
 	}
 	beside, shared := splitLanes(reached)
-	if len(shared) > 0 {
-		if err := l.letGo(); err != nil {
-			return err
-		}
-		fmt.Fprintln(l.Log, "land: lanes wait for the host's lane turn")
-	}
-	waiting := time.Now()
+	// The card's turn is the landing's from its first stage that runs tests (holdCard), and its wait is measured there.
 	err = l.inTurnFor(ctx, shared, func() error {
-		turnWait := time.Since(waiting).Round(time.Millisecond)
-		l.spent.Turn = turnWait
+		turnWait := l.spent.Turn
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 		entries, failures := map[string]string{}, map[string]error{}

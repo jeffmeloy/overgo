@@ -3,28 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "card-stages",
-      "title": "A landing holds the card's one turn from its first stage that runs tests to its last, so every process it starts rides on it",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 40,
-        "reason": "Filed 2026-11-12 from the card-handover rehearsal: the turn the lanes take moves to the invariants stage; the lanes' own taking folds into it. The lead's figure."
-      },
-      "steps": [
-        {
-          "id": "whole-landing",
-          "title": "The landing takes the card's turn as its invariants stage starts and holds it through verify, the host tests, the lanes and the scorecard, its wait said once and measured where it is taken",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestALandingHoldsTheCardFromItsFirstTestStage$'",
-          "files": [
-            "internal/landing"
-          ],
-          "rationale": "Serves: the owner's review of the card-handover rehearsal (2026-11-12): the same cause in a third place; list every place by search before writing the cure, say which stage runs each, and state the cure's cost.\n\nDisappears: card users of a landing that queue on their own. In the rehearsal beside a Wan render and a SenseNova render, the moss-ultra-sections/finishing landing took 1h44m37s: its host test stage 1h06m57s against 10m12s with the card free, since host tests that train through the optimizer's card stepper (internal/optimizer/stepper_windows.go, device.New) took the card's turn per context and waited out clips and pictures (seen: diffusionimage, speechsynth, tabularicl, routedlm, oscillatorimage); and its scorecard ran after the lanes outside the turn, so the benchmark waited for the card inside its timing and 3e7b49d0c's Scorecard-Slice trailer records load-time 477955 ms, where 0f7438554 measured 1994 ms with the card free. describeSlice prints timed cells without comparing them, so nothing refused; that record is wrong.\n\nWhere else, by search: TakeTurn has one production caller, (*driver.Library).ContextCreate. A rapid type analysis of each package's test binary (scratch probe cardreach, golang.org/x/tools v0.50.0) finds at most 2,787 tests in 81 packages that can reach it, 296 of them behind cudatest.Require and run by the lanes, 2,491 ungated in 61 packages, an upper bound since calls through interfaces and function values count every implementation a binary links. By stage: the invariants stage runs cmd/loop, 70 of whose tests can reach it (internal/repoanalysis, internal/plan, internal/commanddoc and internal/landing none); a host verify runs whatever test a step names; the host test stage runs the 61 packages; the lanes run the gated ones; the scorecard runs the benchmark.\n\nThe change: the landing takes the card's turn as the invariants stage starts, with the quiet machine given up while it waits as the lanes did, and holds it to the end of the scorecard; every process it starts rides on its place, whatever reaches the card. The lanes take nothing of their own; the wait is said once on the landing's output and measured where it is taken.\n\nCost: a render beside a landing waits for the invariants, verify, the host tests, the lanes and the scorecard, about 35 minutes a landing with the card free, where it waited about 20 for the lanes alone; in return none of the landing's processes waits per context, which stretched the host test stage from 10 minutes to 67.\n\nCheck: TestALandingHoldsTheCardFromItsFirstTestStage holds a landing to its turn: from the invariants stage on, the environment its processes start in carries the landing's place.\n\nBatch: host lane."
-        }
-      ]
-    },
-    {
       "id": "process-identity",
       "title": "A process named as a holder is known by its id and its start, so a dead holder whose id another process took is known dead",
       "owner": "master-lead",
@@ -43,9 +21,82 @@
             "internal/processcontrol",
             "internal/guard",
             "cmd/loophook",
-            "cmd/loop"
+            "cmd/loop",
+            "internal/plan"
           ],
-          "rationale": "Serves: every failure is a defect, its cause shown and cured by fixing what exists (owner, 2026-11-12).\n\nDisappears: a hold believed alive because its dead process's id was given to another. The card-handover/counts landing of 2026-11-12 was refused by cmd/loop's TestAnEndedSessionsScratchIsFinished, which passes alone and in a whole run of its package (three times, 12 s each) and failed in the landing's test stage, 107 s under hundreds of processes: its fixture names a hold by the id of a git --version that has exited, and listLeftovers, through processcontrol.ProcessAlive, found the id running. Reproduced (tmp/card-handover/pidreuse): a process that exited had id 13696; the 307th process started after it was given 13696, and ProcessAlive(13696) said true. ProcessAlive (supervisor_windows.go) opens a process by its id and asks whether it still runs, so any process with the id counts.\n\nWhere else: the worktree hold (guard checkout.go heldBy, guard.go, loophook), the campaign owner (processcontrol campaign.go), and the leftovers' session line read a holder by id alone; a session believed to hold the worktree ends every other session's run.\n\nThe change: a holder is recorded by its id and its start (GetProcessTimes' creation time), and the liveness check takes both: a running process with the id whose start differs is another process, and the holder is dead.\n\nCheck: TestAHolderWhoseIdWasGivenOutAgainIsDead starts processes until one is given the id of a process that exited, and asks about the first by its id and start: dead.\n\nBatch: host lane."
+          "rationale": "Serves: every failure is a defect, its cause shown and cured by fixing what exists (owner, 2026-11-12).\n\nDisappears: a hold believed alive because its dead process's id was given to another. The card-handover/counts landing of 2026-11-12 was refused by cmd/loop's TestAnEndedSessionsScratchIsFinished, which passes alone and in a whole run of its package (three times, 12 s each) and failed in the landing's test stage, 107 s under hundreds of processes: its fixture names a hold by the id of a git --version that has exited, and listLeftovers, through processcontrol.ProcessAlive, found the id running. Reproduced (tmp/card-handover/pidreuse): a process that exited had id 13696; the 307th process started after it was given 13696, and ProcessAlive(13696) said true. ProcessAlive (supervisor_windows.go) opens a process by its id and asks whether it still runs, so any process with the id counts.\n\nWhere else: the worktree hold (guard checkout.go heldBy, guard.go, loophook), the campaign owner (processcontrol campaign.go), and the leftovers' session line read a holder by id alone; a session believed to hold the worktree ends every other session's run.\n\nThe change: a holder is recorded by its id and its start (GetProcessTimes' creation time), and the liveness check takes both: a running process with the id whose start differs is another process, and the holder is dead.\n\nCheck: TestAHolderWhoseIdWasGivenOutAgainIsDead starts processes until one is given the id of a process that exited, and asks about the first by its id and start: dead.\n\nBatch: host lane.\n\nNote: files set to internal/processcontrol, internal/guard, cmd/loophook, cmd/loop, internal/plan: the measurement run's record names its process by id alone too (internal/plan measurement_run.go HoldsTheCard and Report), and dispatch reads it"
+        }
+      ]
+    },
+    {
+      "id": "render-resume",
+      "title": "A render set drawn at one build continues at another where the new build draws its last item to the same bytes, so a fix no longer strands the set in progress",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 80,
+        "reason": "Filed 2026-11-12 from the owner's review: the producing-build rule strands moss-apg (40 of 80 at 6bb2359a3) and wan-reference (35 of 100 at ae76871f4). The cure replaces the rule with the evidence it stood for, one redrawn item; the lead's figure."
+      },
+      "steps": [
+        {
+          "id": "same-bytes",
+          "title": "A render resumed at a build other than the one its manifest names first draws the last item drawn again and compares the bytes: the same, it continues, each draw naming its build; different, it refuses naming the item and both builds",
+          "status": "open",
+          "verify": "go test ./cmd/evaluate -count=1 -run '^TestARenderContinuesAtABuildThatDrawsItsLastItemTheSame$'",
+          "files": [
+            "cmd/evaluate"
+          ],
+          "rationale": "Serves: the owner's review of 2026-11-12: render.go refuses a manifest drawn at another commit, so any fix strands the set in progress (moss-apg 40 of 80 at 6bb2359a3; wan-reference 35 of 100 at ae76871f4, the build whose hand-over was broken).\n\nDisappears: a rule standing in for the evidence it was for. renderMedia refuses to draw into a directory whose manifest names another CodeCommit, so that a set's pictures come from one code; what that protects is that the same request draws the same bytes. The cure asks for that directly: at a resume on another build the last item drawn is drawn again and compared byte for byte. The same bytes, and the build draws this set as the first did: the render continues, the manifest naming each draw's build. Different, and the set is stranded in fact: the render refuses, naming the item and both builds.\n\nCost: one item drawn again a resume, about 70 s for a picture and 5.5 minutes for a clip.\n\nCheck: TestARenderContinuesAtABuildThatDrawsItsLastItemTheSame resumes a set on another build with a fake model that draws the same bytes, which continues, and one that draws others, which refuses naming the item.\n\nBatch: host lane."
+        }
+      ]
+    },
+    {
+      "id": "opt-in-tests",
+      "title": "Every test runs somewhere: the 31 tests gated on a variable or a model no lane sets run in the measurement run where their model is on the machine, or are removed",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 0,
+        "reason": "Filed 2026-11-12 from the full card run: tests that run nowhere are moved to where they run or removed; nothing is added."
+      },
+      "steps": [
+        {
+          "id": "run-or-remove",
+          "title": "Each of the 31 opt-in tests either runs in the measurement run, gated on its model's presence where it was gated on a variable, or is removed with what it measured named",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestEveryTestRunsSomewhere$'",
+          "files": [
+            "internal/adaptiveparity",
+            "internal/densecausaltrain",
+            "internal/inference",
+            "internal/latentimage",
+            "internal/mediacapability",
+            "internal/model",
+            "internal/modeldevice",
+            "internal/projector",
+            "internal/sensenovarecipe",
+            "internal/repoanalysis"
+          ],
+          "rationale": "Serves: the owner's review of 2026-11-12: file the 31 tests the full card run found gated on a variable or a model no lane sets, or remove the ones nothing will ever run.\n\nDisappears: tests that run nowhere. The full card run at ad23357f4 ran 42 packages, 5,272 tests passing and 144 skipped; 113 of the skips are the server's browser legs, which the webui lane runs; 31 wait on a variable no lane or measurement run sets, or a model the machine does not hold: OVERGO_PROBE_TEST (5, adaptiveparity), OVERGO_ADAPTIVE_PARITY and OVERGO_GEMMA4_BASELINE (adaptiveparity), OVERGO_DENSE_TRAIN_BASELINE (2, densecausaltrain), OVERGO_KREA_BASELINE (2 latentimage, 1 mediacapability), OVERGO_SENSENOVA_BASELINE (2) and OVERGO_SENSENOVA_FULL (2) (sensenovarecipe), OVERGO_GEMMA4_* (6) and OVERGO_QWEN35_* (2) (projector), OVERGO_SINGLE_PASS_GGUF (inference, modeldevice), OVERGO_LOAD_BENCH_GGUF (modeldevice), and absent models: a qwen3 GGUF (inference), gemma-3-12b-it-IQ4_XS.gguf, a kimi-linear GGUF and umt5-xxl-encoder-Q5_K_S.gguf (model).\n\nThe change: each is read for what it measures; one whose model is on the machine has its variable gate replaced by the model's presence (modeltest.Directory) and runs with the measurement run's model tests; one whose model is not, or whose probe nobody reads, is removed, its commit naming what it measured.\n\nCheck: TestEveryTestRunsSomewhere refuses a test that skips on a variable no lane or the measurement run sets.\n\nBatch: host lane."
+        }
+      ]
+    },
+    {
+      "id": "run-stop-cause",
+      "title": "The measurement run of 8 November stopped on 15 model tests; each is run at the head and its cause found before the next full run",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 0,
+        "reason": "Filed 2026-11-12 from the owner's review: the cause of the stop first, then one full run with the card to itself after the rehearsal."
+      },
+      "steps": [
+        {
+          "id": "fifteen",
+          "title": "The 15 tests that failed the 8 November run's lanes are run at the head with the card to themselves, and each failure's cause is shown or each passes",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo ./internal/diffusionimage ./internal/latentimage -count=1 -run '^(TestWanProductionRuntime|TestWanLifecycleAcceptance|TestRealResidentForwardLeadership|TestMOSSRotaryRefinementCheckpoint|TestMOSSRotaryJointCheckpoint|TestMOSSRotaryDenoiserCheckpoint|TestMOSSSamplingCheckpoint|TestMOSSDecoderCheckpoint|TestMOSSGenerationCheckpoint)$'",
+          "rationale": "Serves: the owner's review of 2026-11-12: measurement_run.json still shows the run of 8 Nov at fdd4ab1cea37 (preflight did not pass in 10m, lanes did not pass in 1h41m, 0 rows filed), and none has run since; the cause of that stop first, then one full run with the card to itself after the rehearsal.\n\nThe evidence: the cycle checkout's record (.overgo-runtime/cycle/.overgo-runtime/measurement_run.json) names the lanes' 15 failures: internal/latentvideo TestWanProductionRuntime and TestWanLifecycleAcceptance; internal/diffusionimage TestRealResidentForwardLeadership; internal/latentimage TestMOSSRotaryRefinementCheckpoint, TestMOSSRotaryJointCheckpoint, TestMOSSRotaryDenoiserCheckpoint, TestMOSSSamplingCheckpoint, TestMOSSDecoderCheckpoint and TestMOSSGenerationCheckpoint; internal/inference TestServingGoldenEvidence; cmd/evaluate TestGenerationSoakSurvivesLengthSweep; cmd/train TestCodecRouteTrainsADecoderOrNamesTheMissingOperator, TestTabFMObjectiveApprovesOnHeldOutRows and TestUn0RoutePublishesCheckpoint; cmd/validate TestEveryViewedTextModelServesFromItsDirectory. The run kept their names and none of their messages.\n\nThe work: each is run at the head with the card to itself; a failure's cause is found in the code or reproduced and cured by its own step; one that passes is named as passing. Then one full measurement run.\n\nBatch: card lane."
         }
       ]
     },
@@ -77,10 +128,9 @@
           "status": "open",
           "verify": "go test ./internal/landing -count=1 -run '^TestRefusalsAreListedByTheRuleThatRefusedThem$'",
           "files": [
-            "internal/landing",
             "cmd/loop"
           ],
-          "rationale": "Serves: the owner's review of 2026-11-12: every refusal is a defect of the orchestration or the implementation; the tool sorts refusals itself, and that list is the worklist. For each rule on it: ask what its refusals prevented and delete it if nothing; otherwise move its fix into the fix stage, which rewrites instead of refusing. Judged by check time per commit made.\n\nDisappears: refusals counted only by stage. landing_waits.json records each attempt's outcome as its stage (rules, invariants, lanes, verify), so the daily line says \"rules 4\" and nothing of which rule refused or whether its own detail carried the edit that fixes it; 20 of 62 refusals since 9 November carried \"edit: ...\" in their detail, all at the rules stage.\n\nThe change: a refused attempt's record carries the rule or test that refused it and whether its detail carried an edit; the loop prints the refusals by rule, with their counts and how many carried an edit, the worklist.\n\nCheck: a test holds the worklist to the refusals recorded: two attempts refused by one rule, one with an edit, and one by a test, are listed as the rule with 2 (1 with an edit) and the test with 1.\n\nBatch: host lane."
+          "rationale": "Serves: the owner's review of 2026-11-12: every refusal is a defect of the orchestration or the implementation; the tool sorts refusals itself, and that list is the worklist. For each rule on it: ask what its refusals prevented and delete it if nothing; otherwise move its fix into the fix stage, which rewrites instead of refusing. Judged by check time per commit made.\n\nDisappears: refusals counted only by stage. landing_waits.json records each attempt's outcome as its stage (rules, invariants, lanes, verify), so the daily line says \"rules 4\" and nothing of which rule refused or whether its own detail carried the edit that fixes it; 20 of 62 refusals since 9 November carried \"edit: ...\" in their detail, all at the rules stage.\n\nThe change: a refused attempt's record carries the rule or test that refused it and whether its detail carried an edit; the loop prints the refusals by rule, with their counts and how many carried an edit, the worklist.\n\nCheck: a test holds the worklist to the refusals recorded: two attempts refused by one rule, one with an edit, and one by a test, are listed as the rule with 2 (1 with an edit) and the test with 1.\n\nBatch: host lane.\n\nNote: The record already holds each refusal's cause: .overgo-runtime/landing_refusals.json keeps 402 entries with the stage and the cause's text (owner, 2026-11-12, correcting an earlier note that the record lacked it), so the worklist needs no new field: the loop reads the causes it holds, names the rule or test each names and whether it carried an edit, and prints the list by rule with counts.\n\nNote: files set to cmd/loop: the worklist reads the refusal record landing_refusals.json already keeps, so the landing writes nothing new"
         }
       ]
     },

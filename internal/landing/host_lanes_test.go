@@ -35,8 +35,53 @@ func TestALandingsLanesRideOnTheCardTurnItTakes(t *testing.T) {
 		}
 		return nil
 	}))
+	// The landing gives the turn back as it ends (Run), and nothing it starts after rides on it.
+	testcheck.NoError(t, l.card())
 	if rides() {
-		t.Error("a process the landing starts after its lanes rides on the card turn it gave up")
+		t.Error("a process the landing starts after its end rides on the card turn it gave up")
+	}
+}
+
+// TestALandingHoldsTheCardFromItsFirstTestStage holds a landing's card turn to the stages that run tests or programs
+// (card-stages/whole-landing): the invariants and every stage after them may reach the card, cmd/loop's tests in the
+// invariants and the scorecard's benchmark among them, and the stages before them reach none. The turn taken at the
+// first of them carries the processes the landing starts, the lanes' and the scorecard's alike, and a lane takes it
+// again for nothing: in the rehearsal of 2026-11-12 the host tests and the benchmark each took the card per context
+// and waited out a render's clips, and the benchmark timed its wait as its load.
+func TestALandingHoldsTheCardFromItsFirstTestStage(t *testing.T) {
+	// Serial: it names the lane turn the tests take, not the host's own, and the environment the turn is passed in.
+	const name = "overgo-test-landing-whole-card-turn"
+	turn := laneTurn
+	laneTurn = func() (string, error) { return name, nil }
+	t.Cleanup(func() { laneTurn = turn })
+	for _, stage := range []string{spaceClass, "format", "fix", "vet", "rules", "form"} {
+		if slices.Contains(testStages, stage) {
+			t.Errorf("the %s stage holds the card's turn, which runs no test or program", stage)
+		}
+	}
+	for _, stage := range []string{"invariants", "verify", "test", "lanes", "scorecard"} {
+		if !slices.Contains(testStages, stage) {
+			t.Errorf("the %s stage runs tests or programs outside the card's turn", stage)
+		}
+	}
+	rides := func() bool {
+		return strings.Contains(os.Getenv(processcontrol.TurnEnvironment), name)
+	}
+	l := &landing{Options: Options{Log: io.Discard, Ref: "row/step"}}
+	testcheck.NoError(t, l.holdCard(t.Context()))
+	if !rides() {
+		t.Fatalf("the landing's processes start in %q after it took the card's turn, want them to ride on it", os.Getenv(processcontrol.TurnEnvironment))
+	}
+	_, shared := splitLanes([]lane{{name: "device"}})
+	testcheck.NoError(t, l.inTurnFor(t.Context(), shared, func() error {
+		if !rides() || l.card == nil {
+			t.Error("the lanes ran outside the turn the landing took at its first stage that runs tests")
+		}
+		return nil
+	}))
+	testcheck.NoError(t, l.card())
+	if rides() {
+		t.Error("the landing's processes still ride on the card's turn it gave up")
 	}
 }
 

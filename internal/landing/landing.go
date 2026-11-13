@@ -115,9 +115,12 @@ type landing struct {
 	// the commit the change was written on and the tip it was brought up to.
 	moved string
 	// quiet releases the landing's side of the quiet machine named quietMachine, nil while it holds none
-	// (inLaneTurn).
+	// (holdCard).
 	quiet        func() error
 	quietMachine string
+	// card gives back the card's turn while the landing holds it, from its first stage that runs tests to its end
+	// (holdCard).
+	card func() error
 	// candidate is the tree the checks validate and the commit publishes.
 	candidate string
 	// turn gives back the repository's commit turn while the run holds it (holdTurn); letGo gives it back for a wait
@@ -177,6 +180,12 @@ func Run(ctx context.Context, options Options) (landed string, err error) {
 	}
 	defer os.RemoveAll(scratch)
 	l := &landing{Options: options, scratch: scratch, details: map[string]string{}}
+	// The card's turn the landing holds from its first stage that runs tests is given back as it ends (holdCard).
+	defer func() {
+		if l.card != nil {
+			err = errors.Join(err, l.card())
+		}
+	}()
 	// The worktree the stages read the candidate in is kept for the next landing, and given back.
 	defer func() {
 		if l.treeHeld != nil {
@@ -266,6 +275,17 @@ func Run(ctx context.Context, options Options) (landed string, err error) {
 				return "", fmt.Errorf("%scandidate worktree: %w", stagePrefix, err)
 			}
 		}
+		// A change that reaches a lane on the card has the card's turn held from its first stage that runs tests, the
+		// invariants, to its end: any of its tests may reach the card, 70 of cmd/loop's in the invariants among them.
+		if slices.Contains(testStages, check.name) && !options.Preflight && l.card == nil {
+			if card, err := l.reachesCard(); err != nil {
+				return "", refused(fmt.Errorf("%scard turn: %w", stagePrefix, err))
+			} else if card {
+				if err := l.holdCard(ctx); err != nil {
+					return "", refused(fmt.Errorf("%scard turn: %w", stagePrefix, err))
+				}
+			}
+		}
 		// Each stage is said as it starts, by its count, so a reader knows how far the landing has come without a clock.
 		fmt.Fprintf(options.Log, "land: stage %d of %d: %s\n", index+1, len(checks), check.name)
 		started := time.Now()
@@ -324,6 +344,10 @@ func (l *landing) checks() []check {
 	}
 	return slices.Concat(early, []check{verify}, long, []check{scorecard})
 }
+
+// testStages are the stages that run Go tests or programs, any of which may reach the card: the invariants and every
+// stage after them (holdCard).
+var testStages = []string{"invariants", "verify", "test", "lanes", "scorecard"}
 
 // onTheCard says a step's check runs on the graphics card: it sets OVERGO_CUDA_TEST=1, without which cudatest.Require
 // skips every test that reaches the card. A check that needs model files alone (the modeltest tag) runs on the host

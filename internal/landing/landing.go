@@ -118,7 +118,7 @@ type landing struct {
 	// (holdCard).
 	quiet        func() error
 	quietMachine string
-	// card gives back the card's turn while the landing holds it, from its first stage that runs tests to its end
+	// card gives back the card's turn while the landing holds it, from its first stage on the card to its end
 	// (holdCard).
 	card func() error
 	// candidate is the tree the checks validate and the commit publishes.
@@ -179,7 +179,7 @@ func Run(ctx context.Context, options Options) (landed string, err error) {
 	}
 	defer os.RemoveAll(scratch)
 	l := &landing{Options: options, scratch: scratch, details: map[string]string{}}
-	// The card's turn the landing holds from its first stage that runs tests is given back as it ends (holdCard).
+	// The card's turn the landing holds from its first stage on the card is given back as it ends (holdCard).
 	defer func() {
 		if l.card != nil {
 			err = errors.Join(err, l.card())
@@ -274,9 +274,8 @@ func Run(ctx context.Context, options Options) (landed string, err error) {
 				return "", fmt.Errorf("%scandidate worktree: %w", stagePrefix, err)
 			}
 		}
-		// A change that reaches a lane on the card has the card's turn held from its first stage that runs tests, the
-		// invariants, to its end: any of its tests may reach the card, 70 of cmd/loop's in the invariants among them.
-		if slices.Contains(testStages, check.name) && !options.Preflight && l.card == nil {
+		// A change that reaches a lane on the card has the card's turn held from its first stage on the card to its end.
+		if slices.Contains(cardStages, check.name) && !options.Preflight && l.card == nil {
 			if card, err := l.reachesCard(); err != nil {
 				return "", refused(fmt.Errorf("%scard turn: %w", stagePrefix, err))
 			} else if card {
@@ -344,9 +343,12 @@ func (l *landing) checks() []check {
 	return slices.Concat(early, []check{verify}, long, []check{scorecard})
 }
 
-// testStages are the stages that run Go tests or programs, any of which may reach the card: the invariants and every
-// stage after them (holdCard).
-var testStages = []string{"invariants", "verify", "test", "lanes", "scorecard"}
+// cardStages are the stages that use the card, the lanes and the scorecard's benchmark, a step's check on the card
+// running after the lanes (checks); the landing holds the card's turn from the first of them (holdCard). A host test
+// is refused the card (driver's hostTestReach), and the host stages' programs reach none: cmd/loop's tests in the
+// invariants start git, the plan command, and a fixture's go test and checker. The host stages had held the card idle
+// about ten minutes of each landing whose change reaches a card lane, while a campaign waited (lanes-turn/do).
+var cardStages = []string{"lanes", "scorecard"}
 
 // onTheCard says a step's check runs on the graphics card: it sets OVERGO_CUDA_TEST=1, without which cudatest.Require
 // skips every test that reaches the card. A check that needs model files alone (the modeltest tag) runs on the host
@@ -831,8 +833,17 @@ func (l *landing) goTest(ctx context.Context, stage string, packages ...string) 
 	return err
 }
 
-// failedTests opens a test stage's refusal, before the tests and packages that failed (refusedBy).
-const failedTests = "failed tests/packages: "
+// testFailure is a failed run's refusal: the tests and packages it failed, from go test's -json output or from the line
+// a lane printed for them, else err (refusedBy).
+func testFailure(output string, err error) error {
+	if summary := testevidence.FailureSummary(output); summary != "" {
+		return errors.New(testevidence.FailedTests + summary)
+	}
+	if _, failures, found := strings.Cut(output, testevidence.FailedTests); found {
+		return errors.New(testevidence.FailedTests + failures)
+	}
+	return err
+}
 
 // goTests runs go test once with each set of arguments, a run with none skipped, and says which packages ran rather
 // than replayed over them all, under the stage's name; it returns what the runs said.
@@ -844,10 +855,7 @@ func (l *landing) goTests(ctx context.Context, stage string, runs ...[]string) (
 		}
 		output, err := l.runIn(ctx, l.stageRoot(), nil, "go", append([]string{"test", "-json", "-timeout=0"}, arguments...)...)
 		if err != nil {
-			if summary := testevidence.FailureSummary(output); summary != "" {
-				return "", errors.New(failedTests + summary)
-			}
-			return "", err
+			return "", testFailure(output, err)
 		}
 		outputs.WriteString(output)
 	}

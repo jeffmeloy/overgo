@@ -59,7 +59,7 @@ func Execute(ctx context.Context, directory, command string, overrides []string)
 			// tails; it replaces the raw output wall, and the exit cause above
 			// stays the authority. A failed test is named "package: test", a
 			// package that failed before any test by its path alone.
-			detail = "failed tests/packages: " + failures
+			detail = testevidence.FailedTests + failures
 			if named, _, _ := strings.Cut(failures, "\n"); strings.Contains(named, ": ") {
 				failed = ErrAssertion
 			}

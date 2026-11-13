@@ -116,26 +116,16 @@ func deviceDiagnostic(out string, err error) string {
 	if strings.TrimSpace(out) == "" {
 		return "[device] launch: " + err.Error() + "\n"
 	}
-	// Render every failed package's bounded diagnostics from the step's test
-	// JSON so an early package failure is not hidden behind a later passing
-	// package's output. The shared streaming parser drops each passing tail and
-	// keeps only failed ones, so retention stays bounded. Output that is not
-	// test JSON (a launch or build failure) falls back to the bounded tail.
+	// Render every failed test's bounded diagnostics from the step's test JSON so
+	// an early package failure is not hidden behind a later passing package's
+	// output, opened by the line the landing names the lane's failed tests by.
+	// Output that is not test JSON (a launch or build failure) falls back to the
+	// bounded tail.
 	report, parseErr := testevidence.GoTestJSONReader(strings.NewReader(out), false, clioptions.DiagnosticTailBytes, nil)
-	if parseErr != nil || len(report.Failed) == 0 && len(report.Diagnostics) == 0 {
-		return clioptions.Tail(out, clioptions.DiagnosticTailBytes)
+	if failures := testevidence.Failures(report); parseErr == nil && failures != "" {
+		return testevidence.FailedTests + failures + "\n"
 	}
-	var builder strings.Builder
-	if len(report.Failed) != 0 {
-		fmt.Fprintf(&builder, "[device] failed: %s\n", strings.Join(report.Failed, ", "))
-	}
-	for _, diagnostic := range report.Diagnostics {
-		builder.WriteString(diagnostic)
-		if !strings.HasSuffix(diagnostic, "\n") {
-			builder.WriteByte('\n')
-		}
-	}
-	return builder.String()
+	return clioptions.Tail(out, clioptions.DiagnosticTailBytes)
 }
 
 // deviceProgress is the line a step says as it starts, by its count: the lane's progress is its own count of steps, where

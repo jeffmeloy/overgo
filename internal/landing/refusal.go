@@ -14,6 +14,7 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/jsonfile"
 	"overgo/internal/processlock"
+	"overgo/internal/testevidence"
 )
 
 // Refusal classes a refused landing by the stage that refused it, the gate
@@ -184,7 +185,7 @@ func refusedBy(refusal Refusal) []string {
 	if len(refusal.Rules) > 0 {
 		return refusal.Rules
 	}
-	_, failed, _ := strings.Cut(refusal.Cause, failedTests)
+	_, failed, _ := strings.Cut(refusal.Cause, testevidence.FailedTests)
 	names := strings.Split(failed, ", ")
 	// A cause cut to causeBytes may end inside a name, which is left out.
 	if len(refusal.Cause) > causeBytes-utf8.UTFMax {

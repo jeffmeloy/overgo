@@ -39,7 +39,7 @@
         ],
         "adoption_scope": "Supersedes the absent repository-document reference at the owner's request; current external SHA is verified. Does not alter the executable plan."
       },
-    "assessment": "Of11implemented claims:5close,6have explicit remaining scopes. Concurrent smoke398/ceiling399 now also close; provider363 key leak fixed but default redirect bound lost(P2),session384 normal resume fixed but delayed end remains(P1). No new IDs.",
+    "assessment": "43f2 commits the prior seven SQA closures and evidence labels. New wording states elapsed phase wall honestly.363 retains a source-shown default redirect regression;384 is narrowed to failed resume invalidation, with delayed-hook ordering labelled possible. No new IDs.",
     "ast_surface_review": {
         "revision": "9bd406acafb89c44a439722419f1f7e85e71f691",
         "architectural_target": "Fewer independent product entry points and dependency owners; retain process isolation and existing compiled/runtime/development authority.",
@@ -170,10 +170,10 @@
       },
     "rank_basis": "Actual398/399 admission failures precede local400 consolidation.397 closed;400 retains unique coverage.376 owns known-rule/history/delivery obligations.",
     "refactor_target_progress": {
-        "architectural_progress": "Whole-file claim identity deletes incomplete graph; single draft verdict deletes competing policy; receipt/verified-model owners protect exact outputs. No new queue/registry.",
-        "conflicts": "Unclosed exact-state failures/acquisition gaps are specific existing-owner work. Further cleanups ride relevant product work; unproved benefits do not mandate experiments.",
-        "next_useful_reductions": "Retain implemented-669GoAST whole-file and-287 one-verdict reductions. Remaining P3 literal/diagnostic suggestions are ride-along only. No new findings added.",
-        "cost": "All historical implementation costs and correctness growth remain scoped per closed finding; current report adds metadata/reconciles history only."
+        "architectural_progress": "Shared keyed client now owns provider credential redirect policy; existing guard owns normal session resume. Phase report remains in MeasurementRun.Report; CLI/hook readers retain that owner.",
+        "conflicts": "Boundary ownership must include failure semantics: composing a client must preserve its default redirect policy, and logging a failed resume update does not revoke old cleanup authority.",
+        "next_useful_reductions": "Finish these bounded error paths through existing owners during related work. No new scheduler, registry, client framework or measurement campaign. Earlier retained reductions remain credited.",
+        "cost": "43f2 changes four Go files:0production AST, +155test AST, +1production line/+22test lines, +1test file. No production package, directory or binary added or removed. No safe deletion established; correctness changes may grow."
       },
     "working_notes_review": {
         "finding": "SQA-334",
@@ -183,10 +183,10 @@
       }
   },
     "committed_plan": {
-    "git_blob": "5df17958ed6fe77c44472d79e9472f2eb48115ef",
+    "git_blob": "76cb15a2b399f412ff10a5102ced8ebdb5f5ce6b",
     "path": "docs/plan.json",
-    "revision": "0b5a70f89059c190989639b1170f71cea3e37caf",
-    "sha256": "149b82d908e36d4c45c6ce46b3521fe230f12ce35550e6c831eabc96f4cb2d56",
+    "revision": "43f2a8608fac0fab3e2cfffb825a0fea793b2fe6",
+    "sha256": "e99cedff4cda2d702ce2ae9f0431aa27a1a1ac4e075b33abdd136571372b2083",
     "working_tree_status": "Committed plan at review pin; prior draft assessment retains its own snapshot identity. Current working plan edits excluded."
   },
     "findings": [
@@ -8227,19 +8227,19 @@
         "Copied client retains caller policy or the standard nil-policy10-redirect bound,plus transport/timeout/cancellation.",
         "Existing native fixture covers bounded same-endpoint loop and off-endpoint refusal; complete costs recorded."
       ],
-    "comparison": "Extend the existing relay/listing native fixture: a same-host different-port redirect and an HTTPS downgrade must cause zero requests/keys at the destination for both listing and generation, including a307/308 POST; direct allowed requests still pass and the supplied client is unchanged. One shared redirect fixture can exercise both consumers. No external endpoint or model needed.",
+    "comparison": "Extend the existing native redirect fixture only for the uncovered default-policy case: a same-endpoint loop must stop at Go standard redirect bound. Bound the fixture itself by a request counter/error so a regression cannot hang. RETAIN its existing 307 HTTPS-to-HTTP/different-port coverage for both listing and generation and their separate direct-request fixtures. Preserve the supplied client unchanged; no external endpoint or model.",
     "displaced_surface": "Remove implicit redirect following at the two existing request sites; share their actual credential transport contract in remoterelay rather than duplicate per-route checks. Retain NameVariable, declared-variable binding, trust-boundary tests, direct HTTPS/local HTTP behavior and streaming terminal/cancellation checks.",
     "evidence": "2f978d801 repairs credential-bearing redirects for both listing/generation through keyed: scheme/Host(port included) must match the admitted initial endpoint before following. Native TLS->plain endpoint test retains no leaked key and fails under undo. That original P1 leak is fixed. Remaining source-shown regression: keyed installs nonnil CheckRedirect and returns nil on every same-endpoint redirect when the supplied/default client had nil CheckRedirect. Go therefore no longer calls its defaultCheckRedirect,which stops at10. A same-endpoint redirect loop with the normal zero-timeout client can now continue until caller cancellation instead of refusing at the standard count. Installed Go src/net/http/client.go:defaultCheckRedirect confirms the10 limit. No new SQA network execution; original endpoint guard/client settings remain credited.",
     "evidence_basis": "shown_from_source",
-    "evidence_commit": "0b5a70f89059c190989639b1170f71cea3e37caf",
+    "evidence_commit": "43f2a8608fac0fab3e2cfffb825a0fea793b2fe6",
     "expected_benefit": {
         "progress": "Shared2f978 landing+282production/+890testAST across four rows counted once overall; no repeated full cost for each related fix.",
         "remaining": "A small default-policy check/native case may grow; no net deletion or runtime saving claimed. Value10 is Go compatibility,not new calibration."
       },
     "id": "SQA-363",
-    "impact": "Prevents credentials crossing a different endpoint or cleartext connection after initial admission.",
+    "impact": "The credential leak is repaired. A same-endpoint redirect cycle now bypasses Go standard ten-redirect refusal for clients with no explicit policy, causing repeated remote work until caller cancellation.",
     "likely_effort": "Small shared HTTP-client policy change and native fixture extension; security correctness may grow code.",
-    "plan_coverage": "provider-redirect/do landed the original key-confidentiality repair. Scope narrowed from P1 leak to P2 source-shown default-bound regression in the same retained HTTP-owner migration; no new finding/row automatically required.",
+    "plan_coverage": "provider-redirect/do landed the key-confidentiality repair. The remaining P2 is the concrete loss of Go default redirect policy in the same retained owner; no second client framework or new tuning bound.",
     "plan_references": [
         "serving-bounds/provider-variables 38b24b610 (landed)",
         "Downloads extreme_refactor_plan.md: interface authority and one boundary owner"
@@ -9404,32 +9404,32 @@
   },
     {
     "category": "data-lifetime",
-    "classification": "live-holder-and-normal-resume-fixed; delayed-old-end-remains",
+    "classification": "normal-resume-and-live-holder-fixed; failed-invalidation-still-authoritative",
     "closure_criteria": [
-        "An end marker for a prior incarnation cannot make a live resumed session finished, including review-only sessions without the implementation hold.",
-        "A delayed old end cannot overwrite newer live ownership; unknown/unreadable lifecycle evidence remains held. Current genuinely ended unreferenced sessions still become reclaimable.",
-        "Existing store/worktree/row/link/attribute protections and removal receipts remain, with complete code/test/setup cost counted."
+        "Successful resume and a matching live process retain their implemented protection.",
+        "A failed end-marker invalidation cannot leave resumed no-hold scratch eligible for automatic deletion; unavailable ownership is held or unknown.",
+        "Genuinely ended cleanup, worktree/store/open-row/citation keepers, links and deletion receipts retain their existing owners; record full code/test/setup cost."
       ],
-    "comparison": "In TestASessionsEndIsRecordedAndRead, combine the existing recorded-end and os.Getpid live-hold cases for the same ID; it must remain live. Extend the existing hook/listing fixture through end -> resume -> scratch classification, and stale end arrival after resume; no real cleanup or SQA test execution.",
-    "displaced_surface": "Replace marker-exists-means-terminal precedence in SessionEnded (89AST) and use the current start/end/hold owner. Retain one session-scratch classification and one removal path. RETAIN guard lifecycle, hook routing and leftovers integration fixtures as distinct boundaries; extend their existing cases instead of adding a parallel cleanup suite. Keep worktree/registered-model/open-row/citation, link/junction/read-only, unknown/error and exact deletion-receipt protections.",
-    "evidence": "SessionEnded returns true as soon as loop_state-<id>-ended exists, before reading the current hold/process. Neither runDoctrine nor holdWorktree invalidates that marker; holdWorktree explicitly supports restarting the same session ID and updates its process. Admitted sequence: record S ended, resume S with a live process/current hold, create scratch under S without a registered worktree/model, open-row directory or committed citation. sessionState still returns finished. Session-scratch is now actionDelete and clearFinished invokes its remover after a commit without another confirmation. The walk protects links/stores/read errors, not a live session contradicted by its old marker. Current tests use distinct IDs for recorded-end and live-hold cases, so never combine them. This is a static deletion path; no scratch was removed or live failure reproduced by SQA.\n2f978d801 now gives a matching live PID/start hold precedence and removes an old end at session start,including the review early-return path. Both retained native cases pass and session-hold undo fails. The original delayed-end criterion remains: end records are still named/written by session ID alone. A no-hold review session can resume and remove its old marker,then a delayed old RecordSessionEnd(root,sameID) recreates it; SessionEnded sees no live hold and returns true for new work. No incarnation is carried to discriminate that old end. Resume-removal errors are also only printed while runDoctrine continues; unknown/unreadable lifecycle ownership still needs conservative handling. These are source-shown residuals,not a new SQA cleanup execution.",
+    "comparison": "Extend the existing hook/session fixture with a no-hold resumed session whose old end marker remains readable but cannot be removed; its scratch must remain held or unknown. Retain successful resume, live process, genuinely ended and existing cleanup-boundary cases. This is a recommendation for the smallest native fixture, not SQA test or cleanup execution.",
+    "displaced_surface": "Correct the error-to-stale-end path through guard.SessionResumed, runDoctrine and the existing sessionState decision; no second lifecycle registry or cleanup suite. RETAIN the guard, hook and cleanup tests as distinct boundaries. Extend one existing native failure fixture; the 89-node SessionEnded predicate is a replacement boundary, not a deletion saving.",
+    "evidence": "2f978d801 fixes the original normal-resume defect: SessionEnded gives a matching live PID/start hold precedence, and runDoctrine calls SessionResumed before the review early return. The retained guard and hook native fixtures cover both; their recorded undo fails. Remaining concrete error path: SessionResumed returns an os.Remove error other than not-exist, leaving an existing readable end marker; runDoctrine only prints that error and continues. A resumed review session owns no implementation hold. SessionEnded then accepts the surviving marker, and facts.sessionState can classify its uncited, unregistered scratch as finished for automatic cleanup. A readable marker locked against removal on Windows admits this path. No SQA removal, reproduction or observed data loss is claimed. Delayed prior SessionEnd delivery is only a hypothesis: repository adapters show no asynchronous setting, and source alone does not establish that harness ordering. It is not an independent P1 or a reason to require incarnation machinery.",
     "evidence_basis": "shown_from_source",
-    "evidence_commit": "0b5a70f89059c190989639b1170f71cea3e37caf",
+    "evidence_commit": "43f2a8608fac0fab3e2cfffb825a0fea793b2fe6",
     "expected_benefit": {
         "baseline": "The three session-cleanup landings together add904 production/1659 test AST,162/262 lines and5 test files; the ended-session landing accounts for679/984AST. Also15 shell-hook lines (843bytes) and10 settings lines. No binary/directory deletion measured.",
-        "after": "Unimplemented lifecycle correction; a smaller decision is possible but no net-saving estimate. Charge incarnation handling and retained fixture changes. The89-node predicate is a replacement boundary, not a deletion saving.",
-        "setup": "Use the existing guard temp state and current-process fixture plus ended-session listing fixture. No model/device run, real session mutation or deletion needed for review."
+        "after": "Normal resume is implemented. Remaining conservative failure handling may require code/test growth; no net deletion or elapsed saving established. Prior delayed-event protocol was not source-proved and is no longer prescribed.",
+        "setup": "Reuse guard and hook temp-state fixtures, including a controlled readable-but-nonremovable marker. No model/device work, live session mutation or deletion performed by SQA."
       },
     "id": "SQA-384",
-    "impact": "An old lifecycle fact can authorize deletion of newly created, uncommitted scratch belonging to an active resumed session. Positive end evidence must describe the current execution, not any earlier incarnation.",
+    "impact": "A failed lifecycle update can leave a past end marker authorizing deletion of a resumed review session scratch. Existing worktree, store, open-row and citation keepers do not cover every review scratch folder.",
     "likely_effort": "Bounded lifecycle/cleanup safety correction; correctness takes priority over deletion.",
-    "plan_coverage": "session-resume/do fixes normal marker invalidation/live hold. Remaining delayed old end/unknown ownership is an original P1 criterion,not a new generic cleanup project; owner response stays intact.",
+    "plan_coverage": "session-resume/do closes normal marker invalidation and live-holder precedence. Reviewer accepts that repair and narrows the remaining obligation to failed invalidation at the existing owner. No new row or mandatory delayed-event protocol is requested.",
     "plan_references": [
         "session-leftovers/ended-session 61231575b (landed)",
         "session-leftovers/every-harness-folder 2fa14744a (landed)",
         "Downloads architecture sections5,7: explicit lifetime and honest recovery"
       ],
-    "recommended_change": "Retain normal SessionResumed invalidation and live PID/start precedence. Bind end/resume to existing current incarnation/process/turn authority (or an equally safe existing-owner rule),so an old end cannot re-end a resumed no-hold session. Unreadable ownership or failed live-state persistence must not make scratch deletable. Extend the same native lifecycle fixture with resume followed by the old-end delivery; keep current genuinely ended cleanup/receipts and do not add another lifetime registry.",
+    "recommended_change": "Keep the normal invalidation and live-hold repair. Make failed invalidation or unreadable current ownership conservative at the existing lifecycle/cleanup owner: an old end must not remain sufficient deletion authority for resumed work after the resume update fails. Preserve positive evidence for genuinely ended sessions and existing deletion receipts. Do not add an incarnation registry merely for the unproved delayed-hook hypothesis.",
     "severity": "P1",
     "sources": [
         {
@@ -9458,7 +9458,7 @@
         }
       ],
     "status": "open",
-    "title": "Invalidate a past session end before resumed work becomes deletable"
+    "title": "Keep resumed scratch protected when end-marker invalidation fails"
   },
     {
     "category": "clone-publication-recovery",
@@ -10268,18 +10268,25 @@
         ]
       },
     "fresh_ast": {
-        "revision": "0b5a70f89059c190989639b1170f71cea3e37caf",
-        "method": "Retained18-file closure AST plus current card,credential/session/smoke/dispatch and ceiling boundaries after concurrent commits; unchanged parsed sources reused.",
+        "revision": "43f2a8608fac0fab3e2cfffb825a0fea793b2fe6",
+        "method": "Existing selected-file Go parser tooling; complete file/function nodes, calls and normalized body hashes. Five files chosen to decide current lifecycle, redirect and wording contracts.",
+        "files": [
+          "internal/guard/guard.go",
+          "internal/guard/session_resume_test.go",
+          "cmd/loophook/session_resume_test.go",
+          "internal/remoterelay/listing.go",
+          "internal/plan/run_words_test.go"
+        ],
+        "counts": "4291AST/44functions/713parser-local links; RecordSessionEnd80, SessionEnded89, SessionResumed57, keyed120. No equal complete function-body hashes in this sample; this is not a global duplication percentage.",
         "retained_result": [
+          "review-43f2-selected-ast.json",
+          "review-43f2-cost.json",
           "review-291968-closure-ast.json",
           "review-8e2b-card-ast.json",
           "review-2f978-concurrent-ast.json",
-          "review-0b5a-ceiling-ast.json",
-          "review-guidance-total-delta.json",
-          "review-c0d39-reconcile/nov9-verify-cost-audit.json"
+          "review-0b5a-ceiling-ast.json"
         ],
-        "counts": "33unique files46517AST/285functions/9256local links. No application execution or full trainer/type audit.",
-        "limits": "Local resolution only,no execution. Card-boundary read is a concurrency reconciliation,not a full trainer/numerical audit."
+        "limits": "No package/type resolution, application execution or global reach audit. Prior33-file evidence reused for unchanged contracts."
       },
     "media_follow_up": {
         "revision": "e969f619a89e45c3380e30853b01af393d55ba47",
@@ -10446,14 +10453,14 @@
         "775ea whole-file claims normally rebound;881 fuzz,749 tool replay and240 composite each retain their own native failure/repair evidence.518 single verdict source/native contracts verified; no universal performance claim.",
         "Exact recipe/task repairs0efe/31e credited; later/failed state lookup remains283. d4b95 gap label does not supply E4B six readings; cf083 rate does not fix336header.",
         "141-minute single-run phrasing corrected: ten November9 records total140.5359minutes,maximum33.3662;test+lane46.4771. Different November8 run114.6958minutes.",
-        "Concurrent2f978 native/undo repairs normal resume,off-endpoint key protection and smoke default; original384 delayed-end and new same-owner363 default redirect bound remain.0b5a grouped/batch ceiling native/undo closes399. No SQA tests/network/workloads."
+        "2f978 native/undo repairs normal resume, off-endpoint key protection and smoke admission; 0b5a grouped/batch ceiling closes399. At43f2,363 still bypasses the standard default redirect bound;384 is narrowed to the concrete failed-invalidation path. Delayed-hook delivery is possible, not shown. No SQA tests, network requests or workloads."
       ],
     "surface_reduction_analysis": "29196812c->0b5a70f89:34changed-Go paths,+759production/+1671testAST,net+2430,+140/+312lines,+1production/+7testfiles,0staticfixtures/binary/package additions. This is necessary capability/recovery growth,not net reduction. Historical closure reductions kept separate. Historical whole-file-669 and one-verdict-287 remain separate; current metadata adds no application code.",
     "tests": [
-        "RETAIN current whole-file init/CRLF and explicit-Symbol/rebind coverage; REMOVE displaced graph-specific stability expectations as implemented.",
-        "RETAIN one-verdict/native96-token/tensor/forced/plain/served contracts; do not merge distinct opening policies merely for shared checkpoint.",
-        "RETAIN fuzz failure,tool call-conflict/same replay and composite changed-bytes native owners; no new SQA tests.",
-        "RETAIN state/gap/rate/exposure fixes; remaining false-credit,label/no-work/acquisition criteria stay specific and ride existing owners."
+        "RETAIN TestARunsReportSaysHowLongAPhaseRan: one native formatter fixture covers passed/failed wording; existing hook/loop run-record readers cover separate integration boundaries. No merge justified by similar assertions alone.",
+        "RETAIN the guard live-hold and hook successful-resume fixtures. Extend their existing setup for failed invalidation; no parallel lifecycle suite.",
+        "RETAIN redirect native307 endpoint refusal for listing/generation; extend the same HTTP setup for standard default-policy looping. No new SQA requests or tests.",
+        "Earlier closure fixtures and395/400 small consolidation recommendations retain their recorded distinct contracts; no new deletion recommendation in this slice."
       ]
   },
     "hygiene_assessment": "No hygiene finding. Scratch analysis is outside the repository; concrete correctness and production/test cost take priority.",
@@ -11987,14 +11994,42 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
     "limitations": [
-      "No application tests,model/device workloads,gates,services,agents/messages,implementation,plan/skill edits or cleanup. Source/static AST and retained implementation/ledger evidence only.",
-      "Parser-local resolution,not package/type proof. Existing reports/results reused. No workload run merely to earn a priority label.",
-      "Concurrent smoke,ceiling,session/redirect and dispatch drafts excluded. Local records appendable; timezone window uses explicit November9 UTC-05 offsets. Unknown original run kinds/messages stay unknown."
+      "No application tests, model/device workloads, gates, services, agents/messages, implementation, plan/skill edits or cleanup. Source/static AST and retained implementation evidence only.",
+      "Parser-local resolution, not package/type or runtime proof. A planned measurement record is not evidence it ran.",
+      "Marker-removal failure is source-shown, not reproduced. Delayed hook ordering is unproved and no longer prescribed as a P1 protocol requirement. Concurrent dirty code and plan excluded."
     ],
     "master_lead_triage": {
-    "at": "2026-11-10",
-    "head": "a0a91f8e244c69be10f1d92d2468574e1c76b6f1",
+    "at": "2026-11-13",
+    "head": "43f2a8608fac0fab3e2cfffb825a0fea793b2fe6",
     "findings": {
+      "SQA-384": {
+        "action": "implemented",
+        "rows": [
+          "session-resume/do"
+        ],
+        "note": "Landed at 2f978d801: SessionEnded reads the checkout's hold first, so a session the hold names with a running process is not ended whatever its old record says, and the session-start hook removes a session's end record (guard.SessionResumed). TestASessionThatResumesIsNotEnded and TestAStartedSessionDropsItsEndRecord hold both. Awaits the reviewer's closure."
+      },
+      "SQA-363": {
+        "action": "implemented",
+        "rows": [
+          "provider-redirect/do"
+        ],
+        "note": "Landed at 2f978d801: the relay's listing and generator share one client (keyed) that refuses a redirect to another scheme, host or port before the key is sent again. TestAProvidersKeyFollowsNoRedirectOffItsEndpoint redirects an https provider to plain http on its own host; at the base the listing followed it with the key. Awaits the reviewer's closure."
+      },
+      "SQA-398": {
+        "action": "implemented",
+        "rows": [
+          "smoke-budget/do"
+        ],
+        "note": "Landed at 2f978d801: runSmoke's refusal of a budget of zero is gone. TestASmokeWithNoBudgetRunsPastDiscovery runs validate -smoke over a store serving one hermetic GGUF with no -budget. Awaits the reviewer's closure."
+      },
+      "SQA-399": {
+        "action": "implemented",
+        "rows": [
+          "ceiling-files/do"
+        ],
+        "note": "Landed at 0b5a70f89: each fallen ceiling is found by its syntax, alone or in a grouped block, every fall of a file applied to one reading of it, every file checked before any is written. TestALandingLowersEveryCeilingOfAFile holds a grouped aligned block and a refusal that writes nothing. Awaits the reviewer's closure."
+      },
       "SQA-361": {
         "action": "implemented",
         "rows": [
@@ -12867,11 +12902,11 @@
   },
     "next_finding_number": 401,
     "publication_context": {
-    "assessment": "Substantive closure/evidence/cost correction; report-only path-limited publication.",
-    "checked_head": "0b5a70f89059c190989639b1170f71cea3e37caf",
-    "concurrent_changes": "8e2b/2f978/0b5a committed during audit,relevant boundaries/costs reconciled. All remaining drafts excluded; fresh pin/report/owner guard before write.",
-    "current_pin": "0b5a70f89059c190989639b1170f71cea3e37caf",
-    "publication": "Only report via current hooks/ownership; no implementation or plan changes.",
+    "assessment": "Substantive narrowing of lifecycle evidence and recommendations; report-only publication.",
+    "checked_head": "43f2a8608fac0fab3e2cfffb825a0fea793b2fe6",
+    "concurrent_changes": "43f2 carried the preceding pending SQA review; current lead responses reread and preserved. Dirty implementation/plan drafts excluded. Recheck HEAD/report/owners under existing publication locks.",
+    "current_pin": "43f2a8608fac0fab3e2cfffb825a0fea793b2fe6",
+    "publication": "Only docs/sqa_findings.json via current hooks/ownership; no implementation or plan changes.",
     "report_only": true
   },
     "ranked_active_finding_ids": [
@@ -12961,31 +12996,30 @@
     "repository": "C:\\Users\\jeffm\\overgo",
     "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
     "review_notes": [
-      "Five of eleven implemented claims close; six have explicit remaining scopes. Lead/implementation fields remain untouched.",
-      "No full-report pre-commit ritual,new task quota or compulsory experiment. Current plan/owner dispositions govern work.",
-      "140.54minutes was an aggregate,not one failed run; the wrong single-run phrasing is withdrawn.",
-      "Concurrent398/399verified closed.363/384narrowed to specific remaining original-owner contracts rather than treating implementation labels as blanket proof."
+      "43f2 carried the preceding substantive SQA review: seven closures and86active evidence labels are now committed. Current owner responses are preserved raw-exact.",
+      "Normal resume and endpoint confidentiality are repaired. Remaining recommendations are the exact failed-invalidation and default-policy paths, not a demand for another lifecycle/client framework.",
+      "No new findings, priority promotion or reduction quota. No safe net deletion established in this small slice; existing plan retains work selection."
     ],
-    "reviewed_at": "2026-11-13T13:25:53Z",
-    "reviewed_master": "0b5a70f89059c190989639b1170f71cea3e37caf",
+    "reviewed_at": "2026-11-13T14:13:36Z",
+    "reviewed_master": "43f2a8608fac0fab3e2cfffb825a0fea793b2fe6",
     "schema_version": 2,
     "scope": [
-      "Owner-requested11-claim audit plus evidence labels at0b5a70f89; concurrent8e2b/2f978/0b5a commits reconciled against relevant owners before publication.",
-      "Reuse and reconcile33unique selected files46517AST/285functions/9256parser-local links; direct changed-Go cost across34paths. Card admission does not change261acquisition.",
-      "Trace141-minute claim to ten November9 local records; disclose prior Overgo implementation involvement. Internal review,not independent third-party review."
+      "Bounded review of43f2 run-report wording and current lead responses for363/384/398/399. Committed plan35items/62open steps; current plan and implementation drafts excluded.",
+      "Selected Go AST parsed five committed files:4291nodes,44functions,713parser-local links. Retained33-file closure/owner analysis reused where unchanged; no broad census.",
+      "Prior Overgo implementation involvement disclosed: this is internal review, not independent third-party review. Architecture target remains active."
     ],
     "sqa_response": {
-    "assessment": "227stable IDs:82open,139resolved,4deferred,2aliases.5of11owner claims closed;6explicit remaining scopes. Concurrent398/399closed too. Evidence labels on86active canonical findings,no new IDs.",
+    "assessment": "227stable IDs:82open,139resolved,4deferred,2aliases. Prior seven closures are now committed in43f2; current owner claims398/399 agree.363/384 remain narrowly source-shown. No new IDs.",
     "concurrent_reconciliation": {
-        "SQA-398": "closed: zero-budget admission native regression/undo",
-        "SQA-399": "closed: grouped/same-file batch native regression/undo",
-        "SQA-363": "P1leak fixed;P2default redirect bound still required under copied-client compatibility",
-        "SQA-384": "live hold/normal resume fixed;original delayed-end/no-hold and unknown-state criterion remains"
+        "SQA-398": "Resolved; lead native/undo response agrees with retained closure.",
+        "SQA-399": "Resolved; grouped/same-file validation-first response agrees with retained closure.",
+        "SQA-363": "Original credential leak resolved; P2 default redirect refusal still bypassed when original CheckRedirect is nil.",
+        "SQA-384": "Normal resume/live hold resolved; failed marker removal can leave scratch deletable. Delayed-event ordering unproved, not a prescribed protocol."
       },
     "consolidated_findings": [],
     "deferred_findings": [],
     "dispatch_alignment": "Field ready for reader,not printed by committed dispatch yet. Current code still lists all eligible unfiled IDs; use affected step contracts/files excluding incidental plan/report citations. No new dispatcher implemented by SQA.",
-    "evidence": "Committed callers,21-file retained/selected AST,original repair/native records and explicit ten-record cost reconstruction.",
+    "evidence": "Five-file committed AST plus current callers and retained native/undo records. New43f2 changes wording only; no test or workload execution by SQA.",
     "implementation_claim_audit": {
         "SQA-257": "closed: duplicate runtime verdict gone; native default/served fixtures are distinct; speculative generalization is not additional required work",
         "SQA-316": "closed: no-symbol whole-file identity and normal claim rebinding",
@@ -13012,7 +13046,7 @@
         "SQA-384"
       ],
     "priority_changes": "271/268possible concerns P3.363original credential leak fixed; remaining default redirect bound P2/source.384delayed-old-end retains original P1 criterion. Proven false-check/credit defects remain P2 regardless of SQA execution.",
-    "recommendation": "Use existing plan order and reasoned triage; reviewers close verified work and narrow remaining defects. Read relevant evidence at dispatch,not all findings every commit.",
+    "recommendation": "Keep useful product work in plan order. Address the two remaining boundary semantics through their current owners; no full-report approval before every commit, new IDs or broad confidence run.",
     "refactor": {
         "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
         "history_path": "docs/sqa_findings.json",
@@ -13041,7 +13075,7 @@
         "review_focus": "Name served cell/route/output impact,or material data/security/recovery/work-stoppage/repeated-waste impact. Minor process cleanup rides planned work; no guessed committee ratio or extra policy gate.",
         "measurement": "Use existing delivery/check-cost records as advisory. Automated report commits are distinct from master implementation effort; measure useful capability/scorecard outcomes,not findings closed."
       },
-    "reviewed_master": "0b5a70f89059c190989639b1170f71cea3e37caf",
+    "reviewed_master": "43f2a8608fac0fab3e2cfffb825a0fea793b2fe6",
     "run_cost_correction": {
         "source": ".overgo-runtime/landing_waits.json",
         "query": "started on2026-11-09 America/New_York UTC-05; outcome exactly verify",
@@ -13063,13 +13097,6 @@
       },
     "uncertainty": "No fresh runtime proof. Five closures rely on source/retained native records,not owner labels alone; six partial implementations stay explicit.",
     "updated_findings": [
-        "SQA-277",
-        "SQA-283",
-        "SQA-271",
-        "SQA-261",
-        "SQA-336",
-        "SQA-361",
-        "SQA-268",
         "SQA-363",
         "SQA-384"
       ]

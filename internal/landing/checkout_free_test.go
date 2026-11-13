@@ -174,7 +174,7 @@ func TestALandingTakesItsCommitTurnBackOnceTheCardIsItsOwn(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "card turn: land: ") || !strings.Contains(err.Error(), "while this waited for the device") {
 		t.Fatalf("a landing whose trunk moved during its card wait = %v, want it refused at the card's turn", err)
 	}
-	for _, stage := range testStages {
+	for _, stage := range []string{"lanes", "scorecard"} {
 		if strings.Contains(said, ": "+stage+"\n") {
 			t.Fatalf("the landing ran its %s stage before refusing:\n%s", stage, said)
 		}

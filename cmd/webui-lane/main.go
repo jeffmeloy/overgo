@@ -170,6 +170,10 @@ func runLane(ctx context.Context, stdout io.Writer, run string, extra, required 
 			fmt.Fprintf(stdout, "%s\t%s\t%s\n", done.Action, done.Package, done.Elapsed)
 		},
 	})
+	// The landing names a refusal of this lane by the tests this line names.
+	if failures := testevidence.Failures(report); failures != "" {
+		fmt.Fprintln(stdout, testevidence.FailedTests+failures)
+	}
 	records, err := webuilane.ReadLegRecords(legs)
 	if err := errors.Join(runErr, err, webuilane.LaneVerdict(report, records, required)); err != nil {
 		return err

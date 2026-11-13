@@ -298,6 +298,11 @@ func (tail diagnosticTail) text() string {
 	return tail.tail
 }
 
+// FailedTests opens the line that names the tests and packages a run failed, a test as "package: test" and a package
+// that failed before any test by its path: a commit's refusal, a verify's and a lane's output carry it, and the worklist
+// counts a refusal by the tests after it.
+const FailedTests = "failed tests/packages: "
+
 // FailureSummary names failed tests and packages from a mixed verifier stream
 // and appends each failed name's retained assertion tail, so a caller shows the
 // final failing lines rather than the whole output wall. It is diagnostic only:
@@ -305,7 +310,16 @@ func (tail diagnosticTail) text() string {
 // (its digest is report.StreamDigest) as the evidence of record.
 func FailureSummary(out string) string {
 	report, err := readGoTestJSON(strings.NewReader(out), false, true, clioptions.DiagnosticTailBytes, nil, nil)
-	if err != nil || len(report.Failed) == 0 {
+	if err != nil {
+		return ""
+	}
+	return Failures(report)
+}
+
+// Failures is report's failed tests and packages, each failed name's retained assertion tail on the lines after them;
+// empty when none failed.
+func Failures(report GoTestReport) string {
+	if len(report.Failed) == 0 {
 		return ""
 	}
 	failed := make(map[string]bool, len(report.Failed))

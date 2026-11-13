@@ -36,6 +36,19 @@
       },
       "steps": [
         {
+          "id": "image-readings",
+          "title": "MOSS-Image-SFT's and SenseNova's guidance presets each hold their verdict, admitted on no loss beyond chance or refused, and only an admitted one is offered",
+          "status": "open",
+          "verify": "go test ./internal/mediacapability -count=1 -run '^TestTheReadPresetsHoldTheirVerdicts$'",
+          "files": [
+            "internal/mediacapability",
+            "internal/server",
+            "docs/verification",
+            "docs/sqa_findings.json"
+          ],
+          "rationale": "Serves: a preset is offered only once its held-out suite admits it, on no loss beyond chance, a gain claimed only where the paired test shows one (owner, 2026-11-13).\n\nThe readings so far: MOSS-Image-SFT's and SenseNova's guidance presets, each judged on the 524 TIFA questions of its 80 cases at a person's size against its model's reference, by Qwen3.8-27B. Wan's three arms are hours of rendering away and stay pending (guidance-ops/preset-readings), so the image models' verdicts are offered now, not held for them.\n\nThe change: preset_readings.json holds each read preset as admitted or refused, and docs/verification/guidance-preset-readings.json each verdict with the evaluations it compared, its wins, losses and ties and its tail, saying what it shows.\n\nCheck: TestTheReadPresetsHoldTheirVerdicts holds every admitted or refused preset to its verdict in the record, and every verdict's pairs to its counts and its evaluations.\n\nNote: files set to internal/mediacapability, docs/verification, docs/sqa_findings.json: the readings' record and its check, and the lead's triage of the findings answered today, which rides with this commit\n\nNote: files set to internal/mediacapability, internal/server, docs/verification, docs/sqa_findings.json: the server's MOSS contract test pins the page's preset choices, which the readings change"
+        },
+        {
           "id": "preset-readings",
           "title": "Each model's guidance presets and Wan's model-card shift are read against its reference at a person's size, and only an admitted preset is offered",
           "status": "open",
@@ -71,42 +84,6 @@
           ],
           "needs_card": true,
           "rationale": "Krea-2-Turbo runs without guidance, so it honours no negative prompt, and raising guidance over-cooks it. NAG (arXiv 2505.21179) is defined on an attention output Z = Softmax(QK^T / sqrt(d)) V, its Eqs. 7 to 10 given in guidance-ops/nag-wan, and the paper says it adds computation to cross-attention layers or MM-DiT blocks, but not how a negative prompt enters joint attention: whether the text tokens run as a second stream through every block, and whether the image tokens are shared. Krea2 runs its text and image tokens as one co-attention sequence through all 28 blocks, so that choice decides the work and the cost. Krea's published settings are phi 4.0, tau 2.5, alpha 0.25.\n\nBefore work: settle from the paper, its appendix and its supplementary material (not code) how Z- is formed in joint attention, and record the reading as a note here; a choice the paper does not make is the owner's, asked with the cost of each way.\n\nCheck: TestNAGAppliesANegativePromptAtGuidanceOne in internal/latentimage: Krea with the nag preset and a negative prompt draws another picture than without one, and with no negative prompt the picture it drew before.\n\nServes: held-out-quality; a capability the distilled models lack.\nDisappears: nothing.\nEvidence: the preset's reading is guidance-ops/preset-readings'.\nBatch: device lane."
-        }
-      ]
-    },
-    {
-      "id": "lanes-turn",
-      "title": "A landing holds the card's turn for its lanes and scorecard alone, since no host test reaches the card",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A landing holds the card's turn for its lanes and scorecard alone, since no host test reaches the card",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestALandingHoldsTheCardForItsCardStagesAlone$'",
-          "files": [
-            "internal/landing"
-          ],
-          "rationale": "Serves: a landing waits for the card once, measured where it waits, and holds it no longer than its card stages need (owner, 2026-11-13).\n\nThe evidence: once card-reach/do refuses a host test a context, holdCard from the invariants stage (802b6da23) guards nothing in the host stages, which hold the card idle for their whole run, about ten minutes of each landing whose change reaches a card lane, while a campaign waits: card-reach's own landings held it from the invariants through the test stage. The turn moves to the lanes and the scorecard.\n\nFirst the evidence that no host stage reaches the card through a child program, which hostTestReach does not see (testing.Testing() alone): the host run of 2026-11-13 with the guard, beside the campaign holding the card, printed no wait for the turn from any process, but a test may swallow its child's output; holdCard's comment names 70 of cmd/loop's tests in the invariants, to be read for the children they start and whether those set OVERGO_CUDA_TEST."
-        }
-      ]
-    },
-    {
-      "id": "lane-cause",
-      "title": "A lanes refusal names the lane that failed first and its failed tests; a lane its failure cancelled is not the cause",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A lanes refusal names the lane that failed first and its failed tests; a lane its failure cancelled is not the cause",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestALanesRefusalNamesTheLaneThatFailedFirst$'",
-          "files": [
-            "internal/landing"
-          ],
-          "rationale": "Serves: the worklist lists refusals by the rule or test that made them (refusal-advice/worklist; owner, 2026-11-13).\n\nThe evidence: landing_refusals.json records no-clocks/own-budgets' first refusal as \"lane device: ... context canceled\", the lane cancelled when the web UI lane's TestWebUIBrowserWaitDeadline failed; opt-in-tests/run-or-remove's lanes cause was cut to \"exit 1: ...09s\", the tail of output, where the failed test was. The worklist reads the cause's first line, so it counts the cancelled lane and not the test."
         }
       ]
     },

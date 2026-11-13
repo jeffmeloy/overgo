@@ -5,6 +5,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"overgo/internal/processcontrol"
@@ -42,27 +43,58 @@ func TestALandingsLanesRideOnTheCardTurnItTakes(t *testing.T) {
 	}
 }
 
-// TestALandingHoldsTheCardFromItsFirstTestStage holds a landing's card turn to the stages that run tests or programs
-// (card-stages/whole-landing): the invariants and every stage after them may reach the card, cmd/loop's tests in the
-// invariants and the scorecard's benchmark among them, and the stages before them reach none. The turn taken at the
-// first of them carries the processes the landing starts, the lanes' and the scorecard's alike, and a lane takes it
-// again for nothing: in the rehearsal of 2026-11-12 the host tests and the benchmark each took the card per context
-// and waited out a render's clips, and the benchmark timed its wait as its load.
-func TestALandingHoldsTheCardFromItsFirstTestStage(t *testing.T) {
-	// Serial: it names the lane turn the tests take, not the host's own, and the environment the turn is passed in.
+// TestALandingHoldsTheCardForItsCardStagesAlone holds a landing's card turn to the stages that use the card
+// (lanes-turn/do): a change reaching a lane on the card is landed while another holds the turn, and when the landing
+// lets the checkout go to wait for it, its host stages, the test stage the last of them, have passed, where they had
+// held the card idle about ten minutes of each landing while a campaign waited; a step's check on the card runs after
+// the lanes. The turn taken carries the processes the landing starts, the lanes' and the scorecard's alike, and a lane
+// takes it again for nothing: in the rehearsal of 2026-11-12 the benchmark took the card per context, waited out a
+// render's clips and timed its wait as its load.
+func TestALandingHoldsTheCardForItsCardStagesAlone(t *testing.T) {
+	// Serial: it names the lane turn and the lanes the tests take, not the host's own, and the environment the turn is
+	// passed in.
 	const name = "overgo-test-landing-whole-card-turn"
-	turn := laneTurn
+	turn, gated := laneTurn, lanes
 	laneTurn = func() (string, error) { return name, nil }
-	t.Cleanup(func() { laneTurn = turn })
-	for _, stage := range []string{spaceClass, "format", "fix", "vet", "rules", "form"} {
-		if slices.Contains(testStages, stage) {
-			t.Errorf("the %s stage holds the card's turn, which runs no test or program", stage)
-		}
+	lanes = []lane{{name: "fixture", packages: []string{"./internal/p"}, command: func(string) []string { return []string{"test", "-count=1", "./internal/p"} }}}
+	t.Cleanup(func() { laneTurn, lanes = turn, gated })
+	fixture := newRowFixture(t, map[string]string{"internal/p/p.go": "package p\n\nfunc a() string { return \"base\" }\n"})
+	fixture.write("internal/p/p.go", "package p\n\nfunc a() string { return \"shipped\" }\n")
+	held, let := make(chan struct{}), make(chan struct{})
+	var group sync.WaitGroup
+	group.Go(heldTurn(t, held, let))
+	<-held
+	freed := make(chan struct{})
+	var said strings.Builder
+	var before string
+	landed := make(chan error, 1)
+	group.Go(func() {
+		_, err := Run(t.Context(), Options{Repo: fixture.repo, Ref: "row/do",
+			Log:     freedLog{freed: sync.OnceFunc(func() { before = said.String(); close(freed) }), said: &said},
+			Message: []byte("Change the fixture\n\nCause: the fixture needs a change.\nPredicted effect: first-output holds.\n")})
+		landed <- err
+	})
+	select {
+	case <-freed:
+	case err := <-landed:
+		close(let)
+		group.Wait()
+		t.Fatalf("the landing ended, %v, without waiting for the card's turn", err)
 	}
-	for _, stage := range []string{"invariants", "verify", "test", "lanes", "scorecard"} {
-		if !slices.Contains(testStages, stage) {
-			t.Errorf("the %s stage runs tests or programs outside the card's turn", stage)
-		}
+	close(let)
+	group.Wait()
+	if err := <-landed; err != nil {
+		t.Fatalf("the landing refused once the turn was free: %v", err)
+	}
+	if !strings.Contains(before, "land: test ok") || strings.Contains(before, "land: lane fixture runs") {
+		t.Errorf("the landing waited for the card's turn before its host stages passed, or ran its lane without it:\n%s", before)
+	}
+	var order []string
+	for _, stage := range (&landing{verifiers: []string{cudaTestSetting + " go test ./internal/p -run '^TestP$'"}}).checks() {
+		order = append(order, stage.name)
+	}
+	if slices.Index(order, "verify") < slices.Index(order, "lanes") {
+		t.Errorf("a check on the card runs before the lanes take the card's turn: %v", order)
 	}
 	rides := func() bool {
 		return strings.Contains(os.Getenv(processcontrol.TurnEnvironment), name)

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"go/ast"
@@ -111,7 +112,7 @@ var lanes = []lane{
 		// kernels only they call. One package at a time shares the device;
 		// go test's cache replays each until code it reads changes.
 		name: "cuda", packages: cudaPackages,
-		command:     func(string) []string { return append([]string{"test", "-p=1", "-timeout=0"}, cudaPackages...) },
+		command:     func(string) []string { return append([]string{"test", "-json", "-p=1", "-timeout=0"}, cudaPackages...) },
 		environment: []string{cudaTestEnvironment},
 	},
 }
@@ -362,8 +363,8 @@ func (l *landing) takeTurnBack(ctx context.Context) error {
 }
 
 // holdCard takes the card's turn for the rest of the landing, which gives it up as it ends (Run): every process it starts
-// from then rides on its place, the lanes', a host test's that trains through the optimizer's card stepper and the
-// scorecard's benchmark alike, where each had taken the card per context and waited out a render's clip, and the
+// from then rides on its place, the lanes' and the scorecard's benchmark alike, where each had taken the card per
+// context and waited out a render's clip, and the
 // benchmark timed its wait as its load (card-stages/whole-landing). It waits with the checkout let go (letGo) and no
 // side of the quiet machine held, which it takes again once the turn is its own: a timed cell of a run that holds the
 // turn takes the machine alone, and would otherwise wait on a landing that waits on the run. The wait is said on the
@@ -407,7 +408,7 @@ func (l *landing) holdCard(ctx context.Context) error {
 }
 
 // reachesCard says whether the change reaches a lane that shares the device, so the landing holds the card's turn from
-// its first stage that runs tests (holdCard). A landing that reaches none takes no turn, so a measurement run's phases
+// its first stage on the card (holdCard). A landing that reaches none takes no turn, so a measurement run's phases
 // keep it waiting for nothing it uses: on 2026-10-31 a landing whose one lane was webui waited 7.99 h for a run's turn
 // (e63fd568a).
 func (l *landing) reachesCard() (bool, error) {
@@ -441,10 +442,9 @@ func (l *landing) inTurnFor(ctx context.Context, shared []lane, work func() erro
 // machine waits for it rather than running its lanes beside these on the one GPU;
 // one that reaches none takes no turn (inTurnFor). A turn, not a claim on the device: a
 // claim would make every lane process its member and erase the process
-// identities the device's own admission tests exercise. A lane that refuses the
-// landing cancels the others. The measurement says how long finding the reached
-// lanes and waiting for the turn took, and how each lane ended; a lane that
-// refuses the landing logs its time.
+// identities the device's own admission tests exercise. The measurement says how
+// long finding the reached lanes and waiting for the turn took, and how each lane
+// ended (runLanes).
 func (l *landing) lanes(ctx context.Context) error {
 	changed, err := os.CreateTemp("", "overgo-landing-paths-*.txt")
 	if err != nil {
@@ -482,59 +482,66 @@ func (l *landing) lanes(ctx context.Context) error {
 		return nil
 	}
 	beside, shared := splitLanes(reached)
-	// The card's turn is the landing's from its first stage that runs tests (holdCard), and its wait is measured there.
+	// The card's turn is the landing's from its first stage on the card (holdCard), and its wait is measured there.
 	return l.inTurnFor(ctx, shared, func() error {
 		turnWait := l.spent.Turn
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel()
-		entries, failures := map[string]string{}, map[string]error{}
-		var mu sync.Mutex
-		run := func(candidate lane) {
-			fmt.Fprintf(l.Log, "land: lane %s runs\n", candidate.name)
-			environment := laneEnvironment(candidate)
-			began := time.Now()
+		entries, err := l.runLanes(ctx, beside, shared, func(ctx context.Context, candidate lane) (string, error) {
 			arguments := candidate.arguments(changed.Name())
 			if tests := named[candidate.name]; len(tests) > 0 {
 				arguments = append(arguments, "-run", "^("+strings.Join(tests, "|")+")$")
 			}
-			output, err := l.runIn(ctx, l.stageRoot(), environment, "go", arguments...)
-			wall := time.Since(began).Round(time.Millisecond)
-			mu.Lock()
-			defer mu.Unlock()
-			if err != nil {
-				fmt.Fprintf(l.Log, "land: lane %s refused after %s\n", candidate.name, wall)
-				failures[candidate.name] = fmt.Errorf("lane %s: %w", candidate.name, err)
-				cancel()
-				return
-			}
-			entries[candidate.name] = describeLane(candidate.name, wall, output)
+			return l.runIn(ctx, l.stageRoot(), laneEnvironment(candidate), "go", arguments...)
+		})
+		if err != nil {
+			return err
 		}
-		var group sync.WaitGroup
-		for _, candidate := range beside {
-			group.Go(func() { run(candidate) })
-		}
-		for _, candidate := range shared {
-			if ctx.Err() != nil {
-				break
-			}
-			run(candidate)
-		}
-		group.Wait()
-		var refused []error
 		var passed []string
 		for _, candidate := range reached {
-			if err := failures[candidate.name]; err != nil {
-				refused = append(refused, err)
-			} else if entry, ok := entries[candidate.name]; ok {
-				passed = append(passed, entry+" for "+pulled[candidate.name])
-			}
-		}
-		if len(refused) > 0 {
-			return errors.Join(refused...)
+			passed = append(passed, entries[candidate.name]+" for "+pulled[candidate.name])
 		}
 		l.details["lanes"] = describeLanes(discovery, turnWait, passed, skipped)
 		return nil
 	})
+}
+
+// runLanes runs, by run, the lanes beside the device's at once and the device's one after another, and says how each
+// passed lane ended. The first lane to fail refuses the landing, by the tests it failed, and cancels the others, which
+// are not its cause: the web UI lane's failed test once cancelled the device lane, and the refusal named the device
+// lane's cancellation (lane-cause/do).
+func (l *landing) runLanes(ctx context.Context, beside, shared []lane, run func(context.Context, lane) (string, error)) (map[string]string, error) {
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
+	entries := map[string]string{}
+	var mu sync.Mutex
+	each := func(candidate lane) {
+		fmt.Fprintf(l.Log, "land: lane %s runs\n", candidate.name)
+		began := time.Now()
+		output, err := run(ctx, candidate)
+		wall := time.Since(began).Round(time.Millisecond)
+		mu.Lock()
+		defer mu.Unlock()
+		switch {
+		case err == nil:
+			entries[candidate.name] = describeLane(candidate.name, wall, output)
+		case ctx.Err() != nil:
+			fmt.Fprintf(l.Log, "land: lane %s cancelled after %s\n", candidate.name, wall)
+		default:
+			fmt.Fprintf(l.Log, "land: lane %s refused after %s\n", candidate.name, wall)
+			cancel(fmt.Errorf("lane %s: %w", candidate.name, testFailure(output, err)))
+		}
+	}
+	var group sync.WaitGroup
+	for _, candidate := range beside {
+		group.Go(func() { each(candidate) })
+	}
+	for _, candidate := range shared {
+		if ctx.Err() != nil {
+			break
+		}
+		each(candidate)
+	}
+	group.Wait()
+	return entries, context.Cause(ctx)
 }
 
 // passedPackage opens go test's line for a package that passed, in its
@@ -548,6 +555,10 @@ const passedPackage = "ok  \t"
 func describeLane(name string, wall time.Duration, output string) string {
 	executed, cached := 0, 0
 	for line := range strings.Lines(output) {
+		var event struct{ Action, Output string }
+		if json.Unmarshal([]byte(line), &event) == nil && event.Action == "output" {
+			line = event.Output
+		}
 		switch {
 		case !strings.HasPrefix(line, passedPackage):
 		case strings.Contains(line, cachedMarker):

@@ -11,7 +11,9 @@ import (
 	"overgo/internal/checked"
 	"overgo/internal/graphruntime"
 	"overgo/internal/media"
+	"overgo/internal/model"
 	"overgo/internal/representation"
+	"overgo/internal/sampling"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
@@ -35,8 +37,13 @@ type DenoiserProgram struct {
 	InTemb    *tensor.Tensor // (Hidden)               host timestep embedding
 	InTembMod *tensor.Tensor // (ModFields*Hidden)      host AdaLN-single vector
 	InDelta   *tensor.Tensor // (1)                     flow Euler delta
-	keyBias   *tensor.Tensor
-	keyData   []float32
+	// InNegative is the negative prompt's text conditioning (Hidden, textSeq) where the program guides by it
+	// (NegativeGuide), nil otherwise; negativeBias masks its padding as keyBias the prompt's.
+	InNegative   *tensor.Tensor
+	negativeBias *tensor.Tensor
+	negativeData []float32
+	keyBias      *tensor.Tensor
+	keyData      []float32
 	// valueScale scales each row's attention value (compileWeightedDenoiserProgram), none for a prompt that weights
 	// nothing.
 	valueScale *tensor.Tensor
@@ -57,8 +64,23 @@ type DenoiserProgram struct {
 // device path). imgSeq must equal gh*gw.
 // textWeights are each text row's attention-value weight (weightedSpans): the co-attention scales the values of the
 // text rows by them, the image rows' by one. None compile the graph as it was.
-func CompileDenoiserProgram(t TransformerSpec, eps float32, textMask []bool, textWeights []float32, gh, gw int, matmulType dtype.Type) (*DenoiserProgram, error) {
+// A negative guide, at most one, guides the graph by a negative prompt (NegativeGuide); none compiles it unguided.
+func CompileDenoiserProgram(t TransformerSpec, eps float32, textMask []bool, textWeights []float32, gh, gw int, matmulType dtype.Type, guides ...NegativeGuide) (*DenoiserProgram, error) {
 	textSeq := len(textMask)
+	if len(guides) > 1 {
+		return nil, fmt.Errorf("denoiser program: %d negative prompts, where a graph guides by one", len(guides))
+	}
+	var guide NegativeGuide
+	if len(guides) == 1 {
+		guide = guides[0]
+	}
+	guided := guide.Mask != nil && guide.Attention.On()
+	if guided && len(guide.Mask) != textSeq {
+		return nil, fmt.Errorf("denoiser program: %d negative prompt rows for %d prompt rows", len(guide.Mask), textSeq)
+	}
+	if err := guide.Attention.Validate(); err != nil {
+		return nil, fmt.Errorf("denoiser program: %w", err)
+	}
 	if textWeights != nil && len(textWeights) != textSeq {
 		return nil, fmt.Errorf("denoiser program: %d text weights for %d text rows", len(textWeights), textSeq)
 	}
@@ -115,16 +137,15 @@ func CompileDenoiserProgram(t TransformerSpec, eps float32, textMask []bool, tex
 			p.valueData[index] = unweighted
 		}
 	}
-	for _, attended := range textMask {
-		if !attended {
-			p.keyBias = b.Input("denoiser_key_bias", dtype.F32, tensor.MustShape(uint64(seq)))
-			p.keyData = make([]float32, seq)
-			for index, active := range textMask {
-				if !active {
-					p.keyData[index] = padKeyBias
-				}
-			}
-			break
+	if p.keyData = paddingBias(textMask, seq); p.keyData != nil {
+		p.keyBias = b.Input("denoiser_key_bias", dtype.F32, tensor.MustShape(uint64(seq)))
+	}
+	var negative *tensor.Tensor
+	if guided {
+		p.InNegative = b.Input("negative_text_conditioning", dtype.F32, p.InText.Shape)
+		negative = p.InNegative
+		if p.negativeData = paddingBias(guide.Mask, seq); p.negativeData != nil {
+			p.negativeBias = b.Input("denoiser_negative_key_bias", dtype.F32, tensor.MustShape(uint64(seq)))
 		}
 	}
 
@@ -157,41 +178,62 @@ func CompileDenoiserProgram(t TransformerSpec, eps float32, textMask []bool, tex
 		preScale, preShift, preGate := chunk(uint64(offsets.PreScale)), chunk(uint64(offsets.PreShift)), chunk(uint64(offsets.PreGate))
 		postScale, postShift, postGate := chunk(uint64(offsets.PostScale)), chunk(uint64(offsets.PostShift)), chunk(uint64(offsets.PostGate))
 
+		norm1 := bind.Input(prefix+"norm1.weight", h)
+		toQ, toK, toV := bind.Input(prefix+"attn.to_q.weight", h, qDim), bind.Input(prefix+"attn.to_k.weight", h, kvDim), bind.Input(prefix+"attn.to_v.weight", h, kvDim)
+		toGate := bind.Input(prefix+"attn.to_gate.weight", h, h)
+		normQ, normK := bind.Input(prefix+"attn.norm_q.weight", headDim), bind.Input(prefix+"attn.norm_k.weight", headDim)
+		toOut, norm2 := bind.Input(prefix+"attn.to_out.0.weight", h, h), bind.Input(prefix+"norm2.weight", h)
+		ffGate, ffUp, ffDown := bind.Input(prefix+"ff.gate.weight", h, inter), bind.Input(prefix+"ff.up.weight", h, inter), bind.Input(prefix+"ff.down.weight", inter, h)
+
 		// --- gated GQA co-attention ---
-		n1 := b.AdaptiveShiftScale(zeroCenteredRMSNorm(b, hidden, bind.Input(prefix+"norm1.weight", h), eps), preShift, preScale)
-		q := b.MulMat(bind.Input(prefix+"attn.to_q.weight", h, qDim), n1)
-		k := b.MulMat(bind.Input(prefix+"attn.to_k.weight", h, kvDim), n1)
-		v := b.MulMat(bind.Input(prefix+"attn.to_v.weight", h, kvDim), n1)
-		gate := b.MulMat(bind.Input(prefix+"attn.to_gate.weight", h, h), n1)
-
-		q = b.Reshape(q, headDim, heads, uint64(seq))
-		k = b.Reshape(k, headDim, kvHeads, uint64(seq))
-		v = b.Reshape(v, headDim, kvHeads, uint64(seq))
-		if p.valueScale != nil {
-			v = b.Multiply(v, p.valueScale)
+		modulated := func(rows *tensor.Tensor) *tensor.Tensor {
+			return b.AdaptiveShiftScale(zeroCenteredRMSNorm(b, rows, norm1, eps), preShift, preScale)
 		}
-		q = zeroCenteredRMSNorm(b, q, bind.Input(prefix+"attn.norm_q.weight", headDim), eps)
-		k = zeroCenteredRMSNorm(b, k, bind.Input(prefix+"attn.norm_k.weight", headDim), eps)
-		q = buildInterleavedRoPE(b, q, axes, positions, theta)
-		k = buildInterleavedRoPE(b, k, axes, positions, theta)
-		q, k, v = roundAttentionForStorage(b, matmulType, q, k, v)
-		var attn *tensor.Tensor
-		if p.keyBias != nil {
-			attn = b.AttentionWithOptions(q, k, v, tensor.AttentionOptions{KeyBias: p.keyBias, Scale: scale, Causal: false})
-		} else {
-			attn = b.AttentionWithOptions(q, k, v, tensor.AttentionOptions{Scale: scale, Causal: false})
+		// attend is the co-attention of a sequence's projected rows, (Hidden, seq).
+		attend := func(q, k, v, valueScale, keyBias *tensor.Tensor) *tensor.Tensor {
+			q = b.Reshape(q, headDim, heads, uint64(seq))
+			k = b.Reshape(k, headDim, kvHeads, uint64(seq))
+			v = b.Reshape(v, headDim, kvHeads, uint64(seq))
+			if valueScale != nil {
+				v = b.Multiply(v, valueScale)
+			}
+			q = buildInterleavedRoPE(b, zeroCenteredRMSNorm(b, q, normQ, eps), axes, positions, theta)
+			k = buildInterleavedRoPE(b, zeroCenteredRMSNorm(b, k, normK, eps), axes, positions, theta)
+			q, k, v = roundAttentionForStorage(b, matmulType, q, k, v)
+			return b.Reshape(b.AttentionWithOptions(q, k, v, tensor.AttentionOptions{KeyBias: keyBias, Scale: scale, Causal: false}), h, uint64(seq))
 		}
-		attn = b.Reshape(attn, h, uint64(seq))   // (Hidden, seq)
-		attn = b.Multiply(attn, b.Sigmoid(gate)) // sigmoid output gate
-		attn = b.MulMat(bind.Input(prefix+"attn.to_out.0.weight", h, h), attn)
-		hidden = b.Add(hidden, b.Multiply(attn, preGate))
-
-		// --- SwiGLU feed-forward ---
-		n2 := b.AdaptiveShiftScale(zeroCenteredRMSNorm(b, hidden, bind.Input(prefix+"norm2.weight", h), eps), postShift, postScale)
-		g := b.MulMat(bind.Input(prefix+"ff.gate.weight", h, inter), n2)
-		u := b.MulMat(bind.Input(prefix+"ff.up.weight", h, inter), n2)
-		ff := b.MulMat(bind.Input(prefix+"ff.down.weight", inter, h), b.SwiGLU(g, u))
-		hidden = b.Add(hidden, b.Multiply(ff, postGate))
+		// output is the attention's sigmoid-gated projection, as its residual adds it.
+		output := func(attn, gate *tensor.Tensor) *tensor.Tensor {
+			return b.Multiply(b.MulMat(toOut, b.Multiply(attn, b.Sigmoid(gate))), preGate)
+		}
+		// --- SwiGLU feed-forward, as its residual adds it ---
+		feedForward := func(rows *tensor.Tensor) *tensor.Tensor {
+			n2 := b.AdaptiveShiftScale(zeroCenteredRMSNorm(b, rows, norm2, eps), postShift, postScale)
+			return b.Multiply(b.MulMat(ffDown, b.SwiGLU(b.MulMat(ffGate, n2), b.MulMat(ffUp, n2))), postGate)
+		}
+		n1 := modulated(hidden)
+		q, k, v := b.MulMat(toQ, n1), b.MulMat(toK, n1), b.MulMat(toV, n1)
+		attn := attend(q, k, v, p.valueScale, p.keyBias)
+		if negative != nil {
+			text := func(x *tensor.Tensor) *tensor.Tensor {
+				return b.FlatSlice(x, tensor.FirstOffset, x.Shape.Dims[tensor.FirstOffset], uint64(textSeq))
+			}
+			image := func(x *tensor.Tensor) *tensor.Tensor {
+				rows := x.Shape.Dims[tensor.FirstOffset]
+				return b.FlatSlice(x, uint64(textSeq)*rows, rows, uint64(imgSeq))
+			}
+			// The negative prompt's rows beside the image stream's own.
+			beside := func(own, shared *tensor.Tensor) *tensor.Tensor {
+				return b.Concat(own, image(shared), tensor.SingletonExtent)
+			}
+			m1 := modulated(negative)
+			against := attend(beside(b.MulMat(toQ, m1), q), beside(b.MulMat(toK, m1), k), beside(b.MulMat(toV, m1), v), nil, p.negativeBias)
+			attn = b.Concat(text(attn), model.BuildNormalizedAttention(b, image(attn), image(against), guide.Attention), tensor.SingletonExtent)
+			negative = b.Add(negative, output(text(against), b.MulMat(toGate, m1)))
+			negative = b.Add(negative, feedForward(negative))
+		}
+		hidden = b.Add(hidden, output(attn, b.MulMat(toGate, n1)))
+		hidden = b.Add(hidden, feedForward(hidden))
 
 		p.BlockOutputs = append(p.BlockOutputs, hidden)
 	}
@@ -331,4 +373,31 @@ func buildInterleavedRoPE(b *tensor.Builder, x *tensor.Tensor, axes [tensor.Trip
 		offset += span
 	}
 	return joined
+}
+
+// NegativeGuide is a negative prompt a step graph guides by through NAG (arXiv 2505.21179), its rows' padding mask and
+// the attention guidance that weighs it, as guidance-ops/nag-krea reads the paper for joint attention: the negative
+// prompt's rows are a stream of their own through every block, as the prompt's are, attending to themselves and the
+// image rows, whose queries, keys and values are the one image stream's; NAG replaces the image rows' attention output,
+// before its gate, with its combination of theirs against the prompt and against the negative prompt
+// (model.BuildNormalizedAttention). The negative prompt's values are not weighted. A guide with no mask, or its
+// attention guidance off, guides by nothing.
+type NegativeGuide struct {
+	Mask      []bool
+	Attention sampling.NormalizedAttention
+}
+
+// paddingBias is a text mask's key bias over a sequence of rows, the text's first: padKeyBias on each row the mask
+// leaves unattended, none where it attends every row.
+func paddingBias(mask []bool, rows int) []float32 {
+	if !slices.Contains(mask, false) {
+		return nil
+	}
+	bias := make([]float32, rows)
+	for index, attended := range mask {
+		if !attended {
+			bias[index] = padKeyBias
+		}
+	}
+	return bias
 }

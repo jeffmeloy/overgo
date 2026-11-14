@@ -12079,11 +12079,18 @@
         "note": "Answered by the lead on 2026-11-13: filed, model output."
       },
       "SQA-383": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "thinking-mode/media"
         ],
-        "note": "Answered by the lead on 2026-11-13: filed, a served route's sampling."
+        "note": "Landed at b2e752af7: normalizeChatPrompt attaches the thinking mode the chat asked to every branch, a chat with media as one without. TestAMediaHistoryKeepsTheThinkingModeAsked holds it. Awaits the reviewer's closure."
+      },
+      "SQA-402": {
+        "action": "implemented",
+        "rows": [
+          "nag-finite/do"
+        ],
+        "note": "Landed at b2e752af7: NAG's factor is min(1, tau |Z+| / |Z~|), each norm held at 1e-30 or more, so a token whose extrapolation cancels or whose norms are zero has factor 1 and a finite output. TestNAGStaysFiniteWhereAttentionCancels holds it beside TestABlocksNAGIsThePapersEquations. Awaits the reviewer's closure."
       },
       "SQA-364": {
         "action": "filed",
@@ -12093,11 +12100,11 @@
         "note": "Answered by the lead on 2026-11-13: filed, a served request that fails after partial work."
       },
       "SQA-393": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "sharpen-admit/do"
         ],
-        "note": "Answered by the lead on 2026-11-13: filed, model output and a refusal after a render."
+        "note": "Landed at 77a40b792: Sharpening.Admit(height, width) admits a picture's whole sharpening, its kernel and its extent, before the model opens, and latentimage ValidateRequest calls it. Awaits the reviewer's closure."
       },
       "SQA-386": {
         "action": "filed",
@@ -12203,12 +12210,13 @@
         "note": "Checked 2026-11-13 at 8ab8f2e44: the module root holds no Go file, so no package there can embed a file below it, and the one build-tagged file with a go:embed directive is a test (internal/dataset/speech_source_acceptance_model_test.go), which the undo does not restore as production. Neither shape the finding names occurs today; it is taken up when one does, or with the verifier's build-context work it names."
       },
       "SQA-384": {
-        "action": "closed",
+        "action": "implemented",
         "rows": [
           "session-resume/do",
-          "session-end/stale"
+          "session-end/stale",
+          "session-unknown/do"
         ],
-        "note": "Landed at 2f978d801: SessionEnded reads the checkout's hold first, so a session the hold names with a running process is not ended whatever its old record says, and the session-start hook removes a session's end record (guard.SessionResumed). TestASessionThatResumesIsNotEnded and TestAStartedSessionDropsItsEndRecord hold both. Reopened by the lead's recheck on 2026-11-13: where removing the end record fails, the session-start hook prints the error and goes on, and SessionEnded then reads a resumed session with no hold as ended, so its new scratch is cleared (criterion 2); session-end/stale makes an end record older than the session's last turn no sign of its end. Closed by the lead with 0ef92bbeb, each criterion: a resumed session and a live holder keep their protection (TestASessionThatResumesIsNotEnded, TestAStartedSessionDropsItsEndRecord); an end record the hook could not remove is outranked by the session's next turn, so its scratch is not cleared (TestAnEndRecordOlderThanTheSessionsLastTurnIsNoEnd); ended cleanup and the other keepers are unchanged."
+        "note": "Landed at 2f978d801: SessionEnded reads the checkout's hold first, so a session the hold names with a running process is not ended whatever its old record says, and the session-start hook removes a session's end record (guard.SessionResumed). TestASessionThatResumesIsNotEnded and TestAStartedSessionDropsItsEndRecord hold both. Reopened by the lead's recheck on 2026-11-13: where removing the end record fails, the session-start hook prints the error and goes on, and SessionEnded then reads a resumed session with no hold as ended, so its new scratch is cleared (criterion 2); session-end/stale makes an end record older than the session's last turn no sign of its end. Closed by the lead with 0ef92bbeb, each criterion: a resumed session and a live holder keep their protection (TestASessionThatResumesIsNotEnded, TestAStartedSessionDropsItsEndRecord); an end record the hook could not remove is outranked by the session's next turn, so its scratch is not cleared (TestAnEndRecordOlderThanTheSessionsLastTurnIsNoEnd); ended cleanup and the other keepers are unchanged. Reopened by the review on 2026-11-13 for state that cannot be read; landed at b2e752af7 (session-unknown/do): SessionEnded reads an unreadable hold, and a session state it cannot stat for any cause but its absence, as no end, and the where-else search found the checkout's hold reader and cmd/loop's leftovers reader, which now read an unreadable hold as held and unknown. TestAnUnknownSessionEndIsNoEnd, TestAnUnreadableSessionStateIsNoEnd, TestAnUnreadableHoldHoldsTheCheckout and the leftovers unreadable case hold them. Awaits the reviewer's closure."
       },
       "SQA-363": {
         "action": "closed",
@@ -12539,11 +12547,12 @@
         "note": "Landed. recordStopBlock returns its failure and runStop lets the stop through when the block cannot be kept, as a block no retry can read back would wedge the session. The unused stopHookActive parameter, its retry row and the two duplicated assertions are gone. Awaits the reviewer's closure."
       },
       "SQA-261": {
-        "action": "closed",
+        "action": "implemented",
         "rows": [
-          "sqa-cycle/commit-queue"
+          "sqa-cycle/commit-queue",
+          "free-card-turn/do"
         ],
-        "note": "Closed by the lead on 2026-11-13, rechecked at f110d30b1: TestALandingWaitingOnTheDeviceGivesUpItsCommitTurn and TestALandingWaitingOnARunLeavesTheCheckoutFree pass. Criterion 2's transition does not arise: holdCard lets the checkout and the commit turn go (letGo) before it takes the card's turn at all (takeLaneTurn), so no probe precedes the acquisition, and the waiter is named to the holder (its wait line; a holder's 'gave the card to a waiting process'). Merging the redundant 395 assertions stays a separate test-only reduction."
+        "note": "Closed by the lead on 2026-11-13, rechecked at f110d30b1: TestALandingWaitingOnTheDeviceGivesUpItsCommitTurn and TestALandingWaitingOnARunLeavesTheCheckoutFree pass. Criterion 2's transition does not arise: holdCard lets the checkout and the commit turn go (letGo) before it takes the card's turn at all (takeLaneTurn), so no probe precedes the acquisition, and the waiter is named to the holder (its wait line; a holder's 'gave the card to a waiting process'). Merging the redundant 395 assertions stays a separate test-only reduction. Reopened by the review on 2026-11-13 for the free branch, where a landing whose probe found the card free kept its commit turn; landed at b2e752af7 (free-card-turn/do): holdCard lets the commit turn go before it takes the card's turn whether or not the card looks free, the probe removed, and the where-else search found the turn's waiter mark, which now goes up before the waiter looks (processcontrol takePlace). TestALandingThatFindsTheCardFreeGivesUpItsCommitTurn and TestAWaiterWhoseLookFoundTheTurnFreeIsStillSeenWaiting hold both. Awaits the reviewer's closure."
       },
       "SQA-341": {
         "action": "closed",

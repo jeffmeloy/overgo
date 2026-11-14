@@ -66,15 +66,17 @@ func flowSchedule(request Request) (FlowSchedule, error) {
 }
 
 type Generator struct {
-	request    Request
-	profile    Profile
-	spec       *Spec
-	modelDir   string
-	tokenizer  *hfbpe.Tokenizer
-	pipeline   *ResidentImagePipeline
-	rotary     *rotaryGeneration
-	observe    func(string, []float32) error
-	embed      []float32
+	request   Request
+	profile   Profile
+	spec      *Spec
+	modelDir  string
+	tokenizer *hfbpe.Tokenizer
+	pipeline  *ResidentImagePipeline
+	rotary    *rotaryGeneration
+	observe   func(string, []float32) error
+	embed     []float32
+	// negative is the negative prompt's programs, whose conditioning prepare makes for a guided denoiser (Guide).
+	negative   *promptPrograms
 	schedule   FlowSchedule
 	shape      LatentShape
 	prepared   bool
@@ -178,7 +180,7 @@ func LoadGenerator(ctx context.Context, modelDir string, profile Profile, reques
 		return nil, err
 	}
 	generator := &Generator{request: request, profile: profile, spec: spec, modelDir: modelDir, tokenizer: tokenizer, shape: shape}
-	prompt, err := generator.compilePrompt(request.Prompt, gridH, gridW)
+	prompt, err := generator.compilePrompt(request, gridH, gridW)
 	if err != nil {
 		return nil, err
 	}
@@ -206,7 +208,7 @@ func LoadGenerator(ctx context.Context, modelDir string, profile Profile, reques
 		_ = pipeline.Close(ctx)
 		return nil, err
 	}
-	generator.pipeline, generator.embed, generator.schedule = pipeline, prompt.embed, schedule
+	generator.pipeline, generator.embed, generator.negative, generator.schedule = pipeline, prompt.embed, prompt.negative, schedule
 	return generator, nil
 }
 
@@ -214,17 +216,43 @@ func LoadGenerator(ctx context.Context, modelDir string, profile Profile, reques
 // embeddings, and the text encoder, fusion and denoiser compiled under its
 // padding mask. Every prompt is padded to one length, so the three are of one
 // shape whatever the prompt, and differ in what the mask leaves unattended.
+// mask and weights are the prompt's rows as the denoiser reads them, and
+// negative the negative prompt's text programs where the denoiser guides by one.
 type promptPrograms struct {
 	embed    []float32
 	encoder  *EncoderProgram
 	fusion   *FusionProgram
 	denoiser *DenoiserProgram
+	mask     []bool
+	weights  []float32
+	negative *promptPrograms
 }
 
-// compilePrompt renders a prompt as the model's text template has it and
-// compiles the programs that read its mask, for a picture of gridH by gridW
-// patches.
-func (g *Generator) compilePrompt(prompt string, gridH, gridW int) (promptPrograms, error) {
+// compilePrompt renders a request's prompt, and the negative prompt it guides
+// by (Request.guide), as the model's text template has them, and compiles the
+// programs that read their masks, for a picture of gridH by gridW patches.
+func (g *Generator) compilePrompt(request Request, gridH, gridW int) (promptPrograms, error) {
+	prompt, err := g.compileText(request.Prompt)
+	if err != nil {
+		return promptPrograms{}, err
+	}
+	var guides []NegativeGuide
+	if guide := request.guide(); guide.negative != "" {
+		negative, err := g.compileText(guide.negative)
+		if err != nil {
+			return promptPrograms{}, err
+		}
+		prompt.negative, guides = &negative, []NegativeGuide{{Mask: negative.mask, Attention: guide.attention}}
+	}
+	prompt.denoiser, err = CompileDenoiserProgram(
+		g.spec.Transformer, float32(g.spec.Transformer.NormEps), prompt.mask, prompt.weights, gridH, gridW, dtype.BF16, guides...,
+	)
+	return prompt, err
+}
+
+// compileText renders a prompt as the model's text template has it and
+// compiles the text encoder and the fusion under its padding mask.
+func (g *Generator) compileText(prompt string) (promptPrograms, error) {
 	text, err := renderTextInput(g.tokenizer, prompt, g.profile.Prompt)
 	if err != nil {
 		return promptPrograms{}, err
@@ -256,10 +284,7 @@ func (g *Generator) compilePrompt(prompt string, gridH, gridW int) (promptProgra
 	if text.Weights != nil {
 		textWeights = text.Weights[len(text.Weights)-text.PromptRows:]
 	}
-	denoiser, err := CompileDenoiserProgram(
-		g.spec.Transformer, float32(g.spec.Transformer.NormEps), textMask, textWeights, gridH, gridW, dtype.BF16,
-	)
-	return promptPrograms{embed: embed, encoder: encoder, fusion: fusion, denoiser: denoiser}, err
+	return promptPrograms{embed: embed, encoder: encoder, fusion: fusion, mask: textMask, weights: textWeights}, nil
 }
 
 // withPolicy fills what a request leaves unnamed from the sampling policy: the
@@ -323,15 +348,15 @@ func (g *Generator) Reset(ctx context.Context, request Request) error {
 	if request.Width != g.request.Width || request.Height != g.request.Height || request.NumTrainTimesteps != g.request.NumTrainTimesteps {
 		return errors.New("latent image: request requires another resident session")
 	}
-	if request.Prompt != g.request.Prompt {
-		prompt, err := g.compilePrompt(request.Prompt, gridH, gridW)
+	if request.Prompt != g.request.Prompt || request.guide() != g.request.guide() {
+		prompt, err := g.compilePrompt(request, gridH, gridW)
 		if err != nil {
 			return err
 		}
 		if err := g.pipeline.Recondition(ctx, request.Prompt, prompt.encoder, prompt.fusion, prompt.denoiser, prompt.embed); err != nil {
 			return err
 		}
-		g.embed = prompt.embed
+		g.embed, g.negative = prompt.embed, prompt.negative
 	}
 	schedule, err := flowSchedule(request)
 	if err != nil {
@@ -366,6 +391,12 @@ func (g *Generator) prepare(ctx context.Context, request Request) (*Generator, e
 		if _, err := g.pipeline.Condition(ctx, g.request.Prompt, g.embed); err != nil {
 			return nil, err
 		}
+	}
+	if g.negative != nil {
+		if err := g.pipeline.Guide(ctx, g.request.NegativePrompt, g.negative.encoder, g.negative.fusion, g.negative.embed); err != nil {
+			return nil, err
+		}
+		g.negative = nil
 	}
 	var latent []float32
 	err = g.pipeline.runtime.Do(ctx, func(state *device.State) error {
@@ -514,8 +545,31 @@ func (r Request) withPreset(directory string) (Request, error) {
 	return r, nil
 }
 
-// rotaryOnly is whether the request asks what only a rotary profile runs: a negative prompt, a guidance scale of its
-// own or guidance over its steps, layout validation, or a sharpening of its picture.
+// rotaryOnly is whether the request asks what only a rotary profile runs: a negative prompt or guidance over its
+// steps, except normalized attention guidance's (attentionGuided), a guidance scale of its own, layout validation, or
+// a sharpening of its picture.
 func (r Request) rotaryOnly() bool {
-	return r.NegativePrompt != "" || r.GuidanceScale != nil || r.Guidance != (sampling.Guidance{}) || r.PromptMode == promptLayout || r.Sharpen != nil
+	return !r.attentionGuided() && (r.NegativePrompt != "" || r.Guidance != (sampling.Guidance{})) ||
+		r.GuidanceScale != nil || r.PromptMode == promptLayout || r.Sharpen != nil
+}
+
+// attentionGuided says the request's guidance is normalized attention guidance's alone, which a Krea session runs by
+// the negative prompt where the request gives one (NegativeGuide), and as it would unguided where not.
+func (r Request) attentionGuided() bool {
+	return r.Guidance.Attention.On() && r.Guidance == (sampling.Guidance{Attention: r.Guidance.Attention})
+}
+
+// attentionGuide is what a session's denoiser is compiled to guide by: a negative prompt and the attention guidance
+// that weighs it. The zero guide guides by nothing.
+type attentionGuide struct {
+	negative  string
+	attention sampling.NormalizedAttention
+}
+
+// guide is the request's attention guide: its negative prompt where it guides by normalized attention and gives one.
+func (r Request) guide() attentionGuide {
+	if r.NegativePrompt == "" || !r.attentionGuided() {
+		return attentionGuide{}
+	}
+	return attentionGuide{negative: r.NegativePrompt, attention: r.Guidance.Attention}
 }

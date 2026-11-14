@@ -132,7 +132,7 @@ func TestNAGStaysFiniteWhereAttentionCancels(t *testing.T) {
 	builder := tensor.NewBuilder()
 	shape := tensor.MustShape(dim, uint64(len(positive)/dim))
 	plus, minus := builder.Input("positive", dtype.F32, shape), builder.Input("negative", dtype.F32, shape)
-	guided := buildNormalizedAttention(builder, plus, minus, guidance)
+	guided := BuildNormalizedAttention(builder, plus, minus, guidance)
 	testcheck.NoError(t, builder.Err())
 	values := testcheck.Must(reference.Execute([]*tensor.Tensor{guided}, map[*tensor.Tensor]reference.Value{
 		plus: {Shape: shape, Data: positive}, minus: {Shape: shape, Data: negative},

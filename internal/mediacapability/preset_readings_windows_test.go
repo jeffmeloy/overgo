@@ -5,6 +5,7 @@ package mediacapability
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 
@@ -18,18 +19,22 @@ import (
 // (guidance-ops/preset-gate), read through SenseNova's page, whose presets its recipe declares with no model files: a
 // preset the readings name is offered only once admitted, pending or refused it is not, and the page drops its preset
 // control when it offers none. The readings, read from the file the page's code embeds, hold only the three statuses,
-// name for Wan and SenseNova only presets their declarations hold, and name every guidance preset the campaign reads.
+// name for Wan, its distilled student among them, and SenseNova only presets their declarations hold, and name every
+// guidance preset the campaign reads, Krea's and the student's NAG among them, which no page offers unread.
 func TestAPresetUnderReadingIsOfferedOnlyOnceAdmitted(t *testing.T) {
 	t.Parallel()
 	var readings map[string]map[string]string
 	testcheck.NoError(t, json.Unmarshal(testcheck.Must(os.ReadFile("preset_readings.json"))(t), &readings))
+	student := t.TempDir()
+	testcheck.NoError(t, os.MkdirAll(filepath.Join(student, "checkpoints"), 0o755))
+	testcheck.NoError(t, os.WriteFile(filepath.Join(student, "checkpoints", "self_forcing_dmd.pt"), nil, 0o644))
 	declared := map[string][]string{
-		"latentvideo": testcheck.Must(latentvideo.PresetNames(t.TempDir()))(t),
+		"latentvideo": append(testcheck.Must(latentvideo.PresetNames(t.TempDir()))(t), testcheck.Must(latentvideo.PresetNames(student))(t)...),
 		"sensenova":   testcheck.Must(sensenovarecipe.PresetNames())(t),
 	}
 	read := map[string][]string{
-		"latentimage": {"apg", "cfg-zero-star", "guidance-interval"},
-		"latentvideo": {"cfg-zero-star", "guidance-interval", "model-card"},
+		"latentimage": {"apg", "cfg-zero-star", "guidance-interval", "nag"},
+		"latentvideo": {"cfg-zero-star", "guidance-interval", "model-card", "nag"},
 		"sensenova":   {"apg", "cfg-zero-star", "guidance-interval"},
 	}
 	for family, presets := range read {

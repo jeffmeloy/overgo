@@ -377,7 +377,7 @@ func buildConditionedDiffusionBlock(
 	}
 	result.CrossAttention = attend(crossKey, crossValue)
 	if negativeKey != nil {
-		result.CrossAttention = buildNormalizedAttention(builder, result.CrossAttention, attend(negativeKey, negativeValue), options.Attention)
+		result.CrossAttention = BuildNormalizedAttention(builder, result.CrossAttention, attend(negativeKey, negativeValue), options.Attention)
 	}
 
 	result.CrossProjected = buildBiasedProjection(
@@ -398,14 +398,14 @@ func buildConditionedDiffusionBlock(
 	return result, nil
 }
 
-// buildNormalizedAttention is NAG's Eqs. 7 to 10 (sampling.NormalizedAttention) on a cross-attention's outputs for the
+// BuildNormalizedAttention is NAG's Eqs. 7 to 10 (sampling.NormalizedAttention) on an attention's outputs for the
 // prompt and the negative prompt, each [dim, tokens], a token's heads together as the norm takes them:
 // Z~ = Z+ + phi (Z+ - Z-); each token's L1 ratio R = |Z~|_1 / |Z+|_1; Z^ = min(R, tau) / R Z~;
 // Z = alpha Z^ + (1 - alpha) Z+. The absolute value is ReLU(x) + ReLU(-x). Eq. 9's factor min(R, tau) / R is taken as
 // min(1, tau |Z+|_1 / |Z~|_1), tau |Z+|_1 over the larger of the two, each held at normFloor or more, so no division
 // reads 0 / 0: where the extrapolation cancels, or both norms are 0, the factor is 1 and Z~ is 0 there, where R was 0
 // and the factor NaN (SQA-402).
-func buildNormalizedAttention(builder *tensor.Builder, positive, negative *tensor.Tensor, guidance sampling.NormalizedAttention) *tensor.Tensor {
+func BuildNormalizedAttention(builder *tensor.Builder, positive, negative *tensor.Tensor, guidance sampling.NormalizedAttention) *tensor.Tensor {
 	scale, tau, alpha := float32(guidance.Scale), float32(guidance.Tau), float32(guidance.Alpha)
 	extrapolated := builder.Add(builder.Scale(positive, 1+scale), builder.Scale(negative, -scale))
 	norm := func(x *tensor.Tensor) *tensor.Tensor {

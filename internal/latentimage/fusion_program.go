@@ -78,17 +78,8 @@ func CompileFusionProgram(t TransformerSpec, eps float32, textMask []bool, matmu
 	bind := tensor.WeightInputs{Builder: b, Bindings: &p.weightInputs, MatrixType: matmulType}
 
 	p.InEncoder = b.Input("encoder_hidden", dtype.F32, tensor.MustShape(th, L*ts))
-	for _, attended := range textMask {
-		if !attended {
-			p.keyBias = b.Input("fusion_key_bias", dtype.F32, tensor.MustShape(ts))
-			p.keyData = make([]float32, textSeq)
-			for index, active := range textMask {
-				if !active {
-					p.keyData[index] = padKeyBias
-				}
-			}
-			break
-		}
+	if p.keyData = paddingBias(textMask, textSeq); p.keyData != nil {
+		p.keyBias = b.Input("fusion_key_bias", dtype.F32, tensor.MustShape(ts))
 	}
 
 	// --- layerwise blocks: attend across the tapped-layer axis, per token ---

@@ -36,7 +36,7 @@ type ResidentImagePipeline struct {
 	timestepPlan     *timestepProgram
 	timestep         *graphruntime.ResidentProgram
 	denoiser         *graphruntime.ResidentProgram
-	denoiserInputs   [4]driver.DevicePtr
+	denoiserInputs   []driver.DevicePtr
 	upload           *graphruntime.ResidentProgram
 	uploadInput      *tensor.Tensor
 	uploadOutput     *tensor.Tensor
@@ -48,7 +48,9 @@ type ResidentImagePipeline struct {
 	modelDir         string
 	mu               sync.Mutex
 	conditioning     *ResidentConditioning
-	latent           *residentLatent
+	// negative is the negative prompt's conditioning, where the denoiser guides by one (Guide).
+	negative *ResidentConditioning
+	latent   *residentLatent
 	// conditioned keeps the fused text of the session's recent prompts on the
 	// host, and conditioningUpload places one on the device again for a prompt
 	// met again, which then places neither the text encoder nor the fusion.
@@ -163,7 +165,7 @@ func (p *ResidentImagePipeline) bindDenoiser(ctx context.Context, replaced *grap
 	program, err := compileResidentWeights(
 		ctx, p.runtime, "resident image denoiser", filepath.Join(p.modelDir, "transformer"),
 		denoiser.weightInputs,
-		[]*tensor.Tensor{denoiser.InLatent, denoiser.InText, denoiser.InTemb, denoiser.InTembMod},
+		slices.DeleteFunc([]*tensor.Tensor{denoiser.InLatent, denoiser.InText, denoiser.InTemb, denoiser.InTembMod, denoiser.InNegative}, func(input *tensor.Tensor) bool { return input == nil }),
 		denoiser.NextLatent,
 	)
 	if err == nil {
@@ -171,6 +173,9 @@ func (p *ResidentImagePipeline) bindDenoiser(ctx context.Context, replaced *grap
 	}
 	if err == nil && denoiser.valueScale != nil {
 		err = p.runtime.BindF32(ctx, program, fmt.Sprintf("static:resident image denoiser value scale:%x", sha256.Sum256(driver.Bytes(denoiser.valueData))), denoiser.valueScale, denoiser.valueData)
+	}
+	if err == nil && denoiser.negativeBias != nil {
+		err = p.runtime.BindF32(ctx, program, "static:resident image denoiser negative", denoiser.negativeBias, denoiser.negativeData)
 	}
 	if err != nil || denoiser.keyBias == nil {
 		return program, err
@@ -392,10 +397,10 @@ func (p *ResidentImagePipeline) Recondition(
 		denoiser.GH != p.Denoiser.GH || denoiser.GW != p.Denoiser.GW {
 		return errors.New("resident image pipeline: the prompt's programs are of another shape than the session's")
 	}
-	if err := p.conditioning.outputs.Release(ctx); err != nil {
+	if err := errors.Join(p.conditioning.release(ctx), p.negative.release(ctx)); err != nil {
 		return fmt.Errorf("resident image pipeline: release conditioning: %w", err)
 	}
-	p.conditioning.outputs, p.conditioning.pipeline, p.conditioning = nil, nil, nil
+	p.conditioning, p.negative = nil, nil
 	p.Encoder, p.Fusion, p.Denoiser = encoder, fusion, denoiser
 	conditioning, err := p.recall(ctx, prompt, embedRows)
 	if err != nil {
@@ -406,6 +411,48 @@ func (p *ResidentImagePipeline) Recondition(
 		return fmt.Errorf("resident image pipeline: another prompt's denoiser: %w", err)
 	}
 	return p.retain(ctx, conditioning)
+}
+
+// Guide gives a pipeline whose denoiser guides by a negative prompt (NegativeGuide) that prompt's
+// conditioning, made as a prompt's is (recall) by the text encoder and the fusion compiled under its mask, the fusion
+// retired after it. It follows the prompt's conditioning (Condition, Recondition) and comes before the first step. An
+// error leaves the pipeline to be closed.
+func (p *ResidentImagePipeline) Guide(ctx context.Context, prompt string, encoder *EncoderProgram, fusion *FusionProgram, embedRows []float32) error {
+	if p == nil || encoder == nil || fusion == nil {
+		return errors.New("resident image pipeline: unavailable")
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.runtime == nil || p.conditioning == nil || p.negative != nil || p.latent != nil || p.Denoiser.InNegative == nil {
+		return errors.New("resident image pipeline: no guided denoiser awaits a negative prompt")
+	}
+	if encoder.Seq != p.Encoder.Seq || fusion.TextSeq != p.Fusion.TextSeq {
+		return errors.New("resident image pipeline: the negative prompt's programs are of another shape than the session's")
+	}
+	held, heldFusion := p.Encoder, p.Fusion
+	p.Encoder, p.Fusion = encoder, fusion
+	conditioning, err := p.recall(ctx, prompt, embedRows)
+	p.Encoder, p.Fusion = held, heldFusion
+	if err == nil && p.fusion != nil {
+		err = p.runtime.Release(ctx, p.fusion)
+		p.fusion = nil
+	}
+	if err != nil {
+		return errors.Join(fmt.Errorf("resident image pipeline: negative prompt: %w", err), conditioning.release(ctx))
+	}
+	p.residentBytes = p.runtime.StaticBytes()
+	p.negative = conditioning
+	return nil
+}
+
+// release gives back a conditioning's device values; a nil one holds none.
+func (c *ResidentConditioning) release(ctx context.Context) error {
+	if c == nil {
+		return nil
+	}
+	err := c.outputs.Release(ctx)
+	c.outputs, c.value, c.pipeline = nil, executor.DeviceValue{}, nil
+	return err
 }
 
 // recall gives the pipeline's prompt its conditioning: the one the session
@@ -637,7 +684,7 @@ func (p *ResidentImagePipeline) Advance(ctx context.Context, sigma, delta float6
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if p.runtime == nil || p.conditioning == nil || p.latent == nil {
+	if p.runtime == nil || p.conditioning == nil || p.latent == nil || (p.Denoiser.InNegative == nil) != (p.negative == nil) {
 		return errors.New("resident image pipeline: denoise session is unavailable")
 	}
 	sinusoid, err := p.timestepPlan.sinusoid(sigma)
@@ -657,15 +704,16 @@ func (p *ResidentImagePipeline) Advance(ctx context.Context, sigma, delta float6
 		return errors.New("resident image pipeline: timestep outputs are unavailable")
 	}
 	program := p.Denoiser
-	p.denoiserInputs = [4]driver.DevicePtr{
-		p.latent.value.Pointer, p.conditioning.value.Pointer, embedding.Pointer, modulation.Pointer,
+	p.denoiserInputs = append(p.denoiserInputs[:0], p.latent.value.Pointer, p.conditioning.value.Pointer, embedding.Pointer, modulation.Pointer)
+	if p.negative != nil {
+		p.denoiserInputs = append(p.denoiserInputs, p.negative.value.Pointer)
 	}
 	next, err := p.runtime.Retain(
 		ctx, p.denoiser,
 		map[*tensor.Tensor]reference.Value{
 			program.InDelta: {Shape: program.InDelta.Shape, Data: []float32{float32(delta)}},
 		},
-		p.denoiserInputs[:],
+		p.denoiserInputs,
 	)
 	if err != nil {
 		_ = step.Release(ctx)
@@ -790,13 +838,8 @@ func (p *ResidentImagePipeline) Close(ctx context.Context) error {
 		releaseErr = p.latent.outputs.Release(ctx)
 		p.latent = nil
 	}
-	if p.conditioning != nil {
-		releaseErr = errors.Join(releaseErr, p.conditioning.outputs.Release(ctx))
-		p.conditioning.outputs = nil
-		p.conditioning.value = executor.DeviceValue{}
-		p.conditioning.pipeline = nil
-		p.conditioning = nil
-	}
+	releaseErr = errors.Join(releaseErr, p.conditioning.release(ctx), p.negative.release(ctx))
+	p.conditioning, p.negative = nil, nil
 	err := errors.Join(releaseErr, p.runtime.Close(ctx))
 	p.runtime = nil
 	p.bridge, p.fusion, p.timestep, p.denoiser, p.upload, p.conditioningUpload = nil, nil, nil, nil, nil, nil

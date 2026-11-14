@@ -76,10 +76,17 @@ func keyed(client *http.Client) *http.Client {
 		if followed != nil {
 			return followed(request, via)
 		}
+		// Go's client stops after ten redirects only where it is given no policy, and this is one.
+		if len(via) >= redirectsFollowed {
+			return fmt.Errorf("remote relay: %s stopped after %d redirects", via[0].URL.Redacted(), redirectsFollowed)
+		}
 		return nil
 	}
 	return &copied
 }
+
+// redirectsFollowed is how many redirects Go's client follows where it is given no policy.
+const redirectsFollowed = 10
 
 // listModels GETs the endpoint's models route: the OpenAI-compatible listing carries each model's id, and OpenRouter's adds
 // its name and context length.

@@ -3,61 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "session-end",
-      "title": "A session's recorded end is a sign of its end only while no turn of the session came after it",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "stale",
-          "title": "A session's recorded end is a sign of its end only while no turn of the session came after it",
-          "status": "open",
-          "verify": "go test ./internal/guard -count=1 -run '^TestAnEndRecordOlderThanTheSessionsLastTurnIsNoEnd$'",
-          "files": [
-            "internal/guard",
-            "cmd/loophook"
-          ],
-          "rationale": "Serves: a resumed session's scratch is never cleared as finished (SQA-384, P1).\n\nThe evidence (the lead's recheck, 2026-11-13, at f110d30b1): session-resume/do (2f978d801) has the session-start hook remove a session's end record (guard.SessionResumed), and SessionEnded reads a live hold first. Where the removal fails, the hook prints the error to stderr and goes on (cmd/loophook runDoctrine), the end record stays, and SessionEnded reads a resumed session with no hold as ended, so cmd/loop -leftovers clears its new scratch as finished: SQA-384's second criterion, that a failed end-marker invalidation cannot leave resumed no-hold scratch eligible for deletion, does not hold.\n\nThe cure: an end record is a sign of the session's end only where it is newer than the session's own state file, which the hooks write at its turns, so a session's next turn outranks an end its last incarnation recorded whether or not the record could be removed.\n\nCheck: TestAnEndRecordOlderThanTheSessionsLastTurnIsNoEnd records a session's end, then writes its state after it, and holds SessionEnded to false; with the state older than the end it holds true. At the base the end record alone reads as ended."
-        }
-      ]
-    },
-    {
-      "id": "relay-redirect",
-      "title": "A provider's keyed client stops after ten redirects on its endpoint, as Go's default does",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "bound",
-          "title": "A provider's keyed client stops after ten redirects on its endpoint, as Go's default does",
-          "status": "open",
-          "verify": "go test ./internal/remoterelay -count=1 -run '^TestAProvidersKeyedClientStopsAfterTenRedirects$'",
-          "files": [
-            "internal/remoterelay"
-          ],
-          "rationale": "Serves: a provider that redirects to itself without end is refused, its key sent a bounded number of times (SQA-363's second criterion).\n\nThe evidence (the lead's recheck, 2026-11-13, at f110d30b1): keyed copies the caller's client and sets its own CheckRedirect, refusing a redirect off the admitted endpoint, then calls the caller's policy where there is one and otherwise returns nil. Go's client applies its stop after ten redirects only where CheckRedirect is nil, so a client given no policy, the default, follows same-endpoint redirects without end, the key on each.\n\nCheck: TestAProvidersKeyedClientStopsAfterTenRedirects serves a provider whose models route redirects to itself, and holds the listing to a refusal after ten redirects. At the base it never stops; the test's server counts the requests and fails past a bound."
-        }
-      ]
-    },
-    {
-      "id": "findings-basis",
-      "title": "Dispatch prints each finding's evidence basis beside its severity",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "print",
-          "title": "Dispatch prints each finding's evidence basis beside its severity",
-          "status": "open",
-          "verify": "go test ./internal/plan -count=1 -run '^TestAFindingToFileSaysWhatEvidenceItRestsOn$'",
-          "files": [
-            "internal/plan"
-          ],
-          "rationale": "Serves: the lead weighs a finding by what it rests on before answering it (the review session, relayed by the owner, 2026-11-13: dispatch can print the field).\n\nThe evidence: the register carries evidence_basis on each finding, observed, shown_from_source or possible (open on 2026-11-13: P2 observed 3, shown_from_source 32; P3 observed 2, possible 2, shown_from_source 43), and dispatch prints a finding as SQA-n (Pn): title, its basis unread.\n\nThe change: FindingsToFile and FindingsTouching write SQA-n (Pn, basis): title, the basis as the register writes it, none where it has none.\n\nCheck: TestAFindingToFileSaysWhatEvidenceItRestsOn files a P2 shown from source and an observed one and reads each line's basis. At the base the lines carry none."
-        }
-      ]
-    },
-    {
       "id": "readme-speed",
       "title": "The README's speed table reads prompt processing at 4,096 and 16,384 tokens for every chat model, from readings that keep their token counts",
       "owner": "master-lead",

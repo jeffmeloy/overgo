@@ -145,8 +145,14 @@ func SessionEnded(root, session string) bool {
 			return !processcontrol.Running(process, start)
 		}
 	}
-	_, err := os.Stat(filepath.Join(state, sessionEnd(session)))
-	return err == nil
+	end, err := os.Stat(filepath.Join(state, sessionEnd(session)))
+	if err != nil {
+		return false
+	}
+	// The hooks write a session's state at its turns, so a turn after the recorded end outranks it: a session that
+	// resumed is live whether or not the session-start hook could remove its end record (SQA-384).
+	turn, err := os.Stat(filepath.Join(state, SessionState(session)))
+	return err != nil || !turn.ModTime().After(end.ModTime())
 }
 
 // SessionResumed removes the record of session's end, as the session-start hook does for a session that starts again:

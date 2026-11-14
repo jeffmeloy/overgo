@@ -3,6 +3,26 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "cuda-synthetic",
+      "title": "A CUDA test that opens a real model is the cycle's, behind modeltest, so the gate's cuda lane runs the suites on synthetic inputs it is for",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "tag",
+          "title": "Each untagged CUDA test that reads a model from the data root carries the modeltest tag",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestTheCUDALaneRunsNoRealModelTest$'",
+          "files": [
+            "internal/landing",
+            "internal",
+            "cmd"
+          ],
+          "rationale": "Serves: a landing's checks take the time the change can move and no more (the owner's review, 2026-11-14), and a gate lane runs what it is for.\n\nThe evidence: refusal-trim/cuda-reach (dc391678c) made the cuda lane's packages the ones whose untagged tests call cudatest.Require, found in the checkout, in place of a hand-kept list of 25. The walk finds 35: the ten more (cmd/evaluate, cmd/longform, cmd/recipe, adaptiveparity, composition, diffusionimage, latentvideo, mediacapability, sensenovarecipe, server, vitencoder) were covered before only by the cycle's models lane, and most of their untagged CUDA test files read a model from the data root (adaptiveparity 12 of 13, mediacapability 10 of 12, latentvideo 7 of 9). The first landing after it that entered them all through internal/media (95295a7c3) ran the cuda lane for 35 m 54 s over 35 packages, where nag-krea's ran 25 in 10 m 36 s. The lane's own description is the suites that build their own inputs, on synthetic weights; a test that opens a real model is the cycle's (CycleTags), which runs it every cycle in the models lane.\n\nDecision, the lead's at the owner's word of 2026-11-13 (don't wait for answers): the walk stays, since it runs only the packages a change enters and found ten packages' device tests no gate ran; the time is cured by the tags, not a list. Each untagged test file that calls cudatest.Require and reads a model from the data root (testutil.ModelArtifactDir, modeltest.Directory, the data root's models) moves behind //go:build modeltest, which the models lane builds, and the packages that hold such files are in modelPackages. A test that is a step's check names its tags in that step's verify.\n\nCheck: TestTheCUDALaneRunsNoRealModelTest reads the cuda lane's packages as the walk finds them and holds each untagged test file that calls cudatest.Require to reading no model from the data root.\n\nBatch: host lane."
+        }
+      ]
+    },
+    {
       "id": "guidance-ops",
       "title": "CFG-Zero*, the guidance interval, APG and NAG are guider functions written from their papers, each a preset admitted per model by its held-out suite on no loss beyond chance, a gain claimed only where the paired test shows one",
       "owner": "master-lead",
@@ -75,26 +95,6 @@
             "internal/runrecord"
           ],
           "rationale": "Serves: a held-out reading credits a model only with the verification its run executed under (SQA-283, P2, shown from source).\n\nThe evidence (the review's, at 4cb1c8aead: 0efe83b82 and 31e95d725 credited): three publication owners (cmd/evaluate capability and projection, internal/evaluation campaign) still read recipe state at publication and drop a lookup error; an empty Verification then follows the legacy-compatible accepted path, since earned and unverifiedAside refuse only an explicit not-verified or broken; and a later activation of the same recipe can turn an execution-time not-verified into a publication-time verified. The lead triaged it implemented on 2026-11-08 from run-from-files/do and recipe-state, which made the first repair; rechecked on 2026-11-13, the remaining paths stand.\n\nThe cure the finding recommends: the state is read once where the run executes and carried to publication; a read error is published as unknown state, which earns no verified row.\n\nCheck: TestAPublishedEvaluationHoldsTheStateItsExecutionRead extends the campaign's publication fixture (TestMediaEvidenceNamesConsumedInputsAndKeepsItsMethod's runtime pattern): a run executed not-verified and published after an activation reads not-verified, and a run whose state read fails publishes no verified row. At the base the later activation's state is published."
-        }
-      ]
-    },
-    {
-      "id": "reask-retire",
-      "title": "The completed opener re-ask and its route and tests go, the readings it published kept",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "The completed opener re-ask and its route and tests go, the readings it published kept",
-          "status": "open",
-          "verify": "go test ./internal/evaluation ./cmd/evaluate -count=1",
-          "files": [
-            "internal/evaluation",
-            "cmd/evaluate"
-          ],
-          "rationale": "Serves: code no reading runs is not kept (SQA-361, P3).\n\nThe evidence: answer-evidence/tuning-exposure (1651282c8) made the re-ask publish its cases through the exposure owner before asking, and answer-opener/earlier-opener restored the earlier opener; the re-ask's one use, the 2026-11-10 cases, is published. Its triage left retiring it to the reviewer's closure, and the finding's remaining criterion is that retirement: the live experiment and its dedicated route and tests go with their public disposition, or a continuing use keeps them.\n\nCheck: the packages' tests pass with the re-ask gone; the readings it published stay in the store."
         }
       ]
     },

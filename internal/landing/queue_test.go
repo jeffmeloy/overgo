@@ -44,7 +44,7 @@ func TestTwoWorktreesLandThroughOneQueue(t *testing.T) {
 	fixture.git("config", "core.autocrlf", "false")
 	grown := packageNodes(t, oneFunction)
 	row := func(id string) plan.Item {
-		return plan.Item{ID: id, Title: id, Status: plan.StatusOpen, Budget: plan.Budget{Nodes: grown, Reason: "the fixture's growth"},
+		return plan.Item{ID: id, Title: id, Class: plan.ClassConsolidation, Status: plan.StatusOpen, Budget: plan.Budget{Nodes: grown, Reason: "the fixture's count"},
 			Steps: []plan.Step{{ID: "do", Title: id, Status: plan.StatusOpen, Verify: "true"}}}
 	}
 	fixture.commitPlan(plan.Plan{Campaign: "fixture", Items: []plan.Item{row("first"), row("second"), row("third")}})

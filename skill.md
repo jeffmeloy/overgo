@@ -33,7 +33,7 @@ description: The rules for Overgo development, written as one logical statement 
 - refused landing = a failure carrying its cause, in the change, the gate or a record => the cause is classified, an external one with the probe that re-checks it, its recurrence counted, and the day's report says the attempt failed (check: internal/landing TestRecoveryDrills, cmd/loop TestTheStatusSaysTheDaysFiveMeasures)
 - ambition governs the code and never the system's boundaries (check: internal/landing TestChangeIsJudgedByTheTermsItStartedWith, cmd/loop TestPushPushesTheNamedCommitOnlyWhenAsked)
 - boundaries = scope, run budgets, stops, pushes and downloads, which the system follows and never changes (check: cmd/loop TestPushPushesTheNamedCommitOnlyWhenAsked, internal/plan TestAStopIsTheOwnersOrAnOutsideNeed, internal/landing TestChangeIsJudgedByTheTermsItStartedWith)
-- a row's count = a declared estimate != a limit => a change may raise it with a reason, and raising it or changing a row's check writes old and new in the commit (check: internal/landing TestAChangedCheckOrCountIsWrittenInTheCommit)
+- only a consolidation carries a count = the limit its landings are held to, read from the plan the change builds on => a change cannot raise its own, and changing a row's check or a consolidation's count writes old and new in the commit (check: internal/plan TestOnlyAConsolidationCarriesACount, internal/landing TestAChangedCheckOrCountIsWrittenInTheCommit)
 - simpler implementation > larger one (check: internal/landing TestItemsGrowthIsChargedAcrossItsLandings, internal/landing TestWrittenCodeIsCountedByKind)
 
 ## Terms
@@ -86,7 +86,7 @@ A line of this file reads by this notation, and cites the tests that hold its ru
 ## Fewer components
 
 - net production lines flat or falling except the row declares growth (check: internal/landing TestItemsGrowthIsChargedAcrossItsLandings, internal/landing TestChangeIsJudgedByTheTermsItStartedWith, internal/landing TestWrittenCodeIsCountedByKind)
-- growth that buys capability or speed or memory = declared and welcome (check: internal/landing TestLandingRaisesItsOwnCount, cmd/plan TestSetCountWritesTheCountAndItsReason)
+- growth that buys capability or speed or memory = welcome => measured in the commit, no count asked of it (check: cmd/plan TestOnlyAConsolidationTakesACount, cmd/plan TestSetCountWritesTheCountAndItsReason)
 - never a regex over structured data (check: internal/repoanalysis TestNoRegexParsesStructuredData)
 - path only tests reach = unwired => add its route or lane or command (check: internal/repoanalysis TestEveryProcessDeclarationIsReachedByACommand, internal/repoanalysis TestEveryProcessRecordSchemaHasAProductionWriter)
 - never markdown behavior control => an idea becomes a Go test or a gate rule (check: internal/repoanalysis TestRSIRuntimeIsGoOnly)
@@ -117,7 +117,7 @@ A line of this file reads by this notation, and cites the tests that hold its ru
    - the gate writes the numbers (check: cmd/gate TestSmallGateLandsAChange, internal/landing TestLandingSaysWhatAChangeAddsOfEachKind, internal/landing TestLandingMeasuresTheScorecardSlice)
    - landed <=> `git log -1` shows `Landed-Row:` (check: cmd/gate TestSmallGateLandsAChange, cmd/loop TestRowSequenceStateMachine, internal/plan TestAcceptedProgressReadsLandingsFromGit)
    - never a raw commit (check: internal/guard TestGuardCorpus)
-   - a row new in a change lands with it => its own check and count judge it, and the check must fail on the commit it builds on (check: internal/landing TestANewRowLandsWithItsWork)
+   - a row new in a change lands with it => its own check, and a consolidation's count, judge it, and the check must fail on the commit it builds on (check: internal/landing TestANewRowLandsWithItsWork)
    - the trunk moves only by a landing, or a commit of the register alone, in Git itself, for any worker (check: internal/landing TestOnlyALandingMovesTheTrunkInGit, internal/landing TestALandingRefusesATrunkWithoutItsHook)
    - merge = `git merge --no-ff --no-commit <branch>` -> resolve -> land (check: internal/landing TestProgressSeesALandedMerge)
 5. open decision and no other row ready => its row goes on under the recommended option, an answer given before then taken instead (check: internal/plan TestAQuestionNeverHoldsTheLoop, internal/plan TestAnswerTakesOneOfTheOptions)
@@ -152,7 +152,7 @@ A line of this file reads by this notation, and cites the tests that hold its ru
 - gate's first stage = `space` => refuses below a free-space floor on the temporary directory's volume (check: internal/landing TestCommitChecksRefuseBelowTheFreeSpaceFloor)
 - `space` applies to preflights and plan-only landings too (check: internal/landing TestCommitChecksRefuseBelowTheFreeSpaceFloor)
 - `space` refusal = external => free space -> land again (check: internal/landing TestCommitChecksRefuseBelowTheFreeSpaceFloor)
-- landing grows its row past its count => the commit records the growth and the plan the count left, below zero by what it grew past (check: internal/landing TestItemsGrowthIsChargedAcrossItsLandings, internal/landing TestLandingRaisesItsOwnCount)
+- a consolidation's landing => its growth is taken from the count and what it removes returned, in the plan the commit publishes (check: internal/landing TestItemsGrowthIsChargedAcrossItsLandings)
 - a consolidation grows past its count => refused (check: internal/landing TestEveryRuleRefusalFixesOrPrintsItsEdit)
 - a rules refusal => names the edit that clears it, as a command where one does (check: internal/landing TestEveryRuleRefusalFixesOrPrintsItsEdit)
 - filing a check => run it once (`plan -verify`): it fails as a test or names a test not yet written, never vacuous by its form (a pipe, a wrong package), because a landing is judged by the check its row held before it (check: cmd/plan TestRunVerifyRejectsSkippedGoTest, internal/testevidence TestVerifyGoTestEvidencePairsSelectorsPerInvocation, internal/landing TestChangeIsJudgedByTheTermsItStartedWith)

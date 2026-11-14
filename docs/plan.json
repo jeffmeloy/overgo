@@ -3,40 +3,10 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "consolidation-counts",
-      "title": "Only a consolidation carries a count, the one a landing holds it to; other rows' counts and the history that filled them go",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 139,
-        "reason": "Filed from history: 139, the median of what 177 landings that changed internal/plan, internal/landing, cmd/plan, docs/plan.json counted"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Only a consolidation carries a count, the one a landing holds it to; other rows' counts and the history that filled them go",
-          "status": "open",
-          "verify": "go test ./internal/plan ./internal/landing ./cmd/plan -count=1",
-          "files": [
-            "internal/plan",
-            "internal/landing",
-            "cmd/plan",
-            "docs/plan.json"
-          ],
-          "rationale": "Note: The evidence (the review, 2026-11-14): internal/landing/rules.go holds only a consolidation to its count (growth \u003e left \u0026\u0026 l.consolidates()); 59 of 111 landings since 10 Nov added more than their row's count and 23 rows had 0, so a count on any other row asks for nothing a landing is held to.\n\nThe change: filedCount and historyDepth (cmd/plan/main.go) and HistoryCount, HistoryReason and ReadLandedCount (internal/plan/counts.go) go; a row that is not a consolidation carries no count (charge's raised branch, terms.go, turn.go's term count, compose.go, follow.go:82); the measured growth stays in the commit message. First find every reader of a non-consolidation count.\n\nCheck: the plan and landing tests pass with counts on consolidations alone."
-        }
-      ]
-    },
-    {
       "id": "cycle-lanes",
       "title": "The cycle's lanes run at the build that gave them the gate's real-model tests, so each moved test runs before other work",
       "owner": "master-lead",
       "status": "open",
-      "budget": {
-        "nodes": 932,
-        "reason": "Filed from history: 129, the median of what 156 landings that changed docs/plan.json counted Step answers: +665 (665, the median of what 2 landings that changed internal/server/webui/mod/discovery.js, internal/server/webui_browser_firstrun_test.go, internal/server/webui_browser_background_test.go, internal/server/webui_browser_store_test.go, internal/server/webui_browser_library_validation_test.go, internal/providerintake/intake.go, cmd/remote-provider/main.go counted). Step audio-clock: +91 (91, the median of what 14 landings that changed internal/landing/lanes.go, internal/landing/lane_clock_test.go counted)."
-      },
       "steps": [
         {
           "id": "do",
@@ -55,10 +25,6 @@
       "title": "CFG-Zero*, the guidance interval, APG and NAG are guider functions written from their papers, each a preset admitted per model by its held-out suite on no loss beyond chance, a gain claimed only where the paired test shows one",
       "owner": "master-lead",
       "status": "open",
-      "budget": {
-        "nodes": -407,
-        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard). Step guider: +653 (653, the median of what 11 landings that changed internal/sampling, internal/latentvideo counted). Step moss-presets: +334 (334, the median of what 8 landings that changed internal/latentimage counted). Step sensenova-presets: +0 (no landing changed internal/sensenovarecipe, internal/routedlm). Step preset-readings: +331 (331, the median of what 9 landings that changed internal/mediacapability, docs/verification counted). Step moss-presets: +334 (334, the median of what 8 landings that changed internal/latentimage counted). Step sensenova-presets: +0 (no landing changed internal/sensenovarecipe, internal/routedlm). Step apg-presets: +334 (334, the median of what 13 landings that changed internal/sampling, internal/latentimage, internal/sensenovarecipe, internal/mediacapability/moss_controls_windows_test.go, internal/mediacapability/sensenova_presets_windows_test.go, internal/server/moss_generation_windows_test.go counted). Step nag-wan: +145 (145, the median of what 23 landings that changed internal/model, internal/latentvideo, internal/sampling counted). Step nag-krea: +334 (334, the median of what 13 landings that changed internal/latentimage, internal/sampling counted). Step nag-wan: +145 (145, the median of what 23 landings that changed internal/model, internal/latentvideo, internal/sampling counted). Step nag-krea: +334 (334, the median of what 13 landings that changed internal/latentimage, internal/sampling counted). Step preset-gate: +527 (527, the median of what 15 landings that changed internal/mediacapability, internal/server counted). Step content-size: +0 (no landing changed internal/artifact). Step held-renders: +373 (373, the median of what 22 landings that changed internal/capabilityruntime, cmd/evaluate counted). Step resident-branches: +736 (736, the median of what 2 landings that changed internal/routedlm, internal/sensenovarecipe counted). Step readings-campaign: +201 (201, the median of what 23 landings that changed cmd/evaluate counted). Step nag-graph: +637 (637, the median of what 23 landings that changed internal/latentimage, internal/model counted)."
-      },
       "steps": [
         {
           "id": "preset-readings",
@@ -79,10 +45,6 @@
       "title": "SenseNova's request-resources test is measured again on a card to itself and carries modeltest, so the gate's cuda lane runs no real-model test",
       "owner": "master-lead",
       "status": "open",
-      "budget": {
-        "nodes": 175,
-        "reason": "Filed from history: 175, the median of what 64 landings that changed internal/sensenovarecipe, internal/landing, docs/image_video_capacity.json, cmd/validate counted"
-      },
       "steps": [
         {
           "id": "do",
@@ -104,10 +66,6 @@
       "title": "A preset's verdict is bound to the renders and records it compared, and admitted by the statistic its evidence supports",
       "owner": "master-lead",
       "status": "open",
-      "budget": {
-        "nodes": -613,
-        "reason": "Step binding: +373 (373, the median of what 30 landings that changed cmd/evaluate counted)."
-      },
       "steps": [
         {
           "id": "statistic",
@@ -192,10 +150,6 @@
       "title": "The MOSS Ultra import admits its metadata, destination and storage before reading any payload",
       "owner": "master-lead",
       "status": "open",
-      "budget": {
-        "nodes": -172,
-        "reason": ""
-      },
       "steps": [
         {
           "id": "convrot",
@@ -214,10 +168,6 @@
       "title": "A ComfyUI recorder runs a saved workflow in ComfyUI's own process and records each section's settings, sigmas, latents and images as goldens, first the MOSS Ultra workflow",
       "owner": "master-lead",
       "status": "open",
-      "budget": {
-        "nodes": -2927,
-        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard). Step client: +0 (no landing changed cmd/comfy-reference). Step record-rest: +2009 (2009, the median of what 2 landings that changed cmd/comfy-reference, fixtures/comfy counted)."
-      },
       "steps": [
         {
           "id": "record-rest",
@@ -238,10 +188,6 @@
       "title": "The causal video VAE decodes chunk k on a second stream while chunk k + 1 denoises",
       "owner": "master-lead",
       "status": "open",
-      "budget": {
-        "nodes": 800,
-        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
-      },
       "steps": [
         {
           "id": "overlap",
@@ -337,10 +283,6 @@
       "title": "LightVAE decodes final video and TAEW2.1 previews steps, each its own model beside the Wan VAE",
       "owner": "master-lead",
       "status": "open",
-      "budget": {
-        "nodes": 1000,
-        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
-      },
       "steps": [
         {
           "id": "decoders",
@@ -371,10 +313,6 @@
       "title": "The MOSS Ultra workflow's six model files serve in overgo as published: Base in ComfyUI's 8-bit ConvRot format, the abliterated Qwen3.5-9B encoder, the Flux2 VAE and three adapters",
       "owner": "master-lead",
       "status": "open",
-      "budget": {
-        "nodes": 514,
-        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard). Step import: +83 (83, the median of what 3 landings that changed internal/modelrecipe, internal/discovery, local-models.json counted). Step refusal-fixture: +331 (331, the median of what 12 landings that changed cmd/recipe, internal/modelrecipe counted)."
-      },
       "steps": [
         {
           "id": "encoder",
@@ -399,10 +337,6 @@
       "title": "Media adapters load in kohya, PEFT and full-difference formats and apply unmerged at run time, with a strength per request",
       "owner": "master-lead",
       "status": "open",
-      "budget": {
-        "nodes": 2100,
-        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
-      },
       "steps": [
         {
           "id": "unmerged",
@@ -445,10 +379,6 @@
       "title": "overgo runs every section of the MOSS Ultra workflow: bong_tangent, beta57 and request sigmas, ER-SDE, image to image, depth estimation and control, prompt modes 2 and 3, and the finishing steps",
       "owner": "master-lead",
       "status": "open",
-      "budget": {
-        "nodes": 183,
-        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
-      },
       "steps": [
         {
           "id": "img2img",
@@ -518,10 +448,6 @@
       "title": "overgo on the Ultra workflow's models is held to the golden per section, and overgo's MOSS-Image-SFT runs the same sections as a measured band",
       "owner": "master-lead",
       "status": "open",
-      "budget": {
-        "nodes": 800,
-        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
-      },
       "steps": [
         {
           "id": "golden-floor",
@@ -580,10 +506,6 @@
       "title": "An 8-bit flash-attention kernel for sm_89, INT8 QK and FP8 PV with two-level FP16 accumulation, served as an opt-in preset per model and admitted by its held-out suite on no loss beyond chance, a gain claimed only where the paired test shows one",
       "owner": "master-lead",
       "status": "open",
-      "budget": {
-        "nodes": 1200,
-        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
-      },
       "steps": [
         {
           "id": "kernel",
@@ -648,10 +570,6 @@
       "title": "FP8 and INT8 W8A8 matrix products with fused epilogues, weights quantized at load from the published files, first on Krea-2-Turbo",
       "owner": "master-lead",
       "status": "open",
-      "budget": {
-        "nodes": 1500,
-        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
-      },
       "steps": [
         {
           "id": "fp8",
@@ -734,10 +652,6 @@
       "title": "The 50-step models skip steps by MagCache's magnitude ratio, and LiveEdit recomputes attention only where its edit changed the latent, each a preset admitted by its suite",
       "owner": "master-lead",
       "status": "open",
-      "budget": {
-        "nodes": 1000,
-        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
-      },
       "steps": [
         {
           "id": "magcache",
@@ -785,10 +699,6 @@
       "title": "Every media stage's output is keyed by operation, version, constants and inputs in the store, and step previews come from a Latent2RGB projection fitted to overgo's own decodes",
       "owner": "master-lead",
       "status": "open",
-      "budget": {
-        "nodes": 2248,
-        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard). Step store: +417 (417, the median of what 6 landings that changed internal/media counted). Step wired: +331 (331, the median of what 26 landings that changed internal/media, internal/latentvideo, internal/latentimage counted)."
-      },
       "steps": [
         {
           "id": "wired",
@@ -824,10 +734,6 @@
       "title": "Local Qwen models rewrite prompts for Wan, Krea and SenseNova and turn casual requests into MOSS's layout JSON, each scored against the user's original",
       "owner": "master-lead",
       "status": "open",
-      "budget": {
-        "nodes": 750,
-        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
-      },
       "steps": [
         {
           "id": "rewrite",
@@ -866,10 +772,6 @@
       "title": "SenseNova V3 edits images from the weights on disk, and its text prefix's key-value cache is kept across requests",
       "owner": "master-lead",
       "status": "open",
-      "budget": {
-        "nodes": 1800,
-        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
-      },
       "steps": [
         {
           "id": "prefix-cache",
@@ -906,10 +808,6 @@
       "title": "Krea-2-Turbo runs image to image, and Krea and MOSS inpaint and outpaint, through their local VAE encoders",
       "owner": "master-lead",
       "status": "open",
-      "budget": {
-        "nodes": 1200,
-        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
-      },
       "steps": [
         {
           "id": "krea-encoder",
@@ -947,10 +845,6 @@
       "title": "RAE and SimpleDiffusion run their whole sampler as one CUDA graph with a multistep solver, and RAE reports FD-DINOv2 beside FID",
       "owner": "master-lead",
       "status": "open",
-      "budget": {
-        "nodes": 1200,
-        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
-      },
       "steps": [
         {
           "id": "fd-dinov2",
@@ -1009,10 +903,6 @@
       "title": "RAE samples DiTDH-XL guided by the local DiTDH-S at scale 1.5, plain guidance applied only inside an interval",
       "owner": "master-lead",
       "status": "open",
-      "budget": {
-        "nodes": 600,
-        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
-      },
       "steps": [
         {
           "id": "autoguidance",
@@ -1038,10 +928,6 @@
       "title": "LiveEdit edits past 81 frames through a rolling window and offers an offline bidirectional mode from its local checkpoint, and Wan generates long clips through context windows",
       "owner": "master-lead",
       "status": "open",
-      "budget": {
-        "nodes": 1200,
-        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
-      },
       "steps": [
         {
           "id": "rolling",
@@ -1094,10 +980,6 @@
       "title": "Wan generates from a first frame and from first and last frames through Wan2.1-Fun-V1.1-1.3B-InP, with an open-CLIP ViT-H/14 image encoder",
       "owner": "master-lead",
       "status": "open",
-      "budget": {
-        "nodes": 2400,
-        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
-      },
       "steps": [
         {
           "id": "vit-h",
@@ -1133,10 +1015,6 @@
       "title": "VACE-1.3B controls Wan by reference, mask, depth and pose, its depth from overgo's depth estimator",
       "owner": "master-lead",
       "status": "open",
-      "budget": {
-        "nodes": 2700,
-        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
-      },
       "steps": [
         {
           "id": "module",
@@ -1174,10 +1052,6 @@
       "title": "Real-ESRGAN upscales images, RIFE doubles a clip's frame rate, and FlashVSR upscales video in one step",
       "owner": "master-lead",
       "status": "open",
-      "budget": {
-        "nodes": 3600,
-        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
-      },
       "steps": [
         {
           "id": "esrgan",
@@ -1225,10 +1099,6 @@
       "title": "Krea-2-Turbo gains seed-variance noise, attention-value prompt weighting and a best-of-4 preset picked by one judge and reported by another",
       "owner": "master-lead",
       "status": "open",
-      "budget": {
-        "nodes": 163,
-        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard). Step moss-weighting: +527 (527, the median of what 10 landings that changed internal/latentimage counted)."
-      },
       "steps": [
         {
           "id": "seed-variance",
@@ -1266,10 +1136,6 @@
       "title": "Krea-2-Turbo gains a 4-step draft preset with its LoRA and a 0.3-denoise refine pass, under the decision on Krea's licence",
       "owner": "master-lead",
       "status": "open",
-      "budget": {
-        "nodes": 450,
-        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
-      },
       "steps": [
         {
           "id": "draft",
@@ -1301,10 +1167,6 @@
       "title": "SenseNova V3 gains an eight-step preset with the Infographic 8-step LoRA at guidance 1, read on the hard infographic cases for repeated text",
       "owner": "master-lead",
       "status": "open",
-      "budget": {
-        "nodes": 300,
-        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
-      },
       "steps": [
         {
           "id": "eight-step",
@@ -1330,10 +1192,6 @@
       "title": "The loop shows its worth end to end: the gate refuses deliberately bad alternatives, each landing records its full cost, and the local worker lands changes whose benefit an independent evaluation confirms and exceeds that cost",
       "owner": "master-lead",
       "status": "open",
-      "budget": {
-        "nodes": -896,
-        "reason": "The replay harness and ladder exist (cmd/loop replay.go, ladder.go); mutants of landed steps, a cost ledger per landing and a measured run of the local worker are new. Step grammar-draw: +0 (no landing changed internal/sampling/sampler.go, internal/sampling/greedy_grammar_test.go). Step worker-tools: +163 (163, the median of what 8 landings that changed cmd/loop/tools.go, cmd/loop/tools_test.go, cmd/loop/local_worker.go, cmd/loop/main.go, cmd/loop/init_config.go, cmd/loop/replay.go, cmd/loop/local_worker_windows_model_test.go, cmd/loop/worker_landing_test.go, internal/loop/driver.go, internal/loop/worker_landing_test.go counted). Step matched-ladder: +0 (no landing changed cmd/loop/ladder.go, cmd/loop/ladder_test.go, cmd/loop/ladder_matched_test.go). Step greedy-request: +257 (257, the median of what 1 landings that changed cmd/loop/local_worker.go, cmd/loop/local_worker_request_test.go counted). Step repeat-guard: +257 (257, the median of what 2 landings that changed cmd/loop/local_worker.go, cmd/loop/local_worker_repeat_test.go counted). Step attempt-lifecycle: +163 (163, the median of what 9 landings that changed internal/landing/costs.go, internal/landing/costs_test.go, internal/landing/interrupted_cost_test.go, cmd/loop/startup.go, cmd/loop/startup_test.go, cmd/loop/main.go, cmd/loop/costs.go, cmd/loop/costs_test.go counted). Step greedy-admission: +145 (145, the median of what 22 landings that changed internal/sampling, cmd/loop counted). Step local-default: +102 (102, the median of what 17 landings that changed cmd/loop counted). Step local-demonstrated: +102 (102, the median of what 17 landings that changed cmd/loop counted). Step tool-call-grammar: +145 (145, the median of what 8 landings that changed internal/inference, internal/sampling counted). Step write-the-test: +66 (66, the median of what 19 landings that changed cmd/loop counted). Step proxy-model: +66 (66, the median of what 19 landings that changed internal/modelswap, cmd/loop counted). Step search-untracked: +102 (102, the median of what 23 landings that changed cmd/loop counted). Step edit-newline: +76 (76, the median of what 26 landings that changed cmd/loop counted). Step search-literal: +70 (70, the median of what 27 landings that changed cmd/loop counted). Step reply-bound: +70 (70, the median of what 28 landings that changed internal/modelswap, cmd/swap, cmd/loop counted). Step live-reasoning: +98 (98, the median of what 40 landings that changed cmd/loop, cmd/plan, internal/plan counted). Step call-cost: +76 (76, the median of what 42 landings that changed cmd/loop, internal/server, internal/inference counted). Step sampling-by-mode: +136 (136, the median of what 10 landings that changed internal/modelartifact, internal/modelrecipe, internal/server counted). Step worker-settings: +66 (66, the median of what 31 landings that changed cmd/loop, internal/modelartifact counted). Step thinking-depth: +92 (92, the median of what 37 landings that changed cmd/loop counted)."
-      },
       "steps": [
         {
           "id": "local-demonstrated",
@@ -1353,10 +1211,6 @@
       "title": "A request past its size limit is refused on every JSON route, a provider declared over HTTP binds only a variable the operator named, and a stored artifact is served so a browser cannot run it",
       "owner": "master-lead",
       "status": "open",
-      "budget": {
-        "nodes": -450,
-        "reason": "Estimated from a reading of the three sites: five handlers moved onto the existing bounded decoder, one admission rule on a provider declaration's variable and endpoint, and three response headers on one route. No new component."
-      },
       "steps": [
         {
           "id": "artifact-headers",
@@ -1376,10 +1230,6 @@
       "title": "One text model trained through cmd/train shows a held-out gain clear of its cases' noise, the bar, the cases and the device hours fixed before the run, and its scorecard row reads against its base",
       "owner": "master-lead",
       "status": "open",
-      "budget": {
-        "nodes": 120,
-        "reason": "Estimated: the objective route, the held-out verdict and the trained model's scorecard row exist (cmd/train -objective, evaluation.JudgeHeldout, scorecard). New is a held-out view of a few hundred cases and whatever the first real campaign finds wrong. Earlier training campaigns came in at several times their first figure, and this one is reset once its first run reads."
-      },
       "steps": [
         {
           "id": "bounded-campaign",
@@ -1402,10 +1252,6 @@
       "title": "Flash-Next's chat, Krea's picture and Wan's clip at a person's size are each served under a 24 GiB and a 16 GiB device budget, read on the scorecard or answered with the limit that refuses them",
       "owner": "master-lead",
       "status": "open",
-      "budget": {
-        "nodes": 365,
-        "reason": "Estimated: placement and residency are already derived from what the card has free (modeldevice, server resident fit). New is a declared budget those derivations read in place of installed capacity, and a budget on a scorecard reading's identity. Reset from the first step's survey of where installed capacity is read. Step budget-bound: +665 (665, the median of what 9 landings that changed internal/devicebudget, internal/cuda/driver, internal/runrecord, cmd/server, internal/server, internal/inferencesurface, docs/verification/surface-moves.txt counted)."
-      },
       "steps": [
         {
           "id": "three-workloads",
@@ -1429,10 +1275,6 @@
       "title": "A clip or picture overgo draws or is given can be upscaled up to four times, denoised or deblurred on the card by NVIDIA's RTX Video Super Resolution, run from the nvidia-vfx runtime already on the machine, and each level is measured against the bicubic it replaces",
       "owner": "master-lead",
       "status": "open",
-      "budget": {
-        "nodes": 159,
-        "reason": "Estimated from a survey: a syscall binding of about a dozen NvVFX and NvCVImage entry points beside internal/cuda/cudnn's, a finishing clipEncoder in front of the existing MP4 writer, a control and a record field, NVENC arguments for the existing FFmpeg pipe, and a VMAF reading through the same FFmpeg. Earlier media campaigns came in at three to seven times their first estimates, so this is about three times the sum of the parts. plan -add derives its own count from history beside this figure. Step nvenc: +653 (653, the median of what 12 landings that changed internal/latentvideo, internal/media, internal/server counted). Step supplied: +331 (331, the median of what 13 landings that changed internal/latentvideo, internal/media, internal/server, internal/mediacapability counted). Step judged: +417 (417, the median of what 21 landings that changed cmd/evaluate, internal/evaluation, internal/latentvideo counted). Step intake: +417 (417, the median of what 20 landings that changed internal/latentvideo, internal/mediacapability, internal/server, cmd/evaluate counted). Step oscillator-finish: +653 (653, the median of what 14 landings that changed internal/oscillatorimage, internal/latentvideo counted). Step judged-fidelity: +136 (136, the median of what 11 landings that changed cmd/evaluate counted)."
-      },
       "steps": [
         {
           "id": "supplied",

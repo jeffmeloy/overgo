@@ -31,7 +31,7 @@ import (
 // and names an ignored document the checkout holds outside its homes
 // (strayDocuments) without refusing: git ignores it, so no commit holds it, and
 // on 2026-11-08 another session's document stopped every landing. It says what
-// the change adds of each kind of written code, which the landed rows' counts take.
+// the change adds of each kind of written code, which a landed consolidation's count takes.
 func (l *landing) rules(ctx context.Context) error {
 	stale, err := stalePins(l.stageRoot(), l.paths)
 	if err != nil {
@@ -56,18 +56,22 @@ func (l *landing) rules(ctx context.Context) error {
 		named, _ := rows(l.Ref)
 		fmt.Fprintln(l.Log, "land: "+strayNote(strays, named[0].item))
 	}
-	// A row's growth is measured and recorded, its count taking it; only a consolidation, which must shrink, is held to
-	// its count.
+	// A change's growth is measured and recorded; a consolidation, which must shrink, is held to its count, which takes
+	// it (charge).
 	growth := writtenNodes(candidate, false) - writtenNodes(base, false)
-	left := l.charge(growth)
-	if growth > left && l.consolidates() {
-		findings = append(findings, shrinkRefusal(growth, l.Ref, left))
+	held := ""
+	if l.consolidates() {
+		left := l.charge(growth)
+		if growth > left {
+			findings = append(findings, shrinkRefusal(growth, l.Ref, left))
+		}
+		held = fmt.Sprintf(" of the %d its row may add", left)
 	}
 	if len(findings) != 0 {
 		return errors.New(strings.Join(findings, "; "))
 	}
-	l.details["rules"] = fmt.Sprintf("production %+d nodes of the %d its row may add, test code %+d nodes, record schemas %+d, %s",
-		growth, left, writtenNodes(candidate, true)-writtenNodes(base, true), recordSchemas(candidate)-recordSchemas(base), l.outsideGo(ctx))
+	l.details["rules"] = fmt.Sprintf("production %+d nodes%s, test code %+d nodes, record schemas %+d, %s",
+		growth, held, writtenNodes(candidate, true)-writtenNodes(base, true), recordSchemas(candidate)-recordSchemas(base), l.outsideGo(ctx))
 	return nil
 }
 

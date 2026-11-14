@@ -71,19 +71,15 @@ type Step struct {
 	VerificationBatch *VerificationBatch `json:"verification_batch,omitempty"`
 }
 
-// Budget is the scope a row declared through the plan. Nodes is the
-// production syntax nodes the row is estimated still to add, over all its
-// landings: each landing takes what it adds from the count, and returns what
-// it removes, in the plan it publishes, so a count below zero records growth
-// past the estimate. Only a consolidation is held to its count: it must shrink
-// by what a negative count says. Reason says why the row grows. A landing
-// reads the count from the plan of the commit it builds on, so a change cannot
-// raise its own. Paydown names the open row that pays for a harness baseline
-// raise.
+// Budget is a consolidation's count, the one a landing holds it to: Nodes is the production syntax nodes the row may
+// still add over all its landings, below zero what it must shrink by; each landing takes what it adds from the count,
+// and returns what it removes, in the plan it publishes. Reason says where the count came from. A landing reads the
+// count from the plan of the commit it builds on, so a change cannot raise its own. Any other row carries none (Save):
+// since 10 Nov 59 of 111 landings added more than their row's count and 23 rows had 0, a count asking nothing of a
+// landing that is held to none (consolidation-counts/do).
 type Budget struct {
-	Nodes   int    `json:"nodes"`
-	Paydown string `json:"paydown,omitzero"`
-	Reason  string `json:"reason"`
+	Nodes  int    `json:"nodes"`
+	Reason string `json:"reason"`
 }
 
 // A row's class decides the rules it lands under; an undeclared row is a feature.
@@ -258,6 +254,13 @@ func Save(path string, d Plan) error {
 		}
 	}
 	d.Decisions = slices.DeleteFunc(slices.Clone(d.Decisions), func(decision Decision) bool { return decision.Answer != "" })
+	// Only a consolidation carries a count (Budget).
+	d.Items = slices.Clone(d.Items)
+	for index := range d.Items {
+		if d.Items[index].Class != ClassConsolidation {
+			d.Items[index].Budget = Budget{}
+		}
+	}
 	if err := Validate(d); err != nil {
 		return err
 	}

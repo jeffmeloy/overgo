@@ -176,7 +176,6 @@ func TestAddFilesEveryRowOfADocument(t *testing.T) {
 		Campaign: "an amendment",
 		Items: []plan.Item{
 			{ID: "filed-first", Title: "First filed", Owner: "master-lead", Status: plan.StatusOpen,
-				Budget: plan.Budget{Nodes: 40, Reason: "It adds a listing."},
 				Steps: []plan.Step{
 					{ID: "inventory", Title: "List", Status: plan.StatusOpen, Verify: editCheck, Rationale: "Why the listing comes first."},
 					{ID: "cleanup", Title: "Clean", Status: "blocked: waits for the owner", Verify: editCheck, DependsOn: []string{"filed-first/inventory"}},
@@ -289,8 +288,8 @@ func TestADocumentsRowsAreTheFilersAsAnAddedRowIs(t *testing.T) {
 func TestSetCountWritesTheCountAndItsReason(t *testing.T) {
 	t.Parallel()
 	held := plan.Plan{Items: []plan.Item{
-		{ID: "grows", Title: "Grows", Status: plan.StatusOpen, Budget: plan.Budget{Nodes: 3, Paydown: "other", Reason: "The old reason."}, Steps: []plan.Step{openStep("do")}},
-		{ID: "other", Title: "Other", Status: plan.StatusOpen, Budget: plan.Budget{Nodes: 7, Reason: "Its own reason."}, Steps: []plan.Step{openStep("do")}},
+		{ID: "grows", Title: "Grows", Class: plan.ClassConsolidation, Status: plan.StatusOpen, Budget: plan.Budget{Nodes: 3, Reason: "The old reason."}, Steps: []plan.Step{openStep("do")}},
+		{ID: "other", Title: "Other", Class: plan.ClassConsolidation, Status: plan.StatusOpen, Budget: plan.Budget{Nodes: 7, Reason: "Its own reason."}, Steps: []plan.Step{openStep("do")}},
 	}}
 	root, _ := editFixture(t, held)
 	output, err := planCommand(t, root, "-setcount", "-nodes", "120", "-reason", "The listing was counted at 120.", "grows")
@@ -299,7 +298,7 @@ func TestSetCountWritesTheCountAndItsReason(t *testing.T) {
 	}
 	after := editedPlan(t, root)
 	want := held.Items[0]
-	want.Budget = plan.Budget{Nodes: 120, Paydown: "other", Reason: "The listing was counted at 120."}
+	want.Budget = plan.Budget{Nodes: 120, Reason: "The listing was counted at 120."}
 	if rendered(t, after.Items[0]) != rendered(t, want) || rendered(t, after.Items[1]) != rendered(t, held.Items[1]) {
 		t.Fatalf("rows after setting the count of the first:\n%s", rendered(t, after.Items))
 	}
@@ -462,7 +461,7 @@ func TestNoteAppendsToARationale(t *testing.T) {
 func TestShowPrintsARowWithItsRationale(t *testing.T) {
 	t.Parallel()
 	held := plan.Plan{Items: []plan.Item{
-		{ID: "shown", Title: "Shown row", Status: plan.StatusOpen, Budget: plan.Budget{Nodes: 12, Reason: "It adds a flag."}, Steps: []plan.Step{
+		{ID: "shown", Title: "Shown row", Class: plan.ClassConsolidation, Status: plan.StatusOpen, Budget: plan.Budget{Nodes: 12, Reason: "It adds a flag."}, Steps: []plan.Step{
 			{ID: "first", Title: "First step", Status: plan.StatusOpen, Verify: "go test ./x", Rationale: "Why the first step.\n\nIts second paragraph."},
 			{ID: "second", Title: "Second step", Status: "blocked: owner decision", Verify: "go test ./y", DependsOn: []string{"shown/first", "other/do"}, Rationale: "Why the second waits."},
 		}},
@@ -472,7 +471,8 @@ func TestShowPrintsARowWithItsRationale(t *testing.T) {
 	}}
 	root, written := editFixture(t, held)
 	output, err := planCommand(t, root, "-show", "shown")
-	const want = `shown | Shown row | nodes 12
+	const want = `shown | Shown row
+nodes 12
 count reason: It adds a flag.
 -- first | First step | open | awaits []
 verify: go test ./x

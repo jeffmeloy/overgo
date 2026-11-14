@@ -37,43 +37,49 @@ func (f *sliceFixture) commitPlan(document plan.Plan) {
 	f.git("commit", "-q", "-m", "plan")
 }
 
-// rowPlan is a plan of one row that may add count nodes, with the steps named,
-// each checked by the command beside it.
-func rowPlan(count int, steps ...[2]string) plan.Plan {
-	row := plan.Item{ID: "row", Title: "row", Status: plan.StatusOpen, Budget: plan.Budget{Nodes: count, Reason: "the fixture's growth"}}
+// rowPlan is a plan of one row, with the steps named, each checked by the command beside it.
+func rowPlan(steps ...[2]string) plan.Plan {
+	row := plan.Item{ID: "row", Title: "row", Status: plan.StatusOpen}
 	for _, step := range steps {
 		row.Steps = append(row.Steps, plan.Step{ID: step[0], Title: step[0], Status: plan.StatusOpen, Verify: step[1]})
 	}
 	return plan.Plan{Campaign: "fixture", Items: []plan.Item{row}}
 }
 
-// TestChangeIsJudgedByTheTermsItStartedWith holds a change to the count and the
-// check its row had at the commit it builds on. A change that carries code and
-// also raises its own row's count, replaces its own step's check with one that
-// passes, and adds a step, is checked by the earlier check and bounded by the
-// earlier count, and the step it added answers to a check that must fail
-// without the change. The same edit to the plan
-// alone lands by the plan it holds, which is how a row is filed and its terms
-// changed; and the code then lands under the terms that landing left.
+// consolidationPlan is rowPlan's row as a consolidation that may add count nodes.
+func consolidationPlan(count int, steps ...[2]string) plan.Plan {
+	document := rowPlan(steps...)
+	document.Items[0].Class, document.Items[0].Budget = plan.ClassConsolidation, plan.Budget{Nodes: count, Reason: "the fixture's count"}
+	return document
+}
+
+// TestChangeIsJudgedByTheTermsItStartedWith holds a change to the check its row
+// had at the commit it builds on. A change that carries code and also replaces
+// its own step's check with one that passes, and adds a step, is checked by the
+// earlier check, its growth recorded and held to no count, and the step it
+// added answers to a check that must fail without the change. The same edit to
+// the plan alone lands by the plan it holds, which is how a row is filed and
+// its terms changed; and the code then lands under the terms that landing left.
+// A consolidation's count is held as it started (TestItemsGrowthIsChargedAcrossItsLandings).
 func TestChangeIsJudgedByTheTermsItStartedWith(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	fixture := newRowFixture(t, map[string]string{"internal/p/p.go": emptyPackage})
 	grown := packageNodes(t, oneFunction) - packageNodes(t, emptyPackage)
-	fixture.commitPlan(rowPlan(grown-1, [2]string{"do", "false"}))
-	edited := rowPlan(grown, [2]string{"do", "true"}, [2]string{"file", "true"})
+	fixture.commitPlan(rowPlan([2]string{"do", "false"}))
+	edited := rowPlan([2]string{"do", "true"}, [2]string{"file", "true"})
 	testcheck.NoError(t, plan.Save(fixture.planPath(), edited))
 	fixture.write("internal/p/p.go", oneFunction)
 
 	l := fixture.candidateOf("row/do")
-	if left := l.charge(0); !slices.Equal(l.verifiers, []string{"false"}) || left != grown-1 {
-		t.Fatalf("a change that edits its row's terms is judged by the check %q and may add %d, want the check and the %d of the commit it builds on", l.verifiers, left, grown-1)
+	if !slices.Equal(l.verifiers, []string{"false"}) {
+		t.Fatalf("a change that edits its row's check is judged by %q, want the check of the commit it builds on", l.verifiers)
 	}
 	if err := l.verify(ctx); err == nil {
 		t.Error("a change passed the check it wrote for itself")
 	}
-	if err := l.rules(ctx); err != nil || !strings.Contains(l.details["rules"], fmt.Sprintf("of the %d its row may add", grown-1)) {
-		t.Errorf("a change that raised its own row's count: %v, %q, want its growth recorded against the earlier count", err, l.details["rules"])
+	if err := l.rules(ctx); err != nil || !strings.HasPrefix(l.details["rules"], fmt.Sprintf("production %+d nodes, ", grown)) {
+		t.Errorf("a feature's growth: %v, %q, want it recorded and held to no count", err, l.details["rules"])
 	}
 	added := fixture.candidateOf("row/file")
 	added.Log = io.Discard
@@ -92,8 +98,8 @@ func TestChangeIsJudgedByTheTermsItStartedWith(t *testing.T) {
 	}
 	fixture.write("internal/p/p.go", oneFunction)
 	l = fixture.candidateOf("row/do")
-	if left := l.charge(0); !slices.Equal(l.verifiers, []string{"true"}) || left != grown {
-		t.Fatalf("after its terms landed, the change is judged by the check %q and may add %d, want the filed check and %d", l.verifiers, left, grown)
+	if !slices.Equal(l.verifiers, []string{"true"}) {
+		t.Fatalf("after its terms landed, the change is judged by the check %q, want the filed check", l.verifiers)
 	}
 	if err := l.rules(ctx); err != nil {
 		t.Fatalf("the change did not pass under the terms a landing before it filed: %v", err)
@@ -107,10 +113,10 @@ func TestANewRowLandsWithItsWork(t *testing.T) {
 	ctx := t.Context()
 	fixture := newRowFixture(t, map[string]string{"internal/p/p.go": emptyPackage})
 	grown := packageNodes(t, oneFunction) - packageNodes(t, emptyPackage)
-	fixture.commitPlan(rowPlan(0, [2]string{"later", "true"}))
-	document := rowPlan(0, [2]string{"later", "true"})
+	fixture.commitPlan(rowPlan([2]string{"later", "true"}))
+	document := rowPlan([2]string{"later", "true"})
 	document.Items = append(document.Items, plan.Item{
-		ID: "new", Title: "new", Status: plan.StatusOpen, Budget: plan.Budget{Nodes: grown, Reason: "the new row's estimate"},
+		ID: "new", Title: "new", Class: plan.ClassConsolidation, Status: plan.StatusOpen, Budget: plan.Budget{Nodes: grown, Reason: "the new row's count"},
 		Steps: []plan.Step{{ID: "do", Title: "new", Status: plan.StatusOpen, Verify: "test -f internal/p/marker"}},
 	})
 	testcheck.NoError(t, plan.Save(fixture.planPath(), document))
@@ -133,24 +139,22 @@ func TestANewRowLandsWithItsWork(t *testing.T) {
 	}
 }
 
-// TestItemsGrowthIsChargedAcrossItsLandings records against a row's count the
-// whole of what its landings add. A row whose count is one node less than its
-// first two steps add has each landing's growth taken from it: the plan the
-// first publishes carries what is left, and the second, past the count, lands
-// and leaves it below zero by what it grew past. What a landing removes comes
-// back to the count, and rows landed together share theirs, the remainder
-// staying with the first the plan still holds.
+// TestItemsGrowthIsChargedAcrossItsLandings records against a consolidation's
+// count the whole of what its landings add. A consolidation whose count is
+// what its first two steps add has each landing's growth taken from it: the
+// plan the first publishes carries what is left, and the second leaves none; a
+// change that raises its own count is held to the count it started with. What
+// a landing removes comes back to the count, and rows landed together share
+// theirs, the remainder staying with the first the plan still holds.
 func TestItemsGrowthIsChargedAcrossItsLandings(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	fixture := newRowFixture(t, map[string]string{"internal/p/p.go": emptyPackage})
 	first := packageNodes(t, oneFunction) - packageNodes(t, emptyPackage)
 	second := packageNodes(t, twoFunctions) - packageNodes(t, oneFunction)
-	count := first + second - 1
-	if count < second {
-		t.Fatalf("the fixture's count %d does not admit the second step's %d nodes alone, so it shows nothing", count, second)
-	}
-	fixture.commitPlan(rowPlan(count, [2]string{"do", "true"}, [2]string{"later", "true"}, [2]string{"last", "true"}, [2]string{"end", "true"}))
+	count := first + second
+	steps := [][2]string{{"do", "true"}, {"later", "true"}, {"last", "true"}, {"end", "true"}}
+	fixture.commitPlan(consolidationPlan(count, steps...))
 	left := func(commit string) int {
 		t.Helper()
 		published, err := plan.Parse([]byte(fixture.git("cat-file", "blob", commit+":"+plan.Path)))
@@ -171,16 +175,20 @@ func TestItemsGrowthIsChargedAcrossItsLandings(t *testing.T) {
 		t.Fatalf("after a landing that added %d of %d nodes the plan gives the row %d, want %d", first, count, got, count-first)
 	}
 
+	// The second raises its own count, which holds it to none but the one it started with.
 	fixture.write("internal/p/p.go", twoFunctions)
+	raised := consolidationPlan(10*count, steps[1:]...)
+	raised.Items[0].Budget.Reason = "the change's own raise"
+	testcheck.NoError(t, plan.Save(fixture.planPath(), raised))
 	l = fixture.candidateOf("row/later")
-	if err := l.rules(ctx); err != nil {
-		t.Fatalf("the second step's growth of %d with %d left was refused: %v, want it recorded", second, count-first, err)
+	if err := l.rules(ctx); err != nil || !strings.Contains(l.details["rules"], fmt.Sprintf("of the %d its row may add", count-first)) {
+		t.Fatalf("the second step's growth of %d with %d left: %v, %q, want it admitted by the count it started with", second, count-first, err, l.details["rules"])
 	}
 	if commit, err = l.commit(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if got := left(commit); got != count-first-second {
-		t.Fatalf("after a landing that grew past the count the plan gives the row %d, want %d", got, count-first-second)
+	if got := left(commit); got != 0 {
+		t.Fatalf("after a landing that took the rest of the count the plan gives the row %d, want 0", got)
 	}
 
 	// A landing that removes code returns what it removed to the count.
@@ -198,7 +206,9 @@ func TestItemsGrowthIsChargedAcrossItsLandings(t *testing.T) {
 	// first of them the plan still holds is charged: each row's count is the
 	// one it started with, whatever the change wrote, and a row not landed is
 	// left as the change has it.
-	row := func(id string, count int) plan.Item { return plan.Item{ID: id, Budget: plan.Budget{Nodes: count}} }
+	row := func(id string, count int) plan.Item {
+		return plan.Item{ID: id, Class: plan.ClassConsolidation, Budget: plan.Budget{Nodes: count}}
+	}
 	together := &landing{Options: Options{Ref: "gone/do,first/do,other/do"},
 		terms:    plan.Plan{Items: []plan.Item{row("gone", 4), row("first", 6), row("other", 3), row("aside", 2)}},
 		advanced: plan.Plan{Items: []plan.Item{row("first", 100), row("other", 100), row("aside", 7)}}}
@@ -219,8 +229,8 @@ func TestAFilingBesideTheFindingsRegisterIsAFiling(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	fixture := newRowFixture(t, map[string]string{"internal/p/p.go": emptyPackage, findingsRegister: "{}\n"})
-	fixture.commitPlan(rowPlan(0, [2]string{"do", "false"}))
-	testcheck.NoError(t, plan.Save(fixture.planPath(), rowPlan(0, [2]string{"do", "false"}, [2]string{"file", "true"})))
+	fixture.commitPlan(rowPlan([2]string{"do", "false"}))
+	testcheck.NoError(t, plan.Save(fixture.planPath(), rowPlan([2]string{"do", "false"}, [2]string{"file", "true"})))
 	fixture.write(findingsRegister, "{\"findings\": [\"SQA-1\"]}\n")
 	fixture.write("internal/p/p.go", oneFunction)
 	carrying := fixture.candidateOf("row/file")

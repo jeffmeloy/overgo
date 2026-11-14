@@ -26,8 +26,8 @@ func TestAnAcceptedCheckRunsAsAccepted(t *testing.T) {
 		"internal/a/a.go": "package a\n", "internal/b/b.go": "package b\n",
 		"internal/c/c.go": before, "internal/c/c_test.go": test,
 	})
-	fixture.commitPlan(rowPlan(0, [2]string{"do", accepted}))
-	testcheck.NoError(t, plan.Save(fixture.planPath(), rowPlan(0, [2]string{"do", accepted})))
+	fixture.commitPlan(rowPlan([2]string{"do", accepted}))
+	testcheck.NoError(t, plan.Save(fixture.planPath(), rowPlan([2]string{"do", accepted})))
 	fixture.write("internal/c/c.go", after)
 	l := fixture.candidateOf("row/do")
 	l.Log = io.Discard

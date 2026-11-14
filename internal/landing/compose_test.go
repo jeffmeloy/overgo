@@ -38,7 +38,7 @@ func TestTheLandingWritesItsOwnMessage(t *testing.T) {
 	editPlan(t, fixture, func(document *plan.Plan) {
 		document.Items = document.Items[:1]
 		document.Campaign = "the fixture's next campaign"
-		document.Items[0].Budget = plan.Budget{Nodes: 40, Reason: "the fixture grows"}
+		document.Items[0].Class, document.Items[0].Budget = plan.ClassConsolidation, plan.Budget{Nodes: 40, Reason: "the fixture grows"}
 		document.Retired = []plan.Retirement{{Row: "later/do", Reason: "the fixture needs it no more"}}
 	})
 

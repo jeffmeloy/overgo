@@ -79,16 +79,16 @@ func (f *sliceFixture) read(name string) string {
 
 // TestLandingCompletesSeveralSteps holds a landing that names several steps, joined by commas, to
 // one gate run over one candidate: each step must be open in the plan and each step's check must
-// pass, the rows' counts add up, one commit removes every named step and leaves the
+// pass, the consolidations' counts add up, one commit removes every named step and leaves the
 // others, and the commit carries a Landed-Row trailer for each; a step named twice or not open,
 // or one whose check fails, refuses the whole landing.
 func TestLandingCompletesSeveralSteps(t *testing.T) {
 	t.Parallel()
 	fixture := newRowFixture(t, map[string]string{"a.txt": "base\n"})
 	document := plan.Plan{Campaign: "fixture", Items: []plan.Item{
-		{ID: "row", Title: "row", Status: plan.StatusOpen, Budget: plan.Budget{Nodes: 10},
+		{ID: "row", Title: "row", Class: plan.ClassConsolidation, Status: plan.StatusOpen, Budget: plan.Budget{Nodes: 10},
 			Steps: []plan.Step{{ID: "do", Title: "row", Status: plan.StatusOpen, Verify: "true"}, {ID: "later", Title: "later", Status: plan.StatusOpen, Verify: "true"}}},
-		{ID: "other", Title: "other", Status: plan.StatusOpen, Budget: plan.Budget{Nodes: 5},
+		{ID: "other", Title: "other", Class: plan.ClassConsolidation, Status: plan.StatusOpen, Budget: plan.Budget{Nodes: 5},
 			Steps: []plan.Step{{ID: "do", Title: "other", Status: plan.StatusOpen, Verify: "true"}}},
 		{ID: "failing", Title: "failing", Status: plan.StatusOpen,
 			Steps: []plan.Step{{ID: "do", Title: "failing", Status: plan.StatusOpen, Verify: "false"}}},
@@ -132,41 +132,13 @@ func TestLandingCompletesSeveralSteps(t *testing.T) {
 	}
 }
 
-// TestLandingRaisesItsOwnCount holds the count a landing grows by to its row's: a change whose own plan raises the
-// row's count with a reason of its own is admitted by the raised count and publishes it less the growth, and one
-// that raises it without a new reason is admitted by the count it had.
-func TestLandingRaisesItsOwnCount(t *testing.T) {
-	t.Parallel()
-	const before, raised, growth = 2, 9, 5
-	fixture := newRowFixture(t, map[string]string{"a.txt": "base\n"})
-	document := plan.Plan{Campaign: "fixture", Items: []plan.Item{
-		{ID: "row", Title: "row", Status: plan.StatusOpen, Budget: plan.Budget{Nodes: before, Reason: "the row's start"},
-			Steps: []plan.Step{{ID: "do", Title: "row", Status: plan.StatusOpen, Verify: "true"}, {ID: "later", Title: "later", Status: plan.StatusOpen, Verify: "true"}}},
-	}}
-	testcheck.NoError(t, plan.Save(fixture.planPath(), document))
-	fixture.git("add", "-A")
-	fixture.git("commit", "-q", "-m", "plan of one row")
-	for _, raise := range []struct {
-		reason string
-		admits int
-	}{{"the change's growth", raised}, {"the row's start", before}} {
-		// The change edits a file beside the plan, so the plan it builds on judges it.
-		fixture.write("a.txt", raise.reason+"\n")
-		document.Items[0].Budget = plan.Budget{Nodes: raised, Reason: raise.reason}
-		testcheck.NoError(t, plan.Save(fixture.planPath(), document))
-		l := fixture.candidateOf("row/do")
-		if left := l.charge(growth); left != raise.admits || l.advanced.Items[0].Budget.Nodes != raise.admits-growth {
-			t.Errorf("a raise for %q admits %d and leaves %d, want %d and %d", raise.reason, left, l.advanced.Items[0].Budget.Nodes, raise.admits, raise.admits-growth)
-		}
-	}
-}
-
-// TestAChangedCheckOrCountIsWrittenInTheCommit: a change that weakens a row's check or raises a count is free to, and its
-// commit says so, old beside new; a row it adds has nothing to compare, and a row it leaves alone says nothing.
+// TestAChangedCheckOrCountIsWrittenInTheCommit: a change that weakens a row's check or sets a consolidation's count is free
+// to, and its commit says so, old beside new; a row it adds has nothing to compare, and a row it leaves alone says
+// nothing.
 func TestAChangedCheckOrCountIsWrittenInTheCommit(t *testing.T) {
 	t.Parallel()
 	row := func(id, verify string, nodes int) plan.Item {
-		return plan.Item{ID: id, Title: id, Status: plan.StatusOpen, Budget: plan.Budget{Nodes: nodes, Reason: "the first estimate"},
+		return plan.Item{ID: id, Title: id, Class: plan.ClassConsolidation, Status: plan.StatusOpen, Budget: plan.Budget{Nodes: nodes, Reason: "the first estimate"},
 			Steps: []plan.Step{{ID: "do", Title: id, Status: plan.StatusOpen, Verify: verify}}}
 	}
 	fixture := newRowFixture(t, map[string]string{"a.txt": "base\n"})

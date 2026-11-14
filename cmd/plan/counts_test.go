@@ -1,47 +1,40 @@
 package main
 
 import (
-	"os/exec"
 	"strings"
 	"testing"
 
 	"overgo/internal/plan"
 )
 
-// TestANewStepsCountComesFromItsDirectoriesHistory holds plan -addstep and -add to the history of the directories a
-// new step lists: on 2026-11-08 the lead raised all 24 media rows about threefold by hand, since counts filed by hand
-// ran far under what landed. In a repository whose landings in internal/x counted 100, 300 and 500 nodes, a step added
-// listing internal/x adds the median, 300, to its row's count, with the session's figure written beside it, and a row
-// added listing a directory no landing changed is counted by the session's figure.
-func TestANewStepsCountComesFromItsDirectoriesHistory(t *testing.T) {
+// TestOnlyAConsolidationTakesACount holds plan's edits to counts on consolidations alone (consolidation-counts/do): a
+// feature row's count asked nothing of a landing, which holds only a consolidation to its count, and since 10 Nov 59
+// of 111 landings added more than their row's. A step added listing its files, and a row added so, carry no count;
+// -setcount refuses a feature row and sets a consolidation's.
+func TestOnlyAConsolidationTakesACount(t *testing.T) {
 	t.Parallel()
-	held := plan.Plan{Items: []plan.Item{{ID: "row", Title: "Row", Status: plan.StatusOpen, Budget: plan.Budget{Nodes: 50, Reason: "Filed."}, Steps: []plan.Step{openStep("first")}}}}
+	held := plan.Plan{Items: []plan.Item{
+		{ID: "row", Title: "Row", Status: plan.StatusOpen, Steps: []plan.Step{openStep("first")}},
+		{ID: "shrink", Title: "Shrink", Class: plan.ClassConsolidation, Status: plan.StatusOpen, Steps: []plan.Step{openStep("do")}},
+	}}
 	root, _ := editFixture(t, held)
-	git := func(arguments ...string) {
-		t.Helper()
-		command := exec.CommandContext(t.Context(), "git", append([]string{"-c", "user.name=fixture", "-c", "user.email=fixture@example.invalid"}, arguments...)...)
-		command.Dir = root
-		if output, err := command.CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v %s", arguments, err, output)
-		}
-	}
-	git("init", "-q")
-	for _, landed := range []struct{ nodes, path string }{{"+100", "internal/x/a.go"}, {"+500", "internal/x/b.go"}, {"+300", "internal/x/c.go"}, {"+9000", "internal/y/y.go"}} {
-		git("commit", "-q", "--allow-empty", "-m", "row/do: a change\n\nChange:\n- files: "+landed.path+"\n\nMeasured by the gate: rules 1s (production "+landed.nodes+" nodes of the 700 its row may add)")
-	}
-	output, err := planCommand(t, root, "-addstep", "-title", "Second", "-vcmd", "true", "-files", "internal/x", "-nodes", "120", "-reason", "The second step.", "row", "second")
-	if err != nil {
+	if output, err := planCommand(t, root, "-addstep", "-title", "Second", "-vcmd", "true", "-files", "internal/x", "-reason", "The second step.", "row", "second"); err != nil {
 		t.Fatalf("plan -addstep: %v\n%s", err, output)
 	}
-	row := editedPlan(t, root).Items[0]
-	if row.Budget.Nodes != 350 || !strings.Contains(row.Budget.Reason, "Step second: +300 (300, the median of what 3 landings that changed internal/x counted; the session's figure 120)") {
-		t.Fatalf("the row counts %d nodes for %q, want 50 and the median 300", row.Budget.Nodes, row.Budget.Reason)
-	}
-	if output, err := planCommand(t, root, "-add", "-title", "Fresh", "-vcmd", "true", "-files", "cmd/z", "-nodes", "120", "fresh"); err != nil {
+	if output, err := planCommand(t, root, "-add", "-title", "Fresh", "-vcmd", "true", "-files", "cmd/z", "fresh"); err != nil {
 		t.Fatalf("plan -add: %v\n%s", err, output)
 	}
-	fresh := editedPlan(t, root).Items[0]
-	if fresh.ID != "fresh" || fresh.Budget.Nodes != 120 || !strings.Contains(fresh.Budget.Reason, "no landing changed cmd/z; the session's figure 120") || fresh.Steps[0].Files[0] != "cmd/z" {
-		t.Fatalf("the added row is %+v", fresh)
+	edited := editedPlan(t, root)
+	if fresh, row := edited.Items[0], edited.Items[1]; fresh.Budget != (plan.Budget{}) || row.Budget != (plan.Budget{}) || fresh.Steps[0].Files[0] != "cmd/z" {
+		t.Fatalf("rows filed with files carry counts %+v and %+v; want none", fresh.Budget, row.Budget)
+	}
+	if output, err := planCommand(t, root, "-setcount", "-nodes", "40", "-reason", "It grows.", "row"); err == nil || !strings.Contains(output+err.Error(), "only a consolidation carries a count") {
+		t.Fatalf("plan -setcount on a feature row gave %v\n%s; want it refused", err, output)
+	}
+	if output, err := planCommand(t, root, "-setcount", "-nodes", "-40", "-reason", "It must shrink.", "shrink"); err != nil {
+		t.Fatalf("plan -setcount on a consolidation: %v\n%s", err, output)
+	}
+	if shrink := editedPlan(t, root).Items[2].Budget; shrink != (plan.Budget{Nodes: -40, Reason: "It must shrink."}) {
+		t.Fatalf("the consolidation's count is %+v, want -40 and its reason", shrink)
 	}
 }

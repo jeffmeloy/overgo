@@ -13,7 +13,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -61,10 +60,10 @@ func main() {
 	answer := flag.Bool("answer", false, "record the answer to a decision: -answer <decision-id> -title <one of its options>, or -answer -reason <the answer> <decision-id> for one that is none of them")
 	reserved := flag.Bool("reserved", false, "mark a decision whose answer is an act no session takes (a store migration, deleting a model or data, activating or publishing a model, a push), so its rows wait for that answer while the others run: -reserved <decision-id>")
 	doctrine := flag.Bool("doctrine", false, "mark a decision as changing a standing rule, so its rows wait for the answer: -doctrine <decision-id>")
-	add := flag.Bool("add", false, "inject a new top-priority task owned by -role: -add <item-id> -title <t> [-before <id>] [-vcmd <cmd>] [-files <a,b> [-nodes <n>]]; or file a document's rows: -add -from <document> [-before <id>]")
+	add := flag.Bool("add", false, "inject a new top-priority task owned by -role: -add <item-id> -title <t> [-before <id>] [-vcmd <cmd>] [-files <a,b>]; or file a document's rows: -add -from <document> [-before <id>]")
 	from := flag.String("from", "", "with -add: a plan-shaped JSON document, or - to read it from standard input so a draft needs no file; every row and decision of it is filed, a row it assigns to no role assigned to -role, an id the plan holds is refused, and no row the plan holds changes")
-	setcount := flag.Bool("setcount", false, "set what a row may still add and why, running no check: -setcount -nodes <n> -reason <why> <item-id>")
-	nodes := flag.Int("nodes", 0, "with -setcount: the production syntax nodes the row may still add (0, the default: it may not grow; below zero: it must shrink); with -add or -addstep: the session's own figure, written beside the count the landings of the step's -files give, and the count where none did")
+	setcount := flag.Bool("setcount", false, "set what a consolidation may still add and why, running no check: -setcount -nodes <n> -reason <why> <item-id>; no other row carries a count")
+	nodes := flag.Int("nodes", 0, "with -setcount: the production syntax nodes the consolidation may still add (0, the default: it may not grow; below zero: it must shrink)")
 	reason := flag.String("reason", "", "with -setcount, -setfiles, -addstep, -note or -retire: the edit's words, why the row grows, why a step's files change, the step's reasoning or why the work will not be done; with -answer: an answer in words, none of the decision's options")
 	rationaleFile := flag.String("rationale-file", "", "in place of -reason: a file that holds the edit's words")
 	addstep := flag.Bool("addstep", false, "add an open step to a row, last unless -before names a step: -addstep -title <t> -vcmd <cmd> -rationale-file <file> [-before <step-id>] <item-id> <step-id>")
@@ -183,7 +182,7 @@ func run(c cli, args []string) error {
 		return printRow(os.Stdout, document, strings.Join(args, "/"))
 	case c.add:
 		if len(args) != 1 || strings.TrimSpace(c.title) == "" {
-			return errors.New("usage: plan -add <item-id> -title <title> [-before <id>] [-vcmd <verify>] [-files <a,b> [-nodes <n>]]")
+			return errors.New("usage: plan -add <item-id> -title <title> [-before <id>] [-vcmd <verify>] [-files <a,b>]")
 		}
 		return addItem(commandWorktree, args[0], c, role)
 	case c.move:
@@ -269,7 +268,6 @@ func withPlanMutation(root string, mutate func(plan.Plan) error) (err error) {
 // before `before` (or at the top of the plan when empty). This is the mechanical
 // "inject a task" operation -- a merge, a fix, or any requested work becomes
 // a first-class dispatched/verified/advanced task without hand-editing plan.json.
-// A step given -files is counted from what landings in them counted (filedCount).
 func addItem(root, id string, c cli, role string) error {
 	return mutatePlan(root, role, "added item "+id+" (step do)", func(document plan.Plan) (plan.Plan, error) {
 		updated, err := insertItem(document, id, c.title, c.class, c.before, c.verifyCmd)
@@ -282,33 +280,9 @@ func addItem(root, id string, c cli, role string) error {
 		}
 		if files := listedFiles(c.files); len(files) > 0 {
 			row.Steps[0].Files = files
-			nodes, reason := filedCount(root, files, c.nodes)
-			row.Budget = plan.Budget{Nodes: nodes, Reason: "Filed from history: " + reason}
 		}
 		return updated, nil
 	})
-}
-
-// historyDepth is how many of the trunk's latest commits a count is read from.
-const historyDepth = 500
-
-// filedCount is the count a new step that lists files is filed with: the median of what the landings that changed
-// them counted, read from the trunk's latest commits (plan.HistoryCount), or the session's figure where none did; the
-// reason names both. A root that is no repository has no history.
-func filedCount(root string, files []string, figure int) (int, string) {
-	var history []plan.LandedCount
-	if log, err := commandInput(root, nil, "git", "log", "-n", strconv.Itoa(historyDepth), "--format=%B%x00"); err == nil {
-		for message := range strings.SplitSeq(string(log), "\x00") {
-			if landed, counted := plan.ReadLandedCount(message); counted {
-				history = append(history, landed)
-			}
-		}
-	}
-	nodes, landings := plan.HistoryCount(history, files)
-	if landings == 0 {
-		nodes = figure
-	}
-	return nodes, plan.HistoryReason(nodes, landings, figure, files)
 }
 
 // listedFiles are the files a -files flag lists, comma- or space-separated.
@@ -523,6 +497,8 @@ func editPlan(role string, c cli, args []string, did string) error {
 		}
 		row := &document.Items[item]
 		switch {
+		case c.setcount && row.Class != plan.ClassConsolidation:
+			return document, fmt.Errorf("plan: %s is no consolidation, and only a consolidation carries a count, the one a landing holds it to", itemID)
 		case c.setcount:
 			row.Budget.Nodes, row.Budget.Reason = c.nodes, words
 		case c.setfiles:
@@ -535,12 +511,6 @@ func editPlan(role string, c cli, args []string, did string) error {
 		case c.addstep:
 			row.Steps = slices.Insert(row.Steps, step, plan.Step{ID: stepID, Title: c.title, Status: plan.StatusOpen, Verify: c.verifyCmd, Run: c.runCmd, Record: c.record,
 				Files: files, NeedsCard: c.needsCard, Rationale: words})
-			// A step that lists its files adds to the row's count what landings in them counted (filedCount).
-			if len(files) > 0 {
-				nodes, reason := filedCount(commandWorktree, files, c.nodes)
-				row.Budget.Nodes += nodes
-				row.Budget.Reason = strings.TrimSpace(fmt.Sprintf("%s Step %s: %+d (%s).", row.Budget.Reason, stepID, nodes, reason))
-			}
 		case c.note:
 			addNote(&row.Steps[step].Rationale, words)
 		case c.retire && named && len(row.Steps) > 1:
@@ -565,15 +535,18 @@ func addNote(rationale *string, words string) {
 	*rationale = strings.TrimSpace((*rationale)[:cut] + paragraphBreak + notePrefix + strings.TrimPrefix(words, notePrefix) + (*rationale)[cut:])
 }
 
-// printRow prints one row whole: its count with the reason, and each step's
-// state, what it awaits, its check and its reasoning.
+// printRow prints one row whole: a consolidation's count with the reason, and each step's state, what it awaits, its
+// check and its reasoning.
 func printRow(output io.Writer, document plan.Plan, id string) error {
 	at, _, err := stepAt(document, id, "", false)
 	if err != nil {
 		return err
 	}
 	item := document.Items[at]
-	fmt.Fprintf(output, "%s | %s | nodes %d\ncount reason: %s\n", item.ID, item.Title, item.Budget.Nodes, item.Budget.Reason)
+	fmt.Fprintf(output, "%s | %s\n", item.ID, item.Title)
+	if item.Class == plan.ClassConsolidation {
+		fmt.Fprintf(output, "nodes %d\ncount reason: %s\n", item.Budget.Nodes, item.Budget.Reason)
+	}
 	for _, step := range item.Steps {
 		fmt.Fprintf(output, "-- %s | %s | %s | awaits %v\nverify: %s\n%s\n", step.ID, step.Title, step.Status, step.DependsOn, step.Verify, step.Rationale)
 	}

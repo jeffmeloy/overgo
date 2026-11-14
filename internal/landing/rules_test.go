@@ -172,9 +172,8 @@ func TestLandingSaysWhatAChangeAddsOfEachKind(t *testing.T) {
 	if production <= 0 || tests <= 0 {
 		t.Fatalf("the change adds %d production and %d test nodes, want some of each", production, tests)
 	}
-	l.terms.Items[0].Budget.Nodes = production
 	testcheck.NoError(t, l.rules(t.Context()))
-	want := fmt.Sprintf("production %+d nodes of the %d its row may add, test code %+d nodes, record schemas +1, CUDA source +2 lines and +2 entry points, fixtures +1 files and +8 bytes", production, production, tests)
+	want := fmt.Sprintf("production %+d nodes, test code %+d nodes, record schemas +1, CUDA source +2 lines and +2 entry points, fixtures +1 files and +8 bytes", production, tests)
 	if l.details["rules"] != want {
 		t.Fatalf("the rules stage says %q, want %q", l.details["rules"], want)
 	}

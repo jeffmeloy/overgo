@@ -28,8 +28,7 @@ func TestADocumentFiledOntoAFinishedPlanGivesItsCampaign(t *testing.T) {
 		{[]plan.Item{{ID: "earlier", Title: "Earlier", Status: plan.StatusOpen, Steps: []plan.Step{openStep("do")}}}, "held campaign"},
 	} {
 		root, _ := editFixture(t, plan.Plan{Campaign: "held campaign", Items: held.rows})
-		filed := plan.Plan{Campaign: "next campaign", Items: []plan.Item{{ID: "next", Title: "Next", Owner: "master-lead", Status: plan.StatusOpen,
-			Budget: plan.Budget{Nodes: 20, Reason: "It adds a listing."}, Steps: []plan.Step{openStep("do")}}}}
+		filed := plan.Plan{Campaign: "next campaign", Items: []plan.Item{{ID: "next", Title: "Next", Owner: "master-lead", Status: plan.StatusOpen, Steps: []plan.Step{openStep("do")}}}}
 		if output, err := planCommandReading(t, root, bytes.NewReader(testcheck.Must(json.Marshal(filed))(t)), "-add", "-from", standardInput); err != nil {
 			t.Fatalf("plan -add -from -: %v\n%s", err, output)
 		}

@@ -917,7 +917,8 @@ func (l *landing) verify(ctx context.Context) error {
 		if strings.TrimSpace(verifier) == "" {
 			continue
 		}
-		if _, err := planverify.Execute(ctx, l.stageRoot(), verifier, nil); err != nil {
+		// The check shows its progress in the landing's log as it runs, as each stage does.
+		if _, err := planverify.ExecuteShowing(ctx, l.stageRoot(), verifier, nil, l.Log); err != nil {
 			return err
 		}
 	}
@@ -959,7 +960,7 @@ func (l *landing) addedChecksFail(ctx context.Context) error {
 	}
 	defer release()
 	for _, check := range l.added {
-		if _, err := planverify.Execute(ctx, tree, check, nil); err == nil {
+		if _, err := planverify.ExecuteShowing(ctx, tree, check, nil, l.Log); err == nil {
 			return fmt.Errorf("land: a check passes on %.12s without this change, so it proves nothing of it: %q", l.head, check)
 		}
 	}

@@ -101,7 +101,7 @@ func (l *landing) undo(ctx context.Context) error {
 	}
 	defer release()
 	for _, check := range checks {
-		_, err := planverify.Execute(ctx, tree, check, nil)
+		_, err := planverify.ExecuteShowing(ctx, tree, check, nil, l.Log)
 		failure, _, _ := strings.Cut(fmt.Sprint(err), "\n")
 		switch {
 		case err == nil:

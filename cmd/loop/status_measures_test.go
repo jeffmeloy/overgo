@@ -93,7 +93,8 @@ func TestTheStatusSaysTheDaysFiveMeasures(t *testing.T) {
 		t.Errorf("the gate's hours read %.2f; want %.2f, the day's runs and no earlier one", delivery.GateHours, want)
 	}
 	line := delivery.String()
-	for _, said := range []string{"3 commits", "2 plan-only", "1 landed", "1 added", "1 retired", "report", "rules 1", "verify 1"} {
+	// A refused attempt is a failed one, and the line says so.
+	for _, said := range []string{"3 commits", "2 plan-only", "1 landed", "1 added", "1 retired", "report", "2 commit attempts failed (rules 1, verify 1)", "1 failed of unknown kind", "2 preflights (1 failed)"} {
 		if !strings.Contains(line, said) {
 			t.Errorf("the status line %q does not say %q", line, said)
 		}

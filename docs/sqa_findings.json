@@ -39,7 +39,7 @@
         ],
         "adoption_scope": "Supersedes the absent repository-document reference at the owner's request; current external SHA is verified. Does not alter the executable plan."
       },
-    "assessment": "This slice meets the architectural simplification goal by deleting a completed behavior and its route/tests,while strengthening existing input owners. Local source formats continue through the current inventory/hash/receipt owner; admission does not force an intermediate model format. Runtime/model rebuild completion is not established.",
+    "assessment": "This is a clearer test execution boundary through existing gate/cycle owners,not deleted functionality. Reusing lanesOf fixes a vacuous invariant. The new source guard has real maintenance cost and limited resolution; scoped receipts and retained numerical owners remain authority. One current real-model gate exception prevents claiming complete separation.",
     "ast_surface_review": {
         "revision": "9bd406acafb89c44a439722419f1f7e85e71f691",
         "architectural_target": "Fewer independent product entry points and dependency owners; retain process isolation and existing compiled/runtime/development authority.",
@@ -60,7 +60,7 @@
         "complete_cost": "29196812c->0b5a70f89:34changed-Go paths,+759production/+1671testAST,net+2430,+140/+312lines,+1production/+7testfiles,0staticfixtures/binary/package additions. This is necessary capability/recovery growth,not net reduction. Historical closure reductions kept separate.",
         "authority": "No implementation,plan/skill changes,worker messages,agents or workloads."
       },
-    "current_review_order": "Instructions/target/committed plan -> provisional source/caller conclusions -> retained findings/owner responses -> corrected selected-file AST/full cost -> concurrent8f3 plan and publication re-read.",
+    "current_review_order": "Guidance/target/pinned plan -> provisional caller/lifetime/evidence review -> current canonical findings -> selected baseline/current AST/full cost -> concurrent re-read/publication.",
     "declined_candidates": [
         "Do not implement five separate monitors, another notes file or recurring model/test workload. One existing status projection is enough.",
         "Do not count a successful preflight as a refused commit, an already-landed retry as a new commit, or a retired/renamed step as completed.",
@@ -69,9 +69,9 @@
         "Do not treat a high refusal percentage as permission to weaken correctness, identity, safety or numerical checks."
       ],
     "media_follow_up": {
-        "architectural_progress": "393 closed: radius,sigma and alpha share one admitted media domain and retained crop/native fixtures.387 import preflight now precedes links/hashes and uses existing storage owner.",
-        "remaining": "379 protocol/current-producer applicability and342 grouped quality remain; no new media quality evidence generated. Planned real-model test relocation is not a capability retirement.",
-        "cost": "Shared import+alpha+172production/+487testAST; no static fixture bytes added. Whole slice still reduces both production and tests because obsolete re-ask is removed."
+        "architectural_progress": "Resident lifetime cancellation/recovery and real TabFM training bodies retained in modeltest;synthetic/default boundaries remain distinct. Original numerical constants/goldens not relaxed.",
+        "remaining": "The SenseNova resource measurement remains untagged under its retained byte identity. Broader379 protocol and342 grouped-quality obligations remain unchanged; no new quality evidence generated.",
+        "cost": "Model setup relocated,not removed. Whole migration growth charged; output/claims metadata rebind is not a new independent quality/performance measurement."
       },
     "plan_review": {
         "draft": {
@@ -154,17 +154,17 @@
         ]
       },
     "plan_review_follow_up": {
-        "pin": "8f3c84d3233cd39f1155eb6c516d0ddfe92d4635",
-        "assessment": "Concurrent8f3 changes only docs/plan.json: cuda-synthetic's wholetree verifier and affected claims/records are explicit,and cycle-lanes/do follows the future move. This fixes admission/continuation description without crediting an unrun lane. Other reviewed code is identical toECD.",
-        "recommendation": "Use existing plan/driver to deliver the receiving lane and preserve result identity/partial failures. Count tag moves as moved work; require no new scheduler,standing report gate or recurrent confidence campaign. Root full-cycle publication remains separate.",
-        "limits": "No plan edits,dispatch,messages or workload by SQA."
+        "pin": "9a8766941178c9b44a0abc2c4d7ba27a36e086ae",
+        "assessment": "cuda-synthetic landed;cycle-lanes next remains open;cuda-resources explicitly defers the current resource exception. No receiving completion or full-cycle success credit from a plan line or gate pass.",
+        "recommendation": "Keep existing plan/driver ownership and partial receipts. Do not treat moved tests as eliminated work or add more report gates. Consider administrative-only evidence reuse through the current capacity owner before scheduling physical recalibration solely for a build header; preserve exact old provenance and genuine calibration requirements.",
+        "limits": "No plan edits,dispatch,worker message or workload by SQA."
       },
     "rank_basis": "Actual398/399 admission failures precede local400 consolidation.397 closed;400 retains unique coverage.376 owns known-rule/history/delivery obligations.",
     "refactor_target_progress": {
-        "architectural_progress": "One-off re-ask API/CLI/tests removed instead of generalized. Shared exposure and durable results remain. ReadLocalImport/ImportLocal/command own cheap admission; existing fromFilesContext owns actual bytes/tensors. Shared Sharpening admission owns the derived arithmetic limit for request and direct callers.",
-        "conflicts": "Real-model tests currently enter the discovered CUDA gate; planned tag migration changes delivery/cycle cost,not just folder labels.379 evidence protocol/applicability,342 grouping and401/322 gate obligations remain. No full format-independent execution migration proved by an import fix.",
-        "next_useful_reductions": "Complete the planned test ownership transfer with the existing receiving-lane evidence and original unique requirements. Do not reintroduce retired diagnostic behavior. Share repeated tiny import fixture setup only if total helper/caller/setup cost falls; no additional framework or mandatory cleanup row.",
-        "cost": "dc39->8f3 Go source delta equals dc39->ECD:10changedGo paths,-651production/-874testAST,-157/-132Go lines,net-2production/-1testfiles. Retirement4files deleted; native admission1testfile added. No new/removed command binaries,package directories,staticfixtures or CUDA source."
+        "architectural_progress": "Model-backed suites move to the existing models lane; synthetic default tests retain their package owners. Dynamic reach invariants now read the same lanesOf owner as landing execution. Standard Go build/constraint owners support tags/claims. Existing allocator,model executors and numerical boundaries remain.",
+        "conflicts": "Transferred work still needs delivered receiving evidence. SenseNova resources remains in the gate by explicit measuredInPlace exception. A name-based source guard is not a type-level proof of no model work,and package helpers can impose setup. Test count/file growth is not simplification by itself.",
+        "next_useful_reductions": "Use the existing receiving lane/receipts,including real subcase skips. For the last exception,first compare an exact build-tag-only move against the existing retained-harness compatibility owner; accept a narrow carry only with old measurement identity and numerical/protocol dependencies preserved. Otherwise retain planned calibration. Do not add general semantic hashing,source taint or a new scheduler.",
+        "cost": "79changedGo paths,+137production/+958testAST,+27/+258lines,7testfiles,0production/package/binary/staticfixture/CUDA additions. Selected three test bodies and275AST fixture move unchanged; setup counts do not fall. No safe net reduction established."
       },
     "working_notes_review": {
         "finding": "SQA-334",
@@ -174,10 +174,10 @@
       }
   },
     "committed_plan": {
-    "git_blob": "d53be22f9f61605a93e5cffada65506020cae433",
+    "git_blob": "411658920fa63bcc0d0c726fbf29f5c4cb1b4ebc",
     "path": "docs/plan.json",
-    "revision": "8f3c84d3233cd39f1155eb6c516d0ddfe92d4635",
-    "sha256": "7ec3b7300e78592cfe6ab164526622b52183c4a96825450993f29ecf87831ede",
+    "revision": "9a8766941178c9b44a0abc2c4d7ba27a36e086ae",
+    "sha256": "e25aa7148a4e9515bee1829cee84ef9cb526dafe88e320dc3d83c31a454759bd",
     "working_tree_status": "Committed plan at review pin; prior draft assessment retains its own snapshot identity. Current working plan edits excluded."
   },
     "findings": [
@@ -755,7 +755,7 @@
   },
     {
     "category": "measurement-cost",
-    "classification": "open-with-action-deferred-until-ordinary-package-evidence",
+    "classification": "partial-test-owner-transfer-receiving-evidence-pending",
     "closure_criteria": [
         "Name retained owner for each paired requirement before removing a standing invocation; preserve numerical differences and original assertions.",
         "Credit existing evidence only under its actual identity contract; unchanged source does not prove stationary performance.",
@@ -764,22 +764,24 @@
         "Each removed opt-in has a named retained numerical/catalog/identity owner or evidenced capability/checkpoint retirement; native Kimi/T5 and multimodal ownership are credited without assuming identical external-catalog coverage.",
         "Guard inventory is not accepted as execution proof through incidental global setters; existing declared admission and ordinary run receipts decide delivered coverage. Exposed Krea numerical failure retains its independent bound and cause."
       ],
-    "comparison": "Use the retained15-test accounting and current numerical/catalog requirements to decide readiness before the one authorized full cycle. Preserve bounds and actual artifact identities; no SQA rerun. Continue comparing moved/removed tests with retained owners and delivered lane receipts; global source setters are not execution proof.",
+    "comparison": "Use retained original/modeltest pairs to preserve all original assertions; three sampled moved test bodies and one fixture body are identical by formatted AST hash. Receiving evidence must name actual tests/subcases run and skipped,with original model/request/recipe identities; a parent PASS can contain only skipped TabFM children. For the one gate exception,compare the proposed exact build-header change to the retained harness plus its imports/helper/protocol dependencies: all other bytes/behavior must remain bound. Existing capacity evidence already allows one explicit assets-path projection; any added carry must reject numerical edits and retain the original measurement identity. No SQA tests,model/calibration run or new selector/framework.",
     "displaced_surface": "Existing plan.RecordDigests/runRecorder already displace repeated file reads and erased phase metadata (+261production/+581test for that earlier full change). Current opt-in migration removes five one-shot probe/benchmark files and duplicate Gemma4 prompt wrappers, relocates model-only tests and adds1248policy nodes; complete current landing net -2832 Go AST, not gross deletion. Native Kimi/T5 fixtures and multimodal production input matrix retain the named shared contracts; remaining external-catalog/identity requirements need explicit disposition. No fixture bytes or binaries/directories disappear. A correction to the global-set heuristic may remove its228-node setVariables reader plus callers, but complete after-cost/admission coverage is undecided; no speculative saving credited.",
-    "evidence": "Retained eb0080dcc accounted for all15 failing names at4dcd2df02:12passed, Un-0 needed an existing empty-store fixture, TabFM had insufficient detectable gain on26held-out requests, and viewed-model onboarding named conversions instead of native files. ddfba003b now resolves the scoped TabFM prerequisite using existing credit-g JSON requests: whole-row hash pools keep training/held-out membership disjoint, duplicated input rows are read once, and existing typed request/categorical columns replace CSV metadata/sign-log setup. The retained reading improves0.5739->0.6164, gain0.0425 over159held-out requests versus detectable0.0257; the unchanged gainDeviates2 criterion approves and promotes. Two retained runs agree; SQA ran none. This is one dataset/request-level route proof, not159independent datasets or broad TabFM superiority; within-pool dependence/generalization is not proved by a larger case count.2368507a1 gives the declared verifier its required card switch. Historical November8 messages remain unavailable and cannot inherit these later causes. 4caa70f6a resolves the named native Gemma onboarding prerequisite: the retained clean-checkout onboard activates its source directory as model2cc612d5 and retires d0be4bb0/f5e632cd conversions after binding their original source weights. The smoke declaration now names that served native identity with the same arithmetic oracle, replacing two retired declarations with one. TestAcceptedSmokeOracles still binds declarations to live active recipes; its false-green/missing/stale/native-score cases remain. Retained landing evidence reports its passing check, not a new full cycle. Remaining unique obligations below remain.\nThe root measurement record still names fdd4ab1cea379541604905e9b913b1a5f3d92bc8. readme-speed/measured publishes scorecard-20261114T025256Z from retained store readings and fills the speed table; it is a new publication, not a new full measurement cycle. Record.Carry retains newest source identities/dates and gaps owed a reading, rather than forcing unchanged valid work to run again. No new full cycle is established. The landing scorecard remains one fixed text input, not system-wide evidence. Keep the corrected distinction between card-wait time and useful model load, the existing digest/phase owner and all unique opt-in coverage obligations below.\nHash-once/phase preservation is already owned by plan.RecordDigests and runRecorder: same Started identity reuses digests, a new begin rehashes. The native fixture deliberately mutates bytes within a run yet retains the first digest. The historical12-18minute saving is extrapolated, not measured. Existing paired numerical owners, exact identities, partial failures and phase/package/digest preservation remain obligations.\n4dcd2df02 now removes/relocates the31 flagged opt-ins and related cases. The complete landing is +3production/-2835testAST, after charging the1248-node runs_somewhere policy; no fixture bytes disappear. Five deleted probe/benchmark files retain one-shot decision sources: adapter33e96a505, composition3716051ea, chain e88d0033a, dose1b446104a, loader72bc4248d. The obsolete eight-row identity probe used an empty repository store and3of7 goldens no longer match; preserve any still-required record identity through its existing owner rather than reviving that setup. Gemma4 image/audio prompt tests are actual duplicate contracts: TestMultimodalInputMatrix/gemma4-12b-image-audio-video retains the same SHA-pinned goldens/questions, full TokenIDs and production BuildImagePrompt/BuildAudioPrompt, plus first-token/video checks. Leadership/generation checks move to windows&&modeltest and existing CycleLanes model ownership; added baseline flags deliberately increase future cycle work, which is not measured by deleted AST.\nDeleted Kimi/Gemma3/UMT5 real-catalog tests checked external ReadSpec/ReadWeights, layer counts and hybrid/postnorm/relative-bias bindings. Existing TestReadWeightsKimiLinearHybrid and TestReadWeightsT5Encoder retain small native hybrid/bias bindings through readFixtureWeights->ReadWeights. That is partial requirement ownership, not proof of equivalent external metadata or checkpoint completeness.48/24 were checkpoint expectations, not universal architecture limits. Missing installed checkpoints alone is not a retirement reason; map remaining unique requirements or explicitly retire checkpoint-specific assertions. Do not replace these with new heavy model runs.\nTestEveryTestRunsSomewhere globally accepts a gate if any source contains NAME=value or Setenv(NAME,...). A setter after that test's own skip, or only in an unrelated fixture, therefore supplies apparent ownership without delivering the variable to the guarded process. This is a source-admitted counterexample, not an executed regression. Treat the scan as guard inventory, not proof of execution; four explicit awaitingPin reference-build gates remain. Retained implementation evidence reports Krea velocity median -0.0153 versus0.0354 outside0.012 while latent acceptance passes. Diagnose that existing numerical cause; do not relax its bound or add a second ledger/run. SQA ran no tests.\nc0905decb removes active-test deadline owner/tests, default evaluation/guard deadlines and wall-based post-failure skipping. RunCommand supplies -timeout=0 only when absent, preserving explicit supplied timeouts; Limited shares optional caller bounds. Failure output/run records, event progress and cancellation remain. All lane packages now finish after failure to collect independent diagnostic results; future expensive work counts. The removed15minute heuristic was not a declared dependency: do not restore it or assume all queued checks redundant. Admit actual shared setup dependencies through current owners before dependent work, preserving independent progress.398 finds the missed default-zero smoke guard. Root full record remainsfdd4ab1; no new full publication established.\ndc391678c replaces the hand-kept25package CUDA list/completeness rule with build-matched cudatest.Require discovery and existing dependency closure. The next ordinary95295a7c3 landing reports35CUDA packages and35m54s,versus nag-krea's earlier25packages/10m36s. That is an observed scope/cost change,not a matched performance comparison or proof the difference is all waste. ecd1/8f3 plan notes identify newly admitted real-model tests formerly reached by the cycle; current committed Krea nag_preset_windows_test is an example of an untagged-windowed CUDA test loading a real model. cuda-synthetic/tag is planned to move those tests behind modeltest;8f3 fixes its verifier to use-tags wholetree and declares affected claim/record paths,then cycle-lanes/do explicitly runs the receiving lane. Neither migration nor receiving-lane run is landed/completed at this pin. Moving tests shifts cost,it does not delete their numerical/recovery obligations. Root full measurement remainsNovember8; no new full cycle is established.",
+    "evidence": "Retained eb0080dcc accounted for all15 failing names at4dcd2df02:12passed, Un-0 needed an existing empty-store fixture, TabFM had insufficient detectable gain on26held-out requests, and viewed-model onboarding named conversions instead of native files. ddfba003b now resolves the scoped TabFM prerequisite using existing credit-g JSON requests: whole-row hash pools keep training/held-out membership disjoint, duplicated input rows are read once, and existing typed request/categorical columns replace CSV metadata/sign-log setup. The retained reading improves0.5739->0.6164, gain0.0425 over159held-out requests versus detectable0.0257; the unchanged gainDeviates2 criterion approves and promotes. Two retained runs agree; SQA ran none. This is one dataset/request-level route proof, not159independent datasets or broad TabFM superiority; within-pool dependence/generalization is not proved by a larger case count.2368507a1 gives the declared verifier its required card switch. Historical November8 messages remain unavailable and cannot inherit these later causes. 4caa70f6a resolves the named native Gemma onboarding prerequisite: the retained clean-checkout onboard activates its source directory as model2cc612d5 and retires d0be4bb0/f5e632cd conversions after binding their original source weights. The smoke declaration now names that served native identity with the same arithmetic oracle, replacing two retired declarations with one. TestAcceptedSmokeOracles still binds declarations to live active recipes; its false-green/missing/stale/native-score cases remain. Retained landing evidence reports its passing check, not a new full cycle. Remaining unique obligations below remain.\nThe root measurement record still names fdd4ab1cea379541604905e9b913b1a5f3d92bc8. readme-speed/measured publishes scorecard-20261114T025256Z from retained store readings and fills the speed table; it is a new publication, not a new full measurement cycle. Record.Carry retains newest source identities/dates and gaps owed a reading, rather than forcing unchanged valid work to run again. No new full cycle is established. The landing scorecard remains one fixed text input, not system-wide evidence. Keep the corrected distinction between card-wait time and useful model load, the existing digest/phase owner and all unique opt-in coverage obligations below.\nHash-once/phase preservation is already owned by plan.RecordDigests and runRecorder: same Started identity reuses digests, a new begin rehashes. The native fixture deliberately mutates bytes within a run yet retains the first digest. The historical12-18minute saving is extrapolated, not measured. Existing paired numerical owners, exact identities, partial failures and phase/package/digest preservation remain obligations.\n4dcd2df02 now removes/relocates the31 flagged opt-ins and related cases. The complete landing is +3production/-2835testAST, after charging the1248-node runs_somewhere policy; no fixture bytes disappear. Five deleted probe/benchmark files retain one-shot decision sources: adapter33e96a505, composition3716051ea, chain e88d0033a, dose1b446104a, loader72bc4248d. The obsolete eight-row identity probe used an empty repository store and3of7 goldens no longer match; preserve any still-required record identity through its existing owner rather than reviving that setup. Gemma4 image/audio prompt tests are actual duplicate contracts: TestMultimodalInputMatrix/gemma4-12b-image-audio-video retains the same SHA-pinned goldens/questions, full TokenIDs and production BuildImagePrompt/BuildAudioPrompt, plus first-token/video checks. Leadership/generation checks move to windows&&modeltest and existing CycleLanes model ownership; added baseline flags deliberately increase future cycle work, which is not measured by deleted AST.\nDeleted Kimi/Gemma3/UMT5 real-catalog tests checked external ReadSpec/ReadWeights, layer counts and hybrid/postnorm/relative-bias bindings. Existing TestReadWeightsKimiLinearHybrid and TestReadWeightsT5Encoder retain small native hybrid/bias bindings through readFixtureWeights->ReadWeights. That is partial requirement ownership, not proof of equivalent external metadata or checkpoint completeness.48/24 were checkpoint expectations, not universal architecture limits. Missing installed checkpoints alone is not a retirement reason; map remaining unique requirements or explicitly retire checkpoint-specific assertions. Do not replace these with new heavy model runs.\nTestEveryTestRunsSomewhere globally accepts a gate if any source contains NAME=value or Setenv(NAME,...). A setter after that test's own skip, or only in an unrelated fixture, therefore supplies apparent ownership without delivering the variable to the guarded process. This is a source-admitted counterexample, not an executed regression. Treat the scan as guard inventory, not proof of execution; four explicit awaitingPin reference-build gates remain. Retained implementation evidence reports Krea velocity median -0.0153 versus0.0354 outside0.012 while latent acceptance passes. Diagnose that existing numerical cause; do not relax its bound or add a second ledger/run. SQA ran no tests.\nc0905decb removes active-test deadline owner/tests, default evaluation/guard deadlines and wall-based post-failure skipping. RunCommand supplies -timeout=0 only when absent, preserving explicit supplied timeouts; Limited shares optional caller bounds. Failure output/run records, event progress and cancellation remain. All lane packages now finish after failure to collect independent diagnostic results; future expensive work counts. The removed15minute heuristic was not a declared dependency: do not restore it or assume all queued checks redundant. Admit actual shared setup dependencies through current owners before dependent work, preserving independent progress.398 finds the missed default-zero smoke guard. Root full record remainsfdd4ab1; no new full publication established.\n9a8766941 lands the CUDA ownership transfer after dc39's discovery expanded35packages/35m54s versus earlier25packages/10m36s. Current discovery is29packages; the retained landing actually ran8affected packages in1m44.259s. Neither difference is a matched speed comparison. Most real-model tests now require modeltest; models lane explicitly adds densecausaltrain/modeldevice/oscillatorimage/hybridtrain/nvvfx, with existing cycle tags/opt-ins. Selected resident-lifetime300AST,TabFM real-training330AST and transcription-device bodies are unchanged; the shared SenseNova fixture275AST is relocated unchanged. Assertions/goldens/calibration remain work,not deletion. TestReachInvariants now uses lanesOf rather than an empty dynamic-lane table, so its gate-exclusion rows are no longer vacuous.\nOne real-model resource measurement remains deliberately in the gate: SenseNova runtime_resources is byte-identical to its old retained harness and named by measuredInPlace; cuda-resources is open. TestTheCUDALaneRunsNoRealModelTest's330AST plus dataRootReaders496AST is a scoped package-test declaration/name/import fixpoint,not type resolution or proof all production/helper paths avoid models. It excludes that declared exception. Retained empty-root runs reported missing fixtures; TabFM headDir actually skips absent heads in child subtests,so a passing parent is not proof they executed. Use actual subcase/skip receipts,not raw top-level pass counts.\ncycle-lanes/do is open and no successful receiving-lane receipt was verified in this review; root full measurement remainsfdd4ab1(November8). A move does not deliver its continuation by itself. Capacity acceptance already preserves immutable old harness evidence through one explicit assets-path compatibility projection; a future build-tag-only transfer might reuse that same owner rather than force a new physical measurement solely for packaging. This is a bounded reduction hypothesis requiring exact source/dependency/protocol comparison,not permission to relabel old timing or weaken hardware calibration.",
     "evidence_basis": "observed",
-    "evidence_commit": "8f3c84d3233cd39f1155eb6c516d0ddfe92d4635",
+    "evidence_commit": "9a8766941178c9b44a0abc2c4d7ba27a36e086ae",
     "expected_benefit": {
         "outcome": "Already-landed digest reuse avoids potential repeated model-file reads. Current opt-in migration is net -2832 Go AST (+3production/-2835test), including1248policy nodes. Duplicate prompt setup disappears; moved model checks now charge the measurement cycle. Neither historical hashing estimates nor different gate walls establish elapsed savings.",
-        "uncertainty": "No newer full measurement run or matched runtime/peak comparison established. Within-run digest immutability remains explicit. Three deleted external catalog cases need unique-requirement disposition; the global-set scan is a heuristic. The earlier long-sequence lane +35production/+259test and predicted~3minutes remain separate costs, not saved work."
+        "uncertainty": "No newer full measurement run or matched runtime/peak comparison established. Within-run digest immutability remains explicit. Three deleted external catalog cases need unique-requirement disposition; the global-set scan is a heuristic. The earlier long-sequence lane +35production/+259test and predicted~3minutes remain separate costs, not saved work.",
+        "current_migration": "9a whole79changedGo paths:+137production/+958testAST,+27/+258Go lines,7testfiles,0productionfiles/packages/binaries/staticfixtures/CUDA additions. Model bodies/helpers move; no model loads or setup executions disappear from the receiving cycle. Whole migration is growth,not a net code reduction.",
+        "current_limits": "29discovered versus35prior packages and8actually reached in the landing are different counts. No matched runtime/peak saving or completed receiving-lane proof. One real-model gate exception remains. A packaging-only calibration carry could remove a forced remeasurement/exception but is unproved until the existing evidence owner accepts exact compatibility with old source/run identities retained."
       },
     "id": "SQA-266",
     "impact": "Hours of retained paired execution justify attention, but stale credit or losing reference-vs-optimized evidence hides numerical regressions. Preserve recipe/tokenizer/kernel/environment/lifetime bindings. No blanket minutes-only validation claim.",
     "likely_effort": "No current implementation task authorized by this report. Reassess the smallest named overlap from the next ordinary retained package record; keep completed digest/phase reuse credit.",
-    "plan_coverage": "40items/66steps at8f3. cuda-synthetic/tag verifier now has wholetree and affected claims/records; cycle-lanes/do follows it explicitly to deliver receiving-lane coverage. Tag migration/run remain planned,not credited. Existing Go cache/identity/partial-run owners and unique opt-in coverage remain. Scope35vs25/gate walls are retained ordinary observations,not matched savings; root full measurement stillfdd4ab1.",
+    "plan_coverage": "cuda-synthetic/tag landed9a8766941. cycle-lanes/do remains open for receiving execution; cuda-resources/do explicitly owns the remaining SenseNova gate exception. Current plan40items/66steps. Tag movement/claims rebinding and scoped reach proof are credited; neither receiving-lane success nor full measurement publication is inferred. A packaging-only evidence carry is an optional existing-owner comparison,not a new mandatory row or SQA workload.",
     "plan_references": [],
     "raised_by": "Review session e8549e3e at the owner's request, 2026-10-31 (owner: \"there is fundamental problem with this system to re-do testing over, and over, and over and over, and never finish\"; \"don't run the whole scorecard until code is fixed\")",
-    "recommended_change": "Credit the retained all15 accounting and Un-0 native setup correction. Credit ddfba003b's scoped TabFM held-out route and4caa70f6a's native Gemma activation/declaration reconciliation as completed prerequisites. Preserve the original statistical bound and source identity. The existing full-run row and owner scheduling now decide the next admitted cycle; do not keep reporting those cured prerequisites as blockers. Do not weaken the statistical bound, force conversion or mutate/activate the store as SQA. Reuse actual compatible evidence and retain partial failures. The one post-rehearsal exclusive full run still belongs to the existing measurement/publication driver, not another recurring workload. Distinguish the current causes from unrecoverable historical messages. Keep card-wait measurement separate from useful work and independent host progress.\nRetain the Gemma4 prompt oracle under the multimodal production-path fixture and the moved model checks under CycleLanes. For removed catalog/identity probes, transfer only unique supported requirements into existing native ReadWeights/record fixtures, or explicitly document why the checkpoint-specific requirement is retired. Keep one-shot refusal/SHIP evidence in Git; do not reinstate retired experiments as standing tests. Diagnose the exposed Krea failure before dependent performance/quality claims.\nRemove global incidental Setenv/string presence as proof that admission reaches a test. Retain declared CycleLanes and scoped child-process admission as owners, using actual selected/passed/skipped receipts from an ordinarily authorized run to decide coverage. Any retained static guard inventory must state that limit. Do not build a control-flow analyzer, selector, new cache or scheduler to perfect the heuristic; count the check's own maintenance and future newly enabled work.",
+    "recommended_change": "Credit the retained all15 accounting and Un-0 native setup correction. Credit ddfba003b's scoped TabFM held-out route and4caa70f6a's native Gemma activation/declaration reconciliation as completed prerequisites. Preserve the original statistical bound and source identity. The existing full-run row and owner scheduling now decide the next admitted cycle; do not keep reporting those cured prerequisites as blockers. Do not weaken the statistical bound, force conversion or mutate/activate the store as SQA. Reuse actual compatible evidence and retain partial failures. The one post-rehearsal exclusive full run still belongs to the existing measurement/publication driver, not another recurring workload. Distinguish the current causes from unrecoverable historical messages. Keep card-wait measurement separate from useful work and independent host progress.\nRetain the Gemma4 prompt oracle under the multimodal production-path fixture and the moved model checks under CycleLanes. For removed catalog/identity probes, transfer only unique supported requirements into existing native ReadWeights/record fixtures, or explicitly document why the checkpoint-specific requirement is retired. Keep one-shot refusal/SHIP evidence in Git; do not reinstate retired experiments as standing tests. Diagnose the exposed Krea failure before dependent performance/quality claims.\nRemove global incidental Setenv/string presence as proof that admission reaches a test. Retain declared CycleLanes and scoped child-process admission as owners, using actual selected/passed/skipped receipts from an ordinarily authorized run to decide coverage. Any retained static guard inventory must state that limit. Do not build a control-flow analyzer, selector, new cache or scheduler to perfect the heuristic; count the check's own maintenance and future newly enabled work.\nCredit the landed modeltest/receiving-owner migration and corrected dynamic reach invariant. Keep required numerical/recovery cases in the current cycle; verify actual selected subcases,skips and partial failures through existing receipts,not top-level parent PASS or a static source guard. Do not expand dataRootReaders into a generalized control-flow/type-loading framework. Retire measuredInPlace only with the resource case's valid retained owner.\nBefore paying for cuda-resources solely because a build tag changes harness bytes,compare that exact header edit plus unchanged imports/helper/numerical/protocol/hardware identities through TestImageVideoCapacityAcceptance's existing immutable-harness compatibility owner. If the change is strictly administrative and that contract permits a narrow explicit carry,retain the old producer/source/timing and remove the forced recalibration/current gate exception; do not create generic semantic hashes,ignore arbitrary comments,or rewrite old evidence as newly measured. Extend the existing alteration fixture with that one allowed edit and a forbidden numerical edit if new compatibility behavior is adopted. If equivalence is not established,preserve the planned exclusive measurement and claim no saving.",
     "severity": "P2",
     "sources": [
         {
@@ -929,6 +931,22 @@
         {
           "path": "commit 95295a7c3",
           "symbol": "ordinary CUDA lane35packages/35m54s"
+        },
+        {
+          "path": "internal/landing/cuda_synthetic_wholetree_test.go",
+          "symbol": "TestTheCUDALaneRunsNoRealModelTest;dataRootReaders;measuredInPlace"
+        },
+        {
+          "path": "internal/landing/reach_invariants_wholetree_test.go",
+          "symbol": "TestReachInvariants uses lanesOf(repo)"
+        },
+        {
+          "path": "cmd/validate/image_video_capacity_test.go",
+          "symbol": "TestImageVideoCapacityAcceptance immutable harness/assets-path projection;alteration fixture"
+        },
+        {
+          "path": "internal/tabularicl/predict_golden_test.go",
+          "symbol": "headDir child t.Skipf on missing real head"
         }
       ],
     "status": "open",
@@ -10111,19 +10129,17 @@
         ]
       },
     "fresh_ast": {
-        "revision": "8f3c84d3233cd39f1155eb6c516d0ddfe92d4635",
-        "method": "Retained selected-file Go parser and parser-local links/call tracing,formatted-body hashes,complete changed-file AST before/after. ECD source equivalence at8f3 verified by plan-only diff; separate structural-import fixture parsed at8f3.",
-        "counts": "11files10517AST/50functions/2139local links;0identical formatted bodies. Sharpening.Validate63/native finite155/ReadLocalImport81/ImportLocal665/fromFilesContext542/importLocal250/admission native414/exposeDevelopment209AST.",
+        "revision": "9a8766941178c9b44a0abc2c4d7ba27a36e086ae",
+        "method": "Existing external Go parser on selected current files and4baseline files,parser-local symbol links,formatted-body hashes and complete changed-file AST counts. Source tracing through existing capacity acceptance and skip helper.",
+        "counts": "12currentfiles14675AST/60functions/3004local links;0identical current bodies. dataRootReaders496/native guard330/shared SenseNova fixture275/cycleTagsOf122/capacity acceptance1442AST. Selected lifetime300/TabFM330/transcription43->44AST(doc change) and fixture275 retain identical formatted bodies.",
         "retained_result": [
-          "review-ecd1-selected-ast.json",
-          "review-ecd1-refusal-ast.json",
-          "review-8f3c-replay-ast.json",
-          "review-dc391678c-95295a7c3-cost.json",
-          "review-95295a7c3-ecd1caf31-cost.json",
-          "review-dc391678c-ecd1caf31-cost.json"
+          "review-9a87-selected-ast.json",
+          "review-9a87-before-ast.json",
+          "review-9a87-extra-ast.json",
+          "review-5c039a76a-9a8766941-cost.json"
         ],
-        "limits": "No package/type resolution or broad census. Initial nonexistent-path analyzer failure is not application evidence; successful corrected parses counted. No model/hash workload by SQA.",
-        "constants_and_geometry": "SHA-25632byte digest is a format identity limit; stat sizes are bytes and full hashes still decide identity. Sharpen gain10 is existing algorithm coefficient; MaxFloat64/(2*gain) is a derived finite arithmetic bound,not guessed product/hardware calibration.4x4RGB/sigma tails/upper-bound alpha are native geometry; crop1-level and440canvas evidence retained. Removed8token re-ask default has no remaining runtime owner because feature is explicitly retired."
+        "limits": "No global type/package or full migration numerical equivalence proof. Body matches are before/after relocation,not duplicate current code to delete. Implementation checker intentionally does not follow production calls and uses names for methods.",
+        "constants_and_geometry": "Retain native synthetic lifetime and real Krea256x256/eight-step/seed42 recovery as different contracts. TabFM task children may skip absent heads; parent PASS is not a head reading. Existing source/code/calibration identities remain strict; capacity owner already projects a declared assets-path move only. No hardware threshold,tolerance or stale-identity relaxation proposed."
       },
     "media_follow_up": {
         "revision": "e969f619a89e45c3380e30853b01af393d55ba47",
@@ -10287,18 +10303,19 @@
       "retained_change_costs": "Two consolidation landings(2d59f642c exact folds andbb4fc706a parameter folds) remove744 production nodes but add1591 test nodes, net+847 across Go. Pilot retirementea8ed43a7 removes5926 production/9990 test nodes and one schema, while fixture bytes grow599; its test deletion is already included in the day's offsets and must not be subtracted twice. These retained gates are broader changes, not matched per-test performance comparisons."
     },
     "retained_results": [
-        "952 native records cover malformed metadata,size mismatch,unopenable store and finite alpha bound; same-size wrong-content/default-root/link-cleanup fixture retained. Whole gate55m2s is not a measured admission-time saving.",
-        "ecd consolidation records ordinary evaluation/command checks with obsolete re-ask removed; historical readings/exposure stay in store. SQA ran no new experiment and does not infer minutes saved from removed AST.",
-        "952 ordinary CUDA lane reports35packages/35m54s vs earlier nag-krea25packages/10m36s. Different workload/builds,not a matched comparison. Current plan8f3 tags a whole-tree verifier correctly and explicitly schedules the receiving cycle lane after the future migration.",
-        "Root measurement_run remainsfdd4ab1(November8); planned cycle-lanes is not completion of the full measurement/publication cycle."
+        "9a reports29discovered CUDA packages and8actually reached/executed,cached0,1m44.259slane; prior35packages/35m54s and25packages/10m36s differ in scope/build. Whole gate12m18s includesother checks/wait; no matched speed claim.",
+        "Retained empty-root/modeltag runs exposed missing fixtures and skips. Current TabFM headDir explicitly skips missing child cases,so a top-level parent PASS can contain no real-head execution; do not label it a new model-proof failure or count it as delivered numerical coverage.",
+        "Receiving models lane explicitly adds densecausaltrain/modeldevice/oscillatorimage/hybridtrain/nvvfx and retains existing cycle tags/opt-ins. cycle-lanes is open; no successful receiving receipt verified in this bounded review.",
+        "SenseNova runtime_resources file is unchanged from5c and remains the declared gate exception. Capacity acceptance pins old harness bytes with an explicit historical assets-path transform; it supplies a possible narrow owner for an audited header-only move,not license to relabel measurements.",
+        "Root measurement_run remainsfdd4ab1(November8). Prior import/sharpen/reask closures and verified net deletion remain in their original entries; this migration's growth is counted separately."
       ],
-    "surface_reduction_analysis": "Verified whole delta-651production/-874testAST,-157/-132Go lines,net3Go files removed. Reask retirement-823/-1361 includes three flags,CLI adapter,three exported types,PrepareReask/Ask and2production/2testfiles; import/alpha+172/+487 and1testfile are fully charged. cmd/evaluate/internal/evaluation remain,so binary/package counts do not fall. No staticfixture deletion,measured runtime saving or global boilerplate percentage claimed. Dedicated standing diagnostic/model setup disappears; required exposure/confirmation cases retain existing owners.",
+    "surface_reduction_analysis": "Whole+137production/+958testGoAST,+27/+258Go lines,7testfiles,0newproduction files/packages/command binaries/staticfixtures/CUDA source. Tag/helper movement is not a saving; copied before/after bodies disappear only from their old files and still run in the cycle. Standard tag/claim handling and corrected reach/source guard are real code costs. No new net reduction,global boilerplate percentage or measured setup/runtime/peak saving claimed.",
     "tests": [
-        "REMOVE dedicated reask_exposure_test and reask_windows_model_test with the retired route/types; their diagnostic-only malformed/no-work cases no longer require an execution path. RETAIN shared reasoning exposure/confirmation/history and ordinary report/answer reuse coverage.",
-        "RETAIN TestALocalImportRefusesItsDeclarationBeforeHashing for cheap setup admission and TestAnImportOfChangedBytesIsRefused for actual content/publication/cleanup. Metadata and byte contracts are distinct; two native fixture setups currently grow. A small shared header/store setup is optional related-work consolidation,not a new fixture framework.",
-        "RETAIN TestFrozenComponentImportRegistration as distinct frozen structural registration/idempotency/no-recipe behavior; do not count it as hard-link import retry coverage. RETAIN six-file hash/location and hashing cancellation fixtures under their current owners.",
-        "SIMPLIFY/EXTEND the same finite sharpening fixture as landed: sigma tails,alpha0.7/derived upper bound and1e308 refusal. RETAIN independent recorded crop/canvas,request-radius and direct buffer checks; no new golden/model setup.",
-        "MERGE: no further safe complete before/after saving established for the two import fixture bodies. Planned modeltest moves must retain numerical/recovery ownership and receiving-lane evidence,not remove tests to improve gate time."
+        "RETAIN selected real lifetime/cancellation/owned-allocation,TabFM finite-gradient/decoder-change and transcription-device assertions under modeltest. Their bodies are unchanged; existing synthetic lifetime/tiny regression/headless workspace checks stay at their different boundaries.",
+        "RETAIN the existing shared SenseNova fixture for tagged and untagged consumers; moving its275AST declaration does not merge model loads. No new fixture framework or extra setup layer.",
+        "RETAIN corrected TestReachInvariants using lanesOf and the new narrow CUDA ownership/source guard as distinct contracts. Count guard330+dataRootReaders496AST and its declared exception; do not market it as complete type/control-flow proof or expand an exception registry.",
+        "RETAIN immutable capacity/calibration acceptance and alteration checks. If one administrative-header carry is adopted,extend that existing native alteration fixture for exactly the permitted edit and a rejected numerical edit; no new model workload by SQA.",
+        "SIMPLIFY build-tag placement as landed;MERGE/REMOVE no additional semantically safe current test-body deletion established. Identical before/after bodies are relocation evidence. Receiving-lane receipts must distinguish skipped children from executed cases."
       ]
   },
     "hygiene_assessment": "No hygiene finding. Scratch analysis is outside the repository; concrete correctness and production/test cost take priority.",
@@ -11832,10 +11849,10 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
     "limitations": [
-      "Source/AST/arithmetic and retained native/undo/landing records only; no SQA tests,imports,model/device work,gates,services,profiles,agents/messages,implementation,plan/skill edits or cleanup.",
-      "Parser-local links/format-body hashes are not full package/type or semantic-clone resolution. No identical bodies in50sampled functions is not a repository boilerplate percentage. One initial selected-path lookup failed on a nonexistent test filename; corrected repository discovery and successful parses alone supply these counts.",
-      "Alpha bound guarantees the stated unit-RGB finite-admission domain with retained default crop tolerance,not arbitrary extreme-setting equivalence or invalid-pixel recovery. Metadata Stat/size is cheap admission,never proof of content identity.",
-      "Observed35package CUDA lane cost differs in workload/build from earlier25packages; no matched speed saving/regression attributed. Planned tag relocation/receiving-lane execution is not completed work,even though current plan now dispatches it explicitly."
+      "No SQA tests,wholetree checks,model/device/calibration work,gates,services,profiles,agents/messages,implementation,plan/skill changes or cleanup. Existing source/AST and retained implementation records only.",
+      "Formatted-body equality retains identifiers/literals but is not type/import/execution equivalence. Parser-local links and the implementation's name-based dataRootReaders do not prove arbitrary production/helper paths. No repository boilerplate percentage or all63file numerical certification.",
+      "A modeltest tag moves work to the cycle; it does not delete model setup or deliver a receiving run. cycle-lanes is still open; no successful receiving receipt was verified. Root full measurement remainsNovember8.",
+      "29discovered/8executed/current35prior package and timing figures are different scopes/builds,not matched performance results. Capacity evidence carry is a hypothesis conditional on exact compatibility; old calibration/source/producer identity must not be rewritten."
     ],
     "master_lead_triage": {
     "at": "2026-11-13",
@@ -12956,11 +12973,11 @@
   },
     "next_finding_number": 403,
     "publication_context": {
-    "assessment": "Three verified closures and actual net production/test reduction,plus scoped concurrent-plan reconciliation; no new ID.",
-    "checked_head": "8f3c84d3233cd39f1155eb6c516d0ddfe92d4635",
-    "concurrent_changes": "8f3 plan-only commit reconciled after ECD source review; selected source and findings/owner changes re-read before publication. Unlanded real-model tag migration excluded.",
-    "current_pin": "8f3c84d3233cd39f1155eb6c516d0ddfe92d4635",
-    "publication": "Only docs/sqa_findings.json through existing hooks/ownership; raw implementation/unknown fields and unrelated index/worktree edits preserved.",
+    "assessment": "Substantive266 ownership transfer,corrected scope and full cost reconciliation;no new finding or status change.",
+    "checked_head": "9a8766941178c9b44a0abc2c4d7ba27a36e086ae",
+    "concurrent_changes": "Pinned9a and40item/66step plan reread;current source/report/owner state rechecked immediately before publication.",
+    "current_pin": "9a8766941178c9b44a0abc2c4d7ba27a36e086ae",
+    "publication": "Only docs/sqa_findings.json through existing hooks/ownership;raw implementation/unknown fields and unrelated work preserved.",
     "report_only": true
   },
     "ranked_active_finding_ids": [
@@ -13037,31 +13054,31 @@
     "repository": "C:\\Users\\jeffm\\overgo",
     "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
     "review_notes": [
-      "Closed361 explicit diagnostic retirement,387 early import metadata/store admission and393 alpha remainder. Stable IDs/closure evidence retained; no new ID. Unknown/implementation fields remain raw-exact.",
-      "Complete current Go delta is-651production/-874testAST(-157/-132lines),net3Go files removed. Retirement's-823/-1361 pays for admission growth+172/+487; no command binary/package/staticfixture reduction claimed.",
-      "266 now records the actual expanded CUDA scope/cost and plan's explicit receiving-lane check. Keep moved numerical/recovery contracts and full receiving work; no SQA execution or new scheduler."
+      "266 updated with landed ownership transfer,non-vacuous dynamic reach check,current costs and remaining receiving evidence/declared resource exception. No new findings or status changes.",
+      "Selected moved assertions remain byte-equivalent in their formatted bodies; SenseNova275AST helper placement permits tagged suites and the untagged resource owner,but does not reduce setup executions.",
+      "Full migration+137production/+958testAST,+27/+258lines,7testfiles; no safe net code reduction or measured elapsed/peak saving established. Existing immutable capacity owner supplies the smallest comparison before adding another remeasurement."
     ],
-    "reviewed_at": "2026-11-14T08:29:00Z",
-    "reviewed_master": "8f3c84d3233cd39f1155eb6c516d0ddfe92d4635",
+    "reviewed_at": "2026-11-14T10:28:07Z",
+    "reviewed_master": "9a8766941178c9b44a0abc2c4d7ba27a36e086ae",
     "schema_version": 2,
     "scope": [
-      "Committed95295a7c3 local-import/alpha admission and ecd1caf31 complete re-ask retirement through actual inventory,request,exposure and command callers. Guidance/Downloads hashes unchanged; original39item/65step plan read first,then concurrent8f3 plan-only change reconciled to40items/66steps.",
-      "Actual11selectedGo files10517AST/50functions/2139parser-local links plus complete10changedGo-path before/after cost. Selected ECD source unchanged at8f3(only docs/plan.json differs); prior review evidence reused. Real-model test-tag migration is uncommitted and excluded.",
+      "Committed9a8766941 CUDA test ownership and delivery through gate discovery,current cycle owners,selected split tests,shared SenseNova setup,claims and retained capacity acceptance. Committed plan40items/66steps read before prior ranking; unchanged guidance/Downloads hashes reused.",
+      "Actual12currentGo files14675AST/60functions/3004parser-local links plus4baseline files for body comparisons;complete79changedGo-path cost. Three sampled test bodies and one helper body unchanged by formatted hash; no global move/census claim.",
       "Downloads architecture target SHA256fe13a4bd47c8c41ea6dbf766c0acf3dc41ab7dab0c6d8bd926863313d4f34395 remains active. Prior implementation involvement disclosed: internal review,not independent third-party review."
     ],
     "sqa_response": {
-    "assessment": "229stable IDs:69open,154resolved,4deferred,2aliases. Closed361/387/393;266 scope/cost and plan-only8f3 continuation reconciled. No new IDs.",
+    "assessment": "229stable IDs:69open,154resolved,4deferred,2aliases.266 migration/cost/receiving evidence rechecked;no new ID,closure or priority change.",
     "concurrent_reconciliation": {
-        "SQA-361": "Closed: complete diagnostic retirement,shared exposure/results retained; conditional strict live admission no longer needed.",
-        "SQA-387": "Closed: cheap declarations/source size/store admitted before hashes; byte identity/owned link cleanup retained.",
-        "SQA-393": "Closed: arithmetic alpha limit at shared admission,finite native boundary and independent crop retained.",
-        "SQA-266": "Updated: observed expanded CUDA scope/cost and plan-only explicit receiving-lane run; no migration/run completion credited.",
-        "SQA-379": "Prior protocol/applicability remainder unchanged by these code commits."
+        "SQA-266": "Tag transfer landed;receiving execution and final resource exception remain open. Source guards are scoped,not execution evidence.",
+        "SQA-361": "Prior explicit retirement closure retained.",
+        "SQA-387": "Prior metadata/store admission closure retained.",
+        "SQA-393": "Prior alpha/radius/sigma closure retained.",
+        "SQA-379": "Original evaluation-protocol/current-producer remainder unchanged."
       },
     "consolidated_findings": [],
     "deferred_findings": [],
-    "dispatch_alignment": "Plan remains sole dispatch authority.8f3 explicitly names receiving-lane work; SQA neither starts it nor converts planned progress into evidence.",
-    "evidence": "Committed source/actual callers,successful11file AST,complete cost and retained native/landing records; no SQA execution workload.",
+    "dispatch_alignment": "Plan is sole dispatch authority. Receiving-row presence is not delivered execution; no whole-report commit prerequisite or new recurring campaign.",
+    "evidence": "Committed callers/current plan,12current+4baseline AST,complete79path cost and retained landing/model-admission records only.",
     "implementation_claim_audit": {
         "SQA-257": "closed: duplicate runtime verdict gone; native default/served fixtures are distinct; speculative generalization is not additional required work",
         "SQA-316": "closed: no-symbol whole-file identity and normal claim rebinding",
@@ -13079,7 +13096,7 @@
         "SQA-384": "closed after current source/native recheck; closure evidence and cost retained in canonical entry",
         "SQA-396": "closed: every comparison difference must be finite before tolerance",
         "SQA-393": "closed after source/retained-native and retirement-owner recheck; closure evidence,costs and limits retained",
-        "SQA-266": "partial: native Gemma onboarding/smoke prerequisite now met; no new full cycle",
+        "SQA-266": "partial: modeltest ownership landed,source reach invariant corrected;receiving receipt and one real-model gate exception remain;no net saving",
         "SQA-383": "closed after current source/native recheck; closure evidence and cost retained in canonical entry",
         "SQA-402": "closed after source/retained-native recheck; canonical closure evidence,costs and limits retained",
         "SQA-379": "partial: early comparable requests and draw/runtime/scorer binding fixed; consumed decode/questions and historical applicability remain",
@@ -13089,24 +13106,20 @@
         "SQA-381": "closed after source/retained-native recheck; canonical closure evidence,costs and limits retained",
         "SQA-387": "closed after source/retained-native and retirement-owner recheck; closure evidence,costs and limits retained"
       },
-    "implementation_response_context": "implementation_review/master_lead_triage and every unknown/implementation-owned field preserved raw-exact; reviewer closure evidence remains separate.",
+    "implementation_response_context": "Raw-exact implementation_review/master_lead_triage and all unknown/implementation-owned fields preserved;reviewer evidence/cost limits remain separate.",
     "new_findings": [],
     "partially_addressed_findings": [
         "SQA-266"
       ],
     "priority_changes": [],
-    "recommendation": "Preserve verified retirement/admission closures and actual net code deletion. Finish existing planned test ownership/delivery through current driver; no extra report gate,experiment or framework.",
+    "recommendation": "Credit test ownership and corrected reach proof without treating relocation as deletion/execution. Reuse existing receipts and immutable evidence owner; no additional scheduler,source-analysis framework,report gate or SQA workload.",
     "refactor": {
         "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
         "history_path": "docs/sqa_findings.json",
         "layout": "Full canonical open/deferred; compact resolved closure sources/revision/costs; explicit aliases, including aliases to closed canonical findings. Prior narratives remain in Git."
       },
     "reopened_findings": [],
-    "resolved_findings": [
-        "SQA-361",
-        "SQA-387",
-        "SQA-393"
-      ],
+    "resolved_findings": [],
     "review_policy": {
         "evidence_field": "evidence_basis",
         "values": {
@@ -13120,7 +13133,7 @@
         "review_focus": "Name served cell/route/output impact,or material data/security/recovery/work-stoppage/repeated-waste impact. Minor process cleanup rides planned work; no guessed committee ratio or extra policy gate.",
         "measurement": "Use existing delivery/check-cost records as advisory. Automated report commits are distinct from master implementation effort; measure useful capability/scorecard outcomes,not findings closed."
       },
-    "reviewed_master": "8f3c84d3233cd39f1155eb6c516d0ddfe92d4635",
+    "reviewed_master": "9a8766941178c9b44a0abc2c4d7ba27a36e086ae",
     "run_cost_correction": {
         "source": ".overgo-runtime/landing_waits.json",
         "query": "started on2026-11-09 America/New_York UTC-05; outcome exactly verify",
@@ -13140,12 +13153,9 @@
         },
         "correction": "140.54 is aggregate recorded wall across ten verify-refused runs,not one141-minute failed run and not all checking/wasted time. The earlier single-run phrasing was wrong; November8 measurement is a separate114.70-minute run. Historical run kinds may be unknown."
       },
-    "uncertainty": "No measured model/cycle time saving or broad numerical equivalence from finite alpha bound. Real-model test relocation and receiving lane remain planned; old full-cycle record remains.",
+    "uncertainty": "No verified successful receiving run,no matched timing/peak saving. One real-model gate exception remains; capacity carry is a bounded comparison hypothesis.",
     "updated_findings": [
-        "SQA-266",
-        "SQA-361",
-        "SQA-387",
-        "SQA-393"
+        "SQA-266"
       ]
   }
   }

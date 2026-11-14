@@ -235,7 +235,7 @@ func (delivery Delivery) String() string {
 		report = fmt.Sprint(delivery.ReportLandings)
 	}
 	return fmt.Sprintf("day to %s: %d commits (%d plan-only); steps %d landed, %d added, %d retired; report rows landed %s; "+
-		"%d commit attempts refused (%s), %d refused of unknown kind (%s), %d preflights (%d refused); gate %.1f h, %.1f h of it waiting",
+		"%d commit attempts failed (%s), %d failed of unknown kind (%s), %d preflights (%d failed); gate %.1f h, %.1f h of it waiting",
 		delivery.Revision, delivery.Commits, delivery.PlanOnly, len(delivery.Landed), len(delivery.Added), len(delivery.Retired), report,
 		refused, stages(delivery.Refused), unknown, stages(delivery.UnknownKind), delivery.Preflights, delivery.PreflightsRefused,
 		delivery.GateHours, delivery.WaitHours)

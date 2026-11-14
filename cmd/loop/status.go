@@ -82,7 +82,7 @@ func writeStatus(root string, said io.Writer) error {
 	if err := jsonfile.Write(path, status, startupFileMode); err != nil {
 		return err
 	}
-	_, err = fmt.Fprintf(said, "dispatched: %s\nlast commit: %s\nwaiting for the owner: %d\nweek: %.1f commits a day, %.0f%% of attempts refused, %.1f idle hours\n",
+	_, err = fmt.Fprintf(said, "dispatched: %s\nlast commit: %s\nwaiting for the owner: %d\nweek: %.1f commits a day, %.0f%% of attempts failed, %.1f idle hours\n",
 		status.Dispatched, status.LastCommit, len(status.WaitingForOwner), status.Week.LandingsPerDay, percent*status.Week.RefusedShare, status.Week.IdleHours)
 	if err != nil {
 		return err

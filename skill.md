@@ -30,7 +30,7 @@ description: The rules for Overgo development, written as one logical statement 
 - framework = the gate + the held-out scorecard + the cycle (check: cmd/gate TestSmallGateLandsAChange, internal/loop TestCycleFilesDeclinesAndAcceptsNothing)
 - the framework catches regressions and broken code (check: cmd/gate TestSmallGateLandsAChange, internal/loop TestCycleFilesDeclinesAndAcceptsNothing)
 - bold change => write the test that would have caught its failure -> let the framework judge (check: internal/landing TestTheLandingUndoesItsChangeAndTheCheckFails)
-- refused landing = information != failure (check: internal/landing TestRecoveryDrills)
+- refused landing = a failure carrying its cause, in the change, the gate or a record => the cause is classified, an external one with the probe that re-checks it, its recurrence counted, and the day's report says the attempt failed (check: internal/landing TestRecoveryDrills, cmd/loop TestTheStatusSaysTheDaysFiveMeasures)
 - ambition governs the code and never the system's boundaries (check: internal/landing TestChangeIsJudgedByTheTermsItStartedWith, cmd/loop TestPushPushesTheNamedCommitOnlyWhenAsked)
 - boundaries = scope, run budgets, stops, pushes and downloads, which the system follows and never changes (check: cmd/loop TestPushPushesTheNamedCommitOnlyWhenAsked, internal/plan TestAStopIsTheOwnersOrAnOutsideNeed, internal/landing TestChangeIsJudgedByTheTermsItStartedWith)
 - a row's count = a declared estimate != a limit => a change may raise it with a reason, and raising it or changing a row's check writes old and new in the commit (check: internal/landing TestAChangedCheckOrCountIsWrittenInTheCommit)

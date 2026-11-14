@@ -8,10 +8,26 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 129,
-        "reason": "Filed from history: 129, the median of what 156 landings that changed docs/plan.json counted"
+        "nodes": 794,
+        "reason": "Filed from history: 129, the median of what 156 landings that changed docs/plan.json counted Step answers: +665 (665, the median of what 2 landings that changed internal/server/webui/mod/discovery.js, internal/server/webui_browser_firstrun_test.go, internal/server/webui_browser_background_test.go, internal/server/webui_browser_store_test.go, internal/server/webui_browser_library_validation_test.go, internal/providerintake/intake.go, cmd/remote-provider/main.go counted)."
       },
       "steps": [
+        {
+          "id": "answers",
+          "title": "The model journeys reach their legs again and pass on success alone: a page's provider binds a variable the journey names, a declaration records the commit the server runs, and the journey's store copy carries no binding named for a recipe it left behind",
+          "status": "open",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserColdActivity$'",
+          "files": [
+            "internal/server/webui/mod/discovery.js",
+            "internal/server/webui_browser_firstrun_test.go",
+            "internal/server/webui_browser_background_test.go",
+            "internal/server/webui_browser_store_test.go",
+            "internal/server/webui_browser_library_validation_test.go",
+            "internal/providerintake/intake.go",
+            "cmd/remote-provider/main.go"
+          ],
+          "rationale": "The evidence: cycle-lanes/do's run of the cycle's lanes on 2026-11-14, at a build whose code was committed, stopped in its first lane. TestModelJourneyFirstRun waited from 04:10 to 10:20 at its cold-page provider declaration, the card idle, until its browser was closed: the page's provider note had answered \"remote provider: OVERGO_WEBUI_LANE_PAGE_KEY is not a variable the operator named for providers' keys\", since serving-bounds/provider-variables (38b24b610, 10 Nov, after the last cycle) binds a provider declared over HTTP only to a named variable, and the leg passed on the declared location or on \"worktree is dirty\" and waited for nothing else. TestWebUIBrowserColdActivity declares an unnamed COLD_FIXTURE_KEY the same way and passed on every landing on that refusal, so no landing saw the rule break the declaration. TestModelJourneyLibraryValidation then waited at its hub model's registration, which answered HTTP 500, \"alias compare-and-set failed: runtime-policy/v2/recipe:sha256:e2b82... is already bound\": the journey's store copy carries every alias whose target it copies, and a runtime policy's alias is named for its recipe and targets the policy every recipe of its task shares, so the copy held the binding of a recipe it left behind. A refusal is a failure (the owner, 2026-11-14), and these tests passed on one: the journeys on \"worktree is dirty\" and on the validation's source rule, and declareLaneRemote by skipping its legs.\n\nThe change: a provider's declaration and retirement, from the page or the provider command, record the commit the process runs: a declaration runs no code of the checkout on a model, so the clean-tree rule asked for nothing real there, while a validation keeps it. The journeys and the cold-activity test pass on success alone: the page's declaration answers with its location, a retirement relists the catalog, a validation runs to completion, and the lane's remote declarations are taken, each failing with the page's or the store's words otherwise. They name their key variable first, as an operator does with cmd/remote-provider -name-variable. The Library's provider note is a status the page names \"provider answer\", which the provider legs clear before each request and whose answer ends their wait, and a library row's failure banner ends the library journey's. The journey's store copy carries an alias only where its target and every artifact its name holds are copied (TestBrowserJourneyStoreIsolation holds a binding named for an absent recipe out). The wider pattern, a wait that ends only on success, is parked as a finding.\n\nCheck: the cold-activity browser test, which declares through the page and fails at once with the page's note unnamed. It is filed with refusal-failure, a plan the landing before it commits, so no landing runs it at a commit where its old wait has no end: a limit on the wait would bound its every run, and a timer is not how a wait ends here."
+        },
         {
           "id": "do",
           "title": "The cycle's lanes run at the build that gave them the gate's real-model tests, so each moved test runs before other work",

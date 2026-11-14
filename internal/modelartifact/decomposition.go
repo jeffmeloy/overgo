@@ -81,10 +81,6 @@ func ParseComponentDecomposition(content []byte) (ComponentDecompositionDocument
 	return componentDecompositionCodec.Parse(content)
 }
 
-func (d ComponentDecompositionDocument) Content() (artifact.Content, error) {
-	return componentDecompositionCodec.Content(d)
-}
-
 func (d ComponentDecompositionDocument) Lineage() artifact.Lineage {
 	return artifact.Lineage{Child: d.ID, Parent: d.Model, Relation: artifact.RelationDerivedFrom}
 }

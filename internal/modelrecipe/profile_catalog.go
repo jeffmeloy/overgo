@@ -8,6 +8,7 @@ import (
 	"slices"
 
 	"overgo/internal/artifact"
+	"overgo/internal/checked"
 	"overgo/internal/model"
 )
 
@@ -245,6 +246,16 @@ func compactProfileContents(contents []artifact.Content) []artifact.Content {
 func compactProfileLineage(lineage []artifact.Lineage) []artifact.Lineage {
 	slices.SortFunc(lineage, compareLineage)
 	return slices.Compact(lineage)
+}
+
+func compareLineage(left, right artifact.Lineage) int {
+	if order := artifact.CompareID(left.Child, right.Child); checked.Nonzero(order) {
+		return order
+	}
+	if order := artifact.CompareID(left.Parent, right.Parent); checked.Nonzero(order) {
+		return order
+	}
+	return int(left.Relation) - int(right.Relation)
 }
 
 func registeredProfileAlias(architecture string) string {

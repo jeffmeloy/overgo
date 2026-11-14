@@ -156,13 +156,6 @@ func NewAttemptRecord(record AttemptRecord) (AttemptRecord, error) {
 	return attemptCodec.NewInitial(record)
 }
 
-// ValidateIdentity proves that the attempt still matches its immutable
-// content-addressed identity. Comparison admission uses this to reject a
-// strategy ID attached after the gate identified the record.
-func (a AttemptRecord) ValidateIdentity() error {
-	return attemptCodec.ValidateIdentity(a)
-}
-
 // Content encodes the attempt for its store batch.
 func (a AttemptRecord) Content() (artifact.Content, error) {
 	return attemptCodec.Content(a)

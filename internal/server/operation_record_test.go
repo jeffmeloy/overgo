@@ -136,7 +136,6 @@ func (recordRuntime) ScoreContinuations(context.Context, string, []string) ([]se
 //   - the id is presented a second time by a granted recovery alone, whose first attempt ended in an error
 //   - a numbered repeat is answered from the run ledger's memory with no second submission, and a later server has no such memory
 //   - the library validation's executor is a stub here, because the real one loads a model, and its submission is the server's own
-//   - the grounded replay's request names artifacts the store lacks, so both of its operations fail after they were submitted
 //   - the tool executor is the one a server makes when its configuration holds a tool adapter, which no command sets
 func TestAnOperationsRecordIsFoundAgainOrIsNotWritten(t *testing.T) {
 	t.Parallel()
@@ -280,18 +279,13 @@ func TestAnOperationsRecordIsFoundAgainOrIsNotWritten(t *testing.T) {
 		t.Errorf("model build: two submissions ran as %s and %s with %d executions, want two operations that each executed", first, second, builds.executions.Load())
 	}
 
-	// An evaluation of plans, and a grounded replay.
+	// An evaluation of plans.
 	capabilities, err := evaluations.EvaluationCapabilities(ctx)
 	if err != nil || len(capabilities) != 1 {
 		t.Fatalf("evaluation workspace lists %d capabilities (%v), want one", len(capabilities), err)
 	}
 	if first, second := twice("evaluation", server, "/evaluations/run", evaluationRunRequest{Model: model, Plans: []artifact.ID{capabilities[0].Suite.Plan}}, operation.StateCompleted); first == second {
 		t.Errorf("evaluation: two submissions ran as the one operation %s, want two", first)
-	}
-	var replay any
-	testcheck.NoError(t, json.Unmarshal(groundedReplayAPIBody(t, model, groundedReplayAPIRequest(t, evaluated), false), &replay))
-	if first, second := twice("grounded replay", server, "/evaluations/run", replay, operation.StateFailed); first == second {
-		t.Errorf("grounded replay: two submissions ran as the one operation %s, want two", first)
 	}
 
 	// A library validation, which answers with its operation as a workflow does.

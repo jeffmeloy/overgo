@@ -10,7 +10,7 @@ import (
 
 // TestRSICausalChainClosure pins the integrated chain: from a
 // motivating observation through the controller proposal, the attempt,
-// the experiment lifecycle, the promotion decision, serving evidence,
+// the experiment lifecycle, serving evidence,
 // and the rollback follow-up, every record carries the same causal
 // root and the traversal reads typed causal fields only -- never
 // chronology or aliases. Broken causal bindings refuse on every record
@@ -33,22 +33,6 @@ func TestRSICausalChainClosure(t *testing.T) {
 	}
 	lifecycle = testcheck.Must(experimentLifecycleCodec.New(lifecycle))(t)
 
-	decision := improvementDecision{
-		Version: artifact.SecondDocumentVersion, State: ImprovementPromote,
-		Admission:   id(artifact.KindEvidence, "admission"),
-		ParentModel: id(artifact.KindModel, "parent"), Incumbent: id(artifact.KindModel, "incumbent"),
-		Candidate: id(artifact.KindModel, "candidate"), ChildModel: id(artifact.KindModel, "child"),
-		Dataset:          id(artifact.KindDataset, "dataset"),
-		DevelopmentSplit: id(artifact.KindDatasetShard, "dev"), PromotionSplit: id(artifact.KindDatasetShard, "promo"),
-		Recipe: id(artifact.KindRecipe, "recipe"), Code: id(artifact.KindEvidence, "code"),
-		Evaluator: id(artifact.KindEvidence, "evaluator"), Run: id(artifact.KindRun, "run"),
-		Evaluation: id(artifact.KindEvaluation, "evaluation"), Proposer: id(artifact.KindEvidence, "proposer"),
-		Authority: id(artifact.KindEvidence, "authority"), Decider: id(artifact.KindEvidence, "decider"),
-		Rollback: id(artifact.KindModel, "parent"),
-		Causal:   &root,
-	}
-	decision = testcheck.Must(improvementDecisionCodec.New(decision))(t)
-
 	servingValue := servingObservationFixture(t)
 	servingValue.Version = artifact.InitialDocumentVersion
 	servingValue.Causal = &root
@@ -65,7 +49,7 @@ func TestRSICausalChainClosure(t *testing.T) {
 		t.Fatalf("rollback does not name its cause: %+v", rollbackCausal)
 	}
 	for name, causal := range map[string]*CausalContext{
-		"attempt": attempt.Causal, "lifecycle": lifecycle.Causal, "decision": decision.Causal,
+		"attempt": attempt.Causal, "lifecycle": lifecycle.Causal,
 		"serving": serving.Causal, "rollback": &rollbackCausal,
 	} {
 		if causal == nil || causal.Root != proposalEvidence {
@@ -86,10 +70,6 @@ func TestRSICausalChainClosure(t *testing.T) {
 	lifecycle.Causal, lifecycle.ID = &broken, artifact.ID{}
 	if _, err := experimentLifecycleCodec.New(lifecycle); err == nil {
 		t.Fatal("lifecycle accepted a broken causal binding")
-	}
-	decision.Causal, decision.ID = &broken, artifact.ID{}
-	if _, err := improvementDecisionCodec.New(decision); err == nil {
-		t.Fatal("decision accepted a broken causal binding")
 	}
 	servingValue.Causal = &broken
 	if _, err := servingObservationCodec.New(servingValue); err == nil {

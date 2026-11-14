@@ -54,20 +54,17 @@ type improvement struct {
 }
 
 // runRecorder keeps a measurement run's record of itself in the process state of the checkout at root as the run
-// goes: its start, each phase's start, expected end and end, the rows it filed and its end. A phase is expected to end
-// after the wall the same phase took in the run recorded before it.
+// goes: its start, each phase's start and end, the rows it filed and its end.
 type runRecorder struct {
-	root   string
-	before plan.MeasurementRun
-	run    plan.MeasurementRun
+	root string
+	run  plan.MeasurementRun
 }
 
-// begin starts the record of a run at commit, keeping the run before it to expect each phase's end by.
+// begin starts the record of a run at commit.
 func (r *runRecorder) begin(commit string) {
 	if r == nil {
 		return
 	}
-	r.before, _ = plan.ReadMeasurementRun(r.root)
 	start, _ := processcontrol.ProcessStart(os.Getpid())
 	r.run = plan.MeasurementRun{Commit: commit, Process: os.Getpid(), ProcessStart: start, Started: time.Now()}
 	r.write()
@@ -79,9 +76,6 @@ func (r *runRecorder) phase(name string) func(passed bool) {
 		return func(bool) {}
 	}
 	begun := plan.MeasurementPhase{Name: name, Started: time.Now()}
-	if wall, timed := r.before.Wall(name); timed {
-		begun.Expected = begun.Started.Add(wall)
-	}
 	r.run.Phases = append(r.run.Phases, begun)
 	at := len(r.run.Phases) - 1
 	r.write()

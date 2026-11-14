@@ -11,11 +11,9 @@ import (
 	"math"
 
 	"overgo/internal/artifact"
-	"overgo/internal/composition"
 	"overgo/internal/evaluation"
 	"overgo/internal/jsonfile"
 	"overgo/internal/loop"
-	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/representation"
@@ -262,39 +260,6 @@ func publishDirection(root, specPath string, output io.Writer) error {
 	return err
 }
 
-// attemptReceiptSpec addresses one operation's terminal attempt receipt.
-type attemptReceiptSpec struct {
-	Operation artifact.ID `json:"operation"`
-	Attempt   uint32      `json:"attempt"`
-}
-
-// readAttemptReceipt resolves and prints one terminal attempt receipt: the
-// operator's read path over the exact recovery evidence chain.
-func readAttemptReceipt(root, specPath string, output io.Writer) error {
-	var spec attemptReceiptSpec
-	if err := jsonfile.DecodeStrict(specPath, &spec); err != nil {
-		return err
-	}
-	store, err := overgodb.OpenReadOnly(root)
-	if err != nil {
-		return err
-	}
-	defer store.Close()
-	receipt, found, err := runrecord.ResolveTerminalAttemptReceipt(context.Background(), store, spec.Operation, spec.Attempt)
-	if err != nil {
-		return err
-	}
-	if !found {
-		return fmt.Errorf("loop: operation %s attempt %d has no terminal receipt", spec.Operation, spec.Attempt)
-	}
-	encoded, err := json.MarshalIndent(receipt, "", " ")
-	if err != nil {
-		return err
-	}
-	_, err = fmt.Fprintf(output, "%s\n", encoded)
-	return err
-}
-
 // commitDocument commits one content-addressed document with its lineage.
 func commitDocument(root, key string, document interface {
 	Content() (artifact.Content, error)
@@ -318,102 +283,6 @@ func commitDocument(root, key string, document interface {
 		return err
 	}
 	_, err = fmt.Fprint(output, message)
-	return err
-}
-
-// candidateEvaluationSpec binds one controlled comparison: the admitted
-// candidate, the driver decision that authorized evaluation, the frozen
-// evaluator and inputs, the pre-declared requirements and tradeoffs, and
-// the measured arms.
-type candidateEvaluationSpec struct {
-	Candidate    artifact.ID                              `json:"candidate"`
-	Admission    artifact.ID                              `json:"admission"`
-	Decision     artifact.ID                              `json:"decision"`
-	Evaluator    artifact.ID                              `json:"evaluator"`
-	Inputs       artifact.ID                              `json:"inputs"`
-	Requirements []evaluation.CandidateFitnessRequirement `json:"requirements"`
-	Tradeoffs    []evaluation.CandidateAcceptedTradeoff   `json:"tradeoffs,omitempty"`
-	Arms         []evaluation.CandidateEvaluationArm      `json:"arms"`
-}
-
-// evaluateCandidate recompiles the admitted candidate deterministically,
-// re-derives the frozen evaluation contract, and judges the measured arms
-// through the one cross-domain evaluator. A refusal prints as evidence;
-// nothing activates.
-func evaluateCandidate(root, specPath string, output io.Writer) error {
-	var spec candidateEvaluationSpec
-	if err := jsonfile.DecodeStrict(specPath, &spec); err != nil {
-		return err
-	}
-	store, err := overgodb.OpenReadOnly(root)
-	if err != nil {
-		return err
-	}
-	defer store.Close()
-	ctx := context.Background()
-	decision, err := runrecord.RequireDriverDecision(ctx, store, spec.Decision)
-	if err != nil {
-		return err
-	}
-	compiled, err := modelrecipe.CompileAdmittedCandidate(
-		ctx, store, spec.Candidate, spec.Admission,
-		composition.SameBaseCandidatePlugin{}, modelrecipe.SteeringCandidatePlugin{},
-	)
-	if err != nil {
-		return err
-	}
-	contract, err := evaluation.NewCrossDomainEvaluationContract(
-		decision, compiled, spec.Evaluator, spec.Inputs, spec.Requirements, spec.Tradeoffs,
-	)
-	if err != nil {
-		return err
-	}
-	result, err := evaluation.EvaluateCrossDomainCandidate(contract, decision, compiled, spec.Arms)
-	if err != nil {
-		return err
-	}
-	encoded, err := json.MarshalIndent(result, "", " ")
-	if err != nil {
-		return err
-	}
-	_, err = fmt.Fprintf(output, "%s\n", encoded)
-	return err
-}
-
-// recipeDerivationSpec binds one materialization to the exact serving
-// policy the derived per-arm recipes must satisfy.
-type recipeDerivationSpec struct {
-	Materialization artifact.ID            `json:"materialization"`
-	Placement       recipe.Placement       `json:"placement"`
-	Session         recipe.SessionPolicy   `json:"session"`
-	Residency       recipe.ResidencyPolicy `json:"residency"`
-	Tasks           []recipe.Task          `json:"tasks"`
-}
-
-// deriveRecipes projects one materialized candidate into its per-arm
-// execution and evaluation recipes and prints the immutable set; it
-// activates and serves nothing.
-func deriveRecipes(root, specPath string, output io.Writer) error {
-	var spec recipeDerivationSpec
-	if err := jsonfile.DecodeStrict(specPath, &spec); err != nil {
-		return err
-	}
-	store, err := overgodb.OpenReadOnly(root)
-	if err != nil {
-		return err
-	}
-	defer store.Close()
-	set, err := modelrecipe.DeriveCandidateRecipes(context.Background(), store, spec.Materialization, modelrecipe.CandidateRecipePolicy{
-		Placement: spec.Placement, Session: spec.Session, Residency: spec.Residency, Tasks: spec.Tasks,
-	})
-	if err != nil {
-		return err
-	}
-	encoded, err := json.MarshalIndent(set, "", " ")
-	if err != nil {
-		return err
-	}
-	_, err = fmt.Fprintf(output, "%s\n", encoded)
 	return err
 }
 

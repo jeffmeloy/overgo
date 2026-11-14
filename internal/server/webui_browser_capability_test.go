@@ -11,7 +11,7 @@ import (
 func TestWebUIBrowserAgentCapabilityRefresh(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "capability refresh runs through cmd/webui-lane")
-	fixture := newAgentWorkspaceFixture(t, nil, nil, nil)
+	fixture := newAgentWorkspaceFixture(t, nil)
 	defer fixture.store.Close()
 	server := httptest.NewServer(fixture.handler)
 	defer server.Close()

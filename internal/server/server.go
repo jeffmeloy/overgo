@@ -28,7 +28,6 @@ import (
 	"overgo/internal/capabilityruntime"
 	"overgo/internal/checked"
 	"overgo/internal/cuda/driver"
-	"overgo/internal/dataset"
 	"overgo/internal/discovery"
 	"overgo/internal/inference"
 	"overgo/internal/modelrecipe"
@@ -333,12 +332,10 @@ type Config struct {
 	HubDownloadRoot string
 	// WebUIDir serves the workbench client from this directory instead of the
 	// embedded copy, with caching disabled; development only, empty in production.
-	WebUIDir      string
-	Environment   runrecord.Environment
-	Evaluation    EvaluationWorkspaceAPI
-	Analysis      AnalysisPolicy
-	AgentEmbedder dataset.AgentEmbeddingProvider
-	AgentReranker dataset.AgentRerankProvider
+	WebUIDir    string
+	Environment runrecord.Environment
+	Evaluation  EvaluationWorkspaceAPI
+	Analysis    AnalysisPolicy
 	// Workflows is the workflow workspace the launcher assembles beside the
 	// generator (media generation, transcription, training, model building);
 	// absent, the workflow and native media routes answer that it is

@@ -119,11 +119,6 @@ func NewEfficiencyTrace(value EfficiencyTrace) (EfficiencyTrace, error) {
 	return efficiencyTraceCodec.NewInitial(value)
 }
 
-// ParseEfficiencyTrace decodes one canonical trace document.
-func ParseEfficiencyTrace(data []byte) (EfficiencyTrace, error) {
-	return efficiencyTraceCodec.Parse(data)
-}
-
 // Content returns the canonical committed bytes of the trace.
 func (value EfficiencyTrace) Content() (artifact.Content, error) {
 	return efficiencyTraceCodec.Content(value)

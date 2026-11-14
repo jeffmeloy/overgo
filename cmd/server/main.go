@@ -314,10 +314,6 @@ func run() error {
 		return err
 	}
 	policy := runner.RuntimePolicy()
-	agentRetrieval, err := newAgentRetrievalProvider(runner, runner.ModelID(), policy.ID)
-	if err != nil {
-		return err
-	}
 	serving := policy.Serving
 	clioptions.ApplyDefault(explicit, "model-id", modelID, serving.ModelID)
 	clioptions.ApplyDefault(explicit, "max-tokens", maxTokens, serving.MaxTokens)
@@ -524,8 +520,6 @@ func run() error {
 		WebUIDir:           *webuiDir,
 		Evaluation:         evaluationWorkspace,
 		Workflows:          workflows,
-		AgentEmbedder:      agentRetrieval,
-		AgentReranker:      agentRetrieval,
 		LibraryIntake:      serverLibraryIntake(),
 		Loop:               serverLoop(shutdownContext),
 		Scorecard:          serverScorecard,

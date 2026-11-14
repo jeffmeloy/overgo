@@ -48,7 +48,7 @@ func streamingAgentFixture(t *testing.T, store *overgodb.Store) (agentWorkspaceF
 	t.Helper()
 	executable := testcheck.Must(os.Executable())(t)
 	t.Setenv("PATH", filepath.Dir(executable)+string(os.PathListSeparator)+os.Getenv("PATH"))
-	fixture := newAgentWorkspaceFixture(t, store, nil, nil)
+	fixture := newAgentWorkspaceFixture(t, store)
 	listener := testcheck.Must(net.Listen("tcp", "127.0.0.1:0"))(t)
 	t.Cleanup(func() { _ = listener.Close() })
 	release := func() {
@@ -146,8 +146,8 @@ func TestAgentSessionRecoveryAndStreaming(t *testing.T) {
 func TestAgentThreadSurvivesRestart(t *testing.T) {
 	t.Parallel()
 	store := overgodbtest.Open(t, t.TempDir())
-	first := newAgentWorkspaceFixture(t, store, nil, nil)
-	activateAgentFromAPI(t, first.handler, publishAgentFromAPI(t, first, nil))
+	first := newAgentWorkspaceFixture(t, store)
+	activateAgentFromAPI(t, first.handler, publishAgentFromAPI(t, first))
 	chat := func(fixture agentWorkspaceFixture, session string, messages ...string) {
 		t.Helper()
 		turns := make([]map[string]string, len(messages))
@@ -171,7 +171,7 @@ func TestAgentThreadSurvivesRestart(t *testing.T) {
 	testcheck.NoError(t, first.handler.Close())
 
 	// A restarted server over the same store reads the thread back, bounded by its own entries alone.
-	second := newAgentWorkspaceFixture(t, store, nil, nil)
+	second := newAgentWorkspaceFixture(t, store)
 	read := func(bound int) agentThreadResponse {
 		t.Helper()
 		second.handler.config.MaxStoredResponses = bound

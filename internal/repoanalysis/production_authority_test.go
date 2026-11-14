@@ -56,8 +56,8 @@ type productionAuthoritySource struct {
 }
 
 // AuditProductionAuthorityBoundaries refuses new or displaced production
-// entry paths around storage, process, capability, tool, trigger, and
-// promotion authorities. It parses the already-discovered candidate snapshot
+// entry paths around storage, process, tool, trigger, and promotion
+// authorities. It parses the already-discovered candidate snapshot
 // once and launches no subprocess.
 func AuditProductionAuthorityBoundaries(snapshot gosyntax.Snapshot) (ProductionAuthorityReport, error) {
 	report := ProductionAuthorityReport{SourceIdentity: snapshot.Identity()}
@@ -66,7 +66,7 @@ func AuditProductionAuthorityBoundaries(snapshot gosyntax.Snapshot) (ProductionA
 		return ProductionAuthorityReport{}, err
 	}
 	auditStorageAndProcessAuthorities(sources, &report)
-	auditCapabilityAndToolAuthorities(sources, &report)
+	auditToolAuthorities(sources, &report)
 	auditTriggerAndPromotionAuthorities(sources, &report)
 	auditRSIAuthorities(sources, &report)
 	slices.SortFunc(report.Findings, func(left, right ProductionAuthorityFinding) int {
@@ -82,17 +82,16 @@ func AuditProductionAuthorityBoundaries(snapshot gosyntax.Snapshot) (ProductionA
 }
 
 var protectedAuthorityImports = map[string]string{
-	"os":                                "process",
-	"os/exec":                           "process",
-	"overgo/internal/agenttool":         "tool",
-	"overgo/internal/artifact":          "storage",
-	"overgo/internal/capabilityruntime": "capability",
-	"overgo/internal/composition":       "promotion",
-	"overgo/internal/inference":         "promotion",
-	"overgo/internal/processcontrol":    "process",
-	"overgo/internal/runrecord":         "trigger",
-	"overgo/internal/workflowruntime":   "trigger",
-	"syscall":                           "process",
+	"os":                              "process",
+	"os/exec":                         "process",
+	"overgo/internal/agenttool":       "tool",
+	"overgo/internal/artifact":        "storage",
+	"overgo/internal/composition":     "promotion",
+	"overgo/internal/inference":       "promotion",
+	"overgo/internal/processcontrol":  "process",
+	"overgo/internal/runrecord":       "trigger",
+	"overgo/internal/workflowruntime": "trigger",
+	"syscall":                         "process",
 }
 
 func productionAuthoritySources(snapshot gosyntax.Snapshot, report *ProductionAuthorityReport) ([]productionAuthoritySource, error) {

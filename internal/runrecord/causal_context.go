@@ -125,16 +125,6 @@ func validCausal(causal *CausalContext) error {
 	return causal.Validate()
 }
 
-// cloneCausal deep-copies an optional causal binding for codec clones.
-func cloneCausal(causal *CausalContext) *CausalContext {
-	if causal == nil {
-		return nil
-	}
-	cloned := *causal
-	cloned.Motivation = slices.Clone(causal.Motivation)
-	return &cloned
-}
-
 // Link deterministically derives the storage-neutral projection input for one
 // validated causal context and execution.
 func (context CausalContext) Link(execution artifact.ID) (artifact.CausalLink, error) {

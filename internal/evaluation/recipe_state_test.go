@@ -6,6 +6,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -19,7 +20,7 @@ import (
 func TestAHeldOutReadingCarriesTheStateOfTheRecipeThatRan(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store := newCapabilityEvaluationStore(t)
+	store := overgodbtest.Open(t, t.TempDir())
 	weights := []byte("recipe-state-weights")
 	weightsID := testutil.ArtifactBytesID(t, artifact.KindTensorSet, weights)
 	manifest := testcheck.Must(artifact.NewManifest(artifact.KindModel, []artifact.Component{{

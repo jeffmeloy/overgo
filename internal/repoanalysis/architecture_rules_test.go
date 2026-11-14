@@ -64,9 +64,6 @@ func TestProductionAuthorityBoundaries(t *testing.T) {
 		{name: "aliased process", family: "process", overlay: map[string][]byte{
 			"internal/server/rogue_process.go": []byte("package server\nimport runner \"os/exec\"\nfunc rogueProcess() { _ = runner.Command(\"probe\") }\n"),
 		}},
-		{name: "capability", family: "capability", overlay: map[string][]byte{
-			"internal/server/rogue_capability.go": []byte("package server\nimport capability \"overgo/internal/capabilityruntime\"\nvar roguePlacement = capability.ExactCapabilityPlacement{Task: \"rogue\"}\n"),
-		}},
 		{name: "active catalog bound through the alias owner", family: "tool", overlay: map[string][]byte{
 			"internal/server/rogue_catalog.go": []byte("package server\nimport (\"overgo/internal/agenttool\"; \"overgo/internal/artifact\")\nfunc rogueCatalog(target, held artifact.ID) artifact.AliasBinding { return artifact.AliasMove(agenttool.ActiveCatalogAlias, target, held) }\n"),
 		}},

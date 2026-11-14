@@ -63,11 +63,4 @@ func TestComparisonRefusesMixedRealizedResidency(t *testing.T) {
 	if err != nil || !compared.StrictImprovement {
 		t.Fatalf("matched serving comparison = %+v, %v", compared, err)
 	}
-	serving := servingObservationFixture(t)
-	serving.RealizedResidency = recipe.RealizedOOMStreamed
-	serving = testcheck.Must(NewServingObservation(serving))(t)
-	fitness, err := serving.ResourceFitness(artifact.ID{}, nil, ResourceWallNS)
-	if err != nil || fitness.Scope.RealizedResidency != recipe.RealizedOOMStreamed {
-		t.Fatalf("serving outcome lost in resource observation: %+v, %v", fitness.Scope, err)
-	}
 }

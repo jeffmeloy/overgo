@@ -2,6 +2,7 @@ package overgodb_test
 
 import (
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -88,7 +89,8 @@ func TestInteractionEfficiencyBaseline(t *testing.T) {
 		Evidence: evidence,
 	}))(t)
 	content := testcheck.Must(trace.Content())(t)
-	parsed := testcheck.Must(runrecord.ParseEfficiencyTrace(content.Data))(t)
+	var parsed runrecord.EfficiencyTrace
+	testcheck.NoError(t, json.Unmarshal(content.Data, &parsed))
 	if parsed.Work != work {
 		t.Fatalf("trace work drifted: %+v vs %+v", parsed.Work, work)
 	}

@@ -13,7 +13,6 @@ import (
 
 	"overgo/internal/agenttool"
 	"overgo/internal/artifact"
-	"overgo/internal/dataset"
 	"overgo/internal/inference"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
@@ -76,19 +75,6 @@ type agentStateRequest struct {
 	State runrecord.AgentState `json:"state"`
 }
 
-type agentRetrievalRequest struct {
-	Agent        string      `json:"agent"`
-	Projection   artifact.ID `json:"projection"`
-	Query        string      `json:"query"`
-	Limit        uint64      `json:"limit"`
-	RerankPolicy artifact.ID `json:"rerank_policy"`
-}
-
-const (
-	agentRetrievalReceiptHeader = "X-Overgo-Retrieval-Receipt"
-	agentRetrievalTraceHeader   = "X-Overgo-Interaction-Trace"
-)
-
 type agentChatRequest struct {
 	Agent    string                  `json:"agent"`
 	Messages []inference.ChatMessage `json:"messages"`
@@ -131,19 +117,6 @@ func (h *Handler) agentTransition(response http.ResponseWriter, request *http.Re
 	}
 	active, err := h.transitionAgent(request.Context(), body.Name, body.State)
 	writeAgentResult(response, http.StatusOK, active, err)
-}
-
-func (h *Handler) agentRetrieve(response http.ResponseWriter, request *http.Request) {
-	var body agentRetrievalRequest
-	if !h.decodeBoundedJSON(response, request, &body) {
-		return
-	}
-	retrieval, err := h.agentRetrieval(request.Context(), body)
-	if err == nil {
-		response.Header().Set(agentRetrievalReceiptHeader, retrieval.Receipt.ID.String())
-		response.Header().Set(agentRetrievalTraceHeader, retrieval.Trace.ID.String())
-	}
-	writeAgentResult(response, http.StatusOK, retrieval.Search.Results, err)
 }
 
 func (h *Handler) agentObservables(response http.ResponseWriter, request *http.Request) {
@@ -429,26 +402,6 @@ func (h *Handler) publishAgentDecision(
 		return artifact.ID{}, err
 	}
 	return content.Descriptor.ID, nil
-}
-
-func (h *Handler) agentRetrieval(ctx context.Context, request agentRetrievalRequest) (runrecord.ConsumedRetrieval, error) {
-	active, err := (runrecord.AgentAuthority{Repository: h.repository}).RequireActive(ctx, request.Agent)
-	description, described := h.interactionDescription()
-	if err != nil || h.config.AgentEmbedder == nil || h.config.AgentReranker == nil ||
-		!described || description.Identity.Recipe != active.Definition.ModelRecipe ||
-		h.config.AgentEmbedder.ModelIdentity() != description.Identity.Model ||
-		request.RerankPolicy != h.config.AgentReranker.PolicyIdentity() ||
-		!slices.Contains(active.Definition.Policies, request.RerankPolicy) {
-		return runrecord.ConsumedRetrieval{}, errors.Join(errors.New("server: agent retrieval authority is unavailable"), err)
-	}
-	query := dataset.AgentRetrievalQuery{
-		Projection: request.Projection, Text: request.Query, Limit: request.Limit,
-		AllowedDatasets: active.Definition.Datasets, Embedder: h.config.AgentEmbedder, Reranker: h.config.AgentReranker,
-	}
-	return runrecord.SearchAndPublishConsumedRetrieval(ctx, h.repository, query, runrecord.RetrievalConsumer{
-		Recipe: description.Identity.Recipe, Model: description.Identity.Model,
-		Operation: active.Activation.ID, TaskContract: active.Definition.ID,
-	})
 }
 
 func (h *Handler) agentEvidence(ctx context.Context, session string) ([]agentObservable, error) {

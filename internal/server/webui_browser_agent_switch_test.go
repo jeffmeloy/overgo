@@ -15,7 +15,7 @@ import (
 func TestWebUIBrowserAgentSwitchMidTurn(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the agent switch leg uses Chromium through cmd/webui-lane")
-	fixture := newAgentWorkspaceFixture(t, nil, nil, nil)
+	fixture := newAgentWorkspaceFixture(t, nil)
 	defer fixture.store.Close()
 	for _, name := range []string{"first-agent", "second-agent"} {
 		definition := agentDefinitionInput{

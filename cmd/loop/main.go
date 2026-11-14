@@ -114,16 +114,13 @@ func run(args []string) error {
 	repoPath := flags.String("repo", "", "OvergoDB root for the evidence doors; empty resolves the store through the data-root contract")
 	resourceLanesSpec := flags.String("compare-resource-fitness", "", "replay one resource no-regression proof from this lanes spec")
 	resourceRunsSpec := flags.String("compare-resource-runs", "", "judge a baseline and a candidate run's committed resource observations through the resource no-regression owner from this spec ({name, baseline_run, repeat_runs, candidate_run, required_metrics}; repeat_runs are identical-protocol repeats of the baseline that set the measured noise envelope)")
-	deriveRecipesSpec := flags.String("derive-recipes", "", "derive one materialized candidate's per-arm recipes from this spec")
 	moeCoverageSpec := flags.String("moe-coverage", "", "run one indexed MoE router observation read from this spec")
-	evaluateCandidateSpec := flags.String("evaluate-candidate", "", "judge one candidate's measured arms through the cross-domain evaluator from this spec")
 	publishTaskSpec := flags.String("publish-task", "", "publish one agent task contract from this spec")
 	publishDelegationSpec := flags.String("publish-delegation", "", "publish one delegated agent invocation from this spec")
 	automationTransitionSpecPath := flags.String("publish-automation-transition", "", "publish one automation policy lifecycle transition from this spec")
 	trajectoryPlanSpecPath := flags.String("bind-trajectory-plan", "", "bind agent trajectories onto one stored evaluation plan from this spec")
 	efficiencyTraceSpecPath := flags.String("publish-efficiency-trace", "", "publish one measured interaction-work trace from this spec")
 	directionSpecPath := flags.String("publish-direction", "", "publish one extracted residual-direction claim from this spec")
-	attemptReceiptSpecPath := flags.String("attempt-receipt", "", "resolve and print one terminal attempt receipt from this spec")
 	resumeMediaExperimentSpec := flags.String("resume-media-experiment", "", "resume one media experiment from this spec, reusing retained acquisitions and publishing the report without opening a model")
 	landReference := flags.String("land", "", "land one row through the small gate over the dirty tree and confirm the landing from git: -land <item>/<step>; the landing writes the commit message")
 	landMessage := flags.String("message-file", "", "with -land: optional words of the lead the landing's message opens with, from a file; - reads them from standard input")
@@ -208,12 +205,8 @@ func run(args []string) error {
 		return compareResourceLanes(*repoPath, *resourceLanesSpec, os.Stdout)
 	case *resourceRunsSpec != "":
 		return compareResourceRuns(*repoPath, *resourceRunsSpec, os.Stdout)
-	case *deriveRecipesSpec != "":
-		return deriveRecipes(*repoPath, *deriveRecipesSpec, os.Stdout)
 	case *moeCoverageSpec != "":
 		return queryMoECoverage(*repoPath, *moeCoverageSpec, os.Stdout)
-	case *evaluateCandidateSpec != "":
-		return evaluateCandidate(*repoPath, *evaluateCandidateSpec, os.Stdout)
 	case *publishTaskSpec != "":
 		return publishTaskContract(*repoPath, *publishTaskSpec, os.Stdout)
 	case *publishDelegationSpec != "":
@@ -226,8 +219,6 @@ func run(args []string) error {
 		return publishEfficiencyTrace(*repoPath, *efficiencyTraceSpecPath, os.Stdout)
 	case *directionSpecPath != "":
 		return publishDirection(*repoPath, *directionSpecPath, os.Stdout)
-	case *attemptReceiptSpecPath != "":
-		return readAttemptReceipt(*repoPath, *attemptReceiptSpecPath, os.Stdout)
 	}
 	if *configPath == "" {
 		// A state directory that cannot be made leaves no path; loading fails below.

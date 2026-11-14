@@ -160,3 +160,17 @@ func canonicalizeGeneration(value *GenerationRecord) error {
 	}
 	return nil
 }
+
+func distinctIDs(values ...artifact.ID) bool {
+	seen := make(map[artifact.ID]struct{}, len(values))
+	for _, value := range values {
+		if !value.Valid() {
+			return false
+		}
+		if _, exists := seen[value]; exists {
+			return false
+		}
+		seen[value] = struct{}{}
+	}
+	return true
+}

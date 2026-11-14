@@ -462,9 +462,9 @@ func acquire(ctx context.Context, output io.Writer, root, name string, args []st
 	if invocation.Target != nil {
 		selected = invocation.Target.MatchString
 	}
-	// Each long test's wall is reported and kept, one running past twice its median is reported stalled as it runs,
-	// and one that fails is reported, and recorded in the run this lane is a phase of, as it fails.
-	watch := newLaneWatch(root, output)
+	// Each test is named as it starts and each long test's wall reported, and one that fails is reported, and recorded
+	// in the run this lane is a phase of, as it fails.
+	watch := newLaneWatch(output)
 	// The lane's own tests record nothing in that run.
 	inherited := slices.DeleteFunc(os.Environ(), func(variable string) bool {
 		return strings.HasPrefix(variable, clioptions.MeasurementRunEnvironment+"=")
@@ -477,7 +477,6 @@ func acquire(ctx context.Context, output io.Writer, root, name string, args []st
 		fmt.Fprintf(output, "%s\t%s\t%s\n", done.Action, done.Package, done.Elapsed)
 		watch.ran(done)
 	}, Tests: watch.observe})
-	watch.close()
 	for _, diagnostic := range report.Diagnostics {
 		fmt.Fprintf(output, "validate -run: diagnostic: %s\n", diagnostic)
 	}

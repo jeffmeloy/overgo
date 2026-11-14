@@ -93,10 +93,9 @@ A line of this file reads by this notation, and cites the tests that hold its ru
 
 ## Autonomous feedback
 
-- stay inside the scope and resource ceilings the inputs set (check: internal/loop TestLoopDriverCycle, internal/landing TestItemsGrowthIsChargedAcrossItsLandings, internal/plan TestSchedulerRankedByRealizedDelta)
+- stay inside the scope and resource ceilings the inputs set (check: internal/loop TestLoopDriverCycle, internal/landing TestItemsGrowthIsChargedAcrossItsLandings)
 - runs, regressions, failures and recurring costs -> durable obligations (check: internal/loop TestCycleFilesDeclinesAndAcceptsNothing, cmd/loop TestScorecardGapsBecomeProposals, cmd/validate TestALaneTestThatFailsIsRecordedBeforeTheNextPackageEnds)
 - a measurement, or no action, = a valid outcome (check: internal/loop TestCycleFilesDeclinesAndAcceptsNothing, cmd/gate TestSmallGateLandsAChange)
-- training candidates rank by recorded outcomes and expected cost (check: internal/plan TestSchedulerRankedByRealizedDelta)
 - exploration = bounded (check: internal/agentloop TestCoordinatorBoundsSessionSteps, internal/loop TestLoopDriverCycle)
 - rejection feeds the next decision (check: internal/loop TestLoopDriverCycle, internal/loop TestLoopAcceptedPrerequisiteProgress)
 - a row awaiting a decision, or a landing awaiting a run => independent work continues (check: internal/plan TestDispatchPassesRowsAwaitingADecision, internal/landing TestALandingWaitingOnARunLeavesTheCheckoutFree)
@@ -233,13 +232,12 @@ A line of this file reads by this notation, and cites the tests that hold its ru
 
 - installed capacity != budget (check: internal/server TestResidentFitAdmitsADeviceRunOnlyBesideTheServedModel, internal/modeldevice TestExpertResidencyFillsTheCardWhenItFrees)
 - placement, batch, chunk, workers and residency = derived from workload, measurement and availability (check: internal/cuda/executor TestHostSlotLimitTradesACopyForTheCPU, internal/modeldevice TestExpertResidencyFillsTheCardWhenItFrees, internal/hostmath TestDispatchSchedulingPreservesResults)
-- scale down by streaming, tiling and bounded concurrency (check: internal/composition TestOfflinePlanDerivesResourcePolicy)
 - parallel dispatch => the same results at every width and worker count (check: internal/hostmath TestDispatchSchedulingPreservesResults)
 - preserve numerical contracts and checkpoint identity (check: internal/model TestBlockSelectionDoesNotDependOnChunk, internal/artifact TestHasherMatchesIdentifyForAnyChunking, internal/trainingprogram TestResumeSidecarRoundTripsBitExact)
 - nothing fits => resumable wait or reported limit (check: internal/processcontrol TestResourceAdmissionWaitsForRelease, internal/server TestResidentFitAdmitsADeviceRunOnlyBesideTheServedModel)
 - thresholds, tolerances, sample sizes and optimizer settings = derived from declarations or observations or math (check: internal/trainingprogram TestBuiltinOptimizerPolicyDerivesConfig, internal/server TestDefaultNeighborCountIsDerived)
-- limit with no derivation = arbitrary literal => replace it with a rule (check: internal/repoanalysis TestNoFixedTimers, internal/composition TestOfflinePlanRejectsLiteralPolicy)
-- kept value => record its source, scope and reconsideration condition in the owning contract (check: internal/composition TestOfflinePlanRejectsLiteralPolicy, internal/repoanalysis TestTuningValuesNameTheirCost)
+- limit with no derivation = arbitrary literal => replace it with a rule (check: internal/repoanalysis TestNoFixedTimers)
+- kept value => record its source, scope and reconsideration condition in the owning contract (check: internal/repoanalysis TestTuningValuesNameTheirCost)
 
 ## Training
 

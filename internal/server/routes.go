@@ -169,7 +169,6 @@ var routeCatalog = []routeDescriptor{
 	{Path: "/agents/step", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: agentRoute((*Handler).agentStep)},
 	{Path: "/agents/approval", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: agentRoute((*Handler).agentApprovalPreview)},
 	{Path: "/agents/chat", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: agentRoute((*Handler).agentChat)},
-	{Path: "/agents/retrieval", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: agentRoute((*Handler).agentRetrieve)},
 	{Path: "/agents/evidence", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: agentRoute((*Handler).agentObservables)},
 }
 

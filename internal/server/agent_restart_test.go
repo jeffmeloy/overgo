@@ -15,7 +15,7 @@ import (
 // approval names the agent's definition as the proposal does, and a mutation inspected before the restart runs after it.
 func TestAMutationAfterARestartRuns(t *testing.T) {
 	t.Parallel()
-	fixture := newAgentWorkspaceFixture(t, nil, nil, nil)
+	fixture := newAgentWorkspaceFixture(t, nil)
 	defer fixture.store.Close()
 	manuals := testcheck.Must(agenttool.StandardManuals())(t)
 	write := testcheck.Must(agenttool.NewManual(agenttool.Manual{

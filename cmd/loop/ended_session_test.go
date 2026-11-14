@@ -2,13 +2,13 @@ package main
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"testing"
 
 	"overgo/internal/guard"
 	"overgo/internal/plan"
+	"overgo/internal/processcontrol"
 	"overgo/internal/processlock"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -46,10 +46,13 @@ func TestAnEndedSessionsScratchIsFinished(t *testing.T) {
 	for _, session := range []string{"done", "ended-row", "ended-cited", "ended-registered", "ended-worktree"} {
 		write("repo/"+processlock.StateDirectory+"/"+guard.SessionState(session)+"-ended", "2026-11-11T00:00:00Z\n")
 	}
-	// The hold names a session and a process that has exited.
-	exited := exec.Command("git", "--version")
-	testcheck.NoError(t, exited.Run())
-	testcheck.NoError(t, os.WriteFile(filepath.Join(state, guard.WorktreeHolder), []byte("ended-hold\n"+strconv.Itoa(exited.Process.Pid)+"\n"), 0o600))
+	// The hold names a session and a process that has exited, with its start, as a hold records it.
+	// The holder exited and a running process took its id, as Windows hands an exited id on at once: the hold names
+	// this live process's id with a start that is not its own, which no exited id's reuse can match.
+	exited := os.Getpid()
+	start, _ := processcontrol.ProcessStart(exited)
+	start++
+	testcheck.NoError(t, os.WriteFile(filepath.Join(state, guard.WorktreeHolder), []byte("ended-hold\n"+strconv.Itoa(exited)+"\n"+strconv.FormatInt(start, 10)+"\n"), 0o600))
 
 	h := hygiene{
 		checkout: repo, data: madeFolder(t, at("data")), sessions: sessions, temporary: at("temporary"), cache: madeFolder(t, at("cache")),

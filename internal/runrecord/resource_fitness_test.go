@@ -134,26 +134,6 @@ func TestResourceFitnessContract(t *testing.T) {
 		t.Fatal("fractional cost accepted")
 	}
 
-	servingFixture := servingObservationFixture(t)
-	servingFixture.Resources.PeakHostBytes = 0
-	serving := testcheck.Must(NewServingObservation(servingFixture))(t)
-	servingFitness := testcheck.Must(serving.ResourceFitness(
-		artifact.ID{}, nil,
-		ResourceWallNS, ResourceInputTokens, ResourceOutputTokens, ResourceInputBytes, ResourceOutputBytes,
-		ResourcePeakHostBytes, ResourcePeakDeviceBytes, ResourceHostToDeviceBytes, ResourceDeviceToHostBytes,
-	))(t)
-	if servingFitness.Scope.Surface != SurfaceServing || servingFitness.Scope.Model != serving.Model ||
-		servingFitness.Scope.Hardware != serving.Environment || servingFitness.Scope.Workload != serving.Recipe ||
-		servingFitness.Scope.Attempt != serving.ID {
-		t.Fatalf("serving scope = %+v", servingFitness.Scope)
-	}
-	if peak, known := servingFitness.Measure(ResourcePeakHostBytes); !known || peak != 0 {
-		t.Fatalf("observed-zero serving peak = (%d, %v)", peak, known)
-	}
-	if _, err := serving.ResourceFitness(artifact.ID{}, nil, resourceNetworkSendBytes); err == nil {
-		t.Fatal("serving adapter accepted an unowned metric")
-	}
-
 	refusals := []struct {
 		name   string
 		mutate func(*ResourceFitness)

@@ -1,7 +1,6 @@
 package representation
 
 import (
-	"context"
 	"errors"
 	"slices"
 	"strings"
@@ -91,25 +90,6 @@ func (value ResidualDirection) Lineage() []artifact.Lineage {
 		value.Contract, value.Model, value.Definition, value.Manuals, value.Readout,
 		value.Corpus, value.Split, value.Extraction, value.Environment, value.Vector,
 	)
-}
-
-// RequireResidualDirection loads the exact direction and refuses one whose
-// representation contract is not a layer-input tap on the same model: a
-// direction extracted at any other boundary cannot claim residual authority.
-func RequireResidualDirection(ctx context.Context, reader artifact.Reader, id artifact.ID) (ResidualDirection, error) {
-	direction, err := residualDirectionCodec.RequireExactLineage(ctx, reader, id, ResidualDirection.Lineage)
-	if err != nil {
-		return ResidualDirection{}, err
-	}
-	contract, err := LoadContract(ctx, reader, direction.Contract)
-	if err != nil {
-		return ResidualDirection{}, err
-	}
-	if contract.Producer.Tap != TapLayerInput || contract.Producer.Layer == nil ||
-		contract.Producer.Model != direction.Model {
-		return ResidualDirection{}, errors.New("representation: residual direction contract is not a layer-input tap on the direction's model")
-	}
-	return direction, nil
 }
 
 func canonicalizeResidualDirection(value *ResidualDirection) error {

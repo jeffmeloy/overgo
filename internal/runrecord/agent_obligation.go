@@ -1,7 +1,6 @@
 package runrecord
 
 import (
-	"context"
 	"errors"
 	"slices"
 	"sort"
@@ -72,16 +71,6 @@ func (v AgentObligationResolution) Content() (artifact.Content, error) {
 	return agentObligationResolutionCodec.Content(v)
 }
 
-// RequireAgentObligation loads one exact typed obligation.
-func RequireAgentObligation(ctx context.Context, reader artifact.Reader, id artifact.ID) (AgentObligation, error) {
-	return agentObligationCodec.RequireExactLineage(ctx, reader, id, AgentObligation.Lineage)
-}
-
-// RequireAgentObligationResolution loads one exact typed resolution.
-func RequireAgentObligationResolution(ctx context.Context, reader artifact.Reader, id artifact.ID) (AgentObligationResolution, error) {
-	return agentObligationResolutionCodec.RequireExactLineage(ctx, reader, id, AgentObligationResolution.Lineage)
-}
-
 // Lineage links the obligation to its task and sources.
 func (v AgentObligation) Lineage() []artifact.Lineage {
 	return artifact.DependencyLineage(v.ID, append([]artifact.ID{v.Task}, v.Sources...)...)
@@ -90,14 +79,6 @@ func (v AgentObligation) Lineage() []artifact.Lineage {
 // Lineage links the resolution to its obligation and evidence.
 func (v AgentObligationResolution) Lineage() []artifact.Lineage {
 	return artifact.DependencyLineage(v.ID, append([]artifact.ID{v.Obligation}, v.Evidence...)...)
-}
-
-// AgentObligationSatisfied requires exact scope and epoch agreement.
-func AgentObligationSatisfied(obligation AgentObligation, resolutions []AgentObligationResolution) bool {
-	return slices.ContainsFunc(resolutions, func(resolution AgentObligationResolution) bool {
-		return resolution.Obligation == obligation.ID && resolution.Scope == obligation.Scope &&
-			resolution.MutationEpoch == obligation.MutationEpoch && len(resolution.Evidence) != 0
-	})
 }
 
 func canonicalizeAgentObligation(v *AgentObligation) error {

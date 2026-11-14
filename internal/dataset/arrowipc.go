@@ -1,3 +1,4 @@
+// Package dataset owns immutable dataset documents and derived projections.
 package dataset
 
 import (

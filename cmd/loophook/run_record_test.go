@@ -51,10 +51,11 @@ func TestTheHooksPrintTheRunsEnd(t *testing.T) {
 		t.Fatalf("the prompt hook printed %q for a run that ended", printed)
 	}
 
-	cells := plan.MeasurementPhase{Name: "cells", Started: lanes.Ended, Expected: lanes.Ended.Add(2*time.Hour + 38*time.Minute)}
+	cells := plan.MeasurementPhase{Name: "cells", Started: lanes.Ended}
 	keep(plan.MeasurementRun{Commit: "bc1d47e13606fddb", Process: os.Getpid(), Started: began, Phases: []plan.MeasurementPhase{lanes, cells}})
-	want := "cells running since " + at(cells.Started) + ", expected to end " + at(cells.Expected)
-	if printed := prompted(); !strings.Contains(printed, want) || !strings.Contains(printed, "the checkout free") {
+	// A running phase says when it began, and no end guessed from an earlier run's wall.
+	want := "cells running since " + at(cells.Started)
+	if printed := prompted(); !strings.Contains(printed, want) || strings.Contains(printed, "expected to end") || !strings.Contains(printed, "the checkout free") {
 		t.Fatalf("the prompt hook printed %q for a running run, want %q", printed, want)
 	}
 	// The gate holds a turn a notification began; one a typed message began ends once answered.

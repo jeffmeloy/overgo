@@ -2,11 +2,11 @@ package guard
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"testing"
 
+	"overgo/internal/processcontrol"
 	"overgo/internal/processlock"
 	"overgo/internal/testcheck"
 )
@@ -34,9 +34,12 @@ func TestASessionsEndIsRecordedAndRead(t *testing.T) {
 	if SessionEnded(root, "held") {
 		t.Fatal("a session whose hold names a running process has ended")
 	}
-	exited := exec.Command("git", "--version")
-	testcheck.NoError(t, exited.Run())
-	testcheck.NoError(t, os.WriteFile(hold, []byte("held\n"+strconv.Itoa(exited.Process.Pid)+"\n"), 0o600))
+	// The holder exited and a running process took its id, as Windows hands an exited id on at once: the hold names
+	// this live process's id with a start that is not its own, which no exited id's reuse can match.
+	exited := os.Getpid()
+	start, _ := processcontrol.ProcessStart(exited)
+	start++
+	testcheck.NoError(t, os.WriteFile(hold, []byte("held\n"+strconv.Itoa(exited)+"\n"+strconv.FormatInt(start, 10)+"\n"), 0o600))
 	if !SessionEnded(root, "held") || SessionEnded(root, "quiet") {
 		t.Fatal("a hold whose process exited did not end its session alone")
 	}

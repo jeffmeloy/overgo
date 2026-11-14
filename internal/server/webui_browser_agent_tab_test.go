@@ -10,13 +10,12 @@ import (
 // TestWebUIBrowserAgentTab drives the agent tab as a person would: the page
 // leads with the agents and the chat and folds every operator panel, a new
 // agent is created from a name, instructions and a tool and becomes active,
-// it offers Pause while active and Resume while paused, never both, a message to it gets a reply in the thread, a manual inspection step runs
-// in the session and shows in the durable observables and the session list,
-// and a retrieval search without a projection is refused where it was asked.
+// it offers Pause while active and Resume while paused, never both, a message to it gets a reply in the thread, and a manual inspection
+// step runs in the session and shows in the durable observables and the session list.
 func TestWebUIBrowserAgentTab(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the agent tab leg uses Chromium through cmd/webui-lane")
-	fixture := newAgentWorkspaceFixture(t, nil, nil, nil)
+	fixture := newAgentWorkspaceFixture(t, nil)
 	defer fixture.store.Close()
 	server := httptest.NewServer(fixture.handler)
 	defer server.Close()
@@ -73,9 +72,5 @@ func TestWebUIBrowserAgentTab(t *testing.T) {
 	settle(`agentFold('Advanced: structured observables').textContent.includes('step 1')`)
 	check(`(() => { agentButton('Sessions').click(); return true; })()`)
 	settle(`agentFold('Advanced: manual tool steps and approvals').textContent.includes('steps 1')`)
-
-	// A retrieval without a projection is refused where it was asked.
-	check(`(() => { window.agentBefore = agentStatus(); agentFold('Advanced: retrieval evidence').open = true; agentButton('Search').click(); return true; })()`)
-	settle(`agentStatus() !== agentBefore && agentPanel().querySelector('.note').children.length > 0`)
-	webuilane.Leg(t, "agent tab leg", "the agent tab led with its agents and chat, created an active agent, answered a message, ran a manual inspection into the observables and sessions, and refused a retrieval without a projection")
+	webuilane.Leg(t, "agent tab leg", "the agent tab led with its agents and chat, created an active agent, answered a message, and ran a manual inspection into the observables and sessions")
 }

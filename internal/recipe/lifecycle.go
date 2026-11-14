@@ -134,10 +134,6 @@ func (e LifecycleEvent) Lineage() []artifact.Lineage {
 	return lineage
 }
 
-func (e LifecycleEvent) Validate() error {
-	return lifecycleCodec.ValidateIdentity(e)
-}
-
 func canonicalizeEvent(event *LifecycleEvent) error {
 	if event == nil || event.Version != LifecycleVersion {
 		return errors.New("recipe: invalid lifecycle version")

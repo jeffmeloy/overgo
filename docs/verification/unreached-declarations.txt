@@ -362,8 +362,8 @@ reason: No command opens an activity stream and nothing but a test publishes its
 group store-test-observers
 class: test-held
 surface: outside
-declarations: 8
-lines: 122
+declarations: 7
+lines: 116
 members: internal/overgodb/causality.go
 members: internal/overgodb/commit_delta.go
 members: internal/overgodb/storage_classes.go
@@ -411,12 +411,10 @@ reason: Each stays where it is, because SelectStructuredImageCrops is called by 
 group typed-test-held-inside
 class: test-held
 surface: inside
-declarations: 49
-lines: 531
+declarations: 43
+lines: 508
 members: internal/composition/authority.go CompositionRecipe.Batch
 members: internal/composition/composite_generation_cuda.go CompositeGenerationCUDAAuthority.New CompositeGenerationCUDAAuthority.Parse
-members: internal/composition/offline_artifact.go OfflineArtifactPlan.Batch
-members: internal/composition/offline_execution.go OfflineTensorExecutionPlan.Batch OfflineTensorResourcePolicy.Batch
 members: internal/composition/proposal.go BridgeProposal.Batch
 members: internal/composition/representation_bridge_promotion.go RepresentationBridgePromoter.Parse
 members: internal/cuda/device/trace.go LaunchTrace.Data
@@ -435,8 +433,6 @@ members: internal/model/projection_program.go projectionOutputs.valid projection
 members: internal/modelartifact/tensor_measurement.go TensorMeasurementDocument.Content
 members: internal/modeldevice/device_weights.go DeviceWeights.Do
 members: internal/modelrecipe/audio_contract.go AudioContractDocument.Batch
-members: internal/modelrecipe/candidate_materialization.go CandidateMaterialization.ValidateIdentity
-members: internal/modelrecipe/model_prototype.go ModelPrototype.ValidateIdentity
 members: internal/operatoraction/action.go Action.Validate Block.Validate
 members: internal/operatoraction/approval.go ApprovalRequest.Binds
 members: internal/projector/audio_profile.go AudioProjectionProfile.Content
@@ -444,7 +440,6 @@ members: internal/projector/gemma4.go Gemma4Runner.Spec
 members: internal/projector/gemma4tower.go Gemma4TowerRunner.Spec
 members: internal/recipe/catalog.go Catalog.Modules
 members: internal/recipe/definition.go Definition.Content
-members: internal/recipe/lifecycle.go LifecycleEvent.Validate
 members: internal/strataspec/draft_policy.go DraftPolicy.Chain DraftPolicy.ChainRate
 members: internal/tensor/reference/program.go Inputs.Bind
 members: internal/tensor/tensor.go Builder.Nodes
@@ -456,19 +451,16 @@ reason: It is unwired under the operator's rule, and test-held-deletions reads i
 group typed-test-held-outside
 class: test-held
 surface: outside
-declarations: 95
-lines: 1339
+declarations: 80
+lines: 1005
 members: internal/agenttool/stream.go StreamEvent.ArtifactContent StreamTerminal.ArtifactContent
 members: internal/benchmarkrecord/comparison.go BenchmarkComparisonRecord.Batch BenchmarkComparisonRecord.ValidateIdentity
 members: internal/controllertrain/corpus.go Corpus.PublicationBatch Corpus.Split
-members: internal/dataset/agent_retrieval.go AgentRetrievalBuilder.Build AgentRetrievalBuilder.BuildWithWork AgentRetrievalBuilder.Search AgentRetrievalPolicy.Identify agentRetrievalAlias agentRetrievalChunks requireAgentRetrievalSourceDocument resolveAgentRetrievalBuildBudget validateAgentRetrievalDocument
-members: internal/dataset/capability_episode.go CapabilityEpisodeProjection.ValidateIdentity
 members: internal/densecausal/frozen.go Model.WeightBytes
 members: internal/densecausal/train.go Model.Train
 members: internal/devicemath/cuda_scope_windows.go cudaScope.functions
 members: internal/diffusionimage/resident_forward.go ResidentForward.Execute ResidentForward.Stats
 members: internal/evaluation/heldout_verdict.go heldoutVerdict.Content
-members: internal/evaluation/knowledge_promotion.go knowledgePromotionEvidence.ValidateIdentity
 members: internal/evaluation/suite.go CompiledSuite.Plan
 members: internal/hostoptimizer/optimizer.go Optimizer.Momentum
 members: internal/hybridtrain/stack.go builder.mat builder.randn
@@ -485,13 +477,10 @@ members: internal/peft/peft.go Adapter.Delta
 members: internal/plan/batch_flush.go BatchFlush.Advance
 members: internal/routedlm/generationstack_cuda_windows.go DeviceGenerationSession.Stats
 members: internal/runrecord/causal_context.go CausalContext.Derive NewCausalRoot
-members: internal/runrecord/failure_observation.go FailureObservation.Content
 members: internal/runrecord/generation.go GenerationRecord.ValidateIdentity
-members: internal/runrecord/improvement.go improvementAdmission.Batch improvementDecision.Batch
 members: internal/runrecord/model_verification.go ModelVerification.Content
 members: internal/runrecord/publication_key.go uniquePublicationKey
 members: internal/runrecord/record.go Evaluation.Batch
-members: internal/runrecord/routing_decision.go RoutingDecision.ValidateIdentity
 members: internal/runrecord/stimulus_followup.go StimulusFollowupAuthority.Admit
 members: internal/scratchmodel/construction.go Construction.Parameters Construction.Weights Construction.weightView
 members: internal/scratchtrain/resident_cuda_windows.go ResidentTrainer.Lifecycle

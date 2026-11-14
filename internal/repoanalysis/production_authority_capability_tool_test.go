@@ -6,21 +6,17 @@ import (
 )
 
 const (
-	agentToolPackage         = "internal/agenttool"
-	capabilityRuntimePackage = "internal/capabilityruntime"
+	agentToolPackage = "internal/agenttool"
 
-	agentToolImport         = "overgo/internal/agenttool"
-	artifactImport          = "overgo/internal/artifact"
-	capabilityRuntimeImport = "overgo/internal/capabilityruntime"
+	agentToolImport = "overgo/internal/agenttool"
+	artifactImport  = "overgo/internal/artifact"
 )
 
-// auditCapabilityAndToolAuthorities holds exact capability placement and
-// active tool-catalog binding to their resolvers. The call-site rules use
-// exact enclosing functions and counts: an allowed file cannot silently
-// accumulate a second bypass, and a displaced path leaves a stale allowance
-// that must be removed with it.
-func auditCapabilityAndToolAuthorities(sources []productionAuthoritySource, report *ProductionAuthorityReport) {
-	placements := map[authoritySiteKey][]int{}
+// auditToolAuthorities holds active tool-catalog binding to its resolver. The
+// call-site rule uses exact enclosing functions and counts: an allowed file
+// cannot silently accumulate a second bypass, and a displaced path leaves a
+// stale allowance that must be removed with it.
+func auditToolAuthorities(sources []productionAuthoritySource, report *ProductionAuthorityReport) {
 	activeCatalogBindings := map[authoritySiteKey][]int{}
 
 	for _, source := range sources {
@@ -37,10 +33,6 @@ func auditCapabilityAndToolAuthorities(sources []productionAuthoritySource, repo
 				}
 			case *ast.CompositeLit:
 				importPath, name := authorityCompositeType(source, typed.Type)
-				if len(typed.Elts) != 0 && name == "ExactCapabilityPlacement" &&
-					(importPath == capabilityRuntimeImport || importPath == "" && source.Package == capabilityRuntimePackage) {
-					recordAuthoritySite(placements, source, function, typed.Pos())
-				}
 				if name == "AliasBinding" && importPath == artifactImport &&
 					compositeBindsActiveCatalog(source, typed) {
 					recordAuthoritySite(activeCatalogBindings, source, function, typed.Pos())
@@ -69,9 +61,6 @@ func auditCapabilityAndToolAuthorities(sources []productionAuthoritySource, repo
 		})
 	}
 
-	verifyAuthoritySites(report, "capability", "ExactCapabilityPlacement construction", placements, []authorityAllowance{{
-		File: "internal/capabilityruntime/placement.go", Function: "ResolveExactCapabilityPlacement", Count: oneAuthoritySite,
-	}})
 	verifyAuthoritySites(report, "tool", "ActiveCatalogAlias binding", activeCatalogBindings, []authorityAllowance{{
 		File: "internal/agenttool/candidate.go", Function: "ActivateCandidateCatalog", Count: oneAuthoritySite,
 	}})

@@ -1,3 +1,4 @@
+// Package main assembles the Overgo serving process from typed runtime owners.
 package main
 
 import (

@@ -1,47 +1,18 @@
 package server
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
-	"slices"
 	"strings"
 	"testing"
-	"unicode/utf8"
 
 	"overgo/internal/agenttool"
 	"overgo/internal/artifact"
-	"overgo/internal/dataset"
 	"overgo/internal/overgodb"
-	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
-	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
-	"overgo/internal/testutil"
 )
-
-const (
-	agentWorkspaceChunkRunes = uint64(128)
-	agentWorkspaceCandidates = uint64(4)
-)
-
-type agentWorkspaceEmbedder struct{ model artifact.ID }
-
-func (embedder agentWorkspaceEmbedder) ModelIdentity() artifact.ID { return embedder.model }
-func (agentWorkspaceEmbedder) Embed(_ context.Context, text string) ([]float32, error) {
-	return []float32{float32(utf8.RuneCountInString(text)), float32(strings.Count(text, "evidence") + 1)}, nil
-}
-
-type agentWorkspaceReranker struct{ policy artifact.ID }
-
-func (reranker agentWorkspaceReranker) PolicyIdentity() artifact.ID { return reranker.policy }
-func (agentWorkspaceReranker) Score(_ context.Context, query, text string) (float64, error) {
-	if strings.Contains(text, query) {
-		return float64(utf8.RuneCountInString(text)), nil
-	}
-	return 0, nil
-}
 
 type agentWorkspaceFixture struct {
 	handler   *Handler
@@ -54,9 +25,9 @@ type agentWorkspaceFixture struct {
 
 func TestAgentWorkspaceVertical(t *testing.T) {
 	t.Parallel()
-	fixture := newAgentWorkspaceFixture(t, nil, nil, nil)
+	fixture := newAgentWorkspaceFixture(t, nil)
 	defer fixture.store.Close()
-	definition := publishAgentFromAPI(t, fixture, nil)
+	definition := publishAgentFromAPI(t, fixture)
 	activateAgentFromAPI(t, fixture.handler, definition)
 
 	inventory := serveTestRequest(fixture.handler, http.MethodGet, "/agents", "")
@@ -85,64 +56,11 @@ func TestAgentWorkspaceVertical(t *testing.T) {
 	}
 }
 
-func TestAgentWorkspaceRetrievalEvidence(t *testing.T) {
+func TestAgentWorkspaceStepEvidence(t *testing.T) {
 	t.Parallel()
-	store := overgodbtest.Open(t, t.TempDir())
-	datasetID := testutil.ArtifactID(t, artifact.KindDataset, "agent-retrieval-dataset")
-	model := testutil.ArtifactID(t, artifact.KindModel, "response-model")
-	policy := testutil.ArtifactID(t, artifact.KindProfile, "agent-rerank-policy")
-	if _, err := store.Commit(t.Context(), artifact.Batch{
-		Key:       "agent/workspace/retrieval-dependencies",
-		Artifacts: []artifact.Descriptor{{ID: datasetID}, {ID: model}, {ID: policy}},
-	}); err != nil {
-		t.Fatal(err)
-	}
-	embedder := agentWorkspaceEmbedder{model: model}
-	reranker := agentWorkspaceReranker{policy: policy}
-	documents := testcheck.Must(dataset.PublishAgentRetrievalSource(
-		t.Context(), store, artifact.KindFile,
-		[]dataset.AgentRetrievalDocument{{Text: "cited evidence for retrieval"}},
-	))(t)
-	source := documents[0].Source
-	projection := testcheck.Must((dataset.AgentRetrievalBuilder{Repository: store}).Build(t.Context(), dataset.AgentRetrievalBuild{
-		Dataset: datasetID, Documents: documents,
-		Policy:   dataset.AgentRetrievalPolicy{MaximumChunkRunes: agentWorkspaceChunkRunes, CandidateLimit: agentWorkspaceCandidates},
-		Embedder: embedder, RerankPolicy: policy,
-	}))(t)
-	fixture := newAgentWorkspaceFixture(t, store, embedder, reranker)
-	activateAgentFromAPI(t, fixture.handler, publishAgentFromAPI(t, fixture, []artifact.ID{datasetID}))
-	request := marshalTestJSON(t, map[string]any{
-		"agent": "research-agent", "projection": projection.ID, "query": "evidence", "limit": 1, "rerank_policy": policy,
-	})
-	search := serveTestRequest(fixture.handler, http.MethodPost, "/agents/retrieval", request)
-	if search.Code != http.StatusOK || !strings.Contains(search.Body.String(), source.String()) ||
-		!strings.Contains(search.Body.String(), projection.Dataset.String()) ||
-		search.Header().Get(agentRetrievalReceiptHeader) == "" || search.Header().Get(agentRetrievalTraceHeader) == "" {
-		t.Fatalf("agent retrieval status=%d body=%s", search.Code, search.Body.String())
-	}
-	receiptID := testcheck.Must(artifact.ParseID(search.Header().Get(agentRetrievalReceiptHeader)))(t)
-	if _, err := runrecord.RequireConsumedRetrievalReceipt(t.Context(), store, receiptID); err != nil {
-		t.Fatalf("agent retrieval receipt is not replayable: %v", err)
-	}
-	exactRequest := agentRetrievalRequest{
-		Agent: "research-agent", Projection: projection.ID, Query: "evidence", Limit: 1, RerankPolicy: policy,
-	}
-	originalReranker := fixture.handler.config.AgentReranker
-	fixture.handler.config.AgentReranker = agentWorkspaceReranker{
-		policy: testutil.ArtifactID(t, artifact.KindProfile, "different-agent-rerank-policy"),
-	}
-	if _, err := fixture.handler.agentRetrieval(t.Context(), exactRequest); err == nil {
-		t.Fatal("agent retrieval admitted a provider outside the requested policy authority")
-	}
-	fixture.handler.config.AgentReranker = originalReranker
-	originalEmbedder := fixture.handler.config.AgentEmbedder
-	fixture.handler.config.AgentEmbedder = agentWorkspaceEmbedder{
-		model: testutil.ArtifactID(t, artifact.KindModel, "different-agent-retrieval-model"),
-	}
-	if _, err := fixture.handler.agentRetrieval(t.Context(), exactRequest); err == nil {
-		t.Fatal("agent retrieval admitted a provider outside the active model authority")
-	}
-	fixture.handler.config.AgentEmbedder = originalEmbedder
+	fixture := newAgentWorkspaceFixture(t, nil)
+	defer fixture.store.Close()
+	activateAgentFromAPI(t, fixture.handler, publishAgentFromAPI(t, fixture))
 	step := serveTestRequest(fixture.handler, http.MethodPost, "/agents/step",
 		`{"agent":"research-agent","session":"observed","tool":"store.head"}`)
 	if step.Code != http.StatusOK {
@@ -159,8 +77,6 @@ func TestAgentWorkspaceRetrievalEvidence(t *testing.T) {
 func newAgentWorkspaceFixture(
 	t *testing.T,
 	store *overgodb.Store,
-	embedder dataset.AgentEmbeddingProvider,
-	reranker dataset.AgentRerankProvider,
 ) agentWorkspaceFixture {
 	t.Helper()
 	if store == nil {
@@ -183,7 +99,6 @@ func newAgentWorkspaceFixture(
 	handler := testcheck.Must(New(Config{
 		ModelID: testModelID, MaxTokens: testMaxTokens, DefaultTemperature: testNeutralTemperature,
 		DefaultTopP: testFullTopP, Analysis: testAnalysisPolicy, Repository: store,
-		AgentEmbedder: embedder, AgentReranker: reranker,
 	}, generator))(t)
 	t.Cleanup(func() { _ = handler.Close() })
 	return agentWorkspaceFixture{
@@ -201,15 +116,12 @@ func activateAgentFromAPI(t *testing.T, handler *Handler, definition artifact.ID
 	}
 }
 
-func publishAgentFromAPI(t *testing.T, fixture agentWorkspaceFixture, datasets []artifact.ID) artifact.ID {
+func publishAgentFromAPI(t *testing.T, fixture agentWorkspaceFixture) artifact.ID {
 	t.Helper()
 	request := agentDefinitionInput{
 		Name: "research-agent", Prompt: fixture.prompt, ModelRecipe: fixture.generator.description.Identity.Recipe,
-		ToolManuals: []artifact.ID{fixture.manual}, Datasets: datasets,
-		Policies: []artifact.ID{fixture.policy},
-	}
-	if provider := fixture.handler.config.AgentReranker; provider != nil && !slices.Contains(request.Policies, provider.PolicyIdentity()) {
-		request.Policies = append(request.Policies, provider.PolicyIdentity())
+		ToolManuals: []artifact.ID{fixture.manual},
+		Policies:    []artifact.ID{fixture.policy},
 	}
 	response := serveTestRequest(fixture.handler, http.MethodPost, "/agents/definitions", marshalTestJSON(t, request))
 	if response.Code != http.StatusCreated {

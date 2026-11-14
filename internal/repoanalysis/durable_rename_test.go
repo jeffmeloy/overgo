@@ -19,14 +19,13 @@ import (
 // fsatomic.Replace or fsatomic.PublishDirectory, which make it reach the disk: on Windows fsatomic.SyncDirectory does
 // nothing, so a bare rename's name can be lost while what follows it is kept.
 var renameOwners = map[string]string{
-	"cmd/loophook/main.go": "moves a session's stop block aside for its next prompt to report, a notice a crash only loses",
-	"internal/controlleraction/candidate_materialization.go": "moves a merged candidate from its private stage to its output, which a crash leaves to be merged again",
-	"internal/hfhub/download.go":                             "names a download its digest has checked; a crash leaves the partial file, which the next download replaces",
-	"internal/overgodb/checkpoints.go":                       "names a projection checkpoint, derived state that open discards for a replay when it is missing",
-	"internal/overgodb/store.go":                             "the cutover's renames, which store-durability/cutover-kill keeps from starting an empty store",
-	"internal/processlock/state.go":                          "carries a process-state file to its directory and names the directory's ignore rule, neither of them history",
-	"internal/safetensors/stream_writer.go":                  "publishes a conversion's files, which a crash leaves to be converted again",
-	"internal/safetensors/write.go":                          "names a written safetensors file, which a crash leaves to be written again",
+	"cmd/loophook/main.go":                  "moves a session's stop block aside for its next prompt to report, a notice a crash only loses",
+	"internal/hfhub/download.go":            "names a download its digest has checked; a crash leaves the partial file, which the next download replaces",
+	"internal/overgodb/checkpoints.go":      "names a projection checkpoint, derived state that open discards for a replay when it is missing",
+	"internal/overgodb/store.go":            "the cutover's renames, which store-durability/cutover-kill keeps from starting an empty store",
+	"internal/processlock/state.go":         "carries a process-state file to its directory and names the directory's ignore rule, neither of them history",
+	"internal/safetensors/stream_writer.go": "publishes a conversion's files, which a crash leaves to be converted again",
+	"internal/safetensors/write.go":         "names a written safetensors file, which a crash leaves to be written again",
 }
 
 // cutoverRenames are ReplaceStore's renames: the live store aside, the candidate in, and the live store back on a failure.

@@ -32,7 +32,6 @@ func TestALaneTestThatFailsIsRecordedBeforeTheNextPackageEnds(t *testing.T) {
 	write("short/short_test.go", "package short\n\nimport (\n\t\"os\"\n\t\"testing\"\n)\n\n"+
 		"func TestRuns(t *testing.T) {\n\tif os.Getenv(\""+clioptions.MeasurementRunEnvironment+"\") != \"\" {\n\t\tt.Fatal(\"the lane's test was given the run record\")\n\t}\n}\n")
 	testcheck.NoError(t, processlock.EnsureStateDirectory(root))
-	testcheck.NoError(t, jsonfile.Write(filepath.Join(root, processlock.StateDirectory, laneWallsFile), laneWalls{"lanefixture/long TestRuns": {3600}}, clioptions.PrivateFileMode))
 	record := filepath.Join(t.TempDir(), "measurement_run.json")
 	started := time.Now()
 	running := plan.MeasurementRun{Commit: "measured", Process: os.Getpid(), Started: started, Phases: []plan.MeasurementPhase{

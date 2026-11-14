@@ -20,7 +20,7 @@ import (
 func TestWebUIBrowserAgentThread(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the agent thread leg uses Chromium through cmd/webui-lane")
-	fixture := newAgentWorkspaceFixture(t, nil, nil, nil)
+	fixture := newAgentWorkspaceFixture(t, nil)
 	defer fixture.store.Close()
 	// A mutation manual whose only role is the approval gate; its argv
 	// transport runs only under the committed policy naming its program.

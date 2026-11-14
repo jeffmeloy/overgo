@@ -168,8 +168,10 @@ var cycleLanes = []lane{
 		// build and run as their own processes.
 		name: "audio", packages: []string{"./internal/audioparity", "./cmd/evaluate", "./cmd/recipe"},
 		tags: CycleTags,
-		// Device acceptance executes against external weights and kernels each cycle.
-		command:     func(string) []string { return []string{"test", "-count=1", "./internal/audioparity"} },
+		// Device acceptance executes against external weights and kernels each cycle. No clock of go test's ends it: its
+		// tests wait their card turns behind a render, and go test's default ten minutes ended the lane in the middle of
+		// TestASRResidentReference on 2026-11-14 (no-clocks).
+		command:     func(string) []string { return []string{"test", "-count=1", "-timeout=0", "./internal/audioparity"} },
 		environment: []string{testskip.StoreAcceptanceEnv + "=1", cudaTestEnvironment},
 	},
 	{

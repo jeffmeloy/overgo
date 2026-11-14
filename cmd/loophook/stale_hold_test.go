@@ -2,12 +2,12 @@ package main
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"testing"
 
 	"overgo/internal/guard"
+	"overgo/internal/processcontrol"
 	"overgo/internal/processlock"
 	"overgo/internal/testcheck"
 )
@@ -23,8 +23,14 @@ func TestAHoldWhoseProcessEndedIsTaken(t *testing.T) {
 	// from the environment.
 	sessionCheckout(t)
 	hold := filepath.Join(processlock.StateDirectory, guard.WorktreeHolder)
-	ended := exec.CommandContext(t.Context(), "git", "--version")
-	testcheck.NoError(t, ended.Run())
+	// The holder exited and a running process took its id, as Windows hands an exited id on at once: the hold names
+	// this live process's id with a start that is not its own, which no exited id's reuse can match.
+	endedProcess := os.Getpid()
+	endedStart, _ := processcontrol.ProcessStart(endedProcess)
+	endedStart++
+	endedHold := func(session string) string {
+		return session + "\n" + strconv.Itoa(endedProcess) + "\n" + strconv.FormatInt(endedStart, 10)
+	}
 	running := os.Getpid()
 	t.Setenv(claudeProcessVariable, strconv.Itoa(running))
 	recordImplementer("lead")
@@ -38,7 +44,7 @@ func TestAHoldWhoseProcessEndedIsTaken(t *testing.T) {
 		return session, process
 	}
 
-	written(guard.HoldText("ended-worker", ended.Process.Pid))
+	written(endedHold("ended-worker"))
 	if holder := holdWorktree("lead", false); holder != "" {
 		t.Fatalf("a hold whose session's process exited sent the lead away to %q", holder)
 	}
@@ -56,7 +62,7 @@ func TestAHoldWhoseProcessEndedIsTaken(t *testing.T) {
 		t.Fatalf("a hold that names no process was taken: the lead was told %q", holder)
 	}
 
-	written(guard.HoldText("lead", ended.Process.Pid))
+	written(endedHold("lead"))
 	if holder := holdWorktree("lead", false); holder != "" {
 		t.Fatalf("the lead was sent away from its own hold, to %q", holder)
 	}

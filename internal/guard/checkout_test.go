@@ -4,10 +4,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"testing"
 
+	"overgo/internal/processcontrol"
 	"overgo/internal/processlock"
-	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -77,9 +78,13 @@ func TestTheGuardKeepsOtherSessionsOutOfTheLeadsCheckout(t *testing.T) {
 			t.Errorf("another session was refused %s: %s", allowed.name, message)
 		}
 	}
-	ended := exec.CommandContext(t.Context(), "git", "--version")
-	testcheck.NoError(t, ended.Run())
-	hold(ended.Process.Pid)
+	// The ended session's hold records its process's start, as a hold does, so a process that takes its id is not it.
+	// The holder exited and a running process took its id, as Windows hands an exited id on at once: the hold names
+	// this live process's id with a start that is not its own, which no exited id's reuse can match.
+	ended := os.Getpid()
+	start, _ := processcontrol.ProcessStart(ended)
+	start++
+	testutil.WriteTextFile(t, root, processlock.StateDirectory+"/"+WorktreeHolder, "lead\n"+strconv.Itoa(ended)+"\n"+strconv.FormatInt(start, 10), 0o600)
 	if message := call("other", root, "Write", "", plan); message != "" {
 		t.Errorf("a hold whose session has ended kept another session out: %s", message)
 	}

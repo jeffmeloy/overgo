@@ -1,11 +1,9 @@
 package representation
 
 import (
-	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodbtest"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -13,12 +11,9 @@ import (
 
 // TestToolCallResidualDirection pins the residual-direction claim contract:
 // the document binds every authority the extraction depends on, quantiles
-// stay strictly ordered probabilities, the alpha selector is predeclared and
-// complete, and the loading path refuses any direction whose representation
-// contract is not a layer-input tap on the direction's own model.
+// stay strictly ordered probabilities, and the alpha selector is predeclared
+// and complete.
 func TestToolCallResidualDirection(t *testing.T) {
-	ctx := t.Context()
-	store := overgodbtest.Open(t, t.TempDir())
 	id := func(kind artifact.Kind, name string) artifact.ID { return testutil.ArtifactID(t, kind, name) }
 	model := id(artifact.KindModel, "direction model")
 	definition := id(artifact.KindModelDefinition, "direction definition")
@@ -43,7 +38,6 @@ func TestToolCallResidualDirection(t *testing.T) {
 		return value
 	}
 	layerInput := contract(TapLayerInput, &layer)
-	embedding := contract(TapEmbeddingOutput, nil)
 	selector := AlphaSelector{
 		Objective:     "maximize realized inspection-call rate",
 		Normalization: "direction unit norm at the contract layer",
@@ -86,53 +80,5 @@ func TestToolCallResidualDirection(t *testing.T) {
 		if _, err := NewResidualDirection(broken); err == nil {
 			t.Errorf("%s admitted", refusal.name)
 		}
-	}
-
-	commit := func(contracts ...Contract) {
-		t.Helper()
-		contents := make([]artifact.Content, 0, len(contracts)+1)
-		for _, value := range contracts {
-			content, contentErr := value.Content()
-			if contentErr != nil {
-				t.Fatal(contentErr)
-			}
-			contents = append(contents, content)
-		}
-		directionContent, contentErr := published.Content()
-		if contentErr != nil {
-			t.Fatal(contentErr)
-		}
-		contents = append(contents, directionContent)
-		parents := []artifact.Descriptor{
-			{ID: model}, {ID: definition}, {ID: published.Manuals}, {ID: published.Readout},
-			{ID: published.Corpus}, {ID: published.Split}, {ID: published.Extraction},
-			{ID: published.Environment}, {ID: published.Vector, Size: 32},
-		}
-		if _, err := store.Commit(ctx, artifact.Batch{
-			Key: "fixture/residual-direction", Artifacts: parents,
-			Contents: contents, Lineage: published.Lineage(),
-		}); err != nil {
-			t.Fatal(err)
-		}
-	}
-	commit(layerInput, embedding)
-	loaded, err := RequireResidualDirection(ctx, store, published.ID)
-	if err != nil || loaded.ID != published.ID || loaded.Selector != selector {
-		t.Fatalf("loaded direction = %+v, %v", loaded, err)
-	}
-
-	wrongTap := direction
-	wrongTap.Contract = embedding.ID
-	wrongPublished := testcheck.Must(NewResidualDirection(wrongTap))(t)
-	wrongContent := testcheck.Must(wrongPublished.Content())(t)
-	if _, err := store.Commit(ctx, artifact.Batch{
-		Key:      "fixture/residual-direction-wrong-tap",
-		Contents: []artifact.Content{wrongContent}, Lineage: wrongPublished.Lineage(),
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := RequireResidualDirection(ctx, store, wrongPublished.ID); err == nil ||
-		!strings.Contains(err.Error(), "layer-input") {
-		t.Fatalf("embedding-tap direction admitted: %v", err)
 	}
 }

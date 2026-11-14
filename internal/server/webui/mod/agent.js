@@ -11,7 +11,6 @@
       const editorHost = el("div");
       const conversationHost = el("div");
       const toolsHost = el("div");
-      const retrievalHost = el("div");
       const evidenceHost = el("div");
       // The page leads with the task: pick an agent and chat; creating one is a fold with three plain
       // fields, and every operator panel lives behind Advanced folds.
@@ -25,7 +24,6 @@
         overgo.fold("Chat", true, chatNote, conversationHost),
         overgo.fold("Advanced: manual tool steps and approvals", false, toolsHost),
         overgo.fold("Advanced: full definition editor", false, editorHost),
-        overgo.fold("Advanced: retrieval evidence", false, retrievalHost),
         overgo.fold("Advanced: structured observables", false, evidenceHost));
 
       const schema = await api.get("/workspace/schema?id=agent-definition");
@@ -189,23 +187,6 @@
         toolSurface.setAgent(activeAgent(), tools);
       }
 
-      function renderRetrieval() {
-        const [projection, policy, query, limit] = ["retrieval projection identity", "rerank policy identity", "retrieval query", "result limit"]
-          .map((placeholder) => el("input", { class: "text", "aria-label": placeholder, placeholder }));
-        const results = el("div");
-        const search = el("button", { class: "btn", text: "Search", disabled: !selected });
-        search.addEventListener("click", () => overgo.act(status, async () => {
-          const found = await api.post("/agents/retrieval", {
-            agent: selected, projection: projection.value.trim(), rerank_policy: policy.value.trim(),
-            query: query.value, limit: Number(limit.value),
-          });
-          results.replaceChildren(...found.map((item) => el("div", { class: "card" },
-            artifactLink(item.citation.source), " / ", artifactLink(item.citation.chunk),
-            el("div", { text: item.citation.text }))));
-        }));
-        retrievalHost.replaceChildren(el("div", { class: "row" }, projection, policy, query, limit, search), results);
-      }
-
       // renderProvenance expands one step's evidence walk: interaction, manual, receipts, decision, result.
       const renderProvenance = (host, session, step) => overgo.act(status, async () => {
         const walk = await api.get("/agents/provenance?session=" + encodeURIComponent(selected + ":" + session) + "&step=" + step);
@@ -246,7 +227,7 @@
         }));
       });
 
-      function renderAll() { renderInventory(); renderCreate(); renderChat(); renderTools(); renderRetrieval(); }
+      function renderAll() { renderInventory(); renderCreate(); renderChat(); renderTools(); }
 
       tools = (await api.get("/agents/tools")).tools || [];
       inventory = await api.get("/agents");

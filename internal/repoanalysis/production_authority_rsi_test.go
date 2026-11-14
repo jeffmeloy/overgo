@@ -32,7 +32,6 @@ var capabilityInvocationBoundaries = []invocationBoundary{
 
 var directGoOrchestrationPackages = map[string]bool{
 	"internal/composition":      true,
-	"internal/controlleraction": true,
 	"internal/evaluation":       true,
 	"internal/loop":             true,
 	"internal/modelrecipe":      true,
@@ -108,7 +107,6 @@ var goOnlyRuntimePackages = map[string]bool{
 	"internal/agenttool":         true,
 	"internal/capabilityruntime": true,
 	"internal/composition":       true,
-	"internal/controlleraction":  true,
 	"internal/evaluation":        true,
 	"internal/invocation":        true,
 	"internal/loop":              true,

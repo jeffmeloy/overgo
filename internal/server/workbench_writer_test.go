@@ -114,8 +114,8 @@ func testWorkbenchEvidencePublication(t *testing.T) {
 			if repository != store {
 				return nil, errors.New("library did not borrow serving store")
 			}
-			if _, err := runrecord.RequireAgentObligation(ctx, repository, wanted); err != nil {
-				return nil, err
+			if _, found, err := repository.Artifact(ctx, wanted); err != nil || !found {
+				return nil, errors.Join(errors.New("library did not see the workbench obligation"), err)
 			}
 			_, err := artifact.CommitBatch(ctx, repository, artifact.Batch{Key: "workspace/ack/" + wanted.String(), Aliases: []artifact.AliasBinding{{Name: "workbench/ack", Target: wanted}}})
 			registered++

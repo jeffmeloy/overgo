@@ -41,7 +41,7 @@ func TestServingObservationContractAndIndexedQuery(t *testing.T) {
 	fixture := servingObservationFixture(t)
 	fixture.Version = artifact.InitialDocumentVersion
 	observation := testcheck.Must(servingObservationCodec.New(fixture))(t)
-	testcheck.NoError(t, observation.ValidateIdentity())
+	testcheck.NoError(t, servingObservationCodec.ValidateIdentity(observation))
 	content := testcheck.Must(observation.Content())(t)
 	parsed := testcheck.Must(servingObservationCodec.Parse(content.Data))(t)
 	if parsed.ID != observation.ID || parsed.Usage != fixture.Usage || parsed.Resources != fixture.Resources ||

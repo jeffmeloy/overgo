@@ -65,7 +65,7 @@ func TestComposedArtifactExecutesAndResolvesLineage(t *testing.T) {
 	}
 
 	recipeContent := testcheck.Must(chainProgram.Definition().ArtifactContent())(t)
-	decompositionContent := testcheck.Must(decomposition.Content())(t)
+	decompositionContent := testcheck.Must(decomposition.Batch("composed/decomposition"))(t).Contents[0]
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key:       "composed/inputs",
 		Artifacts: []artifact.Descriptor{{ID: scorerID}, {ID: drafterID}},

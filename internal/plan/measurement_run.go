@@ -48,7 +48,6 @@ type MeasurementRun struct {
 type MeasurementPhase struct {
 	Name     string    `json:"name"`
 	Started  time.Time `json:"started"`
-	Expected time.Time `json:"expected,omitzero"`
 	Ended    time.Time `json:"ended,omitzero"`
 	Passed   bool      `json:"passed,omitzero"`
 	Credited bool      `json:"credited,omitzero"`
@@ -134,18 +133,8 @@ func (run MeasurementRun) HoldsTheCard() bool {
 	return run.Ended.IsZero() && processcontrol.Running(run.Process, run.ProcessStart)
 }
 
-// Wall is how long the phase named took in the run, and whether it ended there.
-func (run MeasurementRun) Wall(name string) (time.Duration, bool) {
-	for _, phase := range run.Phases {
-		if phase.Name == name && !phase.Ended.IsZero() && !phase.Credited {
-			return phase.Ended.Sub(phase.Started), true
-		}
-	}
-	return 0, false
-}
-
 // Report is the run as the hooks print it: when it began, each phase with its
-// verdict and wall or, running, since when and its expected end, and its end,
+// verdict and wall or, running, since when, and its end,
 // or, where its process is gone with no end recorded, that it was cut short.
 func (run MeasurementRun) Report() string {
 	at := func(moment time.Time) string { return moment.Local().Format("Jan 2 15:04 MST") }
@@ -162,10 +151,8 @@ func (run MeasurementRun) Report() string {
 			}
 			// The phase's wall is what it ran, not a limit it was held to: "did not pass in 10m" read as one (owner, 2026-11-13).
 			fmt.Fprintf(&b, "; %s ran %s and %s", phase.Name, phase.Ended.Sub(phase.Started).Round(time.Minute), verdict)
-		case phase.Expected.IsZero():
-			fmt.Fprintf(&b, "; %s running since %s, no earlier run timed it", phase.Name, at(phase.Started))
 		default:
-			fmt.Fprintf(&b, "; %s running since %s, expected to end %s", phase.Name, at(phase.Started), at(phase.Expected))
+			fmt.Fprintf(&b, "; %s running since %s", phase.Name, at(phase.Started))
 		}
 		if len(phase.Failed) > 0 {
 			fmt.Fprintf(&b, ", failed: %s", strings.Join(phase.Failed[:min(len(phase.Failed), reportedFailures)], ", "))

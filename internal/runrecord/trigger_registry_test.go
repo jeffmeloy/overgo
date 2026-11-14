@@ -31,7 +31,7 @@ func TestExecutionTriggerRegistryCoverage(t *testing.T) {
 
 	// The declared bindings this substrate depends on.
 	retry, _ := TriggerContractFor(TriggerRetry)
-	if retry.Budget != budgetAttemptBounded || retry.Evidence != "terminal-attempt-receipt" {
+	if retry.Budget != budgetAttemptBounded || retry.Evidence != "stage-receipt" {
 		t.Fatalf("retry contract = %+v", retry)
 	}
 	recovery, _ := TriggerContractFor(TriggerRecovery)

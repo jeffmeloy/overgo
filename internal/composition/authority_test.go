@@ -1,3 +1,4 @@
+// Package composition_test verifies cross-package composition contracts.
 package composition_test
 
 import (

@@ -16,9 +16,9 @@ import (
 // under the agent root stay out. The manifest asks on every page load.
 func TestActiveAgentNamesReadOnlyTheActivationRoot(t *testing.T) {
 	t.Parallel()
-	fixture := newAgentWorkspaceFixture(t, nil, nil, nil)
+	fixture := newAgentWorkspaceFixture(t, nil)
 	defer fixture.store.Close()
-	activateAgentFromAPI(t, fixture.handler, publishAgentFromAPI(t, fixture, nil))
+	activateAgentFromAPI(t, fixture.handler, publishAgentFromAPI(t, fixture))
 	stray := testutil.ArtifactID(t, artifact.KindEvidence, "not-an-activation")
 	if _, err := fixture.store.Commit(t.Context(), artifact.Batch{
 		Key: "agent-names/stray", Artifacts: []artifact.Descriptor{{ID: stray}},

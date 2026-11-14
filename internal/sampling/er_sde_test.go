@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"overgo/internal/checked"
 	"overgo/internal/jsonfile"
 	"overgo/internal/testcheck"
 )
@@ -35,13 +36,7 @@ const erSDETolerance = 5e-6
 func TestERSDEDrawsNoiseAsTorchDoes(t *testing.T) {
 	var golden comfyERSDE
 	testcheck.NoError(t, jsonfile.Decode("testdata/comfy_er_sde_trajectories.json", &golden))
-	worst := func(got, want []float32) float64 {
-		off := 0.0
-		for i := range want {
-			off = max(off, math.Abs(float64(got[i])-float64(want[i])))
-		}
-		return off
-	}
+	worst := erSDEOff
 	for _, c := range golden.Cases {
 		solver := testcheck.Must(NewERSDE(c.Sigmas, ERSDEStages))(t)
 		x, drawn := c.X0, 0
@@ -66,6 +61,38 @@ func TestERSDEDrawsNoiseAsTorchDoes(t *testing.T) {
 	}
 	if len(golden.Cases) < 3 {
 		t.Errorf("the golden holds %d cases", len(golden.Cases))
+	}
+}
+
+// erSDEOff is how far got lies from want at its farthest element, infinitely far where a difference is not finite: a
+// NaN is no number max can rank, and a NaN off compared to the tolerance reads as agreement (SQA-396).
+func erSDEOff(got, want []float32) float64 {
+	off := 0.0
+	for i := range want {
+		difference := math.Abs(float64(got[i]) - float64(want[i]))
+		if !checked.Finite64(difference) {
+			return math.Inf(1)
+		}
+		off = max(off, difference)
+	}
+	return off
+}
+
+// TestTheERSDEComparisonRefusesANonfiniteError holds the comparison ER-SDE's parity reads (er-sde-finite/do, SQA-396)
+// to a refusal where the latent is not finite: a NaN or an infinity beside a finite reference lies past the tolerance,
+// as a latent within float32 rounding of it does not.
+func TestTheERSDEComparisonRefusesANonfiniteError(t *testing.T) {
+	want := []float32{0.25, -0.5, 1}
+	for name, got := range map[string][]float32{
+		"NaN":      {0.25, float32(math.NaN()), 1},
+		"infinity": {0.25, -0.5, float32(math.Inf(1))},
+	} {
+		if off := erSDEOff(got, want); !(off > erSDETolerance) {
+			t.Errorf("a latent holding a %s reads %g off the reference, within the tolerance", name, off)
+		}
+	}
+	if off := erSDEOff([]float32{0.25, -0.5, 1.000001}, want); off > erSDETolerance {
+		t.Errorf("a latent within float32 rounding of the reference reads %g off it", off)
 	}
 }
 

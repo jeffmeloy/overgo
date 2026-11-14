@@ -8239,7 +8239,7 @@
           "symbol": "Client.do; shouldCopyHeaderOnRedirect; defaultCheckRedirect (installed toolchain source)"
         }
       ],
-    "status": "open",
+    "status": "resolved",
     "title": "Preserve provider endpoint and default redirect bounds"
   },
     {
@@ -9429,7 +9429,7 @@
           "symbol": "restart and process-held checkout cases"
         }
       ],
-    "status": "open",
+    "status": "resolved",
     "title": "Keep resumed scratch protected when end-marker invalidation fails"
   },
     {
@@ -12028,27 +12028,217 @@
     ],
     "master_lead_triage": {
     "at": "2026-11-13",
-    "head": "f110d30b12c3b5e54918b986d70682299ab84ca9",
+    "head": "0ef92bbeb509dbb96070d1f6e9161e95538210b7",
     "findings": {
+      "SQA-396": {
+        "action": "filed",
+        "rows": [
+          "er-sde-finite/do"
+        ],
+        "note": "Answered by the lead on 2026-11-13: filed, P2 by the agreed rule as a check that passes without checking."
+      },
+      "SQA-381": {
+        "action": "filed",
+        "rows": [
+          "result-reads/do"
+        ],
+        "note": "Answered by the lead on 2026-11-13: filed, P2 by the agreed rule as a check that passes without checking, a result's identity omitting a read."
+      },
+      "SQA-370": {
+        "action": "filed",
+        "rows": [
+          "mmlu-pro/headline"
+        ],
+        "note": "Answered by the lead on 2026-11-13: filed, a served quality claim."
+      },
+      "SQA-369": {
+        "action": "filed",
+        "rows": [
+          "mmlu-pro/reference"
+        ],
+        "note": "Answered by the lead on 2026-11-13: filed, P2 by the agreed rule as a check that passes without checking, its match by ordinal and count alone."
+      },
+      "SQA-368": {
+        "action": "filed",
+        "rows": [
+          "identity-gate/do"
+        ],
+        "note": "Answered by the lead on 2026-11-13: filed, observed, and it stops unrelated landings."
+      },
+      "SQA-380": {
+        "action": "filed",
+        "rows": [
+          "land-env/do"
+        ],
+        "note": "Answered by the lead on 2026-11-13: filed, checks that would run in the environment they are kept from, the check class."
+      },
+      "SQA-394": {
+        "action": "filed",
+        "rows": [
+          "turn-progress/do"
+        ],
+        "note": "Answered by the lead on 2026-11-13: filed, a child queueing behind its own parent's turn stops work."
+      },
+      "SQA-346": {
+        "action": "filed",
+        "rows": [
+          "observation-binding/do"
+        ],
+        "note": "Answered by the lead on 2026-11-13: filed, held-out readings credited to media they did not read."
+      },
+      "SQA-340": {
+        "action": "filed",
+        "rows": [
+          "preset-form/do"
+        ],
+        "note": "Answered by the lead on 2026-11-13: filed, a served choice misrepresented."
+      },
+      "SQA-382": {
+        "action": "filed",
+        "rows": [
+          "prompt-weights/rows"
+        ],
+        "note": "Answered by the lead on 2026-11-13: filed, model output."
+      },
+      "SQA-383": {
+        "action": "filed",
+        "rows": [
+          "thinking-mode/media"
+        ],
+        "note": "Answered by the lead on 2026-11-13: filed, a served route's sampling."
+      },
+      "SQA-364": {
+        "action": "filed",
+        "rows": [
+          "projected-split/admit"
+        ],
+        "note": "Answered by the lead on 2026-11-13: filed, a served request that fails after partial work."
+      },
+      "SQA-393": {
+        "action": "filed",
+        "rows": [
+          "sharpen-admit/do"
+        ],
+        "note": "Answered by the lead on 2026-11-13: filed, model output and a refusal after a render."
+      },
+      "SQA-386": {
+        "action": "filed",
+        "rows": [
+          "moss-import-admission/convrot"
+        ],
+        "note": "Answered by the lead on 2026-11-13: filed, MOSS Ultra's Base serving from its own file."
+      },
+      "SQA-387": {
+        "action": "filed",
+        "rows": [
+          "moss-import-admission/local"
+        ],
+        "note": "Answered by the lead on 2026-11-13: filed beside SQA-386, the import's admission before its expensive reads."
+      },
+      "SQA-379": {
+        "action": "filed",
+        "rows": [
+          "preset-evidence/provenance"
+        ],
+        "note": "Answered by the lead on 2026-11-13: filed after preset-readings, whose verdicts it binds; a held-out quality claim."
+      },
+      "SQA-342": {
+        "action": "filed",
+        "rows": [
+          "preset-evidence/statistic"
+        ],
+        "note": "Answered by the lead on 2026-11-13: filed after preset-readings, whose admissions it bears on; a held-out quality claim."
+      },
+      "SQA-345": {
+        "action": "filed",
+        "rows": [
+          "comfy-recorder/record-rest"
+        ],
+        "note": "Answered by the lead on 2026-11-13: carried by the recorder's open step, whose files it names."
+      },
+      "SQA-388": {
+        "action": "filed",
+        "rows": [
+          "comfy-recorder/record-rest"
+        ],
+        "note": "Answered by the lead on 2026-11-13: carried by the recorder's open step, whose files it names."
+      },
+      "SQA-356": {
+        "action": "filed",
+        "rows": [
+          "loop-proof/local-demonstrated"
+        ],
+        "note": "Answered by the lead on 2026-11-13: carried by the local worker's demonstration step, which reads the worker's cost."
+      },
+      "SQA-366": {
+        "action": "filed",
+        "rows": [
+          "loop-proof/local-demonstrated"
+        ],
+        "note": "Answered by the lead on 2026-11-13: carried by the local worker's demonstration step, on the worker's path."
+      },
+      "SQA-371": {
+        "action": "filed",
+        "rows": [
+          "loop-proof/local-demonstrated"
+        ],
+        "note": "Answered by the lead on 2026-11-13: carried by the local worker's demonstration step, on the worker's path."
+      },
+      "SQA-372": {
+        "action": "filed",
+        "rows": [
+          "loop-proof/local-demonstrated"
+        ],
+        "note": "Answered by the lead on 2026-11-13: carried by the local worker's demonstration step; a held check altered through another spelling is the check class."
+      },
+      "SQA-373": {
+        "action": "filed",
+        "rows": [
+          "loop-proof/local-demonstrated"
+        ],
+        "note": "Answered by the lead on 2026-11-13: carried by the local worker's demonstration step, on the worker's path."
+      },
+      "SQA-374": {
+        "action": "filed",
+        "rows": [
+          "loop-proof/local-demonstrated"
+        ],
+        "note": "Answered by the lead on 2026-11-13: carried by the local worker's demonstration step, on the worker's path."
+      },
+      "SQA-322": {
+        "action": "declined",
+        "rows": [],
+        "note": "Declined at P2 by the lead on 2026-11-13: by the agreed rule it is P3, an ordering of orchestration read from source that loses, leaks and stops nothing. A host check already runs before the broad tests and lanes (verify-mention's landing ran its verify at stage 8 of 11), and a check on the card runs after the lanes inside the card's turn (check-turn); what remains is the order within one landing of several steps mixing the two. It rides with the next change to internal/landing's stage order."
+      },
+      "SQA-377": {
+        "action": "declined",
+        "rows": [],
+        "note": "Declined at P2 by the lead on 2026-11-13: by the agreed rule it is P3, a test's historical record read from source, which costs a lane only when a live source its October record cites changes. It rides with the next change to internal/inferencesurface."
+      },
+      "SQA-385": {
+        "action": "declined",
+        "rows": [],
+        "note": "Declined at P2 by the lead on 2026-11-13: by the agreed rule it is P3: a failed or cancelled rehearsal leaves a partial clone to remove and its writer lock held until exit, read from source, and loses nothing of the live store. It rides with the next change to cmd/overgodb's rehearse or internal/overgodb's clone."
+      },
       "SQA-401": {
         "action": "deferred",
         "note": "Checked 2026-11-13 at 8ab8f2e44: the module root holds no Go file, so no package there can embed a file below it, and the one build-tagged file with a go:embed directive is a test (internal/dataset/speech_source_acceptance_model_test.go), which the undo does not restore as production. Neither shape the finding names occurs today; it is taken up when one does, or with the verifier's build-context work it names."
       },
       "SQA-384": {
-        "action": "filed",
+        "action": "closed",
         "rows": [
           "session-resume/do",
           "session-end/stale"
         ],
-        "note": "Landed at 2f978d801: SessionEnded reads the checkout's hold first, so a session the hold names with a running process is not ended whatever its old record says, and the session-start hook removes a session's end record (guard.SessionResumed). TestASessionThatResumesIsNotEnded and TestAStartedSessionDropsItsEndRecord hold both. Reopened by the lead's recheck on 2026-11-13: where removing the end record fails, the session-start hook prints the error and goes on, and SessionEnded then reads a resumed session with no hold as ended, so its new scratch is cleared (criterion 2); session-end/stale makes an end record older than the session's last turn no sign of its end."
+        "note": "Landed at 2f978d801: SessionEnded reads the checkout's hold first, so a session the hold names with a running process is not ended whatever its old record says, and the session-start hook removes a session's end record (guard.SessionResumed). TestASessionThatResumesIsNotEnded and TestAStartedSessionDropsItsEndRecord hold both. Reopened by the lead's recheck on 2026-11-13: where removing the end record fails, the session-start hook prints the error and goes on, and SessionEnded then reads a resumed session with no hold as ended, so its new scratch is cleared (criterion 2); session-end/stale makes an end record older than the session's last turn no sign of its end. Closed by the lead with 0ef92bbeb, each criterion: a resumed session and a live holder keep their protection (TestASessionThatResumesIsNotEnded, TestAStartedSessionDropsItsEndRecord); an end record the hook could not remove is outranked by the session's next turn, so its scratch is not cleared (TestAnEndRecordOlderThanTheSessionsLastTurnIsNoEnd); ended cleanup and the other keepers are unchanged."
       },
       "SQA-363": {
-        "action": "filed",
+        "action": "closed",
         "rows": [
           "provider-redirect/do",
           "relay-redirect/bound"
         ],
-        "note": "Landed at 2f978d801: the relay's listing and generator share one client (keyed) that refuses a redirect to another scheme, host or port before the key is sent again. TestAProvidersKeyFollowsNoRedirectOffItsEndpoint redirects an https provider to plain http on its own host; at the base the listing followed it with the key. Reopened by the lead's recheck on 2026-11-13: keyed returns nil where the caller sets no redirect policy, so Go's stop after ten redirects is lost and a same-endpoint loop is followed without end, the key on each (criterion 2); relay-redirect/bound restores the bound."
+        "note": "Landed at 2f978d801: the relay's listing and generator share one client (keyed) that refuses a redirect to another scheme, host or port before the key is sent again. TestAProvidersKeyFollowsNoRedirectOffItsEndpoint redirects an https provider to plain http on its own host; at the base the listing followed it with the key. Reopened by the lead's recheck on 2026-11-13: keyed returns nil where the caller sets no redirect policy, so Go's stop after ten redirects is lost and a same-endpoint loop is followed without end, the key on each (criterion 2); relay-redirect/bound restores the bound. Closed by the lead with 0ef92bbeb, each criterion: both keyed callers refuse an off-endpoint redirect before the key is sent (TestAProvidersKeyFollowsNoRedirectOffItsEndpoint); a client given no policy stops at Go's tenth redirect (TestAProvidersKeyedClientStopsAfterTenRedirects), a caller's own policy still called; the native fixture holds the same-endpoint loop and the off-endpoint refusal."
       },
       "SQA-398": {
         "action": "implemented",

@@ -431,10 +431,14 @@ func TestModelJourneyFirstRun(t *testing.T) {
       picker.value = `+strconv.Quote(recipeID)+`; picker.dispatchEvent(new Event("change"));
       const speechOptions = document.querySelector('[aria-label="Open speech options"]');
       if (speechOptions) speechOptions.click();
+      // The journey sends what a person who changes nothing sends, but a choice the page requires and a fresh seed: what
+      // the form leaves unset is the model's declared default (a clip's frames and scale prefilled, a speech's voice the
+      // reference's), where the journey had filled every empty number with 1 and chosen a voice itself, standing in for
+      // a page that offered none (declared-defaults/do).
       for (const label of document.querySelectorAll('.mode-controls label.control, [aria-label="Speech options"] label.control')) {
         const input = label.querySelector("input, select, textarea");
-        if (input.tagName === "SELECT" && !input.value) input.value = [...input.options].map((option) => option.value).find(Boolean) || "";
-        else if (input.type === "number" && !input.value && (!speechOptions || input.required || label.textContent.trim().startsWith("seed"))) input.value = label.textContent.trim().startsWith("seed") ? String(Date.now() % 100000) : "1";
+        if (input.tagName === "SELECT" && !input.value && input.required) input.value = [...input.options].map((option) => option.value).find(Boolean) || "";
+        else if (label.textContent.trim().startsWith("seed") && !input.value) input.value = String(Date.now() % 100000);
       }
       if (speechOptions) document.getElementById('settings-dialog').close();
       return true;
@@ -462,10 +466,25 @@ func TestModelJourneyFirstRun(t *testing.T) {
 		webuilane.Leg(t, "media-out leg", "an image landed as an artifact card")
 		captureStates("thread-media")
 		assertBrowserPredicate(t, ctx, browser, `(() => { const again = [...document.querySelectorAll("#panel-chat .msg.media button")].find((button) => button.textContent === "use as input"); if (!again) return false; again.click(); return true; })()`)
-		settle("image back in as an attachment", `document.querySelectorAll('.composer .attachment-row[data-state=ready], .composer .attachment-row[data-state=refused]').length === 1`)
-		var refused bool
-		testcheck.NoError(t, browser.Evaluate(ctx, `!!document.querySelector('.composer .attachment-row[data-state=refused]')`, &refused))
-		webuilane.Leg(t, "media-in leg", "the generated image re-entered the composer, refused=%v", refused)
+		// The served model's declaration says which answer is right: an attachment ready for a model that takes images,
+		// else the refusal carrying its declared reason; the other answer fails the leg with what the row shows.
+		var vision bool
+		testcheck.NoError(t, browser.Evaluate(ctx, `!!(window.overgo.capabilities().modalities || {}).image`, &vision))
+		settle("the generated image's attachment answers", `document.querySelectorAll('.composer .attachment-row[data-state=ready], .composer .attachment-row[data-state=refused]').length === 1`)
+		expected := `!!document.querySelector('.composer .attachment-row[data-state=ready]')`
+		if !vision {
+			expected = `(() => {
+        const card = document.querySelector('.composer .attachment-row[data-state=refused]');
+        const reason = ((window.overgo.capabilities().media || {}).refusals || {}).image || "";
+        return !!card && reason !== "" && card.textContent.includes(reason);
+      })()`
+		}
+		var held bool
+		testcheck.NoError(t, browser.Evaluate(ctx, expected, &held))
+		if !held {
+			t.Fatalf("the generated image re-entered the composer as %q, where the served model's declared image input %v says otherwise", pageText(t, ctx, browser, `document.querySelector('.composer .attachment-row').textContent`), vision)
+		}
+		webuilane.Leg(t, "media-in leg", "the generated image re-entered the composer as the served model declares (image input %v)", vision)
 		captureStates("composer-attachment")
 		assertBrowserPredicate(t, ctx, browser, `(() => { document.querySelector('.composer .attachment-row button[aria-label^="Remove "]').click(); return !document.querySelector('.composer .attachment-row') && !document.querySelector('.send-button').disabled; })()`)
 		// 10b. Gallery after a reload: the image the store holds reappears
@@ -522,26 +541,42 @@ func TestModelJourneyFirstRun(t *testing.T) {
 	} else {
 		t.Log("media-out leg not taken: the store declares no host oscillator image model")
 	}
+	// requestLands waits for a generation request's media or its error row, and fails with the error's words: a wait
+	// that ended on the error and then asserted the media said only that the media was missing.
+	requestLands := func(what, ready string) {
+		t.Helper()
+		// The wait ends at the request's answer, a media card or an error row, whichever it is; a wait for the one
+		// expected answer alone waited forever on another (an MP4 card where a GIF was awaited, 2026-11-14).
+		const last = `[...document.querySelectorAll("#panel-chat .msg")].at(-1)`
+		settle(what+" answers", `!document.querySelector(".composer .send-button").disabled && !!`+last+` && (`+last+`.classList.contains("media") || `+last+`.classList.contains("error"))`)
+		answer := pageText(t, ctx, browser, `(`+last+`).className + ": " + (`+last+`).textContent`)
+		if strings.Contains(answer, "error") && !strings.Contains(answer, "media") {
+			t.Fatalf("%s failed: %s", what, answer)
+		}
+		var held bool
+		testcheck.NoError(t, browser.Evaluate(ctx, ready, &held))
+		if !held {
+			t.Fatalf("%s answered %q, not as the leg expects", what, answer)
+		}
+	}
 	if generationMode("speech", "") {
 		say(t, ctx, browser, "hello from the lane")
 		const speechReady = `!!document.querySelector("#panel-chat .msg.media audio") && !document.querySelector(".composer .send-button").disabled`
-		settle("speech request completes", `(`+speechReady+`) || [...document.querySelectorAll("#panel-chat .msg")].at(-1)?.classList.contains("error")`)
-		assertBrowserPredicate(t, ctx, browser, speechReady)
+		requestLands("the speech request", speechReady)
 		webuilane.Leg(t, "speech-out leg", "a clip landed as an artifact card")
 	} else {
 		t.Log("speech-out leg not taken: the store declares no speech model")
 	}
 	// 11. Clip back in: a clip from the host oscillator video model lands as
-	// a card that shows the GIF as a picture, which a video element does not
-	// play, and with LiveEdit chosen in the same mode the card's "use as
+	// a card that plays it, an MP4 being what a request naming no format writes
+	// (mp4-clips/default), and with LiveEdit chosen in the same mode the card's "use as
 	// input" fills the request's source clip with the card's stored id
 	// instead of attaching bytes.
 	if generationMode("video-gen", "model.oscillator-video-prepare") {
 		say(t, ctx, browser, "a test clip")
 		const clipReady = `!document.querySelector(".composer .send-button").disabled &&
-      [...document.querySelectorAll("#panel-chat .msg.media")].some((card) => card.textContent.includes("image/gif") && !!card.querySelector("img") && !card.querySelector("video") && !!card.querySelector(".note a"))`
-		settle("clip request completes", `(`+clipReady+`) || [...document.querySelectorAll("#panel-chat .msg")].at(-1)?.classList.contains("error")`)
-		assertBrowserPredicate(t, ctx, browser, clipReady)
+      [...document.querySelectorAll("#panel-chat .msg.media")].some((card) => card.textContent.includes("video/mp4") && !!card.querySelector("video") && !!card.querySelector(".note a"))`
+		requestLands("the clip request", clipReady)
 		webuilane.Leg(t, "clip-out leg", "a clip landed as an artifact card")
 		// Presets from declared bounds: the Wan prompt form prefills the profile's
 		// geometry, and an aspect chip moves width and height by the stride
@@ -562,7 +597,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
 		}
 		if generationMode("video-gen", "model.reference-video-prepare") {
 			assertBrowserPredicate(t, ctx, browser, `(() => {
-      const card = [...document.querySelectorAll("#panel-chat .msg.media")].find((card) => card.textContent.includes("image/gif"));
+      const card = [...document.querySelectorAll("#panel-chat .msg.media")].find((card) => card.textContent.includes("video/mp4"));
       const again = card && [...card.querySelectorAll("button")].find((button) => button.textContent === "use as input");
       if (!again) return false; again.click(); return true; })()`)
 			settle("clip fills the source artifact", `(() => {

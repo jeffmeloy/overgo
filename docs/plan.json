@@ -3,6 +3,91 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "cycle-lanes",
+      "title": "The cycle's lanes run at the build that gave them the gate's real-model tests, so each moved test runs before other work",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "The cycle's lanes run at the build that gave them the gate's real-model tests, so each moved test runs before other work",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go run ./cmd/validate -run -lanes",
+          "files": [
+            "docs/plan.json"
+          ],
+          "rationale": "Note: The evidence (the owner's review, 2026-11-14): cuda-synthetic moves 63 files of real-model CUDA tests to the cycle, among them latentimage's Krea tests the gate ran until that day. The cycle last ran on 8 Nov at fdd4ab1cea37, its lanes ending after 1 h 41 m without passing; HandStartDue calls one due by hand only when the plan is empty, and full-run has no steps, so nothing dispatches it. Until a cycle runs, a moved test runs only where a step names it as its check.\n\nDecision, the lead's at the owner's word (\"to act on as you see fit\"): cuda-synthetic lands with this row behind it, so the next step after it runs every test it moved. The turn is the cycle's lanes alone, validate -run -lanes, the checks a run makes before its cells: the models lane holds every moved package. It is not a step of full-run: a row leaves the plan when its last step lands, which would take full-run with it, and full-run's own check, the run with its cells, still waits on the causes its title names.\n\nCheck: validate -run -lanes passes on the card, each lane's go test run afresh (-count=1). A lane that fails names its tests, and curing them is this row's work."
+        }
+      ]
+    },
+    {
+      "id": "lane-passes",
+      "title": "A direct run of the lanes records each lane's pass with its commit, and the status says where each last passed",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A direct run of the lanes records each lane's pass with its commit, and the status says where each last passed",
+          "status": "open",
+          "verify": "go test ./cmd/validate ./cmd/loop -count=1 -run '^(TestADirectLaneRunRecordsEachLanesPass|TestTheStatusSaysWhereEachLaneLastPassed)$'",
+          "files": [
+            "cmd/validate",
+            "cmd/loop",
+            "internal/plan"
+          ],
+          "rationale": "Serves: the owner's review of 2026-11-14 (point 5): a direct run until the lanes pass, the landing taken only for the run expected to pass.\n\nThe evidence: validate -run -lanes keeps no record of a lane's pass: its watch writes failures and package walls into a measurement run's record alone, when the run's environment names one (laneWatch), and a direct run names none, so what a direct run proved is in its output only.\n\nThe change: each lane's end is recorded in the checkout's state with the commit it ran at, its verdict and when; the status prints, for each lane, the commit it last passed at and how many commits the trunk has taken since, with the paths among them the lane reaches.\n\nCheck: TestADirectLaneRunRecordsEachLanesPass runs a fixture lane and reads its record; TestTheStatusSaysWhereEachLaneLastPassed reads the status over a record and commits after it."
+        }
+      ]
+    },
+    {
+      "id": "derive-always",
+      "title": "The generators' files enter a commit only as derive wrote them from its candidate, whatever the change holds",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "The generators' files enter a commit only as derive wrote them from its candidate, whatever the change holds",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestADerivedFileEntersACommitOnlyFromDerive$'",
+          "files": [
+            "internal/landing"
+          ],
+          "rationale": "Serves: the owner's review of 2026-11-14 (point 1): review-rows/do failed twice on it.\n\nThe evidence: commitScope always lists the generators' writes (docs/api_manifest.json, compatibility.json and its documents), and fix() calls derive only inside if len(directories) != 0, for a change that holds Go. A docs/api_manifest.json the checkout held regenerated for other uncommitted code was in scope for a change to the plan alone, which made it no plan-only change: every stage ran, derive did not, and the stale manifest was committed as the checkout held it, and refused by its own test.\n\nThe change: derive runs in the fix stage whatever the change holds, and the generators' writes leave commitScope: a capture stages a generator's file only as derive wrote it from the candidate, never as the checkout held it. A plan-only change is plan-only whatever generated file the checkout holds.\n\nCheck: TestADerivedFileEntersACommitOnlyFromDerive lands a change to the plan alone from a checkout whose API manifest is stale, and holds the commit to the plan, the manifest left as the checkout held it; and a change to Go has its manifest as derive wrote it."
+        }
+      ]
+    },
+    {
+      "id": "video-decode-overlap",
+      "title": "The causal video VAE decodes chunk k on a second stream while chunk k + 1 denoises",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "overlap",
+          "title": "Decoding overlaps denoising chunk by chunk, the output bytes unchanged",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestDecodeOverlapsDenoisingChunkByChunk$'",
+          "files": [
+            "internal/latentvideo",
+            "internal/cuda",
+            "internal/media",
+            "internal/capabilityruntime",
+            "internal/servingattempt",
+            "internal/runrecord",
+            "cmd/recipe",
+            "internal/scorecard"
+          ],
+          "needs_card": true,
+          "rationale": "LiveEdit pays the VAE twice, encode and decode, and the Wan student decodes the same way chunk by chunk. The causal VAE keeps a per-chunk feature cache, so chunk k can decode while chunk k + 1 denoises, hiding most of the decode behind the network. The kernels are unchanged, so the frames are bit-identical.\n\nNote: files set to internal/latentvideo, internal/cuda, internal/media, internal/capabilityruntime, internal/servingattempt, internal/runrecord, cmd/recipe, internal/scorecard: a measuring step records its time through the timing chain the owner named (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard), so its landing may write there\n\nNote: Measured 2026-11-13 at f79132c42, before building: TestSelfForcingMatchesItsUpstreamGolden, the card's turn held, denoised its seven chunks in 11.6 s and decoded the clip in 8.0 s, so the decode is about 40% of the clip's card time. Sampled every 250 ms, nvidia-smi read the card busy through the denoise (a kernel running, which does not say how many SMs ran). The decoder's session and the denoiser's are separate card sessions; two contexts on one card take turns rather than run together, so the overlap needs the decoder to run on a second stream in the denoiser's context. The cheap test before the 800-node build: one chunk's decode launched on a second stream of the denoiser's context during the next chunk's denoise, its wall against the two run in turn.\n\nServes: first-output for LiveEdit and the Wan student.\nDisappears: decode time added after the last denoise.\nEvidence: the frames are bit-identical to the sequential decode, and the user-size cell's decode stage shrinks.\nBatch: device lane.",
+          "depends_on": [
+            "media-user-size/stages"
+          ]
+        }
+      ]
+    },
+    {
       "id": "mmlu-pro",
       "title": "MMLU-Pro's headline is an eligible reading's, and its reference comparison admits the exact questions first",
       "owner": "master-lead",
@@ -40,24 +125,6 @@
       ]
     },
     {
-      "id": "derive-always",
-      "title": "The generators' files enter a commit only as derive wrote them from its candidate, whatever the change holds",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "The generators' files enter a commit only as derive wrote them from its candidate, whatever the change holds",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestADerivedFileEntersACommitOnlyFromDerive$'",
-          "files": [
-            "internal/landing"
-          ],
-          "rationale": "Serves: the owner's review of 2026-11-14 (point 1): review-rows/do failed twice on it.\n\nThe evidence: commitScope always lists the generators' writes (docs/api_manifest.json, compatibility.json and its documents), and fix() calls derive only inside if len(directories) != 0, for a change that holds Go. A docs/api_manifest.json the checkout held regenerated for other uncommitted code was in scope for a change to the plan alone, which made it no plan-only change: every stage ran, derive did not, and the stale manifest was committed as the checkout held it, and refused by its own test.\n\nThe change: derive runs in the fix stage whatever the change holds, and the generators' writes leave commitScope: a capture stages a generator's file only as derive wrote it from the candidate, never as the checkout held it. A plan-only change is plan-only whatever generated file the checkout holds.\n\nCheck: TestADerivedFileEntersACommitOnlyFromDerive lands a change to the plan alone from a checkout whose API manifest is stale, and holds the commit to the plan, the manifest left as the checkout held it; and a change to Go has its manifest as derive wrote it."
-        }
-      ]
-    },
-    {
       "id": "turn-holder",
       "title": "A waiter for a turn says the holder again each time it changes",
       "owner": "master-lead",
@@ -72,47 +139,6 @@
             "internal/processcontrol"
           ],
           "rationale": "Serves: the owner's review of 2026-11-14 (point 3) and \"shouldn't long tasks report incremental progress\".\n\nThe evidence: takePlace prints the holder once, read from the turn's record before the wait, and then blocks in the system's transaction (enterTurn) until it holds the turn; on 2026-11-14 the card's turn passed from a latentvideo test to the journey's served model while a landing waited, and its line still named the test.\n\nThe change: while it waits, the waiter reads the turn's record as it changes and says each new holder, with what it holds the turn for and since when, on the same output; first read whether a change of the record can be waited on (a change notification on its directory) before a reading on a clock, whose interval would be a tuning value naming its cost.\n\nCheck: TestAWaiterSaysEachNewHolder holds a turn in one process, hands it to a second while a third waits, and holds the third's output to both holders."
-        }
-      ]
-    },
-    {
-      "id": "lane-passes",
-      "title": "A direct run of the lanes records each lane's pass with its commit, and the status says where each last passed",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A direct run of the lanes records each lane's pass with its commit, and the status says where each last passed",
-          "status": "open",
-          "verify": "go test ./cmd/validate ./cmd/loop -count=1 -run '^(TestADirectLaneRunRecordsEachLanesPass|TestTheStatusSaysWhereEachLaneLastPassed)$'",
-          "files": [
-            "cmd/validate",
-            "cmd/loop",
-            "internal/plan"
-          ],
-          "rationale": "Serves: the owner's review of 2026-11-14 (point 5): a direct run until the lanes pass, the landing taken only for the run expected to pass.\n\nThe evidence: validate -run -lanes keeps no record of a lane's pass: its watch writes failures and package walls into a measurement run's record alone, when the run's environment names one (laneWatch), and a direct run names none, so what a direct run proved is in its output only.\n\nThe change: each lane's end is recorded in the checkout's state with the commit it ran at, its verdict and when; the status prints, for each lane, the commit it last passed at and how many commits the trunk has taken since, with the paths among them the lane reaches.\n\nCheck: TestADirectLaneRunRecordsEachLanesPass runs a fixture lane and reads its record; TestTheStatusSaysWhereEachLaneLastPassed reads the status over a record and commits after it."
-        }
-      ]
-    },
-    {
-      "id": "declared-defaults",
-      "title": "A clip's frames and scale and a speech's voice are declared with defaults the page fills and a request takes",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A clip's frames and scale and a speech's voice are declared with defaults the page fills and a request takes",
-          "status": "open",
-          "verify": "go test ./internal/mediacapability -count=1 -run '^TestAClipsSizeAndASpeechsVoiceAreDeclaredWithDefaults$'",
-          "files": [
-            "internal/mediacapability",
-            "internal/oscillatorimage",
-            "internal/speechsynth",
-            "internal/server"
-          ],
-          "rationale": "Serves: the owner's review of 2026-11-14 (point 6) and the two findings parked from the first-run journey: the speech form sends no voice, and a numeric control is never required.\n\nThe evidence: oscillatorimage.VideoRequest's Frames and Scale are plain ints, so describe gives them no Required, no Default and no Bounds, and the page renders empty fields; speechsynth's Voice is an optional string whose choices the model's artifact exports, one of three ways a voice is named (a voice, a prepared voice, a reference recording). workflow.js prefills a number from its declared bounds and offers a select's declared default, which the request takes in where the field is left out. The first-run journey filled every empty number with 1 and chose a voice itself to stand in for the person.\n\nThe change: the clip's frames and scale declare their defaults where their types are (as a clip's format declares MP4), so the page prefills them and a request that leaves them out is given them; the voice declares the model's default voice, given only where the request names none of the three. The journey's fill-with-1 and its voice choice go, the journey sending what a person who changes nothing sends.\n\nCheck: TestAClipsSizeAndASpeechsVoiceAreDeclaredWithDefaults holds the controls the page is given to the defaults, and a request taken in without them to the defaults applied."
         }
       ]
     },
@@ -146,20 +172,60 @@
       ]
     },
     {
-      "id": "cycle-lanes",
-      "title": "The cycle's lanes run at the build that gave them the gate's real-model tests, so each moved test runs before other work",
+      "id": "first-pass",
+      "title": "The status leads with the first-pass rate: commits landed on their first attempt",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "The cycle's lanes run at the build that gave them the gate's real-model tests, so each moved test runs before other work",
+          "title": "The status leads with the first-pass rate: commits landed on their first attempt",
           "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go run ./cmd/validate -run -lanes",
+          "verify": "go test ./internal/landing ./cmd/loop -count=1 -run '^(TestTheFirstPassRateCountsAttemptsToEachLanding|TestTheStatusSaysTheDaysFiveMeasures)$'",
           "files": [
-            "docs/plan.json"
+            "internal/landing",
+            "cmd/loop",
+            "skill.md"
           ],
-          "rationale": "Note: The evidence (the owner's review, 2026-11-14): cuda-synthetic moves 63 files of real-model CUDA tests to the cycle, among them latentimage's Krea tests the gate ran until that day. The cycle last ran on 8 Nov at fdd4ab1cea37, its lanes ending after 1 h 41 m without passing; HandStartDue calls one due by hand only when the plan is empty, and full-run has no steps, so nothing dispatches it. Until a cycle runs, a moved test runs only where a step names it as its check.\n\nDecision, the lead's at the owner's word (\"to act on as you see fit\"): cuda-synthetic lands with this row behind it, so the next step after it runs every test it moved. The turn is the cycle's lanes alone, validate -run -lanes, the checks a run makes before its cells: the models lane holds every moved package. It is not a step of full-run: a row leaves the plan when its last step lands, which would take full-run with it, and full-run's own check, the run with its cells, still waits on the causes its title names.\n\nCheck: validate -run -lanes passes on the card, each lane's go test run afresh (-count=1). A lane that fails names its tests, and curing them is this row's work."
+          "rationale": "Serves: the owner's review of 2026-11-14, from a read of LoopForge, whose headline measure is the first-pass rate, work delivered with no rework.\n\nThe evidence: .overgo-runtime/landing_waits.json records every attempt with its reference, outcome and stage walls (2,318 records): 5 of 11 commits on 2026-11-14 landed on their first attempt, 74 of 144 since 10 Nov, the worst after 6 attempts. The day's line prints the commits, the steps landed, added and retired, the report rows, the failed attempts by stage, those of unknown kind, the preflights and the gate's hours, and no line says how often a commit lands as first written.\n\nThe change: a landed commit's attempts are those of its reference since the last landing of it; the day's line leads with the first-pass rate, today's and since a date, and the most attempts one commit took, in place of the counts it subsumes; the failed attempts by stage stay, as a refusal is a failure (refusal-failure/do).\n\nCheck: TestTheFirstPassRateCountsAttemptsToEachLanding reads a fixture record of attempts and landings to the rate and the worst; TestTheStatusSaysTheDaysFiveMeasures holds the day's line to lead with it."
+        }
+      ]
+    },
+    {
+      "id": "card-free-dispatch",
+      "title": "While another process holds the card, dispatch gives out the next step that needs no card",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "While another process holds the card, dispatch gives out the next step that needs no card",
+          "status": "open",
+          "verify": "go test ./internal/plan -count=1 -run '^TestWhileTheCardIsHeldDispatchGivesAStepThatNeedsNone$'",
+          "files": [
+            "internal/plan",
+            "cmd/plan",
+            "internal/processcontrol"
+          ],
+          "rationale": "Serves: the owner's review of 2026-11-14, from a read of LoopForge, whose scheduler starts any step whose dependencies are done: ours gives out one step, and when it waits for the card the session waits too.\n\nThe evidence: dispatch already passes over a step marked NeedsCard while the card is held (selectDispatch, dispatchPriority), and admits the step it gives out; but the card counts as held only while a measurement run holds it (MeasurementRun.HoldsTheCard), never while a render, a run of the lanes or a landing holds the card's turn, which on 2026-11-14 held it for hours. NeedsCard is set by hand: of 73 open steps 54 carry it, 49 of them with a check that sets OVERGO_CUDA_TEST=1; one such check carries none (cycle-lanes/do), and five carry it for work that needs the card though their check does not (rendering a preset's readings, recording ComfyUI, training).\n\nThe change: the card counts as held while any other process holds its turn, read from the turn's record without opening the card; a step needs the card where it is marked so or its check runs on the card (the landing's onTheCard, moved where dispatch reads it); while the card is held, dispatch and admission give out the first step that needs none, as they do for a measurement run.\n\nCheck: TestWhileTheCardIsHeldDispatchGivesAStepThatNeedsNone holds the card's turn in another process and holds dispatch to the first step whose check and mark need no card, and to the card step once the turn is free."
+        }
+      ]
+    },
+    {
+      "id": "turn-outcome",
+      "title": "A wait for the card is recorded under the stage that waits, not the one before",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A wait for the card is recorded under the stage that waits, not the one before",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestACardWaitIsRecordedUnderItsStage$'",
+          "files": [
+            "internal/landing"
+          ],
+          "rationale": "Serves: the owner's review of 2026-11-14 (point 3): a failure recorded under another stage is counted against the wrong cause.\n\nThe evidence: the stage loop (landing.go Run) takes the card's turn for a stage on the card (holdCard) before it sets l.spent.Outcome to that stage, so a landing that fails or is refused while it waits for the turn is recorded under the stage before it: on 2026-11-14 a wait of 130 minutes sits in landing_waits.json under \"test\".\n\nThe change: the stage is the outcome from before its card turn is taken, so the wait, and a refusal in it, is the stage's own.\n\nCheck: TestACardWaitIsRecordedUnderItsStage refuses a landing while it waits for the card's turn and reads its record's outcome as the stage on the card."
         }
       ]
     },
@@ -323,35 +389,6 @@
           ],
           "needs_card": true,
           "rationale": "Serves: setup-steps; the rest of what comfy-recorder/record's rationale names, which the 2026-11-11 recordings do not hold.\n\nThe recordings of 2026-11-11 keep each section's request hash, the inputs set over it, ComfyUI's version and the commits of it and each node pack, the final prompts (each PreviewAny node's text), the final latent (a SaveLatent after the section's KSampler), every picture by its SHA-256, the run's whole time, the card's most memory in use and the nodes answered from ComfyUI's cache. They do not hold: the sigmas each sampler ran, the time each step took, each model file's SHA-256 as ComfyUI loaded it, and the workflow's prompt modes 2 and 3, which the sections were recorded in mode 1 alone.\n\nThe change: the recorder reads ComfyUI's progress events over its websocket for the time each step took; each sampler's sigmas are recorded by a node of ComfyUI's own that outputs them (BasicScheduler, or KSampler's scheduler and steps read through ComfyUI's /object_info and the sigmas computed by a node added beside it, whichever ComfyUI's install holds), saved as a file; the model files' hashes are those moss_ultra_import.json pins, named by the recording with the install's paths read through ComfyUI's /models; and each prompt mode is recorded by the input that selects it, set over the section's own.\n\nCheck: TestTheUltraRecordingsAgreeAndParseStrictly, widened to hold each recording to its sigmas, its step times, its model hashes and the three prompt modes.\n\nBatch: device lane; a recording runs only while no reading holds the card.\n\nNote: 2026-11-13, findings this step carries (the lead's answer): SQA-345 (P2), the recorder reads the request ComfyUI itself exports for a workflow, under the section and source owner, and the separate UI compiler (flatten.go, widgets.go, workflow.go) goes, a malformed or missing request refused before the reference runs; SQA-388 (P2), the recorder admits its destination before it posts, records the accepted prompt's id with its request at once, and resumes that id through history after an interruption, never posting an unchanged accepted request again."
-        }
-      ]
-    },
-    {
-      "id": "video-decode-overlap",
-      "title": "The causal video VAE decodes chunk k on a second stream while chunk k + 1 denoises",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "overlap",
-          "title": "Decoding overlaps denoising chunk by chunk, the output bytes unchanged",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestDecodeOverlapsDenoisingChunkByChunk$'",
-          "files": [
-            "internal/latentvideo",
-            "internal/cuda",
-            "internal/media",
-            "internal/capabilityruntime",
-            "internal/servingattempt",
-            "internal/runrecord",
-            "cmd/recipe",
-            "internal/scorecard"
-          ],
-          "needs_card": true,
-          "rationale": "LiveEdit pays the VAE twice, encode and decode, and the Wan student decodes the same way chunk by chunk. The causal VAE keeps a per-chunk feature cache, so chunk k can decode while chunk k + 1 denoises, hiding most of the decode behind the network. The kernels are unchanged, so the frames are bit-identical.\n\nNote: files set to internal/latentvideo, internal/cuda, internal/media, internal/capabilityruntime, internal/servingattempt, internal/runrecord, cmd/recipe, internal/scorecard: a measuring step records its time through the timing chain the owner named (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard), so its landing may write there\n\nNote: Measured 2026-11-13 at f79132c42, before building: TestSelfForcingMatchesItsUpstreamGolden, the card's turn held, denoised its seven chunks in 11.6 s and decoded the clip in 8.0 s, so the decode is about 40% of the clip's card time. Sampled every 250 ms, nvidia-smi read the card busy through the denoise (a kernel running, which does not say how many SMs ran). The decoder's session and the denoiser's are separate card sessions; two contexts on one card take turns rather than run together, so the overlap needs the decoder to run on a second stream in the denoiser's context. The cheap test before the 800-node build: one chunk's decode launched on a second stream of the denoiser's context during the next chunk's denoise, its wall against the two run in turn.\n\nServes: first-output for LiveEdit and the Wan student.\nDisappears: decode time added after the last denoise.\nEvidence: the frames are bit-identical to the sequential decode, and the user-size cell's decode stage shrinks.\nBatch: device lane.",
-          "depends_on": [
-            "media-user-size/stages"
-          ]
         }
       ]
     },

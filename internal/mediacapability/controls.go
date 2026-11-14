@@ -153,6 +153,11 @@ var controlProviders = map[recipe.ModuleID]func(string, []Control) ([]Control, e
 		}
 		return controls, nil
 	},
+	modelrecipe.ModuleOscillatorVideoPrepare: func(_ string, controls []Control) ([]Control, error) {
+		frames, scale, rate := oscillatorimage.VideoDefaults()
+		applyBounds(controls, map[string]Bounds{"frames": {Default: frames, Rate: rate}, "scale": {Default: scale}})
+		return controls, nil
+	},
 	modelrecipe.ModuleLatentVideoPrepare: func(directory string, controls []Control) ([]Control, error) {
 		declared, err := latentvideo.ControlBounds(directory)
 		if err != nil {

@@ -2,9 +2,11 @@ package mediacapability
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/audioparity"
@@ -357,7 +359,26 @@ func loadActivityDetector(ctx context.Context, _ artifact.Repository, path strin
 func speechExecutor(preview, whole capabilityruntime.Executor) capabilityruntime.Executor {
 	return func(ctx context.Context, store artifact.Repository, path string, execution modelrecipe.CapabilityEvidenceSelection, raw string) (any, error) {
 		var request speechsynth.SynthesisRequest
-		if strictjson.DecodeBytes([]byte(raw), &request) == nil && request.MaxFrames == 0 {
+		decoded := strictjson.DecodeBytes([]byte(raw), &request) == nil
+		// A request that names no voice, prepared voice or reference recording is read in the reference's default voice
+		// (speechsynth.DefaultVoice), which the request then names, so the answer kept for it is kept under what ran.
+		if decoded && strings.TrimSpace(request.Voice) == "" && !request.PreparedVoice.Valid() && !request.ReferenceAudio.Valid() {
+			voice, err := speechsynth.DefaultVoice(path)
+			if err != nil {
+				return nil, err
+			}
+			var fields map[string]json.RawMessage
+			if err := json.Unmarshal([]byte(raw), &fields); err != nil {
+				return nil, err
+			}
+			fields["voice"], _ = json.Marshal(voice)
+			named, err := json.Marshal(fields)
+			if err != nil {
+				return nil, err
+			}
+			raw = string(named)
+		}
+		if decoded && request.MaxFrames == 0 {
 			return whole(ctx, store, path, execution, raw)
 		}
 		return preview(ctx, store, path, execution, raw)

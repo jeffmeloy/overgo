@@ -46,6 +46,11 @@ func (video EncodedVideo) RanEncoding() media.Encoding { return video.Encoding }
 // encoded video reads the rate the encoder wrote.
 const videoFPS = 8
 
+// VideoDefaults are a clip's frame count and scale as a person who sets neither asks for them, with the frames one
+// second holds: one second at the clip's rate, at the model's own size. A page offered the two empty, and a clip asked
+// for with neither was refused (declared-defaults/do).
+func VideoDefaults() (frames, scale, rate int) { return videoFPS, 1, videoFPS }
+
 type videoPlan struct{ request VideoRequest }
 type videoFeatures struct {
 	frames [][]float32

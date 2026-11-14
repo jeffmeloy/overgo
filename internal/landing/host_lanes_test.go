@@ -46,8 +46,8 @@ func TestALandingsLanesRideOnTheCardTurnItTakes(t *testing.T) {
 // TestALandingHoldsTheCardForItsCardStagesAlone holds a landing's card turn to the stages that use the card
 // (lanes-turn/do): a change reaching a lane on the card is landed while another holds the turn, and when the landing
 // lets the checkout go to wait for it, its host stages, the test stage the last of them, have passed, where they had
-// held the card idle about ten minutes of each landing while a campaign waited; a step's check on the card runs after
-// the lanes. The turn taken carries the processes the landing starts, the lanes' and the scorecard's alike, and a lane
+// held the card idle about ten minutes of each landing while a campaign waited; a step's check on the card runs before
+// the host's tests, on a turn of its own (verify-first/do). The turn taken carries the processes the landing starts, the lanes' and the scorecard's alike, and a lane
 // takes it again for nothing: in the rehearsal of 2026-11-12 the benchmark took the card per context, waited out a
 // render's clips and timed its wait as its load.
 func TestALandingHoldsTheCardForItsCardStagesAlone(t *testing.T) {
@@ -93,8 +93,8 @@ func TestALandingHoldsTheCardForItsCardStagesAlone(t *testing.T) {
 	for _, stage := range (&landing{verifiers: []string{cudaTestSetting + " go test ./internal/p -run '^TestP$'"}}).checks() {
 		order = append(order, stage.name)
 	}
-	if slices.Index(order, "verify") < slices.Index(order, "lanes") {
-		t.Errorf("a check on the card runs before the lanes take the card's turn: %v", order)
+	if slices.Index(order, "verify") > slices.Index(order, "test") {
+		t.Errorf("a check on the card runs after the host's tests: %v", order)
 	}
 	rides := func() bool {
 		return strings.Contains(os.Getenv(processcontrol.TurnEnvironment), name)

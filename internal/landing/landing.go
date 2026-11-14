@@ -270,7 +270,7 @@ func Run(ctx context.Context, options Options) (landed string, err error) {
 				return "", fmt.Errorf("%scandidate worktree: %w", stagePrefix, err)
 			}
 		}
-		// The card's turn is held from the landing's first stage on the card to its end.
+		// The card's turn is held from the landing's first stage on the card to its end, a check on the card's apart.
 		if !options.Preflight && l.card == nil {
 			if card, err := l.onCard(check.name); err != nil {
 				return "", refused(fmt.Errorf("%scard turn: %w", stagePrefix, err))
@@ -296,6 +296,15 @@ func Run(ctx context.Context, options Options) (landed string, err error) {
 		l.measured = append(l.measured, entry)
 		// What a stage measured is said as it passes, so a preflight shows it too.
 		fmt.Fprintf(options.Log, "land: %s ok %s\n", check.name, strings.TrimPrefix(entry, check.name+" "))
+		// A check on the card holds the turn for itself alone: the tests after it use no card, so the turn is given up
+		// for them and the lanes take it again (checks).
+		if check.name == "verify" && l.card != nil {
+			release := l.card
+			l.card = nil
+			if err := release(); err != nil {
+				return "", refused(fmt.Errorf("%scard turn: %w", stagePrefix, err))
+			}
+		}
 	}
 	if options.Preflight {
 		l.spent.Outcome = outcomePreflight
@@ -333,14 +342,16 @@ func (l *landing) checks() []check {
 	}
 	long := []check{{"test", l.test, false}, {"lanes", l.lanes, false}}
 	verify, scorecard := check{"verify", l.verify, true}, check{"scorecard", l.scorecard, false}
-	if slices.ContainsFunc(l.verifiers, onTheCard) {
-		return slices.Concat(early, long, []check{verify, scorecard})
-	}
+	// The step's check runs before the tests and the lanes wherever it runs: on the card it takes the turn for itself
+	// and gives it up after (Run), and the lanes take it again. Run after them, 13 of 26 checks on the card failed only
+	// once the tests and lanes had run, 204 minutes, where a second turn cost the landings 95 minutes in all since
+	// 10 Nov (verify-first/do, SQA-322).
 	return slices.Concat(early, []check{verify}, long, []check{scorecard})
 }
 
 // cardStages are the stages that use the card, the lanes and the scorecard's benchmark, a step's check on the card
-// running after the lanes (checks); the landing holds the card's turn from the first of them (holdCard). A host test
+// running before the host's tests on a turn of its own (checks); the landing holds the card's turn from the first of
+// them (holdCard). A host test
 // is refused the card (driver's hostTestReach), and the host stages' programs reach none: cmd/loop's tests in the
 // invariants start git, the plan command, and a fixture's go test and checker. The host stages had held the card idle
 // about ten minutes of each landing whose change reaches a card lane, while a campaign waited (lanes-turn/do).

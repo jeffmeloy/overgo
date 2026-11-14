@@ -3,28 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "verify-first",
-      "title": "A landing's verify runs before its test and lanes, taking the card's turn for an on-the-card check and giving it up after",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 172,
-        "reason": "Filed from history: 172, the median of what 48 landings that changed internal/landing counted; the session's figure 60"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "A landing's verify runs before its test and lanes, taking the card's turn for an on-the-card check and giving it up after",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestAnOnTheCardCheckFailsBeforeTheTestStage$'",
-          "files": [
-            "internal/landing"
-          ],
-          "rationale": "Note: The evidence (the review, 2026-11-14; SQA-322): since 10 Nov, 257 attempts, a failure cost by stage rules 0.2 min, form 1.6, verify 6.7, invariants 16, test 62, lanes 154; checks() puts verify after test and lanes when a verifier is on the card, and 13 of the 26 verify failures came only after those ran, 204 minutes. Taking the card turn twice, once for verify and once for the lanes, against once: since 10 Nov 74 landings waited for the turn, 95 minutes in all (median under a minute, p90 4.6, worst 15.3), so a second turn costs at most about that again, under half the 204 the late failures cost, and a render yields the turn between pictures, bounding each wait by one picture.\n\nThe change: the verify stage runs before test and lanes whatever its verifier needs, taking the card's turn for an on-the-card verifier and giving it up before the test stage.\n\nCheck: a landing test whose on-the-card verifier fails refuses at verify without running the test or lanes stage."
-        }
-      ]
-    },
-    {
       "id": "consolidation-counts",
       "title": "Only a consolidation carries a count, the one a landing holds it to; other rows' counts and the history that filled them go",
       "class": "consolidation",
@@ -47,28 +25,6 @@
             "docs/plan.json"
           ],
           "rationale": "Note: The evidence (the review, 2026-11-14): internal/landing/rules.go holds only a consolidation to its count (growth \u003e left \u0026\u0026 l.consolidates()); 59 of 111 landings since 10 Nov added more than their row's count and 23 rows had 0, so a count on any other row asks for nothing a landing is held to.\n\nThe change: filedCount and historyDepth (cmd/plan/main.go) and HistoryCount, HistoryReason and ReadLandedCount (internal/plan/counts.go) go; a row that is not a consolidation carries no count (charge's raised branch, terms.go, turn.go's term count, compose.go, follow.go:82); the measured growth stays in the commit message. First find every reader of a non-consolidation count.\n\nCheck: the plan and landing tests pass with counts on consolidations alone."
-        }
-      ]
-    },
-    {
-      "id": "pin-chain",
-      "title": "A pin refusal follows each edit to the pins of the record it edits and prints the whole chain once",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 172,
-        "reason": "Filed from history: 172, the median of what 48 landings that changed internal/landing counted; the session's figure 60"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "A pin refusal follows each edit to the pins of the record it edits and prints the whole chain once",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestAPinRefusalPrintsItsWholeChain$'",
-          "files": [
-            "internal/landing"
-          ],
-          "rationale": "Note: The evidence (the review, 2026-11-14): internal/landing/pins.go's stalePins checks l.paths against bytePins, and the sed it prints changes a coverage document that a cmd/validate literal in turn pins, seen only on the next attempt (cuda-synthetic met it twice on 2026-11-14); docs/image_video_lifecycle.json is not indexed.\n\nThe change: pinsRefusal follows each edit to the pins of the record it edits and prints the whole chain once; the lifecycle record is indexed.\n\nCheck: a landing test whose change edits a pinned file whose pinning record is itself pinned prints both edits in one refusal."
         }
       ]
     },

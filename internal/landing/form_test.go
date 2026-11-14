@@ -9,9 +9,9 @@ import (
 )
 
 // TestAChecksFormIsReadBeforeItRuns holds a landing to reading each step's check before any long stage, card or not
-// (cheap-first/form): a cheap stage named form comes before every package's tests and the lanes; a check that needs
-// model files alone runs on the host, before the lanes, while one that sets OVERGO_CUDA_TEST=1 keeps its run after
-// them; the form stage refuses a check naming a package that holds no test of its name; and a change whose tests do
+// (cheap-first/form): a cheap stage named form comes before every package's tests and the lanes; a check runs before
+// them too, one that needs model files alone on the host and one that sets OVERGO_CUDA_TEST=1 on the card
+// (verify-first/do); the form stage refuses a check naming a package that holds no test of its name; and a change whose tests do
 // not build without it passes the form stage, the undo run saying it is no evidence (the owner's review, 2026-11-14).
 func TestAChecksFormIsReadBeforeItRuns(t *testing.T) {
 	t.Parallel()
@@ -30,8 +30,8 @@ func TestAChecksFormIsReadBeforeItRuns(t *testing.T) {
 		if form := stage(order, "form"); form < 0 || !order[form].cheap || form > stage(order, "test") || form > stage(order, "lanes") {
 			t.Errorf("a landing of %q orders its stages %v; want a cheap form stage before the tests and the lanes", verify, names)
 		}
-		if late := stage(order, "verify") > stage(order, "lanes"); late != (verify == card) {
-			t.Errorf("a landing of %q orders its stages %v; want its run after the lanes only where it sets OVERGO_CUDA_TEST=1", verify, names)
+		if run := stage(order, "verify"); run < 0 || run > stage(order, "test") || run > stage(order, "lanes") {
+			t.Errorf("a landing of %q orders its stages %v; want its run before the tests and the lanes, on the card or not", verify, names)
 		}
 	}
 

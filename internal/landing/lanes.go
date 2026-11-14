@@ -406,7 +406,9 @@ func (l *landing) holdCard(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	l.card, l.spent.Turn = release, time.Since(waiting).Round(time.Millisecond)
+	// A check on the card takes the turn and gives it up before the lanes take it again (checks), so the waits add.
+	l.card = release
+	l.spent.Turn += time.Since(waiting).Round(time.Millisecond)
 	if machine != "" {
 		quiet, err := l.holdQuiet(ctx, machine)
 		if err != nil {

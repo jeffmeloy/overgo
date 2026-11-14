@@ -9,6 +9,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -102,32 +103,86 @@ func relativeRecord(repo, path string) string {
 	return filepath.ToSlash(relative)
 }
 
-// stalePins names each planned path whose bytes -- raw, or with CRLF line
-// ends normalized as a checkout may write them -- no longer match a pin,
-// with the record that pins it.
+// stalePins names each planned path whose bytes -- raw, or with CRLF line ends normalized as a checkout may write them
+// -- no longer match a pin, with the record that pins it and the edit that clears it, and then each record such an edit
+// changes whose own bytes another record pins, to the chain's end (pin-chain/do). The edits are made here on copies, so
+// each names the digest its path holds once every edit printed is made, and the refusal prints the whole chain at once:
+// an edit printed to a coverage document that a cmd/validate literal pins in turn was refused again on the next
+// attempt, twice for cuda-synthetic on 2026-11-14.
 func stalePins(repo string, paths []string) ([]string, error) {
 	pins, err := bytePins(repo)
 	if err != nil {
 		return nil, err
 	}
-	var stale []string
-	for _, path := range paths {
-		held := pins[path]
-		if len(held) == 0 {
-			continue
+	edited := map[string][]byte{}
+	read := func(path string) ([]byte, error) {
+		if data, found := edited[path]; found {
+			return data, nil
 		}
 		data, err := os.ReadFile(filepath.Join(repo, filepath.FromSlash(path)))
-		if err != nil && !os.IsNotExist(err) {
-			return nil, err
+		if os.IsNotExist(err) {
+			return nil, nil
 		}
-		raw, normalized := sha256.Sum256(data), sha256.Sum256(bytes.ReplaceAll(data, []byte("\r\n"), []byte("\n")))
-		for _, pin := range held {
-			if now := hex.EncodeToString(normalized[:]); pin.digest != hex.EncodeToString(raw[:]) && pin.digest != now {
-				stale = append(stale, path+" (pinned by "+pin.record+"; edit: sed -i s/"+pin.digest+"/"+now+"/ "+pin.record+
-					", or else git checkout HEAD -- "+path+", the first only for a change that keeps the behaviour the record pins)")
+		return data, err
+	}
+	type edit struct{ path, from, to string }
+	edits, found := map[*bytePin]*edit{}, []*bytePin{}
+	planned := slices.Compact(slices.Sorted(slices.Values(paths)))
+	held := 0
+	for _, pinned := range pins {
+		held += len(pinned)
+	}
+	// Each round reads the records the last one edited; a round past one per pin could only follow a cycle of pins.
+	for round := 0; ; round++ {
+		if round > held {
+			return nil, fmt.Errorf("the records' pins form a cycle through %s", strings.Join(slices.Sorted(maps.Keys(edited)), ", "))
+		}
+		reach := slices.Clone(planned)
+		for _, record := range slices.Sorted(maps.Keys(edited)) {
+			if !slices.Contains(reach, record) {
+				reach = append(reach, record)
 			}
+		}
+		changed := false
+		for _, path := range reach {
+			data, err := read(path)
+			if err != nil {
+				return nil, err
+			}
+			raw, normalized := sha256.Sum256(data), sha256.Sum256(bytes.ReplaceAll(data, []byte("\r\n"), []byte("\n")))
+			now := hex.EncodeToString(normalized[:])
+			for index := range pins[path] {
+				pin := &pins[path][index]
+				if pin.digest == hex.EncodeToString(raw[:]) || pin.digest == now {
+					continue
+				}
+				record, err := read(pin.record)
+				if err != nil {
+					return nil, err
+				}
+				edited[pin.record] = bytes.ReplaceAll(record, []byte(pin.digest), []byte(now))
+				if edits[pin] == nil {
+					edits[pin] = &edit{path: path, from: pin.digest}
+					found = append(found, pin)
+				}
+				edits[pin].to, pin.digest, changed = now, now, true
+			}
+		}
+		if !changed {
+			break
+		}
+	}
+	var stale, chained []string
+	for _, pin := range found {
+		change := edits[pin]
+		sed := "sed -i s/" + change.from + "/" + change.to + "/ " + pin.record
+		if slices.Contains(planned, change.path) {
+			stale = append(stale, change.path+" (pinned by "+pin.record+"; edit: "+sed+", or else git checkout HEAD -- "+change.path+
+				", the first only for a change that keeps the behaviour the record pins)")
+		} else {
+			chained = append(chained, change.path+" (pinned by "+pin.record+", once the edit to it above is made; edit: "+sed+")")
 		}
 	}
 	slices.Sort(stale)
-	return stale, nil
+	return append(stale, chained...), nil
 }

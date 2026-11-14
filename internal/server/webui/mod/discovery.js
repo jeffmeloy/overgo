@@ -192,7 +192,7 @@
       const providerFields = ["name", "endpoint", "key variable", "model ids (comma-separated)", "context length (optional)"].map((placeholder) => el("input", { class: "text", placeholder, "aria-label": "provider " + placeholder }));
       // A key typed here lists a provider not declared yet: it goes to that endpoint for the one listing and is kept nowhere. A declared provider lists under its variable.
       const providerKey = el("input", { class: "text", type: "password", autocomplete: "off", placeholder: "key, to list before declaring", "aria-label": "provider key to list with" });
-      const providerNote = el("span", { class: "note" });
+      const providerNote = el("span", { class: "note", role: "status", "aria-label": "provider answer" });
       const providerListing = el("span", { class: "row" });
       const providerReason = el("input", { class: "text", placeholder: "retirement reason (the endpoint gone, the key withdrawn)", "aria-label": "retirement reason" });
       const providerValues = () => providerFields.map((field) => field.value.trim());

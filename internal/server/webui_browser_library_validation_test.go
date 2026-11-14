@@ -128,26 +128,30 @@ func TestModelJourneyLibraryValidation(t *testing.T) {
 	rowNote := func(rowText, text string) string {
 		return `[...document.querySelectorAll("#panel-library tr")].some((row) => row.textContent.includes(` + strconv.Quote(rowText) + `) && row.textContent.includes(` + strconv.Quote(text) + `))`
 	}
-	// A validation binds the committed Go source; the gate's candidate and a
-	// developer's tree are modified, so the intake refuses there with its
-	// source rule after admitting the model and its projector, and only a
-	// clean checkout runs the operation to completion. Both outcomes are the
-	// intake's own; a projector refusal or a route refusal is neither.
-	const sourceRule = "a verification requires committed Go source"
-	validated := func(rowText, what string) bool {
+	// A row's request that fails stands in the row as the page's failure banner: a wait ends at it, and the leg fails
+	// with its words, where a wait for the row's success alone outlived an HTTP 500.
+	rowFailure := func(rowText string) string {
+		return `[...document.querySelectorAll("#panel-library tr")].find((row) => row.textContent.includes(` + strconv.Quote(rowText) + `) && row.querySelector(".err-banner"))`
+	}
+	failIfRowFailed := func(rowText, what string) {
 		t.Helper()
-		settle(what+" admitted or refused by the source rule",
-			`(typeof window.laneValidation === 'string' && window.laneValidation.length > 0) || `+rowNote(rowText, sourceRule))
-		var admitted string
-		testcheck.NoError(t, browser.Evaluate(ctx, `window.laneValidation`, &admitted))
-		if admitted == "" {
-			t.Logf("%s: the modified tree refused with the source rule after admitting the model", what)
-			return false
+		if failure := pageText(t, ctx, browser, `(`+rowFailure(rowText)+`)?.querySelector(".err-banner")?.textContent || ""`); failure != "" {
+			t.Fatalf("%s failed: %s", what, failure)
 		}
-		id := testcheck.Must(artifact.ParseID(admitted))(t)
+	}
+	rowAnswers := func(rowText, text, what string) {
+		t.Helper()
+		settle(what, rowNote(rowText, text)+` || !!`+rowFailure(rowText))
+		failIfRowFailed(rowText, what)
+	}
+	// A validation runs to completion, or the leg fails with what the row answered.
+	validated := func(rowText, what string) {
+		t.Helper()
+		settle(what+" admitted", `(typeof window.laneValidation === 'string' && window.laneValidation.length > 0) || !!`+rowFailure(rowText))
+		failIfRowFailed(rowText, what)
+		id := testcheck.Must(artifact.ParseID(pageText(t, ctx, browser, `window.laneValidation`)))(t)
 		assertBrowserPredicate(t, ctx, browser, `(() => { window.laneValidation = ''; return true; })()`)
 		waitBrowserOperationState(t, workbench, id, operation.StateCompleted)
-		return true
 	}
 
 	// 0. The cold page: no child, the Library is the way in, and the workbench's validation answers are captured.
@@ -175,10 +179,10 @@ func TestModelJourneyLibraryValidation(t *testing.T) {
 })()`)
 	settle("hub search lists the lane repository", `[...document.querySelectorAll("#panel-library button")].some((button) => button.textContent === "Add")`)
 	assertBrowserPredicate(t, ctx, browser, `(() => { [...document.querySelectorAll("#panel-library button")].find((button) => button.textContent === "Add").click(); return true; })()`)
-	settle("download succeeded", rowNote(laneHubRepository, "done"))
-	settle("downloaded model registered", rowNote(laneHubRepository, "registered"))
-	downloadValidated := validated(laneHubRepository, "downloaded model validation")
-	webuilane.Leg(t, "download leg", "one add downloaded, registered and validated the hub model through the cold proxy's workbench (completed=%v)", downloadValidated)
+	rowAnswers(laneHubRepository, "done", "the download")
+	rowAnswers(laneHubRepository, "registered", "the downloaded model's registration")
+	validated(laneHubRepository, "the downloaded model's validation")
+	webuilane.Leg(t, "download leg", "one add downloaded, registered and validated the hub model through the cold proxy's workbench")
 
 	// 2. A local model added with its projector keeps the projector as its projection candidate, and
 	// its text path validates as an operation the workbench behind the shell runs.
@@ -188,21 +192,13 @@ func TestModelJourneyLibraryValidation(t *testing.T) {
   [...document.querySelectorAll("#panel-library button")].find((button) => button.textContent === "Add a local model").click();
   return true;
 })()`)
-	settle("local model registered with its projector", rowNote(projectedLocation, "with projector"))
-	projectorValidated := validated(projectedLocation, "projector validation")
-	if projectorValidated {
-		assertBrowserPredicate(t, ctx, browser, rowNote(projectedLocation, "projector"))
-	}
-	webuilane.Leg(t, "projector leg", "%s admitted its text validation with projector %s registered (completed=%v)", projectedName, filepath.Base(projectorPath), projectorValidated)
+	rowAnswers(projectedLocation, "with projector", "the local model's registration with its projector")
+	validated(projectedLocation, "the projector pair's validation")
+	assertBrowserPredicate(t, ctx, browser, rowNote(projectedLocation, "projector"))
+	webuilane.Leg(t, "projector leg", "%s validated its text path with projector %s registered", projectedName, filepath.Base(projectorPath))
 
-	// 4. A model the store activates serves from the picker: the validated
-	// download on a clean checkout, otherwise the projector pair the copied
-	// store already activates; either way the first child launches from the
-	// Library's page.
+	// 4. The validated download serves from the picker: the first child launches from the Library's page.
 	name := filepath.Base(small)
-	if !downloadValidated {
-		name = projectedName
-	}
 	assertBrowserPredicate(t, ctx, browser, `(() => { history.replaceState(null, "", location.pathname); document.querySelector("#model-pill").click(); return true; })()`)
 	settle("picker lists the validated model", `[...document.querySelectorAll(".topbar .card .row .mono")].some((node) => node.textContent === `+strconv.Quote(name)+`)`)
 	assertBrowserPredicate(t, ctx, browser, `(() => {

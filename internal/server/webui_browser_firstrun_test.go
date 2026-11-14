@@ -3,8 +3,8 @@ package server
 import (
 	"bytes"
 	"context"
-	"debug/buildinfo"
 	"encoding/base64"
+	"errors"
 	"image"
 	"image/color"
 	"image/png"
@@ -73,8 +73,11 @@ func TestModelJourneyFirstRun(t *testing.T) {
 	// Leg 14's keyless model: declared with its variable empty; the page
 	// enters the key, which the proxy (this process) and the child take.
 	t.Setenv("OVERGO_WEBUI_LANE_ENTRY_KEY", "")
-	// Leg 15's page-declared provider: its key set before any child launches, so the running child can list and serve it.
+	// Leg 15's page-declared provider: its key set before any child launches, so the running child can list and serve it,
+	// under a variable the lane names as an operator does (cmd/remote-provider -name-variable), since a declaration over
+	// HTTP binds no other.
 	t.Setenv("OVERGO_WEBUI_LANE_PAGE_KEY", "lane-key")
+	nameLaneVariable(t, store, "OVERGO_WEBUI_LANE_PAGE_KEY")
 	entryName := declareLaneRemote(t, store, "webui-lane-entry", "OVERGO_WEBUI_LANE_ENTRY_KEY", "", []string{"Hello", " after the key"})
 	serverDir := testutil.RepoRoot(t)
 	supervisor := testcheck.Must(modelswap.New(modelswap.ServerLauncher{Binary: binary, Store: store, Dir: serverDir}, 0))(t)
@@ -207,29 +210,35 @@ func TestModelJourneyFirstRun(t *testing.T) {
       document.querySelector("#proxy-dot").classList.contains("ok") && window.overgo.errors.length === 0`)
 	// 0b. The Library is the one tab the cold page serves: the page's provider
 	// (leg 15's) declares from here, before any child runs, through the same
-	// intake the launcher binds; a modified tree sees the refusal, the gate's
-	// clean tree sees the declared location, which the journey serves later.
+	// intake the launcher binds, and the journey serves it later.
 	pageFake, _ := relaytest.ServeListing(t, "", "lane-key", []string{"Hello", " from the page's provider"}, []relaytest.Model{{ID: "lane/page-model", Name: "Page model", ContextLength: 4096}})
 	assertBrowserPredicate(t, ctx, browser, `(() => { [...document.querySelectorAll("#cold-start button")].find((button) => button.textContent === "Open the Library").click(); return true; })()`)
 	settle("the cold page's library shows the provider form and the catalog", `!document.querySelector("#cold-start") && !!document.querySelector("#panel-library.active input[aria-label='provider name']") &&
       document.querySelectorAll("#panel-library tr").length > 1`)
 	t.Cleanup(func() { retireLaneRemote(t, store, "remote://webui-lane-page/lane/page-model") })
+	// The provider form answers a listing's refusal and a declaration in its note, which a leg clears before it asks: a
+	// wait ends at that answer and the leg judges it, where a wait for success alone outlived a refusal.
 	assertBrowserPredicate(t, ctx, browser, `(() => {
       const fill = (label, value) => { document.querySelector("input[aria-label='provider " + label + "']").value = value; };
       fill("name", "webui-lane-page"); fill("endpoint", `+strconv.Quote(pageFake.URL)+`); fill("key variable", "OVERGO_WEBUI_LANE_PAGE_KEY"); fill("key to list with", "lane-key");
+      document.querySelector("[aria-label='provider answer']").textContent = "";
       [...document.querySelectorAll("button")].find((button) => button.textContent === "list the provider's models").click(); return true; })()`)
-	settle("the provider lists its model on the cold page", `[...document.querySelectorAll("button")].some((button) => button.textContent === "lane/page-model · 4096")`)
+	const listed = `[...document.querySelectorAll("button")].some((button) => button.textContent === "lane/page-model · 4096")`
+	settle("the provider answers the cold page's listing", listed+` || `+providerAnswer+` !== ""`)
+	if answer := pageText(t, ctx, browser, providerAnswer); answer != "" {
+		t.Fatalf("the cold page's provider listing was refused: %s", answer)
+	}
 	assertBrowserPredicate(t, ctx, browser, `(() => {
       [...document.querySelectorAll("button")].find((button) => button.textContent === "lane/page-model · 4096").click();
       const value = (label) => document.querySelector("input[aria-label='provider " + label + "']").value;
       if (value("model ids (comma-separated)") !== "lane/page-model" || value("context length (optional)") !== "4096") return false;
+      document.querySelector("[aria-label='provider answer']").textContent = "";
       [...document.querySelectorAll("button")].find((button) => button.textContent === "Declare a hosted provider").click(); return true; })()`)
-	const declaredTag = `[...document.querySelectorAll(".tag")].some((tag) => tag.textContent.startsWith("remote://webui-lane-page/lane/page-model"))`
-	settle("the cold-page declaration answers with its location or the modified-tree refusal", declaredTag+` ||
-      [...document.querySelectorAll(".note")].some((note) => note.textContent.includes("worktree is dirty"))`)
-	var declaredOnPage bool
-	testcheck.NoError(t, browser.Evaluate(ctx, declaredTag, &declaredOnPage))
-	webuilane.Leg(t, "cold-page declaration leg", "declared on the page %v", declaredOnPage)
+	settle("the cold-page declaration answers", providerAnswer+` !== ""`)
+	if answer := pageText(t, ctx, browser, providerAnswer); !strings.HasPrefix(answer, "remote://webui-lane-page/lane/page-model") {
+		t.Fatalf("the cold-page declaration failed: %s", answer)
+	}
+	webuilane.Leg(t, "cold-page declaration leg", "declared on the page")
 	// The hash no longer names the Library, so the served model's remount lands on the front page.
 	assertBrowserPredicate(t, ctx, browser, `(() => { history.replaceState(null, "", location.pathname); document.querySelector("#model-pill").click(); return true; })()`)
 	settle("picker lists the store's models on the cold page", `document.querySelectorAll(".topbar .card .row .mono").length > 0`)
@@ -649,7 +658,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
 	// 13. Remote turn: picker marks the remote model; serving it swaps the
 	// child to the relay; welcome + assistant turns carry the marker; answer
 	// from the fake provider, no input-token count.
-	if remoteName != "" {
+	{
 		openPicker()
 		settle("the picker marks the remote model", `[...document.querySelectorAll(".topbar .card .row")].some((row) =>
       row.querySelector(".mono") && row.querySelector(".mono").textContent === `+strconv.Quote(remoteName)+` && [...row.querySelectorAll(".tag")].some((tag) => tag.textContent === "remote"))`)
@@ -666,7 +675,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
 	// 14. Key entry: the keyless model lists refused with a key field; the
 	// entered key lifts the refusal (proxy and child hold it in memory),
 	// the model serves and answers.
-	if entryName != "" {
+	{
 		openPicker()
 		assertBrowserPredicate(t, ctx, browser, `(() => {
       const row = [...document.querySelectorAll(".topbar .card .row")].find((node) => node.querySelector(".mono") && node.querySelector(".mono").textContent === `+strconv.Quote(entryName)+`);
@@ -683,24 +692,17 @@ func TestModelJourneyFirstRun(t *testing.T) {
 		webuilane.Leg(t, "key-entry leg", "the keyless declaration served after the key was entered on the page")
 	}
 	// 15. The provider declared on the cold page (leg 0b) is listed by the
-	// picker over the served child; it serves and answers. A declaration
-	// is a store claim bound to the serving binary's source commit, so a
-	// modified tree saw the refusal and proves nothing here.
-	if entryName != "" {
-		if !declaredOnPage {
-			webuilane.Leg(t, "declare-from-page leg", "the declaration was refused on a modified tree; the serve is proven on a clean tree")
-		} else {
-			switchTo("page-model")
-			say(t, ctx, browser, "hello from the page")
-			settle("the page-declared model answers", `!document.querySelector(".composer .btn").disabled &&
+	// picker over the served child; it serves and answers.
+	{
+		switchTo("page-model")
+		say(t, ctx, browser, "hello from the page")
+		settle("the page-declared model answers", `!document.querySelector(".composer .btn").disabled &&
       (([...document.querySelectorAll("#panel-chat .msg.assistant .body")].at(-1) || {}).textContent || "").includes("from the page's provider") &&
       document.querySelectorAll("#panel-chat .msg.error").length === 0`)
-			webuilane.Leg(t, "declare-from-page leg", "a provider declared on the Library tab served a turn through the relay")
-		}
+		webuilane.Leg(t, "declare-from-page leg", "a provider declared on the Library tab served a turn through the relay")
 		// 16. Retire from the page: the key-entry model's Library row retires
-		// it with the section's reason; the catalog relists without it. The
-		// retirement is a store claim like the declaration, so a modified
-		// tree sees the refusal and a clean tree sees the row leave.
+		// it with the section's reason; the catalog relists without it, or the
+		// leg fails with the words the Library answered.
 		assertBrowserPredicate(t, ctx, browser, `(() => { location.hash = "#library"; return true; })()`)
 		settle("the library lists the key-entry model with its retire control", `[...document.querySelectorAll("#panel-library tr")].some((row) =>
       row.textContent.includes(`+strconv.Quote(entryName)+`) && [...row.querySelectorAll("button")].some((button) => button.textContent === "Retire"))`)
@@ -710,29 +712,14 @@ func TestModelJourneyFirstRun(t *testing.T) {
       catalogNote.textContent = ""; catalogNote.dataset.laneRetirement = "1";
       const row = [...document.querySelectorAll("#panel-library tr")].find((row) => row.textContent.includes(`+strconv.Quote(entryName)+`));
       [...row.querySelectorAll("button")].find((button) => button.textContent === "Retire").click(); return true; })()`)
-		retirement := `![...document.querySelectorAll("#panel-library tr")].some((row) => row.textContent.includes(` + strconv.Quote(entryName) + `))`
-		build := testcheck.Must(buildinfo.ReadFile(binary))(t)
-		// The child uses its embedded revision when present. Development
-		// binaries without one use the worktree, as ExecutableCodeCommit does.
-		stamped := false
-		modified := false
-		for _, setting := range build.Settings {
-			stamped = stamped || setting.Key == "vcs.revision" && setting.Value != ""
-			modified = modified || setting.Key == "vcs.modified" && setting.Value == "true"
+		retired := `![...document.querySelectorAll("#panel-library tr")].some((row) => row.textContent.includes(` + strconv.Quote(entryName) + `))`
+		// A failed retirement stands in the catalog's note as the page's one failure banner; a retirement relists the catalog.
+		failed := `document.querySelector("[data-lane-retirement] .err-banner")`
+		settle("the Library answers the retirement", retired+` || !!`+failed)
+		if answer := pageText(t, ctx, browser, `(`+failed+` || {}).textContent || ""`); answer != "" {
+			t.Fatalf("the retirement from the page failed: %s", answer)
 		}
-		if stamped && modified {
-			retirement = `(document.querySelector("[data-lane-retirement]")?.textContent || "").includes("executable was built from modified source; exact code revision unavailable")`
-		}
-		if !stamped {
-			// Match the child's fallback directory, not the gate's candidate tree.
-			if _, err := runrecord.VerifyingCommit(serverDir); err != nil {
-				retirement = `(document.querySelector("[data-lane-retirement]")?.textContent || "").includes(` + strconv.Quote(err.Error()) + `)`
-			}
-		}
-		settle("the retirement follows the served binary's source identity", retirement)
-		var retiredOnPage bool
-		testcheck.NoError(t, browser.Evaluate(ctx, `![...document.querySelectorAll("#panel-library tr")].some((row) => row.textContent.includes(`+strconv.Quote(entryName)+`))`, &retiredOnPage))
-		webuilane.Leg(t, "retire-from-page leg", "retired on the page %v", retiredOnPage)
+		webuilane.Leg(t, "retire-from-page leg", "the key-entry model retired on the page")
 		assertBrowserPredicate(t, ctx, browser, `(() => { location.hash = "#chat"; return true; })()`)
 		settle("back on the front page after the retirement", `!!document.querySelector("#panel-chat.active .composer textarea")`)
 	}
@@ -747,11 +734,7 @@ const laneProviderLimit = 64
 func laneIdleIntake() LibraryIntake {
 	return LibraryIntake{
 		DeclareProvider: func(ctx context.Context, store *overgodb.Store, declaration ProviderDeclaration) ([]DeclaredProvider, error) {
-			commit, err := runrecord.ExecutableCodeCommit(".")
-			if err != nil {
-				return nil, err
-			}
-			declarations, err := remoteprovider.DeclareDocument(ctx, store, laneProviderLimit, remoteprovider.Document{Name: declaration.Name, Endpoint: declaration.Endpoint, KeyEnvironment: declaration.KeyEnvironment, Models: declaration.Models, ContextLength: declaration.ContextLength}, commit)
+			declarations, err := remoteprovider.DeclareDocument(ctx, store, laneProviderLimit, remoteprovider.Document{Name: declaration.Name, Endpoint: declaration.Endpoint, KeyEnvironment: declaration.KeyEnvironment, Models: declaration.Models, ContextLength: declaration.ContextLength}, runrecord.RunningCommit())
 			declared := make([]DeclaredProvider, 0, len(declarations))
 			for _, item := range declarations {
 				declared = append(declared, DeclaredProvider{Location: item.Location, Model: item.Model.String(), Recipe: item.Recipe.ID.String(), Refusal: remoteprovider.Refusal(item.Provider)})
@@ -798,10 +781,28 @@ func retireLaneRemote(t *testing.T, storePath, location string) {
 	}
 }
 
+// providerAnswer is the Library's provider form's answer: a declaration's locations, or a refusal's words.
+const providerAnswer = `document.querySelector("[aria-label='provider answer']").textContent`
+
+// pageText is the string expression evaluates to on the page.
+func pageText(t *testing.T, ctx context.Context, browser *webuilane.Browser, expression string) string {
+	t.Helper()
+	var text string
+	testcheck.NoError(t, browser.Evaluate(ctx, expression, &text))
+	return text
+}
+
+// nameLaneVariable names variable in the lane store as one a provider declared over HTTP may bind for its key.
+func nameLaneVariable(t *testing.T, storePath, variable string) {
+	t.Helper()
+	laneStore := testcheck.Must(overgodb.OpenContext(t.Context(), storePath))(t)
+	testcheck.NoError(t, errors.Join(remoteprovider.NameVariable(t.Context(), laneStore, variable), laneStore.Close()))
+}
+
 // declareLaneRemote: declare a remote model (fake loopback provider
 // answering pieces under the key "lane-key") in the lane store, retire on
 // cleanup; the variable is set to value when given; returns the picker
-// name, "" when the store refuses the declaration.
+// name, and fails the test when the store does not take the declaration.
 func declareLaneRemote(t *testing.T, storePath, name, variable, value string, pieces []string) string {
 	t.Helper()
 	fake, _ := relaytest.Serve(t, "", "lane-key", pieces)
@@ -819,8 +820,7 @@ func declareLaneRemote(t *testing.T, storePath, name, variable, value string, pi
 		t.Fatal(closeErr)
 	}
 	if err != nil {
-		t.Logf("remote leg not taken: the store cannot take the declaration: %v", err)
-		return ""
+		t.Fatalf("the lane store did not take the remote declaration: %v", err)
 	}
 	t.Cleanup(func() { retireLaneRemote(t, storePath, declaration.Location) })
 	return path.Base(declaration.Location)

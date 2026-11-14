@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -16,6 +17,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
+	"overgo/internal/remoteprovider"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
@@ -48,13 +50,19 @@ func TestWebUIBrowserColdActivity(t *testing.T) {
 	assertBrowserPredicate(t, ctx, browser, `(() => {[...document.querySelectorAll('#cold-start button')].find(button=>button.textContent==='Open the Library').click();return true;})()`)
 	testcheck.NoError(t, browser.Eventually(ctx, `!!document.querySelector('#panel-library.active input[aria-label="provider name"]')`))
 	assertBrowserPredicate(t, ctx, browser, `overgo.errors.length===0 && document.querySelector('#global-operation-shell').hidden`)
-	assertBrowserPredicate(t, ctx, browser, `(() => {const field=name=>document.querySelector('#panel-library input[aria-label="provider '+name+'"]');field('name').value='cold';field('endpoint').value='http://localhost';field('key variable').value='COLD_FIXTURE_KEY';field('key to list with').value='cold-typed-key';[...document.querySelectorAll('#panel-library button')].find(button=>button.textContent==="list the provider's models").click();return true;})()`)
-	testcheck.NoError(t, browser.Eventually(ctx, `[...document.querySelectorAll('#panel-library button')].some(button=>button.textContent==='fixture/cold-model · 4096')`))
-	assertBrowserPredicate(t, ctx, browser, `(() => {[...document.querySelectorAll('#panel-library button')].find(button=>button.textContent==='fixture/cold-model · 4096').click();[...document.querySelectorAll('#panel-library button')].find(button=>button.textContent==='Declare a hosted provider').click();return true;})()`)
-	if err := browser.Eventually(ctx, `document.querySelector('#panel-library').textContent.includes('remote://cold/fixture/cold-model') || document.querySelector('#panel-library').textContent.includes('worktree is dirty')`); err != nil {
-		var panel string
-		_ = browser.Evaluate(t.Context(), `document.querySelector('#panel-library').innerText`, &panel)
-		t.Fatalf("%v: %s", err, panel)
+	// The page's provider binds a variable the operator named, as one declared over HTTP must; the form answers a
+	// listing's refusal and a declaration in its note, cleared before each request, and each wait ends at that answer.
+	testcheck.NoError(t, remoteprovider.NameVariable(t.Context(), store, "COLD_FIXTURE_KEY"))
+	assertBrowserPredicate(t, ctx, browser, `(() => {const field=name=>document.querySelector('#panel-library input[aria-label="provider '+name+'"]');field('name').value='cold';field('endpoint').value='http://localhost';field('key variable').value='COLD_FIXTURE_KEY';field('key to list with').value='cold-typed-key';document.querySelector("[aria-label='provider answer']").textContent='';[...document.querySelectorAll('#panel-library button')].find(button=>button.textContent==="list the provider's models").click();return true;})()`)
+	const coldListed = `[...document.querySelectorAll('#panel-library button')].some(button=>button.textContent==='fixture/cold-model · 4096')`
+	testcheck.NoError(t, browser.Eventually(ctx, coldListed+` || `+providerAnswer+` !== ""`))
+	if answer := pageText(t, ctx, browser, providerAnswer); answer != "" {
+		t.Fatalf("the cold provider listing was refused: %s", answer)
+	}
+	assertBrowserPredicate(t, ctx, browser, `(() => {[...document.querySelectorAll('#panel-library button')].find(button=>button.textContent==='fixture/cold-model · 4096').click();document.querySelector("[aria-label='provider answer']").textContent='';[...document.querySelectorAll('#panel-library button')].find(button=>button.textContent==='Declare a hosted provider').click();return true;})()`)
+	testcheck.NoError(t, browser.Eventually(ctx, providerAnswer+` !== ""`))
+	if answer := pageText(t, ctx, browser, providerAnswer); !strings.HasPrefix(answer, "remote://cold/fixture/cold-model") {
+		t.Fatalf("the cold declaration failed: %s", answer)
 	}
 }
 

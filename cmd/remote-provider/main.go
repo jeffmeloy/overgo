@@ -63,26 +63,19 @@ func run(args []string, output io.Writer) error {
 		if err := jsonfile.DecodeStrict(*declare, &document); err != nil {
 			return err
 		}
-		commit, err := runrecord.ExecutableCodeCommit(".")
-		if err != nil {
-			return err
-		}
 		// The operator declaring names the declaration's variable: this command is how a variable comes to be named.
 		if err := remoteprovider.NameVariable(ctx, store, document.KeyEnvironment); err != nil {
 			return err
 		}
-		declarations, err := remoteprovider.DeclareDocument(ctx, store, *limit, document, commit)
+		// A declaration runs no code of this checkout on the model, so it records the commit this process runs.
+		declarations, err := remoteprovider.DeclareDocument(ctx, store, *limit, document, runrecord.RunningCommit())
 		for _, declared := range declarations {
 			fmt.Fprintf(output, "declared %s model=%s recipe=%s %s\n", declared.Location, declared.Model, declared.Recipe.ID, servability(declared.Provider))
 		}
 		return err
 	}
 	if *retire != "" {
-		commit, err := runrecord.ExecutableCodeCommit(".")
-		if err != nil {
-			return err
-		}
-		if err := remoteprovider.Retire(ctx, store, *limit, *retire, commit, *reason); err != nil {
+		if err := remoteprovider.Retire(ctx, store, *limit, *retire, runrecord.RunningCommit(), *reason); err != nil {
 			return err
 		}
 		fmt.Fprintf(output, "retired %s\n", *retire)

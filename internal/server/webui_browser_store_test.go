@@ -114,8 +114,12 @@ func prepareBrowserJourneyStore(ctx context.Context, source, destination string)
 	}
 	// Alias counts are independent of the model catalog size. Walk them once
 	// after selecting the closure instead of truncating each artifact's aliases.
+	// An alias goes when its target and every artifact its name holds are
+	// copied: a runtime policy's is named for its recipe and targets the policy
+	// every recipe of a task shares, and one carried for a recipe left behind
+	// refused that recipe's registration in the copy, its name already bound.
 	if err := store.VisitAliases(ctx, "", func(alias overgodb.AliasView) error {
-		if seen[alias.Target] {
+		if seen[alias.Target] && namesOnly(alias.Name, seen) {
 			batch.Aliases = append(batch.Aliases, artifact.AliasBinding{Name: alias.Name, Target: alias.Target})
 		}
 		return nil
@@ -133,6 +137,16 @@ func prepareBrowserJourneyStore(ctx context.Context, source, destination string)
 	}
 	_, err = artifact.CommitBatch(ctx, private, batch)
 	return err
+}
+
+// namesOnly says whether every artifact identity name holds, between its slashes and dots, is in copied.
+func namesOnly(name string, copied map[artifact.ID]bool) bool {
+	for _, part := range strings.FieldsFunc(name, func(r rune) bool { return r == '/' || r == '.' }) {
+		if id, err := artifact.ParseID(part); err == nil && !copied[id] {
+			return false
+		}
+	}
+	return true
 }
 
 func TestBrowserJourneyStoreIsolation(t *testing.T) {
@@ -169,6 +183,11 @@ func TestBrowserJourneyStoreIsolation(t *testing.T) {
 	for index := range laneCatalogLimit + 1 {
 		aliasBatch.Aliases = append(aliasBatch.Aliases, artifact.AliasBinding{Name: fmt.Sprintf("browser-fixture/alias/%d", index), Target: manifest.ID})
 	}
+	// A binding named for an artifact the copy leaves out, to an artifact it copies, as a runtime policy is named for
+	// its recipe and targets the policy every recipe of its task shares.
+	uncopied := testutil.ArtifactID(t, artifact.KindRecipe, "a recipe of a model the copy leaves out")
+	namedForUncopied := "browser-fixture/named/" + uncopied.String()
+	aliasBatch.Aliases = append(aliasBatch.Aliases, artifact.AliasBinding{Name: namedForUncopied, Target: manifest.ID})
 	if _, err := artifact.CommitBatch(ctx, store, aliasBatch); err != nil {
 		t.Fatal(err)
 	}
@@ -201,6 +220,9 @@ func TestBrowserJourneyStoreIsolation(t *testing.T) {
 	}
 	if _, found, err := private.Artifact(ctx, unrelated); err != nil || found {
 		t.Fatalf("unrelated history copied: %t %v", found, err)
+	}
+	if _, found, err := artifact.ResolveAlias(ctx, private, namedForUncopied); err != nil || found {
+		t.Fatalf("a binding named for an artifact the copy left out was copied: %t %v", found, err)
 	}
 	if copied, found, err := artifact.ResolveAlias(ctx, private, registeredAlias); err != nil || !found || copied != registered {
 		t.Fatalf("the registered profile the Library registers against was not copied: %s %v", copied, err)

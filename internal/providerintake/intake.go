@@ -24,17 +24,15 @@ type Intake struct {
 }
 
 // Declare commits the page's declaration exactly as the provider command's
-// file does, under this executable's source commit, and answers each
-// declared model with the refusal its key's absence carries now.
+// file does, under the commit this process runs, and answers each declared
+// model with the refusal its key's absence carries now. A declaration runs no
+// code of this checkout on the model, so a modified build declares as a
+// committed one does.
 func (intake Intake) Declare(ctx context.Context, store *overgodb.Store, declaration server.ProviderDeclaration) ([]server.DeclaredProvider, error) {
-	commit, err := runrecord.ExecutableCodeCommit(".")
-	if err != nil {
-		return nil, err
-	}
 	declarations, err := remoteprovider.DeclareDocument(ctx, store, intake.CatalogLimit, remoteprovider.Document{
 		Name: declaration.Name, Endpoint: declaration.Endpoint, KeyEnvironment: declaration.KeyEnvironment,
 		Models: declaration.Models, ContextLength: declaration.ContextLength,
-	}, commit)
+	}, runrecord.RunningCommit())
 	declared := make([]server.DeclaredProvider, 0, len(declarations))
 	for _, declaration := range declarations {
 		declared = append(declared, server.DeclaredProvider{
@@ -60,13 +58,9 @@ func (intake Intake) ListModels(ctx context.Context, store *overgodb.Store, list
 }
 
 // Retire retires the declared hosted model at the location exactly as the
-// provider command does, under this executable's source commit.
+// provider command does, under the commit this process runs.
 func (intake Intake) Retire(ctx context.Context, store *overgodb.Store, location, reason string) error {
-	commit, err := runrecord.ExecutableCodeCommit(".")
-	if err != nil {
-		return err
-	}
-	return remoteprovider.Retire(ctx, store, intake.CatalogLimit, location, commit, reason)
+	return remoteprovider.Retire(ctx, store, intake.CatalogLimit, location, runrecord.RunningCommit(), reason)
 }
 
 // Keys places the key the page enters for a hosted model in this

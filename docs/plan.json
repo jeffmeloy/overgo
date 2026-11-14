@@ -12,13 +12,39 @@
           "id": "tag",
           "title": "Each untagged CUDA test that reads a model from the data root carries the modeltest tag",
           "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestTheCUDALaneRunsNoRealModelTest$'",
+          "verify": "go test -tags wholetree ./internal/landing -count=1 -run '^TestTheCUDALaneRunsNoRealModelTest$'",
           "files": [
             "internal/landing",
             "internal",
-            "cmd"
+            "cmd",
+            "compatibility.json",
+            "docs/COMPATIBILITY.md",
+            "docs/verification/image-video-coverage.json",
+            "docs/image_video_capacity.json"
           ],
-          "rationale": "Serves: a landing's checks take the time the change can move and no more (the owner's review, 2026-11-14), and a gate lane runs what it is for.\n\nThe evidence: refusal-trim/cuda-reach (dc391678c) made the cuda lane's packages the ones whose untagged tests call cudatest.Require, found in the checkout, in place of a hand-kept list of 25. The walk finds 35: the ten more (cmd/evaluate, cmd/longform, cmd/recipe, adaptiveparity, composition, diffusionimage, latentvideo, mediacapability, sensenovarecipe, server, vitencoder) were covered before only by the cycle's models lane, and most of their untagged CUDA test files read a model from the data root (adaptiveparity 12 of 13, mediacapability 10 of 12, latentvideo 7 of 9). The first landing after it that entered them all through internal/media (95295a7c3) ran the cuda lane for 35 m 54 s over 35 packages, where nag-krea's ran 25 in 10 m 36 s. The lane's own description is the suites that build their own inputs, on synthetic weights; a test that opens a real model is the cycle's (CycleTags), which runs it every cycle in the models lane.\n\nDecision, the lead's at the owner's word of 2026-11-13 (don't wait for answers): the walk stays, since it runs only the packages a change enters and found ten packages' device tests no gate ran; the time is cured by the tags, not a list. Each untagged test file that calls cudatest.Require and reads a model from the data root (testutil.ModelArtifactDir, modeltest.Directory, the data root's models) moves behind //go:build modeltest, which the models lane builds, and the packages that hold such files are in modelPackages. A test that is a step's check names its tags in that step's verify.\n\nCheck: TestTheCUDALaneRunsNoRealModelTest reads the cuda lane's packages as the walk finds them and holds each untagged test file that calls cudatest.Require to reading no model from the data root.\n\nBatch: host lane."
+          "rationale": "Serves: a landing's checks take the time the change can move and no more (the owner's review, 2026-11-14), and a gate lane runs what it is for.\n\nThe evidence: refusal-trim/cuda-reach (dc391678c) made the cuda lane's packages the ones whose untagged tests call cudatest.Require, found in the checkout, in place of a hand-kept list of 25. The walk finds 35: the ten more (cmd/evaluate, cmd/longform, cmd/recipe, adaptiveparity, composition, diffusionimage, latentvideo, mediacapability, sensenovarecipe, server, vitencoder) were covered before only by the cycle's models lane, and most of their untagged CUDA test files read a model from the data root (adaptiveparity 12 of 13, mediacapability 10 of 12, latentvideo 7 of 9). The first landing after it that entered them all through internal/media (95295a7c3) ran the cuda lane for 35 m 54 s over 35 packages, where nag-krea's ran 25 in 10 m 36 s. The lane's own description is the suites that build their own inputs, on synthetic weights; a test that opens a real model is the cycle's (CycleTags), which runs it every cycle in the models lane.\n\nDecision, the lead's at the owner's word of 2026-11-13 (don't wait for answers): the walk stays, since it runs only the packages a change enters and found ten packages' device tests no gate ran; the time is cured by the tags, not a list. Each untagged test file that calls cudatest.Require and reads a model from the data root (testutil.ModelArtifactDir, modeltest.Directory, the data root's models) moves behind //go:build modeltest, which the models lane builds, and the packages that hold such files are in modelPackages. A test that is a step's check names its tags in that step's verify.\n\nCheck: TestTheCUDALaneRunsNoRealModelTest reads the cuda lane's packages as the walk finds them and holds each untagged test file that calls cudatest.Require to reading no model from the data root.\n\nBatch: host lane.\n\nNote: files set to internal/landing, internal, cmd, compatibility.json, docs/COMPATIBILITY.md: Four compatibility claims bind real-model tests this step moves behind modeltest (Qwen 3.5 and Gemma E4B real training, the multimodal training matrix, SenseNova's production image); their verify commands name the tag, and the claims' sources and their page are rebound by those verifies passing.\n\nNote: files set to internal/landing, internal, cmd, compatibility.json, docs/COMPATIBILITY.md, docs/verification/image-video-coverage.json, docs/image_video_capacity.json: Four compatibility claims bind real-model tests this step moves behind modeltest, their verify naming the tag and their sources and page rebound by those verifies passing; and two verification records pin the bytes of four moved test files (the frozen SimpleDiffusion, Krea and SenseNova generations, SenseNova's request resources), whose build line alone changes, so the pins move to the new bytes."
+        }
+      ]
+    },
+    {
+      "id": "cycle-lanes",
+      "title": "The cycle's lanes run at the build that gave them the gate's real-model tests, so each moved test runs before other work",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 129,
+        "reason": "Filed from history: 129, the median of what 156 landings that changed docs/plan.json counted"
+      },
+      "steps": [
+        {
+          "id": "do",
+          "title": "The cycle's lanes run at the build that gave them the gate's real-model tests, so each moved test runs before other work",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go run ./cmd/validate -run -lanes",
+          "files": [
+            "docs/plan.json"
+          ],
+          "rationale": "Note: The evidence (the owner's review, 2026-11-14): cuda-synthetic moves 63 files of real-model CUDA tests to the cycle, among them latentimage's Krea tests the gate ran until that day. The cycle last ran on 8 Nov at fdd4ab1cea37, its lanes ending after 1 h 41 m without passing; HandStartDue calls one due by hand only when the plan is empty, and full-run has no steps, so nothing dispatches it. Until a cycle runs, a moved test runs only where a step names it as its check.\n\nDecision, the lead's at the owner's word (\"to act on as you see fit\"): cuda-synthetic lands with this row behind it, so the next step after it runs every test it moved. The turn is the cycle's lanes alone, validate -run -lanes, the checks a run makes before its cells: the models lane holds every moved package. It is not a step of full-run: a row leaves the plan when its last step lands, which would take full-run with it, and full-run's own check, the run with its cells, still waits on the causes its title names.\n\nCheck: validate -run -lanes passes on the card, each lane's go test run afresh (-count=1). A lane that fails names its tests, and curing them is this row's work."
         }
       ]
     },

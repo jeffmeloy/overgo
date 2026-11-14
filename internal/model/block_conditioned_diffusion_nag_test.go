@@ -108,7 +108,8 @@ func TestABlocksNAGIsThePapersEquations(t *testing.T) {
 				for feature := range dim {
 					sum += float64(projection[output*dim+feature]) * float64(got[token*dim+feature])
 				}
-				if math.Abs(float64(projected[token*dim+output])-sum) > 1e-5*(1+math.Abs(sum)) {
+				// A nonfinite projection is refused before the tolerance, which a NaN would pass (SQA-402).
+				if !checked.Finite32(projected[token*dim+output]) || math.Abs(float64(projected[token*dim+output])-sum) > 1e-5*(1+math.Abs(sum)) {
 					t.Fatalf("with tau %g, token %d's projected output %d is %g, the projection of the guided output %g", guidance.Tau, token, output, projected[token*dim+output], sum)
 				}
 			}

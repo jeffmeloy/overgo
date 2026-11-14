@@ -3,13 +3,31 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "sharpen-alpha",
+      "title": "A sharpening's alpha is admitted only where its kernel sums finitely",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A sharpening's alpha is admitted only where its kernel sums finitely",
+          "status": "open",
+          "verify": "go test ./internal/media -count=1 -run '^TestEverySharpeningAdmittedDrawsAFinitePicture$'",
+          "files": [
+            "internal/media"
+          ],
+          "rationale": "Serves: a finished picture is never lost to an admitted setting (SQA-393, P2, its remainder at b649b8ace: admitted finite settings can give nonfinite output).\n\nThe evidence (the review's, shown from source, reproduced here): sharpen-admit/do (77a40b792) admitted a sharpening's radius against the picture and cured the small-sigma 0/0, but Sharpening.Validate admitted any finite alpha of 0 or more. The kernel's taps are 1 + 10 alpha at the centre less 10 alpha of a blur summing to 1, so at alpha 1e308 they overflow, the convolution sums Inf less Inf, and the picture is NaN after the whole render.\n\nThe change: Validate admits an alpha up to maxSharpenAlpha, MaxFloat64 / 20: the taps sum in magnitude to 1 + 20 alpha, so every product with a unit pixel and every partial sum stays finite at or below it. Admit, which the request's validation and Sharpen share, refuses a larger alpha before the model opens. No other owner reads alpha.\n\nCheck: TestEverySharpeningAdmittedDrawsAFinitePicture (TestSharpeningIsAdmittedBeforeTheModelOpens renamed, since it passes at the base under its old name) holds every admitted sigma, at alpha 0.7 and at the largest admitted alpha, to a finite picture, and alpha 1e308 to a refusal by Admit; at the base 1e308 is admitted. The recorded crop's comparison (TestFinishingMatchesTheRecordedImage) is unchanged.\n\nBatch: host lane."
+        }
+      ]
+    },
+    {
       "id": "guidance-ops",
       "title": "CFG-Zero*, the guidance interval, APG and NAG are guider functions written from their papers, each a preset admitted per model by its held-out suite on no loss beyond chance, a gain claimed only where the paired test shows one",
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": -1044,
-        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard). Step guider: +653 (653, the median of what 11 landings that changed internal/sampling, internal/latentvideo counted). Step moss-presets: +334 (334, the median of what 8 landings that changed internal/latentimage counted). Step sensenova-presets: +0 (no landing changed internal/sensenovarecipe, internal/routedlm). Step preset-readings: +331 (331, the median of what 9 landings that changed internal/mediacapability, docs/verification counted). Step moss-presets: +334 (334, the median of what 8 landings that changed internal/latentimage counted). Step sensenova-presets: +0 (no landing changed internal/sensenovarecipe, internal/routedlm). Step apg-presets: +334 (334, the median of what 13 landings that changed internal/sampling, internal/latentimage, internal/sensenovarecipe, internal/mediacapability/moss_controls_windows_test.go, internal/mediacapability/sensenova_presets_windows_test.go, internal/server/moss_generation_windows_test.go counted). Step nag-wan: +145 (145, the median of what 23 landings that changed internal/model, internal/latentvideo, internal/sampling counted). Step nag-krea: +334 (334, the median of what 13 landings that changed internal/latentimage, internal/sampling counted). Step nag-wan: +145 (145, the median of what 23 landings that changed internal/model, internal/latentvideo, internal/sampling counted). Step nag-krea: +334 (334, the median of what 13 landings that changed internal/latentimage, internal/sampling counted). Step preset-gate: +527 (527, the median of what 15 landings that changed internal/mediacapability, internal/server counted). Step content-size: +0 (no landing changed internal/artifact). Step held-renders: +373 (373, the median of what 22 landings that changed internal/capabilityruntime, cmd/evaluate counted). Step resident-branches: +736 (736, the median of what 2 landings that changed internal/routedlm, internal/sensenovarecipe counted). Step readings-campaign: +201 (201, the median of what 23 landings that changed cmd/evaluate counted)."
+        "nodes": -407,
+        "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard). Step guider: +653 (653, the median of what 11 landings that changed internal/sampling, internal/latentvideo counted). Step moss-presets: +334 (334, the median of what 8 landings that changed internal/latentimage counted). Step sensenova-presets: +0 (no landing changed internal/sensenovarecipe, internal/routedlm). Step preset-readings: +331 (331, the median of what 9 landings that changed internal/mediacapability, docs/verification counted). Step moss-presets: +334 (334, the median of what 8 landings that changed internal/latentimage counted). Step sensenova-presets: +0 (no landing changed internal/sensenovarecipe, internal/routedlm). Step apg-presets: +334 (334, the median of what 13 landings that changed internal/sampling, internal/latentimage, internal/sensenovarecipe, internal/mediacapability/moss_controls_windows_test.go, internal/mediacapability/sensenova_presets_windows_test.go, internal/server/moss_generation_windows_test.go counted). Step nag-wan: +145 (145, the median of what 23 landings that changed internal/model, internal/latentvideo, internal/sampling counted). Step nag-krea: +334 (334, the median of what 13 landings that changed internal/latentimage, internal/sampling counted). Step nag-wan: +145 (145, the median of what 23 landings that changed internal/model, internal/latentvideo, internal/sampling counted). Step nag-krea: +334 (334, the median of what 13 landings that changed internal/latentimage, internal/sampling counted). Step preset-gate: +527 (527, the median of what 15 landings that changed internal/mediacapability, internal/server counted). Step content-size: +0 (no landing changed internal/artifact). Step held-renders: +373 (373, the median of what 22 landings that changed internal/capabilityruntime, cmd/evaluate counted). Step resident-branches: +736 (736, the median of what 2 landings that changed internal/routedlm, internal/sensenovarecipe counted). Step readings-campaign: +201 (201, the median of what 23 landings that changed cmd/evaluate counted). Step nag-graph: +637 (637, the median of what 23 landings that changed internal/latentimage, internal/model counted)."
       },
       "steps": [
         {
@@ -32,8 +50,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": -986,
-        "reason": ""
+        "nodes": -613,
+        "reason": "Step binding: +373 (373, the median of what 30 landings that changed cmd/evaluate counted)."
       },
       "steps": [
         {

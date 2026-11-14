@@ -54,7 +54,7 @@ func MeasurementProcess(t *testing.T, _ int) bool {
 		if err != nil || receipt.ExitCode != 0 {
 			t.Fatalf("isolated measurement exit %d: %v", receipt.ExitCode, err)
 		}
-		if err := testevidence.VerifyOutput("go test", output); err != nil {
+		if err := testevidence.VerifyOutput(true, output); err != nil {
 			t.Fatal(err)
 		}
 		return true

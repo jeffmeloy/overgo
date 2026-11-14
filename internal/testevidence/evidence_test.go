@@ -176,19 +176,19 @@ func TestCIRequiredEvidence(t *testing.T) {
 
 func TestVerifyOutput(t *testing.T) {
 	tests := []struct {
-		name, command, output string
-		wantErr               bool
+		name, output    string
+		goTest, wantErr bool
 	}{
-		{name: "pass", command: "go test ./x -v", output: "--- PASS: TestX (0.00s)\nPASS\n"},
-		{name: "benchmark", command: "go test ./x -bench BenchmarkX", output: "BenchmarkX-8  1  120 ns/op\nPASS\n"},
-		{name: "benchmark name only", command: "go test ./x -bench BenchmarkX", output: "BenchmarkX\nPASS\n", wantErr: true},
-		{name: "skip", command: "go test ./x -v", output: "--- SKIP: TestX (0.00s)\nPASS\n", wantErr: true},
-		{name: "quiet", command: "go test ./x", output: "ok\tx\t0.1s\n", wantErr: true},
-		{name: "non-go", command: "test -s x", output: ""},
+		{name: "pass", goTest: true, output: "--- PASS: TestX (0.00s)\nPASS\n"},
+		{name: "benchmark", goTest: true, output: "BenchmarkX-8  1  120 ns/op\nPASS\n"},
+		{name: "benchmark name only", goTest: true, output: "BenchmarkX\nPASS\n", wantErr: true},
+		{name: "skip", goTest: true, output: "--- SKIP: TestX (0.00s)\nPASS\n", wantErr: true},
+		{name: "quiet", goTest: true, output: "ok\tx\t0.1s\n", wantErr: true},
+		{name: "non-go", output: ""},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if got := VerifyOutput(test.command, test.output) != nil; got != test.wantErr {
+			if got := VerifyOutput(test.goTest, test.output) != nil; got != test.wantErr {
 				t.Fatalf("error = %v, want %v", got, test.wantErr)
 			}
 		})

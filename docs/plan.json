@@ -3,6 +3,61 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "session-end",
+      "title": "A session's recorded end is a sign of its end only while no turn of the session came after it",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "stale",
+          "title": "A session's recorded end is a sign of its end only while no turn of the session came after it",
+          "status": "open",
+          "verify": "go test ./internal/guard -count=1 -run '^TestAnEndRecordOlderThanTheSessionsLastTurnIsNoEnd$'",
+          "files": [
+            "internal/guard",
+            "cmd/loophook"
+          ],
+          "rationale": "Serves: a resumed session's scratch is never cleared as finished (SQA-384, P1).\n\nThe evidence (the lead's recheck, 2026-11-13, at f110d30b1): session-resume/do (2f978d801) has the session-start hook remove a session's end record (guard.SessionResumed), and SessionEnded reads a live hold first. Where the removal fails, the hook prints the error to stderr and goes on (cmd/loophook runDoctrine), the end record stays, and SessionEnded reads a resumed session with no hold as ended, so cmd/loop -leftovers clears its new scratch as finished: SQA-384's second criterion, that a failed end-marker invalidation cannot leave resumed no-hold scratch eligible for deletion, does not hold.\n\nThe cure: an end record is a sign of the session's end only where it is newer than the session's own state file, which the hooks write at its turns, so a session's next turn outranks an end its last incarnation recorded whether or not the record could be removed.\n\nCheck: TestAnEndRecordOlderThanTheSessionsLastTurnIsNoEnd records a session's end, then writes its state after it, and holds SessionEnded to false; with the state older than the end it holds true. At the base the end record alone reads as ended."
+        }
+      ]
+    },
+    {
+      "id": "relay-redirect",
+      "title": "A provider's keyed client stops after ten redirects on its endpoint, as Go's default does",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "bound",
+          "title": "A provider's keyed client stops after ten redirects on its endpoint, as Go's default does",
+          "status": "open",
+          "verify": "go test ./internal/remoterelay -count=1 -run '^TestAProvidersKeyedClientStopsAfterTenRedirects$'",
+          "files": [
+            "internal/remoterelay"
+          ],
+          "rationale": "Serves: a provider that redirects to itself without end is refused, its key sent a bounded number of times (SQA-363's second criterion).\n\nThe evidence (the lead's recheck, 2026-11-13, at f110d30b1): keyed copies the caller's client and sets its own CheckRedirect, refusing a redirect off the admitted endpoint, then calls the caller's policy where there is one and otherwise returns nil. Go's client applies its stop after ten redirects only where CheckRedirect is nil, so a client given no policy, the default, follows same-endpoint redirects without end, the key on each.\n\nCheck: TestAProvidersKeyedClientStopsAfterTenRedirects serves a provider whose models route redirects to itself, and holds the listing to a refusal after ten redirects. At the base it never stops; the test's server counts the requests and fails past a bound."
+        }
+      ]
+    },
+    {
+      "id": "findings-basis",
+      "title": "Dispatch prints each finding's evidence basis beside its severity",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "print",
+          "title": "Dispatch prints each finding's evidence basis beside its severity",
+          "status": "open",
+          "verify": "go test ./internal/plan -count=1 -run '^TestAFindingToFileSaysWhatEvidenceItRestsOn$'",
+          "files": [
+            "internal/plan"
+          ],
+          "rationale": "Serves: the lead weighs a finding by what it rests on before answering it (the review session, relayed by the owner, 2026-11-13: dispatch can print the field).\n\nThe evidence: the register carries evidence_basis on each finding, observed, shown_from_source or possible (open on 2026-11-13: P2 observed 3, shown_from_source 32; P3 observed 2, possible 2, shown_from_source 43), and dispatch prints a finding as SQA-n (Pn): title, its basis unread.\n\nThe change: FindingsToFile and FindingsTouching write SQA-n (Pn, basis): title, the basis as the register writes it, none where it has none.\n\nCheck: TestAFindingToFileSaysWhatEvidenceItRestsOn files a P2 shown from source and an observed one and reads each line's basis. At the base the lines carry none."
+        }
+      ]
+    },
+    {
       "id": "readme-speed",
       "title": "The README's speed table reads prompt processing at 4,096 and 16,384 tokens for every chat model, from readings that keep their token counts",
       "owner": "master-lead",
@@ -21,7 +76,7 @@
             "README.md"
           ],
           "needs_card": true,
-          "rationale": "Serves: the owner's review of 2026-11-11: every row of the speed table shows no prompt processing at either length.\n\nDisappears: a table of dashes. The newest record, scorecard-20261107T192932Z.json, holds a prefill reading at 4,096 tokens for 12 rows and at 16,384 for 11 (Carbon-500M's 4,096-token prefill took 2,058 ms), but none keeps the tokens it read uncached (Cell.Rate), so SpeedTable gives no figure, as it should: a rate from the nominal size could count tokens a prefix cache served. The measurement run of 2026-11-08 filed no record, so no reading since has kept them.\n\nThe change: in a gap between two readings, go run ./cmd/recipe measure reads each chat model again on the card (its load, its first request, a fresh prompt of each length read once unmeasured and then measured, and its warm generation), recording each as an attempt with its token counts; go run ./cmd/validate -scorecard -publish writes the newest record from the store; go run ./cmd/validate -readme writes the table from it. A model whose context does not hold 16,384 tokens keeps its dash at that length.\n\nCheck: validate -readme -check, which fails while the README's written parts are not what the newest record gives.\n\nBatch: device lane for the readings, in a gap between two readings; the record and the README on the host.\n\nNote: 2026-11-11, in the gap between readings: 14 of the 15 chat models were read again by recipe measure, each prefill now with its token counts (Bonsai-27B 1,969 and 1,603 tok/s at 4,096 and 16,384 tokens; Qwen3.8-27B 1,927 and 1,570; Qwen3.5-9B 5,854 and 4,310; gemma-4-12B-it-fp8-native 3,649 and 3,181; Carbon-500M 59,861 at 4,096, its context holding no 16,384). Qwen3.8 Flash-Next no longer opens (finding evidence:sha256:44390623...: strataRoundConversions indexes an empty qsaLayers). The table is not written yet, and is not written by publishing a record by hand: a record counts a cell current only where it was measured since the record before it, so validate -scorecard -publish after these readings blanked every cell not read again since 2026-11-07 (peak memory, the MMLU-Pro readings), and a second publish four minutes later blanked nearly every row. Both records are withdrawn to overgo_data/scorecards/withdrawn-2026-11-11 and the README is as it was. The table fills from the next measurement run's record, which reads every cell. Publishing also found two rows served_models.json named no words for, new since 2026-11-07: gemma-4-12B-it (its published bf16 files) and Self-Forcing, whose row was named \"checkpoints\", the folder its weights sit in; readme-speed/names lands those."
+          "rationale": "Serves: the owner's review of 2026-11-11: every row of the speed table shows no prompt processing at either length.\n\nDisappears: a table of dashes. The newest record, scorecard-20261107T192932Z.json, holds a prefill reading at 4,096 tokens for 12 rows and at 16,384 for 11 (Carbon-500M's 4,096-token prefill took 2,058 ms), but none keeps the tokens it read uncached (Cell.Rate), so SpeedTable gives no figure, as it should: a rate from the nominal size could count tokens a prefix cache served. The measurement run of 2026-11-08 filed no record, so no reading since has kept them.\n\nThe change: in a gap between two readings, go run ./cmd/recipe measure reads each chat model again on the card (its load, its first request, a fresh prompt of each length read once unmeasured and then measured, and its warm generation), recording each as an attempt with its token counts; go run ./cmd/validate -scorecard -publish writes the newest record from the store; go run ./cmd/validate -readme writes the table from it. A model whose context does not hold 16,384 tokens keeps its dash at that length.\n\nCheck: validate -readme -check, which fails while the README's written parts are not what the newest record gives.\n\nBatch: device lane for the readings, in a gap between two readings; the record and the README on the host.\n\nNote: 2026-11-11, in the gap between readings: 14 of the 15 chat models were read again by recipe measure, each prefill now with its token counts (Bonsai-27B 1,969 and 1,603 tok/s at 4,096 and 16,384 tokens; Qwen3.8-27B 1,927 and 1,570; Qwen3.5-9B 5,854 and 4,310; gemma-4-12B-it-fp8-native 3,649 and 3,181; Carbon-500M 59,861 at 4,096, its context holding no 16,384). Qwen3.8 Flash-Next no longer opens (finding evidence:sha256:44390623...: strataRoundConversions indexes an empty qsaLayers). The table is not written yet, and is not written by publishing a record by hand: a record counts a cell current only where it was measured since the record before it, so validate -scorecard -publish after these readings blanked every cell not read again since 2026-11-07 (peak memory, the MMLU-Pro readings), and a second publish four minutes later blanked nearly every row. Both records are withdrawn to overgo_data/scorecards/withdrawn-2026-11-11 and the README is as it was. The table fills from the next measurement run's record, which reads every cell. Publishing also found two rows served_models.json named no words for, new since 2026-11-07: gemma-4-12B-it (its published bf16 files) and Self-Forcing, whose row was named \"checkpoints\", the folder its weights sit in; readme-speed/names lands those.\n\nNote: 2026-11-13, SQA-336 (P3), reopened by the lead's recheck: the table's prompt headers read \"pp, 4,096-token prompt\" and \"pp, 16,384-token prompt\" while a reading counts in a bucket within 25% of its length (actual-prompt-rate/rate, cf0831375, rates each reading by the tokens it read), so a header claims an exact length no reading is held to. The table this row writes says the bucket: about 4,096 and about 16,384 tokens, each cell's own count of tokens read beside its rate, as its readings keep them."
         }
       ]
     },
@@ -69,23 +124,44 @@
       "steps": []
     },
     {
-      "id": "verify-mention",
-      "title": "A check is held to a passing test by what it runs, not by text in it that names go test",
+      "id": "execution-state",
+      "title": "A published evaluation holds the recipe state its execution read, and a state it could not read is no verified row",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A published evaluation holds the recipe state its execution read, and a state it could not read is no verified row",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -count=1 -run '^TestAPublishedEvaluationHoldsTheStateItsExecutionRead$'",
+          "files": [
+            "internal/evaluation",
+            "cmd/evaluate",
+            "internal/discovery",
+            "internal/scorecard",
+            "internal/runrecord"
+          ],
+          "rationale": "Serves: a held-out reading credits a model only with the verification its run executed under (SQA-283, P2, shown from source).\n\nThe evidence (the review's, at 4cb1c8aead: 0efe83b82 and 31e95d725 credited): three publication owners (cmd/evaluate capability and projection, internal/evaluation campaign) still read recipe state at publication and drop a lookup error; an empty Verification then follows the legacy-compatible accepted path, since earned and unverifiedAside refuse only an explicit not-verified or broken; and a later activation of the same recipe can turn an execution-time not-verified into a publication-time verified. The lead triaged it implemented on 2026-11-08 from run-from-files/do and recipe-state, which made the first repair; rechecked on 2026-11-13, the remaining paths stand.\n\nThe cure the finding recommends: the state is read once where the run executes and carried to publication; a read error is published as unknown state, which earns no verified row.\n\nCheck: TestAPublishedEvaluationHoldsTheStateItsExecutionRead extends the campaign's publication fixture (TestMediaEvidenceNamesConsumedInputsAndKeepsItsMethod's runtime pattern): a run executed not-verified and published after an activation reads not-verified, and a run whose state read fails publishes no verified row. At the base the later activation's state is published."
+        }
+      ]
+    },
+    {
+      "id": "reask-retire",
+      "title": "The completed opener re-ask and its route and tests go, the readings it published kept",
       "class": "consolidation",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "A check is held to a passing test by what it runs, not by text in it that names go test",
+          "title": "The completed opener re-ask and its route and tests go, the readings it published kept",
           "status": "open",
-          "verify": "go test ./internal/planverify -count=1 -run '^TestACheckThatNamesGoTestInItsTextRunsNone$'",
+          "verify": "go test ./internal/evaluation ./cmd/evaluate -count=1",
           "files": [
-            "internal/testevidence",
-            "internal/planverify",
-            "internal/diffusionimage"
+            "internal/evaluation",
+            "cmd/evaluate"
           ],
-          "rationale": "Serves: a check that reads the plan lands; a check is changed in a plan-only commit of its own, and its check greps the plan for the check's text, which names the go test it runs.\n\nThe evidence (nag-check/do, 2026-11-13): its check, go run ./cmd/plan -show guidance-ops | grep -q \"verify: ... go test -tags modeltest ./internal/mediacapability \", passed and was refused at verify, \"VACUOUS: go test output contains no explicit passing test\". runrecord.ParseVerify reads the command's words, quotes kept, and found no go test in it, so planverify judged its output by testevidence.VerifyOutput, whose rule strings.Contains(command, \"go test\") read the grep's pattern as a go test run. The rule is reached only where the parse found no go test, so it fires only on text that names one. No check in the plan wraps a go test in a shell string, the case it could have caught, and form's listing does not see such a check either.\n\nThe cure removes the inference: VerifyOutput takes whether the command runs a go test, as the caller knows it, planverify from the parse and a test that runs its own test binary by saying so.\n\nCheck: TestACheckThatNamesGoTestInItsTextRunsNone runs through planverify.Execute a check that greps text naming go test, and holds it to pass; at the base it is refused as vacuous."
+          "rationale": "Serves: code no reading runs is not kept (SQA-361, P3).\n\nThe evidence: answer-evidence/tuning-exposure (1651282c8) made the re-ask publish its cases through the exposure owner before asking, and answer-opener/earlier-opener restored the earlier opener; the re-ask's one use, the 2026-11-10 cases, is published. Its triage left retiring it to the reviewer's closure, and the finding's remaining criterion is that retirement: the live experiment and its dedicated route and tests go with their public disposition, or a continuing use keeps them.\n\nCheck: the packages' tests pass with the re-ask gone; the readings it published stay in the store."
         }
       ]
     },

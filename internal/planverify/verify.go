@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"overgo/internal/clioptions"
@@ -49,6 +50,9 @@ func Execute(ctx context.Context, directory, command string, overrides []string)
 	if err != nil {
 		return "", err
 	}
+	if slices.ContainsFunc(parsed.Segments, handsAShellAString) {
+		return "", fmt.Errorf("%w: the check hands a shell a command string, which hides what it runs from the parse and its evidence from the check; run each command as its own", ErrFailed)
+	}
 	structuredGoTest := len(parsed.GoTests()) != 0
 	executable := parsed.RunCommand(command)
 	first, err := executeShell(ctx, shell, directory, executable, environment)
@@ -69,7 +73,8 @@ func Execute(ctx context.Context, directory, command string, overrides []string)
 	if structuredGoTest {
 		err = testevidence.VerifyGoTestEvidence(command, first)
 	} else {
-		err = testevidence.VerifyOutput(command, first)
+		// The parse found no go test in the command, whatever its text names.
+		err = testevidence.VerifyOutput(false, first)
 	}
 	if err != nil {
 		return "", fmt.Errorf("%w: %v", ErrVacuous, err)
@@ -77,6 +82,12 @@ func Execute(ctx context.Context, directory, command string, overrides []string)
 	// A check runs once (cheap-first/form): a second run of every host check, held to agree with the first, doubled
 	// each check's time, and no refusal recorded nor any commit names a run that disagreed.
 	return runrecord.ClassifyVerifyCommand(command), nil
+}
+
+// handsAShellAString says a segment runs a shell on a command string (sh -c, bash -c): what the string runs, a go
+// test among it, is a word to the parse, so neither its -json evidence nor its tests' passing is read.
+func handsAShellAString(segment runrecord.VerifySegment) bool {
+	return len(segment.Fields) > 1 && slices.Contains([]string{"sh", "bash"}, segment.Fields[0]) && slices.Contains(segment.Fields[1:], "-c")
 }
 
 func executeShell(ctx context.Context, shell, directory, command string, environment []string) (string, error) {

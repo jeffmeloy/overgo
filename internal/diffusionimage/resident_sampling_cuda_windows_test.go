@@ -138,7 +138,7 @@ func TestResidentSamplingSequenceAcceptance(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s measured process: %v\n%s", mode, err, result.Output)
 		}
-		testcheck.NoError(t, testevidence.VerifyOutput("go test", string(result.Output)))
+		testcheck.NoError(t, testevidence.VerifyOutput(true, string(result.Output)))
 		var measurement samplingMeasurement
 		data := testcheck.Must(os.ReadFile(path))(t)
 		testcheck.NoError(t, json.Unmarshal(data, &measurement))

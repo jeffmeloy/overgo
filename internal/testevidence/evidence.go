@@ -431,9 +431,12 @@ func VerifyGoTestNames(out string, short bool, names []string) error {
 	return nil
 }
 
-// VerifyOutput rejects successful shell verification that did not prove its
-// Go tests ran. Non-Go commands retain ordinary exit-code semantics.
-func VerifyOutput(command, out string) error {
+// VerifyOutput rejects successful shell verification whose output shows a
+// filter that matched no test, a package with none or a skipped test, and,
+// where goTest says the command ran a go test, as its caller knows it, one
+// that did not prove its tests ran. A command running none keeps ordinary
+// exit-code semantics, whatever its text names.
+func VerifyOutput(goTest bool, out string) error {
 	if strings.Contains(out, "[no tests to run]") {
 		return fmt.Errorf("go test filter matched no tests")
 	}
@@ -443,7 +446,7 @@ func VerifyOutput(command, out string) error {
 	if strings.Contains(out, "--- SKIP:") {
 		return fmt.Errorf("go test skipped a test")
 	}
-	if strings.Contains(command, "go test") &&
+	if goTest &&
 		!strings.Contains(out, "--- PASS:") &&
 		!(strings.Contains(out, "Benchmark") && strings.Contains(out, "ns/op") && strings.Contains(out, "\nPASS\n")) {
 		return fmt.Errorf("go test output contains no explicit passing test")

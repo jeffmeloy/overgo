@@ -4455,7 +4455,7 @@
           "symbol": "TestALandingBesideARunWaitsOnlyForTheDevice"
         }
       ],
-    "status": "open",
+    "status": "resolved",
     "title": "Free the commit queue from a landing waiting for the device"
   },
     {
@@ -7129,7 +7129,7 @@
           "symbol": "TestWanRequestFormAdmitsPromptOrTensors"
         }
       ],
-    "status": "open",
+    "status": "resolved",
     "title": "Admit Wan guidance before loading and reject unsupported student settings"
   },
     {
@@ -12028,25 +12028,27 @@
     ],
     "master_lead_triage": {
     "at": "2026-11-13",
-    "head": "43f2a8608fac0fab3e2cfffb825a0fea793b2fe6",
+    "head": "f110d30b12c3b5e54918b986d70682299ab84ca9",
     "findings": {
       "SQA-401": {
         "action": "deferred",
         "note": "Checked 2026-11-13 at 8ab8f2e44: the module root holds no Go file, so no package there can embed a file below it, and the one build-tagged file with a go:embed directive is a test (internal/dataset/speech_source_acceptance_model_test.go), which the undo does not restore as production. Neither shape the finding names occurs today; it is taken up when one does, or with the verifier's build-context work it names."
       },
       "SQA-384": {
-        "action": "implemented",
+        "action": "filed",
         "rows": [
-          "session-resume/do"
+          "session-resume/do",
+          "session-end/stale"
         ],
-        "note": "Landed at 2f978d801: SessionEnded reads the checkout's hold first, so a session the hold names with a running process is not ended whatever its old record says, and the session-start hook removes a session's end record (guard.SessionResumed). TestASessionThatResumesIsNotEnded and TestAStartedSessionDropsItsEndRecord hold both. Awaits the reviewer's closure."
+        "note": "Landed at 2f978d801: SessionEnded reads the checkout's hold first, so a session the hold names with a running process is not ended whatever its old record says, and the session-start hook removes a session's end record (guard.SessionResumed). TestASessionThatResumesIsNotEnded and TestAStartedSessionDropsItsEndRecord hold both. Reopened by the lead's recheck on 2026-11-13: where removing the end record fails, the session-start hook prints the error and goes on, and SessionEnded then reads a resumed session with no hold as ended, so its new scratch is cleared (criterion 2); session-end/stale makes an end record older than the session's last turn no sign of its end."
       },
       "SQA-363": {
-        "action": "implemented",
+        "action": "filed",
         "rows": [
-          "provider-redirect/do"
+          "provider-redirect/do",
+          "relay-redirect/bound"
         ],
-        "note": "Landed at 2f978d801: the relay's listing and generator share one client (keyed) that refuses a redirect to another scheme, host or port before the key is sent again. TestAProvidersKeyFollowsNoRedirectOffItsEndpoint redirects an https provider to plain http on its own host; at the base the listing followed it with the key. Awaits the reviewer's closure."
+        "note": "Landed at 2f978d801: the relay's listing and generator share one client (keyed) that refuses a redirect to another scheme, host or port before the key is sent again. TestAProvidersKeyFollowsNoRedirectOffItsEndpoint redirects an https provider to plain http on its own host; at the base the listing followed it with the key. Reopened by the lead's recheck on 2026-11-13: keyed returns nil where the caller sets no redirect policy, so Go's stop after ten redirects is lost and a same-endpoint loop is followed without end, the key on each (criterion 2); relay-redirect/bound restores the bound."
       },
       "SQA-398": {
         "action": "implemented",
@@ -12063,12 +12065,13 @@
         "note": "Landed at 0b5a70f89: each fallen ceiling is found by its syntax, alone or in a grouped block, every fall of a file applied to one reading of it, every file checked before any is written. TestALandingLowersEveryCeilingOfAFile holds a grouped aligned block and a refusal that writes nothing. Awaits the reviewer's closure."
       },
       "SQA-361": {
-        "action": "implemented",
+        "action": "filed",
         "rows": [
           "answer-evidence/tuning-exposure",
-          "answer-opener/earlier-opener"
+          "answer-opener/earlier-opener",
+          "reask-retire/do"
         ],
-        "note": "Landed at 1651282c8: the re-ask admits its record and cases before the model opens and publishes them through exposeDevelopment before asking; the 2026-11-10 cases (257 of the share) were published by one more re-ask, which reproduced 370 and 106 of 380, and every reading of the share says so. The finding's warning held: read again in full, the opener chosen on lost answers answered 38 fewer cases right over ten models, paired, so answer-opener/earlier-opener restores the earlier opener. Retiring the one-off re-ask is left to the reviewer's closure. Awaits the reviewer's closure."
+        "note": "Landed at 1651282c8: the re-ask admits its record and cases before the model opens and publishes them through exposeDevelopment before asking; the 2026-11-10 cases (257 of the share) were published by one more re-ask, which reproduced 370 and 106 of 380, and every reading of the share says so. The finding's warning held: read again in full, the opener chosen on lost answers answered 38 fewer cases right over ten models, paired, so answer-opener/earlier-opener restores the earlier opener. Reopened by the lead's recheck on 2026-11-13: retiring the one-off re-ask is the remaining criterion, reask-retire/do's."
       },
       "SQA-362": {
         "action": "implemented",
@@ -12085,11 +12088,11 @@
         "note": "Filed from the fall-through on 2026-11-08 and landed by the rows named; each closure criterion is answered by the row's test, named in its commit. Awaits the reviewer's closure."
       },
       "SQA-336": {
-        "action": "implemented",
+        "action": "filed",
         "rows": [
-          "actual-prompt-rate/rate"
+          "readme-speed/measured"
         ],
-        "note": "Filed from the fall-through on 2026-11-08 and landed by the rows named; each closure criterion is answered by the row's test, named in its commit. Awaits the reviewer's closure."
+        "note": "Reopened by the lead's recheck on 2026-11-13: actual-prompt-rate/rate corrected the rates, but the speed table's headers still read an exact length for a bucket within 25% of it, the whole criterion. readme-speed/measured, which writes the table again, says the bucket and each cell's tokens read."
       },
       "SQA-331": {
         "action": "implemented",
@@ -12368,11 +12371,18 @@
         "note": "Landed. recordStopBlock returns its failure and runStop lets the stop through when the block cannot be kept, as a block no retry can read back would wedge the session. The unused stopHookActive parameter, its retry row and the two duplicated assertions are gone. Awaits the reviewer's closure."
       },
       "SQA-261": {
-        "action": "implemented",
+        "action": "closed",
         "rows": [
           "sqa-cycle/commit-queue"
         ],
-        "note": "Landed. A landing that lets the checkout go for the lane turn also gives up the commit turn, and takes it back before anything is published; if the trunk moved meanwhile it refuses and lands again. Accepted and observed: a landing waiting for the device held the queue for hours. Awaits the reviewer's closure."
+        "note": "Closed by the lead on 2026-11-13, rechecked at f110d30b1: TestALandingWaitingOnTheDeviceGivesUpItsCommitTurn and TestALandingWaitingOnARunLeavesTheCheckoutFree pass. Criterion 2's transition does not arise: holdCard lets the checkout and the commit turn go (letGo) before it takes the card's turn at all (takeLaneTurn), so no probe precedes the acquisition, and the waiter is named to the holder (its wait line; a holder's 'gave the card to a waiting process'). Merging the redundant 395 assertions stays a separate test-only reduction."
+      },
+      "SQA-341": {
+        "action": "closed",
+        "rows": [
+          "guidance-ops/nag-wan"
+        ],
+        "note": "Closed by the lead on 2026-11-13 with f110d30b1, each criterion: ValidateWanRequestForm validates a prompt-form request's guidance as the tensor form's (TestWanRequestFormAdmitsPromptOrTensors holds negative zeroed steps and a reversed interval); the student's admission is one function of its profile (resolveStudentRequest), which LoadWanStudentRuntime calls before it reads any of the student's files and Reset and Generate share, replacing the runtime-bound admit; guidance other than NAG, a preset the student does not declare and steps other than its own are refused through the served request (TestNAGAppliesANegativePromptAtGuidanceOne), after the two kinds of resident generation, and TestTheWanStudentIsServedAsItsOwnModel passes."
       },
       "SQA-258": {
         "action": "filed",
@@ -12382,12 +12392,12 @@
         "note": "Moved with sqa-cycle/run-continuation to the owner SQA-271 names: the supervising process awaits the run through the first-start driver, so a detached launcher exit is never read as run success. It waits on the driver-future decision."
       },
       "SQA-271": {
-        "action": "implemented",
+        "action": "deferred",
         "rows": [
           "unattended-driver/ownership-wait",
           "findings-wait/wait"
         ],
-        "note": "Filed from the fall-through on 2026-11-08 and landed by the rows named; each closure criterion is answered by the row's test, named in its commit. Awaits the reviewer's closure."
+        "note": "Reopened by the lead's recheck on 2026-11-13: criterion 1 is held by the named tests' successor, TestARunEndsWaitingNeverCompleteWhileWorkIsHeldOrFindingsAwaitFiling, which passes at f110d30b1; criterion 2 reads one retained authorized unattended execution's records, which no run has made. Deferred to that run."
       },
       "SQA-268": {
         "action": "declined",
@@ -12428,11 +12438,12 @@
         "note": "Landed. Each of the four paired tests registers t.Cleanup right after OpenRunner, and the explicit checked Close stays so the first model frees the card before its comparison loads. Compiled and vetted only: these are failure paths of model tests, so no failed collection was run. Awaits the reviewer's closure."
       },
       "SQA-277": {
-        "action": "implemented",
+        "action": "deferred",
         "rows": [
-          "e4b-quality-owed/owed"
+          "e4b-quality-owed/owed",
+          "full-run"
         ],
-        "note": "Filed from the fall-through on 2026-11-08 and landed by the rows named; each closure criterion is answered by the row's test, named in its commit. Awaits the reviewer's closure."
+        "note": "Reopened by the lead's recheck on 2026-11-13: e4b-quality-owed/owed marks the six cells owed on the served definition (TestAQualityCellMeasuredOnAnEarlierDefinitionIsOwedOnTheServedOne passes at f110d30b1), which is criterion 3; criterion 1, the cells bound to the served definition or retired, is the next full measurement run's to measure (full-run). Deferred to that run."
       },
       "SQA-221": {
         "action": "implemented",
@@ -12775,13 +12786,11 @@
         "note": "Landed. The training, parity and resources subtests are gone and complete stays the single owner, with its helpers unchanged. Awaits the reviewer's closure."
       },
       "SQA-283": {
-        "action": "implemented",
+        "action": "filed",
         "rows": [
-          "run-from-files/do",
-          "recipe-state/held-out",
-          "recipe-state/serving"
+          "execution-state/do"
         ],
-        "note": "Filed from the fall-through on 2026-11-08 and landed by the rows named; each closure criterion is answered by the row's test, named in its commit. Awaits the reviewer's closure."
+        "note": "Reopened by the lead's recheck on 2026-11-13: run-from-files/do and recipe-state made the first repair, whose tests pass at f110d30b1, but the review's evidence names three publication owners that still read recipe state at publication and drop a lookup error, so an empty Verification earns the legacy path and a later activation can replace execution-time state. execution-state/do carries the state read at execution to publication."
       },
       "SQA-289": {
         "action": "implemented",

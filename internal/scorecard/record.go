@@ -103,15 +103,17 @@ func (record Record) Published() (time.Time, bool) {
 	return published, prefixed && suffixed && err == nil
 }
 
-// Unmeasured is the record with each serving cell whose newest attempt started
-// before since, when the previous record was published, said to be unmeasured
-// since then: a gap, never a reading. A recipe whose attempts in a run failed
-// or were set aside keeps a window of older attempts, whose median read as
-// measured under a label that says newest. A longer prompt's or a warm
-// request's cell so read is left out. A trained model is measured once, so its
-// reading stands.
-func (record Record) Unmeasured(since time.Time) Record {
-	stale := func(cell Cell) bool { return cell.Newest != 0 && cell.Newest < since.UnixNano() }
+// Carry is the record with each serving cell whose newest attempt started before since, when the previous record was
+// published, marked Carried: its newest reading, dated by its newest attempt, and not measured since the record before
+// it. A cell so read once became a gap, so a record published between two full measurement runs blanked every cell not
+// read again (two of 2026-11-11 were withdrawn for it); the owner's answer to speed-table-run (2026-11-13) has a
+// record hold each cell's newest reading, dated. A comparison reads a carried cell as the reading it repeats, which
+// readingsOf counts once by its source. A trained model is measured once, so its reading stands unmarked.
+func (record Record) Carry(since time.Time) Record {
+	carry := func(cell Cell) Cell {
+		cell.Carried = cell.Carried || cell.Newest != 0 && cell.Newest < since.UnixNano()
+		return cell
+	}
 	record.Rows = slices.Clone(record.Rows)
 	for index := range record.Rows {
 		row := &record.Rows[index]
@@ -120,13 +122,15 @@ func (record Record) Unmeasured(since time.Time) Record {
 		}
 		row.Cells = maps.Clone(row.Cells)
 		for column, cell := range row.Cells {
-			if stale(cell) {
-				row.Cells[column] = gap(fmt.Sprintf("not measured since the previous scorecard, published %s: the newest attempt its cell reads started %s",
-					since.UTC().Format(time.RFC3339), time.Unix(0, cell.Newest).UTC().Format(time.RFC3339)))
-			}
+			row.Cells[column] = carry(cell)
 		}
-		row.Lengths = slices.DeleteFunc(slices.Clone(row.Lengths), stale)
-		row.Warm = slices.DeleteFunc(slices.Clone(row.Warm), stale)
+		row.Lengths, row.Warm = slices.Clone(row.Lengths), slices.Clone(row.Warm)
+		for index, cell := range row.Lengths {
+			row.Lengths[index] = carry(cell)
+		}
+		for index, cell := range row.Warm {
+			row.Warm[index] = carry(cell)
+		}
 	}
 	return record
 }
@@ -842,6 +846,9 @@ func (record Record) gaps(reference *Record, trades []Trade) []Gap {
 			switch cell := row.Cells[column]; {
 			case !cell.Measured() && !cell.NotApplicable:
 				add(gapUnmeasured, row, column, cell.Reason)
+			case cell.Carried:
+				// A carried reading stands in the record, and is still owed a reading of its own (Record.Carry).
+				add(gapUnmeasured, row, column, "not measured since the previous scorecard: its newest reading is of "+cell.ReadOn())
 			case column == metric.Quality && cell.NotApplicable && cell.Proposed:
 				// Only a held-out evaluation still proposed is work to define; a quality
 				// declared not applicable, with its reason, is no gap.

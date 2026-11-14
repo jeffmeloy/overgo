@@ -108,6 +108,7 @@ func (record Record) ServedTable(words ServedWords) (string, error) {
 		var qualities []string
 		applies, measured := false, false
 		var peak float64
+		var peakCell Cell
 		for _, row := range rows {
 			quality := row.Cells[metric.Quality]
 			applies = applies || !quality.NotApplicable
@@ -119,7 +120,7 @@ func (record Record) ServedTable(words ServedWords) (string, error) {
 				qualities = append(qualities, quality.Brief(measure))
 			}
 			if memory := row.Cells[metric.PeakMemory]; memory.Measured() && (!measured || memory.Value > peak) {
-				peak, measured = memory.Value, true
+				peak, measured, peakCell = memory.Value, true, memory
 			}
 		}
 		quality, memory := strings.Join(qualities, "; "), unreadSpeed
@@ -133,7 +134,7 @@ func (record Record) ServedTable(words ServedWords) (string, error) {
 		case measured && peak == 0:
 			memory = "host"
 		case measured:
-			memory = fmt.Sprintf("%.1f GiB", peak/gibibyte)
+			memory = fmt.Sprintf("%.1f GiB", peak/gibibyte) + peakCell.readDate()
 		}
 		fmt.Fprintf(&table, "| %s | %s | %s | %s | %s |\n", model.Shown, model.Modality, model.InputOutput, quality, memory)
 	}

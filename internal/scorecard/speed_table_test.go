@@ -31,10 +31,15 @@ func TestTheSpeedTableReadsWarmCellsAlone(t *testing.T) {
 		{Name: "rate only", Task: recipe.TaskInference, Cells: rate(97, warmRateMetric)},
 		{Name: "painter", Task: recipe.TaskImageGen, Cells: rate(5, warmRateMetric)},
 		{Name: "stale", Task: recipe.TaskInference, Cells: rate(50, warmRateMetric), Stale: "its activation changed"},
+		{Name: "carried", Task: recipe.TaskInference, Cells: map[metric.Name]Cell{metric.Throughput: {Value: 120, Unit: "tok/s",
+			Contract: Contract{Metric: warmRateMetric}, Carried: true, Newest: time.Date(2026, 11, 11, 9, 0, 0, 0, time.UTC).UnixNano()}}},
 	}}
-	want := "| Model | pp, 4,096-token prompt | pp, 16,384-token prompt | tg |\n| --- | --- | --- | --- |\n" +
+	// A prompt is read at a length within 25% of its bucket (SQA-336), and a reading older than the record before
+	// carries its date (speed-table-run).
+	want := "| Model | pp, about 4,096 tokens | pp, about 16,384 tokens | tg |\n| --- | --- | --- | --- |\n" +
 		"| warm | 2,544 tok/s (1.61 s) | 3,115 tok/s (5.26 s) | 134 tok/s |\n" +
-		"| rate only | — | — | 97 tok/s |\n"
+		"| rate only | — | — | 97 tok/s |\n" +
+		"| carried | — | — | 120 tok/s (read 2026-11-11) |\n"
 	if got := record.SpeedTable(); got != want {
 		t.Fatalf("the speed table =\n%s\nwant\n%s", got, want)
 	}

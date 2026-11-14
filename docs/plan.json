@@ -8,8 +8,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 488,
-        "reason": "Filed 2026-11-11 from the owner's review of the README's speed table: a measurement and a record, no code. The lead's figure. Step names: +491 (491, the median of what 8 landings that changed internal/discovery, internal/scorecard counted)."
+        "nodes": 485,
+        "reason": "Filed 2026-11-11 from the owner's review of the README's speed table: a measurement and a record, no code. The lead's figure. Step names: +491 (491, the median of what 8 landings that changed internal/discovery, internal/scorecard counted). Step carry: +172 (172, the median of what 23 landings that changed internal/scorecard, cmd/validate counted)."
       },
       "steps": [
         {

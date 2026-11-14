@@ -132,13 +132,19 @@ type Cell struct {
 	// cell.
 	Prompt int `json:"prompt,omitzero"`
 	// Rate, of a time to prefill at a longer prompt, is the prompt tokens read uncached per second, the median of the
-	// attempts the time is read from; zero where their records hold no token counts.
-	Rate float64 `json:"rate,omitzero"`
+	// attempts the time is read from, and Tokens the median of how many they read so; zero where their records hold
+	// no token counts. A prompt's length is a bucket within 25% of it, so Tokens says what a reading read.
+	Rate   float64 `json:"rate,omitzero"`
+	Tokens float64 `json:"tokens,omitzero"`
 	// Newest is when the newest attempt a serving timing or memory cell reads
 	// started, in nanoseconds since the epoch: a cell whose newest attempt
 	// started before the previous record was published was not measured since
-	// it (Record.Unmeasured). Zero for every other cell.
+	// it, and is Carried (Record.Carry). Zero for every other cell.
 	Newest int64 `json:"newest_unix_ns,omitzero"`
+	// Carried says a serving cell's reading is its newest, read before the previous record was published and not
+	// since: the record keeps it, dated by Newest, where it once published a gap, so a record published between two
+	// full measurement runs holds every cell's newest reading and says which are older than the record before it.
+	Carried bool `json:"carried,omitzero"`
 	// Preset is what the attempts a generated picture's or clip's timing or memory reads ran: its size, steps, guidance,
 	// sampler and shift. None for every other cell.
 	Preset media.Preset `json:"preset,omitzero"`
@@ -318,6 +324,9 @@ var wholeOutputTasks = []recipe.Task{
 
 // Measured reports whether a record measures the cell.
 func (c Cell) Measured() bool { return c.Reason == "" }
+
+// ReadOn is the day a serving cell's newest attempt started, as a carried reading is dated (Record.Carry).
+func (c Cell) ReadOn() string { return time.Unix(0, c.Newest).UTC().Format(time.DateOnly) }
 
 // sameMeasure says two models' readings are of one measure: the same metric and origin, on the same suite under the same
 // protocol, whatever recipe each ran under.
@@ -916,8 +925,9 @@ type servingSample struct {
 	attempt artifact.ID
 	started int64
 	took    [timingCount]float64
-	// rate, of a reading at a longer prompt, is the prompt tokens it read uncached per second of its prefill.
-	rate float64
+	// rate, of a reading at a longer prompt, is the prompt tokens it read uncached per second of its prefill, and tokens
+	// how many it read so.
+	rate, tokens float64
 }
 
 // half is the quantile that is a median, and the share of a normal reading's two tails on one side.
@@ -984,6 +994,7 @@ func (summary *servingSummary) readLength(length int, observation runrecord.Serv
 	// The work a prefill did is the tokens it read and no cache answered, not its prompt's length bucket (SQA-336).
 	if uncached := observation.Usage.InputTokens - min(observation.Usage.CachedTokens, observation.Usage.InputTokens); uncached > 0 {
 		sample.rate = float64(uncached) / time.Duration(observation.Hardware[at].ElapsedNS).Seconds()
+		sample.tokens = float64(uncached)
 	}
 	read.window = append(read.window, sample)
 }
@@ -1075,14 +1086,14 @@ func lengthCells(task recipe.Task, observed *servingSummary) []Cell {
 	for _, length := range evaluation.PromptLengths {
 		at, read := freshPrompt(length), observed.lengths[length]
 		if cell, measured := read.timed(timingFirstOutput, "ms", lengthFirstMetric(length), "serving time to prefill "+at+", the median of the newest attempts"); measured {
-			var rates []float64
+			var rates, tokens []float64
 			for _, sample := range read.window {
 				if sample.rate > 0 {
-					rates = append(rates, sample.rate)
+					rates, tokens = append(rates, sample.rate), append(tokens, sample.tokens)
 				}
 			}
 			if len(rates) > 0 {
-				cell.Rate = median(rates)
+				cell.Rate, cell.Tokens = median(rates), median(tokens)
 			}
 			cell.Prompt = length
 			cells = append(cells, cell)

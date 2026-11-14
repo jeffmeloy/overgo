@@ -18,10 +18,12 @@ import (
 // that measured it. A timing cell names when the newest attempt of its window
 // started; a cell whose newest attempt started before the previous record was
 // published, as Qwen3.8 Flash Next's would had this run's attempt failed and
-// its window kept the run before's, is a gap that says when it was last
-// measured, never a reading, and a cell measured since stands. A longer
-// prompt's or a warm request's cell not measured since is left out. When a
-// record was published is read back from the name Publish gives its file.
+// its window kept the run before's, keeps its newest reading marked carried,
+// dated by that attempt, and is still a gap that says it was not measured since
+// (speed-table-run, 2026-11-13: a record holds each cell's newest reading, where
+// it published a gap); a cell measured since stands unmarked. A longer prompt's
+// and a warm request's cell are carried alike. When a record was published is
+// read back from the name Publish gives its file.
 func TestACellNotMeasuredThisRunSaysSo(t *testing.T) {
 	t.Parallel()
 	published := time.Date(2026, 10, 30, 9, 44, 20, 0, time.UTC)
@@ -63,14 +65,14 @@ func TestACellNotMeasuredThisRunSaysSo(t *testing.T) {
 	row.Lengths = []Cell{{Value: 2944.9, Unit: "ms", Source: attempt("older"), Prompt: 4096, Newest: before}}
 	row.Warm = []Cell{{Value: 86.79, Unit: "tok/s", Source: attempt("newer"), Contract: Contract{Metric: warmRateMetric}, Newest: after}}
 	record := Record{Commit: "b", Rows: []Row{row}}
-	judged := record.Unmeasured(since).Rows[0]
-	if first := judged.Cells[metric.FirstOutput]; first.Measured() || !strings.Contains(first.Reason, "not measured since the previous scorecard") {
-		t.Fatalf("a cell whose newest attempt predates the previous record reads %+v, want the gap that says so", first)
+	judged := record.Carry(since).Rows[0]
+	if first := judged.Cells[metric.FirstOutput]; !first.Measured() || !first.Carried || first.Value != 2803.8 || first.ReadOn() != "2026-10-30" {
+		t.Fatalf("a cell whose newest attempt predates the previous record reads %+v, want its reading carried and dated 2026-10-30", first)
 	}
-	if judged.Cells[metric.Load].Value != 31675 || len(judged.Lengths) != 0 || len(judged.Warm) != 1 {
-		t.Fatalf("cells measured since stand and those not are left out: load %+v, lengths %+v, warm %+v", judged.Cells[metric.Load], judged.Lengths, judged.Warm)
+	if load := judged.Cells[metric.Load]; load.Value != 31675 || load.Carried || len(judged.Lengths) != 1 || !judged.Lengths[0].Carried || len(judged.Warm) != 1 || judged.Warm[0].Carried {
+		t.Fatalf("cells measured since stand unmarked and those not are carried: load %+v, lengths %+v, warm %+v", load, judged.Lengths, judged.Warm)
 	}
-	if record.Rows[0].Cells[metric.FirstOutput].Value != 2803.8 || len(record.Rows[0].Lengths) != 1 {
+	if record.Rows[0].Cells[metric.FirstOutput].Carried || record.Rows[0].Lengths[0].Carried {
 		t.Fatal("judging the record changed the record it judged")
 	}
 	gaps := (Record{Rows: []Row{judged}}).Gaps(nil)
@@ -81,8 +83,8 @@ func TestACellNotMeasuredThisRunSaysSo(t *testing.T) {
 	}
 }
 
-// TestATrainedModelsReadingStands: a trained model is measured once, so a later record keeps its reading, where any other
-// model's reading from before the previous record says it was not measured.
+// TestATrainedModelsReadingStands: a trained model is measured once, so a later record keeps its reading unmarked, where
+// any other model's reading from before the previous record is carried, said not measured since.
 func TestATrainedModelsReadingStands(t *testing.T) {
 	t.Parallel()
 	published := time.Date(2026, 11, 2, 9, 0, 0, 0, time.UTC)
@@ -90,12 +92,12 @@ func TestATrainedModelsReadingStands(t *testing.T) {
 	row := func(once bool) Row {
 		return Row{MeasuredOnce: once, Cells: map[metric.Name]Cell{metric.Throughput: reading}}
 	}
-	got := Record{Rows: []Row{row(true), row(false)}}.Unmeasured(published)
-	if cell := got.Rows[0].Cells[metric.Throughput]; cell.Value != reading.Value || cell.Reason != "" {
+	got := Record{Rows: []Row{row(true), row(false)}}.Carry(published)
+	if cell := got.Rows[0].Cells[metric.Throughput]; cell.Value != reading.Value || cell.Reason != "" || cell.Carried {
 		t.Fatalf("the trained model's reading became %+v", cell)
 	}
-	if cell := got.Rows[1].Cells[metric.Throughput]; cell.Reason == "" {
-		t.Fatalf("another model's old reading stands as %+v", cell)
+	if cell := got.Rows[1].Cells[metric.Throughput]; !cell.Carried || cell.Value != reading.Value {
+		t.Fatalf("another model's old reading stands as %+v, want it carried", cell)
 	}
 }
 

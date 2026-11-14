@@ -24,16 +24,17 @@ const digitGroup = 3
 const speedOtherColumns = 2
 
 // SpeedTable is the README's table of the record's warm speed, in the record's order, one line for each inference row
-// any warm speed was read for: its prompt processing (pp) at each of evaluation.PromptLengths, the tokens it read
-// uncached over the time to its first token (Cell.Rate) with that time beside it, and its token generation (tg),
-// output tokens over decode time on a request again on the loaded model. A cell is read only on its warm contract, so
-// a record measured before speed was read warm, or before its readings kept their token counts, gives no figure, and
-// the first request after a load gives none.
+// any warm speed was read for: its prompt processing (pp) at about each of evaluation.PromptLengths, the tokens it read
+// uncached over the time to its first token (Cell.Rate), with how many it read (Cell.Tokens), since a reading counts
+// at a length within 25% of it (SQA-336), and that time; and its token generation (tg), output tokens over decode time
+// on a request again on the loaded model. A reading older than the record before carries its date (Record.Carry). A
+// cell is read only on its warm contract, so a record measured before speed was read warm, or before its readings kept
+// their token counts, gives no figure, and the first request after a load gives none.
 func (record Record) SpeedTable() string {
 	var table strings.Builder
 	table.WriteString("| Model |")
 	for _, length := range evaluation.PromptLengths {
-		fmt.Fprintf(&table, " pp, %s-token prompt |", thousands(length))
+		fmt.Fprintf(&table, " pp, about %s tokens |", thousands(length))
 	}
 	table.WriteString(" tg |\n|" + strings.Repeat(" --- |", len(evaluation.PromptLengths)+speedOtherColumns) + "\n")
 	for _, row := range record.Rows {
@@ -50,12 +51,17 @@ func (record Record) SpeedTable() string {
 				cells = append(cells, unreadSpeed)
 				continue
 			}
-			seconds := time.Duration(row.Lengths[at].Value * float64(time.Millisecond)).Seconds()
-			cells = append(cells, fmt.Sprintf("%s tok/s (%.2f s)", thousands(int(math.Round(row.Lengths[at].Rate))), seconds))
+			cell := row.Lengths[at]
+			seconds := time.Duration(cell.Value * float64(time.Millisecond)).Seconds()
+			text := fmt.Sprintf("%s tok/s (%.2f s)", thousands(int(math.Round(cell.Rate))), seconds)
+			if cell.Tokens > 0 {
+				text = fmt.Sprintf("%s tok/s, %s tokens in %.2f s", thousands(int(math.Round(cell.Rate))), thousands(int(math.Round(cell.Tokens))), seconds)
+			}
+			cells = append(cells, text+cell.readDate())
 			read = true
 		}
 		if rate := row.Cells[metric.Throughput]; rate.Contract.Metric == warmRateMetric && rate.Value > 0 {
-			cells = append(cells, thousands(int(math.Round(rate.Value)))+" tok/s")
+			cells = append(cells, thousands(int(math.Round(rate.Value)))+" tok/s"+rate.readDate())
 			read = true
 		} else {
 			cells = append(cells, unreadSpeed)
@@ -67,13 +73,21 @@ func (record Record) SpeedTable() string {
 	return table.String()
 }
 
+// readDate is what a table says beside a carried reading: the day it was read, older than the record before.
+func (c Cell) readDate() string {
+	if !c.Carried {
+		return ""
+	}
+	return " (read " + c.ReadOn() + ")"
+}
+
 // GenerationTable is the README's table of the record's generated pictures and clips, after its speed table: one line
 // for each image or video row whose time to the whole output names the preset it ran, that time with its preset, and
 // its time at the size a person asks for with that preset where one was read, and where that time went (Row.Stages).
 // A record measured before its attempts kept their presets gives no table.
 func (record Record) GenerationTable() string {
 	timed := func(cell Cell) string {
-		return fmt.Sprintf("%.1f s (%s)", time.Duration(cell.Value*float64(time.Millisecond)).Seconds(), cell.Preset)
+		return fmt.Sprintf("%.1f s (%s)%s", time.Duration(cell.Value*float64(time.Millisecond)).Seconds(), cell.Preset, cell.readDate())
 	}
 	var lines strings.Builder
 	for _, row := range record.Rows {

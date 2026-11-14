@@ -49,8 +49,9 @@ const (
 // no record measures it. With a records directory it then publishes the
 // scorecard there and prints what moved since the previous record; a serving
 // cell not measured since that record was published is printed and published
-// as the gap it is (scorecard.Record.Unmeasured), as is a held-out quality whose
-// evaluation the measurement run publishing it says failed.
+// with its newest reading, marked carried and dated (scorecard.Record.Carry), and
+// a held-out quality whose evaluation the measurement run publishing it says
+// failed as the gap it is.
 func writeScorecard(ctx context.Context, store *overgodb.Store, root, records string, output io.Writer) error {
 	rows, err := scorecard.Build(ctx, store)
 	if err != nil {
@@ -64,7 +65,7 @@ func writeScorecard(ctx context.Context, store *overgodb.Store, root, records st
 	}
 	if len(previous) != 0 {
 		if since, published := previous[len(previous)-1].Published(); published {
-			rows = scorecard.Record{Rows: rows}.Unmeasured(since).Rows
+			rows = scorecard.Record{Rows: rows}.Carry(since).Rows
 		}
 	}
 	if rows, err = withoutFailedEvaluations(rows); err != nil {

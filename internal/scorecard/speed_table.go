@@ -57,11 +57,11 @@ func (record Record) SpeedTable() string {
 			if cell.Tokens > 0 {
 				text = fmt.Sprintf("%s tok/s, %s tokens in %.2f s", thousands(int(math.Round(cell.Rate))), thousands(int(math.Round(cell.Tokens))), seconds)
 			}
-			cells = append(cells, text+cell.readDate())
+			cells = append(cells, text)
 			read = true
 		}
 		if rate := row.Cells[metric.Throughput]; rate.Contract.Metric == warmRateMetric && rate.Value > 0 {
-			cells = append(cells, thousands(int(math.Round(rate.Value)))+" tok/s"+rate.readDate())
+			cells = append(cells, thousands(int(math.Round(rate.Value)))+" tok/s")
 			read = true
 		} else {
 			cells = append(cells, unreadSpeed)
@@ -73,21 +73,13 @@ func (record Record) SpeedTable() string {
 	return table.String()
 }
 
-// readDate is what a table says beside a carried reading: the day it was read, older than the record before.
-func (c Cell) readDate() string {
-	if !c.Carried {
-		return ""
-	}
-	return " (read " + c.ReadOn() + ")"
-}
-
 // GenerationTable is the README's table of the record's generated pictures and clips, after its speed table: one line
 // for each image or video row whose time to the whole output names the preset it ran, that time with its preset, and
 // its time at the size a person asks for with that preset where one was read, and where that time went (Row.Stages).
 // A record measured before its attempts kept their presets gives no table.
 func (record Record) GenerationTable() string {
 	timed := func(cell Cell) string {
-		return fmt.Sprintf("%.1f s (%s)%s", time.Duration(cell.Value*float64(time.Millisecond)).Seconds(), cell.Preset, cell.readDate())
+		return fmt.Sprintf("%.1f s (%s)", time.Duration(cell.Value*float64(time.Millisecond)).Seconds(), cell.Preset)
 	}
 	var lines strings.Builder
 	for _, row := range record.Rows {

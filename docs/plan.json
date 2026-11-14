@@ -3,29 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "readme-speed",
-      "title": "The README's speed table reads prompt processing at 4,096 and 16,384 tokens for every chat model, from readings that keep their token counts",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 485,
-        "reason": "Filed 2026-11-11 from the owner's review of the README's speed table: a measurement and a record, no code. The lead's figure. Step names: +491 (491, the median of what 8 landings that changed internal/discovery, internal/scorecard counted). Step carry: +172 (172, the median of what 23 landings that changed internal/scorecard, cmd/validate counted)."
-      },
-      "steps": [
-        {
-          "id": "measured",
-          "title": "Each chat model's prompt processing at 4,096 and 16,384 tokens is read again with its token counts, the record published, and the table written from it",
-          "status": "open",
-          "verify": "go run ./cmd/validate -readme -check",
-          "files": [
-            "README.md"
-          ],
-          "needs_card": true,
-          "rationale": "Serves: the owner's review of 2026-11-11: every row of the speed table shows no prompt processing at either length.\n\nDisappears: a table of dashes. The newest record, scorecard-20261107T192932Z.json, holds a prefill reading at 4,096 tokens for 12 rows and at 16,384 for 11 (Carbon-500M's 4,096-token prefill took 2,058 ms), but none keeps the tokens it read uncached (Cell.Rate), so SpeedTable gives no figure, as it should: a rate from the nominal size could count tokens a prefix cache served. The measurement run of 2026-11-08 filed no record, so no reading since has kept them.\n\nThe change: in a gap between two readings, go run ./cmd/recipe measure reads each chat model again on the card (its load, its first request, a fresh prompt of each length read once unmeasured and then measured, and its warm generation), recording each as an attempt with its token counts; go run ./cmd/validate -scorecard -publish writes the newest record from the store; go run ./cmd/validate -readme writes the table from it. A model whose context does not hold 16,384 tokens keeps its dash at that length.\n\nCheck: validate -readme -check, which fails while the README's written parts are not what the newest record gives.\n\nBatch: device lane for the readings, in a gap between two readings; the record and the README on the host.\n\nNote: 2026-11-11, in the gap between readings: 14 of the 15 chat models were read again by recipe measure, each prefill now with its token counts (Bonsai-27B 1,969 and 1,603 tok/s at 4,096 and 16,384 tokens; Qwen3.8-27B 1,927 and 1,570; Qwen3.5-9B 5,854 and 4,310; gemma-4-12B-it-fp8-native 3,649 and 3,181; Carbon-500M 59,861 at 4,096, its context holding no 16,384). Qwen3.8 Flash-Next no longer opens (finding evidence:sha256:44390623...: strataRoundConversions indexes an empty qsaLayers). The table is not written yet, and is not written by publishing a record by hand: a record counts a cell current only where it was measured since the record before it, so validate -scorecard -publish after these readings blanked every cell not read again since 2026-11-07 (peak memory, the MMLU-Pro readings), and a second publish four minutes later blanked nearly every row. Both records are withdrawn to overgo_data/scorecards/withdrawn-2026-11-11 and the README is as it was. The table fills from the next measurement run's record, which reads every cell. Publishing also found two rows served_models.json named no words for, new since 2026-11-07: gemma-4-12B-it (its published bf16 files) and Self-Forcing, whose row was named \"checkpoints\", the folder its weights sit in; readme-speed/names lands those.\n\nNote: 2026-11-13, SQA-336 (P3), reopened by the lead's recheck: the table's prompt headers read \"pp, 4,096-token prompt\" and \"pp, 16,384-token prompt\" while a reading counts in a bucket within 25% of its length (actual-prompt-rate/rate, cf0831375, rates each reading by the tokens it read), so a header claims an exact length no reading is held to. The table this row writes says the bucket: about 4,096 and about 16,384 tokens, each cell's own count of tokens read beside its rate, as its readings keep them."
-        }
-      ]
-    },
-    {
       "id": "guidance-ops",
       "title": "CFG-Zero*, the guidance interval, APG and NAG are guider functions written from their papers, each a preset admitted per model by its held-out suite on no loss beyond chance, a gain claimed only where the paired test shows one",
       "owner": "master-lead",

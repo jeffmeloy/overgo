@@ -143,7 +143,8 @@ type Cell struct {
 	Newest int64 `json:"newest_unix_ns,omitzero"`
 	// Carried says a serving cell's reading is its newest, read before the previous record was published and not
 	// since: the record keeps it, dated by Newest, where it once published a gap, so a record published between two
-	// full measurement runs holds every cell's newest reading and says which are older than the record before it.
+	// full measurement runs holds every cell's newest reading and says which are older than the record before it. The
+	// README prints the reading undated, as every reading it prints is the newest (TestTheReadmeReportsNoColdSpeed).
 	Carried bool `json:"carried,omitzero"`
 	// Preset is what the attempts a generated picture's or clip's timing or memory reads ran: its size, steps, guidance,
 	// sampler and shift. None for every other cell.
@@ -325,7 +326,7 @@ var wholeOutputTasks = []recipe.Task{
 // Measured reports whether a record measures the cell.
 func (c Cell) Measured() bool { return c.Reason == "" }
 
-// ReadOn is the day a serving cell's newest attempt started, as a carried reading is dated (Record.Carry).
+// ReadOn is the day a serving cell's newest attempt started, as a carried reading's gap dates it (Record.Carry).
 func (c Cell) ReadOn() string { return time.Unix(0, c.Newest).UTC().Format(time.DateOnly) }
 
 // sameMeasure says two models' readings are of one measure: the same metric and origin, on the same suite under the same

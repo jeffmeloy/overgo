@@ -5,7 +5,7 @@
     {"row": "Qwen3.5-9B", "shown": "Qwen3.5-9B (Q8_0)", "modality": "text", "input_output": "text → text"},
     {"row": "Qwen3.5-4B", "shown": "Qwen3.5-4B", "modality": "text", "input_output": "text → text"},
     {"row": "gemma-4-12B-it-fp8-native", "shown": "gemma-4-12B-it (fp8, native)", "modality": "text", "input_output": "text → text"},
-    {"row": "gemma-4-12B-it-fp8", "shown": "gemma-4-12B-it (fp8 unpacked to bf16)", "modality": "text", "input_output": "text → text"},
+    {"row": "gemma-4-12B-it-fp8", "shown": "gemma-4-12B-it (fp8, its own files)", "modality": "text", "input_output": "text → text"},
     {"row": "gemma-4-12B-it", "shown": "gemma-4-12B-it (bf16, its published files)", "modality": "text, vision-language", "input_output": "text → text; image → text"},
     {"row": "gemma-4-E4B-it", "shown": "gemma-4-E4B-it", "modality": "text, vision-language, audio-language", "input_output": "text → text; audio or image → text"},
     {"row": "Bonsai-27B-Q1_0", "shown": "Bonsai-27B (Q1_0)", "modality": "text", "input_output": "text → text"},

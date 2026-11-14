@@ -124,7 +124,7 @@ func ValidateRequest(request Request) error {
 		}
 	}
 	if request.Sharpen != nil {
-		if err := request.Sharpen.Validate(); err != nil {
+		if err := request.Sharpen.Admit(request.Height, request.Width); err != nil {
 			return fmt.Errorf("latent image: %w", err)
 		}
 	}

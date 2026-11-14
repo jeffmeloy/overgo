@@ -31,16 +31,28 @@ func (s Sharpening) Validate() error {
 	return nil
 }
 
+// Admit holds a sharpening to Validate's bounds and to a picture of height × width wider and taller than its radius,
+// so a request is refused before it draws a picture its finish cannot sharpen.
+func (s Sharpening) Admit(height, width int) error {
+	if err := s.Validate(); err != nil {
+		return err
+	}
+	if height <= 0 || width <= 0 || s.Radius >= min(height, width) {
+		return fmt.Errorf("media: sharpening at radius %d needs a picture wider and taller than the radius, not %d×%d", s.Radius, width, height)
+	}
+	return nil
+}
+
 // Sharpen sharpens a picture of unit RGB, height × width pixels of RGBChannels interleaved, as ComfyUI's ImageSharpen
 // does (moss-ultra-sections/finishing): an unsharp mask whose kernel is (1 + 10α) at its centre less 10α times a
 // Gaussian blur, the blur's 2·radius + 1 taps a side lying at even steps over [−1, 1] with deviation sigma and summing
 // to 1, the picture's edges reflected (an edge pixel not repeated), and each value clamped to [0, 1].
 func Sharpen(pixels []float32, height, width int, s Sharpening) ([]float32, error) {
-	if err := s.Validate(); err != nil {
+	if err := s.Admit(height, width); err != nil {
 		return nil, err
 	}
-	if height <= 0 || width <= 0 || len(pixels) != height*width*RGBChannels || s.Radius >= min(height, width) {
-		return nil, fmt.Errorf("media: sharpening at radius %d needs %d×%d RGB pixels and a picture wider and taller than the radius, not %d values", s.Radius, height, width, len(pixels))
+	if len(pixels) != height*width*RGBChannels {
+		return nil, fmt.Errorf("media: sharpening needs %d×%d RGB pixels, not %d values", height, width, len(pixels))
 	}
 	size := 2*s.Radius + 1
 	kernel := make([]float64, size*size)
@@ -49,7 +61,10 @@ func Sharpen(pixels []float32, height, width int, s Sharpening) ([]float32, erro
 		for j := range size {
 			y := -1 + 2*float64(i)/float64(size-1)
 			x := -1 + 2*float64(j)/float64(size-1)
-			kernel[i*size+j] = math.Exp(-(x*x + y*y) / (2 * s.Sigma * s.Sigma))
+			// Each offset is scaled by sigma before it is squared: 2·sigma² underflows to 0 below a sigma of about
+			// 1e-154, and the centre's 0/0 made every value NaN (SQA-393).
+			x, y = x/s.Sigma, y/s.Sigma
+			kernel[i*size+j] = math.Exp(-(x*x + y*y) / 2)
 			total += kernel[i*size+j]
 		}
 	}

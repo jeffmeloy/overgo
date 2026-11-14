@@ -30,4 +30,8 @@ func TestARequestsCanvasAndSharpeningFinishItsPicture(t *testing.T) {
 	if ValidateRequest(Request{Prompt: "a lighthouse", Width: 1024, Height: 576, Sharpen: &media.Sharpening{Radius: 0, Sigma: 0.6}}) == nil {
 		t.Error("a sharpening of radius 0 was taken")
 	}
+	// A radius as wide as the picture is refused before the model opens, not after it draws (sharpen-admit/do, SQA-393).
+	if ValidateRequest(Request{Prompt: "a lighthouse", Width: 1024, Height: 576, Sharpen: &media.Sharpening{Radius: 576, Sigma: 0.6, Alpha: 0.7}}) == nil {
+		t.Error("a sharpening whose radius the picture cannot hold was taken")
+	}
 }

@@ -213,25 +213,6 @@
       ]
     },
     {
-      "id": "sharpen-admit",
-      "title": "A picture's sharpening is admitted whole before the model opens",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A picture's sharpening is admitted whole before the model opens",
-          "status": "open",
-          "verify": "go test ./internal/media -count=1 -run '^TestSharpeningIsAdmittedBeforeTheModelOpens$'",
-          "files": [
-            "internal/media",
-            "internal/latentimage"
-          ],
-          "rationale": "Serves: a finish that cannot run is refused before a render, and an admitted one gives a finite picture (SQA-393, P2: model output).\n\nThe evidence (the review's, shown from source): Sharpen's shape and numerical domain are checked when it runs, after the render, and its Gaussian normalisation overflows for admitted finite sigmas, so a valid request can give a nonfinite picture.\n\nThe change, the finding's: the request validates the sharpening against the effective canvas before the model opens, the same check serving direct callers, and the normalisation is computed safely over the positive-sigma domain.\n\nCheck: TestSharpeningIsAdmittedBeforeTheModelOpens refuses an invalid sharpening at validation and holds a large admitted sigma to a finite result."
-        }
-      ]
-    },
-    {
       "id": "moss-import-admission",
       "title": "The MOSS Ultra import admits its metadata, destination and storage before reading any payload",
       "owner": "master-lead",

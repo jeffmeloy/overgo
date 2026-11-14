@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"testing"
 
+	"overgo/internal/checked"
 	"overgo/internal/jsonfile"
 	"overgo/internal/testcheck"
 )
@@ -89,6 +90,26 @@ func TestFinishingMatchesTheRecordedImage(t *testing.T) {
 	}
 	if !sized[[2]int{1024, 576}] || len(recorded.Sizes) < 400 {
 		t.Errorf("the recording holds %d sizes and the workflow's 1024×576 %v", len(recorded.Sizes), sized[[2]int{1024, 576}])
+	}
+}
+
+// TestSharpeningIsAdmittedBeforeTheModelOpens holds every sharpening the request's validation admits before a model
+// opens (Sharpening.Validate, any positive sigma) to a finite picture (sharpen-admit/do, SQA-393): the Gaussian's
+// weights divided by 2·sigma², which underflows to 0 below a sigma of about 1e-154, so the kernel's centre was 0/0 and
+// every value NaN, a picture drawn whole and then lost.
+func TestSharpeningIsAdmittedBeforeTheModelOpens(t *testing.T) {
+	pixels := make([]float32, 4*4*RGBChannels)
+	for i := range pixels {
+		pixels[i] = float32(i%7) / 7
+	}
+	for _, sigma := range []float64{1e-200, 1e-160, 0.6, 1e200} {
+		sharpening := Sharpening{Radius: 1, Sigma: sigma, Alpha: 0.7}
+		testcheck.NoError(t, sharpening.Validate())
+		for i, value := range testcheck.Must(Sharpen(pixels, 4, 4, sharpening))(t) {
+			if !checked.Finite32(value) {
+				t.Fatalf("sharpening at sigma %g gave value %d as %g", sigma, i, value)
+			}
+		}
 	}
 }
 

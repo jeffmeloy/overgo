@@ -14,8 +14,9 @@ import (
 	"overgo/internal/repoanalysis"
 )
 
-// commitScope is what a landing commits: the files its named steps list, the plan, the findings register a review
-// left and what the repository's generators derive, which the landing writes itself. A listed directory holds
+// commitScope is what a landing commits: the files its named steps list, the plan and the findings register a review
+// left; what the repository's generators derive enters only as derive wrote it from the candidate (held). A listed
+// directory holds
 // everything under it, tests and fixtures among them. The lists are the trunk's plan's and the change's plan's: plan
 // -setfiles widens a list with its reason noted, which is how a landing that left out a path its change needs is
 // widened (leftOut); seven steps were retired and filed again on 2026-11-08 for a short list. A step the change itself
@@ -50,11 +51,32 @@ func (l *landing) commitScope(ctx context.Context) ([]string, error) {
 			listed = append(listed, written.Files...)
 		}
 	}
-	listed = append(listed, plan.Path, findingsRegister)
-	for _, generator := range l.generators() {
-		listed = append(listed, generator.writes...)
+	return append(listed, plan.Path, findingsRegister), nil
+}
+
+// held splits the changed paths of the checkout into those the commit takes and those it leaves as they stand: those
+// its scope holds (inside), and a generator's file only as derive wrote it from the candidate, whatever the scope. The
+// checkout's own copy of a derived file is of whatever it was last derived from: on 2026-11-14 a change to the plan
+// alone took an API manifest regenerated for uncommitted code, ran every stage as a change to code, derived nothing,
+// since only a change to Go derived, and was refused twice by the manifest's own test (derive-always/do).
+func (l *landing) held(changed []repoanalysis.DirtyPath) (held []repoanalysis.DirtyPath, left []string) {
+	scope := l.scope
+	if scope != nil {
+		scope = append(slices.Clone(scope), l.derived...)
 	}
-	return listed, nil
+	within, left := inside(scope, changed)
+	var generated []string
+	for _, generator := range l.generators() {
+		generated = append(generated, generator.writes...)
+	}
+	for _, entry := range within {
+		if slices.Contains(generated, entry.Path) && !slices.Contains(l.derived, entry.Path) {
+			left = append(left, entry.Path)
+			continue
+		}
+		held = append(held, entry)
+	}
+	return held, left
 }
 
 // inside splits the changed paths of the checkout into those the scope holds and those it leaves as they stand; an

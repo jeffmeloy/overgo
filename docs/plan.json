@@ -41,24 +41,6 @@
       ]
     },
     {
-      "id": "derive-always",
-      "title": "The generators' files enter a commit only as derive wrote them from its candidate, whatever the change holds",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "The generators' files enter a commit only as derive wrote them from its candidate, whatever the change holds",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestADerivedFileEntersACommitOnlyFromDerive$'",
-          "files": [
-            "internal/landing"
-          ],
-          "rationale": "Serves: the owner's review of 2026-11-14 (point 1): review-rows/do failed twice on it.\n\nThe evidence: commitScope always lists the generators' writes (docs/api_manifest.json, compatibility.json and its documents), and fix() calls derive only inside if len(directories) != 0, for a change that holds Go. A docs/api_manifest.json the checkout held regenerated for other uncommitted code was in scope for a change to the plan alone, which made it no plan-only change: every stage ran, derive did not, and the stale manifest was committed as the checkout held it, and refused by its own test.\n\nThe change: derive runs in the fix stage whatever the change holds, and the generators' writes leave commitScope: a capture stages a generator's file only as derive wrote it from the candidate, never as the checkout held it. A plan-only change is plan-only whatever generated file the checkout holds.\n\nCheck: TestADerivedFileEntersACommitOnlyFromDerive lands a change to the plan alone from a checkout whose API manifest is stale, and holds the commit to the plan, the manifest left as the checkout held it; and a change to Go has its manifest as derive wrote it."
-        }
-      ]
-    },
-    {
       "id": "video-decode-overlap",
       "title": "The causal video VAE decodes chunk k on a second stream while chunk k + 1 denoises",
       "owner": "master-lead",

@@ -39,7 +39,85 @@
         ],
         "adoption_scope": "Supersedes the absent repository-document reference at the owner's request; current external SHA is verified. Does not alter the executable plan."
       },
-    "assessment": "This is substantial architectural deletion with concrete consumers removed and surviving runtime/state/development owners preserved. Verification now rejects failure before broad work and releases the device turn for host tests. The committed plan returns to receiving evidence. No complete rebuild or all-model correctness claim follows from this scoped progress.",
+    "architecture_workstreams": [
+        {
+          "owner_boundary": "Resolve/admit before execution or eviction",
+          "findings": [
+            "SQA-340",
+            "SQA-382",
+            "SQA-386",
+            "SQA-365",
+            "SQA-325",
+            "SQA-330"
+          ],
+          "existing_work": "preset-form/do; prompt-weights/rows; moss-import-admission/convrot; other admission cases ride their existing callers when touched, not new SQA rows.",
+          "observed_source": "modelcli.open evicts idle sessions before repository/model/recipe resolution. Runtime.executePlan computes replay.run, but missing adapters are admitted only at prepareStage in successive ready sets. Existing measuredRun inference and executeChainArm training both use this runtime. Preset/token/storage findings bind different concrete facts and remain distinct.",
+          "recommendation": "Resolve the existing effective request/model/storage and preserve omitted versus explicit values before destructive or expensive work. After replay planning, bind only stages actually needing execution once through the current registry; keep dynamic input checks at their stage. Admit an unsupported derived evaluator before file suites. Keep loading, decoding, numerical schedules and training loops in current executors. Do not add one generic admission service, dummy model dependencies or a recipe language for development.",
+          "disappears": "Repeated interpretation/late deterministic refusal, needless idle-session reloads and duplicate late adapter lookup; no replacement scheduler.",
+          "retained_owner": "Existing modelcli/modelrecipe binders, workflowruntime replay/adapter registry and evaluate session owner; start with the two existing inference/training callers.",
+          "done": "Invalid requests do not evict reusable sessions or run preceding stages; fully recovered/pruned stages need no model/adapters. Exact token-row and storage/layout contracts and existing numerical/cancellation cases survive. Complete executor/test/setup costs decide the change."
+        },
+        {
+          "owner_boundary": "Evidence follows the execution it describes",
+          "findings": [
+            "SQA-283",
+            "SQA-277",
+            "SQA-346",
+            "SQA-379",
+            "SQA-342",
+            "SQA-368",
+            "SQA-369"
+          ],
+          "existing_work": "execution-state/do; observation-binding/do; preset-evidence/statistic; mmlu-pro/reference; identity-gate/do. Headline eligibility370 landed873c07652; the other boundaries remain independently open.",
+          "observed_source": "Current findings identify publication-time state lookup, unbound observation/paired-render inputs and headline ranking versus eligibility. These are not the same defect: exact model/request/payload/protocol binding, statistical sufficiency and display eligibility require separate checks. The MMLU comparison, ordinary gate fixture and scorecard headline similarly have different producers/consumers. Concurrent873 headline repair now makes eligibility explicit through HeadsItsMeasure/qualityCell; it correctly does not discharge reference identity or native gate isolation.",
+          "recommendation": "Carry resolved execution-time identities/state and actual consumed inputs through current run/evaluation records, then derive approval/headline eligibility through existing consumers. Unknown/failed lookup must remain unknown. Admit reference questions/model/tokenizer before loading and keep ordinary gate data private/pinned. Preserve historical evidence under original identity instead of synchronizing it to live source or relabelling a sample.",
+          "disappears": "Re-reading mutable activation/default state at publication, ordinal/count-only reference trust and unconstrained first-ranked-as-eligible decisions; no second evidence ledger or scoring engine.",
+          "retained_owner": "Existing runrecord, evaluation/media compiler and scorecard owners. Statistical units/null/calibration stay with the existing evidence/statistic owner.",
+          "done": "Wrong recipe state, changed request/payload/questions and ineligible-only headline inputs cannot earn the current claim; historical alternatives remain visible. Numerical agreement/accuracy and statistical sufficiency retain their separate bounds. Correct input identity alone never proves statistical validity."
+        },
+        {
+          "owner_boundary": "ComfyUI owns translation; one recording owns each external run",
+          "findings": [
+            "SQA-345",
+            "SQA-388",
+            "SQA-389"
+          ],
+          "existing_work": "Coordinate the existing comfy-recorder/record-rest row and HTTP fixture; not one new row/mock/process per finding.",
+          "observed_source": "The importer requires six exported API requests, yet fixture.request reconstructs the UI via flatten1379/widgets1366/workflow414 AST. recorder.record636 applies API overrides, POSTs before admitting the output destination and writes its sole JSON after collection; await212/keep154 cannot resume an accepted ID after failure. Memory is sampled device-wide, not an attributable upper bound.",
+          "recommendation": "Decode the retained exported API request; preserve explicit API-map overrides/SaveLatent and workflow provenance. Admit destination before POST, immediately persist the accepted prompt and immutable bindings in the same recording, and resume history/output collection without reposting. Publish a fresh complete output set atomically, preserving old successful results and unique node/kind/subfolder identity. Label memory maximum observed, with unknown actual peak. No new remote scheduler, workflow interpreter or telemetry service.",
+          "disappears": "The redundant UI/custom-node compiler, reconstruction equality harness, unconditional resubmission and direct partial overwrite of final outputs. The three compiler files are3159 production AST gross, not a guaranteed net saving; keep minimal API node types and unique malformed/provenance assertions.",
+          "retained_owner": "ComfyUI exported request; current recorder/recording, history/view client, jsonfile/atomic directory publication and existing fake server.",
+          "done": "All six exported requests still support accepted overrides. Invalid destination causes no POST; an accepted or completed remote run is resumed without repeating effects; failed collection preserves an old complete record. Sampled memory is never presented as true per-run peak. Each independent finding closes only when its own contract holds."
+        },
+        {
+          "owner_boundary": "One identified worker-step projection",
+          "findings": [
+            "SQA-374",
+            "SQA-373",
+            "SQA-366"
+          ],
+          "existing_work": "loop-proof/local-demonstrated, P3 follow-up; current product/receiving order remains.",
+          "observed_source": "Live prompt/step/verify/files use separate reads; replay reconstructs a held-step prompt and guesses model work from co-landed paths. SQA-373 is now a stable alias of374. run_check independently misreads ErrVacuous as a missing declaration; it remains a separate response-outcome defect.",
+          "recommendation": "Reuse typed plan dispatch/step data for coherent live and historical projections and actual prerequisite admission. Preserve brief/current/historical presentation and stop/file/test authority. Make vacuous-result guidance conditional using existing diagnostics. Do not create a context manager, generic classifier, prompt registry or second scheduler.",
+          "disappears": "Second currentStep/rationale reconstruction, directory-based measurement inference and unconditional write-a-missing-test instruction.",
+          "retained_owner": "Current plan projection, replay admission and planverify/testevidence/run_check response; fixed native reasoning/replay/tool fixtures.",
+          "done": "Both374 closure branches hold: coherent step/check/files/reasoning and correct host-versus-model prerequisite admission. A skipped existing test earns no pass and is not called absent. No new worker/model demonstration is needed just to decide these source contracts."
+        },
+        {
+          "owner_boundary": "Model readers own native bytes and per-worker scratch",
+          "findings": [
+            "SQA-386",
+            "SQA-266"
+          ],
+          "existing_work": "moss-import-admission/convrot and current receiving cycle; format-independent model/tensor target stays architectural, not a second dispatch plan.",
+          "observed_source": "1a07828ee keeps scratch with borrowed pytorchzip handles and reads F32 directly only on little-endian hosts; storageDecode returns nil conversion only for F32. The retained Fractale leadership account reports process peak about2050->1783MiB. This is real existing-owner reuse, +121 production AST, not a new model-loading framework.",
+          "recommendation": "Build on existing native tensor/storage/binding owners so storage format supplies bytes and executors own numerical meaning. Resolve ConvRot encoding before shared lazy resident binding. Reuse compatible sessions/graphs/buffers with their identity and lifetime; do not synthesize GGUF to satisfy an internal type or normalize whole models eagerly to F32.",
+          "disappears": "Per-tensor scratch allocation/copy already reduced; future target is duplicate format-specific interpretation and container emulation after consumers migrate, not real readers or required transforms.",
+          "retained_owner": "Current readers, tensor inventory/binders, session/graph/runtime and numerical executors. No new universal serialized IR or plugin system.",
+          "done": "Equivalent supported computations retain exact dtype/quantization/layout, model/tokenizer identity, bounds, lifetime and reference accuracy through real formats. Scoped Fractale gain is not generalized to all models; full receiving coverage remains pending."
+        }
+      ],
+    "assessment": "Consolidate decisions and execution facts, not merely file names. The largest proven avoidable boundary is the ComfyUI UI compiler beside already-required exported requests; the most reusable reliability fix is early admission through current model/runtime/plan owners. Evidence identity, statistical sufficiency, recovery and presentation must keep distinct contracts even when implemented in one workflow.",
     "ast_surface_review": {
         "revision": "9bd406acafb89c44a439722419f1f7e85e71f691",
         "architectural_target": "Fewer independent product entry points and dependency owners; retain process isolation and existing compiled/runtime/development authority.",
@@ -60,7 +138,7 @@
         "complete_cost": "29196812c->0b5a70f89:34changed-Go paths,+759production/+1671testAST,net+2430,+140/+312lines,+1production/+7testfiles,0staticfixtures/binary/package additions. This is necessary capability/recovery growth,not net reduction. Historical closure reductions kept separate.",
         "authority": "No implementation,plan/skill changes,worker messages,agents or workloads."
       },
-    "current_review_order": "Current committed guidance/plan/architecture target -> provisional concrete owner/caller conclusions -> relevant findings -> selected AST/whole changed-source costs/retained results -> concurrent re-read/publication.",
+    "current_review_order": "Current committed plan/architecture target -> actual caller/side-effect/projection chains -> shared-root versus independent contract decisions -> selected AST/retained results -> targeted canonical/priority changes -> concurrent reconciliation.",
     "declined_candidates": [
         "Do not implement five separate monitors, another notes file or recurring model/test workload. One existing status projection is enough.",
         "Do not count a successful preflight as a refused commit, an already-landed retry as a new commit, or a retired/renamed step as completed.",
@@ -154,46 +232,17 @@
         ]
       },
     "plan_review_follow_up": {
-        "pin": "b75dacbeb39d7e44244849f96acdc8e9b051afbe",
-        "assessment": "All eight aa8c89175 review rows have now landed in three batches. The committed plan is 40 items/66 steps and puts cycle-lanes/do first. Retired public CLI/route/request/UI consumers are actually removed; existing execution/operation/state owners remain. This is substantive deletion and recovery improvement, not merely reorganized code.",
-        "recommendation": "Use the existing receiving row for the next meaningful coverage evidence. Keep the new-step class inconsistency as a P3 follow-up during related landing work; it is not a new prerequisite or dispatch row. Preserve accepted numerical/resource/source identities and scoped receipts. No replacement scheduler, run language, watchdog or blanket report gate.",
-        "recommendations": [
-          {
-            "rows": "Related future landing-owner work",
-            "evidence_basis": "observed",
-            "evidence": "The retained 14:07 combined-batch refusal on c7f534b7739b forced a plan-only precursor. addedChecksFail still has the same 90-AST body at b75dacbeb: every new check must fail on base, while undoable exempts consolidations. The new consolidation-counts change removes budget bookkeeping but does not resolve that class mismatch.",
-            "recommendation": "During related planned landing work align each newly filed step with its existing item/terms class. A semantics-preserving consolidation can pass before/after; a behavior step must not acquire that exemption from a different consolidation in the same batch. Do not require an artificial failing test or extra plan-only commit.",
-            "disappears": "Duplicated inconsistent class decisions and avoidable precursor/base work.",
-            "retained_owner": "Existing addedChecksFail, terms and native row fixture; no new registry or command.",
-            "done": "A same-change consolidation is admissible without a precursor; a vacuous behavior check remains refused, including a mixed batch. Preserve SQA-378 accepted identity and SQA-332 historical closure."
-          },
-          {
-            "rows": "dead-chain/do (landed)",
-            "evidence_basis": "observed",
-            "evidence": "Two commands and internal/controlleraction, isolated scheduler/candidate/offline/retrieval schemas, loop flags, /agents/retrieval route and browser fold, and grounded_replay request branch are removed together. Ordinary /evaluations/run still submits through operation/executeObservedOperation/ExecuteEvaluation. Generic storage and the no-forward/representation-bridge recipe admission remain.",
-            "recommendation": "Credit this explicit retirement, including the removed candidate-order test (SQA-295 closed). Keep surviving inference/training, agent chat/session/restart/authority and ordinary evaluation assertions. Do not recreate the retired scheduler or preserve its fixtures without a supported contract.",
-            "disappears": "Two binary entry points, three tracked Go-code directories and the retired transitively owned chain, including its tests/setup.",
-            "retained_owner": "Current plan/loop, model/training executors, operation/run state, recipe admission and generic artifact store.",
-            "done": "Verified removal at b75dacbeb with no remaining registered/CLI/browser consumer in the searched scope. Old artifact bytes were not deleted or relabelled. Scoped gate evidence is retained; no claim of all-model equivalence."
-          },
-          {
-            "rows": "verify-first/do, pin-chain/do, lane-run/do, audio-clock/do, expected-end/do, consolidation-counts/do (landed); cycle-lanes/do (open)",
-            "evidence_basis": "observed",
-            "evidence": "Verify now precedes broad tests/lanes on a scoped card turn; native full-mode failure/success release cases and assertion-based undo support closure of SQA-322. Pins compute chained edit guidance on copies through the current bytePins index. Audio opts out of Go's implicit timer. Progress records test starts; the history-driven stall timer, guessed phase ends and non-consolidation count/history readers are gone.",
-            "recommendation": "Retain the existing first-failure/package/phase, process lifetime and resource/cancellation owners. Use actual receiving subcase/skip/partial-failure receipts, not a Bonsai slice or progress line, to decide transfer completion. Pin-chain credit is limited to the existing indexed record families, not a universal dependency proof.",
-            "disappears": "Late broad work before verify, repeated one-hop pin handoffs and obsolete stall/end/count bookkeeping. Verifier/pin fixes add code and their entire cost is charged.",
-            "retained_owner": "Landing verify/card/terms, validate laneWatch/measurement records and existing plan/loop receiving driver.",
-            "done": "First two functional fixes verified under their scoped native/gate evidence. Full receiving/model completion remains unverified and is the current first row, with no independent cleanup ahead of it."
-          }
-        ],
-        "limits": "Report only; no SQA app execution, dispatch, plan/skill edit or cleanup. Current dirty plan excluded. The earlier 204-minute versus 95-minute comparison is not a future wait bound or measured saving."
+        "pin": "873c07652b744d9a90b0dddd9321684af745a3cf",
+        "assessment": "Master advanced before publication;873c07652 and its45-item/71-step plan were reconciled. Headline eligibility is now fixed; reference identity and private gate data remain. Five shared-owner workstreams route existing findings rather than create another plan.",
+        "recommendation": "Credit proposed derive-always for generated files entering only through the candidate derive owner and proposed undo-every-check/added for deleting the redundant same-change check owner. Preserve accepted identity, consolidation/test-only semantics and truthful build/setup failures as no counterfactual evidence; do not add exception machinery. These are plan directions,not implemented fixes. Keep receiving outcomes and unrelated product work visible while these actual blockers are addressed.",
+        "limits": "Report-only. No dispatch/plan/skill changes. Current first rows are mmlu-pro/reference and identity-gate; no longer call receiving the first row."
       },
-    "rank_basis": "Actual398/399 admission failures precede local400 consolidation.397 closed;400 retains unique coverage.376 owns known-rule/history/delivery obligations.",
+    "rank_basis": "Product conditioning/request/storage and evidence correctness first; security and false-check acceptance remain P2. Process projection/misdiagnosis without observed product loss/all-work stop is P3 and rides matching work. No quota or numeric cap.",
     "refactor_target_progress": {
-        "architectural_progress": "A complete candidate/controller/offline/retrieval branch is retired through its concrete command, HTTP, UI, schema and test consumers. Three code directories disappear without another scheduler or execution language. Existing registered recipe admission, numerical/training executors, operation/run state and development authority remain. Verify/pins/progress/count changes reuse existing owners.",
-        "conflicts": "Full receiving receipts remain absent, one SenseNova model-resource gate exception remains, and new-step consolidation admission still contradicts its before/after contract. The format-independent model/tensor migration is not established by these retirements; no claim of complete rebuild or general cross-format reuse.",
-        "next_useful_reductions": "Keep receiving execution first as the committed plan now does; retain actual subcase/skip and source/model/request identities. Align new-step class admission when related landing work touches it, without another gate or precursor workflow. Existing form/verify order tables may be compacted when naturally touched; that optional test cleanup does not reopen the repaired late-verification defect.",
-        "cost": "727ac6722->b75dacbeb: 190 changed Go paths, -100618 production/-77414 test AST; -17540/-10544 Go lines; -46/-42 Go files. Tracked Go-code directories 247->244 and command main entry directories 62->60: controller-action and offline-artifact-validate removed, plus internal/controlleraction. Physical old executable files were not inventoried or cleaned. Retirement gate reports schemas -52, fixture files +0/bytes -1737, CUDA source/entries +0. Per-commit costs retain verifier/pin growth +333/+582 and count cleanup -488/-339 rather than hiding them in net deletion."
+        "architectural_progress": "Previously reviewed candidate/controller retirement is committed. Existing-reader scratch/F32 reuse now repairs a measured Fractale peak; headline eligibility is explicit through existing evaluation/scorecard owners. Current proposed derive-always and deleting addedChecksFail favor fewer authorities over polishing duplicate gates.",
+        "conflicts": "Full receiving evidence, exact reference identity, execution-time state and replay-aware adapter admission remain open. The plan now adds scoped prerequisites before receiving. A generic framework or conflating independent numerical/statistical/recording contracts would move complexity rather than remove it.",
+        "next_useful_reductions": "Follow the five current shared-owner recommendation routes. Remove redundant UI translation and repeated worker-step interpretation; preserve recorder side-effect recovery, exact evidence and existing runtime/model executor ownership. Existing smaller binary/test/alias cleanups ride matching files.",
+        "cost": "Through1a net since727:-100497production/-77414testAST;873adds100production/230testAST and one test file. Through873 net:-100397/-77184AST,87fewer Go files,two command entry points/three code directories removed. Prospective3159AST recorder boundary is gross and unimplemented."
       },
     "working_notes_review": {
         "finding": "SQA-334",
@@ -203,10 +252,10 @@
       }
   },
     "committed_plan": {
-    "git_blob": "38f6450e8e5674d3d34f053c318a8268a3d12ae4",
+    "git_blob": "d751649ae756d48f5d531bf5329ad5458c41cc43",
     "path": "docs/plan.json",
-    "revision": "b75dacbeb39d7e44244849f96acdc8e9b051afbe",
-    "sha256": "42e97f0e1a9c56bf14d91bb2a4a8d68cb8b0f27e460ba2cdfa41327979ca72e8",
+    "revision": "873c07652b744d9a90b0dddd9321684af745a3cf",
+    "sha256": "39c6cb4c1852e70159db619a5136d4f87be43eb3000da88045f50e1370f4a6ac",
     "working_tree_status": "Committed plan at review pin; prior draft assessment retains its own snapshot identity. Current working plan edits excluded."
   },
     "findings": [
@@ -797,7 +846,7 @@
     "displaced_surface": "Existing plan.RecordDigests/runRecorder already displace repeated file reads and erased phase metadata (+261production/+581test for that earlier full change). Current opt-in migration removes five one-shot probe/benchmark files and duplicate Gemma4 prompt wrappers, relocates model-only tests and adds1248policy nodes; complete current landing net -2832 Go AST, not gross deletion. Native Kimi/T5 fixtures and multimodal production input matrix retain the named shared contracts; remaining external-catalog/identity requirements need explicit disposition. No fixture bytes or binaries/directories disappear. A correction to the global-set heuristic may remove its228-node setVariables reader plus callers, but complete after-cost/admission coverage is undecided; no speculative saving credited.",
     "evidence": "Retained eb0080dcc accounted for all15 failing names at4dcd2df02:12passed, Un-0 needed an existing empty-store fixture, TabFM had insufficient detectable gain on26held-out requests, and viewed-model onboarding named conversions instead of native files. ddfba003b now resolves the scoped TabFM prerequisite using existing credit-g JSON requests: whole-row hash pools keep training/held-out membership disjoint, duplicated input rows are read once, and existing typed request/categorical columns replace CSV metadata/sign-log setup. The retained reading improves0.5739->0.6164, gain0.0425 over159held-out requests versus detectable0.0257; the unchanged gainDeviates2 criterion approves and promotes. Two retained runs agree; SQA ran none. This is one dataset/request-level route proof, not159independent datasets or broad TabFM superiority; within-pool dependence/generalization is not proved by a larger case count.2368507a1 gives the declared verifier its required card switch. Historical November8 messages remain unavailable and cannot inherit these later causes. 4caa70f6a resolves the named native Gemma onboarding prerequisite: the retained clean-checkout onboard activates its source directory as model2cc612d5 and retires d0be4bb0/f5e632cd conversions after binding their original source weights. The smoke declaration now names that served native identity with the same arithmetic oracle, replacing two retired declarations with one. TestAcceptedSmokeOracles still binds declarations to live active recipes; its false-green/missing/stale/native-score cases remain. Retained landing evidence reports its passing check, not a new full cycle. Remaining unique obligations below remain.\nThe root measurement record still names fdd4ab1cea379541604905e9b913b1a5f3d92bc8. readme-speed/measured publishes scorecard-20261114T025256Z from retained store readings and fills the speed table; it is a new publication, not a new full measurement cycle. Record.Carry retains newest source identities/dates and gaps owed a reading, rather than forcing unchanged valid work to run again. No new full cycle is established. The landing scorecard remains one fixed text input, not system-wide evidence. Keep the corrected distinction between card-wait time and useful model load, the existing digest/phase owner and all unique opt-in coverage obligations below.\nHash-once/phase preservation is already owned by plan.RecordDigests and runRecorder: same Started identity reuses digests, a new begin rehashes. The native fixture deliberately mutates bytes within a run yet retains the first digest. The historical12-18minute saving is extrapolated, not measured. Existing paired numerical owners, exact identities, partial failures and phase/package/digest preservation remain obligations.\n4dcd2df02 now removes/relocates the31 flagged opt-ins and related cases. The complete landing is +3production/-2835testAST, after charging the1248-node runs_somewhere policy; no fixture bytes disappear. Five deleted probe/benchmark files retain one-shot decision sources: adapter33e96a505, composition3716051ea, chain e88d0033a, dose1b446104a, loader72bc4248d. The obsolete eight-row identity probe used an empty repository store and3of7 goldens no longer match; preserve any still-required record identity through its existing owner rather than reviving that setup. Gemma4 image/audio prompt tests are actual duplicate contracts: TestMultimodalInputMatrix/gemma4-12b-image-audio-video retains the same SHA-pinned goldens/questions, full TokenIDs and production BuildImagePrompt/BuildAudioPrompt, plus first-token/video checks. Leadership/generation checks move to windows&&modeltest and existing CycleLanes model ownership; added baseline flags deliberately increase future cycle work, which is not measured by deleted AST.\nDeleted Kimi/Gemma3/UMT5 real-catalog tests checked external ReadSpec/ReadWeights, layer counts and hybrid/postnorm/relative-bias bindings. Existing TestReadWeightsKimiLinearHybrid and TestReadWeightsT5Encoder retain small native hybrid/bias bindings through readFixtureWeights->ReadWeights. That is partial requirement ownership, not proof of equivalent external metadata or checkpoint completeness.48/24 were checkpoint expectations, not universal architecture limits. Missing installed checkpoints alone is not a retirement reason; map remaining unique requirements or explicitly retire checkpoint-specific assertions. Do not replace these with new heavy model runs.\nTestEveryTestRunsSomewhere globally accepts a gate if any source contains NAME=value or Setenv(NAME,...). A setter after that test's own skip, or only in an unrelated fixture, therefore supplies apparent ownership without delivering the variable to the guarded process. This is a source-admitted counterexample, not an executed regression. Treat the scan as guard inventory, not proof of execution; four explicit awaitingPin reference-build gates remain. Retained implementation evidence reports Krea velocity median -0.0153 versus0.0354 outside0.012 while latent acceptance passes. Diagnose that existing numerical cause; do not relax its bound or add a second ledger/run. SQA ran no tests.\nc0905decb removes active-test deadline owner/tests, default evaluation/guard deadlines and wall-based post-failure skipping. RunCommand supplies -timeout=0 only when absent, preserving explicit supplied timeouts; Limited shares optional caller bounds. Failure output/run records, event progress and cancellation remain. All lane packages now finish after failure to collect independent diagnostic results; future expensive work counts. The removed15minute heuristic was not a declared dependency: do not restore it or assume all queued checks redundant. Admit actual shared setup dependencies through current owners before dependent work, preserving independent progress.398 finds the missed default-zero smoke guard. Root full record remainsfdd4ab1; no new full publication established.\n9a8766941 lands the CUDA ownership transfer after dc39's discovery expanded35packages/35m54s versus earlier25packages/10m36s. Current discovery is29packages; the retained landing actually ran8affected packages in1m44.259s. Neither difference is a matched speed comparison. Most real-model tests now require modeltest; models lane explicitly adds densecausaltrain/modeldevice/oscillatorimage/hybridtrain/nvvfx, with existing cycle tags/opt-ins. Selected resident-lifetime300AST,TabFM real-training330AST and transcription-device bodies are unchanged; the shared SenseNova fixture275AST is relocated unchanged. Assertions/goldens/calibration remain work,not deletion. TestReachInvariants now uses lanesOf rather than an empty dynamic-lane table, so its gate-exclusion rows are no longer vacuous.\nOne real-model resource measurement remains deliberately in the gate: SenseNova runtime_resources is byte-identical to its old retained harness and named by measuredInPlace; cuda-resources is open. TestTheCUDALaneRunsNoRealModelTest's330AST plus dataRootReaders496AST is a scoped package-test declaration/name/import fixpoint,not type resolution or proof all production/helper paths avoid models. It excludes that declared exception. Retained empty-root runs reported missing fixtures; TabFM headDir actually skips absent heads in child subtests,so a passing parent is not proof they executed. Use actual subcase/skip receipts,not raw top-level pass counts.\nReceiving work is now observed,not merely planned: the retained91aee232d narrative says the first journey waited04:10-10:20 on a provider declaration already refused because its key variable was not named,with the card idle; the browser was then closed. That interval is the retained journey account,not a landing_waits duration or model timing. The sampled ledger contains cycle-lanes/answers at12:08:26-12:17:02,not a completed cycle-lanes/do receipt. Full receiving/model coverage is therefore still unproved.\n91aee232d names operator variables in the fixtures,removes dirty-tree/refusal-as-success branches and skipped remote legs,and makes each provider/Library wait end at its own answer/banner then require success. Existing waitBrowserOperationState rejects wrong terminal states; no generic wait-any-page-error rule is needed(the retained attempted global version falsely failed40tests). Private store copying now retains aliases only when target and every parsed artifact named in the alias are selected,using the existing setup and native isolation fixture. The product provider note gains a named status; whole webui pass2m40s is retained scoped evidence,not a full receiving cycle.\nee7462dd8 streams verification output through the existing ExecuteShowing/process owner: package verdicts/failed tests or ordinary output lines reach the landing log while original full evidence/cancellation/failure classification remains. It runs no second check and introduces no timer/watchdog. Streaming cannot itself detect a quiet stuck page or prove continuation; the action-specific refusal assertions fix that cause. Provider CLI/HTTP declaration and retirement now use the existing RunningCommit owner rather than imposing clean-worktree verification on administrative declarations; named-variable authority remains,and actual numerical validation/training/benchmark callers retain ExecutableCodeCommit. One SenseNova resource gate exception and the optional narrow administrative-only evidence comparison remain as previously scoped. Root full measurement is stillNovember8.\n",
     "evidence_basis": "observed",
-    "evidence_commit": "b75dacbeb39d7e44244849f96acdc8e9b051afbe",
+    "evidence_commit": "873c07652b744d9a90b0dddd9321684af745a3cf",
     "expected_benefit": {
         "outcome": "Already-landed digest reuse avoids potential repeated model-file reads. Current opt-in migration is net -2832 Go AST (+3production/-2835test), including1248policy nodes. Duplicate prompt setup disappears; moved model checks now charge the measurement cycle. Neither historical hashing estimates nor different gate walls establish elapsed savings.",
         "uncertainty": "No newer full measurement run or matched runtime/peak comparison established. Within-run digest immutability remains explicit. Three deleted external catalog cases need unique-requirement disposition; the global-set scan is a heuristic. The earlier long-sequence lane +35production/+259test and predicted~3minutes remain separate costs, not saved work.",
@@ -808,7 +857,7 @@
     "id": "SQA-266",
     "impact": "Hours of retained paired execution justify attention, but stale credit or losing reference-vs-optimized evidence hides numerical regressions. Preserve recipe/tokenizer/kernel/environment/lifetime bindings. No blanket minutes-only validation claim.",
     "likely_effort": "No current implementation task authorized by this report. Reassess the smallest named overlap from the next ordinary retained package record; keep completed digest/phase reuse credit.",
-    "plan_coverage": "870bd5a98 lands hold-start/audio-clock/dead-chain/lane-run/expected-end; 23e3a25c1 lands verify-first/pin-chain; b75dacbeb lands consolidation-counts. The committed plan now has 40 items/66 steps with cycle-lanes/do first. Audio explicitly opts out of Go's implicit timeout and its native lane-table check is retained; run progress uses test starts, not historical stall timers. The retirement's gate ran scoped device/webui/CUDA lanes and one Bonsai scorecard slice, not the complete receiving cycle. No full receiving success verified; root full measurement remains November 8 at fdd4ab1. Independent cleanup is no longer ahead of that row.",
+    "plan_coverage": "The first row remains cycle-lanes/do (40 items/66 steps). 1a07828ee repairs an actual newly receiving Fractale process-peak failure through the existing pytorchzip reader: per-handle scratch reuse and little-endian F32 direct read, +121 production AST/+23 lines, no new test/package/binary. Retained leadership account reports about2050->1783MiB process peak and6.7s versus9.5s reference; these are that fixture's results, not universal savings. Three sampled/reference values and the earlier failure remain in the commit. Its gate device/CUDA lanes and Bonsai slice are scoped. Full receiving/model success is still unverified and the root full-run record remains November8 at fdd4ab1. No additional SQA run or product prerequisite is introduced. Concurrent873c07652 changes the plan to45items/71steps: mmlu-pro/reference and identity-gate now precede process prerequisite rows and cycle-lanes/do. Headline370 is fixed,not new full receiving evidence.",
     "plan_references": [],
     "raised_by": "Review session e8549e3e at the owner's request, 2026-10-31 (owner: \"there is fundamental problem with this system to re-do testing over, and over, and over and over, and never finish\"; \"don't run the whole scorecard until code is fixed\")",
     "recommended_change": "Credit the retained all15 accounting and Un-0 native setup correction. Credit ddfba003b's scoped TabFM held-out route and4caa70f6a's native Gemma activation/declaration reconciliation as completed prerequisites. Preserve the original statistical bound and source identity. The existing full-run row and owner scheduling now decide the next admitted cycle; do not keep reporting those cured prerequisites as blockers. Do not weaken the statistical bound, force conversion or mutate/activate the store as SQA. Reuse actual compatible evidence and retain partial failures. The one post-rehearsal exclusive full run still belongs to the existing measurement/publication driver, not another recurring workload. Distinguish the current causes from unrecoverable historical messages. Keep card-wait measurement separate from useful work and independent host progress.\nRetain the Gemma4 prompt oracle under the multimodal production-path fixture and the moved model checks under CycleLanes. For removed catalog/identity probes, transfer only unique supported requirements into existing native ReadWeights/record fixtures, or explicitly document why the checkpoint-specific requirement is retired. Keep one-shot refusal/SHIP evidence in Git; do not reinstate retired experiments as standing tests. Diagnose the exposed Krea failure before dependent performance/quality claims.\nRemove global incidental Setenv/string presence as proof that admission reaches a test. Retain declared CycleLanes and scoped child-process admission as owners, using actual selected/passed/skipped receipts from an ordinarily authorized run to decide coverage. Any retained static guard inventory must state that limit. Do not build a control-flow analyzer, selector, new cache or scheduler to perfect the heuristic; count the check's own maintenance and future newly enabled work.\nCredit the landed modeltest/receiving-owner migration and corrected dynamic reach invariant. Keep required numerical/recovery cases in the current cycle; verify actual selected subcases,skips and partial failures through existing receipts,not top-level parent PASS or a static source guard. Do not expand dataRootReaders into a generalized control-flow/type-loading framework. Retire measuredInPlace only with the resource case's valid retained owner.\nBefore paying for cuda-resources solely because a build tag changes harness bytes,compare that exact header edit plus unchanged imports/helper/numerical/protocol/hardware identities through TestImageVideoCapacityAcceptance's existing immutable-harness compatibility owner. If the change is strictly administrative and that contract permits a narrow explicit carry,retain the old producer/source/timing and remove the forced recalibration/current gate exception; do not create generic semantic hashes,ignore arbitrary comments,or rewrite old evidence as newly measured. Extend the existing alteration fixture with that one allowed edit and a forbidden numerical edit if new compatibility behavior is adopted. If equivalence is not established,preserve the planned exclusive measurement and claim no saving.\nKeep the current action-specific success/refusal checks,named-variable fixture admission and isolated-store alias closure. Use the existing verify/process and terminal-operation owners to expose progress/failures;do not reintroduce a global page-error trigger,watchdog or notification framework. A partial webui repair or printed package verdict is not delivered full receiving evidence. Preserve actual models/subcase skips,source/request identities and partial failures through the existing run owner before claiming the transfer complete.",
@@ -7357,7 +7406,7 @@
     "displaced_surface": "Delete flatten.go1379nodes, widgets.go1366 and workflow.go414; remove graphs45 and fixture.request's UI reconstruction160 in favor of a small retained-request read. Simplify importFixture's UI/node-definition filtering only after preserving provenance; keep apiNode or equivalent minimal request validation where actually needed. Replace flatten_test.go's539-node reconstruction/differences harness with a smaller existing-fixture request/provenance check. A broken UI-link test belongs to the retired compiler; it is not retained as dead-code coverage. Unknown section, missing/malformed exported request and changed workflow/request identity remain meaningful checks. No fixture deletion is credited.",
     "evidence": "0682df981 added a Go interpreter for ComfyUI's UI graph:24subgraphs, Set/Get/reroutes, bypass, positional widgets, dynamic combos and rgthree-specific forms. Yet importFixture already REQUIRES ComfyUI's own exported request for each of the six sections and stores it in source.Requests. act accepts only a held section; it offers no graph editing/parameterization that requires rebuilding the request. Its test compares the rebuilt class/inputs with those very exported artifacts. The existing producer is ComfyUI's frontend; Overgo's reference recorder needs the resulting request and exact run identity. The commit's claim that a recorder must build a request itself is not established by these callers. At7daa461d0, recorder.record is a new concrete caller of fixture.request. It then edits named API inputs and adds SaveLatent nodes. fixture.request still reconstructs the UI graph through newFlattener/switchOn; source.Requests already identifies the six retained exports. The client does not displace any compiler path. Its command fixture covers post/history/output handling, a different contract from the removable UI-reconstruction equality harness.",
     "evidence_basis": "shown_from_source",
-    "evidence_commit": "7daa461d05051a53bceb25d5ae05a66e2c2c096e",
+    "evidence_commit": "873c07652b744d9a90b0dddd9321684af745a3cf",
     "expected_benefit": {
         "measured_baseline": "Five command production files4365nodes plus7 commanddoc nodes =4372production; one539-node test =4911complete landed surface. The retained gate reports+10fixture files/+1749816bytes, all counted and retained in this recommendation.",
         "estimate": "Complete simplified importer/CLI/provenance/request handling estimated1000..1350production nodes, including retained/moved apiNode and replacement read/validation; native test estimated200..350 including refusal cases. Complete after1200..1700, estimated net-3211..3711AST. No replacement implemented or parsed; do not book the3159-node three-file deletion without the entire replacement/import/migration cost.",
@@ -7369,14 +7418,14 @@
     "id": "SQA-345",
     "impact": "Removes a second workflow language implementation and its custom-node/version maintenance burden without removing the independent golden or any inference/training executor. References stay external to native model execution.",
     "likely_effort": "Small recorder simplification plus removal of three compiler files and their assertion harness; final exact request/provenance handling must be included.",
-    "plan_coverage": "Client is landed and record remains open. Load the retained exported request once, then apply the existing concrete API-level overrides/saver. Preserve the new HTTP fixture; it is not interchangeable with frontend reconstruction tests.",
+    "plan_coverage": "Coordinate SQA-345,388,389 under the existing comfy-recorder/record-rest row and recorder fixture. They are separate closure conditions, not three new workflows or duplicate HTTP fakes. Current source still requires six exported requests yet reinterprets the UI graph; recorder applies explicit -set API-input overrides and SaveLatent nodes afterward, which do not require rebuilding the UI graph.",
     "plan_references": [
         "comfy-recorder/request landed0682df981",
         "comfy-recorder/record",
         "moss-ultra-bind and moss-ultra-compare consumers of retained reference evidence",
         "comfy-recorder/client9c62d8a73 (landed)"
       ],
-    "recommended_change": "Keep comfy-reference as a small importer/reference runner over the retained API requests. Make fixture.request select and decode the already exported request under the existing section/source owner; ComfyUI remains responsible for translating its UI/custom nodes. Preserve workflow provenance, request identity, section errors and malformed/missing request rejection before expensive reference execution. Re-export through that owner when a workflow changes. Remove the separate UI compiler rather than extending its custom-node compatibility. If a concrete supported procedure truly needs dynamic graph editing, name it and cost only that missing operation before this deletion; a hypothetical next workflow is insufficient.",
+    "recommended_change": "Make fixture.request decode the retained exported request selected by section/source identity. ComfyUI remains the sole UI/custom-node translation owner. Preserve the existing explicit API-map -set and SaveLatent edits, malformed/missing request and changed workflow/request refusal before POST. Remove flatten/widgets/UI-link reconstruction and its equality harness while retaining minimal apiNode representation and original workflow provenance. Through the same recorder owner, separately satisfy SQA-388 accepted-prompt recovery/atomic result publication and SQA-389 honest sampled-memory semantics. Reuse the current HTTP fake; do not replace the compiler with another workflow language, generator handoff or generic transaction framework.",
     "severity": "P2",
     "sources": [
         {
@@ -8265,7 +8314,7 @@
   },
     {
     "category": "worker-prerequisite-diagnosis",
-    "classification": "source-established-skipped-test-misdiagnosis",
+    "classification": "source-shown-process-misdiagnosis-not-acceptance-bypass",
     "closure_criteria": [
         "No passing evidence is not represented as proof that a test declaration is missing.",
         "The same run_check owner preserves original diagnostic, file restrictions and useful conditional guidance.",
@@ -8275,7 +8324,7 @@
     "displaced_surface": "Remove the unconditional source-absence assertion and code-writing instruction on every VACUOUS result. Keep the useful selected package/test and allowed-file context. No new worker tool, plan state or scheduler. The native missing-test fixture remains the response owner.",
     "evidence": "8d2260ce8 adds useful guidance for an absent check, but run_check appends missingTest whenever the displayed result contains VACUOUS. planverify.Execute uses that marker for any failed evidence validation after a successful command; verifyTarget explicitly rejects an existing matched test whose action is skip. An existing TestTheChangeHolds that calls t.Skip for an unavailable prerequisite therefore exits successfully, returns VACUOUS:...skipped, and is described as 'in no file yet. Write it first'. Build-tag exclusion also cannot prove source absence. The new fixture covers absence only. Source-established response error; no worker or test executed by SQA.",
     "evidence_basis": "shown_from_source",
-    "evidence_commit": "1863242c64cc856b013cd9838a1aa6111a1539fd",
+    "evidence_commit": "873c07652b744d9a90b0dddd9321684af745a3cf",
     "expected_benefit": {
         "baseline": "tools.go1648AST; missingTest115; tools_missing_test_test.go189. The complete landed guidance change costs201production/189test nodes.",
         "cost": "No parsed replacement or guaranteed net reduction. A wording-only conditional removes the false claim without new production machinery; charge retained fixture growth honestly.0new binary/directory/staticfixture/schema."
@@ -8283,14 +8332,14 @@
     "id": "SQA-366",
     "impact": "Avoids sending a worker into unnecessary edits or repeated searches when unchanged setup prevents a valid test from running.",
     "likely_effort": "Small response correction and extension of the existing189-node fixture.",
-    "plan_coverage": "5c3 verify-mention removes textual go-test inference for a parsed non-Go command, with one native grep/sh-c check; useful progress. It does not change run_check missingTest advice after a genuine skipped/VACUOUS check, so366 remains open. No additional parser/policy suite requested.",
+    "plan_coverage": "Keep as a distinct P3 response-outcome defect alongside canonical SQA-374 worker-step work: ErrVacuous is not source absence. It needs conditional guidance through existing run_check/testevidence, not another projection/classifier. No observed wrong served answer, lost data, leaked secret, bypassed acceptance or stop of all work is established. A skipped test still correctly earns no pass; correcting its explanation rides related loop-proof work.",
     "plan_references": [
         "loop-proof/write-the-test landed8d2260ce8",
         "loop-proof/local-demonstrated",
         "Downloads extreme_refactor_plan.md: early admission through existing owners"
       ],
     "recommended_change": "Keep the original verifier diagnostic and make the guidance conditional: a vacuous result can mean missing selection, skip or invalid evidence. Tell the worker to inspect the named check and its stated prerequisite, and write it only if it is absent. Reuse the existing planverify/testevidence result and worker tool response; do not add a source census, another test-discovery run, retry loop or classifier framework. Preserve dispatch files, held checks and stop/budget authority.",
-    "severity": "P2",
+    "severity": "P3",
     "sources": [
         {
           "path": "cmd/loop/tools.go",
@@ -8463,51 +8512,31 @@
   },
     {
     "category": "scorecard-protocol-eligibility",
-    "classification": "source-established-single-reading-counterexample",
-    "closure_criteria": [
-        "A lone raw no-demonstration record cannot become the headline.",
-        "Historical readings remain visible with their original identities; missing eligible evidence is explicit.",
-        "Existing eligible leaderboard/chat ordering and unrelated measure selection remain covered by retained native tests."
-      ],
-    "comparison": "Extend the existing scorecard fixture with only alone and with no eligible MMLU-Pro reading. Keep its leaderboard-over-newer-chat, chat fallback and alternatives assertions. No model/store fixture needed.",
-    "displaced_surface": "Replace unconditional first-ranked-as-headline selection for ineligible historical MMLU-Pro readings. Keep validator protocol expansion and baseline matching separate from display eligibility; their similarly named tests cover different contracts.",
-    "evidence": "The new protocol owner says a raw reading without demonstrations heads no MMLU-Pro cell. qualityCell only sorts such readings after preferred ones and then unconditionally returns measured[0]. For the existing fixture descriptors and []EvalSummary{alone}, the old raw zero-shot reading is therefore the headline. The new test supplies chat+alone when the leaderboard reading is missing, so it never checks the admitted lone-reading case. This is source-derived, not a reproduced live scorecard incident.",
-    "evidence_basis": "shown_from_source",
-    "evidence_commit": "a7acfa639919e0a2658b38a8df3a3ef48f823377",
+    "classification": "verified-ineligible-only-headline-refusal-with-history-retained",
+    "evidence": "Closed by873c07652 during this review. evaluation.HeadsItsMeasure owns the two legacy non-headline protocol labels beside their existing definitions. qualityCell ranks these after eligible readings and returns the existing missing-evidence cell if only ineligible readings remain, retaining every reading beside it with its original label/value/source. TestALoneNoDemonstrationReadingIsNoHeadline(164AST) now directly covers the formerly missed lone raw no-demonstration case; TestTheLeaderboardReadingHeadsMMLUPro remains unchanged for eligible leaderboard/chat fallback. The new regression fails on an assertion with production restored; retained verify26.874s and ordinary50-package tests284.886s. This is a display-eligibility repair, not proof of reference question binding or hermetic gate data, so369/368 remain open. No SQA application execution.",
+    "evidence_basis": "observed",
+    "evidence_commit": "873c07652b744d9a90b0dddd9321684af745a3cf",
     "expected_benefit": {
-        "outcome": "Prevents a historical protocol that the system excludes from being presented as the main quality result.",
-        "baseline": "qualityCell655AST; scorecard headline fixture271AST. Validator headline fixture381AST remains a distinct execution/baseline contract.",
-        "cost": "Small necessary selection/fixture growth, complete replacement unmeasured. No net deletion claim, new setup, command or directory."
+        "complete_cost": "Complete hold-words/headline landing +100production/+230testAST,+22/+36Go lines,one test file,0new command/package/schema/staticfixture/CUDA. Includes scoped hold notice changes,not attributed entirely to headline.",
+        "limits": "Source/AST and retained native/gate assertion evidence. No history deletion/relabel,comparison-model execution or full receiving claim."
       },
     "id": "SQA-370",
-    "impact": "Prevents a historical protocol that the system excludes from being presented as the main quality result.",
-    "likely_effort": "Bounded repair in the named existing owner and retained fixture; no new runtime, scheduler or verification framework.",
-    "plan_coverage": "The cited implementation step has landed; its residual contract is not explicitly owned by an open step at this pin. This is a report recommendation, not dispatch or permission to implement.",
-    "plan_references": [
-        "mmlu-pro-lm-eval/headline landed5f1ebc623",
-        "Downloads extreme_refactor_plan.md: truthful result presentation"
-      ],
-    "recommended_change": "Make headline eligibility explicit in the existing qualityCell owner while retaining old readings as alternatives with their exact labels/identity. When no eligible reading exists, return the existing missing-evidence cell and keep historical evidence beside it. Preserve the intentional chat fallback when it is eligible and other measures behavior. Do not delete historical records, relabel them as five-shot or add a second scoring/selection owner.",
     "severity": "P2",
     "sources": [
         {
+          "path": "internal/evaluation/mmlu_pro.go",
+          "symbol": "HeadsItsMeasure(35AST); existing withoutDemonstrations/gluedLetters labels"
+        },
+        {
           "path": "internal/scorecard/scorecard.go",
-          "symbol": "headlineProtocols; qualityCell headed/sort/return"
+          "symbol": "qualityCell: headed eligibility then missing evidence with historical alternatives"
         },
         {
           "path": "internal/scorecard/mmlu_pro_headline_test.go",
-          "symbol": "TestTheLeaderboardReadingHeadsMMLUPro"
-        },
-        {
-          "path": "internal/evaluation/mmlu_pro.go",
-          "symbol": "withoutDemonstrations"
-        },
-        {
-          "path": "internal/evaluation/evidence_index.go",
-          "symbol": "recordExecution labels old raw readings"
+          "symbol": "TestALoneNoDemonstrationReadingIsNoHeadline; existing eligible/fallback fixture unchanged"
         }
       ],
-    "status": "open",
+    "status": "resolved",
     "title": "Keep a lone no-demonstration reading out of the MMLU-Pro headline"
   },
     {
@@ -8615,36 +8644,67 @@
     "title": "Protect held tests by filesystem identity before editing or deleting"
   },
     {
-    "category": "replay-prerequisite-ownership",
-    "classification": "source-established-false-measurement-classification",
-    "closure_criteria": [
-        "The retained host-only dead-declarations case is not classified as model work merely for changing its static inventory.",
-        "Known model-produced prerequisites are rejected before checkout/worker execution; error/unknown evidence is distinguished from established measurement identity.",
-        "One existing replay boundary owns eligibility, with skips and failures retained, no extra classifier or recurring workload."
-      ],
-    "comparison": "Extend TestAMeasurementIsNoTaskForTheWorker with a host code step plus static inventory and an unrelated co-landed record, retaining the genuine model-record case. Check the existing replay early-return boundary without starting a worker or building an old checkout. Reuse the one repository; no full demonstration needed to decide this contract.",
-    "displaced_surface": "Remove the blanket changed-directory-to-model-work rule. Keep early admission in replay shared by CLI and demonstration; preserve skipped outcomes outside tried counts and retain their exact reasons. The existing plan/driver owns run-versus-worker dispatch. Do not recreate the demonstration-only hand filter.",
-    "evidence": "8ac909a24 usefully rejects known impossible measurement tasks before moving the checkout, but measurement lists every changed path under docs/verification for the whole landing and treats any match as a card-produced record. Concrete retained counterexample:3ef2c5d8f changes unreached-declarations.txt while landing compact-production/dead-declarations. Its parent66b05cc1482c declares go test ./internal/repoanalysis -count=1 -run ^TestNoDeclarationIsReachedByNothing$, with no Run, Record or NeedsCard. It satisfies oneTest, yet the new method calls this host source-analysis refactor a measurement no worker tools can make. Deletions or unrelated records in a multi-step landing also satisfy the same unfiltered path query. The new fixture only compares one code path with one JSON measurement path and tests the helper, not replay admission. Legacy vision-bridge steps also have empty Run/Record, so those fields alone cannot replace all legacy admission.",
+    "canonical_id": "SQA-374",
+    "evidence": "Unique requirements are retained in SQA-374. This is a consolidation, not a resolved defect. The full prior source account is retained in 727ac6722:docs/sqa_findings.json; canonical closure still requires both coherent live projection and correct historical prerequisite admission.",
     "evidence_basis": "shown_from_source",
     "evidence_commit": "8ac909a24a1563852dc20e05a168439946f70de7",
-    "expected_benefit": {
-        "baseline": "replay.go1986AST; measurement55; replay431. New helper-only test284AST creates one repository with10setupGit commands (init plus three add/commit/rev-parse groups), then2measurement queries.",
-        "cost": "Complete measurement-skip landing+129production/+284test=+413AST. Replacement total unknown, no safe net code reduction established. Extend this same repository fixture with the concrete host-inventory case and the early boundary; no second repository/model run or generic classification suite.",
-        "uncertainty": "False classification follows committed source and historical plan, not a newly executed replay. It is not claimed that this historical step would pass for the worker or was reached within a particular replay limit."
-      },
     "id": "SQA-373",
-    "impact": "Avoids silently removing legitimate deletion/consolidation tasks from the worker evaluation and misreporting why they were excluded, while still preventing attempts on known impossible prerequisites.",
-    "likely_effort": "Bounded replay admission correction using existing step/check ownership and one retained fixture.",
-    "plan_coverage": "The skip step landed with production-only undo failing at compilation, explicitly not behavioral evidence. local-demonstrated remains open after2of6. Preserve the earlier failed runs; narrowing eligibility does not turn them into successes.",
-    "plan_references": [
-        "loop-proof/measurement-skip landed8ac909a24",
-        "loop-proof/local-demonstrated",
-        "compact-production/dead-declarations landed3ef2c5d8f",
-        "Downloads extreme_refactor_plan.md: declared dependencies and truthful partial evidence"
+    "severity": "P3",
+    "status": "consolidated",
+    "title": "Determine replay eligibility from the step contract, not its output directory"
+  },
+    {
+    "category": "worker-prompt-identity-and-owner",
+    "classification": "shared-step-projection-and-prerequisite-interpretation",
+    "closure_criteria": [
+        "Live driver/show_step/verify/files use one identified plan-owned step; no A task/check/files plus B rationale and no silent changed/missing step.",
+        "Historical replay eligibility derives from the actual held step/prerequisite, not any co-landed docs/verification path; known model prerequisites are rejected before checkout and unknowns remain explicit.",
+        "Preserve brief CLI and historical replay presentation, fixed native reasoning isolation, stop/budget/held-file authority and accepted verifier identity. Remove displaced reads/formatters/classifier and count complete replacement/test/setup costs."
       ],
-    "recommended_change": "Replace the directory-wide inference in the existing replay admission with the actual step and verifier prerequisite. Reuse Step.Run/Record for declared run work; for legacy checks establish the specific immutable model-produced input rather than assuming every docs/verification change is one. Static inventories, oracle/configuration edits, deleted records and unrelated co-landed files must not imply model work. Keep known vision-bridge model-record tasks out before checkout/worker execution. If legacy prerequisite identity cannot be established, record that uncertainty without calling it a measured task. Do not add a general dependency scanner, capability registry, selector service or second scheduler.",
-    "severity": "P2",
+    "comparison": "Keep the fixed native reasoning fixture. It must expose coherent item/step, task/check/files/rationale under dispatch change, notes once, and changed/missing identity. The existing replay fixture must admit the concrete host inventory change while rejecting a specifically bound unavailable model-produced prerequisite before checkout; a legacy unknown is neither a false measurement nor a claimed pass. These separate assertions can share plan facts without merging unrelated process/authority fixtures.",
+    "consolidates": [
+        "SQA-373"
+      ],
+    "displaced_surface": "Remove liveSource's two-callback interpretation, loop-side rationale reconstruction/second currentStep and replayed.measurement's commit-wide directory inference. Share plan-owned facts, not a single universal prompt string: ordinary CLI output and historical replay remain distinct. Reuse the fixed reasoning and native replay-measurement fixtures; no model/worktree demonstration or new classifier suite. Current withReasoning86/liveSource39/reasoned46 AST are gross boundaries, not guaranteed net deletion.",
+    "evidence": "Current committed callers repeat interpretation of one step. liveSource runs plan -prompt and then currentStep independently; reasoned adds rationale from the second read. planStepFrom separately reads the source again for verify/files. execWorld.Prompt does not bind the supplied driver step. Meanwhile replayed.prompt reconstructs another prompt from its held plan.Step, and replayed.measurement labels every changed docs/verification path in the entire co-landed commit as model-produced work. The concrete retained 3ef2c5d8f host-only unreached-declarations change therefore becomes a measurement despite its declared host verifier and absent Run/Record/NeedsCard. cmd/plan already owns typed Dispatch/ResolveDispatch and explicit item/step admission, but its CLI also reloads the plan after dispatch before locating/projecting the step. The shared root is reconstructing identity/prerequisites independently from current dispatch, prose and commit-wide paths. This is source-shown process misprojection/false exclusion, not an observed wrong product answer, authority escape, vacuous acceptance or stop of all work; P3. Fixed native reasoning isolation remains credited. Further caller tracing: execWorld.Verify also ignores the supplied step, but execWorld.Land passes step.Key() to landRow and the actual landing retains accepted-verifier identity. No final acceptance bypass is established by the advisory/projection race; the P3 scope does not weaken that gate.",
+    "evidence_basis": "shown_from_source",
+    "evidence_commit": "873c07652b744d9a90b0dddd9321684af745a3cf",
+    "expected_benefit": {
+        "outcome": "Fewer independent plan reads/projections and no directory-based model-work classifier; no elapsed saving measured. Prefer deleting these interpretations over adding a second worker context/registry.",
+        "cost": "16-file source sample and native fixture tracing only. Complete replacement AST/setup cost remains implementation-owned; existing historical/current presentation and authority cases are retained."
+      },
+    "id": "SQA-374",
+    "impact": "One plan-owned source for task/check/files/reasoning and known prerequisites avoids mixed snapshots and false exclusion of valid host work. Existing stop/budget/filesystem/held-test and accepted-verifier authority remain; SQA-372 and SQA-401 stay distinct P2 boundaries.",
+    "likely_effort": "Small cross-command ownership change; preserve existing brief/full consumer differences.",
+    "plan_coverage": "SQA-373 is a stable alias of this canonical worker-step contract; no unique closure condition is dropped. Existing loop-proof/local-demonstrated owns related worker proof. P3 process scope rides that work and does not create an additional dispatch row or product gate.",
+    "plan_references": [
+        "loop-proof/local-demonstrated",
+        "SQA-373 alias: host inventory versus actual model prerequisite",
+        "Downloads extreme_refactor_plan.md: one development authority and fewer independent interpretations"
+      ],
+    "recommended_change": "Project one complete identified step through the existing plan dispatch/projection owner and use that projection for the live worker, show_step, verify/files and driver-supplied step, including execWorld.Verify rather than an unqualified current plan -verify. Keep one plan snapshot or explicitly refuse changed identity rather than reread current dispatch. Project historical replay from its retained step, preserving its distinct brief/full presentation and historical authority. Use actual declared Run/Record/verifier requirements for replay eligibility; where a legacy check needs a model-produced artifact, retain that specific established prerequisite, not a docs/verification path heuristic. Unknown legacy requirements remain unknown rather than a made-up measurement classification. Remove second currentStep/rationale reconstruction and the commit-directory classifier. No new scheduler, registry, generic source scanner, task ledger or wrapper around stepSource. Route this P3 work with existing loop-proof/local-demonstrated, not ahead of current product/receiving work.",
+    "severity": "P3",
     "sources": [
+        {
+          "path": "cmd/loop/reasoning.go",
+          "symbol": "stepSource; liveSource; reasoned; withReasoning"
+        },
+        {
+          "path": "cmd/loop/main.go",
+          "symbol": "execWorld.Prompt; currentStep; dispatchedStep"
+        },
+        {
+          "path": "cmd/loop/tools.go",
+          "symbol": "planStepFrom; planStep.show"
+        },
+        {
+          "path": "cmd/plan/dispatch.go",
+          "symbol": "existing identified-step projection"
+        },
+        {
+          "path": "cmd/loop/reasoning_test.go",
+          "symbol": "TestTheLocalWorkerIsHandedTheStepsReasoning: fixed fixture"
+        },
         {
           "path": "cmd/loop/replay.go",
           "symbol": "replayed.measurement; replay; landedSteps; oneTest"
@@ -8668,64 +8728,22 @@
         {
           "path": "docs/verification/unreached-declarations.txt",
           "symbol": "Changed by3ef2c5d8f; static typed-reach inventory, not a model measurement"
-        }
-      ],
-    "status": "open",
-    "title": "Determine replay eligibility from the step contract, not its output directory"
-  },
-    {
-    "category": "worker-prompt-identity-and-owner",
-    "classification": "fixture-isolated; production-split-read-still-present",
-    "closure_criteria": [
-        "Driver and show_step obtain coherent task and reasoning through one plan-owned projection; existing stops and explicit task admission remain authoritative.",
-        "Ordinary brief CLI output and historical replay retain their different presentation/identity contracts.",
-        "No ambient-plan skip is the sole reasoning evidence; obsolete loop reconstruction and duplicate read disappear, with complete replacement costs recorded."
-      ],
-    "comparison": "One deterministic native fixture with two distinct step identities proves each full worker prompt carries its own title/files/check/reasoning, notes appear once, and a stale supplied reference cannot receive another step's content. Retain the existing brief-output and read-only tests. Count the complete plan/loop production and test delta, including any typed dispatch fields; no local-model demonstration is needed for this projection contract.",
-    "displaced_surface": "Keep the fixed native fixture and relocated live-doctrine checks. Remove the two-callback production snapshot split and post-projection reconstruction through the existing plan projection owner; do not add a second wrapper around stepSource. The now-deleted testinputs package is credited once in the review cost ledger.",
-    "evidence": "15ea0f2b7 makes reasoning coverage deterministic: a fixed step/prompt is injected, and the real-plan read/skip is gone. The production stepSource still has two independent callbacks: liveSource.prompt runs plan -prompt; liveSource.step calls currentStep; reasoned invokes them in order. execWorld.Prompt still does not bind its supplied loop.Step. A dispatch change between the calls can therefore mix A task/check/files with B rationale. This is the same admitted source-level interleaving, not an observed incident. The test-isolation improvement does not make the live prompt atomic. Current and brief CLI/replay contracts remain distinct.",
-    "evidence_basis": "shown_from_source",
-    "evidence_commit": "9290a897354af0f2e1e6afe667eb34b9a53072f1",
-    "expected_benefit": {
-        "baseline": "reasoning.go138AST (withReasoning86; reasonedPrompt39); reasoning_test249; existing printPromptStep230. Full live-reasoning landing+171production/+249test=+420. These are baselines, not wholly removable totals.",
-        "cost": "One duplicate plan subprocess and extra plan read per live prompt can disappear. Replacement AST is unmeasured; no guaranteed net-node saving. Charge retained fixture growth and shared-owner migration.0new binary/directory/static fixture is needed.",
-        "current": "15ea0f2b7 replaces the ambient-plan/skipping reasoning fixture with a fixed injected step. reasoning.go138->213AST; reasoning_test249->223. The retained hermetic change, excluding subsequently deleted testinputs, is +87 production/-26 test AST; moving the doctrine tests alone is not a saving."
-      },
-    "id": "SQA-374",
-    "impact": "Prevents misleading worker instructions during plan changes and removes repeated dispatch work from each prompt.",
-    "likely_effort": "Small cross-command ownership change; preserve existing brief/full consumer differences.",
-    "plan_coverage": "Hermetic fixture progress credited; production identity remains open under the original canonical finding.",
-    "plan_references": [
-        "loop-proof/live-reasoning e22fc0459 (landed)",
-        "loop-proof/local-demonstrated",
-        "Downloads extreme_refactor_plan.md: one decision owner, exact execution identity, preserve development authority"
-      ],
-    "recommended_change": "Give both live-worker callers a complete prompt from the existing plan dispatch/projection owner for one identified located step. Use the driver's supplied item/step and the existing explicit-reference admission where applicable; refuse a changed or missing task instead of mixing snapshots. Preserve the ordinary brief plan prompt and its stop/authority semantics. Remove the loop's second currentStep read and rationale reconstruction after projection; do not make every CLI prompt dump history. Reuse a fixed native plan fixture for full reasoning, notes once, and changed/missing identity. Keep historical replay bound to its own retained step rather than current dispatch.",
-    "severity": "P2",
-    "sources": [
+        },
         {
-          "path": "cmd/loop/reasoning.go",
-          "symbol": "stepSource; liveSource; reasoned; withReasoning"
+          "path": "internal/plan/dispatch.go",
+          "symbol": "Dispatch, stepDispatch, ResolveDispatch: typed selection and current snapshot owner"
+        },
+        {
+          "path": "internal/loop/driver.go",
+          "symbol": "driver invokes Prompt/Verify/Land with the identified step; acceptance remains through LandingWorld"
         },
         {
           "path": "cmd/loop/main.go",
-          "symbol": "execWorld.Prompt; currentStep; dispatchedStep"
-        },
-        {
-          "path": "cmd/loop/tools.go",
-          "symbol": "planStepFrom; planStep.show"
-        },
-        {
-          "path": "cmd/plan/dispatch.go",
-          "symbol": "existing identified-step projection"
-        },
-        {
-          "path": "cmd/loop/reasoning_test.go",
-          "symbol": "TestTheLocalWorkerIsHandedTheStepsReasoning: fixed fixture"
+          "symbol": "execWorld.Verify ignores supplied step; Land calls landRow(step.Key()) and retains accepted gate identity"
         }
       ],
     "status": "open",
-    "title": "Build the worker prompt from one identified step through the plan owner"
+    "title": "Use one identified worker-step contract for prompts and replay admission"
   },
     {
     "category": "shared-native-search-fixture",
@@ -10128,20 +10146,17 @@
         ]
       },
     "fresh_ast": {
-        "revision": "b75dacbeb39d7e44244849f96acdc8e9b051afbe",
-        "method": "Committed source/caller/route/flag/UI inspection plus retained external Go parser, formatted-body hashes and parser-local links. Complete before/after cost parser covers every changed Go path; selected AST follows actual verification/pin/recipe/record owners.",
-        "counts": "15 current files, 21196 AST, 134 functions, 4068 parser-local links; three candidate baseline files 7697 AST/35 functions/1555 links. Main selected set has zero identical formatted bodies. New full-mode verifier fixture324, pin-chain fixture243, stalePins499, laneWatch.observe201, plan.Save150, consolidation-count fixture174, unchanged supported no-forward/bridge fixture281 AST. Retired seed/order fixture was521 AST; it is included in whole cost, not a separate saving.",
+        "revision": "873c07652b744d9a90b0dddd9321684af745a3cf",
+        "method": "External Go parser on16committed files with formatted-body hashes/parser-local links and concrete call tracing; one changed-Go cost parse for new reader fix.",
+        "counts": "30020AST/181functions/6037local links;0identical formatted bodies. flatten1379/widgets1366/workflow414; recorder.record636/await212/keep154; withReasoning86/liveSource39/reasoned46; Runtime.executePlan429/planReplay253/prepareStage280; measuredRun283/training executeChainArm167; Reader.borrow142/decodeAt337. Concurrent headline adds3files9507AST/68functions/1846links: current combined19files39527AST/249functions/7883links; HeadsItsMeasure35 and lone-reading fixture164AST.",
         "retained_result": [
-          "review-b75d-selected-ast.json",
-          "review-b75d-boundaries-ast.json",
-          "review-727a-candidate-before-ast.json",
-          "review-727ac6722-870bd5a98-cost.json",
-          "review-870bd5a98-23e3a25c1-cost.json",
-          "review-23e3a25c1-b75dacbeb-cost.json",
-          "review-727ac6722-b75dacbeb-cost.json"
+          "review-1a07-deep-ast.json",
+          "review-b75dacbeb-1a07828ee-cost.json",
+          "review-873c-headline-ast.json",
+          "review-1a07828ee-873c07652-cost.json"
         ],
-        "limits": "Parser-local links are not full type/global equivalence. Zero sample clones is not a repository boilerplate percentage. Removed directories count tracked Go source directories, not arbitrary filesystem folders. Entry points are build targets, not a count of physical binaries generated or deleted. No app/model/device tests or workload by SQA.",
-        "constants_and_geometry": "No CUDA/kernel/numerical tolerance change in these commits. New counters remove historical nonbinding estimates, not runtime ceilings. Card-turn waits accumulate and exact candidate/trunk checks remain. PID fixtures use current process with a distinct start instead of a spawned already-exited PID. Pin guidance edits copies and preserves raw/CRLF digest admission; it does not itself rewrite evidence."
+        "limits": "No type/global equivalence, application execution or repository boilerplate denominator. Gross boundary counts are not net implementation savings.",
+        "constants_and_geometry": "Preserve F32 native-endian/layout, F16/BF16 conversions, borrowed-handle lifetime, exact replay inputs/identity and dynamic stage cardinality. Statistics and sampled memory remain measurement contracts, not formatting preferences."
       },
     "media_follow_up": {
         "revision": "e969f619a89e45c3380e30853b01af393d55ba47",
@@ -10311,7 +10326,7 @@
         "91a native store isolation extends one setup for an alias named for an uncopied recipe;candidate/private stores preserve selected closure and operator key naming. Strict source execution consumers remain.",
         "Prior calibration,import/alpha/reask closures and transfer costs retain their pinned evidence;no additional SQA confidence/model runs."
       ],
-    "surface_reduction_analysis": "727ac6722->b75dacbeb: 190 changed Go paths, -100618 production/-77414 test AST; -17540/-10544 Go lines; -46/-42 Go files. Tracked Go-code directories 247->244 and command main entry directories 62->60: controller-action and offline-artifact-validate removed, plus internal/controlleraction. Physical old executable files were not inventoried or cleaned. Retirement gate reports schemas -52, fixture files +0/bytes -1737, CUDA source/entries +0. Per-commit costs retain verifier/pin growth +333/+582 and count cleanup -488/-339 rather than hiding them in net deletion. SQA-295 retirement costs are included once. SQA-322 functional repair adds915 AST with native resource/false-verifier assertions retained; optional overlapping order-table deletion is not required to recognize that fix.",
+    "surface_reduction_analysis": "Existing retirement throughb75 removed100618production/77414testAST, two command entry points and three code directories. New1a reader fix adds121productionAST/+23lines; net since727 is-100497production/-77414testAST, with88fewer Go files. Do not count prospective3159AST recorder compiler boundary or existing command/equality advice as additional landed savings. Byte-clone scans miss duplicated decisions; proposed fixes delete those interpretations through existing owners. Concurrent873hold-notice/headline batch adds100production/230testAST,+22/+36Go lines and one test file. Through873net since727:-100397production/-77184testAST,87fewer Go files; no additional command/directory removal.",
     "tests": [
         "RETAIN TestACheckShowsItsProgress's two native packages and ordinary-output case:progress/error acceptance use one execution and the current temporary module. No model or recurrent polling setup.",
         "RETAIN strict source identity tests and actual benchmark/training/validation callers;administrative declaration's new RunningCommit use does not retire their exact-code contract.",
@@ -11852,10 +11867,10 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
     "limitations": [
-      "No SQA app tests, workloads, services, benchmarks, profiles, agents/messages, implementation, cleanup or plan/skill edits. External source/AST and retained evidence only; normal report commit hooks remain enabled.",
-      "Retirement intentionally removes named public interfaces; absence of repository callers alone was not its authority. Typed retired records are not migrated or re-created by SQA; generic store/history unchanged. Supported recipe admission is retained separately from the retired candidate subsystem.",
-      "Retained retirement gate: device15 packages, CUDA28, webui2m49s and one Bonsai slice with matching outputs/peak versus ecd1caf31. These are scoped acceptance, not full receiving/model evidence or a matched speed comparison. Root full record remains fdd4ab1 from November8.",
-      "No repository-wide boilerplate percentage, physical binary inventory or measured wall/memory saving. Historical wait aggregates do not bound future contention; progress reports emitted events, not silent-stall detection or completed continuation."
+      "Shared architectural direction is not proof that one patch fixes every member. Only373/374 share a canonical step-projection/admission contract; recorder recovery, request translation, observation semantics and statistical/identity/display checks remain independently closable.",
+      "The shared-runtime missing-adapter and modelcli eviction cases are source-admitted counterexamples, not SQA workloads or observed wasted production runs. Retain two current real inference/training users, replay/pruning and existing executors; no dummy model dependencies or development workflow language.",
+      "3159 compiler AST is a gross removable boundary, excluding retained API types/provenance and replacement/native fixture costs. Zero identical formatted bodies among181sampled functions is not a repository boilerplate percentage; semantic duplication is repeated decision/projection ownership.",
+      "Fractale peak/timing comes from the retained leadership account at1a07828ee, with original samples/failure and scope. Its gate/Bonsai slice does not close receiving coverage. No new complete full run or broad model gain verified; root full record remainsfdd4ab1."
     ],
     "master_lead_triage": {
     "at": "2026-11-13",
@@ -12976,37 +12991,35 @@
   },
     "next_finding_number": 403,
     "publication_context": {
-    "assessment": "Substantive retirement/early-verifier closures and exact whole cost; receiving/status partial obligations reconciled.",
-    "checked_head": "b75dacbeb39d7e44244849f96acdc8e9b051afbe",
-    "concurrent_changes": "The third count-cleanup landing was detected and re-read; report pin includes all three landings and current committed skill/plan. Dirty plan excluded. Source/report/owner bytes reread under existing publication ownership before write.",
-    "current_pin": "b75dacbeb39d7e44244849f96acdc8e9b051afbe",
-    "publication": "Only docs/sqa_findings.json through existing locks/hooks; all prior closure evidence and raw implementation/unknown fields and unrelated work preserved.",
+    "assessment": "User-requested substantive shared-root consolidation/priority and architecture routes, with pending verified closures carried forward.",
+    "checked_head": "873c07652b744d9a90b0dddd9321684af745a3cf",
+    "concurrent_changes": "Caught873advance before write,read new source/native evidence and45/71 plan,reconciled headline closure and changed dispatch. Prior pending report was carried by master; current raw owner/report bytes remain the same baseline. Dirty plan excluded.",
+    "current_pin": "873c07652b744d9a90b0dddd9321684af745a3cf",
+    "publication": "Only docs/sqa_findings.json through existing hooks/locks; raw implementation/unknown fields, all156existing closure objects and unrelated work preserved.",
     "report_only": true
   },
     "ranked_active_finding_ids": [
-    "SQA-346",
-    "SQA-372",
-    "SQA-373",
-    "SQA-374",
-    "SQA-385",
-    "SQA-377",
-    "SQA-366",
-    "SQA-368",
-    "SQA-369",
-    "SQA-370",
-    "SQA-371",
-    "SQA-283",
-    "SQA-386",
     "SQA-382",
     "SQA-340",
-    "SQA-356",
-    "SQA-342",
+    "SQA-386",
+    "SQA-346",
     "SQA-379",
-    "SQA-345",
-    "SQA-388",
+    "SQA-342",
+    "SQA-283",
     "SQA-277",
+    "SQA-371",
     "SQA-266",
+    "SQA-388",
+    "SQA-345",
+    "SQA-369",
+    "SQA-368",
+    "SQA-385",
+    "SQA-372",
     "SQA-401",
+    "SQA-356",
+    "SQA-377",
+    "SQA-374",
+    "SQA-366",
     "SQA-325",
     "SQA-330",
     "SQA-344",
@@ -13055,31 +13068,34 @@
     "repository": "C:\\Users\\jeffm\\overgo",
     "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
     "review_notes": [
-      "SQA-295 closes by explicit candidate subsystem retirement; distinct supported no-forward/representation-bridge assertions remain unchanged. SQA-322 closes by the actual whole-stage repair and full-mode failure/release evidence, not an optional test-table compaction.",
-      "SQA-266 receives partial prerequisite/progress credit; complete receiving evidence remains open. SQA-376 receives simpler truthful progress credit while its advisory discrepancies remain P3. No new IDs or extra implementation rows.",
-      "Whole -100618 production/-77414 test AST and 88 fewer Go files include the retirement, +333/+582 verifier/pin growth and -488/-339 count cleanup. Two command entry points/three source directories are now actually gone; no physical executable cleanup or runtime saving inferred.",
-      "Source-policy mismatch in newly filed consolidation checks remains a scoped P3 recommendation under existing landing work. It is not an additional prerequisite of the first receiving row, a reopened historical closure or a report-wide commit gate."
+      "Consolidated373 into374 with both live-snapshot and historical-prerequisite closure conditions retained;373 remains a stable alias, not resolved.366 stays separate because an evidence-outcome explanation is not a step projection. Their process-only/source-shown scope is P3; held-test filesystem authority372 and false verification401 remain P2.",
+      "Coordinated345/388/389 under existing recorder work without pretending compiler deletion cures recovery or polling semantics. Likewise keep MMLU gate isolation, reference identity and headline eligibility distinct; same workflow alone is insufficient reason to merge.",
+      "Rank product request/conditioning/storage/evidence correctness ahead of process-only advice. Routing is through existing rows; no numeric queue cap, new findings quota, extra per-finding workflow or whole-report commit prerequisite.",
+      "16file AST supports ownership/decision duplication rather than copied bodies. Current1a reader fix adds121productionAST and uses measured existing-reader lifetime; it does not establish the full format-independent architectural target.",
+      "Concurrent873c07652 verified:370 closes;368/369 remain independently open. Master carried the prior pending295/322 report. New plan directions to derive generated inputs from the candidate and retire addedChecksFail are credited as proposals,not implemented source."
     ],
-    "reviewed_at": "2026-11-14T22:32:52Z",
-    "reviewed_master": "b75dacbeb39d7e44244849f96acdc8e9b051afbe",
+    "reviewed_at": "2026-11-14T23:25:39Z",
+    "reviewed_master": "873c07652b744d9a90b0dddd9321684af745a3cf",
     "schema_version": 2,
     "scope": [
-      "Bounded review of committed 870bd5a98 retirement/recovery, 23e3a25c1 verifier/pin fixes and concurrently landed b75dacbeb count deletion. Current plan read first: 40 items/66 steps, receiving cycle first. Changed committed skill read; SHA256 07915d4b2b84d3db0f9d419c2d9bc73101783562e8bf41f47b63d2043c7100dd. Dirty plan excluded.",
-      "Actual CLI/HTTP/UI retirement, surviving recipe/operation/state owners, verify/card/class/pin/progress callers and retained native/landing records inspected. Fifteen current AST files plus three baseline files; complete190-path changed-Go costs, not a repository test/census run.",
-      "Downloads architecture target SHA256 fe13a4bd47c8c41ea6dbf766c0acf3dc41ab7dab0c6d8bd926863313d4f34395 remains active. This chat previously implemented Overgo: internal review, not independent third-party review."
+      "User-requested deeper architecture/consolidation review through873c07652, including concurrent headline/hold notice repair and45-item/71-step committed plan. First rows are now mmlu-pro/reference and identity-gate. Changed plan rows derive-always/turn-holder/lane-passes/declared-defaults/undo-every-check were re-read. Dirty plan excluded.",
+      "16 unchanged selected Go files at1a plus3current headline files:19files39527AST/249functions/7883parser-local links. Concrete recorder/worker/runtime callers and new headline consumer traced; no SQA app tests/workloads/profiles/agents/messages/implementation/plan/skill edits/cleanup. Prior295/322 closures preserved and370 newly verified.",
+      "This chat previously implemented Overgo: internal review, not independent third-party review. Architectural target remains active; recommendations route existing work and do not create another dispatch plan."
     ],
     "sqa_response": {
-    "assessment": "229 stable IDs: 67 open, 156 resolved, 4 deferred, 2 aliases. SQA-295 and SQA-322 verified closed; 266/376 partial credit. No new IDs or priority changes.",
+    "assessment": "229stable IDs:65open,157resolved,4deferred,3aliases.373consolidated into374;366/374process scope P3. Prior295/322 closures preserved; concurrent370 headline fix verified. No new IDs/implementation rows.",
     "concurrent_reconciliation": {
         "SQA-266": "Audio admission/progress prerequisites landed and receiving row is first; scoped gate lanes/Bonsai slice are not the complete receiving run.",
         "SQA-376": "Guessed ends and stall-history machinery removed through existing progress owners; advisory known-Rules/history/week/window obligations remain P3.",
         "SQA-322": "Closed: all verify before broad work, scoped card release/reacquisition, native full-mode failure/success evidence and assertion undo.",
         "SQA-379": "Protocol/current-producer binding unchanged;provider administration is not model quality evidence."
       },
-    "consolidated_findings": [],
+    "consolidated_findings": [
+        "SQA-373"
+      ],
     "deferred_findings": [],
-    "dispatch_alignment": "Committed plan alone dispatches; cycle-lanes/do is first. Class-admission/test-compaction follow-ups ride related work and create no additional report prerequisite or standalone row.",
-    "evidence": "Pinned callers/source/AST, complete per-commit costs and retained native assertion-based undo/device/webui/CUDA/scorecard receipts; no SQA application execution.",
+    "dispatch_alignment": "Five owner-based routes,not a second worklist. Current first rows are mmlu-pro/reference and identity-gate; receiving remains queued behind declared prerequisite rows. P3 projection/guidance and smaller test cleanup ride related work; no per-finding row or report gate.",
+    "evidence": "16-file selected AST plus actual request/side-effect/current-historical projection/runtime callers, previous closure evidence and new retained Fractale receipt. Source-shown versus observed outcomes remain explicit.",
     "implementation_claim_audit": {
         "SQA-257": "closed: duplicate runtime verdict gone; native default/served fixtures are distinct; speculative generalization is not additional required work",
         "SQA-316": "closed: no-symbol whole-file identity and normal claim rebinding",
@@ -13114,8 +13130,12 @@
         "SQA-266",
         "SQA-376"
       ],
-    "priority_changes": [],
-    "recommendation": "Credit actual subsystem deletion and early-verifier repair; retain supported recipe/operation/state and identity/recovery cases. Let the existing first receiving row supply complete coverage evidence. Address new-step consolidation admission only through its existing owner during related work.",
+    "priority_changes": [
+        "SQA-366 P2->P3: process guidance, no acceptance bypass/product incident established",
+        "SQA-374 P2->P3: source-shown worker projection/eligibility scope; incorporates373",
+        "SQA-373 P2->P3 stable consolidated alias; no resolved-defect credit"
+      ],
+    "recommendation": "Delete the redundant reference UI compiler, make accepted external runs resumable through their current record, resolve request/prerequisites before effects, carry consumed execution identity into evidence and use one identified plan-owned worker step. Reuse current runtime for its existing inference/training callers; keep numerical and statistical contracts with their owners.",
     "refactor": {
         "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
         "history_path": "docs/sqa_findings.json",
@@ -13124,7 +13144,8 @@
     "reopened_findings": [],
     "resolved_findings": [
         "SQA-295",
-        "SQA-322"
+        "SQA-322",
+        "SQA-370"
       ],
     "review_policy": {
         "evidence_field": "evidence_basis",
@@ -13139,7 +13160,7 @@
         "review_focus": "Name served cell/route/output impact,or material data/security/recovery/work-stoppage/repeated-waste impact. Minor process cleanup rides planned work; no guessed committee ratio or extra policy gate.",
         "measurement": "Use existing delivery/check-cost records as advisory. Automated report commits are distinct from master implementation effort; measure useful capability/scorecard outcomes,not findings closed."
       },
-    "reviewed_master": "b75dacbeb39d7e44244849f96acdc8e9b051afbe",
+    "reviewed_master": "873c07652b744d9a90b0dddd9321684af745a3cf",
     "run_cost_correction": {
         "source": ".overgo-runtime/landing_waits.json",
         "query": "started on2026-11-09 America/New_York UTC-05; outcome exactly verify",
@@ -13159,12 +13180,13 @@
         },
         "correction": "140.54 is aggregate recorded wall across ten verify-refused runs,not one141-minute failed run and not all checking/wasted time. The earlier single-run phrasing was wrong; November8 measurement is a separate114.70-minute run. Historical run kinds may be unknown."
       },
-    "uncertainty": "No new complete receiving/model run verified; one small scorecard slice is scoped. No matched runtime/peak benefit or whole-rebuild completion. Physical old binaries and old artifact bytes were not deleted.",
+    "uncertainty": "No SQA execution or proof of hypothetical gains. Shared source files do not make independent defects aliases; complete production/test/setup/recovery costs decide proposed reductions.",
     "updated_findings": [
-        "SQA-295",
-        "SQA-322",
+        "SQA-374",
+        "SQA-366",
+        "SQA-345",
         "SQA-266",
-        "SQA-376"
+        "SQA-370"
       ]
   }
   }

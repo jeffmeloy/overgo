@@ -88,14 +88,15 @@ func TestALandingDeletesAFileAtEveryStage(t *testing.T) {
 // TestALandingTakesWhatItsGeneratorsDerive holds the scope to the change's own work: on 2026-11-08
 // media-user-size/preset-record added exported names, the landing regenerated docs/api_manifest.json from them, and
 // the scope refused the manifest the landing had written itself. A file a generator of the repository derives is taken
-// beside the step's files; the same file in a repository with no such generator is no part of the step, and stays
-// outside the commit.
+// beside the step's files as the fix stage derives it from the candidate, never as the checkout held it
+// (derive-always/do); the same file in a repository with no such generator is no part of the step, and stays outside
+// the commit.
 func TestALandingTakesWhatItsGeneratorsDerive(t *testing.T) {
 	t.Parallel()
 	for _, generated := range []bool{true, false} {
 		files := map[string]string{"cmd/x/x.go": "package main\n", "docs/api_manifest.json": "{}\n"}
 		if generated {
-			files["cmd/api-manifest/main.go"] = "package main\n"
+			files["cmd/api-manifest/main.go"] = "package main\n\nimport \"os\"\n\nfunc main() { os.WriteFile(\"docs/api_manifest.json\", []byte(\"{\\\"derived\\\": true}\\n\"), 0o644) }\n"
 		}
 		fixture := newRowFixture(t, files)
 		editPlan(t, fixture, func(document *plan.Plan) { document.Items[0].Steps[0].Files = []string{"cmd/x"} })
@@ -106,8 +107,13 @@ func TestALandingTakesWhatItsGeneratorsDerive(t *testing.T) {
 		l := &landing{Options: Options{Repo: fixture.repo, Ref: "row/do", Log: io.Discard}, scratch: t.TempDir(), details: map[string]string{}}
 		testcheck.NoError(t, l.parents(t.Context()))
 		testcheck.NoError(t, l.shipSet(t.Context()))
-		if taken := fixture.git("show", l.candidate+":docs/api_manifest.json") != "{}"; taken != generated {
-			t.Errorf("with the manifest's generator %t, the manifest was taken %t, want it taken only where the generator is", generated, taken)
+		if held := fixture.git("show", l.candidate+":docs/api_manifest.json"); held != "{}" {
+			t.Errorf("with the manifest's generator %t, the candidate took the checkout's manifest %q before anything was derived", generated, held)
+		}
+		testcheck.NoError(t, l.fix(t.Context()))
+		want := map[bool]string{true: "{\"derived\": true}", false: "{}"}[generated]
+		if held := fixture.git("show", l.candidate+":docs/api_manifest.json"); held != want {
+			t.Errorf("with the manifest's generator %t, the candidate after the fix stage holds the manifest %q, want %q", generated, held, want)
 		}
 	}
 }

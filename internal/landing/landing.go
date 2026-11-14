@@ -96,7 +96,9 @@ type landing struct {
 	scope             []string
 	left              []string
 	scoped, leftNamed bool
-	measured          []string
+	// derived are the generators' files derive wrote from the candidate, the only copies of them a commit takes (held).
+	derived  []string
+	measured []string
 	// details say what a stage measured beyond its time: the packages the
 	// test stage ran rather than replayed, what the scorecard slice found.
 	details map[string]string
@@ -444,7 +446,7 @@ func (l *landing) shipSet(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	entries, left := inside(l.scope, changed)
+	entries, left := l.held(changed)
 	l.nameLeft(left)
 	l.paths = nil
 	for _, entry := range entries {
@@ -496,19 +498,26 @@ func (l *landing) capture(ctx context.Context) (string, error) {
 	if _, err := l.staged(ctx, "read-tree", l.builtOn()); err != nil {
 		return "", err
 	}
+	// A generator's file the checkout holds is staged only as derive wrote it (held): a scoped landing names what it
+	// holds, and an open one takes the whole tree but that file.
 	arguments := []string{"add", "-A"}
+	changed, err := dirtyTree(ctx, l.Repo)
+	if err != nil {
+		return "", err
+	}
+	held, left := l.held(changed)
 	if l.scope != nil {
-		changed, err := dirtyTree(ctx, l.Repo)
-		if err != nil {
-			return "", err
-		}
-		held, _ := inside(l.scope, changed)
 		arguments = append(arguments, "--")
 		for _, entry := range held {
 			arguments = append(arguments, entry.Path)
 			if entry.OriginalPath != "" {
 				arguments = append(arguments, entry.OriginalPath)
 			}
+		}
+	} else if len(left) != 0 {
+		arguments = append(arguments, "--", ".")
+		for _, name := range left {
+			arguments = append(arguments, ":(exclude)"+name)
 		}
 	}
 	if !slices.Equal(arguments, []string{"add", "-A", "--"}) {
@@ -747,12 +756,12 @@ func (l *landing) fix(ctx context.Context) error {
 		if err := l.followRenames(ctx); err != nil {
 			return err
 		}
-		// What the source derives is regenerated from the candidate (derive), as go fix is applied, not refused for a
-		// landing again after.
-		if generators := l.generators(); len(generators) != 0 {
-			if err := l.derive(ctx, generators); err != nil {
-				return err
-			}
+	}
+	// What the source derives is regenerated from the candidate (derive), whatever the change holds, as go fix is
+	// applied, not refused for a landing again after: a generator's file enters the commit only as derive wrote it.
+	if generators := l.generators(); len(generators) != 0 {
+		if err := l.derive(ctx, generators); err != nil {
+			return err
 		}
 	}
 	return l.shipSet(ctx)

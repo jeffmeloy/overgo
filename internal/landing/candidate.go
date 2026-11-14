@@ -129,6 +129,9 @@ func (l *landing) derive(ctx context.Context, generators []generator) error {
 			if err != nil {
 				return err
 			}
+			if !slices.Contains(l.derived, name) {
+				l.derived = append(l.derived, name)
+			}
 			if held, _ := os.ReadFile(filepath.Join(l.Repo, filepath.FromSlash(name))); bytes.Equal(held, derived) {
 				continue
 			}

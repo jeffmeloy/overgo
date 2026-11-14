@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/densecausal"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
@@ -175,4 +176,14 @@ func TestTrainDeviceResidentResumeExact(t *testing.T) {
 			t.Fatalf("resumed device weight %q differs", name)
 		}
 	}
+}
+
+// oneSequenceGroups makes each batch a group of one sequence weighed by the mean of its tokens, as a run of plain
+// windows trains.
+func oneSequenceGroups(batches [][]int) [][]densecausal.WeightedSequence {
+	groups := make([][]densecausal.WeightedSequence, len(batches))
+	for index, batch := range batches {
+		groups[index] = []densecausal.WeightedSequence{{Tokens: batch}}
+	}
+	return groups
 }

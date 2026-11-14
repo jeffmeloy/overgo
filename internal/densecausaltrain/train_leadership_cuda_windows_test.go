@@ -1,4 +1,4 @@
-//go:build windows
+//go:build modeltest && windows
 
 package densecausaltrain
 
@@ -182,14 +182,4 @@ func TestCarbonResidentTrainingLeadership(t *testing.T) {
 	}
 	t.Logf("Carbon resident Muon: seq=%d steps=%d loss %.6f->%.6f wall=%.3fs (%.3fs/step) peak=%.3fGiB",
 		len(tokens), len(trajectory), trajectory[0], trajectory[len(trajectory)-1], wall.Seconds(), stepWall.Seconds(), float64(memory.PeakBytes)/(1<<30))
-}
-
-// oneSequenceGroups makes each batch a group of one sequence weighed by the mean of its tokens, as a run of plain
-// windows trains.
-func oneSequenceGroups(batches [][]int) [][]densecausal.WeightedSequence {
-	groups := make([][]densecausal.WeightedSequence, len(batches))
-	for index, batch := range batches {
-		groups[index] = []densecausal.WeightedSequence{{Tokens: batch}}
-	}
-	return groups
 }

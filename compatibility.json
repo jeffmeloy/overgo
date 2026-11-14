@@ -498,12 +498,12 @@
      "contains": "func TestQwen35RealTraining(",
      "path": "internal/adaptiveparity/qwen35_training_cuda_windows_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:7285e4188ba6d1d4419a72077073b3b1c77d08ff4d9cfa7cd7172f35e7783721"
+     "identity": "evidence:sha256:2d3ae37155f027292b808ac0bce78c0663d3dff976923b64e2eb5b82802ad701"
     }
    ],
    "id": "qwen35-real-recurrent-layer-training",
    "evidence_tier": "device-gated",
-   "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestQwen35RealTraining$' -count=1 -v",
+   "verify": "OVERGO_CUDA_TEST=1 go test -tags modeltest ./internal/adaptiveparity -run '^TestQwen35RealTraining$' -count=1 -v",
    "artifact_identity": "sha256:c4e8dc8f885d590f146d96919562960a5d040ccc366623e986df8656539419ec+76d9880f804b116fd95e3faf739bed6ad9898430e03d25bae49d5969ec1491a3+6dcce666b1ebf776b9ee9e9df9107b068204affc602e94949e5c4c039894ea1a",
    "status": "implemented",
    "summary": "Qwen3.5-4B recurrent layer 0 trains from the real GGUF and real prompt token embeddings through the compiled resident program; adaptive_new has no corresponding training oracle."
@@ -520,12 +520,12 @@
      "contains": "func TestGemmaE4BRealTraining(",
      "path": "internal/adaptiveparity/e4b_training_cuda_windows_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:679c6158459cdf8d8b10e248ea6658b9807864fd66d42f9a8751923f9e0d55e2"
+     "identity": "evidence:sha256:5c9f702189000772c16439d32be6ee25cd0bbd05a638bf72df2abe5d2b22d00a"
     }
    ],
    "id": "gemma-e4b-real-adapter-training",
    "evidence_tier": "device-gated",
-   "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestGemmaE4BRealTraining$' -count=1 -v",
+   "verify": "OVERGO_CUDA_TEST=1 go test -tags modeltest ./internal/adaptiveparity -run '^TestGemmaE4BRealTraining$' -count=1 -v",
    "artifact_identity": "sha256:cd4ada4703c2b76a84a10da94f09b9199b6d4dad7e3dcabbe79d8cee745f4501+185786ec6d77c31f87e6ebdcf8a0d095dbb7175999122229f8e82dcdad25004e+6d30559c2d237385a19b1ff68817c25c5e999f3d44290cf029676b031b80b710+f6d78057fb188166f763d174659f30abfea1720005b9300e13e49a3e9d133089+6faf97d1bf73ab3631f38332bf0539d43ebd0eddaf76865728288032dc939fca",
    "status": "implemented",
    "summary": "Gemma E4B layer 0 trains its real per-layer adapter on fingerprinted text, image, and audio representations through a compiled device-Muon program with exact checkpoint resume; complete 42-layer training remains open."
@@ -548,12 +548,12 @@
      "contains": "func TestMultimodalTrainingMatrix(",
      "path": "internal/adaptiveparity/multimodal_training_cuda_windows_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:3bd706eef3d5657a3a64fb89281f5f3848dc0ea851be3942c9bcb58bf62154e1"
+     "identity": "evidence:sha256:4d28cab27a38b8d614fe4555bf2d09e36fc75f854a81cf52320dc746c141f7fa"
     }
    ],
    "id": "repodb-multimodal-training-objective-matrix",
    "evidence_tier": "device-gated",
-   "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestMultimodalTrainingMatrix$' -count=1 -v",
+   "verify": "OVERGO_CUDA_TEST=1 go test -tags modeltest ./internal/adaptiveparity -run '^TestMultimodalTrainingMatrix$' -count=1 -v",
    "artifact_identity": "sha256:cd4ada4703c2b76a84a10da94f09b9199b6d4dad7e3dcabbe79d8cee745f4501+185786ec6d77c31f87e6ebdcf8a0d095dbb7175999122229f8e82dcdad25004e+9e9fa1ad55b1c2c95b08e37dd8e653f638fac2c6de904b79e813611eefbc985f+026362ccd74747359902464829a97e1aa1321d745efdee7f2056e226477484c0+ac135a0ddeb91a15cd70eec58949af2e329311b0d9848298ae1d9b1284ffc90f+8749bb8c9e0eaf7e10102315242a35665ad4a583f4eeb3d27f34065013ec140b",
    "status": "implemented",
    "summary": "OvergoDB objective documents approve text-to-text, image-to-text, and audio-to-text only after real corpus processing, E4B tokenizer/projector execution, adapter gradients, device Muon, and token evaluation; the other 33 single-modality pairs are refused."
@@ -1436,12 +1436,12 @@
      "contains": "func TestSenseNovaProductionImageGeneration(",
      "path": "internal/sensenovarecipe/runtime_cuda_windows_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:33df073e670b6b8f58b07dfd60331d1b722ab7de1447d4f50a1e29558aa29296"
+     "identity": "evidence:sha256:29bf18e63418788ab879094c62d0b7db827283ec622d3ba3c99463449888384b"
     }
    ],
    "id": "sensenova-production-image-oracle",
    "evidence_tier": "device-gated",
-   "verify": "OVERGO_CUDA_TEST=1 go test ./internal/sensenovarecipe -run '^TestSenseNovaProductionImageGeneration$' -count=1 -v",
+   "verify": "OVERGO_CUDA_TEST=1 go test -tags modeltest ./internal/sensenovarecipe -run '^TestSenseNovaProductionImageGeneration$' -count=1 -v",
    "artifact_identity": "sha256:f719811ee14aae6b4d3742c780f0d93f215c061f4c5928298ae7d3ecd2e4807e+7a20dee9983268c4598ac9f6c04a3afd377e3a39ec6a5a12f87b537637dfc5c9+f9b7a9b925fcf3b104349713ced8415a59aa1b001f192b55f483054899dc994f",
    "status": "implemented",
    "summary": "SenseNova text requests execute through compiled routed-image recipe modules, retained CUDA generation, and fingerprinted PNG publication."

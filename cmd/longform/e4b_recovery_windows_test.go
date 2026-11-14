@@ -1,3 +1,5 @@
+//go:build modeltest
+
 package main
 
 import (
@@ -10,7 +12,6 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
-	"overgo/internal/cuda/executor"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/dataroot"
 	"overgo/internal/inference"
@@ -164,26 +165,4 @@ func TestE4BResourceRecovery(t *testing.T) {
 		}
 	}
 	t.Log("3 reloads x 3 grow/shrink/grow cycles; 36 complete generations, 9 cancellations, 9 consumer errors, 9 exact recovery generations; text resources only, no dataset quality or projector-resource claim")
-}
-
-// reconcileFootprintShare bounds the retained device bytes not individually
-// surfaced -- graph exec nodes, the loaded module and allocation alignment --
-// to this share of the loaded model footprint. An eighth is far tighter than
-// any real retention regression (the E4B ladder grew by ~25 GB, roughly 14x a
-// 14 GB model's eighth) yet absorbs the small unsurfaced constants.
-const reconcileFootprintShare = 8
-
-// attributedOwners sums the executor's retained device memory outside the
-// loaded model footprint: arena workspace, cuBLAS matmul and attention-score
-// staging, Q8 activation staging, and the buffer pool's total driver residency
-// (live buffers plus the retained free list).
-func attributedOwners(m executor.ExecutionMetrics) uint64 {
-	return m.ArenaCommittedBytes + m.BLASStagingBytes + m.BLASScoreBytes + m.Q8StagingBytes + m.PoolTotalBytes
-}
-
-// retainedBudget is the explicit retained-byte budget: the loaded model
-// footprint, plus every named executor owner, plus the unsurfaced share. A
-// device retention within it is fully attributed.
-func retainedBudget(footprint uint64, m executor.ExecutionMetrics) uint64 {
-	return footprint + attributedOwners(m) + footprint/reconcileFootprintShare
 }

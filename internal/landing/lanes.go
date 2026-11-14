@@ -276,6 +276,7 @@ var modelPackages = []string{
 	"./internal/composition", "./internal/speechsynth", "./internal/tabularicl", "./internal/modelintake", "./internal/server",
 	"./cmd/evaluate", "./cmd/longform", "./cmd/recipe", "./cmd/train", "./cmd/validate", "./cmd/benchmark-report", "./cmd/loop",
 	"./internal/evaluation", "./internal/dataset", "./internal/rae", "./internal/vitencoder", "./internal/seriesforecast", "./internal/mosstrain",
+	"./internal/densecausaltrain", "./internal/modeldevice", "./internal/oscillatorimage", "./internal/hybridtrain", "./internal/cuda/nvvfx",
 }
 
 // laneEnvironment is the environment a lane's command runs in: the gate's own, what the lane adds, and the CUDA

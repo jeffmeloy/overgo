@@ -16,6 +16,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/latentimage"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/overgodb"
 	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
@@ -177,4 +178,60 @@ func TestMOSSSourceInventoryCancels(t *testing.T) {
 	if source, err := capability.Resolve(t.Context(), root); err != nil || len(source.Manifests) != 3 {
 		t.Fatal("the source did not resolve after a cancelled attempt", err)
 	}
+}
+
+// servedPictures is a store a picture by the installed Krea model is served
+// from: the model's artifact and its profile.
+type servedPictures struct {
+	store     *overgodb.Store
+	directory string
+	execution modelrecipe.CapabilityEvidenceSelection
+}
+
+// request is one small picture's request: the prompt and the seed are what
+// the test varies.
+func (servedPictures) request(t *testing.T, prompt string, seed int64) string {
+	t.Helper()
+	raw := testcheck.Must(json.Marshal(latentimage.Request{Prompt: prompt, Width: 256, Height: 256, Steps: 8, Seed: seed, DynamicShiftMu: 1.15}))(t)
+	return string(raw)
+}
+
+// serve serves one picture and gives what the request measured and the
+// picture it made.
+func (pictures servedPictures) serve(ctx context.Context, t *testing.T, service capabilityruntime.Executor, prompt string, seed int64) (capabilityruntime.Measured, latentimage.EncodedImage) {
+	t.Helper()
+	output := testcheck.Must(service(ctx, pictures.store, pictures.directory, pictures.execution, pictures.request(t, prompt, seed)))(t)
+	measured, _ := output.(capabilityruntime.Measured)
+	picture, ok := measured.Output.(latentimage.EncodedImage)
+	if !ok {
+		t.Fatalf("a served picture is %T", output)
+	}
+	return measured, picture
+}
+
+// pictureService makes a director of picture sessions of its own, closed
+// when the test ends at the latest: the device memory of a session a test
+// loads is the test's to give back, and two sessions of the model do not fit
+// the device together.
+func pictureService(t *testing.T) *pictureDirector {
+	t.Helper()
+	director := testcheck.Must(pictureSessions())(t)
+	t.Cleanup(testutil.Closer(t, context.Background(), director))
+	return director
+}
+
+// checkedContext is cancelled when its error has been asked for a number of
+// times: a request's work asks at each tensor it places on the device, so the
+// cancellation falls in the middle of that work, at the same place each run.
+type checkedContext struct {
+	context.Context
+	cancel context.CancelFunc
+	left   *int
+}
+
+func (ctx checkedContext) Err() error {
+	if *ctx.left--; *ctx.left == 0 {
+		ctx.cancel()
+	}
+	return ctx.Context.Err()
 }

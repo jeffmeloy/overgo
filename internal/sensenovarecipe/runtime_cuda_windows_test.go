@@ -1,4 +1,4 @@
-//go:build windows
+//go:build modeltest && windows
 
 package sensenovarecipe
 
@@ -10,19 +10,12 @@ import (
 	"testing"
 	"time"
 
-	"overgo/internal/artifact"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/jsonfile"
 	"overgo/internal/latentimage"
-	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/routedlm"
-	"overgo/internal/testutil"
 	"overgo/internal/workflowruntime"
 )
-
-const senseNovaProductionPNG = "6ef4065018d328c2945e6de0a8b87fe3eb2aec44039b43207398969712446de0"
 
 // Run both fixed-output references under one exclusive measurement owner.
 // The references cover the production device peripherals and the independent
@@ -59,53 +52,6 @@ type productionGenerationResult struct {
 	image     latentimage.EncodedImage
 	wall      time.Duration
 	peakBytes uint64
-}
-
-func newProductionGenerationFixture(t testing.TB) (*overgodb.Store, recipe.Program, *Generator) {
-	t.Helper()
-	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		if err := store.Close(); err != nil {
-			t.Error(err)
-		}
-	})
-	modelID := testutil.ArtifactID(t, artifact.KindModel, "sensenova-production")
-	testutil.PublishArtifact(t, store, modelID)
-	flowProfile, err := routedlm.InspectFlowProfile(senseNovaModelDir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	flowContent, err := flowProfile.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := store.Commit(ctx, artifact.Batch{
-		Key: "fixture/sensenova/runtime-flow-profile", Contents: []artifact.Content{flowContent},
-	}); err != nil {
-		t.Fatal(err)
-	}
-	definition, err := modelrecipe.GenerationDefinition(modelrecipe.ModuleRoutedImagePrepare, modelID, flowProfile.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	program, err := modelrecipe.CompileCapability(definition)
-	if err != nil {
-		t.Fatal(err)
-	}
-	generator, err := LoadGenerator(ctx, store, senseNovaModelDir, definition)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		if err := generator.Close(context.WithoutCancel(t.Context())); err != nil {
-			t.Errorf("close: %v", err)
-		}
-	})
-	return store, program, generator
 }
 
 func runProductionImageGeneration(t testing.TB, request GenerationRequest) productionGenerationResult {

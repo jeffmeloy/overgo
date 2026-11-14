@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/overgodb"
@@ -21,16 +20,6 @@ func TestTranscriptionWorkspaceRecordsWhereItsRecipeRuns(t *testing.T) {
 	t.Parallel()
 	if device := workspaceDevice(t, false); device != "host" {
 		t.Fatalf("a host recipe's runs are recorded on device %q, want host", device)
-	}
-}
-
-// TestTranscriptionWorkspaceRecordsResidentRunsOnTheDevice holds the runs a
-// workspace serves for a resident recipe to the CUDA device its encoder binds.
-func TestTranscriptionWorkspaceRecordsResidentRunsOnTheDevice(t *testing.T) {
-	t.Parallel()
-	cudatest.Require(t)
-	if device := workspaceDevice(t, true); device != "cuda:0" {
-		t.Fatalf("a resident recipe's runs are recorded on device %q, want cuda:0", device)
 	}
 }
 

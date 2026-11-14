@@ -1,3 +1,5 @@
+//go:build modeltest
+
 package server_test
 
 import (

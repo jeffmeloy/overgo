@@ -55,7 +55,10 @@ var (
 func TestReachInvariants(t *testing.T) {
 	t.Parallel()
 	repo := testcheck.Must(filepath.Abs(filepath.Join("..", "..")))(t)
-	everyLane := slices.Concat(lanes, cycleLanes)
+	// The gate lanes as a landing finds them in this checkout: the cuda lane reads its packages from the tree, so the
+	// table alone holds none of them and no row would hold an edit off it.
+	gates := testcheck.Must(lanesOf(repo))(t)
+	everyLane := slices.Concat(gates, cycleLanes)
 	for _, name := range slices.Concat(servingLanes, browserOnlyLanes) {
 		if !slices.ContainsFunc(everyLane, func(candidate lane) bool { return candidate.name == name }) {
 			t.Fatalf("no lane is named %s; the rows naming its set would hold nothing", name)
@@ -70,7 +73,7 @@ func TestReachInvariants(t *testing.T) {
 		t.Errorf("vet reads with %s, without %s; a paired comparison would go unchecked", checkedTags, pairTag)
 	}
 	var gateLanes, deviceLanes []string
-	for _, candidate := range lanes {
+	for _, candidate := range gates {
 		if slices.ContainsFunc(strings.Split(candidate.tags, ","), func(tag string) bool { return slices.Contains(strings.Split(CycleTags, ","), tag) }) {
 			t.Errorf("gate lane %s builds with the cycle's tags %s; a landing would run the suites the cycle owns", candidate.name, candidate.tags)
 		}
@@ -157,10 +160,10 @@ func TestReachInvariants(t *testing.T) {
 		{"internal/rae/autoencoder_test.go", gateLanes, false, "models", "autoencoder parity loads the installed encoder and decoder"},
 		{"internal/seq2seq/upstream_calls_model_test.go", gateLanes, false, "needle-reference", "the needle reference compares 400 cases without selecting training experiments"},
 	}
-	gateReaches := testcheck.Must(discover(repo, lanes...))(t)
+	gateReaches := testcheck.Must(discover(repo, gates...))(t)
 	cycleReaches := testcheck.Must(discover(repo, cycleLanes...))(t)
 	reaches := func(candidate lane, paths []string) bool {
-		if slices.ContainsFunc(lanes, func(gate lane) bool { return gate.name == candidate.name }) {
+		if slices.ContainsFunc(gates, func(gate lane) bool { return gate.name == candidate.name }) {
 			return gateReaches(candidate, paths).by != ""
 		}
 		return cycleReaches(candidate, paths).by != ""

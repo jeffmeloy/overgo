@@ -1,4 +1,4 @@
-//go:build windows
+//go:build modeltest && windows
 
 package server
 
@@ -26,7 +26,8 @@ import (
 
 // TestModelsRunFromTheirOwnFiles closes SQA-283 on the device: a GGUF and a safetensors directory of prototype-known
 // architectures, llama and Qwen 3.5, with nothing recorded of them, answer a chat through the template their own files
-// declare, and the response and the record of the attempt both say they are not verified.
+// declare, and the response and the record of the attempt both say they are not verified. The cycle runs it with the
+// package's other device tests, behind modeltest, so an edit to the server's journeys reaches no device lane of the gate.
 func TestModelsRunFromTheirOwnFiles(t *testing.T) {
 	// Serial: device fixtures share the one card.
 	cudatest.Require(t)

@@ -179,11 +179,11 @@
     "docs/image_video_routed_images.json": "70456dd2c5a3c7dbfd5800ed4f32b3b1bee1a78e65460569f0035c8043c0b7c7",
     "docs/image_video_validation.json": "3a17ed182dd4baa5b56bdbd269d4263e470cd55cf4a3d486aafd43c1b4a5fbda",
     "docs/image_video_wan.json": "559c811d0a7f10d6ca90c4088805250435d78eb57736a95175e7d86a0c68157a",
-    "internal/diffusionimage/frozen_generation_cuda_windows_test.go": "3430161d198e6556bfb1a9b2ee1d3d7aa767a630323a220ce526881beb71a5b5",
+    "internal/diffusionimage/frozen_generation_cuda_windows_test.go": "cdbb230557dcbac4112ede0c504d75f7a4874d67a139dd1e89d48075ee2216db",
     "internal/latentvideo/frozen_generation_cuda_windows_test.go": "ab8063dbacb714ffbe46deef83b13912263a3676e26702af1cec514b07f7b63d",
-    "internal/mediacapability/frozen_krea_cuda_windows_test.go": "5bcee3671267004f0a9f90e36dd38b40d2e0bc7b8aa233ffa97152fab133146f",
+    "internal/mediacapability/frozen_krea_cuda_windows_test.go": "4645613a43f0195cc13a596c1011034e9677f704ac6492be1d6442aeb225db71",
     "internal/oscillatorimage/frozen_modalities_test.go": "d572d9550567e80cf482f3cc087ffaaf23b42a1b7b370668021e4291fe43d468",
-    "internal/sensenovarecipe/frozen_generation_cuda_windows_test.go": "76e9fc81383c50f1ed78699af516d3f5330a880eb9e295ec22185a8e26e9885a"
+    "internal/sensenovarecipe/frozen_generation_cuda_windows_test.go": "5a10381f78df94eb1e2b0323ae4fd4d8aa2b67a1201dcfb36bd143cb59d9af11"
   },
   "Cases": [
     {

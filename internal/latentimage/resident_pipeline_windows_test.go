@@ -168,3 +168,11 @@ func TestSelectedHiddenBridgeDropsEncoderPrefix(t *testing.T) {
 		t.Fatalf("cropped output = %v, want %v", results[output].Data, want)
 	}
 }
+
+func f64of(v []float32) []float64 {
+	out := make([]float64, len(v))
+	for i, x := range v {
+		out[i] = float64(x)
+	}
+	return out
+}

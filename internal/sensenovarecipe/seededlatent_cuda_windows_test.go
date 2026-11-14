@@ -1,51 +1,19 @@
-//go:build windows
+//go:build modeltest && windows
 
 package sensenovarecipe
 
 import (
-	"path/filepath"
 	"slices"
 	"testing"
 
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
-	"overgo/internal/dataroot"
 	"overgo/internal/jsonfile"
 	"overgo/internal/routedlm"
 	"overgo/internal/safetensors"
 	"overgo/internal/testcheck"
 	"overgo/internal/torchrng"
 )
-
-const senseNovaGenerationGold = `..\..\fixtures\sensenova\generation_native_256.json`
-
-// senseNovaModelDir is the real SenseNova artifact under the model roots,
-// resolved once from the repository root two directories up: a value, not a
-// function of a test, because the pinned production-oracle test reads it as
-// one.
-var senseNovaModelDir = func() string {
-	roots, err := dataroot.Resolve(filepath.Join("..", ".."))
-	if err != nil {
-		panic(err)
-	}
-	return roots.ResolveModelPath("SenseNova-U1-8B-MoT-Infographic-V3")
-}()
-
-type seededLatentOracle struct {
-	Request struct {
-		Width  int   `json:"width"`
-		Height int   `json:"height"`
-		Seed   int64 `json:"seed"`
-	} `json:"request"`
-	Steps []struct {
-		Z struct {
-			Shape    []int     `json:"shape"`
-			Elements int       `json:"elements"`
-			Indices  []int64   `json:"indices"`
-			Values   []float32 `json:"values"`
-		} `json:"z"`
-	} `json:"steps"`
-}
 
 func TestSenseNovaSeededLatentMatchesOracle(t *testing.T) {
 	cudatest.Require(t)

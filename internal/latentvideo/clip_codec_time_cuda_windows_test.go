@@ -1,4 +1,4 @@
-//go:build windows
+//go:build modeltest && windows
 
 package latentvideo
 

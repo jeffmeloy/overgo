@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"go/ast"
+	"go/build/constraint"
 	"go/format"
 	"go/parser"
 	"go/token"
@@ -536,10 +537,35 @@ func evidenceCommand(proof evidence, data []byte) (string, bool) {
 		target = "."
 	}
 	tags := ""
-	if bytes.Contains(data, []byte("//go:build integration")) {
-		tags = " -tags integration"
+	if named := cycleTagsOf(data); len(named) > 0 {
+		tags = " -tags " + strings.Join(named, ",")
 	}
 	return fmt.Sprintf("go test%s %s -run '^Test%s$' -count=1 -v", tags, target, name), true
+}
+
+// cycleTagsOf are the improvement cycle's build tags, integration and modeltest, that a test file's //go:build line names
+// wherever it names them ("windows && modeltest" among them): a test behind one runs only when its command names it.
+func cycleTagsOf(data []byte) []string {
+	for line := range strings.Lines(string(data)) {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "package ") {
+			return nil
+		}
+		if !constraint.IsGoBuild(line) {
+			continue
+		}
+		expression, err := constraint.Parse(line)
+		if err != nil {
+			return nil
+		}
+		named := map[string]bool{}
+		expression.Eval(func(tag string) bool {
+			named[tag] = true
+			return true
+		})
+		return slices.DeleteFunc([]string{"integration", "modeltest"}, func(tag string) bool { return !named[tag] })
+	}
+	return nil
 }
 
 func modelValidation(item modelClaim) string {

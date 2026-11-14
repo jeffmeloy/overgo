@@ -1,4 +1,4 @@
-//go:build windows
+//go:build modeltest && windows
 
 package latentimage
 
@@ -212,14 +212,6 @@ func allFinite32(v []float32) bool {
 		}
 	}
 	return true
-}
-
-func f64of(v []float32) []float64 {
-	out := make([]float64, len(v))
-	for i, x := range v {
-		out[i] = float64(x)
-	}
-	return out
 }
 
 func meanStd64(v []float64) (mean, std float64) {

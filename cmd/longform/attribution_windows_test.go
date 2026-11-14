@@ -45,3 +45,25 @@ func TestRetainedBudgetReconciliation(t *testing.T) {
 		t.Fatalf("pool retained %d exceeded limit %d", metrics.PoolRetainedBytes, metrics.PoolRetainedLimit)
 	}
 }
+
+// reconcileFootprintShare bounds the retained device bytes not individually
+// surfaced -- graph exec nodes, the loaded module and allocation alignment --
+// to this share of the loaded model footprint. An eighth is far tighter than
+// any real retention regression (the E4B ladder grew by ~25 GB, roughly 14x a
+// 14 GB model's eighth) yet absorbs the small unsurfaced constants.
+const reconcileFootprintShare = 8
+
+// attributedOwners sums the executor's retained device memory outside the
+// loaded model footprint: arena workspace, cuBLAS matmul and attention-score
+// staging, Q8 activation staging, and the buffer pool's total driver residency
+// (live buffers plus the retained free list).
+func attributedOwners(m executor.ExecutionMetrics) uint64 {
+	return m.ArenaCommittedBytes + m.BLASStagingBytes + m.BLASScoreBytes + m.Q8StagingBytes + m.PoolTotalBytes
+}
+
+// retainedBudget is the explicit retained-byte budget: the loaded model
+// footprint, plus every named executor owner, plus the unsurfaced share. A
+// device retention within it is fully attributed.
+func retainedBudget(footprint uint64, m executor.ExecutionMetrics) uint64 {
+	return footprint + attributedOwners(m) + footprint/reconcileFootprintShare
+}

@@ -1,4 +1,4 @@
-//go:build windows
+//go:build modeltest && windows
 
 package sensenovarecipe
 
@@ -23,47 +23,6 @@ import (
 	"overgo/internal/testcheck"
 	"overgo/internal/torchrng"
 )
-
-type generationSample struct {
-	Elements int       `json:"elements"`
-	Indices  []int     `json:"indices"`
-	Values   []float32 `json:"values"`
-}
-
-type generationStep struct {
-	Timestep              float64          `json:"timestep"`
-	NextTimestep          float64          `json:"next_timestep"`
-	Z                     generationSample `json:"z"`
-	ConditionalBoundary   generationSample `json:"conditional_boundary"`
-	UnconditionalBoundary generationSample `json:"unconditional_boundary"`
-	GuidedVelocity        generationSample `json:"guided_velocity"`
-	NextZ                 generationSample `json:"next_z"`
-}
-
-type generationLeadershipOracle struct {
-	Schema string `json:"schema"`
-	Source struct {
-		InferencePath  string `json:"inference_path"`
-		InferenceSHA   string `json:"inference_sha256"`
-		ModelingPath   string `json:"modeling_path"`
-		ModelingSHA    string `json:"modeling_sha256"`
-		ConfigSHA      string `json:"config_sha256"`
-		TensorIndexSHA string `json:"tensor_index_sha256"`
-	} `json:"source"`
-	Request struct {
-		Prompt        string
-		Width, Height int
-		Steps         int
-		Seed          int64
-		CFGScale      float32 `json:"cfg_scale"`
-		TimestepShift float64 `json:"timestep_shift"`
-	} `json:"request"`
-	TextInputs struct {
-		Conditional   []int `json:"conditional_ids"`
-		Unconditional []int `json:"unconditional_ids"`
-	} `json:"text_inputs"`
-	Steps []generationStep `json:"steps"`
-}
 
 type generationAdaptiveLayer struct {
 	Conditional, Unconditional []float32

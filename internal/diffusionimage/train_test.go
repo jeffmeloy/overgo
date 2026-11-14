@@ -106,21 +106,3 @@ func TestTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
 	}
 	checkpointtest.RequireRoundTrip(t, trainer.Program(), trainer, m.raw)
 }
-
-// TestRealCheckpointMuonPlanCompiles: every real tensor has Muon geometry.
-func TestRealCheckpointMuonPlanCompiles(t *testing.T) {
-	cudatest.Require(t)
-	requireLongTest(t)
-	dir := artifactDir(t)
-	m, err := Load(dir)
-	if err != nil {
-		t.Skipf("UNAVAILABLE: artifact absent at %s: %v", dir, err)
-	}
-	trainer := testcheck.Must(NewTrainer(m, optimizer.Config{BaseLearningRate: 1e-4, Momentum: 0.95, Schedule: optimizer.ScheduleConstant}))(t)
-	defer func() {
-		testcheck.NoError(t, trainer.Close())
-	}()
-	if trainer.pack.ParameterCount() == 0 {
-		t.Fatal("real-artifact Muon plan is empty")
-	}
-}

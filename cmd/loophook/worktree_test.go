@@ -15,8 +15,9 @@ import (
 
 // TestSecondImplementingSessionIsSentToAWorktreeOfItsOwn begins implementing
 // sessions in one worktree and holds the worktree to the first. A landing
-// takes the checkout's whole tree, so the second session's files would join
-// the first one's commit: the second is told who holds the worktree, lands
+// takes the files its steps list, the whole tree where a step lists none, so
+// the second session's files would join the first one's commit where their
+// lists meet: the second is told who holds the worktree, lands
 // nothing there, edits no file the repository tracks, and is held to no row
 // and to no file, the first one's among them; the first is unchanged by it. A
 // review session takes no worktree and sends no one away. In a worktree of

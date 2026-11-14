@@ -1640,9 +1640,13 @@ func qualityCell(task recipe.Task, summaries []evaluation.EvalSummary, descripto
 	default:
 		return gap("no held-out evaluation of this recipe"), nil
 	}
-	// A measure read under several protocols is headed by its headline protocol's reading, the others beside it.
+	// A measure read under several protocols is headed by its headline protocol's reading, the others beside it; a
+	// reading that is not its benchmark's figure heads nothing (evaluation.HeadsItsMeasure).
 	headed := func(reading heldout) int {
-		if protocol, named := headlineProtocols[reading.cell.Measure]; named && protocol != reading.cell.Contract.Protocol {
+		switch protocol, named := headlineProtocols[reading.cell.Measure]; {
+		case !evaluation.HeadsItsMeasure(reading.cell.Contract.Protocol):
+			return 2
+		case named && protocol != reading.cell.Contract.Protocol:
 			return 1
 		}
 		return 0
@@ -1655,6 +1659,15 @@ func qualityCell(task recipe.Task, summaries []evaluation.EvalSummary, descripto
 			cmp.Compare(left.built, right.built), strings.Compare(left.cell.Contract.Protocol, right.cell.Contract.Protocol),
 			artifact.CompareID(left.cell.Contract.Comparison, right.cell.Contract.Comparison), artifact.CompareID(left.cell.Source, right.cell.Source))
 	})
+	// A model with no reading that may head shows the missing cell, each reading beside it under its own label: a lone
+	// MMLU-Pro reading asked without the demonstrations had headed the cell as the benchmark's figure (SQA-370).
+	if headed(measured[0]) == 2 {
+		beside := make([]Cell, 0, len(measured))
+		for _, reading := range measured {
+			beside = append(beside, reading.cell)
+		}
+		return gap(fmt.Sprintf("no reading of %s under its benchmark's protocol; the readings beside it are not its figure", measured[0].cell.Measure)), beside
+	}
 	others := make([]Cell, 0, len(measured)-1)
 	for _, other := range measured[1:] {
 		others = append(others, other.cell)

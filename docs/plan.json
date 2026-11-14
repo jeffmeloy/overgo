@@ -3,6 +3,149 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "mmlu-pro",
+      "title": "MMLU-Pro's headline is an eligible reading's, and its reference comparison admits the exact questions first",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "reference",
+          "title": "MMLU-Pro's reference comparison admits the exact questions it compares before the model opens",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -count=1 -run '^TestTheMMLUProReferenceIsAdmittedByItsQuestions$'",
+          "files": [
+            "internal/evaluation",
+            "internal/dataset"
+          ],
+          "rationale": "Serves: a comparison against the reference compares the questions it says it does (SQA-369, P2: a check that passes without checking).\n\nThe evidence (the review's, shown from source): the comparison matches its reference by ordinal and count alone, so a reference of other questions, or of another revision, passes the match.\n\nThe change, the finding's: before the runner opens, the reference is bound to the model and tokenizer, the demonstrations, the dataset revision and each question's identity and content, the two documented revision differences admitted for their exact revisions alone.\n\nCheck: TestTheMMLUProReferenceIsAdmittedByItsQuestions holds a reference whose questions differ in content at the same ordinals to a refusal before any model opens."
+        }
+      ]
+    },
+    {
+      "id": "identity-gate",
+      "title": "The ordinary gate's MMLU-Pro identity checks read pinned fixtures, never the mutable benchmark store",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "The ordinary gate's MMLU-Pro identity checks read pinned fixtures, never the mutable benchmark store",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -count=1 -run '^TestTheMMLUProIdentityChecksReadNoStore$'",
+          "files": [
+            "internal/evaluation"
+          ],
+          "rationale": "Serves: a benchmark import never refuses an unrelated landing (SQA-368, P2, observed: it stops work).\n\nThe evidence (the review's, observed): the host gate's MMLU-Pro identity tests read the ambient benchmark store, so an import into it broke landings that touched nothing of MMLU-Pro, and each landing repeated the corpus work.\n\nThe change, the finding's: the host gate holds small pinned identities, scorer bytes and delimiter cases in its fixtures; the full-corpus digests move under the modeltest owner, which admits the store before any model loads; no digest is dropped.\n\nCheck: TestTheMMLUProIdentityChecksReadNoStore runs the host identity checks with the data root pointed at an empty directory and holds them to pass."
+        }
+      ]
+    },
+    {
+      "id": "derive-always",
+      "title": "The generators' files enter a commit only as derive wrote them from its candidate, whatever the change holds",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "The generators' files enter a commit only as derive wrote them from its candidate, whatever the change holds",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestADerivedFileEntersACommitOnlyFromDerive$'",
+          "files": [
+            "internal/landing"
+          ],
+          "rationale": "Serves: the owner's review of 2026-11-14 (point 1): review-rows/do failed twice on it.\n\nThe evidence: commitScope always lists the generators' writes (docs/api_manifest.json, compatibility.json and its documents), and fix() calls derive only inside if len(directories) != 0, for a change that holds Go. A docs/api_manifest.json the checkout held regenerated for other uncommitted code was in scope for a change to the plan alone, which made it no plan-only change: every stage ran, derive did not, and the stale manifest was committed as the checkout held it, and refused by its own test.\n\nThe change: derive runs in the fix stage whatever the change holds, and the generators' writes leave commitScope: a capture stages a generator's file only as derive wrote it from the candidate, never as the checkout held it. A plan-only change is plan-only whatever generated file the checkout holds.\n\nCheck: TestADerivedFileEntersACommitOnlyFromDerive lands a change to the plan alone from a checkout whose API manifest is stale, and holds the commit to the plan, the manifest left as the checkout held it; and a change to Go has its manifest as derive wrote it."
+        }
+      ]
+    },
+    {
+      "id": "turn-holder",
+      "title": "A waiter for a turn says the holder again each time it changes",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A waiter for a turn says the holder again each time it changes",
+          "status": "open",
+          "verify": "go test ./internal/processcontrol -count=1 -run '^TestAWaiterSaysEachNewHolder$'",
+          "files": [
+            "internal/processcontrol"
+          ],
+          "rationale": "Serves: the owner's review of 2026-11-14 (point 3) and \"shouldn't long tasks report incremental progress\".\n\nThe evidence: takePlace prints the holder once, read from the turn's record before the wait, and then blocks in the system's transaction (enterTurn) until it holds the turn; on 2026-11-14 the card's turn passed from a latentvideo test to the journey's served model while a landing waited, and its line still named the test.\n\nThe change: while it waits, the waiter reads the turn's record as it changes and says each new holder, with what it holds the turn for and since when, on the same output; first read whether a change of the record can be waited on (a change notification on its directory) before a reading on a clock, whose interval would be a tuning value naming its cost.\n\nCheck: TestAWaiterSaysEachNewHolder holds a turn in one process, hands it to a second while a third waits, and holds the third's output to both holders."
+        }
+      ]
+    },
+    {
+      "id": "lane-passes",
+      "title": "A direct run of the lanes records each lane's pass with its commit, and the status says where each last passed",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A direct run of the lanes records each lane's pass with its commit, and the status says where each last passed",
+          "status": "open",
+          "verify": "go test ./cmd/validate ./cmd/loop -count=1 -run '^(TestADirectLaneRunRecordsEachLanesPass|TestTheStatusSaysWhereEachLaneLastPassed)$'",
+          "files": [
+            "cmd/validate",
+            "cmd/loop",
+            "internal/plan"
+          ],
+          "rationale": "Serves: the owner's review of 2026-11-14 (point 5): a direct run until the lanes pass, the landing taken only for the run expected to pass.\n\nThe evidence: validate -run -lanes keeps no record of a lane's pass: its watch writes failures and package walls into a measurement run's record alone, when the run's environment names one (laneWatch), and a direct run names none, so what a direct run proved is in its output only.\n\nThe change: each lane's end is recorded in the checkout's state with the commit it ran at, its verdict and when; the status prints, for each lane, the commit it last passed at and how many commits the trunk has taken since, with the paths among them the lane reaches.\n\nCheck: TestADirectLaneRunRecordsEachLanesPass runs a fixture lane and reads its record; TestTheStatusSaysWhereEachLaneLastPassed reads the status over a record and commits after it."
+        }
+      ]
+    },
+    {
+      "id": "declared-defaults",
+      "title": "A clip's frames and scale and a speech's voice are declared with defaults the page fills and a request takes",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A clip's frames and scale and a speech's voice are declared with defaults the page fills and a request takes",
+          "status": "open",
+          "verify": "go test ./internal/mediacapability -count=1 -run '^TestAClipsSizeAndASpeechsVoiceAreDeclaredWithDefaults$'",
+          "files": [
+            "internal/mediacapability",
+            "internal/oscillatorimage",
+            "internal/speechsynth",
+            "internal/server"
+          ],
+          "rationale": "Serves: the owner's review of 2026-11-14 (point 6) and the two findings parked from the first-run journey: the speech form sends no voice, and a numeric control is never required.\n\nThe evidence: oscillatorimage.VideoRequest's Frames and Scale are plain ints, so describe gives them no Required, no Default and no Bounds, and the page renders empty fields; speechsynth's Voice is an optional string whose choices the model's artifact exports, one of three ways a voice is named (a voice, a prepared voice, a reference recording). workflow.js prefills a number from its declared bounds and offers a select's declared default, which the request takes in where the field is left out. The first-run journey filled every empty number with 1 and chose a voice itself to stand in for the person.\n\nThe change: the clip's frames and scale declare their defaults where their types are (as a clip's format declares MP4), so the page prefills them and a request that leaves them out is given them; the voice declares the model's default voice, given only where the request names none of the three. The journey's fill-with-1 and its voice choice go, the journey sending what a person who changes nothing sends.\n\nCheck: TestAClipsSizeAndASpeechsVoiceAreDeclaredWithDefaults holds the controls the page is given to the defaults, and a request taken in without them to the defaults applied."
+        }
+      ]
+    },
+    {
+      "id": "undo-every-check",
+      "title": "The undo run proves every step's check, whatever it runs, and the added-check run goes",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "every-kind",
+          "title": "The undo run runs every check, not only a go test",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestTheUndoRunRunsEveryKindOfCheck$'",
+          "files": [
+            "internal/landing"
+          ],
+          "rationale": "Serves: the owner's review of 2026-11-14 (point 2), and the finding parked that undo runs no check that runs no go test.\n\nThe evidence: addedChecksFail runs a step's check at the commit the change builds on only for l.added, the steps the change itself adds, so filing a row one commit earlier passes it, as review-rows/do did. undo() gives the like proof for every step, the change's production Go and embedded files restored and its check expected to fail, but only for a check that runs a go test (\"none run: no check runs a go test\"). Removing addedChecksFail now would lose the proof for a step whose check is a journey, a validate run or a file test, which only it gives.\n\nThe change: the undo run runs whatever the check is in the undone tree.\n\nCheck: TestTheUndoRunRunsEveryKindOfCheck lands a change whose check is a command that is no go test and passes with the production restored, and holds it to the undo run's refusal.\n\nNote: 2026-11-14: the batch hold-words/do,identity-gate/do,mmlu-pro/headline was refused at verify: its undo run restored every step's production Go and ran every check, and identity-gate's, a change to tests alone, passed, so the batch was refused for a step the undo run cannot prove. A change to tests alone is proved only by its check failing with the tests it changed as they were (identity-gate's fails at base, its store subtest skipping under an empty data root), which neither the undo run nor addedChecksFail runs."
+        },
+        {
+          "id": "added",
+          "title": "The added-check run and the record of added steps go, the undo run proving every step alike",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1",
+          "files": [
+            "internal/landing",
+            "skill.md"
+          ],
+          "rationale": "Serves: the owner's review of 2026-11-14 (point 2).\n\nThe evidence: with undo-every-check/every-kind landed, the undo run proves every step's check fails without the change, whenever the step was filed; addedChecksFail proves it only for a step the same change files, and filing it a commit earlier escapes it. What it alone proves after every-kind is that a change with no production Go fails its own new check at base, where the check's test did not exist, which proves nothing.\n\nThe change: addedChecksFail and l.added go, with the tests and the skill rule that hold them; the consolidations and flake fixes that were filed a commit early to pass it need not be.\n\nCheck: the landing's tests."
+        }
+      ]
+    },
+    {
       "id": "cycle-lanes",
       "title": "The cycle's lanes run at the build that gave them the gate's real-model tests, so each moved test runs before other work",
       "owner": "master-lead",
@@ -209,53 +352,6 @@
           "depends_on": [
             "media-user-size/stages"
           ]
-        }
-      ]
-    },
-    {
-      "id": "mmlu-pro",
-      "title": "MMLU-Pro's headline is an eligible reading's, and its reference comparison admits the exact questions first",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "headline",
-          "title": "A lone no-demonstration reading is no MMLU-Pro headline",
-          "status": "open",
-          "verify": "go test ./internal/scorecard -count=1 -run '^TestALoneNoDemonstrationReadingIsNoHeadline$'",
-          "files": [
-            "internal/scorecard"
-          ],
-          "rationale": "Serves: the README's quality cell states the protocol its number was read under (SQA-370, P2: a served claim).\n\nThe evidence (the review's, shown from source): qualityCell takes a lone no-demonstration reading as the MMLU-Pro headline, a protocol the system excludes from its headline elsewhere.\n\nThe change, the finding's: headline eligibility is explicit in qualityCell; a model with no eligible reading shows the missing-evidence cell, its historical readings beside it under their own labels.\n\nCheck: TestALoneNoDemonstrationReadingIsNoHeadline holds a model whose one reading had no demonstrations to the missing cell, the reading listed beside it."
-        },
-        {
-          "id": "reference",
-          "title": "MMLU-Pro's reference comparison admits the exact questions it compares before the model opens",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -count=1 -run '^TestTheMMLUProReferenceIsAdmittedByItsQuestions$'",
-          "files": [
-            "internal/evaluation",
-            "internal/dataset"
-          ],
-          "rationale": "Serves: a comparison against the reference compares the questions it says it does (SQA-369, P2: a check that passes without checking).\n\nThe evidence (the review's, shown from source): the comparison matches its reference by ordinal and count alone, so a reference of other questions, or of another revision, passes the match.\n\nThe change, the finding's: before the runner opens, the reference is bound to the model and tokenizer, the demonstrations, the dataset revision and each question's identity and content, the two documented revision differences admitted for their exact revisions alone.\n\nCheck: TestTheMMLUProReferenceIsAdmittedByItsQuestions holds a reference whose questions differ in content at the same ordinals to a refusal before any model opens."
-        }
-      ]
-    },
-    {
-      "id": "identity-gate",
-      "title": "The ordinary gate's MMLU-Pro identity checks read pinned fixtures, never the mutable benchmark store",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "The ordinary gate's MMLU-Pro identity checks read pinned fixtures, never the mutable benchmark store",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -count=1 -run '^TestTheMMLUProIdentityChecksReadNoStore$'",
-          "files": [
-            "internal/evaluation"
-          ],
-          "rationale": "Serves: a benchmark import never refuses an unrelated landing (SQA-368, P2, observed: it stops work).\n\nThe evidence (the review's, observed): the host gate's MMLU-Pro identity tests read the ambient benchmark store, so an import into it broke landings that touched nothing of MMLU-Pro, and each landing repeated the corpus work.\n\nThe change, the finding's: the host gate holds small pinned identities, scorer bytes and delimiter cases in its fixtures; the full-corpus digests move under the modeltest owner, which admits the store before any model loads; no digest is dropped.\n\nCheck: TestTheMMLUProIdentityChecksReadNoStore runs the host identity checks with the data root pointed at an empty directory and holds them to pass."
         }
       ]
     },

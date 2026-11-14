@@ -419,7 +419,7 @@ func releaseWorktree(session string) {
 // heldNotice is what a session is told, in place of the lane's dispatched
 // row, in a worktree another implementing session holds.
 func heldNotice(holder string) string {
-	return "OVERGO WORKTREE HELD. Session " + holder + " holds this worktree. A commit takes the checkout's whole tree, so two implementing sessions here would commit each other's files. " +
+	return "OVERGO WORKTREE HELD. Session " + holder + " holds this worktree. A commit takes the files its steps list, and the whole tree where a step lists none, so two implementing sessions here would commit each other's files where their lists meet. " +
 		"This session lands nothing here and edits no file the repository tracks (the guard refuses both); it is dispatched no row, held to none, and asked again at its next message. " +
 		"Work in a worktree of its own: git worktree add --detach <directory> master, and open the session there with the data roots in its environment, which a worktree does not carry. " +
 		"Its commits take the same command and land on the trunk through the repository's one queue: each waits its turn, is brought up to the trunk and is checked on it. " +

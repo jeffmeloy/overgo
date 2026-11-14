@@ -40,3 +40,20 @@ func TestTheLeaderboardReadingHeadsMMLUPro(t *testing.T) {
 		t.Fatalf("with no leaderboard reading, the reading asked without demonstrations heads MMLU-Pro; want it never the headline")
 	}
 }
+
+// TestALoneNoDemonstrationReadingIsNoHeadline holds a model whose one MMLU-Pro reading was asked without the
+// harness's demonstrations to the missing-evidence cell, the reading listed beside it under its own label (SQA-370): it
+// had headed the cell as the benchmark's figure, which it is not.
+func TestALoneNoDemonstrationReadingIsNoHeadline(t *testing.T) {
+	t.Parallel()
+	protocol := evaluation.PromptingRawCompletion.Label() + ", without demonstrations"
+	alone := evaluation.EvalSummary{
+		Suite: "alone", Prompting: protocol, Record: testutil.ArtifactID(t, artifact.KindEvaluation, "alone"),
+		Metrics: map[string]float64{"accuracy": 0.12}, Directions: map[string]runrecord.Direction{"accuracy": runrecord.DirectionMaximize},
+	}
+	descriptors := map[string]evaluation.SuiteDescriptor{"alone": {Kind: "grouped-choice", Source: "store/mmlu-pro", Cases: 1203}}
+	cell, beside := qualityCell(recipe.TaskInference, []evaluation.EvalSummary{alone}, descriptors)
+	if cell.Reason == "" || cell.Value != 0 || cell.Source.Valid() || len(beside) != 1 || beside[0].Contract.Protocol != protocol || beside[0].Value != 0.12 {
+		t.Fatalf("a lone reading without demonstrations gives the cell %+v with %d beside it; want the missing cell and the reading beside it", cell, len(beside))
+	}
+}

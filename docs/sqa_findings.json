@@ -39,7 +39,7 @@
         ],
         "adoption_scope": "Supersedes the absent repository-document reference at the owner's request; current external SHA is verified. Does not alter the executable plan."
       },
-    "assessment": "The plan is moving toward fewer independent policies and entry points, with specific retired owners named. Its immediate source/runtime prerequisites are sensible. Avoid plan-only workarounds for contradictory consolidation admission and avoid treating all cleanup as a dependency of receiving/product evidence. Only the plan has landed at this pin.",
+    "assessment": "This is substantial architectural deletion with concrete consumers removed and surviving runtime/state/development owners preserved. Verification now rejects failure before broad work and releases the device turn for host tests. The committed plan returns to receiving evidence. No complete rebuild or all-model correctness claim follows from this scoped progress.",
     "ast_surface_review": {
         "revision": "9bd406acafb89c44a439722419f1f7e85e71f691",
         "architectural_target": "Fewer independent product entry points and dependency owners; retain process isolation and existing compiled/runtime/development authority.",
@@ -60,7 +60,7 @@
         "complete_cost": "29196812c->0b5a70f89:34changed-Go paths,+759production/+1671testAST,net+2430,+140/+312lines,+1production/+7testfiles,0staticfixtures/binary/package additions. This is necessary capability/recovery growth,not net reduction. Historical closure reductions kept separate.",
         "authority": "No implementation,plan/skill changes,worker messages,agents or workloads."
       },
-    "current_review_order": "Committed guidance/current plan/architecture target -> provisional source and concrete caller conclusions -> relevant canonical findings -> targeted AST/retained refusal and whole committed cost -> concurrent re-read/publication.",
+    "current_review_order": "Current committed guidance/plan/architecture target -> provisional concrete owner/caller conclusions -> relevant findings -> selected AST/whole changed-source costs/retained results -> concurrent re-read/publication.",
     "declined_candidates": [
         "Do not implement five separate monitors, another notes file or recurring model/test workload. One existing status projection is enough.",
         "Do not count a successful preflight as a refused commit, an already-landed retry as a new commit, or a retired/renamed step as completed.",
@@ -154,46 +154,46 @@
         ]
       },
     "plan_review_follow_up": {
-        "pin": "aa8c891751db9b2feeacd2f59efdfc901432745f",
-        "assessment": "The eight new rows generally favor existing owners and deletion. aa8c89175 commits only docs/plan.json (+236/-3 lines); source still equals 91aee232d. It records intended reduction, not a completed rebuild or verified recovery. The same-commit consolidation refusal is a concrete remaining source-policy mismatch; plan-only precursor work avoids it without curing it.",
-        "recommendation": "Prioritize the real receiving prerequisites and retain one existing receiving owner. Let related planned landing work repair the class mismatch; no separate SQA work queue or new mandatory gate. Treat dead-chain as explicit retirement of named public surfaces, not a call-count inference. Keep its surviving product/recovery owners and charge the whole change.",
+        "pin": "b75dacbeb39d7e44244849f96acdc8e9b051afbe",
+        "assessment": "All eight aa8c89175 review rows have now landed in three batches. The committed plan is 40 items/66 steps and puts cycle-lanes/do first. Retired public CLI/route/request/UI consumers are actually removed; existing execution/operation/state owners remain. This is substantive deletion and recovery improvement, not merely reorganized code.",
+        "recommendation": "Use the existing receiving row for the next meaningful coverage evidence. Keep the new-step class inconsistency as a P3 follow-up during related landing work; it is not a new prerequisite or dispatch row. Preserve accepted numerical/resource/source identities and scoped receipts. No replacement scheduler, run language, watchdog or blanket report gate.",
         "recommendations": [
           {
-            "rows": "verify-first/do; related landing changes",
+            "rows": "Related future landing-owner work",
             "evidence_basis": "observed",
-            "evidence": "aa8c89175 is a plan-only precursor after the combined hold-start/audio-clock/dead-chain/lane-run/expected-end landing was refused. The retained refusal names a check passing on c7f534b7739b; landing_waits records that verify stage as 41.826 seconds. addedChecksFail (landing.go:953) requires every newly filed check to fail on base; undoable already exempts consolidations using consolidates. The predecessor then had two test-stage refusals (389.295 + 130.104 seconds) before its plan-only landing. Those stage times are not the cost of the class mismatch alone.",
-            "recommendation": "Align added-check admission with the existing per-step consolidation contract. A semantics-preserving reduction can pass before and after; do not force a separate plan-only commit or an artificial failing test merely to admit it. Keep new behavior/check replacements bound to their accepted commands and counterfactual evidence. Classify each affected step using its existing item/terms; a consolidation elsewhere in a mixed landing must not exempt a behavior step. This P3 process follow-up rides related landing work and is not an additional blocker of receiving/product work.",
-            "disappears": "Inconsistent class decisions and avoidable precursor landings/extra base executions; no new command, class language or exception registry.",
-            "retained_owner": "landing.addedChecksFail, undoable and the existing consolidates predicate; native row/accepted-check fixtures.",
-            "done": "A same-change newly filed consolidation retains its valid before/after check without a precursor commit; a newly filed behavior change with a vacuous check is still refused, including in a mixed landing. Reuse the native row fixture. Preserve SQA-378 accepted-command identity and the resolved SQA-332 plan correction; no closure evidence is rewritten."
+            "evidence": "The retained 14:07 combined-batch refusal on c7f534b7739b forced a plan-only precursor. addedChecksFail still has the same 90-AST body at b75dacbeb: every new check must fail on base, while undoable exempts consolidations. The new consolidation-counts change removes budget bookkeeping but does not resolve that class mismatch.",
+            "recommendation": "During related planned landing work align each newly filed step with its existing item/terms class. A semantics-preserving consolidation can pass before/after; a behavior step must not acquire that exemption from a different consolidation in the same batch. Do not require an artificial failing test or extra plan-only commit.",
+            "disappears": "Duplicated inconsistent class decisions and avoidable precursor/base work.",
+            "retained_owner": "Existing addedChecksFail, terms and native row fixture; no new registry or command.",
+            "done": "A same-change consolidation is admissible without a precursor; a vacuous behavior check remains refused, including a mixed batch. Preserve SQA-378 accepted identity and SQA-332 historical closure."
           },
           {
-            "rows": "dead-chain/do",
-            "evidence_basis": "shown_from_source",
-            "evidence": "CompileCandidateScheduler is reached from controlleraction.CompileTransaction and the operator command. No repository automation invocation of controller-action was found; its command listing is a public contract. The expanded retirement also touches actual consumers: cmd/server constructs the retrieval provider; POST /agents/retrieval calls agentRetrieval; agent.js posts there; POST /evaluations/run accepts grounded_replay. They are not unreachable merely because no current writer populates their input. The committed row now explicitly names their removal.",
-            "recommendation": "Carry out the row as the explicit retirement it names, including CLI flags, route/request fields, browser controls, API/command listings and orphan schemas/tests. Keep normal inference/training, agent chat/session/restart/authority, ordinary evaluation and durable artifact/history access with their existing owners. Delete the obsolete scheduler instead of repairing its ranking or replacing it with a second one. Do not infer retirement solely from Go call counts or claim every touched directory disappears.",
-            "disappears": "Two named binary entry points (controller-action, offline-artifact-validate), their two command directories, internal/controlleraction, the isolated candidate scheduler and only the transitively retired implementation/setup/tests. These are planned removals, not committed savings.",
-            "retained_owner": "Current plan/loop development authority, operation/run state and existing model/training/evaluation executors; generic artifact store for retained history.",
-            "done": "Removed surfaces have no registered route, CLI flag or browser/listing consumer; retained supported paths and recovery/identity assertions survive. Count the complete landed production/test/fixture/schema/setup cost; no new shim, workflow language or migrated scheduler."
+            "rows": "dead-chain/do (landed)",
+            "evidence_basis": "observed",
+            "evidence": "Two commands and internal/controlleraction, isolated scheduler/candidate/offline/retrieval schemas, loop flags, /agents/retrieval route and browser fold, and grounded_replay request branch are removed together. Ordinary /evaluations/run still submits through operation/executeObservedOperation/ExecuteEvaluation. Generic storage and the no-forward/representation-bridge recipe admission remain.",
+            "recommendation": "Credit this explicit retirement, including the removed candidate-order test (SQA-295 closed). Keep surviving inference/training, agent chat/session/restart/authority and ordinary evaluation assertions. Do not recreate the retired scheduler or preserve its fixtures without a supported contract.",
+            "disappears": "Two binary entry points, three tracked Go-code directories and the retired transitively owned chain, including its tests/setup.",
+            "retained_owner": "Current plan/loop, model/training executors, operation/run state, recipe admission and generic artifact store.",
+            "done": "Verified removal at b75dacbeb with no remaining registered/CLI/browser consumer in the searched scope. Old artifact bytes were not deleted or relabelled. Scoped gate evidence is retained; no claim of all-model equivalence."
           },
           {
-            "rows": "hold-start/do; audio-clock/do; lane-run/do; expected-end/do; cycle-lanes/do",
-            "evidence_basis": "shown_from_source",
-            "evidence": "The plan narrows hold-start to four fixture changes using the test process plus a mismatching start, avoiding the initially proposed helper process. Audio command omits Go timeout opt-out. Lane-run removes the median-based stall machinery, whose current lane_walls.json is {}. Expected-end removes guessed end times. None of their source changes has landed at this pin.",
-            "recommendation": "Retain existing process identity, cancellation, stop and resource owners. The source/run prerequisites should unblock the existing receiving run; independent cleanup should not silently become a prerequisite. Progress names the running test; it does not detect silence or deliver completion. Keep fail/pass recording, first-cause propagation and partial/skip receipts when deleting the stall machinery. Do not add another watchdog or measurement campaign.",
-            "disappears": "Fixture subprocess proposal, ineffective duplicate wall-history/stall policy and guessed completion presentation, if the planned deletions land.",
-            "retained_owner": "processcontrol/guard identity; validate.observe and existing test/run records; plan/loop dispatch and resource admission.",
-            "done": "Existing receiving row records actual phase/test/subcase/skip outcomes through completion or an actionable failure; preserved numerical/calibration obligations in SQA-266 decide coverage. No full-run or speed claim from a scoped pass/log line."
+            "rows": "verify-first/do, pin-chain/do, lane-run/do, audio-clock/do, expected-end/do, consolidation-counts/do (landed); cycle-lanes/do (open)",
+            "evidence_basis": "observed",
+            "evidence": "Verify now precedes broad tests/lanes on a scoped card turn; native full-mode failure/success release cases and assertion-based undo support closure of SQA-322. Pins compute chained edit guidance on copies through the current bytePins index. Audio opts out of Go's implicit timer. Progress records test starts; the history-driven stall timer, guessed phase ends and non-consolidation count/history readers are gone.",
+            "recommendation": "Retain the existing first-failure/package/phase, process lifetime and resource/cancellation owners. Use actual receiving subcase/skip/partial-failure receipts, not a Bonsai slice or progress line, to decide transfer completion. Pin-chain credit is limited to the existing indexed record families, not a universal dependency proof.",
+            "disappears": "Late broad work before verify, repeated one-hop pin handoffs and obsolete stall/end/count bookkeeping. Verifier/pin fixes add code and their entire cost is charged.",
+            "retained_owner": "Landing verify/card/terms, validate laneWatch/measurement records and existing plan/loop receiving driver.",
+            "done": "First two functional fixes verified under their scoped native/gate evidence. Full receiving/model completion remains unverified and is the current first row, with no independent cleanup ahead of it."
           }
         ],
-        "limits": "Report-only. No plan/skill edit, implementation, test/workload, cleanup, dispatch or worker message. All broad uncommitted deletions excluded. Commit account/plan, retained local stage/refusal records and source are distinguished; no future wait bound or measured saving is inferred."
+        "limits": "Report only; no SQA app execution, dispatch, plan/skill edit or cleanup. Current dirty plan excluded. The earlier 204-minute versus 95-minute comparison is not a future wait bound or measured saving."
       },
     "rank_basis": "Actual398/399 admission failures precede local400 consolidation.397 closed;400 retains unique coverage.376 owns known-rule/history/delivery obligations.",
     "refactor_target_progress": {
-        "architectural_progress": "The committed plan names two command retirements and the isolated candidate scheduler, removes median stall/guessed end/count bookkeeping, and narrows hold fixtures to a deterministic existing-process identity. Existing plan/loop, process, operation/run and model executors remain the intended owners. None of these source reductions has landed.",
-        "conflicts": "addedChecksFail has no consolidation distinction although undoable does; the retained failure forced a plan-only precursor. dead-chain includes real served route/request/UI consumers, requiring explicit contract retirement as already named by the expanded row. cycle-lanes/do and full receiving receipts remain pending; process cleanup must not become a shadow dispatch plan.",
-        "next_useful_reductions": "Repair the new-step class inconsistency through the existing landing owner during related planned work; delete the retired command/candidate chain with its clients/tests/listings rather than replace it. Remove ineffective wall/estimate bookkeeping while retaining first failure and terminal records. Complete receiving work after actual blocking prerequisites, without making all independent cleanup precede it.",
-        "cost": "This committed delta: plan only, +236/-3 lines, zero production/test AST, new binaries/directories/fixtures or runtime savings. Potential dead-chain removes two binary entry points and three code directories (two commands and internal/controlleraction), plus only proven orphan consumers; other touched packages may remain. Actual whole landed production/test/schema/setup/recovery costs must decide net reduction. Prior 9a->91a repair growth +353 production/+496 test AST is still charged."
+        "architectural_progress": "A complete candidate/controller/offline/retrieval branch is retired through its concrete command, HTTP, UI, schema and test consumers. Three code directories disappear without another scheduler or execution language. Existing registered recipe admission, numerical/training executors, operation/run state and development authority remain. Verify/pins/progress/count changes reuse existing owners.",
+        "conflicts": "Full receiving receipts remain absent, one SenseNova model-resource gate exception remains, and new-step consolidation admission still contradicts its before/after contract. The format-independent model/tensor migration is not established by these retirements; no claim of complete rebuild or general cross-format reuse.",
+        "next_useful_reductions": "Keep receiving execution first as the committed plan now does; retain actual subcase/skip and source/model/request identities. Align new-step class admission when related landing work touches it, without another gate or precursor workflow. Existing form/verify order tables may be compacted when naturally touched; that optional test cleanup does not reopen the repaired late-verification defect.",
+        "cost": "727ac6722->b75dacbeb: 190 changed Go paths, -100618 production/-77414 test AST; -17540/-10544 Go lines; -46/-42 Go files. Tracked Go-code directories 247->244 and command main entry directories 62->60: controller-action and offline-artifact-validate removed, plus internal/controlleraction. Physical old executable files were not inventoried or cleaned. Retirement gate reports schemas -52, fixture files +0/bytes -1737, CUDA source/entries +0. Per-commit costs retain verifier/pin growth +333/+582 and count cleanup -488/-339 rather than hiding them in net deletion."
       },
     "working_notes_review": {
         "finding": "SQA-334",
@@ -203,10 +203,10 @@
       }
   },
     "committed_plan": {
-    "git_blob": "b34c95d2cdd74fb8eccf799a9b2bf2c06af9011d",
+    "git_blob": "38f6450e8e5674d3d34f053c318a8268a3d12ae4",
     "path": "docs/plan.json",
-    "revision": "aa8c891751db9b2feeacd2f59efdfc901432745f",
-    "sha256": "c665cf2e845d2a5c4ec60b5c1b29483c85fc69bac12e1d62391d1f06524a07f4",
+    "revision": "b75dacbeb39d7e44244849f96acdc8e9b051afbe",
+    "sha256": "42e97f0e1a9c56bf14d91bb2a4a8d68cb8b0f27e460ba2cdfa41327979ca72e8",
     "working_tree_status": "Committed plan at review pin; prior draft assessment retains its own snapshot identity. Current working plan edits excluded."
   },
     "findings": [
@@ -797,7 +797,7 @@
     "displaced_surface": "Existing plan.RecordDigests/runRecorder already displace repeated file reads and erased phase metadata (+261production/+581test for that earlier full change). Current opt-in migration removes five one-shot probe/benchmark files and duplicate Gemma4 prompt wrappers, relocates model-only tests and adds1248policy nodes; complete current landing net -2832 Go AST, not gross deletion. Native Kimi/T5 fixtures and multimodal production input matrix retain the named shared contracts; remaining external-catalog/identity requirements need explicit disposition. No fixture bytes or binaries/directories disappear. A correction to the global-set heuristic may remove its228-node setVariables reader plus callers, but complete after-cost/admission coverage is undecided; no speculative saving credited.",
     "evidence": "Retained eb0080dcc accounted for all15 failing names at4dcd2df02:12passed, Un-0 needed an existing empty-store fixture, TabFM had insufficient detectable gain on26held-out requests, and viewed-model onboarding named conversions instead of native files. ddfba003b now resolves the scoped TabFM prerequisite using existing credit-g JSON requests: whole-row hash pools keep training/held-out membership disjoint, duplicated input rows are read once, and existing typed request/categorical columns replace CSV metadata/sign-log setup. The retained reading improves0.5739->0.6164, gain0.0425 over159held-out requests versus detectable0.0257; the unchanged gainDeviates2 criterion approves and promotes. Two retained runs agree; SQA ran none. This is one dataset/request-level route proof, not159independent datasets or broad TabFM superiority; within-pool dependence/generalization is not proved by a larger case count.2368507a1 gives the declared verifier its required card switch. Historical November8 messages remain unavailable and cannot inherit these later causes. 4caa70f6a resolves the named native Gemma onboarding prerequisite: the retained clean-checkout onboard activates its source directory as model2cc612d5 and retires d0be4bb0/f5e632cd conversions after binding their original source weights. The smoke declaration now names that served native identity with the same arithmetic oracle, replacing two retired declarations with one. TestAcceptedSmokeOracles still binds declarations to live active recipes; its false-green/missing/stale/native-score cases remain. Retained landing evidence reports its passing check, not a new full cycle. Remaining unique obligations below remain.\nThe root measurement record still names fdd4ab1cea379541604905e9b913b1a5f3d92bc8. readme-speed/measured publishes scorecard-20261114T025256Z from retained store readings and fills the speed table; it is a new publication, not a new full measurement cycle. Record.Carry retains newest source identities/dates and gaps owed a reading, rather than forcing unchanged valid work to run again. No new full cycle is established. The landing scorecard remains one fixed text input, not system-wide evidence. Keep the corrected distinction between card-wait time and useful model load, the existing digest/phase owner and all unique opt-in coverage obligations below.\nHash-once/phase preservation is already owned by plan.RecordDigests and runRecorder: same Started identity reuses digests, a new begin rehashes. The native fixture deliberately mutates bytes within a run yet retains the first digest. The historical12-18minute saving is extrapolated, not measured. Existing paired numerical owners, exact identities, partial failures and phase/package/digest preservation remain obligations.\n4dcd2df02 now removes/relocates the31 flagged opt-ins and related cases. The complete landing is +3production/-2835testAST, after charging the1248-node runs_somewhere policy; no fixture bytes disappear. Five deleted probe/benchmark files retain one-shot decision sources: adapter33e96a505, composition3716051ea, chain e88d0033a, dose1b446104a, loader72bc4248d. The obsolete eight-row identity probe used an empty repository store and3of7 goldens no longer match; preserve any still-required record identity through its existing owner rather than reviving that setup. Gemma4 image/audio prompt tests are actual duplicate contracts: TestMultimodalInputMatrix/gemma4-12b-image-audio-video retains the same SHA-pinned goldens/questions, full TokenIDs and production BuildImagePrompt/BuildAudioPrompt, plus first-token/video checks. Leadership/generation checks move to windows&&modeltest and existing CycleLanes model ownership; added baseline flags deliberately increase future cycle work, which is not measured by deleted AST.\nDeleted Kimi/Gemma3/UMT5 real-catalog tests checked external ReadSpec/ReadWeights, layer counts and hybrid/postnorm/relative-bias bindings. Existing TestReadWeightsKimiLinearHybrid and TestReadWeightsT5Encoder retain small native hybrid/bias bindings through readFixtureWeights->ReadWeights. That is partial requirement ownership, not proof of equivalent external metadata or checkpoint completeness.48/24 were checkpoint expectations, not universal architecture limits. Missing installed checkpoints alone is not a retirement reason; map remaining unique requirements or explicitly retire checkpoint-specific assertions. Do not replace these with new heavy model runs.\nTestEveryTestRunsSomewhere globally accepts a gate if any source contains NAME=value or Setenv(NAME,...). A setter after that test's own skip, or only in an unrelated fixture, therefore supplies apparent ownership without delivering the variable to the guarded process. This is a source-admitted counterexample, not an executed regression. Treat the scan as guard inventory, not proof of execution; four explicit awaitingPin reference-build gates remain. Retained implementation evidence reports Krea velocity median -0.0153 versus0.0354 outside0.012 while latent acceptance passes. Diagnose that existing numerical cause; do not relax its bound or add a second ledger/run. SQA ran no tests.\nc0905decb removes active-test deadline owner/tests, default evaluation/guard deadlines and wall-based post-failure skipping. RunCommand supplies -timeout=0 only when absent, preserving explicit supplied timeouts; Limited shares optional caller bounds. Failure output/run records, event progress and cancellation remain. All lane packages now finish after failure to collect independent diagnostic results; future expensive work counts. The removed15minute heuristic was not a declared dependency: do not restore it or assume all queued checks redundant. Admit actual shared setup dependencies through current owners before dependent work, preserving independent progress.398 finds the missed default-zero smoke guard. Root full record remainsfdd4ab1; no new full publication established.\n9a8766941 lands the CUDA ownership transfer after dc39's discovery expanded35packages/35m54s versus earlier25packages/10m36s. Current discovery is29packages; the retained landing actually ran8affected packages in1m44.259s. Neither difference is a matched speed comparison. Most real-model tests now require modeltest; models lane explicitly adds densecausaltrain/modeldevice/oscillatorimage/hybridtrain/nvvfx, with existing cycle tags/opt-ins. Selected resident-lifetime300AST,TabFM real-training330AST and transcription-device bodies are unchanged; the shared SenseNova fixture275AST is relocated unchanged. Assertions/goldens/calibration remain work,not deletion. TestReachInvariants now uses lanesOf rather than an empty dynamic-lane table, so its gate-exclusion rows are no longer vacuous.\nOne real-model resource measurement remains deliberately in the gate: SenseNova runtime_resources is byte-identical to its old retained harness and named by measuredInPlace; cuda-resources is open. TestTheCUDALaneRunsNoRealModelTest's330AST plus dataRootReaders496AST is a scoped package-test declaration/name/import fixpoint,not type resolution or proof all production/helper paths avoid models. It excludes that declared exception. Retained empty-root runs reported missing fixtures; TabFM headDir actually skips absent heads in child subtests,so a passing parent is not proof they executed. Use actual subcase/skip receipts,not raw top-level pass counts.\nReceiving work is now observed,not merely planned: the retained91aee232d narrative says the first journey waited04:10-10:20 on a provider declaration already refused because its key variable was not named,with the card idle; the browser was then closed. That interval is the retained journey account,not a landing_waits duration or model timing. The sampled ledger contains cycle-lanes/answers at12:08:26-12:17:02,not a completed cycle-lanes/do receipt. Full receiving/model coverage is therefore still unproved.\n91aee232d names operator variables in the fixtures,removes dirty-tree/refusal-as-success branches and skipped remote legs,and makes each provider/Library wait end at its own answer/banner then require success. Existing waitBrowserOperationState rejects wrong terminal states; no generic wait-any-page-error rule is needed(the retained attempted global version falsely failed40tests). Private store copying now retains aliases only when target and every parsed artifact named in the alias are selected,using the existing setup and native isolation fixture. The product provider note gains a named status; whole webui pass2m40s is retained scoped evidence,not a full receiving cycle.\nee7462dd8 streams verification output through the existing ExecuteShowing/process owner: package verdicts/failed tests or ordinary output lines reach the landing log while original full evidence/cancellation/failure classification remains. It runs no second check and introduces no timer/watchdog. Streaming cannot itself detect a quiet stuck page or prove continuation; the action-specific refusal assertions fix that cause. Provider CLI/HTTP declaration and retirement now use the existing RunningCommit owner rather than imposing clean-worktree verification on administrative declarations; named-variable authority remains,and actual numerical validation/training/benchmark callers retain ExecutableCodeCommit. One SenseNova resource gate exception and the optional narrow administrative-only evidence comparison remain as previously scoped. Root full measurement is stillNovember8.\n",
     "evidence_basis": "observed",
-    "evidence_commit": "aa8c891751db9b2feeacd2f59efdfc901432745f",
+    "evidence_commit": "b75dacbeb39d7e44244849f96acdc8e9b051afbe",
     "expected_benefit": {
         "outcome": "Already-landed digest reuse avoids potential repeated model-file reads. Current opt-in migration is net -2832 Go AST (+3production/-2835test), including1248policy nodes. Duplicate prompt setup disappears; moved model checks now charge the measurement cycle. Neither historical hashing estimates nor different gate walls establish elapsed savings.",
         "uncertainty": "No newer full measurement run or matched runtime/peak comparison established. Within-run digest immutability remains explicit. Three deleted external catalog cases need unique-requirement disposition; the global-set scan is a heuristic. The earlier long-sequence lane +35production/+259test and predicted~3minutes remain separate costs, not saved work.",
@@ -808,7 +808,7 @@
     "id": "SQA-266",
     "impact": "Hours of retained paired execution justify attention, but stale credit or losing reference-vs-optimized evidence hides numerical regressions. Preserve recipe/tokenizer/kernel/environment/lifetime bindings. No blanket minutes-only validation claim.",
     "likely_effort": "No current implementation task authorized by this report. Reassess the smallest named overlap from the next ordinary retained package record; keep completed digest/phase reuse credit.",
-    "plan_coverage": "At aa8c89175 the plan has 48 items/74 steps. cycle-lanes/do remains open behind eight newly filed rows; none of those implementations is committed. audio-clock addresses a concrete source omission: the audio go test lacks -timeout=0 while other cycle go-test lanes have it. Its retained plan account reports a ten-minute timeout in TestASRResidentReference/recurrent while waiting for the card; SQA did not inspect that direct run's raw log. Treat hold-start/audio-clock as relevant prerequisites, not proof the receiving run completed. Independent cleanup need not become a new dependency of receiving evidence. The root full-run record is still November 8 at fdd4ab1.",
+    "plan_coverage": "870bd5a98 lands hold-start/audio-clock/dead-chain/lane-run/expected-end; 23e3a25c1 lands verify-first/pin-chain; b75dacbeb lands consolidation-counts. The committed plan now has 40 items/66 steps with cycle-lanes/do first. Audio explicitly opts out of Go's implicit timeout and its native lane-table check is retained; run progress uses test starts, not historical stall timers. The retirement's gate ran scoped device/webui/CUDA lanes and one Bonsai scorecard slice, not the complete receiving cycle. No full receiving success verified; root full measurement remains November 8 at fdd4ab1. Independent cleanup is no longer ahead of that row.",
     "plan_references": [],
     "raised_by": "Review session e8549e3e at the owner's request, 2026-10-31 (owner: \"there is fundamental problem with this system to re-do testing over, and over, and over and over, and never finish\"; \"don't run the whole scorecard until code is fixed\")",
     "recommended_change": "Credit the retained all15 accounting and Un-0 native setup correction. Credit ddfba003b's scoped TabFM held-out route and4caa70f6a's native Gemma activation/declaration reconciliation as completed prerequisites. Preserve the original statistical bound and source identity. The existing full-run row and owner scheduling now decide the next admitted cycle; do not keep reporting those cured prerequisites as blockers. Do not weaken the statistical bound, force conversion or mutate/activate the store as SQA. Reuse actual compatible evidence and retain partial failures. The one post-rehearsal exclusive full run still belongs to the existing measurement/publication driver, not another recurring workload. Distinguish the current causes from unrecoverable historical messages. Keep card-wait measurement separate from useful work and independent host progress.\nRetain the Gemma4 prompt oracle under the multimodal production-path fixture and the moved model checks under CycleLanes. For removed catalog/identity probes, transfer only unique supported requirements into existing native ReadWeights/record fixtures, or explicitly document why the checkpoint-specific requirement is retired. Keep one-shot refusal/SHIP evidence in Git; do not reinstate retired experiments as standing tests. Diagnose the exposed Krea failure before dependent performance/quality claims.\nRemove global incidental Setenv/string presence as proof that admission reaches a test. Retain declared CycleLanes and scoped child-process admission as owners, using actual selected/passed/skipped receipts from an ordinarily authorized run to decide coverage. Any retained static guard inventory must state that limit. Do not build a control-flow analyzer, selector, new cache or scheduler to perfect the heuristic; count the check's own maintenance and future newly enabled work.\nCredit the landed modeltest/receiving-owner migration and corrected dynamic reach invariant. Keep required numerical/recovery cases in the current cycle; verify actual selected subcases,skips and partial failures through existing receipts,not top-level parent PASS or a static source guard. Do not expand dataRootReaders into a generalized control-flow/type-loading framework. Retire measuredInPlace only with the resource case's valid retained owner.\nBefore paying for cuda-resources solely because a build tag changes harness bytes,compare that exact header edit plus unchanged imports/helper/numerical/protocol/hardware identities through TestImageVideoCapacityAcceptance's existing immutable-harness compatibility owner. If the change is strictly administrative and that contract permits a narrow explicit carry,retain the old producer/source/timing and remove the forced recalibration/current gate exception; do not create generic semantic hashes,ignore arbitrary comments,or rewrite old evidence as newly measured. Extend the existing alteration fixture with that one allowed edit and a forbidden numerical edit if new compatibility behavior is adopted. If equivalence is not established,preserve the planned exclusive measurement and claim no saving.\nKeep the current action-specific success/refusal checks,named-variable fixture admission and isolated-store alias closure. Use the existing verify/process and terminal-operation owners to expose progress/failures;do not reintroduce a global page-error trigger,watchdog or notification framework. A partial webui repair or printed package verdict is not delivered full receiving evidence. Preserve actual models/subcase skips,source/request identities and partial failures through the existing run owner before claiming the transfer complete.",
@@ -1194,45 +1194,35 @@
   },
     {
     "category": "native-go-test-surface",
-    "classification": "source-and-in-memory-ast-established-net-reduction",
-    "closure_criteria": [
-        "The outer seed constant/loop/suffix disappears and the whole test file is smaller.",
-        "Both component orders and all three ablation orders remain, including the reverse pair, with one and two ablations per component.",
-        "Exact identity checks, errors and the separate missing-forward/representation-bridge cases remain; no replacement fixture, wrapper or recurring workload."
-      ],
-    "comparison": "Static deciding comparison: opposite orders of distinct IDs cannot both match canonical order. During ordinary implementation validation retain this one native fixture; if the regression signal needs confirmation, the existing unsorted-before-fix comparison suffices with one fixture and both reverses. Do not add another seed sweep, test, model workload, benchmark or SQA confidence run.",
-    "displaced_surface": "Complete in-memory parsed candidate_closure_test.go864->845(-19); candidate_compile.go6199 unchanged, compared7063->7044. The local id and component helpers still serve multiple concrete calls; no new abstraction/wrapper/migration/import cost. Component-pair setup16->1, component construction32->2, ablation construction48->3, evaluation-plan/trial construction and ValidateIdentity each96->6. All six inner cases remain. Static fixtures0->0; no store/model/device setup, gate leg or maintenance registry added. Existing native Go caching remains applicable.",
-    "evidence": "The new test constructs16 sets of distinct hash-addressed facts, two components and three ablations, then for every set visits both component orders and three ablation orders. The first two ablation lists are exact reverses. For distinct IDs, forward and reverse cannot both equal the canonical sorted order: the retained six combinations already expose a missing component sort and a missing ablation sort regardless of label hashes. The16-seed comment assumes a single lucky declared order could mask the regression, but the inner reversed cases already remove that possibility. Only the test calls candidateOrderSeeds; no exported/config/build-tag contract depends on it. Current newCandidateEvaluationPlan/newCandidateTrial canonicalize lists while ValidateIdentity sorts provided IDs. The separate closure test and stored dependency fixtures cover different behavior and stay.",
-    "evidence_basis": "shown_from_source",
-    "evidence_commit": "bf95cc7fb8ca93db71873c52c5e1fa070744bf50",
+    "classification": "verified-retirement-of-candidate-order-subsystem",
+    "evidence": "Closed by 870bd5a98, verified at b75dacbeb. The explicit controller/candidate retirement removes candidate_compile.go, CandidateCompilation/newCandidateTrial and TestACandidateValidatesInEveryDeclaredOrder with its 16-seed sweep. Exact committed-symbol search finds no remaining owner of that retired contract. This is retirement, not a claim that the old ordering algorithm was repaired or that its six cases moved. The distinct supported recipe admission remains: candidate_validation.go still checks registered modules, placement/residency, exact dependency IDs and the inference forward path. TestAnUnloadableRecipeIsNotRunnable has the same formatted-body hash (281 AST, 56f2ca1f2b71...), retaining the no-forward refusal and runnable representation bridge. candidate_validation_test.go is unchanged. Prior 19-node compaction estimate is not separately credited. The whole retirement's native/gate evidence is scoped, not a full model receiving run; SQA ran no app tests.",
+    "evidence_basis": "observed",
+    "evidence_commit": "b75dacbeb39d7e44244849f96acdc8e9b051afbe",
     "expected_benefit": {
-        "outcome": "19 fewer test AST nodes,15 fewer component-pair setups and90 fewer identical-shape validation iterations.",
-        "uncertainty": "Parsed syntax only; no production test or benchmark executed. No wall time or allocation saving measured. This preserves the current missing-sort regression signal, not a claim about all possible future bugs."
+        "complete_cost": "870bd5a98: -100463 production/-77657 test AST, -45/-43 Go files; two command entry points and three code directories removed. Retained gate reports 52 fewer schemas and 1737 fewer fixture bytes. All candidate-order deletion is included, not an additional saving.",
+        "limits": "Git/source/AST and retained gate records only; old artifact bytes/store history are not deleted by this review. Generic retained storage is not a new typed compatibility layer."
       },
     "id": "SQA-295",
-    "impact": "Reduces repeated hashing/canonicalization/test setup and source maintenance. Production behavior, exact identities, errors, numerical ordering, cancellation, platform/build tags and resource lifetime are unchanged. No data-loss or confidentiality boundary is removed. The arbitrary label-seed count is unnecessary for this deterministic order contract.",
-    "likely_effort": "Small deletion inside the existing test; no migrated unique cases or new helpers.",
-    "plan_coverage": "Existing native test compaction; no new plan row or selector needed.",
-    "plan_references": [
-        "compact-tests/param-folds"
-      ],
-    "recommended_change": "Remove candidateOrderSeeds and its comment, unwrap its outer loop, use the existing local id helper with name directly rather than a seed suffix, and simplify the seed-only failure message. Retain both component orders, all three ablation orders, the one/two-ablations distinction, existing local component helper, and every identity/error check. No new test/helper/fixture/selector.",
     "severity": "P3",
     "sources": [
         {
           "path": "internal/modelrecipe/candidate_closure_test.go",
-          "symbol": "candidateOrderSeeds; TestACandidateValidatesInEveryDeclaredOrder; local id/component helpers"
+          "symbol": "seeded candidate-order test removed; TestAnUnloadableRecipeIsNotRunnable retained unchanged"
         },
         {
-          "path": "internal/modelrecipe/candidate_compile.go",
-          "symbol": "CandidateCompilation.ValidateIdentity; newCandidateEvaluationPlan; newCandidateTrial; canonicalCandidateIDs"
+          "path": "internal/modelrecipe/candidate_validation.go",
+          "symbol": "ValidateCandidateRecipe; inferencePathComplete; existing supported closure owner"
         },
         {
           "path": "internal/modelrecipe/candidate_validation_test.go",
-          "symbol": "TestCandidateRecipeCapabilityClosure; TestCandidateRecipeRejectsUnknownTransformControllerOrCheckpoint"
+          "symbol": "existing closure/admission and unknown transform/controller/checkpoint coverage"
+        },
+        {
+          "path": "docs/api_manifest.json",
+          "symbol": "explicit retired command/contract surfaces, 870bd5a98"
         }
       ],
-    "status": "open",
+    "status": "resolved",
     "title": "Keep candidate-order coverage in one identity fixture"
   },
     {
@@ -6271,86 +6261,43 @@
   },
     {
     "category": "automation-prerequisite-order",
-    "classification": "early-form-and-host-model-admission-improved; mixed-host-assertions-remain-late",
-    "closure_criteria": [
-        "Host-only and mixed-step accepted landings reject a failed host prerequisite before dependent broad tests/lanes; genuine long device checks retain appropriate scheduling.",
-        "Existing planverify, added-check/base and undo behavior executes once with the same identities; successful, preflight, plan-only, cancellation and trunk-conflict cases remain.",
-        "The retained full-mode false-verifier fixture observes no dependent stages; complete implementation/test/setup cost is recorded without treating all refused wall as avoidable."
-      ],
-    "comparison": "Use the smallest existing native fixtures for host-only, device-only and mixed-step order and actual full-mode early refusal. No additional model run is needed to establish sequencing. Count every new helper, retained order fixture and full lifecycle case; source movement alone is not a saving.",
-    "displaced_surface": "Host-only late verification and unconditional second host execution are displaced. Remaining removable work is broad/dependent execution before a failing host assertion in a mixed landing. Retain form and existing planverify/undo/added-check owners, one acceptance per declared command and exact candidate/base identity. MERGE verify_first_test.go into form_test.go: retain its explicit verify-before-test assertion as well as before-lanes, then remove the old139-AST file/order helper and duplicate host/card cases. Keep native mixed-list and full refused-run proof; do not remove space, cancellation, cleanup or conflict coverage.",
-    "evidence": "0afbb6366 adds form before invariants/test/lanes: check names/builds are listed in candidate and undo trees and known nonbuilding undo checks are not rerun. Retained comfy-recorder/client refusals at form6.002s and invariants40.375s show early admission before broad work; planverify no longer executes the same host check twice.78fdeebb7 repairs embedded PTX/record restoration and caches its discovered set across form/undo/undoTree. Its native assertion-based undo is retained, with complete +331production/+164testAST counted once in this review. That useful input repair does not execute a host assertion in form. checks still sends the entire verify stage after broad tests/lanes if any accepted check needs the card, so a mixed landing with a building but false host prerequisite remains late. spent_test still covers a false verifier as preflight, not full mixed mode.401 separately tracks root/build-context input discovery; do not merge that distinct identity contract into this sequencing finding.",
-    "evidence_basis": "shown_from_source",
-    "evidence_commit": "aa8c891751db9b2feeacd2f59efdfc901432745f",
+    "classification": "verified-verify-before-broad-work-with-scoped-card-turn",
+    "evidence": "Closed by 23e3a25c1, verified at b75dacbeb. checks unconditionally orders structural/form/invariants, then the existing verify (accepted checks, added-check/base and undo), then test/lanes/scorecard. Any card verifier no longer sends host assertions after broad work. Run takes the existing card turn for verify and releases it before host tests; later card stages reacquire through holdCard/letGo/takeTurnBack, preserving candidate/trunk checks and quiet-machine/cancellation ownership. Turn waits accumulate rather than overwrite. Existing check-turn/form/host-lane order assertions were updated without discarding their resource assertions. The new native full-mode TestAnOnTheCardCheckFailsBeforeTheTestStage (324 AST) proves refusal before test stage and a successful check's host tests run without the card turn. Both its and the pin-chain regression fail on assertions with production restored; retained verify 26.472s, ordinary tests 273.188s, no device/webui/CUDA lane reached. This resolves the original late-stage defect, without requiring a second verifier dispatcher, reordering accepted commands inside verify or treating optional order-table compaction as an open P2. No historical refused minutes are claimed as measured savings.",
+    "evidence_basis": "observed",
+    "evidence_commit": "b75dacbeb39d7e44244849f96acdc8e9b051afbe",
     "expected_benefit": {
-        "historical": "Earlier complete scratch-only alternative at efc02c5: landing.go5418->5418, spent_test.go682->695 (+13test AST/+103LF bytes); one existing Git/module fixture with4->5 table attempts. Kept as historical sizing, not current source after candidate isolation.",
-        "current": "58e8280 host-first +175 production/+148 test AST retained. New0afbb6366 full change adds252 production/311 test AST (+28/+31lines, net0/+2files), including deletion of testevidence/verdict.go and repeat-comparison tests. No static fixture/schema/command growth. Removes the second planverify execution, but adds candidate/base go-test listings and prepares the undo checkout in both form and later undo where checks build. Native Go cache is retained; no aggregate wall saving measured.",
-        "uncertainty": "Form catches build/selector admission early, not a host test assertion. Mixed host/card verification still runs late. Listing/build and duplicate undo-checkout setup must count against removed repeat executions. The old139-node verify_first_test.go can be removed after its before-test assertion is preserved in form_test.go; net test deletion awaits that complete edit."
+        "complete_cost": "Complete verify-first + pin-chain commit: +333 production/+582 test AST, +68/+96 Go lines, one test file; zero new command/package/schema/static fixture/CUDA. New native full-mode fixture is charged, not described as a deletion.",
+        "limits": "No SQA execution or matched time saving. Historical 204-minute late failures versus 95-minute waits inform priority, not a future contention bound. Accepted verifier commands retain their order/identity; the new-step consolidation admission inconsistency is a separate existing-owner P3 follow-up."
       },
     "id": "SQA-322",
-    "impact": "A declared acceptance failure can refuse a full attempt before broad host/device checks. This is sequencing efficiency; it neither eliminates initial invariant/lock costs nor claims successful runs were wasted.",
-    "likely_effort": "Small existing table reorder and one case in the retained lifecycle fixture; no new framework.",
-    "plan_coverage": "verify-first/do now explicitly owns moving verify before test/lanes, taking the card for a device verifier and releasing it before host tests. It is a plan, not a landed repair: checks at aa8c89175 remains byte-identical and sends all verify work late if any verifier is on the card. The native check-turn fixture currently asserts test precedes the device check. Preserve its distinct turn/wait/resource assertions when changing order. A whole-stage move addresses broad-work ordering; mixed host/device prerequisite order within verify still needs its own concrete acceptance.",
-    "plan_references": [
-        "fail-early/verify-first58e8280 (landed)",
-        "User feedback: late verification refusal costs",
-        "Downloads extreme_refactor_plan.md: early admission through existing owners",
-        "cheap-first/form0afbb6366 (landed)",
-        "verify-first/do (filed aa8c89175, not implemented)"
-      ],
-    "recommended_change": "Use the existing checks/verify/process/card owners. Keep cheap structural, form and invariant admission first; reject a known invalid host prerequisite before dependent broad/device work and execute each accepted verifier once under its original identity. For verify-first, retain holdCard/letGo and quiet-machine coordination, candidate/trunk revalidation, cancellation and reacquisition before later card stages. Reuse the existing native order/full-landing fixtures, including a mixed list whose false host prerequisite prevents dependent test/lanes/scorecard work, while preserving independent work. Amend the old order assertion rather than duplicate the same fixture. Historical second-turn waits are an estimate, not a hard bound or a measured gain. Do not restore retired boundary-note/base-form machinery or create a second preflight owner.",
     "severity": "P2",
     "sources": [
         {
           "path": "internal/landing/landing.go",
-          "symbol": "Run; checks (invariants/test/lanes/verify/scorecard); verify; judgeAdded; addedChecksFail"
+          "symbol": "checks; Run scoped verify card release; verify preserves accepted identity"
         },
         {
-          "path": "cmd/gate/land.go",
-          "symbol": "land -> landing.Run; preflight is optional"
+          "path": "internal/landing/lanes.go",
+          "symbol": "holdCard accumulates waits; letGo/takeTurnBack and existing turn ownership"
         },
         {
-          "path": "cmd/loop/land.go",
-          "symbol": "execRowWorld.Gate invokes cmd/gate without -preflight"
+          "path": "internal/landing/verify_first_card_test.go",
+          "symbol": "TestAnOnTheCardCheckFailsBeforeTheTestStage; full-mode refusal and host-turn release"
         },
         {
-          "path": "internal/planverify/verify.go",
-          "symbol": "Execute: command failure, non-vacuous evidence once; repeat-comparison path removed"
-        },
-        {
-          "path": "internal/landing/spent_test.go",
-          "symbol": "TestLandingRecordsItsWaitsByCause; existing row/refused verifier=false"
-        },
-        {
-          "path": "internal/landing/preflight_test.go",
-          "symbol": "TestPreflightRunsTheCheapStagesOnly"
-        },
-        {
-          "path": "internal/landing/space_test.go",
-          "symbol": "TestCommitChecksRefuseBelowTheFreeSpaceFloor"
-        },
-        {
-          "path": "internal/landing/verify_first_test.go",
-          "symbol": "TestAStepsCheckRunsBeforeTheLanes: host and device separately"
-        },
-        {
-          "path": "internal/landing/form.go",
-          "symbol": "form; list; holdsTest"
+          "path": "internal/landing/check_turn_test.go",
+          "symbol": "existing held-turn waiting/cheap-admission assertions preserved"
         },
         {
           "path": "internal/landing/form_test.go",
-          "symbol": "TestAChecksFormIsReadBeforeItRuns"
+          "symbol": "non-vacuous admission and uniform verify-before-test/lanes"
         },
         {
-          "path": "internal/landing/undo.go",
-          "symbol": "undoable; undoTree; undo"
-        },
-        {
-          "path": "internal/planverify/runs_once_test.go",
-          "symbol": "TestACheckRunsOnce"
+          "path": "internal/landing/host_lanes_test.go",
+          "symbol": "later device stages retain inherited turn"
         }
       ],
-    "status": "open",
+    "status": "resolved",
     "title": "Run the landing verifier before the broad tests and lanes"
   },
     {
@@ -8842,7 +8789,7 @@
     "displaced_surface": "Duplicate device diagnostic formatting is now removed through testevidence.Failures. RETAIN device/web UI output consumers and the JSON-parser and lane-cause tests as different boundaries. Remaining candidate is the obsolete WeekPace projection and its displaced assertions, after necessary status/decision cases move to the existing status fixture. No overall saving established.",
     "evidence": "Implemented owners remain credited:9290a89 DayDelivery and best-effort session-start output;39b457deb retained cause text;1c3f6be52 cause-first guidance;713568035 Worklist consumes existing Cause/Rules without another ledger. 1217b98a6 now preserves the first failing lane as context cancellation cause, shares testevidence.Failures across actual consumers, and feeds JSON/explicit failed-test names to the existing refusal/worklist path. Its native two-lane regression and assertion-based undo retain the repair. The local424-entry refusal snapshot supplies real confirmation: guidance-ops/image-readings now names overgo/internal/trainingworkflow:TestDeviceSamplerDrawsWhatTheHostSamplerDraws instead of the earlier CUDA command prefix; the no-clocks cancellation and opt-in tail records retain their historical limits. The test name alone does not prove the numerical root cause or recovery. Remaining source-shown advisory discrepancies: Worklist skips empty Cause before reading Rules, dropping30 known-rule records in this snapshot; missing run ledger leaves readRuns counts/wall zero rather than unknown; ReportLandings counts report steps rather than unique commits; writeStatus retains the incompatible WeekPace refusal/idle projection beside DayDelivery; String omits the exact window. GateHours is summed run wall including waits, not check-stage hours or elapsed work. Worklist is read only by explicit loop -status; the normal session-start reads DayDelivery alone. These reporting issues do not currently decide acceptance or stop work, so remaining scope is P3 and rides related planned status work.\ndc391678c now puts the diagnostic/reason before exit/command and paths-file arguments so causeBytes truncation retains the useful reason; TestARefusalSaysItsReasonBeforeItsCommand uses a long command and a non-test failure. Credit this existing-record improvement, not a new causal telemetry system or proof of automatic delivered continuation.\nee7462dd8 updates the day/week prose to attempts failed and streams verify/added-check/undo output into the existing landing log. ExecuteShowing retains Execute's single-run acceptance,full raw evidence and cancellation;the native fixture checks package verdicts,test failure and ordinary output without dumping raw JSON. This repairs hidden incremental output,not automatic delivered continuation or the still-distinct known-Rules/missing-Cause,WeekPace/window/report-vs-step obligations. Persisted Refused fields remain compatible;SQA makes no renamed-schema or new-metric claim.",
     "evidence_basis": "shown_from_source",
-    "evidence_commit": "91aee232d724e90ed25ca0f6181b07b2f2d5e7bf",
+    "evidence_commit": "b75dacbeb39d7e44244849f96acdc8e9b051afbe",
     "expected_benefit": {
         "landed_cost": "9290a89 adds1385 production/747 test AST,275 production/101 test lines and two Go files; no new package, binary or static fixture. delivery.go1260AST, status.go405, spent.go197. The retained status_test386 and new status_measures_test747 exercise different current contracts; they are not automatically duplicates.",
         "reduction_candidate": "Retire obsolete WeekPace/projection assertions only after current decision and necessary status cases move to the retained status owner. Reuse the existing fixture rather than another Git setup. Full replacement cost unmeasured; no net-saving claim.",
@@ -8855,7 +8802,7 @@
     "id": "SQA-376",
     "impact": "Improves advisory diagnosis and avoids misleading progress/cost conclusions. The remaining bookkeeping is not an acceptance check, data-loss path or demonstrated work stoppage.",
     "likely_effort": "Bounded existing status/Git projection and delivery integration; accurate historical run-kind attribution is limited by existing data.",
-    "plan_coverage": "refusal-failure/do landedee7462dd8;day/week labels now say failed and actual check output streams. Existing known-Rules/history classification,legacy WeekPace/window and best-effort delivery requirements remain. Printing progress does not discharge continuation/dispatch. No new reporting gate or workload.",
+    "plan_coverage": "Existing failure terminology/output streaming remains credited. 870bd5a98 removes guessed phase end times and the empty-history stall timer/wall ledger; actual phase start/end, verdict/failure/package records remain. LaneWatch names each top-level test at start, retaining first failure and package evidence. This is simpler truthful progress, not silence detection or delivered continuation. Known-Rules/history classification, legacy WeekPace/window and advisory delivery scope remain P3 and ride related planned work; no new reporting gate or workload.",
     "plan_references": [
         "review-fixes/status-measures9290a89 (landed; partial closure)",
         "fail-early/answered-refusals retired5f2e763cf",
@@ -10181,14 +10128,20 @@
         ]
       },
     "fresh_ast": {
-        "revision": "aa8c891751db9b2feeacd2f59efdfc901432745f",
-        "method": "External Go parser of seven pinned source files; formatted function-body hashes, parser-local Obj links and concrete call/route/CLI/browser inspection. No repository-wide census or type resolution.",
-        "counts": "7 files, 18,125 AST nodes, 108 functions, 3,417 parser-local links; zero identical formatted bodies in this sample. checks137, addedChecksFail90, undoable153, consolidates78, rankScheduledCandidates309, compareCapabilityRates111, agentRetrieve102, agentRetrieval229, evaluationRun247 AST. Semantic duplication is the independent class decision, not a literal copied body.",
+        "revision": "b75dacbeb39d7e44244849f96acdc8e9b051afbe",
+        "method": "Committed source/caller/route/flag/UI inspection plus retained external Go parser, formatted-body hashes and parser-local links. Complete before/after cost parser covers every changed Go path; selected AST follows actual verification/pin/recipe/record owners.",
+        "counts": "15 current files, 21196 AST, 134 functions, 4068 parser-local links; three candidate baseline files 7697 AST/35 functions/1555 links. Main selected set has zero identical formatted bodies. New full-mode verifier fixture324, pin-chain fixture243, stalePins499, laneWatch.observe201, plan.Save150, consolidation-count fixture174, unchanged supported no-forward/bridge fixture281 AST. Retired seed/order fixture was521 AST; it is included in whole cost, not a separate saving.",
         "retained_result": [
-          "review-aa8c-plan-ast.json"
+          "review-b75d-selected-ast.json",
+          "review-b75d-boundaries-ast.json",
+          "review-727a-candidate-before-ast.json",
+          "review-727ac6722-870bd5a98-cost.json",
+          "review-870bd5a98-23e3a25c1-cost.json",
+          "review-23e3a25c1-b75dacbeb-cost.json",
+          "review-727ac6722-b75dacbeb-cost.json"
         ],
-        "limits": "A sampled zero-clone count is not the percentage of repository boilerplate. No source changed since the last review, so previous complete cost evidence remains applicable. No credit for the draft's two removed command entry points or code directories; no binary build/output census or physical deletion by SQA.",
-        "constants_and_geometry": "Consolidation before/after semantics differ from behavior-change counterfactual evidence. Preserve per-step classification in mixed batches. PID/start identity, named card turns, cancellation, raw output/run identity and numerical tolerances remain with existing owners. Historical wait percentiles do not bound future contention."
+        "limits": "Parser-local links are not full type/global equivalence. Zero sample clones is not a repository boilerplate percentage. Removed directories count tracked Go source directories, not arbitrary filesystem folders. Entry points are build targets, not a count of physical binaries generated or deleted. No app/model/device tests or workload by SQA.",
+        "constants_and_geometry": "No CUDA/kernel/numerical tolerance change in these commits. New counters remove historical nonbinding estimates, not runtime ceilings. Card-turn waits accumulate and exact candidate/trunk checks remain. PID fixtures use current process with a distinct start instead of a spawned already-exited PID. Pin guidance edits copies and preserves raw/CRLF digest admission; it does not itself rewrite evidence."
       },
     "media_follow_up": {
         "revision": "e969f619a89e45c3380e30853b01af393d55ba47",
@@ -10358,7 +10311,7 @@
         "91a native store isolation extends one setup for an alias named for an uncopied recipe;candidate/private stores preserve selected closure and operator key naming. Strict source execution consumers remain.",
         "Prior calibration,import/alpha/reask closures and transfer costs retain their pinned evidence;no additional SQA confidence/model runs."
       ],
-    "surface_reduction_analysis": "No production/test code changed in aa8c89175. The observed repeat-failure opportunity is one accepted consolidation class interpreted differently by addedChecksFail and undoable, forcing an avoidable precursor landing; reuse per-step terms and the existing native row fixture rather than a new gate/workflow. The planned command/scheduler retirement and wall/count removal need complete landed costs, including touched product consumers. No repository boilerplate percentage or matched time saving is claimed.",
+    "surface_reduction_analysis": "727ac6722->b75dacbeb: 190 changed Go paths, -100618 production/-77414 test AST; -17540/-10544 Go lines; -46/-42 Go files. Tracked Go-code directories 247->244 and command main entry directories 62->60: controller-action and offline-artifact-validate removed, plus internal/controlleraction. Physical old executable files were not inventoried or cleaned. Retirement gate reports schemas -52, fixture files +0/bytes -1737, CUDA source/entries +0. Per-commit costs retain verifier/pin growth +333/+582 and count cleanup -488/-339 rather than hiding them in net deletion. SQA-295 retirement costs are included once. SQA-322 functional repair adds915 AST with native resource/false-verifier assertions retained; optional overlapping order-table deletion is not required to recognize that fix.",
     "tests": [
         "RETAIN TestACheckShowsItsProgress's two native packages and ordinary-output case:progress/error acceptance use one execution and the current temporary module. No model or recurrent polling setup.",
         "RETAIN strict source identity tests and actual benchmark/training/validation callers;administrative declaration's new RunningCommit use does not retire their exact-code contract.",
@@ -11899,10 +11852,10 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
     "limitations": [
-      "No SQA app tests, workloads, services, benchmarks, profiles, agents/messages, cleanup, implementation or plan/skill changes. Only external source analysis and this report. Broad uncommitted source changes were not treated as landed.",
-      "Only committed path changed since c7 is docs/plan.json. Planned retirements, source fixes and claimed completed fixture changes in rationales are not current implementation evidence. Public CLI/HTTP input may have external users even without repository invocations; the row explicitly names its retirement.",
-      "The sampled local ledger has 2,313 attempts and 452 refusal records; only relevant recent entries inspected, not a fresh daily census. 41.826s is the combined batch verify stage; 519.399s is two precursor test stages, not isolated savings caused by one rule. The audio failure is retained plan narrative plus source admission, not a raw lane log inspected by SQA.",
-      "No full receiving/model success or matched timing/peak saving verified. Root measurement is still fdd4ab1 on November 8. Progress is not completion or silence detection; prior corrected 140.54-minute aggregate is not a single 141-minute run."
+      "No SQA app tests, workloads, services, benchmarks, profiles, agents/messages, implementation, cleanup or plan/skill edits. External source/AST and retained evidence only; normal report commit hooks remain enabled.",
+      "Retirement intentionally removes named public interfaces; absence of repository callers alone was not its authority. Typed retired records are not migrated or re-created by SQA; generic store/history unchanged. Supported recipe admission is retained separately from the retired candidate subsystem.",
+      "Retained retirement gate: device15 packages, CUDA28, webui2m49s and one Bonsai slice with matching outputs/peak versus ecd1caf31. These are scoped acceptance, not full receiving/model evidence or a matched speed comparison. Root full record remains fdd4ab1 from November8.",
+      "No repository-wide boilerplate percentage, physical binary inventory or measured wall/memory saving. Historical wait aggregates do not bound future contention; progress reports emitted events, not silent-stall detection or completed continuation."
     ],
     "master_lead_triage": {
     "at": "2026-11-13",
@@ -13023,11 +12976,11 @@
   },
     "next_finding_number": 403,
     "publication_context": {
-    "assessment": "Substantive committed-plan/repeated-refusal/retirement-contract assessment; 266/322 plan coverage reconciled, no new ID/status.",
-    "checked_head": "aa8c891751db9b2feeacd2f59efdfc901432745f",
-    "concurrent_changes": "Only committed plan delta assessed; dirty source/skill/manifest deletions excluded. Current report/source/owner fields re-read under existing publication ownership before writing.",
-    "current_pin": "aa8c891751db9b2feeacd2f59efdfc901432745f",
-    "publication": "Only docs/sqa_findings.json through existing hooks and locks. No application tests/workloads. All raw implementation/unknown fields, closure evidence and unrelated index/worktree changes preserved.",
+    "assessment": "Substantive retirement/early-verifier closures and exact whole cost; receiving/status partial obligations reconciled.",
+    "checked_head": "b75dacbeb39d7e44244849f96acdc8e9b051afbe",
+    "concurrent_changes": "The third count-cleanup landing was detected and re-read; report pin includes all three landings and current committed skill/plan. Dirty plan excluded. Source/report/owner bytes reread under existing publication ownership before write.",
+    "current_pin": "b75dacbeb39d7e44244849f96acdc8e9b051afbe",
+    "publication": "Only docs/sqa_findings.json through existing locks/hooks; all prior closure evidence and raw implementation/unknown fields and unrelated work preserved.",
     "report_only": true
   },
     "ranked_active_finding_ids": [
@@ -13035,7 +12988,6 @@
     "SQA-372",
     "SQA-373",
     "SQA-374",
-    "SQA-322",
     "SQA-385",
     "SQA-377",
     "SQA-366",
@@ -13070,7 +13022,6 @@
     "SQA-285",
     "SQA-297",
     "SQA-329",
-    "SQA-295",
     "SQA-296",
     "SQA-287",
     "SQA-215",
@@ -13104,32 +13055,31 @@
     "repository": "C:\\Users\\jeffm\\overgo",
     "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
     "review_notes": [
-      "Concrete plan recommendations are in candidate_review.plan_review_follow_up, including the observed consolidation-refusal root cause. They ride existing related rows; no new stable ID, reopened finding, priority change or additional prerequisite imposed.",
-      "SQA-266 and SQA-322 plan coverage is reconciled to the newly filed audio/verify rows. Their implementations and full receiving evidence remain open. Previous SQA-332/378 closure evidence and all other status/implementation fields remain intact.",
-      "Retirement must include actual route/request/UI/CLI consumers, not merely remove the scheduler body; retain surviving inference/training/agent/evaluation/state owners and recovery assertions. Two binaries/three directories are only a planned opportunity, not physical or committed deletions.",
-      "Historical latency is useful prioritization evidence, not a bound on a second card turn. Current code still runs all verify late when any verifier needs the card; progress-streaming already credited does not cure that order.",
-      "Identity correction: the prior scope called d9c2a5b0 the committed skill hash. Direct git-show byte hashing now confirms ee7462dd8, 91aee232d and aa8c89175 all hold SHA256 18e50207779b5a3b18e6a0b08b2475d5ec79c5bb87a0cfb8fdb2ca506f66eb15; working skill 49410b3c is an uncommitted draft. The rule/source conclusions are unchanged; do not treat the old hash as a source identity."
+      "SQA-295 closes by explicit candidate subsystem retirement; distinct supported no-forward/representation-bridge assertions remain unchanged. SQA-322 closes by the actual whole-stage repair and full-mode failure/release evidence, not an optional test-table compaction.",
+      "SQA-266 receives partial prerequisite/progress credit; complete receiving evidence remains open. SQA-376 receives simpler truthful progress credit while its advisory discrepancies remain P3. No new IDs or extra implementation rows.",
+      "Whole -100618 production/-77414 test AST and 88 fewer Go files include the retirement, +333/+582 verifier/pin growth and -488/-339 count cleanup. Two command entry points/three source directories are now actually gone; no physical executable cleanup or runtime saving inferred.",
+      "Source-policy mismatch in newly filed consolidation checks remains a scoped P3 recommendation under existing landing work. It is not an additional prerequisite of the first receiving row, a reopened historical closure or a report-wide commit gate."
     ],
-    "reviewed_at": "2026-11-14T20:32:50Z",
-    "reviewed_master": "aa8c891751db9b2feeacd2f59efdfc901432745f",
+    "reviewed_at": "2026-11-14T22:32:52Z",
+    "reviewed_master": "b75dacbeb39d7e44244849f96acdc8e9b051afbe",
     "schema_version": 2,
     "scope": [
-      "Bounded architecture/plan review of aa8c89175, read before old findings: 48 items/74 steps, eight new rows; committed skill SHA256 18e50207779b5a3b18e6a0b08b2475d5ec79c5bb87a0cfb8fdb2ca506f66eb15 and Downloads target SHA256 fe13a4bd47c8c41ea6dbf766c0acf3dc41ab7dab0c6d8bd926863313d4f34395. Changed working skill/source deletions excluded.",
-      "Plan-only commit checked against pinned new-step/undo/class, verifier/card, scheduler/command, served retrieval/evaluation consumers and retained refusal/stage records. Seven source files parsed, with route/UI/command/source inspection beyond the AST sample. No whole-tree duplication census.",
-      "Prior Overgo implementation involvement disclosed: internal review, not independent third-party review. Design target remains active; this report does not authorize implementation or become a second dispatch/commit gate."
+      "Bounded review of committed 870bd5a98 retirement/recovery, 23e3a25c1 verifier/pin fixes and concurrently landed b75dacbeb count deletion. Current plan read first: 40 items/66 steps, receiving cycle first. Changed committed skill read; SHA256 07915d4b2b84d3db0f9d419c2d9bc73101783562e8bf41f47b63d2043c7100dd. Dirty plan excluded.",
+      "Actual CLI/HTTP/UI retirement, surviving recipe/operation/state owners, verify/card/class/pin/progress callers and retained native/landing records inspected. Fifteen current AST files plus three baseline files; complete190-path changed-Go costs, not a repository test/census run.",
+      "Downloads architecture target SHA256 fe13a4bd47c8c41ea6dbf766c0acf3dc41ab7dab0c6d8bd926863313d4f34395 remains active. This chat previously implemented Overgo: internal review, not independent third-party review."
     ],
     "sqa_response": {
-    "assessment": "229 stable IDs: 69 open, 154 resolved, 4 deferred, 2 aliases. Plan-only architecture/repeated-refusal review; 266/322 plan coverage updated. No new finding, status or priority change.",
+    "assessment": "229 stable IDs: 67 open, 156 resolved, 4 deferred, 2 aliases. SQA-295 and SQA-322 verified closed; 266/376 partial credit. No new IDs or priority changes.",
     "concurrent_reconciliation": {
-        "SQA-266": "Actual first-lane receiving failure known;action-specific/provider/store-copy repairs landed;full receiving evidence remains open.",
-        "SQA-376": "Failure terminology and check progress now exposed;legacy history/window/report-count/Rules and continuation limits remain.",
-        "SQA-322": "Streaming is one execution but does not alter mixed verifier ordering.",
+        "SQA-266": "Audio admission/progress prerequisites landed and receiving row is first; scoped gate lanes/Bonsai slice are not the complete receiving run.",
+        "SQA-376": "Guessed ends and stall-history machinery removed through existing progress owners; advisory known-Rules/history/week/window obligations remain P3.",
+        "SQA-322": "Closed: all verify before broad work, scoped card release/reacquisition, native full-mode failure/success evidence and assertion undo.",
         "SQA-379": "Protocol/current-producer binding unchanged;provider administration is not model quality evidence."
       },
     "consolidated_findings": [],
     "deferred_findings": [],
-    "dispatch_alignment": "Existing plan alone dispatches product/receiving/repair work. These recommendations ride matching rows; no new report-wide commit prerequisite or standalone row per observation.",
-    "evidence": "Seven pinned Go files parsed; current CLI/HTTP/browser/class/counterfactual/card callers traced; relevant retained plan/refusal/stage records reconciled. No SQA app execution.",
+    "dispatch_alignment": "Committed plan alone dispatches; cycle-lanes/do is first. Class-admission/test-compaction follow-ups ride related work and create no additional report prerequisite or standalone row.",
+    "evidence": "Pinned callers/source/AST, complete per-commit costs and retained native assertion-based undo/device/webui/CUDA/scorecard receipts; no SQA application execution.",
     "implementation_claim_audit": {
         "SQA-257": "closed: duplicate runtime verdict gone; native default/served fixtures are distinct; speculative generalization is not additional required work",
         "SQA-316": "closed: no-symbol whole-file identity and normal claim rebinding",
@@ -13162,18 +13112,20 @@
     "new_findings": [],
     "partially_addressed_findings": [
         "SQA-266",
-        "SQA-376",
-        "SQA-322"
+        "SQA-376"
       ],
     "priority_changes": [],
-    "recommendation": "Prioritize actual receiving prerequisites, cure the per-step consolidation admission mismatch through the existing landing owner, and complete explicitly named retirements with their clients/tests/setup. Do not credit uncommitted deletions or postpone product evidence for independent cleanup.",
+    "recommendation": "Credit actual subsystem deletion and early-verifier repair; retain supported recipe/operation/state and identity/recovery cases. Let the existing first receiving row supply complete coverage evidence. Address new-step consolidation admission only through its existing owner during related work.",
     "refactor": {
         "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
         "history_path": "docs/sqa_findings.json",
         "layout": "Full canonical open/deferred; compact resolved closure sources/revision/costs; explicit aliases, including aliases to closed canonical findings. Prior narratives remain in Git."
       },
     "reopened_findings": [],
-    "resolved_findings": [],
+    "resolved_findings": [
+        "SQA-295",
+        "SQA-322"
+      ],
     "review_policy": {
         "evidence_field": "evidence_basis",
         "values": {
@@ -13187,7 +13139,7 @@
         "review_focus": "Name served cell/route/output impact,or material data/security/recovery/work-stoppage/repeated-waste impact. Minor process cleanup rides planned work; no guessed committee ratio or extra policy gate.",
         "measurement": "Use existing delivery/check-cost records as advisory. Automated report commits are distinct from master implementation effort; measure useful capability/scorecard outcomes,not findings closed."
       },
-    "reviewed_master": "aa8c891751db9b2feeacd2f59efdfc901432745f",
+    "reviewed_master": "b75dacbeb39d7e44244849f96acdc8e9b051afbe",
     "run_cost_correction": {
         "source": ".overgo-runtime/landing_waits.json",
         "query": "started on2026-11-09 America/New_York UTC-05; outcome exactly verify",
@@ -13207,10 +13159,12 @@
         },
         "correction": "140.54 is aggregate recorded wall across ten verify-refused runs,not one141-minute failed run and not all checking/wasted time. The earlier single-run phrasing was wrong; November8 measurement is a separate114.70-minute run. Historical run kinds may be unknown."
       },
-    "uncertainty": "Audio timeout is a retained plan account, not a newly inspected raw execution log; historical second-turn cost is not a future bound. No full-cycle completion, physical binary removal or measured runtime/peak gain at this pin.",
+    "uncertainty": "No new complete receiving/model run verified; one small scorecard slice is scoped. No matched runtime/peak benefit or whole-rebuild completion. Physical old binaries and old artifact bytes were not deleted.",
     "updated_findings": [
+        "SQA-295",
+        "SQA-322",
         "SQA-266",
-        "SQA-322"
+        "SQA-376"
       ]
   }
   }

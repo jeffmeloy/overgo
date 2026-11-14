@@ -30,6 +30,14 @@ const (
 // heads no MMLU-Pro cell.
 const withoutDemonstrations = "without demonstrations"
 
+// HeadsItsMeasure says a reading under protocol is its benchmark's figure, and so may head its measure's cell: a raw
+// completion asked without the harness's demonstrations, or with its letters glued to the cue, is kept beside the
+// headline until its model is read again the harness's way, and heads none (ChoiceProtocol, SQA-370).
+func HeadsItsMeasure(protocol string) bool {
+	apart := PromptingRawCompletion.Label() + protocolSeparator
+	return protocol != apart+withoutDemonstrations && protocol != apart+gluedLetters
+}
+
 // mmluProPrefix reads a plan's case profile as MMLU-Pro's: the demonstrations
 // every question follows, and whether the profile is MMLU-Pro's at all.
 func mmluProPrefix(ctx context.Context, reader artifact.Reader, plan Plan) (string, bool) {

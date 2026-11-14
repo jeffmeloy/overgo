@@ -73,10 +73,11 @@ type ToolCall struct {
 }
 
 // WorktreeHolder is the file, in a worktree's process state, that names the
-// implementing session that holds the worktree. A landing takes the
-// checkout's whole tree as its candidate, so two implementing sessions in one
-// worktree would land each other's files; the second is sent to a worktree of
-// its own. A hook is a short process and can keep no lock of the system's
+// implementing session that holds the worktree. A landing takes the files its
+// steps list as its candidate, and the whole tree where a step lists none
+// (landing's commitScope), so two implementing sessions in one worktree would
+// land each other's files where their lists meet; the second is sent to a
+// worktree of its own. A hook is a short process and can keep no lock of the system's
 // open for a session, so the file is the holding, and its creation is atomic.
 const WorktreeHolder = "implementing_session"
 

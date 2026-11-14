@@ -637,7 +637,17 @@ type Reader struct {
 	// workers that read a tensor's spans at once each read through their own.
 	handleMu sync.Mutex
 	handles  []*os.File
-	idle     []*os.File
+	idle     []*readHandle
+}
+
+// readHandle is one handle open on the file and the scratch a worker decodes through it from, kept together so a
+// load's tensors reuse the same bytes. A worker that made its scratch for each tensor left a quarter of the heap
+// garbage at each collection of Fractale's load, its process peak 2,050 MiB against adaptive's 1,811 (one reader's
+// scratch had been reused before the reads ran in parallel, c2e582897); reused, 1,812 MiB, and with float32 read in
+// place (decodeAt), 1,783 MiB.
+type readHandle struct {
+	file    *os.File
+	scratch []byte
 }
 
 // Open indexes the checkpoint's storage entries for offset reads.
@@ -656,15 +666,15 @@ func Open(filename string) (*Reader, error) {
 		zr.Close()
 		return nil, err
 	}
-	return &Reader{zr: zr, f: f, root: root, entries: entries, handles: []*os.File{f}, idle: []*os.File{f}}, nil
+	return &Reader{zr: zr, f: f, root: root, entries: entries, handles: []*os.File{f}, idle: []*readHandle{{file: f}}}, nil
 }
 
 // borrow gives a handle no other worker is reading through, opening one when
 // every handle is in use, and the function that gives it back.
-func (r *Reader) borrow() (*os.File, func(), error) {
+func (r *Reader) borrow() (*readHandle, func(), error) {
 	r.handleMu.Lock()
 	defer r.handleMu.Unlock()
-	var handle *os.File
+	var handle *readHandle
 	if last := len(r.idle) - 1; last >= 0 {
 		handle, r.idle = r.idle[last], r.idle[:last]
 	} else {
@@ -672,7 +682,7 @@ func (r *Reader) borrow() (*os.File, func(), error) {
 		if err != nil {
 			return nil, nil, err
 		}
-		handle, r.handles = opened, append(r.handles, opened)
+		handle, r.handles = &readHandle{file: opened}, append(r.handles, opened)
 	}
 	return handle, func() {
 		r.handleMu.Lock()
@@ -781,7 +791,7 @@ func (r *Reader) ReadBF16(binding TensorBinding, reuse []uint16) ([]uint16, erro
 	chunks := (len(stored) + scratchChunkBytes - 1) / scratchChunkBytes
 	failed := make([]error, chunks)
 	hostmath.ParallelRangeF64(chunks, scratchChunkBytes, func(first, last int) {
-		file, done, err := r.borrow()
+		held, done, err := r.borrow()
 		if err != nil {
 			failed[first] = err
 			return
@@ -790,7 +800,7 @@ func (r *Reader) ReadBF16(binding TensorBinding, reuse []uint16) ([]uint16, erro
 		for chunk := first; chunk < last; chunk++ {
 			start := chunk * scratchChunkBytes
 			span := stored[start:min(start+scratchChunkBytes, len(stored))]
-			if _, err := file.ReadAt(span, dataOffset+meta.StorageOffset*width+int64(start)); err != nil {
+			if _, err := held.file.ReadAt(span, dataOffset+meta.StorageOffset*width+int64(start)); err != nil {
 				failed[chunk] = err
 				return
 			}
@@ -866,22 +876,35 @@ func (r *Reader) storageDataOffset(meta TensorMeta) (int64, error) {
 // megabyte: a text encoder's eleven gigabytes are decoded in the time the
 // file takes to read, where one worker took eight seconds over them.
 func (r *Reader) decodeAt(byteOffset, elemBytes int64, convert func(uint16) float32, out []float32) error {
+	// A float32 tensor on a little-endian host is read into its values as they are stored, as ReadBF16 reads, with no
+	// scratch and no pass that copies it.
+	direct := convert == nil && binary.NativeEndian.Uint16([]byte{1, 0}) == 1
 	chunkElems := max(1, scratchChunkBytes/int(elemBytes))
 	chunks := (len(out) + chunkElems - 1) / chunkElems
 	failed := make([]error, chunks)
 	hostmath.ParallelRangeF64(chunks, chunkElems, func(first, last int) {
-		file, done, err := r.borrow()
+		held, done, err := r.borrow()
 		if err != nil {
 			failed[first] = err
 			return
 		}
 		defer done()
-		scratch := make([]byte, min(len(out), chunkElems)*int(elemBytes))
+		if need := min(len(out), chunkElems) * int(elemBytes); !direct && cap(held.scratch) < need {
+			held.scratch = make([]byte, need)
+		}
 		for chunk := first; chunk < last; chunk++ {
 			start := chunk * chunkElems
 			span := out[start:min(start+chunkElems, len(out))]
-			buf := scratch[:len(span)*int(elemBytes)]
-			if _, err := file.ReadAt(buf, byteOffset+int64(start)*elemBytes); err != nil {
+			if direct {
+				stored := unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(span))), len(span)*int(elemBytes))
+				if _, err := held.file.ReadAt(stored, byteOffset+int64(start)*elemBytes); err != nil {
+					failed[chunk] = err
+					return
+				}
+				continue
+			}
+			buf := held.scratch[:len(span)*int(elemBytes)]
+			if _, err := held.file.ReadAt(buf, byteOffset+int64(start)*elemBytes); err != nil {
 				failed[chunk] = err
 				return
 			}

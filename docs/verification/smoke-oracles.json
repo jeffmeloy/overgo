@@ -72,21 +72,7 @@
     }
   },
   {
-    "model": "model:sha256:d0be4bb0e24f72ee0589f422ef579115068a7602837bdb4a674f5baaacf030ba",
-    "domain": "text",
-    "chat": true,
-    "claim": "Greedy instruction following: one exact arithmetic answer; no benchmark or modality-quality claim.",
-    "generation": {
-      "name": "integer-addition",
-      "prompt": "What is 2 + 2? Reply with only the digit.",
-      "max_tokens": 16,
-      "answers": [
-        "4"
-      ]
-    }
-  },
-  {
-    "model": "model:sha256:f5e632cd3f6050ab8ae06df55766de5737282689d211f3e2f172db52ff671401",
+    "model": "model:sha256:2cc612d5e84c3f422e1e59780e193f62630083699138670ec61a368c03c51211",
     "domain": "text",
     "chat": true,
     "claim": "Greedy instruction following: one exact arithmetic answer; no benchmark or modality-quality claim.",

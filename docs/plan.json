@@ -3,6 +3,60 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "nag-finite",
+      "title": "NAG's guided output is finite where a token's attention cancels or its norms are zero",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "NAG's guided output is finite where a token's attention cancels or its norms are zero",
+          "status": "open",
+          "verify": "go test ./internal/model -count=1 -run '^TestNAGStaysFiniteWhereAttentionCancels$'",
+          "files": [
+            "internal/model"
+          ],
+          "rationale": "Serves: the Wan student's nag preset draws a finite clip for any prompt and negative prompt (SQA-402, P2, shown from source).\n\nThe evidence (the review's, at 1863242c6): Eq. 9's factor min(R, tau) / R is 0 / 0 where a token's extrapolation cancels (R = 0) or both its norms are 0, so the guided output is NaN; and TestABlocksNAGIsThePapersEquations' host reference divides the same way while its comparison passes a NaN, a check passing without checking.\n\nThe cure: the factor is taken as min(1, tau |Z+|_1 / |Z~|_1), tau |Z+|_1 over the larger of the two, each held at a floor far below any real norm, so it is 1 where Z~ is 0 and no division reads 0 / 0; the host reference takes the same form and the comparisons refuse a nonfinite value first.\n\nCheck: TestNAGStaysFiniteWhereAttentionCancels feeds NAG a token whose negative output is 1.25 times its prompt output (Z~ = 0 at phi 4), one whose outputs are both 0 and one whose prompt output is 0, beside an ordinary one, and holds each to the equations, finite. At the base the cancelling token is NaN."
+        }
+      ]
+    },
+    {
+      "id": "session-unknown",
+      "title": "A session whose end the checkout's records cannot tell is no ended session",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A session whose end the checkout's records cannot tell is no ended session",
+          "status": "open",
+          "verify": "go test ./internal/guard -count=1 -run '^TestAnUnknownSessionEndIsNoEnd$'",
+          "files": [
+            "internal/guard"
+          ],
+          "rationale": "Serves: a session's scratch is cleared only on a positive sign of its end (SQA-384's second criterion, reopened by the review: unavailable ownership is held or unknown).\n\nThe evidence (the review's, at 1863242c6, and the lead's reading): SessionEnded read a hold it could not read as no hold and went on to the end record, and read a session state it could not stat (err != nil) as no turn after the end, so either unknown read as ended.\n\nThe cure: a hold that cannot be read, which may name the session, leaves its end unknown; a state that is not there lets a recorded end stand, and one that cannot be read leaves it unknown; an unknown end is no end.\n\nCheck: TestAnUnknownSessionEndIsNoEnd records a session's end, holds it ended with no hold, then puts a directory where the hold is kept, which cannot be read as a file, and holds the session unended. At the base the end stands. TestAnUnreadableSessionStateIsNoEnd holds a state whose stat fails with a permission error to the same."
+        }
+      ]
+    },
+    {
+      "id": "free-card-turn",
+      "title": "A landing lets the commit turn go before it takes the card's turn, whether or not the card looks free",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A landing lets the commit turn go before it takes the card's turn, whether or not the card looks free",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestALandingThatFindsTheCardFreeGivesUpItsCommitTurn$'",
+          "files": [
+            "internal/landing"
+          ],
+          "rationale": "Serves: no commit waits behind a landing that is itself waiting for the card (SQA-261, reopened by the review).\n\nThe evidence (the review's, at 1863242c6): letGo probed the card's turn (ResourceTransactionHeld) and kept the commit turn where it found the card free; holdCard then took the card's turn, and another process could take the card between the probe and the taking, leaving the landing waiting for the card while holding the commit turn. The lead's closure of 2026-11-13 read letGo as releasing before the wait in every case; it did not in this one.\n\nThe cure removes the probe: a landing that takes the card lets the commit turn go first, a merge excepted, and takes it back once the card is its own, refusing a trunk that moved meanwhile as it did.\n\nCheck: TestALandingThatFindsTheCardFreeGivesUpItsCommitTurn lands a change whose lane is reached with no holder on the card and holds the landing to letting the commit turn go, and landing. At the base it keeps the commit turn."
+        }
+      ]
+    },
+    {
       "id": "readme-speed",
       "title": "The README's speed table reads prompt processing at 4,096 and 16,384 tokens for every chat model, from readings that keep their token counts",
       "owner": "master-lead",
@@ -1553,23 +1607,6 @@
           ]
         }
       ]
-    }
-  ],
-  "decisions": [
-    {
-      "id": "speed-table-run",
-      "question": "The README's speed table fills its prompt columns only from a record that read every cell: a record published by hand blanks every cell not measured since the record before it (the two of 2026-11-11 were withdrawn for it), and a full measurement run started by hand is due only when the plan is empty (owner, 2026-10-31: stop retesting the whole scorecard without finishing), which it will not be for weeks. How should readme-speed/measured get its record?",
-      "options": [
-        "Start one full measurement run by hand now, beside the open plan, while the card is otherwise idle: about 9 hours, every cell read again, the first full reading since Flash-Next's open reserves its commit and SimpleDiffusion draws a batch",
-        "Change what a record holds: each cell's newest reading with its date, marked where it was measured since the record before it, so a record published from the readings of 2026-11-11 and 2026-11-12 fills the table without blanking the cells not read again",
-        "Leave the table's prompt columns as dashes until the plan empties and a run comes due"
-      ],
-      "recommendation": "Start one full measurement run by hand now, beside the open plan, while the card is otherwise idle: about 9 hours, every cell read again, the first full reading since Flash-Next's open reserves its commit and SimpleDiffusion draws a batch",
-      "blocks": [
-        "readme-speed"
-      ],
-      "asked": "2026-11-12",
-      "doctrine": true
     }
   ]
 }

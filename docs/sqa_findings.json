@@ -39,7 +39,7 @@
         ],
         "adoption_scope": "Supersedes the absent repository-document reference at the owner's request; current external SHA is verified. Does not alter the executable plan."
       },
-    "assessment": "The clip hot path now crosses the device boundary in its consumer format through the existing runtime/stream owners. Retained measurements show a large byte/memory/time reduction with bounded colour evidence. Code and verification costs grow; no additional consolidation safely established.",
+    "assessment": "NAG remains in existing tensor/model executors with paired context lifetime, not another recipe scheduler. Student early admission/redirect/finite oracle repairs are verified.402 exposes a missing numerical domain limit;261/384 closures remain partial.",
     "ast_surface_review": {
         "revision": "9bd406acafb89c44a439722419f1f7e85e71f691",
         "architectural_target": "Fewer independent product entry points and dependency owners; retain process isolation and existing compiled/runtime/development authority.",
@@ -170,10 +170,10 @@
       },
     "rank_basis": "Actual398/399 admission failures precede local400 consolidation.397 closed;400 retains unique coverage.376 owns known-rule/history/delivery obligations.",
     "refactor_target_progress": {
-        "architectural_progress": "nvvfx owns device colour/layout conversion; finishingEncoder owns device/host frame lifetime; mp4Encoder owns ordered input, geometry, process and output. Existing runtime transfer replaces manual host work. Frame/FrameYUV share source/effect execution, RGB/YUV writers share validation and FFmpeg lifetime.",
-        "conflicts": "This is a concrete transfer improvement, not format-independent model execution completion. Different RGB/YUV representations keep their actual contracts; platform arithmetic helpers and float fallback are not automatically redundant.",
-        "next_useful_reductions": "Retain the actual removal and avoid another converter or wrapper. Keep optional YUV capability for the real MP4/GIF split, preserve colour calibration and current stream/process owners. Existing395/400 measured test/setup merges remain separate; no speculative new reduction or recurring benchmark.",
-        "cost": "Complete+755production/+1364testAST,+146/+211lines,2test files; zero new package/directory/binary/staticfixture files.4x finished transfer76,677,120->9,584,640bytes/frame; derived steady buffers196,485,120->33,546,240bytes. Frame reference buffers add verification cost; no net code deletion claimed."
+        "architectural_progress": "One profile-bound student admission owns loader/Reset/Generate; NAG uses existing conditioned-block/tensor execution and retained context binding. Shared source/file-format readers stay separate from the numerical graph. Two thin compile/context forwarders disappear inside the full migration.",
+        "conflicts": "The new ratio assumes nonzero norms; native comparison repeats it without finite rejection. Resource handover still probes before acquisition; unknown lifecycle metadata still falls through to ended. Existing owners suffice for these corrections.",
+        "next_useful_reductions": "Correct402 inside current graph/oracle; finish261/384 existing error/acquisition transitions. Keep existing395/400 exact test/setup reductions as ride-along candidates. No broad recipe/model rewrite or new policy machinery.",
+        "cost": "NAG+1277production/+1852testAST; verifier+70/+103; redirect/lifecycle/basis+95/+447; ER-SDE0/+126. Whole authored change+1442production/+2528testAST,1production/5test files, no new package/binary/CUDA source/staticfixture file. Full growth includes removed forwarders and all caller/test migrations."
       },
     "working_notes_review": {
         "finding": "SQA-334",
@@ -183,10 +183,10 @@
       }
   },
     "committed_plan": {
-    "git_blob": "e42d82f426978a858b71be65101ee745daed2853",
+    "git_blob": "fc62c9d74842bc5ade1eb8f9f45cd72fadb09cc4",
     "path": "docs/plan.json",
-    "revision": "68301d8275250ef49785328d60bacadbeca53d51",
-    "sha256": "0074e54b9ab43a76912adaa86080deeb8acaef971415d85de8f85ecd8ad514c9",
+    "revision": "1863242c64cc856b013cd9838a1aa6111a1539fd",
+    "sha256": "34f486477faa574ac4895ad165e0528755a2aec0e5d86e796b987c1144bd64a6",
     "working_tree_status": "Committed plan at review pin; prior draft assessment retains its own snapshot identity. Current working plan edits excluded."
   },
     "findings": [
@@ -4402,9 +4402,9 @@
       ],
     "comparison": "In the existing turn/checkout fixture, control acquisition between the free probe and actual turn entry. The commit slot must become available and the holder must see the waiter; preserve unchanged-successor and checked-candidate assertions. This is a recommendation, not SQA execution.",
     "displaced_surface": "Retire the old laneTurn lock/second queue and duplicate child wait accounting. Retain landing.letGo/takeTurnBack, processcontrol.TakeTurn and the existing checked-tree/publication owners; update existing checkout-free/run-beside/host-lane fixtures instead of a parallel driver.",
-    "evidence": "The old lane-lock/card-lock mismatch is repaired by03a941f92: laneTurn uses driver.CardTurnOf(0), children inherit one real turn, and an already-held card frees the commit slot. 5f29b024d reacquires the commit slot and rejects a changed trunk before expensive stages;440c5204e fixes its native holder to use a separate process. At1217b98a6, cardStages is lanes/scorecard rather than invariants/verify/test as well. The replacement native fixture checks that the host test stage passed and no lane ran when the checkout is freed; existing inheritance and changed-trunk cases remain. Its recorded undo fails on an assertion. Remaining source-admitted interleaving: letGo returns without releasing the commit slot when ResourceTransactionHeld sees the card free; holdCard subsequently calls takeLaneTurn. Another process can take the card between them, leaving this landing waiting with the commit slot held. takePlace similarly marks a waiter only if its preliminary probe saw busy, so a holder taking the card after a free probe cannot see this waiter through TurnWaited. These are one acquisition/handover root cause. Existing fixtures start with the card already held and do not cover that transition. No new SQA interleaving or blocked host commit was executed or observed. At concurrentf79132c4, onCard admits a declared device verifier even when changed paths reach no card lane. Its native physical-holder fixture verifies host stages passed before waiting and the check waits on the shared turn; retained assertion undo fails. This repairs the actual TabFM direct-check ownership gap. letGo/takePlace preliminary-probe transitions remain unchanged; those are still the bounded261 obligation, not a new finding.",
+    "evidence": "The old lane-lock/card-lock mismatch is repaired by03a941f92: laneTurn uses driver.CardTurnOf(0), children inherit one real turn, and an already-held card frees the commit slot. 5f29b024d reacquires the commit slot and rejects a changed trunk before expensive stages;440c5204e fixes its native holder to use a separate process. At1217b98a6, cardStages is lanes/scorecard rather than invariants/verify/test as well. The replacement native fixture checks that the host test stage passed and no lane ran when the checkout is freed; existing inheritance and changed-trunk cases remain. Its recorded undo fails on an assertion. Remaining source-admitted interleaving: letGo returns without releasing the commit slot when ResourceTransactionHeld sees the card free; holdCard subsequently calls takeLaneTurn. Another process can take the card between them, leaving this landing waiting with the commit slot held. takePlace similarly marks a waiter only if its preliminary probe saw busy, so a holder taking the card after a free probe cannot see this waiter through TurnWaited. These are one acquisition/handover root cause. Existing fixtures start with the card already held and do not cover that transition. No new SQA interleaving or blocked host commit was executed or observed. At concurrentf79132c4, onCard admits a declared device verifier even when changed paths reach no card lane. Its native physical-holder fixture verifies host stages passed before waiting and the check waits on the shared turn; retained assertion undo fails. This repairs the actual TabFM direct-check ownership gap. letGo/takePlace preliminary-probe transitions remain unchanged; those are still the bounded261 obligation, not a new finding. Reviewer recheck at1863242 disagrees with the lead closure rationale, not the delivered repairs: letGo still calls ResourceTransactionHeld(name) and returns false before releasing l.turn when !held; holdCard only later calls takeLaneTurn. Thus an initial free probe can still lose the acquisition race. takePlace also conditionally marks a waiter only after its own busy probe. Existing already-held fixtures passing do not cover this transition. No SQA interleaving/blocked commit executed. Reopened for the same two original acquisition criteria; the raw lead closure note is preserved.",
     "evidence_basis": "shown_from_source",
-    "evidence_commit": "f79132c42b6c3db91882eadb3aa8f7b7d869bb18",
+    "evidence_commit": "1863242c64cc856b013cd9838a1aa6111a1539fd",
     "expected_benefit": {
         "closure": "Actual resource-name and child-job ownership mismatch repaired; preliminary availability probe remains insufficient to guarantee commit release under a concurrent acquisition.",
         "complete_cost": "03a941f92 +91production/+133test AST,+22/+23lines across14Go paths,0files/packages/binaries/fixturebytes. Five card-turn/encoder/handover landings together +271production/-226test AST, net+45: count the entire migration, not just its -4249AST retirement step.",
@@ -4413,7 +4413,7 @@
       },
     "id": "SQA-261",
     "impact": "A GPU wait can again serialize unrelated host-only/report landings behind the waiting commit; per-context queueing also repeatedly yields between tests.",
-    "plan_coverage": "f79132c4 check-turn/do now owns direct device verification as well as reached lanes/scorecard. Earlier stage/child/early-trunk fixes remain credited; preliminary probe/acquisition and waiter-mark gaps remain. No new dispatch row requested.",
+    "plan_coverage": "Lead closure rechecked and reopened: actual turn/stage/direct-check/early-trunk fixes remain; letGo and takePlace still separate availability probes from acquisition. Existing395 duplicate-setup reduction remains separate.",
     "plan_references": [
         "card-turn/turn,readings-turn,retire-admissions (landed)",
         "card-handover/lane-turn (open at pin)",
@@ -4455,7 +4455,7 @@
           "symbol": "TestALandingBesideARunWaitsOnlyForTheDevice"
         }
       ],
-    "status": "resolved",
+    "status": "open",
     "title": "Free the commit queue from a landing waiting for the device"
   },
     {
@@ -7056,77 +7056,32 @@
   },
     {
     "category": "model-admission-order",
-    "classification": "source-established-late-refusal-and-ignored-request",
-    "closure_criteria": [
-        "Invalid Guidance rejects in prompt and tensor form before model/text work; valid base Wan guidance still reaches Guider.At.",
-        "Student nonzero advanced Guidance, unsupported presets and conflicting distilled parameters reject after profile binding and before file/device/projection loading; no request setting is silently ignored.",
-        "Loader, Reset and Generate share the profile-bound student admission; prompt-only, geometry, numerical defaults, cancellation and lifetime contracts remain.",
-        "Existing form and student fixtures retain every unique case and two valid resident generations; no new model setup. Record full correction cost."
-      ],
-    "comparison": "In the retained host form fixture, prompt plus Guidance{ZeroSteps:-1} or reversed interval must reject. In the retained student store/program fixture, otherwise valid defaults plus Guidance{ZeroSteps:1,Projected:true}, and original invalid preset/step cases, must report the semantic refusal before a nonexistent model path; then preserve the original two successful requests. No SQA workload.",
-    "displaced_surface": "One coordinated request-admission repair: existing Guidance.Validate owns parameter validity; profile-bound student admission owns its supported semantics and replaces the105-node runtime-bound body. No required validation is retired. The loader, Reset and Generate share the same student predicate; known-invalid loads and silently ignored guidance disappear. This remains separate from325's workflow registry and340's untouched UI defaults.",
-    "evidence": "The original student admission order is unchanged: LoadWanStudentRuntime fills profile defaults, resolves files, creates NewReferenceEditRuntime and uploads a projection before its runtime-bound admit is called. Preset=model-card or Steps=50 instead of the student's4 is refused only by Generate; resident Reset refusal can retire/reload before the same refusal. New7a1ae8c6f adds WanRequest.Guidance: prompt-form ValidateWanRequestForm never calls Guidance.Validate, while tensor-form validateWanRequest does. Prompt plus Guidance{ZeroSteps:-1} therefore passes director admission; ordinary Wan rejects only after loading and memo.contexts. More seriously, an otherwise valid student prompt with Guidance{ZeroSteps:1,Projected:true} passes its admit, Reset and Generate; the chunk-causal Run call receives no Guidance and ignores it. PresetNames hiding student choices does not reject this exported request field. Source-established counterexamples; no model run or incident frequency measured.",
-    "evidence_basis": "shown_from_source",
-    "evidence_commit": "4cb1c8aead7d2190b2cc06591a91b8319ca18310",
+    "classification": "profile-bound-admission-before-student-load-verified",
+    "evidence": "Verified f110d30b1 at1863242: ValidateWanRequestForm calls Guidance.Validate for prompt form, while tensor form retains its validator. resolveStudentRequest binds the student preset/defaults and rejects unsupported guidance, foreign presets and conflicting distilled parameters; loader calls it after profile binding and before resolveWanStudent/device/projection work, and Reset/Generate share it. Both reject compiled NAG mismatch before contexts. Native form cases cover negative zero steps/reversed interval; served NAG fixture retains three invalid requests and actual negative-prompt delivery, and the existing two-generation student/golden tests pass in retained implementation records. This closes341 admission;402 arithmetic and379 quality binding remain distinct. No SQA model run.",
+    "evidence_commit": "1863242c64cc856b013cd9838a1aa6111a1539fd",
     "expected_benefit": {
-        "outcome": "Correctness and early failure; no safe net code reduction established.",
-        "baseline": "Current selected full files: student1046/form1033/policy3974/shared Guidance405=6458 production AST. Retained form test578 + student serving test610=1188 test AST; selected total7646. Existing base-runtime1734 and director callers were traced; sizes are not deletion targets.",
-        "cost_contract": "Extend TestWanRequestFormAdmitsPromptOrTensors with negative zero steps and reversed interval, preserving prompt/tensor forms. Reuse the existing student store/program fixture to reject unsupported advanced guidance and the original preset/step cases before an unusable path can load; retain its two valid resident generations. No new fixture files/bytes, model setup, device run, schema, command or gate phase. New checks require some growth; exact replacement AST not measured and prior narrower estimates are superseded.",
-        "uncertainty": "Source proves accepted/ignored fields and load order, not observed wasted wall time. Early student admission still follows profile lookup and does not promise to preserve an invalid request's previous resident session."
+        "closure_cost": "Whole f110 NAG/admission migration+1277production/+1852testAST, one production/two test files; includes deleted CompileDenoiserProgramPrecision/projectContext forwarders and all caller migrations. Not attributable wholly to341 and counted once overall. No net deletion established.",
+        "retained_evidence": "Served NAG boundary assertion undo and original student/upstream golden cases retained; warm two-round plain20.94/20.96s versus NAG23.23/23.13s is scoped cost evidence, not quality approval. Extra negative-context KV lifetime is real.",
+        "limits": "No new SQA tests or model setup; functional delivery does not close numerical402 or bound quality379."
       },
     "id": "SQA-341",
-    "impact": "Prevents requested guidance from silently producing an unchanged student computation, and rejects deterministic invalid/unsupported requests before expensive model/text work. No numerical algorithm or general session recovery rewrite is needed.",
-    "likely_effort": "Bounded correction in existing request/profile admission with native fixture extensions.",
-    "plan_coverage": "Shared Wan request fields must be supported or rejected by each existing executor. Current guidance presets do not authorize student support. Report recommendation only; no dispatch/plan edits.",
-    "plan_references": [
-        "wan-few-step/served retained student execution path",
-        "sampling-split/named-presets landed bb3e392b1",
-        "Standing recipe/refactor target: reject known bad prerequisites before expensive work",
-        "guidance-ops/guider7a1ae8c6f (landed); cfg-zero-interval pending",
-        "Downloads extreme_refactor_plan.md: resolve intent once; reject known prerequisites before loading"
-      ],
-    "recommended_change": "Reuse Guidance.Validate at the existing request-form admission before either prompt or tensor requests reach loading; retain the existing resolved-request check where needed. Make student admission depend on its bound profile, not a loaded runtime, and call that same owner immediately after profile/default resolution in LoadWanStudentRuntime, before student file/device/projection loading. Reuse it from Reset/Generate and reject nonzero advanced Guidance unsupported by the student, alongside existing prompt-only, preset and distilled steps/shift/scale rules. Remove the displaced runtime-only condition body; no second validator, schedule implementation or preflight. Preserve the director's replay-first ordering, legitimate resource retries, cancellation and Close.",
     "severity": "P2",
     "sources": [
         {
-          "path": "internal/mediacapability/video_cuda_windows.go",
-          "symbol": "studentSessions -> ValidateWanRequestForm / LoadWanStudentRuntime / Reset"
-        },
-        {
           "path": "internal/latentvideo/wan_form.go",
-          "symbol": "ValidateWanRequestForm and WanRequest.withGeneration"
+          "symbol": "ValidateWanRequestForm"
         },
         {
           "path": "internal/latentvideo/wan_student_cuda_windows.go",
-          "symbol": "LoadWanStudentRuntime; WanStudentRuntime.admit/Reset/Generate"
-        },
-        {
-          "path": "internal/capabilityruntime/session_director.go",
-          "symbol": "serve: replay before lease; fresh loads bypass Reset; reset refusal retires then reloads"
-        },
-        {
-          "path": "internal/mediacapability/wan_student_cuda_windows_model_test.go",
-          "symbol": "TestTheWanStudentIsServedAsItsOwnModel"
-        },
-        {
-          "path": "internal/capabilityruntime/session_refusal_test.go",
-          "symbol": "TestSessionThatCannotTakeARequestIsReplaced"
-        },
-        {
-          "path": "internal/latentvideo/production.go",
-          "symbol": "WanRequest.Guidance; validateWanRequest"
-        },
-        {
-          "path": "internal/latentvideo/production_cuda_windows.go",
-          "symbol": "WanRuntime.resolve -> contexts -> validateWanRequest; Generate"
-        },
-        {
-          "path": "internal/sampling/guidance.go",
-          "symbol": "Guidance.Validate; Guider.At"
+          "symbol": "resolveStudentRequest; LoadWanStudentRuntime; Reset; Generate"
         },
         {
           "path": "internal/latentvideo/wan_form_test.go",
           "symbol": "TestWanRequestFormAdmitsPromptOrTensors"
+        },
+        {
+          "path": "internal/mediacapability/wan_student_nag_cuda_windows_model_test.go",
+          "symbol": "TestNAGAppliesANegativePromptAtGuidanceOne; retained served boundary/undo"
         }
       ],
     "status": "resolved",
@@ -8192,51 +8147,27 @@
   },
     {
     "category": "provider-credential-boundary",
-    "classification": "credential-downgrade-fixed; standard-default-redirect-bound-lost",
-    "closure_criteria": [
-        "Both credential-bearing callers refuse off-endpoint redirects before forwarding key/body.",
-        "Copied client retains caller policy or the standard nil-policy10-redirect bound,plus transport/timeout/cancellation.",
-        "Existing native fixture covers bounded same-endpoint loop and off-endpoint refusal; complete costs recorded."
-      ],
-    "comparison": "Extend the existing native redirect fixture only for the uncovered default-policy case: a same-endpoint loop must stop at Go standard redirect bound. Bound the fixture itself by a request counter/error so a regression cannot hang. RETAIN its existing 307 HTTPS-to-HTTP/different-port coverage for both listing and generation and their separate direct-request fixtures. Preserve the supplied client unchanged; no external endpoint or model.",
-    "displaced_surface": "Remove implicit redirect following at the two existing request sites; share their actual credential transport contract in remoterelay rather than duplicate per-route checks. Retain NameVariable, declared-variable binding, trust-boundary tests, direct HTTPS/local HTTP behavior and streaming terminal/cancellation checks.",
-    "evidence": "2f978d801 repairs credential-bearing redirects for both listing/generation through keyed: scheme/Host(port included) must match the admitted initial endpoint before following. Native TLS->plain endpoint test retains no leaked key and fails under undo. That original P1 leak is fixed. Remaining source-shown regression: keyed installs nonnil CheckRedirect and returns nil on every same-endpoint redirect when the supplied/default client had nil CheckRedirect. Go therefore no longer calls its defaultCheckRedirect,which stops at10. A same-endpoint redirect loop with the normal zero-timeout client can now continue until caller cancellation instead of refusing at the standard count. Installed Go src/net/http/client.go:defaultCheckRedirect confirms the10 limit. No new SQA network execution; original endpoint guard/client settings remain credited.",
-    "evidence_basis": "shown_from_source",
-    "evidence_commit": "43f2a8608fac0fab3e2cfffb825a0fea793b2fe6",
+    "classification": "endpoint-and-default-redirect-policy-verified",
+    "evidence": "Verified0ef92bbeb: keyed still copies the supplied/default client and restricts redirects to the original scheme/Host(port); caller CheckRedirect remains authoritative where present. With nil caller policy, len(via)>=10 now refuses as the standard default does. Native loop ends itself past100 requests, observes refusal at10 and fails under retained undo; existing307 off-endpoint TLS->plain fixture covers both listing/generation. Original credential leak and the default-policy regression are closed. No SQA HTTP/model execution.",
+    "evidence_commit": "1863242c64cc856b013cd9838a1aa6111a1539fd",
     "expected_benefit": {
-        "progress": "Shared2f978 landing+282production/+890testAST across four rows counted once overall; no repeated full cost for each related fix.",
-        "remaining": "A small default-policy check/native case may grow; no net deletion or runtime saving claimed. Value10 is Go compatibility,not new calibration."
+        "complete_cost": "0ef shared three-row migration+95production/+447testAST,0staticfixtures; counted once overall. keyed142AST, added loop native130AST; no new client framework, package or knob.",
+        "retained_evidence": "Assertion-based loop-policy undo and original off-endpoint fixture.10 is Go compatibility,100 only a fixture termination bound; no runtime saving measured."
       },
     "id": "SQA-363",
-    "impact": "The credential leak is repaired. A same-endpoint redirect cycle now bypasses Go standard ten-redirect refusal for clients with no explicit policy, causing repeated remote work until caller cancellation.",
-    "likely_effort": "Small shared HTTP-client policy change and native fixture extension; security correctness may grow code.",
-    "plan_coverage": "provider-redirect/do landed the key-confidentiality repair. The remaining P2 is the concrete loss of Go default redirect policy in the same retained owner; no second client framework or new tuning bound.",
-    "plan_references": [
-        "serving-bounds/provider-variables 38b24b610 (landed)",
-        "Downloads extreme_refactor_plan.md: interface authority and one boundary owner"
-      ],
-    "recommended_change": "Keep shared keyed endpoint restriction and copied caller client. Preserve the caller explicit redirect callback,or Go standard10-redirect bound when no callback was supplied. No new tuning knob,client framework or blanket ban on admitted redirects. Extend the existing native HTTP fixture with a same-endpoint loop bounded by a request counter/error so the regression test cannot hang; retain both credential-bearing callers and cancellation.",
     "severity": "P2",
     "sources": [
         {
-          "path": "internal/remoteprovider/variables.go",
-          "symbol": "KeyTransport"
-        },
-        {
           "path": "internal/remoterelay/listing.go",
-          "symbol": "ListModels; listModels"
+          "symbol": "keyed; listModels; redirectsFollowed"
         },
         {
           "path": "internal/remoterelay/generator.go",
-          "symbol": "New; Generator.Generate"
+          "symbol": "New -> keyed; Generate"
         },
         {
-          "path": "internal/capabilityruntime/peer.go",
-          "symbol": "ExecutePeer: copies client and refuses redirects"
-        },
-        {
-          "path": "Go1.26.2/src/net/http/client.go",
-          "symbol": "Client.do; shouldCopyHeaderOnRedirect; defaultCheckRedirect (installed toolchain source)"
+          "path": "internal/remoterelay/redirect_test.go",
+          "symbol": "TestAProvidersKeyedClientStopsAfterTenRedirects; TestAProvidersKeyFollowsNoRedirectOffItsEndpoint"
         }
       ],
     "status": "resolved",
@@ -8354,7 +8285,7 @@
     "displaced_surface": "Remove the unconditional source-absence assertion and code-writing instruction on every VACUOUS result. Keep the useful selected package/test and allowed-file context. No new worker tool, plan state or scheduler. The native missing-test fixture remains the response owner.",
     "evidence": "8d2260ce8 adds useful guidance for an absent check, but run_check appends missingTest whenever the displayed result contains VACUOUS. planverify.Execute uses that marker for any failed evidence validation after a successful command; verifyTarget explicitly rejects an existing matched test whose action is skip. An existing TestTheChangeHolds that calls t.Skip for an unavailable prerequisite therefore exits successfully, returns VACUOUS:...skipped, and is described as 'in no file yet. Write it first'. Build-tag exclusion also cannot prove source absence. The new fixture covers absence only. Source-established response error; no worker or test executed by SQA.",
     "evidence_basis": "shown_from_source",
-    "evidence_commit": "c06fc9ceb8ef9e77a2787f0ff115f1e0b5ae89af",
+    "evidence_commit": "1863242c64cc856b013cd9838a1aa6111a1539fd",
     "expected_benefit": {
         "baseline": "tools.go1648AST; missingTest115; tools_missing_test_test.go189. The complete landed guidance change costs201production/189test nodes.",
         "cost": "No parsed replacement or guaranteed net reduction. A wording-only conditional removes the false claim without new production machinery; charge retained fixture growth honestly.0new binary/directory/staticfixture/schema."
@@ -8362,7 +8293,7 @@
     "id": "SQA-366",
     "impact": "Avoids sending a worker into unnecessary edits or repeated searches when unchanged setup prevents a valid test from running.",
     "likely_effort": "Small response correction and extension of the existing189-node fixture.",
-    "plan_coverage": "The step landed its absent-test case; skipped evidence is a distinct unhandled response. Keep this separate from318 fuzz discovery and322 verifier sequencing.",
+    "plan_coverage": "5c3 verify-mention removes textual go-test inference for a parsed non-Go command, with one native grep/sh-c check; useful progress. It does not change run_check missingTest advice after a genuine skipped/VACUOUS check, so366 remains open. No additional parser/policy suite requested.",
     "plan_references": [
         "loop-proof/write-the-test landed8d2260ce8",
         "loop-proof/local-demonstrated",
@@ -9050,9 +8981,9 @@
       ],
     "comparison": "In the retained command fixture and existing temporary artifact store, construct two minimal valid bound arms, then swap one scored record or its rendered output while retaining all case names/outcomes/sizes; current source accepts what must be rejected. Change active recipe after recording to check historical binding. A legitimate carried record still works. No real rendering or judging is necessary to decide this defect; proposed checks only. Extend the retained controls boundary with the same preset name on two model/recipe identities and one stale recipe: only the actually bound admitted identity is offered. Do not duplicate numerical acceptance or copy a model fixture. In the existing readingsFake fixture, keep Out and arm names after a complete run but change the judge or source/media; require validation/invalidation, not zero calls. A valid unchanged resume still runs only unfinished work; preserve unrelated-record interleaving and failed-arm continuation. This is a recommendation only. Extend the retained render-manifest/run fixture with one complete output and one pending output: a compatible orchestration repair retains the first and computes only the second, each under its original/actual producer. A changed sampler/request dependency fails compatibility. No live render is needed for this identity decision. Extend render_resume_test to two retained items/one pending: change the non-last request while the last sentinel matches. The dependency contract must reject/invalidate only affected work. Keep same-build and differing-sentinel cases in the same native fixture.",
     "displaced_surface": "Remove unbound case-name-only comparison and the current-activation template substitution as authorities. Retain existing manifest, scoredReport/carried-result traversal, runrecord/artifact identity and modelrecipe lifecycle. Reuse read/validation only where the contract truly matches: alreadyDrawn can accept a missing file as a new render, so calling it blindly is not sufficient admission validation. Merge repeated numerical admission calls/right-map setup out of cmd/evaluate/preset_reading_test.go into the existing evaluation test; keep format fallback, mixed sizes and preset reuse cases, and extend the command fixture for actual record binding with existing native store/artifact setup. No second model fixture or new binary/package. Replace the embedded family-status approval table and its duplicate schema checks once the existing bound evidence owner feeds controls; do not add a second registry beside it.",
-    "evidence": "Current admission still reduces two render manifests to preset/format/settings and two supplied evaluation IDs to case-name booleans, without proving the evaluations scored those outputs or share model/task/recipe, prompts/seeds, questions/judge/scoring. ResolveActiveExecution uses current candidate activation rather than necessarily the producer recipe. Existing render manifests already retain model/recipe/task/code and per-draw input/output/run/request; scoring records retain report/plan/dataset, so the missing binding belongs to those owners.8ab8f2e44 supplies a portable3335-byte six-reading record with exact evaluation IDs/counts/tails and changes family statuses: five admitted, MOSS interval refused. Credit those retained facts and UI exposure, not a runtime binding: embedded preset_readings.json remains only family/name/status (299->304bytes). The latentimage family serves both Krea/MOSS through imageControls; no actual recipe/request/evaluation identity is checked at offering time. This is now real offered status, not the old all-pending state.\nThe new293-AST native record test checks positive pair totals, nonempty reference/arm/Says, and agreement of the manual Admitted bit with the embedded manual status. Its Tail field is never read, it does not invoke AdmitPreset or resolve either evaluation ID. Source counterexample: for an already-admitted record, change counts to0wins/524losses/0ties and Tail1 while retaining Admitted=true and nonempty IDs/Says. The current declared harm-screen arithmetic refuses it, but this native test passes its checked conditions. All six actual committed records match the intended arithmetic; SQA claims neither an actual false model verdict nor a live tampering reproduction.\nCampaign and resume obligations remain:6bb2359a3 consumes the exact printed evaluation ID but arm/suite/verdict skips still trust names/file existence and accept incomplete trailing bookkeeping.9d585bc9a preserves per-draw producer builds and removes whole-commit stranding, but validates a new build by rerendering only the last retained item. A changed earlier cat with an unchanged last dog can pass that sentinel. Neither current product-record landing changes these source paths. Keep selective compatible reuse and original provenance; do not require redrawing every item or another identity registry.",
+    "evidence": "Current admission still reduces two render manifests to preset/format/settings and two supplied evaluation IDs to case-name booleans, without proving the evaluations scored those outputs or share model/task/recipe, prompts/seeds, questions/judge/scoring. ResolveActiveExecution uses current candidate activation rather than necessarily the producer recipe. Existing render manifests already retain model/recipe/task/code and per-draw input/output/run/request; scoring records retain report/plan/dataset, so the missing binding belongs to those owners.8ab8f2e44 supplies a portable3335-byte six-reading record with exact evaluation IDs/counts/tails and changes family statuses: five admitted, MOSS interval refused. Credit those retained facts and UI exposure, not a runtime binding: embedded preset_readings.json remains only family/name/status (299->304bytes). The latentimage family serves both Krea/MOSS through imageControls; no actual recipe/request/evaluation identity is checked at offering time. This is now real offered status, not the old all-pending state.\nThe new293-AST native record test checks positive pair totals, nonempty reference/arm/Says, and agreement of the manual Admitted bit with the embedded manual status. Its Tail field is never read, it does not invoke AdmitPreset or resolve either evaluation ID. Source counterexample: for an already-admitted record, change counts to0wins/524losses/0ties and Tail1 while retaining Admitted=true and nonempty IDs/Says. The current declared harm-screen arithmetic refuses it, but this native test passes its checked conditions. All six actual committed records match the intended arithmetic; SQA claims neither an actual false model verdict nor a live tampering reproduction.\nCampaign and resume obligations remain:6bb2359a3 consumes the exact printed evaluation ID but arm/suite/verdict skips still trust names/file existence and accept incomplete trailing bookkeeping.9d585bc9a preserves per-draw producer builds and removes whole-commit stranding, but validates a new build by rerendering only the last retained item. A changed earlier cat with an unchanged last dog can pass that sentinel. Neither current product-record landing changes these source paths. Keep selective compatible reuse and original provenance; do not require redrawing every item or another identity registry. Atf110 the new student nag preset is declared, while preset_readings.json latentvideo still lists only the three earlier pending names. offeredPresets passes unlisted names, so declaring nag supplies an offer without a bound NAG quality record; the plan explicitly leaves its quality reading to preset-readings. Functional byte differences are not that admission. This is the existing missing/applicable-evidence projection obligation, not another finding or a claim that current NAG quality is bad.",
     "evidence_basis": "shown_from_source",
-    "evidence_commit": "f79132c42b6c3db91882eadb3aa8f7b7d869bb18",
+    "evidence_commit": "1863242c64cc856b013cd9838a1aa6111a1539fd",
     "expected_benefit": {
         "baseline": "Shared full admission baseline/cost is charged once in342: +1231 production/+766 test AST. Selected command file719 nodes, command test429 nodes. No implemented after count or guaranteed net saving.",
         "setup": "Existing native store/artifact fixtures suffice for identity counterexamples; no model/device workload, benchmark or new recurring gate requested. 0 new fixture files/bytes/schemas in the admission landing per retained gate.",
@@ -9376,32 +9307,32 @@
   },
     {
     "category": "data-lifetime",
-    "classification": "normal-resume-and-live-holder-fixed; failed-invalidation-still-authoritative",
+    "classification": "newer-turn-stale-end-fixed; unknown-state-stat-error-still-ends",
     "closure_criteria": [
-        "Successful resume and a matching live process retain their implemented protection.",
-        "A failed end-marker invalidation cannot leave resumed no-hold scratch eligible for automatic deletion; unavailable ownership is held or unknown.",
-        "Genuinely ended cleanup, worktree/store/open-row/citation keepers, links and deletion receipts retain their existing owners; record full code/test/setup cost."
+        "Retain live-holder, successful invalidation and newer-turn protection.",
+        "A non-not-exist failure reading current turn ownership is held/unknown, not positive deletion authority; genuine legacy absence/end semantics remain explicit.",
+        "Current cleanup keepers and receipts remain; use existing native error facilities without a new lifecycle/mock framework and record full costs."
       ],
-    "comparison": "Extend the existing hook/session fixture with a no-hold resumed session whose old end marker remains readable but cannot be removed; its scratch must remain held or unknown. Retain successful resume, live process, genuinely ended and existing cleanup-boundary cases. This is a recommendation for the smallest native fixture, not SQA test or cleanup execution.",
+    "comparison": "Retain the existing old/new turn-mtime cases and legacy ended case. A controlled non-not-exist turn metadata error with an otherwise readable end must stay held/unknown. Source establishes the current error-to-ended branch; no real cleanup or new SQA test is needed.",
     "displaced_surface": "Correct the error-to-stale-end path through guard.SessionResumed, runDoctrine and the existing sessionState decision; no second lifecycle registry or cleanup suite. RETAIN the guard, hook and cleanup tests as distinct boundaries. Extend one existing native failure fixture; the 89-node SessionEnded predicate is a replacement boundary, not a deletion saving.",
-    "evidence": "2f978d801 fixes the original normal-resume defect: SessionEnded gives a matching live PID/start hold precedence, and runDoctrine calls SessionResumed before the review early return. The retained guard and hook native fixtures cover both; their recorded undo fails. Remaining concrete error path: SessionResumed returns an os.Remove error other than not-exist, leaving an existing readable end marker; runDoctrine only prints that error and continues. A resumed review session owns no implementation hold. SessionEnded then accepts the surviving marker, and facts.sessionState can classify its uncited, unregistered scratch as finished for automatic cleanup. A readable marker locked against removal on Windows admits this path. No SQA removal, reproduction or observed data loss is claimed. Delayed prior SessionEnd delivery is only a hypothesis: repository adapters show no asynchronous setting, and source alone does not establish that harness ordering. It is not an independent P1 or a reason to require incarnation machinery.",
+    "evidence": "2f978 repairs normal SessionResumed invalidation and matching live PID/start precedence.0ef92bbeb adds a useful fallback when removal failed: a newer session-turn mtime outranks an older end marker, and the retained native fixture/undo covers both timestamp orders. Remaining required unknown-state path is explicit in SessionEnded: after a readable end marker it returns err != nil OR turn not newer. Any non-not-exist Stat failure reading the current turn therefore authorizes ended status, rather than held/unknown. facts.sessionState can then finish uncited/unregistered scratch and normal cleanup can remove it. This is a source-shown filesystem-error path, not an observed deletion or SQA cleanup. Missing legacy state and unreadable current state are different; retain genuine legacy/manual end semantics without treating permission/I/O errors as positive end evidence. The earlier delayed-hook-delivery hypothesis is not revived and no incarnation registry is requested.",
     "evidence_basis": "shown_from_source",
-    "evidence_commit": "43f2a8608fac0fab3e2cfffb825a0fea793b2fe6",
+    "evidence_commit": "1863242c64cc856b013cd9838a1aa6111a1539fd",
     "expected_benefit": {
-        "baseline": "The three session-cleanup landings together add904 production/1659 test AST,162/262 lines and5 test files; the ended-session landing accounts for679/984AST. Also15 shell-hook lines (843bytes) and10 settings lines. No binary/directory deletion measured.",
-        "after": "Normal resume is implemented. Remaining conservative failure handling may require code/test growth; no net deletion or elapsed saving established. Prior delayed-event protocol was not source-proved and is no longer prescribed.",
-        "setup": "Reuse guard and hook temp-state fixtures, including a controlled readable-but-nonremovable marker. No model/device work, live session mutation or deletion performed by SQA."
+        "progress": "0ef complete three-row landing+95production/+447testAST,0staticfixtures; native stale-end case192AST. Shared landing cost counted once overall with363/evidence-label work.",
+        "remaining": "A small conservative error distinction may grow; no net deletion or measured saving claimed. Timestamp ordering is lifecycle evidence, not a timeout.",
+        "setup": "Retain old/new mtime, live-hold, normal resume and genuinely ended/native cleanup boundaries. No SQA session mutation, filesystem refusal reproduction or deletion."
       },
     "id": "SQA-384",
     "impact": "A failed lifecycle update can leave a past end marker authorizing deletion of a resumed review session scratch. Existing worktree, store, open-row and citation keepers do not cover every review scratch folder.",
     "likely_effort": "Bounded lifecycle/cleanup safety correction; correctness takes priority over deletion.",
-    "plan_coverage": "session-resume/do closes normal marker invalidation and live-holder precedence. Reviewer accepts that repair and narrows the remaining obligation to failed invalidation at the existing owner. No new row or mandatory delayed-event protocol is requested.",
+    "plan_coverage": "session-end/stale0ef fixes the known newer-turn path, but its err != nil fallback still violates the existing unknown-state criterion. Reviewer reopens384 while preserving the raw lead closure and all delivered evidence.",
     "plan_references": [
         "session-leftovers/ended-session 61231575b (landed)",
         "session-leftovers/every-harness-folder 2fa14744a (landed)",
         "Downloads architecture sections5,7: explicit lifetime and honest recovery"
       ],
-    "recommended_change": "Keep the normal invalidation and live-hold repair. Make failed invalidation or unreadable current ownership conservative at the existing lifecycle/cleanup owner: an old end must not remain sufficient deletion authority for resumed work after the resume update fails. Preserve positive evidence for genuinely ended sessions and existing deletion receipts. Do not add an incarnation registry merely for the unproved delayed-hook hypothesis.",
+    "recommended_change": "Keep live-holder, normal invalidation and newer-turn precedence. At the existing SessionEnded owner, distinguish legitimate absent legacy state from a failed read/stat of current ownership: unavailable current metadata must not make a resumed session deletable. Preserve genuine ended cleanup and all worktree/store/open-row/citation/link protections. Reuse existing guard native facilities where possible; no new lifetime registry or mock-stat abstraction.",
     "severity": "P1",
     "sources": [
         {
@@ -9429,8 +9360,8 @@
           "symbol": "restart and process-held checkout cases"
         }
       ],
-    "status": "resolved",
-    "title": "Keep resumed scratch protected when end-marker invalidation fails"
+    "status": "open",
+    "title": "Keep unreadable resumed-session state from authorizing cleanup"
   },
     {
     "category": "clone-publication-recovery",
@@ -10016,51 +9947,22 @@
   },
     {
     "category": "numerical-reference-acceptance",
-    "classification": "source-established-nan-tolerance-bypass; solver-failure-not-reproduced",
-    "closure_criteria": [
-        "A NaN trajectory/result error cannot pass either retained tolerance decision; finite parity and exact draw count/order remain required.",
-        "Use the same local fixture/comparison owner and count any guard/native-check growth; no new oracle framework or relaxed acceptance."
-      ],
-    "comparison": "The smallest deciding comparison is one NaN-valued got element through the retained error decision: it must refuse while unchanged finite reference cases keep the same tolerance. Check infinity handling as well. Reuse the existing native fixture/inline comparison; no SQA-triggered test or model run.",
-    "displaced_surface": "Replace the two NaN-permissive tolerance decisions or guard their retained local worst result. No solver, fixture, model/device setup, shared runtime or noise-order test is displaced; this is necessary acceptance hardening with possible small test growth, not a net-reduction claim.",
-    "evidence": "The local worst comparator folds max(off,math.Abs(got-want)); Go builtin max propagates NaN. Both acceptance sites reject only off>5e-6 (plus the separate final draw count), so a NaN latent/error makes the comparison false and can pass every trajectory/result tolerance with the expected draw count. This is an acceptance flaw established from source/IEEE semantics; SQA did not produce NaNs in a solver/model run. Three small eight-step reference trajectories, including sigma1 and denoise0.72, cover component parity. The separate exact Philox draw test also covers MOSS shape[1,128,36,64] but cannot validate finite solver arithmetic or complete MOSS image equivalence.",
-    "evidence_basis": "shown_from_source",
-    "evidence_commit": "4dcd2df02e99ba543016cd010b95de1ebf9f98aa",
+    "classification": "finite-ER-SDE-oracle-verified",
+    "evidence": "1863242 routes both existing trajectory/result comparisons through erSDEOff. It uses checked.Finite64 on each absolute difference before max/tolerance and returns+Inf for nonfinite error, so off>5e-6 now refuses. Added native case checks NaN, infinity and a finite within-tolerance vector; the original golden/draw-count fixture remains. This repairs the oracle, not a claim that a solver trajectory was numerically wrong. Pure test change has no production undo by the declared policy; SQA ran none.",
+    "evidence_commit": "1863242c64cc856b013cd9838a1aa6111a1539fd",
     "expected_benefit": {
-        "baseline": "er_sde_test.go473AST; main trajectory test265nodes. ER-SDE landing as a whole +1283production/+837test and182115fixturebytes; included once in current review costs.",
-        "after": "Unimplemented finite check may grow the native test.0production/binary/package/new fixture changes needed; same golden read and same three case setups. No safe net saving or elapsed benefit established.",
-        "uncertainty": "Does not prove current solver fails on admitted schedules; it closes a false-pass path in the retained oracle."
+        "complete_cost": "+126testAST/+27lines,0production/staticfixtures/files/packages/binaries. Existing local comparator moved to one62-node test owner used by parity and the102-node nonfinite native fixture.",
+        "retained_evidence": "Implementation native finite/NaN/Inf check and original golden pass;206s gate. No production undo required and no SQA application run."
       },
     "id": "SQA-396",
-    "impact": "A nonfinite solver regression can be reported as numerical agreement with the finite reference, weakening the evidence required before the new sampler is used more broadly.",
-    "likely_effort": "Small native assertion correction through existing numerical predicates.",
-    "plan_coverage": "Component solver and exact random draws are implemented; full MOSS ER-SDE output comparison remains pending. Compile-only undo is explicitly not behavioral assertion evidence.",
-    "plan_references": [
-        "moss-ultra-sections/er-sde landed0d850355c",
-        "moss-ultra-compare retains end-to-end reference comparison",
-        "Downloads architecture target: numerical contracts remain with executors and their retained evidence"
-      ],
-    "recommended_change": "Keep the existing local comparator/native golden owner and reject nonfinite error (or operands) before either tolerance decision, reusing checked.Finite64/Finite32 or the standard math predicates. Preserve5e-6, draw count/order, endpoint behavior and the existing fixtures. Do not introduce an exported comparator/framework, relax tolerance or couple numerical acceptance to timing.",
     "severity": "P2",
     "sources": [
         {
           "path": "internal/sampling/er_sde_test.go",
-          "symbol": "TestERSDEDrawsNoiseAsTorchDoes: local worst and trajectory/result tolerance assertions"
-        },
-        {
-          "path": "internal/checked/checked.go",
-          "symbol": "Finite32; Finite64"
-        },
-        {
-          "path": "internal/sampling/er_sde.go",
-          "symbol": "ERSDE.Step; NewERSDE"
-        },
-        {
-          "path": "internal/torchrng/er_sde_draws_cuda_windows_test.go",
-          "symbol": "TestERSDEDrawsNoiseAsTorchDoes: exact noise draw hashes; different retained contract"
+          "symbol": "erSDEOff; TestTheERSDEComparisonRefusesANonfiniteError; TestERSDEDrawsNoiseAsTorchDoes"
         }
       ],
-    "status": "open",
+    "status": "resolved",
     "title": "Reject nonfinite ER-SDE trajectory errors before accepting parity"
   },
     {
@@ -10252,7 +10154,73 @@
       ],
     "status": "open",
     "title": "Discover undo inputs in the accepted verifier build context, including the module root"
-  }
+  },
+    {
+      "id": "SQA-402",
+      "status": "open",
+      "severity": "P2",
+      "category": "numerical-correctness",
+      "classification": "admitted-zero-norm-NAG-and-nonfinite-oracle",
+      "evidence_basis": "shown_from_source",
+      "evidence_commit": "1863242c64cc856b013cd9838a1aa6111a1539fd",
+      "title": "Keep NAG finite when attention cancels or has zero norm",
+      "sources": [
+        {
+          "path": "internal/model/block_conditioned_diffusion.go",
+          "symbol": "buildNormalizedAttention; buildConditionedDiffusionBlock"
+        },
+        {
+          "path": "internal/sampling/attention.go",
+          "symbol": "NormalizedAttention.Validate"
+        },
+        {
+          "path": "internal/model/block_conditioned_diffusion_nag_test.go",
+          "symbol": "normalizedAttention; TestABlocksNAGIsThePapersEquations"
+        },
+        {
+          "path": "internal/tensor/reference/executor.go",
+          "symbol": "OpDivide ordinary float32 division"
+        },
+        {
+          "path": "internal/cuda/executor/launch_math_vision.go",
+          "symbol": "OpDivide launch"
+        },
+        {
+          "path": "kernels/cuda/ops_f32_elementwise.cuh",
+          "symbol": "divide_f32; broadcast_divide_f32"
+        },
+        {
+          "path": "internal/latentvideo/denoiser.go",
+          "symbol": "guided conditioned-block compilation"
+        },
+        {
+          "path": "internal/latentvideo/wan_student_cuda_windows.go",
+          "symbol": "Generate -> RunGuided"
+        }
+      ],
+      "evidence": "At valid preset Scale4/Tau2.5/Alpha0.25, a valid-width token with finite positive features[4,0,...] and negative features[5,0,...] make the extrapolated value5*4-4*5=0. Its L1 ratio is0/4=0; buildNormalizedAttention then divides Clamp(0,0,2.5) by0 and multiplies the resulting NaN by0. The expected finite zero-vector limit blends to3. All-zero positive/negative vectors likewise form0/0. Valid activation shapes/finite values admit both cases; admission constrains settings, not nonzero activation norms. Reference OpDivide and CUDA divide kernels perform ordinary division, with no safe-zero owner applied here. The native float64 oracle repeats the same undefined ratio, and its tolerance checks only Abs(error)>bound: NaN does not fail that comparison. Existing fixtures cover bounded/unbounded nonzero ratios, not these limits. This is a source/arithmetic counterexample, not an observed bad clip or SQA execution. The paper Appendix C itself writes the unguarded ratio; faithful transcription does not establish its zero-domain behavior (https://arxiv.org/html/2505.21179v3#alg1).",
+      "impact": "Legal finite attention values can inject nonfinite activations into the served NAG path, while its numerical oracle can miss nonfinite results.",
+      "recommended_change": "Define a finite zero/cancellation limit in the existing model tensor-graph calculation, using current arithmetic/fallback primitives and preserving per-token/all-heads norms, nonzero equations and storage rounding. Keep the plain no-NAG path unchanged. Make the retained native comparison refuse nonfinite actual and reference values with existing checked finite predicates. Extend that same reference-backend fixture with cancellation and zero vectors; no new model campaign, backend, safety framework or tuning knob.",
+      "displaced_surface": "Correct buildNormalizedAttention167AST and its existing normalizedAttention175AST oracle in place; remove the undefined intermediate ratio where a justified equivalent normalization can do so. Keep current cross-attention/projection/nonzero/plain-path assertions. No new wrapper, package or duplicate numerical suite.",
+      "expected_benefit": {
+        "baseline": "Affected graph helper167AST plus native body996/oracle175=1338AST. Whole NAG migration+1277production/+1852testAST across20Go paths, one production/two test files, no CUDA source or staticfixture addition; charged once in this review.",
+        "after": "Unimplemented finite-limit and oracle correction may grow. No safe net code reduction or runtime gain established. Count any numerical reordering, helper and retained fixture changes.",
+        "setup": "Small constant tensors on the existing reference backend suffice: positive4/negative5 at scale4 must be finite3; zero vectors must remain finite. Retain both nonzero bound cases and plain-path identity without new model/device setup."
+      },
+      "likely_effort": "Small existing graph/oracle correction; native limit definition and nonzero equivalence need care.",
+      "plan_references": [
+        "guidance-ops/nag-wan landedf110d30b1",
+        "guidance-ops/preset-readings remains a quality decision",
+        "Downloads/extreme_refactor_plan.md: preserve numerical behavior in existing executors"
+      ],
+      "plan_coverage": "Fold into related NAG numerical-owner work, not a second workflow or automatic new campaign. Functional negative-prompt delivery and341 early admission remain credited;402 is a separate arithmetic contract.",
+      "closure_criteria": [
+        "Cancellation, zero positive and all-zero attention cases return finite values under a stated zero limit, without altering the required nonzero formula/axis/storage behavior.",
+        "The retained numerical oracle rejects NaN/Inf before tolerance; native zero/cancellation and existing bounded/unbounded/projection/plain cases use the same setup.",
+        "Full production/test/helper cost is recorded; no new model/device confidence run or generalized safety machinery is required by SQA."
+      ],
+      "comparison": "Use the existing tensor/reference fixture at its supported feature width with one token [4,0,...] versus [5,0,...], scale4/tau2.5/alpha0.25; expect finite [3,0,...], and finite zero for all-zero vectors. Check finiteness before tolerance. Preserve complete-block nonzero and no-negative-context identity checks."
+    }
   ],
     "gate_test_assessment": {
     "assumptions": "Evidence labels describe principal current support,not independent certification or all mixed subclaims. Severity is impact; source proof can establish a false-check defect without SQA execution. No fixed open-count cap.",
@@ -10302,17 +10270,20 @@
         ]
       },
     "fresh_ast": {
-        "revision": "68301d8275250ef49785328d60bacadbeca53d51",
-        "method": "Existing Go parser over committed runtime, both encoding owners and retained fixtures/geometry consumer; full changed-file cost. No runtime execution.",
-        "counts": "8files15242AST/121functions/2788local links. Upscaler Frame61/FrameYUV58/shared run109; mp4 addYUV83/write276; size helpers27/31. Colour native692; clip native380 plus PSNR161.",
+        "revision": "1863242c64cc856b013cd9838a1aa6111a1539fd",
+        "method": "Existing selected-file Go parser plus committed call/error paths, complete per-commit before/after costs and direct arithmetic.",
+        "counts": "24files38964AST/246functions/7831local links. NAG graph167/native body996/oracle175; student resolver161; letGo105/holdCard164/takePlace419; SessionEnded124/keyed142; ER comparator62/native102.",
         "retained_result": [
-          "review-6830-selected-ast.json",
-          "review-6830-cost.json",
-          "review-6830-retained-evidence.json"
+          "review-5c3b-selected-ast.json",
+          "review-f110-cost.json",
+          "review-5c3b-cost.json",
+          "review-0ef-selected-ast.json",
+          "review-0ef-cost.json",
+          "review-1863-selected-ast.json",
+          "review-1863-cost.json"
         ],
-        "limits": "No type/global dependency/duplication percentage claim. Windows nvvfx uint64 and cross-platform MP4 int size helpers are not merged solely for similar arithmetic.",
-        "constants_and_geometry": "12bytes/pixel floatRGB versus1.5bytes/pixel even-sized I420 explains8x final download reduction; old FFmpeg rgb24 input3bytes/pixel becomes1.5, a different2x ratio. MP4.start retains positive/even validation; interstitial2x2 chroma and limited-range luma/chroma spans219/224 are format semantics. Colour64x32 and pipeline832x480->3328x1920 are fixture shapes, not generic domain proof. FrameYUV ABI10/layout3/offset25/colour9 remain runtime calibration. No odd-layout or hardware error-injection execution by SQA.",
-        "lifetime": "Final float device frame is omitted only for real YUV consumers; intermediate frames remain for multi-stage finish. Stream synchronization precedes readback; release skips zero placeholders and frees yuvFrame/stages before closing the worker. Existing FFmpeg supervisor/pipe-exit handling and cancellation remain."
+        "limits": "No package/type or live concurrency/cleanup proof. CUDAs division kernels read directly; no device execution.",
+        "constants_and_geometry": "NAG axis is features across all heads per token [dim,tokens]; native12features/2heads/4tokens and served21frames64x32 are fixture geometry. Scale4/tau2.5/alpha0.25 are declared preset coefficients; positive4/negative5 yields exact cancellation at those valid settings. No new epsilon or hardware calibration guessed."
       },
     "media_follow_up": {
         "revision": "e969f619a89e45c3380e30853b01af393d55ba47",
@@ -10476,18 +10447,17 @@
       "retained_change_costs": "Two consolidation landings(2d59f642c exact folds andbb4fc706a parameter folds) remove744 production nodes but add1591 test nodes, net+847 across Go. Pilot retirementea8ed43a7 removes5926 production/9990 test nodes and one schema, while fixture bytes grow599; its test deletion is already included in the day's offsets and must not be subtracted twice. These retained gates are broader changes, not matched per-test performance comparisons."
     },
     "retained_results": [
-        "4d6803 native assertion-based undo restores nvvfx/finish/mp4/production Go and fails the new pipeline check. The64x32 probe checks luma within1level/chroma within3 of block mean; those are retained bounded hardware evidence, not SQA calibration.",
-        "BenchmarkFinishedClipWrite retained three81-frame writes with exclusive card ownership:2x19.69->51.89fps/76.8->30.1MB allocated per write;4x6.631->24.65fps/264.9->102.0MB. Per-write allocation differs from steady buffer sizes; no standing performance gate added.",
-        "Pipeline fixture writes YUV twice, requires identical MP4 bytes and no finished float copy, then writes the retained float path. First8frames compare each lossy encode to finished frames: retained39.39-42.03dB and0.03-0.10dB above old path. It does not establish direct decoded-path40dB.",
-        "6830 plan moves NAG acceptance to the served student request boundary and retains paper-equation unit coverage. verify-mention is an already-filed typed-command inference repair; plan text is not delivered implementation or a new SQA task."
+        "341 source call order and retained form/served/golden coverage confirm early supported admission;402 remains a separate arithmetic domain.",
+        "0ef retained assertion undo covers ten-redirect/default policy, old/new turn timestamps and evidence-basis display. The session timestamp test does not exercise a Stat failure; resource tests begin with an already-held turn.",
+        "1863 finite ER comparator native refuses NaN/Inf before tolerance while retaining the existing golden/draw count; no production undo is required for this test-only change.",
+        "NAG warm20.94/20.96s plain versus23.23/23.13s guided is two rounds of one clip, about10%extra clip time. Negative KV/output storage is additional; no general peak-memory or quality gain claim."
       ],
     "surface_reduction_analysis": "29196812c->0b5a70f89:34changed-Go paths,+759production/+1671testAST,net+2430,+140/+312lines,+1production/+7testfiles,0staticfixtures/binary/package additions. This is necessary capability/recovery growth,not net reduction. Historical closure reductions kept separate. Historical whole-file-669 and one-verdict-287 remain separate; current metadata adds no application code.",
     "tests": [
-        "RETAIN new colour probe and end-to-end clip fixture: one decides ABI/layout/range, the other actual transfer/no-float/encoder integration/determinism. Similar device setup is not duplicate coverage.",
-        "RETAIN floatOnly as a test adapter to the supported non-YUV path and common finished-source reference. Three pipeline writes reuse one existing decoded studentClipFeed; no new model fixture/schema package.",
-        "Verification cost:81input float frames388,177,920bytes and8kept finished float references613,416,960bytes, plus decoded image sets/encoded clips/runtime buffers. These are size-derived allocations, not measured peak. Do not claim the new test itself uses33.5MB.",
-        "ChangedPixels now counts YUV luma versus RGB colour bytes; sampled actual consumers are records/logs and format-specific tests, not a new rejection rule. Keep the explicit record/Encoding distinction. No unsupported motion equivalence inferred.",
-        "No new merge/removal justified here; earlier395/400 bounded setup reductions remain. No tests created or run."
+        "RETAIN NAG full-block projection/nonzero/plain and served-request tests as different boundaries. Extend the native reference tensor setup for zero/cancellation and finite assertions, not another model fixture.",
+        "RETAIN current lifecycle old/new-turn, normal-resume, live-holder and legacy cleanup cases. Unknown metadata must stay conservative; use existing native facilities rather than a mock-stat layer.",
+        "RETAIN ten-redirect loop bounded by the server100-request sentinel and off-endpoint307 coverage. Caller policy/transport/cancellation remain.",
+        "RETAIN ER-SDE nonfinite and trajectory/golden cases through their one comparator.395/400 existing setup reductions remain independent; similar assertions do not justify merging numerical/serving contracts."
       ]
   },
     "hygiene_assessment": "No hygiene finding. Scratch analysis is outside the repository; concrete correctness and production/test cost take priority.",
@@ -12021,10 +11991,9 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
     "limitations": [
-      "No application tests, models/devices, benchmarks, profiles, services, gates, agents/messages, implementation, plan/skill changes or cleanup. Source/AST and retained records only.",
-      "Parser-local resolution is not package/type or ABI proof. NvCV format10/descriptor byte25/colour9 are retained runtime calibration, not independently reproduced constants or universal allocation rules.",
-      "Performance is three writes of one81-frame clip on the retained hardware/runtime. Quality compares the first8frames and a64x32 colour fixture. No all-model, all-size, x264-fallback or throughput generalization.",
-      "Prework plan40dB between decoded paths and landed0.5dB relative-to-common-source PSNR measure different contracts. The owner explains the reference change; the new check does not prove the old40dB bound. Earlier37dB figures were untagged, not proof the corrected tagged path fails40dB."
+      "No application/native/model/device tests, workloads, profiles, services, gates, agents/messages, implementation, plan/skill edits or cleanup. Source/AST, primary reading and retained implementation records only.",
+      "Zero-norm402, probe261 and unknown-state384 are source-shown, not reproduced incidents. Parser-local links are not package/type or global equivalence proof.",
+      "Functional NAG outputs differing does not establish held-out quality. Retained small fixture timings do not establish general performance, and a source paper formula is not proof of defined zero-domain arithmetic."
     ],
     "master_lead_triage": {
     "at": "2026-11-13",
@@ -13131,18 +13100,17 @@
       }
     }
   },
-    "next_finding_number": 402,
+    "next_finding_number": 403,
     "publication_context": {
-    "assessment": "Substantive architectural/byte-memory progress and complete evidence/cost reconciliation; report only.",
-    "checked_head": "68301d8275250ef49785328d60bacadbeca53d51",
-    "concurrent_changes": "Current source pin and committed plan read; NAG working changes excluded. Fresh report/owner/code checks immediately before replacement.",
-    "current_pin": "68301d8275250ef49785328d60bacadbeca53d51",
-    "publication": "Only docs/sqa_findings.json via existing hooks/ownership, preserving unknown/implementation fields and unrelated work.",
+    "assessment": "Substantive closure/source recheck and one numerical finding; report only.",
+    "checked_head": "1863242c64cc856b013cd9838a1aa6111a1539fd",
+    "concurrent_changes": "0ef and1863 landed during review; source paths, owner responses and plan reread. Their native/source/cost repairs reconciled, no working implementation credited.",
+    "current_pin": "1863242c64cc856b013cd9838a1aa6111a1539fd",
+    "publication": "Only docs/sqa_findings.json via existing hooks/ownership; raw implementation/unknown fields and unrelated edits preserved.",
     "report_only": true
   },
     "ranked_active_finding_ids": [
     "SQA-384",
-    "SQA-363",
     "SQA-364",
     "SQA-346",
     "SQA-372",
@@ -13151,7 +13119,6 @@
     "SQA-261",
     "SQA-394",
     "SQA-393",
-    "SQA-396",
     "SQA-322",
     "SQA-385",
     "SQA-380",
@@ -13167,7 +13134,6 @@
     "SQA-382",
     "SQA-383",
     "SQA-340",
-    "SQA-341",
     "SQA-356",
     "SQA-342",
     "SQA-379",
@@ -13177,6 +13143,7 @@
     "SQA-277",
     "SQA-266",
     "SQA-401",
+    "SQA-402",
     "SQA-325",
     "SQA-330",
     "SQA-344",
@@ -13228,21 +13195,20 @@
     "repository": "C:\\Users\\jeffm\\overgo",
     "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
     "review_notes": [
-      "No new findings, closures or backlog obligations. Credit actual hot-path deletion: finished float download/reconstruction and CPU RGB/YUV conversion disappear on the MP4 YUV path; GIF/non-YUV float behavior retains its owner.",
-      "Shared Upscaler.run has two actual callers; shared mp4.write owns both real RGB/YUV frame paths. No need for another pipeline, generic converter or format abstraction.",
-      "Full change grows755production/1364testAST and two test files. Measured byte/memory gains are not a production-code reduction. Native verification holds substantial buffers; no safe additional test/code deletion established.",
-      "NAG plan now chooses an existing served-request boundary that builds at the base, preserving the paper-equation unit check. Source implementation remains pending;341 is not closed by a plan or unrelated encoding change."
+      "Confirmed341 admission and363 redirect closures; closed396 oracle repair. Reopened261/384 only for existing explicit criteria contradicted by source; raw lead closure notes and every implementation/unknown field remain intact.",
+      "One new canonical402 covers NAG zero-normalization and its native finite oracle at the same retained numerical owner. No new campaign, backend or automatic plan row.",
+      "Rebuilt canonical active ranking to exclude resolved IDs. Current dispatch now displays evidence_basis; display is credited separately from delivered recovery. No safe net production reduction established."
     ],
-    "reviewed_at": "2026-11-13T22:22:02Z",
-    "reviewed_master": "68301d8275250ef49785328d60bacadbeca53d51",
+    "reviewed_at": "2026-11-14T00:29:55Z",
+    "reviewed_master": "1863242c64cc856b013cd9838a1aa6111a1539fd",
     "schema_version": 2,
     "scope": [
-      "Committed4d6803c78 frame conversion, device/host transfers, finishing lifetime, MP4 writer and native fixtures;68301d827 NAG boundary-check plan read. Current committed plan32items/59steps; in-flight NAG source excluded.",
-      "Selected8Go files15242AST/121functions/2788parser-local links, complete6-file before/after cost and concrete symbol callers. Retained native/benchmark/probe evidence reused; no workloads.",
-      "Architecture target Downloads/extreme_refactor_plan.md hash fe13a4bd47c8c41ea6dbf766c0acf3dc41ab7dab0c6d8bd926863313d4f34395 remains active. This chat previously implemented Overgo: internal review, not independent third-party review."
+      "Committed NAG/admission and typed verifier changes plus concurrent redirect/lifecycle/evidence-label and ER-SDE repairs through1863242. Current committed plan46items/75steps read; working changes excluded.",
+      "Actual24-file Go AST38964nodes/246functions/7831parser-local links, full per-commit costs and direct IEEE arithmetic; primary NAG paper Appendix C consulted for equation/domain context, not presumed robust.",
+      "Downloads architecture target hash fe13a4bd47c8c41ea6dbf766c0acf3dc41ab7dab0c6d8bd926863313d4f34395 remains active. Prior Overgo implementation involvement: internal review, not independent third-party review."
     ],
     "sqa_response": {
-    "assessment": "228stable IDs:83open,139resolved,4deferred,2aliases. No new findings or closures. Credit measured clip transfer/host-work removal through existing owners; disclose complete code/test and acceptance-comparison costs.",
+    "assessment": "229stable IDs:81open,142resolved,4deferred,2aliases.341/363 closures confirmed,396 closed;261/384 reopened for existing unmet criteria. New402 source-shown NAG arithmetic domain. No new workload or plan edits.",
     "concurrent_reconciliation": {
         "SQA-398": "Resolved; lead native/undo response agrees with retained closure.",
         "SQA-399": "Resolved; grouped/same-file validation-first response agrees with retained closure.",
@@ -13252,7 +13218,7 @@
     "consolidated_findings": [],
     "deferred_findings": [],
     "dispatch_alignment": "Field ready for reader,not printed by committed dispatch yet. Current code still lists all eligible unfiled IDs; use affected step contracts/files excluding incidental plan/report citations. No new dispatcher implemented by SQA.",
-    "evidence": "Actual8-file AST and complete+755production/+1364testAST delta, committed native/undo/benchmark/calibration records and source callers/lifetime. No SQA device/benchmark run.",
+    "evidence": "Committed arithmetic/call/error branches,24-file AST and retained native/undo records; no SQA application run. NAG Appendix C comparison is primary-source context, not a replacement for a finite implementation contract.",
     "implementation_claim_audit": {
         "SQA-257": "closed: duplicate runtime verdict gone; native default/served fixtures are distinct; speculative generalization is not additional required work",
         "SQA-316": "closed: no-symbol whole-file identity and normal claim rebinding",
@@ -13261,23 +13227,43 @@
         "SQA-331": "closed: current model bytes verified before composite publication",
         "SQA-277": "remains open: gap label fixed,not six current-definition quality readings",
         "SQA-283": "remains open: exact recipe/task fixed; publication-time/error-to-empty eligibility remains",
-        "SQA-261": "remains open: original release fixed; probe/acquire and waiter-mark interleaving remains",
+        "SQA-261": "reopened: letGo ResourceTransactionHeld/free return precedes takeLaneTurn; already-held tests do not cover it",
         "SQA-336": "remains open P3: rate fixed,approximate header still absent",
         "SQA-361": "remains open P3: exposure/opener fixed; live diagnostic retirement/strict no-work admission remains",
-        "SQA-271": "remains open P3/possible: CLI fixed; app equivalence unproved"
+        "SQA-271": "remains open P3/possible: CLI fixed; app equivalence unproved",
+        "SQA-341": "confirmed closure: profile-bound early admission and supported/consumed NAG",
+        "SQA-363": "confirmed closure: endpoint restriction plus standard default bound",
+        "SQA-384": "reopened: newer-turn precedence fixed; non-not-exist current-turn Stat error still returns ended",
+        "SQA-396": "closed: every comparison difference must be finite before tolerance"
       },
     "implementation_response_context": "All implementation_review/master_lead_triage blocks preserved raw-exact; implemented claims are answered in reviewer implementation_claim_audit without overwriting owner history.",
-    "new_findings": [],
-    "partially_addressed_findings": [],
-    "priority_changes": [],
-    "recommendation": "Keep the existing byte-format conversion and stream/process owners; retain the float path for actual non-YUV consumers. Credit only measured scope and the stated common-reference quality comparison, not an inferred40dB compatibility bound. NAG work follows the current plan.",
+    "new_findings": [
+        "SQA-402"
+      ],
+    "partially_addressed_findings": [
+        "SQA-261",
+        "SQA-384",
+        "SQA-366",
+        "SQA-379"
+      ],
+    "priority_changes": [
+        "Existing261P2 and384P1 remain at their original severity after source recheck.402P2 is finite numerical correctness, not a request for a recurring model campaign."
+      ],
+    "recommendation": "Keep verified progress and current plan ownership. Correct402 through the existing graph/native oracle, and retain261/384 specific unmet safety/recovery criteria. Preserve all raw lead responses; no new scheduler, policy suite or model confidence run.",
     "refactor": {
         "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
         "history_path": "docs/sqa_findings.json",
         "layout": "Full canonical open/deferred; compact resolved closure sources/revision/costs; explicit aliases, including aliases to closed canonical findings. Prior narratives remain in Git."
       },
-    "reopened_findings": [],
-    "resolved_findings": [],
+    "reopened_findings": [
+        "SQA-261",
+        "SQA-384"
+      ],
+    "resolved_findings": [
+        "SQA-341",
+        "SQA-363",
+        "SQA-396"
+      ],
     "review_policy": {
         "evidence_field": "evidence_basis",
         "values": {
@@ -13291,7 +13277,7 @@
         "review_focus": "Name served cell/route/output impact,or material data/security/recovery/work-stoppage/repeated-waste impact. Minor process cleanup rides planned work; no guessed committee ratio or extra policy gate.",
         "measurement": "Use existing delivery/check-cost records as advisory. Automated report commits are distinct from master implementation effort; measure useful capability/scorecard outcomes,not findings closed."
       },
-    "reviewed_master": "68301d8275250ef49785328d60bacadbeca53d51",
+    "reviewed_master": "1863242c64cc856b013cd9838a1aa6111a1539fd",
     "run_cost_correction": {
         "source": ".overgo-runtime/landing_waits.json",
         "query": "started on2026-11-09 America/New_York UTC-05; outcome exactly verify",
@@ -13311,7 +13297,15 @@
         },
         "correction": "140.54 is aggregate recorded wall across ten verify-refused runs,not one141-minute failed run and not all checking/wasted time. The earlier single-run phrasing was wrong; November8 measurement is a separate114.70-minute run. Historical run kinds may be unknown."
       },
-    "uncertainty": "No safe extra production/test deletion established. Retained small-frame colour probe and first8clip frames do not establish every supported resolution/codec. ABI and numerical thresholds were not independently recalibrated; in-progress NAG changes excluded.",
-    "updated_findings": []
+    "uncertainty": "No actual bad NAG clip, blocked host commit or scratch deletion reproduced.341 functionality is not379 quality admission, and timestamp success cases do not establish unknown-state safety.",
+    "updated_findings": [
+        "SQA-341",
+        "SQA-363",
+        "SQA-396",
+        "SQA-261",
+        "SQA-384",
+        "SQA-379",
+        "SQA-366"
+      ]
   }
   }

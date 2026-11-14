@@ -135,12 +135,15 @@ func ownTurns() map[string]*turnHold {
 }
 
 // takePlace gives this process a place on the turn: its holder's, where the holder started it, and nothing to give up
-// or count, else its own, waited for, how it is given up and how its count is recorded.
+// or count, else its own, waited for, how it is given up and how its count is recorded. The holder named to it
+// (TurnEnvironment) holds the turn where it holds the turn's record open (turnUsers), whatever the record reads while
+// its count is rewritten (TurnCount): a child that read a record cut short by a rewrite took its holder for gone and
+// waited for the turn its own parent held (SQA-394).
 func takePlace(name, purpose string, output io.Writer) (give func() error, count func(done, total int) error, err error) {
 	if holder, riding := heldTurns()[name]; riding {
-		if record, held, err := turnHolder(name); err != nil {
+		if users, err := turnUsers(name); err != nil {
 			return nil, nil, err
-		} else if held && record.Process == holder {
+		} else if slices.Contains(users, holder) {
 			return nil, nil, nil
 		}
 	}

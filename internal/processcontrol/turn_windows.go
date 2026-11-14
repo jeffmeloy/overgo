@@ -115,9 +115,20 @@ func turnHolder(name string) (turnRecord, bool, error) {
 	if err != nil {
 		return turnRecord{}, false, fmt.Errorf("processcontrol: read the turn %q: %w", name, err)
 	}
+	users, err := turnUsers(name)
+	return record, slices.Contains(users, record.Process), err
+}
+
+// turnUsers are the processes holding the turn's record open: its holder keeps it open while it holds the turn
+// (recordTurn), whatever the record reads while it is rewritten.
+func turnUsers(name string) ([]uint32, error) {
+	path, err := turnFile(name, turnRecordFile)
+	if err != nil {
+		return nil, err
+	}
 	users, err := fsatomic.FileUsers(path)
 	if err != nil {
-		return turnRecord{}, false, fmt.Errorf("processcontrol: read the turn %q: %w", name, err)
+		return nil, fmt.Errorf("processcontrol: read the turn %q: %w", name, err)
 	}
-	return record, slices.Contains(users, record.Process), nil
+	return users, nil
 }

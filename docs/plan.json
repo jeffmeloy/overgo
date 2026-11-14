@@ -31,18 +31,11 @@
       "title": "A preset's verdict is bound to the renders and records it compared, and admitted by the statistic its evidence supports",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": -986,
+        "reason": ""
+      },
       "steps": [
-        {
-          "id": "provenance",
-          "title": "A preset's verdict is bound to the renders and scoring records it compared",
-          "status": "open",
-          "verify": "go test ./cmd/evaluate -count=1 -run '^TestAPresetVerdictRefusesArmsOfAnotherRequest$'",
-          "files": [
-            "cmd/evaluate",
-            "internal/evaluation"
-          ],
-          "rationale": "Serves: an offered preset's verdict read the media it names (SQA-379, P2: held-out quality claims).\n\nThe evidence (the review's, shown from source): -admit-preset takes two evaluation records and computes the paired verdict without binding each record's judged media to its renders and their producer, so a verdict can attach to media or a recipe it never evaluated.\n\nThe change, the finding's: before the verdict, each arm's judged inputs are bound to its rendered outputs and producer identity through the render provenance and evaluation owners, and the two arms must share model, task, comparable recipe and the whole request but the preset, with paired prompts and seeds and one judge and scoring contract.\n\nCheck: TestAPresetVerdictRefusesArmsOfAnotherRequest hands -admit-preset two arms whose requests differ beyond the preset and holds it to a refusal before any verdict."
-        },
         {
           "id": "statistic",
           "title": "Preset admission reads the statistic its grouped evidence supports",
@@ -142,24 +135,6 @@
       ]
     },
     {
-      "id": "projected-split",
-      "title": "A projected prompt the card cannot take whole runs on the host path before any prefill",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "admit",
-          "title": "A projected prompt the card cannot take whole runs on the host path before any prefill",
-          "status": "open",
-          "verify": "go test ./internal/inference -count=1 -run '^TestAProjectedPromptTheCardCannotTakeWholeRunsOnTheHost$'",
-          "files": [
-            "internal/inference"
-          ],
-          "rationale": "Serves: a long image or video prompt is answered, not refused after a partial prefill (SQA-364, P2: a served request fails).\n\nThe evidence (the review's, shown from source): device admission and prefill read different block contracts, so a projected prompt that splits across blocks passes admission, prefills part of itself on the card and then fails, though the host projected path takes it.\n\nThe change, the finding's: admission chooses the host projected path before any device work where the card's implementation cannot take the whole request, by the same whole-block contract prefill uses; no new attention.\n\nCheck: TestAProjectedPromptTheCardCannotTakeWholeRunsOnTheHost serves a projected prompt that splits and holds it to an answer by the host path, with no device prefill begun."
-        }
-      ]
-    },
-    {
       "id": "moss-import-admission",
       "title": "The MOSS Ultra import admits its metadata, destination and storage before reading any payload",
       "owner": "master-lead",
@@ -246,25 +221,6 @@
       ]
     },
     {
-      "id": "result-reads",
-      "title": "A package's result settings are found by the owner its calls import, whatever their spelling",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A package's result settings are found by the owner its calls import, whatever their spelling",
-          "status": "open",
-          "verify": "go test ./internal/inferencesurface -count=1 -run '^TestAResultReadIsFoundByItsImportedOwner$'",
-          "files": [
-            "internal/inferencesurface",
-            "internal/envsetting"
-          ],
-          "rationale": "Serves: a result's identity holds every setting it reads, so a stale result is never taken for a current one (SQA-381, P2: a check that passes without checking).\n\nThe evidence (the review's, shown from source): the identity reader finds envsetting's result reads by their source spelling, a prefilter and a hand token scanner, so an aliased import, a comment or a shadowed name hides a read and the identity omits it.\n\nThe change, the finding's: parsed calls are read against the imported package identity, local shadowing included, by go/ast; a dynamic read is refused rather than taken as neutral; the spelling prefilter and the scanner go.\n\nCheck: TestAResultReadIsFoundByItsImportedOwner reads a fixture package calling envsetting through an alias, beside a comment naming it and a shadowed local, and holds the identity to the aliased read alone."
-        }
-      ]
-    },
-    {
       "id": "mmlu-pro",
       "title": "MMLU-Pro's headline is an eligible reading's, and its reference comparison admits the exact questions first",
       "owner": "master-lead",
@@ -308,42 +264,6 @@
             "internal/evaluation"
           ],
           "rationale": "Serves: a benchmark import never refuses an unrelated landing (SQA-368, P2, observed: it stops work).\n\nThe evidence (the review's, observed): the host gate's MMLU-Pro identity tests read the ambient benchmark store, so an import into it broke landings that touched nothing of MMLU-Pro, and each landing repeated the corpus work.\n\nThe change, the finding's: the host gate holds small pinned identities, scorer bytes and delimiter cases in its fixtures; the full-corpus digests move under the modeltest owner, which admits the store before any model loads; no digest is dropped.\n\nCheck: TestTheMMLUProIdentityChecksReadNoStore runs the host identity checks with the data root pointed at an empty directory and holds them to pass."
-        }
-      ]
-    },
-    {
-      "id": "land-env",
-      "title": "A landing withholds its environment rules from the environment its configuration merged, and refuses a configuration it cannot read before any check",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A landing withholds its environment rules from the environment its configuration merged, and refuses a configuration it cannot read before any check",
-          "status": "open",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestALandingWithholdsFromTheMergedEnvironment$'",
-          "files": [
-            "cmd/loop"
-          ],
-          "rationale": "Serves: a landing's checks never run against the live store or the card they are kept from (SQA-380, P2: checks that would run outside the environment they are judged in).\n\nThe evidence (the review's, shown from source): the landing applies its withheld list before the configuration's environment is merged, so a configuration naming a withheld variable puts it back into every check; and a configuration that fails to decode is read as absent, the failure repeated after the checks.\n\nThe change, the finding's: the configuration is resolved once, the withheld list applied to the merged environment, and a decode or access failure refused before the gate builds.\n\nCheck: TestALandingWithholdsFromTheMergedEnvironment lands a fixture whose configuration names a withheld variable and holds its check's environment to lack it, and a malformed configuration to a refusal before any stage."
-        }
-      ]
-    },
-    {
-      "id": "turn-progress",
-      "title": "A turn's progress updates never make its inherited holder read as gone",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A turn's progress updates never make its inherited holder read as gone",
-          "status": "open",
-          "verify": "go test ./internal/processcontrol -count=1 -run '^TestProgressUpdatesLeaveTheInheritedTurnHeld$'",
-          "files": [
-            "internal/processcontrol"
-          ],
-          "rationale": "Serves: a child inheriting its parent's turn never queues behind its parent (SQA-394, P2: it stops work).\n\nThe evidence (the review's, shown from source): the turn record's progress counts are rewritten while the holder works, and a child reading the record mid-write finds no holder, so it waits for the turn its own parent holds.\n\nThe change, the finding's: the holder is read from the record's owner through one coherent view while counts change, and unavailable progress is no evidence the holder is gone; the inherited holder is still verified, never an environment process id alone.\n\nCheck: TestProgressUpdatesLeaveTheInheritedTurnHeld rewrites the record's progress while a child inherits the turn, and holds the child to running without waiting."
         }
       ]
     },

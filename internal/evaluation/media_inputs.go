@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"maps"
 
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
+	"overgo/internal/runrecord"
 	"overgo/internal/strictjson"
 )
 
@@ -193,4 +195,29 @@ func namesMedia(data []byte) (bool, error) {
 		}
 	}
 	return false, nil
+}
+
+// JudgedMedia is what an evaluation record judged: the media inputs its plan bound, each the content it read, the
+// request and run that drew it and the runtime that answered it, and the scorer that scored its cases. A record whose
+// plan bound no media judged none, and is refused.
+func JudgedMedia(ctx context.Context, reader artifact.Reader, record artifact.ID) ([]MediaInput, artifact.ID, error) {
+	evaluated, err := runrecord.RequireEvaluation(ctx, reader, record)
+	if err != nil {
+		return nil, artifact.ID{}, err
+	}
+	bound, err := runrecord.RequireRun(ctx, reader, evaluated.Run)
+	if err != nil {
+		return nil, artifact.ID{}, err
+	}
+	if len(bound.Inputs) == 0 {
+		return nil, artifact.ID{}, fmt.Errorf("evaluation: %s's run binds no plan", record)
+	}
+	plan, err := loadEvidencePlan(ctx, reader, bound.Inputs[0])
+	if err != nil {
+		return nil, artifact.ID{}, err
+	}
+	if plan.body.Media == nil || len(plan.body.Media.Inputs) == 0 {
+		return nil, artifact.ID{}, fmt.Errorf("evaluation: %s judged no media", record)
+	}
+	return plan.body.Media.Inputs, plan.body.Scorer, nil
 }

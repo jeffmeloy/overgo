@@ -57,3 +57,38 @@ func TestALandingTakesItsEnvironmentFromTheConfiguration(t *testing.T) {
 		}
 	}
 }
+
+// TestALandingWithholdsFromTheMergedEnvironment holds a landing's tools to the settings it withholds after the loop's
+// configuration is merged in (SQA-380): the withheld settings were dropped from the session's environment before the
+// configuration's was added, so a configuration naming the card's opt-in put it back into every check. A tool started
+// under a configuration naming OVERGO_CUDA_TEST runs without it, and a configuration that cannot be decoded refuses the
+// landing at its first tool, which runs nothing, where it was read as none.
+func TestALandingWithholdsFromTheMergedEnvironment(t *testing.T) {
+	const child = "OVERGO_LANDING_WITHHOLD_CHILD"
+	if os.Getenv(child) != "" {
+		fmt.Printf("OVERGO_CUDA_TEST=%q\n", os.Getenv("OVERGO_CUDA_TEST"))
+		return
+	}
+	root := t.TempDir()
+	testcheck.NoError(t, os.MkdirAll(filepath.Join(root, ".overgo-runtime"), 0o755))
+	configure := func(configuration string) {
+		t.Helper()
+		testcheck.NoError(t, os.WriteFile(filepath.Join(root, ".overgo-runtime", processcontrol.LoopConfigFile), []byte(configuration), 0o600))
+	}
+	t.Chdir(root)
+	t.Setenv(child, "1")
+	t.Setenv("OVERGO_CUDA_TEST", "")
+	run := func() (string, error) {
+		var printed bytes.Buffer
+		_, err := (&execRowWorld{}).tool(&printed, io.Discard, os.Args[0], "-test.run=^TestALandingWithholdsFromTheMergedEnvironment$")
+		return printed.String(), err
+	}
+	configure(`{"name": "fixture", "environment": {"OVERGO_CUDA_TEST": "1"}}`)
+	if printed := testcheck.Must(run())(t); !strings.Contains(printed, `OVERGO_CUDA_TEST=""`) {
+		t.Errorf("a landing's tool, its configuration naming the card's opt-in, printed %q; want it run without", printed)
+	}
+	configure(`{"name": "fixture", "environment": `)
+	if printed, err := run(); err == nil || printed != "" {
+		t.Errorf("a configuration that cannot be decoded let a landing's tool run (%v), printing %q", err, printed)
+	}
+}

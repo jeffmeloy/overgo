@@ -92,6 +92,9 @@ func landRow(world rowWorld, reference, messageFile string) (landOutcome, error)
 // standard input when the worker gave it on the landing's.
 type execRowWorld struct {
 	message []byte
+	// configured is what the loop's configuration sets, read once, by the landing's first tool (tool).
+	configured map[string]string
+	read       bool
 	// reported is the commit the gate said the row landed as.
 	reported string
 }
@@ -110,7 +113,17 @@ func (w *execRowWorld) tool(echo, said io.Writer, arguments ...string) (string, 
 	// A failed run's file is read below and is then nobody's: it does not outlive the run.
 	defer os.Remove(errorFile)
 	progress := clioptions.NewTailWriter(clioptions.DiagnosticTailBytes)
-	err := runToolEnv(append(landingEnvironment(os.Environ(), configuredEnvironment()), clioptions.ErrorFileEnvironment+"="+errorFile), bytes.NewReader(w.message), echo, io.MultiWriter(progress, said), arguments...)
+	// The configuration is read once, at the first tool, the checker's build, before any check: one that cannot be read
+	// refuses the landing there, where it was read as none at each tool and the landing went on without what it names
+	// (SQA-380).
+	if !w.read {
+		configured, err := configuredEnvironment()
+		if err != nil {
+			return err.Error(), err
+		}
+		w.configured, w.read = configured, true
+	}
+	err := runToolEnv(append(landingEnvironment(os.Environ(), w.configured), clioptions.ErrorFileEnvironment+"="+errorFile), bytes.NewReader(w.message), echo, io.MultiWriter(progress, said), arguments...)
 	if err == nil {
 		return "", nil
 	}
@@ -265,29 +278,35 @@ func landCommand(reference, messageFile string, input io.Reader, output io.Write
 var withheldFromLandings = []string{"OVERGO_CUDA_TEST", testskip.StoreAcceptanceEnv, "OVERGO_CUDA_MEASUREMENT_TEST"}
 
 // configuredEnvironment is what the loop's configuration sets in its environment (config.Environment, the role and the
-// data roots), none where the checkout keeps no configuration.
-func configuredEnvironment() map[string]string {
+// data roots), none where the checkout keeps no configuration. One it cannot reach, read or decode is refused.
+func configuredEnvironment() (map[string]string, error) {
 	path, err := processlock.StateFile(loopWorktree, processcontrol.LoopConfigFile, processcontrol.LegacyLoopConfigFile)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("loop: the configuration: %w", err)
 	}
 	var loaded config
-	if jsonfile.DecodeStrict(path, &loaded) != nil {
-		return nil
+	if err := jsonfile.DecodeStrict(path, &loaded); errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	} else if err != nil {
+		return nil, fmt.Errorf("loop: the configuration %s: %w", path, err)
 	}
-	return loaded.Environment
+	return loaded.Environment, nil
 }
 
 // landingEnvironment is the environment a landing's tools run in, from environ, the session's: each setting configured
 // names that environ leaves unset or empty is set to its configured value, so a landing needs nothing typed before it
 // (fail-early-runs/land-environment: guidance-ops/moss-presets, landed with no data root, was refused after its full
-// lanes for want of cuDNN), and the settings withheldFromLandings names are dropped.
+// lanes for want of cuDNN), and the settings withheldFromLandings names are dropped from both, the configuration's
+// among them (SQA-380: a configuration naming one put it back into every check).
 func landingEnvironment(environ []string, configured map[string]string) []string {
+	withheld := func(name string) bool {
+		return slices.ContainsFunc(withheldFromLandings, func(held string) bool { return strings.EqualFold(held, name) })
+	}
 	set := map[string]bool{}
 	var kept []string
 	for _, entry := range environ {
 		name, value, _ := strings.Cut(entry, "=")
-		if slices.ContainsFunc(withheldFromLandings, func(withheld string) bool { return strings.EqualFold(withheld, name) }) {
+		if withheld(name) {
 			continue
 		}
 		if value != "" {
@@ -296,7 +315,7 @@ func landingEnvironment(environ []string, configured map[string]string) []string
 		kept = append(kept, entry)
 	}
 	for _, name := range slices.Sorted(maps.Keys(configured)) {
-		if !set[strings.ToUpper(name)] {
+		if !set[strings.ToUpper(name)] && !withheld(name) {
 			kept = append(kept, name+"="+configured[name])
 		}
 	}

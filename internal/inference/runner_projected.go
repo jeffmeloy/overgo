@@ -295,13 +295,15 @@ func deepstackInputForLayer(
 // their layers, and bidirectional attention blocks where the prompt is read in one chunk. Visual expert blocks,
 // per-layer embeddings, and rows of a visual span or mapped from a base are read on the host alone. On 2026-11-10
 // gemma-4-12B-it's picture prompts, read on the host for their blocks and raw-scaled rows, took 500 ms for 295 tokens
-// where its text prompts take 78 ms (judge-speed/cell-blocks).
-func (r *Runner) deviceProjectable(inputs ProjectedInputs) bool {
+// where its text prompts take 78 ms (judge-speed/cell-blocks). The prefill reads a prompt of tokens tokens in chunks
+// of promptChunkTokens, and a chunk carries the prompt's blocks only where it holds the prompt whole from its start
+// (span), so a prompt with blocks longer than one chunk is read on the host, chosen before any device work: it was
+// admitted where each block ended within the first chunk, read its first chunk on the card and was refused at its
+// second (SQA-364).
+func (r *Runner) deviceProjectable(inputs ProjectedInputs, tokens int) bool {
 	program := r.program.Model.ProjectedInput()
 	// A block is read whole by one chunk, so a layer over cells reads it as the masked attention does (cellReach).
-	cut := slices.ContainsFunc(inputs.BidirectionalAttentionBlocks, func(block AttentionBlock) bool {
-		return r.promptChunkTokens > 0 && int(block.End) > r.promptChunkTokens
-	})
+	cut := len(inputs.BidirectionalAttentionBlocks) > 0 && r.promptChunkTokens > 0 && tokens > r.promptChunkTokens
 	return !cut && len(inputs.VisualExpertBlocks) == 0 && !program.PerLayerEmbeddings &&
 		program.Overrides != model.EmbeddingOverrideVisualSpan && program.Overrides != model.EmbeddingOverrideMappedBase
 }

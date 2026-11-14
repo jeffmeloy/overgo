@@ -104,7 +104,7 @@ func (r *Runner) Generate(
 	// A projected prompt the device reads as the host does is read on the device, and its answer decoded there, as a
 	// text prompt's is. No entry keeps its cache, since an entry is found by tokens an image's placeholders do not
 	// tell apart.
-	projectedOnDevice := options.ProjectedInputs != nil && r.deviceProjectable(*options.ProjectedInputs)
+	projectedOnDevice := options.ProjectedInputs != nil && r.deviceProjectable(*options.ProjectedInputs, len(ids))
 	if projectedOnDevice {
 		if _, err := r.compileProjectedRequestPlan(len(ids), false, *options.ProjectedInputs); err != nil {
 			return nil, "", err

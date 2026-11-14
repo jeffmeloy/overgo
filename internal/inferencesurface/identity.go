@@ -2,13 +2,13 @@ package inferencesurface
 
 import (
 	"bytes"
-	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"go/scanner"
+	"go/ast"
+	"go/parser"
 	"go/token"
 	"os"
 	"path/filepath"
@@ -387,50 +387,84 @@ func (s sources) digest(root string, files, modules []string, settings string) (
 	return hex.EncodeToString(surface.Sum(nil)), undeclared, nil
 }
 
-// environmentReads lists what a Go source reads of the environment: the names it reads through envsetting.Result, each
-// written as one quoted literal, and every other read, through Getenv or LookupEnv, or through Result with a name no
-// count can read, as its argument is spelled up to the first closing parenthesis.
+// environmentReads lists what a Go source reads of the environment, read from its parsed calls (SQA-381): the names it
+// reads through internal/envsetting's Result, under whatever name the file imports that package, each written as one
+// quoted literal, and every other read, as its source spells it: through Getenv or LookupEnv, through Result with a
+// name no count can read, or Result taken as a value, which a count cannot follow. A name the file declares itself is
+// not the package however it is spelled, and a comment is no read; a source that does not parse is read as unknown,
+// never as reading nothing. Its reads were found by their spelling, so an aliased import hid one.
 func environmentReads(name string, source []byte) (results, other []string) {
-	resultCall := settingQualifier + "." + resultReader + "("
-	if !bytes.Contains(source, []byte(resultCall)) && !slices.ContainsFunc(readers, func(reader string) bool { return bytes.Contains(source, []byte(reader+"(")) }) {
-		return nil, nil
+	files := token.NewFileSet()
+	parsed, err := parser.ParseFile(files, name, source, 0)
+	if err != nil {
+		return nil, []string{"what cannot be parsed: " + err.Error()}
 	}
-	var scan scanner.Scanner
-	scan.Init(token.NewFileSet().AddFile(name, -1, len(source)), source, nil, 0)
-	var argument strings.Builder
-	var parts int
-	var quoted bool
-	// before and last are the two tokens before this one, spelled, which say whether a Result is envsetting's.
-	var before, last string
-	called, viaResult, reading := false, false, false
-	for _, kind, literal := scan.Scan(); kind != token.EOF; _, kind, literal = scan.Scan() {
-		spelled := cmp.Or(literal, kind.String())
-		switch {
-		case reading && kind == token.RPAREN:
-			reading = false
-			read := argument.String()
-			setting, err := strconv.Unquote(read)
-			switch {
-			case !viaResult:
-				other = append(other, read)
-			case parts == 1 && quoted && err == nil:
-				results = append(results, setting)
-			default:
-				other = append(other, resultCall+read+")")
+	spelled := func(node ast.Node) string {
+		return string(source[files.Position(node.Pos()).Offset:files.Position(node.End()).Offset])
+	}
+	// owner is the name the file calls internal/envsetting by: "." where it is imported into the file's own names.
+	owner := ""
+	for _, imported := range parsed.Imports {
+		if path, err := strconv.Unquote(imported.Path.Value); err == nil && strings.HasSuffix(path, "/"+settingPackage) {
+			owner = settingQualifier
+			if imported.Name != nil {
+				owner = imported.Name.Name
 			}
-		case reading:
-			argument.WriteString(spelled)
-			parts++
-			quoted = kind == token.STRING
-		case called && kind == token.LPAREN:
-			reading, parts = true, 0
-			argument.Reset()
 		}
-		if !reading {
-			viaResult = kind == token.IDENT && literal == resultReader && last == token.PERIOD.String() && before == settingQualifier
-			called = kind == token.IDENT && (slices.Contains(readers, literal) || viaResult)
-		}
-		before, last = last, spelled
 	}
+	// reader says an expression names envsetting's Result: owner.Result, owner the import and no name of the file's own.
+	reader := func(expression ast.Expr) bool {
+		switch named := expression.(type) {
+		case *ast.SelectorExpr:
+			qualifier, plain := named.X.(*ast.Ident)
+			return plain && qualifier.Obj == nil && qualifier.Name == owner && named.Sel.Name == resultReader
+		case *ast.Ident:
+			return owner == "." && named.Obj == nil && named.Name == resultReader
+		}
+		return false
+	}
+	called := map[ast.Expr]bool{}
+	ast.Inspect(parsed, func(node ast.Node) bool {
+		call, isCall := node.(*ast.CallExpr)
+		if !isCall {
+			return true
+		}
+		called[call.Fun] = true
+		function, named := call.Fun.(*ast.Ident)
+		if selected, is := call.Fun.(*ast.SelectorExpr); is {
+			function, named = selected.Sel, true
+		}
+		switch {
+		case reader(call.Fun):
+			if setting, read := settingNamed(call.Args); read {
+				results = append(results, setting)
+			} else {
+				other = append(other, spelled(call))
+			}
+		case named && slices.Contains(readers, function.Name) && len(call.Args) > 0:
+			other = append(other, spelled(call.Args[0]))
+		}
+		return true
+	})
+	// Result taken as a value is read where no count can follow it.
+	ast.Inspect(parsed, func(node ast.Node) bool {
+		if expression, is := node.(ast.Expr); is && !called[expression] && reader(expression) {
+			other = append(other, spelled(expression))
+		}
+		return true
+	})
 	return results, other
+}
+
+// settingNamed is the setting a Result call's arguments name, where they are one quoted literal a count can read.
+func settingNamed(arguments []ast.Expr) (string, bool) {
+	if len(arguments) != 1 {
+		return "", false
+	}
+	literal, isLiteral := ast.Unparen(arguments[0]).(*ast.BasicLit)
+	if !isLiteral || literal.Kind != token.STRING {
+		return "", false
+	}
+	setting, err := strconv.Unquote(literal.Value)
+	return setting, err == nil
 }

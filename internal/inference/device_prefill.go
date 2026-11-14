@@ -58,7 +58,10 @@ func (r *Runner) prefillDeviceCachedLocked(ctx context.Context, appendInput devi
 				continue
 			}
 		}
-		if errors.As(runErr, &refused) && chunk > 1 {
+		// A prompt whose bidirectional blocks are read only whole (span) is not cut: its first part would be read and
+		// the rest refused, so the memory refusal stands before any of it is read.
+		whole := appendInput.Projected != nil && len(appendInput.Projected.BidirectionalAttentionBlocks) > 0
+		if errors.As(runErr, &refused) && chunk > 1 && !whole {
 			// Bisection reduces the candidate without assuming linear memory growth.
 			chunk = (chunk + 1) / tensor.PairedExtent
 			continue

@@ -52,22 +52,33 @@ func TestTurnProcess(t *testing.T) {
 			}
 		}
 	case "ride":
-		// A child that would wait for its own parent says so instead of waiting for ever.
-		record, held, err := turnHolder(probe.Name)
-		testcheck.NoError(t, err)
-		if !held || heldTurns()[probe.Name] != record.Process {
-			fmt.Println("would wait for its parent")
-			return
-		}
-		var said strings.Builder
-		release := testcheck.Must(TakeTurn(probe.Name, probe.Purpose, &said))(t)
-		testcheck.NoError(t, release())
-		fmt.Printf("rode%s\n", said.String())
+		// A child that would wait for its own parent says so instead of waiting for ever: TakeTurn says a wait before
+		// it waits, and the child ends on that line.
+		said := make(chan string, 1)
+		go func() {
+			release, err := TakeTurn(probe.Name, probe.Purpose, waitSaid(said))
+			if err == nil {
+				err = release()
+			}
+			said <- map[bool]string{true: "rode", false: fmt.Sprint(err)}[err == nil]
+		}()
+		fmt.Println(<-said)
 	case "take":
 		release := testcheck.Must(TakeTurn(probe.Name, probe.Purpose, os.Stdout))(t)
 		fmt.Println("taken")
 		testcheck.NoError(t, release())
 	}
+}
+
+// waitSaid is where a riding probe's TakeTurn writes: anything it says is a wait, which the probe reports.
+type waitSaid chan string
+
+func (said waitSaid) Write(line []byte) (int, error) {
+	select {
+	case said <- "would wait for its parent":
+	default:
+	}
+	return len(line), nil
 }
 
 // turnCommand is a process of this test binary playing probe's part.
@@ -215,4 +226,25 @@ func TestOneCardTurnQueuesEveryUser(t *testing.T) {
 		t.Fatalf("the waiter: %q, want taken, having said its wait once", got)
 	}
 	testcheck.NoError(t, second.command.Wait())
+}
+
+// TestProgressUpdatesLeaveTheInheritedTurnHeld holds a child to its parent's place while the parent's record is
+// rewritten (SQA-394): a holder rewrites its record in place as it counts its work (TurnCount), and a child that read
+// it cut short by the rewrite took its holder for gone and waited for the turn its own parent held. The record here is
+// cut short as a rewrite leaves it, and the child still rides its parent's place, its parent holding the record open.
+func TestProgressUpdatesLeaveTheInheritedTurnHeld(t *testing.T) {
+	name := testTurn(t)
+	holder := startTurnProcess(t, turnProbe{Name: name, Purpose: "a render", Part: "hold"})
+	if got := holder.line(t); got != "taken" {
+		t.Fatalf("the holder: %q, want taken", got)
+	}
+	testcheck.NoError(t, os.WriteFile(testcheck.Must(turnFile(name, turnRecordFile))(t), []byte(`{"process":`), 0o644))
+	holder.say(t, "child")
+	if got := holder.line(t); got != "rode" {
+		t.Fatalf("the holder's child, its parent's record cut short by a rewrite: %q, want it to ride its parent's place", got)
+	}
+	holder.say(t, "give")
+	if got := holder.line(t); got != "given" {
+		t.Fatalf("the holder: %q, want given", got)
+	}
 }

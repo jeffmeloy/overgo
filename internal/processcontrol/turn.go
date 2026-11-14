@@ -145,16 +145,18 @@ func takePlace(name, purpose string, output io.Writer) (give func() error, count
 		}
 	}
 	started := time.Now()
-	busy, err := ResourceTransactionHeld(name)
+	// The holder reads the mark (TurnWaited) while this process waits. It goes up before the turn is looked at, so a
+	// process that takes the turn after a look that found it free still reads this one waiting, where an unmarked
+	// waiter waited out the holder's whole work (SQA-261).
+	unmark, err := markTurnWaiter(name)
 	if err != nil {
 		return nil, nil, err
 	}
-	unmark := func() error { return nil }
+	busy, err := lookAtTurn(name)
+	if err != nil {
+		return nil, nil, errors.Join(err, unmark())
+	}
 	if busy {
-		// The holder reads the mark (TurnWaited) while this process waits.
-		if unmark, err = markTurnWaiter(name); err != nil {
-			return nil, nil, err
-		}
 		record, held, err := turnHolder(name)
 		if err != nil {
 			return nil, nil, errors.Join(err, unmark())
@@ -192,6 +194,10 @@ func takePlace(name, purpose string, output io.Writer) (give func() error, count
 	}
 	return func() error { return errors.Join(setHeldTurn(name, false), unrecord(), leave()) }, count, nil
 }
+
+// lookAtTurn says whether another holds the turn now, for the line a waiter prints: ResourceTransactionHeld, which a
+// test replaces to look as a race does.
+var lookAtTurn = ResourceTransactionHeld
 
 // enterTurn holds the turn's transaction (ResourceTransaction) on a thread of its own until leave runs: the system
 // owns the hold, so the process's end hands it on.

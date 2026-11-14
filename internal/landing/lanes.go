@@ -320,18 +320,16 @@ func HoldLaneTurn(work func() error) error {
 // letGo frees the checkout while the lanes wait for a lane turn another holds, a measurement run's above all: on
 // 2026-10-30 a landing waited on the run's turn for hours, and as a landing ships the checkout's dirty tree, no other
 // row could be edited until it landed. The stages read the candidate in a worktree of its own (checkOut), and the
-// commit publishes it whatever the checkout holds by then (settled), so only the commit turn is left to give up. A turn
-// that is free is taken as before, and a merge keeps its commit turn. It says whether it gave the commit turn up.
+// commit publishes it whatever the checkout holds by then (settled), so only the commit turn is left to give up. A
+// merge keeps its commit turn. It says whether it gave the commit turn up.
 func (l *landing) letGo() (bool, error) {
-	name, err := laneTurn()
-	if err != nil {
-		return false, err
-	}
-	if held, err := processcontrol.ResourceTransactionHeld(name); err != nil || !held || len(l.merging) > 0 {
-		return false, err
+	if len(l.merging) > 0 {
+		return false, nil
 	}
 	// The wait is the device's and no other commit's, so the commit turn goes free for it: on 2026-10-30 a report-only
-	// commit waited hours behind a landing that was itself waiting on a measurement run.
+	// commit waited hours behind a landing that was itself waiting on a measurement run. It goes free whether or not
+	// the card is held as the landing comes to take it: a card found free could be taken before the landing took it,
+	// and the landing would then wait for the card holding the commit turn (SQA-261).
 	release := l.turn
 	if release != nil {
 		l.turn = nil
@@ -339,7 +337,7 @@ func (l *landing) letGo() (bool, error) {
 			return true, err
 		}
 	}
-	fmt.Fprintf(l.Log, "land: the card's turn is held, so the landing waits on the change as it stood, in %s: the checkout is free\n", l.tree)
+	fmt.Fprintf(l.Log, "land: the landing takes the card's turn on the change as it stood, in %s: the checkout is free\n", l.tree)
 	return release != nil, nil
 }
 

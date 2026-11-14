@@ -140,20 +140,32 @@ func RecordSessionEnd(root, session string) error {
 // is never taken to have ended; a folder's age is no sign.
 func SessionEnded(root, session string) bool {
 	state := filepath.Join(root, processlock.StateDirectory)
-	if raw, err := os.ReadFile(filepath.Join(state, WorktreeHolder)); err == nil {
+	raw, err := os.ReadFile(filepath.Join(state, WorktreeHolder))
+	switch {
+	case err == nil:
 		if held, process, start := ReadHold(raw); held == session && process > 0 {
 			return !processcontrol.Running(process, start)
 		}
+	case !errors.Is(err, fs.ErrNotExist):
+		// A hold that cannot be read may name the session, so its end is unknown, and an unknown end is no end.
+		return false
 	}
-	end, err := os.Stat(filepath.Join(state, sessionEnd(session)))
+	end, err := statSession(filepath.Join(state, sessionEnd(session)))
 	if err != nil {
 		return false
 	}
 	// The hooks write a session's state at its turns, so a turn after the recorded end outranks it: a session that
-	// resumed is live whether or not the session-start hook could remove its end record (SQA-384).
-	turn, err := os.Stat(filepath.Join(state, SessionState(session)))
-	return err != nil || !turn.ModTime().After(end.ModTime())
+	// resumed is live whether or not the session-start hook could remove its end record (SQA-384). A state that is not
+	// there leaves the end standing; one that cannot be read leaves it unknown.
+	turn, err := statSession(filepath.Join(state, SessionState(session)))
+	if errors.Is(err, fs.ErrNotExist) {
+		return true
+	}
+	return err == nil && !turn.ModTime().After(end.ModTime())
 }
+
+// statSession reads a session file's metadata: os.Stat, which a test replaces to fail as the file system can.
+var statSession = os.Stat
 
 // SessionResumed removes the record of session's end, as the session-start hook does for a session that starts again:
 // its end was its last incarnation's, and its new work is not finished (SQA-384).

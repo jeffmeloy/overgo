@@ -4,6 +4,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"math"
 
 	"overgo/internal/hostmath"
 	"overgo/internal/sampling"
@@ -400,17 +401,27 @@ func buildConditionedDiffusionBlock(
 // buildNormalizedAttention is NAG's Eqs. 7 to 10 (sampling.NormalizedAttention) on a cross-attention's outputs for the
 // prompt and the negative prompt, each [dim, tokens], a token's heads together as the norm takes them:
 // Z~ = Z+ + phi (Z+ - Z-); each token's L1 ratio R = |Z~|_1 / |Z+|_1; Z^ = min(R, tau) / R Z~;
-// Z = alpha Z^ + (1 - alpha) Z+. The absolute value is ReLU(x) + ReLU(-x).
+// Z = alpha Z^ + (1 - alpha) Z+. The absolute value is ReLU(x) + ReLU(-x). Eq. 9's factor min(R, tau) / R is taken as
+// min(1, tau |Z+|_1 / |Z~|_1), tau |Z+|_1 over the larger of the two, each held at normFloor or more, so no division
+// reads 0 / 0: where the extrapolation cancels, or both norms are 0, the factor is 1 and Z~ is 0 there, where R was 0
+// and the factor NaN (SQA-402).
 func buildNormalizedAttention(builder *tensor.Builder, positive, negative *tensor.Tensor, guidance sampling.NormalizedAttention) *tensor.Tensor {
 	scale, tau, alpha := float32(guidance.Scale), float32(guidance.Tau), float32(guidance.Alpha)
 	extrapolated := builder.Add(builder.Scale(positive, 1+scale), builder.Scale(negative, -scale))
 	norm := func(x *tensor.Tensor) *tensor.Tensor {
 		return builder.SumRows(builder.Add(builder.ReLU(x), builder.ReLU(builder.Scale(x, -1))))
 	}
-	ratio := builder.Divide(norm(extrapolated), norm(positive))
-	bounded := builder.Multiply(extrapolated, builder.Divide(builder.Clamp(ratio, 0, tau), ratio))
+	bound, reach := builder.Scale(norm(positive), tau), norm(extrapolated)
+	// The larger of |Z~|_1 and tau |Z+|_1, as |Z~|_1 + ReLU(tau |Z+|_1 - |Z~|_1).
+	larger := builder.Add(reach, builder.ReLU(builder.Add(bound, builder.Scale(reach, -1))))
+	factor := builder.Divide(builder.Clamp(bound, normFloor, math.MaxFloat32), builder.Clamp(larger, normFloor, math.MaxFloat32))
+	bounded := builder.Multiply(extrapolated, factor)
 	return builder.Add(builder.Scale(bounded, alpha), builder.Scale(positive, 1-alpha))
 }
+
+// normFloor is the least an L1 norm NAG divides by is held to: far below any norm a token's attention output has, so
+// it changes no factor but one whose norms are 0.
+const normFloor = 1e-30
 
 // buildConditionedDiffusionHead: final modulated projection. conditioning is
 // the [dim] timestep embedding; modulation is the learned [2*dim]

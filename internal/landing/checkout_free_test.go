@@ -90,6 +90,33 @@ func TestALandingWaitingOnARunLeavesTheCheckoutFree(t *testing.T) {
 	}
 }
 
+// TestALandingThatFindsTheCardFreeGivesUpItsCommitTurn lands a change whose lane is reached while no process holds the
+// card's turn (SQA-261): the landing lets the commit turn go before it takes the card's turn all the same, since a card
+// found free can be taken before the landing takes it, and the landing would then wait for the card holding the commit
+// turn; and it lands.
+func TestALandingThatFindsTheCardFreeGivesUpItsCommitTurn(t *testing.T) {
+	// Serial: it names the lane turn and the lanes the tests take, not the host's own.
+	turn, gated := laneTurn, lanes
+	laneTurn = func() (string, error) { return "overgo-test-free-card-turn", nil }
+	lanes = []lane{{name: "fixture", packages: []string{"./internal/p"}, command: func(string) []string { return []string{"test", "-count=1", "./internal/p"} }}}
+	t.Cleanup(func() { laneTurn, lanes = turn, gated })
+	fixture := newRowFixture(t, map[string]string{"internal/p/p.go": "package p\n\nfunc a() string { return \"base\" }\n"})
+	fixture.git("config", "core.autocrlf", "false")
+	fixture.write("internal/p/p.go", "package p\n\nfunc a() string { return \"shipped\" }\n")
+	freed := false
+	_, err := Run(t.Context(), Options{Repo: fixture.repo, Ref: "row/do", Log: freedLog{freed: func() { freed = true }},
+		Message: []byte("Change the fixture\n\nCause: the fixture needs a change.\nPredicted effect: first-output holds.\n")})
+	if err != nil {
+		t.Fatalf("the landing with the card free refused: %v", err)
+	}
+	if !freed {
+		t.Fatal("a landing that found the card free took the card's turn holding the commit turn")
+	}
+	if committed := fixture.git("show", "HEAD:internal/p/p.go"); !strings.Contains(committed, "shipped") {
+		t.Fatalf("the commit holds %q, want the change", committed)
+	}
+}
+
 // landBesideACommit lands a change whose lane is reached while another holds the lane turn, and once the landing lets
 // the checkout go takes the repository's commit turn it gave up and commits, as another session's report does. It
 // returns the fixture, the commit made, what the landing said and how it ended.

@@ -96,8 +96,9 @@ func (h *Handler) parseChatSingleMultimodalPrompt(
 	if body.AddPrompt != nil && !*body.AddPrompt {
 		return nativePrompt{}, errors.New("multimodal chat requires add_generation_prompt")
 	}
-	thinking, err := chatThinkingEnabled(body.TemplateKwargs)
-	if err != nil {
+	// The mode is attached where every chat prompt is normalized (normalizeChatPrompt); this path takes no other
+	// template options.
+	if _, err := chatThinkingEnabled(body.TemplateKwargs); err != nil {
 		return nativePrompt{}, err
 	}
 	message := body.Messages[0]
@@ -122,7 +123,6 @@ func (h *Handler) parseChatSingleMultimodalPrompt(
 		BeforeMedia: segments[0],
 		AfterMedia:  segments[1],
 		MediaText:   segments,
-		Thinking:    &thinking,
 	}
 	if len(message.Media) > 1 {
 		prompt.Images = make([][]byte, len(message.Media))
@@ -344,25 +344,25 @@ func (h *Handler) normalizeChatPrompt(
 		}
 		body.Messages = messages
 	}
-	if chatMediaCount(body.Messages) != 0 {
-		return h.parseChatMultimodalPrompt(ctx, formatter, body, promptTools)
-	}
-	prompt, err := formatChatRequest(
-		formatter,
-		body.Messages,
-		promptTools,
-		body.AddPrompt,
-		body.TemplateKwargs,
-	)
-	if err != nil {
-		return nativePrompt{}, err
-	}
-	// The prompt carries its mode, so its sampling is the model's for that mode.
+	// The prompt carries its mode, so its sampling is the model's for that mode, whatever media its history holds: the
+	// media history's prompt carried none and was sampled as thinking (SQA-383).
 	thinking, _, err := chatTemplateKwargs(body.TemplateKwargs)
 	if err != nil {
 		return nativePrompt{}, err
 	}
-	return nativePrompt{Text: prompt, Response: prompt, Thinking: &thinking}, nil
+	var prompt nativePrompt
+	if chatMediaCount(body.Messages) != 0 {
+		prompt, err = h.parseChatMultimodalPrompt(ctx, formatter, body, promptTools)
+	} else {
+		var text string
+		text, err = formatChatRequest(formatter, body.Messages, promptTools, body.AddPrompt, body.TemplateKwargs)
+		prompt = nativePrompt{Text: text, Response: text}
+	}
+	if err != nil {
+		return nativePrompt{}, err
+	}
+	prompt.Thinking = &thinking
+	return prompt, nil
 }
 
 // chatTemplateKwargs admits the declared template variables: the typed

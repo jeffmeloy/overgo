@@ -47,6 +47,8 @@ func TestTurnProcess(t *testing.T) {
 			case "count":
 				testcheck.NoError(t, TurnCount(3, 5))
 				fmt.Println("counted")
+			case "waited":
+				fmt.Println("waited", testcheck.Must(TurnWaited())(t))
 			}
 		}
 	case "ride":
@@ -141,6 +143,44 @@ func TestAWaiterSaysTheHoldersCount(t *testing.T) {
 		t.Fatalf("the holder: %q, want given", got)
 	}
 	testcheck.NoError(t, waiter.command.Wait())
+}
+
+// TestAWaiterWhoseLookFoundTheTurnFreeIsStillSeenWaiting holds a waiter to its mark whatever its look at the turn found
+// (free-card-turn/do, found where else SQA-261's fault occurs): another process takes the turn after this one looked
+// and found it free, as a race lets it, and the holder still reads a waiter, so it hands the turn over when it next
+// can. The mark went up only for a look that found the turn held, and an unmarked waiter waited out the holder's whole
+// work.
+func TestAWaiterWhoseLookFoundTheTurnFreeIsStillSeenWaiting(t *testing.T) {
+	name := testTurn(t)
+	holder := startTurnProcess(t, turnProbe{Name: name, Purpose: "a render", Part: "hold"})
+	if got := holder.line(t); got != "taken" {
+		t.Fatalf("the holder: %q, want taken", got)
+	}
+	look := lookAtTurn
+	t.Cleanup(func() { lookAtTurn = look })
+	lookAtTurn = func(string) (bool, error) { return false, nil }
+	taken := make(chan error, 1)
+	go func() {
+		release, err := TakeTurn(name, "a test", io.Discard)
+		if err == nil {
+			err = release()
+		}
+		taken <- err
+	}()
+	// The waiter's mark is up before it looks, and it looks before it waits; the holder reads it once it is there.
+	for {
+		holder.say(t, "waited")
+		if got := holder.line(t); got == "waited true" {
+			break
+		} else if got != "waited false" {
+			t.Fatalf("the holder: %q, want whether it reads a waiter", got)
+		}
+	}
+	holder.say(t, "give")
+	if got := holder.line(t); got != "given" {
+		t.Fatalf("the holder: %q, want given", got)
+	}
+	testcheck.NoError(t, <-taken)
 }
 
 // TestOneCardTurnQueuesEveryUser holds the card turn's queue across three processes: the first takes the turn; the

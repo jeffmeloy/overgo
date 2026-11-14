@@ -6,6 +6,7 @@ import (
 	"slices"
 	"testing"
 
+	"overgo/internal/checked"
 	"overgo/internal/sampling"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
@@ -94,7 +95,7 @@ func TestABlocksNAGIsThePapersEquations(t *testing.T) {
 		}
 		got := values[guided[guidance].CrossAttention].Data
 		for index := range want {
-			if math.Abs(float64(got[index])-want[index]) > 1e-5*(1+math.Abs(want[index])) {
+			if !checked.Finite32(got[index]) || math.Abs(float64(got[index])-want[index]) > 1e-5*(1+math.Abs(want[index])) {
 				t.Fatalf("with tau %g, element %d of the guided cross-attention is %g, Eqs. 7 to 10 give %g", guidance.Tau, index, got[index], want[index])
 			}
 		}
@@ -118,6 +119,32 @@ func TestABlocksNAGIsThePapersEquations(t *testing.T) {
 	}
 }
 
+// TestNAGStaysFiniteWhereAttentionCancels holds NAG to a finite guided output where Eq. 9's ratio has no value (nag-finite,
+// SQA-402): a token whose extrapolation cancels (its negative output 1.25 times its prompt output, so at phi 4
+// Z~ = 5 Z+ - 4 (1.25 Z+) = 0, R = 0 and min(R, tau) / R was 0 / 0), a token whose outputs are both 0, and a token whose
+// prompt output is 0, beside an ordinary one; each is held, finite, to the equations written out with the factor 1
+// where Z~ is 0.
+func TestNAGStaysFiniteWhereAttentionCancels(t *testing.T) {
+	const dim = 4
+	guidance := sampling.NormalizedAttention{Scale: 4, Tau: 2.5, Alpha: 0.25}
+	positive := []float32{0.5, -1, 2, 0.25 /**/, 0, 0, 0, 0 /**/, 0, 0, 0, 0 /**/, 0.5, -1, 2, 0.25}
+	negative := []float32{0.625, -1.25, 2.5, 0.3125 /**/, 0, 0, 0, 0 /**/, 1, -2, 0.5, 3 /**/, -0.5, 1, 0, 2}
+	builder := tensor.NewBuilder()
+	shape := tensor.MustShape(dim, uint64(len(positive)/dim))
+	plus, minus := builder.Input("positive", dtype.F32, shape), builder.Input("negative", dtype.F32, shape)
+	guided := buildNormalizedAttention(builder, plus, minus, guidance)
+	testcheck.NoError(t, builder.Err())
+	values := testcheck.Must(reference.Execute([]*tensor.Tensor{guided}, map[*tensor.Tensor]reference.Value{
+		plus: {Shape: shape, Data: positive}, minus: {Shape: shape, Data: negative},
+	}))(t)
+	want, _ := normalizedAttention(positive, negative, dim, guidance)
+	for index, got := range values[guided].Data {
+		if !checked.Finite32(got) || math.Abs(float64(got)-want[index]) > 1e-5*(1+math.Abs(want[index])) {
+			t.Fatalf("token %d's element %d is %g, the equations give %g", index/dim, index%dim, got, want[index])
+		}
+	}
+}
+
 // normalizedAttention is NAG's Eqs. 7 to 10 on a cross-attention's outputs for the prompt and the negative prompt, a
 // token's dim features after another's, in float64: Z~ = Z+ + phi (Z+ - Z-); R = |Z~|_1 / |Z+|_1 over the token's
 // features; Z^ = min(R, tau) / R Z~; Z = alpha Z^ + (1 - alpha) Z+. It gives the guided output and how many tokens'
@@ -133,12 +160,14 @@ func normalizedAttention(positive, negative []float32, dim int, guidance samplin
 			positiveNorm += math.Abs(plus)
 			extrapolatedNorm += math.Abs(extrapolated[feature])
 		}
-		ratio := extrapolatedNorm / positiveNorm
-		if ratio > guidance.Tau {
+		// Eq. 9's min(R, tau) / R, as min(1, tau |Z+| / |Z~|): 1 where the extrapolation cancels, as Z~ is 0 there.
+		factor := 1.0
+		if bound := guidance.Tau * positiveNorm; extrapolatedNorm > bound {
+			factor = bound / extrapolatedNorm
 			bounded++
 		}
 		for feature := range dim {
-			guided = append(guided, guidance.Alpha*min(ratio, guidance.Tau)/ratio*extrapolated[feature]+(1-guidance.Alpha)*float64(positive[start+feature]))
+			guided = append(guided, guidance.Alpha*factor*extrapolated[feature]+(1-guidance.Alpha)*float64(positive[start+feature]))
 		}
 	}
 	return guided, bounded

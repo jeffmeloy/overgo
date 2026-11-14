@@ -3,6 +3,8 @@ package guard
 import (
 	"cmp"
 	"context"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -14,13 +16,21 @@ import (
 	"overgo/internal/processlock"
 )
 
+// unreadableHold stands for the holder of a hold that cannot be read, where a message names the session holding.
+const unreadableHold = "(unknown: its hold cannot be read)"
+
 // heldBy is the session the hold of the checkout at root names (WorktreeHolder), when that is another session than
 // session and its process still runs, or was not recorded: a hold whose process has exited names a session that has
 // ended, which the next implementing session's turn clears.
 func heldBy(root, session string) string {
 	raw, err := os.ReadFile(filepath.Join(root, processlock.StateDirectory, WorktreeHolder))
-	if err != nil {
+	if errors.Is(err, fs.ErrNotExist) {
 		return ""
+	}
+	if err != nil {
+		// A hold that cannot be read may name another session, so the checkout is held until it can be read: an unknown
+		// holder is no free checkout (SQA-384's class).
+		return unreadableHold
 	}
 	held, process, start := ReadHold(raw)
 	if held == session || process > 0 && !processcontrol.Running(process, start) {

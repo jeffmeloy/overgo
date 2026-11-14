@@ -401,6 +401,10 @@ func (f *facts) copyState(tree landing.Worktree, helper bool) (state, rule strin
 	if holder, err := os.ReadFile(filepath.Join(written, guard.WorktreeHolder)); err == nil {
 		held, _, _ := guard.ReadHold(holder)
 		return stateHeld, "the session " + held + " holds it"
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		// A hold that cannot be read may name a session that holds the copy, so the copy is unknown, never finished
+		// (SQA-384's class).
+		return stateUnknown, "its hold cannot be read: " + err.Error()
 	}
 	locked, ran := false, !helper
 	if helper {

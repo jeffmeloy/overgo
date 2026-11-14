@@ -1892,6 +1892,9 @@ func TestHelperCopyIsRemovedOnceItsCommitIsOnTheTrunk(t *testing.T) {
 	s.write(copies+"edited/source/tracked.txt", "edited\n")
 	s.landedCopy(repo, copies+"heldby")
 	s.write(copies+"heldby"+state+guard.WorktreeHolder, "s9\n")
+	// A hold that cannot be read, as a directory where the hold is kept cannot (SQA-384's class).
+	s.landedCopy(repo, copies+"unreadable")
+	testcheck.NoError(t, os.MkdirAll(s.at(copies+"unreadable"+state+guard.WorktreeHolder), 0o700))
 	s.landedCopy(repo, copies+"stated")
 	s.write(copies+"stated"+state+guard.SessionState("s3"), "{}\n")
 	s.landedCopy(repo, copies+"ignored")
@@ -1923,7 +1926,7 @@ func TestHelperCopyIsRemovedOnceItsCommitIsOnTheTrunk(t *testing.T) {
 			return nil, nil
 		},
 	}
-	names := []string{"ahead", "edited", "emptied", "fresh", "gone", "heldby", "ignored", "landed", "locked", "prepared", "raced", "reserved", "stated"}
+	names := []string{"ahead", "edited", "emptied", "fresh", "gone", "heldby", "ignored", "landed", "locked", "prepared", "raced", "reserved", "stated", "unreadable"}
 	// said is what a run says of the copies: each kept, but for those given another verb.
 	said := func(verbs map[string]string) []string {
 		var lines []string
@@ -1982,6 +1985,7 @@ func TestHelperCopyIsRemovedOnceItsCommitIsOnTheTrunk(t *testing.T) {
 			{"edited", "kept", "1 uncommitted or ignored paths, the first source/tracked.txt"},
 			{"ignored", "kept", "the first tmp/"},
 			{"heldby", "kept", "the session s9 holds it"},
+			{"unreadable", "kept", "its hold cannot be read"},
 			{"stated", "kept", "its process state holds " + guard.SessionState("s3")},
 			{"ahead", "kept", "is not on the trunk"},
 			{"locked", "kept", "a commit is running in it"},

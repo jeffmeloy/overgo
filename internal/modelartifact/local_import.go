@@ -2,6 +2,8 @@ package modelartifact
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -50,10 +52,31 @@ func ReadLocalImport(path string) (LocalImport, error) {
 // for the import, and returns the batch that publishes the model's inventory with the import's receipt beside it: the
 // declaration with each file's source path in the install. No byte is copied, and a file whose bytes are not the
 // declared ones is refused, its link removed; a name already standing for another file is refused too. A hard link
-// needs the install and the models root on one volume.
+// needs the install and the models root on one volume. Every declared file is admitted, its role, paths, digest and
+// size, and its size held to the install's, before any file is linked or read (SQA-387): a declaration refused after
+// its files were hashed had read gigabytes first.
 func ImportLocal(ctx context.Context, declaration LocalImport, from, root string) (artifact.Batch, error) {
 	folder := filepath.Join(root, declaration.Name)
 	specs := make([]FileSpec, 0, len(declaration.Files))
+	roles := make([]artifact.ComponentRole, len(declaration.Files))
+	sources := make([]os.FileInfo, len(declaration.Files))
+	for index, file := range declaration.Files {
+		role, err := artifact.ParseComponentRole(file.Role)
+		if err != nil || !filepath.IsLocal(file.Path) || !filepath.IsLocal(file.Source) {
+			return artifact.Batch{}, fmt.Errorf("model artifact: the local import's file %s has an unknown role or a path outside its folder: %v", file.Path, err)
+		}
+		if digest, err := hex.DecodeString(file.SHA256); err != nil || len(digest) != sha256.Size || file.Bytes <= 0 {
+			return artifact.Batch{}, fmt.Errorf("model artifact: the local import's file %s declares %q of %d bytes, which no file is", file.Path, file.SHA256, file.Bytes)
+		}
+		info, err := os.Stat(filepath.Join(from, filepath.FromSlash(file.Source)))
+		if err != nil {
+			return artifact.Batch{}, err
+		}
+		if info.Size() != file.Bytes {
+			return artifact.Batch{}, fmt.Errorf("model artifact: %s is %d bytes in the install, not the declared %d", file.Source, info.Size(), file.Bytes)
+		}
+		roles[index], sources[index] = role, info
+	}
 	var linked []string
 	refuse := func(err error) (artifact.Batch, error) {
 		for _, name := range linked {
@@ -61,16 +84,9 @@ func ImportLocal(ctx context.Context, declaration LocalImport, from, root string
 		}
 		return artifact.Batch{}, err
 	}
-	for _, file := range declaration.Files {
-		role, err := artifact.ParseComponentRole(file.Role)
-		if err != nil || !filepath.IsLocal(file.Path) || !filepath.IsLocal(file.Source) {
-			return refuse(fmt.Errorf("model artifact: the local import's file %s has an unknown role or a path outside its folder: %v", file.Path, err))
-		}
+	for index, file := range declaration.Files {
+		role, sourceInfo := roles[index], sources[index]
 		source, target := filepath.Join(from, filepath.FromSlash(file.Source)), filepath.Join(folder, filepath.FromSlash(file.Path))
-		sourceInfo, err := os.Stat(source)
-		if err != nil {
-			return refuse(err)
-		}
 		if targetInfo, err := os.Stat(target); err == nil {
 			if !os.SameFile(sourceInfo, targetInfo) {
 				return refuse(fmt.Errorf("model artifact: %s already names another file than %s", target, source))

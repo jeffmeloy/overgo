@@ -93,23 +93,31 @@ func TestFinishingMatchesTheRecordedImage(t *testing.T) {
 	}
 }
 
-// TestSharpeningIsAdmittedBeforeTheModelOpens holds every sharpening the request's validation admits before a model
-// opens (Sharpening.Validate, any positive sigma) to a finite picture (sharpen-admit/do, SQA-393): the Gaussian's
-// weights divided by 2·sigma², which underflows to 0 below a sigma of about 1e-154, so the kernel's centre was 0/0 and
-// every value NaN, a picture drawn whole and then lost.
-func TestSharpeningIsAdmittedBeforeTheModelOpens(t *testing.T) {
+// TestEverySharpeningAdmittedDrawsAFinitePicture holds every sharpening the request's validation admits before a model
+// opens (Sharpening.Validate, any positive sigma, any alpha up to the largest whose kernel sums finitely) to a finite
+// picture (SQA-393): the Gaussian's weights divided by 2·sigma², which underflows to 0 below a sigma of about 1e-154, so
+// the kernel's centre was 0/0 and every value NaN (sharpen-admit/do); and an alpha of 1e308 was admitted, its taps
+// overflowed and the picture was NaN, drawn whole and then lost (sharpen-admit/alpha). The test was named
+// TestSharpeningIsAdmittedBeforeTheModelOpens.
+func TestEverySharpeningAdmittedDrawsAFinitePicture(t *testing.T) {
 	pixels := make([]float32, 4*4*RGBChannels)
 	for i := range pixels {
 		pixels[i] = float32(i%7) / 7
 	}
 	for _, sigma := range []float64{1e-200, 1e-160, 0.6, 1e200} {
-		sharpening := Sharpening{Radius: 1, Sigma: sigma, Alpha: 0.7}
-		testcheck.NoError(t, sharpening.Validate())
-		for i, value := range testcheck.Must(Sharpen(pixels, 4, 4, sharpening))(t) {
-			if !checked.Finite32(value) {
-				t.Fatalf("sharpening at sigma %g gave value %d as %g", sigma, i, value)
+		for _, alpha := range []float64{0.7, math.MaxFloat64 / 20} {
+			sharpening := Sharpening{Radius: 1, Sigma: sigma, Alpha: alpha}
+			testcheck.NoError(t, sharpening.Validate())
+			for i, value := range testcheck.Must(Sharpen(pixels, 4, 4, sharpening))(t) {
+				if !checked.Finite32(value) {
+					t.Fatalf("sharpening at sigma %g and alpha %g gave value %d as %g", sigma, alpha, i, value)
+				}
 			}
 		}
+	}
+	// An alpha whose taps overflow is refused before the model opens (SQA-393, its alpha remainder).
+	if err := (Sharpening{Radius: 1, Sigma: 0.6, Alpha: 1e308}).Admit(4, 4); err == nil {
+		t.Error("an alpha of 1e308, whose taps overflow, was admitted")
 	}
 }
 

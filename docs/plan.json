@@ -3,24 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "sharpen-alpha",
-      "title": "A sharpening's alpha is admitted only where its kernel sums finitely",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A sharpening's alpha is admitted only where its kernel sums finitely",
-          "status": "open",
-          "verify": "go test ./internal/media -count=1 -run '^TestEverySharpeningAdmittedDrawsAFinitePicture$'",
-          "files": [
-            "internal/media"
-          ],
-          "rationale": "Serves: a finished picture is never lost to an admitted setting (SQA-393, P2, its remainder at b649b8ace: admitted finite settings can give nonfinite output).\n\nThe evidence (the review's, shown from source, reproduced here): sharpen-admit/do (77a40b792) admitted a sharpening's radius against the picture and cured the small-sigma 0/0, but Sharpening.Validate admitted any finite alpha of 0 or more. The kernel's taps are 1 + 10 alpha at the centre less 10 alpha of a blur summing to 1, so at alpha 1e308 they overflow, the convolution sums Inf less Inf, and the picture is NaN after the whole render.\n\nThe change: Validate admits an alpha up to maxSharpenAlpha, MaxFloat64 / 20: the taps sum in magnitude to 1 + 20 alpha, so every product with a unit pixel and every partial sum stays finite at or below it. Admit, which the request's validation and Sharpen share, refuses a larger alpha before the model opens. No other owner reads alpha.\n\nCheck: TestEverySharpeningAdmittedDrawsAFinitePicture (TestSharpeningIsAdmittedBeforeTheModelOpens renamed, since it passes at the base under its old name) holds every admitted sigma, at alpha 0.7 and at the largest admitted alpha, to a finite picture, and alpha 1e308 to a refusal by Admit; at the base 1e308 is admitted. The recorded crop's comparison (TestFinishingMatchesTheRecordedImage) is unchanged.\n\nBatch: host lane."
-        }
-      ]
-    },
-    {
       "id": "guidance-ops",
       "title": "CFG-Zero*, the guidance interval, APG and NAG are guider functions written from their papers, each a preset admitted per model by its held-out suite on no loss beyond chance, a gain claimed only where the paired test shows one",
       "owner": "master-lead",
@@ -157,6 +139,10 @@
       "title": "The MOSS Ultra import admits its metadata, destination and storage before reading any payload",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": -172,
+        "reason": ""
+      },
       "steps": [
         {
           "id": "convrot",
@@ -167,17 +153,6 @@
             "internal/latentimage"
           ],
           "rationale": "Serves: MOSS Ultra's Base serves from its 8-bit ConvRot file through the loader that binds every other weight (SQA-386, P2: model output).\n\nThe evidence (the review's, shown from source): the ConvRot adapter refuses directly named quantized weights through the production loader, can select the wrong row scales for an admitted shape other than [rows, 1], and decodes again what the resident cache holds.\n\nThe change, the finding's: storage format and logical view are resolved before the payload reader is chosen, shape admitted from metadata, [rows, 1] scales required before payloads are read, and ConvRot weights bound through ResidentSession.Bind's lazy payload.\n\nCheck: TestAConvRotWeightBindsThroughTheResidentPath binds a ConvRot fixture weight by its direct name, refuses one with other scale geometry before reading it, and holds a second bind to the cache."
-        },
-        {
-          "id": "local",
-          "title": "A local import admits its declaration and destination before hashing any model file",
-          "status": "open",
-          "verify": "go test ./cmd/recipe -count=1 -run '^TestALocalImportRefusesItsDeclarationBeforeHashing$'",
-          "files": [
-            "cmd/recipe",
-            "internal/modelartifact"
-          ],
-          "rationale": "Serves: a bad import declaration is refused at once, not after reading gigabytes (SQA-387, P2).\n\nThe evidence (the review's, shown from source): ReadLocalImport and ImportLocal check entries after linking and hashing, and the destination store after inventory work.\n\nThe change, the finding's: every declaration entry, digest encoding, role, path and declared size is checked against source metadata, and the destination established, before any link or hash; full content verification stays.\n\nCheck: TestALocalImportRefusesItsDeclarationBeforeHashing refuses a malformed digest and a wrong declared size with no file read."
         }
       ]
     },

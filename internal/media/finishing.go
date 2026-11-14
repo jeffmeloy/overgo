@@ -12,6 +12,11 @@ import (
 // sharpenGain is the factor the alpha of a sharpening scales the subtracted blur by.
 const sharpenGain = 10
 
+// maxSharpenAlpha is the largest alpha whose kernel sums finitely: its taps, 1 + 10α at the centre less 10α of a blur
+// summing to 1, sum in magnitude to 1 + 20α, so every product with a unit pixel and every partial sum of them stays
+// finite below it. Past it the taps overflowed and the picture was NaN (SQA-393: alpha 1e308).
+const maxSharpenAlpha = math.MaxFloat64 / (2 * sharpenGain)
+
 // megapixelSide is the side of a square megapixel, as ComfyUI counts one in sizing a canvas: 1024 pixels.
 const megapixelSide = 1024
 
@@ -23,10 +28,10 @@ type Sharpening struct {
 	Alpha  float64 `json:"alpha"`
 }
 
-// Validate holds a sharpening to a radius of 1 or more, a positive sigma and an alpha of 0 or more.
+// Validate holds a sharpening to a radius of 1 or more, a positive sigma and an alpha from 0 to maxSharpenAlpha.
 func (s Sharpening) Validate() error {
-	if s.Radius < 1 || !checked.PositiveFinite64(s.Sigma) || !checked.NonNegativeFinite64(s.Alpha) {
-		return fmt.Errorf("media: a sharpening has a radius of 1 or more, a positive sigma and an alpha of 0 or more, not %d, %g and %g", s.Radius, s.Sigma, s.Alpha)
+	if s.Radius < 1 || !checked.PositiveFinite64(s.Sigma) || !checked.NonNegativeFinite64(s.Alpha) || s.Alpha > maxSharpenAlpha {
+		return fmt.Errorf("media: a sharpening has a radius of 1 or more, a positive sigma and an alpha from 0 to %g, not %d, %g and %g", maxSharpenAlpha, s.Radius, s.Sigma, s.Alpha)
 	}
 	return nil
 }

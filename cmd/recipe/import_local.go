@@ -44,15 +44,17 @@ func importLocal(args []string) error {
 	// The models folder beside the store is where a model of the store is found first; on a data root whose models are
 	// kept there already, StoreModels is empty and the folder is Models (moss-ultra-import/refusal-fixture).
 	models := roots.ModelRoots()[0]
-	batch, err := modelartifact.ImportLocal(ctx, declared, *from, models)
-	if err != nil {
-		return err
-	}
+	// The store the import publishes to is opened before any file is linked or read, so a store that cannot be opened
+	// leaves no link behind (SQA-387).
 	opened, err := overgodb.Open(store)
 	if err != nil {
 		return err
 	}
 	defer opened.Close()
+	batch, err := modelartifact.ImportLocal(ctx, declared, *from, models)
+	if err != nil {
+		return err
+	}
 	if err := modelartifact.PreserveRawFileDescriptors(ctx, opened, &batch); err != nil {
 		return err
 	}

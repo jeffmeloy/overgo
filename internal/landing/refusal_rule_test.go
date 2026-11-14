@@ -37,9 +37,9 @@ func Exported(values []int) int {
 		t.Fatal("the fixture breaks no style rule")
 	}
 	refused := append([]string{pinsRefusal([]string{"docs/verification/record.json"}), style.Error()}, newLegacyForms(base, candidate)...)
-	refused = append(refused, uncoveredRefusal("internal/p"), shrinkRefusal(9, "row/do", 3))
+	refused = append(refused, shrinkRefusal(9, "row/do", 3))
 	got := Classify("row/do", "gate: "+stagePrefix+"rules: "+strings.Join(refused, "; "))
-	if want := []string{"pins", "style", "legacy-forms", "cuda-lanes", "count"}; got.Class != "rules" || !slices.Equal(got.Rules, want) {
+	if want := []string{"pins", "style", "legacy-forms", "count"}; got.Class != "rules" || !slices.Equal(got.Rules, want) {
 		t.Fatalf("a refusal of every rule classed %s naming %v, want rules naming %v", got.Class, got.Rules, want)
 	}
 	if count := Classify("row/do", "gate: "+stagePrefix+"rules: "+shrinkRefusal(9, "row/do", 3)); !slices.Equal(count.Rules, []string{"count"}) {

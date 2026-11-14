@@ -3,7 +3,6 @@ package landing
 import (
 	"context"
 	"fmt"
-	"maps"
 	"slices"
 	"strings"
 
@@ -13,35 +12,14 @@ import (
 
 // form reads each landed step's check before any long stage, in seconds whether the check runs on the card or not
 // (cheap-first/form): each go test it names is listed, not run (go test -list), in the change, where every package it
-// names must hold a test it runs; and, where the undo run will restore the change's production Go, in that tree too,
-// where a check whose tests do not build is known to give no undo evidence. A step none of whose checks builds there
-// is refused now unless its note says why, and the undo run does not run such a check again.
+// names must hold a test it runs. Whether the check builds without the change is the undo run's to find and say, not
+// a refusal here (the owner's review, 2026-11-14).
 func (l *landing) form(ctx context.Context) error {
 	for _, check := range l.verifiers {
 		if err := l.list(ctx, l.stageRoot(), check); err != nil {
-			return fmt.Errorf("land: the check %q cannot run as written: %w", check, err)
+			// The reason comes first, the check after it: a refusal's record keeps its first line cut to causeBytes.
+			return fmt.Errorf("land: a check cannot run as written: %w: %q", err, check)
 		}
-	}
-	l.unbuilt = map[string]string{}
-	restored, checks, none, err := l.undoable(ctx)
-	if err != nil {
-		return err
-	}
-	if none != "" {
-		return nil
-	}
-	tree, said, release, err := l.undoTree(ctx, restored)
-	if err != nil {
-		return err
-	}
-	defer release()
-	for _, check := range checks {
-		if err := l.list(ctx, tree, check); err != nil {
-			l.unbuilt[check], _, _ = strings.Cut(err.Error(), "\n")
-		}
-	}
-	if len(l.unbuilt) == len(checks) && len(l.boundaryReasons) == 0 {
-		return l.noBoundary(said, slices.Sorted(maps.Keys(l.unbuilt)))
 	}
 	return nil
 }

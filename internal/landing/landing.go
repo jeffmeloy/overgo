@@ -150,14 +150,8 @@ type landing struct {
 	// unevidenced are the checks that did not build with the change's production Go restored, so no assertion of
 	// theirs is shown to catch the change's absence (undo).
 	unevidenced []string
-	// unbuilt are the checks the form stage found not building with the change's production Go restored, each with
-	// how it failed, which the undo run does not run again.
-	unbuilt map[string]string
-	// produced are the change's paths that are production, nil until the form stage reads them (production).
+	// produced are the change's paths that are production, nil until the undo run reads them (production).
 	produced map[string]bool
-	// boundaryReasons are why no test through an existing boundary is practical, each a landed step's own, from the
-	// line its rationale opens with noBoundaryLine (undo).
-	boundaryReasons []string
 }
 
 // Run lands the row and returns the commit. Every check runs over the
@@ -586,14 +580,6 @@ func (l *landing) row(ctx context.Context) error {
 		}
 	}
 	l.advanced, l.verifiers, l.added = document, nil, replaced
-	l.boundaryReasons = nil
-	for _, row := range named {
-		if step, held := plan.ExactStep(document, row.item, row.step); held {
-			if reason := noBoundaryReason(step.Rationale); reason != "" {
-				l.boundaryReasons = append(l.boundaryReasons, row.String()+": "+reason)
-			}
-		}
-	}
 	l.counts = make(map[string]plan.Budget, len(document.Items))
 	for _, item := range document.Items {
 		l.counts[item.ID] = item.Budget
@@ -974,7 +960,7 @@ func (l *landing) addedChecksFail(ctx context.Context) error {
 	defer release()
 	for _, check := range l.added {
 		if _, err := planverify.Execute(ctx, tree, check, nil); err == nil {
-			return fmt.Errorf("land: the check %q passes on %.12s without this change, so it proves nothing of it", check, l.head)
+			return fmt.Errorf("land: a check passes on %.12s without this change, so it proves nothing of it: %q", l.head, check)
 		}
 	}
 	return nil
@@ -1160,7 +1146,18 @@ func (l *landing) runIn(ctx context.Context, directory string, environment []str
 		Path: name, Args: arguments, Dir: directory, Env: environment, Stdout: &output, Stderr: &diagnostics,
 	})
 	if err == nil && receipt.ExitCode != 0 {
-		err = fmt.Errorf("%s %s: exit %d: %s", name, strings.Join(arguments, " "), receipt.ExitCode, clioptions.Tail(output.String()+diagnostics.String(), clioptions.DiagnosticTailBytes))
+		// The reason comes first, the line the command ended on, then its exit and itself: a refusal's record keeps its
+		// first line cut to causeBytes, and the command with its paths file had filled that line before any reason (the
+		// owner's review, 2026-11-14: four device lane refusals held only the command).
+		said := output.String() + diagnostics.String()
+		err = fmt.Errorf("%s (exit %d, %s %s)\n%s", cmp.Or(lastLine(said), "it said nothing"), receipt.ExitCode, name, strings.Join(arguments, " "),
+			clioptions.Tail(said, clioptions.DiagnosticTailBytes))
 	}
 	return output.String(), err
+}
+
+// lastLine is the last line of what a command said that holds anything, the line a failing command ends on.
+func lastLine(said string) string {
+	lines := strings.Split(strings.TrimSpace(said), "\n")
+	return strings.TrimSpace(lines[len(lines)-1])
 }

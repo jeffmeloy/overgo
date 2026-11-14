@@ -58,12 +58,6 @@ func TestEveryRuleRefusalFixesOrPrintsItsEdit(t *testing.T) {
 	text.write("internal/p/p.go", emptyPackage+"\nimport \"errors\"\n\nfunc failed() error { return errors.New(\"failed\") }\n")
 	testcheck.NoError(t, text.candidate().rules(t.Context()))
 
-	cuda := newRowFixture(t, map[string]string{"internal/q/q.go": "package q\n"})
-	cuda.write("internal/q/q_test.go", "package q\n\nfunc init() { cudatest"+".Require(nil) }\n")
-	if refusal := refused(cuda, "no lane runs"); !strings.Contains(refusal, `add "./internal/q" to cudaPackages`) {
-		t.Fatalf("the CUDA lane's refusal names no edit: %s", refusal)
-	}
-
 	grown := newRowFixture(t, map[string]string{"internal/p/p.go": emptyPackage})
 	grown.write("internal/p/p.go", oneFunction)
 	testcheck.NoError(t, grown.candidate().rules(t.Context()))

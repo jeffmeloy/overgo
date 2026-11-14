@@ -94,49 +94,33 @@ func (l *landing) undo(ctx context.Context) error {
 		l.undone = []string{none}
 		return nil
 	}
-	said := restoredTo(restored, l.head)
 	l.undone, l.unevidenced = nil, nil
-	// A check the form stage found not building without the change is not run again there: how it fails is known.
-	run := slices.DeleteFunc(slices.Clone(checks), func(check string) bool {
-		failure, known := l.unbuilt[check]
-		if known {
+	tree, said, release, err := l.undoTree(ctx, restored)
+	if err != nil {
+		return err
+	}
+	defer release()
+	for _, check := range checks {
+		_, err := planverify.Execute(ctx, tree, check, nil)
+		failure, _, _ := strings.Cut(fmt.Sprint(err), "\n")
+		switch {
+		case err == nil:
+			// The reason comes first, the check after it: a refusal's record keeps its first line cut to causeBytes.
+			return fmt.Errorf("land: a check passes with the change's production Go restored, so it proves nothing of the change; make it fail without the change: %q, with %s", check, said)
+		case errors.Is(err, planverify.ErrAssertion):
+			l.undone = append(l.undone, "with "+said+", "+check+" fails: "+failure)
+		default:
 			l.undone = append(l.undone, "with "+said+", "+check+" fails before a test asserts anything, so it is no evidence: "+failure)
 			l.unevidenced = append(l.unevidenced, check)
 		}
-		return known
-	})
-	if len(run) > 0 {
-		tree, _, release, err := l.undoTree(ctx, restored)
-		if err != nil {
-			return err
-		}
-		defer release()
-		for _, check := range run {
-			_, err := planverify.Execute(ctx, tree, check, nil)
-			failure, _, _ := strings.Cut(fmt.Sprint(err), "\n")
-			switch {
-			case err == nil:
-				return fmt.Errorf("land: the check %q passes with %s, so it proves nothing of the change; make it fail without the change", check, said)
-			case errors.Is(err, planverify.ErrAssertion):
-				l.undone = append(l.undone, "with "+said+", "+check+" fails: "+failure)
-			default:
-				l.undone = append(l.undone, "with "+said+", "+check+" fails before a test asserts anything, so it is no evidence: "+failure)
-				l.unevidenced = append(l.unevidenced, check)
-			}
-		}
 	}
+	// A check that does not build without the change is no evidence, and the landing says so where it is read: in its
+	// log, its message's Change section and its trailer (Undo-Evidence: none), which git log counts. It is not refused:
+	// a refusal asking each such step for a line of reason refused 10 of 61 recorded landings, and the reasons were one
+	// sentence repeated (the owner's review, 2026-11-14).
 	if len(l.unevidenced) > 0 && l.Log != nil {
 		fmt.Fprintf(l.Log, "land: %s has no undo evidence: %s do not build without the change, so no assertion is shown to catch its absence\n",
 			l.Ref, strings.Join(l.unevidenced, "; "))
-	}
-	// A change none of whose checks asserts without it lands only with a test through a boundary that builds either
-	// way, or with its step's reason why none is practical (the owner's review, 2026-11-09: a component test can hold
-	// its local rule while the assembled path breaks the guarantee).
-	if len(l.unevidenced) == len(checks) {
-		if len(l.boundaryReasons) == 0 {
-			return l.noBoundary(said, l.unevidenced)
-		}
-		l.undone = append(l.undone, "no boundary test, as the step says: "+strings.Join(l.boundaryReasons, "; "))
 	}
 	return nil
 }
@@ -167,15 +151,6 @@ func (l *landing) undoable(ctx context.Context) (restored, checks []string, none
 // restoredTo says which production Go the undo run restored, and to which commit.
 func restoredTo(restored []string, head string) string {
 	return fmt.Sprintf("%s restored to %.12s", strings.Join(restored, ", "), head)
-}
-
-// noBoundary refuses a landing none of whose checks, unevidenced, fails on an assertion with the change's production
-// Go restored, as said, and whose step does not say why no test through a boundary is practical.
-func (l *landing) noBoundary(said string, unevidenced []string) error {
-	// A landing is judged by the check of the commit it builds on, so a check widened in the same change is never run
-	// here; the note is the remedy that works (finding bc29104a, 2026-11-11).
-	return fmt.Errorf("land: no check of %s fails on an assertion with %s, since %s do not build without the change: say in a line of the step's rationale opening %q why the check has no test through a boundary that builds without the change, naming any such test the change adds (go run ./cmd/plan -note)",
-		l.Ref, said, strings.Join(unevidenced, "; "), noBoundaryLine)
 }
 
 // undoTree checks out the commit the change builds on with the change's files kept but restored, the production Go
@@ -221,22 +196,6 @@ func (l *landing) undoTree(ctx context.Context, restored []string) (tree, said s
 		return "", "", nil, err
 	}
 	return tree, restoredTo(restored, l.head), release, nil
-}
-
-// noBoundaryLine opens the line of a step's rationale that says why no test through an existing boundary is practical,
-// which admits a landing whose checks do not build without its change.
-const noBoundaryLine = "No boundary test:"
-
-// noBoundaryReason is the reason a rationale's noBoundaryLine gives, empty where it has none: the line opens with it,
-// or with the "Note:" go run ./cmd/plan -note writes before it.
-func noBoundaryReason(rationale string) string {
-	for line := range strings.Lines(rationale) {
-		line = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "Note:"))
-		if reason, stated := strings.CutPrefix(line, noBoundaryLine); stated && strings.TrimSpace(reason) != "" {
-			return strings.TrimSpace(reason)
-		}
-	}
-	return ""
 }
 
 // undoEvidenceTrailer is the trailer of a landing whose undo run is no evidence, so git log counts such landings

@@ -169,27 +169,54 @@ func TestLaneSelectionUsesTheLaneBuildContext(t *testing.T) {
 	}
 }
 
-// TestCUDATestsNeedALane holds the rules stage to the CUDA-gated tests'
-// runner: a package whose tests call cudatest.Require is named unless a
-// device lane scope covers it or a lane that opts into the device runs it,
-// once however many of its tests call it. Production source that quotes the
-// call is not a test and names nothing. The rule walks a fixture tree here,
-// so this package's tests read none of the repository's.
-func TestCUDATestsNeedALane(t *testing.T) {
+// TestTheCUDALaneRunsOnlyThePackagesAChangeEnters holds the cuda lane to the packages its change can move (the
+// owner's review, 2026-11-14): it ran every package of a hand-kept list and leaned on go test's cache to replay the
+// rest, and a failure is never cached, so trainingworkflow's failing sampler test refused image-readings, which it
+// did not enter. Its packages are found in the checkout: each package one of whose test files, as this host builds
+// them, calls cudatest.Require, once however many do; a device lane scope's, a production file quoting the call and a
+// test file behind CycleTags add none. Of them a change runs those whose test closure it enters: a package's own file
+// that one alone, a dependency both take in both, go.mod all, and a package neither imports none, the lane unreached.
+// The walk reads a fixture tree here, so this package's tests read none of the repository's.
+func TestTheCUDALaneRunsOnlyThePackagesAChangeEnters(t *testing.T) {
 	t.Parallel()
 	repo := t.TempDir()
-	gated := "package fixture\n\nfunc TestDevice(t *testing.T) { " + cudaRequirement + "t) }\n"
+	gated := func(name string) string {
+		return "package " + name + "\n\nimport \"testing\"\n\nfunc TestDevice(t *testing.T) { " + cudaRequirement + "t) }\n"
+	}
 	writeModule(t, repo, map[string]string{
-		"internal/unlaned/a_test.go":      gated,
-		"internal/unlaned/b_test.go":      gated,
-		"internal/inference/c_test.go":    gated,
-		"internal/cuda/kernels/d_test.go": gated,
-		"internal/quoting/e.go":           gated,
-		"cmd/hostonly/f_test.go":          "package main\n",
+		"go.mod":                          "module fixture\n\ngo 1.26\n",
+		"internal/a/a.go":                 "package a\n\nimport \"fixture/internal/shared\"\n\nvar A = shared.S\n",
+		"internal/a/a_test.go":            gated("a"),
+		"internal/a/b_test.go":            gated("a"),
+		"internal/b/b.go":                 "package b\n\nimport \"fixture/internal/shared\"\n\nvar B = shared.S\n",
+		"internal/b/b_test.go":            gated("b"),
+		"internal/shared/shared.go":       "package shared\n\nvar S = 1\n",
+		"internal/other/other.go":         "package other\n",
+		"internal/cuda/kernels/k_test.go": gated("kernels"),
+		"internal/quoting/q.go":           gated("quoting"),
+		"internal/tagged/t_test.go":       "//go:build modeltest\n\n" + gated("tagged"),
+		"cmd/hostonly/h_test.go":          "package main\n",
 	})
-	uncovered := testcheck.Must(uncoveredCUDATests(repo))(t)
-	if !slices.Equal(uncovered, []string{"internal/unlaned"}) {
-		t.Fatalf("uncovered CUDA tests = %q, want only internal/unlaned", uncovered)
+	found := testcheck.Must(cudaLanePackages(repo))(t)
+	if !slices.Equal(found, []string{"./internal/a", "./internal/b"}) {
+		t.Fatalf("the cuda lane found %q, want ./internal/a and ./internal/b alone", found)
+	}
+	candidate := lane{name: "cuda", packages: found, find: cudaLanePackages}
+	reaches := testcheck.Must(discover(repo, candidate))(t)
+	for _, change := range []struct {
+		paths []string
+		want  []string
+	}{
+		{[]string{"internal/a/a.go"}, []string{"./internal/a"}},
+		{[]string{"internal/b/b_test.go"}, []string{"./internal/b"}},
+		{[]string{"internal/shared/shared.go"}, []string{"./internal/a", "./internal/b"}},
+		{[]string{"go.mod"}, []string{"./internal/a", "./internal/b"}},
+		{[]string{"internal/other/other.go"}, nil},
+	} {
+		got := reaches(candidate, change.paths)
+		if !slices.Equal(got.packages, change.want) || (got.by == "") != (change.want == nil) {
+			t.Errorf("a change to %v runs %q of the cuda lane (by %q), want %q", change.paths, got.packages, got.by, change.want)
+		}
 	}
 }
 

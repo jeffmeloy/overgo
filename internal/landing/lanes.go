@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"go/ast"
+	"go/build"
 	"go/parser"
 	"go/token"
 	"io"
@@ -55,6 +56,9 @@ type lane struct {
 	// tests: its reach is their build closure, so a test file, the test
 	// support only tests import and a test's data reach it nowhere.
 	binary bool
+	// find finds the lane's packages in the checkout, where packages does not name them, and the lane runs only those
+	// of them whose test closure the change enters, named after its command (reach.packages).
+	find func(repo string) ([]string, error)
 }
 
 // reach is what a change reaches a lane by: the first changed path that
@@ -64,6 +68,8 @@ type lane struct {
 type reach struct {
 	by    string
 	tests []string
+	// packages are the lane's packages whose test closure the change entered, for a lane that runs those alone (find).
+	packages []string
 }
 
 // splitLanes divides the lanes a change reached into those that need no device,
@@ -109,10 +115,14 @@ var lanes = []lane{
 	{
 		// The CUDA suites outside the device lane's scopes that build their
 		// own inputs: programs on synthetic weights, the trainers and the
-		// kernels only they call. One package at a time shares the device;
-		// go test's cache replays each until code it reads changes.
-		name: "cuda", packages: cudaPackages,
-		command:     func(string) []string { return append([]string{"test", "-json", "-p=1", "-timeout=0"}, cudaPackages...) },
+		// kernels only they call, found in the checkout (cudaLanePackages).
+		// One package at a time shares the device, and only those the change
+		// enters run: a failing test of one it does not enter refused it,
+		// since go test's cache replays a pass and never a failure (the
+		// owner's review, 2026-11-14: image-readings refused by
+		// trainingworkflow's sampler test).
+		name: "cuda", find: cudaLanePackages,
+		command:     func(string) []string { return []string{"test", "-json", "-p=1", "-timeout=0"} },
 		environment: []string{cudaTestEnvironment},
 	},
 }
@@ -200,15 +210,13 @@ const cudaTestEnvironment = "OVERGO_CUDA_TEST=1"
 // source quoting it is not read as calling it.
 const cudaRequirement = "cudatest" + ".Require("
 
-// uncoveredCUDATests names each package under internal/ or cmd/ whose tests
-// call cudatest.Require but that no device lane scope covers and no gate or
-// cycle lane runs with cudaTestEnvironment: a real-device suite lands with
-// its runner, never behind a variable nothing sets. It walks the tree at
-// every landing;
-// as a test it would make the directory listings a cache input of this
-// package and rerun it on every edit anywhere.
-func uncoveredCUDATests(repo string) ([]string, error) {
-	var uncovered []string
+// cudaLanePackages are the packages the cuda lane runs: each package under internal/ or cmd/ one of whose test files,
+// as this host builds them (go/build's MatchFile, its GOOS and constraints; a file behind CycleTags is none), calls
+// cudatest.Require, but those the device lane's scopes run. The walk that held a hand-kept list complete (the
+// cuda-lanes rule) now is the list (the owner's review, 2026-11-14).
+func cudaLanePackages(repo string) ([]string, error) {
+	device := lane{packages: devicePackages()}
+	found := map[string]bool{}
 	for _, top := range []string{"internal", "cmd"} {
 		err := filepath.WalkDir(filepath.Join(repo, top), func(name string, entry fs.DirEntry, err error) error {
 			// A repository without the top directory holds no tests there.
@@ -218,39 +226,46 @@ func uncoveredCUDATests(repo string) ([]string, error) {
 			if err != nil || entry.IsDir() || !strings.HasSuffix(name, "_test.go") {
 				return err
 			}
-			data, err := os.ReadFile(name)
-			if err != nil || !bytes.Contains(data, []byte(cudaRequirement)) {
+			relative, err := filepath.Rel(repo, filepath.Dir(name))
+			directory := filepath.ToSlash(relative)
+			if err != nil || found[directory] || device.owns(directory) {
 				return err
 			}
-			relative, err := filepath.Rel(repo, filepath.Dir(name))
-			if directory := filepath.ToSlash(relative); err == nil && !cudaCovered(directory) && !slices.Contains(uncovered, directory) {
-				uncovered = append(uncovered, directory)
+			if built, err := build.Default.MatchFile(filepath.Dir(name), entry.Name()); err != nil || !built {
+				return err
 			}
+			data, err := os.ReadFile(name)
+			found[directory] = err == nil && bytes.Contains(data, []byte(cudaRequirement))
 			return err
 		})
 		if err != nil {
 			return nil, err
 		}
 	}
-	return uncovered, nil
+	var packages []string
+	for _, directory := range slices.Sorted(maps.Keys(found)) {
+		if found[directory] {
+			packages = append(packages, "./"+directory)
+		}
+	}
+	return packages, nil
 }
 
-// cudaCovered reports whether a device lane scope covers the package
-// directory or a gate or cycle lane runs it with the device opted in.
-func cudaCovered(directory string) bool {
-	return lane{packages: devicePackages()}.owns(directory) || slices.ContainsFunc(slices.Concat(lanes, cycleLanes), func(candidate lane) bool {
-		return slices.Contains(candidate.environment, cudaTestEnvironment) && candidate.owns(directory)
-	})
-}
-
-// cudaPackages are the packages whose CUDA tests the cuda lane runs.
-var cudaPackages = []string{
-	"./internal/latentimage", "./internal/libraryintake", "./internal/scratchmodel", "./internal/scratchtrain", "./internal/modeldevice", "./internal/hybridtrain",
-	"./internal/e4btrain", "./internal/devicegrad", "./internal/densecausaltrain", "./internal/controllertrain", "./internal/trainingprogram",
-	"./internal/torchrng", "./internal/routedlm", "./internal/longform", "./internal/inference", "./cmd/train", "./internal/graphruntime",
-	"./internal/trainingworkflow", "./internal/mosstrain", "./internal/oscillatorimage",
-	// Their trainer tests step the optimizer on the card (card-reach).
-	"./internal/seq2seq", "./internal/seriesforecast", "./internal/speechsynth", "./internal/tabularicl", "./internal/thoughtbank",
+// lanesOf are the gate's lanes as the checkout at repo holds them: each lane that finds its packages there (find) with
+// them found.
+func lanesOf(repo string) ([]lane, error) {
+	found := slices.Clone(lanes)
+	for index, candidate := range found {
+		if candidate.find == nil {
+			continue
+		}
+		packages, err := candidate.find(repo)
+		if err != nil {
+			return nil, err
+		}
+		found[index].packages = packages
+	}
+	return found, nil
 }
 
 // modelPackages are the packages whose real-model tests the cycle's models
@@ -410,11 +425,15 @@ func (l *landing) holdCard(ctx context.Context) error {
 // keep it waiting for nothing it uses: on 2026-10-31 a landing whose one lane was webui waited 7.99 h for a run's turn
 // (e63fd568a).
 func (l *landing) reachesCard() (bool, error) {
-	reaches, err := discover(l.stageRoot(), lanes...)
+	candidates, err := lanesOf(l.stageRoot())
 	if err != nil {
 		return false, err
 	}
-	for _, candidate := range lanes {
+	reaches, err := discover(l.stageRoot(), candidates...)
+	if err != nil {
+		return false, err
+	}
+	for _, candidate := range candidates {
 		if !candidate.hostOnly && reaches(candidate, l.paths).by != "" {
 			return true, nil
 		}
@@ -459,16 +478,23 @@ func (l *landing) lanes(ctx context.Context) error {
 	var reached []lane
 	var skipped []string
 	started := time.Now()
-	reaches, err := discover(l.stageRoot(), lanes...)
+	candidates, err := lanesOf(l.stageRoot())
 	if err != nil {
 		return err
 	}
-	pulled, named := map[string]string{}, map[string][]string{}
-	for _, candidate := range lanes {
+	reaches, err := discover(l.stageRoot(), candidates...)
+	if err != nil {
+		return err
+	}
+	pulled, named, entered := map[string]string{}, map[string][]string{}, map[string][]string{}
+	for _, candidate := range candidates {
 		if got := reaches(candidate, l.paths); got.by != "" {
-			reached, pulled[candidate.name], named[candidate.name] = append(reached, candidate), got.by, got.tests
+			reached, pulled[candidate.name], named[candidate.name], entered[candidate.name] = append(reached, candidate), got.by, got.tests, got.packages
 			if len(got.tests) > 0 {
 				pulled[candidate.name] += fmt.Sprintf(", %d of its tests", len(got.tests))
+			}
+			if candidate.find != nil {
+				pulled[candidate.name] += fmt.Sprintf(", %d of its %d packages", len(got.packages), len(candidate.packages))
 			}
 		} else {
 			skipped = append(skipped, candidate.name)
@@ -484,7 +510,7 @@ func (l *landing) lanes(ctx context.Context) error {
 	return l.inTurnFor(ctx, shared, func() error {
 		turnWait := l.spent.Turn
 		entries, err := l.runLanes(ctx, beside, shared, func(ctx context.Context, candidate lane) (string, error) {
-			arguments := candidate.arguments(changed.Name())
+			arguments := append(candidate.arguments(changed.Name()), entered[candidate.name]...)
 			if tests := named[candidate.name]; len(tests) > 0 {
 				arguments = append(arguments, "-run", "^("+strings.Join(tests, "|")+")$")
 			}
@@ -637,6 +663,8 @@ func discover(repo string, candidates ...lane) (func(lane, []string) reach, erro
 	}
 	return func(candidate lane, paths []string) reach {
 		selection, directories, closure := selections[candidate.tags], directories[candidate.tags], map[string]string{}
+		// owners are, for each closure directory, every one of the lane's packages that takes it in.
+		owners := map[string][]string{}
 		// The listing holds every lane of the build context, so the lane's
 		// closure is taken from its own packages: each one, what it imports,
 		// and what its test binary imports, each directory kept with the
@@ -658,6 +686,9 @@ func discover(repo string, candidates ...lane) (func(lane, []string) reach, erro
 				dependency, _, _ = strings.Cut(dependency, " [")
 				if _, held := closure[directories[dependency]]; !held {
 					closure[directories[dependency]] = path.Dir(file)
+				}
+				if owned := owners[directories[dependency]]; !slices.Contains(owned, path.Dir(file)) {
+					owners[directories[dependency]] = append(owned, path.Dir(file))
 				}
 			}
 		}
@@ -698,6 +729,31 @@ func discover(repo string, candidates ...lane) (func(lane, []string) reach, erro
 			}
 		}
 		called, narrowed := calls[candidate.name], reach{}
+		if candidate.find != nil {
+			// A lane that runs only the packages a change enters names them: every package taking in the directory a path
+			// entered, a test file's own package, and all of them for a path that reaches the lane whole.
+			entered := map[string]bool{}
+			for _, name := range paths {
+				by, directory, _ := enters(name)
+				switch {
+				case by == "":
+					continue
+				case strings.HasSuffix(name, "_test.go"):
+					entered["./"+path.Dir(name)] = true
+				case directory == "":
+					for _, pattern := range candidate.packages {
+						entered[pattern] = true
+					}
+				default:
+					for _, owner := range owners[directory] {
+						entered["./"+owner] = true
+					}
+				}
+				narrowed.by = cmp.Or(narrowed.by, by)
+			}
+			narrowed.packages = slices.Sorted(maps.Keys(entered))
+			return narrowed
+		}
 		for _, name := range paths {
 			by, entered, owner := enters(name)
 			switch {

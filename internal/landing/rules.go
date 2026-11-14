@@ -21,9 +21,10 @@ import (
 )
 
 // rules compares the changed files with HEAD: no bytes a record pins move,
-// no new style finding, no new legacy form go fix leaves, no CUDA-gated test
-// no lane runs, and, for a consolidation, no more production code than its
-// count. A number written inline and an export its own package alone uses
+// no new style finding, no new legacy form go fix leaves, and, for a
+// consolidation, no more production code than its count. A CUDA-gated test is
+// no refusal: the cuda lane finds every package that holds one
+// (cudaLanePackages). A number written inline and an export its own package alone uses
 // are no refusal: those rules refused 24 of the 30 refusals that named their
 // rule by 2026-11-11 and guarded little (fewer-refusals/trim-rules). Each
 // refusal prints the edit that clears it. It reads the candidate (checkOut),
@@ -47,13 +48,6 @@ func (l *landing) rules(ctx context.Context) error {
 		return err
 	}
 	findings := newLegacyForms(base, candidate)
-	uncovered, err := uncoveredCUDATests(l.stageRoot())
-	if err != nil {
-		return err
-	}
-	for _, directory := range uncovered {
-		findings = append(findings, uncoveredRefusal(directory))
-	}
 	strays, err := strayDocuments(ctx, l.Repo)
 	if err != nil {
 		return err

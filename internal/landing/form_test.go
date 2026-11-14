@@ -12,7 +12,7 @@ import (
 // (cheap-first/form): a cheap stage named form comes before every package's tests and the lanes; a check that needs
 // model files alone runs on the host, before the lanes, while one that sets OVERGO_CUDA_TEST=1 keeps its run after
 // them; the form stage refuses a check naming a package that holds no test of its name; and a change whose tests do
-// not build without it, on a step without its note, is refused there, not after the long stages.
+// not build without it passes the form stage, the undo run saying it is no evidence (the owner's review, 2026-11-14).
 func TestAChecksFormIsReadBeforeItRuns(t *testing.T) {
 	t.Parallel()
 	stage := func(checks []check, name string) int {
@@ -68,9 +68,8 @@ func TestAChecksFormIsReadBeforeItRuns(t *testing.T) {
 	})
 	t.Run("tests that do not build without the change", func(t *testing.T) {
 		t.Parallel()
-		err := form(t, undoneCheck, undoneValue+twice, unbuiltTest)
-		if err == nil || !strings.Contains(err.Error(), "No boundary test:") {
-			t.Fatalf("the form stage gave %v for a change whose test does not build without it, on a step with no note; want it refused asking for the note", err)
+		if err := form(t, undoneCheck, undoneValue+twice, unbuiltTest); err != nil {
+			t.Fatalf("the form stage refused a change whose test does not build without it: %v; the undo run says it is no evidence", err)
 		}
 	})
 }

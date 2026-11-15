@@ -36,7 +36,7 @@ const (
 	manifestSchema = 2
 	// commitLength is the length of a full hexadecimal commit name.
 	commitLength = 40
-	// deviceVerify prefixes the verify of a claim whose test runs on the
+	// deviceVerify prefixes the command of a claim whose test runs on the
 	// device, which the test's caller enables.
 	deviceVerify = "OVERGO_CUDA_TEST=1 "
 	// reverifyCommand is how a moved claim is re-verified.
@@ -69,9 +69,7 @@ type goRuntime struct {
 
 type claim struct {
 	ID               string       `json:"id"`
-	Status           string       `json:"status"`
 	EvidenceTier     evidenceTier `json:"evidence_tier"`
-	Verify           string       `json:"verify"`
 	SourceCommit     string       `json:"source_commit,omitzero"`
 	ArtifactIdentity string       `json:"artifact_identity,omitzero"`
 	Summary          string       `json:"summary"`
@@ -155,7 +153,10 @@ func reverifyClaims(ctx context.Context, output io.Writer, root string) error {
 	var commands []string
 	sharing := map[string][]claim{}
 	for _, item := range moved {
-		command := strings.TrimPrefix(item.Verify, deviceVerify)
+		command, err := item.command(root)
+		if err != nil {
+			return err
+		}
 		if _, seen := sharing[command]; !seen {
 			commands = append(commands, command)
 		}
@@ -172,7 +173,7 @@ func reverifyClaims(ctx context.Context, output io.Writer, root string) error {
 					return err
 				}
 			}
-			fmt.Fprintf(output, "validate -claims -run: re-verifying %s: %s\n", item.ID, item.Verify)
+			fmt.Fprintf(output, "validate -claims -run: re-verifying %s: %s\n", item.ID, item.shown(command))
 		}
 		fields := strings.Fields(command)
 		for index, field := range fields {
@@ -212,7 +213,7 @@ func movedClaims(root string) ([]claim, error) {
 				return nil, err
 			}
 			if current != proof.Identity {
-				if err := validateClaimEvidenceTier(root, item); err != nil {
+				if err := validateClaimEvidenceTier(item); err != nil {
 					return nil, fmt.Errorf("compatibility manifest: claim %q: %w", item.ID, err)
 				}
 				moved = append(moved, item)
@@ -291,8 +292,8 @@ func generate(root string) ([]byte, error) {
 		document.Upstream.Repository, document.Upstream.Commit, document.Host.OS,
 		document.Host.Arch, document.Go.Minimum, document.Go.CGO)
 	output.WriteString("## Verified feature claims\n\n")
-	output.WriteString("State describes implementation completeness; tier describes evidence strength. `implemented` does not imply `oracle`.\n\n")
-	output.WriteString("| ID | State | Tier | Claim | Evidence |\n| --- | --- | --- | --- | --- |\n")
+	output.WriteString("Tier describes evidence strength; each claim's command is the one its test derives.\n\n")
+	output.WriteString("| ID | Tier | Claim | Evidence |\n| --- | --- | --- | --- |\n")
 	claims := slices.SortedFunc(slices.Values(document.Claims), func(left, right claim) int { return strings.Compare(left.ID, right.ID) })
 	for _, item := range claims {
 		links := make([]string, 0, len(item.Evidence)+1)
@@ -303,8 +304,12 @@ func generate(root string) ([]byte, error) {
 			}
 			links = append(links, fmt.Sprintf("%s: [`%s`](../%s) `%s`", proof.Role, label, filepath.ToSlash(proof.Path), proof.Identity))
 		}
-		fmt.Fprintf(&output, "| `%s` | %s | %s | %s | %s |\n",
-			item.ID, item.Status, item.EvidenceTier, escapeCell(item.Summary), strings.Join(append(links, "verify: `"+item.Verify+"`"), "<br>"))
+		command, err := item.command(root)
+		if err != nil {
+			return nil, err
+		}
+		fmt.Fprintf(&output, "| `%s` | %s | %s | %s |\n",
+			item.ID, item.EvidenceTier, escapeCell(item.Summary), strings.Join(append(links, "verify: `"+item.shown(command)+"`"), "<br>"))
 	}
 	output.WriteString("\n## Model prototypes\n\n")
 	output.WriteString("A prototype is structural architecture support guarded by strict metadata/catalog validation. Validation is a property of specific models, never of the prototype: the real-model validation column names the exact model artifacts whose oracle or fixture evidence stands, and the typed specifications under `docs/verification` carry each specific model's inference and training verification.\n\n")
@@ -352,7 +357,7 @@ func validateManifest(root string, document manifest) error {
 	}
 	seen := make(map[string]struct{}, len(document.Claims))
 	for index, item := range document.Claims {
-		if item.ID == "" || item.Summary == "" || !item.EvidenceTier.valid() || (item.Status != "implemented" && item.Status != "partial" && item.Status != "blocked") {
+		if item.ID == "" || item.Summary == "" || !item.EvidenceTier.valid() {
 			return fmt.Errorf("compatibility manifest: claim %d is incomplete", index)
 		}
 		if _, exists := seen[item.ID]; exists {
@@ -374,7 +379,7 @@ func validateManifest(root string, document manifest) error {
 		if !hasSource || !hasArtifact {
 			return fmt.Errorf("compatibility manifest: claim %q requires source and artifact identities", item.ID)
 		}
-		if err := validateClaimEvidenceTier(root, item); err != nil {
+		if err := validateClaimEvidenceTier(item); err != nil {
 			return fmt.Errorf("compatibility manifest: claim %q: %w", item.ID, err)
 		}
 	}
@@ -498,25 +503,40 @@ func (tier evidenceTier) valid() bool {
 	return tier == tierContract || tier == tierFixture || tier == tierOracle || tier == tierDevice
 }
 
-func validateClaimEvidenceTier(root string, item claim) error {
+func validateClaimEvidenceTier(item claim) error {
 	if item.EvidenceTier == tierOracle && len(item.SourceCommit) != commitLength {
 		return errors.New("pinned-oracle evidence needs a source_commit")
 	}
 	if (item.EvidenceTier == tierFixture || item.EvidenceTier == tierDevice) && item.ArtifactIdentity == "" {
 		return fmt.Errorf("%s evidence needs an artifact_identity", item.EvidenceTier)
 	}
+	return nil
+}
+
+// command is the test command a claim's first artifact derives (evidenceCommand), which re-verifies the claim; the
+// claim records none of its own, so no copy of it can name another test.
+func (item claim) command(root string) (string, error) {
 	for _, proof := range item.Evidence {
+		if proof.Role != roleArtifact {
+			continue
+		}
 		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(proof.Path)))
 		if err != nil {
-			return err
+			return "", err
 		}
 		if command, ok := evidenceCommand(proof, data); ok {
-			if item.Verify == command || item.EvidenceTier == tierDevice && item.Verify == deviceVerify+command {
-				return nil
-			}
+			return command, nil
 		}
 	}
-	return errors.New("verify must exactly name an uncached, verbose test artifact")
+	return "", fmt.Errorf("compatibility manifest: claim %q has no artifact naming an uncached, verbose test", item.ID)
+}
+
+// shown is command as a person runs it: a device claim's with the switch that enables the device before it.
+func (item claim) shown(command string) string {
+	if item.EvidenceTier == tierDevice {
+		return deviceVerify + command
+	}
+	return command
 }
 
 func evidenceCommand(proof evidence, data []byte) (string, bool) {

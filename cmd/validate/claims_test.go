@@ -20,8 +20,8 @@ func TestGenerateValidatesEvidenceAndSortsOutput(t *testing.T) {
 	source := writeEvidence(t, root, "internal/feature.go", "package feature\nfunc Feature() {}\n", "func Feature(", roleSource)
 	proof := writeEvidence(t, root, "internal/feature_test.go", "package feature\nfunc TestFeature() {}\n", "func TestFeature(", roleArtifact)
 	writeTestManifest(t, root, []claim{{
-		ID: "feature", Status: "implemented", EvidenceTier: tierContract,
-		Verify: "go test ./internal -run '^TestFeature$' -count=1 -v", Summary: "Feature works.",
+		ID: "feature", EvidenceTier: tierContract,
+		Summary:  "Feature works.",
 		Evidence: []evidence{source, proof},
 	}}, map[string]modelClaim{
 		"zeta":       {Features: []string{"z"}, RealModelValidation: "pending-fixture"},
@@ -48,8 +48,8 @@ func TestGenerateRejectsStaleClaimEvidence(t *testing.T) {
 	proof := writeEvidence(t, root, "feature_test.go", "package feature\nfunc TestFeature() {}\n", "func TestFeature(", roleArtifact)
 	testutil.WriteTextFile(t, root, "feature_test.go", "package feature\nfunc TestFeature() { panic(\"changed\") }\n")
 	writeTestManifest(t, root, []claim{{
-		ID: "stale", Status: "implemented", EvidenceTier: tierContract,
-		Verify: "go test . -run '^TestFeature$' -count=1 -v", Summary: "Stale claim.",
+		ID: "stale", EvidenceTier: tierContract,
+		Summary:  "Stale claim.",
 		Evidence: []evidence{source, proof},
 	}}, testModels())
 	if _, err := generate(root); err == nil || !strings.Contains(err.Error(), "is stale") {
@@ -64,8 +64,8 @@ func TestSymbolEvidenceIgnoresUnrelatedFileChanges(t *testing.T) {
 	proof := writeSymbolEvidence(t, root, "feature.go", data, "func Feature(", "Feature", roleSource)
 	testProof := writeSymbolEvidence(t, root, "feature_test.go", "package feature\nfunc TestFeature() {}\n", "func TestFeature(", "TestFeature", roleArtifact)
 	writeTestManifest(t, root, []claim{{
-		ID: "symbol", Status: "implemented", EvidenceTier: tierContract,
-		Verify: "go test . -run '^TestFeature$' -count=1 -v", Summary: "Symbol evidence.",
+		ID: "symbol", EvidenceTier: tierContract,
+		Summary:  "Symbol evidence.",
 		Evidence: []evidence{proof, testProof},
 	}}, testModels())
 	testutil.WriteTextFile(t, root, "feature.go", "package feature\nfunc Feature() int { return 1 }\nfunc Unrelated() int { return 3 }\n")
@@ -88,8 +88,8 @@ func TestGenerateNormalizesEvidenceLineEndings(t *testing.T) {
 	testutil.WriteTextFile(t, root, "feature.go", strings.ReplaceAll(sourceText, "\n", "\r\n"))
 	testutil.WriteTextFile(t, root, "feature_test.go", strings.ReplaceAll(proofText, "\n", "\r\n"))
 	writeTestManifest(t, root, []claim{{
-		ID: "portable", Status: "implemented", EvidenceTier: tierContract,
-		Verify: "go test . -run '^TestFeature$' -count=1 -v", Summary: "Portable evidence.",
+		ID: "portable", EvidenceTier: tierContract,
+		Summary:  "Portable evidence.",
 		Evidence: []evidence{source, proof},
 	}}, testModels())
 	if _, err := generate(root); err != nil {
@@ -107,8 +107,8 @@ func TestRebindClaimsUsesCanonicalBytes(t *testing.T) {
 	extra.Identity = source.Identity
 	proof.Identity = "evidence:sha256:" + strings.Repeat("0", 64)
 	item := claim{
-		ID: "rebind", Status: "implemented", EvidenceTier: tierContract,
-		Verify: "go test . -run '^TestFeature$' -count=1 -v", Summary: "Rebind evidence.",
+		ID: "rebind", EvidenceTier: tierContract,
+		Summary:  "Rebind evidence.",
 		Evidence: []evidence{source, extra, proof},
 	}
 	writeTestManifest(t, root, []claim{item}, testModels())
@@ -144,16 +144,16 @@ func TestReverifyRebindsOnlyPassingClaims(t *testing.T) {
 	skippedSource := writeEvidence(t, root, "feature/other.go", "package feature\n\nfunc Other() int { return 1 }\n", "func Other(", roleSource)
 	skippedTest := writeEvidence(t, root, "feature/other_test.go", "package feature\n\nimport \"testing\"\n\nfunc TestOther(t *testing.T) { t.Skip(\"not applicable\") }\n", "func TestOther(", roleArtifact)
 	writeTestManifest(t, root, []claim{{
-		ID: "passing", Status: "implemented", EvidenceTier: tierContract,
-		Verify: "go test ./feature -run '^TestFeature$' -count=1 -v", Summary: "Feature works.",
+		ID: "passing", EvidenceTier: tierContract,
+		Summary:  "Feature works.",
 		Evidence: []evidence{passingSource, passingTest},
 	}, {
-		ID: "skipped", Status: "implemented", EvidenceTier: tierContract,
-		Verify: "go test ./feature -run '^TestOther$' -count=1 -v", Summary: "Other works.",
+		ID: "skipped", EvidenceTier: tierContract,
+		Summary:  "Other works.",
 		Evidence: []evidence{skippedSource, skippedTest},
 	}, {
-		ID: "sharing", Status: "implemented", EvidenceTier: tierContract,
-		Verify: "go test ./feature -run '^TestFeature$' -count=1 -v", Summary: "Shared works.",
+		ID: "sharing", EvidenceTier: tierContract,
+		Summary:  "Shared works.",
 		Evidence: []evidence{sharingSource, passingTest},
 	}}, testModels())
 	testutil.WriteTextFile(t, root, "feature/feature.go", "package feature\n\nfunc Feature() int { return 2 }\n")
@@ -205,8 +205,8 @@ func TestReverifyBindsTestedBytes(t *testing.T) {
 	} {
 		path := "feature/" + strings.ToLower(fixture.name)
 		claims = append(claims, claim{
-			ID: strings.ToLower(fixture.name) + "-claim", Status: "implemented", EvidenceTier: tierContract,
-			Verify: "go test ./feature -run '^Test" + fixture.name + "$' -count=1 -v", Summary: fixture.name + " works.",
+			ID: strings.ToLower(fixture.name) + "-claim", EvidenceTier: tierContract,
+			Summary: fixture.name + " works.",
 			Evidence: []evidence{
 				writeEvidence(t, root, path+".go", source(fixture.name, "1"), "func "+fixture.name+"(", roleSource),
 				writeEvidence(t, root, path+"_test.go", fixture.test, "func Test"+fixture.name+"(", roleArtifact),
@@ -244,8 +244,8 @@ func TestClaimsRequireLiveEvidenceTier(t *testing.T) {
 	source := writeEvidence(t, root, "feature.go", "package feature\nfunc Feature() {}\n", "func Feature(", roleSource)
 	proof := writeEvidence(t, root, "feature_test.go", "package feature\nfunc TestFeature() {}\n", "func TestFeature(", roleArtifact)
 	valid := claim{
-		ID: "feature", Status: "implemented", EvidenceTier: tierContract,
-		Verify: "go test . -run '^TestFeature$' -count=1 -v", Summary: "Feature works.",
+		ID: "feature", EvidenceTier: tierContract,
+		Summary:  "Feature works.",
 		Evidence: []evidence{source, proof},
 	}
 	writeTestManifest(t, root, []claim{valid}, testModels())
@@ -257,7 +257,6 @@ func TestClaimsRequireLiveEvidenceTier(t *testing.T) {
 		"tier":     func(item *claim) { item.EvidenceTier = "" },
 		"source":   func(item *claim) { item.Evidence = item.Evidence[1:] },
 		"artifact": func(item *claim) { item.Evidence = item.Evidence[:1] },
-		"command":  func(item *claim) { item.Verify = "go test . -run '^TestOther$' -count=1 -v" },
 	} {
 		t.Run(name, func(t *testing.T) {
 			item := valid

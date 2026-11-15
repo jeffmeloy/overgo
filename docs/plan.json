@@ -5,13 +5,10 @@
     {
       "id": "single-source",
       "title": "A fact is written once, where a program uses it; other copies are generated or go, and the tool says what a session needs when it needs it",
-      "owner": "master-lead",
-      "status": "open",
       "steps": [
         {
           "id": "step-fields",
           "title": "A plan step holds title, verify, files, order, cause and serves; status and owner go",
-          "status": "open",
           "verify": "go test ./internal/plan -count=1 -run '^TestAStepHoldsItsSixFields$'",
           "files": [
             "internal/plan",
@@ -27,7 +24,6 @@
         {
           "id": "finding-fields",
           "title": "A finding holds id, severity, files, input, expected and actual",
-          "status": "open",
           "verify": "go test ./cmd/finding -count=1 -run '^TestAFindingHoldsItsSixFields$'",
           "files": [
             "cmd/finding",
@@ -38,7 +34,6 @@
         {
           "id": "skill-source",
           "title": "skill.md is written from the tests' comments, or holds its judgement lines alone, and the citation rewriter goes",
-          "status": "open",
           "verify": "go test ./internal/repoanalysis -count=1 -run '^TestSkillHoldsNoRuleItsTestsDoNotState$'",
           "files": [
             "skill.md",
@@ -52,13 +47,10 @@
     {
       "id": "cycle-lanes",
       "title": "The cycle's lanes run at the build that gave them the gate's real-model tests, so each moved test runs before other work",
-      "owner": "master-lead",
-      "status": "open",
       "steps": [
         {
           "id": "do",
           "title": "The cycle's lanes run at the build that gave them the gate's real-model tests, so each moved test runs before other work",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 go run ./cmd/validate -run -lanes",
           "files": [
             "docs/plan.json"
@@ -70,13 +62,10 @@
     {
       "id": "mmlu-pro",
       "title": "MMLU-Pro's headline is an eligible reading's, and its reference comparison admits the exact questions first",
-      "owner": "master-lead",
-      "status": "open",
       "steps": [
         {
           "id": "reference",
           "title": "MMLU-Pro's reference comparison admits the exact questions it compares before the model opens",
-          "status": "open",
           "verify": "go test ./internal/evaluation -count=1 -run '^TestTheMMLUProReferenceIsAdmittedByItsQuestions$'",
           "files": [
             "internal/evaluation",
@@ -89,13 +78,10 @@
     {
       "id": "identity-gate",
       "title": "The ordinary gate's MMLU-Pro identity checks read pinned fixtures, never the mutable benchmark store",
-      "owner": "master-lead",
-      "status": "open",
       "steps": [
         {
           "id": "do",
           "title": "The ordinary gate's MMLU-Pro identity checks read pinned fixtures, never the mutable benchmark store",
-          "status": "open",
           "verify": "go test ./internal/evaluation -count=1 -run '^TestTheMMLUProIdentityChecksReadNoStore$'",
           "files": [
             "internal/evaluation"
@@ -107,13 +93,10 @@
     {
       "id": "turn-holder",
       "title": "A waiter for a turn says the holder again each time it changes",
-      "owner": "master-lead",
-      "status": "open",
       "steps": [
         {
           "id": "do",
           "title": "A waiter for a turn says the holder again each time it changes",
-          "status": "open",
           "verify": "go test ./internal/processcontrol -count=1 -run '^TestAWaiterSaysEachNewHolder$'",
           "files": [
             "internal/processcontrol"
@@ -125,13 +108,10 @@
     {
       "id": "undo-every-check",
       "title": "The undo run proves every step's check, whatever it runs, and the added-check run goes",
-      "owner": "master-lead",
-      "status": "open",
       "steps": [
         {
           "id": "every-kind",
           "title": "The undo run runs every check, not only a go test",
-          "status": "open",
           "verify": "go test ./internal/landing -count=1 -run '^TestTheUndoRunRunsEveryKindOfCheck$'",
           "files": [
             "internal/landing"
@@ -141,7 +121,6 @@
         {
           "id": "per-step",
           "title": "The undo run judges each step against the files that step lists",
-          "status": "open",
           "verify": "go test ./internal/landing -count=1 -run '^TestTheUndoRunJudgesEachStepByItsFiles$'",
           "files": [
             "internal/landing"
@@ -151,7 +130,6 @@
         {
           "id": "added",
           "title": "The added-check run and the record of added steps go, the undo run proving every step alike",
-          "status": "open",
           "verify": "go test ./internal/landing -count=1",
           "files": [
             "internal/landing",
@@ -164,13 +142,10 @@
     {
       "id": "first-pass",
       "title": "The status leads with the first-pass rate: commits landed on their first attempt",
-      "owner": "master-lead",
-      "status": "open",
       "steps": [
         {
           "id": "do",
           "title": "The status leads with the first-pass rate: commits landed on their first attempt",
-          "status": "open",
           "verify": "go test ./internal/landing ./cmd/loop -count=1 -run '^(TestTheFirstPassRateCountsAttemptsToEachLanding|TestTheStatusSaysTheDaysFiveMeasures)$'",
           "files": [
             "internal/landing",
@@ -184,13 +159,10 @@
     {
       "id": "card-free-dispatch",
       "title": "While another process holds the card, dispatch gives out the next step that needs no card",
-      "owner": "master-lead",
-      "status": "open",
       "steps": [
         {
           "id": "do",
           "title": "While another process holds the card, dispatch gives out the next step that needs no card",
-          "status": "open",
           "verify": "go test ./internal/plan -count=1 -run '^TestWhileTheCardIsHeldDispatchGivesAStepThatNeedsNone$'",
           "files": [
             "internal/plan",
@@ -204,13 +176,10 @@
     {
       "id": "turn-outcome",
       "title": "A wait for the card is recorded under the stage that waits, not the one before",
-      "owner": "master-lead",
-      "status": "open",
       "steps": [
         {
           "id": "do",
           "title": "A wait for the card is recorded under the stage that waits, not the one before",
-          "status": "open",
           "verify": "go test ./internal/landing -count=1 -run '^TestACardWaitIsRecordedUnderItsStage$'",
           "files": [
             "internal/landing"
@@ -222,13 +191,10 @@
     {
       "id": "guidance-ops",
       "title": "CFG-Zero*, the guidance interval, APG and NAG are guider functions written from their papers, each a preset admitted per model by its held-out suite on no loss beyond chance, a gain claimed only where the paired test shows one",
-      "owner": "master-lead",
-      "status": "open",
       "steps": [
         {
           "id": "preset-readings",
           "title": "Each model's guidance presets and Wan's model-card shift are read against its reference at a person's size, and only an admitted preset is offered",
-          "status": "open",
           "verify": "go test ./internal/mediacapability -count=1 -run '^TestOnlyAnAdmittedGuidancePresetIsOffered$'",
           "files": [
             "internal/mediacapability",
@@ -242,13 +208,10 @@
     {
       "id": "cuda-resources",
       "title": "SenseNova's request-resources test is measured again on a card to itself and carries modeltest, so the gate's cuda lane runs no real-model test",
-      "owner": "master-lead",
-      "status": "open",
       "steps": [
         {
           "id": "do",
           "title": "SenseNova's request-resources test is measured again on a card to itself and carries modeltest, so the gate's cuda lane runs no real-model test",
-          "status": "open",
           "verify": "go test -tags wholetree ./internal/landing -count=1 -run '^TestTheGateRunsNoRealModelTest$'",
           "files": [
             "internal/sensenovarecipe",
@@ -263,13 +226,10 @@
     {
       "id": "preset-evidence",
       "title": "A preset's verdict is bound to the renders and records it compared, and admitted by the statistic its evidence supports",
-      "owner": "master-lead",
-      "status": "open",
       "steps": [
         {
           "id": "statistic",
           "title": "Preset admission reads the statistic its grouped evidence supports",
-          "status": "open",
           "verify": "go test ./internal/evaluation -count=1 -run '^TestPresetAdmissionReadsItsNullFromItsGroups$'",
           "files": [
             "internal/evaluation",
@@ -282,20 +242,15 @@
     {
       "id": "full-run",
       "title": "One full measurement run with the card to itself, once its known causes are cured: TabFM's held-out cases, gemma-4-12B-it-fp8 onboarded, and the owner's answer to speed-table-run",
-      "owner": "master-lead",
-      "status": "open",
       "steps": []
     },
     {
       "id": "execution-state",
       "title": "A published evaluation holds the recipe state its execution read, and a state it could not read is no verified row",
-      "owner": "master-lead",
-      "status": "open",
       "steps": [
         {
           "id": "do",
           "title": "A published evaluation holds the recipe state its execution read, and a state it could not read is no verified row",
-          "status": "open",
           "verify": "go test ./internal/evaluation -count=1 -run '^TestAPublishedEvaluationHoldsTheStateItsExecutionRead$'",
           "files": [
             "internal/evaluation",
@@ -311,13 +266,10 @@
     {
       "id": "preset-form",
       "title": "A preset chosen on a page reaches the model without the form's untouched defaults overriding it",
-      "owner": "master-lead",
-      "status": "open",
       "steps": [
         {
           "id": "do",
           "title": "A preset chosen on a page reaches the model without the form's untouched defaults overriding it",
-          "status": "open",
           "verify": "go test ./internal/server -count=1 -run '^TestAPresetChoiceSubmitsOnlyWhatThePersonSet$'",
           "files": [
             "internal/server"
@@ -329,13 +281,10 @@
     {
       "id": "prompt-weights",
       "title": "Prompt weights bind the token rows the encoder runs, the positive and the negative prompt's alike",
-      "owner": "master-lead",
-      "status": "open",
       "steps": [
         {
           "id": "rows",
           "title": "Prompt weights bind the token rows the encoder runs, the positive and the negative prompt's alike",
-          "status": "open",
           "verify": "go test ./internal/latentimage -count=1 -run '^TestPromptWeightsBindTheRowsTheyExecute$'",
           "files": [
             "internal/latentimage"
@@ -347,13 +296,10 @@
     {
       "id": "moss-import-admission",
       "title": "The MOSS Ultra import admits its metadata, destination and storage before reading any payload",
-      "owner": "master-lead",
-      "status": "open",
       "steps": [
         {
           "id": "convrot",
           "title": "ConvRot storage is resolved before the shared lazy resident binding",
-          "status": "open",
           "verify": "go test ./internal/latentimage -count=1 -run '^TestAConvRotWeightBindsThroughTheResidentPath$'",
           "files": [
             "internal/latentimage"
@@ -365,13 +311,10 @@
     {
       "id": "comfy-recorder",
       "title": "A ComfyUI recorder runs a saved workflow in ComfyUI's own process and records each section's settings, sigmas, latents and images as goldens, first the MOSS Ultra workflow",
-      "owner": "master-lead",
-      "status": "open",
       "steps": [
         {
           "id": "record-rest",
           "title": "Each recording holds its samplers' sigmas, the time of each step, the model files' hashes, and the workflow's prompt modes 2 and 3",
-          "status": "open",
           "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/comfy-reference -count=1 -run '^TestTheUltraRecordingsAgreeAndParseStrictly$'",
           "files": [
             "cmd/comfy-reference",
@@ -385,13 +328,10 @@
     {
       "id": "observation-binding",
       "title": "OCR and motion observations are bound to the media they consumed when a suite compiles",
-      "owner": "master-lead",
-      "status": "open",
       "steps": [
         {
           "id": "do",
           "title": "OCR and motion observations are bound to the media they consumed when a suite compiles",
-          "status": "open",
           "verify": "go test ./internal/evaluation -count=1 -run '^TestOCRAndMotionObservationsBindTheirConsumedMedia$'",
           "files": [
             "internal/evaluation",
@@ -404,13 +344,10 @@
     {
       "id": "light-vae",
       "title": "LightVAE decodes final video and TAEW2.1 previews steps, each its own model beside the Wan VAE",
-      "owner": "master-lead",
-      "status": "open",
       "steps": [
         {
           "id": "decoders",
           "title": "LightVAE and TAEW2.1 decode Wan latents, LightVAE read against the Wan VAE on its 128-clip reconstruction suite",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestLightVAEIsReadAgainstTheWanVAE$'",
           "files": [
             "internal/latentvideo",
@@ -434,13 +371,10 @@
     {
       "id": "moss-ultra-import",
       "title": "The MOSS Ultra workflow's six model files serve in overgo as published: Base in ComfyUI's 8-bit ConvRot format, the abliterated Qwen3.5-9B encoder, the Flux2 VAE and three adapters",
-      "owner": "master-lead",
-      "status": "open",
       "steps": [
         {
           "id": "encoder",
           "title": "The abliterated Qwen3.5-9B conditions MOSS under the workflow's template, and its language-model head serves the same file as a chat model",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestTheUltraEncoderConditionsAsComfyUIDoes$'",
           "files": [
             "internal/latentimage",
@@ -458,13 +392,10 @@
     {
       "id": "media-lora",
       "title": "Media adapters load in kohya, PEFT and full-difference formats and apply unmerged at run time, with a strength per request",
-      "owner": "master-lead",
-      "status": "open",
       "steps": [
         {
           "id": "unmerged",
           "title": "Adapters run unmerged, y = xW + s(xA)B with the low-rank branch at the adapter's precision, so strength changes per request without rewriting weights",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestAnUnmergedAdapterMatchesItsMergedWeight$'",
           "files": [
             "internal/latentimage",
@@ -482,7 +413,6 @@
         {
           "id": "moss-eight-step",
           "title": "MOSS-Image-SFT gains an eight-step preset with the local DMD2 adapter at guidance 1, read on its 415-question suite",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestMossEightStepPresetRunsTheDMDAdapter$'",
           "files": [
             "internal/latentimage"
@@ -500,13 +430,10 @@
     {
       "id": "moss-ultra-sections",
       "title": "overgo runs every section of the MOSS Ultra workflow: bong_tangent, beta57 and request sigmas, ER-SDE, image to image, depth estimation and control, prompt modes 2 and 3, and the finishing steps",
-      "owner": "master-lead",
-      "status": "open",
       "steps": [
         {
           "id": "img2img",
           "title": "Image to image follows ComfyUI's denoise rule: a schedule for steps / denoise keeping its last steps + 1 values, started from noise times sigma0 plus (1 - sigma0) times the encoded latent",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestImageToImageMeetsItsSectionFloor$'",
           "files": [
             "internal/latentimage",
@@ -521,7 +448,6 @@
         {
           "id": "depth",
           "title": "Depth Anything V2 Small runs on internal/vitencoder with a DPT head, its depth map within one 8-bit level of the recorded one",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/vitencoder -count=1 -run '^TestDepthMapIsWithinOneLevelOfTheRecordedOne$'",
           "files": [
             "internal/vitencoder",
@@ -537,7 +463,6 @@
         {
           "id": "depth-control",
           "title": "Depth control concatenates the VAE-encoded, normalised map times strength to the noise channels for the first half of sigma, through the control adapter's widened input layer",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestDepthControlMeetsItsSectionFloor$'",
           "files": [
             "internal/latentimage"
@@ -552,7 +477,6 @@
         {
           "id": "prompt-modes",
           "title": "Prompt mode 2's enhancer and mode 3's boxes run as typed Go, the cleaned negative and the layout string equal to ComfyUI's",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestPromptModesTwoAndThreeEqualTheRecordedStrings$'",
           "files": [
             "internal/latentimage",
@@ -569,13 +493,10 @@
     {
       "id": "moss-ultra-compare",
       "title": "overgo on the Ultra workflow's models is held to the golden per section, and overgo's MOSS-Image-SFT runs the same sections as a measured band",
-      "owner": "master-lead",
-      "status": "open",
       "steps": [
         {
           "id": "golden-floor",
           "title": "Each section and prompt mode's final latent and image agree with the golden above a floor, and the workflow-size run records time per step, total and peak memory against ComfyUI's",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/adaptiveparity -count=1 -run '^TestUltraSectionsHoldTheirGoldenFloors$'",
           "files": [
             "internal/adaptiveparity",
@@ -596,7 +517,6 @@
         {
           "id": "sft-band",
           "title": "MOSS-Image-SFT with the official encoder runs every section, DMD2 and the control adapter applied to it, its agreement with the golden recorded as a band",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/adaptiveparity -count=1 -run '^TestServedMossCompletesEveryUltraSection$'",
           "files": [
             "internal/adaptiveparity",
@@ -611,7 +531,6 @@
         {
           "id": "workbench",
           "title": "Six workbench presets, one per section, take their values from the recorded settings, with sampler, schedule, denoise, adapter, depth preview, size, box editor, enhance, A/B and sharpen controls",
-          "status": "open",
           "verify": "go test ./internal/server -count=1 -run '^TestTheWorkbenchOffersTheUltraPresets$'",
           "files": [
             "internal/server",
@@ -627,13 +546,10 @@
     {
       "id": "eight-bit-attention",
       "title": "An 8-bit flash-attention kernel for sm_89, INT8 QK and FP8 PV with two-level FP16 accumulation, served as an opt-in preset per model and admitted by its held-out suite on no loss beyond chance, a gain claimed only where the paired test shows one",
-      "owner": "master-lead",
-      "status": "open",
       "steps": [
         {
           "id": "kernel",
           "title": "The kernel's output is within a tolerance declared first of the FP32 attention reference over the shapes Wan, Krea, MOSS and SenseNova use",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 go test -tags modeltest ./internal/cuda/executor -count=1 -run '^TestEightBitAttentionMatchesTheReferenceWithinItsTolerance$'",
           "files": [
             "kernels",
@@ -645,7 +561,6 @@
         {
           "id": "wan",
           "title": "Wan's 50-step path and the student run with 8-bit attention as a preset, read on the user-size cell and the 128-clip suite by a per-case sign test",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestWanEightBitAttentionPresetIsReadAgainstItsSuite$'",
           "files": [
             "internal/latentvideo",
@@ -667,7 +582,6 @@
         {
           "id": "images",
           "title": "Krea-2-Turbo at 2048 x 2048, MOSS and SenseNova gain the 8-bit attention preset, each read on its suite",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestImageEightBitAttentionPresetsAreReadAgainstTheirSuites$'",
           "files": [
             "internal/latentimage",
@@ -691,13 +605,10 @@
     {
       "id": "w8a8-gemm",
       "title": "FP8 and INT8 W8A8 matrix products with fused epilogues, weights quantized at load from the published files, first on Krea-2-Turbo",
-      "owner": "master-lead",
-      "status": "open",
       "steps": [
         {
           "id": "fp8",
           "title": "An FP8 E4M3 W8A8 product with per-channel weight scales and per-token activation scales is within a declared tolerance of BF16",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 go test -tags modeltest ./internal/cuda/executor -count=1 -run '^TestFP8W8A8MatchesBF16WithinItsTolerance$'",
           "files": [
             "kernels",
@@ -709,7 +620,6 @@
         {
           "id": "krea",
           "title": "Krea-2-Turbo gains an FP8 preset, an estimated 1.6 to 1.8x a step and peak memory from 25.0 to about 15 GiB, read on its 415-prompt suite",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestKreaFP8PresetIsReadAgainstItsSuite$'",
           "files": [
             "internal/latentimage",
@@ -732,7 +642,6 @@
         {
           "id": "int8-convrot",
           "title": "MOSS Base's ConvRot weights compute in INT8, activations rotated by the same Hadamard groups and quantized per row, held to the decoded BF16 result within a declared tolerance",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestConvRotComputesInEightBits$'",
           "files": [
             "kernels",
@@ -749,7 +658,6 @@
         {
           "id": "others",
           "title": "MOSS-Image-SFT, SenseNova's generation tower and Wan's linears gain the FP8 preset, each read on its suite",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage ./internal/latentvideo -count=1 -run '^TestFP8PresetsAreReadAgainstTheirSuites$'",
           "files": [
             "internal/latentimage",
@@ -773,13 +681,10 @@
     {
       "id": "step-cache",
       "title": "The 50-step models skip steps by MagCache's magnitude ratio, and LiveEdit recomputes attention only where its edit changed the latent, each a preset admitted by its suite",
-      "owner": "master-lead",
-      "status": "open",
       "steps": [
         {
           "id": "magcache",
           "title": "MagCache skips steps on Wan's 50-step path, MOSS, SenseNova and RAE where its accumulated error estimate stays under a declared bound",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo ./internal/latentimage -count=1 -run '^TestMagCacheSkipsOnlyUnderItsErrorBound$'",
           "files": [
             "internal/sampling",
@@ -804,7 +709,6 @@
         {
           "id": "liveedit-mask",
           "title": "LiveEdit recomputes self-attention only for tokens whose source and edited latents differ, its feed-forward kept dense, read on its 64-clip suite",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestLiveEditMaskCacheKeepsTheFeedForwardDense$'",
           "files": [
             "internal/latentvideo"
@@ -820,13 +724,10 @@
     {
       "id": "stage-cache",
       "title": "Every media stage's output is keyed by operation, version, constants and inputs in the store, and step previews come from a Latent2RGB projection fitted to overgo's own decodes",
-      "owner": "master-lead",
-      "status": "open",
       "steps": [
         {
           "id": "wired",
           "title": "Text conditioning, an encoded source video, a sigma table and the latent before decode are kept in the stage store, so a changed decode or preview size never denoises again",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test ./internal/latentvideo -count=1 -run '^TestAChangedClipFormatDrawsNoStepAgain$'",
           "files": [
             "internal/media",
@@ -839,7 +740,6 @@
         {
           "id": "latent2rgb",
           "title": "Each latent format's 3 x C preview projection is fitted by least squares to overgo's own VAE decodes, and the workbench shows a preview each step",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/media -count=1 -run '^TestFittedLatentPreviewTracksTheDecode$'",
           "files": [
             "internal/media",
@@ -855,13 +755,10 @@
     {
       "id": "prompt-expander",
       "title": "Local Qwen models rewrite prompts for Wan, Krea and SenseNova and turn casual requests into MOSS's layout JSON, each scored against the user's original",
-      "owner": "master-lead",
-      "status": "open",
       "steps": [
         {
           "id": "rewrite",
           "title": "An enhance toggle rewrites a Wan, Krea or SenseNova prompt through a served Qwen model, off for MOSS layout prompts",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/workflowruntime -count=1 -run '^TestTheEnhancerRewritesThroughAServedQwen$'",
           "files": [
             "internal/workflowruntime",
@@ -876,7 +773,6 @@
         {
           "id": "layout",
           "title": "A casual request becomes a valid MOSS layout through a served Qwen model",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/workflowruntime -count=1 -run '^TestACasualRequestBecomesAValidMossLayout$'",
           "files": [
             "internal/workflowruntime",
@@ -893,13 +789,10 @@
     {
       "id": "sensenova-edit",
       "title": "SenseNova V3 edits images from the weights on disk, and its text prefix's key-value cache is kept across requests",
-      "owner": "master-lead",
-      "status": "open",
       "steps": [
         {
           "id": "prefix-cache",
           "title": "A repeated prompt and the empty negative prompt reuse their prefix key-value cache",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestSenseNovaReusesItsPrefixCache$'",
           "files": [
             "internal/latentimage",
@@ -911,7 +804,6 @@
         {
           "id": "edit",
           "title": "SenseNova V3 edits text, content, style and layout from source images through an image-guidance branch, scored by a judged edit suite",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage ./internal/evaluation -count=1 -run '^TestSenseNovaEditsThroughItsImageGuidance$'",
           "files": [
             "internal/latentimage",
@@ -929,13 +821,10 @@
     {
       "id": "image-edit",
       "title": "Krea-2-Turbo runs image to image, and Krea and MOSS inpaint and outpaint, through their local VAE encoders",
-      "owner": "master-lead",
-      "status": "open",
       "steps": [
         {
           "id": "krea-encoder",
           "title": "Krea's Qwen-Image VAE encodes through the Wan encoder kernels, held to a golden of its encoder",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestKreaVAEEncodesAsItsReferenceDoes$'",
           "files": [
             "internal/latentimage",
@@ -948,7 +837,6 @@
         {
           "id": "inpaint",
           "title": "Krea runs image to image, and Krea and MOSS inpaint and outpaint by noising the source and blending the mask at each step",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestInpaintKeepsTheUnmaskedRegion$'",
           "files": [
             "internal/latentimage",
@@ -966,13 +854,10 @@
     {
       "id": "rae-small-models",
       "title": "RAE and SimpleDiffusion run their whole sampler as one CUDA graph with a multistep solver, and RAE reports FD-DINOv2 beside FID",
-      "owner": "master-lead",
-      "status": "open",
       "steps": [
         {
           "id": "fd-dinov2",
           "title": "RAE's quality reading reports FD-DINOv2 beside FID",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/rae ./internal/evaluation -count=1 -run '^TestRAEReportsFDDinoBesideFID$'",
           "files": [
             "internal/rae",
@@ -985,7 +870,6 @@
         {
           "id": "graph",
           "title": "The RAE and SimpleDiffusion samplers run as one captured CUDA graph with fused norm, activation and RoPE kernels and several images a batch",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/rae ./internal/diffusionimage -count=1 -run '^TestTheSmallSamplersRunAsOneGraph$'",
           "files": [
             "internal/rae",
@@ -1005,7 +889,6 @@
         {
           "id": "solver",
           "title": "DPM-Solver++ 2M runs RAE and SimpleDiffusion at 10 to 20 passes, read at equal passes against the 50-step Euler ODE",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/rae -count=1 -run '^TestMultistepSolverIsReadAtEqualPasses$'",
           "files": [
             "internal/sampling",
@@ -1024,13 +907,10 @@
     {
       "id": "rae-autoguidance",
       "title": "RAE samples DiTDH-XL guided by the local DiTDH-S at scale 1.5, plain guidance applied only inside an interval",
-      "owner": "master-lead",
-      "status": "open",
       "steps": [
         {
           "id": "autoguidance",
           "title": "DiTDH-XL with DiTDH-S epoch 20 as its AutoGuidance guide reaches its paper's quality on RAE's reading",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/rae -count=1 -run '^TestRAEAutoGuidanceIsReadAgainstItsPaper$'",
           "files": [
             "internal/rae",
@@ -1049,13 +929,10 @@
     {
       "id": "long-video",
       "title": "LiveEdit edits past 81 frames through a rolling window and offers an offline bidirectional mode from its local checkpoint, and Wan generates long clips through context windows",
-      "owner": "master-lead",
-      "status": "open",
       "steps": [
         {
           "id": "rolling",
           "title": "LiveEdit edits clips longer than 81 frames through a window of 3 sink and 9 recent frames with window-relative RoPE",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestLiveEditEditsPastItsTrainingLength$'",
           "files": [
             "internal/latentvideo"
@@ -1066,7 +943,6 @@
         {
           "id": "offline",
           "title": "LiveEdit's bidirectional checkpoint serves an offline quality mode, read on the 64-clip suite against the causal student",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestLiveEditOfflineModeIsReadAgainstTheStudent$'",
           "files": [
             "internal/latentvideo",
@@ -1084,7 +960,6 @@
         {
           "id": "wan-windows",
           "title": "Wan generates clips of any length through context windows of 81 frames overlapping by 30, blended across the overlap",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestWanGeneratesThroughContextWindows$'",
           "files": [
             "internal/latentvideo",
@@ -1101,13 +976,10 @@
     {
       "id": "wan-i2v",
       "title": "Wan generates from a first frame and from first and last frames through Wan2.1-Fun-V1.1-1.3B-InP, with an open-CLIP ViT-H/14 image encoder",
-      "owner": "master-lead",
-      "status": "open",
       "steps": [
         {
           "id": "vit-h",
           "title": "open-CLIP ViT-H/14 encodes images on internal/vitencoder, held to its reference",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/vitencoder -count=1 -run '^TestViTH14EncodesAsItsReferenceDoes$'",
           "files": [
             "internal/vitencoder",
@@ -1119,7 +991,6 @@
         {
           "id": "i2v",
           "title": "The InP model generates from a first frame and from first and last frames, reusing the local umT5 and VAE",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestWanFunGeneratesFromItsFrames$'",
           "files": [
             "internal/latentvideo",
@@ -1136,13 +1007,10 @@
     {
       "id": "vace-control",
       "title": "VACE-1.3B controls Wan by reference, mask, depth and pose, its depth from overgo's depth estimator",
-      "owner": "master-lead",
-      "status": "open",
       "steps": [
         {
           "id": "module",
           "title": "VACE-1.3B's module runs on Wan 1.3B for reference, mask inpaint and outpaint, and extension",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestVACEModuleMatchesItsUpstreamGolden$'",
           "files": [
             "internal/latentvideo",
@@ -1154,7 +1022,6 @@
         {
           "id": "control",
           "title": "VACE's depth mode takes overgo's depth estimator and its pose mode DWPose",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestVACEFollowsDepthAndPose$'",
           "files": [
             "internal/latentvideo",
@@ -1173,13 +1040,10 @@
     {
       "id": "video-finishing",
       "title": "Real-ESRGAN upscales images, RIFE doubles a clip's frame rate, and FlashVSR upscales video in one step",
-      "owner": "master-lead",
-      "status": "open",
       "steps": [
         {
           "id": "esrgan",
           "title": "Real-ESRGAN upscales SimpleDiffusion's 256 x 256 output and MOSS's images by 4, held to its reference",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/media -count=1 -run '^TestRealESRGANUpscalesAsItsReferenceDoes$'",
           "files": [
             "internal/media",
@@ -1191,7 +1055,6 @@
         {
           "id": "rife",
           "title": "RIFE interpolates a 16 fps clip to 32 fps",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/media -count=1 -run '^TestRIFEInterpolatesAsItsReferenceDoes$'",
           "files": [
             "internal/media",
@@ -1203,7 +1066,6 @@
         {
           "id": "flashvsr",
           "title": "FlashVSR v1.1 upscales Wan and LiveEdit clips in one step on the Wan DiT and VAE overgo runs",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestFlashVSRMatchesItsUpstreamGolden$'",
           "files": [
             "internal/latentvideo",
@@ -1220,13 +1082,10 @@
     {
       "id": "krea-pack",
       "title": "Krea-2-Turbo gains seed-variance noise, attention-value prompt weighting and a best-of-4 preset picked by one judge and reported by another",
-      "owner": "master-lead",
-      "status": "open",
       "steps": [
         {
           "id": "seed-variance",
           "title": "A seed-variance preset noises a fraction of Krea's text-embedding values in the first fifth of steps",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestSeedVarianceWidensKreasSamples$'",
           "files": [
             "internal/latentimage"
@@ -1240,7 +1099,6 @@
         {
           "id": "best-of-n",
           "title": "A best-of-4 preset picks with one judge and reports with a different one",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage ./internal/evaluation -count=1 -run '^TestBestOfFourPicksAndReportsWithDifferentJudges$'",
           "files": [
             "internal/latentimage",
@@ -1257,13 +1115,10 @@
     {
       "id": "krea-loras",
       "title": "Krea-2-Turbo gains a 4-step draft preset with its LoRA and a 0.3-denoise refine pass, under the decision on Krea's licence",
-      "owner": "master-lead",
-      "status": "open",
       "steps": [
         {
           "id": "draft",
           "title": "A 4-step draft at 1 MP with the 4-step LoRA, and a refine pass of 4 steps at denoise 0.3, read on the 415-prompt suite",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestKreaDraftAndRefinePresetsAreRead$'",
           "files": [
             "internal/latentimage",
@@ -1288,13 +1143,10 @@
     {
       "id": "sensenova-fast",
       "title": "SenseNova V3 gains an eight-step preset with the Infographic 8-step LoRA at guidance 1, read on the hard infographic cases for repeated text",
-      "owner": "master-lead",
-      "status": "open",
       "steps": [
         {
           "id": "eight-step",
           "title": "The 8-step preset runs SenseNova V3 at guidance 1 with the LoRA unmerged, its score and repeated-text rate recorded beside the 50-step reference",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestSenseNovaEightStepPresetIsRead$'",
           "files": [
             "internal/latentimage",
@@ -1313,13 +1165,10 @@
     {
       "id": "loop-proof",
       "title": "The loop shows its worth end to end: the gate refuses deliberately bad alternatives, each landing records its full cost, and the local worker lands changes whose benefit an independent evaluation confirms and exceeds that cost",
-      "owner": "master-lead",
-      "status": "open",
       "steps": [
         {
           "id": "local-demonstrated",
           "title": "The local worker, the driver's only worker, lands three plan steps unaided from their landings' parents, each passing a check it did not write, in at most six tries, every attempt's wall and failure recorded beside its step",
-          "status": "open",
           "verify": "OVERGO_LOOP_DEMONSTRATION=1 OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/loop -count=1 -run '^TestTheLocalWorkerLandsStepsUnaided$' -timeout=0",
           "files": [
             "cmd/loop"
@@ -1332,13 +1181,10 @@
     {
       "id": "serving-bounds",
       "title": "A request past its size limit is refused on every JSON route, a provider declared over HTTP binds only a variable the operator named, and a stored artifact is served so a browser cannot run it",
-      "owner": "master-lead",
-      "status": "open",
       "steps": [
         {
           "id": "artifact-headers",
           "title": "A stored artifact's bytes are answered with nosniff and, unless its media type is one the workbench draws, as an attachment",
-          "status": "open",
           "verify": "go test ./internal/server -count=1 -run '^TestAStoredArtifactIsServedSoABrowserCannotRunIt$'",
           "files": [
             "internal/server"
@@ -1351,13 +1197,10 @@
     {
       "id": "training-depth",
       "title": "One text model trained through cmd/train shows a held-out gain clear of its cases' noise, the bar, the cases and the device hours fixed before the run, and its scorecard row reads against its base",
-      "owner": "master-lead",
-      "status": "open",
       "steps": [
         {
           "id": "bounded-campaign",
           "title": "Qwen2.5-0.5B is trained on a registered objective for a budget of device hours stated before the run, and judged on at least 300 held-out cases against its base by the verdict the store already reconstructs",
-          "status": "open",
           "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/train -count=1 -run '^TestATrainedModelsGainStandsClearOfItsNoise$' -timeout=0",
           "files": [
             "cmd/train",
@@ -1373,13 +1216,10 @@
     {
       "id": "card-budgets",
       "title": "Flash-Next's chat, Krea's picture and Wan's clip at a person's size are each served under a 24 GiB and a 16 GiB device budget, read on the scorecard or answered with the limit that refuses them",
-      "owner": "master-lead",
-      "status": "open",
       "steps": [
         {
           "id": "three-workloads",
           "title": "Flash-Next's chat at 4,096 and 16,384 tokens, Krea's 512 x 512 picture and Wan's 81-frame 832 x 480 clip are read under 24 GiB and 16 GiB: time to first output, throughput and peak memory, or the limit that refused the request",
-          "status": "open",
           "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/validate -count=1 -run '^TestThreeWorkloadsAreReadUnderSmallerCards$' -timeout=0",
           "files": [
             "cmd/validate",
@@ -1396,13 +1236,10 @@
     {
       "id": "rtx-vsr",
       "title": "A clip or picture overgo draws or is given can be upscaled up to four times, denoised or deblurred on the card by NVIDIA's RTX Video Super Resolution, run from the nvidia-vfx runtime already on the machine, and each level is measured against the bicubic it replaces",
-      "owner": "master-lead",
-      "status": "open",
       "steps": [
         {
           "id": "supplied",
           "title": "A clip a person supplies is finished keeping its colour matrix, primaries, transfer and range, and its sound, copied where MP4 holds it and AAC otherwise",
-          "status": "open",
           "verify": "OVERGO_NVVFX=C:/Users/jeffm/upscale/env/Lib/site-packages/nvvfx/libs OVERGO_FFMPEG=C:/Users/jeffm/upscale/ffmpeg.exe OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestASuppliedClipKeepsItsColourAndSound$'",
           "files": [
             "internal/latentvideo",
@@ -1416,7 +1253,6 @@
         {
           "id": "pictures",
           "title": "A picture overgo draws or is given can be upscaled two or four times by the same effect, its record naming the level and the effect's identity, and each level is read against bicubic on MOSS's 1024 x 1024 TIFA pictures downscaled and upscaled back, beside Real-ESRGAN on the same pairs once video-finishing/esrgan has landed",
-          "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/media -count=1 -run '^TestVideoSuperResUpscalesPicturesAgainstBicubic$'",
           "files": [
             "internal/media",

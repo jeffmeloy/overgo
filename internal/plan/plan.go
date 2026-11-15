@@ -237,6 +237,8 @@ func Load(path string) (Plan, error) {
 func opened(d *Plan) {
 	for index := range d.Items {
 		item := &d.Items[index]
+		// A row saved with no owner is the plan's lane's, which Save leaves unsaid (single-source/owner-lane).
+		item.Owner = cmp.Or(item.Owner, d.Lane)
 		item.Status = cmp.Or(item.Status, StatusOpen)
 		for step := range item.Steps {
 			item.Steps[step].Status = cmp.Or(item.Steps[step].Status, StatusOpen)
@@ -278,10 +280,14 @@ func Save(path string, d Plan) error {
 	if err := Validate(d); err != nil {
 		return err
 	}
-	// An open row, which every row the plan holds is, is saved with no status (opened).
+	// An open row, which every row the plan holds is, is saved with no status (opened), and a row owned by the plan's
+	// own lane with no owner, which says that already (single-source/owner-lane).
 	for index := range d.Items {
 		if d.Items[index].Status == StatusOpen {
 			d.Items[index].Status = ""
+		}
+		if d.Lane != "" && d.Items[index].Owner == d.Lane {
+			d.Items[index].Owner = ""
 		}
 		d.Items[index].Steps = slices.Clone(d.Items[index].Steps)
 		for step := range d.Items[index].Steps {

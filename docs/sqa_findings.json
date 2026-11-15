@@ -266,11 +266,12 @@
     "head": "0ef92bbeb509dbb96070d1f6e9161e95538210b7",
     "findings": {
       "SQA-369": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
+          "identity-gate/do",
           "mmlu-pro/reference"
         ],
-        "note": "Answered by the lead on 2026-11-13: filed, P2 by the agreed rule as a check that passes without checking, its match by ordinal and count alone."
+        "note": "Implemented 2026-11-15: identity-gate/do (43dcb1841) moves the store identity check under modeltest, the host check reading pinned fixtures with an empty data root; mmlu-pro/reference (78a38cebf) admits lm-eval's reference before any model opens by the revision it read and each question's content at its place, the two revised questions as their exact two versions alone. Awaiting the recheck of its input against its expected."
       },
       "SQA-346": {
         "action": "filed",

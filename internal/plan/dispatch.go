@@ -61,13 +61,15 @@ func dispatchWorker(explicit string) (string, error) {
 	return worker, nil
 }
 
-// DispatchOf resolves the current row under a resolved authority.
+// DispatchOf is the step the plan alone dispatches, as -next selects it: the first ready by prerequisite, decision and
+// parked row, not the first open, which a decision may hold. What the repository records beside the plan, a stop, the
+// card's holder and the findings register, is ResolveDispatch's.
 func DispatchOf(document Plan) Dispatch {
-	item, step, ok := Current(document)
-	if !ok {
-		return finishDispatch(Dispatch{Complete: true})
+	dispatch, err := selectDispatch(document, "")
+	if err != nil {
+		return finishDispatch(Dispatch{Waiting: err.Error()})
 	}
-	return stepDispatch(item, step)
+	return dispatch
 }
 
 func stepDispatch(item Item, step Step) Dispatch {
@@ -264,7 +266,7 @@ func selectDispatch(document Plan, reference string) (Dispatch, error) {
 	if item, step, open := Current(document); open && !awaiting[item.ID] && reference == "" &&
 		!slices.Contains(document.parked, item.ID+"/"+step.ID) && !(document.cardHeld && step.NeedsCard) {
 		// Preserve the empty-rung dispatch until the rung is given steps.
-		return DispatchOf(document), nil
+		return stepDispatch(item, step), nil
 	}
 	if decided, taken := byRecommendation(document); taken && slices.ContainsFunc(document.Items, func(item Item) bool {
 		return awaiting[item.ID]

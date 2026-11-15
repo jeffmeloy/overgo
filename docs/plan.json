@@ -24,15 +24,6 @@
       "title": "The cycle's lanes run at the build that gave them the gate's real-model tests, so each moved test runs before other work",
       "steps": [
         {
-          "id": "mmlu-coverage",
-          "title": "The lanes hold no second copy of the cells' MMLU-Pro coverage, which no run could measure while the lanes refused it",
-          "verify": "! grep -rq TestAcceptedSmallModelMMLUPro cmd/benchmark-report",
-          "files": [
-            "cmd/benchmark-report"
-          ],
-          "rationale": "Serves: the cycle's lanes pass at the trunk, so the full measurement run reaches the cells that read MMLU-Pro (cycle-lanes/do, full-run).\n\nThe evidence: cmd/benchmark-report's TestAcceptedSmallModelMMLUPro, in the cycle's models lane, wants at least six servable models scored on MMLU-Pro under both the raw five-shot protocol and the chat template; since mmlu-pro-lm-eval/five-shot (9e943606f, 2026-11-10) the store's raw readings are labelled without demonstrations and no model holds the five-shot one, so it fails (0 of 6, 2026-11-15). A measurement run ends at a failing lane (cmd/loop measurePhases), before the cells that would read them: every run since has stopped there. The cells already owe MMLU-Pro under both protocols for every inference activation (cmd/validate familyProtocols, validationCells) and fail a missing one by name, a stronger rule than the test's floor of six.\n\nThe change: the lanes hold no second copy of the cells' MMLU-Pro coverage: TestAcceptedSmallModelMMLUPro and mmluProCoverage, with its own test, go.\n\nCheck: the test is in no file of cmd/benchmark-report."
-        },
-        {
           "id": "do",
           "title": "The cycle's lanes run at the build that gave them the gate's real-model tests, so each moved test runs before other work",
           "verify": "OVERGO_CUDA_TEST=1 go run ./cmd/validate -run -lanes",

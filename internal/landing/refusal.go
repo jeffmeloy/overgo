@@ -81,8 +81,8 @@ func Classify(reference, refusal string) Refusal {
 	}
 	classified := Refusal{Reference: reference, Class: gateClass}
 	_, stage, _ := strings.Cut(refusal, stagePrefix)
-	cause, _, _ := strings.Cut(cmp.Or(stage, refusal), "\n")
-	if cause = strings.TrimSpace(cause); len(cause) > causeBytes {
+	cause, rest, _ := strings.Cut(cmp.Or(stage, refusal), "\n")
+	if cause = saidFirst(strings.TrimSpace(cause), rest); len(cause) > causeBytes {
 		cause = strings.ToValidUTF8(cause[:causeBytes], "")
 	}
 	classified.Cause = cause
@@ -104,6 +104,37 @@ func Classify(reference, refusal string) Refusal {
 		}
 	}
 	return classified
+}
+
+// editSaid opens the edit a refusal says, which leads its cause.
+const editSaid = "edit: "
+
+// saidFirst is a refusal's first line led by the edit its text says (single-source/edits-said): the edit a rule names
+// after its finding, or, for failed tests, the first failing test's last assertion, which says what it found and where;
+// a line that says none stands as it is. The record cuts a cause to causeBytes, and of 25 refused landings listed on
+// 2026-11-14 none kept the edit that clears it: a failed test's line named the tests alone, and a rule's edit came
+// after a finding the cut ended.
+func saidFirst(first, rest string) string {
+	if before, edit, found := strings.Cut(first, editSaid); found {
+		return editSaid + strings.TrimSuffix(strings.TrimSpace(edit), ")") + "; " + strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(before), "("))
+	}
+	if !strings.Contains(first, testevidence.FailedTests) {
+		return first
+	}
+	var assertion string
+	for line := range strings.Lines(rest) {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "--- FAIL") {
+			break
+		}
+		if file, _, found := strings.Cut(line, ": "); found && strings.Contains(file, "_test.go:") {
+			assertion = line
+		}
+	}
+	if assertion == "" {
+		return first
+	}
+	return editSaid + assertion + "; " + first
 }
 
 // stateRecords reads the list the checkout at root keeps under name in its
@@ -165,7 +196,7 @@ func Worklist(root string) ([]WorkItem, error) {
 			}
 			list[at].Refusals++
 			list[at].Latest = refusal.Cause
-			if strings.Contains(refusal.Cause, "edit: ") {
+			if strings.HasPrefix(refusal.Cause, editSaid) {
 				list[at].Edits++
 			}
 		}

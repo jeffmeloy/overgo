@@ -36,7 +36,8 @@ func TestALanesRefusalNamesTheLaneThatFailedFirst(t *testing.T) {
 		Message: []byte("Change the fixture\n\nCause: the fixture needs a change.\nPredicted effect: first-output holds.\n")})
 	const failed = "fixture/internal/p: TestFails"
 	refusal := Classify("row/do", fmt.Sprint(err))
-	if !strings.HasPrefix(refusal.Cause, "lanes: lane webui: failed tests/packages: "+failed) {
+	// The cause leads with the failed test's own words, the edit it says (single-source/edits-said), then the lane.
+	if !strings.HasPrefix(refusal.Cause, "edit: lane_test.go:12: the page showed nothing; lanes: lane webui: failed tests/packages: "+failed) {
 		t.Fatalf("the lanes refused with %q (%v), want the web UI lane and its failed test, not the device lane it cancelled", refusal.Cause, err)
 	}
 	root := t.TempDir()

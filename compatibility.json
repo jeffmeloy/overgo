@@ -1301,14 +1301,6 @@
     "host-reference",
     "device-resident-training"
    ],
-   "features": [
-    "corpus-derived-topology",
-    "mad-normalization",
-    "gateless-relu-mlp",
-    "learned-absolute-positions-with-lag-bias",
-    "per-layer-learned-attention-temperature",
-    "causal-window-attention"
-   ],
    "real_model_validation": "constructed-not-loaded: topology is corpus-derived at Compile time, validated by scratch oracle goldens rather than a fixture model"
   },
   "afmoe": {
@@ -1317,45 +1309,12 @@
     "f32-preload",
     "native-quantized-experts"
    ],
-   "features": [
-    "mup-square-root-embedding-scale",
-    "dual-pre-and-post-rmsnorm",
-    "qk-rmsnorm",
-    "per-element-sigmoid-attention-gate",
-    "periodic-no-rope-layers",
-    "interleaved-sliding-attention",
-    "optional-leading-dense-swiglu-blocks",
-    "sigmoid-top-k-routing-with-selection-correction-bias",
-    "optional-selected-weight-normalization",
-    "optional-shared-experts",
-    "serializable-prefix-editable-kv-cache"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "apertus": {
-   "features": [
-    "rmsnorm",
-    "contiguous-fused-or-separate-qkv",
-    "optional-projection-biases",
-    "per-head-qk-rmsnorm",
-    "full-neox-rope",
-    "ordinary-or-longrope-factors",
-    "metadata-attention-scale",
-    "scalar-or-per-layer-xielu",
-    "ungated-xielu-ffn",
-    "untied-output-projection"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "arcee": {
-   "features": [
-    "rmsnorm",
-    "normal-rope",
-    "optional-per-pair-rope-factors",
-    "metadata-attention-scale",
-    "sequential-squared-relu",
-    "optional-tied-output"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "arctic": {
@@ -1363,17 +1322,6 @@
     "bounded-host",
     "f32-preload",
     "native-quantized-experts"
-   ],
-   "features": [
-    "pre-rmsnorm",
-    "normal-rope",
-    "parallel-dense-and-moe-ffn",
-    "embedding-width-dense-swiglu",
-    "separately-normalized-packed-swiglu-experts",
-    "normalized-softmax-top-k-routing",
-    "routed-weight-scaling",
-    "optional-tied-output",
-    "serializable-prefix-editable-kv-cache"
    ],
    "real_model_validation": "pending-fixture"
   },
@@ -1383,27 +1331,9 @@
     "f32-preload",
     "native-quantized-weights"
    ],
-   "features": [
-    "rms-pre-normalization",
-    "single-cached-token-shift",
-    "vector-decay-wkv7-recurrence",
-    "learned-in-context-rate",
-    "cross-layer-first-value-residual",
-    "normalized-and-corrected-keys",
-    "per-head-output-correction",
-    "optional-time-gate-and-group-normalization",
-    "sequential-swiglu",
-    "serializable-recurrent-cache"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "baichuan": {
-   "features": [
-    "rmsnorm",
-    "variant-selected-normal-rope-or-alibi",
-    "swiglu",
-    "untied-output-projection"
-   ],
    "real_model_validation": "pending-fixture",
    "variants": [
     "7b-32-layer",
@@ -1416,17 +1346,6 @@
     "f32-preload",
     "native-quantized-experts"
    ],
-   "features": [
-    "pre-rmsnorm",
-    "normal-rope",
-    "softmax-top-k-routing",
-    "optional-selected-weight-normalization",
-    "routed-weight-scaling",
-    "packed-swiglu-experts",
-    "always-on-shared-experts",
-    "serializable-prefix-editable-kv-cache",
-    "required-untied-output"
-   ],
    "real_model_validation": "pending-fixture",
    "tokenizers": [
     "bailingmoe-bpe"
@@ -1438,23 +1357,6 @@
     "f32-preload",
     "native-quantized-experts"
    ],
-   "features": [
-    "pre-rmsnorm",
-    "fused-qkv-projection",
-    "per-head-qk-rmsnorm",
-    "neox-rope",
-    "leading-dense-swiglu-blocks",
-    "softmax-or-sigmoid-top-k-routing",
-    "optional-selection-correction-bias",
-    "optional-selected-weight-normalization",
-    "routed-weight-scaling",
-    "packed-swiglu-experts",
-    "configurable-always-on-shared-experts",
-    "executable-nextn-mtp-layer",
-    "stateful-greedy-nextn-draft-and-verification",
-    "serializable-prefix-editable-kv-cache",
-    "required-untied-output"
-   ],
    "real_model_validation": "pending-fixture",
    "tokenizers": [
     "bailingmoe-bpe"
@@ -1464,15 +1366,6 @@
    "execution": [
     "bounded-host",
     "f32-preload"
-   ],
-   "features": [
-    "learned-absolute-position-embeddings",
-    "optional-token-type-embeddings",
-    "affine-embedding-layernorm",
-    "bidirectional-fused-or-separate-qkv-attention",
-    "post-attention-and-ffn-layernorm",
-    "gelu-ffn",
-    "hidden-state-encoder-output"
    ],
    "limitations": [
     "classifier-and-pooler-outside-hidden-state-boundary",
@@ -1484,27 +1377,9 @@
    ]
   },
   "bitnet": {
-   "features": [
-    "rmsnorm",
-    "attention-and-ffn-sub-layer-rmsnorm",
-    "optional-scalar-projection-scales",
-    "neox-rope",
-    "swiglu",
-    "tied-output",
-    "ternary-weight-decoding"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "bloom": {
-   "features": [
-    "affine-token-embedding-layernorm",
-    "affine-block-and-output-layernorm",
-    "required-contiguous-fused-qkv",
-    "llama-cpp-compatible-alibi",
-    "sequential-gelu",
-    "required-projection-biases",
-    "tied-or-untied-output"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "chameleon": {
@@ -1512,14 +1387,6 @@
     "bounded-host",
     "f32-preload",
     "native-quantized-linear-weights"
-   ],
-   "features": [
-    "per-head-affine-qk-layernorm",
-    "standard-or-sandwich-rmsnorm",
-    "normal-rope",
-    "projected-soft-token-overrides",
-    "text-output-image-code-suppression",
-    "serializable-prefix-editable-kv-cache"
    ],
    "limitations": [
     "vision-projector-absent-from-pinned-upstream",
@@ -1537,25 +1404,9 @@
     "bounded-host",
     "f32-preload"
    ],
-   "features": [
-    "rmsnorm",
-    "contiguous-fused-or-separate-qkv",
-    "normal-rope",
-    "fused-width-swiglu",
-    "optional-tied-output",
-    "serializable-prefix-editable-kv-cache"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "codeshell": {
-   "features": [
-    "affine-layernorm",
-    "neox-rope",
-    "sequential-gelu",
-    "projection-biases",
-    "output-as-embedding-fallback",
-    "untied-output-projection"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "cogvlm": {
@@ -1563,37 +1414,11 @@
     "bounded-host",
     "f32-preload"
    ],
-   "features": [
-    "token-input-decoder",
-    "required-contiguous-fused-qkv",
-    "normal-rope-with-optional-factors",
-    "rmsnorm",
-    "swiglu",
-    "strict-parallel-visual-expert-catalog",
-    "fixed-size-bicubic-image-projector",
-    "post-norm-vision-transformer",
-    "gated-boi-eoi-vision-adapter",
-    "mixed-text-and-visual-expert-prompt-routing",
-    "native-cogvlm-question-answer-prompt",
-    "ordered-multi-image-soft-token-merge",
-    "optional-cuda-projector-execution",
-    "optional-tied-output",
-    "serializable-prefix-editable-kv-cache"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "cohere2": {
    "constraints": [
     "dense"
-   ],
-   "features": [
-    "weight-only-layernorm",
-    "parallel-attention-ffn-residual",
-    "partial-normal-rope-on-sliding-layers",
-    "periodic-full-attention-without-rope",
-    "direct-logit-scale",
-    "swiglu",
-    "tied-output"
    ],
    "real_model_validation": "pending-fixture"
   },
@@ -1606,38 +1431,9 @@
     "f32-preload",
     "native-quantized-experts"
    ],
-   "features": [
-    "rmsnorm-or-weight-only-layernorm",
-    "parallel-attention-ffn-residual",
-    "leading-dense-swiglu-blocks",
-    "scalar-or-per-layer-sliding-window-pattern",
-    "dense-prefix-and-sliding-layer-normal-rope",
-    "periodic-full-attention-without-rope",
-    "normalized-or-unnormalized-sigmoid-top-k-routing",
-    "separate-or-fused-gate-up-swiglu-experts",
-    "optional-shared-experts-with-half-averaging",
-    "direct-logit-scale",
-    "optional-tied-output",
-    "combined-trunk-or-mtp-sidecar",
-    "full-attention-rope-nextn-mtp",
-    "private-or-shared-mtp-embedding-norm-and-head",
-    "greedy-or-sampled-speculative-verification",
-    "transactional-sampler-state",
-    "serializable-model-bound-mtp-state",
-    "serializable-prefix-editable-kv-cache"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "command-r": {
-   "features": [
-    "weight-only-layernorm",
-    "parallel-attention-ffn-residual",
-    "normal-rope",
-    "optional-direct-logit-scale",
-    "per-head-qk-layernorm-on-64-layer-variants",
-    "swiglu",
-    "tied-output"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "dbrx": {
@@ -1645,16 +1441,6 @@
     "bounded-host",
     "f32-preload",
     "native-quantized-experts"
-   ],
-   "features": [
-    "weight-only-layernorm",
-    "required-contiguous-fused-qkv",
-    "symmetric-qkv-clamp",
-    "neox-rope",
-    "normalized-softmax-top-k-routing",
-    "packed-swiglu-experts",
-    "required-untied-output",
-    "serializable-prefix-editable-kv-cache"
    ],
    "real_model_validation": "pending-fixture",
    "tokenizers": [
@@ -1666,20 +1452,6 @@
     "bounded-host",
     "f32-preload"
    ],
-   "features": [
-    "per-layer-query-kv-and-feed-forward-schedules",
-    "full-attention-layers",
-    "projection-only-linear-attention-layers",
-    "attention-free-layers",
-    "zero-width-dummy-layers",
-    "contiguous-fused-or-separate-qkv",
-    "optional-projection-and-mlp-biases",
-    "normal-or-longrope-factors",
-    "swiglu",
-    "optional-tied-output",
-    "compact-serializable-sentinel-cache-for-non-kv-layers",
-    "serializable-prefix-editable-kv-cache"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "deepseek": {
@@ -1687,14 +1459,6 @@
     "bounded-host",
     "f32-preload",
     "native-quantized-experts"
-   ],
-   "features": [
-    "optional-leading-dense-swiglu",
-    "unnormalized-softmax-topk-routing",
-    "routed-weight-scaling",
-    "shared-swiglu-expert",
-    "optional-tied-output",
-    "serializable-prefix-editable-kv-cache"
    ],
    "limitations": [
     "real-model-fixture-pending"
@@ -1714,23 +1478,6 @@
     "f32-preload",
     "native-quantized-weights"
    ],
-   "features": [
-    "direct-or-lora-query",
-    "compressed-kv-rmsnorm",
-    "legacy-decompressed-mla",
-    "absorbed-mla",
-    "grouped-per-head-k-and-v-projections",
-    "normal-yarn-rope",
-    "yarn-derived-attention-scale",
-    "optional-position-temperature",
-    "dense-leading-swiglu",
-    "dense-only-variant",
-    "softmax-or-sigmoid-routed-experts",
-    "optional-selection-correction-bias",
-    "fused-or-separate-expert-gate-up",
-    "shared-swiglu-expert",
-    "serializable-prefix-editable-kv-cache"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "deepseek2-ocr": {
@@ -1738,28 +1485,6 @@
     "bounded-host",
     "f32-preload",
     "native-quantized-weights"
-   ],
-   "features": [
-    "separate-qkv",
-    "neox-rope",
-    "dense-leading-swiglu",
-    "softmax-or-sigmoid-routed-experts",
-    "optional-selection-correction-bias",
-    "fused-or-separate-expert-gate-up",
-    "shared-swiglu-expert",
-    "projected-embedding-overrides",
-    "serializable-prefix-editable-kv-cache",
-    "deepseekocr-dynamic-image-projector",
-    "pillow-bicubic-local-grid-and-overview",
-    "sam-window-and-global-relative-attention",
-    "clip-quickgelu-vision-transformer",
-    "row-newline-and-view-separator-assembly",
-    "deepseekocr2-gqa-qwen2-resampler",
-    "bidirectional-image-and-causal-query-mask",
-    "independent-local-tile-streams",
-    "ordered-multi-image-soft-token-merge",
-    "native-image-history-prompts",
-    "optional-cuda-projector-execution"
    ],
    "limitations": [
     "real-model-validation-pending-fixture"
@@ -1772,29 +1497,6 @@
     "f32-preload",
     "native-quantized-weights"
    ],
-   "features": [
-    "required-query-lora",
-    "compressed-kv-rmsnorm",
-    "absorbed-mla",
-    "normal-yarn-main-attention",
-    "per-layer-lightning-indexer",
-    "affine-indexer-key-layernorm-1e-6",
-    "neox-yarn-indexer-rope",
-    "fwht-indexer-mixing",
-    "relu-weighted-history-scoring",
-    "top-k-sparse-causal-attention",
-    "per-layer-serializable-indexer-key-cache",
-    "dense-leading-swiglu",
-    "softmax-or-sigmoid-routed-experts",
-    "optional-selection-correction-bias",
-    "fused-or-separate-expert-gate-up",
-    "shared-swiglu-expert",
-    "tied-or-untied-output",
-    "executable-nextn-mtp-layer",
-    "stateful-indexer-cache-for-nextn-drafting",
-    "stateful-greedy-nextn-draft-and-verification",
-    "serializable-prefix-editable-kv-cache"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "deepseek4": {
@@ -1803,22 +1505,6 @@
     "f32-preload",
     "native-quantized-experts"
    ],
-   "features": [
-    "four-stream-sinkhorn-hyper-connections",
-    "grouped-attention-output-lora",
-    "attention-sinks",
-    "raw-sliding-window-cache",
-    "ratio-4-overlap-compression",
-    "ratio-128-compression",
-    "compressor-gate-ape-and-rmsnorm-state",
-    "lightning-indexer-fwht-top-k-selection",
-    "hash-derived-early-layer-expert-selection",
-    "sqrt-softplus-routed-swiglu-experts",
-    "per-layer-routed-and-shared-swiglu-clamps",
-    "native-mxfp4-expert-storage",
-    "serializable-compressor-and-kv-cache",
-    "explicit-gapped-cache-positions"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "dflash": {
@@ -1826,22 +1512,6 @@
     "bounded-host",
     "f32-preload",
     "native-quantized-linear-weights"
-   ],
-   "features": [
-    "strict-target-layer-metadata-and-catalog",
-    "full-sequence-target-layer-input-extraction",
-    "single-pass-cached-target-layer-input-capture",
-    "target-feature-fusion",
-    "committed-kv-cache-injection",
-    "incremental-committed-feature-injection",
-    "neox-rope-qk-normalization",
-    "cache-aware-non-causal-noise-block-attention",
-    "interleaved-sliding-window-patterns",
-    "paired-target-embedding-and-output-projection",
-    "prefix-resynchronization",
-    "greedy-block-proposal-and-target-verification",
-    "sampled-ratio-verification-and-sampler-rollback",
-    "accepted-prefix-target-and-draft-cache-advancement"
    ],
    "limitations": [
     "explicit-prefix-sync-recomputes-target-prefix",
@@ -1861,21 +1531,6 @@
     "f32-preload",
     "native-quantized-experts"
    ],
-   "features": [
-    "rmsnorm",
-    "contiguous-fused-or-separate-qkv",
-    "per-head-qk-rmsnorm",
-    "neox-rope",
-    "optional-leading-dense-swiglu-blocks",
-    "softmax-or-sigmoid-top-k-routing",
-    "optional-selection-correction-bias",
-    "optional-selected-weight-normalization",
-    "routed-weight-scaling",
-    "packed-swiglu-experts",
-    "required-shared-swiglu-experts",
-    "required-untied-output",
-    "serializable-prefix-editable-kv-cache"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "dream": {
@@ -1884,23 +1539,6 @@
     "f32-preload",
     "native-quant"
    ],
-   "features": [
-    "non-causal-full-sequence-attention",
-    "no-kv-cache",
-    "neox-rope",
-    "rmsnorm",
-    "swiglu",
-    "all-position-hidden-states",
-    "all-position-logits",
-    "optional-output-bias",
-    "iterative-mask-transfer",
-    "timestep-and-block-schedules",
-    "five-ranking-algorithms",
-    "classifier-free-guidance",
-    "shifted-logit-metadata",
-    "optional-gumbel-transform",
-    "diffusion-cli"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "eagle3": {
@@ -1908,25 +1546,6 @@
     "bounded-host",
     "f32-preload",
     "native-quantized-linear-weights"
-   ],
-   "features": [
-    "exactly-three-target-layer-inputs",
-    "single-pass-cached-target-layer-input-capture",
-    "target-hidden-to-draft-feature-fusion",
-    "shifted-token-feature-cache-construction",
-    "dual-rmsnorm-concatenated-attention-input",
-    "optional-normal-rope-factors",
-    "configurable-normalized-feature-residual",
-    "draft-or-target-token-embedding",
-    "draft-or-target-output-projection",
-    "draft-to-target-vocabulary-remapping",
-    "autoregressive-pre-norm-feature-carry",
-    "bounded-greedy-draft-and-target-verification",
-    "transactional-sampled-speculative-verification",
-    "accepted-prefix-target-cache-advancement",
-    "committed-target-feature-resynchronization",
-    "incremental-target-feature-resynchronization",
-    "sampler-checkpoint-rollback-and-commit"
    ],
    "limitations": [
     "real-model-pair-pending"
@@ -1944,15 +1563,6 @@
     "bounded-host",
     "f32-preload"
    ],
-   "features": [
-    "rmsnorm",
-    "contiguous-fused-or-separate-qkv",
-    "normal-rope",
-    "sequential-attention-and-swiglu-residuals",
-    "ignored-catalog-only-attention-output-bias",
-    "optional-tied-output",
-    "serializable-prefix-editable-kv-cache"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "ernie4_5-moe": {
@@ -1961,34 +1571,12 @@
     "f32-preload",
     "native-quantized-experts"
    ],
-   "features": [
-    "rmsnorm",
-    "contiguous-fused-or-separate-qkv",
-    "normal-rope",
-    "leading-and-interleaved-dense-swiglu-layers",
-    "normalized-softmax-top-k-routing",
-    "optional-selection-correction-bias",
-    "optional-gated-or-ungated-silu-experts",
-    "routed-weight-scaling",
-    "optional-shared-swiglu-expert",
-    "ignored-catalog-only-attention-output-bias",
-    "optional-tied-output",
-    "serializable-prefix-editable-kv-cache"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "eurobert": {
    "execution": [
     "bounded-host",
     "f32-preload"
-   ],
-   "features": [
-    "bidirectional-attention",
-    "fused-or-separate-qkv",
-    "neox-rope",
-    "rmsnorm",
-    "swiglu",
-    "hidden-state-encoder-output"
    ],
    "limitations": [
     "real-model-fixture-pending"
@@ -1999,12 +1587,6 @@
    ]
   },
   "exaone": {
-   "features": [
-    "optional-tied-output",
-    "neox-rope",
-    "optional-per-pair-rope-factors",
-    "swiglu"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "exaone-moe": {
@@ -2013,50 +1595,12 @@
     "f32-preload",
     "native-quantized-experts"
    ],
-   "features": [
-    "pre-rmsnorm",
-    "per-head-qk-rmsnorm",
-    "scalar-or-per-layer-sliding-pattern",
-    "local-layer-only-neox-rope",
-    "leading-dense-swiglu-blocks",
-    "softmax-or-sigmoid-top-k-routing",
-    "optional-selection-correction-bias",
-    "optional-selected-weight-normalization",
-    "routed-weight-scaling",
-    "packed-swiglu-experts",
-    "always-on-shared-expert",
-    "executable-dense-nextn-mtp-decoder",
-    "stateful-nextn-greedy-draft-and-verification",
-    "serializable-prefix-editable-kv-cache"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "exaone4": {
-   "features": [
-    "post-only-attention-and-ffn-rmsnorm",
-    "contiguous-fused-or-separate-qkv",
-    "optional-qkv-bias",
-    "per-head-qk-rmsnorm",
-    "neox-rope",
-    "optional-per-pair-rope-factors",
-    "periodic-sliding-attention",
-    "periodic-full-attention-without-rope",
-    "swiglu",
-    "tied-or-untied-output",
-    "executable-nextn-mtp-decoder",
-    "stateful-nextn-greedy-draft-and-verification"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "falcon": {
-   "features": [
-    "affine-layernorm",
-    "required-contiguous-fused-qkv",
-    "full-neox-rope",
-    "parallel-gelu-ffn",
-    "optional-second-attention-layernorm",
-    "tied-or-untied-output"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "falcon-h1": {
@@ -2065,15 +1609,6 @@
     "f32-preload",
     "native-quantized-linear-weights",
     "retained-device-cache"
-   ],
-   "features": [
-    "parallel-neox-rope-gqa-and-mamba2",
-    "separate-or-fused-qkv",
-    "optional-attention-ssm-and-ffn-biases",
-    "optional-ssm-grouped-rmsnorm",
-    "parallel-swiglu",
-    "named-convolution-and-ssm-state",
-    "serializable-prefix-editable-cache"
    ],
    "limitations": [
     "real-model-fixture-pending"
@@ -2090,12 +1625,6 @@
     "f32-preload",
     "native-quant"
    ],
-   "features": [
-    "tied-output-embedding",
-    "embedding-and-query-scaling",
-    "neox-rope",
-    "geglu"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "gemma-embedding": {
@@ -2103,18 +1632,6 @@
     "bounded-host",
     "f32-preload",
     "native-quant"
-   ],
-   "features": [
-    "encoder-only-hidden-states",
-    "square-root-embedding-scale",
-    "fused-or-separate-qkv-with-optional-bias",
-    "per-head-qk-rmsnorm",
-    "neox-rope",
-    "periodic-full-attention",
-    "symmetric-sliding-attention",
-    "post-attention-and-ffn-rmsnorm",
-    "parallel-geglu",
-    "optional-post-pooling-dense-2-dense-3"
    ],
    "real_model_validation": "pending-fixture"
   },
@@ -2124,24 +1641,9 @@
     "f32-preload",
     "native-quant"
    ],
-   "features": [
-    "alternating-sliding-attention",
-    "attention-logit-softcapping",
-    "final-logit-softcapping",
-    "neox-rope",
-    "geglu",
-    "post-attention-and-ffn-norms"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "gemma3": {
-   "features": [
-    "strict-48-layer-catalog",
-    "scaled-local-global-rope",
-    "sliding-attention",
-    "geglu",
-    "post-attention-and-ffn-norms"
-   ],
    "types": [
     "IQ4_XS",
     "Q6_K"
@@ -2157,24 +1659,6 @@
     "bounded-host",
     "f32-preload",
     "native-quantized-linear-weights"
-   ],
-   "features": [
-    "four-stream-altup-prediction-and-correction",
-    "magnitude-matched-altup-projection-and-unembedding",
-    "laurel-low-rank-residual",
-    "gaussian-activation-sparsity-first-ten-layers",
-    "projected-per-layer-token-inputs",
-    "first-twenty-layer-kv-production",
-    "sliding-and-global-layer-18-or-19-kv-sharing",
-    "serializable-prefix-editable-kv-cache",
-    "final-logit-softcap",
-    "mobilenetv5-fixed-image-projector",
-    "edge-and-universal-inverted-residual-blocks",
-    "downsampled-mqa-vision-attention",
-    "multi-scale-feature-fusion",
-    "fixed-256-image-soft-tokens",
-    "native-multi-image-history-prompts",
-    "optional-cuda-image-projection"
    ],
    "limitations": [
     "audio-encoder-absent-from-pinned-mtmd-execution",
@@ -2198,28 +1682,6 @@
     "f32-preload",
     "native-quantized-experts"
    ],
-   "features": [
-    "per-layer-full-or-sliding-head-widths",
-    "full-and-sliding-neox-rope",
-    "shared-kv-tail-layers",
-    "absent-value-projection-key-fallback",
-    "attention-and-feed-forward-post-norms",
-    "mixed-dense-and-gelu-moe-layers",
-    "normalized-softmax-top-k-routing",
-    "separate-or-fused-geglu-experts",
-    "per-expert-output-scaling",
-    "dense-shared-expert-branch",
-    "projected-per-layer-token-inputs",
-    "optional-layer-output-scaling",
-    "final-logit-softcap",
-    "serializable-prefix-editable-kv-cache",
-    "encoder-free-image-projector",
-    "ordered-images-first-soft-token-blocks",
-    "per-image-bidirectional-attention-block",
-    "frame-block-video-projection",
-    "encoder-free-audio-projection",
-    "optional-cuda-projector-execution"
-   ],
    "multimodal_validated_fixture": "gemma-4-12b-it-mmproj-bf16.gguf + gemma4_mm_image.png + gemma4_mm_golden.json",
    "real_model_validation": "pending-language-model-oracle",
    "tokenizers": [
@@ -2231,24 +1693,6 @@
     "bounded-host",
     "f32-preload",
     "native-quantized-linear-weights"
-   ],
-   "features": [
-    "paired-gemma4-target-context",
-    "target-token-and-hidden-pre-projection",
-    "final-two-target-layer-kv-sharing",
-    "per-layer-swa-or-global-cache-selection",
-    "fixed-position-autoregressive-drafting",
-    "query-only-rmsnorm-attention",
-    "parallel-geglu-feed-forward",
-    "post-attention-and-ffn-norms",
-    "recurrent-target-width-hidden-projection",
-    "tied-assistant-output-embedding",
-    "bounded-greedy-draft-and-target-verification",
-    "transactional-sampled-speculative-verification",
-    "accepted-prefix-cache-advancement",
-    "target-hidden-state-resynchronization",
-    "sampler-checkpoint-rollback-and-commit",
-    "projected-image-audio-target-prefix"
    ],
    "limitations": [
     "real-model-pair-pending"
@@ -2266,42 +1710,9 @@
     "f32-preload",
     "native-quantized-weights"
    ],
-   "features": [
-    "compressed-kv-rmsnorm",
-    "absorbed-mla",
-    "normal-yarn-rope",
-    "metadata-selected-full-indexer-layers",
-    "shared-top-k-indexer-schedule",
-    "affine-indexer-key-layernorm",
-    "fwht-indexer-mixing",
-    "relu-weighted-history-scoring",
-    "top-k-sparse-causal-attention",
-    "serializable-indexer-key-cache",
-    "dense-leading-swiglu",
-    "softmax-or-sigmoid-routed-experts",
-    "optional-selection-correction-bias",
-    "fused-or-separate-expert-gate-up",
-    "shared-swiglu-expert",
-    "executable-nextn-mtp-layer",
-    "trunk-top-k-handoff-for-shared-indexer-mtp",
-    "stateful-greedy-nextn-draft-and-verification",
-    "serializable-prefix-editable-kv-cache"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "glm4": {
-   "features": [
-    "pre-and-post-rmsnorm",
-    "contiguous-fused-or-separate-qkv",
-    "optional-qkv-bias",
-    "partial-normal-or-four-axis-mrope",
-    "caller-supplied-four-axis-positions",
-    "projected-embedding-overrides",
-    "fused-gate-up-swiglu",
-    "tied-or-untied-output",
-    "executable-nextn-mtp-decoder",
-    "stateful-nextn-greedy-draft-and-verification"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "glm4moe": {
@@ -2309,23 +1720,6 @@
     "bounded-host",
     "f32-preload",
     "native-quantized-experts"
-   ],
-   "features": [
-    "leading-dense-swiglu-blocks",
-    "fused-or-separate-qkv-with-optional-bias",
-    "optional-per-head-qk-rmsnorm",
-    "normal-or-four-axis-mrope",
-    "caller-supplied-four-axis-positions",
-    "projected-embedding-overrides",
-    "post-residual-rmsnorm",
-    "sigmoid-or-softmax-top-k-routing",
-    "selection-correction-bias",
-    "optional-selected-weight-normalization",
-    "packed-swiglu-experts",
-    "shared-expert",
-    "executable-nextn-mtp-layer",
-    "stateful-greedy-nextn-draft-and-verification",
-    "serializable-prefix-editable-kv-cache"
    ],
    "real_model_validation": "pending-fixture"
   },
@@ -2336,33 +1730,12 @@
     "native-quantized-experts",
     "retained-device-cache"
    ],
-   "features": [
-    "separate-qkv",
-    "normal-rope",
-    "alternating-standard-sliding-and-full-attention",
-    "attention-sinks",
-    "biased-attention-output",
-    "residual-post-attention-rmsnorm",
-    "selected-expert-softmax-routing",
-    "biased-openai-swiglu-experts",
-    "mxfp4-native-expert-storage",
-    "untied-output-projection",
-    "serializable-prefix-editable-kv-cache"
-   ],
    "real_model_validation": "pending-fixture",
    "tokenizers": [
     "gpt4o-bpe"
    ]
   },
   "gpt2": {
-   "features": [
-    "learned-absolute-position-embeddings",
-    "affine-layernorm",
-    "required-contiguous-fused-qkv",
-    "sequential-gelu",
-    "required-projection-biases",
-    "tied-or-untied-output"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "gptj": {
@@ -2372,61 +1745,15 @@
     "native-quantized-weights",
     "retained-device-cache"
    ],
-   "features": [
-    "affine-layernorm",
-    "separate-qkv",
-    "partial-normal-rope",
-    "shared-pre-attention-layernorm",
-    "parallel-attention-and-gelu-new-ffn",
-    "required-ffn-biases",
-    "required-untied-output-and-bias",
-    "serializable-prefix-editable-kv-cache"
-   ],
    "real_model_validation": "pending-fixture",
    "tokenizers": [
     "gpt2-bpe"
    ]
   },
   "gptneox": {
-   "features": [
-    "affine-layernorm",
-    "required-contiguous-fused-qkv",
-    "required-projection-biases",
-    "partial-neox-rope",
-    "metadata-selected-parallel-or-sequential-residual",
-    "gelu-ffn",
-    "untied-output-projection"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "granite": {
-   "features": [
-    "embedding-scale",
-    "residual-branch-scale",
-    "metadata-attention-scale",
-    "inverse-logit-scale",
-    "optional-no-rope",
-    "normal-rope",
-    "swiglu",
-    "tied-output",
-    "optional-projection-biases",
-    "optional-normalized-softmax-top-k-moe",
-    "optional-gated-or-ungated-experts",
-    "optional-shared-swiglu-expert",
-    "projected-base-embedding-overrides",
-    "mapped-projector-deepstack-injection",
-    "zero-filled-token-deepstack",
-    "granite4-vision-projector",
-    "pillow-bicubic-aspect-fit-padding",
-    "overview-first-uhd-grid-tiles",
-    "learned-position-siglip-vision-transformer",
-    "window-qformer-self-and-cross-attention",
-    "spatial-offset-or-average-pool-downsampling",
-    "base-and-deepstack-projector-streams",
-    "ordered-multi-image-soft-token-merge",
-    "native-image-marker-and-slot-tokens",
-    "optional-cuda-projector-execution"
-   ],
    "real_model_validation": "pending-fixture",
    "variants": [
     "dense-text-only",
@@ -2440,18 +1767,6 @@
     "f32-preload",
     "native-quantized-weights"
    ],
-   "features": [
-    "metadata-selected-attention-and-mamba2-layers",
-    "optional-normal-rope",
-    "metadata-attention-scale",
-    "optional-convolution-and-projection-biases",
-    "grouped-mamba2-selective-scan",
-    "embedding-and-residual-branch-scales",
-    "dense-or-softmax-routed-moe-swiglu",
-    "optional-ungated-and-shared-experts",
-    "inverse-logit-scale",
-    "serializable-hybrid-cache"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "granitemoe": {
@@ -2459,14 +1774,6 @@
     "bounded-host",
     "f32-preload",
     "native-quantized-experts"
-   ],
-   "features": [
-    "embedding-residual-attention-and-inverse-logit-scales",
-    "optional-no-rope-or-longrope",
-    "normalized-softmax-topk-routing",
-    "gated-swiglu-or-ungated-silu-experts",
-    "optional-shared-swiglu-expert",
-    "serializable-prefix-editable-kv-cache"
    ],
    "limitations": [
     "real-model-fixture-pending"
@@ -2482,18 +1789,6 @@
     "f32-preload",
     "native-quantized-experts"
    ],
-   "features": [
-    "rmsnorm-with-attention-and-ffn-postnorms",
-    "contiguous-fused-or-separate-qkv",
-    "neox-or-yarn-rope",
-    "metadata-attention-scale-and-softcap",
-    "normalized-softmax-top-k-routing",
-    "packed-gelu-or-geglu-experts",
-    "optional-dense-geglu-blend",
-    "metadata-embedding-and-direct-logit-scales",
-    "optional-tied-output",
-    "serializable-prefix-editable-kv-cache"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "grovemoe": {
@@ -2502,34 +1797,12 @@
     "f32-preload",
     "native-quantized-experts"
    ],
-   "features": [
-    "separate-qkv",
-    "per-head-qk-rmsnorm",
-    "neox-rope",
-    "normalized-softmax-top-k-routing",
-    "packed-swiglu-experts",
-    "shared-router-logits",
-    "grouped-chunk-expert-bank",
-    "chunk-expert-scaling",
-    "serializable-prefix-editable-kv-cache"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "hunyuan-dense": {
    "execution": [
     "bounded-host",
     "f32-preload"
-   ],
-   "features": [
-    "rmsnorm",
-    "contiguous-fused-or-separate-qkv",
-    "xdrope-adjusted-normal-or-four-axis-mrope",
-    "caller-supplied-four-axis-positions",
-    "projected-embedding-overrides",
-    "post-rope-qk-rmsnorm",
-    "swiglu",
-    "optional-tied-output",
-    "serializable-prefix-editable-kv-cache"
    ],
    "real_model_validation": "pending-fixture"
   },
@@ -2539,40 +1812,12 @@
     "f32-preload",
     "native-quantized-experts"
    ],
-   "features": [
-    "post-rope-qk-rmsnorm",
-    "normalized-softmax-top-k-routing",
-    "packed-swiglu-experts",
-    "required-shared-swiglu-expert",
-    "optional-tied-output",
-    "serializable-prefix-editable-kv-cache"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "hunyuan_vl": {
    "execution": [
     "bounded-host",
     "f32-preload"
-   ],
-   "features": [
-    "text-coordinate-decoder",
-    "contiguous-fused-or-separate-qkv",
-    "xdrope-adjusted-normal-or-four-axis-mrope",
-    "caller-supplied-four-axis-positions",
-    "post-rope-qk-rmsnorm",
-    "swiglu",
-    "optional-tied-output",
-    "projected-embedding-overrides",
-    "serializable-prefix-editable-kv-cache",
-    "hunyuanvl-dynamic-image-projector",
-    "pillow-bicubic-aligned-image-resize",
-    "interpolated-learned-vision-positions",
-    "fused-or-separate-vision-qkv-with-optional-bias",
-    "rmsnorm-convolutional-vision-merger",
-    "row-newline-image-prefix",
-    "ordered-multi-image-soft-token-merge",
-    "per-image-four-axis-grid",
-    "optional-cuda-projector-execution"
    ],
    "real_model_validation": "pending-fixture"
   },
@@ -2582,59 +1827,17 @@
     "f32-preload",
     "native-quantized-experts"
    ],
-   "features": [
-    "fused-or-separate-qkv",
-    "per-head-qk-rmsnorm",
-    "neox-rope",
-    "leading-dense-swiglu-blocks",
-    "sigmoid-or-softmax-top-k-routing",
-    "optional-selection-correction-bias",
-    "optional-selected-weight-normalization",
-    "fused-or-separate-swiglu-experts",
-    "always-on-shared-expert",
-    "multi-head-full-decoder-nextn-mtp",
-    "post-output-norm-target-and-draft-hidden-state",
-    "per-head-growing-prefix-kv-cache",
-    "shared-or-private-mtp-embedding-norm-head",
-    "greedy-speculative-accept-rollback",
-    "probability-ratio-speculative-acceptance",
-    "positive-residual-correction",
-    "transactional-draft-target-sampler-state",
-    "model-bound-multi-head-mtp-session-state",
-    "serializable-prefix-editable-kv-cache"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "internlm2": {
-   "features": [
-    "untied-output-projection",
-    "normal-rope",
-    "swiglu"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "jais": {
-   "features": [
-    "affine-layernorm",
-    "required-biased-fused-qkv",
-    "optional-alibi",
-    "inverse-head-width-attention-scale",
-    "biased-parallel-swiglu",
-    "required-untied-output",
-    "serializable-prefix-editable-kv-cache"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "jais2": {
    "constraints": [
     "matching-query-and-kv-head-counts"
-   ],
-   "features": [
-    "affine-layernorm",
-    "neox-rope",
-    "sequential-squared-relu",
-    "required-projection-biases",
-    "optional-tied-output"
    ],
    "real_model_validation": "pending-fixture"
   },
@@ -2644,29 +1847,12 @@
     "f32-preload",
     "native-quantized-weights"
    ],
-   "features": [
-    "metadata-selected-attention-and-mamba-layers",
-    "no-rope-grouped-query-attention",
-    "learned-dt-b-c-rmsnorm",
-    "mamba-v1-selective-scan",
-    "dense-swiglu-or-softmax-routed-moe",
-    "non-renormalized-selected-expert-weights",
-    "serializable-hybrid-cache"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "jina-bert-v2": {
    "execution": [
     "bounded-host",
     "f32-preload"
-   ],
-   "features": [
-    "bidirectional-alibi-attention",
-    "optional-fused-qkv",
-    "affine-qk-layernorm",
-    "optional-secondary-attention-residual-norm",
-    "gelu-or-geglu-ffn",
-    "hidden-state-encoder-output"
    ],
    "limitations": [
     "real-model-fixture-pending"
@@ -2681,14 +1867,6 @@
     "bounded-host",
     "f32-preload",
     "native-quantized-experts"
-   ],
-   "features": [
-    "bidirectional-neox-rope-attention",
-    "optional-fused-qkv",
-    "affine-embedding-and-post-norms",
-    "dense-gelu-ffn",
-    "gate-free-softmax-topk-gelu-experts",
-    "hidden-state-encoder-output"
    ],
    "limitations": [
     "real-model-fixture-pending"
@@ -2705,15 +1883,6 @@
     "native-quantized-linear-weights",
     "retained-device-cache"
    ],
-   "features": [
-    "metadata-selected-kda-and-mla-layers",
-    "no-rope-absorbed-mla",
-    "gated-delta-recurrent-attention",
-    "convolution-and-matrix-state-cache",
-    "dense-leading-swiglu",
-    "routed-and-shared-experts",
-    "serializable-prefix-editable-cache"
-   ],
    "limitations": [
     "real-model-fixture-pending"
    ],
@@ -2729,18 +1898,6 @@
     "f32-preload",
     "native-quantized-experts"
    ],
-   "features": [
-    "per-layer-query-and-kv-head-counts",
-    "qk-rmsnorm",
-    "full-attention-neox-yarn",
-    "periodic-sliding-attention-with-plain-rope",
-    "per-head-or-per-element-softplus-attention-gate",
-    "leading-dense-swiglu-blocks",
-    "sigmoid-top-k-routing-with-selection-correction-bias",
-    "optional-selected-weight-normalization",
-    "always-on-shared-expert",
-    "serializable-prefix-editable-kv-cache"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "lfm2": {
@@ -2748,17 +1905,6 @@
     "bounded-host",
     "f32-preload",
     "native-quantized-projections"
-   ],
-   "features": [
-    "per-layer-attention-convolution-schedule",
-    "qk-rmsnorm-attention",
-    "optional-sliding-attention",
-    "gated-channel-wise-short-convolution",
-    "centered-non-causal-short-convolution",
-    "asymmetric-even-kernel-centered-convolution",
-    "quantized-short-convolution-kernel-f32-promotion",
-    "serializable-hybrid-cache",
-    "swiglu"
    ],
    "real_model_validation": "pending-fixture"
   },
@@ -2769,22 +1915,6 @@
     "native-quantized-projections",
     "native-quantized-experts"
    ],
-   "features": [
-    "per-layer-attention-convolution-schedule",
-    "qk-rmsnorm-attention",
-    "optional-sliding-attention",
-    "gated-channel-wise-short-convolution",
-    "centered-non-causal-short-convolution",
-    "asymmetric-even-kernel-centered-convolution",
-    "quantized-short-convolution-kernel-f32-promotion",
-    "optional-leading-dense-swiglu-blocks",
-    "softmax-or-sigmoid-top-k-routing",
-    "required-selection-correction-bias",
-    "selected-weight-normalization",
-    "routed-weight-scaling",
-    "packed-swiglu-experts",
-    "serializable-hybrid-cache"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "llada": {
@@ -2793,22 +1923,6 @@
     "f32-preload",
     "native-quant"
    ],
-   "features": [
-    "non-causal-full-sequence-attention",
-    "no-kv-cache",
-    "normal-rope",
-    "rmsnorm",
-    "swiglu",
-    "all-position-hidden-states-and-logits",
-    "optional-tied-output",
-    "iterative-mask-transfer",
-    "timestep-and-block-schedules",
-    "five-ranking-algorithms",
-    "classifier-free-guidance",
-    "shifted-logit-metadata",
-    "optional-gumbel-transform",
-    "diffusion-cli"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "llada-moe": {
@@ -2816,22 +1930,6 @@
     "bounded-host",
     "f32-preload",
     "native-quantized-experts"
-   ],
-   "features": [
-    "non-causal-full-sequence-attention",
-    "no-kv-cache",
-    "qk-rmsnorm",
-    "neox-rope",
-    "unnormalized-softmax-top-k-moe",
-    "all-position-hidden-states-and-logits",
-    "required-untied-output",
-    "iterative-mask-transfer",
-    "timestep-and-block-schedules",
-    "five-ranking-algorithms",
-    "classifier-free-guidance",
-    "shifted-logit-metadata",
-    "optional-gumbel-transform",
-    "diffusion-cli"
    ],
    "real_model_validation": "pending-fixture"
   },
@@ -2846,11 +1944,6 @@
     "bounded-host",
     "f32-preload",
     "native-quantized-experts"
-   ],
-   "features": [
-    "mixtral-normalized-softmax-top-k-routing",
-    "mixtral-packed-swiglu-experts",
-    "serializable-prefix-editable-kv-cache"
    ],
    "real_model_validation": "pending-fixture",
    "tokenizers": [
@@ -2874,13 +1967,6 @@
     "f32-preload",
     "native-quantized-linear-weights"
    ],
-   "features": [
-    "dense-or-mixtral-style-catalog",
-    "bidirectional-normal-rope-attention",
-    "dense-or-routed-swiglu",
-    "final-rmsnorm-hidden-state-output",
-    "explicit-vocabulary-logit-rejection"
-   ],
    "limitations": [
     "real-model-fixture-pending"
    ],
@@ -2896,28 +1982,6 @@
     "native-quantized-experts",
     "retained-device-cache"
    ],
-   "features": [
-    "separate-qkv",
-    "normal-rope",
-    "post-rope-unweighted-qk-rmsnorm",
-    "chunk-aligned-causal-attention",
-    "position-dependent-full-attention-temperature",
-    "interleaved-dense-and-moe-layers",
-    "unnormalized-sigmoid-top-k-routing",
-    "packed-swiglu-experts",
-    "dense-shared-expert-branch",
-    "serializable-prefix-editable-kv-cache",
-    "llama4-uhd-image-projector",
-    "refined-grid-then-overview-tiles",
-    "bicubic-aspect-fit-padding",
-    "class-and-learned-position-vision-input",
-    "two-axis-vision-rope",
-    "fused-or-separate-vision-qkv-with-optional-bias",
-    "pixel-shuffle-vision-adapter",
-    "ordered-multi-image-soft-token-merge",
-    "native-image-boundary-and-slot-tokens",
-    "optional-cuda-projector-execution"
-   ],
    "real_model_validation": "pending-fixture",
    "tokenizers": [
     "gpt4o-bpe",
@@ -2925,12 +1989,6 @@
    ]
   },
   "maincoder": {
-   "features": [
-    "normal-rope",
-    "post-rope-qk-rmsnorm",
-    "swiglu",
-    "tied-output"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "mamba": {
@@ -2938,17 +1996,6 @@
     "bounded-host",
     "f32-preload",
     "native-quantized-weights"
-   ],
-   "features": [
-    "pure-recurrent-no-attention",
-    "rms-pre-normalization",
-    "split-input-and-gate-projection",
-    "cached-channel-ssm-convolution-with-bias",
-    "mamba-v1-selective-scan",
-    "optional-falconmamba-dt-b-c-rmsnorm",
-    "diagonal-d-residual-skip",
-    "silu-z-gate",
-    "serializable-recurrent-cache"
    ],
    "real_model_validation": "pending-fixture"
   },
@@ -2958,17 +2005,6 @@
     "f32-preload",
     "native-quantized-weights"
    ],
-   "features": [
-    "pure-recurrent-no-attention",
-    "rms-pre-normalization",
-    "expanded-z-x-b-c-dt-projection",
-    "grouped-b-c-channel-convolution",
-    "scalar-per-head-a-and-d",
-    "grouped-mamba2-selective-scan",
-    "silu-z-gate",
-    "grouped-learned-output-rmsnorm",
-    "serializable-recurrent-cache"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "mellum": {
@@ -2976,18 +2012,6 @@
     "bounded-host",
     "f32-preload",
     "native-quantized-experts"
-   ],
-   "features": [
-    "rmsnorm",
-    "separate-qkv",
-    "per-head-qk-rmsnorm",
-    "neox-linear-or-yarn-rope",
-    "scalar-or-per-layer-sliding-window-pattern",
-    "unscaled-rope-on-sliding-layers",
-    "normalized-softmax-top-k-routing",
-    "packed-swiglu-experts",
-    "required-untied-output",
-    "serializable-prefix-editable-kv-cache"
    ],
    "real_model_validation": "pending-fixture"
   },
@@ -2997,66 +2021,15 @@
     "f32-preload",
     "native-quantized-experts"
    ],
-   "features": [
-    "fused-or-separate-qkv",
-    "per-layer-kv-head-counts",
-    "per-layer-sliding-or-full-attention",
-    "per-head-attention-sink-logits",
-    "neox-partial-rope",
-    "swa-specific-rope-base",
-    "post-projection-attention-value-scale",
-    "mixed-dense-and-sigmoid-moe-layers",
-    "selection-correction-bias",
-    "normalized-selected-expert-weights",
-    "packed-swiglu-experts",
-    "executable-nextn-mtp-layer",
-    "stateful-greedy-nextn-draft-and-verification",
-    "serializable-prefix-editable-kv-cache",
-    "mimovl-dynamic-image-projector",
-    "temporal-pair-convolutional-patch-embedding",
-    "grouped-query-vision-attention",
-    "row-and-column-symmetric-window-attention",
-    "per-head-vision-attention-sinks",
-    "two-axis-vision-rope",
-    "swiglu-vision-feed-forward",
-    "two-by-two-gelu-merger",
-    "native-mimo-image-prompt",
-    "ordered-multi-image-soft-token-merge",
-    "optional-cuda-projector-execution"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "minicpm": {
-   "features": [
-    "embedding-scale",
-    "residual-branch-scale",
-    "inverse-logit-scale",
-    "normal-rope",
-    "context-selected-longrope-factors",
-    "normal-yarn-rope",
-    "swiglu",
-    "tied-output",
-    "optional-projection-biases"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "minicpm3": {
    "execution": [
     "bounded-host",
     "f32-preload"
-   ],
-   "features": [
-    "embedding-scale",
-    "residual-branch-scale",
-    "inverse-logit-scale",
-    "mla-query-lora-a-norm-b",
-    "compressed-kv-rmsnorm",
-    "shared-positional-key",
-    "partial-neox-rope",
-    "optional-longrope-factors",
-    "swiglu",
-    "optional-tied-output",
-    "serializable-prefix-editable-kv-cache"
    ],
    "real_model_validation": "pending-fixture"
   },
@@ -3066,36 +2039,9 @@
     "f32-preload",
     "native-quantized-experts"
    ],
-   "features": [
-    "rmsnorm",
-    "contiguous-fused-or-separate-qkv",
-    "full-projection-qk-rmsnorm",
-    "partial-neox-rope",
-    "softmax-or-sigmoid-top-k-routing",
-    "required-selection-correction-bias",
-    "selected-weight-normalization",
-    "routed-weight-scaling",
-    "packed-swiglu-experts",
-    "required-untied-output",
-    "serializable-prefix-editable-kv-cache"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "mistral3": {
-   "features": [
-    "normal-rope",
-    "context-selected-longrope-factors",
-    "normal-yarn-rope",
-    "yarn-log-multiplier-correction",
-    "metadata-attention-scale",
-    "position-dependent-query-temperature",
-    "swiglu",
-    "normalized-softmax-top-k-routing",
-    "packed-swiglu-experts",
-    "native-quantized-experts",
-    "tied-output",
-    "optional-projection-biases"
-   ],
    "real_model_validation": "pending-fixture",
    "variants": [
     "dense-standard-rope",
@@ -3114,24 +2060,6 @@
     "f32-preload",
     "native-quantized-weights"
    ],
-   "features": [
-    "native-mistral4-metadata-namespace",
-    "direct-or-lora-query",
-    "compressed-kv-rmsnorm",
-    "legacy-decompressed-mla",
-    "absorbed-mla",
-    "grouped-per-head-k-and-v-projections",
-    "normal-yarn-rope",
-    "yarn-derived-attention-scale",
-    "optional-position-temperature",
-    "dense-leading-swiglu",
-    "dense-only-variant",
-    "softmax-or-sigmoid-routed-experts",
-    "optional-selection-correction-bias",
-    "fused-or-separate-expert-gate-up",
-    "shared-swiglu-expert",
-    "serializable-prefix-editable-kv-cache"
-   ],
    "real_model_validation": "pending-fixture",
    "upstream_graph": "deepseek2-inherited"
   },
@@ -3139,14 +2067,6 @@
    "execution": [
     "bounded-host",
     "f32-preload"
-   ],
-   "features": [
-    "affine-embedding-layernorm",
-    "fused-qkv",
-    "bidirectional-neox-rope-attention",
-    "periodic-symmetric-local-attention",
-    "geglu-swiglu-or-reglu",
-    "hidden-state-encoder-output"
    ],
    "limitations": [
     "real-model-fixture-pending"
@@ -3157,28 +2077,9 @@
    ]
   },
   "mpt": {
-   "features": [
-    "optional-learned-absolute-position-embeddings",
-    "optional-bias-affine-layernorm",
-    "required-contiguous-fused-qkv",
-    "fused-qkv-clamping",
-    "optional-full-projection-affine-qk-layernorm",
-    "optional-projection-biases",
-    "optional-llama-cpp-compatible-alibi",
-    "sequential-gelu",
-    "optional-awq-post-gelu-activation-scaling",
-    "tied-or-untied-output"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "nemotron": {
-   "features": [
-    "affine-layernorm",
-    "neox-rope",
-    "sequential-squared-relu",
-    "optional-projection-biases",
-    "untied-output-projection"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "nemotron_h": {
@@ -3186,14 +2087,6 @@
     "bounded-host",
     "f32-preload",
     "native-quantized-weights"
-   ],
-   "features": [
-    "metadata-selected-attention-mamba2-and-ffn-layers",
-    "no-rope-grouped-query-attention",
-    "optional-projection-and-convolution-biases",
-    "grouped-mamba2-selective-scan",
-    "sequential-squared-relu-ffn",
-    "serializable-hybrid-cache"
    ],
    "real_model_validation": "pending-fixture"
   },
@@ -3203,29 +2096,12 @@
     "f32-preload",
     "native-quantized-weights"
    ],
-   "features": [
-    "metadata-selected-attention-mamba2-and-moe-layers",
-    "no-rope-grouped-query-attention",
-    "grouped-mamba2-selective-scan",
-    "sigmoid-top-k-squared-relu-experts",
-    "selection-correction-bias",
-    "optional-latent-expert-projections",
-    "shared-squared-relu-expert",
-    "serializable-hybrid-cache"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "neo-bert": {
    "execution": [
     "bounded-host",
     "f32-preload"
-   ],
-   "features": [
-    "fused-qkv-bidirectional-attention",
-    "normal-rope",
-    "pre-rmsnorm-residual-blocks",
-    "fused-swiglu",
-    "final-rmsnorm-hidden-state-output"
    ],
    "limitations": [
     "classifier-outside-hidden-state-boundary",
@@ -3241,13 +2117,6 @@
     "bounded-host",
     "f32-preload"
    ],
-   "features": [
-    "optional-fused-qkv",
-    "bidirectional-neox-rope-attention",
-    "affine-embedding-and-post-norms",
-    "gated-swiglu",
-    "hidden-state-encoder-output"
-   ],
    "limitations": [
     "real-model-fixture-pending"
    ],
@@ -3262,14 +2131,6 @@
     "f32-preload",
     "native-quantized-experts"
    ],
-   "features": [
-    "alternating-dense-and-expert-cadence",
-    "dense-gelu-blocks",
-    "gate-free-softmax-topk-gelu-experts",
-    "bidirectional-neox-rope-attention",
-    "affine-embedding-and-post-norms",
-    "hidden-state-encoder-output"
-   ],
    "limitations": [
     "real-model-fixture-pending"
    ],
@@ -3279,23 +2140,9 @@
    ]
   },
   "olmo": {
-   "features": [
-    "unweighted-layernorm",
-    "normal-rope",
-    "separate-qkv-clamping",
-    "swiglu",
-    "optional-tied-output"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "olmo2": {
-   "features": [
-    "post-normalized-blocks",
-    "full-projection-qk-rmsnorm",
-    "optional-sliding-attention",
-    "neox-rope",
-    "swiglu"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "olmoe": {
@@ -3307,59 +2154,18 @@
     "f32-preload",
     "native-quantized-experts"
    ],
-   "features": [
-    "full-projection-qk-rmsnorm",
-    "neox-rope",
-    "unnormalized-softmax-top-k-routing",
-    "packed-swiglu-experts",
-    "serializable-prefix-editable-kv-cache"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "openelm": {
-   "features": [
-    "per-layer-query-kv-and-feed-forward-widths",
-    "rmsnorm",
-    "fused-qkv",
-    "per-head-qk-rmsnorm",
-    "neox-rope",
-    "swiglu",
-    "tied-output",
-    "serializable-prefix-editable-kv-cache"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "orion": {
-   "features": [
-    "affine-layernorm",
-    "neox-rope",
-    "swiglu",
-    "untied-output-projection"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "paddleocr": {
    "execution": [
     "bounded-host",
     "f32-preload"
-   ],
-   "features": [
-    "ernie-4-5-rmsnorm-swiglu-decoder",
-    "contiguous-fused-or-separate-qkv",
-    "adjacent-pair-four-axis-mrope",
-    "caller-supplied-four-axis-positions",
-    "projected-embedding-overrides",
-    "optional-attention-output-bias",
-    "optional-tied-output",
-    "serializable-prefix-editable-kv-cache",
-    "paddleocr-dynamic-image-projector",
-    "bilinear-aligned-image-resize",
-    "fused-or-separate-vision-qkv-with-optional-bias",
-    "raster-vision-mrope",
-    "padded-two-by-two-patch-merge",
-    "ordered-multi-image-soft-token-merge",
-    "compressed-four-axis-image-grid",
-    "optional-cuda-projector-execution"
    ],
    "real_model_validation": "pending-fixture"
   },
@@ -3368,15 +2174,6 @@
     "bounded-host",
     "f32-preload",
     "native-quantized-linear-weights"
-   ],
-   "features": [
-    "causal-rmsnorm-swiglu-decoder",
-    "separate-or-fused-qkv",
-    "required-attention-output-bias",
-    "neox-rope",
-    "optional-longrope-factors",
-    "optional-tied-output",
-    "serializable-prefix-editable-kv-cache"
    ],
    "limitations": [
     "real-model-fixture-pending"
@@ -3387,30 +2184,11 @@
    ]
   },
   "phi2": {
-   "features": [
-    "affine-layernorm",
-    "contiguous-fused-or-separate-qkv",
-    "optional-qkv-biases",
-    "partial-neox-rope",
-    "query-pre-scaling",
-    "parallel-gelu-ffn",
-    "required-output-bias",
-    "untied-output-projection"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "phi3": {
    "constraints": [
     "dense"
-   ],
-   "features": [
-    "rmsnorm",
-    "contiguous-fused-or-separate-qkv",
-    "optional-qkv-bias",
-    "query-pre-scaling",
-    "fused-gate-up-swiglu",
-    "longrope-short-long-factor-selection",
-    "tied-or-untied-output"
    ],
    "real_model_validation": "pending-fixture"
   },
@@ -3420,29 +2198,9 @@
     "f32-preload",
     "native-quantized-experts"
    ],
-   "features": [
-    "affine-rmsnorm",
-    "contiguous-fused-or-separate-qkv",
-    "optional-qkv-bias",
-    "required-attention-output-bias",
-    "query-pre-scaling",
-    "longrope-short-long-factor-selection",
-    "normalized-softmax-top-k-routing",
-    "packed-swiglu-experts",
-    "required-untied-output-and-bias",
-    "serializable-prefix-editable-kv-cache"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "plamo": {
-   "features": [
-    "rmsnorm",
-    "parallel-attention-ffn-residual",
-    "neox-rope",
-    "grouped-query-attention",
-    "swiglu",
-    "untied-output-projection"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "plamo2": {
@@ -3451,35 +2209,12 @@
     "f32-preload",
     "native-quantized-weights"
    ],
-   "features": [
-    "metadata-selected-attention-and-mamba-layers",
-    "interleaved-per-head-z-x-projection",
-    "learned-b-c-dt-rmsnorm",
-    "grouped-head-selective-scan",
-    "fused-qkv-and-per-head-qk-rmsnorm",
-    "normal-rope",
-    "mixer-and-ffn-postnorms",
-    "fused-gate-up-swiglu",
-    "serializable-hybrid-cache"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "plamo3": {
    "execution": [
     "bounded-host",
     "f32-preload"
-   ],
-   "features": [
-    "per-layer-query-kv-and-feed-forward-widths",
-    "rmsnorm",
-    "required-contiguous-fused-qkv",
-    "pre-rope-per-head-qk-rmsnorm",
-    "neox-rope-with-sliding-frequency-base",
-    "scalar-or-per-layer-sliding-window-pattern",
-    "attention-and-ffn-postnorms",
-    "fused-gate-up-swiglu",
-    "optional-tied-output",
-    "serializable-prefix-editable-kv-cache"
    ],
    "real_model_validation": "pending-fixture"
   },
@@ -3488,29 +2223,12 @@
     "bounded-host",
     "f32-preload"
    ],
-   "features": [
-    "rmsnorm",
-    "mla-direct-query",
-    "compressed-kv-rmsnorm",
-    "shared-positional-key",
-    "partial-normal-rope",
-    "squared-relu",
-    "serializable-prefix-editable-kv-cache"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "qwen": {
    "execution": [
     "bounded-host",
     "f32-preload"
-   ],
-   "features": [
-    "rmsnorm",
-    "required-contiguous-fused-qkv-with-bias",
-    "neox-rope",
-    "swiglu",
-    "required-untied-output",
-    "serializable-prefix-editable-kv-cache"
    ],
    "real_model_validation": "pending-fixture"
   },
@@ -3520,12 +2238,6 @@
     "f32-preload",
     "native-quant"
    ],
-   "features": [
-    "projection-biases",
-    "optional-output-bias",
-    "neox-rope",
-    "swiglu"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "qwen2moe": {
@@ -3534,13 +2246,6 @@
     "f32-preload",
     "native-quantized-experts"
    ],
-   "features": [
-    "neox-rope",
-    "unnormalized-softmax-top-k-routing",
-    "packed-swiglu-experts",
-    "sigmoid-gated-shared-expert",
-    "serializable-prefix-editable-kv-cache"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "qwen2vl": {
@@ -3548,25 +2253,6 @@
     "bounded-host",
     "f32-preload",
     "native-quant"
-   ],
-   "features": [
-    "text-coordinate-decoder",
-    "fused-or-separate-qkv-with-optional-bias",
-    "scaled-four-axis-adjacent-pair-mrope",
-    "caller-supplied-four-axis-positions",
-    "optional-output-bias",
-    "swiglu",
-    "projected-embedding-overrides",
-    "serializable-prefix-editable-kv-cache",
-    "qwen2vl-merger-image-video-projector",
-    "temporal-pair-patch-projection",
-    "separate-biased-vision-qkv",
-    "vision-mrope",
-    "ordered-multi-image-soft-token-merge",
-    "compressed-four-axis-image-grid",
-    "temporal-four-axis-video-grid",
-    "standard-and-legacy-ffn-catalogs",
-    "optional-cuda-projector-execution"
    ],
    "real_model_validation": "pending-fixture"
   },
@@ -3577,10 +2263,6 @@
     "native-q8",
     "native-k-quant",
     "native-iq4-xs"
-   ],
-   "features": [
-    "last-token-classification-rerank-softmax",
-    "named-rerank-template-or-eos-sep-pair-format"
    ],
    "types": [
     "Q1_0",
@@ -3604,35 +2286,6 @@
    "execution": [
     "native-q8"
    ],
-   "features": [
-    "multi-axis-rope-kernel",
-    "text-generation-position-input",
-    "caller-supplied-four-axis-positions",
-    "projected-embedding-overrides",
-    "qwen3vl-merger-image-projector",
-    "merged-patch-image-preprocessing",
-    "qwen35-image-chat-template",
-    "compressed-image-grid-mrope",
-    "temporal-pair-video-projector",
-    "timestamped-video-chunks",
-    "per-chunk-compressed-video-mrope",
-    "odd-frame-repeat-padding",
-    "gated-full-attention",
-    "fused-gated-delta-net",
-    "recurrent-convolution-state",
-    "serializable-hybrid-cache",
-    "retained-device-hybrid-cache",
-    "stream-ordered-zero-state-initialization",
-    "pinned-single-dense-nextn-block",
-    "stateful-mtp-kv-and-hidden-session",
-    "shared-or-private-mtp-embedding-norm-head",
-    "standalone-mtp-sidecar-pairing",
-    "greedy-speculative-accept-rollback",
-    "probability-ratio-speculative-acceptance",
-    "positive-residual-correction",
-    "transactional-draft-target-sampler-state",
-    "draft-and-target-bound-mtp-session-state"
-   ],
    "multimodal_validated_fixture": "Qwen3.5-4B-F16.gguf",
    "tokenizers": [
     "qwen35-bpe"
@@ -3649,30 +2302,6 @@
     "f32-preload",
     "native-quantized-experts"
    ],
-   "features": [
-    "multi-axis-rope-kernel",
-    "text-generation-position-input",
-    "caller-supplied-four-axis-positions",
-    "projected-embedding-overrides",
-    "gated-full-attention",
-    "fused-gated-delta-net",
-    "recurrent-convolution-state",
-    "softmax-top-k-routing",
-    "selected-probability-normalization",
-    "routed-weight-scaling",
-    "separate-or-fused-swiglu-experts",
-    "sigmoid-gated-shared-expert",
-    "serializable-hybrid-cache",
-    "pinned-single-dense-nextn-block",
-    "stateful-mtp-kv-and-hidden-session",
-    "shared-or-private-mtp-embedding-norm-head",
-    "standalone-mtp-sidecar-pairing",
-    "greedy-speculative-accept-rollback",
-    "probability-ratio-speculative-acceptance",
-    "positive-residual-correction",
-    "transactional-draft-target-sampler-state",
-    "draft-and-target-bound-mtp-session-state"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "qwen3moe": {
@@ -3680,14 +2309,6 @@
     "bounded-host",
     "f32-preload",
     "native-quantized-experts"
-   ],
-   "features": [
-    "qwen3-qk-rmsnorm",
-    "neox-rope",
-    "softmax-top-k-routing",
-    "selected-probability-normalization",
-    "routed-weight-scaling",
-    "packed-swiglu-experts"
    ],
    "real_model_validation": "pending-fixture"
   },
@@ -3697,20 +2318,6 @@
     "f32-preload",
     "native-quantized-experts"
    ],
-   "features": [
-    "gated-neox-full-attention",
-    "optimized-qkv-plus-gate-recurrent-layout",
-    "legacy-grouped-qkvz-recurrent-layout",
-    "fused-beta-alpha-projection",
-    "repeat-interleave-gdn-head-broadcast",
-    "recurrent-convolution-state",
-    "softmax-top-k-routing",
-    "selected-probability-normalization",
-    "routed-weight-scaling",
-    "separate-or-fused-swiglu-experts",
-    "sigmoid-gated-shared-expert",
-    "serializable-hybrid-cache"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "qwen3vl": {
@@ -3719,26 +2326,6 @@
     "f32-preload",
     "native-quant"
    ],
-   "features": [
-    "text-coordinate-decoder",
-    "fused-or-separate-qkv-with-optional-bias",
-    "pre-rope-per-head-qk-rmsnorm",
-    "scaled-four-axis-adjacent-pair-mrope",
-    "caller-supplied-four-axis-positions",
-    "swiglu",
-    "projected-embedding-overrides",
-    "zero-filled-or-projected-deepstack",
-    "last-token-classification-rerank-softmax",
-    "named-rerank-template-or-eos-sep-pair-format",
-    "serializable-prefix-editable-kv-cache",
-    "qwen3vl-merger-image-projector",
-    "ordered-multi-image-soft-token-merge",
-    "per-image-compressed-four-axis-mrope",
-    "temporal-pair-video-projection",
-    "optional-cuda-projector-execution",
-    "vision-layer-deepstack-projection",
-    "prompt-aligned-deepstack-injection"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "qwen3vlmoe": {
@@ -3746,27 +2333,6 @@
     "bounded-host",
     "f32-preload",
     "native-quantized-experts"
-   ],
-   "features": [
-    "text-coordinate-decoder",
-    "fused-or-separate-qkv-with-optional-bias",
-    "pre-rope-per-head-qk-rmsnorm",
-    "scaled-four-axis-adjacent-pair-mrope",
-    "caller-supplied-four-axis-positions",
-    "softmax-top-k-routing",
-    "selected-probability-normalization",
-    "routed-weight-scaling",
-    "packed-swiglu-experts",
-    "zero-filled-or-projected-deepstack",
-    "projected-embedding-overrides",
-    "serializable-prefix-editable-kv-cache",
-    "qwen3vl-merger-image-projector",
-    "ordered-multi-image-soft-token-merge",
-    "per-image-compressed-four-axis-mrope",
-    "temporal-pair-video-projection",
-    "vision-layer-deepstack-projection",
-    "prompt-aligned-deepstack-injection",
-    "optional-cuda-projector-execution"
    ],
    "limitations": [
     "classification-rerank-head-absent-from-pinned-graph"
@@ -3777,29 +2343,10 @@
    "execution": [
     "native-cuda-expert-offloaded"
    ],
-   "features": [
-    "gated-residual-streams",
-    "sigmoid-gated-delta-output",
-    "recurrent-convolution-state",
-    "native-quantized-experts",
-    "causal-whole-block-selection",
-    "cached-multi-axis-indexer-positions",
-    "file-backed-selected-ngram-rows",
-    "causal-lexical-injection"
-   ],
    "real_model_validation": "eight native text protocol cases accepted at 20156d9b; evidence:sha256:899cd841f819b6826c31fea2b7ddd7e7c0f040c1f28152afd93b70c59fe6d80b; GUI answer and durable receipt checked; broad quality, 256K context, multimodal delivery and Strata performance remain pending",
    "validated_fixture": "internal/model/testdata/flashnext_gated.json + internal/model/testdata/flashnext_sparse.json + internal/model/testdata/flashnext_ngram.json"
   },
   "refact": {
-   "features": [
-    "rmsnorm",
-    "llama-cpp-compatible-alibi",
-    "fused-or-separate-qkv",
-    "parallel-swiglu",
-    "softmax-top-k-experts",
-    "gated-or-ungated-expert-silu",
-    "tied-or-untied-output"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "rnd1": {
@@ -3807,21 +2354,6 @@
     "bounded-host",
     "f32-preload",
     "native-quantized-experts"
-   ],
-   "features": [
-    "non-causal-full-sequence-attention",
-    "no-kv-cache",
-    "qk-rmsnorm",
-    "neox-rope",
-    "normalized-softmax-top-k-moe",
-    "all-position-hidden-states-and-logits",
-    "iterative-mask-transfer",
-    "timestep-and-block-schedules",
-    "five-ranking-algorithms",
-    "classifier-free-guidance",
-    "shifted-logit-metadata",
-    "optional-gumbel-transform",
-    "diffusion-cli"
    ],
    "real_model_validation": "pending-fixture"
   },
@@ -3831,18 +2363,6 @@
     "f32-preload",
     "native-quantized-weights"
    ],
-   "features": [
-    "affine-layer-normalization",
-    "dual-cached-token-shifts",
-    "five-way-low-rank-time-mix",
-    "fused-or-separate-time-mix-lerps",
-    "time-first-wkv6-recurrence",
-    "per-head-group-normalization",
-    "silu-output-gate",
-    "squared-relu-channel-mix",
-    "optional-periodic-residual-rescale",
-    "serializable-recurrent-cache"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "rwkv6qwen2": {
@@ -3850,17 +2370,6 @@
     "bounded-host",
     "f32-preload",
     "native-quantized-weights"
-   ],
-   "features": [
-    "rms-pre-normalization",
-    "cached-normalized-token-shift",
-    "five-way-low-rank-time-mix",
-    "optional-time-projection-biases",
-    "grouped-kv-gated-linear-attention",
-    "sigmoid-output-gate",
-    "sequential-swiglu",
-    "optional-periodic-residual-rescale",
-    "serializable-recurrent-cache"
    ],
    "real_model_validation": "pending-fixture"
   },
@@ -3870,29 +2379,9 @@
     "f32-preload",
     "native-quantized-weights"
    ],
-   "features": [
-    "affine-layer-normalization",
-    "dual-cached-token-shifts",
-    "vector-decay-wkv7-recurrence",
-    "learned-in-context-rate",
-    "cross-layer-first-value-residual",
-    "normalized-and-corrected-keys",
-    "per-head-output-correction",
-    "gated-time-mix-with-group-normalization",
-    "squared-relu-channel-mix",
-    "serializable-recurrent-cache"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "seed_oss": {
-   "features": [
-    "rmsnorm",
-    "neox-rope",
-    "metadata-attention-scale",
-    "swiglu",
-    "post-attention-named-pre-ffn-norm",
-    "optional-tied-output"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "smallthinker": {
@@ -3901,62 +2390,18 @@
     "f32-preload",
     "native-quantized-experts"
    ],
-   "features": [
-    "rmsnorm",
-    "contiguous-fused-or-separate-qkv",
-    "optional-qkv-biases",
-    "dense-first-periodic-sliding-attention",
-    "no-rope-full-attention-layers",
-    "neox-rope-with-swa-frequency-base",
-    "pre-attention-router-input",
-    "softmax-or-sigmoid-top-k-routing",
-    "selected-weight-normalization",
-    "routed-weight-scaling",
-    "packed-reglu-experts",
-    "optional-tied-output",
-    "serializable-prefix-editable-kv-cache"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "smollm3": {
-   "features": [
-    "periodic-no-rope-layers",
-    "metadata-attention-scale",
-    "normal-rope",
-    "swiglu"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "stablelm": {
-   "features": [
-    "affine-layernorm",
-    "partial-neox-rope",
-    "optional-per-head-qk-layernorm",
-    "sequential-or-parallel-ffn-residual",
-    "swiglu",
-    "untied-output-projection"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "starcoder": {
-   "features": [
-    "learned-absolute-position-embeddings",
-    "affine-layernorm",
-    "required-contiguous-fused-qkv",
-    "sequential-gelu",
-    "required-projection-biases",
-    "tied-or-untied-output"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "starcoder2": {
-   "features": [
-    "affine-layernorm",
-    "neox-rope",
-    "sequential-gelu",
-    "projection-biases",
-    "optional-tied-output"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "step35": {
@@ -3965,32 +2410,6 @@
     "f32-preload",
     "native-quantized-experts"
    ],
-   "features": [
-    "separate-or-fused-qkv",
-    "optional-per-head-qk-rmsnorm",
-    "per-layer-query-and-kv-head-counts",
-    "per-layer-sliding-or-full-attention",
-    "half-width-full-attention-rope",
-    "swa-specific-rope-base",
-    "shared-rope-factors",
-    "optional-sigmoid-head-gate",
-    "mixed-dense-and-moe-layers",
-    "sigmoid-or-softmax-top-k-routing",
-    "optional-selection-correction-bias",
-    "optional-selected-weight-normalization",
-    "per-layer-limited-swiglu-experts",
-    "per-layer-limited-shared-experts",
-    "multi-head-full-decoder-nextn-mtp",
-    "pre-output-norm-target-hidden-state",
-    "per-head-growing-prefix-kv-cache",
-    "shared-or-private-mtp-embedding-norm-head",
-    "greedy-speculative-accept-rollback",
-    "probability-ratio-speculative-acceptance",
-    "positive-residual-correction",
-    "transactional-draft-target-sampler-state",
-    "model-bound-multi-head-mtp-session-state",
-    "serializable-prefix-editable-kv-cache"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "t5": {
@@ -3998,19 +2417,6 @@
     "bounded-host",
     "f32-preload",
     "native-k-quant"
-   ],
-   "features": [
-    "strict-encoder-decoder-catalog",
-    "bidirectional-encoder-attention",
-    "causal-decoder-relative-position-buckets",
-    "fixed-cross-attention-cache",
-    "active-range-self-cache-editing",
-    "high-level-sampled-generation",
-    "generate-cli-dispatch",
-    "completion-server-dispatch",
-    "relu-and-gated-gelu-ffn",
-    "resumable-model-bound-session",
-    "exact-source-encoder-prompt-cache"
    ],
    "limitations": [
     "real-decoder-fixture-pending"
@@ -4034,13 +2440,6 @@
     "bounded-host",
     "f32-preload",
     "native-k-quant"
-   ],
-   "features": [
-    "strict-encoder-catalog",
-    "bidirectional-attention",
-    "relative-position-buckets",
-    "geglu",
-    "mean-pooled-embeddings"
    ],
    "limitations": [
     "encoder-only",
@@ -4067,37 +2466,12 @@
     "native-quant",
     "retained-device-cache"
    ],
-   "features": [
-    "initial-and-final-unweighted-rmsnorm",
-    "normalized-token-embedding-skip",
-    "fused-or-separate-qkv-with-optional-bias",
-    "post-rope-per-head-query-gain",
-    "post-rope-unweighted-key-rmsnorm",
-    "causal-neox-rope-attention",
-    "parallel-swiglu",
-    "per-layer-scalar-skip-injection",
-    "untied-output-projection",
-    "direct-logit-scaling",
-    "serializable-prefix-editable-kv-cache"
-   ],
    "real_model_validation": "pending-fixture"
   },
   "wavtokenizer-dec": {
    "execution": [
     "host-f32-staging",
     "f32-preload"
-   ],
-   "features": [
-    "strict-decoder-catalog",
-    "semantic-token-embedding",
-    "six-stage-posnet",
-    "non-causal-single-head-attention",
-    "dense-and-depthwise-same-padding-conv1d",
-    "channel-group-normalization",
-    "convnext-gelu-projection",
-    "audio-feature-frame-output",
-    "pinned-istft-waveform-synthesis",
-    "fixed-24khz-mono-output"
    ],
    "limitations": [
     "real-model-fixture-pending"
@@ -4116,11 +2490,6 @@
    ]
   },
   "xverse": {
-   "features": [
-    "untied-output-projection",
-    "normal-rope",
-    "swiglu"
-   ],
    "real_model_validation": "pending-fixture"
   }
  },

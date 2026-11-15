@@ -19,9 +19,9 @@ func TestGenerateValidatesEvidenceAndSortsOutput(t *testing.T) {
 		Summary:  "Feature works.",
 		Evidence: []evidence{source, proof},
 	}}, map[string]modelClaim{
-		"zeta":       {Features: []string{"z"}, RealModelValidation: "pending-fixture"},
-		"alpha":      {Features: []string{"a"}, ValidatedFixture: "alpha.gguf"},
-		"multimodal": {Features: []string{"image"}, RealModelValidation: "pending-language-model-oracle", MultimodalValidatedFixture: "projector.gguf + image.png + golden.json"},
+		"zeta":       {RealModelValidation: "pending-fixture"},
+		"alpha":      {ValidatedFixture: "alpha.gguf"},
+		"multimodal": {RealModelValidation: "pending-language-model-oracle", MultimodalValidatedFixture: "projector.gguf + image.png + golden.json"},
 	})
 	output := testcheck.Must(generate(root))(t)
 	text := string(output)
@@ -89,8 +89,8 @@ func TestClaimsRequireLiveEvidenceTier(t *testing.T) {
 func TestValidateModelCoverageRejectsMissingAndExtra(t *testing.T) {
 	t.Parallel()
 	models := map[string]modelClaim{
-		"alpha": {Features: []string{"a"}},
-		"extra": {Features: []string{"x"}},
+		"alpha": {},
+		"extra": {},
 	}
 	err := validateModelCoverage(models, []string{"alpha", "beta"})
 	if err == nil || !strings.Contains(err.Error(), "missing=[beta]") ||
@@ -123,5 +123,5 @@ func writeTestManifest(t *testing.T, root string, claims []claim, models map[str
 }
 
 func testModels() map[string]modelClaim {
-	return map[string]modelClaim{"model": {Features: []string{"feature"}}}
+	return map[string]modelClaim{"model": {}}
 }

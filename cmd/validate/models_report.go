@@ -38,7 +38,6 @@ type modelsReport struct {
 
 type prototypeModels struct {
 	Execution []string               `json:"execution,omitempty"`
-	Features  []string               `json:"features,omitempty"`
 	Models    map[string]modelRecord `json:"models,omitempty"`
 }
 
@@ -81,7 +80,7 @@ func generateModelsReport(root string, store *overgodb.Store) ([]byte, error) {
 	}
 	for name, item := range declared.Models {
 		report.Prototypes[name] = prototypeModels{
-			Execution: item.Execution, Features: item.Features, Models: map[string]modelRecord{},
+			Execution: item.Execution, Models: map[string]modelRecord{},
 		}
 	}
 	verifications, err := loadVerificationInventory(root)

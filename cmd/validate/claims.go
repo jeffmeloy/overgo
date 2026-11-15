@@ -94,9 +94,11 @@ const (
 	roleArtifact evidenceRole = "artifact"
 )
 
+// modelClaim is what the manifest says of one architecture of the registry that the registry does not: how it runs,
+// what it lacks and which real models validate it. What the architecture is, its policies, the registry's profile holds
+// (internal/model), and the manifest copies none of it.
 type modelClaim struct {
 	Execution                  []string `json:"execution"`
-	Features                   []string `json:"features"`
 	Limitations                []string `json:"limitations"`
 	RealModelValidation        any      `json:"real_model_validation"`
 	ValidatedFixture           string   `json:"validated_fixture"`
@@ -271,9 +273,9 @@ func validateManifest(root string, document manifest) error {
 			return fmt.Errorf("compatibility manifest: claim %q: %w", item.ID, err)
 		}
 	}
-	for name, item := range document.Models {
-		if name == "" || len(item.Features) == 0 {
-			return fmt.Errorf("compatibility manifest: model %q is incomplete", name)
+	for name := range document.Models {
+		if name == "" {
+			return errors.New("compatibility manifest: a model has no name")
 		}
 	}
 	if _, err := os.Stat(filepath.Join(root, "internal", "model", "architecture.go")); err == nil {

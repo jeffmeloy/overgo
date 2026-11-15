@@ -3,78 +3,11 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "cycle-lanes",
-      "title": "The cycle's lanes run at the build that gave them the gate's real-model tests, so each moved test runs before other work",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "The cycle's lanes run at the build that gave them the gate's real-model tests, so each moved test runs before other work",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go run ./cmd/validate -run -lanes",
-          "files": [
-            "docs/plan.json"
-          ],
-          "rationale": "Note: The evidence (the owner's review, 2026-11-14): cuda-synthetic moves 63 files of real-model CUDA tests to the cycle, among them latentimage's Krea tests the gate ran until that day. The cycle last ran on 8 Nov at fdd4ab1cea37, its lanes ending after 1 h 41 m without passing; HandStartDue calls one due by hand only when the plan is empty, and full-run has no steps, so nothing dispatches it. Until a cycle runs, a moved test runs only where a step names it as its check.\n\nDecision, the lead's at the owner's word (\"to act on as you see fit\"): cuda-synthetic lands with this row behind it, so the next step after it runs every test it moved. The turn is the cycle's lanes alone, validate -run -lanes, the checks a run makes before its cells: the models lane holds every moved package. It is not a step of full-run: a row leaves the plan when its last step lands, which would take full-run with it, and full-run's own check, the run with its cells, still waits on the causes its title names.\n\nCheck: validate -run -lanes passes on the card, each lane's go test run afresh (-count=1). A lane that fails names its tests, and curing them is this row's work."
-        }
-      ]
-    },
-    {
       "id": "single-source",
       "title": "A fact is written once, where a program uses it; other copies are generated or go, and the tool says what a session needs when it needs it",
       "owner": "master-lead",
       "status": "open",
       "steps": [
-        {
-          "id": "claim-declared",
-          "title": "A claim is declared on its test, its summary the test's comment; validate writes compatibility.json whole",
-          "status": "open",
-          "verify": "go test ./cmd/validate ./internal/landing -count=1 -run '^(TestAClaimIsDeclaredOnItsTest|TestNoGeneratedFileIsEditedByHand)$'",
-          "files": [
-            "cmd/validate",
-            "internal/landing",
-            "compatibility.json",
-            "docs/COMPATIBILITY.md",
-            "docs/TRAINING_COMPATIBILITY.md"
-          ],
-          "rationale": "Serves: the owner's rule of 2026-11-14.\n\nThe evidence: compatibility.json is both declared by hand (each claim's summary and evidence) and written by the claims generator (identities rebindClaim patches by byte offset): 86 source and 69 artifact evidence entries, a median of one source a claim. Its two roles took three landing steps on 2026-11-14 (claim-edits, derive-keeps, claims-conflict) and a finding (SQA-403).\n\nThe change: a claim is declared where its test is, its summary the test's comment; validate writes the file whole; generator.declared, held()'s exception for a listed generated file and derive's conflict refusal go.\n\nCheck: TestAClaimIsDeclaredOnItsTest reads a claim from its test's declaration; TestNoGeneratedFileIsEditedByHand holds the landing to no generated file declared by hand."
-        },
-        {
-          "id": "models-registry",
-          "title": "The models part of the compatibility manifest is written from the architecture registry",
-          "status": "open",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestTheModelsPartIsWrittenFromTheRegistry$'",
-          "files": [
-            "cmd/validate",
-            "internal/model",
-            "compatibility.json"
-          ],
-          "rationale": "Serves: the owner's rule of 2026-11-14.\n\nThe evidence: the manifest's models part holds 137 entries and 42 KB of features; validateModelCoverage checks their names against model.SupportedArchitectures() and nothing checks a tag; internal/model/architecture_profiles.json holds 137 profiles of the same architectures.\n\nThe change: the models part is written from the registry and its profiles, and its hand copy goes.\n\nNot read yet: the profile's value names; why internal/storepolicy/roots.go and cmd/release read compatibility.json.\n\nCheck: TestTheModelsPartIsWrittenFromTheRegistry holds the part to what the registry gives."
-        },
-        {
-          "id": "skill-source",
-          "title": "skill.md is written from the tests' comments, or holds its judgement lines alone, and the citation rewriter goes",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestSkillHoldsNoRuleItsTestsDoNotState$'",
-          "files": [
-            "skill.md",
-            "internal/repoanalysis",
-            "internal/landing"
-          ],
-          "rationale": "Serves: the owner's rule of 2026-11-14.\n\nThe evidence: each rule of skill.md names the check that holds it, and the check's comment states the rule again; a renamed test's citation is followed by a rewriter (followRenames). Of skill.md's lines, the owner counts 24 that are judgement no test states.\n\nThe change: skill.md is written from the tests' comments, or holds the judgement lines alone; the citation rewriter goes.\n\nCheck: TestSkillHoldsNoRuleItsTestsDoNotState."
-        },
-        {
-          "id": "edits-said",
-          "title": "Each failing check says its edit",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestEveryFailingCheckSaysItsEdit$'",
-          "files": [
-            "internal/landing",
-            "cmd/loop"
-          ],
-          "rationale": "Serves: the owner's rule of 2026-11-14: the tool says what a session needs when it needs it.\n\nThe evidence: status.go:149 counts the refusals that said their edit; it reads 0 for all 25 listed.\n\nThe change: a failing check's refusal carries the edit that clears it.\n\nCheck: TestEveryFailingCheckSaysItsEdit."
-        },
         {
           "id": "step-fields",
           "title": "A plan step holds title, verify, files, order, cause and serves; status and owner go",
@@ -98,6 +31,36 @@
             "docs/sqa_findings.json"
           ],
           "rationale": "Serves: the owner's rule of 2026-11-14.\n\nThe evidence: the register's findings carry up to sixteen fields (closure_criteria, evidence, evidence_basis, evidence_commit, plan_references, recommended_change, sources, consolidates among them); SQA-403 was written as input, expected and actual.\n\nThe change: a finding holds its id, severity, files, input, expected and actual.\n\nCheck: TestAFindingHoldsItsSixFields."
+        },
+        {
+          "id": "skill-source",
+          "title": "skill.md is written from the tests' comments, or holds its judgement lines alone, and the citation rewriter goes",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestSkillHoldsNoRuleItsTestsDoNotState$'",
+          "files": [
+            "skill.md",
+            "internal/repoanalysis",
+            "internal/landing"
+          ],
+          "rationale": "Serves: the owner's rule of 2026-11-14: a fact is written once, where a program uses it.\n\nThe evidence: each rule of skill.md names the check that holds it, and a renamed test's citation is followed by a rewriter (followRenames). Of skill.md's lines, the owner counts 24 that are judgement no test states.\n\nRead 2026-11-14 at 3ba4de8c7, for the owner's call: of skill.md's 227 lines that cite checks, the first check of 181 has a doc comment and of 45 has none; the comments state what their test holds, not the rule that cites it (\"purpose = recursive self-improvement ...\" cites TestCycleFilesDeclinesAndAcceptsNothing, whose comment is the cycle's comparisons; \"scorecard columns = ...\" cites TestScorecardRowsEveryServableModel, whose comment is rows and dashes). Writing skill.md from the comments would change what it says, and keeping its judgement lines alone would lose the rules no comment states; which way, or a rule written once on its test as a line of its own, is the owner's.\n\nThe change: skill.md is written from the tests' comments, or holds its judgement lines alone; the citation rewriter goes.\n\nCheck: TestSkillHoldsNoRuleItsTestsDoNotState.\n\nOrder (2026-11-14): refiled last in its row, after edits-said, step-fields and finding-fields, for the owner's call above."
+        }
+      ]
+    },
+    {
+      "id": "cycle-lanes",
+      "title": "The cycle's lanes run at the build that gave them the gate's real-model tests, so each moved test runs before other work",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "The cycle's lanes run at the build that gave them the gate's real-model tests, so each moved test runs before other work",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go run ./cmd/validate -run -lanes",
+          "files": [
+            "docs/plan.json"
+          ],
+          "rationale": "Note: The evidence (the owner's review, 2026-11-14): cuda-synthetic moves 63 files of real-model CUDA tests to the cycle, among them latentimage's Krea tests the gate ran until that day. The cycle last ran on 8 Nov at fdd4ab1cea37, its lanes ending after 1 h 41 m without passing; HandStartDue calls one due by hand only when the plan is empty, and full-run has no steps, so nothing dispatches it. Until a cycle runs, a moved test runs only where a step names it as its check.\n\nDecision, the lead's at the owner's word (\"to act on as you see fit\"): cuda-synthetic lands with this row behind it, so the next step after it runs every test it moved. The turn is the cycle's lanes alone, validate -run -lanes, the checks a run makes before its cells: the models lane holds every moved package. It is not a step of full-run: a row leaves the plan when its last step lands, which would take full-run with it, and full-run's own check, the run with its cells, still waits on the causes its title names.\n\nCheck: validate -run -lanes passes on the card, each lane's go test run afresh (-count=1). A lane that fails names its tests, and curing them is this row's work."
         }
       ]
     },

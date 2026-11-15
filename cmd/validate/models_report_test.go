@@ -59,7 +59,7 @@ func renderedModelsReport(t *testing.T) modelsReport {
 func TestModelsReportNestsSpecificModels(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	testutil.WriteTextFile(t, root, "compatibility.json", `{"models": {"zeta": {"features": ["z"]}}}`)
+	testutil.WriteTextFile(t, root, "compatibility.json", `{"models": {"zeta": {"execution": ["bounded-host"]}}}`)
 	weights := filepath.Join(root, "weights", "model.safetensors")
 	testcheck.NoError(t, os.MkdirAll(filepath.Dir(weights), 0o755))
 	testcheck.NoError(t, os.WriteFile(weights, []byte("st"), 0o600))

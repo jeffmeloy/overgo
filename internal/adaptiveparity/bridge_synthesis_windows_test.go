@@ -60,19 +60,21 @@ func TestBridgeSynthesisProducesEvidenceOrRefusal(t *testing.T) {
 		"go test ./internal/adaptiveparity -run '^TestBridgeSynthesisProducesEvidenceOrRefusal$' -count=1",
 		"adapter tier retired; synthesis validates the pipeline, promotion requires the experiment plane",
 	))(t)
+	// The decision names its decider's derivation as a parent (recipe.Decision.Lineage), which the store refuses unless it
+	// holds it: the fixture records it beside the target and the donor.
+	decider := recipe.Decider{
+		CodeCommit: "0123456789abcdef0123456789abcdef01234567",
+		Derivation: testutil.ArtifactID(t, artifact.KindEvidence, "synthesis-authority"),
+	}
 	proposalContent := testcheck.Must(proposal.Content())(t)
 	rankerContent := testcheck.Must(ranker.Content())(t)
 	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key:       "synthesis/fixture",
-		Artifacts: []artifact.Descriptor{{ID: target}, {ID: donor}},
+		Artifacts: []artifact.Descriptor{{ID: target}, {ID: donor}, {ID: decider.Derivation}},
 		Contents:  []artifact.Content{rankerContent, proposalContent},
 		Lineage:   proposal.Lineage(),
 	}); err != nil {
 		t.Fatal(err)
-	}
-	decider := recipe.Decider{
-		CodeCommit: "0123456789abcdef0123456789abcdef01234567",
-		Derivation: testutil.ArtifactID(t, artifact.KindEvidence, "synthesis-authority"),
 	}
 	started := time.Now()
 	outcome := testcheck.Must(trainingworkflow.SynthesizeBridge(store, proposal, trainingworkflow.GraftConfig{

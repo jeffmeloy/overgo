@@ -9,6 +9,17 @@
       "status": "open",
       "steps": [
         {
+          "id": "audio-policy",
+          "title": "The audio acceptance runs no policy test the dead chain took with it",
+          "status": "open",
+          "verify": "OVERGO_STORE_ACCEPTANCE=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest,integration ./internal/audioparity -count=1 -timeout=0 -run '^TestAudioResourceFitnessAcceptance$'",
+          "files": [
+            "internal/audioparity/cpu_resource_fitness_test.go",
+            "compatibility.json"
+          ],
+          "rationale": "The evidence: the direct run of the cycle's lanes at a59a5a9f3 failed the audio lane on TestAudioResourceFitnessAcceptance alone, its every other test passing: it runs internal/evaluation's TestAudioFitnessPolicyAcceptance by name in a subprocess, which said \"no tests to run\". dead-chain/do (870bd5a98) deleted internal/evaluation/audio_fitness_test.go with the candidate fitness policy it held (evaluateCandidateFitness, crossDomainEvaluationContract); the whole-tree checks that found what only the chain reached see no test named in a command's string.\n\nThe change: the acceptance no longer runs the policy, which is gone, and its comment and log no longer claim the policy's refusals; the measured, profiled and repeated runs and their envelope stay as they were. No other test runs a test by name that no longer exists (every -run and -test.run name in a test's subprocess command read against the tests).\n\nCheck: the acceptance, which fails at the commit it builds on (\"shared fitness policy was not executed\") and passes with the change (80 s).\n\nNote: files set to internal/audioparity/cpu_resource_fitness_test.go, compatibility.json: the claim the test is bound to re-verifies by its own check, which needs OVERGO_STORE_ACCEPTANCE=1 to run the test, and its summary names the policy that went"
+        },
+        {
           "id": "do",
           "title": "The cycle's lanes run at the build that gave them the gate's real-model tests, so each moved test runs before other work",
           "status": "open",
@@ -84,7 +95,7 @@
             "internal/evaluation",
             "internal/dataset"
           ],
-          "rationale": "Serves: a comparison against the reference compares the questions it says it does (SQA-369, P2: a check that passes without checking).\n\nThe evidence (the review's, shown from source): the comparison matches its reference by ordinal and count alone, so a reference of other questions, or of another revision, passes the match.\n\nThe change, the finding's: before the runner opens, the reference is bound to the model and tokenizer, the demonstrations, the dataset revision and each question's identity and content, the two documented revision differences admitted for their exact revisions alone.\n\nCheck: TestTheMMLUProReferenceIsAdmittedByItsQuestions holds a reference whose questions differ in content at the same ordinals to a refusal before any model opens."
+          "rationale": "Serves: a comparison against the reference compares the questions it says it does (SQA-369, P2: a check that passes without checking).\n\nThe evidence (the review's, shown from source): the comparison matches its reference by ordinal and count alone, so a reference of other questions, or of another revision, passes the match.\n\nThe change, the finding's: before the runner opens, the reference is bound to the model and tokenizer, the demonstrations, the dataset revision and each question's identity and content, the two documented revision differences admitted for their exact revisions alone.\n\nCheck: TestTheMMLUProReferenceIsAdmittedByItsQuestions holds a reference whose questions differ in content at the same ordinals to a refusal before any model opens.\n\nNote: Read 2026-11-14: the comparison (TestMMLUProReadsAsLmEvalReadsIt) pairs each observation with reference.Questions by the ordinal in its case name and compares the answer index only after the runner has run; question_id is never compared. Neither side holds what an admission needs: the import (hfcache.go) keeps question, options, answer_index and category but no question_id, and reference.json (mmlu_pro_lm_eval_reference.py) keeps question_id, category and answers but no question text. Either the import keeps question_id, which moves the dataset digests TestTheStoresMMLUProCasesKeepTheirIdentities pins, or the reference script writes each question's digest beside its id, read again from lm-eval's cache; the second moves nothing pinned and is the cure to try first."
         }
       ]
     },

@@ -15,11 +15,11 @@ import (
 )
 
 // commitScope is what a landing commits: the files its named steps list, the plan and the findings register a review
-// left; what the repository's generators derive enters only as derive wrote it from the candidate (held). A listed
-// directory holds
-// everything under it, tests and fixtures among them. The lists are the trunk's plan's and the change's plan's: plan
-// -setfiles widens a list with its reason noted, which is how a landing that left out a path its change needs is
-// widened (leftOut); seven steps were retired and filed again on 2026-11-08 for a short list. A step the change itself
+// left; what the repository's generators derive enters only as derive wrote it from the candidate, or as a step that
+// lists it wrote it (held). A listed directory holds everything under it, tests and fixtures among them. The lists are
+// the trunk's plan's and the change's plan's: plan -setfiles widens a list with its reason noted, which is how a
+// landing that left out a path its change needs is widened (leftOut); seven steps were retired and filed again on
+// 2026-11-08 for a short list. A step the change itself
 // adds is read from the plan it holds. A step that lists nothing, a merge, or a plan that cannot be read leaves the
 // scope open: the whole tree, as every landing took before. On 2026-11-08 another session's untracked document in the
 // lead's checkout stopped every landing for forty minutes, since the landing took the whole folder though each step
@@ -55,10 +55,11 @@ func (l *landing) commitScope(ctx context.Context) ([]string, error) {
 }
 
 // held splits the changed paths of the checkout into those the commit takes and those it leaves as they stand: those
-// its scope holds (inside), and a generator's file only as derive wrote it from the candidate, whatever the scope. The
-// checkout's own copy of a derived file is of whatever it was last derived from: on 2026-11-14 a change to the plan
-// alone took an API manifest regenerated for uncommitted code, ran every stage as a change to code, derived nothing,
-// since only a change to Go derived, and was refused twice by the manifest's own test (derive-always/do).
+// its scope holds (inside), and a generator's file only as derive wrote it from the candidate or as a step that lists
+// it wrote it. The checkout's own copy of a derived file is of whatever it was last derived from: on 2026-11-14 a
+// change to the plan alone took an API manifest regenerated for uncommitted code, ran every stage as a change to code,
+// derived nothing, since only a change to Go derived, and was refused twice by the manifest's own test
+// (derive-always/do).
 func (l *landing) held(changed []repoanalysis.DirtyPath) (held []repoanalysis.DirtyPath, left []string) {
 	scope := l.scope
 	if scope != nil {
@@ -69,8 +70,11 @@ func (l *landing) held(changed []repoanalysis.DirtyPath) (held []repoanalysis.Di
 	for _, generator := range l.generators() {
 		generated = append(generated, generator.writes...)
 	}
+	// A generated file a step lists is the step's own edit too, taken as the checkout holds it and derived again from
+	// the candidate: compatibility.json declares each claim's check and summary, which the claims generator rebinds, and
+	// a claim taken only as derived could never be changed.
 	for _, entry := range within {
-		if slices.Contains(generated, entry.Path) && !slices.Contains(l.derived, entry.Path) {
+		if slices.Contains(generated, entry.Path) && !slices.Contains(l.derived, entry.Path) && !(l.scope != nil && plan.Lists(l.scope, entry.Path)) {
 			left = append(left, entry.Path)
 			continue
 		}

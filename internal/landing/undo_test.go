@@ -95,6 +95,34 @@ func TestTheUndoRunRunsEveryKindOfCheck(t *testing.T) {
 	}
 }
 
+// TestTheUndoRunJudgesEachStepByItsFiles holds the undo run to each step's own files (undo-every-check/per-step): a
+// batch's undo run restored every step's production and ran every check, so on 2026-11-14 identity-gate's check, of a
+// change to tests alone, passed beside steps with production and refused the batch. A batch of a step whose check
+// catches its production change and a step of tests alone lands: the first's check fails with its production
+// restored, the second's takes no undo run.
+func TestTheUndoRunJudgesEachStepByItsFiles(t *testing.T) {
+	t.Parallel()
+	fixture := newRowFixture(t, map[string]string{"p/p.go": undoneValue, "q/q.go": "// Package q is a fixture.\npackage q\n"})
+	editPlan(t, fixture, func(document *plan.Plan) {
+		document.Items[0].Budget.Nodes = 100
+		document.Items[0].Steps[0].Verify, document.Items[0].Steps[0].Files = undoneCheck, []string{"p"}
+		document.Items[0].Steps = append(document.Items[0].Steps, plan.Step{ID: "tests", Title: "q's test",
+			Verify: "go test ./q -run '^TestQ$' -count=1", Files: []string{"q/q_test.go"}})
+	})
+	fixture.git("add", "-A")
+	fixture.git("commit", "-q", "-m", "the row's checks")
+	fixture.write("p/p.go", strings.Replace(undoneValue, "return 1", "return 2", 1))
+	fixture.write("p/p_test.go", "package p\n\nimport \"testing\"\n\n"+caughtTest)
+	fixture.write("q/q_test.go", "package q\n\nimport \"testing\"\n\nfunc TestQ(t *testing.T) { t.Parallel() }\n")
+	l := fixture.candidateOf("row/do,row/tests")
+	l.Log = &bytes.Buffer{}
+	err := l.verify(t.Context())
+	if undone := strings.Join(l.undone, "\n"); err != nil || !strings.Contains(undone, "with p/p.go restored to ") ||
+		!strings.Contains(undone, "go test ./q -run '^TestQ$' -count=1: none run") {
+		t.Errorf("a batch of a production step and a step of tests alone ended as %v, its undo:\n%s", err, undone)
+	}
+}
+
 // TestAMovedTestIsUndoneWhereItMoved holds the undo to a change that moves its test to another file: on 2026-11-11 the
 // undo kept the file the change moved it from, so the test was declared in both, the package built in neither, and
 // test-reuse's check was refused as no evidence though it failed on its assertion with the old code. The moved test

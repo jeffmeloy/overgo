@@ -143,6 +143,10 @@ type landing struct {
 	advanced  plan.Plan
 	terms     plan.Plan
 	verifiers []string
+	// checkFiles are the files the steps a check judges list, by the check: the undo run restores the production the
+	// change wrote among them for that check alone (undo-every-check/per-step). A check one of whose steps lists no
+	// files is held to every file the change wrote, as that step's landing takes every changed path; it maps to nil.
+	checkFiles map[string][]string
 	// spent is where the run's time went, for the checkout's record.
 	spent spent
 	// composed is the message the landing wrote for the change (compose), before what the gate measured; undone is
@@ -608,14 +612,19 @@ func (l *landing) row(ctx context.Context) error {
 			return fmt.Errorf("land: %w", err)
 		}
 	}
-	l.advanced, l.verifiers, l.added = document, nil, replaced
+	l.advanced, l.verifiers, l.checkFiles, l.added = document, nil, map[string][]string{}, replaced
 	for _, row := range named {
 		if step, judged := plan.ExactStep(l.terms, row.item, row.step); !judged {
 			if err := l.judgeAdded(document, row); err != nil {
 				return err
 			}
-		} else if !slices.Contains(l.verifiers, step.Verify) {
-			l.verifiers = append(l.verifiers, step.Verify)
+		} else {
+			// The step's files are those the landing's scope takes for it (scope.go): the trunk's list and the one the
+			// change's plan gives it, or every file where the trunk's lists none.
+			if written, held := plan.ExactStep(document, row.item, row.step); held && len(step.Files) > 0 {
+				step.Files = slices.Concat(step.Files, written.Files)
+			}
+			l.judgeBy(step)
 		}
 		if l.advanced, err = plan.Advance(l.advanced, row.item, row.step); err != nil {
 			return fmt.Errorf("land: %s cannot leave the plan: %w", row, err)
@@ -958,6 +967,21 @@ func (l *landing) verify(ctx context.Context) error {
 	return l.undo(ctx)
 }
 
+// judgeBy takes a landed step's check among the landing's, with the files its step lists.
+func (l *landing) judgeBy(step plan.Step) {
+	files, seen := l.checkFiles[step.Verify]
+	switch {
+	case seen && files == nil:
+	case len(step.Files) == 0:
+		l.checkFiles[step.Verify] = nil
+	default:
+		l.checkFiles[step.Verify] = append(files, step.Files...)
+	}
+	if !seen {
+		l.verifiers = append(l.verifiers, step.Verify)
+	}
+}
+
 // judgeAdded takes a step the change itself adds: nothing earlier states its terms, so its own check and count judge it.
 func (l *landing) judgeAdded(document plan.Plan, row ref) error {
 	for _, item := range document.Items {
@@ -966,9 +990,7 @@ func (l *landing) judgeAdded(document plan.Plan, row ref) error {
 				continue
 			}
 			l.added = append(l.added, step.Verify)
-			if !slices.Contains(l.verifiers, step.Verify) {
-				l.verifiers = append(l.verifiers, step.Verify)
-			}
+			l.judgeBy(step)
 			if !slices.ContainsFunc(l.terms.Items, func(held plan.Item) bool { return held.ID == item.ID }) {
 				l.terms.Items = append(slices.Clone(l.terms.Items), item)
 			}

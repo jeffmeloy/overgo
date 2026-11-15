@@ -24,15 +24,6 @@
       "title": "The undo run proves every step's check, whatever it runs, and the added-check run goes",
       "steps": [
         {
-          "id": "per-step",
-          "title": "The undo run judges each step against the files that step lists",
-          "verify": "go test ./internal/landing -count=1 -run '^TestTheUndoRunJudgesEachStepByItsFiles$'",
-          "files": [
-            "internal/landing"
-          ],
-          "rationale": "Serves: the owner's list of 2026-11-14 (step 9): the undo run judges each step against the files that step lists.\n\nThe evidence: a batch's undo run restores every step's production and runs every check, so identity-gate's check, of a change to tests alone, passed beside steps that had production and refused the batch (noted on every-kind).\n\nThe change: the undo run restores, for each step's check, the production of the files that step lists, and judges that check alone.\n\nCheck: TestTheUndoRunJudgesEachStepByItsFiles.\n\nNote: The owner's tally of 2026-11-14's 21 failed landings: 4 were the base and undo rules (refusal-trim, the hold-start batch, identity-gate in its batch, claim-edits), none of them wrong product behaviour; this step removes that group."
-        },
-        {
           "id": "added",
           "title": "The added-check run and the record of added steps go, the undo run proving every step alike",
           "verify": "go test ./internal/landing -count=1",

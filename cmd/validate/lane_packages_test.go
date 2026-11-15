@@ -36,7 +36,7 @@ func TestTheRunRecordHoldsEachPackagesWallAndPeak(t *testing.T) {
 	t.Setenv(clioptions.MeasurementRunEnvironment, record)
 
 	var output bytes.Buffer
-	if _, err := acquire(t.Context(), &output, root, "go", []string{"test", "-p=1", "-timeout=10m", "./small", "./large"}); err != nil {
+	if _, err := acquire(t.Context(), &output, root, "go", []string{"test", "-count=1", "-p=1", "-timeout=10m", "./small", "./large"}); err != nil {
 		t.Fatalf("the lane failed: %v\n%s", err, output.String())
 	}
 	var kept plan.MeasurementRun

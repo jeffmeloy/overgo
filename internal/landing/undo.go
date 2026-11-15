@@ -95,12 +95,29 @@ func (l *landing) undo(ctx context.Context) error {
 		return nil
 	}
 	l.undone, l.unevidenced = nil, nil
-	tree, said, release, err := l.undoTree(ctx, restored)
-	if err != nil {
-		return err
-	}
-	defer release()
+	// Each check is judged with the production its own steps list restored, a tree for each such set: in a batch, a
+	// step's check ran with every step's production restored, and a step of tests alone was refused beside steps with
+	// production (undo-every-check/per-step).
+	type undoneTree struct{ tree, said string }
+	trees := map[string]undoneTree{}
 	for _, check := range checks {
+		own := l.restoredFor(check, restored)
+		if len(own) == 0 {
+			l.undone = append(l.undone, check+": none run: its steps list no production Go the change wrote")
+			continue
+		}
+		set := strings.Join(own, "\n")
+		undone, built := trees[set]
+		if !built {
+			tree, said, release, err := l.undoTree(ctx, fmt.Sprintf("undone-%d", len(trees)), own)
+			if err != nil {
+				return err
+			}
+			defer release()
+			undone = undoneTree{tree, said}
+			trees[set] = undone
+		}
+		tree, said := undone.tree, undone.said
 		_, err := planverify.ExecuteShowing(ctx, tree, check, nil, l.Log)
 		failure, _, _ := strings.Cut(fmt.Sprint(err), "\n")
 		switch {
@@ -143,6 +160,19 @@ func (l *landing) undoable(ctx context.Context) (restored, checks []string, none
 	return restored, checks, none, nil
 }
 
+// restoredFor is the production the change wrote that a check's steps list: what the undo run restores for it.
+func (l *landing) restoredFor(check string, restored []string) []string {
+	files, listed := l.checkFiles[check]
+	if !listed || files == nil {
+		return restored
+	}
+	return slices.DeleteFunc(slices.Clone(restored), func(path string) bool {
+		return !slices.ContainsFunc(files, func(file string) bool {
+			return path == file || strings.HasPrefix(path, strings.TrimSuffix(file, "/")+"/")
+		})
+	})
+}
+
 // runsGoTest says a check runs a go test, whose failure before any test ran is a build's, not a verdict.
 func runsGoTest(check string) bool {
 	parsed, err := runrecord.ParseVerify(check)
@@ -156,8 +186,8 @@ func restoredTo(restored []string, head string) string {
 
 // undoTree checks out the commit the change builds on with the change's files kept but restored, the production Go
 // it wrote, and returns it, what says so, and what removes it.
-func (l *landing) undoTree(ctx context.Context, restored []string) (tree, said string, release func(), err error) {
-	tree, release, err = l.treeAt(ctx, "undone")
+func (l *landing) undoTree(ctx context.Context, name string, restored []string) (tree, said string, release func(), err error) {
+	tree, release, err = l.treeAt(ctx, name)
 	if err != nil {
 		return "", "", nil, err
 	}
@@ -183,7 +213,7 @@ func (l *landing) undoTree(ctx context.Context, restored []string) (tree, said s
 			}
 		}
 		for _, path := range l.paths {
-			if l.produced[path] || slices.Contains(present, path) {
+			if slices.Contains(restored, path) || slices.Contains(present, path) {
 				continue
 			}
 			if err := os.Remove(filepath.Join(tree, filepath.FromSlash(path))); err != nil && !errors.Is(err, fs.ErrNotExist) {

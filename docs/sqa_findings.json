@@ -677,43 +677,6 @@
 },
     {
   "closure_criteria": [
-        "Historical set values and source citations both bind to their recorded revision; current source changes require no historical rewrite.",
-        "Unique record arithmetic/dependency/provenance and current identity validation retain owners.",
-        "The writer/flag/generator remain removed and the residual live-source assertion is displaced with complete costs."
-      ],
-  "evidence": "ec17533e0 removes WriteSurfaceRecord/recordSets/SurfaceRecord, the validate flag and landing generator, restores the result-settings line to the original probe, and binds all ten set lines to original recording68f549f6c. Current identity tests remain. This fixes the observed setting-list drift. One part of the same root cause remains: TestSurfaceMoveRecordDefinesClaimDependencies still opens every dependency/key citation from the current checkout and checks its symbol by regex. The record says these are places in its range-head39c6bfcc445c566a0fb39a9680025fdab41eef47 tree. A legitimate present-day rename/deletion of a historical cited file or symbol therefore still makes historical evidence fail. This residual counterexample is source-derived, not an observed failed run. Retained verification25.334s and gate558s; no SQA rerun. At e2ab11644 the same coupling caused a concrete documentation migration: dependency-process-environment in surface-moves.txt changed from environment/resultSettings to processEnvironment/settingValues and changed the statement to package-specific settings. The record reader still opens root/current-source at lines428-435. The old observed experiment is not evidence for the new per-package design; preserve the old interpretation/citations with its revision and put current design validity with the current identity owner. This strengthens the existing finding, not a new requirement.",
-  "evidence_basis": "shown_from_source",
-  "evidence_commit": "5a2336fbaf7dd4293bb5adc58119578783ae5566",
-  "id": "SQA-377",
-  "plan_references": [
-        "review-fixes/historical-record ec17533e0 (landed; partial closure)",
-        "Downloads extreme_refactor_plan.md: preserve evidence identity and remove duplicate representations"
-      ],
-  "recommended_change": "Keep the restored historical sets and deleted generator. Finish the same migration by reading historical dependency/key source citations from the record's declared revision through existing Git reading, retaining the local source cache; alternatively retire any unnecessary live-symbol assertion explicitly while keeping the record's internal dependency/figure checks. Current source validity remains with current identity/repository tests. Do not update historical citations to follow a current rename or add another sync writer. Fold the new set-history assertion into the existing record fixture if it reduces duplicate reads/setup without losing its immutable baseline.",
-  "severity": "P2",
-  "sources": [
-        {
-          "path": "internal/inferencesurface/surface_move_record_test.go",
-          "symbol": "TestSurfaceMoveRecordDefinesClaimDependencies: definitions still read root/path"
-        },
-        {
-          "path": "internal/inferencesurface/surface_record_history_test.go",
-          "symbol": "TestTheSurfaceRecordKeepsItsProbesSets; surfaceRecordWritten"
-        },
-        {
-          "path": "docs/verification/surface-moves.txt",
-          "symbol": "probe identity, range-head and dependency/key citations"
-        },
-        {
-          "path": "internal/inferencesurface/identity_test.go",
-          "symbol": "current identity and unknown-read coverage retained"
-        }
-      ],
-  "status": "open",
-  "title": "Remove live-source synchronization from the historical surface evidence"
-},
-    {
-  "closure_criteria": [
         "Unit-weight marked and clean prompts have identical actual IDs/mask/conditioning under the retained tokenizer, including a cross-span merge and normalization/template boundaries. Non-unit ambiguity has an explicit admitted contract.",
         "Full-budget prompts leave prefix/suffix/pad rows unweighted and preserve existing truncation geometry. Accepted negative weights reach both ordinary and skipped branches, or unsupported markup refuses early.",
         "Cache and cold input agree on bound weights without redundant positive re-rendering; displaced reconstruction and duplicate test setup are removed, full costs recorded and numerical/lifetime evidence retained."
@@ -781,55 +744,6 @@
       ],
   "status": "open",
   "title": "Bind prompt weights to the token rows actually executed"
-},
-    {
-  "closure_criteria": [
-        "A controlled mid-copy failure or cancellation leaves no final clone; correcting the cause permits the same command/destination to complete without manual removal.",
-        "A valid preexisting target and another writer's output remain untouched; live-lock release, source blobs/chain and sealed-backup distinction remain correct.",
-        "Both clone consumers use the retained publication/copy owner with full helper/test/setup costs recorded; no second clone implementation."
-      ],
-  "evidence": "The new command always targets tmp/<row>/store. CloneStore walks directly into that final path; an I/O/link failure after creating it returns without retiring its own partial output. The next attempt refuses because the destination exists, even after the failed prerequisite is corrected. The open row keeps the partial tree through scratchEntries, so normal cleanup does not resolve the retry. CloneLiveStore observes ctx only while acquiring the writer lock, then calls a context-free walk/io.Copy; the command captures os.Interrupt into that context, so cancellation after acquisition neither stops the copy nor prevents success. Existing clone and command tests cover success/existing destination, not failure -> corrected retry. These are admitted source paths, not an observed failed store run.",
-  "evidence_basis": "shown_from_source",
-  "evidence_commit": "bf1651186c635603e1081d32712bcc9f4040bb75",
-  "id": "SQA-385",
-  "plan_references": [
-        "session-leftovers/rehearsal-copy 8af2a7c7f (landed)",
-        "Downloads architecture sections4,5,7: early admission, lifetime and recoverable publication"
-      ],
-  "recommended_change": "Reuse existing fsatomic.PublishDirectory ownership in CloneStore: populate a private sibling and publish the requested fresh name only on complete success. Refactor the current copy walk into that existing populate contract rather than passing CloneStore unchanged to an already-created stage. Retire only this attempt's failed stage; never replace a preexisting destination or another writer's output. Carry cancellation through the existing clone/copy owner and release the live writer lock on exit; preserve the distinct immutable-backup caller. Keep blob hard-link semantics, source protection, permissions and store identity. No new backup format, retry service or progress ledger.",
-  "severity": "P2",
-  "sources": [
-        {
-          "path": "cmd/overgodb/rehearse.go",
-          "symbol": "rehearse -> CloneLiveStore"
-        },
-        {
-          "path": "internal/overgodb/clone.go",
-          "symbol": "CloneLiveStore; CloneStore; copyStoreFile"
-        },
-        {
-          "path": "cmd/overgodb/precheck.go",
-          "symbol": "precheck -> CloneStore"
-        },
-        {
-          "path": "internal/fsatomic/publish_directory.go",
-          "symbol": "PublishDirectory"
-        },
-        {
-          "path": "cmd/loop/leftovers.go",
-          "symbol": "scratchEntries"
-        },
-        {
-          "path": "internal/overgodb/clone_test.go",
-          "symbol": "TestCloneStoreSharesBlobsAndKeepsTheChain"
-        },
-        {
-          "path": "cmd/overgodb/rehearse_test.go",
-          "symbol": "TestARehearsalCopyOfTheStoreEndsWithItsRow"
-        }
-      ],
-  "status": "open",
-  "title": "Publish rehearsal clones only after a complete cancellable copy"
 },
     {
   "closure_criteria": [
@@ -981,8 +895,7 @@
       ],
   "status": "open",
   "title": "Discover undo inputs in the accepted verifier build context, including the module root"
-},
-    {"id":"SQA-403","status":"resolved"}
+}
   ],
   "master_lead_triage": {
   "at": "2026-11-13",
@@ -1072,16 +985,6 @@
         ],
         "note": "Answered by the lead on 2026-11-13: carried by the local worker's demonstration step, on the worker's path."
       },
-  "SQA-377": {
-        "action": "declined",
-        "rows": [],
-        "note": "Declined at P2 by the lead on 2026-11-13: by the agreed rule it is P3, a test's historical record read from source, which costs a lane only when a live source its October record cites changes. It rides with the next change to internal/inferencesurface."
-      },
-  "SQA-385": {
-        "action": "declined",
-        "rows": [],
-        "note": "Declined at P2 by the lead on 2026-11-13: by the agreed rule it is P3: a failed or cancelled rehearsal leaves a partial clone to remove and its writer lock held until exit, read from source, and loses nothing of the live store. It rides with the next change to cmd/overgodb's rehearse or internal/overgodb's clone."
-      },
   "SQA-401": {
         "action": "deferred",
         "note": "Checked 2026-11-13 at 8ab8f2e44: the module root holds no Go file, so no package there can embed a file below it, and the one build-tagged file with a go:embed directive is a test (internal/dataset/speech_source_acceptance_model_test.go), which the undo does not restore as production. Neither shape the finding names occurs today; it is taken up when one does, or with the verifier's build-context work it names."
@@ -1098,6 +1001,5 @@
   "next_finding_number": 404,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
-  "review_notes": ["Cleaned at 2e4d8fd6864e431d9a9ed4b1d985aea8d6dbdc36. Retired 43 unplanned P3 advisory items as declined work, without claiming implementation fixes: SQA-215, SQA-228, SQA-239, SQA-241, SQA-242, SQA-244, SQA-247, SQA-249, SQA-259, SQA-262, SQA-271, SQA-285, SQA-287, SQA-296, SQA-297, SQA-298, SQA-303, SQA-306, SQA-307, SQA-311, SQA-312, SQA-314, SQA-317, SQA-323, SQA-325, SQA-329, SQA-330, SQA-334, SQA-339, SQA-343, SQA-344, SQA-349, SQA-350, SQA-351, SQA-352, SQA-353, SQA-365, SQA-367, SQA-375, SQA-376, SQA-391, SQA-395, SQA-400. Four dormant deferrals (110,120,124,268) had no adopted current task/current demonstrated failing producer, or were already declined. SQA-266/277 measurement-status work remains with cycle-lanes/full-run; no new run or quality pass is claimed. SQA-345 was a design/consolidation proposal, not established wrong behavior.","Consolidated SQA-379 into SQA-342, SQA-368 into SQA-369, and SQA-389 into SQA-388, preserving every unique evidence/source/acceptance condition under those existing owners. SQA-366 and SQA-374 are the only open P3 entries and both are named by loop-proof/local-demonstrated. Retained live triage values and unknown fields are unchanged.","Full pre-cleanup records, closure history and removed prose remain in 2e4d8fd6864e431d9a9ed4b1d985aea8d6dbdc36:docs/sqa_findings.json. Fourteen minimal resolved ID/status stubs remain solely because TestTheRegistersTestReductionsLand requires those historical IDs; they are not active work. Stable IDs are not reused."],
   "schema_version": 2
 }

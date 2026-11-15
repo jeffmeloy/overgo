@@ -236,7 +236,11 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 	}
 	for _, suite := range suites {
 		fmt.Fprintf(output, "validate -run cycle lane %s\n", suite.Lane)
-		lane := func() error { return acquire(ctx, output, root, "go", suite.Arguments, suite.Environment...) }
+		var report testevidence.GoTestReport
+		lane := func() (err error) {
+			report, err = acquire(ctx, output, root, "go", suite.Arguments, suite.Environment...)
+			return err
+		}
 		var err error
 		if plan.HoldsCard != nil && landing.OnCard(suite.Environment) {
 			err = plan.HoldsCard("the cycle lane "+suite.Lane, lane)
@@ -247,7 +251,7 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 		if plan.LanesKept == "" {
 			continue
 		}
-		if kept := keepLaneRun(ctx, plan.LanesKept, root, suite.Lane, err == nil); kept != nil {
+		if kept := keepLaneRun(ctx, plan.LanesKept, root, suite.Lane, err == nil, report); kept != nil {
 			fmt.Fprintf(output, "validate -run: the cycle lane %s's end is not kept: %v\n", suite.Lane, kept)
 		}
 	}
@@ -279,7 +283,8 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 			if timedValidation(sel.Validation) && sel.Validation != projectionProof {
 				return acquireServing(ctx, output, root, name, args, environment...)
 			}
-			return artifact.ID{}, acquire(ctx, output, root, name, args, environment...)
+			_, err := acquire(ctx, output, root, name, args, environment...)
+			return artifact.ID{}, err
 		}
 		subject := fmt.Sprintf("%s %s", displayName(sel.ModelValidation), sel.Validation)
 		settle := func(err error) {
@@ -459,9 +464,9 @@ var errInapplicable = errors.New("declared inapplicable here")
 // other command is a producer whose exit is its own verdict: it publishes
 // records, or, like the journeys lane's cmd/webui-lane, judges its own typed
 // test report.
-func acquire(ctx context.Context, output io.Writer, root, name string, args []string, environment ...string) error {
+func acquire(ctx context.Context, output io.Writer, root, name string, args []string, environment ...string) (testevidence.GoTestReport, error) {
 	if name != "go" || len(args) == 0 || args[0] != "test" {
-		return runCell(ctx, output, root, name, args, environment...)
+		return testevidence.GoTestReport{}, runCell(ctx, output, root, name, args, environment...)
 	}
 	// The command is read as every verifier is, so its packages and selector
 	// mean what they mean to testevidence.
@@ -471,7 +476,7 @@ func acquire(ctx context.Context, output io.Writer, root, name string, args []st
 	}
 	parsed, err := runrecord.ParseVerify(strings.Join(words, " "))
 	if err != nil {
-		return err
+		return testevidence.GoTestReport{}, err
 	}
 	invocation, selected := parsed.GoTests()[0], func(string) bool { return true }
 	if invocation.Target != nil {
@@ -495,7 +500,7 @@ func acquire(ctx context.Context, output io.Writer, root, name string, args []st
 	for _, diagnostic := range report.Diagnostics {
 		fmt.Fprintf(output, "validate -run: diagnostic: %s\n", diagnostic)
 	}
-	return errors.Join(err, requiredPass(report, invocation.Packages, selected))
+	return report, errors.Join(err, requiredPass(report, invocation.Packages, selected))
 }
 
 // samePackage is whether the package go test reports as path is the one a command names as pkg (./directory).
@@ -678,10 +683,19 @@ func trunkCheckout(ctx context.Context, root string) string {
 // keepLaneRun records a cycle lane's end in the state of the checkout kept (plan.RecordLaneRun): the commit the lane
 // ran at, read from the checkout root it ran in, which may be a worktree of the trunk's, and its verdict, so the status
 // says where each lane last passed (lane-passes/do).
-func keepLaneRun(ctx context.Context, kept, root, lane string, passed bool) error {
+func keepLaneRun(ctx context.Context, kept, root, lane string, passed bool, report testevidence.GoTestReport) error {
 	head, err := gitauthority.Query(ctx, root, "rev-parse", "HEAD")
 	if err != nil {
 		return err
 	}
-	return plan.RecordLaneRun(kept, lane, plan.LaneRun{Commit: strings.TrimSpace(string(head)), Passed: passed, Ended: time.Now()})
+	commit, ended := strings.TrimSpace(string(head)), time.Now()
+	// Each test the lane passed is kept as passing at that commit too, which a claim reads (single-source/claim-record).
+	var tests []string
+	for _, test := range report.TestCosts() {
+		if test.Action == "pass" && !strings.Contains(test.Name, "/") {
+			tests = append(tests, plan.PassedTest(test.Package, test.Name))
+		}
+	}
+	return errors.Join(plan.RecordLaneRun(kept, lane, plan.LaneRun{Commit: commit, Passed: passed, Ended: ended}),
+		plan.RecordTestPasses(kept, plan.TestPass{Commit: commit, Ended: ended}, tests))
 }

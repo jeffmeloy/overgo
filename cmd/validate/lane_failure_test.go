@@ -41,7 +41,7 @@ func TestALaneTestThatFailsIsRecordedBeforeTheNextPackageEnds(t *testing.T) {
 	t.Setenv(clioptions.MeasurementRunEnvironment, record)
 
 	var output bytes.Buffer
-	err := acquire(t.Context(), &output, root, "go", []string{"test", "-p=1", "-timeout=0", "./first", "./long", "./short"})
+	_, err := acquire(t.Context(), &output, root, "go", []string{"test", "-p=1", "-timeout=0", "./first", "./long", "./short"})
 	if err == nil || !strings.Contains(err.Error(), "lanefixture/first: TestFails failed") || strings.Contains(err.Error(), "skipped") {
 		t.Fatalf("the lane's verdict = %v, want the failed test named and nothing skipped:\n%s", err, output.String())
 	}

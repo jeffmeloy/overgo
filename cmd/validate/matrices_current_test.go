@@ -15,5 +15,5 @@ import (
 // re-runs its verify.
 func TestPublishedMatricesAreCurrent(t *testing.T) {
 	t.Parallel()
-	testcheck.NoError(t, publishedClaims(t.Context(), io.Discard, filepath.Join("..", ".."), false))
+	testcheck.NoError(t, publishedClaims(io.Discard, filepath.Join("..", ".."), false))
 }

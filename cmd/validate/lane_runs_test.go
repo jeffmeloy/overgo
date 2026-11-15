@@ -7,6 +7,7 @@ import (
 
 	"overgo/internal/plan"
 	"overgo/internal/testcheck"
+	"overgo/internal/testevidence"
 )
 
 // TestADirectLaneRunRecordsEachLanesPass holds a run of the cycle's lanes to keeping each lane's end where it is told
@@ -23,8 +24,8 @@ func TestADirectLaneRunRecordsEachLanesPass(t *testing.T) {
 		t.Fatalf("git worktree add: %v: %s", err, output)
 	}
 	kept := trunkCheckout(t.Context(), worktree)
-	testcheck.NoError(t, keepLaneRun(t.Context(), kept, worktree, "audio", true))
-	testcheck.NoError(t, keepLaneRun(t.Context(), kept, worktree, "audio", false))
+	testcheck.NoError(t, keepLaneRun(t.Context(), kept, worktree, "audio", true, testevidence.GoTestReport{}))
+	testcheck.NoError(t, keepLaneRun(t.Context(), kept, worktree, "audio", false, testevidence.GoTestReport{}))
 	record := plan.ReadLaneRuns(trunk)["audio"]
 	if record.Last.Commit != head || record.Last.Passed || record.Passed.Commit != head || !record.Passed.Passed || record.Passed.Ended.IsZero() {
 		t.Fatalf("the trunk keeps the lane as %+v; want its failed latest run and its pass, both at %s", record, head)

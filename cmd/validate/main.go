@@ -5,9 +5,9 @@
 // cycle's lanes, the real-model suites no landing runs. The default dry run
 // computes and prints the plan without loading a model or a
 // device; -run executes the selected cells and lanes. -claims holds the
-// claims compatibility.json and the training specifications make to the
-// sources they bind and checks the matrices published from them; a claim whose
-// source moved is rebound only after -claims -run re-runs its verify. It also
+// claims compatibility.json and the training specifications make to the files
+// they name, checks the matrices published from them and says where each
+// claim's test last passed; -claims -write writes the matrices again. It also
 // renders the model and media reports from the store on demand, exports the
 // media samples, publishes, checks and accepts the capability census, and
 // commits model-verification records. It also runs the smoke oracles against
@@ -80,7 +80,8 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	target := flags.Float64("target", math.NaN(), "with -gap, for the key of a decline: the value its cell is to be restored to, which the row carries from the cycle that found the decline")
 	declare := flags.String("declare", "", "with -scorecard and -bought: declare the decline this key names a trade, accepted at the value its cell holds now, into "+scorecard.DeclaredTradesFile+" beneath -root; the scorecard files it again only past that level")
 	bought := flags.String("bought", "", "with -declare: what the worsening bought, and the change that declares it")
-	claims := flags.Bool("claims", false, "check compatibility.json's claims and the training specifications against their bound sources and the matrices published from them; with -run, re-run the verify of every claim whose bound source moved, rebind the claims that pass, and write the matrices again")
+	claims := flags.Bool("claims", false, "check compatibility.json's claims and the training specifications against the files they name and the matrices published from them, and say where each claim's test last passed, as the trunk's record keeps it, and which file the claim names moved since")
+	writeMatrices := flags.Bool("write", false, "with -claims: write the matrices again from the claims, running no test")
 	models := flags.Bool("models", false, "print the nested model compatibility report: the docs/verification typed specifications joined against the store")
 	media := flags.String("media", "", "print the media capability report rendered from store activations and the verification specifications: markdown, or json for its typed projection; its links resolve from docs/")
 	exportSamples := flags.Bool("export-samples", false, "export healthy media activations' generation outputs as decodable files under assets")
@@ -117,7 +118,7 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 			"-readme reads the newest scorecard record and the training specifications and writes only the README's parts between their marker lines; with -check it writes nothing",
 			"-onboard runs on a clean tree: the activation binds the commit it validated under",
 			"a trained model is measured once, by -trained or the first -run after its training; a later -run leaves it out unless -model names it",
-			"-claims reads the checkout only; a claim is rebound only by its own verify passing, never by hand",
+			"-claims reads the checkout and the trunk's record of test passes, and runs no test; a claim refuses nothing, its standing being where its test last passed; with -write it writes the matrices alone",
 			"-models, -media, -check-census and -check-census-binding read the store; -export-samples writes only under assets; -publish-census and -record-verification write the store; -accept-census reads it, and with -reason writes it and the binding file",
 			"-smoke loads each selected model on the device and, without -diagnostic, records its run at the checked-out commit into the store",
 			"-parity, -tests and -receipt take their arguments after the flags; -receipt alone writes the store",
@@ -194,7 +195,10 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 		return writeScorecard(ctx, store, *root, records, output)
 	}
 	if *claims {
-		return publishedClaims(ctx, output, *root, *execute)
+		if err := publishedClaims(output, *root, *writeMatrices); err != nil || *writeMatrices {
+			return err
+		}
+		return claimStandings(ctx, output, *root)
 	}
 	if *media != "" && *media != "markdown" && *media != "json" || *mediaScope != "all" && !*exportSamples {
 		return errors.New("-media renders markdown or json, and -media-scope narrows -export-samples alone; the media report always renders every media task")

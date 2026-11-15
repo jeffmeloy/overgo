@@ -50,7 +50,6 @@ import (
 	"overgo/internal/repoanalysis"
 	"overgo/internal/runrecord"
 	"overgo/internal/testevidence"
-	"overgo/internal/testskip"
 )
 
 // Options names the row a landing serves, its authored message, and where
@@ -108,6 +107,8 @@ type landing struct {
 	trailers []string
 	// added are the checks of the steps this change itself adds.
 	added []string
+	// passed are the tests the stages passed (plan.PassedTest), kept once the change lands.
+	passed []string
 	// changedTerms are the trailers that state each row's check and count this change alters.
 	changedTerms []string
 	// trunk is the directory of the repository's main worktree and branch the
@@ -315,6 +316,11 @@ func Run(ctx context.Context, options Options) (landed string, err error) {
 	l.spent.Outcome = outcomeConflict
 	if landed, err = l.commit(ctx); landed != "" {
 		l.spent.Outcome = outcomeLanded
+		// The tests that passed in the stages passed at the commit the change landed as, which a claim reads
+		// (single-source/claim-record).
+		if kept := plan.RecordTestPasses(cmp.Or(l.trunk, l.Repo), plan.TestPass{Commit: landed, Ended: time.Now()}, l.passed); kept != nil {
+			fmt.Fprintf(options.Log, "land: the passes of %s's tests are not kept: %v\n", l.Ref, kept)
+		}
 	}
 	return landed, err
 }
@@ -771,20 +777,13 @@ func (l *landing) fix(ctx context.Context) error {
 // generator is a command that rewrites the files the source derives, which writes names.
 type generator struct {
 	arguments, environment, writes []string
-	// declared are the files of writes a person also edits, which derive never writes over an edit of (SQA-403):
-	// compatibility.json declares each claim's check and summary beside the binding the generator writes.
-	declared []string
 }
 
 // generators are the derived-file commands the repository has, in the order
 // they run: the API manifest, regenerated from the source, and the
-// compatibility claims, each rebound only by its own verify passing, which
-// takes a moment when no bound source moved. A repository without the
-// command has nothing to derive with it. A claim's verify is its test as
-// named, and a claim's test of the recorded store runs only where the store
-// acceptance is opted into, as the audio lane opts in: rebound without it,
-// audio-cpu-heldout-resource-fitness's test skipped and kept the claim on its
-// old binding, refusing the change (cycle-lanes/claims-env).
+// compatibility matrices, written from the claims. A repository without the
+// command has nothing to derive with it. None runs a test: a claim's test runs
+// where any test runs, and its last pass is kept (single-source/claim-record).
 func (l *landing) generators() []generator {
 	var held []generator
 	for _, candidate := range []struct {
@@ -792,8 +791,7 @@ func (l *landing) generators() []generator {
 		generator
 	}{
 		{"api-manifest", generator{arguments: []string{"run", "./cmd/api-manifest", "-update"}, writes: []string{"docs/api_manifest.json"}}},
-		{"validate", generator{arguments: []string{"run", "./cmd/validate", "-claims", "-run"}, environment: append(os.Environ(), cudaTestEnvironment, testskip.StoreAcceptanceEnv+"=1"),
-			writes: []string{"compatibility.json", "docs/COMPATIBILITY.md", "docs/TRAINING_COMPATIBILITY.md"}, declared: []string{"compatibility.json"}}},
+		{"validate", generator{arguments: []string{"run", "./cmd/validate", "-claims", "-write"}, writes: []string{"docs/COMPATIBILITY.md", "docs/TRAINING_COMPATIBILITY.md"}}},
 	} {
 		if _, err := os.Stat(filepath.Join(l.Repo, "cmd", candidate.command)); err == nil {
 			held = append(held, candidate.generator)
@@ -874,9 +872,23 @@ func (l *landing) goTests(ctx context.Context, stage string, runs ...[]string) (
 			return "", testFailure(output, err)
 		}
 		outputs.WriteString(output)
+		l.passed = append(l.passed, passedTests(output)...)
 	}
 	l.details[stage] = ranPackages(outputs.String())
 	return outputs.String(), nil
+}
+
+// passedTests names the tests go test's -json output says passed, a replayed pass among them, as their passes are
+// kept (plan.PassedTest); a subtest is its parent's.
+func passedTests(output string) []string {
+	var passed []string
+	for line := range strings.Lines(output) {
+		var event struct{ Action, Package, Test string }
+		if json.Unmarshal([]byte(line), &event) == nil && event.Action == "pass" && event.Test != "" && !strings.Contains(event.Test, "/") {
+			passed = append(passed, plan.PassedTest(event.Package, event.Test))
+		}
+	}
+	return passed
 }
 
 // reportedRuns is how many of the packages go test ran, and of their tests,

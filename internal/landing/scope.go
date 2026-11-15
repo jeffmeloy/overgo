@@ -70,11 +70,8 @@ func (l *landing) held(changed []repoanalysis.DirtyPath) (held []repoanalysis.Di
 	for _, generator := range l.generators() {
 		generated = append(generated, generator.writes...)
 	}
-	// A generated file a step lists is the step's own edit too, taken as the checkout holds it and derived again from
-	// the candidate: compatibility.json declares each claim's check and summary, which the claims generator rebinds, and
-	// a claim taken only as derived could never be changed.
 	for _, entry := range within {
-		if slices.Contains(generated, entry.Path) && !slices.Contains(l.derived, entry.Path) && !(l.scope != nil && plan.Lists(l.scope, entry.Path)) {
+		if slices.Contains(generated, entry.Path) && !slices.Contains(l.derived, entry.Path) {
 			left = append(left, entry.Path)
 			continue
 		}

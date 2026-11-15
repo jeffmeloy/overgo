@@ -55,7 +55,7 @@ func TestGeneratorsAreThoseTheRepositoryHas(t *testing.T) {
 	}{
 		{nil, nil},
 		{[]string{"api-manifest"}, []string{"./cmd/api-manifest -update"}},
-		{[]string{"api-manifest", "validate"}, []string{"./cmd/api-manifest -update", "./cmd/validate -claims -run"}},
+		{[]string{"api-manifest", "validate"}, []string{"./cmd/api-manifest -update", "./cmd/validate -claims -write"}},
 	} {
 		root := t.TempDir()
 		for _, command := range test.commands {

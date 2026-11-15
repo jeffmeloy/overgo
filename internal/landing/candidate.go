@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -14,7 +13,6 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
 	"overgo/internal/gitauthority"
-	"overgo/internal/plan"
 	"overgo/internal/processlock"
 )
 
@@ -144,12 +142,6 @@ func (l *landing) derive(ctx context.Context, generators []generator) error {
 			held, _ := os.ReadFile(filepath.Join(l.Repo, filepath.FromSlash(name)))
 			if bytes.Equal(held, derived) {
 				continue
-			}
-			// A declared file's copy that holds an edit the change does not take, a claim edited for another step, is
-			// never written over by the file the change derives anew: the commit would publish the change's binding, and
-			// the edit be lost (SQA-403). A file nothing declares is derived again whenever it is wanted.
-			if slices.Contains(generator.declared, name) && !bytes.Equal(held, base) && !(l.scope != nil && plan.Lists(l.scope, name)) {
-				return fmt.Errorf("the checkout's %s holds an edit this change does not take, and the change derives the file anew: land that edit first, or set it aside, so it is not written over", name)
 			}
 			if err := os.WriteFile(filepath.Join(l.Repo, filepath.FromSlash(name)), derived, clioptions.OutputFileMode); err != nil {
 				return err

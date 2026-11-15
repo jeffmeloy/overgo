@@ -14,6 +14,8 @@ import (
 	"overgo/internal/jsonfile"
 	"overgo/internal/latentimage"
 	"overgo/internal/recipe"
+	"overgo/internal/routedlm"
+	"overgo/internal/testcheck"
 	"overgo/internal/workflowruntime"
 )
 
@@ -52,6 +54,9 @@ type productionGenerationResult struct {
 	image     latentimage.EncodedImage
 	wall      time.Duration
 	peakBytes uint64
+	// admitted is the card memory the generator admits where it keeps both branches resident (holdBranches): their
+	// weights and the headroom beside them; none where it keeps neither.
+	admitted uint64
 }
 
 func runProductionImageGeneration(t testing.TB, request GenerationRequest) productionGenerationResult {
@@ -100,5 +105,12 @@ func runProductionImageGeneration(t testing.TB, request GenerationRequest) produ
 	t.Logf("SenseNova production phases: steps=%d prepare=%.3fs vision=%.3fs condition=%.3fs body=%.3fs flow=%.3fs guidance=%.3fs decode=%.3fs",
 		stats.Steps, stats.Prepare.Seconds(), stats.Vision.Seconds(), stats.Condition.Seconds(), stats.Body.Seconds(),
 		stats.Flow.Seconds(), stats.Guidance.Seconds(), stats.Decode.Seconds())
-	return productionGenerationResult{image: image, wall: time.Since(started), peakBytes: memory.PeakBytes}
+	produced := productionGenerationResult{image: image, wall: time.Since(started), peakBytes: memory.PeakBytes}
+	if generator.resident[0] != nil {
+		produced.admitted = residentBranchHeadroomBytes
+		for branch := range generator.resident {
+			produced.admitted += testcheck.Must(routedlm.BranchWeightBytes(generator.source, generator.config, generator.binding, branch))(t)
+		}
+	}
+	return produced
 }

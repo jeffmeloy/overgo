@@ -3,6 +3,24 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "cycle-lanes",
+      "title": "The cycle's lanes run at the build that gave them the gate's real-model tests, so each moved test runs before other work",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "The cycle's lanes run at the build that gave them the gate's real-model tests, so each moved test runs before other work",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go run ./cmd/validate -run -lanes",
+          "files": [
+            "docs/plan.json"
+          ],
+          "rationale": "Note: The evidence (the owner's review, 2026-11-14): cuda-synthetic moves 63 files of real-model CUDA tests to the cycle, among them latentimage's Krea tests the gate ran until that day. The cycle last ran on 8 Nov at fdd4ab1cea37, its lanes ending after 1 h 41 m without passing; HandStartDue calls one due by hand only when the plan is empty, and full-run has no steps, so nothing dispatches it. Until a cycle runs, a moved test runs only where a step names it as its check.\n\nDecision, the lead's at the owner's word (\"to act on as you see fit\"): cuda-synthetic lands with this row behind it, so the next step after it runs every test it moved. The turn is the cycle's lanes alone, validate -run -lanes, the checks a run makes before its cells: the models lane holds every moved package. It is not a step of full-run: a row leaves the plan when its last step lands, which would take full-run with it, and full-run's own check, the run with its cells, still waits on the causes its title names.\n\nCheck: validate -run -lanes passes on the card, each lane's go test run afresh (-count=1). A lane that fails names its tests, and curing them is this row's work."
+        }
+      ]
+    },
+    {
       "id": "single-source",
       "title": "A fact is written once, where a program uses it; other copies are generated or go, and the tool says what a session needs when it needs it",
       "owner": "master-lead",
@@ -80,24 +98,6 @@
             "docs/sqa_findings.json"
           ],
           "rationale": "Serves: the owner's rule of 2026-11-14.\n\nThe evidence: the register's findings carry up to sixteen fields (closure_criteria, evidence, evidence_basis, evidence_commit, plan_references, recommended_change, sources, consolidates among them); SQA-403 was written as input, expected and actual.\n\nThe change: a finding holds its id, severity, files, input, expected and actual.\n\nCheck: TestAFindingHoldsItsSixFields."
-        }
-      ]
-    },
-    {
-      "id": "cycle-lanes",
-      "title": "The cycle's lanes run at the build that gave them the gate's real-model tests, so each moved test runs before other work",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "The cycle's lanes run at the build that gave them the gate's real-model tests, so each moved test runs before other work",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go run ./cmd/validate -run -lanes",
-          "files": [
-            "docs/plan.json"
-          ],
-          "rationale": "Note: The evidence (the owner's review, 2026-11-14): cuda-synthetic moves 63 files of real-model CUDA tests to the cycle, among them latentimage's Krea tests the gate ran until that day. The cycle last ran on 8 Nov at fdd4ab1cea37, its lanes ending after 1 h 41 m without passing; HandStartDue calls one due by hand only when the plan is empty, and full-run has no steps, so nothing dispatches it. Until a cycle runs, a moved test runs only where a step names it as its check.\n\nDecision, the lead's at the owner's word (\"to act on as you see fit\"): cuda-synthetic lands with this row behind it, so the next step after it runs every test it moved. The turn is the cycle's lanes alone, validate -run -lanes, the checks a run makes before its cells: the models lane holds every moved package. It is not a step of full-run: a row leaves the plan when its last step lands, which would take full-run with it, and full-run's own check, the run with its cells, still waits on the causes its title names.\n\nCheck: validate -run -lanes passes on the card, each lane's go test run afresh (-count=1). A lane that fails names its tests, and curing them is this row's work."
         }
       ]
     },

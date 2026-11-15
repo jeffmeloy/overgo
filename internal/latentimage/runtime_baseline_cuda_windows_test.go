@@ -6,13 +6,9 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
-	"encoding/binary"
 	"encoding/hex"
 	"image/png"
-	"math"
 	"os"
-	"path/filepath"
-	"slices"
 	"testing"
 	"time"
 
@@ -22,6 +18,16 @@ import (
 	"overgo/internal/testskip"
 )
 
+// TestImagePublicationStreamsEncodedArtifact streams Krea's picture for one request through publication and holds its
+// geometry and its PNG, and reports its stages' walls. Its steps and its picture are held to
+// the model's own pipeline, not here: the mend of 56a5820a7 numbered the prompt's closing tokens and set a distilled
+// checkpoint's shift as the model's own code does, so the earlier implementation's step statistics and decoded picture,
+// which this test had held, describe another picture (cycle-lanes/krea-baseline). internal/adaptiveparity
+// TestServedPictureMatchesTheModelsOwnPipeline holds the served picture to the model's own code, and
+// internal/mediacapability TestFrozenKreaGeneration the frozen request's to its accepted sample. Its wall is reported and
+// refuses nothing: one request's wall read in a run of other models' tests stood at 19.6, 26.4 and 44 s as the file
+// cache held the text encoder or not, against the earlier implementation's 25.4 s, and a timing taken beside other work
+// is no measurement; the scorecard's timed cells measure Krea's first output.
 func TestImagePublicationStreamsEncodedArtifact(t *testing.T) {
 	requireLongTest(t)
 	if os.Getenv("OVERGO_KREA_BASELINE") != "1" {
@@ -41,32 +47,11 @@ func TestImagePublicationStreamsEncodedArtifact(t *testing.T) {
 	prepareStart := time.Now()
 	session := testcheck.Must(generator.prepare(ctx, request))(t)
 	prepareWall := time.Since(prepareStart)
-	wantMedian := [...]float64{-0.003021240234375, -0.00518798828125, -0.008575439453125, -0.009796142578125, -0.011077880859375, -0.008880615234375, -0.0128173828125, -0.04833984375}
-	wantMAD := [...]float64{0.641510009765625, 0.607421875, 0.569549560546875, 0.517608642578125, 0.455718994140625, 0.389556884765625, 0.3172607421875, 0.29736328125}
-	wantVelocityMedian := [...]float64{0.035400390625, 0.069580078125, 0.048828125, 0.02197265625, 0.010162353515625, 0.0062713623046875, 0.0068359375, 0.01806640625}
-	wantVelocityMAD := [...]float64{0.777099609375, 0.828857421875, 0.787109375, 0.74853515625, 0.728515625, 0.7093963623046875, 0.7001953125, 0.66162109375}
-	prior := testcheck.Must(generator.pipeline.Latent(ctx))(t)
 	var integrateWall time.Duration
 	for step := range generator.schedule.Steps {
 		started := time.Now()
 		testcheck.NoError(t, generator.pipeline.Advance(ctx, generator.schedule.Sigmas[step], generator.schedule.Deltas[step]))
 		integrateWall += time.Since(started)
-		latent := testcheck.Must(generator.pipeline.Latent(ctx))(t)
-		median, mad := medianMAD(latent)
-		t.Logf("step %d latent median/MAD: got %.6f/%.6f adaptive %.6f/%.6f", step, median, mad, wantMedian[step], wantMAD[step])
-		if math.Abs(median-wantMedian[step]) > 0.005 || math.Abs(mad-wantMAD[step]) > 0.01 {
-			t.Fatalf("step %d latent distribution exceeds adaptive bound", step)
-		}
-		velocity := make([]float32, len(latent))
-		for index := range velocity {
-			velocity[index] = (latent[index] - prior[index]) / float32(generator.schedule.Deltas[step])
-		}
-		velocityMedian, velocityMAD := medianMAD(velocity)
-		t.Logf("step %d velocity median/MAD: got %.6f/%.6f adaptive %.6f/%.6f", step, velocityMedian, velocityMAD, wantVelocityMedian[step], wantVelocityMAD[step])
-		if math.Abs(velocityMedian-wantVelocityMedian[step]) > 0.012 || math.Abs(velocityMAD-wantVelocityMAD[step]) > 0.015 {
-			t.Fatalf("step %d velocity distribution exceeds adaptive bound", step)
-		}
-		prior = latent
 	}
 	generator.integrated = true
 	decodeStart := time.Now()
@@ -78,25 +63,8 @@ func TestImagePublicationStreamsEncodedArtifact(t *testing.T) {
 	if len(image.Data) >= image.Channels*image.Width*image.Height*4 {
 		t.Fatalf("PNG bytes=%d, raw float bytes=%d", len(image.Data), image.Channels*image.Width*image.Height*4)
 	}
-	decoded := testcheck.Must(png.Decode(bytes.NewReader(image.Data)))(t)
+	testcheck.Must(png.Decode(bytes.NewReader(image.Data)))(t)
 	minimum, maximum := image.Minimum, image.Maximum
-	golden := testcheck.Must(os.ReadFile(filepath.Join("..", "..", "fixtures", "krea", "raw", "g3_decoded_rgb_f32le.bin")))(t)
-	plane := image.Width * image.Height
-	if len(golden) != 4*image.Channels*plane {
-		t.Fatalf("golden bytes = %d, want %d", len(golden), 4*image.Channels*plane)
-	}
-	var absoluteError, squaredError float64
-	for position := range plane {
-		r, g, b, _ := decoded.At(position%image.Width, position/image.Width).RGBA()
-		for channel, component := range []uint32{r, g, b} {
-			normalized := float32(component) / 65535
-			index := channel*plane + position
-			want := math.Float32frombits(binary.LittleEndian.Uint32(golden[4*index:]))
-			delta := float64(normalized - want)
-			absoluteError += math.Abs(delta)
-			squaredError += delta * delta
-		}
-	}
 	if maximum-minimum < 0.1 {
 		t.Fatalf("image is degenerate: range [%g,%g]", minimum, maximum)
 	}
@@ -109,22 +77,12 @@ func TestImagePublicationStreamsEncodedArtifact(t *testing.T) {
 	}
 	hash := sha256.Sum256(image.Data)
 	totalWall := time.Since(totalStart)
-	mae := absoluteError / float64(image.Channels*plane)
-	rmse := math.Sqrt(squaredError / float64(image.Channels*plane))
 	t.Logf(
 		"Krea 256 seed42 load=%.3fs prepare=%.3fs integrate=%.3fs decode+png=%.3fs total=%.3fs peak_device=%.3fGiB resident=%.3fGiB png_sha256=%s range=[%g,%g]",
 		loadWall.Seconds(), prepareWall.Seconds(), integrateWall.Seconds(), decodeWall.Seconds(), totalWall.Seconds(),
 		float64(memory.PeakBytes)/(1<<30), float64(generator.pipeline.ResidentBytes())/(1<<30),
 		hex.EncodeToString(hash[:]), minimum, maximum,
 	)
-	t.Logf("adaptive golden delta: MAE=%.6f RMSE=%.6f", mae, rmse)
-	if mae > 0.04 || rmse > 0.07 {
-		t.Fatalf("adaptive golden delta exceeds bound: MAE=%.6f RMSE=%.6f", mae, rmse)
-	}
-	const adaptiveWall = 25_430_488_300 * time.Nanosecond
-	if totalWall >= adaptiveWall {
-		t.Fatalf("Krea wall %s does not beat adaptive %s", totalWall, adaptiveWall)
-	}
 }
 
 func TestImageSessionCacheReusesResidentRuntime(t *testing.T) {
@@ -172,16 +130,4 @@ func runResidentGeneration(
 	}
 	image := testcheck.Must(generator.decode(ctx, session))(t)
 	return image, time.Since(started)
-}
-
-func medianMAD(values []float32) (float64, float64) {
-	ordered := append([]float32(nil), values...)
-	slices.Sort(ordered)
-	median := ordered[len(ordered)/2]
-	deviations := make([]float32, len(ordered))
-	for index, value := range ordered {
-		deviations[index] = float32(math.Abs(float64(value - median)))
-	}
-	slices.Sort(deviations)
-	return float64(median), float64(deviations[len(deviations)/2])
 }

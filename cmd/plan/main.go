@@ -553,11 +553,31 @@ func setStepVerify(root, itemID, stepID, cmd, role string) error {
 			return err
 		}
 		fmt.Printf("set verify for %s/%s: %s\n", itemID, stepID, strings.TrimSpace(cmd))
+		if held, found := trunkCheck(root, itemID, stepID); found && held != strings.TrimSpace(cmd) {
+			fmt.Printf("a landing of %s/%s runs the trunk's check, %s, until a change of the plan alone lands this one: "+
+				"file a step whose check reads this one in the plan, with -files %s, and land it first\n", itemID, stepID, held, plan.Path)
+		}
 		if current && it.ID == itemID && st.ID == stepID {
 			return runVerify(it, st)
 		}
 		return nil
 	})
+}
+
+// trunkCheck is the check the trunk's plan holds for a step, and whether it holds the step: a landing of the step runs
+// that check (SQA-378), so a check set in the checkout reaches the step's landing only by a change of the plan alone,
+// landed first.
+func trunkCheck(root, itemID, stepID string) (string, bool) {
+	held, err := commandInput(root, nil, "git", "cat-file", "blob", "HEAD:"+plan.Path)
+	if err != nil {
+		return "", false
+	}
+	trunk, err := plan.Parse(held)
+	if err != nil {
+		return "", false
+	}
+	step, found := plan.ExactStep(trunk, itemID, stepID)
+	return step.Verify, found
 }
 
 // printDecisions lists the decisions still open, oldest first as the

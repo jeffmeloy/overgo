@@ -90,6 +90,10 @@ type Plan struct {
 	// lanes, none for a plan that keeps nothing, as a test's fixture lanes keep nothing: run through the runner, they
 	// had written their seven lanes into the trunk's record and the status printed them (lane-record/do).
 	LanesKept string `json:"-"`
+	// HoldsCard runs a lane on the card in the card's turn for the purpose it names (landing.HoldLaneTurn), so the
+	// lane's tests ride the run's place and a render beside it gives the card up once for the lane, where each test
+	// had waited out a picture; validate's own run sets it and no test does, so a run without it holds nothing.
+	HoldsCard func(purpose string, work func() error) error `json:"-"`
 }
 
 // measuredModelsFile lists the models a full run measures again, by the names -model takes: one per runtime path,

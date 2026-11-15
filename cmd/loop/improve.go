@@ -177,6 +177,9 @@ func (w *improvement) CycleWorthRunning() (bool, string, error) {
 // improvementFor is the loop's improvement world over a store: this
 // checkout's plan, the store's published scorecards, the scorecard run and
 // the background validations.
+// measurementPhases is what a measurement run holds the card's turn for, which a process waiting on it reads.
+const measurementPhases = "a measurement run's phases on the card"
+
 func improvementFor(store string) improvement {
 	run := &runRecorder{root: loopWorktree}
 	return improvement{
@@ -184,10 +187,10 @@ func improvementFor(store string) improvement {
 		// The measurement and the fill use the device, so each holds the host's lane turn: a landing beside the run
 		// runs its host stages, and its lanes wait for the turn in code (landing.HoldLaneTurn).
 		measure: func(checkout string, published func() error) error {
-			return landing.HoldLaneTurn(func() error { return measureScorecard(checkout, store, published, run) })
+			return landing.HoldLaneTurn(measurementPhases, func() error { return measureScorecard(checkout, store, published, run) })
 		},
 		fill: func(checkout string) error {
-			return landing.HoldLaneTurn(func() error {
+			return landing.HoldLaneTurn(measurementPhases, func() error {
 				return validateTo(os.Stdout, checkout, store, []string{cycleCreditEnvironment(filepath.Dir(checkout))}, "-run", "-background")
 			})
 		},

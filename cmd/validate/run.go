@@ -236,7 +236,13 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 	}
 	for _, suite := range suites {
 		fmt.Fprintf(output, "validate -run cycle lane %s\n", suite.Lane)
-		err := acquire(ctx, output, root, "go", suite.Arguments, suite.Environment...)
+		lane := func() error { return acquire(ctx, output, root, "go", suite.Arguments, suite.Environment...) }
+		var err error
+		if plan.HoldsCard != nil && landing.OnCard(suite.Environment) {
+			err = plan.HoldsCard("the cycle lane "+suite.Lane, lane)
+		} else {
+			err = lane()
+		}
 		record("cycle lane "+suite.Lane, err)
 		if plan.LanesKept == "" {
 			continue

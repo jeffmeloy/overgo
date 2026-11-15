@@ -204,6 +204,9 @@ var cycleLanes = []lane{
 	},
 }
 
+// OnCard says a lane's environment opts its tests into the card (cudaTestEnvironment).
+func OnCard(environment []string) bool { return slices.Contains(environment, cudaTestEnvironment) }
+
 // cudaTestEnvironment opts a lane's tests into the real device; without it
 // cudatest.Require skips them.
 const cudaTestEnvironment = "OVERGO_CUDA_TEST=1"
@@ -324,11 +327,12 @@ func takeLaneTurn(purpose string, output io.Writer) (func() error, error) {
 	return processcontrol.TakeTurn(name, purpose, output)
 }
 
-// HoldLaneTurn runs work in the host's lane turn: a measurement run's phases that use the device hold it, so a landing
-// beside the run runs its host stages and its lanes wait for the device in code, where every build, test and commit
-// was once held for the run by a written rule.
-func HoldLaneTurn(work func() error) error {
-	release, err := takeLaneTurn("a measurement run's phases on the card", os.Stderr)
+// HoldLaneTurn runs work in the host's lane turn for purpose: a measurement run's phases that use the device hold it, so a
+// landing beside the run runs its host stages and its lanes wait for the device in code, where every build, test and
+// commit was once held for the run by a written rule; a run of the cycle's lanes holds it while a lane on the card runs
+// (OnCard), so a render beside it gives the card up once for the lane, where each test had waited out a picture.
+func HoldLaneTurn(purpose string, work func() error) error {
+	release, err := takeLaneTurn(purpose, os.Stderr)
 	if err != nil {
 		return err
 	}

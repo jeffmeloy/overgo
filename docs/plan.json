@@ -9,12 +9,15 @@
         {
           "id": "finding-fields",
           "title": "A finding holds id, severity, files, input, expected and actual",
-          "verify": "go test ./cmd/finding -count=1 -run '^TestAFindingHoldsItsSixFields$'",
+          "verify": "go test ./internal/plan -count=1 -run '^TestAFindingHoldsItsSixFields$'",
           "files": [
-            "cmd/finding",
-            "docs/sqa_findings.json"
+            "docs/sqa_findings.json",
+            "internal/plan",
+            "internal/landing/compose_test.go",
+            "internal/repoanalysis/register_reductions_test.go",
+            "internal/evaluation/moss_retained_model_test.go"
           ],
-          "rationale": "Serves: the owner's rule of 2026-11-14.\n\nThe evidence: the register's findings carry up to sixteen fields (closure_criteria, evidence, evidence_basis, evidence_commit, plan_references, recommended_change, sources, consolidates among them); SQA-403 was written as input, expected and actual.\n\nThe change: a finding holds its id, severity, files, input, expected and actual.\n\nCheck: TestAFindingHoldsItsSixFields."
+          "rationale": "Serves: the owner's rule of 2026-11-14.\n\nThe evidence: the register's findings carry up to sixteen fields (closure_criteria, evidence, evidence_basis, evidence_commit, plan_references, recommended_change, sources, consolidates among them); SQA-403 was written as input, expected and actual.\n\nThe change: a finding holds its id, severity, files, input, expected and actual.\n\nCheck: TestAFindingHoldsItsSixFields.\n\nNote: files set to docs/sqa_findings.json, internal/plan, internal/landing/compose_test.go, internal/repoanalysis/register_reductions_test.go, internal/evaluation/moss_retained_model_test.go: The finding's type is read where a program uses it, the plan's register reader (internal/plan), so its check is there and not in cmd/finding, which writes the store's findings; the landing's message test, the reductions test and the MOSS record test read the register's old fields."
         },
         {
           "id": "skill-source",

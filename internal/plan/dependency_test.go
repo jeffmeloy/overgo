@@ -9,11 +9,11 @@ func dependencyFixture() Plan {
 	return Plan{
 		Campaign: "dependency-fixture",
 		Items: []Item{
-			{ID: "root", Status: StatusOpen, Owner: "gui", Steps: []Step{{
-				ID: "do", Title: "root work", Status: StatusOpen, Verify: "exit 0",
+			{ID: "root", Steps: []Step{{
+				ID: "do", Title: "root work", Verify: "exit 0",
 			}}},
-			{ID: "dependent", Status: StatusOpen, Owner: "gui", Steps: []Step{{
-				ID: "do", Title: "dependent work", Status: StatusOpen, Verify: "exit 0",
+			{ID: "dependent", Steps: []Step{{
+				ID: "do", Title: "dependent work", Verify: "exit 0",
 				DependsOn: []string{"root/do"},
 			}}},
 		},
@@ -27,22 +27,22 @@ func TestDependencyDispatchSkipsBlocked(t *testing.T) {
 	t.Parallel()
 	document := dependencyFixture()
 	document.Items[0], document.Items[1] = document.Items[1], document.Items[0]
-	item, _, ok := Current(document, "gui")
+	item, _, ok := Current(document)
 	if !ok || item.ID != "root" {
 		t.Fatalf("dispatch = (%s, %t), want the unblocked root despite file order", item.ID, ok)
 	}
 	// A landing that completes or retires the root removes it; its absence
 	// settles the dependency.
 	document.Items = document.Items[:1]
-	item, _, ok = Current(document, "gui")
+	item, _, ok = Current(document)
 	if !ok || item.ID != "dependent" {
 		t.Fatalf("dispatch = (%s, %t), want the dependent once its root completed and left", item.ID, ok)
 	}
 	// A reference to a PRESENT but unfinished sibling step still blocks.
 	document.Items[0].Steps = append(document.Items[0].Steps,
-		Step{ID: "later", Status: StatusOpen, Verify: "go test ./..."})
+		Step{ID: "later", Verify: "go test ./..."})
 	document.Items[0].Steps[0].DependsOn = []string{"dependent/later"}
-	if item, step, ok := Current(document, "gui"); !ok || step.ID != "later" {
+	if item, step, ok := Current(document); !ok || step.ID != "later" {
 		t.Fatalf("dispatch = (%s/%s, %t), want the unblocked sibling", item.ID, step.ID, ok)
 	}
 }
@@ -102,7 +102,7 @@ func TestDependencySameItemEdges(t *testing.T) {
 	t.Parallel()
 	sibling := dependencyFixture()
 	sibling.Items[0].Steps = append(sibling.Items[0].Steps, Step{
-		ID: "verify", Title: "verify root", Status: StatusOpen, Verify: "exit 0",
+		ID: "verify", Title: "verify root", Verify: "exit 0",
 		DependsOn: []string{"root/do"},
 	})
 	if err := Validate(sibling); err != nil {
@@ -116,8 +116,8 @@ func TestDependencySameItemEdges(t *testing.T) {
 	mutual := dependencyFixture()
 	mutual.Items[1].Steps[0].DependsOn = nil
 	mutual.Items[0].Steps = []Step{
-		{ID: "a", Title: "a", Status: StatusOpen, Verify: "exit 0", DependsOn: []string{"root/b"}},
-		{ID: "b", Title: "b", Status: StatusOpen, Verify: "exit 0", DependsOn: []string{"root/a"}},
+		{ID: "a", Title: "a", Verify: "exit 0", DependsOn: []string{"root/b"}},
+		{ID: "b", Title: "b", Verify: "exit 0", DependsOn: []string{"root/a"}},
 	}
 	if err := Validate(mutual); err == nil || !strings.Contains(err.Error(), "cycle") {
 		t.Fatalf("mutually dependent siblings accepted: %v", err)

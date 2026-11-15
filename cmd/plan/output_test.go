@@ -9,18 +9,17 @@ import (
 
 	"overgo/internal/plan"
 	"overgo/internal/testcheck"
-	"overgo/internal/worklease"
 )
 
 func TestCompactAgentOutput(t *testing.T) {
 	t.Parallel()
 	document := plan.Plan{Campaign: "campaign", Items: []plan.Item{{
-		ID: "item", Title: "item title", Status: "open", Steps: []plan.Step{{
-			ID: "do", Title: "make the bounded change", Status: "open", Verify: "go test ./x -run '^TestX$'",
+		ID: "item", Title: "item title", Steps: []plan.Step{{
+			ID: "do", Title: "make the bounded change", Verify: "go test ./x -run '^TestX$'",
 		}},
 	}}}
 	var output bytes.Buffer
-	item, step, found := plan.Current(document, worklease.UnassignedRole)
+	item, step, found := plan.Current(document)
 	if !found {
 		t.Fatal("the plan dispatched no step")
 	}
@@ -36,15 +35,15 @@ func TestCompactAgentOutput(t *testing.T) {
 
 func TestBatchPromptRetainsParentDispatch(t *testing.T) {
 	t.Parallel()
-	document := plan.Plan{Items: []plan.Item{{ID: "audio", Status: plan.StatusOpen, Steps: []plan.Step{{
-		ID: "dataset", Status: plan.StatusOpen, Verify: "go test ./x -run '^TestIntegration$'",
+	document := plan.Plan{Items: []plan.Item{{ID: "audio", Steps: []plan.Step{{
+		ID: "dataset", Verify: "go test ./x -run '^TestIntegration$'",
 		VerificationBatch: &plan.VerificationBatch{
 			Scope: []string{"internal/dataset"}, Rationale: "Share integration work.", ReopenWhen: "Acceptance changes.",
 			Checkpoints: []plan.VerificationCheckpoint{{ID: "source", Title: "Source", Verify: "go test ./x -run '^TestSource$'"}},
 		},
 	}}}}}
 	var output bytes.Buffer
-	item, step, found := plan.Current(document, worklease.UnassignedRole)
+	item, step, found := plan.Current(document)
 	if !found {
 		t.Fatal("the plan dispatched no step")
 	}
@@ -59,16 +58,13 @@ func TestBatchPromptRetainsParentDispatch(t *testing.T) {
 func TestStatusCountsRetainedOpenRows(t *testing.T) {
 	t.Parallel()
 	document := plan.Plan{Items: []plan.Item{
-		{ID: "complete", Title: "complete", Status: plan.StatusDone, Steps: []plan.Step{{ID: "done", Status: plan.StatusDone}}},
-		{ID: "active", Title: "active", Status: plan.StatusOpen, Steps: []plan.Step{
-			{ID: "done", Status: plan.StatusDone},
-			{ID: "open", Status: plan.StatusOpen},
-		}},
+		{ID: "single", Title: "single", Steps: []plan.Step{{ID: "do"}}},
+		{ID: "double", Title: "double", Steps: []plan.Step{{ID: "do"}, {ID: "next"}}},
 	}}
 	output := captureStdout(t, func() { printStatus(document) })
-	if !strings.Contains(output, "complete") || !strings.Contains(output, "0 open rows") ||
-		!strings.Contains(output, "active") || !strings.Contains(output, "1 open rows") {
-		t.Fatalf("status did not distinguish retained and open rows:\n%s", output)
+	if !strings.Contains(output, "single") || !strings.Contains(output, "1 open rows") ||
+		!strings.Contains(output, "double") || !strings.Contains(output, "2 open rows") {
+		t.Fatalf("status did not count each row's open steps:\n%s", output)
 	}
 }
 

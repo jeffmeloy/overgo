@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"overgo/internal/testcheck"
-	"overgo/internal/worklease"
 )
 
 // TestDispatchSkipsCardStepsWhileARunHoldsTheCard holds dispatch to host work while a measurement run holds the card:
@@ -17,17 +16,17 @@ import (
 // ended and its process lives.
 func TestDispatchSkipsCardStepsWhileARunHoldsTheCard(t *testing.T) {
 	t.Parallel()
-	card := Item{ID: "bridge", Title: "bridge", Status: StatusOpen, Steps: []Step{{ID: "capture", Title: "capture", Status: StatusOpen, Verify: "true", NeedsCard: true}}}
-	host := Item{ID: "host", Title: "host", Status: StatusOpen, Steps: []Step{{ID: "do", Title: "do", Status: StatusOpen, Verify: "true"}}}
+	card := Item{ID: "bridge", Title: "bridge", Steps: []Step{{ID: "capture", Title: "capture", Verify: "true", NeedsCard: true}}}
+	host := Item{ID: "host", Title: "host", Steps: []Step{{ID: "do", Title: "do", Verify: "true"}}}
 	document := Plan{Campaign: "fixture", Items: []Item{card, host}}
-	free := testcheck.Must(selectDispatch(document, worklease.UnassignedRole, ""))(t)
+	free := testcheck.Must(selectDispatch(document, ""))(t)
 	document.cardHeld = true
-	held := testcheck.Must(selectDispatch(document, worklease.UnassignedRole, ""))(t)
+	held := testcheck.Must(selectDispatch(document, ""))(t)
 	if free.Item != "bridge" || held.Item != "host" {
 		t.Fatalf("dispatch gave %s with the card free and %s with it held; want the card step, then the host step", free.Item, held.Item)
 	}
 	document.Items = []Item{card}
-	waiting := testcheck.Must(selectDispatch(document, worklease.UnassignedRole, ""))(t)
+	waiting := testcheck.Must(selectDispatch(document, ""))(t)
 	if waiting.Complete || !strings.Contains(waiting.Waiting, "holds the graphics card") {
 		t.Fatalf("with only a card step left and the card held, dispatch gave %+v; want it waiting for the card", waiting)
 	}

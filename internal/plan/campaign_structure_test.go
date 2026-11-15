@@ -30,7 +30,7 @@ func campaignStructuralViolations(document Plan) []string {
 		}
 		for _, step := range item.Steps {
 			id := item.ID + "/" + step.ID
-			if step.Status == StatusOpen && strings.TrimSpace(step.Verify) == "" {
+			if strings.TrimSpace(step.Verify) == "" {
 				violations = append(violations, "step "+id+" has no machine-checked verify")
 			}
 			if len(step.Capabilities) != 0 {
@@ -49,8 +49,8 @@ func TestStructuralCampaignPolicy(t *testing.T) {
 	validCampaign := func() Plan {
 		return Plan{
 			Campaign: "Integrated validation",
-			Items: []Item{{ID: "row", Title: "Row", Status: StatusOpen, Steps: []Step{
-				{ID: "do", Title: "Do", Status: StatusOpen, Verify: "go test ./x -run '^TestX$'"},
+			Items: []Item{{ID: "row", Title: "Row", Steps: []Step{
+				{ID: "do", Title: "Do", Verify: "go test ./x -run '^TestX$'"},
 			}}},
 		}
 	}
@@ -83,13 +83,12 @@ func preparedMergeBoundary(item Item) bool {
 func preparedMergeShape(item Item) bool {
 	revision, found := strings.CutPrefix(item.ID, "merge-")
 	return found && len(revision) == 12 && strings.Trim(revision, "0123456789abcdef") == "" &&
-		item.Status == StatusOpen && len(item.Steps) == 1 && item.Steps[0].ID == "do" &&
-		item.Steps[0].Status == StatusOpen
+		len(item.Steps) == 1 && item.Steps[0].ID == "do"
 }
 
 func TestPreparedMergeBoundaryVerification(t *testing.T) {
 	t.Parallel()
-	item := Item{ID: "merge-fb7de0423660", Status: StatusOpen, Steps: []Step{{ID: "do", Status: StatusOpen}}}
+	item := Item{ID: "merge-fb7de0423660", Steps: []Step{{ID: "do"}}}
 	for _, test := range []struct {
 		verify string
 		want   bool

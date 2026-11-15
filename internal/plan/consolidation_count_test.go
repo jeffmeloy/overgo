@@ -13,10 +13,10 @@ import (
 func TestOnlyAConsolidationCarriesACount(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "plan.json")
-	step := []Step{{ID: "do", Title: "do", Status: StatusOpen, Verify: "true"}}
+	step := []Step{{ID: "do", Title: "do", Verify: "true"}}
 	testcheck.NoError(t, Save(path, Plan{Campaign: "fixture", Items: []Item{
-		{ID: "feature", Title: "feature", Status: StatusOpen, Budget: Budget{Nodes: 300, Reason: "an estimate"}, Steps: step},
-		{ID: "shrink", Title: "shrink", Class: ClassConsolidation, Status: StatusOpen, Budget: Budget{Nodes: -40, Reason: "it must shrink"}, Steps: step},
+		{ID: "feature", Title: "feature", Budget: Budget{Nodes: 300, Reason: "an estimate"}, Steps: step},
+		{ID: "shrink", Title: "shrink", Class: ClassConsolidation, Budget: Budget{Nodes: -40, Reason: "it must shrink"}, Steps: step},
 	}}))
 	saved := testcheck.Must(Load(path))(t)
 	if feature, shrink := saved.Items[0].Budget, saved.Items[1].Budget; feature != (Budget{}) || shrink != (Budget{Nodes: -40, Reason: "it must shrink"}) {

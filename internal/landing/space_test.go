@@ -102,8 +102,8 @@ func TestCommitChecksRefuseBelowTheFreeSpaceFloor(t *testing.T) {
 	// A change to the plan alone keeps one stage of the gate's own, and is held to the floor too.
 	fixture.write("a.txt", "base\n")
 	filed := testcheck.Must(plan.Parse([]byte(planned)))(t)
-	filed.Items = append(filed.Items, plan.Item{ID: "later", Title: "later", Status: plan.StatusOpen,
-		Steps: []plan.Step{{ID: "do", Title: "later", Status: plan.StatusOpen, Verify: "true"}}})
+	filed.Items = append(filed.Items, plan.Item{ID: "later", Title: "later",
+		Steps: []plan.Step{{ID: "do", Title: "later", Verify: "true"}}})
 	testcheck.NoError(t, plan.Save(fixture.planPath(), filed))
 	log, record, err = run(true, reader)
 	if stages := slices.Collect(maps.Keys(record.Stages)); err == nil || !strings.Contains(err.Error(), "land: space:") || !slices.Equal(stages, []string{spaceClass}) {

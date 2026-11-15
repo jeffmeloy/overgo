@@ -61,9 +61,9 @@ func dispatchWorker(explicit string) (string, error) {
 	return worker, nil
 }
 
-// DispatchOf resolves the current row for role under a resolved authority.
-func DispatchOf(document Plan, role string) Dispatch {
-	item, step, ok := Current(document, role)
+// DispatchOf resolves the current row under a resolved authority.
+func DispatchOf(document Plan) Dispatch {
+	item, step, ok := Current(document)
 	if !ok {
 		return finishDispatch(Dispatch{Complete: true})
 	}
@@ -168,7 +168,10 @@ func ResolveDispatch(ctx context.Context, root string, request DispatchRequest) 
 	}
 	run, recorded := ReadMeasurementRun(repository)
 	document.cardHeld = recorded && run.HoldsTheCard()
-	dispatch, err := selectDispatch(document, role, request.Reference)
+	if other := otherLane(document, role); other != "" {
+		return finishDispatch(Dispatch{Waiting: other}), nil
+	}
+	dispatch, err := selectDispatch(document, request.Reference)
 	if err != nil {
 		return Dispatch{}, err
 	}
@@ -204,7 +207,7 @@ func dispatchStep(document Plan, ref string) (Item, Step, bool) {
 
 // Visit prerequisites before the blocked objective's later siblings; retain
 // document order otherwise. This changes scheduling, never dependency evidence.
-func dispatchPriority(document Plan, role string) ([]Ref, error) {
+func dispatchPriority(document Plan) ([]Ref, error) {
 	frontier, err := ReadyFrontier(document)
 	if err != nil {
 		return nil, err
@@ -213,25 +216,18 @@ func dispatchPriority(document Plan, role string) ([]Ref, error) {
 	for _, ref := range frontier {
 		ready[ref.String()] = true
 	}
-	role = normalizedRole(role)
-	if role == worklease.UnassignedRole && document.Lane != "" {
-		role = document.Lane
-	}
 	awaiting := awaitingDecision(document)
-	eligible := func(item Item) bool {
-		return !awaiting[item.ID] && (item.Owner == "" || role != worklease.UnassignedRole && item.Owner == role)
-	}
 	visited := map[string]bool{}
 	var ordered []Ref
 	var visit func(Item, Step)
 	visit = func(item Item, step Step) {
 		ref := Ref{Item: item.ID, Step: step.ID}
-		if visited[ref.String()] || item.Status != StatusOpen || step.Status != StatusOpen {
+		if visited[ref.String()] {
 			return
 		}
 		visited[ref.String()] = true
 		if ready[ref.String()] {
-			if eligible(item) && !slices.Contains(document.parked, ref.String()) && !(document.cardHeld && step.NeedsCard) {
+			if !awaiting[item.ID] && !slices.Contains(document.parked, ref.String()) && !(document.cardHeld && step.NeedsCard) {
 				ordered = append(ordered, ref)
 			}
 			return
@@ -242,17 +238,9 @@ func dispatchPriority(document Plan, role string) ([]Ref, error) {
 			}
 		}
 	}
-	owners := []string{""}
-	if role != worklease.UnassignedRole {
-		owners = []string{role, ""}
-	}
-	for _, owner := range owners {
-		for _, item := range document.Items {
-			if item.Owner == owner {
-				for _, step := range item.Steps {
-					visit(item, step)
-				}
-			}
+	for _, item := range document.Items {
+		for _, step := range item.Steps {
+			visit(item, step)
 		}
 	}
 	return ordered, nil
@@ -260,8 +248,8 @@ func dispatchPriority(document Plan, role string) ([]Ref, error) {
 
 // selectDispatch picks the first ready row in prerequisite order, or the
 // requested row when it is ready.
-func selectDispatch(document Plan, role, reference string) (Dispatch, error) {
-	ordered, err := dispatchPriority(document, role)
+func selectDispatch(document Plan, reference string) (Dispatch, error) {
+	ordered, err := dispatchPriority(document)
 	if err != nil {
 		return Dispatch{}, err
 	}
@@ -273,15 +261,15 @@ func selectDispatch(document Plan, role, reference string) (Dispatch, error) {
 		return stepDispatch(item, step), nil
 	}
 	awaiting := awaitingDecision(document)
-	if item, step, open := Current(document, role); open && !awaiting[item.ID] && reference == "" &&
+	if item, step, open := Current(document); open && !awaiting[item.ID] && reference == "" &&
 		!slices.Contains(document.parked, item.ID+"/"+step.ID) && !(document.cardHeld && step.NeedsCard) {
 		// Preserve the empty-rung dispatch until the rung is given steps.
-		return DispatchOf(document, role), nil
+		return DispatchOf(document), nil
 	}
 	if decided, taken := byRecommendation(document); taken && slices.ContainsFunc(document.Items, func(item Item) bool {
-		return item.Status == StatusOpen && awaiting[item.ID]
+		return awaiting[item.ID]
 	}) {
-		dispatch, err := selectDispatch(decided, role, reference)
+		dispatch, err := selectDispatch(decided, reference)
 		if err == nil && dispatch.Item != "" {
 			dispatch.Decided = decidedFor(document, dispatch.Item)
 			dispatch.Line = dispatchLine(dispatch)
@@ -289,11 +277,11 @@ func selectDispatch(document Plan, role, reference string) (Dispatch, error) {
 		return dispatch, err
 	}
 	if reference != "" {
-		return finishDispatch(Dispatch{Waiting: "requested row is not ready for this role"}), nil
+		return finishDispatch(Dispatch{Waiting: "requested row is not ready"}), nil
 	}
 	var held []string
 	for _, item := range document.Items {
-		if decision, holding := holdingDecision(document, item.ID); holding && item.Status == StatusOpen {
+		if decision, holding := holdingDecision(document, item.ID); holding {
 			held = append(held, item.ID+" is held by decision "+decision.ID+": "+decision.holds())
 		}
 	}
@@ -301,10 +289,8 @@ func selectDispatch(document Plan, role, reference string) (Dispatch, error) {
 	if len(held) != 0 {
 		return finishDispatch(Dispatch{Waiting: strings.Join(held, "; ")}), nil
 	}
-	for _, item := range document.Items {
-		if item.Status == StatusOpen {
-			return finishDispatch(Dispatch{Waiting: "remaining rows require prerequisite evidence or an eligible role"}), nil
-		}
+	if len(document.Items) != 0 {
+		return finishDispatch(Dispatch{Waiting: "remaining rows require prerequisite evidence"}), nil
 	}
 	return finishDispatch(Dispatch{Complete: true}), nil
 }
@@ -347,11 +333,14 @@ func AdmitLanding(ctx context.Context, root string, document Plan, request Dispa
 // admits refuses ref unless dispatch gives it to role: for a worker, or a rung with no steps, the one step dispatch
 // names, and otherwise any step it would give.
 func admits(document Plan, role string, worker bool, ref Ref) error {
+	if other := otherLane(document, role); other != "" {
+		return errors.New("plan: " + other)
+	}
 	reference := ref.String()
 	if worker || ref.Step == "." {
 		reference = ""
 	}
-	dispatch, err := selectDispatch(document, role, reference)
+	dispatch, err := selectDispatch(document, reference)
 	switch {
 	case err != nil:
 		return err
@@ -361,6 +350,15 @@ func admits(document Plan, role string, worker bool, ref Ref) error {
 		return fmt.Errorf("plan: a worker lands only the step dispatch gives it (%s), never %s", dispatch.Line, ref)
 	}
 	return fmt.Errorf("plan: dispatch would not give %s to %s: %s", ref, role, dispatch.Line)
+}
+
+// otherLane says why role takes no row of the plan, which is its lane's alone: a role named that is another lane's
+// (single-source/step-fields, where every row's owner was the plan's lane); empty when role takes its rows.
+func otherLane(document Plan, role string) string {
+	if role = normalizedRole(role); document.Lane == "" || role == worklease.UnassignedRole || role == document.Lane {
+		return ""
+	}
+	return "the plan is lane " + document.Lane + "'s, and gives role " + role + " no row"
 }
 
 // byRecommendation is the plan with each unanswered decision taken at its recommendation, and whether it took any: once
@@ -424,10 +422,10 @@ func parkedNote(document Plan) []string {
 		notes = append(notes, "parked until a commit: "+strings.Join(document.parked, ", "))
 	}
 	// Steps that need the card wait while a run holds it, said, so an empty dispatch is not read as an empty plan.
-	if document.cardHeld && slices.ContainsFunc(document.Items, func(item Item) bool {
-		return item.Status == StatusOpen && slices.ContainsFunc(item.Steps, func(step Step) bool { return step.NeedsCard && step.Status == StatusOpen })
-	}) {
-		notes = append(notes, "the measurement run holds the graphics card, which the steps left need")
+	for _, item := range document.Items {
+		if document.cardHeld && slices.ContainsFunc(item.Steps, func(step Step) bool { return step.NeedsCard }) {
+			return append(notes, "the measurement run holds the graphics card, which the steps left need")
+		}
 	}
 	return notes
 }

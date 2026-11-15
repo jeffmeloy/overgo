@@ -47,8 +47,8 @@ func TestWorktreeCandidateIsIntegratedOntoTheTrunk(t *testing.T) {
 	fixture.git("config", "core.autocrlf", "false")
 	grown := packageNodes(t, oneFunction)
 	row := func(id, check string) plan.Item {
-		return plan.Item{ID: id, Title: id, Status: plan.StatusOpen, Budget: plan.Budget{Nodes: grown, Reason: "the fixture's growth"},
-			Steps: []plan.Step{{ID: "do", Title: id, Status: plan.StatusOpen, Verify: check}}}
+		return plan.Item{ID: id, Title: id, Budget: plan.Budget{Nodes: grown, Reason: "the fixture's growth"},
+			Steps: []plan.Step{{ID: "do", Title: id, Verify: check}}}
 	}
 	fixture.commitPlan(plan.Plan{Campaign: "fixture", Items: []plan.Item{row("first", "true"), row("second", "false"), row("third", "true")}})
 	base := fixture.git("rev-parse", "HEAD")

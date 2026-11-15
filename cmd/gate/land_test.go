@@ -40,8 +40,8 @@ func TestSmallGateLandsAChange(t *testing.T) {
 	write(legacy, "package p\n\n// Has reports whether values holds value.\nfunc Has(values []string, value string) bool {\n"+
 		"\tfor _, candidate := range values {\n\t\tif candidate == value {\n\t\t\treturn true\n\t\t}\n\t}\n\treturn false\n}\n")
 	row := func(id string) plan.Item {
-		return plan.Item{ID: id, Title: id, Status: plan.StatusOpen, Steps: []plan.Step{{
-			ID: "do", Title: id, Status: plan.StatusOpen, Verify: "go test ./internal/p -run '^TestValue$' -count=1",
+		return plan.Item{ID: id, Title: id, Steps: []plan.Step{{
+			ID: "do", Title: id, Verify: "go test ./internal/p -run '^TestValue$' -count=1",
 		}}}
 	}
 	document := plan.Plan{Campaign: "fixture", Items: []plan.Item{row("first"), row("second")}}

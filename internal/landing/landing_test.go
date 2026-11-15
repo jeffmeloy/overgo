@@ -21,8 +21,8 @@ func newRowFixture(t *testing.T, stub map[string]string) *sliceFixture {
 	fixture := newSliceFixture(t, stub)
 	fixture.git("config", "user.name", "fixture")
 	fixture.git("config", "user.email", "fixture@example.com")
-	document := plan.Plan{Campaign: "fixture", Items: []plan.Item{{ID: "row", Title: "row", Status: plan.StatusOpen,
-		Steps: []plan.Step{{ID: "do", Title: "row", Status: plan.StatusOpen, Verify: "true"}}}}}
+	document := plan.Plan{Campaign: "fixture", Items: []plan.Item{{ID: "row", Title: "row",
+		Steps: []plan.Step{{ID: "do", Title: "row", Verify: "true"}}}}}
 	testcheck.NoError(t, plan.Save(fixture.planPath(), document))
 	fixture.git("add", "-A")
 	fixture.git("commit", "-q", "-m", "plan")
@@ -86,12 +86,12 @@ func TestLandingCompletesSeveralSteps(t *testing.T) {
 	t.Parallel()
 	fixture := newRowFixture(t, map[string]string{"a.txt": "base\n"})
 	document := plan.Plan{Campaign: "fixture", Items: []plan.Item{
-		{ID: "row", Title: "row", Class: plan.ClassConsolidation, Status: plan.StatusOpen, Budget: plan.Budget{Nodes: 10},
-			Steps: []plan.Step{{ID: "do", Title: "row", Status: plan.StatusOpen, Verify: "true"}, {ID: "later", Title: "later", Status: plan.StatusOpen, Verify: "true"}}},
-		{ID: "other", Title: "other", Class: plan.ClassConsolidation, Status: plan.StatusOpen, Budget: plan.Budget{Nodes: 5},
-			Steps: []plan.Step{{ID: "do", Title: "other", Status: plan.StatusOpen, Verify: "true"}}},
-		{ID: "failing", Title: "failing", Status: plan.StatusOpen,
-			Steps: []plan.Step{{ID: "do", Title: "failing", Status: plan.StatusOpen, Verify: "false"}}},
+		{ID: "row", Title: "row", Class: plan.ClassConsolidation, Budget: plan.Budget{Nodes: 10},
+			Steps: []plan.Step{{ID: "do", Title: "row", Verify: "true"}, {ID: "later", Title: "later", Verify: "true"}}},
+		{ID: "other", Title: "other", Class: plan.ClassConsolidation, Budget: plan.Budget{Nodes: 5},
+			Steps: []plan.Step{{ID: "do", Title: "other", Verify: "true"}}},
+		{ID: "failing", Title: "failing",
+			Steps: []plan.Step{{ID: "do", Title: "failing", Verify: "false"}}},
 	}}
 	testcheck.NoError(t, plan.Save(fixture.planPath(), document))
 	fixture.git("add", "-A")
@@ -138,8 +138,8 @@ func TestLandingCompletesSeveralSteps(t *testing.T) {
 func TestAChangedCheckOrCountIsWrittenInTheCommit(t *testing.T) {
 	t.Parallel()
 	row := func(id, verify string, nodes int) plan.Item {
-		return plan.Item{ID: id, Title: id, Class: plan.ClassConsolidation, Status: plan.StatusOpen, Budget: plan.Budget{Nodes: nodes, Reason: "the first estimate"},
-			Steps: []plan.Step{{ID: "do", Title: id, Status: plan.StatusOpen, Verify: verify}}}
+		return plan.Item{ID: id, Title: id, Class: plan.ClassConsolidation, Budget: plan.Budget{Nodes: nodes, Reason: "the first estimate"},
+			Steps: []plan.Step{{ID: "do", Title: id, Verify: verify}}}
 	}
 	fixture := newRowFixture(t, map[string]string{"a.txt": "base\n"})
 	document := plan.Plan{Campaign: "fixture", Items: []plan.Item{row("weakened", "go test ./strict", 2), row("untouched", "true", 2)}}
@@ -293,8 +293,8 @@ func TestProgressSeesALandedMerge(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(fixture.repo, ".git", "MERGE_HEAD")); !errors.Is(err, fs.ErrNotExist) {
 		t.Fatalf("the landed merge left the merge in progress: %v", err)
 	}
-	waiting := plan.Plan{Items: []plan.Item{{ID: "later", Status: plan.StatusOpen,
-		Steps: []plan.Step{{ID: "do", Status: plan.StatusOpen, DependsOn: []string{"row/do"}}}}}}
+	waiting := plan.Plan{Items: []plan.Item{{ID: "later",
+		Steps: []plan.Step{{ID: "do", DependsOn: []string{"row/do"}}}}}}
 	if moved, err := plan.AcceptedProgressSince(t.Context(), fixture.repo, waiting, "later", "do", l.head); err != nil || !moved {
 		t.Fatalf("the landed merge of row/do moved the row waiting on it: %t, %v; want true", moved, err)
 	}

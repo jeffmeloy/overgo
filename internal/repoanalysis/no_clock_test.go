@@ -104,7 +104,7 @@ func waits(ctx context.Context, cancel func()) {
 	for _, item := range document.Items {
 		for _, step := range item.Steps {
 			parsed, err := runrecord.ParseVerify(step.Verify)
-			if step.Status != plan.StatusOpen || err != nil {
+			if err != nil {
 				continue
 			}
 			for _, test := range parsed.GoTests() {

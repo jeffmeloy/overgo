@@ -7,21 +7,6 @@
       "title": "A fact is written once, where a program uses it; other copies are generated or go, and the tool says what a session needs when it needs it",
       "steps": [
         {
-          "id": "step-fields",
-          "title": "A plan step holds title, verify, files, order, cause and serves; status and owner go",
-          "verify": "go test ./internal/plan -count=1 -run '^TestAStepHoldsItsSixFields$'",
-          "files": [
-            "internal/plan",
-            "cmd/plan",
-            "internal/landing",
-            "cmd/loop",
-            "cmd/loophook",
-            "cmd/gate",
-            "docs/plan.json"
-          ],
-          "rationale": "Serves: the owner's rule of 2026-11-14.\n\nThe change: a step holds its title, verify, files, order, cause and what it serves; status and owner, which every open step holds alike, go.\n\nCheck: TestAStepHoldsItsSixFields.\n\nNote: files set to internal/plan, cmd/plan, internal/landing, cmd/loop, cmd/loophook, cmd/gate, docs/plan.json: the change removes the status and owner fields wherever a plan is built or read, the loop's gap filing and the gate's and hook's plan fixtures among them"
-        },
-        {
           "id": "finding-fields",
           "title": "A finding holds id, severity, files, input, expected and actual",
           "verify": "go test ./cmd/finding -count=1 -run '^TestAFindingHoldsItsSixFields$'",

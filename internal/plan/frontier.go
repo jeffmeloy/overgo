@@ -18,13 +18,7 @@ func (r Ref) String() string { return r.Item + stepReferenceSeparator + r.Step }
 func ReadyFrontier(d Plan) ([]Ref, error) {
 	frontier := []Ref{}
 	for _, item := range d.Items {
-		if item.Status != StatusOpen {
-			continue
-		}
 		for _, step := range item.Steps {
-			if step.Status != StatusOpen {
-				continue
-			}
 			if dependenciesSatisfied(d, step) {
 				frontier = append(frontier, Ref{Item: item.ID, Step: step.ID})
 			}

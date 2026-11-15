@@ -23,7 +23,7 @@ func TestARehearsalCopyOfTheStoreEndsWithItsRow(t *testing.T) {
 	checkout, live := filepath.Join(base, "checkout"), filepath.Join(base, "store")
 	testcheck.NoError(t, os.MkdirAll(filepath.Join(checkout, "docs"), 0o755))
 	testcheck.NoError(t, plan.Save(filepath.Join(checkout, filepath.FromSlash(plan.Path)), plan.Plan{Campaign: "fixture", Items: []plan.Item{{
-		ID: "rehearsed-row", Title: "a row of the fixture", Status: plan.StatusOpen, Steps: []plan.Step{{ID: "do", Title: "its step", Status: plan.StatusOpen, Verify: "go version"}},
+		ID: "rehearsed-row", Title: "a row of the fixture", Steps: []plan.Step{{ID: "do", Title: "its step", Verify: "go version"}},
 	}}}))
 	store := testcheck.Must(overgodb.Create(live))(t)
 	contents := []artifact.Content{textContent(t, "inline"), textContent(t, strings.Repeat("held in a blob ", 1<<10))}

@@ -39,9 +39,9 @@ func (f *sliceFixture) commitPlan(document plan.Plan) {
 
 // rowPlan is a plan of one row, with the steps named, each checked by the command beside it.
 func rowPlan(steps ...[2]string) plan.Plan {
-	row := plan.Item{ID: "row", Title: "row", Status: plan.StatusOpen}
+	row := plan.Item{ID: "row", Title: "row"}
 	for _, step := range steps {
-		row.Steps = append(row.Steps, plan.Step{ID: step[0], Title: step[0], Status: plan.StatusOpen, Verify: step[1]})
+		row.Steps = append(row.Steps, plan.Step{ID: step[0], Title: step[0], Verify: step[1]})
 	}
 	return plan.Plan{Campaign: "fixture", Items: []plan.Item{row}}
 }
@@ -116,8 +116,8 @@ func TestANewRowLandsWithItsWork(t *testing.T) {
 	fixture.commitPlan(rowPlan([2]string{"later", "true"}))
 	document := rowPlan([2]string{"later", "true"})
 	document.Items = append(document.Items, plan.Item{
-		ID: "new", Title: "new", Class: plan.ClassConsolidation, Status: plan.StatusOpen, Budget: plan.Budget{Nodes: grown, Reason: "the new row's count"},
-		Steps: []plan.Step{{ID: "do", Title: "new", Status: plan.StatusOpen, Verify: "test -f internal/p/marker"}},
+		ID: "new", Title: "new", Class: plan.ClassConsolidation, Budget: plan.Budget{Nodes: grown, Reason: "the new row's count"},
+		Steps: []plan.Step{{ID: "do", Title: "new", Verify: "test -f internal/p/marker"}},
 	})
 	testcheck.NoError(t, plan.Save(fixture.planPath(), document))
 	fixture.write("internal/p/p.go", oneFunction)

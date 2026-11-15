@@ -22,8 +22,8 @@ func AcceptedProgressSince(ctx context.Context, repository string, document Plan
 		return false, errors.New("plan: progress requires an exact checkpoint")
 	}
 	step, found := ExactStep(document, itemID, stepID)
-	if !found || step.Status != StatusOpen {
-		return false, errors.New("plan: progress step is not open")
+	if !found {
+		return false, errors.New("plan: progress step is not in the plan")
 	}
 	log, err := gitCommand(ctx, repository, "log", "--first-parent", "--format=%B%x00", checkpoint+"..HEAD")
 	if err != nil {

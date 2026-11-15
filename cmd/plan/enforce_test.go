@@ -7,7 +7,6 @@ import (
 
 	"overgo/internal/plan"
 	"overgo/internal/testcheck"
-	"overgo/internal/worklease"
 )
 
 // TestEnforceAddInsertsTask pins the mechanical task-injection: -add creates a
@@ -16,14 +15,14 @@ import (
 func TestEnforceAddInsertsTask(t *testing.T) {
 	t.Parallel()
 	base := plan.Plan{Items: []plan.Item{
-		{ID: "a", Status: "open", Steps: []plan.Step{{ID: "s", Status: "open", Verify: "go test ./..."}}},
-		{ID: "b", Status: "open", Steps: []plan.Step{{ID: "s", Status: "open", Verify: "go test ./..."}}},
+		{ID: "a", Steps: []plan.Step{{ID: "s", Verify: "go test ./..."}}},
+		{ID: "b", Steps: []plan.Step{{ID: "s", Verify: "go test ./..."}}},
 	}}
 	top := testcheck.Must(insertItem(base, "new", "do the thing", "", "", "go test ./..."))(t)
 	if top.Items[0].ID != "new" || top.Items[0].Steps[0].ID != "do" || top.Items[0].Steps[0].Verify != "go test ./..." {
 		t.Fatalf("insert-at-top produced %+v", top.Items[0])
 	}
-	if it, st, ok := plan.Current(top, worklease.UnassignedRole); !ok || it.ID != "new" || st.ID != "do" {
+	if it, st, ok := plan.Current(top); !ok || it.ID != "new" || st.ID != "do" {
 		t.Fatalf("new item must be the current step, got %s/%s", it.ID, st.ID)
 	}
 	mid := testcheck.Must(insertItem(base, "x", "t", "", "b", ""))(t)
@@ -43,8 +42,8 @@ func TestEnforceAddInsertsTask(t *testing.T) {
 // untouched, and a plan with no closeout still takes a row or refuses -before.
 func TestAddOwnsCloseoutDependency(t *testing.T) {
 	t.Parallel()
-	waits := []plan.Step{{ID: "do", Status: "open", DependsOn: []string{"earlier/do"}}}
-	base := plan.Plan{Items: []plan.Item{{ID: "earlier", Status: "open"}, {ID: "campaign-closeout", Status: "open", Steps: waits}}}
+	waits := []plan.Step{{ID: "do", DependsOn: []string{"earlier/do"}}}
+	base := plan.Plan{Items: []plan.Item{{ID: "earlier"}, {ID: "campaign-closeout", Steps: waits}}}
 	added, err := insertItem(base, "new-row", "title", "", "campaign-closeout", "go test ./...")
 	if err != nil || !slices.Equal(added.Items[2].Steps[0].DependsOn, []string{"earlier/do", "new-row/do"}) {
 		t.Fatalf("closeout after adding a row = %+v, %v", added.Items, err)
@@ -63,9 +62,9 @@ func TestAddOwnsCloseoutDependency(t *testing.T) {
 // other item in order, and refuses unknown ids.
 func TestRelocateItemReranksWithoutLoss(t *testing.T) {
 	t.Parallel()
-	step := []plan.Step{{ID: "s", Status: "open", Verify: "go test ./..."}}
+	step := []plan.Step{{ID: "s", Verify: "go test ./..."}}
 	base := plan.Plan{Items: []plan.Item{
-		{ID: "a", Status: "open", Steps: step}, {ID: "b", Status: "open", Steps: step}, {ID: "c", Status: "open", Steps: step},
+		{ID: "a", Steps: step}, {ID: "b", Steps: step}, {ID: "c", Steps: step},
 	}}
 	order := func(document plan.Plan) string {
 		var ids strings.Builder
@@ -95,8 +94,8 @@ func TestRelocateItemReranksWithoutLoss(t *testing.T) {
 	// -retitle re-scopes the item and its single "do" step together, and
 	// leaves a multi-step item's steps as they are.
 	single := plan.Plan{Items: []plan.Item{
-		{ID: "one", Title: "old", Status: "open", Steps: []plan.Step{{ID: "do", Title: "old", Status: "open"}}},
-		{ID: "two", Title: "old", Status: "open", Steps: []plan.Step{{ID: "x", Title: "x", Status: "open"}, {ID: "y", Title: "y", Status: "open"}}},
+		{ID: "one", Title: "old", Steps: []plan.Step{{ID: "do", Title: "old"}}},
+		{ID: "two", Title: "old", Steps: []plan.Step{{ID: "x", Title: "x"}, {ID: "y", Title: "y"}}},
 	}}
 	scoped, err := rescopeItem(single, "one", " new scope ")
 	if err != nil || scoped.Items[0].Title != "new scope" || scoped.Items[0].Steps[0].Title != "new scope" {
@@ -120,7 +119,7 @@ func TestRelocateItemReranksWithoutLoss(t *testing.T) {
 func TestEnforceSetVerify(t *testing.T) {
 	t.Parallel()
 	base := plan.Plan{Items: []plan.Item{
-		{ID: "a", Status: "open", Steps: []plan.Step{{ID: "s1", Status: "open"}, {ID: "s2", Status: "open"}}},
+		{ID: "a", Steps: []plan.Step{{ID: "s1"}, {ID: "s2"}}},
 	}}
 	got := testcheck.Must(assignVerify(base, "a", "s2", "  go test ./x  "))(t)
 	if got.Items[0].Steps[1].Verify != "go test ./x" {

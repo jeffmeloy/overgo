@@ -28,7 +28,7 @@ func TestARehearsalCopyOfTheStoreEndsWithItsRow(t *testing.T) {
 		t.Helper()
 		document := plan.Plan{Campaign: "hygiene", Lane: "master-lead"}
 		for _, row := range rows {
-			document.Items = append(document.Items, plan.Item{ID: row, Title: "a row of the fixture", Status: plan.StatusOpen, Steps: []plan.Step{{ID: "do", Title: "its step", Status: plan.StatusOpen, Verify: "go version"}}})
+			document.Items = append(document.Items, plan.Item{ID: row, Title: "a row of the fixture", Steps: []plan.Step{{ID: "do", Title: "its step", Verify: "go version"}}})
 		}
 		testcheck.NoError(t, plan.Save(filepath.Join(repo, filepath.FromSlash(plan.Path)), document))
 	}

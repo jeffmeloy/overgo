@@ -21,8 +21,8 @@ func TestDispatchFallsThroughToFindingsThenTheRun(t *testing.T) {
 		{"id": "SQA-334", "status": "open", "severity": "P3", "title": "a low-rank tidy"},
 		{"id": "SQA-5", "status": "closed", "severity": "P1", "title": "a defect already closed"},
 		{"id": "SQA-7", "status": "open", "severity": "P1", "title": "an urgent defect"}]}`)
-	document := Plan{Campaign: "fixture", Items: []Item{{ID: "row", Title: "Row", Status: StatusOpen,
-		Steps: []Step{{ID: "do", Title: "Do", Status: StatusOpen, Rationale: "SQA-33 asks for it, and SQA-334 is beside it."}}}}}
+	document := Plan{Campaign: "fixture", Items: []Item{{ID: "row", Title: "Row",
+		Steps: []Step{{ID: "do", Title: "Do", Rationale: "SQA-33 asks for it, and SQA-334 is beside it."}}}}}
 	filed := testcheck.Must(FindingsToFile(document, register))(t)
 	if want := []string{"SQA-7 (P1): an urgent defect", "SQA-10 (P2): a second-rank defect"}; !slices.Equal(filed, want) {
 		t.Fatalf("the findings to file = %v, want %v", filed, want)

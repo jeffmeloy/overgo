@@ -16,8 +16,8 @@ import (
 // triage declined is no longer named.
 func TestAnUnansweredP1IsDispatchedFirst(t *testing.T) {
 	t.Parallel()
-	repository := planRepository(t, Plan{Campaign: "fixture", Items: []Item{{ID: "row", Title: "Row", Status: StatusOpen,
-		Steps: []Step{{ID: "do", Title: "Do", Status: StatusOpen, Verify: "true"}}}}})
+	repository := planRepository(t, Plan{Campaign: "fixture", Items: []Item{{ID: "row", Title: "Row",
+		Steps: []Step{{ID: "do", Title: "Do", Verify: "true"}}}}})
 	register := func(triage string) {
 		t.Helper()
 		testcheck.NoError(t, os.WriteFile(filepath.Join(repository, filepath.FromSlash(FindingsRegister)), []byte(`{"findings": [

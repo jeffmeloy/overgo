@@ -46,9 +46,9 @@ func TestTrunkCheckoutFollowsWithItsOwnChangesKept(t *testing.T) {
 	grown := packageNodes(t, oneFunction)
 	const spare = 3
 	row := func(id string, steps ...string) plan.Item {
-		item := plan.Item{ID: id, Title: id, Class: plan.ClassConsolidation, Status: plan.StatusOpen, Budget: plan.Budget{Nodes: grown + spare, Reason: "the fixture's count"}}
+		item := plan.Item{ID: id, Title: id, Class: plan.ClassConsolidation, Budget: plan.Budget{Nodes: grown + spare, Reason: "the fixture's count"}}
 		for _, step := range steps {
-			item.Steps = append(item.Steps, plan.Step{ID: step, Title: step, Status: plan.StatusOpen, Verify: "true"})
+			item.Steps = append(item.Steps, plan.Step{ID: step, Title: step, Verify: "true"})
 		}
 		return item
 	}

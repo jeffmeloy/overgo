@@ -14,12 +14,12 @@ import (
 func TestAcceptedProgressReadsLandingsFromGit(t *testing.T) {
 	t.Parallel()
 	document := Plan{Campaign: "progress", Items: []Item{
-		{ID: "prereq", Status: StatusOpen, Steps: []Step{{ID: "do", Status: StatusOpen, Verify: "go test ./..."}}},
-		{ID: "row", Status: StatusOpen, Steps: []Step{
-			{ID: "first", Status: StatusOpen, Verify: "go test ./..."},
-			{ID: "second", Status: StatusOpen, Verify: "go test ./...", DependsOn: []string{"prereq/do"}},
+		{ID: "prereq", Steps: []Step{{ID: "do", Verify: "go test ./..."}}},
+		{ID: "row", Steps: []Step{
+			{ID: "first", Verify: "go test ./..."},
+			{ID: "second", Verify: "go test ./...", DependsOn: []string{"prereq/do"}},
 		}},
-		{ID: "other", Status: StatusOpen, Steps: []Step{{ID: "do", Status: StatusOpen, Verify: "go test ./..."}}},
+		{ID: "other", Steps: []Step{{ID: "do", Verify: "go test ./..."}}},
 	}}
 	repository := planRepository(t, document)
 	checkpoint := git(t, repository, "rev-parse", "HEAD")

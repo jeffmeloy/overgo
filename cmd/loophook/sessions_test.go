@@ -41,7 +41,7 @@ func sessionCheckout(t *testing.T) func(name, content string) {
 	git("init", "-q")
 	testcheck.NoError(t, os.MkdirAll("docs", 0o755))
 	if err := plan.Save(plan.Path, plan.Plan{Campaign: "fixture", Lane: "master-lead", Items: []plan.Item{{
-		ID: "row", Title: "row", Owner: "master-lead", Status: plan.StatusOpen, Steps: []plan.Step{{ID: "do", Title: "row", Status: plan.StatusOpen, Verify: "true"}},
+		ID: "row", Title: "row", Steps: []plan.Step{{ID: "do", Title: "row", Verify: "true"}},
 	}}}); err != nil {
 		t.Fatal(err)
 	}

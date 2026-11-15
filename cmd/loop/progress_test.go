@@ -34,9 +34,9 @@ func TestCampaignAcceptedProgress(t *testing.T) {
 	git("config", "user.email", "progress@test.invalid")
 	testcheck.NoError(t, os.MkdirAll("docs", 0o700))
 	const verify = "go test ./..."
-	document := plan.Plan{Campaign: "progress fixture", Items: []plan.Item{{ID: "grammar", Owner: "colibri", Status: plan.StatusOpen, Steps: []plan.Step{
-		{ID: "do", Status: plan.StatusOpen, Verify: verify, DependsOn: []string{"grammar/binding"}},
-		{ID: "binding", Status: plan.StatusOpen, Verify: verify},
+	document := plan.Plan{Campaign: "progress fixture", Items: []plan.Item{{ID: "grammar", Steps: []plan.Step{
+		{ID: "do", Verify: verify, DependsOn: []string{"grammar/binding"}},
+		{ID: "binding", Verify: verify},
 	}}}}
 	testcheck.NoError(t, plan.Save(plan.Path, document))
 	git("add", "--", plan.Path)

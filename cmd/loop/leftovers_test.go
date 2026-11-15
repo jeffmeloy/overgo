@@ -679,8 +679,8 @@ func TestTmpEntryBelongsToAnOpenRowOrIsFinished(t *testing.T) {
 		t.Helper()
 		document := plan.Plan{Campaign: "hygiene", Lane: "master-lead"}
 		for _, row := range rows {
-			document.Items = append(document.Items, plan.Item{ID: row, Title: "a row of the fixture", Status: plan.StatusOpen, Steps: []plan.Step{{
-				ID: "do", Title: "its one step", Status: plan.StatusOpen, Verify: "go version", Rationale: "its probes lie under tmp/landed-row/x",
+			document.Items = append(document.Items, plan.Item{ID: row, Title: "a row of the fixture", Steps: []plan.Step{{
+				ID: "do", Title: "its one step", Verify: "go version", Rationale: "its probes lie under tmp/landed-row/x",
 			}}})
 		}
 		testcheck.NoError(t, plan.Save(filepath.Join(checkout, filepath.FromSlash(plan.Path)), document))
@@ -1130,8 +1130,8 @@ func TestLeftoversDeletesOnlyWhatItsTableMarksFinished(t *testing.T) {
 		"",
 	}, "\n"))
 	document := plan.Plan{Campaign: "hygiene", Lane: "master-lead"}
-	document.Items = []plan.Item{{ID: "open-row", Title: "a row of the fixture", Status: plan.StatusOpen, Steps: []plan.Step{{
-		ID: "do", Title: "its one step", Status: plan.StatusOpen, Verify: "go version", Rationale: "a row that is still open",
+	document.Items = []plan.Item{{ID: "open-row", Title: "a row of the fixture", Steps: []plan.Step{{
+		ID: "do", Title: "its one step", Verify: "go version", Rationale: "a row that is still open",
 	}}}}
 	testcheck.NoError(t, plan.Save(filepath.Join(repo, filepath.FromSlash(plan.Path)), document))
 	gitFixture(t, repo, "add", "-A")
@@ -1611,8 +1611,8 @@ func TestCommitClearsWhatNothingHolds(t *testing.T) {
 		t.Helper()
 		document := plan.Plan{Campaign: "hygiene", Lane: "master-lead"}
 		for _, row := range rows {
-			document.Items = append(document.Items, plan.Item{ID: row, Title: "a row of the fixture", Status: plan.StatusOpen, Steps: []plan.Step{{
-				ID: "do", Title: "its one step", Status: plan.StatusOpen, Verify: "go version", Rationale: "a row that is still open",
+			document.Items = append(document.Items, plan.Item{ID: row, Title: "a row of the fixture", Steps: []plan.Step{{
+				ID: "do", Title: "its one step", Verify: "go version", Rationale: "a row that is still open",
 			}}})
 		}
 		testcheck.NoError(t, plan.Save(filepath.Join(repo, filepath.FromSlash(plan.Path)), document))

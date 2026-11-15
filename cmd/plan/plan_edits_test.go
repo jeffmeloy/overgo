@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -149,7 +148,7 @@ func requireOffered(t *testing.T, root, name string, texts ...string) {
 
 // openStep is an open fixture step.
 func openStep(id string) plan.Step {
-	return plan.Step{ID: id, Title: "Step " + id, Status: plan.StatusOpen, Verify: editCheck}
+	return plan.Step{ID: id, Title: "Step " + id, Verify: editCheck}
 }
 
 // TestAddFilesEveryRowOfADocument holds plan -add -from to filing a
@@ -165,9 +164,9 @@ func TestAddFilesEveryRowOfADocument(t *testing.T) {
 	held := plan.Plan{
 		Campaign: "held campaign",
 		Items: []plan.Item{
-			{ID: "earlier", Title: "Earlier", Status: plan.StatusOpen, Steps: []plan.Step{openStep("do")}},
-			{ID: "campaign-closeout", Title: "Close out", Status: plan.StatusOpen, Steps: []plan.Step{
-				{ID: "do", Title: "Close out", Status: plan.StatusOpen, Verify: editCheck, DependsOn: []string{"earlier/do"}},
+			{ID: "earlier", Title: "Earlier", Steps: []plan.Step{openStep("do")}},
+			{ID: "campaign-closeout", Title: "Close out", Steps: []plan.Step{
+				{ID: "do", Title: "Close out", Verify: editCheck, DependsOn: []string{"earlier/do"}},
 			}},
 		},
 		Decisions: []plan.Decision{{ID: "held-question", Question: "Which?", Options: []string{"a", "b"}, Recommendation: "a", Asked: "2026-10-01"}},
@@ -175,12 +174,12 @@ func TestAddFilesEveryRowOfADocument(t *testing.T) {
 	filed := plan.Plan{
 		Campaign: "an amendment",
 		Items: []plan.Item{
-			{ID: "filed-first", Title: "First filed", Owner: "master-lead", Status: plan.StatusOpen,
+			{ID: "filed-first", Title: "First filed",
 				Steps: []plan.Step{
-					{ID: "inventory", Title: "List", Status: plan.StatusOpen, Verify: editCheck, Rationale: "Why the listing comes first."},
-					{ID: "cleanup", Title: "Clean", Status: "blocked: waits for the owner", Verify: editCheck, DependsOn: []string{"filed-first/inventory"}},
+					{ID: "inventory", Title: "List", Verify: editCheck, Rationale: "Why the listing comes first."},
+					{ID: "cleanup", Title: "Clean", Verify: editCheck, DependsOn: []string{"filed-first/inventory"}},
 				}},
-			{ID: "filed-second", Title: "Second filed", Class: plan.ClassConsolidation, Status: plan.StatusOpen, Steps: []plan.Step{openStep("do")}},
+			{ID: "filed-second", Title: "Second filed", Class: plan.ClassConsolidation, Steps: []plan.Step{openStep("do")}},
 		},
 		Decisions: []plan.Decision{{ID: "filed-question", Question: "Whether?", Options: []string{"yes", "no"}, Recommendation: "no", Blocks: []string{"filed-second"}, Asked: "2026-10-12"}},
 	}
@@ -226,7 +225,7 @@ func TestAddFilesEveryRowOfADocument(t *testing.T) {
 	if err != nil || !strings.HasPrefix(output, "added item one-task (step do); next: ") {
 		t.Fatalf("plain plan -add: %v\n%s", err, output)
 	}
-	one := plan.Item{ID: "one-task", Title: "One task", Owner: "lane-a", Status: plan.StatusOpen, Steps: []plan.Step{{ID: "do", Title: "One task", Status: plan.StatusOpen, Verify: editCheck}}}
+	one := plan.Item{ID: "one-task", Title: "One task", Steps: []plan.Step{{ID: "do", Title: "One task", Verify: editCheck}}}
 	awaiting := held.Items[1]
 	awaiting.Steps = []plan.Step{awaiting.Steps[0]}
 	awaiting.Steps[0].DependsOn = []string{"earlier/do", "one-task/do"}
@@ -248,36 +247,6 @@ func TestAddFilesEveryRowOfADocument(t *testing.T) {
 	requireOffered(t, refusing, "-add", "-add -from <document> [-before <id>]", "an id the plan holds is refused, and no row the plan holds changes")
 }
 
-// TestADocumentsRowsAreTheFilersAsAnAddedRowIs holds plan -add -from under a
-// role to naming that role the owner of each row the document names no owner
-// for, as plain -add names it its row's, and to keeping an owner the document
-// names: dispatch takes a role's own rows before any unowned one, and ten
-// rows the lead filed from documents on 2026-10-30, unowned, were dispatched
-// after every row it owned.
-func TestADocumentsRowsAreTheFilersAsAnAddedRowIs(t *testing.T) {
-	t.Parallel()
-	held := plan.Plan{Campaign: "held campaign", Items: []plan.Item{
-		{ID: "earlier", Title: "Earlier", Owner: "lane-a", Status: plan.StatusOpen, Steps: []plan.Step{openStep("do")}},
-	}}
-	filed := plan.Plan{Campaign: "an amendment", Items: []plan.Item{
-		{ID: "unowned", Title: "Unowned", Status: plan.StatusOpen, Steps: []plan.Step{openStep("do")}},
-		{ID: "owned", Title: "Owned", Owner: "lane-b", Status: plan.StatusOpen, Steps: []plan.Step{openStep("do")}},
-	}}
-	amendment := filepath.Join(t.TempDir(), "amendment.json")
-	testcheck.NoError(t, plan.Save(amendment, filed))
-	root, _ := editFixture(t, held)
-	if output, err := planCommand(t, root, "-add", "-from", amendment, "-role", "lane-a"); err != nil {
-		t.Fatalf("plan -add -from under a role: %v\n%s", err, output)
-	}
-	owners := map[string]string{}
-	for _, item := range editedPlan(t, root).Items {
-		owners[item.ID] = item.Owner
-	}
-	if want := map[string]string{"unowned": "lane-a", "owned": "lane-b", "earlier": "lane-a"}; !reflect.DeepEqual(owners, want) {
-		t.Fatalf("owners after filing under lane-a = %v, want %v", owners, want)
-	}
-}
-
 // TestSetCountWritesTheCountAndItsReason holds plan -setcount to writing what
 // a row may still add and why, a count below zero included, with the reason
 // given in words or in a file. It leaves the row's other fields and every
@@ -288,8 +257,8 @@ func TestADocumentsRowsAreTheFilersAsAnAddedRowIs(t *testing.T) {
 func TestSetCountWritesTheCountAndItsReason(t *testing.T) {
 	t.Parallel()
 	held := plan.Plan{Items: []plan.Item{
-		{ID: "grows", Title: "Grows", Class: plan.ClassConsolidation, Status: plan.StatusOpen, Budget: plan.Budget{Nodes: 3, Reason: "The old reason."}, Steps: []plan.Step{openStep("do")}},
-		{ID: "other", Title: "Other", Class: plan.ClassConsolidation, Status: plan.StatusOpen, Budget: plan.Budget{Nodes: 7, Reason: "Its own reason."}, Steps: []plan.Step{openStep("do")}},
+		{ID: "grows", Title: "Grows", Class: plan.ClassConsolidation, Budget: plan.Budget{Nodes: 3, Reason: "The old reason."}, Steps: []plan.Step{openStep("do")}},
+		{ID: "other", Title: "Other", Class: plan.ClassConsolidation, Budget: plan.Budget{Nodes: 7, Reason: "Its own reason."}, Steps: []plan.Step{openStep("do")}},
 	}}
 	root, _ := editFixture(t, held)
 	output, err := planCommand(t, root, "-setcount", "-nodes", "120", "-reason", "The listing was counted at 120.", "grows")
@@ -336,8 +305,8 @@ func TestSetCountWritesTheCountAndItsReason(t *testing.T) {
 func TestAddStepInsertsBeforeAnother(t *testing.T) {
 	t.Parallel()
 	held := plan.Plan{Items: []plan.Item{
-		{ID: "work", Title: "Work", Status: plan.StatusOpen, Steps: []plan.Step{openStep("first"), openStep("last")}},
-		{ID: "other", Title: "Other", Status: plan.StatusOpen, Steps: []plan.Step{openStep("do")}},
+		{ID: "work", Title: "Work", Steps: []plan.Step{openStep("first"), openStep("last")}},
+		{ID: "other", Title: "Other", Steps: []plan.Step{openStep("do")}},
 	}}
 	root, _ := editFixture(t, held)
 	reasoning := filepath.Join(t.TempDir(), "why.txt")
@@ -354,8 +323,8 @@ func TestAddStepInsertsBeforeAnother(t *testing.T) {
 	if got, want := stepIDs(after.Items[0]), "first middle last closing"; got != want {
 		t.Fatalf("steps after adding one before the last and one with no -before = %q, want %q", got, want)
 	}
-	middle := plan.Step{ID: "middle", Title: "Middle step", Status: plan.StatusOpen, Verify: check, Rationale: "Why the step exists.\n\nIts second paragraph."}
-	closing := plan.Step{ID: "closing", Title: "Closing step", Status: plan.StatusOpen, Verify: check, Rationale: "Why it closes."}
+	middle := plan.Step{ID: "middle", Title: "Middle step", Verify: check, Rationale: "Why the step exists.\n\nIts second paragraph."}
+	closing := plan.Step{ID: "closing", Title: "Closing step", Verify: check, Rationale: "Why it closes."}
 	if rendered(t, after.Items[0].Steps) != rendered(t, []plan.Step{held.Items[0].Steps[0], middle, held.Items[0].Steps[1], closing}) {
 		t.Fatalf("steps after adding two:\n%s", rendered(t, after.Items[0].Steps))
 	}
@@ -397,12 +366,12 @@ func TestNoteAppendsToARationale(t *testing.T) {
 		return noted
 	}
 	held := plan.Plan{Items: []plan.Item{
-		{ID: "work", Title: "Work", Status: plan.StatusOpen, Steps: []plan.Step{
+		{ID: "work", Title: "Work", Steps: []plan.Step{
 			step("plain", "First paragraph."), step("bare", ""),
 			step("closed", "First paragraph.\n\nServes: the loop. Evidence: the test. Batch: host."),
 			step("twice", "First paragraph.\n\nServes: an earlier reading.\n\nA later paragraph.\n\nServes: the loop. Evidence: the test."),
 		}},
-		{ID: "other", Title: "Other", Status: plan.StatusOpen, Steps: []plan.Step{step("plain", "Another row's reasoning.")}},
+		{ID: "other", Title: "Other", Steps: []plan.Step{step("plain", "Another row's reasoning.")}},
 	}}
 	root, _ := editFixture(t, held)
 	note := filepath.Join(t.TempDir(), "note.txt")
@@ -461,12 +430,12 @@ func TestNoteAppendsToARationale(t *testing.T) {
 func TestShowPrintsARowWithItsRationale(t *testing.T) {
 	t.Parallel()
 	held := plan.Plan{Items: []plan.Item{
-		{ID: "shown", Title: "Shown row", Class: plan.ClassConsolidation, Status: plan.StatusOpen, Budget: plan.Budget{Nodes: 12, Reason: "It adds a flag."}, Steps: []plan.Step{
-			{ID: "first", Title: "First step", Status: plan.StatusOpen, Verify: "go test ./x", Rationale: "Why the first step.\n\nIts second paragraph."},
-			{ID: "second", Title: "Second step", Status: "blocked: owner decision", Verify: "go test ./y", DependsOn: []string{"shown/first", "other/do"}, Rationale: "Why the second waits."},
+		{ID: "shown", Title: "Shown row", Class: plan.ClassConsolidation, Budget: plan.Budget{Nodes: 12, Reason: "It adds a flag."}, Steps: []plan.Step{
+			{ID: "first", Title: "First step", Verify: "go test ./x", Rationale: "Why the first step.\n\nIts second paragraph."},
+			{ID: "second", Title: "Second step", Verify: "go test ./y", DependsOn: []string{"shown/first", "other/do"}, Rationale: "Why the second waits."},
 		}},
-		{ID: "other", Title: "Other row", Status: plan.StatusOpen, Steps: []plan.Step{
-			{ID: "do", Title: "Other step", Status: plan.StatusOpen, Verify: "go test ./z", Rationale: "Another row's reasoning."},
+		{ID: "other", Title: "Other row", Steps: []plan.Step{
+			{ID: "do", Title: "Other step", Verify: "go test ./z", Rationale: "Another row's reasoning."},
 		}},
 	}}
 	root, written := editFixture(t, held)
@@ -474,12 +443,12 @@ func TestShowPrintsARowWithItsRationale(t *testing.T) {
 	const want = `shown | Shown row
 nodes 12
 count reason: It adds a flag.
--- first | First step | open | awaits []
+-- first | First step | awaits []
 verify: go test ./x
 Why the first step.
 
 Its second paragraph.
--- second | Second step | blocked: owner decision | awaits [shown/first other/do]
+-- second | Second step | awaits [shown/first other/do]
 verify: go test ./y
 Why the second waits.
 `
@@ -511,19 +480,15 @@ Why the second waits.
 func TestRetireRemovesARowOrAStep(t *testing.T) {
 	t.Parallel()
 	blocked := openStep("blocked")
-	blocked.Status = "blocked: superseded"
 	waiting := openStep("do")
 	waiting.DependsOn = []string{"dropped/do", "work/blocked"}
 	held := plan.Plan{Items: []plan.Item{
-		{ID: "waits", Title: "Waits", Status: plan.StatusOpen, Steps: []plan.Step{waiting}},
-		{ID: "work", Title: "Work", Status: plan.StatusOpen, Steps: []plan.Step{blocked, openStep("open")}},
-		{ID: "dropped", Title: "Dropped", Status: plan.StatusOpen, Steps: []plan.Step{openStep("do"), openStep("later")}},
-		{ID: "single", Title: "Single", Status: plan.StatusOpen, Steps: []plan.Step{openStep("only")}},
+		{ID: "waits", Title: "Waits", Steps: []plan.Step{waiting}},
+		{ID: "work", Title: "Work", Steps: []plan.Step{blocked, openStep("open")}},
+		{ID: "dropped", Title: "Dropped", Steps: []plan.Step{openStep("do"), openStep("later")}},
+		{ID: "single", Title: "Single", Steps: []plan.Step{openStep("only")}},
 	}}
-	if _, err := plan.Advance(held, "work", "blocked"); err == nil {
-		t.Fatal("a completion removed a step that is not open; the fixture shows no difference from a retirement")
-	}
-	if item, _, ok := plan.Current(held, worklease.UnassignedRole); !ok || item.ID != "work" {
+	if item, _, ok := plan.Current(held); !ok || item.ID != "work" {
 		t.Fatalf("before any retirement the dispatch is row %q, want the row after the one that waits", item.ID)
 	}
 	root, _ := editFixture(t, held)
@@ -544,7 +509,7 @@ func TestRetireRemovesARowOrAStep(t *testing.T) {
 	if rendered(t, after.Items[0]) != rendered(t, held.Items[0]) || rendered(t, after.Items[1].Steps) != rendered(t, held.Items[1].Steps[1:]) {
 		t.Fatalf("rows left after the retirements:\n%s", rendered(t, after.Items))
 	}
-	if item, step, ok := plan.Current(after, worklease.UnassignedRole); !ok || item.ID != "waits" || step.ID != "do" {
+	if item, step, ok := plan.Current(after); !ok || item.ID != "waits" || step.ID != "do" {
 		t.Fatalf("after the retirements the dispatch is %s/%s, want the step that awaited the retired work", item.ID, step.ID)
 	}
 	requireNoCheckRan(t, root)
@@ -570,7 +535,7 @@ func TestAStepsFilesAreSetWithAReason(t *testing.T) {
 	t.Parallel()
 	open := openStep("do")
 	open.Files, open.Rationale = []string{"internal/media"}, "Why it exists.\n\nServes: setup-steps."
-	held := plan.Plan{Items: []plan.Item{{ID: "row", Title: "Row", Status: plan.StatusOpen, Steps: []plan.Step{openStep("first"), open}}}}
+	held := plan.Plan{Items: []plan.Item{{ID: "row", Title: "Row", Steps: []plan.Step{openStep("first"), open}}}}
 	root, _ := editFixture(t, held)
 	output, err := planCommand(t, root, "-setfiles", "-files", "internal/media, cmd/recipe,internal/scorecard", "-reason", "The timing chain carries its cell.", "row", "do")
 	if err != nil || !strings.HasPrefix(output, "row/do: files set to internal/media, cmd/recipe, internal/scorecard; next: ") {

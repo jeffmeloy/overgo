@@ -15,7 +15,7 @@ import (
 func TestLoopViewAndStop(t *testing.T) {
 	t.Parallel()
 	document := Plan{Campaign: "loop", Items: []Item{
-		{ID: "next", Status: StatusOpen, Steps: []Step{{ID: "do", Title: "Do the next thing", Status: StatusOpen, Verify: "go test ./..."}}},
+		{ID: "next", Steps: []Step{{ID: "do", Title: "Do the next thing", Verify: "go test ./..."}}},
 	}}
 	repository := planRepository(t, document)
 	git(t, repository, "commit", "-q", "--allow-empty", "-m", "Land the earlier row\n\nCause: fixture.\n\n"+LandedRowTrailer+": earlier/do")
@@ -62,7 +62,7 @@ func TestLoopViewAndStop(t *testing.T) {
 func TestAParkedRowWaitsForACommit(t *testing.T) {
 	t.Parallel()
 	row := func(id string) Item {
-		return Item{ID: id, Title: id, Status: StatusOpen, Steps: []Step{{ID: "do", Title: id, Status: StatusOpen, Verify: "true"}}}
+		return Item{ID: id, Title: id, Steps: []Step{{ID: "do", Title: id, Verify: "true"}}}
 	}
 	repository := planRepository(t, Plan{Campaign: "loop", Items: []Item{row("failing"), row("behind")}})
 	resolve := func() Dispatch {

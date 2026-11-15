@@ -14,8 +14,8 @@ func rowChangeFixture(t *testing.T) (*sliceFixture, func(named, extra string) er
 	t.Helper()
 	fixture := newRowFixture(t, map[string]string{"a.txt": "base\n", "p/p.go": "// Package p is a fixture.\npackage p\n"})
 	if err := plan.Save(fixture.planPath(), plan.Plan{Campaign: "fixture", Items: []plan.Item{
-		{ID: "row", Title: "row", Status: plan.StatusOpen, Steps: []plan.Step{{ID: "do", Title: "row", Status: plan.StatusOpen, Verify: "true"}}},
-		{ID: "later", Title: "later", Status: plan.StatusOpen, Steps: []plan.Step{{ID: "do", Title: "later", Status: plan.StatusOpen, Verify: "false"}}},
+		{ID: "row", Title: "row", Steps: []plan.Step{{ID: "do", Title: "row", Verify: "true"}}},
+		{ID: "later", Title: "later", Steps: []plan.Step{{ID: "do", Title: "later", Verify: "false"}}},
 	}}); err != nil {
 		t.Fatal(err)
 	}

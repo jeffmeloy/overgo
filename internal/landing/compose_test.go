@@ -28,8 +28,8 @@ func TestTheLandingWritesItsOwnMessage(t *testing.T) {
 	editPlan(t, fixture, func(document *plan.Plan) {
 		document.Items[0].Steps[0].Title = "the fixture's step"
 		document.Items[0].Steps[0].Rationale = "A fixture needs a landing.\nServes: failure-rate.\nBatch: host lane."
-		document.Items = append(document.Items, plan.Item{ID: "later", Title: "later", Status: plan.StatusOpen,
-			Steps: []plan.Step{{ID: "do", Title: "later", Status: plan.StatusOpen, Verify: "false"}}})
+		document.Items = append(document.Items, plan.Item{ID: "later", Title: "later",
+			Steps: []plan.Step{{ID: "do", Title: "later", Verify: "false"}}})
 	})
 	fixture.git("add", "-A")
 	fixture.git("commit", "-q", "-m", "plan of two rows")

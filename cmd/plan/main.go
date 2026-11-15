@@ -24,7 +24,6 @@ import (
 	"overgo/internal/planverify"
 	"overgo/internal/strictjson"
 	"overgo/internal/webuilane"
-	"overgo/internal/worklease"
 )
 
 // CLI repository operations resolve from the current worktree directory.
@@ -151,18 +150,10 @@ func run(c cli, args []string) error {
 		}
 		// Only the document's rows and decisions are taken, and no row the plan
 		// holds is edited: what awaits a filed row is the document's to say. A
-		// row the document assigns to no role is the filing role's, as a row
-		// -add enters is: dispatch takes a role's own rows before any row of no
-		// role, so one filed among them would be worked after every one. A plan
-		// holding no open row has finished its campaign, so the document's
+		// plan holding no row has finished its campaign, so the document's
 		// campaign, when it names one, names the plan's goal from here.
-		if role != worklease.UnassignedRole {
-			for index := range filed.Items {
-				filed.Items[index].Owner = cmp.Or(filed.Items[index].Owner, role)
-			}
-		}
 		return mutatePlan(commandWorktree, role, "filed the rows and decisions of "+source, func(document plan.Plan) (plan.Plan, error) {
-			if filed.Campaign != "" && !slices.ContainsFunc(document.Items, func(item plan.Item) bool { return item.Status != plan.StatusDone }) {
+			if filed.Campaign != "" && len(document.Items) == 0 {
 				document.Campaign = filed.Campaign
 			}
 			document.Decisions = append(document.Decisions, filed.Decisions...)
@@ -275,9 +266,6 @@ func addItem(root, id string, c cli, role string) error {
 			return updated, err
 		}
 		row := &updated.Items[slices.IndexFunc(updated.Items, itemNamed(id))]
-		if role != worklease.UnassignedRole {
-			row.Owner = role
-		}
 		if files := listedFiles(c.files); len(files) > 0 {
 			row.Steps[0].Files = files
 		}
@@ -381,8 +369,8 @@ func relocateItem(document plan.Plan, id, before string) (plan.Plan, error) {
 // merged plan equals the first-parent plan. No I/O.
 func insertItem(document plan.Plan, id, title, class, before, verifyCmd string) (plan.Plan, error) {
 	document, err := insertRows(document, before, plan.Item{
-		ID: id, Title: title, Class: class, Status: "open",
-		Steps: []plan.Step{{ID: "do", Title: title, Status: "open", Verify: verifyCmd}},
+		ID: id, Title: title, Class: class,
+		Steps: []plan.Step{{ID: "do", Title: title, Verify: verifyCmd}},
 	})
 	if closeout := slices.IndexFunc(document.Items, itemNamed("campaign-closeout")); class != plan.ClassMerge && closeout >= 0 {
 		steps := slices.Clone(document.Items[closeout].Steps)
@@ -503,13 +491,10 @@ func editPlan(role string, c cli, args []string, did string) error {
 			row.Budget.Nodes, row.Budget.Reason = c.nodes, words
 		case c.setfiles:
 			// A step's files change before its work begins: the change that does it is judged by the ones it began with.
-			if row.Steps[step].Status != plan.StatusOpen {
-				return document, fmt.Errorf("plan: %s is %s, and only an open step's files are set", reference, row.Steps[step].Status)
-			}
 			row.Steps[step].Files = files
 			addNote(&row.Steps[step].Rationale, "files set to "+strings.Join(files, ", ")+": "+words)
 		case c.addstep:
-			row.Steps = slices.Insert(row.Steps, step, plan.Step{ID: stepID, Title: c.title, Status: plan.StatusOpen, Verify: c.verifyCmd, Run: c.runCmd, Record: c.record,
+			row.Steps = slices.Insert(row.Steps, step, plan.Step{ID: stepID, Title: c.title, Verify: c.verifyCmd, Run: c.runCmd, Record: c.record,
 				Files: files, NeedsCard: c.needsCard, Rationale: words})
 		case c.note:
 			addNote(&row.Steps[step].Rationale, words)
@@ -548,7 +533,7 @@ func printRow(output io.Writer, document plan.Plan, id string) error {
 		fmt.Fprintf(output, "nodes %d\ncount reason: %s\n", item.Budget.Nodes, item.Budget.Reason)
 	}
 	for _, step := range item.Steps {
-		fmt.Fprintf(output, "-- %s | %s | %s | awaits %v\nverify: %s\n%s\n", step.ID, step.Title, step.Status, step.DependsOn, step.Verify, step.Rationale)
+		fmt.Fprintf(output, "-- %s | %s | awaits %v\nverify: %s\n%s\n", step.ID, step.Title, step.DependsOn, step.Verify, step.Rationale)
 	}
 	return nil
 }
@@ -563,7 +548,7 @@ func setStepVerify(root, itemID, stepID, cmd, role string) error {
 		if err != nil {
 			return err
 		}
-		it, st, current := plan.Current(updated, role)
+		it, st, current := plan.Current(updated)
 		if err := savePlanMutation(root, updated); err != nil {
 			return err
 		}
@@ -607,20 +592,14 @@ const hoursPerDay = 24
 
 func printStatus(document plan.Plan) {
 	for _, entry := range document.Items {
-		open := 0
-		for _, step := range entry.Steps {
-			if step.Status == plan.StatusOpen {
-				open++
-			}
-		}
-		fmt.Printf("%-30s %-24s %d open rows  %s\n", entry.ID, entry.Status, open, entry.Title)
+		fmt.Printf("%-30s %d open rows  %s\n", entry.ID, len(entry.Steps), entry.Title)
 	}
 }
 
 // nextAction: the one-line form of the current step, rendered from the
 // dispatch's fields.
 func nextAction(document plan.Plan, role string) (string, bool) {
-	dispatch := plan.DispatchOf(document, role)
+	dispatch := plan.DispatchOf(document)
 	if dispatch.Complete {
 		return "", false
 	}

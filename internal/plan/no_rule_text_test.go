@@ -24,7 +24,7 @@ func TestThePlanHoldsNoRuleText(t *testing.T) {
 		}
 	}
 	earlier := []byte(`{"campaign": "fixture", "paragraphs": [{"governs": "standing", "text": "a rule written in the plan"}],
-		"items": [{"id": "row", "title": "row", "status": "open", "steps": [{"id": "do", "title": "do", "status": "open", "verify": "true"}]}]}`)
+		"items": [{"id": "row", "title": "row", "steps": [{"id": "do", "title": "do", "verify": "true"}]}]}`)
 	document := testcheck.Must(Parse(earlier))(t)
 	path := filepath.Join(t.TempDir(), "plan.json")
 	testcheck.NoError(t, Save(path, document))

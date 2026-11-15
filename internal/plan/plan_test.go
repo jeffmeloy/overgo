@@ -1,18 +1,18 @@
 package plan
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
 	"overgo/internal/testcheck"
-	"overgo/internal/worklease"
 )
 
 func TestAdvancePreservesHistoricalSchemaAndInput(t *testing.T) {
 	t.Parallel()
-	document := Plan{Items: []Item{{ID: "item", Status: StatusOpen, Steps: []Step{
-		{ID: ".", Status: StatusOpen, Verify: "go test ./...", DependsOn: []string{"legacy-item"}},
-		{ID: "next", Status: StatusOpen, Verify: "go test ./...", DependsOn: []string{"legacy-item"}},
+	document := Plan{Items: []Item{{ID: "item", Steps: []Step{
+		{ID: ".", Verify: "go test ./...", DependsOn: []string{"legacy-item"}},
+		{ID: "next", Verify: "go test ./...", DependsOn: []string{"legacy-item"}},
 	}}}}
 	historical, err := advancePlan(document, "item", ".", false)
 	if err != nil || len(historical.Items) != 1 || len(historical.Items[0].Steps) != 1 ||
@@ -30,118 +30,58 @@ func TestAdvancePreservesHistoricalSchemaAndInput(t *testing.T) {
 	}
 }
 
-// TestEnforceCurrentFirstOpenStep pins the shared dispatch rule.
+// TestEnforceCurrentFirstOpenStep pins the shared dispatch rule: the first step, in the plan's order, whose
+// prerequisites have left the plan.
 func TestEnforceCurrentFirstOpenStep(t *testing.T) {
 	t.Parallel()
 	p := Plan{Items: []Item{
-		{ID: "a", Status: StatusDone, Steps: []Step{{ID: "s1", Status: StatusDone}}},
-		{ID: "b", Status: "open", Steps: []Step{
-			{ID: "s1", Status: StatusDone},
-			{ID: "s2", Status: "open"},
+		{ID: "a", Steps: []Step{{ID: "s1", DependsOn: []string{"b/s2"}}}},
+		{ID: "b", Steps: []Step{
+			{ID: "s2", DependsOn: []string{"c/s1"}},
+			{ID: "s3"},
 		}},
-		{ID: "c", Status: "open", Steps: []Step{{ID: "s1", Status: "open"}}},
+		{ID: "c", Steps: []Step{{ID: "s1"}}},
 	}}
-	it, st, ok := Current(p, worklease.UnassignedRole)
-	if !ok || it.ID != "b" || st.ID != "s2" {
-		t.Fatalf("Current = %s/%s ok=%v, want b/s2 ok=true", it.ID, st.ID, ok)
+	it, st, ok := Current(p)
+	if !ok || it.ID != "b" || st.ID != "s3" {
+		t.Fatalf("Current = %s/%s ok=%v, want b/s3 ok=true", it.ID, st.ID, ok)
 	}
 
-	if _, _, ok := Current(Plan{}, worklease.UnassignedRole); ok {
+	if _, _, ok := Current(Plan{}); ok {
 		t.Fatal("Current on an empty plan must return ok=false")
 	}
 
 	// An open item with no open step is itself the action (sentinel step ".").
-	openNoStep := Plan{Items: []Item{{ID: "x", Status: "open"}}}
-	if it, st, ok := Current(openNoStep, worklease.UnassignedRole); !ok || it.ID != "x" || st.ID != "." {
-		t.Fatalf("Current(open item, no steps) = %s/%s ok=%v, want x/. ok=true", it.ID, st.ID, ok)
+	openNoStep := Plan{Items: []Item{{ID: "x"}}}
+	if it, st, ok := Current(openNoStep); !ok || it.ID != "x" || st.ID != "." {
+		t.Fatalf("Current(open item) = %s/%s ok=%v, want x/. ok=true", it.ID, st.ID, ok)
 	}
 }
 
-func TestRoleOwnedDispatch(t *testing.T) {
-	t.Parallel()
-	document := Plan{Items: []Item{
-		{ID: "shared", Status: "open", Steps: []Step{{ID: "do", Status: "open"}}},
-		{ID: "developer", Owner: "developer", Status: "open", Steps: []Step{{ID: "do", Status: "open"}}},
-		{ID: "sqa", Owner: "sqa", Status: "open", Steps: []Step{{ID: "do", Status: "open"}}},
-	}}
-	item, _, ok := Current(document, "sqa")
-	if !ok || item.ID != "sqa" {
-		t.Fatalf("sqa dispatch = %s, ok=%v", item.ID, ok)
-	}
-	item, _, ok = Current(document, "developer")
-	if !ok || item.ID != "developer" {
-		t.Fatalf("developer dispatch = %s, ok=%v", item.ID, ok)
-	}
-}
-
-func TestUnownedDispatchFallback(t *testing.T) {
-	t.Parallel()
-	document := Plan{Items: []Item{
-		{ID: "shared", Status: "open", Steps: []Step{{ID: "do", Status: "open"}}},
-		{ID: "developer", Owner: "developer", Status: "open", Steps: []Step{{ID: "do", Status: "open"}}},
-	}}
-	for _, role := range []string{worklease.UnassignedRole, "sqa"} {
-		item, _, ok := Current(document, role)
-		if !ok || item.ID != "shared" {
-			t.Fatalf("fallback for %s = %s, ok=%v", role, item.ID, ok)
-		}
-	}
-	foreignOnly := Plan{Items: document.Items[1:]}
-	if _, _, ok := Current(foreignOnly, "sqa"); ok {
-		t.Fatal("foreign owned work was dispatched")
-	}
-}
-
+// TestLivePlanRejectsRetainedCompletionState holds the plan to keeping no completion state: an item and a step are
+// open while the plan holds them and leave it when they land (Advance), so neither has a status a plan could keep done
+// (single-source/step-fields), and a plan file that names one is refused on read.
 func TestLivePlanRejectsRetainedCompletionState(t *testing.T) {
 	t.Parallel()
-	valid := Plan{Items: []Item{
-		{ID: "open", Status: "open", Steps: []Step{{ID: "work", Status: "open", Verify: "go test ./..."}}},
-		{ID: "blocked", Status: "blocked-external-prereq", Steps: []Step{{ID: "wait", Status: "blocked-external-prereq"}}},
-	}}
-	testcheck.NoError(t, Validate(valid))
-	for name, invalid := range map[string]Plan{
-		"done item": {Items: []Item{{
-			ID: "done", Status: StatusDone,
-			Steps: []Step{{ID: "old", Status: StatusDone, Verify: "go test ./..."}},
-		}}},
-		"done step": {Items: []Item{{
-			ID: "mixed", Status: StatusOpen,
-			Steps: []Step{{ID: "old", Status: StatusDone, Verify: "go test ./..."}},
-		}}},
-	} {
-		t.Run(name, func(t *testing.T) {
-			if err := Validate(invalid); err == nil || !strings.Contains(err.Error(), "retains completed state") {
-				t.Fatalf("retained done row validation error = %v", err)
+	for _, kept := range []reflect.Type{reflect.TypeFor[Item](), reflect.TypeFor[Step]()} {
+		for _, field := range []string{"Status", "Owner"} {
+			if _, held := kept.FieldByName(field); held {
+				t.Errorf("a plan %s holds a %s", kept.Name(), field)
 			}
-		})
+		}
 	}
-}
-
-func TestParseRejectsRawDoneFlip(t *testing.T) {
-	t.Parallel()
-	for name, raw := range map[string]string{
-		"item": `{"campaign":"x","doctrine":"x","items":[{"id":"row","status":"done","steps":[]}]}`,
-		"step": `{"campaign":"x","doctrine":"x","items":[{"id":"row","status":"open","steps":[{"id":"do","status":"done","verify":"go test ./..."}]}]}`,
-	} {
-		t.Run(name, func(t *testing.T) {
-			if _, err := Parse([]byte(raw)); err == nil || !strings.Contains(err.Error(), "retains completed state") {
-				t.Fatalf("raw done flip error = %v", err)
-			}
-		})
+	if _, err := Parse([]byte(`{"campaign":"x","items":[{"id":"row","steps":[{"id":"do","status":"done","verify":"go test ./..."}]}]}`)); err == nil || !strings.Contains(err.Error(), "status") {
+		t.Fatalf("a plan naming a step's status read as %v; want it refused", err)
 	}
 }
 
 func TestOpenStepRequiresVerifier(t *testing.T) {
 	t.Parallel()
 	document := Plan{Items: []Item{{
-		ID: "item", Status: "open", Steps: []Step{{ID: "work", Status: "open"}},
+		ID: "item", Steps: []Step{{ID: "work"}},
 	}}}
 	if err := Validate(document); err == nil {
-		t.Fatal("open step without a verifier passed validation")
-	}
-	document.Items[0].Steps[0].Status = "blocked-external-prereq"
-	if err := Validate(document); err != nil {
-		t.Fatalf("blocked step should name its blocker without a runnable verifier: %v", err)
+		t.Fatal("a step without a verifier passed validation")
 	}
 }
 
@@ -152,23 +92,23 @@ func TestOpenStepRequiresVerifier(t *testing.T) {
 func TestAdvanceRemovesCompletedRows(t *testing.T) {
 	t.Parallel()
 	document := Plan{Items: []Item{{
-		ID: "item", Status: StatusOpen, Steps: []Step{
-			{ID: "first", Status: StatusOpen, Verify: "go test ./..."},
-			{ID: "second", Status: StatusOpen, Verify: "go test ./..."},
+		ID: "item", Steps: []Step{
+			{ID: "first", Verify: "go test ./..."},
+			{ID: "second", Verify: "go test ./..."},
 		},
 	}}}
 	advanced := testcheck.Must(Advance(document, "item", "first"))(t)
 	if len(advanced.Items[0].Steps) != 1 || advanced.Items[0].Steps[0].ID != "second" {
 		t.Fatalf("first advance retained the completed step: %+v", advanced.Items[0])
 	}
-	if _, step, ok := Current(advanced, worklease.UnassignedRole); !ok || step.ID != "second" {
+	if _, step, ok := Current(advanced); !ok || step.ID != "second" {
 		t.Fatalf("current after first advance = %s, open=%v", step.ID, ok)
 	}
 	advanced = testcheck.Must(Advance(advanced, "item", "second"))(t)
 	if len(advanced.Items) != 0 {
 		t.Fatalf("final advance retained the completed item: %+v", advanced.Items)
 	}
-	if _, _, ok := Current(advanced, worklease.UnassignedRole); ok {
+	if _, _, ok := Current(advanced); ok {
 		t.Fatal("completed plan remained dispatchable")
 	}
 }

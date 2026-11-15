@@ -14,8 +14,8 @@ import (
 func TestOnlyAConsolidationTakesACount(t *testing.T) {
 	t.Parallel()
 	held := plan.Plan{Items: []plan.Item{
-		{ID: "row", Title: "Row", Status: plan.StatusOpen, Steps: []plan.Step{openStep("first")}},
-		{ID: "shrink", Title: "Shrink", Class: plan.ClassConsolidation, Status: plan.StatusOpen, Steps: []plan.Step{openStep("do")}},
+		{ID: "row", Title: "Row", Steps: []plan.Step{openStep("first")}},
+		{ID: "shrink", Title: "Shrink", Class: plan.ClassConsolidation, Steps: []plan.Step{openStep("do")}},
 	}}
 	root, _ := editFixture(t, held)
 	if output, err := planCommand(t, root, "-addstep", "-title", "Second", "-vcmd", "true", "-files", "internal/x", "-reason", "The second step.", "row", "second"); err != nil {

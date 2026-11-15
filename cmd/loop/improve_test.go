@@ -94,9 +94,6 @@ func TestScorecardGapsBecomeProposals(t *testing.T) {
 		if len(item.Steps) != 1 || item.Steps[0].Verify != verify || !strings.Contains(item.Steps[0].Rationale, published.Name) {
 			t.Fatalf("row %+v is not verified by its gap closing on the store's scorecard", item)
 		}
-		if item.Owner != document.Lane {
-			t.Fatalf("row %s is owned by %q, want the plan's lane %q", item.ID, item.Owner, document.Lane)
-		}
 	}
 	want := []string{
 		"scorecard-failing-inference",
@@ -113,7 +110,7 @@ func TestScorecardGapsBecomeProposals(t *testing.T) {
 	if !strings.Contains(document.Items[1].Steps[0].Rationale, "alpha held-out-quality") || !strings.Contains(document.Items[1].Steps[0].Rationale, "0.5 to 0.4 (-0.1, -20.0%") {
 		t.Fatalf("the regression row does not state the fall:\n%s", document.Items[1].Steps[0].Rationale)
 	}
-	if item, step, open := plan.Current(document, ""); !open || item.ID != want[0] || step.ID != proposalStep {
+	if item, step, open := plan.Current(document); !open || item.ID != want[0] || step.ID != proposalStep {
 		t.Fatalf("the plan dispatches %s/%s (open %v), want the failed attempts first", item.ID, step.ID, open)
 	}
 	if added, err := improver.Propose(published, published.Gaps(&baseline)); err != nil || added != 0 {
@@ -332,7 +329,7 @@ func (w *planWorld) Current() (loop.Step, bool, error) {
 	if err != nil {
 		return loop.Step{}, false, err
 	}
-	item, step, open := plan.Current(document, "")
+	item, step, open := plan.Current(document)
 	return loop.Step{Item: item.ID, ID: step.ID}, open, nil
 }
 

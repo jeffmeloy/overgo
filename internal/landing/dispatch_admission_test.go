@@ -16,12 +16,12 @@ func TestALandingRefusesWhatDispatchWouldPass(t *testing.T) {
 	t.Parallel()
 	fixture := newRowFixture(t, map[string]string{".gitignore": ".overgo-runtime/\n", "a.txt": "base\n", "p/p.go": "// Package p is a fixture.\npackage p\n"})
 	step := func(after ...string) []plan.Step {
-		return []plan.Step{{ID: "do", Title: "do", Status: plan.StatusOpen, Verify: "true", DependsOn: after}}
+		return []plan.Step{{ID: "do", Title: "do", Verify: "true", DependsOn: after}}
 	}
 	if err := plan.Save(fixture.planPath(), plan.Plan{Campaign: "fixture", Items: []plan.Item{
-		{ID: "row", Title: "row", Status: plan.StatusOpen, Steps: step()},
-		{ID: "later", Title: "later", Status: plan.StatusOpen, Steps: step("row/do")},
-		{ID: "lane", Title: "lane", Status: plan.StatusOpen, Owner: "other-lane", Steps: step()},
+		{ID: "row", Title: "row", Steps: step()},
+		{ID: "later", Title: "later", Steps: step("row/do")},
+		{ID: "lane", Title: "lane", Steps: step()},
 	}}); err != nil {
 		t.Fatal(err)
 	}

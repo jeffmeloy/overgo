@@ -7,12 +7,11 @@ import (
 	"testing"
 
 	"overgo/internal/testcheck"
-	"overgo/internal/worklease"
 )
 
 func batchPlanFixture() Plan {
-	return Plan{Items: []Item{{ID: "audio", Status: StatusOpen, Steps: []Step{{
-		ID: "dataset", Title: "Materialize audio", Status: StatusOpen,
+	return Plan{Items: []Item{{ID: "audio", Steps: []Step{{
+		ID: "dataset", Title: "Materialize audio",
 		Verify: "go test ./internal/dataset -run '^TestIntegration$' -count=1 -v",
 		VerificationBatch: &VerificationBatch{
 			Scope:      []string{"internal/dataset", "internal/evaluation"},
@@ -78,9 +77,9 @@ func TestVerificationBatchDeclaration(t *testing.T) {
 	}
 	// Declarations cannot complete their parent or its external consumers.
 	document.Items[0].Steps = append(document.Items[0].Steps, Step{
-		ID: "train", Status: StatusOpen, Verify: "go test ./x -run '^TestTrain$'", DependsOn: []string{"audio/dataset"},
+		ID: "train", Verify: "go test ./x -run '^TestTrain$'", DependsOn: []string{"audio/dataset"},
 	})
-	_, step, open := Current(document, worklease.UnassignedRole)
+	_, step, open := Current(document)
 	if !open || step.ID != "dataset" {
 		t.Fatalf("batch declaration advanced parent: %+v, %t", step, open)
 	}

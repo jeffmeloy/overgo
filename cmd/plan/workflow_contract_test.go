@@ -61,7 +61,7 @@ func TestPromptContractProjection(t *testing.T) {
 	t.Parallel()
 	item := plan.Item{ID: "work", Title: "Work item"}
 	step := plan.Step{
-		ID: "do", Title: "Bounded change", Status: plan.StatusOpen, Verify: "go test ./x -run '^TestX$'",
+		ID: "do", Title: "Bounded change", Verify: "go test ./x -run '^TestX$'",
 		DependsOn: []string{"base/do"}, Rationale: strings.Repeat("buried history prose ", 20),
 	}
 	var out bytes.Buffer

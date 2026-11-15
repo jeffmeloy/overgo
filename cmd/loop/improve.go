@@ -293,8 +293,8 @@ func (w improvement) Propose(published scorecard.Record, gaps []scorecard.Gap) (
 		if gap.Restore {
 			verify += " -target " + strconv.FormatFloat(gap.Target, 'g', -1, targetBits)
 		}
-		document.Items = append(document.Items, plan.Item{ID: gap.Key, Title: gap.Title, Owner: document.Lane, Status: plan.StatusOpen, Steps: []plan.Step{{
-			ID: proposalStep, Title: gap.Title, Status: plan.StatusOpen, Verify: verify,
+		document.Items = append(document.Items, plan.Item{ID: gap.Key, Title: gap.Title, Steps: []plan.Step{{
+			ID: proposalStep, Title: gap.Title, Verify: verify,
 			Rationale: gap.Detail + "\nServes: measure and find the gap; the loop proposed this row from scorecard " + published.Name +
 				". Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it.",
 		}}})

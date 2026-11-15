@@ -31,7 +31,7 @@ func TestAnEndedSessionsScratchIsFinished(t *testing.T) {
 	write("repo/.gitignore", "/.overgo-runtime/\n")
 	write("repo/docs/notes.md", "a probe was kept in the scratch of session ended-cited\n")
 	testcheck.NoError(t, plan.Save(filepath.Join(repo, filepath.FromSlash(plan.Path)), plan.Plan{Campaign: "hygiene", Lane: "master-lead", Items: []plan.Item{{
-		ID: "open-row", Title: "a row of the fixture", Status: plan.StatusOpen, Steps: []plan.Step{{ID: "do", Title: "its step", Status: plan.StatusOpen, Verify: "go version"}},
+		ID: "open-row", Title: "a row of the fixture", Steps: []plan.Step{{ID: "do", Title: "its step", Verify: "go version"}},
 	}}}))
 	gitFixture(t, repo, "add", "-A")
 	gitFixture(t, repo, "commit", "-q", "-m", "base")

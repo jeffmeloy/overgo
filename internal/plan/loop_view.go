@@ -56,7 +56,7 @@ func ReadLoopView(ctx context.Context, root string) (LoopView, error) {
 	if err != nil {
 		return LoopView{}, err
 	}
-	dispatch := DispatchOf(document, "")
+	dispatch := DispatchOf(document)
 	view := LoopView{Running: running, Stopped: stop.Blocked, Complete: dispatch.Complete}
 	if stop.Blocked {
 		view.StopReason = stop.Problem

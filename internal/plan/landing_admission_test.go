@@ -12,12 +12,11 @@ import (
 func TestAWorkerLandsOnlyItsDispatchedStep(t *testing.T) {
 	t.Parallel()
 	step := func(id string, after ...string) Step {
-		return Step{ID: id, Status: StatusOpen, Verify: "go test ./...", DependsOn: after}
+		return Step{ID: id, Verify: "go test ./...", DependsOn: after}
 	}
 	document := Plan{Items: []Item{
-		{ID: "first", Status: StatusOpen, Steps: []Step{step("one"), step("two")}},
-		{ID: "later", Status: StatusOpen, Steps: []Step{step("do", "first/two")}},
-		{ID: "lane", Status: StatusOpen, Owner: "other-lane", Steps: []Step{step("do")}},
+		{ID: "first", Steps: []Step{step("one"), step("two")}},
+		{ID: "later", Steps: []Step{step("do", "first/two")}},
 	}}
 	role := worklease.UnassignedRole
 	for _, check := range []struct {
@@ -27,7 +26,6 @@ func TestAWorkerLandsOnlyItsDispatchedStep(t *testing.T) {
 	}{
 		{false, []Ref{{"first", "two"}}, true},
 		{false, []Ref{{"later", "do"}}, false},
-		{false, []Ref{{"lane", "do"}}, false},
 		{true, []Ref{{"first", "one"}}, true},
 		{true, []Ref{{"first", "two"}}, false},
 		{true, []Ref{{"first", "one"}, {"first", "two"}, {"later", "do"}}, true},

@@ -16,11 +16,11 @@ import (
 func TestDispatchJSONMatchesProse(t *testing.T) {
 	t.Parallel()
 	document := plan.Plan{Items: []plan.Item{{
-		ID: "item", Title: "item title", Status: plan.StatusOpen, Steps: []plan.Step{{
-			ID: "do", Title: "make the bounded change", Status: plan.StatusOpen, Verify: "go test ./x -run '^TestX$'",
+		ID: "item", Title: "item title", Steps: []plan.Step{{
+			ID: "do", Title: "make the bounded change", Verify: "go test ./x -run '^TestX$'",
 		}},
 	}}}
-	dispatch := plan.DispatchOf(document, worklease.UnassignedRole)
+	dispatch := plan.DispatchOf(document)
 	encoded := testcheck.Must(json.Marshal(dispatch))(t)
 	var decoded plan.Dispatch
 	testcheck.NoError(t, json.Unmarshal(encoded, &decoded))
@@ -28,7 +28,7 @@ func TestDispatchJSONMatchesProse(t *testing.T) {
 	if !open || decoded.Complete || decoded.Line != prose || decoded.Item != "item" || decoded.Step != "do" || decoded.Verify != "go test ./x -run '^TestX$'" {
 		t.Fatalf("dispatch %s does not match the prose %q", encoded, prose)
 	}
-	done := plan.DispatchOf(plan.Plan{}, worklease.UnassignedRole)
+	done := plan.DispatchOf(plan.Plan{})
 	if !done.Complete || done.Item != "" || done.Line != "plan complete: every item is done" {
 		t.Fatalf("complete dispatch = %+v", done)
 	}

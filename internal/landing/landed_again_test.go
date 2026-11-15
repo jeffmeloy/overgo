@@ -19,9 +19,9 @@ func TestEveryStageFailureLeavesTheTrunkAlone(t *testing.T) {
 	const source = "// Package p is a fixture.\npackage p\n"
 	fixture := newRowFixture(t, map[string]string{"a.txt": "base\n", "b.txt": "base\n", "p/p.go": source})
 	if err := plan.Save(fixture.planPath(), plan.Plan{Campaign: "fixture", Items: []plan.Item{
-		{ID: "row", Title: "row", Status: plan.StatusOpen, Steps: []plan.Step{{ID: "do", Title: "row", Status: plan.StatusOpen, Verify: "true"}}},
-		{ID: "other", Title: "other", Status: plan.StatusOpen, Steps: []plan.Step{{ID: "do", Title: "other", Status: plan.StatusOpen, Verify: "true"}}},
-		{ID: "failing", Title: "failing", Status: plan.StatusOpen, Steps: []plan.Step{{ID: "do", Title: "failing", Status: plan.StatusOpen, Verify: "false"}}},
+		{ID: "row", Title: "row", Steps: []plan.Step{{ID: "do", Title: "row", Verify: "true"}}},
+		{ID: "other", Title: "other", Steps: []plan.Step{{ID: "do", Title: "other", Verify: "true"}}},
+		{ID: "failing", Title: "failing", Steps: []plan.Step{{ID: "do", Title: "failing", Verify: "false"}}},
 	}}); err != nil {
 		t.Fatal(err)
 	}

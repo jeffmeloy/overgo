@@ -227,9 +227,7 @@ const format = 32
 	open := map[string]bool{}
 	for _, item := range document.Items {
 		for _, step := range item.Steps {
-			if step.Status == plan.StatusOpen {
-				open[step.ID] = true
-			}
+			open[step.ID] = true
 		}
 	}
 	live := testcheck.Must(gosyntax.DiscoverGo(repository, tuningPackages...))(t)

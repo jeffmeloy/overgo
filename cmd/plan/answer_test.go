@@ -15,7 +15,7 @@ import (
 func TestAnOwnersAnswerMayBeNoneOfTheOptions(t *testing.T) {
 	t.Parallel()
 	held := plan.Plan{
-		Items: []plan.Item{{ID: "row", Title: "Row", Status: plan.StatusOpen, Steps: []plan.Step{openStep("do")}}},
+		Items: []plan.Item{{ID: "row", Title: "Row", Steps: []plan.Step{openStep("do")}}},
 		Decisions: []plan.Decision{{ID: "choose", Question: "Convert the model, or label cases by hand?", Options: []string{"convert", "label"},
 			Recommendation: "convert", Blocks: []string{"row"}, Asked: "2026-11-09"}},
 	}

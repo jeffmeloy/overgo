@@ -54,8 +54,8 @@ func TestCloseoutRefusesFinishedLeftovers(t *testing.T) {
 	write("repo/.gitignore", "/bin/\n/tmp/\n")
 	write("repo/docs/verification/run-record.txt", "outputs: read once from experiments/done.\n")
 	document := plan.Plan{Campaign: "hygiene", Lane: "master-lead",
-		Items: []plan.Item{{ID: "open-row", Title: "a row of the fixture", Status: plan.StatusOpen, Steps: []plan.Step{{
-			ID: "do", Title: "its one step", Status: plan.StatusOpen, Verify: "go version", Rationale: "the fixture's open row",
+		Items: []plan.Item{{ID: "open-row", Title: "a row of the fixture", Steps: []plan.Step{{
+			ID: "do", Title: "its one step", Verify: "go version", Rationale: "the fixture's open row",
 		}}}}}
 	testcheck.NoError(t, plan.Save(filepath.Join(repo, filepath.FromSlash(plan.Path)), document))
 	gitFixture(t, repo, "add", "-A")

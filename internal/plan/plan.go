@@ -24,27 +24,16 @@ const AutomationRoleEnvironment = worklease.AutomationRoleEnvironment
 // Path is the campaign plan, relative to the repo root.
 const Path = "docs/plan.json"
 
-// ScopeLane retains only work explicitly owned by the declared lane.
-const ScopeLane = "lane"
-
 // NotePrefix opens each working note plan -note adds to a step's reasoning, by which a step's prompt shows its notes
 // apart from the rest of its reasoning.
 const NotePrefix = "Note: "
 
-const (
-	// StatusOpen permits dispatch.
-	StatusOpen = "open"
-	// StatusDone retains completed work.
-	StatusDone = "done"
-)
-
-// Step is one action within an item. Verify is a shell command (run via sh -c)
-// that exits 0 iff the step's acceptance holds; it is required before the step
-// may be advanced, so "done" is machine-checked rather than self-declared.
+// Step is one action within an item, open while the plan holds it: a landing that completes it removes it
+// (single-source/step-fields). Verify is a shell command (run via sh -c) that exits 0 iff the step's acceptance holds;
+// it is required before the step may be advanced, so "done" is machine-checked rather than self-declared.
 type Step struct {
 	ID     string `json:"id"`
 	Title  string `json:"title"`
-	Status string `json:"status,omitzero"`
 	Verify string `json:"verify,omitzero"`
 	// Run, of a run step, is the command that does its work and Record the file it writes, which Verify reads: the
 	// driver runs it and lands the record with no worker.
@@ -90,13 +79,12 @@ const (
 	ClassMerge = "merge"
 )
 
-// Item is one rung of the ladder.
+// Item is one rung of the ladder, open while the plan holds it: every item of the plan is the plan's lane's work, so it
+// names neither an owner nor a status (single-source/step-fields).
 type Item struct {
 	ID     string `json:"id"`
 	Title  string `json:"title"`
 	Class  string `json:"class,omitzero"`
-	Owner  string `json:"owner,omitzero"`
-	Status string `json:"status,omitzero"`
 	Budget Budget `json:"budget,omitzero"`
 	Steps  []Step `json:"steps"`
 }
@@ -109,11 +97,8 @@ type Plan struct {
 	// rules written in two places disagree and a session asks which holds.
 	ParagraphsBefore json.RawMessage `json:"paragraphs,omitempty"`
 	DoctrineBefore   json.RawMessage `json:"doctrine,omitempty"`
-	// Lane names the worktree this plan dispatches for: under the unassigned
-	// role it is the role, so the lane's own rows come first, unowned rows
-	// after, and another lane's rows never.
+	// Lane names the worktree this plan dispatches for, whose stops and resumptions hold its rows.
 	Lane  string `json:"lane,omitzero"`
-	Scope string `json:"scope,omitzero"`
 	Items []Item `json:"items"`
 	// Decisions are the questions only the owner answers, as plain data
 	// rather than prose in a rationale: plan -decisions lists the open
@@ -228,22 +213,7 @@ func Load(path string) (Plan, error) {
 	if err := jsonfile.DecodeStrict(filepath.FromSlash(path), &d); err != nil {
 		return Plan{}, fmt.Errorf("parse %s: %w", path, err)
 	}
-	opened(&d)
 	return d, nil
-}
-
-// opened reads a row saved with no status as open, which every row the plan holds is: a plan is saved with no status
-// (Save), so the step that removes the field lands under a gate that reads a plan either way (single-source/step-fields).
-func opened(d *Plan) {
-	for index := range d.Items {
-		item := &d.Items[index]
-		// A row saved with no owner is the plan's lane's, which Save leaves unsaid (single-source/owner-lane).
-		item.Owner = cmp.Or(item.Owner, d.Lane)
-		item.Status = cmp.Or(item.Status, StatusOpen)
-		for step := range item.Steps {
-			item.Steps[step].Status = cmp.Or(item.Steps[step].Status, StatusOpen)
-		}
-	}
 }
 
 // Parse decodes an in-memory plan document.
@@ -256,7 +226,6 @@ func parsePlan(data []byte, validate func(Plan) error) (Plan, error) {
 	if err := strictjson.DecodeBytes(data, &document); err != nil {
 		return Plan{}, err
 	}
-	opened(&document)
 	return document, validate(document)
 }
 
@@ -280,22 +249,6 @@ func Save(path string, d Plan) error {
 	if err := Validate(d); err != nil {
 		return err
 	}
-	// An open row, which every row the plan holds is, is saved with no status (opened), and a row owned by the plan's
-	// own lane with no owner, which says that already (single-source/owner-lane).
-	for index := range d.Items {
-		if d.Items[index].Status == StatusOpen {
-			d.Items[index].Status = ""
-		}
-		if d.Lane != "" && d.Items[index].Owner == d.Lane {
-			d.Items[index].Owner = ""
-		}
-		d.Items[index].Steps = slices.Clone(d.Items[index].Steps)
-		for step := range d.Items[index].Steps {
-			if d.Items[index].Steps[step].Status == StatusOpen {
-				d.Items[index].Steps[step].Status = ""
-			}
-		}
-	}
 	path = cmp.Or(path, Path)
 	return jsonfile.Write(filepath.FromSlash(path), d, 0o644)
 }
@@ -304,16 +257,6 @@ func Save(path string, d Plan) error {
 func Validate(d Plan) error {
 	if err := validatePlanGraph(d); err != nil {
 		return err
-	}
-	for _, item := range d.Items {
-		if item.Status == StatusDone {
-			return fmt.Errorf("plan item %s retains completed state", item.ID)
-		}
-		for _, step := range item.Steps {
-			if step.Status == StatusDone {
-				return fmt.Errorf("plan step %s/%s retains completed state", item.ID, step.ID)
-			}
-		}
 	}
 	seen := map[string]bool{}
 	for _, decision := range d.Decisions {
@@ -331,26 +274,17 @@ func Validate(d Plan) error {
 }
 
 func validatePlanGraph(d Plan) error {
-	if d.Scope != "" && (d.Scope != ScopeLane || normalizedRole(d.Lane) == worklease.UnassignedRole) {
-		return errors.New("plan: lane scope requires an explicit lane")
-	}
 	if d.Lane != "" && !worklease.ValidAutomationText(d.Lane) {
 		return errors.New("plan: invalid lane")
 	}
 	items := map[string]bool{}
 	for _, item := range d.Items {
-		if d.Scope == ScopeLane && item.Owner != d.Lane {
-			return fmt.Errorf("plan: lane-scoped item %s must be owned by %s", item.ID, d.Lane)
-		}
 		if !worklease.ValidPlanID(item.ID) || items[item.ID] {
 			return fmt.Errorf("plan item id %q is invalid or duplicated", item.ID)
 		}
 		items[item.ID] = true
-		if item.Owner != "" && !worklease.ValidAutomationText(item.Owner) {
-			return fmt.Errorf("plan item %s has invalid owner", item.ID)
-		}
-		if !validStatus(item.Status) || !slices.Contains([]string{"", ClassConsolidation, ClassMerge}, item.Class) {
-			return fmt.Errorf("plan item %s has invalid status %q or class %q", item.ID, item.Status, item.Class)
+		if !slices.Contains([]string{"", ClassConsolidation, ClassMerge}, item.Class) {
+			return fmt.Errorf("plan item %s has invalid class %q", item.ID, item.Class)
 		}
 		steps := map[string]bool{}
 		for _, step := range item.Steps {
@@ -358,11 +292,8 @@ func validatePlanGraph(d Plan) error {
 				return fmt.Errorf("plan step %s/%s is invalid or duplicated", item.ID, step.ID)
 			}
 			steps[step.ID] = true
-			if !validStatus(step.Status) {
-				return fmt.Errorf("plan step %s/%s has invalid status %q", item.ID, step.ID, step.Status)
-			}
-			if step.Status == StatusOpen && strings.TrimSpace(step.Verify) == "" {
-				return fmt.Errorf("plan step %s/%s is open without a verifier", item.ID, step.ID)
+			if strings.TrimSpace(step.Verify) == "" {
+				return fmt.Errorf("plan step %s/%s is without a verifier", item.ID, step.ID)
 			}
 			if step.Verify != "" && !validAutomationDetail(step.Verify) {
 				return fmt.Errorf("plan step %s/%s has an invalid verifier", item.ID, step.ID)
@@ -373,9 +304,6 @@ func validatePlanGraph(d Plan) error {
 			if err := validateVerificationBatch(step.VerificationBatch); err != nil {
 				return fmt.Errorf("plan step %s/%s: %w", item.ID, step.ID, err)
 			}
-		}
-		if item.Status == StatusDone && slices.ContainsFunc(item.Steps, func(step Step) bool { return step.Status != StatusDone }) {
-			return fmt.Errorf("plan item %s is done with unfinished steps", item.ID)
 		}
 	}
 	return nil
@@ -447,54 +375,25 @@ func validateDependencies(d Plan) error {
 }
 
 // dependenciesSatisfied reports whether every depends_on reference is
-// settled: done, or no longer in the plan. A row leaves the plan when a
+// settled: no longer in the plan. A row leaves the plan when a
 // landing completes or retires it, and that commit's message says which.
 func dependenciesSatisfied(d Plan, step Step) bool {
 	for _, reference := range step.DependsOn {
 		itemID, stepID, _ := strings.Cut(reference, "/")
-		if candidate, present := ExactStep(d, itemID, stepID); present && candidate.Status != StatusDone {
+		if _, present := ExactStep(d, itemID, stepID); present {
 			return false
 		}
 	}
 	return true
 }
 
-func validStatus(status string) bool {
-	return status == StatusOpen || status == StatusDone || strings.HasPrefix(status, "blocked")
-}
-
-// Current returns the role-owned open step, then the first unowned step.
-// An open item with no open step yields the sentinel step "." (open the rung).
-// ok is false when no open item remains.
-func Current(d Plan, role string) (Item, Step, bool) {
-	return currentResolved(d, role)
-}
-
-func currentResolved(d Plan, role string) (Item, Step, bool) {
-	role = normalizedRole(role)
-	// The plan's lane is the role nobody named: the rule reads the plan, so a
-	// worktree and the gate's candidate tree dispatch the same rows.
-	if role == worklease.UnassignedRole && d.Lane != "" {
-		role = d.Lane
-	}
-	if role != worklease.UnassignedRole {
-		if item, step, ok := currentOwned(d, role); ok {
-			return item, step, true
-		}
-	}
-	return currentOwned(d, "")
-}
-
-func currentOwned(d Plan, owner string) (Item, Step, bool) {
+// Current returns the first step whose prerequisites are settled, in the plan's order.
+// An item with no step yields the sentinel step "." (open the rung).
+// ok is false when no item remains.
+func Current(d Plan) (Item, Step, bool) {
 	for _, it := range d.Items {
-		if it.Status != StatusOpen || it.Owner != owner {
-			continue
-		}
 		blocked := false
 		for _, s := range it.Steps {
-			if s.Status != StatusOpen {
-				continue
-			}
 			// depends_on is enforced, not descriptive: a step whose
 			// dependencies are not done cannot dispatch, whatever the
 			// file order says.
@@ -574,9 +473,6 @@ func advancePlan(d Plan, itemID, stepID string, wholeItem bool) (Plan, error) {
 		for stepIndex := range d.Items[itemIndex].Steps {
 			if d.Items[itemIndex].Steps[stepIndex].ID != stepID {
 				continue
-			}
-			if d.Items[itemIndex].Steps[stepIndex].Status != StatusOpen {
-				return Plan{}, fmt.Errorf("step %q in %q is not open", stepID, itemID)
 			}
 			d.Items[itemIndex].Steps = slices.Delete(d.Items[itemIndex].Steps, stepIndex, stepIndex+1)
 			if len(d.Items[itemIndex].Steps) == 0 {

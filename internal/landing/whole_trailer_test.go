@@ -21,9 +21,9 @@ func TestAStepIsLandedOnlyByItsOwnWholeTrailer(t *testing.T) {
 	}
 	commit("row/do-more: a longer step\n\nCause: a fixture.\n\n" + plan.LandedRowTrailer + ": row/do-more\n")
 	commit("prose: a quoted trailer\n\nThe message before this one wrote " + plan.LandedRowTrailer + ": row/do in a sentence.\n")
-	before := plan.Plan{Campaign: "fixture", Items: []plan.Item{{ID: "row", Title: "row", Status: plan.StatusOpen}}}
-	filed := plan.Plan{Campaign: "fixture", Items: []plan.Item{{ID: "row", Title: "row", Status: plan.StatusOpen,
-		Steps: []plan.Step{{ID: "do", Title: "row", Status: plan.StatusOpen, Verify: "true"}}}}}
+	before := plan.Plan{Campaign: "fixture", Items: []plan.Item{{ID: "row", Title: "row"}}}
+	filed := plan.Plan{Campaign: "fixture", Items: []plan.Item{{ID: "row", Title: "row",
+		Steps: []plan.Step{{ID: "do", Title: "row", Verify: "true"}}}}}
 	l := &landing{Options: Options{Repo: fixture.repo}}
 	if err := l.landedAgain(t.Context(), before, filed); err != nil {
 		t.Fatalf("row/do, landed by no trailer of its own, was refused: %v", err)

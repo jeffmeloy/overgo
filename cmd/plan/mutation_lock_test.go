@@ -66,7 +66,7 @@ func saveMutationPlan(t *testing.T, root string, document plan.Plan) string {
 func mutationPlan(t *testing.T, title string) plan.Plan {
 	t.Helper()
 	return plan.Plan{Items: []plan.Item{{
-		ID: "row", Title: title, Status: plan.StatusOpen,
-		Steps: []plan.Step{{ID: "do", Status: plan.StatusOpen, Verify: "go test ./cmd/plan"}},
+		ID: "row", Title: title,
+		Steps: []plan.Step{{ID: "do", Verify: "go test ./cmd/plan"}},
 	}}}
 }

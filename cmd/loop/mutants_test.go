@@ -34,11 +34,11 @@ func mutantFixture(t *testing.T) string {
 		testcheck.NoError(t, os.WriteFile(filepath.Join(root, path), []byte(text), 0o600))
 	}
 	steps := []plan.Step{
-		{ID: "strong", Title: "Above holds its boundary", Status: plan.StatusOpen, Verify: "go test ./p -count=1 -run '^TestAbove$'"},
-		{ID: "weak", Title: "Within is called", Status: plan.StatusOpen, Verify: "go test ./p -count=1 -run '^TestWithin$'"},
+		{ID: "strong", Title: "Above holds its boundary", Verify: "go test ./p -count=1 -run '^TestAbove$'"},
+		{ID: "weak", Title: "Within is called", Verify: "go test ./p -count=1 -run '^TestWithin$'"},
 	}
 	document := plan.Plan{Campaign: "mutants", Lane: "master-lead", Items: []plan.Item{{
-		ID: "fixture", Title: "two steps", Owner: "master-lead", Status: plan.StatusOpen, Budget: plan.Budget{Nodes: 10, Reason: "a fixture"}, Steps: steps,
+		ID: "fixture", Title: "two steps", Budget: plan.Budget{Nodes: 10, Reason: "a fixture"}, Steps: steps,
 	}}}
 	data := testcheck.Must(json.MarshalIndent(document, "", "  "))(t)
 	testcheck.Must(plan.Parse(data))(t)

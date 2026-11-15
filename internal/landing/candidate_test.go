@@ -23,7 +23,7 @@ func TestTheChecksReadTheCommitNotTheFolder(t *testing.T) {
 	fixture := newRowFixture(t, map[string]string{"cmd/x/x.go": "package main\n\nfunc main() {}\n", ".gitignore": "docs/draft.md\n"})
 	editPlan(t, fixture, func(document *plan.Plan) {
 		document.Items[0].Steps[0].Files = []string{"cmd/x"}
-		document.Items[0].Steps = append(document.Items[0].Steps, plan.Step{ID: "next", Title: "next", Status: plan.StatusOpen, Verify: "true", Files: []string{"cmd/x"}})
+		document.Items[0].Steps = append(document.Items[0].Steps, plan.Step{ID: "next", Title: "next", Verify: "true", Files: []string{"cmd/x"}})
 	})
 	fixture.git("add", "-A")
 	fixture.git("commit", "-q", "-m", "steps that list their files")

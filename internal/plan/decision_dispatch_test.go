@@ -51,7 +51,7 @@ func TestADecisionBlocksNamedItems(t *testing.T) {
 // decisionFixture is a plan of two rows, the first blocked by an unanswered decision whose recommendation is a.
 func decisionFixture() Plan {
 	row := func(id string) Item {
-		return Item{ID: id, Title: id, Status: StatusOpen, Steps: []Step{{ID: "do", Title: id, Status: StatusOpen, Verify: "true"}}}
+		return Item{ID: id, Title: id, Steps: []Step{{ID: "do", Title: id, Verify: "true"}}}
 	}
 	decision := Decision{ID: "choose", Question: "Which?", Options: []string{"a", "b"}, Recommendation: "a", Blocks: []string{"first"}, Asked: "2026-09-28"}
 	return Plan{Campaign: "fixture", Items: []Item{row("first"), row("second")}, Decisions: []Decision{decision}}
@@ -63,11 +63,11 @@ func decisionFixture() Plan {
 func TestDispatchPassesRowsAwaitingADecision(t *testing.T) {
 	t.Parallel()
 	document := decisionFixture()
-	if dispatch, err := selectDispatch(document, "", ""); err != nil || dispatch.Item != "second" {
+	if dispatch, err := selectDispatch(document, ""); err != nil || dispatch.Item != "second" {
 		t.Fatalf("with first awaiting a decision, dispatch = %+v, %v; want second", dispatch, err)
 	}
 	document.Decisions[0].Answer = "a"
-	if dispatch, err := selectDispatch(document, "", ""); err != nil || dispatch.Item != "first" || len(dispatch.Decided) != 0 {
+	if dispatch, err := selectDispatch(document, ""); err != nil || dispatch.Item != "first" || len(dispatch.Decided) != 0 {
 		t.Fatalf("with the decision answered, dispatch = %+v, %v; want first, no decision taken by default", dispatch, err)
 	}
 }
@@ -79,7 +79,7 @@ func TestAQuestionNeverHoldsTheLoop(t *testing.T) {
 	t.Parallel()
 	document := decisionFixture()
 	document.Items = document.Items[:1]
-	dispatch, err := selectDispatch(document, "", "")
+	dispatch, err := selectDispatch(document, "")
 	if err != nil || dispatch.Item != "first" || dispatch.Waiting != "" || len(dispatch.Decided) != 1 || dispatch.Decided[0] != "choose: a" ||
 		!strings.Contains(dispatch.Line, "taken at the recommended option: choose: a") {
 		t.Fatalf("with every row awaiting a decision, dispatch = %+v, %v; want first under the recommended option, said so", dispatch, err)
@@ -95,19 +95,19 @@ func TestARowRunsOnlyUnderTheAnswerItWasWrittenFor(t *testing.T) {
 	t.Parallel()
 	document := decisionFixture()
 	document.Decisions[0].Answer = "b"
-	if dispatch, err := selectDispatch(document, "", ""); err != nil || dispatch.Item != "second" {
+	if dispatch, err := selectDispatch(document, ""); err != nil || dispatch.Item != "second" {
 		t.Fatalf("answered another way, dispatch = %+v, %v; want second", dispatch, err)
 	}
 	if _, err := Advance(document, "first", "do"); err == nil {
 		t.Fatal("a row answered another way landed")
 	}
 	document.Items = document.Items[:1]
-	dispatch, err := selectDispatch(document, "", "")
+	dispatch, err := selectDispatch(document, "")
 	if err != nil || dispatch.Item != "" || !strings.Contains(dispatch.Waiting, "first is held by decision choose") {
 		t.Fatalf("with only that row left, dispatch = %+v, %v; want it reported", dispatch, err)
 	}
 	document.Decisions[0].Answer = "a"
-	if dispatch, err := selectDispatch(document, "", ""); err != nil || dispatch.Item != "first" {
+	if dispatch, err := selectDispatch(document, ""); err != nil || dispatch.Item != "first" {
 		t.Fatalf("answered as written, dispatch = %+v, %v; want first", dispatch, err)
 	}
 	if _, err := Advance(document, "first", "do"); err != nil {
@@ -124,7 +124,7 @@ func TestADoctrineDecisionIsNeverTakenByRecommendation(t *testing.T) {
 		t.Fatal("an unknown decision was marked")
 	}
 	document.Items = document.Items[:1]
-	dispatch, err := selectDispatch(document, "", "")
+	dispatch, err := selectDispatch(document, "")
 	if err != nil || dispatch.Item != "" || len(dispatch.Decided) != 0 || !strings.Contains(dispatch.Waiting, "waits for the owner's answer") {
 		t.Fatalf("with a doctrine decision unanswered, dispatch = %+v, %v; want the row reported as waiting", dispatch, err)
 	}
@@ -137,7 +137,7 @@ func TestADoctrineDecisionIsNeverTakenByRecommendation(t *testing.T) {
 		t.Fatalf("a row under an unanswered ordinary decision could not land: %v", err)
 	}
 	answered := testcheck.Must(Answer(document, "choose", "a"))(t)
-	if dispatch, err := selectDispatch(answered, "", ""); err != nil || dispatch.Item != "first" {
+	if dispatch, err := selectDispatch(answered, ""); err != nil || dispatch.Item != "first" {
 		t.Fatalf("answered, dispatch = %+v, %v; want first", dispatch, err)
 	}
 }
@@ -151,8 +151,8 @@ func TestPromptAndNextAgreeOnAnAwaitingRow(t *testing.T) {
 	other := document.Decisions[0]
 	other.ID, other.Blocks = "unrelated", []string{"another-row"}
 	document.Decisions = append(document.Decisions, other)
-	next := testcheck.Must(selectDispatch(document, "", ""))(t)
-	named := testcheck.Must(selectDispatch(document, "", "first/do"))(t)
+	next := testcheck.Must(selectDispatch(document, ""))(t)
+	named := testcheck.Must(selectDispatch(document, "first/do"))(t)
 	if next.Item != "first" || named.Item != "first" || named.Waiting != "" {
 		t.Fatalf("next = %+v, by name = %+v", next, named)
 	}
@@ -169,19 +169,19 @@ func TestADecisionTakesItsDefaultUnlessItIsTheOwners(t *testing.T) {
 	t.Parallel()
 	ordinary := decisionFixture()
 	ordinary.Items = ordinary.Items[:1]
-	if dispatch := testcheck.Must(selectDispatch(ordinary, "", ""))(t); dispatch.Item != "first" || len(dispatch.Decided) != 1 {
+	if dispatch := testcheck.Must(selectDispatch(ordinary, ""))(t); dispatch.Item != "first" || len(dispatch.Decided) != 1 {
 		t.Fatalf("under an unanswered ordinary decision, dispatch = %+v; want its row at the recommendation", dispatch)
 	}
 	owners := testcheck.Must(MarkOwnersAct(decisionFixture(), "choose"))(t)
 	if _, err := MarkOwnersAct(owners, "unknown"); err == nil {
 		t.Fatal("an unknown decision was marked")
 	}
-	if dispatch := testcheck.Must(selectDispatch(owners, "", ""))(t); dispatch.Item != "second" {
+	if dispatch := testcheck.Must(selectDispatch(owners, ""))(t); dispatch.Item != "second" {
 		t.Fatalf("with the owner's act unanswered, dispatch = %+v; want the other row to run", dispatch)
 	}
 	alone := owners
 	alone.Items = alone.Items[:1]
-	dispatch := testcheck.Must(selectDispatch(alone, "", ""))(t)
+	dispatch := testcheck.Must(selectDispatch(alone, ""))(t)
 	if dispatch.Item != "" || len(dispatch.Decided) != 0 || !strings.Contains(dispatch.Waiting, "an act only the owner takes") {
 		t.Fatalf("with only the owner's act's row open, dispatch = %+v; want it reported as waiting for the owner", dispatch)
 	}
@@ -189,7 +189,7 @@ func TestADecisionTakesItsDefaultUnlessItIsTheOwners(t *testing.T) {
 		t.Fatal("a row the owner's act holds landed")
 	}
 	answered := testcheck.Must(Answer(alone, "choose", "a"))(t)
-	if dispatch := testcheck.Must(selectDispatch(answered, "", ""))(t); dispatch.Item != "first" {
+	if dispatch := testcheck.Must(selectDispatch(answered, ""))(t); dispatch.Item != "first" {
 		t.Fatalf("answered, dispatch = %+v; want first", dispatch)
 	}
 }

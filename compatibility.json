@@ -140,7 +140,7 @@
    "evidence_tier": "fixture-gated",
    "artifact_identity": "model:sha256:1712f360981e18b30efad1e17611d16066549b820da88c0eb7c7b6f6ad39c098",
    "verify": "go test ./internal/audioparity -run '^TestAudioResourceFitnessAcceptance$' -count=1 -v",
-   "summary": "Five pinned LibriSpeech clean test utterances from three speakers execute through the native evaluator with separate target scoring, silence and corrupt admission controls, exact fresh output parity, WER/CER and complete failure denominators. Isolated child processes measure wall and peak working set including source I/O, cold load, warmup, inference, scoring and publication. A separate target-free profile preserves raw outputs and never calibrates timing. Shared resource comparisons derive observed envelopes, refuse missing device measurements or reused attempts, and preserve measured regressions. Shared vector-policy counterexamples reject quality regressions, no gain and unapproved tradeoffs. No runtime/API/state/buffer change, speedup, GPU, training, full-corpus or promotion claim.",
+   "summary": "Five pinned LibriSpeech clean test utterances from three speakers execute through the native evaluator with separate target scoring, silence and corrupt admission controls, exact fresh output parity, WER/CER and complete failure denominators. Isolated child processes measure wall and peak working set including source I/O, cold load, warmup, inference, scoring and publication. A separate target-free profile preserves raw outputs and never calibrates timing. Shared resource comparisons derive observed envelopes, refuse missing device measurements or reused attempts, and preserve measured regressions. No runtime/API/state/buffer change, speedup, GPU, training, full-corpus or promotion claim.",
    "evidence": [
     {
      "path": "internal/evaluation/transcription_resources.go",
@@ -152,7 +152,7 @@
      "path": "internal/audioparity/cpu_resource_fitness_test.go",
      "contains": "func TestAudioResourceFitnessAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:1c17210e57516f7d4a738dbfb50b9bbed5c23d189cbe3249c942614667507377"
+     "identity": "evidence:sha256:19c69cfa9f33b13d975d6c63d1135f72db4e89dfe33d7840e523d4bc50027fef"
     }
    ]
   },

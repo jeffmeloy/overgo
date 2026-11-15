@@ -71,8 +71,10 @@ func (f *audioMeasurementFixture) compareRepeats(t *testing.T, baseline audioMea
 
 // TestAudioResourceFitnessAcceptance is the one owner of the measured and
 // profiled CPU speech child runs: the held-out measurement, its profiled
-// repeat with exact output parity, the repeated-execution envelope and the
-// shared fitness policy. It is also the profile child's entry point.
+// repeat with exact output parity and the repeated-execution envelope. It is
+// also the profile child's entry point. It had also run internal/evaluation's
+// TestAudioFitnessPolicyAcceptance by name, which went with the candidate
+// fitness policy it held (dead-chain/do), and the run found no such test.
 func TestAudioResourceFitnessAcceptance(t *testing.T) {
 	t.Parallel()
 	if path := os.Getenv(audioProfileRequestEnvironment); path != "" {
@@ -84,10 +86,5 @@ func TestAudioResourceFitnessAcceptance(t *testing.T) {
 	baseline := f.measure(t)
 	f.profile(t, baseline)
 	f.compareRepeats(t, baseline)
-	output := baselineCommand(t, f.l.fixture.root, "go", "test", "./internal/evaluation", "-run", "^TestAudioFitnessPolicyAcceptance$", "-count=1", "-v")
-	if !strings.Contains(output, "--- PASS: TestAudioFitnessPolicyAcceptance") || strings.Contains(output, "--- SKIP:") {
-		t.Fatalf("shared fitness policy was not executed:\n%s", output)
-	}
-	t.Log(output)
-	t.Log("five held-out utterances, three speakers, known-duration silence and duration-unknown corrupt admission, real isolated-process peak/wall, separate profiled execution with exact output parity, fresh empirical envelopes and shared vector-policy refusals; no new runtime APIs, model state or buffers, no GPU/encoder-training/full-corpus/promotion claim")
+	t.Log("five held-out utterances, three speakers, known-duration silence and duration-unknown corrupt admission, real isolated-process peak/wall, separate profiled execution with exact output parity and fresh empirical envelopes; no new runtime APIs, model state or buffers, no GPU/encoder-training/full-corpus/promotion claim")
 }

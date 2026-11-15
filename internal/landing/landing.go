@@ -771,6 +771,9 @@ func (l *landing) fix(ctx context.Context) error {
 // generator is a command that rewrites the files the source derives, which writes names.
 type generator struct {
 	arguments, environment, writes []string
+	// declared are the files of writes a person also edits, which derive never writes over an edit of (SQA-403):
+	// compatibility.json declares each claim's check and summary beside the binding the generator writes.
+	declared []string
 }
 
 // generators are the derived-file commands the repository has, in the order
@@ -790,7 +793,7 @@ func (l *landing) generators() []generator {
 	}{
 		{"api-manifest", generator{arguments: []string{"run", "./cmd/api-manifest", "-update"}, writes: []string{"docs/api_manifest.json"}}},
 		{"validate", generator{arguments: []string{"run", "./cmd/validate", "-claims", "-run"}, environment: append(os.Environ(), cudaTestEnvironment, testskip.StoreAcceptanceEnv+"=1"),
-			writes: []string{"compatibility.json", "docs/COMPATIBILITY.md", "docs/TRAINING_COMPATIBILITY.md"}}},
+			writes: []string{"compatibility.json", "docs/COMPATIBILITY.md", "docs/TRAINING_COMPATIBILITY.md"}, declared: []string{"compatibility.json"}}},
 	} {
 		if _, err := os.Stat(filepath.Join(l.Repo, "cmd", candidate.command)); err == nil {
 			held = append(held, candidate.generator)

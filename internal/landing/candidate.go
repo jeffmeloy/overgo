@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -13,6 +14,7 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
 	"overgo/internal/gitauthority"
+	"overgo/internal/plan"
 	"overgo/internal/processlock"
 )
 
@@ -132,14 +134,22 @@ func (l *landing) derive(ctx context.Context, generators []generator) error {
 			// A file the change derives as the commit it builds on holds it is no part of the change, and the checkout's
 			// copy is left as it stands, another change's edit perhaps: written over, a claim edited for a step not yet
 			// landed was lost to the landing before it (cycle-lanes/derive-keeps, 2026-11-14).
-			if base, err := gitauthority.Query(ctx, l.Repo, "cat-file", "blob", l.builtOn()+":"+name); err == nil && bytes.Equal(base, derived) {
+			base, err := gitauthority.Query(ctx, l.Repo, "cat-file", "blob", l.builtOn()+":"+name)
+			if err == nil && bytes.Equal(base, derived) {
 				continue
 			}
 			if !slices.Contains(l.derived, name) {
 				l.derived = append(l.derived, name)
 			}
-			if held, _ := os.ReadFile(filepath.Join(l.Repo, filepath.FromSlash(name))); bytes.Equal(held, derived) {
+			held, _ := os.ReadFile(filepath.Join(l.Repo, filepath.FromSlash(name)))
+			if bytes.Equal(held, derived) {
 				continue
+			}
+			// A declared file's copy that holds an edit the change does not take, a claim edited for another step, is
+			// never written over by the file the change derives anew: the commit would publish the change's binding, and
+			// the edit be lost (SQA-403). A file nothing declares is derived again whenever it is wanted.
+			if slices.Contains(generator.declared, name) && !bytes.Equal(held, base) && !(l.scope != nil && plan.Lists(l.scope, name)) {
+				return fmt.Errorf("the checkout's %s holds an edit this change does not take, and the change derives the file anew: land that edit first, or set it aside, so it is not written over", name)
 			}
 			if err := os.WriteFile(filepath.Join(l.Repo, filepath.FromSlash(name)), derived, clioptions.OutputFileMode); err != nil {
 				return err

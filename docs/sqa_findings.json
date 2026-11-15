@@ -981,6 +981,50 @@
       ],
   "status": "open",
   "title": "Discover undo inputs in the accepted verifier build context, including the module root"
+},
+    {
+  "id": "SQA-403",
+  "status": "open",
+  "severity": "P2",
+  "evidence_basis": "shown_from_source",
+  "title": "Preserve unlisted authored claim edits when a different claim is rebound",
+  "evidence_commit": "2e4d8fd6864e431d9a9ed4b1d985aea8d6dbdc36",
+  "input": {
+    "current_step": "A scoped code change affects a bound source of claim B; its files do not list compatibility.json. B re-verifies successfully and its generated identity changes B0 to B1.",
+    "base_manifest": "Claim A summary = original; claim B identity = B0.",
+    "live_checkout_manifest": "Claim A summary = pending authored edit for a different step; claim B identity = B0.",
+    "candidate_derived_manifest": "Claim A summary = original; claim B identity = B1, different from base."
+  },
+  "actual": "derive copies the entire candidate manifest to the live checkout. The pending authored summary of A is replaced by the base summary even though that edit was excluded from this step. This outcome follows the source branch; SQA did not execute a reproduction.",
+  "expected": "The candidate may publish its verified B binding, while the unrelated authored A edit survives in the checkout. A conflict refusal before any overwrite is acceptable; silent loss is not.",
+  "evidence": "held excludes an unlisted generated compatibility.json from the scoped candidate, so the candidate starts with base A. rebindClaim correctly preserves unrelated fields within that private candidate file. derive then reads the generated whole file; the 3e65a76d4 guard skips only base==derived, which is false when B changes. The held==derived comparison is also false because live A differs. candidate.go:144 then os.WriteFile replaces the live whole file with base A/new B. No concurrent race is needed. The retained TestDeriveLeavesAnEditItDoesNotMake covers only the equal-to-base output case. This concerns compatibility.json's supported hand-authored declarations, not merely discarding a stale fully generated API listing.",
+  "sources": [
+    {
+      "path": "internal/landing/scope.go",
+      "symbol": "held: unlisted generated files remain outside the initial candidate"
+    },
+    {
+      "path": "internal/landing/candidate.go",
+      "symbol": "derive: base-equality guard, held-equality comparison and whole-file checkout write at line144"
+    },
+    {
+      "path": "cmd/validate/claims.go",
+      "symbol": "claim.Verify/Summary and rebindClaim: checked per-claim identity update in the candidate"
+    },
+    {
+      "path": "internal/landing/derive_keeps_test.go",
+      "symbol": "TestDeriveLeavesAnEditItDoesNotMake: output equals base"
+    },
+    {
+      "path": "internal/landing/claim_edits_test.go",
+      "symbol": "TestAStepThatListsAGeneratedFileTakesItsEdit: authored declaration is supported"
+    }
+  ],
+  "recommended_change": "Fix the handoff in the existing derive/candidate/private-index owner: preserve or refuse conflicting authored checkout bytes before writing the candidate result back. Retain the existing checked claim rebinding and generated-candidate identity. Do not add a parallel stash, journal, merge language or workflow. Extend the existing derive-keeps fixture for the two-claim changed-output case during implementation; no SQA workload is needed to establish this branch.",
+  "closure_criteria": [
+    "With the stated base/live/derived inputs, candidate B can be rebound without losing live A; or a refusal leaves all live bytes intact before publication.",
+    "Preserve explicitly listed claim edits, valid candidate-derived output, the repaired no-op case, exact input verification and claim compare-before-write behavior. No blanket generation bypass or silent widening of scope."
+  ]
 }
   ],
   "master_lead_triage": {
@@ -1094,7 +1138,7 @@
       }
 }
 },
-  "next_finding_number": 403,
+  "next_finding_number": 404,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "review_notes": ["Cleaned at 2e4d8fd6864e431d9a9ed4b1d985aea8d6dbdc36. Retired 43 unplanned P3 advisory items as declined work, without claiming implementation fixes: SQA-215, SQA-228, SQA-239, SQA-241, SQA-242, SQA-244, SQA-247, SQA-249, SQA-259, SQA-262, SQA-271, SQA-285, SQA-287, SQA-296, SQA-297, SQA-298, SQA-303, SQA-306, SQA-307, SQA-311, SQA-312, SQA-314, SQA-317, SQA-323, SQA-325, SQA-329, SQA-330, SQA-334, SQA-339, SQA-343, SQA-344, SQA-349, SQA-350, SQA-351, SQA-352, SQA-353, SQA-365, SQA-367, SQA-375, SQA-376, SQA-391, SQA-395, SQA-400. Four dormant deferrals (110,120,124,268) had no adopted current task/current demonstrated failing producer, or were already declined. SQA-266/277 measurement-status work remains with cycle-lanes/full-run; no new run or quality pass is claimed. SQA-345 was a design/consolidation proposal, not established wrong behavior.","Consolidated SQA-379 into SQA-342, SQA-368 into SQA-369, and SQA-389 into SQA-388, preserving every unique evidence/source/acceptance condition under those existing owners. SQA-366 and SQA-374 are the only open P3 entries and both are named by loop-proof/local-demonstrated. Retained live triage values and unknown fields are unchanged.","Full pre-cleanup records, closure history and removed prose remain in 2e4d8fd6864e431d9a9ed4b1d985aea8d6dbdc36:docs/sqa_findings.json. Fourteen minimal resolved ID/status stubs remain solely because TestTheRegistersTestReductionsLand requires those historical IDs; they are not active work. Stable IDs are not reused."],

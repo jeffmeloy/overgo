@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -48,11 +47,14 @@ type laneStanding struct {
 	Last   plan.LaneRun `json:"last"`
 }
 
-// laneStandings reads where each lane kept at root stands, in the lanes' order by name.
+// laneStandings reads where each of the cycle's declared lanes stands in the record kept at root, in the cycle's order:
+// a lane that never ran says so, and a name the record holds that no lane is goes unread, as the seven fixture lanes a
+// test of the runner had written into the trunk's record were printed (lane-record/do).
 func laneStandings(ctx context.Context, root string) []laneStanding {
 	runs := plan.ReadLaneRuns(root)
 	var standings []laneStanding
-	for _, lane := range slices.Sorted(maps.Keys(runs)) {
+	for _, declared := range landing.CycleLanes() {
+		lane := declared.Name
 		standing := laneStanding{Lane: lane, Last: runs[lane].Last}
 		if passed := runs[lane].Passed.Commit; passed != "" {
 			if count, err := gitauthority.Query(ctx, root, "rev-list", "--count", passed+"..HEAD"); err == nil {
@@ -65,8 +67,12 @@ func laneStandings(ctx context.Context, root string) []laneStanding {
 	return standings
 }
 
-// String is a lane's standing in a line: where it last passed and the commits since, and how its last run ended.
+// String is a lane's standing in a line: where it last passed and the commits since, and how its last run ended, or
+// that it never ran.
 func (standing laneStanding) String() string {
+	if standing.Last.Commit == "" {
+		return "lane " + standing.Lane + ": never run"
+	}
 	said := "lane " + standing.Lane + ": never passed"
 	if standing.Passed != "" {
 		said = fmt.Sprintf("lane %s: passed at %.12s, %d commits since", standing.Lane, standing.Passed, standing.Since)

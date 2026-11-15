@@ -9,10 +9,10 @@ import (
 	"overgo/internal/testcheck"
 )
 
-// TestADirectLaneRunRecordsEachLanesPass holds a run of the cycle's lanes to keeping each lane's end where the trunk's
-// checkout keeps them, with the commit it ran at (lane-passes/do): a lane that passes in a worktree of the trunk is
+// TestADirectLaneRunRecordsEachLanesPass holds a run of the cycle's lanes to keeping each lane's end where it is told
+// to, with the commit it ran at (lane-passes/do, lane-record/do): a lane that passes in a worktree of the trunk is
 // recorded in the trunk's checkout as its latest run and its latest pass, and a later run that fails is its latest run
-// with that pass kept. A direct run had kept no record of a lane's pass, so what it proved was in its output alone.
+// with that pass kept.
 func TestADirectLaneRunRecordsEachLanesPass(t *testing.T) {
 	t.Parallel()
 	trunk, head := fixtureRepository(t)
@@ -22,8 +22,9 @@ func TestADirectLaneRunRecordsEachLanesPass(t *testing.T) {
 	if output, err := add.CombinedOutput(); err != nil {
 		t.Fatalf("git worktree add: %v: %s", err, output)
 	}
-	testcheck.NoError(t, keepLaneRun(t.Context(), worktree, "audio", true))
-	testcheck.NoError(t, keepLaneRun(t.Context(), worktree, "audio", false))
+	kept := trunkCheckout(t.Context(), worktree)
+	testcheck.NoError(t, keepLaneRun(t.Context(), kept, worktree, "audio", true))
+	testcheck.NoError(t, keepLaneRun(t.Context(), kept, worktree, "audio", false))
 	record := plan.ReadLaneRuns(trunk)["audio"]
 	if record.Last.Commit != head || record.Last.Passed || record.Passed.Commit != head || !record.Passed.Passed || record.Passed.Ended.IsZero() {
 		t.Fatalf("the trunk keeps the lane as %+v; want its failed latest run and its pass, both at %s", record, head)

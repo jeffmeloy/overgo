@@ -86,6 +86,10 @@ type Plan struct {
 	NotChosen []Selected `json:"not_chosen"`
 
 	Suites []SelectedSuite `json:"suites"`
+	// LanesKept is the checkout whose state keeps each cycle lane's end (keepLaneRun): the trunk's for a run of the
+	// lanes, none for a plan that keeps nothing, as a test's fixture lanes keep nothing: run through the runner, they
+	// had written their seven lanes into the trunk's record and the status printed them (lane-record/do).
+	LanesKept string `json:"-"`
 }
 
 // measuredModelsFile lists the models a full run measures again, by the names -model takes: one per runtime path,

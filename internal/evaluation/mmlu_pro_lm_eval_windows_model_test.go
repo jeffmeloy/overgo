@@ -36,36 +36,12 @@ const (
 	lmEvalAgreementBar = 0.9
 )
 
-// revisedQuestions are the test questions whose text differs between the dataset revision lm-eval reads (dd36ce4b,
-// the latest cached) and the one overgo imports (9126953e, the lexically first): set aside, since the two are not
-// asked the same question.
-var revisedQuestions = []int{6065, 11783}
-
-// lmEvalReference is what mmlu_pro_lm_eval_reference.py keeps of lm-eval's reading: its task's settings, and each
-// question's id, category, answer, the letter chosen and whether it was right, in the order of the test split.
-type lmEvalReference struct {
-	Task         string  `json:"task"`
-	Model        string  `json:"model"`
-	Dtype        string  `json:"dtype"`
-	NumFewshot   int     `json:"num_fewshot"`
-	FewshotSplit string  `json:"fewshot_split"`
-	TestSplit    string  `json:"test_split"`
-	Accuracy     float64 `json:"accuracy"`
-	Questions    []struct {
-		QuestionID  int    `json:"question_id"`
-		Category    string `json:"category"`
-		AnswerIndex int    `json:"answer_index"`
-		Chosen      int    `json:"chosen"`
-		Right       bool   `json:"right"`
-	} `json:"questions"`
-}
-
 // TestMMLUProReadsAsLmEvalReadsIt reads Qwen2.5-0.5B, a model lm-eval in lmEvalRoot loads too, by overgo's leaderboard
 // reading of MMLU-Pro (five validation demonstrations, plain text, each letter after the target delimiter) over the
 // whole test split, imported from the cache lm-eval reads, and holds it to lm-eval 0.4.9.1's own reading of the model
-// by leaderboard_mmlu_pro within the bar declared before either reading: questions matched by their place in the split
-// and their question_id, the revised ones set aside, accuracy within lmEvalAccuracyBar and the same letter chosen on at
-// least lmEvalAgreementBar of them. lm-eval reads the model in float32: read in bfloat16 (its config's), 1,547 of the
+// by leaderboard_mmlu_pro within the bar declared before either reading: the reference admitted before the model opens
+// for the questions at their places in the split, by content (admitLmEvalReference), the revised ones set aside,
+// accuracy within lmEvalAccuracyBar and the same letter chosen on at least lmEvalAgreementBar of them. lm-eval reads the model in float32: read in bfloat16 (its config's), 1,547 of the
 // questions had its top two letters round to a tie, which its argmax broke to the first (the row's note).
 func TestMMLUProReadsAsLmEvalReadsIt(t *testing.T) {
 	// Serial: the model is loaded alone on the card.
@@ -95,6 +71,9 @@ func TestMMLUProReadsAsLmEvalReadsIt(t *testing.T) {
 		CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "device"),
 		Execution: ExecutionPolicy{Lifecycle: LifecycleResident, Prompting: PromptingRawCompletion},
 	}
+	// The reference is admitted for the questions it compares before any model opens (mmlu-pro/reference).
+	records := testcheck.Must(storeFamilies(t.Context(), answers, "mmlu-pro"))(t)
+	testcheck.NoError(t, admitLmEvalReference(reference, records.families["mmlu-pro"]))
 	suites, _, err := DeriveStoreSuiteFamily(t.Context(), answers, authorities, "mmlu-pro"+wholeFamily)
 	if err != nil || len(suites) != 1 || int(suites[0].Descriptor().Cases) != len(reference.Questions) {
 		t.Fatalf("the cache derives %d MMLU-Pro suites, the first of %s cases, where lm-eval read %d: %v", len(suites), cases(suites), len(reference.Questions), err)
@@ -124,7 +103,7 @@ func TestMMLUProReadsAsLmEvalReadsIt(t *testing.T) {
 		if observation.Selected == nil || observation.Answer == nil || *observation.Answer != question.AnswerIndex {
 			t.Fatalf("case %s answered %v of answer %v, where lm-eval's question %d answers %d", observation.Name, observation.Selected, observation.Answer, question.QuestionID, question.AnswerIndex)
 		}
-		if slices.Contains(revisedQuestions, question.QuestionID) {
+		if _, revised := revisedQuestions[question.QuestionID]; revised {
 			continue
 		}
 		right := *observation.Selected == question.AnswerIndex

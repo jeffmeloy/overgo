@@ -20,22 +20,6 @@
       ]
     },
     {
-      "id": "mmlu-pro",
-      "title": "MMLU-Pro's headline is an eligible reading's, and its reference comparison admits the exact questions first",
-      "steps": [
-        {
-          "id": "reference",
-          "title": "MMLU-Pro's reference comparison admits the exact questions it compares before the model opens",
-          "verify": "go test ./internal/evaluation -count=1 -run '^TestTheMMLUProReferenceIsAdmittedByItsQuestions$'",
-          "files": [
-            "internal/evaluation",
-            "internal/dataset"
-          ],
-          "rationale": "Serves: a comparison against the reference compares the questions it says it does (SQA-369, P2: a check that passes without checking).\n\nThe evidence (the review's, shown from source): the comparison matches its reference by ordinal and count alone, so a reference of other questions, or of another revision, passes the match.\n\nThe change, the finding's: before the runner opens, the reference is bound to the model and tokenizer, the demonstrations, the dataset revision and each question's identity and content, the two documented revision differences admitted for their exact revisions alone.\n\nCheck: TestTheMMLUProReferenceIsAdmittedByItsQuestions holds a reference whose questions differ in content at the same ordinals to a refusal before any model opens.\n\nNote: Read 2026-11-14: the comparison (TestMMLUProReadsAsLmEvalReadsIt) pairs each observation with reference.Questions by the ordinal in its case name and compares the answer index only after the runner has run; question_id is never compared. Neither side holds what an admission needs: the import (hfcache.go) keeps question, options, answer_index and category but no question_id, and reference.json (mmlu_pro_lm_eval_reference.py) keeps question_id, category and answers but no question text. Either the import keeps question_id, which moves the dataset digests TestTheStoresMMLUProCasesKeepTheirIdentities pins, or the reference script writes each question's digest beside its id, read again from lm-eval's cache; the second moves nothing pinned and is the cure to try first."
-        }
-      ]
-    },
-    {
       "id": "turn-holder",
       "title": "A waiter for a turn says the holder again each time it changes",
       "steps": [

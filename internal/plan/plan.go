@@ -44,7 +44,7 @@ const (
 type Step struct {
 	ID     string `json:"id"`
 	Title  string `json:"title"`
-	Status string `json:"status"`
+	Status string `json:"status,omitzero"`
 	Verify string `json:"verify,omitzero"`
 	// Run, of a run step, is the command that does its work and Record the file it writes, which Verify reads: the
 	// driver runs it and lands the record with no worker.
@@ -96,7 +96,7 @@ type Item struct {
 	Title  string `json:"title"`
 	Class  string `json:"class,omitzero"`
 	Owner  string `json:"owner,omitzero"`
-	Status string `json:"status"`
+	Status string `json:"status,omitzero"`
 	Budget Budget `json:"budget,omitzero"`
 	Steps  []Step `json:"steps"`
 }
@@ -228,7 +228,20 @@ func Load(path string) (Plan, error) {
 	if err := jsonfile.DecodeStrict(filepath.FromSlash(path), &d); err != nil {
 		return Plan{}, fmt.Errorf("parse %s: %w", path, err)
 	}
+	opened(&d)
 	return d, nil
+}
+
+// opened reads a row saved with no status as open, which every row the plan holds is: a plan is saved with no status
+// (Save), so the step that removes the field lands under a gate that reads a plan either way (single-source/step-fields).
+func opened(d *Plan) {
+	for index := range d.Items {
+		item := &d.Items[index]
+		item.Status = cmp.Or(item.Status, StatusOpen)
+		for step := range item.Steps {
+			item.Steps[step].Status = cmp.Or(item.Steps[step].Status, StatusOpen)
+		}
+	}
 }
 
 // Parse decodes an in-memory plan document.
@@ -241,6 +254,7 @@ func parsePlan(data []byte, validate func(Plan) error) (Plan, error) {
 	if err := strictjson.DecodeBytes(data, &document); err != nil {
 		return Plan{}, err
 	}
+	opened(&document)
 	return document, validate(document)
 }
 
@@ -263,6 +277,18 @@ func Save(path string, d Plan) error {
 	}
 	if err := Validate(d); err != nil {
 		return err
+	}
+	// An open row, which every row the plan holds is, is saved with no status (opened).
+	for index := range d.Items {
+		if d.Items[index].Status == StatusOpen {
+			d.Items[index].Status = ""
+		}
+		d.Items[index].Steps = slices.Clone(d.Items[index].Steps)
+		for step := range d.Items[index].Steps {
+			if d.Items[index].Steps[step].Status == StatusOpen {
+				d.Items[index].Steps[step].Status = ""
+			}
+		}
 	}
 	path = cmp.Or(path, Path)
 	return jsonfile.Write(filepath.FromSlash(path), d, 0o644)

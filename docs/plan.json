@@ -20,6 +20,30 @@
       ]
     },
     {
+      "id": "cycle-lanes",
+      "title": "The cycle's lanes run at the build that gave them the gate's real-model tests, so each moved test runs before other work",
+      "steps": [
+        {
+          "id": "mmlu-coverage",
+          "title": "The lanes hold no second copy of the cells' MMLU-Pro coverage, which no run could measure while the lanes refused it",
+          "verify": "! grep -rq TestAcceptedSmallModelMMLUPro cmd/benchmark-report",
+          "files": [
+            "cmd/benchmark-report"
+          ],
+          "rationale": "Serves: the cycle's lanes pass at the trunk, so the full measurement run reaches the cells that read MMLU-Pro (cycle-lanes/do, full-run).\n\nThe evidence: cmd/benchmark-report's TestAcceptedSmallModelMMLUPro, in the cycle's models lane, wants at least six servable models scored on MMLU-Pro under both the raw five-shot protocol and the chat template; since mmlu-pro-lm-eval/five-shot (9e943606f, 2026-11-10) the store's raw readings are labelled without demonstrations and no model holds the five-shot one, so it fails (0 of 6, 2026-11-15). A measurement run ends at a failing lane (cmd/loop measurePhases), before the cells that would read them: every run since has stopped there. The cells already owe MMLU-Pro under both protocols for every inference activation (cmd/validate familyProtocols, validationCells) and fail a missing one by name, a stronger rule than the test's floor of six.\n\nThe change: the lanes hold no second copy of the cells' MMLU-Pro coverage: TestAcceptedSmallModelMMLUPro and mmluProCoverage, with its own test, go.\n\nCheck: the test is in no file of cmd/benchmark-report."
+        },
+        {
+          "id": "do",
+          "title": "The cycle's lanes run at the build that gave them the gate's real-model tests, so each moved test runs before other work",
+          "verify": "OVERGO_CUDA_TEST=1 go run ./cmd/validate -run -lanes",
+          "files": [
+            "docs/plan.json"
+          ],
+          "rationale": "Note: The evidence (the owner's review, 2026-11-14): cuda-synthetic moves 63 files of real-model CUDA tests to the cycle, among them latentimage's Krea tests the gate ran until that day. The cycle last ran on 8 Nov at fdd4ab1cea37, its lanes ending after 1 h 41 m without passing; HandStartDue calls one due by hand only when the plan is empty, and full-run has no steps, so nothing dispatches it. Until a cycle runs, a moved test runs only where a step names it as its check.\n\nDecision, the lead's at the owner's word (\"to act on as you see fit\"): cuda-synthetic lands with this row behind it, so the next step after it runs every test it moved. The turn is the cycle's lanes alone, validate -run -lanes, the checks a run makes before its cells: the models lane holds every moved package. It is not a step of full-run: a row leaves the plan when its last step lands, which would take full-run with it, and full-run's own check, the run with its cells, still waits on the causes its title names.\n\nCheck: validate -run -lanes passes on the card, each lane's go test run afresh (-count=1). A lane that fails names its tests, and curing them is this row's work."
+        }
+      ]
+    },
+    {
       "id": "card-free-dispatch",
       "title": "While another process holds the card, dispatch gives out the next step that needs no card",
       "steps": [
@@ -48,40 +72,6 @@
             "internal/landing"
           ],
           "rationale": "Serves: the owner's review of 2026-11-14 (point 3): a failure recorded under another stage is counted against the wrong cause.\n\nThe evidence: the stage loop (landing.go Run) takes the card's turn for a stage on the card (holdCard) before it sets l.spent.Outcome to that stage, so a landing that fails or is refused while it waits for the turn is recorded under the stage before it: on 2026-11-14 a wait of 130 minutes sits in landing_waits.json under \"test\".\n\nThe change: the stage is the outcome from before its card turn is taken, so the wait, and a refusal in it, is the stage's own.\n\nCheck: TestACardWaitIsRecordedUnderItsStage refuses a landing while it waits for the card's turn and reads its record's outcome as the stage on the card."
-        }
-      ]
-    },
-    {
-      "id": "cycle-lanes",
-      "title": "The cycle's lanes run at the build that gave them the gate's real-model tests, so each moved test runs before other work",
-      "steps": [
-        {
-          "id": "coverage-activations",
-          "title": "The accepted text and vision coverage names the activations the store serves, each by the verification that admitted it",
-          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/validate -count=1 -run '^(TestAcceptedModalityCoverage|TestAcceptedTextVisionEvidence)$'",
-          "files": [
-            "cmd/validate/accepted_modalities_model_test.go",
-            "docs/verification/text-vision-coverage.json"
-          ],
-          "rationale": "Serves: the cycle's lanes pass at the trunk, so the full measurement run reaches its cells (cycle-lanes/do, full-run).\n\nThe evidence: the direct run of the cycle's lanes at a59a5a9f3 (2026-11-15) failed cmd/validate's TestAcceptedModalityCoverage, TestStructuredMediaReportProjection, TestAcceptedProtocolCoverageProjection and TestAcceptedTextVisionEvidence on \"missing, duplicate or changed activation\". Read activation by activation against docs/verification/text-vision-coverage.json, four activations of the store were no accepted cell: gemma-4-12B-it-fp8 served from its own files (2cc612d5, onboarded at 1863242c6 in place of its native and BF16 conversions, whose cells stood), Qwen3.8-27B's inference re-verified at b595200a4 under a recipe of another model definition and profile (8c3e243a, superseding the accepted 6595ed03), gemma-4-12B-it's inference and projection (e093a96b, verified at 6c34f3e84), and Unlimited-OCR's projection (bcd66c40, verified at ae199b5b9). The record was last changed 2026-10-31.\n\nThe change: the record accepts each activation by the recipe verification gate the store holds for it, its scope saying that gate's exact suite and no more, the retired conversions' cells and the proofs only they cited go, and its pinned digest follows; the refusal names which of its five causes it is.\n\nCheck: TestAcceptedModalityCoverage and TestAcceptedTextVisionEvidence against the store."
-        },
-        {
-          "id": "mmlu-coverage",
-          "title": "The lanes hold no second copy of the cells' MMLU-Pro coverage, which no run could measure while the lanes refused it",
-          "verify": "! grep -rq TestAcceptedSmallModelMMLUPro cmd/benchmark-report",
-          "files": [
-            "cmd/benchmark-report"
-          ],
-          "rationale": "Serves: the cycle's lanes pass at the trunk, so the full measurement run reaches the cells that read MMLU-Pro (cycle-lanes/do, full-run).\n\nThe evidence: cmd/benchmark-report's TestAcceptedSmallModelMMLUPro, in the cycle's models lane, wants at least six servable models scored on MMLU-Pro under both the raw five-shot protocol and the chat template; since mmlu-pro-lm-eval/five-shot (9e943606f, 2026-11-10) the store's raw readings are labelled without demonstrations and no model holds the five-shot one, so it fails (0 of 6, 2026-11-15). A measurement run ends at a failing lane (cmd/loop measurePhases), before the cells that would read them: every run since has stopped there. The cells already owe MMLU-Pro under both protocols for every inference activation (cmd/validate familyProtocols, validationCells) and fail a missing one by name, a stronger rule than the test's floor of six.\n\nThe change: the lanes hold no second copy of the cells' MMLU-Pro coverage: TestAcceptedSmallModelMMLUPro and mmluProCoverage, with its own test, go.\n\nCheck: the test is in no file of cmd/benchmark-report."
-        },
-        {
-          "id": "do",
-          "title": "The cycle's lanes run at the build that gave them the gate's real-model tests, so each moved test runs before other work",
-          "verify": "OVERGO_CUDA_TEST=1 go run ./cmd/validate -run -lanes",
-          "files": [
-            "docs/plan.json"
-          ],
-          "rationale": "Note: The evidence (the owner's review, 2026-11-14): cuda-synthetic moves 63 files of real-model CUDA tests to the cycle, among them latentimage's Krea tests the gate ran until that day. The cycle last ran on 8 Nov at fdd4ab1cea37, its lanes ending after 1 h 41 m without passing; HandStartDue calls one due by hand only when the plan is empty, and full-run has no steps, so nothing dispatches it. Until a cycle runs, a moved test runs only where a step names it as its check.\n\nDecision, the lead's at the owner's word (\"to act on as you see fit\"): cuda-synthetic lands with this row behind it, so the next step after it runs every test it moved. The turn is the cycle's lanes alone, validate -run -lanes, the checks a run makes before its cells: the models lane holds every moved package. It is not a step of full-run: a row leaves the plan when its last step lands, which would take full-run with it, and full-run's own check, the run with its cells, still waits on the causes its title names.\n\nCheck: validate -run -lanes passes on the card, each lane's go test run afresh (-count=1). A lane that fails names its tests, and curing them is this row's work."
         }
       ]
     },

@@ -37,11 +37,12 @@
       "Cells": [
         {
           "Task": "inference",
-          "Recipe": "recipe:sha256:6595ed03c2b8ff87c5142946868cb841d9a685f77616f21a978ec93587546f1a",
+          "Recipe": "recipe:sha256:8c3e243a38d9f6f7bf91c9f125f0ca95501069a7fc6f05c1bb0282bc54999182",
           "Proofs": [
-            "modality-verification/qwen27-retained-publication"
+            "modality-verification/qwen27-retained-publication",
+            "verification/qwen27-recorded-reverify#candidate-execution"
           ],
-          "Scope": "Retained declared text subsets. Full 27B MMLU-Pro remains operator-owned and is not accepted here."
+          "Scope": "Retained declared text subsets. Full 27B MMLU-Pro remains operator-owned and is not accepted here. Re-verified at b595200a4 (judge-instrument/reverify, -recorded) on the exact suite its accepted verification ran, three cases, under the recipe that build derives; the retained declared text subsets were read under the recipe it superseded (recipe:sha256:6595ed03c2b8ff87c5142946868cb841d9a685f77616f21a978ec93587546f1a)."
         },
         {
           "Task": "projection",
@@ -97,17 +98,16 @@
       ]
     },
     {
-      "Model": "model:sha256:d0be4bb0e24f72ee0589f422ef579115068a7602837bdb4a674f5baaacf030ba",
+      "Model": "model:sha256:2cc612d5e84c3f422e1e59780e193f62630083699138670ec61a368c03c51211",
       "Domains": null,
       "Cells": [
         {
           "Task": "inference",
-          "Recipe": "recipe:sha256:25268b97718fcd611d83280c93c66aaf9676a2063fb7fc767fb8f917131e6254",
+          "Recipe": "recipe:sha256:21b3bf3052574b36c34caea8f260d8e2b2ddb91b6767e1427b1588c2263f4f0c",
           "Proofs": [
-            "modality-verification/gemma12-mmlu-publication",
-            "modality-verification/gemma12-native-ifeval"
+            "verification/gemma12-fp8-onboard#candidate-execution"
           ],
-          "Scope": "12032 MMLU-Pro cases and native IFEval: 541 prompts, 834 instructions, 1668 matched verdicts. Instruction-model raw NLL is not a new defect."
+          "Scope": "gemma-4-12B-it-fp8 served from its own files, onboarded at 1863242c6 (gemma-onboarded/smoke, 4caa70f6a) in place of its native and BF16 conversions, which were retired: the exact suite of its recipe verification, three cases, answered by its candidate, and the integer-addition smoke oracle TestAcceptedSmokeOracles holds. The retired conversions' MMLU-Pro and IFEval readings are of other artifacts and are not carried over; no benchmark or quality claim."
         }
       ]
     },
@@ -136,20 +136,6 @@
             "modality-verification/rxbrain-native-vqa"
           ],
           "Scope": "One frozen native image/question/text comparison. No broad VQA quality, hidden-state or performance claim."
-        }
-      ]
-    },
-    {
-      "Model": "model:sha256:f5e632cd3f6050ab8ae06df55766de5737282689d211f3e2f172db52ff671401",
-      "Domains": null,
-      "Cells": [
-        {
-          "Task": "inference",
-          "Recipe": "recipe:sha256:2c889c2642ce5236e935dead92007c4f9baaea5e28cdc2e47b3e761364589ae4",
-          "Proofs": [
-            "modality-verification/gemma12-mmlu-publication"
-          ],
-          "Scope": "12032 MMLU-Pro cases and native IFEval: 541 prompts, 834 instructions, 1668 matched verdicts. BF16 artifact remains distinct from the native variant."
         }
       ]
     },
@@ -196,23 +182,45 @@
           "Scope": "Qwen3.8-Flash-Next's image projector under its active projection recipe: the exact suite of twenty retained cases ran again under the recipe and matched every case, the activation's decision at 4b9fb9611 on 2026-10-24; held-out image questions score 0.47 on 64 cases, and the served image path is held to no reference beyond this suite."
         }
       ]
+    },
+    {
+      "Model": "model:sha256:bcd66c40c97b5688d7ee1287be7816b2be1c9962f997dab8215861fdb46a57b3",
+      "Domains": null,
+      "Cells": [
+        {
+          "Task": "projection",
+          "Recipe": "recipe:sha256:ee7a5e490348336f46974e5e9528bb53d7ec80f4b3c0e6710aa128cf0a960fe9",
+          "Proofs": [
+            "verification/unlimited-ocr-projection#candidate-execution"
+          ],
+          "Scope": "Unlimited-OCR with its DeepSeek-OCR projector, registered for the drawn-text reader (drawn-text-reading/reader): the exact suite of its projection verification at ae199b5b9, two cases, answered by its candidate. No OCR accuracy or quality claim."
+        }
+      ]
+    },
+    {
+      "Model": "model:sha256:e093a96b8a17ab4d8a4762351b238041fcfc692bfe68ad71eb2c1f595d77a976",
+      "Domains": null,
+      "Cells": [
+        {
+          "Task": "inference",
+          "Recipe": "recipe:sha256:b95281d2f9fe2360e78ca6949e186cd0162dc1a764f55ec9c418bdc22fa36992",
+          "Proofs": [
+            "verification/gemma12-it-inference#candidate-execution"
+          ],
+          "Scope": "gemma-4-12B-it served from its own safetensors: the exact suite of its inference verification at 6c34f3e84, three cases, answered by its candidate. No benchmark or quality claim."
+        },
+        {
+          "Task": "projection",
+          "Recipe": "recipe:sha256:84ac5b0b1653f45959958a5606ba829e41064faa92f50b9d2e8e7c7f3ff425d4",
+          "Proofs": [
+            "verification/gemma12-it-projection#candidate-execution"
+          ],
+          "Scope": "gemma-4-12B-it's vision projection from its own safetensors: the exact suite of its projection verification at 6c34f3e84, 27 cases, answered by its candidate. No broad vision quality claim."
+        }
+      ]
     }
   ],
   "Proofs": [
-    {
-      "Reference": "modality-verification/gemma12-mmlu-publication",
-      "Commit": "4487fe76c43ef3b0f03bc52008d5b40426429bf7",
-      "Verify": "go test ./cmd/compatibility -run '^TestRetainedModelPublications$' -count=1",
-      "Preparation": "evidence:sha256:c4a7daf42d69a5df5dda2fbbae02433c8d05d39fe8a2090bc240eef0d0834cbd",
-      "Result": "evidence:sha256:dd97a5efd308835f5cfc5040ba5eb89bcf88d96d70eab5937deb154d1ca04d7f"
-    },
-    {
-      "Reference": "modality-verification/gemma12-native-ifeval",
-      "Commit": "7df4f2c2b73150edeb3662436030798bb5b89438",
-      "Verify": "go test ./internal/evaluation -run '^TestGemmaNativeIFEvalAcceptance$' -count=1",
-      "Preparation": "evidence:sha256:dab776874cf73748130ef34b1cf90197b8370e391629c9e3e525fe3c4eb4292e",
-      "Result": "evidence:sha256:1eda3704f26c4696621b58982acd91292df27ce65d3c24ff8a555a758f6654e4"
-    },
     {
       "Reference": "modality-verification/ifeval-parity-report",
       "Commit": "b3d6663f9643f25b9bf92305226194d86f634ea6",
@@ -223,7 +231,7 @@
     {
       "Reference": "modality-verification/qwen27-projection",
       "Commit": "69ffcc7423fa498c5df1dd4aaee269838626fe27",
-      "Verify": "go test ./internal/evaluation -run '^(TestRetainedProjectionResults|TestResumeRejectsPartialOrForeignPlanResults)$' -count=1 \u0026\u0026 go test ./cmd/compatibility -run '^TestRetainedProjectionPublications$/^qwen-twentyseven$' -count=1 \u0026\u0026 go test ./cmd/recipe -run '^TestProjectionVerificationRequiresExecution$' -count=1",
+      "Verify": "go test ./internal/evaluation -run '^(TestRetainedProjectionResults|TestResumeRejectsPartialOrForeignPlanResults)$' -count=1 && go test ./cmd/compatibility -run '^TestRetainedProjectionPublications$/^qwen-twentyseven$' -count=1 && go test ./cmd/recipe -run '^TestProjectionVerificationRequiresExecution$' -count=1",
       "Preparation": "evidence:sha256:ce587547ad1864cb2ceb938beebcb008da1fe2d8d4bf7ce8449bc25dafefb1ec",
       "Result": "evidence:sha256:479f62f486a33e8985d0a70667bf711def7453678e06e0044de9d38ab37d95ab"
     },
@@ -237,7 +245,7 @@
     {
       "Reference": "modality-verification/qwen4-native-reference",
       "Commit": "dffd8555e6aab632eaffd7e8e25be8cec22a96b2",
-      "Verify": "go test ./internal/hfgguf -run '^(TestQwen35RecurrentMetadataIncludesPredictionLayers|TestQwen35ConvolutionNativeStorage|TestValidateQwen35RepositoryUsesRuntimeCatalog)$' -count=1 \u0026\u0026 test -f cmd/compatibility/qwen4_native_reference_test.go \u0026\u0026 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/compatibility -run '^(TestQwenFourNativeReferenceAcceptance|TestMiniCPMNativeContract|TestAcceptedMiniCPMNativeReference)$' -count=1",
+      "Verify": "go test ./internal/hfgguf -run '^(TestQwen35RecurrentMetadataIncludesPredictionLayers|TestQwen35ConvolutionNativeStorage|TestValidateQwen35RepositoryUsesRuntimeCatalog)$' -count=1 && test -f cmd/compatibility/qwen4_native_reference_test.go && OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/compatibility -run '^(TestQwenFourNativeReferenceAcceptance|TestMiniCPMNativeContract|TestAcceptedMiniCPMNativeReference)$' -count=1",
       "Preparation": "evidence:sha256:5b7f9bc3bdd8d8ebd1494c62790b2411c0298f8e13f4784a4adff87a525efb0e",
       "Result": "evidence:sha256:fa70b1eca0c6818c2bd60b68a5158b674cf93c65174f9e09b8f632953f4a6ec7"
     },
@@ -258,14 +266,14 @@
     {
       "Reference": "modality-verification/resident-publication",
       "Commit": "363d434f754395ec77ae6c45f9466ed1697b803f",
-      "Verify": "go test ./internal/evaluation -run '^(TestResidentCampaignPublication|TestIsolatedModelPerformanceEvidence|TestResourceFitnessContract|TestResumeRejectsPartialOrForeignPlanResults|TestQwenSmallRetainedTextAcceptance|TestQwenFourRetainedBenchmarkAcceptance)$' -count=1 \u0026\u0026 go test ./internal/gate -run '^(TestGateStagesMechanicalRepairs|TestAdmissionStepsOverlap|TestCandidateCheckoutOwnsIndexRefresh|TestCandidateVerifierCannotMutateAcceptedTree|TestCandidateVerifierExcludesAmbientWorktreeInputs)$' -count=1",
+      "Verify": "go test ./internal/evaluation -run '^(TestResidentCampaignPublication|TestIsolatedModelPerformanceEvidence|TestResourceFitnessContract|TestResumeRejectsPartialOrForeignPlanResults|TestQwenSmallRetainedTextAcceptance|TestQwenFourRetainedBenchmarkAcceptance)$' -count=1 && go test ./internal/gate -run '^(TestGateStagesMechanicalRepairs|TestAdmissionStepsOverlap|TestCandidateCheckoutOwnsIndexRefresh|TestCandidateVerifierCannotMutateAcceptedTree|TestCandidateVerifierExcludesAmbientWorktreeInputs)$' -count=1",
       "Preparation": "evidence:sha256:d13e69cedd01b225ad8d18146a398bec2c28e53a7de298d7cf61716f81f22f0d",
       "Result": "evidence:sha256:19f94d2850e1b68cb9bfd16a50aee1be73687449826c2eb2ecf0a0d36bb2e4ec"
     },
     {
       "Reference": "modality-verification/retained-model-bundles",
       "Commit": "85c67e71c17dc0d72ae65571c6a2a9cf33372c83",
-      "Verify": "go test ./internal/evaluation -run '^TestMiniCPMRetainedChoiceAcceptance$' -count=1 \u0026\u0026 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/compatibility -run '^(TestAcceptedMiniCPMNativeReference|TestMiniCPMNativeContract|TestMiniCPMIFEvalAcquisitionAcceptance|TestMiniCPMIFEvalNativeScoringAcceptance|TestMiniCPMIFEvalGoParityAcceptance|TestAcceptedE4BModalities)$' -count=1",
+      "Verify": "go test ./internal/evaluation -run '^TestMiniCPMRetainedChoiceAcceptance$' -count=1 && OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/compatibility -run '^(TestAcceptedMiniCPMNativeReference|TestMiniCPMNativeContract|TestMiniCPMIFEvalAcquisitionAcceptance|TestMiniCPMIFEvalNativeScoringAcceptance|TestMiniCPMIFEvalGoParityAcceptance|TestAcceptedE4BModalities)$' -count=1",
       "Preparation": "evidence:sha256:4e6432d10050d8d28d52725999745abe75c6bde44ef7aac6e859536983d308d3",
       "Result": "evidence:sha256:fc288ae5ba560ee6eaa8a11bbb0b6eebff0e524738029289028d871b0f7c066c"
     },
@@ -302,6 +310,41 @@
       "Commit": "4b9fb96116b9b68573b3302edc885400f6c55c83",
       "Verify": "go run ./cmd/recipe verify -task projection -reverify -projector C:/Users/jeffm/overgo_data/models/Qwen3.8-Flash-Next/mmproj-Qwen3.8-Flash-Next-BF16.gguf C:/Users/jeffm/overgo_data/models/Qwen3.8-Flash-Next/unsloth-UD-IQ4_XS/Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00003.gguf",
       "Result": "evidence:sha256:a110449b84d51331db70e924f2224a46796b575faa9753b6da292c707c010cff",
+      "Check": "candidate-execution"
+    },
+    {
+      "Reference": "verification/gemma12-fp8-onboard",
+      "Commit": "1863242c64cc856b013cd9838a1aa6111a1539fd",
+      "Verify": "go run ./cmd/recipe verify -task inference C:/Users/jeffm/adaptive_new/models/gemma-4-12B-it-fp8",
+      "Result": "evidence:sha256:409c87194e94c1c415ca2a67bc92d55c8f57ec08a02fb1e5be99ef1b0a326110",
+      "Check": "candidate-execution"
+    },
+    {
+      "Reference": "verification/qwen27-recorded-reverify",
+      "Commit": "b595200a44d6ebb628dab79a49620dce18b83527",
+      "Verify": "go run ./cmd/recipe verify -task inference -recorded C:/Users/jeffm/overgo_data/models/Qwen3.8-27B-UD-Q6_K/Qwen3.8-27B-UD-Q6_K.gguf",
+      "Result": "evidence:sha256:c1500e25097c2b7480489a77213954a384e3672345eff8ef400599e4d5ee2026",
+      "Check": "candidate-execution"
+    },
+    {
+      "Reference": "verification/unlimited-ocr-projection",
+      "Commit": "ae199b5b9fec82be1dcdf388a6adba9879500204",
+      "Verify": "go run ./cmd/recipe verify -task projection -projector C:/Users/jeffm/overgo_data/models/Unlimited-OCR-bf16/Unlimited-OCR-mmproj-bf16.gguf C:/Users/jeffm/overgo_data/models/Unlimited-OCR-bf16/Unlimited-OCR-bf16.gguf",
+      "Result": "evidence:sha256:3844f82415f2ee2350dc51d70a35fe97647d7c23072dfa7001d2b4917efc4b5c",
+      "Check": "candidate-execution"
+    },
+    {
+      "Reference": "verification/gemma12-it-inference",
+      "Commit": "6c34f3e8497a6df5435ccc7463d39cdff5eb6780",
+      "Verify": "go run ./cmd/recipe verify -task inference C:/Users/jeffm/overgo_data/models/gemma-4-12B-it",
+      "Result": "evidence:sha256:79cde67ed655a36a0d5b87eafa8d0f90620fd1f267f11f7e15670124e6ac36de",
+      "Check": "candidate-execution"
+    },
+    {
+      "Reference": "verification/gemma12-it-projection",
+      "Commit": "6c34f3e8497a6df5435ccc7463d39cdff5eb6780",
+      "Verify": "go run ./cmd/recipe verify -task projection C:/Users/jeffm/overgo_data/models/gemma-4-12B-it",
+      "Result": "evidence:sha256:7356d1294533be3230244fca7895844ca6844c78c6bb4b5f4a6cfc06af758d7a",
       "Check": "candidate-execution"
     }
   ],

@@ -112,7 +112,7 @@ func TestAcceptedTextVisionEvidence(t *testing.T) {
 	testskip.Short(t)
 	root := testutil.RepoRoot(t)
 	var coverage acceptedCoverage
-	requireAcceptedDocument(t, root, "docs/verification/text-vision-coverage.json", "dc81d0efe078304fb3d512e2e7f74f6a89037602562c1a21f7df603dac536358", &coverage)
+	requireAcceptedDocument(t, root, "docs/verification/text-vision-coverage.json", "b1dfe2d75f93ed194ef7fd5b4bf9c168f02196452d5d9a2f6633d4705fcc1de6", &coverage)
 	requireAcceptedCoverage(t, root, coverage, recipe.TaskInference, recipe.TaskProjection, recipe.TaskVQA, recipe.TaskEmbedding, recipe.TaskRerank)
 }
 
@@ -288,8 +288,18 @@ func checkAcceptedDenominator(ctx context.Context, store artifact.Reader, expect
 					return err
 				}
 			}
-			if !found || !entry.Present || capability.Stale != "" || !covered || !slices.Equal(declared, domains[entry.Model]) {
-				return fmt.Errorf("coverage: missing, duplicate or changed activation %s/%s", entry.Model, capability.Task)
+			// Each way an activation leaves the accepted coverage is said apart, so a refusal names its own cause.
+			switch {
+			case !found:
+				return fmt.Errorf("coverage: activation %s/%s (%s) is no accepted cell", entry.Model, capability.Task, entry.Location)
+			case !entry.Present:
+				return fmt.Errorf("coverage: activation %s/%s (%s) is not on disk", entry.Model, capability.Task, entry.Location)
+			case capability.Stale != "":
+				return fmt.Errorf("coverage: activation %s/%s (%s) is stale: %s", entry.Model, capability.Task, entry.Location, capability.Stale)
+			case !covered:
+				return fmt.Errorf("coverage: activation %s/%s (%s) runs recipe %s, which accepted recipe %s does not cover", entry.Model, capability.Task, entry.Location, capability.Recipe, cell.Recipe)
+			case !slices.Equal(declared, domains[entry.Model]):
+				return fmt.Errorf("coverage: activation %s/%s (%s) declares domains %v, accepted %v", entry.Model, capability.Task, entry.Location, declared, domains[entry.Model])
 			}
 			definition, err := recipe.RequireDefinition(ctx, store, capability.Recipe)
 			if err != nil {

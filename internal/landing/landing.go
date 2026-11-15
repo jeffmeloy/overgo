@@ -171,6 +171,10 @@ func Run(ctx context.Context, options Options) (landed string, err error) {
 	if err := creditsNoCoAuthor(options.Message); err != nil {
 		return "", err
 	}
+	// The trees a landing makes fresh build trimmed, so they share the cache (gate-trimpath/do).
+	if err := TrimBuilds(); err != nil {
+		return "", err
+	}
 	scratch, err := os.MkdirTemp("", "overgo-landing-*")
 	if err != nil {
 		return "", err

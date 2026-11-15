@@ -20,22 +20,6 @@
       ]
     },
     {
-      "id": "gate-trimpath",
-      "title": "The gate builds with -trimpath, so a candidate checkout reuses what the last one compiled",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Every go command a landing, the cycle's lanes and a measurement run start builds with -trimpath",
-          "verify": "go test ./internal/landing -count=1 -run '^TestALandingBuildsWithTrimmedPaths$'",
-          "files": [
-            "internal/landing",
-            "cmd/validate/main.go"
-          ],
-          "rationale": "Serves: development velocity: the gate took 8.2 hours on 2026-11-14, every landing compiling every package it checks from nothing.\n\nThe evidence (2026-11-15): a landing checks its candidate out in a fresh directory (overgo-landing-N), and go keys a build without -trimpath on the package's directory, so nothing a landing compiled before is reused. Two fresh checkouts of 1ccebdf40: building cmd/plan compiled 56 overgo packages in each without -trimpath, none in the second with it; compiling the test binaries of internal/landing and internal/evaluation took 10.2 s in the second checkout without it and 1.1 s with it. The build cache had grown to 235 GB, and a landing on 2026-11-15 stopped at the disk floor. No code locates a file through runtime.Caller; landing.go already runs go fix with -trimpath=false.\n\nThe change: every go command a landing, a run of the cycle's lanes and a measurement run starts builds with -trimpath, so a candidate checkout reuses what the last one compiled; what reads a go command's file positions (vet's, a test's) reads them as the trimmed paths say.\n\nCheck: TestALandingBuildsWithTrimmedPaths.\n\nNote: files set to internal/landing, cmd/validate/main.go: The change is the landing's and validate -run's start alone; cmd/validate holds cycle-lanes' coverage fix, not this step's, and cmd/loop starts its runs through validate, which trims them.\n\nNote: Correction, read 2026-11-15 in candidate.go: the stages after format and fix already read the candidate in a kept worktree (landing-candidate-N), kept from one landing to the next for this very reason, so they replay what the last landing built. What still builds from nothing each landing is every tree made fresh in the landing's scratch, the undo run's and the added-check run's, and a lanes or measurement run in a new checkout; each adds its own entries to the cache, which is how it grew past 235 GB. Trimmed builds let those trees reuse the cache, and let a second worktree slot share the first's."
-        }
-      ]
-    },
-    {
       "id": "undo-every-check",
       "title": "The undo run proves every step's check, whatever it runs, and the added-check run goes",
       "steps": [
@@ -149,6 +133,21 @@
             "docs/plan.json"
           ],
           "rationale": "Note: The evidence (the owner's review, 2026-11-14): cuda-synthetic moves 63 files of real-model CUDA tests to the cycle, among them latentimage's Krea tests the gate ran until that day. The cycle last ran on 8 Nov at fdd4ab1cea37, its lanes ending after 1 h 41 m without passing; HandStartDue calls one due by hand only when the plan is empty, and full-run has no steps, so nothing dispatches it. Until a cycle runs, a moved test runs only where a step names it as its check.\n\nDecision, the lead's at the owner's word (\"to act on as you see fit\"): cuda-synthetic lands with this row behind it, so the next step after it runs every test it moved. The turn is the cycle's lanes alone, validate -run -lanes, the checks a run makes before its cells: the models lane holds every moved package. It is not a step of full-run: a row leaves the plan when its last step lands, which would take full-run with it, and full-run's own check, the run with its cells, still waits on the causes its title names.\n\nCheck: validate -run -lanes passes on the card, each lane's go test run afresh (-count=1). A lane that fails names its tests, and curing them is this row's work."
+        }
+      ]
+    },
+    {
+      "id": "waiter-bound",
+      "title": "The turn test fails, not hangs, when a waiter says nothing as the turn passes",
+      "steps": [
+        {
+          "id": "do",
+          "title": "TestAWaiterSaysEachNewHolder bounds its wait for the third's line",
+          "verify": "go test ./internal/processcontrol -count=1 -run '^TestAWaiterSaysEachNewHolder$'",
+          "files": [
+            "internal/processcontrol/turn_windows_test.go"
+          ],
+          "rationale": "Serves: a check that fails says so, never holds the gate for ever.\n\nThe evidence: turn-holder/do's undo run (2026-11-15) restored the waiter without its watch and ran TestAWaiterSaysEachNewHolder, which reads the third probe's next line before telling the second to give its turn up: the third said nothing, the second held the turn, and the check, run with no timeout, waited 32 minutes until its probes were ended by hand.\n\nThe change: the test reads the third's line apart and fails, on its assertion, when no line comes within a bound far past the milliseconds the watch takes, so the undo run of a waiter without the watch is evidence in a minute.\n\nCheck: TestAWaiterSaysEachNewHolder fails on its assertion, not by hanging, with the watch removed."
         }
       ]
     },

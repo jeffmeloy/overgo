@@ -293,6 +293,10 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 		if scope, err = runScopeOf(*background, *cellsOnly, *lanesOnly, *preflight); err != nil {
 			return err
 		}
+		// A run's lanes and cells build in a checkout of their own, trimmed to share the cache (gate-trimpath/do).
+		if err := landing.TrimBuilds(); err != nil {
+			return err
+		}
 		if scope == scopeLanes {
 			// The lanes need no model resolved: only they run.
 			return executeRun(ctx, output, *root, storeRoot, store, Plan{Suites: cycleSuites(), LanesKept: trunkCheckout(ctx, *root), HoldsCard: landing.HoldLaneTurn}, scope)

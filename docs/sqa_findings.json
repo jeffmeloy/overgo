@@ -132,21 +132,6 @@
       "actual": "go test exits 0, planverify returns VACUOUS: ... skipped, and run_check appends missingTest to any VACUOUS result, telling the worker the test is \"in no file yet. Write it first\". The fixture covers an absent test only. Read from source."
     },
     {
-      "id": "SQA-369",
-      "severity": "P2",
-      "files": [
-        "internal/evaluation/mmlu_pro_lm_eval_windows_model_test.go",
-        "internal/evaluation/store_suites.go",
-        "internal/dataset/benchmark.go",
-        "scripts/python_golden_references/mmlu_pro_lm_eval_reference.py",
-        "internal/evaluation/mmlu_pro_test.go",
-        "internal/evaluation/mmlu_pro_leaderboard_test.go"
-      ],
-      "input": "(1) The tagged MMLU-Pro comparison run against a reference whose non-excluded question_ids all differ, or a same-size corpus with other questions and the same answer indices. (2) The untagged identity test run where the data root holds another store or none.",
-      "expected": "(1) Comparison identity and per-question correspondence are checked before model work, and only declared, content-bound revision differences are excluded. (2) Identity acceptance reads only native fixtures, independent of the user's store, and no skip counts as a pass.",
-      "actual": "(1) The comparison checks task, model name, dtype, shots, splits and total count, then pairs results by ordinal (reference.Questions[ordinal]) and checks answer_index after the whole suite; question_id serves two exclusions and diagnostics alone, so the changed reference passes. The reference records lm_eval 0.4.9.1 and a model path but an empty dataset_fingerprint, and no question text or model and tokenizer digests. (2) A parallel subtest resolves the user data root, reads the real store and skips or hashes its corpus, calling mmluProIdentities 36,096 times for the 12,032-case set, so what it checks depends on mutable external state. Read from source."
-    },
-    {
       "id": "SQA-371",
       "severity": "P2",
       "files": [
@@ -265,103 +250,95 @@
     "at": "2026-11-13",
     "head": "0ef92bbeb509dbb96070d1f6e9161e95538210b7",
     "findings": {
-      "SQA-369": {
-        "action": "implemented",
-        "rows": [
-          "identity-gate/do",
-          "mmlu-pro/reference"
-        ],
-        "note": "Implemented 2026-11-15: identity-gate/do (43dcb1841) moves the store identity check under modeltest, the host check reading pinned fixtures with an empty data root; mmlu-pro/reference (78a38cebf) admits lm-eval's reference before any model opens by the revision it read and each question's content at its place, the two revised questions as their exact two versions alone. Awaiting the recheck of its input against its expected."
-      },
-      "SQA-346": {
+  "SQA-346": {
         "action": "filed",
         "rows": [
           "observation-binding/do"
         ],
         "note": "Answered by the lead on 2026-11-13: filed, held-out readings credited to media they did not read."
       },
-      "SQA-340": {
+  "SQA-340": {
         "action": "filed",
         "rows": [
           "preset-form/do"
         ],
         "note": "Answered by the lead on 2026-11-13: filed, a served choice misrepresented."
       },
-      "SQA-382": {
+  "SQA-382": {
         "action": "filed",
         "rows": [
           "prompt-weights/rows"
         ],
         "note": "Answered by the lead on 2026-11-13: filed, model output."
       },
-      "SQA-386": {
+  "SQA-386": {
         "action": "filed",
         "rows": [
           "moss-import-admission/convrot"
         ],
         "note": "Answered by the lead on 2026-11-13: filed, MOSS Ultra's Base serving from its own file."
       },
-      "SQA-342": {
+  "SQA-342": {
         "action": "filed",
         "rows": [
           "preset-evidence/statistic"
         ],
         "note": "Answered by the lead on 2026-11-13: filed after preset-readings, whose admissions it bears on; a held-out quality claim."
       },
-      "SQA-388": {
+  "SQA-388": {
         "action": "filed",
         "rows": [
           "comfy-recorder/record-rest"
         ],
         "note": "Answered by the lead on 2026-11-13: carried by the recorder's open step, whose files it names."
       },
-      "SQA-356": {
+  "SQA-356": {
         "action": "filed",
         "rows": [
           "loop-proof/local-demonstrated"
         ],
         "note": "Answered by the lead on 2026-11-13: carried by the local worker's demonstration step, which reads the worker's cost."
       },
-      "SQA-366": {
+  "SQA-366": {
         "action": "filed",
         "rows": [
           "loop-proof/local-demonstrated"
         ],
         "note": "Answered by the lead on 2026-11-13: carried by the local worker's demonstration step, on the worker's path."
       },
-      "SQA-371": {
+  "SQA-371": {
         "action": "filed",
         "rows": [
           "loop-proof/local-demonstrated"
         ],
         "note": "Answered by the lead on 2026-11-13: carried by the local worker's demonstration step, on the worker's path."
       },
-      "SQA-372": {
+  "SQA-372": {
         "action": "filed",
         "rows": [
           "loop-proof/local-demonstrated"
         ],
         "note": "Answered by the lead on 2026-11-13: carried by the local worker's demonstration step; a held check altered through another spelling is the check class."
       },
-      "SQA-374": {
+  "SQA-374": {
         "action": "filed",
         "rows": [
           "loop-proof/local-demonstrated"
         ],
         "note": "Answered by the lead on 2026-11-13: carried by the local worker's demonstration step, on the worker's path."
       },
-      "SQA-401": {
+  "SQA-401": {
         "action": "deferred",
         "note": "Checked 2026-11-13 at 8ab8f2e44: the module root holds no Go file, so no package there can embed a file below it, and the one build-tagged file with a go:embed directive is a test (internal/dataset/speech_source_acceptance_model_test.go), which the undo does not restore as production. Neither shape the finding names occurs today; it is taken up when one does, or with the verifier's build-context work it names."
       },
-      "SQA-283": {
+  "SQA-283": {
         "action": "filed",
         "rows": [
           "execution-state/do"
         ],
         "note": "Reopened by the lead's recheck on 2026-11-13: run-from-files/do and recipe-state made the first repair, whose tests pass at f110d30b1, but the review's evidence names three publication owners that still read recipe state at publication and drop a lookup error, so an empty Verification earns the legacy path and a later activation can replace execution-time state. execution-state/do carries the state read at execution to publication."
       }
-    }
+}
   },
   "next_finding_number": 404,
   "repository": "C:\\Users\\jeffm\\overgo",

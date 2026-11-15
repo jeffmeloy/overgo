@@ -50,6 +50,112 @@
       ]
     },
     {
+      "id": "single-source",
+      "title": "A fact is written once, where a program uses it; other copies are generated or go, and the tool says what a session needs when it needs it",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "claim-fields",
+          "title": "A claim holds no status and no verify; the matrix prints the command its test derives",
+          "status": "open",
+          "verify": "go test ./cmd/validate -count=1 -run '^TestAClaimHoldsNoStatusOrVerify$'",
+          "files": [
+            "cmd/validate",
+            "compatibility.json",
+            "docs/COMPATIBILITY.md",
+            "docs/TRAINING_COMPATIBILITY.md"
+          ],
+          "rationale": "Serves: the owner's rule of 2026-11-14: a fact is written once, where a program uses it.\n\nThe evidence (the owner's read at 933120879, cmd/validate/claims.go): validateManifest allows three statuses and all 67 claims hold \"implemented\"; evidenceCommand derives the exact command from a claim's artifact entry and validateClaimEvidenceTier refuses any other, so verify is a copy.\n\nThe change: status and verify leave a claim; the matrix prints the command evidenceCommand derives.\n\nCheck: TestAClaimHoldsNoStatusOrVerify holds the manifest's claims to neither field and the matrix to the derived command."
+        },
+        {
+          "id": "claim-declared",
+          "title": "A claim is declared on its test, its summary the test's comment; validate writes compatibility.json whole",
+          "status": "open",
+          "verify": "go test ./cmd/validate ./internal/landing -count=1 -run '^(TestAClaimIsDeclaredOnItsTest|TestNoGeneratedFileIsEditedByHand)$'",
+          "files": [
+            "cmd/validate",
+            "internal/landing",
+            "compatibility.json",
+            "docs/COMPATIBILITY.md",
+            "docs/TRAINING_COMPATIBILITY.md"
+          ],
+          "rationale": "Serves: the owner's rule of 2026-11-14.\n\nThe evidence: compatibility.json is both declared by hand (each claim's summary and evidence) and written by the claims generator (identities rebindClaim patches by byte offset): 86 source and 69 artifact evidence entries, a median of one source a claim. Its two roles took three landing steps on 2026-11-14 (claim-edits, derive-keeps, claims-conflict) and a finding (SQA-403).\n\nThe change: a claim is declared where its test is, its summary the test's comment; validate writes the file whole; generator.declared, held()'s exception for a listed generated file and derive's conflict refusal go.\n\nCheck: TestAClaimIsDeclaredOnItsTest reads a claim from its test's declaration; TestNoGeneratedFileIsEditedByHand holds the landing to no generated file declared by hand."
+        },
+        {
+          "id": "claim-record",
+          "title": "The fix stage runs no claim test; the matrix reads each test's last pass and commit from the record",
+          "status": "open",
+          "verify": "go test ./cmd/validate ./internal/landing -count=1 -run '^(TestTheMatrixReadsEachClaimTestsLastPass|TestTheFixStageRunsNoClaimTest)$'",
+          "files": [
+            "cmd/validate",
+            "internal/landing",
+            "internal/plan"
+          ],
+          "rationale": "Serves: the owner's rule of 2026-11-14.\n\nThe evidence: a claim's test runs in the test stage or a lane, and again in the fix stage through validate -claims -run, and the two disagreed in their environment (claims-env, 2026-11-14).\n\nThe change: the fix stage runs no claim test; the matrix reads each claim test's last pass and its commit from the record lane-passes began; claims-env's switch goes. A claim whose test has not passed since its sources moved shows its age and blocks nothing, which is the owner's call.\n\nNot read yet (the owner's list): which of the 57 untagged claim tests skip without a switch.\n\nCheck: TestTheMatrixReadsEachClaimTestsLastPass reads a record of passes into the matrix; TestTheFixStageRunsNoClaimTest holds the fix stage's generators to none that runs a test."
+        },
+        {
+          "id": "models-registry",
+          "title": "The models part of the compatibility manifest is written from the architecture registry",
+          "status": "open",
+          "verify": "go test ./cmd/validate -count=1 -run '^TestTheModelsPartIsWrittenFromTheRegistry$'",
+          "files": [
+            "cmd/validate",
+            "internal/model",
+            "compatibility.json"
+          ],
+          "rationale": "Serves: the owner's rule of 2026-11-14.\n\nThe evidence: the manifest's models part holds 137 entries and 42 KB of features; validateModelCoverage checks their names against model.SupportedArchitectures() and nothing checks a tag; internal/model/architecture_profiles.json holds 137 profiles of the same architectures.\n\nThe change: the models part is written from the registry and its profiles, and its hand copy goes.\n\nNot read yet: the profile's value names; why internal/storepolicy/roots.go and cmd/release read compatibility.json.\n\nCheck: TestTheModelsPartIsWrittenFromTheRegistry holds the part to what the registry gives."
+        },
+        {
+          "id": "skill-source",
+          "title": "skill.md is written from the tests' comments, or holds its judgement lines alone, and the citation rewriter goes",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestSkillHoldsNoRuleItsTestsDoNotState$'",
+          "files": [
+            "skill.md",
+            "internal/repoanalysis",
+            "internal/landing"
+          ],
+          "rationale": "Serves: the owner's rule of 2026-11-14.\n\nThe evidence: each rule of skill.md names the check that holds it, and the check's comment states the rule again; a renamed test's citation is followed by a rewriter (followRenames). Of skill.md's lines, the owner counts 24 that are judgement no test states.\n\nThe change: skill.md is written from the tests' comments, or holds the judgement lines alone; the citation rewriter goes.\n\nCheck: TestSkillHoldsNoRuleItsTestsDoNotState."
+        },
+        {
+          "id": "edits-said",
+          "title": "Each failing check says its edit",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestEveryFailingCheckSaysItsEdit$'",
+          "files": [
+            "internal/landing",
+            "cmd/loop"
+          ],
+          "rationale": "Serves: the owner's rule of 2026-11-14: the tool says what a session needs when it needs it.\n\nThe evidence: status.go:149 counts the refusals that said their edit; it reads 0 for all 25 listed.\n\nThe change: a failing check's refusal carries the edit that clears it.\n\nCheck: TestEveryFailingCheckSaysItsEdit."
+        },
+        {
+          "id": "step-fields",
+          "title": "A plan step holds title, verify, files, order, cause and serves; status and owner go",
+          "status": "open",
+          "verify": "go test ./internal/plan -count=1 -run '^TestAStepHoldsItsSixFields$'",
+          "files": [
+            "internal/plan",
+            "cmd/plan",
+            "internal/landing",
+            "docs/plan.json"
+          ],
+          "rationale": "Serves: the owner's rule of 2026-11-14.\n\nThe change: a step holds its title, verify, files, order, cause and what it serves; status and owner, which every open step holds alike, go.\n\nCheck: TestAStepHoldsItsSixFields."
+        },
+        {
+          "id": "finding-fields",
+          "title": "A finding holds id, severity, files, input, expected and actual",
+          "status": "open",
+          "verify": "go test ./cmd/finding -count=1 -run '^TestAFindingHoldsItsSixFields$'",
+          "files": [
+            "cmd/finding",
+            "docs/sqa_findings.json"
+          ],
+          "rationale": "Serves: the owner's rule of 2026-11-14.\n\nThe evidence: the register's findings carry up to sixteen fields (closure_criteria, evidence, evidence_basis, evidence_commit, plan_references, recommended_change, sources, consolidates among them); SQA-403 was written as input, expected and actual.\n\nThe change: a finding holds its id, severity, files, input, expected and actual.\n\nCheck: TestAFindingHoldsItsSixFields."
+        }
+      ]
+    },
+    {
       "id": "mmlu-pro",
       "title": "MMLU-Pro's headline is an eligible reading's, and its reference comparison admits the exact questions first",
       "owner": "master-lead",
@@ -119,6 +225,16 @@
             "internal/landing"
           ],
           "rationale": "Serves: the owner's review of 2026-11-14 (point 2), and the finding parked that undo runs no check that runs no go test.\n\nThe evidence: addedChecksFail runs a step's check at the commit the change builds on only for l.added, the steps the change itself adds, so filing a row one commit earlier passes it, as review-rows/do did. undo() gives the like proof for every step, the change's production Go and embedded files restored and its check expected to fail, but only for a check that runs a go test (\"none run: no check runs a go test\"). Removing addedChecksFail now would lose the proof for a step whose check is a journey, a validate run or a file test, which only it gives.\n\nThe change: the undo run runs whatever the check is in the undone tree.\n\nCheck: TestTheUndoRunRunsEveryKindOfCheck lands a change whose check is a command that is no go test and passes with the production restored, and holds it to the undo run's refusal.\n\nNote: 2026-11-14: the batch hold-words/do,identity-gate/do,mmlu-pro/headline was refused at verify: its undo run restored every step's production Go and ran every check, and identity-gate's, a change to tests alone, passed, so the batch was refused for a step the undo run cannot prove. A change to tests alone is proved only by its check failing with the tests it changed as they were (identity-gate's fails at base, its store subtest skipping under an empty data root), which neither the undo run nor addedChecksFail runs.\n\nNote: 2026-11-14 again: cycle-lanes/claim-edits, new in its change, was first checked by a case added to an existing test; the added-check run at the base restored that test as it was, which passed, and refused the step, where the undo run, keeping the change's tests, would have shown the case fail. The two proofs differ in what they restore: the added-check run every file of the change, the undo run its production alone."
+        },
+        {
+          "id": "per-step",
+          "title": "The undo run judges each step against the files that step lists",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestTheUndoRunJudgesEachStepByItsFiles$'",
+          "files": [
+            "internal/landing"
+          ],
+          "rationale": "Serves: the owner's list of 2026-11-14 (step 9): the undo run judges each step against the files that step lists.\n\nThe evidence: a batch's undo run restores every step's production and runs every check, so identity-gate's check, of a change to tests alone, passed beside steps that had production and refused the batch (noted on every-kind).\n\nThe change: the undo run restores, for each step's check, the production of the files that step lists, and judges that check alone.\n\nCheck: TestTheUndoRunJudgesEachStepByItsFiles."
         },
         {
           "id": "added",

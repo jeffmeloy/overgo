@@ -51,6 +51,17 @@ type Delivery struct {
 	PreflightsRefused int            `json:"preflights_refused"`
 	GateHours         float64        `json:"gate_hours"`
 	WaitHours         float64        `json:"wait_hours"`
+	// FirstPass of Landings are the window's landings made on their reference's first commit attempt since it last
+	// landed, and FirstPassAll of LandingsAll the same over the whole record, which begins at RecordSince; Worst is the
+	// most attempts one of the window's landings took, and WorstReference its reference (first-pass/do). A refused run of
+	// a record from before runs said their kind is no attempt, as it may have been a preflight.
+	FirstPass      int       `json:"first_pass"`
+	Landings       int       `json:"landings"`
+	FirstPassAll   int       `json:"first_pass_all"`
+	LandingsAll    int       `json:"landings_all"`
+	RecordSince    time.Time `json:"record_since"`
+	Worst          int       `json:"worst_attempts"`
+	WorstReference string    `json:"worst_reference,omitempty"`
 }
 
 // DayDelivery reads the delivery of the day before now in the checkout at root, its report's rows those reportFiling
@@ -116,8 +127,35 @@ func (delivery *Delivery) readRuns(root string) error {
 	if err := json.Unmarshal(data, &runs); err != nil {
 		return err
 	}
+	slices.SortStableFunc(runs, func(a, b spent) int { return a.Started.Compare(b.Started) })
+	// A landing's attempts are its reference's refused commit attempts since that reference last landed, and itself.
+	attempts := map[string]int{}
 	for _, run := range runs {
-		if run.Started.Before(delivery.Since) {
+		if delivery.RecordSince.IsZero() {
+			delivery.RecordSince = run.Started
+		}
+		inWindow := !run.Started.Before(delivery.Since)
+		switch {
+		case run.Outcome == outcomeLanded:
+			took := attempts[run.Reference] + 1
+			delete(attempts, run.Reference)
+			delivery.LandingsAll++
+			if took == 1 {
+				delivery.FirstPassAll++
+			}
+			if inWindow {
+				delivery.Landings++
+				if took == 1 {
+					delivery.FirstPass++
+				}
+				if took > delivery.Worst {
+					delivery.Worst, delivery.WorstReference = took, run.Reference
+				}
+			}
+		case run.Kind == kindCommit:
+			attempts[run.Reference]++
+		}
+		if !inWindow {
 			continue
 		}
 		delivery.GateHours += run.Ended.Sub(run.Started).Hours()
@@ -234,9 +272,16 @@ func (delivery Delivery) String() string {
 	if delivery.ReportLandings != unknownCount {
 		report = fmt.Sprint(delivery.ReportLandings)
 	}
-	return fmt.Sprintf("day to %s: %d commits (%d plan-only); steps %d landed, %d added, %d retired; report rows landed %s; "+
+	first := fmt.Sprintf("first pass %d of %d landings", delivery.FirstPass, delivery.Landings)
+	if delivery.Worst > 1 {
+		first += fmt.Sprintf(", the most attempts %d (%s)", delivery.Worst, delivery.WorstReference)
+	}
+	if delivery.LandingsAll > 0 {
+		first += fmt.Sprintf("; %d of %d since %s", delivery.FirstPassAll, delivery.LandingsAll, delivery.RecordSince.Format(time.DateOnly))
+	}
+	return fmt.Sprintf("day to %s: %s; %d commits (%d plan-only); steps %d landed, %d added, %d retired; report rows landed %s; "+
 		"%d commit attempts failed (%s), %d failed of unknown kind (%s), %d preflights (%d failed); gate %.1f h, %.1f h of it waiting",
-		delivery.Revision, delivery.Commits, delivery.PlanOnly, len(delivery.Landed), len(delivery.Added), len(delivery.Retired), report,
+		delivery.Revision, first, delivery.Commits, delivery.PlanOnly, len(delivery.Landed), len(delivery.Added), len(delivery.Retired), report,
 		refused, stages(delivery.Refused), unknown, stages(delivery.UnknownKind), delivery.Preflights, delivery.PreflightsRefused,
 		delivery.GateHours, delivery.WaitHours)
 }

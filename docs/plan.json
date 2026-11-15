@@ -20,23 +20,6 @@
       ]
     },
     {
-      "id": "first-pass",
-      "title": "The status leads with the first-pass rate: commits landed on their first attempt",
-      "steps": [
-        {
-          "id": "do",
-          "title": "The status leads with the first-pass rate: commits landed on their first attempt",
-          "verify": "go test ./internal/landing ./cmd/loop -count=1 -run '^(TestTheFirstPassRateCountsAttemptsToEachLanding|TestTheStatusSaysTheDaysFiveMeasures)$'",
-          "files": [
-            "internal/landing",
-            "cmd/loop",
-            "skill.md"
-          ],
-          "rationale": "Serves: the owner's review of 2026-11-14, from a read of LoopForge, whose headline measure is the first-pass rate, work delivered with no rework.\n\nThe evidence: .overgo-runtime/landing_waits.json records every attempt with its reference, outcome and stage walls (2,318 records): 5 of 11 commits on 2026-11-14 landed on their first attempt, 74 of 144 since 10 Nov, the worst after 6 attempts. The day's line prints the commits, the steps landed, added and retired, the report rows, the failed attempts by stage, those of unknown kind, the preflights and the gate's hours, and no line says how often a commit lands as first written.\n\nThe change: a landed commit's attempts are those of its reference since the last landing of it; the day's line leads with the first-pass rate, today's and since a date, and the most attempts one commit took, in place of the counts it subsumes; the failed attempts by stage stay, as a refusal is a failure (refusal-failure/do).\n\nCheck: TestTheFirstPassRateCountsAttemptsToEachLanding reads a fixture record of attempts and landings to the rate and the worst; TestTheStatusSaysTheDaysFiveMeasures holds the day's line to lead with it."
-        }
-      ]
-    },
-    {
       "id": "card-free-dispatch",
       "title": "While another process holds the card, dispatch gives out the next step that needs no card",
       "steps": [

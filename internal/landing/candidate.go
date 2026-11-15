@@ -129,6 +129,12 @@ func (l *landing) derive(ctx context.Context, generators []generator) error {
 			if err != nil {
 				return err
 			}
+			// A file the change derives as the commit it builds on holds it is no part of the change, and the checkout's
+			// copy is left as it stands, another change's edit perhaps: written over, a claim edited for a step not yet
+			// landed was lost to the landing before it (cycle-lanes/derive-keeps, 2026-11-14).
+			if base, err := gitauthority.Query(ctx, l.Repo, "cat-file", "blob", l.builtOn()+":"+name); err == nil && bytes.Equal(base, derived) {
+				continue
+			}
 			if !slices.Contains(l.derived, name) {
 				l.derived = append(l.derived, name)
 			}

@@ -125,12 +125,15 @@ func landedSteps(ctx context.Context, root, since string) ([]replayed, error) {
 		if parent == "" || strings.TrimSpace(rows) == "" {
 			continue
 		}
-		data, err := gitauthority.Query(ctx, root, "show", parent+":docs/plan.json")
+		data, err := gitauthority.Query(ctx, root, "show", parent+":"+plan.Path)
 		if err != nil {
 			continue
 		}
-		held, err := plan.Parse(data)
-		if err != nil {
+		// A past plan is read for the fields its steps still have, as delivery's planSteps reads one: plan.Parse refuses
+		// a field since removed (an item's owner and status, a step's status), and read so the replay passed over every
+		// landing before 2026-11-14's removals, 570 of the 578 since 2026-11-01 (cycle-lanes/replay-history).
+		var held plan.Plan
+		if json.Unmarshal(data, &held) != nil {
 			continue
 		}
 		for reference := range strings.SplitSeq(rows, ",") {

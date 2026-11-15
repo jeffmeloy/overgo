@@ -35,6 +35,38 @@
       ]
     },
     {
+      "id": "check-memory",
+      "title": "A check's processes are held to the memory the machine has free when it starts, so a runaway is ended there and the run says so",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A check's processes are held to the memory the machine has free when it starts, so a runaway is ended there and the run says so",
+          "verify": "go test ./internal/processcontrol -count=1 -run '^TestARunawayChildIsEndedAtTheMachinesFreeMemory$'",
+          "files": [
+            "internal/processcontrol",
+            "internal/cuda/driver"
+          ],
+          "rationale": "Note: Serves: a check that runs away with memory is ended at what the machine had to give, and says so, where it took the whole machine.\n\nThe evidence (2026-11-15): a replayed check at its parent (empty-added-token/refuse) took 279 GB of commit at 10:05, the page file grown to about 256 GB, and a Flash-Next server's read failed beside it (event 2004; TestFlashNextLongContextAcceptance). Volsnap 36 at 02:17:54 and dispatch-next/do's space refusal at 02:19:55 fall inside the first lanes run's replay test (02:14:42 to 02:21:43). Every check starts through processcontrol.Run (supervisor.go): the replay's parent check (cmd/loop/replay.go), the undo run (internal/landing/undo.go), a landing's verify, the lanes (cmd/validate/run.go); newProcessTree's job sets JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE alone, so nothing bounds a check's memory but the machine.\n\nThe change: the job a check starts in is held to the commit the machine has free when the check starts, read where driver.MachineCommit reads it (moved below both, read once), so no number is kept; a runaway is ended at that limit and the run says the limit and what reached it. Known cost: a check started while another holds memory gets a lower limit; the card's turn keeps the large ones apart. Read the limit against the peaks the run records hold first (the Flash-Next server stood at 87 GB in the event).\n\nCheck: TestARunawayChildIsEndedAtTheMachinesFreeMemory starts a child that allocates without end and holds it ended at the limit, the run saying so."
+        }
+      ]
+    },
+    {
+      "id": "space-record",
+      "title": "The space floor is read from the greatest fall of free space a run recorded, and no constant holds this machine's figure",
+      "steps": [
+        {
+          "id": "do",
+          "title": "The space floor is read from the greatest fall of free space a run recorded, and no constant holds this machine's figure",
+          "verify": "go test ./internal/landing -count=1 -run '^TestTheSpaceFloorIsReadFromTheLastRecordedFall$'",
+          "files": [
+            "internal/landing",
+            "cmd/loop/leftovers.go"
+          ],
+          "rationale": "Note: Serves: the space floor compares what a run needs, from a record a run wrote, with what the disk has, read when the floor is read; no constant holds this machine's figure.\n\nThe evidence: internal/landing/space.go's largestCheckWrites and measurementRunWrites were measured by hand on this machine on 2026-10-12 and 10-13, with a note to measure again; cmd/loop/leftovers.go's checkoutCacheBytes is the same figure. On 2026-11-15 dispatch-next/do was refused on space at 34.1 GiB free while a runaway's page file had taken the disk, 268 GB free fifteen minutes later.\n\nThe change: a landing and a measurement run record their own greatest fall of free space; the floor is read from the last such record, and the two constants, the note and checkoutCacheBytes go.\n\nCheck: TestTheSpaceFloorIsReadFromTheLastRecordedFall holds the floor to a recorded fall, not to a constant."
+        }
+      ]
+    },
+    {
       "id": "card-free-dispatch",
       "title": "While another process holds the card, dispatch gives out the next step that needs no card",
       "steps": [
@@ -45,9 +77,12 @@
           "files": [
             "internal/plan",
             "cmd/plan",
-            "internal/processcontrol"
+            "internal/processcontrol",
+            "internal/cuda/driver/driver.go",
+            "internal/landing",
+            "skill.md"
           ],
-          "rationale": "Serves: the owner's review of 2026-11-14, from a read of LoopForge, whose scheduler starts any step whose dependencies are done: ours gives out one step, and when it waits for the card the session waits too.\n\nThe evidence: dispatch already passes over a step marked NeedsCard while the card is held (selectDispatch, dispatchPriority), and admits the step it gives out; but the card counts as held only while a measurement run holds it (MeasurementRun.HoldsTheCard), never while a render, a run of the lanes or a landing holds the card's turn, which on 2026-11-14 held it for hours. NeedsCard is set by hand: of 73 open steps 54 carry it, 49 of them with a check that sets OVERGO_CUDA_TEST=1; one such check carries none (cycle-lanes/do), and five carry it for work that needs the card though their check does not (rendering a preset's readings, recording ComfyUI, training).\n\nThe change: the card counts as held while any other process holds its turn, read from the turn's record without opening the card; a step needs the card where it is marked so or its check runs on the card (the landing's onTheCard, moved where dispatch reads it); while the card is held, dispatch and admission give out the first step that needs none, as they do for a measurement run.\n\nCheck: TestWhileTheCardIsHeldDispatchGivesAStepThatNeedsNone holds the card's turn in another process and holds dispatch to the first step whose check and mark need no card, and to the card step once the turn is free."
+          "rationale": "Serves: the owner's review of 2026-11-14, from a read of LoopForge, whose scheduler starts any step whose dependencies are done: ours gives out one step, and when it waits for the card the session waits too.\n\nThe evidence: dispatch already passes over a step marked NeedsCard while the card is held (selectDispatch, dispatchPriority), and admits the step it gives out; but the card counts as held only while a measurement run holds it (MeasurementRun.HoldsTheCard), never while a render, a run of the lanes or a landing holds the card's turn, which on 2026-11-14 held it for hours. NeedsCard is set by hand: of 73 open steps 54 carry it, 49 of them with a check that sets OVERGO_CUDA_TEST=1; one such check carries none (cycle-lanes/do), and five carry it for work that needs the card though their check does not (rendering a preset's readings, recording ComfyUI, training).\n\nThe change: the card counts as held while any other process holds its turn, read from the turn's record without opening the card; a step needs the card where it is marked so or its check runs on the card (the landing's onTheCard, moved where dispatch reads it); while the card is held, dispatch and admission give out the first step that needs none, as they do for a measurement run.\n\nCheck: TestWhileTheCardIsHeldDispatchGivesAStepThatNeedsNone holds the card's turn in another process and holds dispatch to the first step whose check and mark need no card, and to the card step once the turn is free.\n\nNote: files set to internal/plan, cmd/plan, internal/processcontrol, internal/cuda/driver/driver.go, internal/landing, skill.md: the card's turn prefix is processcontrol's and driver builds the turn's name on it; the landing's onTheCard moves to plan, its tests name plan's setting; skill.md's rule names the new check"
         }
       ]
     },
@@ -126,9 +161,21 @@
           "verify": "go test ./internal/evaluation -count=1 -run '^TestPresetAdmissionReadsItsNullFromItsGroups$'",
           "files": [
             "internal/evaluation",
-            "internal/tensorstats"
+            "internal/tensorstats",
+            "cmd/evaluate/preset_reading.go",
+            "cmd/evaluate/preset_reading_test.go"
           ],
-          "rationale": "Serves: a preset is admitted or refused by a test its evidence supports (SQA-342, P2: held-out quality claims).\n\nThe evidence (the review's, shown from source): the accuracy null treats each question's sign as independent where the questions are grouped by the media they ask about, and semantic prompt-loss rejection sits in admission without the evidence to support it.\n\nThe change, the finding's: the null is read through tensorstats over the groups the evidence has; numeric and identity checks stay in admission, and unsupported semantic rejection and stillness are diagnostics beside it.\n\nCheck: TestPresetAdmissionReadsItsNullFromItsGroups holds two suites with one question sign pattern, one grouped by media and one not, to different tails.\n\nNote: The review, 2026-11-14: AdmitPreset admits on no loss beyond chance and on quality alone, among about 97% ties, so a preset that shows no gain and costs more reads the same as one that costs nothing. PresetArm holds the preset, its settings and its format, and no wall. If the render records hold each arm's wall per case, the verdict's Says carries the arms' cost difference beside the counts (\"no gain, costs N% more\"); first read whether they do.\n\nNote: The render records (rendered.json) hold no wall: each draw names its run (run:sha256:...), so a case's cost is read from the run records the store holds, if they hold its wall; read that before the verdict says a cost.\n\nNote: Draft kept at tmp/preset-evidence/grouped-tail.patch (git apply it): tensorstats.GroupedSignTail, the exact sign-flip tail over the groups' nets, and its test (TestGroupedSignTailReadsGroupsAsUnits). Left: AdmitPreset reads each case's group (the suite's cases carry group, the clip) and admits on the grouped tail; the record's dataset holds the suite, reached through the evaluation's plan."
+          "rationale": "Serves: a preset is admitted or refused by a test its evidence supports (SQA-342, P2: held-out quality claims).\n\nThe evidence (the review's, shown from source): the accuracy null treats each question's sign as independent where the questions are grouped by the media they ask about, and semantic prompt-loss rejection sits in admission without the evidence to support it.\n\nThe change, the finding's: the null is read through tensorstats over the groups the evidence has; numeric and identity checks stay in admission, and unsupported semantic rejection and stillness are diagnostics beside it.\n\nCheck: TestPresetAdmissionReadsItsNullFromItsGroups holds two suites with one question sign pattern, one grouped by media and one not, to different tails.\n\nNote: The review, 2026-11-14: AdmitPreset admits on no loss beyond chance and on quality alone, among about 97% ties, so a preset that shows no gain and costs more reads the same as one that costs nothing. PresetArm holds the preset, its settings and its format, and no wall. If the render records hold each arm's wall per case, the verdict's Says carries the arms' cost difference beside the counts (\"no gain, costs N% more\"); first read whether they do.\n\nNote: The render records (rendered.json) hold no wall: each draw names its run (run:sha256:...), so a case's cost is read from the run records the store holds, if they hold its wall; read that before the verdict says a cost.\n\nNote: Draft kept at tmp/preset-evidence/grouped-tail.patch (git apply it): tensorstats.GroupedSignTail, the exact sign-flip tail over the groups' nets, and its test (TestGroupedSignTailReadsGroupsAsUnits). Left: AdmitPreset reads each case's group (the suite's cases carry group, the clip) and admits on the grouped tail; the record's dataset holds the suite, reached through the evaluation's plan.\n\nNote: files set to internal/evaluation, internal/tensorstats, cmd/evaluate/preset_reading.go, cmd/evaluate/preset_reading_test.go: -admit-preset reads each arm's case media for AdmitPreset"
+        },
+        {
+          "id": "diagnostics",
+          "title": "The semantic screen and stillness are diagnostics beside admission, refusing no candidate",
+          "verify": "go test ./internal/evaluation -count=1 -run '^TestTheSemanticScreenAndStillnessAreDiagnostics$'",
+          "files": [
+            "internal/evaluation",
+            "cmd/evaluate"
+          ],
+          "rationale": "Serves: a candidate is refused only by a test its evidence supports (SQA-342, items 1 and 2).\n\nThe evidence (the review's, read from source): the semantic screen refuses a candidate whose embedding distance from the reference exceeds a reseeded draw's (internal/evaluation/screen.go ScreenCase.Lost, cmd/evaluate/screen.go printScreen), a prompt-loss measure nothing establishes; stillness counts a clip stiller than the stillest source clip of its suite (internal/evaluation/clip_motion.go), so a stationary source scores 1 and hides a freeze.\n\nThe change, the finding's: the screen's distance and stillness are diagnostics printed beside admission, which they no longer refuse or bound; stillness is said relative to the clip's own source.\n\nCheck: TestTheSemanticScreenAndStillnessAreDiagnostics."
         }
       ]
     },

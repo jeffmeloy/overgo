@@ -18,8 +18,11 @@ import (
 
 // replayFixtureSteps are landed steps the replay is held to: a landing that added only its test, whose check passes at
 // its parent once the test is in place and so is no task, and the smallest change among the landings since 2026-11-01
-// whose check runs one host test (4 lines beside its test).
-var replayFixtureSteps = []string{"fault-finding/agent-lifecycles", "empty-added-token/refuse"}
+// whose check runs one host test (2 lines beside its test), which fails at its parent on an assertion at once. The
+// replay runs that check on the fault its step cured: empty-added-token/refuse's split grows without end there, and
+// each of its runs took the machine's memory, 279 GB at 10:05 on 2026-11-15 when a served model's read failed for want
+// of it (cycle-lanes/replay-history).
+var replayFixtureSteps = []string{"fault-finding/agent-lifecycles", "readme-speed/names"}
 
 // TestLandedStepsReplayForAWorker holds the replay to what it records, by a worker whose outcome is known: one that
 // writes the landing's own change, which the step's check, failing at its parent, must then pass. Each step is checked

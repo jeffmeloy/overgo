@@ -20,17 +20,18 @@
       ]
     },
     {
-      "id": "turn-holder",
-      "title": "A waiter for a turn says the holder again each time it changes",
+      "id": "gate-trimpath",
+      "title": "The gate builds with -trimpath, so a candidate checkout reuses what the last one compiled",
       "steps": [
         {
           "id": "do",
-          "title": "A waiter for a turn says the holder again each time it changes",
-          "verify": "go test ./internal/processcontrol -count=1 -run '^TestAWaiterSaysEachNewHolder$'",
+          "title": "Every go command a landing, the cycle's lanes and a measurement run start builds with -trimpath",
+          "verify": "go test ./internal/landing -count=1 -run '^TestALandingBuildsWithTrimmedPaths$'",
           "files": [
-            "internal/processcontrol"
+            "internal/landing",
+            "cmd/validate/main.go"
           ],
-          "rationale": "Serves: the owner's review of 2026-11-14 (point 3) and \"shouldn't long tasks report incremental progress\".\n\nThe evidence: takePlace prints the holder once, read from the turn's record before the wait, and then blocks in the system's transaction (enterTurn) until it holds the turn; on 2026-11-14 the card's turn passed from a latentvideo test to the journey's served model while a landing waited, and its line still named the test.\n\nThe change: while it waits, the waiter reads the turn's record as it changes and says each new holder, with what it holds the turn for and since when, on the same output; first read whether a change of the record can be waited on (a change notification on its directory) before a reading on a clock, whose interval would be a tuning value naming its cost.\n\nCheck: TestAWaiterSaysEachNewHolder holds a turn in one process, hands it to a second while a third waits, and holds the third's output to both holders."
+          "rationale": "Serves: development velocity: the gate took 8.2 hours on 2026-11-14, every landing compiling every package it checks from nothing.\n\nThe evidence (2026-11-15): a landing checks its candidate out in a fresh directory (overgo-landing-N), and go keys a build without -trimpath on the package's directory, so nothing a landing compiled before is reused. Two fresh checkouts of 1ccebdf40: building cmd/plan compiled 56 overgo packages in each without -trimpath, none in the second with it; compiling the test binaries of internal/landing and internal/evaluation took 10.2 s in the second checkout without it and 1.1 s with it. The build cache had grown to 235 GB, and a landing on 2026-11-15 stopped at the disk floor. No code locates a file through runtime.Caller; landing.go already runs go fix with -trimpath=false.\n\nThe change: every go command a landing, a run of the cycle's lanes and a measurement run starts builds with -trimpath, so a candidate checkout reuses what the last one compiled; what reads a go command's file positions (vet's, a test's) reads them as the trimmed paths say.\n\nCheck: TestALandingBuildsWithTrimmedPaths.\n\nNote: files set to internal/landing, cmd/validate/main.go: The change is the landing's and validate -run's start alone; cmd/validate holds cycle-lanes' coverage fix, not this step's, and cmd/loop starts its runs through validate, which trims them.\n\nNote: Correction, read 2026-11-15 in candidate.go: the stages after format and fix already read the candidate in a kept worktree (landing-candidate-N), kept from one landing to the next for this very reason, so they replay what the last landing built. What still builds from nothing each landing is every tree made fresh in the landing's scratch, the undo run's and the added-check run's, and a lanes or measurement run in a new checkout; each adds its own entries to the cache, which is how it grew past 235 GB. Trimmed builds let those trees reuse the cache, and let a second worktree slot share the first's."
         }
       ]
     },
@@ -121,6 +122,25 @@
       "id": "cycle-lanes",
       "title": "The cycle's lanes run at the build that gave them the gate's real-model tests, so each moved test runs before other work",
       "steps": [
+        {
+          "id": "coverage-activations",
+          "title": "The accepted text and vision coverage names the activations the store serves, each by the verification that admitted it",
+          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/validate -count=1 -run '^(TestAcceptedModalityCoverage|TestAcceptedTextVisionEvidence)$'",
+          "files": [
+            "cmd/validate/accepted_modalities_model_test.go",
+            "docs/verification/text-vision-coverage.json"
+          ],
+          "rationale": "Serves: the cycle's lanes pass at the trunk, so the full measurement run reaches its cells (cycle-lanes/do, full-run).\n\nThe evidence: the direct run of the cycle's lanes at a59a5a9f3 (2026-11-15) failed cmd/validate's TestAcceptedModalityCoverage, TestStructuredMediaReportProjection, TestAcceptedProtocolCoverageProjection and TestAcceptedTextVisionEvidence on \"missing, duplicate or changed activation\". Read activation by activation against docs/verification/text-vision-coverage.json, four activations of the store were no accepted cell: gemma-4-12B-it-fp8 served from its own files (2cc612d5, onboarded at 1863242c6 in place of its native and BF16 conversions, whose cells stood), Qwen3.8-27B's inference re-verified at b595200a4 under a recipe of another model definition and profile (8c3e243a, superseding the accepted 6595ed03), gemma-4-12B-it's inference and projection (e093a96b, verified at 6c34f3e84), and Unlimited-OCR's projection (bcd66c40, verified at ae199b5b9). The record was last changed 2026-10-31.\n\nThe change: the record accepts each activation by the recipe verification gate the store holds for it, its scope saying that gate's exact suite and no more, the retired conversions' cells and the proofs only they cited go, and its pinned digest follows; the refusal names which of its five causes it is.\n\nCheck: TestAcceptedModalityCoverage and TestAcceptedTextVisionEvidence against the store."
+        },
+        {
+          "id": "mmlu-coverage",
+          "title": "The lanes hold no second copy of the cells' MMLU-Pro coverage, which no run could measure while the lanes refused it",
+          "verify": "! grep -rq TestAcceptedSmallModelMMLUPro cmd/benchmark-report",
+          "files": [
+            "cmd/benchmark-report"
+          ],
+          "rationale": "Serves: the cycle's lanes pass at the trunk, so the full measurement run reaches the cells that read MMLU-Pro (cycle-lanes/do, full-run).\n\nThe evidence: cmd/benchmark-report's TestAcceptedSmallModelMMLUPro, in the cycle's models lane, wants at least six servable models scored on MMLU-Pro under both the raw five-shot protocol and the chat template; since mmlu-pro-lm-eval/five-shot (9e943606f, 2026-11-10) the store's raw readings are labelled without demonstrations and no model holds the five-shot one, so it fails (0 of 6, 2026-11-15). A measurement run ends at a failing lane (cmd/loop measurePhases), before the cells that would read them: every run since has stopped there. The cells already owe MMLU-Pro under both protocols for every inference activation (cmd/validate familyProtocols, validationCells) and fail a missing one by name, a stronger rule than the test's floor of six.\n\nThe change: the lanes hold no second copy of the cells' MMLU-Pro coverage: TestAcceptedSmallModelMMLUPro and mmluProCoverage, with its own test, go.\n\nCheck: the test is in no file of cmd/benchmark-report."
+        },
         {
           "id": "do",
           "title": "The cycle's lanes run at the build that gave them the gate's real-model tests, so each moved test runs before other work",

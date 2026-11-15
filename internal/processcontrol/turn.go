@@ -50,8 +50,8 @@ var (
 // TakeTurn takes the turn named, one place every user of a resource queues for (a card's, taken where a CUDA context
 // is created): the process holds it until the release it returns runs as many times as TakeTurn was called, or until
 // the process ends, which the system learns as the turn's abandonment and hands the turn on. While another process
-// holds it the call waits, saying once on output which process holds it, for what and since when, and when it is
-// taken, how long it waited; nothing ends the wait on a clock. A process its holder started takes it in the holder's
+// holds it the call waits, saying on output which process holds it, for what and since when, again each time the turn
+// passes to another, and when it is taken, how long it waited; nothing ends the wait on a clock. A process its holder started takes it in the holder's
 // place without waiting (TurnEnvironment), and later holds in one process share its place.
 func TakeTurn(name, purpose string, output io.Writer) (func() error, error) {
 	if !validResourceName(name) {
@@ -159,21 +159,30 @@ func takePlace(name, purpose string, output io.Writer) (give func() error, count
 	if err != nil {
 		return nil, nil, errors.Join(err, unmark())
 	}
+	waiter, stopWatch := processLabel(uint32(os.Getpid())), func() {}
 	if busy {
 		record, held, err := turnHolder(name)
 		if err != nil {
 			return nil, nil, errors.Join(err, unmark())
 		}
-		holder := "a process that has written no record"
+		fmt.Fprintf(output, "%s waits for the turn %s, held by %s\n", waiter, name, holderSaid(record, held))
+		// While it waits, the waiter says each holder the turn passes to, where it had said the first alone and a
+		// landing's line named a test the card had long since passed from (turn-holder/do).
+		var said uint32
 		if held {
-			holder = fmt.Sprintf("%s for %s since %s", processLabel(record.Process), record.Purpose, record.Since.Format(time.DateTime))
-			if record.Total > 0 {
-				holder += fmt.Sprintf(", at %d/%d reached %s", record.Done, record.Total, record.Reached.Format(time.DateTime))
-			}
+			said = record.Process
 		}
-		fmt.Fprintf(output, "%s waits for the turn %s, held by %s\n", processLabel(uint32(os.Getpid())), name, holder)
+		if stopWatch, err = watchTurn(name, func(next turnRecord) {
+			if next.Process != said {
+				said = next.Process
+				fmt.Fprintf(output, "%s waits for the turn %s, now held by %s\n", waiter, name, holderSaid(next, true))
+			}
+		}); err != nil {
+			return nil, nil, errors.Join(err, unmark())
+		}
 	}
 	leave, err := enterTurn(name)
+	stopWatch()
 	if err != nil {
 		return nil, nil, errors.Join(err, unmark())
 	}
@@ -196,6 +205,19 @@ func takePlace(name, purpose string, output io.Writer) (give func() error, count
 		return rewrite(record)
 	}
 	return func() error { return errors.Join(setHeldTurn(name, false), unrecord(), leave()) }, count, nil
+}
+
+// holderSaid is how a waiter names the turn's holder: its process, what it holds the turn for and since when, and how
+// far it has counted, or that the holder has written no record.
+func holderSaid(record turnRecord, held bool) string {
+	if !held {
+		return "a process that has written no record"
+	}
+	holder := fmt.Sprintf("%s for %s since %s", processLabel(record.Process), record.Purpose, record.Since.Format(time.DateTime))
+	if record.Total > 0 {
+		holder += fmt.Sprintf(", at %d/%d reached %s", record.Done, record.Total, record.Reached.Format(time.DateTime))
+	}
+	return holder
 }
 
 // lookAtTurn says whether another holds the turn now, for the line a waiter prints: ResourceTransactionHeld, which a

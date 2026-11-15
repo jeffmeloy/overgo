@@ -15,6 +15,10 @@ func turnHolder(string) (turnRecord, bool, error) {
 	return turnRecord{}, false, errors.New("processcontrol: turns require Windows")
 }
 
+func watchTurn(string, func(turnRecord)) (func(), error) {
+	return nil, errors.New("processcontrol: turns require Windows")
+}
+
 func turnUsers(string) ([]uint32, error) {
 	return nil, errors.New("processcontrol: turns require Windows")
 }

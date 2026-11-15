@@ -156,6 +156,51 @@ func TestAWaiterSaysTheHoldersCount(t *testing.T) {
 	testcheck.NoError(t, waiter.command.Wait())
 }
 
+// TestAWaiterSaysEachNewHolder holds a waiter's lines to each holder the turn passes to while it waits
+// (turn-holder/do): on 2026-11-14 the card's turn passed from a latentvideo test to the journey's served model while
+// a landing waited, and its one line still named the test. The first holds the turn, a second waits for it and a third
+// after the second; the first gives it up, the second takes it, and the third says the second as the turn's holder
+// now, then takes the turn once the second gives it up.
+func TestAWaiterSaysEachNewHolder(t *testing.T) {
+	name := testTurn(t)
+	first := startTurnProcess(t, turnProbe{Name: name, Purpose: "the first holder", Part: "hold"})
+	if got := first.line(t); got != "taken" {
+		t.Fatalf("the first process: %q, want taken", got)
+	}
+	second := startTurnProcess(t, turnProbe{Name: name, Purpose: "the second holder", Part: "hold"})
+	if waiting := second.line(t); !strings.Contains(waiting, "for the first holder since") {
+		t.Fatalf("the second process said %q, want its wait on the first holder", waiting)
+	}
+	third := startTurnProcess(t, turnProbe{Name: name, Purpose: "the third", Part: "take"})
+	if waiting := third.line(t); !strings.Contains(waiting, "held by") || !strings.Contains(waiting, "for the first holder since") {
+		t.Fatalf("the third process said %q, want its wait on the first holder", waiting)
+	}
+	first.say(t, "give")
+	if got := first.line(t); got != "given" {
+		t.Fatalf("the first process: %q, want given", got)
+	}
+	if took := second.line(t); !strings.Contains(took, "took the turn "+name) {
+		t.Fatalf("the second process said %q, want it to take the turn", took)
+	}
+	if got := second.line(t); got != "taken" {
+		t.Fatalf("the second process: %q, want taken", got)
+	}
+	now := third.line(t)
+	for _, want := range []string{"now held by", fmt.Sprintf("(pid %d)", second.command.Process.Pid), "for the second holder since"} {
+		if !strings.Contains(now, want) {
+			t.Fatalf("as the turn passed to the second, the third said %q, which does not name %q", now, want)
+		}
+	}
+	second.say(t, "give")
+	if got := second.line(t); got != "given" {
+		t.Fatalf("the second process: %q, want given", got)
+	}
+	if took := third.line(t); !strings.Contains(took, "took the turn "+name) {
+		t.Fatalf("the third process said %q after its wait, want it to take the turn", took)
+	}
+	testcheck.NoError(t, third.command.Wait())
+}
+
 // TestAWaiterWhoseLookFoundTheTurnFreeIsStillSeenWaiting holds a waiter to its mark whatever its look at the turn found
 // (free-card-turn/do, found where else SQA-261's fault occurs): another process takes the turn after this one looked
 // and found it free, as a race lets it, and the holder still reads a waiter, so it hands the turn over when it next

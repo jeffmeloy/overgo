@@ -50,6 +50,7 @@ import (
 	"overgo/internal/repoanalysis"
 	"overgo/internal/runrecord"
 	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 )
 
 // Options names the row a landing serves, its authored message, and where
@@ -776,7 +777,11 @@ type generator struct {
 // they run: the API manifest, regenerated from the source, and the
 // compatibility claims, each rebound only by its own verify passing, which
 // takes a moment when no bound source moved. A repository without the
-// command has nothing to derive with it.
+// command has nothing to derive with it. A claim's verify is its test as
+// named, and a claim's test of the recorded store runs only where the store
+// acceptance is opted into, as the audio lane opts in: rebound without it,
+// audio-cpu-heldout-resource-fitness's test skipped and kept the claim on its
+// old binding, refusing the change (cycle-lanes/claims-env).
 func (l *landing) generators() []generator {
 	var held []generator
 	for _, candidate := range []struct {
@@ -784,7 +789,7 @@ func (l *landing) generators() []generator {
 		generator
 	}{
 		{"api-manifest", generator{arguments: []string{"run", "./cmd/api-manifest", "-update"}, writes: []string{"docs/api_manifest.json"}}},
-		{"validate", generator{arguments: []string{"run", "./cmd/validate", "-claims", "-run"}, environment: append(os.Environ(), cudaTestEnvironment),
+		{"validate", generator{arguments: []string{"run", "./cmd/validate", "-claims", "-run"}, environment: append(os.Environ(), cudaTestEnvironment, testskip.StoreAcceptanceEnv+"=1"),
 			writes: []string{"compatibility.json", "docs/COMPATIBILITY.md", "docs/TRAINING_COMPATIBILITY.md"}}},
 	} {
 		if _, err := os.Stat(filepath.Join(l.Repo, "cmd", candidate.command)); err == nil {

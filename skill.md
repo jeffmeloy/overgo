@@ -117,7 +117,7 @@ A line of this file reads by this notation, and cites the tests that hold its ru
    - the gate writes the numbers (check: cmd/gate TestSmallGateLandsAChange, internal/landing TestLandingSaysWhatAChangeAddsOfEachKind, internal/landing TestLandingMeasuresTheScorecardSlice)
    - landed <=> `git log -1` shows `Landed-Row:` (check: cmd/gate TestSmallGateLandsAChange, cmd/loop TestRowSequenceStateMachine, internal/plan TestAcceptedProgressReadsLandingsFromGit)
    - never a raw commit (check: internal/guard TestGuardCorpus)
-   - a row new in a change lands with it => its own check, and a consolidation's count, judge it, and the check must fail on the commit it builds on (check: internal/landing TestANewRowLandsWithItsWork)
+   - a row new in a change lands with it => its own check, and a consolidation's count, judge it, and the undo run proves its check as any step's (check: internal/landing TestANewRowLandsWithItsWork, internal/landing TestAnAddedStepIsProvedAsAnyStepIs)
    - the trunk moves only by a landing, or a commit of the register alone, in Git itself, for any worker (check: internal/landing TestOnlyALandingMovesTheTrunkInGit, internal/landing TestALandingRefusesATrunkWithoutItsHook)
    - merge = `git merge --no-ff --no-commit <branch>` -> resolve -> land (check: internal/landing TestProgressSeesALandedMerge)
 5. open decision and no other row ready => its row goes on under the recommended option, an answer given before then taken instead (check: internal/plan TestAQuestionNeverHoldsTheLoop, internal/plan TestAnswerTakesOneOfTheOptions)
@@ -164,7 +164,7 @@ A line of this file reads by this notation, and cites the tests that hold its ru
 ### Plan and SQA
 
 - `docs/plan.json` = sole dispatch authority (check: internal/plan TestSinglePlanAuthority)
-- a landing that removes a step it does not land => its message names the step and its commit a Retired-Row trailer, and a check put in a step's place fails on the commit the change builds on (check: internal/landing TestALandingThatDeletesARowNamesIt, internal/landing TestAReplacedCheckMustFailWithoutTheChange)
+- a landing that removes a step it does not land => its message names the step and its commit a Retired-Row trailer, and a check put in a step's place is named by its trailer while the step lands under the check the trunk held (check: internal/landing TestALandingThatDeletesARowNamesIt, internal/landing TestChangeIsJudgedByTheTermsItStartedWith)
 
 ## Evidence
 

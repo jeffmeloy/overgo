@@ -108,6 +108,25 @@ func TestChangeIsJudgedByTheTermsItStartedWith(t *testing.T) {
 
 // TestANewRowLandsWithItsWork: a row new in a change lands with it, judged by its own check and count, and its check, which
 // fails on the commit the change builds on, passes with the change, so no row need be filed in a commit of its own.
+// TestAnAddedStepIsProvedAsAnyStepIs holds a step a change adds to the proof every step has, the undo run's
+// (undo-every-check/added): the added-check run ran an added step's check on the commit the change builds on, so a step
+// filed a commit earlier escaped it, and what it alone proved was a change of tests alone failing its new check where
+// the check's test did not yet exist. A change of tests alone that adds a step whose check passes on that commit lands,
+// its undo run saying it touches no production Go.
+func TestAnAddedStepIsProvedAsAnyStepIs(t *testing.T) {
+	t.Parallel()
+	held := "package p\n\nimport \"testing\"\n\nfunc TestHeld(t *testing.T) { t.Parallel() }\n"
+	fixture := newRowFixture(t, map[string]string{"internal/p/p.go": emptyPackage, "internal/p/p_test.go": held})
+	fixture.commitPlan(rowPlan([2]string{"do", "true"}))
+	testcheck.NoError(t, plan.Save(fixture.planPath(), rowPlan([2]string{"do", "true"}, [2]string{"added", "go test ./internal/p -run '^TestHeld$' -count=1"})))
+	fixture.write("internal/p/p_test.go", strings.Replace(held, "t.Parallel() }", "t.Parallel()\n}", 1))
+	l := fixture.candidateOf("row/added")
+	l.Log = io.Discard
+	if err := l.verify(t.Context()); err != nil || !slices.Equal(l.undone, []string{"none run: the change touches no production Go"}) {
+		t.Errorf("a change of tests alone adding a step whose check passes before it ended as %v, its undo %q", err, l.undone)
+	}
+}
+
 func TestANewRowLandsWithItsWork(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()

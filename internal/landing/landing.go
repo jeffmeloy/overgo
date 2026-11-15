@@ -105,8 +105,6 @@ type landing struct {
 	// trailers are the scorecard slices' commit trailers, one per slice
 	// that measured or failed.
 	trailers []string
-	// added are the checks of the steps this change itself adds.
-	added []string
 	// passed are the tests the stages passed (plan.PassedTest), kept once the change lands.
 	passed []string
 	// changedTerms are the trailers that state each row's check and count this change alters.
@@ -549,8 +547,8 @@ func (l *landing) capture(ctx context.Context) (string, error) {
 // step's check and what its row may still add. The terms come from the plan
 // of the commit the landing builds on, so a change that edits its own row's
 // check is held to the one it started with, a consolidation to the count it
-// started with (charge), and a step the change itself adds has its
-// own, its check failing without the change (addedChecksFail). Two changes have no earlier terms and
+// started with (charge), and a step the change itself adds is judged by its
+// own check, which the undo run proves as any step's (undo-every-check/added). Two changes have no earlier terms and
 // are judged by the plan they hold: a change to the plan alone, which is how
 // a row is filed and a count raised, and a merge, whose row is named for the
 // head it joins.
@@ -574,7 +572,6 @@ func (l *landing) row(ctx context.Context) error {
 		}
 	}
 	// A plan the commit it builds on does not hold has no terms to change.
-	var replaced []string
 	var before plan.Plan
 	if heldErr == nil {
 		if before, err = plan.Parse(held); err != nil {
@@ -586,9 +583,7 @@ func (l *landing) row(ctx context.Context) error {
 		}
 		// A merge's removed steps are the other line's landings, carried with their own trailers.
 		if len(l.merging) == 0 {
-			var removed []string
-			removed, replaced = rowChanges(before, document)
-			for _, row := range removed {
+			for _, row := range rowChanges(before, document) {
 				retired := slices.ContainsFunc(document.Retired, func(record plan.Retirement) bool {
 					return row == record.Row || strings.HasPrefix(row, record.Row+"/")
 				})
@@ -612,7 +607,7 @@ func (l *landing) row(ctx context.Context) error {
 			return fmt.Errorf("land: %w", err)
 		}
 	}
-	l.advanced, l.verifiers, l.checkFiles, l.added = document, nil, map[string][]string{}, replaced
+	l.advanced, l.verifiers, l.checkFiles = document, nil, map[string][]string{}
 	for _, row := range named {
 		if step, judged := plan.ExactStep(l.terms, row.item, row.step); !judged {
 			if err := l.judgeAdded(document, row); err != nil {
@@ -961,9 +956,6 @@ func (l *landing) verify(ctx context.Context) error {
 			return err
 		}
 	}
-	if err := l.addedChecksFail(ctx); err != nil {
-		return err
-	}
 	return l.undo(ctx)
 }
 
@@ -989,7 +981,6 @@ func (l *landing) judgeAdded(document plan.Plan, row ref) error {
 			if item.ID != row.item || step.ID != row.step {
 				continue
 			}
-			l.added = append(l.added, step.Verify)
 			l.judgeBy(step)
 			if !slices.ContainsFunc(l.terms.Items, func(held plan.Item) bool { return held.ID == item.ID }) {
 				l.terms.Items = append(slices.Clone(l.terms.Items), item)
@@ -998,25 +989,6 @@ func (l *landing) judgeAdded(document plan.Plan, row ref) error {
 		}
 	}
 	return fmt.Errorf("land: %s is not a step of the plan this change carries", row)
-}
-
-// addedChecksFail runs an added step's check on the commit the change builds on, where it must fail: that keeps the proof a
-// check filed before its work gives, that the check speaks of the change.
-func (l *landing) addedChecksFail(ctx context.Context) error {
-	if len(l.added) == 0 {
-		return nil
-	}
-	tree, release, err := l.treeAt(ctx, "base")
-	if err != nil {
-		return err
-	}
-	defer release()
-	for _, check := range l.added {
-		if _, err := planverify.ExecuteShowing(ctx, tree, check, nil, l.Log); err == nil {
-			return fmt.Errorf("land: a check passes on %.12s without this change, so it proves nothing of it: %q", l.head, check)
-		}
-	}
-	return nil
 }
 
 // regularFile is the Git mode the advanced plan is staged with.

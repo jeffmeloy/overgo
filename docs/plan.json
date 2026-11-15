@@ -20,22 +20,6 @@
       ]
     },
     {
-      "id": "undo-every-check",
-      "title": "The undo run proves every step's check, whatever it runs, and the added-check run goes",
-      "steps": [
-        {
-          "id": "added",
-          "title": "The added-check run and the record of added steps go, the undo run proving every step alike",
-          "verify": "go test ./internal/landing -count=1",
-          "files": [
-            "internal/landing",
-            "skill.md"
-          ],
-          "rationale": "Serves: the owner's review of 2026-11-14 (point 2).\n\nThe evidence: with undo-every-check/every-kind landed, the undo run proves every step's check fails without the change, whenever the step was filed; addedChecksFail proves it only for a step the same change files, and filing it a commit earlier escapes it. What it alone proves after every-kind is that a change with no production Go fails its own new check at base, where the check's test did not exist, which proves nothing.\n\nThe change: addedChecksFail and l.added go, with the tests and the skill rule that hold them; the consolidations and flake fixes that were filed a commit early to pass it need not be.\n\nCheck: the landing's tests."
-        }
-      ]
-    },
-    {
       "id": "first-pass",
       "title": "The status leads with the first-pass rate: commits landed on their first attempt",
       "steps": [

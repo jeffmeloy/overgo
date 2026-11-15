@@ -59,23 +59,3 @@ func TestALandingThatDeletesARowNamesIt(t *testing.T) {
 		t.Fatalf("the commit that removed later/do holds no trailer naming it:\n%s", body)
 	}
 }
-
-// TestAReplacedCheckMustFailWithoutTheChange lands row/do while replacing later/do's check: a replacement that already
-// passes on the commit the change builds on proves nothing of the work and is refused, and one that fails there lands.
-func TestAReplacedCheckMustFailWithoutTheChange(t *testing.T) {
-	t.Parallel()
-	fixture, land := rowChangeFixture(t)
-	fixture.write("a.txt", "changed\n")
-	replace := func(check string) {
-		editPlan(t, fixture, func(document *plan.Plan) { document.Items[1].Steps[0].Verify = check })
-	}
-	replace("true")
-	if err := land("row/do", ""); err == nil || !strings.Contains(err.Error(), "proves nothing") {
-		t.Fatalf("a replacing check that passes without the change ended as %v, want it refused", err)
-	}
-	replace("test -f p/marker.txt")
-	fixture.write("p/marker.txt", "made by the change\n")
-	if err := land("row/do", ""); err != nil {
-		t.Fatalf("a replacing check that fails without the change: %v", err)
-	}
-}

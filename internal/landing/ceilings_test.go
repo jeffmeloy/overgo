@@ -28,10 +28,10 @@ func TestALandingLowersACeilingItsChangeFellUnder(t *testing.T) {
 		"\tcount := strings.Count(string(source), \"\\n\")\n" +
 		"\tif count > lineCeiling {\n\t\tt.Errorf(\"internal/p holds %d lines, over its ceiling\", count)\n\t}\n" +
 		"\tif count < lineCeiling {\n\t\tt.Log(" + strconv.Quote(fall) + ")\n\t}\n}\n"
-	fixture := newRowFixture(t, map[string]string{
+	fixture := newCheckedFixture(t, map[string]string{
 		"internal/p/p.go": "package p\n\nfunc a() string {\n\treturn \"base\"\n}\n",
 		ceilingFile:       ceiling,
-	})
+	}, shippedCheck)
 	fixture.git("config", "core.autocrlf", "false")
 	editPlan(t, fixture, func(document *plan.Plan) { document.Items[0].Steps[0].Files = []string{"internal/p"} })
 	fixture.git("add", "-A")

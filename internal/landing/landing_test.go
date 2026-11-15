@@ -18,11 +18,21 @@ import (
 // whose check passes.
 func newRowFixture(t *testing.T, stub map[string]string) *sliceFixture {
 	t.Helper()
+	return newCheckedFixture(t, stub, "true")
+}
+
+// shippedCheck is the check of a fixture whose change makes internal/p's a() return "shipped": it fails with that
+// production restored, as the undo run asks of every check (undo-every-check/every-kind), where true passes either way.
+const shippedCheck = "grep -q shipped internal/p/p.go"
+
+// newCheckedFixture is newRowFixture with its row's check named.
+func newCheckedFixture(t *testing.T, stub map[string]string, check string) *sliceFixture {
+	t.Helper()
 	fixture := newSliceFixture(t, stub)
 	fixture.git("config", "user.name", "fixture")
 	fixture.git("config", "user.email", "fixture@example.com")
 	document := plan.Plan{Campaign: "fixture", Items: []plan.Item{{ID: "row", Title: "row",
-		Steps: []plan.Step{{ID: "do", Title: "row", Verify: "true"}}}}}
+		Steps: []plan.Step{{ID: "do", Title: "row", Verify: check}}}}}
 	testcheck.NoError(t, plan.Save(fixture.planPath(), document))
 	fixture.git("add", "-A")
 	fixture.git("commit", "-q", "-m", "plan")

@@ -20,10 +20,10 @@ import (
 // keep by a package's directory.
 func TestTheChecksReadTheCommitNotTheFolder(t *testing.T) {
 	t.Parallel()
-	fixture := newRowFixture(t, map[string]string{"cmd/x/x.go": "package main\n\nfunc main() {}\n", ".gitignore": "docs/draft.md\n"})
+	fixture := newCheckedFixture(t, map[string]string{"cmd/x/x.go": "package main\n\nfunc main() {}\n", ".gitignore": "docs/draft.md\n"}, "grep -q println cmd/x/x.go")
 	editPlan(t, fixture, func(document *plan.Plan) {
 		document.Items[0].Steps[0].Files = []string{"cmd/x"}
-		document.Items[0].Steps = append(document.Items[0].Steps, plan.Step{ID: "next", Title: "next", Verify: "true", Files: []string{"cmd/x"}})
+		document.Items[0].Steps = append(document.Items[0].Steps, plan.Step{ID: "next", Title: "next", Verify: "grep -q println.1 cmd/x/x.go", Files: []string{"cmd/x"}})
 	})
 	fixture.git("add", "-A")
 	fixture.git("commit", "-q", "-m", "steps that list their files")

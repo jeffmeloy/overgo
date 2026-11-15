@@ -22,7 +22,7 @@ const composeRegister = `{"findings": [
 // published plan keeps no retirement. The lead's words, when given, follow the title and keep the sections they hold.
 func TestTheLandingWritesItsOwnMessage(t *testing.T) {
 	t.Parallel()
-	fixture := newRowFixture(t, map[string]string{"p/p.go": "// Package p is a fixture.\npackage p\n", findingsRegister: composeRegister})
+	fixture := newCheckedFixture(t, map[string]string{"p/p.go": "// Package p is a fixture.\npackage p\n", findingsRegister: composeRegister}, "grep -q changed p/p.go")
 	editPlan(t, fixture, func(document *plan.Plan) {
 		document.Items[0].Steps[0].Title = "the fixture's step"
 		document.Items[0].Steps[0].Rationale = "A fixture needs a landing.\nServes: failure-rate.\nBatch: host lane."

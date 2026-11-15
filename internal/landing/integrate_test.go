@@ -50,7 +50,7 @@ func TestWorktreeCandidateIsIntegratedOntoTheTrunk(t *testing.T) {
 		return plan.Item{ID: id, Title: id, Budget: plan.Budget{Nodes: grown, Reason: "the fixture's growth"},
 			Steps: []plan.Step{{ID: "do", Title: id, Verify: check}}}
 	}
-	fixture.commitPlan(plan.Plan{Campaign: "fixture", Items: []plan.Item{row("first", "true"), row("second", "false"), row("third", "true")}})
+	fixture.commitPlan(plan.Plan{Campaign: "fixture", Items: []plan.Item{row("first", "test -f internal/p/a.go"), row("second", "false"), row("third", "true")}})
 	base := fixture.git("rev-parse", "HEAD")
 	outside := t.TempDir()
 	one, two := &sliceFixture{t: t, repo: filepath.Join(outside, "one")}, &sliceFixture{t: t, repo: filepath.Join(outside, "two")}
@@ -88,7 +88,7 @@ func TestWorktreeCandidateIsIntegratedOntoTheTrunk(t *testing.T) {
 
 	// The lead gives the second row a check only the first's tree passes.
 	document := testcheck.Must(plan.Load(fixture.planPath()))(t)
-	document.Items[0].Steps[0].Verify = "test -f " + fileOne
+	document.Items[0].Steps[0].Verify = "test -f " + fileOne + " && test -f " + fileTwo
 	fixture.commitPlan(document)
 	leads := fixture.git("rev-parse", "HEAD")
 

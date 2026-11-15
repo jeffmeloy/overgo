@@ -80,11 +80,11 @@ func (l *landing) production(ctx context.Context) (map[string]bool, error) {
 }
 
 // undo runs the landed steps' checks on the change with the production Go it wrote restored to the commit it builds
-// on, and its tests and the stages' own rewrites kept. A check that passes there proves nothing of the change and is
-// refused; one that fails on a test's assertion caught it; one that fails before any test ran, its tests not building
-// without the change, is no evidence and is said so. A consolidation, which must pass before and after, and a change to no production Go take no undo
-// run (SQA-332), nor does a check that runs no go test, whose failure cannot be told from a build's. What it found goes
-// into the message.
+// on, and its tests and the stages' own rewrites kept, whatever each check runs (undo-every-check/every-kind). A check
+// that passes there proves nothing of the change and is refused; one that fails on a test's assertion caught it, as
+// does a command that runs no go test, whose failure is its verdict; a go test that fails before any test ran, its
+// tests not building without the change, is no evidence and is said so. A consolidation, which must pass before and
+// after, and a change to no production Go take no undo run (SQA-332). What it found goes into the message.
 func (l *landing) undo(ctx context.Context) error {
 	restored, checks, none, err := l.undoable(ctx)
 	if err != nil {
@@ -107,7 +107,7 @@ func (l *landing) undo(ctx context.Context) error {
 		case err == nil:
 			// The reason comes first, the check after it: a refusal's record keeps its first line cut to causeBytes.
 			return fmt.Errorf("land: a check passes with the change's production Go restored, so it proves nothing of the change; make it fail without the change: %q, with %s", check, said)
-		case errors.Is(err, planverify.ErrAssertion):
+		case errors.Is(err, planverify.ErrAssertion), !runsGoTest(check):
 			l.undone = append(l.undone, "with "+said+", "+check+" fails: "+failure)
 		default:
 			l.undone = append(l.undone, "with "+said+", "+check+" fails before a test asserts anything, so it is no evidence: "+failure)
@@ -125,27 +125,28 @@ func (l *landing) undo(ctx context.Context) error {
 	return nil
 }
 
-// undoable is what the undo run restores, the production the change wrote, and the checks it runs, those that run
-// a go test; or, where it runs none, what the message says instead.
+// undoable is what the undo run restores, the production the change wrote, and the checks it runs, each the landed
+// steps' checks; or, where it runs none, what the message says instead.
 func (l *landing) undoable(ctx context.Context) (restored, checks []string, none string, err error) {
 	produced, err := l.production(ctx)
 	if err != nil {
 		return nil, nil, "", err
 	}
 	restored = slices.DeleteFunc(slices.Clone(l.written), func(path string) bool { return !produced[path] })
-	checks = slices.DeleteFunc(slices.Clone(l.verifiers), func(check string) bool {
-		parsed, err := runrecord.ParseVerify(check)
-		return err != nil || len(parsed.GoTests()) == 0
-	})
+	checks = slices.DeleteFunc(slices.Clone(l.verifiers), func(check string) bool { return strings.TrimSpace(check) == "" })
 	switch {
 	case len(restored) == 0:
 		none = "none run: the change touches no production Go"
 	case l.consolidates():
 		none = "none run: a consolidation passes before and after"
-	case len(checks) == 0:
-		none = "none run: no check runs a go test"
 	}
 	return restored, checks, none, nil
+}
+
+// runsGoTest says a check runs a go test, whose failure before any test ran is a build's, not a verdict.
+func runsGoTest(check string) bool {
+	parsed, err := runrecord.ParseVerify(check)
+	return err == nil && len(parsed.GoTests()) > 0
 }
 
 // restoredTo says which production Go the undo run restored, and to which commit.

@@ -24,15 +24,23 @@ const (
 // on a row of class whose check is undoneCheck; it returns the landing it ran.
 func undone(t *testing.T, class, source, test string) (*landing, error) {
 	t.Helper()
+	return undoneBy(t, undoneCheck, class, source, test)
+}
+
+// undoneBy is undone with the row's check named, and no test written where test is empty.
+func undoneBy(t *testing.T, check, class, source, test string) (*landing, error) {
+	t.Helper()
 	fixture := newRowFixture(t, map[string]string{"p/p.go": undoneValue})
 	editPlan(t, fixture, func(document *plan.Plan) {
 		document.Items[0].Class, document.Items[0].Budget.Nodes = class, 100
-		document.Items[0].Steps[0].Verify = undoneCheck
+		document.Items[0].Steps[0].Verify = check
 	})
 	fixture.git("add", "-A")
 	fixture.git("commit", "-q", "-m", "the row's check")
 	fixture.write("p/p.go", source)
-	fixture.write("p/p_test.go", "package p\n\nimport \"testing\"\n\n"+test)
+	if test != "" {
+		fixture.write("p/p_test.go", "package p\n\nimport \"testing\"\n\n"+test)
+	}
 	l := fixture.candidate()
 	// What the landing prints as it runs is kept, to be read back (printed).
 	l.Log = &bytes.Buffer{}
@@ -67,6 +75,23 @@ func TestTheLandingUndoesItsChangeAndTheCheckFails(t *testing.T) {
 		"func TestValue(t *testing.T) {\n\tt.Parallel()\n\tif Value() != 1 {\n\t\tt.Fatal(Value())\n\t}\n}\n")
 	if err != nil || !strings.Contains(strings.Join(consolidated.undone, "\n"), "consolidation") {
 		t.Errorf("a consolidation ended as %v, %q; want no undo run", err, consolidated.undone)
+	}
+}
+
+// TestTheUndoRunRunsEveryKindOfCheck holds the undo run to a step's check whatever it runs
+// (undo-every-check/every-kind): it ran a check only where it ran a go test, saying "none run: no check runs a go
+// test" of any other, so a step checked by a command that passes as well without the change landed unproved. A
+// command that passes with the change's production Go restored is refused; one that fails there is the change's
+// evidence.
+func TestTheUndoRunRunsEveryKindOfCheck(t *testing.T) {
+	t.Parallel()
+	changed := strings.Replace(undoneValue, "return 1", "return 2", 1)
+	if _, err := undoneBy(t, "test -f p/p.go", "", changed, ""); err == nil || !strings.Contains(err.Error(), "proves nothing") {
+		t.Errorf("a change checked by a command that passes without it ended as %v, want it refused", err)
+	}
+	caught, err := undoneBy(t, "grep -q 'return 2' p/p.go", "", changed, "")
+	if undone := strings.Join(caught.undone, "\n"); err != nil || !strings.Contains(undone, "grep -q 'return 2' p/p.go fails") {
+		t.Errorf("a change checked by a command that fails without it ended as %v, its undo %q; want it caught", err, undone)
 	}
 }
 

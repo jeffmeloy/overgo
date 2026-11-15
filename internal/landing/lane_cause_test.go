@@ -28,7 +28,7 @@ func TestALanesRefusalNamesTheLaneThatFailedFirst(t *testing.T) {
 		{name: "webui", packages: []string{"./internal/p"}, tags: "fixturelane", command: running("TestFails"), hostOnly: true},
 	}
 	t.Cleanup(func() { laneTurn, lanes = turn, gated })
-	fixture := newRowFixture(t, map[string]string{"internal/p/p.go": "package p\n\nfunc a() string { return \"base\" }\n"})
+	fixture := newCheckedFixture(t, map[string]string{"internal/p/p.go": "package p\n\nfunc a() string { return \"base\" }\n"}, shippedCheck)
 	fixture.write("internal/p/p.go", "package p\n\nfunc a() string { return \"shipped\" }\n")
 	fixture.write("internal/p/lane_test.go", "//go:build fixturelane\n\npackage p\n\nimport (\n\t\"testing\"\n\t\"time\"\n)\n\n"+
 		"func TestWaits(t *testing.T) { time.Sleep(time.Hour) }\n\nfunc TestFails(t *testing.T) { t.Fatal(\"the page showed nothing\") }\n")

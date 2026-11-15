@@ -126,7 +126,7 @@ func TestALandingTakesWhatItsGeneratorsDerive(t *testing.T) {
 func TestAFailedLandingNamesThePathsItLeftOut(t *testing.T) {
 	t.Parallel()
 	// The module is overgo's, whose import paths the rule that an export has a consumer reads.
-	fixture := newRowFixture(t, map[string]string{"go.mod": "module overgo\n\ngo 1.26\n", "cmd/x/x.go": "package main\n\nfunc main() {}\n", "internal/y/y.go": "package y\n"})
+	fixture := newCheckedFixture(t, map[string]string{"go.mod": "module overgo\n\ngo 1.26\n", "cmd/x/x.go": "package main\n\nfunc main() {}\n", "internal/y/y.go": "package y\n"}, "grep -q Name internal/y/y.go")
 	editPlan(t, fixture, func(document *plan.Plan) { document.Items[0].Steps[0].Files = []string{"cmd/x"} })
 	fixture.git("add", "-A")
 	fixture.git("commit", "-q", "-m", "a step that lists its files")

@@ -33,10 +33,10 @@ func TestALandingLowersEveryCeilingOfAFile(t *testing.T) {
 	}
 	message := []byte("Change the fixture\n\nCause: the fixture needs a change.\nPredicted effect: first-output holds.\n")
 	land := func(ceiling string) (*sliceFixture, string, error) {
-		fixture := newRowFixture(t, map[string]string{
+		fixture := newCheckedFixture(t, map[string]string{
 			"internal/p/p.go": "package p\n\nfunc a() string {\n\treturn \"base\"\n}\n",
 			ceilingFile:       ceiling,
-		})
+		}, shippedCheck)
 		fixture.git("config", "core.autocrlf", "false")
 		editPlan(t, fixture, func(document *plan.Plan) { document.Items[0].Steps[0].Files = []string{"internal/p"} })
 		fixture.git("add", "-A")

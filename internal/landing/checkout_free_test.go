@@ -44,7 +44,7 @@ func TestALandingWaitingOnARunLeavesTheCheckoutFree(t *testing.T) {
 		return "package p\n\nfunc a() string { return \"" + value + "\" }\n"
 	}
 	const check = "package p\n\nimport \"testing\"\n\nfunc TestA(t *testing.T) {\n\tif a() != \"shipped\" {\n\t\tt.Fatal(a())\n\t}\n}\n"
-	fixture := newRowFixture(t, map[string]string{"internal/p/p.go": answer("base"), "docs/notes.txt": "base\n"})
+	fixture := newCheckedFixture(t, map[string]string{"internal/p/p.go": answer("base"), "docs/notes.txt": "base\n"}, shippedCheck)
 	fixture.git("config", "core.autocrlf", "false")
 	fixture.write("internal/p/p.go", answer("shipped"))
 	fixture.write("internal/p/p_test.go", check)
@@ -100,7 +100,7 @@ func TestALandingThatFindsTheCardFreeGivesUpItsCommitTurn(t *testing.T) {
 	laneTurn = func() (string, error) { return "overgo-test-free-card-turn", nil }
 	lanes = []lane{{name: "fixture", packages: []string{"./internal/p"}, command: func(string) []string { return []string{"test", "-count=1", "./internal/p"} }}}
 	t.Cleanup(func() { laneTurn, lanes = turn, gated })
-	fixture := newRowFixture(t, map[string]string{"internal/p/p.go": "package p\n\nfunc a() string { return \"base\" }\n"})
+	fixture := newCheckedFixture(t, map[string]string{"internal/p/p.go": "package p\n\nfunc a() string { return \"base\" }\n"}, shippedCheck)
 	fixture.git("config", "core.autocrlf", "false")
 	fixture.write("internal/p/p.go", "package p\n\nfunc a() string { return \"shipped\" }\n")
 	freed := false
@@ -126,7 +126,7 @@ func landBesideACommit(t *testing.T) (fixture *sliceFixture, moved, said string,
 	laneTurn = func() (string, error) { return "overgo-test-commit-turn", nil }
 	lanes = []lane{{name: "fixture", packages: []string{"./internal/p"}, command: func(string) []string { return []string{"test", "-count=1", "./internal/p"} }}}
 	t.Cleanup(func() { laneTurn, lanes = turn, gated })
-	fixture = newRowFixture(t, map[string]string{"internal/p/p.go": "package p\n\nfunc a() string { return \"base\" }\n", "docs/notes.txt": "base\n"})
+	fixture = newCheckedFixture(t, map[string]string{"internal/p/p.go": "package p\n\nfunc a() string { return \"base\" }\n", "docs/notes.txt": "base\n"}, shippedCheck)
 	fixture.git("config", "core.autocrlf", "false")
 	fixture.write("internal/p/p.go", "package p\n\nfunc a() string { return \"shipped\" }\n")
 

@@ -58,7 +58,7 @@ func TestALandingHoldsTheCardForItsCardStagesAlone(t *testing.T) {
 	laneTurn = func() (string, error) { return name, nil }
 	lanes = []lane{{name: "fixture", packages: []string{"./internal/p"}, command: func(string) []string { return []string{"test", "-count=1", "./internal/p"} }}}
 	t.Cleanup(func() { laneTurn, lanes = turn, gated })
-	fixture := newRowFixture(t, map[string]string{"internal/p/p.go": "package p\n\nfunc a() string { return \"base\" }\n"})
+	fixture := newCheckedFixture(t, map[string]string{"internal/p/p.go": "package p\n\nfunc a() string { return \"base\" }\n"}, shippedCheck)
 	fixture.write("internal/p/p.go", "package p\n\nfunc a() string { return \"shipped\" }\n")
 	held, let := make(chan struct{}), make(chan struct{})
 	var group sync.WaitGroup

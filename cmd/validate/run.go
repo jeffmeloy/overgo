@@ -15,11 +15,13 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
 	"overgo/internal/evaluation"
+	"overgo/internal/gitauthority"
 	"overgo/internal/inferencesurface"
 	"overgo/internal/jsonfile"
 	"overgo/internal/landing"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/plan"
 	"overgo/internal/processcontrol"
 	"overgo/internal/quietmachine"
 	"overgo/internal/runrecord"
@@ -234,7 +236,11 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 	}
 	for _, suite := range suites {
 		fmt.Fprintf(output, "validate -run cycle lane %s\n", suite.Lane)
-		record("cycle lane "+suite.Lane, acquire(ctx, output, root, "go", suite.Arguments, suite.Environment...))
+		err := acquire(ctx, output, root, "go", suite.Arguments, suite.Environment...)
+		record("cycle lane "+suite.Lane, err)
+		if kept := keepLaneRun(ctx, root, suite.Lane, err == nil); kept != nil {
+			fmt.Fprintf(output, "validate -run: the cycle lane %s's end is not kept: %v\n", suite.Lane, kept)
+		}
 	}
 	if len(failed)+len(inapplicable) > 0 && len(cells) > 0 {
 		fmt.Fprintln(output, "validate -run: a cycle lane did not pass, so no cell is measured")
@@ -648,4 +654,20 @@ func displayName(cell ModelValidation) string {
 		return cell.ModelName
 	}
 	return cell.Model.String()
+}
+
+// keepLaneRun records a cycle lane's end where the trunk's checkout keeps its lanes' runs (plan.RecordLaneRun): the
+// commit the lane ran at, read from the checkout it ran in, which may be a worktree of the trunk's, and its verdict, so
+// the status says where each lane last passed (lane-passes/do).
+func keepLaneRun(ctx context.Context, root, lane string, passed bool) error {
+	head, err := gitauthority.Query(ctx, root, "rev-parse", "HEAD")
+	if err != nil {
+		return err
+	}
+	common, err := gitauthority.Query(ctx, root, "rev-parse", "--path-format=absolute", "--git-common-dir")
+	if err != nil {
+		return err
+	}
+	trunk := filepath.Dir(filepath.FromSlash(strings.TrimSpace(string(common))))
+	return plan.RecordLaneRun(trunk, lane, plan.LaneRun{Commit: strings.TrimSpace(string(head)), Passed: passed, Ended: time.Now()})
 }

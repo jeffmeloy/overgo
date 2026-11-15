@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"maps"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -33,6 +35,47 @@ type workStatus struct {
 	Day landing.Delivery `json:"day"`
 	// Worklist is the refusals by the rule or test that made each, most first (refusal-advice/worklist).
 	Worklist []landing.WorkItem `json:"worklist,omitzero"`
+	// Lanes are where each cycle lane stands (lane-passes/do).
+	Lanes []laneStanding `json:"lanes,omitzero"`
+}
+
+// laneStanding is a cycle lane as the status says it: the commit it last passed at, the trunk's commits since, and its
+// last run, kept by validate -run wherever it ran (plan.RecordLaneRun).
+type laneStanding struct {
+	Lane   string       `json:"lane"`
+	Passed string       `json:"passed,omitzero"`
+	Since  int          `json:"since"`
+	Last   plan.LaneRun `json:"last"`
+}
+
+// laneStandings reads where each lane kept at root stands, in the lanes' order by name.
+func laneStandings(ctx context.Context, root string) []laneStanding {
+	runs := plan.ReadLaneRuns(root)
+	var standings []laneStanding
+	for _, lane := range slices.Sorted(maps.Keys(runs)) {
+		standing := laneStanding{Lane: lane, Last: runs[lane].Last}
+		if passed := runs[lane].Passed.Commit; passed != "" {
+			if count, err := gitauthority.Query(ctx, root, "rev-list", "--count", passed+"..HEAD"); err == nil {
+				standing.Passed = passed
+				standing.Since, _ = strconv.Atoi(strings.TrimSpace(string(count)))
+			}
+		}
+		standings = append(standings, standing)
+	}
+	return standings
+}
+
+// String is a lane's standing in a line: where it last passed and the commits since, and how its last run ended.
+func (standing laneStanding) String() string {
+	said := "lane " + standing.Lane + ": never passed"
+	if standing.Passed != "" {
+		said = fmt.Sprintf("lane %s: passed at %.12s, %d commits since", standing.Lane, standing.Passed, standing.Since)
+	}
+	verdict := "failed"
+	if standing.Last.Passed {
+		verdict = "passed"
+	}
+	return fmt.Sprintf("%s; last run %s at %.12s, %s", said, verdict, standing.Last.Commit, standing.Last.Ended.Local().Format("Jan 2 15:04"))
 }
 
 // statusOf is the status of a checkout whose dispatch line, last commit, plan and pace are given.
@@ -75,6 +118,7 @@ func writeStatus(root string, said io.Writer) error {
 	if status.Worklist, err = landing.Worklist(root); err != nil {
 		return err
 	}
+	status.Lanes = laneStandings(ctx, root)
 	path, err := statePath(root, statusFile)
 	if err != nil {
 		return err
@@ -89,6 +133,11 @@ func writeStatus(root string, said io.Writer) error {
 	}
 	if _, err = fmt.Fprintln(said, status.Day); err != nil {
 		return err
+	}
+	for _, standing := range status.Lanes {
+		if _, err := fmt.Fprintln(said, standing); err != nil {
+			return err
+		}
 	}
 	for _, item := range status.Worklist {
 		if _, err := fmt.Fprintf(said, "refused by %s: %d (%d said its edit); latest: %s\n", item.By, item.Refusals, item.Edits, item.Latest); err != nil {

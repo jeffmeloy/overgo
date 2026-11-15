@@ -21,26 +21,6 @@
       ]
     },
     {
-      "id": "lane-passes",
-      "title": "A direct run of the lanes records each lane's pass with its commit, and the status says where each last passed",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A direct run of the lanes records each lane's pass with its commit, and the status says where each last passed",
-          "status": "open",
-          "verify": "go test ./cmd/validate ./cmd/loop -count=1 -run '^(TestADirectLaneRunRecordsEachLanesPass|TestTheStatusSaysWhereEachLaneLastPassed)$'",
-          "files": [
-            "cmd/validate",
-            "cmd/loop",
-            "internal/plan"
-          ],
-          "rationale": "Serves: the owner's review of 2026-11-14 (point 5): a direct run until the lanes pass, the landing taken only for the run expected to pass.\n\nThe evidence: validate -run -lanes keeps no record of a lane's pass: its watch writes failures and package walls into a measurement run's record alone, when the run's environment names one (laneWatch), and a direct run names none, so what a direct run proved is in its output only.\n\nThe change: each lane's end is recorded in the checkout's state with the commit it ran at, its verdict and when; the status prints, for each lane, the commit it last passed at and how many commits the trunk has taken since, with the paths among them the lane reaches.\n\nCheck: TestADirectLaneRunRecordsEachLanesPass runs a fixture lane and reads its record; TestTheStatusSaysWhereEachLaneLastPassed reads the status over a record and commits after it."
-        }
-      ]
-    },
-    {
       "id": "video-decode-overlap",
       "title": "The causal video VAE decodes chunk k on a second stream while chunk k + 1 denoises",
       "owner": "master-lead",
@@ -102,7 +82,7 @@
           "files": [
             "internal/evaluation"
           ],
-          "rationale": "Serves: a benchmark import never refuses an unrelated landing (SQA-368, P2, observed: it stops work).\n\nThe evidence (the review's, observed): the host gate's MMLU-Pro identity tests read the ambient benchmark store, so an import into it broke landings that touched nothing of MMLU-Pro, and each landing repeated the corpus work.\n\nThe change, the finding's: the host gate holds small pinned identities, scorer bytes and delimiter cases in its fixtures; the full-corpus digests move under the modeltest owner, which admits the store before any model loads; no digest is dropped.\n\nCheck: TestTheMMLUProIdentityChecksReadNoStore runs the host identity checks with the data root pointed at an empty directory and holds them to pass."
+          "rationale": "Serves: a benchmark import never refuses an unrelated landing (SQA-368, P2, observed: it stops work).\n\nThe evidence (the review's, observed): the host gate's MMLU-Pro identity tests read the ambient benchmark store, so an import into it broke landings that touched nothing of MMLU-Pro, and each landing repeated the corpus work.\n\nThe change, the finding's: the host gate holds small pinned identities, scorer bytes and delimiter cases in its fixtures; the full-corpus digests move under the modeltest owner, which admits the store before any model loads; no digest is dropped.\n\nCheck: TestTheMMLUProIdentityChecksReadNoStore runs the host identity checks with the data root pointed at an empty directory and holds them to pass.\n\nNote: Draft kept at tmp/identity-gate/draft.patch (git apply it): the store subtest moved to mmlu_pro_store_model_test.go under modeltest, and TestTheMMLUProIdentityChecksReadNoStore, which fails at the base and passes with the change. It lands alone: in a batch the undo run restores the other steps' production and this tests-only check passes it."
         }
       ]
     },
@@ -267,7 +247,7 @@
             "internal/evaluation",
             "internal/tensorstats"
           ],
-          "rationale": "Serves: a preset is admitted or refused by a test its evidence supports (SQA-342, P2: held-out quality claims).\n\nThe evidence (the review's, shown from source): the accuracy null treats each question's sign as independent where the questions are grouped by the media they ask about, and semantic prompt-loss rejection sits in admission without the evidence to support it.\n\nThe change, the finding's: the null is read through tensorstats over the groups the evidence has; numeric and identity checks stay in admission, and unsupported semantic rejection and stillness are diagnostics beside it.\n\nCheck: TestPresetAdmissionReadsItsNullFromItsGroups holds two suites with one question sign pattern, one grouped by media and one not, to different tails.\n\nNote: The review, 2026-11-14: AdmitPreset admits on no loss beyond chance and on quality alone, among about 97% ties, so a preset that shows no gain and costs more reads the same as one that costs nothing. PresetArm holds the preset, its settings and its format, and no wall. If the render records hold each arm's wall per case, the verdict's Says carries the arms' cost difference beside the counts (\"no gain, costs N% more\"); first read whether they do.\n\nNote: The render records (rendered.json) hold no wall: each draw names its run (run:sha256:...), so a case's cost is read from the run records the store holds, if they hold its wall; read that before the verdict says a cost."
+          "rationale": "Serves: a preset is admitted or refused by a test its evidence supports (SQA-342, P2: held-out quality claims).\n\nThe evidence (the review's, shown from source): the accuracy null treats each question's sign as independent where the questions are grouped by the media they ask about, and semantic prompt-loss rejection sits in admission without the evidence to support it.\n\nThe change, the finding's: the null is read through tensorstats over the groups the evidence has; numeric and identity checks stay in admission, and unsupported semantic rejection and stillness are diagnostics beside it.\n\nCheck: TestPresetAdmissionReadsItsNullFromItsGroups holds two suites with one question sign pattern, one grouped by media and one not, to different tails.\n\nNote: The review, 2026-11-14: AdmitPreset admits on no loss beyond chance and on quality alone, among about 97% ties, so a preset that shows no gain and costs more reads the same as one that costs nothing. PresetArm holds the preset, its settings and its format, and no wall. If the render records hold each arm's wall per case, the verdict's Says carries the arms' cost difference beside the counts (\"no gain, costs N% more\"); first read whether they do.\n\nNote: The render records (rendered.json) hold no wall: each draw names its run (run:sha256:...), so a case's cost is read from the run records the store holds, if they hold its wall; read that before the verdict says a cost.\n\nNote: Draft kept at tmp/preset-evidence/grouped-tail.patch (git apply it): tensorstats.GroupedSignTail, the exact sign-flip tail over the groups' nets, and its test (TestGroupedSignTailReadsGroupsAsUnits). Left: AdmitPreset reads each case's group (the suite's cases carry group, the clip) and admits on the grouped tail; the record's dataset holds the suite, reached through the evaluation's plan."
         }
       ]
     },

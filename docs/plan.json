@@ -20,21 +20,6 @@
       ]
     },
     {
-      "id": "cycle-lanes",
-      "title": "The cycle's lanes run at the build that gave them the gate's real-model tests, so each moved test runs before other work",
-      "steps": [
-        {
-          "id": "do",
-          "title": "The cycle's lanes run at the build that gave them the gate's real-model tests, so each moved test runs before other work",
-          "verify": "OVERGO_CUDA_TEST=1 go run ./cmd/validate -run -lanes",
-          "files": [
-            "docs/plan.json"
-          ],
-          "rationale": "Note: The evidence (the owner's review, 2026-11-14): cuda-synthetic moves 63 files of real-model CUDA tests to the cycle, among them latentimage's Krea tests the gate ran until that day. The cycle last ran on 8 Nov at fdd4ab1cea37, its lanes ending after 1 h 41 m without passing; HandStartDue calls one due by hand only when the plan is empty, and full-run has no steps, so nothing dispatches it. Until a cycle runs, a moved test runs only where a step names it as its check.\n\nDecision, the lead's at the owner's word (\"to act on as you see fit\"): cuda-synthetic lands with this row behind it, so the next step after it runs every test it moved. The turn is the cycle's lanes alone, validate -run -lanes, the checks a run makes before its cells: the models lane holds every moved package. It is not a step of full-run: a row leaves the plan when its last step lands, which would take full-run with it, and full-run's own check, the run with its cells, still waits on the causes its title names.\n\nCheck: validate -run -lanes passes on the card, each lane's go test run afresh (-count=1). A lane that fails names its tests, and curing them is this row's work."
-        }
-      ]
-    },
-    {
       "id": "mmlu-pro",
       "title": "MMLU-Pro's headline is an eligible reading's, and its reference comparison admits the exact questions first",
       "steps": [
@@ -47,21 +32,6 @@
             "internal/dataset"
           ],
           "rationale": "Serves: a comparison against the reference compares the questions it says it does (SQA-369, P2: a check that passes without checking).\n\nThe evidence (the review's, shown from source): the comparison matches its reference by ordinal and count alone, so a reference of other questions, or of another revision, passes the match.\n\nThe change, the finding's: before the runner opens, the reference is bound to the model and tokenizer, the demonstrations, the dataset revision and each question's identity and content, the two documented revision differences admitted for their exact revisions alone.\n\nCheck: TestTheMMLUProReferenceIsAdmittedByItsQuestions holds a reference whose questions differ in content at the same ordinals to a refusal before any model opens.\n\nNote: Read 2026-11-14: the comparison (TestMMLUProReadsAsLmEvalReadsIt) pairs each observation with reference.Questions by the ordinal in its case name and compares the answer index only after the runner has run; question_id is never compared. Neither side holds what an admission needs: the import (hfcache.go) keeps question, options, answer_index and category but no question_id, and reference.json (mmlu_pro_lm_eval_reference.py) keeps question_id, category and answers but no question text. Either the import keeps question_id, which moves the dataset digests TestTheStoresMMLUProCasesKeepTheirIdentities pins, or the reference script writes each question's digest beside its id, read again from lm-eval's cache; the second moves nothing pinned and is the cure to try first."
-        }
-      ]
-    },
-    {
-      "id": "identity-gate",
-      "title": "The ordinary gate's MMLU-Pro identity checks read pinned fixtures, never the mutable benchmark store",
-      "steps": [
-        {
-          "id": "do",
-          "title": "The ordinary gate's MMLU-Pro identity checks read pinned fixtures, never the mutable benchmark store",
-          "verify": "go test ./internal/evaluation -count=1 -run '^TestTheMMLUProIdentityChecksReadNoStore$'",
-          "files": [
-            "internal/evaluation"
-          ],
-          "rationale": "Serves: a benchmark import never refuses an unrelated landing (SQA-368, P2, observed: it stops work).\n\nThe evidence (the review's, observed): the host gate's MMLU-Pro identity tests read the ambient benchmark store, so an import into it broke landings that touched nothing of MMLU-Pro, and each landing repeated the corpus work.\n\nThe change, the finding's: the host gate holds small pinned identities, scorer bytes and delimiter cases in its fixtures; the full-corpus digests move under the modeltest owner, which admits the store before any model loads; no digest is dropped.\n\nCheck: TestTheMMLUProIdentityChecksReadNoStore runs the host identity checks with the data root pointed at an empty directory and holds them to pass.\n\nNote: Draft kept at tmp/identity-gate/draft.patch (git apply it): the store subtest moved to mmlu_pro_store_model_test.go under modeltest, and TestTheMMLUProIdentityChecksReadNoStore, which fails at the base and passes with the change. It lands alone: in a batch the undo run restores the other steps' production and this tests-only check passes it."
         }
       ]
     },
@@ -160,6 +130,21 @@
             "internal/landing"
           ],
           "rationale": "Serves: the owner's review of 2026-11-14 (point 3): a failure recorded under another stage is counted against the wrong cause.\n\nThe evidence: the stage loop (landing.go Run) takes the card's turn for a stage on the card (holdCard) before it sets l.spent.Outcome to that stage, so a landing that fails or is refused while it waits for the turn is recorded under the stage before it: on 2026-11-14 a wait of 130 minutes sits in landing_waits.json under \"test\".\n\nThe change: the stage is the outcome from before its card turn is taken, so the wait, and a refusal in it, is the stage's own.\n\nCheck: TestACardWaitIsRecordedUnderItsStage refuses a landing while it waits for the card's turn and reads its record's outcome as the stage on the card."
+        }
+      ]
+    },
+    {
+      "id": "cycle-lanes",
+      "title": "The cycle's lanes run at the build that gave them the gate's real-model tests, so each moved test runs before other work",
+      "steps": [
+        {
+          "id": "do",
+          "title": "The cycle's lanes run at the build that gave them the gate's real-model tests, so each moved test runs before other work",
+          "verify": "OVERGO_CUDA_TEST=1 go run ./cmd/validate -run -lanes",
+          "files": [
+            "docs/plan.json"
+          ],
+          "rationale": "Note: The evidence (the owner's review, 2026-11-14): cuda-synthetic moves 63 files of real-model CUDA tests to the cycle, among them latentimage's Krea tests the gate ran until that day. The cycle last ran on 8 Nov at fdd4ab1cea37, its lanes ending after 1 h 41 m without passing; HandStartDue calls one due by hand only when the plan is empty, and full-run has no steps, so nothing dispatches it. Until a cycle runs, a moved test runs only where a step names it as its check.\n\nDecision, the lead's at the owner's word (\"to act on as you see fit\"): cuda-synthetic lands with this row behind it, so the next step after it runs every test it moved. The turn is the cycle's lanes alone, validate -run -lanes, the checks a run makes before its cells: the models lane holds every moved package. It is not a step of full-run: a row leaves the plan when its last step lands, which would take full-run with it, and full-run's own check, the run with its cells, still waits on the causes its title names.\n\nCheck: validate -run -lanes passes on the card, each lane's go test run afresh (-count=1). A lane that fails names its tests, and curing them is this row's work."
         }
       ]
     },
@@ -1242,6 +1227,23 @@
           ]
         }
       ]
+    }
+  ],
+  "decisions": [
+    {
+      "id": "skill-source-form",
+      "question": "skill.md's 227 rule lines each cite a check. Read at 3ba4de8c7: the first check of 181 has a doc comment and of 45 has none, and the comments state what their test holds, not the rule that cites it (\"purpose = recursive self-improvement ...\" cites TestCycleFilesDeclinesAndAcceptsNothing, whose comment is the cycle's comparisons; \"scorecard columns = ...\" cites TestScorecardRowsEveryServableModel, whose comment is rows and dashes). Writing skill.md from the comments as they stand changes what it says. Which form does skill.md take?",
+      "options": [
+        "Each rule line moves onto its first check as a doc-comment line of its own, and skill.md is generated from those lines and its judgement section, so it says what it says now, each rule written once on its check",
+        "skill.md holds its terms and judgement lines alone; the rule lines go, each check saying its rule when it refuses",
+        "skill.md is written from the tests' doc comments as they stand, its wording changing to theirs"
+      ],
+      "recommendation": "Each rule line moves onto its first check as a doc-comment line of its own, and skill.md is generated from those lines and its judgement section, so it says what it says now, each rule written once on its check",
+      "blocks": [
+        "single-source"
+      ],
+      "asked": "2026-11-15",
+      "doctrine": true
     }
   ]
 }

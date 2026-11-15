@@ -13,8 +13,6 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/dataroot"
-	"overgo/internal/overgodb"
 	"overgo/internal/overgodbtest"
 	"overgo/internal/sequencescore"
 	"overgo/internal/testcheck"
@@ -224,7 +222,7 @@ func mmluProIdentities(t *testing.T, cases []storeCase, authorities ExactAuthori
 
 // TestMMLUProIsAGroupedChoiceWithItsIdentitiesUnchanged holds that MMLU-Pro asked as a grouped-choice suite with the target delimiter binds what the MMLU-Pro kind bound.
 //   - every protocol it is asked under => each case alone and the cases together bind the pinned dataset, case profile, scorer, plan, comparison and answers
-//   - the store's MMLU-Pro cases => the same for the part a measurement run scores, the whole, forty taken evenly, and each case alone
+//   - the store's MMLU-Pro cases => the same, held under modeltest, where the store is admitted (TestTheStoresMMLUProCasesKeepTheirIdentities)
 //   - the scorer is handed each letter after the delimiter, and the answers, observations and category accuracies are the bytes they were
 //   - the letters glued to the cue => another plan under raw completion, the same plan under the chat template
 //   - a delimiter other than the target delimiter => refused, since the scorer's method could not name it
@@ -243,60 +241,6 @@ func TestMMLUProIsAGroupedChoiceWithItsIdentitiesUnchanged(t *testing.T) {
 			}
 		}
 	}
-
-	t.Run("store", func(t *testing.T) {
-		t.Parallel()
-		roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-		if err != nil {
-			t.Skipf("no store to read MMLU-Pro cases from: %v", err)
-		}
-		reader, err := overgodb.OpenReadOnly(roots.Store)
-		if err != nil {
-			t.Skipf("the store at %s is not readable: %v", roots.Store, err)
-		}
-		defer reader.Close()
-		records, err := storeFamilies(t.Context(), reader, "mmlu-pro")
-		families, datasets := records.families, records.datasets
-		if err != nil || fmt.Sprint(datasets["mmlu-pro"]) != mmluProStoreDatasets {
-			t.Skipf("the store's MMLU-Pro cases are records of %v, the digests were pinned on those of %s: %v", datasets["mmlu-pro"], mmluProStoreDatasets, err)
-		}
-		whole := families["mmlu-pro"]
-		share, spaced := slices.Clone(whole), slices.Clone(whole)
-		drawShare(share, suiteShares["mmlu-pro"])
-		testcheck.NoError(t, drawSpaced(spaced, 40, true))
-		var sharePlan artifact.ID
-		for label, protocol := range protocols {
-			for name, cases := range map[string][]storeCase{"share": share, "whole": whole, "spaced": spaced} {
-				got, ids := mmluProIdentities(t, cases, protocol.authorities)
-				if got != protocol.store[name] {
-					t.Errorf("under %s the store's %s draw binds %v, digest %s, want digest %s", label, name, ids, got, protocol.store[name])
-				}
-				if name == "share" && label == PromptingRawCompletion.Label() {
-					sharePlan = ids[4]
-				}
-			}
-			each := sha256.New()
-			for index := range whole {
-				digest, _ := mmluProIdentities(t, whole[index:index+1], protocol.authorities)
-				each.Write([]byte(digest + "\n"))
-			}
-			if got := hex.EncodeToString(each.Sum(nil)); got != protocol.store["each"] {
-				t.Errorf("under %s the store's %d cases alone digest to %s, want %s", label, len(whole), got, protocol.store["each"])
-			}
-		}
-		// The family derived for a likelihood reading is the share given the store's validation demonstrations, the
-		// share alone where the store holds none (mmlu-pro-lm-eval/five-shot).
-		if shots := records.shots["mmlu-pro"]; len(shots) > 0 {
-			assembled, _, err := assembleMMLUProSuite(share, shots)
-			testcheck.NoError(t, err)
-			compiled := testcheck.Must(CompileGroupedChoice(assembled.(GroupedChoiceSuite)))(t)
-			sharePlan = testcheck.Must(BindGroupedChoice(compiled, protocols[PromptingRawCompletion.Label()].authorities))(t).Identity()
-		}
-		suites, _, err := DeriveStoreSuiteFamily(t.Context(), reader, protocols[PromptingRawCompletion.Label()].authorities, "mmlu-pro")
-		if err != nil || len(suites) != 1 || suites[0].Plan().Identity() != sharePlan || suites[0].Descriptor().Kind != GroupedChoiceKind {
-			t.Fatalf("the derived MMLU-Pro family is %d suites, the first binding another plan than %s or of another kind: %v", len(suites), sharePlan, err)
-		}
-	})
 
 	raw := protocols[PromptingRawCompletion.Label()].authorities
 	assembled, _, err := assembleMMLUProSuite(fixture, nil)

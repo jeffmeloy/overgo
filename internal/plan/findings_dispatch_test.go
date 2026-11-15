@@ -21,8 +21,8 @@ func TestAnUnansweredP1IsDispatchedFirst(t *testing.T) {
 	register := func(triage string) {
 		t.Helper()
 		testcheck.NoError(t, os.WriteFile(filepath.Join(repository, filepath.FromSlash(FindingsRegister)), []byte(`{"findings": [
-			{"id": "SQA-7", "status": "open", "severity": "P1", "title": "an urgent defect"},
-			{"id": "SQA-10", "status": "open", "severity": "P2", "title": "a second-rank defect"}],
+			{"id": "SQA-7", "severity": "P1", "actual": "an urgent defect"},
+			{"id": "SQA-10", "severity": "P2", "actual": "a second-rank defect"}],
 			"master_lead_triage": {"findings": {`+triage+`}}}`), 0o644))
 	}
 	line := func() string {

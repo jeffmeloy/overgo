@@ -3,9 +3,12 @@ package plan
 import (
 	"cmp"
 	"encoding/json"
+	"fmt"
 	"slices"
 	"strings"
 	"unicode"
+
+	"overgo/internal/strictjson"
 )
 
 // FindingsRegister is the register a review session writes its findings into, beside the plan.
@@ -15,60 +18,60 @@ const FindingsRegister = "docs/sqa_findings.json"
 // names it, so "never idle" never turns the register into endless low-value commits.
 var fallThroughSeverities = []string{"P1", "P2"}
 
-// openFinding is the part of a finding the plan and the landing read: its id, state and title, what evidence it rests
-// on (observed, shown_from_source or possible), and the files it cites.
+// openFinding is a finding as the review writes it (owner, 2026-11-14): its id and severity, the files it cites, the
+// input that shows it, what is expected of that input and what actually happens. A finding is open while the register
+// holds it; one closed leaves it.
 type openFinding struct {
-	ID       string `json:"id"`
-	Status   string `json:"status"`
-	Severity string `json:"severity"`
-	Basis    string `json:"evidence_basis"`
-	Title    string `json:"title"`
-	Sources  []struct {
-		Path string `json:"path"`
-	} `json:"sources"`
+	ID       string   `json:"id"`
+	Severity string   `json:"severity"`
+	Files    []string `json:"files"`
+	Input    string   `json:"input"`
+	Expected string   `json:"expected"`
+	Actual   string   `json:"actual"`
 }
 
-// named is the finding as a line names it, "SQA-n (Pn, basis): title", its basis left out where the register gives it
-// none.
-func (f openFinding) named() string {
-	rank := f.Severity
-	if f.Basis != "" {
-		rank += ", " + f.Basis
-	}
-	return f.ID + " (" + rank + "): " + f.Title
-}
+// named is the finding as a line names it, "SQA-n (Pn): what actually happens".
+func (f openFinding) named() string { return f.ID + " (" + f.Severity + "): " + f.Actual }
 
-// findingOpen is the status of a finding the reviewer has not closed; triageDeferred is the lead's triage of one whose
-// deciding evidence the next measurement run records, triageImplemented of one the lead answered with rows, which
-// waits for the lead's recheck of its closure criteria to close or reopen it, and triageDeclined of one the lead will
-// not work, its note saying why.
+// triageDeferred is the lead's triage of a finding whose deciding evidence the next measurement run records,
+// triageImplemented of one the lead answered with rows, which waits for a recheck of its input against what it expects
+// to close or reopen it, and triageDeclined of one the lead will not work, its note saying why.
 const (
-	findingOpen       = "open"
 	triageDeferred    = "deferred"
 	triageImplemented = "implemented"
 	triageDeclined    = "declined"
 )
 
-// readFindings reads the register's findings. It holds more, its reviewer's fields among them, so it is read for the
-// fields openFinding holds alone.
+// readFindings reads the register's findings, each held to openFinding's fields: a finding naming another, its status
+// or its title, is refused, so a review writes no field no program reads. The register holds more beside its
+// findings, the lead's triage among them.
 func readFindings(register []byte) ([]openFinding, error) {
 	var read struct {
-		Findings []openFinding `json:"findings"`
+		Findings []json.RawMessage `json:"findings"`
 	}
-	err := json.Unmarshal(register, &read)
-	return read.Findings, err
+	if err := json.Unmarshal(register, &read); err != nil {
+		return nil, err
+	}
+	findings := make([]openFinding, len(read.Findings))
+	for index, finding := range read.Findings {
+		if err := strictjson.DecodeBytes(finding, &findings[index]); err != nil {
+			return nil, fmt.Errorf("%s: finding %d of %d holds id, severity, files, input, expected and actual alone: %w",
+				FindingsRegister, index+1, len(read.Findings), err)
+		}
+	}
+	return findings, nil
 }
 
-// FindingsTouching are the open findings that cite a path of paths, written "SQA-n (Pn, basis): title; cites path, ...": the
-// ones a change to those paths may move, which its landing's message names.
+// FindingsTouching are the findings that cite a path of paths, written "SQA-n (Pn): what actually happens; cites path,
+// ...": the ones a change to those paths may move, which its landing's message names.
 func FindingsTouching(register []byte, paths []string) ([]string, error) {
 	findings, err := readFindings(register)
 	var touching []string
 	for _, finding := range findings {
 		var cited []string
-		for _, source := range finding.Sources {
-			if finding.Status == findingOpen && slices.Contains(paths, source.Path) && !slices.Contains(cited, source.Path) {
-				cited = append(cited, source.Path)
+		for _, file := range finding.Files {
+			if slices.Contains(paths, file) && !slices.Contains(cited, file) {
+				cited = append(cited, file)
 			}
 		}
 		if len(cited) > 0 {
@@ -78,9 +81,9 @@ func FindingsTouching(register []byte, paths []string) ([]string, error) {
 	return touching, err
 }
 
-// FindingsToFile are the findings an empty plan falls through to before the full measurement run: those open at P1
-// and then P2, each that no row of the plan names yet, written "SQA-n (Pn, basis): title". A register that holds none, or a
-// plan whose rows name each, leaves the measurement run next.
+// FindingsToFile are the findings an empty plan falls through to before the full measurement run: those at P1 and then
+// P2, each that no row of the plan names yet, written "SQA-n (Pn): what actually happens". A register that holds none,
+// or a plan whose rows name each, leaves the measurement run next.
 func FindingsToFile(document Plan, register []byte) ([]string, error) {
 	findings, err := readFindings(register)
 	if err != nil {
@@ -98,7 +101,7 @@ func FindingsToFile(document Plan, register []byte) ([]string, error) {
 		return nil, err
 	}
 	findings = slices.DeleteFunc(findings, func(finding openFinding) bool {
-		return finding.Status != findingOpen || !slices.Contains(fallThroughSeverities, finding.Severity) || namedByARow(document, finding.ID) ||
+		return !slices.Contains(fallThroughSeverities, finding.Severity) || namedByARow(document, finding.ID) ||
 			slices.Contains([]string{triageDeferred, triageImplemented, triageDeclined}, triage.Triage.Findings[finding.ID].Action)
 	})
 	slices.SortStableFunc(findings, func(a, b openFinding) int {

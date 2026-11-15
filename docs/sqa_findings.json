@@ -2,1004 +2,368 @@
   "branch": "master",
   "findings": [
     {
-  "closure_criteria": [
-        "Publication cannot replace the executed recipe state with a later activation or borrow another recipe/task state.",
-        "Genuine state-read failures stay distinguishable from historical absent state and earn no legacy-compatible verified-row credit.",
-        "Retain legacy bytes/own-verifying-run exception,partial/cancelled results and current native publication owners; count complete costs."
+      "id": "SQA-283",
+      "severity": "P2",
+      "files": [
+        "internal/evaluation/campaign.go",
+        "cmd/evaluate/capability.go",
+        "cmd/evaluate/projection.go",
+        "internal/discovery/capability.go",
+        "internal/scorecard/scorecard.go",
+        "internal/evaluation/evidence_index.go",
+        "internal/runrecord/record.go",
+        "internal/modelrecipe/loaded_program.go",
+        "internal/servingattempt/servingattempt.go",
+        "internal/trainingworkflow/session_observation.go",
+        "internal/scorecard/heldout_state_test.go",
+        "internal/gemma4convert/convert.go",
+        "internal/server/generation_store_workspace.go"
       ],
-  "evidence": "0efe83b82/31e95d725 replace inference-only lookup with ReadRecipeState(model,actualRecipe), derive its task and reject another active recipe; retained native fixtures prove these repairs. Remaining three publication owners still read state at publication and ignore lookup errors. An existing store read error leaves Verification empty; earned and unverifiedAside reject only explicit not-verified/broken,so the empty value follows the legacy-compatible accepted path. A later same-recipe activation can also replace execution-time not-verified with publication-time verified. These are source-shown remaining paths,not a new SQA reproducer. The core exact-task/recipe fix is credited,not reopened as though absent.",
-  "evidence_basis": "shown_from_source",
-  "evidence_commit": "0b5a70f89059c190989639b1170f71cea3e37caf",
-  "id": "SQA-283",
-  "plan_references": [],
-  "raised_by": "Review session e8549e3e at the owner's request, 2026-11-01 (owner: \"we shouldn't refuse inferencing or training if not validated in store? just note its state?\"; \"should use the available model prototype and info from the safetensors files like config.json or config items in the .gguf file to run the model, including any prompt templates\")",
-  "recommended_change": "Keep ReadRecipeState and actual recipe/task matching. Preserve the executed state through publication; genuine lookup failures must remain explicit unknown/error and cannot acquire legacy-compatible credit. Historical records retain their original legacy policy; add no permissive default. Extend the existing state/publication native fixture with a selective read failure and activation between execution/publication; preserve the exact own-verifying-run exception and partial/cancellation results. No new state registry or model run.",
-  "severity": "P2",
-  "sources": [
-        {
-          "path": "internal/evaluation/campaign.go",
-          "symbol": "Campaign.publishSuccess hard-codes recipe.TaskInference and discards ReadModelState's Activation"
-        },
-        {
-          "path": "cmd/evaluate/capability.go",
-          "symbol": "openCapabilitySession; capabilitySessions: speech, seq2seq, forecast, VQA, image/video, embedding, reconstruction"
-        },
-        {
-          "path": "cmd/evaluate/projection.go",
-          "symbol": "openProjectionSession binds identity.Recipe to TaskProjection"
-        },
-        {
-          "path": "internal/discovery/capability.go",
-          "symbol": "capabilityCatalog task-specific ReadModelState; entry.State uses first task state where no inference activation exists"
-        },
-        {
-          "path": "internal/scorecard/scorecard.go",
-          "symbol": "build -> earned -> qualityCell; unverifiedAside"
-        },
-        {
-          "path": "internal/evaluation/evidence_index.go",
-          "symbol": "LatestEvidence copies Evaluation.Verification into EvalSummary"
-        },
-        {
-          "path": "internal/runrecord/record.go",
-          "symbol": "Evaluation.UnderState; optional verification encoding"
-        },
-        {
-          "path": "internal/modelrecipe/loaded_program.go",
-          "symbol": "ResolveCandidateGGUF explicitly stamps StateNotVerified; State"
-        },
-        {
-          "path": "internal/servingattempt/servingattempt.go",
-          "symbol": "Record reads model/task state at publication and ignores Activation"
-        },
-        {
-          "path": "internal/trainingworkflow/session_observation.go",
-          "symbol": "Observer.finish reads model/task state at publication and ignores Activation"
-        },
-        {
-          "path": "internal/scorecard/heldout_state_test.go",
-          "symbol": "TestAHeldOutReadingKeepsTheStateItRanUnder exercises codec and earned, not production state lookup"
-        },
-        {
-          "path": "internal/gemma4convert/convert.go",
-          "symbol": "ModelView and Convert share modelViewTensors"
-        },
-        {
-          "path": "internal/server/generation_store_workspace.go",
-          "symbol": "WorkflowCapabilities/candidates/listing offer candidate execution with StateNotVerified; unrecipedMedia now only no-runnable-recipe fallback (14409487b). Evaluation/serving/training evidence attribution remains separate."
-        }
+      "input": "A result published by one of the three publication owners that still read recipe state at publication, when (a) the store read of the recipe state fails, or (b) the same recipe is activated again, verified, after a run executed it not verified.",
+      "expected": "Publication carries the state the executed recipe and task had at execution. A failed state read is told apart from a historical absent state and earns no verified credit, and a later activation does not replace execution-time state. Legacy bytes, the own-verifying-run exception and partial or cancelled results keep their contract.",
+      "actual": "The three owners read state at publication and drop the lookup error: (a) leaves Verification empty, which earned and unverifiedAside pass as the legacy-compatible accepted path, and (b) publishes the later verified state in place of the executed not-verified one. Read from source; the exact task and recipe repair of 0efe83b82 and 31e95d725 stands."
+    },
+    {
+      "id": "SQA-340",
+      "severity": "P2",
+      "files": [
+        "internal/server/webui/workflow.js",
+        "internal/server/webui/composer.js",
+        "internal/mediacapability/controls_cuda_windows.go",
+        "internal/latentimage/profiles.json",
+        "internal/latentimage/runtime_cuda_windows.go",
+        "internal/latentimage/preset_windows_test.go",
+        "internal/mediacapability/moss_controls_windows_test.go",
+        "internal/server/moss_generation_windows_test.go",
+        "internal/server/webui_browser_moss_generation_windows_test.go"
       ],
-  "status": "open",
-  "title": "Preserve execution-time verification and explicit state lookup failures"
-},
-    {"id":"SQA-310","status":"resolved"},
-    {"id":"SQA-276","status":"resolved"},
-    {"id":"SQA-237","status":"resolved"},
-    {"id":"SQA-236","status":"resolved"},
-    {"id":"SQA-235","status":"resolved"},
-    {"id":"SQA-253","status":"resolved"},
-    {"id":"SQA-269","status":"resolved"},
-    {"id":"SQA-270","status":"resolved"},
-    {"id":"SQA-216","status":"resolved"},
-    {"id":"SQA-207","status":"resolved"},
-    {"id":"SQA-222","status":"resolved"},
-    {"id":"SQA-225","status":"resolved"},
-    {"id":"SQA-252","status":"resolved"},
-    {"id":"SQA-240","status":"resolved"},
+      "input": "A fresh MOSS form with the comfy-tutorial preset selected and no number touched; likewise Krea with the draft preset.",
+      "expected": "The request carries no steps or guidance the user did not set, so the preset resolves 25 steps and guidance 2.5 for MOSS and 4 steps for Krea draft. An explicit override, guidance 0 and a value equal to the default among them, stays exact.",
+      "actual": "The form fills every bounded numeric input with its default and controlValues sends each nonempty one, so the request carries steps 50 and guidance 3, which Request.withPreset keeps as explicit overrides; Krea draft keeps 8 steps. No handler reacts to the preset choice. The browser fixture expects 50 and 3 and the native preset fixture omits them, so both pass. Read from source at bb3e392b1."
+    },
     {
-  "closure_criteria": [
-        "A fresh MOSS form selecting comfy-tutorial submits no untouched50/3 override; the retained normalizer resolves25/2.5. Krea draft analogously resolves4 instead of8.",
-        "Explicit overrides, including guidance0 and values equal to the reference default, remain exact; required geometry and saved explicit settings retain their contract.",
-        "One existing browser/store fixture covers choice-to-request transport, native fixtures own model-specific resolution, and only an assertion with a demonstrated retained owner is removed. Count JavaScript bytes as well as Go AST."
+      "id": "SQA-342",
+      "severity": "P2",
+      "files": [
+        "internal/evaluation/image_retrieval.go",
+        "internal/tensorstats/paired_binary.go",
+        "internal/evaluation/generated_video_matching.go",
+        "internal/evaluation/screen.go",
+        "cmd/evaluate/screen.go",
+        "cmd/evaluate/screen_windows_model_test.go",
+        "internal/evaluation/clip_motion.go",
+        "cmd/evaluate/motion_windows_model_test.go",
+        "cmd/evaluate/judge_calibration_windows_model_test.go",
+        "internal/evaluation/evidence_index.go",
+        "internal/scorecard/record.go",
+        "internal/scorecard/output_pairing_test.go",
+        "cmd/evaluate/stillness_windows_model_test.go",
+        "internal/scorecard/scorecard.go",
+        "cmd/evaluate/second_judge_windows_model_test.go",
+        "internal/evaluation/soft_answer.go",
+        "cmd/evaluate/video_super_res_judged_windows_model_test.go",
+        "internal/evaluation/preset_admission.go",
+        "cmd/evaluate/preset_reading.go",
+        "internal/evaluation/instruction_acceptance.go",
+        "internal/evaluation/preset_admission_test.go",
+        "cmd/evaluate/preset_reading_test.go",
+        "cmd/evaluate/render.go",
+        "internal/runrecord/record.go",
+        "internal/mediacapability/controls_cuda_windows.go",
+        "internal/mediacapability/preset_readings.go",
+        "internal/mediacapability/preset_readings.json",
+        "internal/mediacapability/preset_readings_windows_test.go",
+        "cmd/evaluate/readings.go",
+        "cmd/evaluate/readings_test.go",
+        "cmd/evaluate/render_resume_test.go",
+        "cmd/evaluate/preset_binding_test.go",
+        "internal/evaluation/media_inputs.go"
       ],
-  "evidence": "At bb3e392b1, model presets reach the native request normalizers, but the shared form initializes every bounded numeric input to a submitted value. controlValues serializes all nonempty inputs. On a fresh MOSS form, selecting comfy-tutorial therefore sends steps=50 and guidance_scale=3 with the preset; Request.withPreset correctly preserves these apparently explicit overrides instead of applying 25/2.5. Krea draft similarly keeps the prefilled8 rather than4 steps. There is no model-preset change handler. The browser fixture explicitly expects50/3 as values; the new native preset fixture omits them, so both can pass while their composition defeats the choice. This is a source-derived counterexample, not a new browser/model execution. The model profile values are intentional; the unsupported assumption is that an untouched displayed default means the user explicitly overrode the preset.",
-  "evidence_basis": "shown_from_source",
-  "evidence_commit": "5a93a0ac6b9706ca1d36ab2063281a34604cd6e4",
-  "id": "SQA-340",
-  "plan_references": [
-        "sampling-split/named-presets landed bb3e392b1",
-        "sampling-split/block-override remains open",
-        "docs/extreme_refactor_plan.md standing target: shared application behavior and full costs"
+      "input": "(1) The semantic screen given a candidate whose embedding distance exceeds its reseeded draw. (2) Stillness scored on a stationary source clip. (3) Gemma accuracy over 32 independent media, each with two uniformly guessed 3-choice questions. (4) Two judges ranked on all-constant finite scores, and on probabilities (.9,.1) against (.45,.45). (5) A preset reading of 524 questions over 80 rendered cases per arm. (6) Two GIF media inputs for their own bound renders, with one judge and scorer, decoded at 16 frames against 1. (7) An admitted preset record edited to 0 wins, 524 losses, 0 ties and tail 1, Admitted left true. (8) A render campaign resumed after an earlier item's request changed while its last item drew the same, or with truncated bookkeeping.",
+      "expected": "(1) No candidate is rejected on a prompt-loss measure nothing establishes. (2) Stillness is presented as relative to its source, with no universal quality bound. (3) The accuracy null matches the actual choice counts and within-media dependence. (4) Ranking uses the aggregation production scores with, and an undefined tau or omitted resamples are said, without a panic. (5) The harm screen counts independent media, not questions, and claims no equivalence from nondetection (the matched 80-clip 8 wins, 9 losses and 63 ties among them). (6) A reading is admitted only from evaluations bound to the same render, decode sampling and question contract, and a control offers a candidate only by the admission for its own model, recipe and request. (7) The record's verdict, counts and tail are derived through AdmitPreset and its bound evaluations, so drift is refused. (8) A completed arm or verdict is reused only for the same bound inputs, evaluator and producer; changed work is refused or redone, and truncated bookkeeping does not count as complete.",
+      "actual": "(1) The screen rejects a candidate on that distance. (2) A stationary source scores 1 and hides a strict-greater freeze. (3) Correct count minus sum(1/choices) against zero is taken as a fair sign for ExactPairedBinary: a medium is positive with probability 5/9, and uniform guessing passes the 22-positive threshold (nominal tail 0.0250512) with probability 0.0914273, above the 0.05 level. (4) Arithmetic probability means rank (.9,.1) above (.45,.45), the reverse of production softShare's geometric mean; constant scores give a NaN tau, all 2000 resamples are dropped and resampledTau indexes an empty slice. (5) AdmitPreset counts the 524 question booleans as independent pairs. (6) judgedRender compares content, request, producer, runtime and scorer but not MediaInput.Decode or the question contract, readRender never calls verifyRendered, ResolveActiveExecution takes the current activation, and the embedded offering admits by family, name and status. (7) The native record test reads no Tail and calls no AdmitPreset, so the edited record passes. (8) Arm, suite and verdict skips trust names and file existence and accept truncated bookkeeping, and a new build is validated by re-rendering only the last item. Read from source and by arithmetic; the six committed records match the declared harm screen, five admitted and the MOSS guidance interval refused."
+    },
+    {
+      "id": "SQA-346",
+      "severity": "P2",
+      "files": [
+        "cmd/evaluate/reader.go",
+        "cmd/evaluate/motion.go",
+        "cmd/evaluate/session.go",
+        "internal/evaluation/media_inputs.go",
+        "cmd/evaluate/media_inputs.go",
+        "internal/evaluation/drawn_reading.go",
+        "internal/evaluation/clip_motion.go",
+        "internal/evaluation/media_inputs_test.go"
       ],
-  "recommended_change": "Keep preset expansion and override precedence in Request.withPreset. In the existing shared form, present omittable sampling overrides as default hints rather than populated values, so a fresh preset choice submits only that choice and values the user actually supplied. Scope this to fields whose runtime accepts omission; preserve required dimensions and other controls. Do not drop a supplied value merely because it equals the default, and preserve explicit guidance0. Remembered/saved values remain explicit overrides; do not silently erase them or introduce a second preset resolver/dirty-state framework. Extend the existing MOSS browser fixture's captured request to cover selecting the model preset and an explicit override, retaining the native normalization owner. Once that covers the real transport, remove the API fixture's duplicated preset-choice/advanced predicate; retain declaration details in mediacapability and distinct API execution checks.",
-  "severity": "P2",
-  "sources": [
-        {
-          "path": "internal/server/webui/workflow.js",
-          "symbol": "controlInputs/controlValues; workflowWorkspace and rememberedControls"
-        },
-        {
-          "path": "internal/server/webui/composer.js",
-          "symbol": "generation form uses the same controlValues owner"
-        },
-        {
-          "path": "internal/mediacapability/controls_cuda_windows.go",
-          "symbol": "imageControls fills steps and guidance bounds"
-        },
-        {
-          "path": "internal/latentimage/profiles.json",
-          "symbol": "MOSS reference 50/3 versus comfy-tutorial 25/2.5; Krea reference 8 versus draft 4"
-        },
-        {
-          "path": "internal/latentimage/runtime_cuda_windows.go",
-          "symbol": "Request.withPreset; LoadGenerator/Reset/prepare retain explicit overrides"
-        },
-        {
-          "path": "internal/latentimage/preset_windows_test.go",
-          "symbol": "TestARequestRunsTheNamedPresetOfItsProfile"
-        },
-        {
-          "path": "internal/mediacapability/moss_controls_windows_test.go",
-          "symbol": "TestMOSSImageGenerationContract: declaration owner"
-        },
-        {
-          "path": "internal/server/moss_generation_windows_test.go",
-          "symbol": "TestMOSSImageGenerationContract: API controls and execution transport"
-        },
-        {
-          "path": "internal/server/webui_browser_moss_generation_windows_test.go",
-          "symbol": "TestWebUIBrowserMOSSGeneration; newMOSSGenerationFixture; request capture"
-        }
+      "input": "(1) An OCR suite produced by evaluate -read-suite, compiled through the media-bound campaign. (2) A motion suite measured on clip A, then judged against a changed clip B of the same name.",
+      "expected": "(1) The suite passes the campaign and keeps its character metrics through both identity-rewriting passes. (2) OCR and motion observations bind to the exact content and instrument they measured, so changed media or a changed instrument inherits no old metric.",
+      "actual": "(1) readSuite keys Readings.Read by filename (first.png); Campaign.CompileSuite first rewrites case prompts to method digests, and PictureReadings.validate asks Readings.Read for the digest, which is absent, so an ordinary -read-suite result is refused. The tests call CompileGeneratedAnswer directly and miss it. (2) Motion stores no clip or source digest and no decoder identity, only an encoder basename, so A's motion attaches to B's new judgement. Read from source."
+    },
+    {
+      "id": "SQA-356",
+      "severity": "P2",
+      "files": [
+        "cmd/loop/main.go",
+        "cmd/loop/startup.go",
+        "internal/loop/driver.go",
+        "internal/landing/costs.go",
+        "cmd/loop/costs.go",
+        "internal/landing/costs_test.go",
+        "cmd/loop/costs_test.go",
+        "cmd/loop/startup_test.go"
       ],
-  "status": "open",
-  "title": "Let a selected model preset reach execution without untouched form defaults overriding it"
-},
+      "input": "A worker attempt interrupted between RunWorker recording its start and keepRunning writing the marker, or between removing the marker and the deferred end write; and a record from before 6da610a60, whose marker and attempt took separate time.Now values.",
+      "expected": "The interrupted attempt is reported with bounded known effort or an explicit unknown duration, downtime never counted as worker wall, and start, exit, restart and landing accounting share one lifecycle identity.",
+      "actual": "The start stays without a marker, noteUncleanEnd cannot close it, and landing.cost charges the elapsed time to now through the downtime; an old record cannot be matched by Step and Started. Two active-start stores remain. Worker-Wall-Seconds drops the unknown interrupted wall and printCosts presents the rest as worker wall with no qualification. Read from source."
+    },
     {
-  "closure_criteria": ["Semantic screen has no unsupported prompt-loss rejection/mandatory admission; finite/input/identity checks and concrete diagnostic consumers remain.","Source minima/maxima and higher similarity are not presented as universal motion quality. Any adopted stillness acceptance has a task-grounded contract and retained valid/invalid evidence.","Judge sensitivity and grouped sample limitations accompany quality comparisons; content/fidelity meanings and historical identities remain separate. No unqualified equivalence claim from a nonsignificant result.","Reuse existing numerical, media, campaign and recovery owners; count complete code/test/setup costs and retire only displaced, unneeded paths.","Gemma/second-judge confidence or acceptance does not tighten merely by repeating questions about unchanged media; accuracy requirements retain an explicit valid owner.","Independent-judge rank claims name the actual score aggregation, retain media pairing and treat undefined rank/omitted bootstrap samples explicitly without panic. Any simplification includes full helper/import/native-test costs.","The merged accuracy acceptance uses a null justified by the actual choice counts and within-media dependence; the two3-choice uniform-guess counterexample is not assigned an invalid fair-sign tail.","The declared preset harm screen is computed on justified independent units and claims no more than it supports. Correlated questions do not increase the independent sample count; no equivalence or noninferiority claim is inferred from nondetection. Retain the existing CaseOutcomes empty-report boundary and all earlier screen/calibration obligations.","The real admitPresetReading path rejects swapped/foreign evaluation IDs and mismatched render model/task/recipe/output or scoring identity even with identical case names, dimensions and booleans.","A changed active recipe cannot silently reattribute old renders; exact valid carried scoring records remain reusable under their original identity. Full effective request and declared treatment define comparability.","Capability controls consume the bound admission applicable to their actual model/recipe/request, not family/name alone. Missing, refused, stale or inapplicable provenance does not offer a judged candidate; nondetection under the declared harm screen can admit without a gain claim. Preserve342 independent-unit correctness and existing authority.","The retained native record/command fixtures reject verdict/count/tail/status drift and foreign evidence by deriving through existing admission/identity owners. Preserve format/mixed-size/reuse cases; delete duplicate manual verdict authority and charge complete production/test/storage/setup cost without another model run.","A completed campaign arm/verdict is reusable only for the same bound inputs/evaluator/producer contract. Changing the judge, model/request, dataset/media or record invalidates only affected stages; truncated bookkeeping cannot count as completed.","An operational handover/progress-only change can continue a valid partial set without recomputing its verified outputs or rewriting their producer identities. A changed numerical dependency/effective request is refused or invalidates only the affected work; arbitrary commits are not presumed compatible.","One matching last item cannot authorize incompatible retained requests; original producer identity and selective unchanged reuse remain."],
-  "evidence": "Original screen obligation remains: Candidate>Reseeded embedding distance is not established prompt-loss evidence; retain input/numerical/identity validation and diagnostic consumers. Source-relative stillness remains descriptive: a stationary source yields1 and hides strict-greater freeze; source extrema are not universal quality bounds. Matched80-clip8wins/9losses/63ties does not prove equivalence. Prior bc77 fidelity and3cc per-media grouping are retained improvements. ac1935d75's generated16-caption/cropped-middle-frame sharp/clean comparison (6clean-high versus10Lanczos, tails0.895/0.227) remains inconclusive and its post-run alarm is not noninferiority; source-reference VMAF is a separate requirement.\n32f640e18 now removes the separate Gemma opening fixture and repeated repair decode/worker setup. Accuracy and agreement use the retained answers with media as units; all questions/right flags remain, and judges close sequentially. However, comparing each medium's correct-count minus sum(1/choices) to zero does not create the fair binary pairs required by ExactPairedBinary. Admitted counterexample:32 independent media, each with two independent uniformly guessed3-choice questions. Positive excess means at least one correct, probability5/9 rather than1/2. The code first accepts22positive media at nominal tail0.0250512; uniform guessing reaches that threshold with probability0.0914273, exceeding calibrationLevel0.05. This exact enumeration concerns the accuracy component, not the joint rank gate or an observed failure. Within-media correlation can further alter the sign null. Keep the actual accuracy values, but do not label this tail an exact chance comparison.\nRemaining comparison code is unchanged: arithmetic probability means differ from production softShare's geometric mean ((.9,.1) versus(.45,.45) reverses rank); all finite constant scores yield NaN tau, all2000resamples are omitted and resampledTau indexes an empty slice before the later refusal. cmpSign remains a31-node private wrapper with two finite-number call sites. These are source/arithmetic counterexamples; no model experiment.\nCurrent owner policy is now explicit:8ab8f2e44 admits when loss is not statistically detected and Says claims no gain for nonsignificant readings. That is a harm screen, not a noninferiority/equivalence requirement. The earlier mandatory margin/withhold-all-inconclusive recommendation is retired as an unrequested stronger policy. Four all-loss cases can pass this declared low-power screen; that alone is not an implementation contradiction. CaseOutcomes already rejects empty reports on the CLI path, so helper-only empty maps are not a production admission counterexample requiring another guard. Remaining statistical obligation: AdmitPreset counts question-name booleans as independent pairs. The new record has524questions over80rendered cases per arm; questions on one output do not establish524independent media. ExactPairedBinary explicitly requires independent pairs. Existing CaseMedia/pairedByOutput retain grouping information, but grouping policies must match before sharing. Arithmetic reconstruction of all six retained records matches the declared harm screen: five admitted, MOSS guidance-interval refused, none claiming gain. No image rescoring or SQA model run; no claim a grouped calculation necessarily reverses any current verdict without its paired data. Earlier accuracy-null, aggregation and undefined-bootstrap counterexamples above remain distinct obligations.\nSQA-379 (dc391678c1ea3c79cce33a752ce9fd52053266be): 6eb1d5d1e/35877fbbb now reject render model/task/recipe or complete-request differences beyond preset before reading evaluations, and bind each evaluated media input's content/request/producer to a render draw plus a shared judge runtime/scorer. Native command seed/model and direct foreign-content/judge/scorer fixtures support that progress. readRender supplies manifest rows; this path does not itself invoke verifyRendered to recheck payload/request/producer-run authority against the declared producer recipe. The original evaluation-contract requirement remains partial: JudgedMedia returns MediaInput and scorer, but judgedRender compares only content/request/producer/runtime/scorer, ignoring MediaInput.Decode and the plan's question/method contract. Source counterexample: two otherwise valid GIF media inputs for their own bound render outputs, same judge/scorer, with Decode FPS16 and Frames16 versus Frames1. Both are valid domains, and this check accepts the changed sampling policy. Same case-name booleans do not prove the same questions or viewed frames. This is source-shown, not an executed false verdict. ResolveActiveExecution still takes current activation for person-sized policy instead of binding historical producer applicability. The six8ab8f2e44 records remain retained facts: five admitted and MOSS interval refused under the declared harm screen, not universal quality proof. Embedded offering still uses family/name/status rather than actual model/recipe/request admission.\nThe new293-AST native record test checks positive pair totals, nonempty reference/arm/Says, and agreement of the manual Admitted bit with the embedded manual status. Its Tail field is never read, it does not invoke AdmitPreset or resolve either evaluation ID. Source counterexample: for an already-admitted record, change counts to0wins/524losses/0ties and Tail1 while retaining Admitted=true and nonempty IDs/Says. The current declared harm-screen arithmetic refuses it, but this native test passes its checked conditions. All six actual committed records match the intended arithmetic; SQA claims neither an actual false model verdict nor a live tampering reproduction.\nCampaign and resume obligations remain:6bb2359a3 consumes the exact printed evaluation ID but arm/suite/verdict skips still trust names/file existence and accept incomplete trailing bookkeeping.9d585bc9a preserves per-draw producer builds and removes whole-commit stranding, but validates a new build by rerendering only the last retained item. A changed earlier cat with an unchanged last dog can pass that sentinel. Neither current product-record landing changes these source paths. Keep selective compatible reuse and original provenance; do not require redrawing every item or another identity registry. b649b8ace now names both Krea and the student's NAG pending in preset_readings.json, and the existing native declaration test covers both. Those names are therefore no longer offered unread under the sampled default pages. Credit that specific projection correction; recipe/request/evaluation binding and the earlier six-status/provenance/resume obligations remain. The retained Krea output-difference/load-vs-Reset check is functional delivery, not held-out quality admission.",
-  "evidence_basis": "shown_from_source",
-  "evidence_commit": "f79132c42b6c3db91882eadb3aa8f7b7d869bb18",
-  "id": "SQA-342",
-  "plan_references": ["media-screen/pair-screen and clip-consistency","video-judge/same-settings 14188bb91","judge-calibration/sensitivity b6656118e","judge-calibration/fidelity bc77ee5e7; clustered 3cc685278; stillness 5c5113e7f","second-judge/vision-judge e3b788a0c and independent0b326644a (landed)","judge-calibration/user-size; rtx-vsr/judged at 0b326644ace365709193155c4fbe0f9a99e2f037","rtx-vsr/judged-fidelity ac1935d75 (landed; null generated-fidelity result)","test-surface/judge-tests; judge-calibration/user-size; judge-speed at 7d1c97f7d4d11234d6299ded5573b51443724e37","test-surface/judge-tests landed32f640e18; current pin c06fc9c","judge-calibration/user-size landed2c7ac4ea4; guidance-ops/apg,nag,preset-readings at d87c57c","judge-calibration/user-size landed2c7ac4ea4","guidance-ops/preset-readings at d87c57c","guidance-ops/moss-presets e9b82cdf6; sensenova-presets d87c57c","guidance-ops/preset-gate bf1651186 (landed; partial consumer progress)"],
-  "recommended_change": "Keep unsupported semantic prompt-loss rejection out of admission, retain numeric/identity checks, and keep source-relative stillness descriptive. Preserve content/fidelity, question records and grouped-media limitations; agreement is not ground truth. Credit32f640e18's completed shared opening/repair setup and retained separate accuracy/agreement obligations. Correct the accuracy null through the existing calibration/tensorstats owner: grouping media alone does not justify treating signs around an expected count as fair coin flips. Use a declared per-media correctness event with a justified chance bound through existing BinomialUpperTail, or a comparison whose null matches the chosen aggregate and within-media dependence; choose before another model run. Keep all observed per-question accuracy values and media identities. One smallest native finite-choice counterexample should hold the calculation; do not restore a duplicate model-opening fixture. State which aggregation its acceptance measures: reuse the existing soft-score owner if claiming the production metric, otherwise explicitly limit the claim to the declared arithmetic ranking; do not introduce a second quality policy. Handle undefined full-sample tau before resampling, retaining disagreement/partial results and a clear inconclusive/failure outcome. Any necessary coverage should be one smallest pure case in the retained native comparison fixture, without model reruns. Replace cmpSign's two finite-number calls with standard cmp.Compare and delete the helper; no new abstraction or test is needed for that trivial substitution. Keep ac1935d75's null comparison descriptive and its future significant-loss check a coarse alarm; a nonsignificant difference is not proof of equivalence or a quality admission. If admission needs a noninferiority claim, state its meaningful margin and media-level comparison before exposure through the existing evaluation owner. Preserve the source-reference result separately, state the crop/frame scope, and reuse compatible records; do not add a campaign merely to justify the existing default. For presets, retain the declared harm-screen policy and honest no-gain wording. Use the actual independent media units, or a justified dependence-aware comparison, through the existing evaluation/tensorstats owners; do not turn524questions about80images into524independent draws. Preserve all question results, case/media identities and existing loss detection. Do not require a new noninferiority margin, repeated model campaign or helper-empty guard as though those were already product requirements. Share pairing only where matching/aggregation contracts are actually equal. Reuse one smallest native correlated-group arithmetic case in the retained fixture; command/manifest binding remains379.\nKeep the new early comparableArms and judgedRender provenance checks. Reuse the existing verifyRendered content/request/producing-run checks for admission where that same contract applies; do not make mutable manifest fields a second producer authority. Finish comparable evaluation protocol through existing plan/MediaInput/scoring owners: pair each media/question with the same decode/frame sampling and judgment/scoring contract while allowing only the declared preset treatment. Do not equate raw method hashes that legitimately include different preset requests, or force one global decode for heterogeneous valid cases. Extend the retained binding fixture with otherwise identical valid inputs whose Decode.Frames changes16->1; this current omission must be refused before a verdict. Preserve legitimate carried scoring under its actual scored producer/evaluator identity. Bind person-sized/offer applicability to the producer's actual model/recipe/effective request; remove the independent manual verdict/status authority by deriving through current admission owners. Keep the existing native0wins/524losses/Tail1 drift case rather than another model run. For campaign/resume, validate bound requests/evaluator/producer and incomplete bookkeeping before skipping, retain each original producer, and invalidate only affected stages. One unchanged last output cannot authorize the whole earlier set; use the existing dependency/identity contract without redrawing every item or adding a registry/ledger/scheduler.",
-  "severity": "P2",
-  "sources": [
-    {
-          "path": "internal/evaluation/image_retrieval.go",
-          "symbol": "ImageEmbedder, nearestSameGroup: retrieval labels are the metric's actual contract"
-        },
-    {
-          "path": "internal/tensorstats/paired_binary.go",
-          "symbol": "ExactPairedBinary: independent binary pairs, not semantic calibration"
-        },
-    {
-          "path": "internal/evaluation/generated_video_matching.go",
-          "symbol": "BuildGeneratedVideoMatching: separate caption/question and grouped soft-score owner"
-        },
-    {
-          "path": "internal/evaluation/screen.go",
-          "symbol": "ScreenCase.Lost, ScreenCandidate, Screen.Passed"
-        },
-    {
-          "path": "cmd/evaluate/screen.go",
-          "symbol": "screenPaths, runScreen, printScreen"
-        },
-    {
-          "path": "cmd/evaluate/screen_windows_model_test.go",
-          "symbol": "TestTheScreenFailsACandidateThatLostItsPrompt"
-        },
-    {
-          "path": "internal/evaluation/clip_motion.go",
-          "symbol": "NewFrameSimilarity, ClipMotion.validate, ClipMotion.Metrics"
-        },
-    {
-          "path": "cmd/evaluate/motion_windows_model_test.go",
-          "symbol": "TestAClipRecordsItsFrameToFrameSimilarity"
-        },
-    {
-          "path": "cmd/evaluate/judge_calibration_windows_model_test.go",
-          "symbol": "TestTheJudgeScoresDegradedOutputsLower; TestTheJudgeSeesFidelityWhenAsked; openCalibration; lowerAt"
-        },
-    {
-          "path": "internal/evaluation/evidence_index.go",
-          "symbol": "CaseMedia; scoredReport"
-        },
-    {
-          "path": "internal/scorecard/record.go",
-          "symbol": "pairedByOutput; judgeQuality"
-        },
-    {
-          "path": "internal/scorecard/output_pairing_test.go",
-          "symbol": "TestAQualityVerdictCountsMediaNotQuestions"
-        },
-    {
-          "path": "cmd/evaluate/stillness_windows_model_test.go",
-          "symbol": "TestAFrozenClipReadsAsTooStill"
-        },
-    {
-          "path": "internal/scorecard/scorecard.go",
-          "symbol": "Motion; readMotion; QualityText"
-        },
-    {
-          "path": "cmd/evaluate/second_judge_windows_model_test.go",
-          "symbol": "TestTwoJudgesAreRightAndRankTheCasesAlike; accuracy excess/sign; judged; outputCases; kendallTauB; resampledTau; cmpSign"
-        },
-    {
-          "path": "internal/evaluation/soft_answer.go",
-          "symbol": "recordChoice: finite probability; softShare: per-media geometric mean"
-        },
-    {
-          "path": "docs/plan.json",
-          "symbol": "second-judge/independent landed0b326644a; judge-calibration/user-size and rtx-vsr/judged remain"
-        },
-    {
-          "path": "cmd/evaluate/video_super_res_judged_windows_model_test.go",
-          "symbol": "TestTheJudgeDoesNotPreferLanczosOverTheDefaultLevel; TestJudgedClipsAreDrawn; readRepairLevels"
-        },
-    {
-          "path": "internal/evaluation/preset_admission.go",
-          "symbol": "AdmitPreset; PresetArm; PresetVerdict"
-        },
-    {
-          "path": "cmd/evaluate/preset_reading.go",
-          "symbol": "admitPresetReading reads CaseOutcomes without CaseMedia"
-        },
-    {
-          "path": "internal/evaluation/instruction_acceptance.go",
-          "symbol": "poolGain/poolLoss/poolUndecided"
-        },
-    {
-          "path": "internal/evaluation/preset_admission_test.go",
-          "symbol": "TestAPresetIsAdmittedOnlyAtAPersonsSize"
-        },
-    {
-          "path": "cmd/evaluate/preset_reading_test.go",
-          "symbol": "TestAPresetIsAdmittedOnlyAtAPersonsSize"
-        },
-    {
-          "path": "cmd/evaluate/preset_reading.go",
-          "symbol": "admitPresetReading; readRender; drawnArm"
-        },
-    {
-          "path": "cmd/evaluate/render.go",
-          "symbol": "renderManifest; renderedMedia; alreadyDrawn; renderRequest"
-        },
-    {
-          "path": "internal/evaluation/evidence_index.go",
-          "symbol": "CaseOutcomes; CaseMedia; scoredReport"
-        },
-    {
-          "path": "internal/runrecord/record.go",
-          "symbol": "Evaluation and Run identity"
-        },
-    {
-          "path": "internal/mediacapability/controls_cuda_windows.go",
-          "symbol": "routedImageControls; imageControls -> offerPresets"
-        },
-    {
-          "path": "cmd/evaluate/preset_reading_test.go",
-          "symbol": "TestAPresetIsAdmittedOnlyAtAPersonsSize does not call admitPresetReading"
-        },
-    {
-          "path": "docs/plan.json",
-          "symbol": "guidance-ops/preset-readings admission and setting-reader prerequisite"
-        },
-    {
-          "path": "internal/mediacapability/preset_readings.go",
-          "symbol": "presetReadings; offeredPresets"
-        },
-    {
-          "path": "internal/mediacapability/preset_readings.json",
-          "symbol": "embedded family/preset/status labels"
-        },
-    {
-          "path": "internal/mediacapability/preset_readings_windows_test.go",
-          "symbol": "TestAPresetUnderReadingIsOfferedOnlyOnceAdmitted"
-        },
-    {
-          "path": "cmd/evaluate/readings.go",
-          "symbol": "readArmLines; readings.arm/draw/admit; evaluatedRecord"
-        },
-    {
-          "path": "cmd/evaluate/readings_test.go",
-          "symbol": "TestAReadingsCampaignReadsEachArmsOwnRecord"
-        },
-    {
-          "path": "cmd/evaluate/render_resume_test.go",
-          "symbol": "TestARenderContinuesAtABuildThatDrawsItsLastItemTheSame"
-        },
-    {
-          "path": "cmd/evaluate/render.go",
-          "symbol": "renderSet.drawEach/sameAtThisBuild; renderedMedia.Build"
-        },
-    {
-          "path": "cmd/evaluate/preset_binding_test.go",
-          "symbol": "TestAPresetReadingReadsOnlyItsRendersJudgments"
-        },
-    {
-          "path": "internal/evaluation/media_inputs.go",
-          "symbol": "JudgedMedia;MediaInput.Decode/valid;CompileSuite method identity"
-        }
-  ],
-  "status": "open",
-  "title": "Admit presets only from bound renders and valid statistical evidence",
-  "consolidates": ["SQA-379"]
-},
-    {
-  "closure_criteria": [
-        "A suite produced by -read-suite passes the actual media-bound campaign and retains correct character metrics through both identity-rewriting passes.",
-        "OCR and motion observations bind to the exact consumed content and their own measurement authority; changed media/instrument inputs cannot inherit old metrics.",
-        "Existing media owner performs the mapping/admission once, with no parallel resolver/store; all unique numerical/recovery cases remain and duplicate CLI numerical assertions disappear.",
-        "Full growth, fixture bytes, setup and legacy migration behavior are recorded honestly."
+      "id": "SQA-366",
+      "severity": "P3",
+      "files": [
+        "cmd/loop/tools.go",
+        "internal/planverify/verify.go",
+        "internal/testevidence/evidence.go",
+        "cmd/loop/tools_missing_test_test.go",
+        "cmd/loop/replay.go"
       ],
-  "evidence": "Two new producers place execution observations in GeneratedAnswerSuite without using its existing media-binding owner. OCR readSuite keys Readings.Read by filename (first.png). Campaign.CompileSuite first rewrites case prompts to method digests, then compiles them; PictureReadings.validate calls askedTexts on those rewritten prompts and demands Readings.Read[methodDigest], which is absent. It therefore refuses an ordinary -read-suite result before the final bound compile. The new native and CLI tests call CompileGeneratedAnswer directly, while scorecard tests fabricate summaries, bypassing the actual caller. Motion avoids that immediate failure because groups remain unchanged, but stores no clip/source digest or decoder identity and only an encoder basename. A suite measured on clipA, then judged against changed same-name clipB, can attach A's motion to B's newly bound judgement; compilation cannot check that attribution. Both are source-derived paths, not executed failures. OCR metrics also lack content binding, so merely renaming its keys would leave the same stale-observation risk.",
-  "evidence_basis": "shown_from_source",
-  "evidence_commit": "2e701ee7f5f442bcdcdf38d8cb2560a8e5ff2c86",
-  "id": "SQA-346",
-  "plan_references": [
-        "drawn-text-reading/reader bf6be735b",
-        "drawn-text-reading/char-score2e701ee7f",
-        "media-screen/clip-consistencyae199b5b9"
-      ],
-  "recommended_change": "Route both producers through the existing content/runtime/decoder identity owners and make Campaign.CompileSuite bind their observations along with cases. Preserve the distinction between measurement runtime (OCR/encoder) and answering runtime (judge): compare consumed content, not equality of their whole runtime references. Apply the existing filename-to-method and filename-to-bound mapping consistently before each compilation, or retain stable case-to-observation links that survive both passes; do not disable validation or copy one dictionary under two incompatible identities. Reject changed media/measurement authority before publishing credited metrics. Reuse MediaInput, mediaFiles and existing artifact/run identities; no second resolver, metric store, workflow or dispatcher. Keep immutable procedures separate from observed values when forming method identity. Legacy unbound observations may remain readable but cannot silently earn current media credit.",
-  "severity": "P2",
-  "sources": [
-        {
-          "path": "cmd/evaluate/reader.go",
-          "symbol": "readSuite, writeSuiteReadings; filename-keyed PictureReadings"
-        },
-        {
-          "path": "cmd/evaluate/motion.go",
-          "symbol": "measureMotion, writeMotion; encoder basename and group-keyed measurements"
-        },
-        {
-          "path": "cmd/evaluate/session.go",
-          "symbol": "evaluateSuiteFile -> Campaign.CompileSuite"
-        },
-        {
-          "path": "internal/evaluation/media_inputs.go",
-          "symbol": "Campaign.CompileSuite, MediaInput.Reference, mediaAuthority"
-        },
-        {
-          "path": "cmd/evaluate/media_inputs.go",
-          "symbol": "mediaFiles.bind/read, ResolveMedia"
-        },
-        {
-          "path": "internal/evaluation/drawn_reading.go",
-          "symbol": "PictureReadings.validate, askedTexts, Metrics"
-        },
-        {
-          "path": "internal/evaluation/clip_motion.go",
-          "symbol": "ClipMotion.validate, Metrics"
-        },
-        {
-          "path": "internal/evaluation/media_inputs_test.go",
-          "symbol": "TestMediaEvidenceNamesConsumedInputsAndKeepsItsMethod"
-        }
-      ],
-  "status": "open",
-  "title": "Bind OCR and motion observations through the existing media compiler"
-},
+      "input": "A step whose check TestTheChangeHolds exists and calls t.Skip for an unavailable prerequisite, run by the worker's run_check.",
+      "expected": "The result says the test skipped and keeps its diagnostic; passing no evidence is not presented as a missing test.",
+      "actual": "go test exits 0, planverify returns VACUOUS: ... skipped, and run_check appends missingTest to any VACUOUS result, telling the worker the test is \"in no file yet. Write it first\". The fixture covers an absent test only. Read from source."
+    },
     {
-  "closure_criteria": [
-        "An interrupted attempt is reported with bounded known effort or explicit unknown/censored duration; downtime is never asserted as active worker wall.",
-        "Start/exit/restart and landing accounting share one lifecycle identity; the displaced active-start storage path is removed while historical/unclean evidence remains.",
-        "A,B,A followed by an A landing is attributed to A; missing/unreadable recording is not silently known interactive/zero.",
-        "Existing fixtures retain live, completed, interrupted and no-record cases; complete production/test/setup/migration costs are stated. No new scheduler or workload."
+      "id": "SQA-369",
+      "severity": "P2",
+      "files": [
+        "internal/evaluation/mmlu_pro_lm_eval_windows_model_test.go",
+        "internal/evaluation/store_suites.go",
+        "internal/dataset/benchmark.go",
+        "scripts/python_golden_references/mmlu_pro_lm_eval_reference.py",
+        "internal/evaluation/mmlu_pro_test.go",
+        "internal/evaluation/mmlu_pro_leaderboard_test.go"
       ],
-  "evidence": "Partially addressed by 6da610a60: the running marker now uses the attempt's start identity, startup appends Interrupted, A,B,A moves A last, and absent records are no longer called interactive. Retained undo fails the interruption assertion. Two independent active-start stores remain. RunWorker records start before keepRunning and removes the marker before its deferred end write; a crash in either gap leaves a start without a marker, so noteUncleanEnd cannot close it and landing.cost still charges elapsed-to-now through downtime. Pre-6da records used separate time.Now values for marker and attempt, so exact Step+Started matching cannot reconcile an old interrupted pair; no actual such surviving record was observed. Cost prose discloses unknown interrupted wall, but Worker-Wall-Seconds drops it and landingCosts/printCosts presents the remainder as worker wall without the unknown qualification. These are source-established recovery/readout paths, not executed incidents.",
-  "evidence_basis": "shown_from_source",
-  "evidence_commit": "7d1c97f7d4d11234d6299ded5573b51443724e37",
-  "id": "SQA-356",
-  "plan_references": [
-        "loop-proof/attempt-lifecycle6da610a60 (landed)",
-        "loop-proof/local-demonstrated atfc673760f813afdf216be087fe586f717461cd3a",
-        "Downloads extreme_refactor_plan.md: one execution owner and truthful full costs"
+      "input": "(1) The tagged MMLU-Pro comparison run against a reference whose non-excluded question_ids all differ, or a same-size corpus with other questions and the same answer indices. (2) The untagged identity test run where the data root holds another store or none.",
+      "expected": "(1) Comparison identity and per-question correspondence are checked before model work, and only declared, content-bound revision differences are excluded. (2) Identity acceptance reads only native fixtures, independent of the user's store, and no skip counts as a pass.",
+      "actual": "(1) The comparison checks task, model name, dtype, shots, splits and total count, then pairs results by ordinal (reference.Questions[ordinal]) and checks answer_index after the whole suite; question_id serves two exclusions and diagnostics alone, so the changed reference passes. The reference records lm_eval 0.4.9.1 and a model path but an empty dataset_fingerprint, and no question text or model and tokenizer digests. (2) A parallel subtest resolves the user data root, reads the real store and skips or hashes its corpus, calling mmluProIdentities 36,096 times for the 12,032-case set, so what it checks depends on mutable external state. Read from source."
+    },
+    {
+      "id": "SQA-371",
+      "severity": "P2",
+      "files": [
+        "internal/inference/chat_tool_grammar.go",
+        "internal/inference/chat_parse.go",
+        "internal/inference/chat_tool_value_test.go"
       ],
-  "recommended_change": "Finish the original retained-owner migration: use the existing driver start/exit/restart and processcontrol receipt as one durable attempt lifecycle, retaining terminal history and the unclean-start notice. Remove the displaced second active-start write/delete path; do not infer liveness from a start-only record. Preserve old interrupted evidence as unknown when exact identity cannot be recovered rather than charging downtime. Carry known-versus-unknown wall into the existing cost readout, keeping completed wall and actual worker order. Retain best-effort progress, stops, budgets and partial results; accounting failure must not rerun work.",
-  "severity": "P2",
-  "sources": [
-        {
-          "path": "cmd/loop/main.go",
-          "symbol": "execWorld.RunWorker; workerName; RecordAttempt and keepRunning before processcontrol.Run"
-        },
-        {
-          "path": "cmd/loop/startup.go",
-          "symbol": "runningRecord; keepRunning; dropRunning; noteUncleanEnd"
-        },
-        {
-          "path": "internal/loop/driver.go",
-          "symbol": "Run: level/attempts reset on a new driver invocation"
-        },
-        {
-          "path": "internal/landing/costs.go",
-          "symbol": "Attempt; RecordAttempt; landing.cost; cost.said"
-        },
-        {
-          "path": "cmd/loop/costs.go",
-          "symbol": "landingCosts: last Worker trailer attribution"
-        },
-        {
-          "path": "internal/landing/costs_test.go",
-          "symbol": "TestALandingRecordsItsFullCost"
-        },
-        {
-          "path": "cmd/loop/costs_test.go",
-          "symbol": "TestALandingRecordsItsFullCost"
-        },
-        {
-          "path": "cmd/loop/startup_test.go",
-          "symbol": "TestTheStartupTaskRunsTheDriverAtBoot: existing unclean-end case"
-        }
+      "input": "A tool call whose parameter value is exactly <, << or </param, followed by its closing </parameter>.",
+      "expected": "The grammar admits the value and the parser returns it unchanged; a complete closing tag still ends the value.",
+      "actual": "parameterLessThan makes every < consume a following character that diverges from </parameter>, so a value ending in a proper prefix of the tag consumes the real closing tag as another less-than rule and fails at its final >. The fixture's comment promises << but its map holds only longer text. Read from source."
+    },
+    {
+      "id": "SQA-372",
+      "severity": "P2",
+      "files": [
+        "cmd/loop/replay.go",
+        "cmd/loop/tools.go",
+        "internal/plan/plan.go",
+        "internal/pathidentity/identity.go",
+        "cmd/loop/tools_delete_test.go",
+        "cmd/loop/leftovers.go"
       ],
-  "status": "open",
-  "title": "Read worker cost from the actual attempt lifecycle, including interrupted runs"
-},
+      "input": "On a case-insensitive Windows checkout, a task with Files [scripts] and Tests [scripts/held_test.go] whose worker calls edit_file or delete_file on scripts/HELD_test.go.",
+      "expected": "Both tools refuse the other spelling of the held file before mutating it, its bytes and presence kept.",
+      "actual": "The held-test wrapper compares cleaned path strings with slices.Contains, so scripts/HELD_test.go misses the held name, stays under the allowed scripts directory and is admitted; os.WriteFile or os.Remove then rewrites or deletes the held test. Read from source."
+    },
     {
-  "closure_criteria": [
-        "No passing evidence is not represented as proof that a test declaration is missing.",
-        "The same run_check owner preserves original diagnostic, file restrictions and useful conditional guidance.",
-        "Missing and skipped cases share the retained fixture; count any added setup and avoid new discovery/workloads."
+      "id": "SQA-374",
+      "severity": "P3",
+      "files": [
+        "cmd/loop/reasoning.go",
+        "cmd/loop/main.go",
+        "cmd/loop/tools.go",
+        "cmd/plan/dispatch.go",
+        "cmd/loop/reasoning_test.go",
+        "cmd/loop/replay.go",
+        "cmd/loop/replay_measurement_test.go",
+        "internal/plan/plan.go",
+        "internal/loop/driver.go",
+        "internal/plan/dispatch.go"
       ],
-  "evidence": "8d2260ce8 adds useful guidance for an absent check, but run_check appends missingTest whenever the displayed result contains VACUOUS. planverify.Execute uses that marker for any failed evidence validation after a successful command; verifyTarget explicitly rejects an existing matched test whose action is skip. An existing TestTheChangeHolds that calls t.Skip for an unavailable prerequisite therefore exits successfully, returns VACUOUS:...skipped, and is described as 'in no file yet. Write it first'. Build-tag exclusion also cannot prove source absence. The new fixture covers absence only. Source-established response error; no worker or test executed by SQA.",
-  "evidence_basis": "shown_from_source",
-  "evidence_commit": "873c07652b744d9a90b0dddd9321684af745a3cf",
-  "id": "SQA-366",
-  "plan_references": [
-        "loop-proof/write-the-test landed8d2260ce8",
-        "loop-proof/local-demonstrated",
-        "Downloads extreme_refactor_plan.md: early admission through existing owners"
+      "input": "(1) The live driver showing, checking and landing a step while the plan changes between its reads. (2) Replay of 3ef2c5d8f, whose host-only change to docs/verification/unreached-declarations.txt landed with its step.",
+      "expected": "(1) Prompt, check, files and rationale come from one identified plan-owned step. (2) Replay eligibility derives from the held step and its prerequisites, not from any docs/verification path the commit carries.",
+      "actual": "(1) liveSource runs plan -prompt and then currentStep separately, reasoned adds rationale from the second read, planStepFrom reads again for verify and files, and execWorld.Prompt and execWorld.Verify ignore the step they are given, so one step's task, check and files can go with another's rationale; the landing still verifies by step.Key(). (2) replayed.measurement labels every changed docs/verification path of the commit as model-produced work, so 3ef2c5d8f becomes a measurement. Read from source."
+    },
+    {
+      "id": "SQA-382",
+      "severity": "P2",
+      "files": [
+        "internal/latentimage/prompt_weights.go",
+        "internal/latentimage/textinput.go",
+        "internal/representation/sequence.go",
+        "internal/hfbpe/tokenizer.go",
+        "internal/latentimage/runtime_cuda_windows.go",
+        "internal/latentimage/generator_rotary_windows.go",
+        "internal/latentimage/model_encoder_windows.go",
+        "internal/latentimage/rotary_sampling_windows.go",
+        "internal/latentimage/textinput_test.go",
+        "internal/latentimage/conditioning_test.go",
+        "internal/latentimage/prompt_weights_test.go",
+        "internal/latentimage/moss_prompt_weights_test.go"
       ],
-  "recommended_change": "Keep the original verifier diagnostic and make the guidance conditional: a vacuous result can mean missing selection, skip or invalid evidence. Tell the worker to inspect the named check and its stated prerequisite, and write it only if it is absent. Reuse the existing planverify/testevidence result and worker tool response; do not add a source census, another test-discovery run, retry loop or classifier framework. Preserve dispatch files, held checks and stop/budget authority.",
-  "severity": "P3",
-  "sources": [
-        {
-          "path": "cmd/loop/tools.go",
-          "symbol": "workerTools run_check; missingTest; planStep"
-        },
-        {
-          "path": "internal/planverify/verify.go",
-          "symbol": "Execute: all successful-command evidence errors wrap ErrVacuous"
-        },
-        {
-          "path": "internal/testevidence/evidence.go",
-          "symbol": "verifyTarget: matched skip is an evidence error"
-        },
-        {
-          "path": "cmd/loop/tools_missing_test_test.go",
-          "symbol": "TestRunCheckSaysToWriteTheMissingTestFirst"
-        },
-        {
-          "path": "cmd/loop/replay.go",
-          "symbol": "replayTask.tools"
-        }
+      "input": "(1) A prompt with unit-weight markup, (a:1)b, under a byte-level BPE vocabulary a, b, ab with the merge a b. (2) A full-budget prompt with prefix 3, budget 5 and suffix 1, its fifth prompt token weighted 2. (3) A MOSS negative prompt with weight markup.",
+      "expected": "(1) The marked and clean prompts give identical token IDs, mask and conditioning. (2) Prefix, suffix and pad rows stay unweighted and the truncation geometry is kept. (3) Negative weights reach both the ordinary and the skipped branch, or unsupported markup is refused early.",
+      "actual": "(1) spanTokens encodes each stretch separately, so (a:1)b takes two tokens where ab takes one, and chatTokens renders a sentinel in place of the prompt. (2) AssemblePaddedSequence puts the suffix at prefix+maximum-suffixLen, over the last prompt slot, while rowWeights copies the weights unshifted, so the suffix at row 7, a row Krea attends, gets weight 2. (3) Markup is stripped from the negative prompt, but only request.Prompt supplies settings.weights and load(name, negative, skip) passes none, so the negative weights are dropped silently. Read from source."
+    },
+    {
+      "id": "SQA-386",
+      "severity": "P2",
+      "files": [
+        "internal/latentimage/resident_graph_cuda_windows.go",
+        "internal/latentimage/convrot.go",
+        "internal/graphruntime/resident.go",
+        "internal/safetensors/convert.go",
+        "internal/latentimage/convrot_modeltest_test.go",
+        "internal/latentimage/generator_composition_windows_test.go",
+        "internal/latentimage/refinement_verify_windows.go",
+        "fixtures/comfy/moss-ultra/convrot_decode.json"
       ],
-  "status": "open",
-  "title": "Do not tell the worker to recreate a test that merely skipped"
-},
+      "input": "(1) MOSS Ultra's direct I8 ConvRot tensors with comfy_quant metadata (layers.41.proj.ffn_down, model.language_model.layers.0.linear_attn.in_proj_z) loaded through the resident binder. (2) An F32 scale tensor shaped [2,2].",
+      "expected": "(1) Direct I8 ConvRot and fused q/k/v inputs load through the resident binder, and a repeated binding decodes no payload again. (2) A scale whose second axis is not 1 is refused before decode.",
+      "actual": "(1) compileResidentWeights calls convRotWeight only when source.Tensors[name] is absent, so a direct I8 tensor goes to weightPayload and F32Reader, whose PromoteF32Reader refuses I8; the golden calls the helper directly and misses it. The fused q/k/v branch decodes before Bind, though Bind skips its payload on an existing allocation. (2) The resolver never checks axis 1 and reads one float per row, so row 1 takes row 0's column 1. Read from source, with no Ultra load run."
+    },
     {
-  "closure_criteria": ["Exact comparison identity and per-question correspondence are checked before expensive model work.","Only declared, content-bound revision differences are excluded; counts cannot hide missing or duplicate pairs.","Keep failed BF16 evidence and distinct FP32 result, declared0.01accuracy/0.9agreement bounds and numerical ordering; do not replace them with timing acceptance.","Ordinary identity acceptance reads only declared native fixtures, independent of the user store.","All individual/combined and historical full-corpus identity requirements have retained owners; no skip is credited as a pass.","Count relocated assertions, shared helpers and corpus import setup before claiming net code savings."],
-  "evidence": "The tagged comparison validates task/model display name/dtype/shot-count/splits and total case count before loading, but pairs results afterward with reference.Questions[ordinal]. It checks answer_index only after the whole suite executes; question_id is used solely for two exclusions and diagnostics. Changing every non-excluded reference question_id leaves the result unchanged. A same-size corpus with different questions/options and unchanged answer indices is not admitted against exact content. The local 3,719,216-byte reference records lm_eval0.4.9.1 and model_path but its dataset_fingerprint is empty; question text/options and exact model/tokenizer digests are absent. Those version/path fields are not read by the Go type. This qualifies future parity claims; it does not establish that the retained measured comparison used wrong rows.\nSQA-368 (a7acfa639919e0a2658b38a8df3a3ef48f823377): fdd636906 records that importing the validation split made every landing test stage fail on the ambient-store identity assertion. Its +64 test nodes adjust the expected share plan but retain the cause: an untagged parallel subtest resolves the user data root, reads the real store, and either skips or hashes its corpus. For the pinned 12,032-case dataset it calls mmluProIdentities once per case under three protocols (36,096 calls), plus whole/share/spaced draws. Whether the check executes and what it derives still depends on mutable external state. The native four-case fixture already pins individual/combined identities; the leaderboard fixture already owns controlled test-plus-validation catalogs. No SQA test run.",
-  "evidence_basis": "shown_from_source",
-  "evidence_commit": "a7acfa639919e0a2658b38a8df3a3ef48f823377",
-  "id": "SQA-369",
-  "plan_references": ["mmlu-pro-lm-eval/matches-lm-eval landed0203b6459","Downloads extreme_refactor_plan.md: exact bindings and prerequisite admission","store-shots/identities landed fdd636906","mmlu-pro-lm-eval/five-shot,matches-lm-eval","Downloads extreme_refactor_plan.md: explicit evidence ownership and less repeated setup"],
-  "recommended_change": "Before OpenRunner or suite.execute, bind the existing reference to exact model/tokenizer, validation demonstrations, dataset revision/content and each compared question using existing import/artifact identities. Match actual question identity/content and validate uniqueness, answer/category and exclusions, not only ordinal/count. Preserve the two documented revision differences only for their exact revisions; reject unexplained drift early. Extend the existing reference artifact/producer if needed, without another sidecar registry, importer or comparison framework. Keep numerical thresholds separate from timing.\nRemove the ambient-store dependency from the ordinary host gate. Retain small pinned identities, scorer bytes, delimiter differences and validation/no-validation behavior in the existing native fixtures. Preserve unique full-corpus whole/share/spaced/each digests under the existing explicitly admitted corpus/modeltest owner, using its imported private store before model loading where the exact historical dataset is available. Do not silently drop old digests or equate absence with successful verification. No new corpus, fixture framework or standing workload.",
-  "severity": "P2",
-  "sources": [
-    {
-          "path": "internal/evaluation/mmlu_pro_lm_eval_windows_model_test.go",
-          "symbol": "lmEvalReference; TestMMLUProReadsAsLmEvalReadsIt; revisedQuestions"
-        },
-    {
-          "path": "internal/evaluation/store_suites.go",
-          "symbol": "storeFamilies; imported canonical records"
-        },
-    {
-          "path": "internal/dataset/benchmark.go",
-          "symbol": "BenchmarkImportSpec revision/SHA256 and imported record identity"
-        },
-    {
-          "path": "scripts/python_golden_references/mmlu_pro_lm_eval_reference.py",
-          "symbol": "Ignored local reference producer, inspected read-only; existing reference.json"
-        },
-    {
-          "path": "internal/evaluation/mmlu_pro_test.go",
-          "symbol": "TestMMLUProIsAGroupedChoiceWithItsIdentitiesUnchanged/store; mmluProIdentities; mmluProProtocols"
-        },
-    {
-          "path": "internal/evaluation/mmlu_pro_leaderboard_test.go",
-          "symbol": "TestMMLUProIsReadAsLeaderboardMMLUProReadsIt; temporary catalog owner"
-        },
-    {
-          "path": "internal/evaluation/mmlu_pro_lm_eval_windows_model_test.go",
-          "symbol": "Existing modeltest corpus import into a private store"
-        },
-    {
-          "path": "skill.md",
-          "symbol": "A store write never changes the gate verdict; TestReachInvariants"
-        }
-  ],
-  "status": "open",
-  "title": "Bind MMLU-Pro question identity and keep its gate independent of the live store",
-  "consolidates": ["SQA-368"]
-},
-    {
-  "closure_criteria": [
-        "Proper closing-tag prefixes at end of a value survive grammar admission and parser roundtrip unchanged.",
-        "A complete closing tag still terminates the value; existing structural restrictions and NUL policy remain.",
-        "Reuse the existing native fixture and count complete grammar/test growth before another expensive demonstration."
+      "id": "SQA-388",
+      "severity": "P2",
+      "files": [
+        "cmd/comfy-reference/main.go",
+        "cmd/comfy-reference/record.go",
+        "internal/jsonfile/decode.go",
+        "internal/fsatomic/publish_directory.go",
+        "cmd/comfy-reference/record_test.go"
       ],
-  "evidence": "Concurrent a7acfa639 fixes internal less-than characters, crediting a real run3 failure, but parameterLessThan requires every < to consume a following character that diverges from </parameter>. It cannot finish on a proper prefix. For a value exactly < (or << or </param), the following actual closing tag is recursively consumed as another less-than rule and fails at its final >. The parser can read those values up to the first complete closing tag. The fixture comment promises << but its map includes only longer text with a later divergent character. No grammar/test was executed by SQA; this is a source derivation.",
-  "evidence_basis": "shown_from_source",
-  "evidence_commit": "a7acfa639919e0a2658b38a8df3a3ef48f823377",
-  "id": "SQA-371",
-  "plan_references": [
-        "loop-proof/tool-value-markup landeda7acfa639",
-        "loop-proof/local-demonstrated",
-        "Downloads extreme_refactor_plan.md: fix admission causes before dependent work"
-      ],
-  "recommended_change": "Correct the value/terminator boundary in the existing Hermes grammar builder so every allowed proper prefix may end immediately before the actual closing tag. Preserve rejection of an embedded complete closing tag, NUL and structural/tool-name/required-parameter constraints. Do not merely add an empty alternative that lets the full forbidden tag be consumed as ordinary value text. Reuse the compiled grammar, greedy sampler and parser; no retry, second protocol or escaping wrapper.",
-  "severity": "P2",
-  "sources": [
-        {
-          "path": "internal/inference/chat_tool_grammar.go",
-          "symbol": "parameterLessThan; parameterClosing; hermesToolGrammar"
-        },
-        {
-          "path": "internal/inference/chat_parse.go",
-          "symbol": "parseHermesParameters first closing-tag boundary"
-        },
-        {
-          "path": "internal/inference/chat_tool_value_test.go",
-          "symbol": "TestAToolCallValueMayHoldALessThanSign"
-        }
-      ],
-  "status": "open",
-  "title": "Let a tool value end in a proper prefix of its closing tag"
-},
+      "input": "(1) comfy-reference recording to an out path that is a regular file, or with a history or /view call failing after the prompt was accepted, then run again. (2) Two outputs of one node with the same basename in different subfolders. (3) A prompt whose card memory peaks between the once-a-second polls.",
+      "expected": "(1) An invalid destination is refused before the POST; an accepted prompt survives a later failure in the durable recording, a retry resumes it without another POST, and a previous complete recording stays readable. (2) Distinct outputs do not overwrite one another. (3) The record names sampled whole-device usage and its window, not a run's peak.",
+      "actual": "(1) record POSTs /prompt, creates the output directory only after history and writes its JSON after every /view download, so a failure returns recording{} with no durable prompt id and a rerun POSTs a new prompt; keep writes into the final folder first, so a failed retry overwrites files an older record names. (2) Files are named by node id and basename alone, so they alias. (3) await takes the largest of device 0's Total-Free snapshots and the JSON calls it peak_card_bytes, which misses an unsampled peak and counts other processes. Read from source."
+    },
     {
-  "closure_criteria": [
-        "Both edit_file and delete_file refuse an alternate Windows spelling of the held file before mutation, preserving original bytes and presence.",
-        "Existing admitted file changes still work; platform-aware identity errors and protected/scope checks retain their authority.",
-        "Reuse pathidentity and the current native fixture; count complete repair/test cost without creating a second guard implementation."
+      "id": "SQA-401",
+      "severity": "P2",
+      "files": [
+        "internal/landing/undo.go",
+        "internal/landing/form.go",
+        "internal/runrecord/verify_command.go",
+        "internal/landing/undo_test.go",
+        "internal/gosource/graph.go",
+        "internal/gosource/build.go",
+        "cmd/loop/trigger.go"
       ],
-  "evidence": "b6da70b52 correctly shares writable admission between edit_file and delete_file and applies the held-test wrapper to both. The wrapper nevertheless compares cleaned path strings with slices.Contains. On an ordinary case-insensitive Windows checkout, the new fixture task Files=[scripts], Tests=[scripts/held_test.go] admits scripts/HELD_test.go: it misses the held string, remains under the allowed scripts directory, and is not ignored. os.WriteFile or os.Remove then operates on the held file itself. The file may be rewritten into a passing check or deleted; deletion need not earn a pass to violate the hold. Existing malformed-argument repair347 stays valid and closed. No mutation or exploit was executed by SQA.",
-  "evidence_basis": "shown_from_source",
-  "evidence_commit": "8ac909a24a1563852dc20e05a168439946f70de7",
-  "id": "SQA-372",
-  "plan_references": [
-        "loop-proof/delete-tool landedb6da70b52",
-        "loop-proof/local-demonstrated",
-        "Downloads extreme_refactor_plan.md: shared owners and intact authority"
-      ],
-  "recommended_change": "Use existing pathidentity.Same at the held-file boundary and existing filesystem containment authority where writable needs it, before either mutation. Keep the current shared writable owner, lexical scope restrictions, ignored/protected paths and normal creation of new allowed files. Preserve host filesystem semantics rather than globally lowercasing every path. Handle identity lookup errors explicitly; do not silently treat an unreadable existing held file as unrelated. No new path-policy package or edit/delete-specific copies.",
-  "severity": "P2",
-  "sources": [
-        {
-          "path": "cmd/loop/replay.go",
-          "symbol": "replayTask.tools: exact strings in task.Tests"
-        },
-        {
-          "path": "cmd/loop/tools.go",
-          "symbol": "workerTools inside/writable; edit_file and delete_file"
-        },
-        {
-          "path": "internal/plan/plan.go",
-          "symbol": "Lists: lexical file/directory membership"
-        },
-        {
-          "path": "internal/pathidentity/identity.go",
-          "symbol": "Same and Contains; existing filesystem authority owner"
-        },
-        {
-          "path": "cmd/loop/tools_delete_test.go",
-          "symbol": "TestTheWorkerDeletesAFileItsStepMayChange"
-        },
-        {
-          "path": "cmd/loop/leftovers.go",
-          "symbol": "Existing pathidentity.Contains/Same caller in this command"
-        }
-      ],
-  "status": "open",
-  "title": "Protect held tests by filesystem identity before editing or deleting"
-},
-    {
-  "closure_criteria": [
-        "Live driver/show_step/verify/files use one identified plan-owned step; no A task/check/files plus B rationale and no silent changed/missing step.",
-        "Historical replay eligibility derives from the actual held step/prerequisite, not any co-landed docs/verification path; known model prerequisites are rejected before checkout and unknowns remain explicit.",
-        "Preserve brief CLI and historical replay presentation, fixed native reasoning isolation, stop/budget/held-file authority and accepted verifier identity. Remove displaced reads/formatters/classifier and count complete replacement/test/setup costs."
-      ],
-  "consolidates": [
-        "SQA-373"
-      ],
-  "evidence": "Current committed callers repeat interpretation of one step. liveSource runs plan -prompt and then currentStep independently; reasoned adds rationale from the second read. planStepFrom separately reads the source again for verify/files. execWorld.Prompt does not bind the supplied driver step. Meanwhile replayed.prompt reconstructs another prompt from its held plan.Step, and replayed.measurement labels every changed docs/verification path in the entire co-landed commit as model-produced work. The concrete retained 3ef2c5d8f host-only unreached-declarations change therefore becomes a measurement despite its declared host verifier and absent Run/Record/NeedsCard. cmd/plan already owns typed Dispatch/ResolveDispatch and explicit item/step admission, but its CLI also reloads the plan after dispatch before locating/projecting the step. The shared root is reconstructing identity/prerequisites independently from current dispatch, prose and commit-wide paths. This is source-shown process misprojection/false exclusion, not an observed wrong product answer, authority escape, vacuous acceptance or stop of all work; P3. Fixed native reasoning isolation remains credited. Further caller tracing: execWorld.Verify also ignores the supplied step, but execWorld.Land passes step.Key() to landRow and the actual landing retains accepted-verifier identity. No final acceptance bypass is established by the advisory/projection race; the P3 scope does not weaken that gate.",
-  "evidence_basis": "shown_from_source",
-  "evidence_commit": "873c07652b744d9a90b0dddd9321684af745a3cf",
-  "id": "SQA-374",
-  "plan_references": [
-        "loop-proof/local-demonstrated",
-        "SQA-373 alias: host inventory versus actual model prerequisite",
-        "Downloads extreme_refactor_plan.md: one development authority and fewer independent interpretations"
-      ],
-  "recommended_change": "Project one complete identified step through the existing plan dispatch/projection owner and use that projection for the live worker, show_step, verify/files and driver-supplied step, including execWorld.Verify rather than an unqualified current plan -verify. Keep one plan snapshot or explicitly refuse changed identity rather than reread current dispatch. Project historical replay from its retained step, preserving its distinct brief/full presentation and historical authority. Use actual declared Run/Record/verifier requirements for replay eligibility; where a legacy check needs a model-produced artifact, retain that specific established prerequisite, not a docs/verification path heuristic. Unknown legacy requirements remain unknown rather than a made-up measurement classification. Remove second currentStep/rationale reconstruction and the commit-directory classifier. No new scheduler, registry, generic source scanner, task ledger or wrapper around stepSource. Route this P3 work with existing loop-proof/local-demonstrated, not ahead of current product/receiving work.",
-  "severity": "P3",
-  "sources": [
-        {
-          "path": "cmd/loop/reasoning.go",
-          "symbol": "stepSource; liveSource; reasoned; withReasoning"
-        },
-        {
-          "path": "cmd/loop/main.go",
-          "symbol": "execWorld.Prompt; currentStep; dispatchedStep"
-        },
-        {
-          "path": "cmd/loop/tools.go",
-          "symbol": "planStepFrom; planStep.show"
-        },
-        {
-          "path": "cmd/plan/dispatch.go",
-          "symbol": "existing identified-step projection"
-        },
-        {
-          "path": "cmd/loop/reasoning_test.go",
-          "symbol": "TestTheLocalWorkerIsHandedTheStepsReasoning: fixed fixture"
-        },
-        {
-          "path": "cmd/loop/replay.go",
-          "symbol": "replayed.measurement; replay; landedSteps; oneTest"
-        },
-        {
-          "path": "cmd/loop/replay_measurement_test.go",
-          "symbol": "TestAMeasurementIsNoTaskForTheWorker"
-        },
-        {
-          "path": "internal/plan/plan.go",
-          "symbol": "Step.Run, Record and Verify"
-        },
-        {
-          "path": "internal/loop/driver.go",
-          "symbol": "Run dispatches declared run steps through CommandWorld"
-        },
-        {
-          "path": "docs/plan.json",
-          "symbol": "Historical66b05cc1482c parent: compact-production/dead-declarations"
-        },
-        {
-          "path": "docs/verification/unreached-declarations.txt",
-          "symbol": "Changed by3ef2c5d8f; static typed-reach inventory, not a model measurement"
-        },
-        {
-          "path": "internal/plan/dispatch.go",
-          "symbol": "Dispatch, stepDispatch, ResolveDispatch: typed selection and current snapshot owner"
-        },
-        {
-          "path": "internal/loop/driver.go",
-          "symbol": "driver invokes Prompt/Verify/Land with the identified step; acceptance remains through LandingWorld"
-        },
-        {
-          "path": "cmd/loop/main.go",
-          "symbol": "execWorld.Verify ignores supplied step; Land calls landRow(step.Key()) and retains accepted gate identity"
-        }
-      ],
-  "status": "open",
-  "title": "Use one identified worker-step contract for prompts and replay admission"
-},
-    {
-  "closure_criteria": [
-        "Unit-weight marked and clean prompts have identical actual IDs/mask/conditioning under the retained tokenizer, including a cross-span merge and normalization/template boundaries. Non-unit ambiguity has an explicit admitted contract.",
-        "Full-budget prompts leave prefix/suffix/pad rows unweighted and preserve existing truncation geometry. Accepted negative weights reach both ordinary and skipped branches, or unsupported markup refuses early.",
-        "Cache and cold input agree on bound weights without redundant positive re-rendering; displaced reconstruction and duplicate test setup are removed, full costs recorded and numerical/lifetime evidence retained."
-      ],
-  "evidence": "Three cases share one missing binding from accepted markup to executed conditioning. (1) spanTokens encodes each stretch separately; chatTokens also renders a sentinel instead of the actual prompt. BPE is not additive: an admitted byte-level vocabulary a/b/ab with merge a b encodes clean ab as one token, while (a:1)b takes two independent encodes. Weight one can therefore change token IDs/conditioning before attention. Existing fake word-count encoders cannot catch this; graph-only weights-of-one checks do not prove input equivalence. (2) AssemblePaddedSequence places suffix at prefix+maximum-suffixLen, overwriting the final suffixLen prompt slots when full. rowWeights copies maximum weights without that boundary. The retained prefix3/budget5/suffix1 layout puts suffix at row7, but a fifth prompt weight2 gives that suffix weight2; Krea consumes this attended row. (3) MOSS accepts and strips markup from negative prompts through input, but only request.Prompt supplies settings.weights; load(name, negative, skip) passes none. Negative weights are silently discarded. These are source-admitted cases, not measured model-output failures.",
-  "evidence_basis": "shown_from_source",
-  "evidence_commit": "c8e2915829387d03df8999c75be2fbc966314dac",
-  "id": "SQA-382",
-  "plan_references": [
-        "krea-pack/prompt-weighting 93bebae41 (landed)",
-        "krea-pack/moss-weighting 892736f81 (landed)",
-        "Downloads architecture sections4,5,9: resolve intent once, preserve numerical/lifetime ownership"
-      ],
-  "recommended_change": "Keep renderTextInput/textInput, hfbpe and AssemblePaddedSequence as the owners. Resolve the clean rendered sequence and weight alignment coherently; preserve whole-sequence normalization/tokenization and define or refuse ambiguous within-token weights rather than assuming independent encodes are equivalent. Derive weights from the actual retained prompt range without changing the established suffix geometry. Carry the matching weights with positive and negative conditioning, including cache reuse and skipped negative branches; otherwise refuse unsupported negative markup before encoding. Remove the weights-only re-render where the bound result is already available. No second tokenizer, layout, cache or recipe language.",
-  "severity": "P2",
-  "sources": [
-        {
-          "path": "internal/latentimage/prompt_weights.go",
-          "symbol": "spanTokens; chatTokens; weightedSpans"
-        },
-        {
-          "path": "internal/latentimage/textinput.go",
-          "symbol": "renderTextInput; rowWeights"
-        },
-        {
-          "path": "internal/representation/sequence.go",
-          "symbol": "AssemblePaddedSequence"
-        },
-        {
-          "path": "internal/hfbpe/tokenizer.go",
-          "symbol": "Tokenizer.Encode; bpe"
-        },
-        {
-          "path": "internal/latentimage/runtime_cuda_windows.go",
-          "symbol": "promptPrograms: textMask/textWeights selection"
-        },
-        {
-          "path": "internal/latentimage/generator_rotary_windows.go",
-          "symbol": "prepareRotary: input/cache and positive-only weights"
-        },
-        {
-          "path": "internal/latentimage/model_encoder_windows.go",
-          "symbol": "modelConditioner.input; weights"
-        },
-        {
-          "path": "internal/latentimage/rotary_sampling_windows.go",
-          "symbol": "runRotarySampling: load positive/negative-skipped"
-        },
-        {
-          "path": "internal/latentimage/textinput_test.go",
-          "symbol": "TestRenderKreaTextInputLayout"
-        },
-        {
-          "path": "internal/latentimage/conditioning_test.go",
-          "symbol": "TestMOSSConditioningGolden"
-        },
-        {
-          "path": "internal/latentimage/prompt_weights_test.go",
-          "symbol": "Krea parser/layout and graph weighting fixture"
-        },
-        {
-          "path": "internal/latentimage/moss_prompt_weights_test.go",
-          "symbol": "TestAPromptWeightScalesMOSSTokensAttentionValue"
-        }
-      ],
-  "status": "open",
-  "title": "Bind prompt weights to the token rows actually executed"
-},
-    {
-  "closure_criteria": [
-        "Direct I8 ConvRot and fused q/k/v graph inputs both load through the actual resident binder; ordinary floating tensors and reversed-axis checks remain correct.",
-        "Unsupported scale second-axis extent is refused before decode; a repeated resident binding avoids another payload decode and retains correct release behavior.",
-        "Golden numerical acceptance stays unchanged; duplicate binding branches are removed and total production/test/setup/fixture costs are reported."
-      ],
-  "evidence": "compileResidentWeights calls convRotWeight only when source.Tensors[name] is absent. Direct <base>.weight I8 tensors with comfy_quant metadata exist by that name, so they go to weightPayload -> F32Reader, whose PromoteF32Reader refuses I8. The golden explicitly covers direct layers.41.proj.ffn_down and model.language_model.layers.0.linear_attn.in_proj_z, but calls the helper directly and cannot expose the production selection defect. The missing-name fused-qkv branch also decodes before Bind, even though Bind already skips its payload callback on an existing resident allocation. Separately, the same format resolver accepts F32 scales shaped [rows,2] because it never checks axis 1, then reads one contiguous float per row; a two-row [2,2] scale tensor uses row0 column1 for row1 instead of row1 column0. Safetensors extent validation admits that well-formed shape. These are source-established counterexamples, not a completed Ultra load or device reproduction.",
-  "evidence_basis": "shown_from_source",
-  "evidence_commit": "461a5903e5eb4e8983f16ed4594c1083086cca56",
-  "id": "SQA-386",
-  "plan_references": [
-        "moss-ultra-import/convrot 320305e9c (landed)",
-        "moss-ultra-import/encoder depends on convrot",
-        "Downloads architecture target: format-independent execution and one binding/lifetime owner"
-      ],
-  "recommended_change": "Resolve the declared storage format and logical tensor view before choosing the payload reader. Retain convRotWeight/decodeConvRotRow as the format owner, but separate cheap metadata/shape admission from materialization within the existing loader so ordinary and ConvRot inputs use one shape-validation and ResidentSession.Bind path. Materialize through its lazy payload callback, preserving cache identity and lifetime. Require the supported per-row scale geometry [rows,1] before reading payloads. Keep the 256-column format bound, q/k/v row order, integer Hadamard accumulation and float64-to-float32-to-BF16 rounding; preserve direct BF16/F32/F16 behavior, Windows availability, error release and cancellation. Do not introduce GGUF conversion, a second cache or a generic reader framework.",
-  "severity": "P2",
-  "sources": [
-        {
-          "path": "internal/latentimage/resident_graph_cuda_windows.go",
-          "symbol": "compileResidentWeights; weightPayload; bf16Payload"
-        },
-        {
-          "path": "internal/latentimage/convrot.go",
-          "symbol": "convRotWeight; decodeConvRotRow"
-        },
-        {
-          "path": "internal/graphruntime/resident.go",
-          "symbol": "ResidentSession.Bind"
-        },
-        {
-          "path": "internal/safetensors/convert.go",
-          "symbol": "F32Reader; PromoteF32Reader"
-        },
-        {
-          "path": "internal/latentimage/convrot_modeltest_test.go",
-          "symbol": "TestConvRotDecodesAsComfyKitchenDoes"
-        },
-        {
-          "path": "internal/latentimage/generator_composition_windows_test.go",
-          "symbol": "TestResidentWeightShapeRefusal; compactGeneratorFixture"
-        },
-        {
-          "path": "internal/latentimage/refinement_verify_windows.go",
-          "symbol": "compileResidentWeights caller"
-        },
-        {
-          "path": "fixtures/comfy/moss-ultra/convrot_decode.json",
-          "symbol": "direct FFN/encoder and fused qkv readings"
-        }
-      ],
-  "status": "open",
-  "title": "Resolve ConvRot storage before the shared lazy resident binding"
-},
-    {
-  "closure_criteria": ["An invalid destination is rejected before POST; an accepted prompt survives a history/view/local-write failure in the existing durable recording.","Retry with identical bound request resumes the accepted prompt without another POST; changed identity or uncertain acceptance is explicit.","A previous complete recording remains readable and hash-consistent after failed collection; distinct source outputs cannot overwrite one another. Full migration/test/setup costs are recorded.","Persisted/output wording distinguishes sampled whole-device usage from actual run peak and identifies its observation source/window.","Completion between polls and preexisting device allocations never yield an upper-bound or per-run peak claim; historical records are not silently reinterpreted."],
-  "evidence": "record posts /prompt and receives prompt_id, then awaits history, derives timing and only then creates the output directory. The sole JSON write is after every /view download. An out path that is already a regular file fails after the remote job finishes; a transient history/view failure likewise returns recording{} with no durable prompt ID. Reinvoking the command unconditionally posts a new prompt, even if the accepted job completed. keep writes into the final section folder before the recording commits, so a failed retry can overwrite files still referenced by an older successful record. It also names files only by normalized node ID and basename: same-node outputs with the same basename in different source subfolders/kinds can alias. Current fake-server cases cover success and remote execution error, not local output failure or recovery. These are source-established admitted paths, not new remote runs.\nSQA-389 (7daa461d05051a53bceb25d5ae05a66e2c2c096e): await starts from Devices[0].Total-Free and takes the maximum of later snapshots. main polls once per second and prints at most N bytes; the JSON calls it peak_card_bytes. A prompt can use more memory between polls and complete before the next stats read; await returns immediately on completed history, so the unsampled maximum is absent. The snapshots are whole-device usage, include preexisting/other-process allocations and choose device0, with no prompt-specific attribution. The fake fixture validates a known sampled maximum of700, not an upper bound on actual run peak. No measured hardware discrepancy or downstream admission decision is asserted.",
-  "evidence_basis": "shown_from_source",
-  "evidence_commit": "7daa461d05051a53bceb25d5ae05a66e2c2c096e",
-  "id": "SQA-388",
-  "plan_references": ["comfy-recorder/client9c62d8a73 (landed)","comfy-recorder/record (open)","Downloads target: admit prerequisites, retain valid completed work, avoid replayed side effects","comfy-recorder/record and downstream reference comparisons","Downloads target: preserve numerical/evidence identity"],
-  "recommended_change": "Keep recorder.record as the remote-run owner and reuse its recording plus existing atomic JSON/directory publication. Admit the local destination before POST. Persist request/server/source binding and the accepted prompt ID immediately, then resume that ID through the existing history/view calls after interruption. Separate accepted/incomplete from complete records; do not repost an unchanged accepted request. If acceptance is uncertain, retain that uncertainty rather than claiming exactly-once execution or blindly resubmitting. Publish a complete fresh result set only after collection, protecting a prior successful record and unique file identities; preserve node/kind/subfolder identity or content addressing through the existing owner. Use the same recording, not a second notes ledger, scheduler, daemon or retry framework.\nKeep the existing snapshots if useful, but represent and display them explicitly as maximum observed whole-device usage over the polling window, with device/cadence/source and unknown actual run peak. Remove the at-most claim. Only claim a true per-run peak when the existing reference backend provides an attributable measurement; do not increase polling, subtract an arbitrary baseline or add instrumentation services merely to preserve the label. Preserve old record interpretation explicitly.",
-  "severity": "P2",
-  "sources": [
-    {
-          "path": "cmd/comfy-reference/main.go",
-          "symbol": "run -record"
-        },
-    {
-          "path": "cmd/comfy-reference/record.go",
-          "symbol": "recorder.record; await; keep; call"
-        },
-    {
-          "path": "internal/jsonfile/decode.go",
-          "symbol": "Write -> atomicfile.Write"
-        },
-    {
-          "path": "internal/fsatomic/publish_directory.go",
-          "symbol": "PublishDirectory"
-        },
-    {
-          "path": "cmd/comfy-reference/record_test.go",
-          "symbol": "fakeComfyUI; TestARecordingIsTakenFromComfyUIsAnswers"
-        },
-    {
-          "path": "cmd/comfy-reference/record.go",
-          "symbol": "systemStats; recorder.await; recording.PeakCardBytes"
-        },
-    {
-          "path": "cmd/comfy-reference/main.go",
-          "symbol": "run: poll time.Second and at-most output"
-        },
-    {
-          "path": "cmd/comfy-reference/record_test.go",
-          "symbol": "fakeComfyUI stats sequence; peak assertion"
-        }
-  ],
-  "status": "open",
-  "title": "Recover accepted reference recordings and report only measured facts",
-  "consolidates": ["SQA-389"]
-},
-    {
-  "closure_criteria": [
-        "Asset-only changes embedded by root and declared-tag production packages enter the one cached restoration set used by undoTree; form no longer owns a restored-base scan under the changed policy.",
-        "The retained native fixture proves an unchanged current test fails on its assertion with the embedded input restored; no silent no-production bypass. Preserve consolidation/test-only and unavailable-build evidence semantics without restoring mandatory boundary-note text.",
-        "Current PTX/preset inputs, diagnostics, candidate/base identity and supported verifier contexts remain intact; complete costs support existing-owner reuse."
-      ],
-  "evidence": "78fdeebb7 repairs the actual PTX/preset class: production now includes go list EmbedFiles once per landing, and form, undoable and undoTree reuse it. The retained native fixture changes p/value.txt and fails on an assertion under undo. Two concrete admitted shapes remain. (1) A root package embedding value.txt, checked by go test . -run TestValue: path.Dir(value.txt) is \".\", and the ancestor loop stops before adding \".\". Root Go unchanged, asset changed, tests kept: produced never contains the asset, restored is empty, and undoable says no production Go, so no absence check runs. The current typed verifier accepts \".\"; there is no package-root exclusion. (2) An accepted go test -tags=fixturelane ./p check of a production file gated by that tag and embedding value.txt: list passes the flags, but production calls go list with nil overrides and no verifier flags. Its host-context listing omits that embed, so the same asset-only change skips undo. These are source-proved accepted-candidate counterexamples, not SQA executions or claims that current unconditional PTX/preset inputs are missed. No tagged production embed was found in the bounded current-owner search; the second case describes the already-admitted verifier contract, not an observed current-model failure.",
-  "evidence_basis": "shown_from_source",
-  "evidence_commit": "dc391678c1ea3c79cce33a752ce9fd52053266be",
-  "id": "SQA-401",
-  "plan_references": [
-        "undo-embeds/do landed78fdeebb7",
-        "fixed-order/do current prerequisite benefits from the repair",
-        "Downloads/extreme_refactor_plan.md: exact inputs and existing shared owners"
-      ],
-  "recommended_change": "Keep the one cached production-input set per immutable candidate, now consumed by undo only: dc391678c removes form's restored-base tree and mandatory boundary-note refusal under the owner's changed policy, so no second form/base discovery is owed. The remaining production owner must include the module root and accepted verifier build contexts when discovering embedded inputs, preserving real-package failure as unknown instead of empty. Reuse existing gosource.Package/ListGraph only if it actually removes the local decoder without adapters or lost diagnostics. Keep current PTX/preset inputs,candidate/base identities,test-only/consolidation exceptions and truthful unavailable-build evidence. No new selector/configuration/source graph.",
-  "severity": "P2",
-  "sources": [
-        {
-          "path": "internal/landing/undo.go",
-          "symbol": "production; undoable; undoTree"
-        },
-        {
-          "path": "internal/landing/form.go",
-          "symbol": "form; list uses parsed segment.Env and Flags"
-        },
-        {
-          "path": "internal/runrecord/verify_command.go",
-          "symbol": "VerifySegment; goTestValueFlags; parsed -tags and package arguments"
-        },
-        {
-          "path": "internal/landing/undo_test.go",
-          "symbol": "TestAnUndoRestoresWhatAPackageEmbeds"
-        },
-        {
-          "path": "internal/gosource/graph.go",
-          "symbol": "Package; ListGraph metadata owner"
-        },
-        {
-          "path": "internal/gosource/build.go",
-          "symbol": "HostBuildSelection; HostBuildClosure; goOutput"
-        },
-        {
-          "path": "cmd/loop/trigger.go",
-          "symbol": "surfaceClosure existing embedded-input graph consumer"
-        }
-      ],
-  "status": "open",
-  "title": "Discover undo inputs in the accepted verifier build context, including the module root"
-}
+      "input": "(1) A root package embedding value.txt, checked by go test . -run TestValue, with only value.txt changed. (2) A production file built with -tags=fixturelane embedding value.txt, checked by go test -tags=fixturelane ./p, with only value.txt changed.",
+      "expected": "The embedded asset enters the undo run's restoration set, so the unchanged test runs against the restored input and fails on its assertion.",
+      "actual": "(1) path.Dir(value.txt) is \".\" and the ancestor loop stops before adding it, so the asset is not restored and undoable says no production Go changed. (2) Production calls go list without the verifier's flags, so the tag-gated embed is not listed and the asset-only change skips the undo. Read from source."
+    }
   ],
   "master_lead_triage": {
-  "at": "2026-11-13",
-  "head": "0ef92bbeb509dbb96070d1f6e9161e95538210b7",
-  "findings": {
-  "SQA-369": {
+    "at": "2026-11-13",
+    "head": "0ef92bbeb509dbb96070d1f6e9161e95538210b7",
+    "findings": {
+      "SQA-369": {
         "action": "filed",
         "rows": [
           "mmlu-pro/reference"
         ],
         "note": "Answered by the lead on 2026-11-13: filed, P2 by the agreed rule as a check that passes without checking, its match by ordinal and count alone."
       },
-  "SQA-346": {
+      "SQA-346": {
         "action": "filed",
         "rows": [
           "observation-binding/do"
         ],
         "note": "Answered by the lead on 2026-11-13: filed, held-out readings credited to media they did not read."
       },
-  "SQA-340": {
+      "SQA-340": {
         "action": "filed",
         "rows": [
           "preset-form/do"
         ],
         "note": "Answered by the lead on 2026-11-13: filed, a served choice misrepresented."
       },
-  "SQA-382": {
+      "SQA-382": {
         "action": "filed",
         "rows": [
           "prompt-weights/rows"
         ],
         "note": "Answered by the lead on 2026-11-13: filed, model output."
       },
-  "SQA-386": {
+      "SQA-386": {
         "action": "filed",
         "rows": [
           "moss-import-admission/convrot"
         ],
         "note": "Answered by the lead on 2026-11-13: filed, MOSS Ultra's Base serving from its own file."
       },
-  "SQA-342": {
+      "SQA-342": {
         "action": "filed",
         "rows": [
           "preset-evidence/statistic"
         ],
         "note": "Answered by the lead on 2026-11-13: filed after preset-readings, whose admissions it bears on; a held-out quality claim."
       },
-  "SQA-388": {
+      "SQA-388": {
         "action": "filed",
         "rows": [
           "comfy-recorder/record-rest"
         ],
         "note": "Answered by the lead on 2026-11-13: carried by the recorder's open step, whose files it names."
       },
-  "SQA-356": {
+      "SQA-356": {
         "action": "filed",
         "rows": [
           "loop-proof/local-demonstrated"
         ],
         "note": "Answered by the lead on 2026-11-13: carried by the local worker's demonstration step, which reads the worker's cost."
       },
-  "SQA-366": {
+      "SQA-366": {
         "action": "filed",
         "rows": [
           "loop-proof/local-demonstrated"
         ],
         "note": "Answered by the lead on 2026-11-13: carried by the local worker's demonstration step, on the worker's path."
       },
-  "SQA-371": {
+      "SQA-371": {
         "action": "filed",
         "rows": [
           "loop-proof/local-demonstrated"
         ],
         "note": "Answered by the lead on 2026-11-13: carried by the local worker's demonstration step, on the worker's path."
       },
-  "SQA-372": {
+      "SQA-372": {
         "action": "filed",
         "rows": [
           "loop-proof/local-demonstrated"
         ],
         "note": "Answered by the lead on 2026-11-13: carried by the local worker's demonstration step; a held check altered through another spelling is the check class."
       },
-  "SQA-374": {
+      "SQA-374": {
         "action": "filed",
         "rows": [
           "loop-proof/local-demonstrated"
         ],
         "note": "Answered by the lead on 2026-11-13: carried by the local worker's demonstration step, on the worker's path."
       },
-  "SQA-401": {
+      "SQA-401": {
         "action": "deferred",
         "note": "Checked 2026-11-13 at 8ab8f2e44: the module root holds no Go file, so no package there can embed a file below it, and the one build-tagged file with a go:embed directive is a test (internal/dataset/speech_source_acceptance_model_test.go), which the undo does not restore as production. Neither shape the finding names occurs today; it is taken up when one does, or with the verifier's build-context work it names."
       },
-  "SQA-283": {
+      "SQA-283": {
         "action": "filed",
         "rows": [
           "execution-state/do"
         ],
         "note": "Reopened by the lead's recheck on 2026-11-13: run-from-files/do and recipe-state made the first repair, whose tests pass at f110d30b1, but the review's evidence names three publication owners that still read recipe state at publication and drop a lookup error, so an empty Verification earns the legacy path and a later activation can replace execution-time state. execution-state/do carries the state read at execution to publication."
       }
-}
-},
+    }
+  },
   "next_finding_number": 404,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
-  "schema_version": 2
+  "schema_version": 3
 }

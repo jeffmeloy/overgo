@@ -398,14 +398,13 @@ func checkMOSSComplete(t *testing.T, root string, roots dataroot.Roots, store *o
 	}
 	var register struct {
 		Findings []struct {
-			ID     string `json:"id"`
-			Status string `json:"status"`
+			ID string `json:"id"`
 		} `json:"findings"`
 	}
 	testcheck.NoError(t, jsonfile.Decode(filepath.Join(root, "docs", "sqa_findings.json"), &register))
 	for _, finding := range register.Findings {
-		if strings.HasPrefix(finding.ID, "SQA-MOSS-") && finding.Status != "resolved" {
-			t.Fatalf("%s is %s", finding.ID, finding.Status)
+		if strings.HasPrefix(finding.ID, "SQA-MOSS-") {
+			t.Fatalf("%s is open", finding.ID)
 		}
 	}
 	var resources mossResourceRecord

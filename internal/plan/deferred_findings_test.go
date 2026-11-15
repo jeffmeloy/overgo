@@ -15,8 +15,8 @@ func TestAFindingDeferredToTheRunsRecordLetsTheRunStart(t *testing.T) {
 	t.Parallel()
 	register := []byte(`{
   "findings": [
-    {"id": "SQA-1", "status": "open", "severity": "P2", "title": "decided by the run's record"},
-    {"id": "SQA-2", "status": "open", "severity": "P2", "title": "a fault a row can fix now"}
+    {"id": "SQA-1", "severity": "P2", "actual": "decided by the run's record"},
+    {"id": "SQA-2", "severity": "P2", "actual": "a fault a row can fix now"}
   ],
   "master_lead_triage": {"findings": {"SQA-1": {"action": "deferred"}}}
 }`)

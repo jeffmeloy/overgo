@@ -15,8 +15,8 @@ func TestAFindingTheLeadImplementedWaitsForItsReview(t *testing.T) {
 	t.Parallel()
 	register := []byte(`{
   "findings": [
-    {"id": "SQA-1", "status": "open", "severity": "P2", "title": "answered, awaiting the reviewer"},
-    {"id": "SQA-2", "status": "open", "severity": "P2", "title": "not answered yet"}
+    {"id": "SQA-1", "severity": "P2", "actual": "answered, awaiting the reviewer"},
+    {"id": "SQA-2", "severity": "P2", "actual": "not answered yet"}
   ],
   "master_lead_triage": {"findings": {"SQA-1": {"action": "implemented", "rows": ["row/do"]}}}
 }`)

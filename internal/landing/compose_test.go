@@ -9,19 +9,17 @@ import (
 	"overgo/internal/testcheck"
 )
 
-// composeRegister is a findings register holding an open finding that cites the change's file, one that cites another
-// and a resolved one that cites the change's file.
+// composeRegister is a findings register holding a finding that cites the change's file and one that cites another.
 const composeRegister = `{"findings": [
- {"id": "SQA-1", "status": "open", "severity": "P2", "title": "a finding on p", "sources": [{"path": "p/p.go"}]},
- {"id": "SQA-2", "status": "open", "severity": "P2", "title": "a finding elsewhere", "sources": [{"path": "q/q.go"}]},
- {"id": "SQA-3", "status": "resolved", "severity": "P2", "title": "a closed finding on p", "sources": [{"path": "p/p.go"}]}]}
+ {"id": "SQA-1", "severity": "P2", "actual": "a finding on p", "files": ["p/p.go"]},
+ {"id": "SQA-2", "severity": "P2", "actual": "a finding elsewhere", "files": ["q/q.go"]}]}
 `
 
 // TestTheLandingWritesItsOwnMessage lands a change with no message: from Oct 31 to Nov 7, 168 of 263 refused commit
 // attempts were a hand-written message's sections and figures. The commit's message holds the step's title, its cause
 // and what it serves from the plan, the files changed and the test added, the step retired with why and the count set,
-// and the campaign the plan now names, and the open finding that cites a changed file, not one that cites none or is
-// resolved; the published plan keeps no retirement. The lead's words, when given, follow the title and keep the sections they hold.
+// and the campaign the plan now names, and the finding that cites a changed file, not one that cites none; the
+// published plan keeps no retirement. The lead's words, when given, follow the title and keep the sections they hold.
 func TestTheLandingWritesItsOwnMessage(t *testing.T) {
 	t.Parallel()
 	fixture := newRowFixture(t, map[string]string{"p/p.go": "// Package p is a fixture.\npackage p\n", findingsRegister: composeRegister})
@@ -60,8 +58,8 @@ func TestTheLandingWritesItsOwnMessage(t *testing.T) {
 			t.Errorf("the landing's own message lacks %q:\n%s", want, body)
 		}
 	}
-	if strings.Contains(body, "SQA-2") || strings.Contains(body, "SQA-3") {
-		t.Errorf("the message names a finding that cites no changed file or is resolved:\n%s", body)
+	if strings.Contains(body, "SQA-2") {
+		t.Errorf("the message names a finding that cites no changed file:\n%s", body)
 	}
 	if retired := testcheck.Must(plan.Load(fixture.planPath()))(t).Retired; len(retired) != 0 {
 		t.Errorf("the published plan keeps its retirements %v", retired)

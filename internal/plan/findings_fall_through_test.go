@@ -10,17 +10,16 @@ import (
 
 // TestDispatchFallsThroughToFindingsThenTheRun holds what an empty plan's work is, as the week to Nov 7 showed: on
 // Nov 1 every open row belonged to another role and the lead sat 6.3 hours. The register's open P1 findings, then its
-// P2 ones, each no row names, are filed as rows before the measurement run; a P3 is not, nor a closed finding, nor one
-// a row names, SQA-33 not named by SQA-334; and an empty plan's line says which to file. With every one named, the
-// measurement run is next.
+// P2 ones, each no row names, are filed as rows before the measurement run; a P3 is not, nor one a row names, SQA-33
+// not named by SQA-334; and an empty plan's line says which to file. With every one named, the measurement run is
+// next.
 func TestDispatchFallsThroughToFindingsThenTheRun(t *testing.T) {
 	t.Parallel()
 	register := []byte(`{"branch": "master", "findings": [
-		{"id": "SQA-10", "status": "open", "severity": "P2", "title": "a second-rank defect", "sources": []},
-		{"id": "SQA-33", "status": "open", "severity": "P2", "title": "a defect a row names"},
-		{"id": "SQA-334", "status": "open", "severity": "P3", "title": "a low-rank tidy"},
-		{"id": "SQA-5", "status": "closed", "severity": "P1", "title": "a defect already closed"},
-		{"id": "SQA-7", "status": "open", "severity": "P1", "title": "an urgent defect"}]}`)
+		{"id": "SQA-10", "severity": "P2", "actual": "a second-rank defect", "files": []},
+		{"id": "SQA-33", "severity": "P2", "actual": "a defect a row names"},
+		{"id": "SQA-334", "severity": "P3", "actual": "a low-rank tidy"},
+		{"id": "SQA-7", "severity": "P1", "actual": "an urgent defect"}]}`)
 	document := Plan{Campaign: "fixture", Items: []Item{{ID: "row", Title: "Row",
 		Steps: []Step{{ID: "do", Title: "Do", Rationale: "SQA-33 asks for it, and SQA-334 is beside it."}}}}}
 	filed := testcheck.Must(FindingsToFile(document, register))(t)

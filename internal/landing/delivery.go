@@ -52,9 +52,9 @@ type Delivery struct {
 	GateHours         float64        `json:"gate_hours"`
 	WaitHours         float64        `json:"wait_hours"`
 	// FirstPass of Landings are the window's landings made on their reference's first commit attempt since it last
-	// landed, and FirstPassAll of LandingsAll the same over the whole record, which begins at RecordSince; Worst is the
-	// most attempts one of the window's landings took, and WorstReference its reference (first-pass/do). A refused run of
-	// a record from before runs said their kind is no attempt, as it may have been a preflight.
+	// landed, and FirstPassAll of LandingsAll the same since RecordSince, the first run that said its kind: a refused run
+	// from before cannot be told from a preflight, so no rate is read from those (first-pass/since). Worst is the most
+	// attempts one of the window's landings took, and WorstReference its reference (first-pass/do).
 	FirstPass      int       `json:"first_pass"`
 	Landings       int       `json:"landings"`
 	FirstPassAll   int       `json:"first_pass_all"`
@@ -131,17 +131,20 @@ func (delivery *Delivery) readRuns(root string) error {
 	// A landing's attempts are its reference's refused commit attempts since that reference last landed, and itself.
 	attempts := map[string]int{}
 	for _, run := range runs {
-		if delivery.RecordSince.IsZero() {
+		if delivery.RecordSince.IsZero() && run.Kind != "" {
 			delivery.RecordSince = run.Started
 		}
+		kinded := !delivery.RecordSince.IsZero()
 		inWindow := !run.Started.Before(delivery.Since)
 		switch {
 		case run.Outcome == outcomeLanded:
 			took := attempts[run.Reference] + 1
 			delete(attempts, run.Reference)
-			delivery.LandingsAll++
-			if took == 1 {
-				delivery.FirstPassAll++
+			if kinded {
+				delivery.LandingsAll++
+				if took == 1 {
+					delivery.FirstPassAll++
+				}
 			}
 			if inWindow {
 				delivery.Landings++

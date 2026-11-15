@@ -15,8 +15,10 @@ import (
 // TestTheFirstPassRateCountsAttemptsToEachLanding holds the day's line to how often a commit lands as first written
 // (first-pass/do): the run records held every attempt (5 of 11 commits landed on their first on 2026-11-14), and no line
 // said so. A landing's attempts are its reference's refused commit attempts since it last landed, and itself; a
-// preflight, and a refused run of a record from before runs said their kind, is no attempt. Over the window and over
-// the whole record the line says the landings made on a first attempt, and the most attempts one landing took.
+// preflight, and a refused run of a record from before runs said their kind, is no attempt. Over the window and since
+// the first run that said its kind the line says the landings made on a first attempt, and the most attempts one
+// landing took: a whole record counted from Oct 18 read 1115 of 1180, where since 2026-11-11, when runs began to say
+// their kind, it is 70 of 135 (first-pass/since).
 func TestTheFirstPassRateCountsAttemptsToEachLanding(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -26,6 +28,7 @@ func TestTheFirstPassRateCountsAttemptsToEachLanding(t *testing.T) {
 		return spent{Reference: reference, Started: at, Ended: at.Add(time.Minute), Outcome: outcome, Kind: kind}
 	}
 	runs := []spent{
+		run("older/do", before.Add(-time.Hour), "test", ""), run("older/do", before.Add(-time.Minute), outcomeLanded, ""),
 		run("old/do", before, "test", kindCommit), run("old/do", before.Add(time.Minute), outcomeLanded, kindCommit),
 		run("a/do", day, "rules", kindCommit), run("a/do", day.Add(time.Minute), "verify", kindCommit),
 		run("a/do", day.Add(2*time.Minute), outcomeLanded, kindCommit),

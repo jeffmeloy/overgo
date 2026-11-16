@@ -55,6 +55,10 @@ const (
 	// JobObjectAssociateCompletionPortInformation and JOB_OBJECT_MSG_ACTIVE_PROCESS_ZERO.
 	jobCompletionPortClass = 7
 	jobActiveProcessZero   = 4
+	// jobObjectLimitJobMemory is JOB_OBJECT_LIMIT_JOB_MEMORY: the job's processes together commit no more than
+	// JobMemoryLimit; jobMemoryLimitReached is JOB_OBJECT_MSG_JOB_MEMORY_LIMIT, posted when a commit would pass it.
+	jobObjectLimitJobMemory = 0x200
+	jobMemoryLimitReached   = 10
 	// processQueryLimitedInformation is PROCESS_QUERY_LIMITED_INFORMATION,
 	// the least OpenProcess right that still admits GetExitCodeProcess.
 	processQueryLimitedInformation = 0x1000
@@ -131,6 +135,7 @@ type processTree struct {
 	job        uintptr
 	completion uintptr
 	process    uintptr
+	bound      jobBound
 }
 
 func configureSysProc(command *exec.Cmd) {
@@ -140,7 +145,7 @@ func configureSysProc(command *exec.Cmd) {
 	command.SysProcAttr.CreationFlags |= createSuspended
 }
 
-func newProcessTree(command *exec.Cmd) (processTree, error) {
+func newProcessTree(command *exec.Cmd, bound jobBound) (processTree, error) {
 	if command.Process == nil || command.SysProcAttr == nil || command.SysProcAttr.CreationFlags&createSuspended == 0 {
 		return processTree{}, errors.New("job assignment requires a child created suspended")
 	}
@@ -150,6 +155,10 @@ func newProcessTree(command *exec.Cmd) (processTree, error) {
 	}
 	limits := jobExtendedLimits{}
 	limits.BasicLimitInformation.LimitFlags = jobObjectLimitKillOnJobClose
+	if bound.limit > 0 {
+		limits.BasicLimitInformation.LimitFlags |= jobObjectLimitJobMemory
+		limits.JobMemoryLimit = uintptr(bound.limit)
+	}
 	if ok, _, callErr := procSetInformationJob.Call(
 		job, uintptr(jobObjectExtendedLimitClass),
 		uintptr(unsafe.Pointer(&limits)), unsafe.Sizeof(limits),
@@ -202,7 +211,7 @@ func newProcessTree(command *exec.Cmd) (processTree, error) {
 		return processTree{}, fmt.Errorf("resume contained child %d: NTSTATUS %#x", command.Process.Pid, status)
 	}
 	ready = true
-	return processTree{job: job, completion: completion, process: process}, nil
+	return processTree{job: job, completion: completion, process: process, bound: bound}, nil
 }
 
 func (t processTree) terminate() error {
@@ -217,14 +226,22 @@ func (t processTree) terminate() error {
 
 // peakProcessBytes is the most memory any one process of the job has committed; zero when the job cannot be read.
 func (t processTree) peakProcessBytes() uint64 {
+	return uint64(t.extendedLimits().PeakProcessMemoryUsed)
+}
+
+// peakJobBytes is the most memory the job's processes have committed together, a command's need (jobBound).
+func (t processTree) peakJobBytes() uint64 { return uint64(t.extendedLimits().PeakJobMemoryUsed) }
+
+// extendedLimits reads the job's extended limits and counters; zero when the job cannot be read.
+func (t processTree) extendedLimits() jobExtendedLimits {
 	limits := jobExtendedLimits{}
 	if t.job == 0 {
-		return 0
+		return limits
 	}
 	if ok, _, _ := procQueryInformationJob.Call(t.job, uintptr(jobObjectExtendedLimitClass), uintptr(unsafe.Pointer(&limits)), unsafe.Sizeof(limits), 0); ok == 0 {
-		return 0
+		return jobExtendedLimits{}
 	}
-	return uint64(limits.PeakProcessMemoryUsed)
+	return limits
 }
 
 func (t processTree) close() error {
@@ -241,26 +258,45 @@ func (t processTree) close() error {
 	return nil
 }
 
-// Parent exit ends its owned tree. Terminate leftover descendants, then wait for
-// the empty-job notification before draining pipes or releasing resources.
-func (t processTree) wait() error {
+// wait waits for the tree to end, saying whether a commit of it would have passed its bound (jobBound). Parent exit
+// ends its owned tree: leftover descendants are terminated, then the empty-job notification is awaited before pipes
+// are drained or resources released. The job's notifications are read while the tree runs, and a commit that would
+// pass the bound ends the tree there: a Go child whose commit failed at its bound never ended, its own timeout's
+// timer stalled with it (check-memory/do).
+func (t processTree) wait() (limited bool, err error) {
+	type drained struct {
+		limited bool
+		err     error
+	}
+	notified := make(chan drained, 1)
+	go func() {
+		var limited bool
+		for {
+			var message uint32
+			var key, overlapped uintptr
+			if ok, _, callErr := procGetCompletionStatus.Call(t.completion,
+				uintptr(unsafe.Pointer(&message)), uintptr(unsafe.Pointer(&key)),
+				uintptr(unsafe.Pointer(&overlapped)), syscall.INFINITE); ok == 0 {
+				notified <- drained{limited, fmt.Errorf("wait for job completion: %w", callErr)}
+				return
+			}
+			switch {
+			case key == t.job && message == jobMemoryLimitReached:
+				limited = true
+				_ = t.terminate()
+			case key == t.job && message == jobActiveProcessZero:
+				notified <- drained{limited, nil}
+				return
+			}
+		}
+	}()
 	state, err := syscall.WaitForSingleObject(syscall.Handle(t.process), syscall.INFINITE)
 	if err != nil || state != syscall.WAIT_OBJECT_0 {
-		return errors.Join(fmt.Errorf("parent wait returned state %d", state), err, t.terminate())
+		return false, errors.Join(fmt.Errorf("parent wait returned state %d", state), err, t.terminate())
 	}
 	if err := t.terminate(); err != nil {
-		return err
+		return false, err
 	}
-	for {
-		var message uint32
-		var key, overlapped uintptr
-		if ok, _, callErr := procGetCompletionStatus.Call(t.completion,
-			uintptr(unsafe.Pointer(&message)), uintptr(unsafe.Pointer(&key)),
-			uintptr(unsafe.Pointer(&overlapped)), syscall.INFINITE); ok == 0 {
-			return fmt.Errorf("wait for job completion: %w", callErr)
-		}
-		if key == t.job && message == jobActiveProcessZero {
-			return nil
-		}
-	}
+	ended := <-notified
+	return ended.limited, ended.err
 }

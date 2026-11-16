@@ -33,19 +33,20 @@ func resourceTransactionHeld(string) (bool, error) {
 // group, an interrupt delivers SIGTERM to the whole group, and
 // termination delivers SIGKILL to the group.
 type processTree struct {
-	pgid int
+	pgid  int
+	bound jobBound
 }
 
 func configureSysProc(command *exec.Cmd) {
 	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 }
 
-func newProcessTree(command *exec.Cmd) (processTree, error) {
+func newProcessTree(command *exec.Cmd, bound jobBound) (processTree, error) {
 	pgid, err := syscall.Getpgid(command.Process.Pid)
 	if err != nil {
 		return processTree{}, err
 	}
-	return processTree{pgid: pgid}, nil
+	return processTree{pgid: pgid, bound: bound}, nil
 }
 
 func (t processTree) terminate() error {
@@ -60,6 +61,9 @@ func (t processTree) close() error { return nil }
 // peakProcessBytes is zero: the job counter that holds a tree's peak is Windows'.
 func (t processTree) peakProcessBytes() uint64 { return 0 }
 
+// peakJobBytes is zero: the job counter that holds a tree's commit is Windows'.
+func (t processTree) peakJobBytes() uint64 { return 0 }
+
 // ProcessAlive reports whether the process still runs: signal 0 performs
 // the existence and permission checks without delivering anything.
 func ProcessAlive(pid int) bool {
@@ -69,7 +73,7 @@ func ProcessAlive(pid int) bool {
 // ProcessStart reads no start where the system's process times are Windows'.
 func ProcessStart(int) (int64, bool) { return 0, false }
 
-func (t processTree) wait() error { return nil }
+func (t processTree) wait() (bool, error) { return false, nil }
 
 // releaseWaiter would observe a resource's holders; contention itself is Windows-only.
 type releaseWaiter struct{}

@@ -35,7 +35,7 @@ func TestWindowsContainmentPrecedesExecution(t *testing.T) {
 	if err != nil || state != syscall.WAIT_TIMEOUT {
 		t.Fatalf("suspended child already terminated: %d, %v", state, err)
 	}
-	tree := testcheck.Must(newProcessTree(run))(t)
+	tree := testcheck.Must(newProcessTree(run, jobBound{}))(t)
 	defer tree.close()
 	if err := run.Wait(); err != nil || strings.TrimSpace(output.String()) != "contained" {
 		t.Fatalf("contained execution: %q, %v", output.String(), err)

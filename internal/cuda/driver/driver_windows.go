@@ -25,26 +25,15 @@ import (
 const cudaDeviceNameBytes = 256
 
 var (
-	kernel32             = syscall.NewLazyDLL("kernel32.dll")
-	lstrlenA             = kernel32.NewProc("lstrlenA")
-	rtlMoveMemory        = kernel32.NewProc("RtlMoveMemory")
-	globalMemoryStatusEx = kernel32.NewProc("GlobalMemoryStatusEx")
+	kernel32      = syscall.NewLazyDLL("kernel32.dll")
+	lstrlenA      = kernel32.NewProc("lstrlenA")
+	rtlMoveMemory = kernel32.NewProc("RtlMoveMemory")
 )
 
-// MachineCommit reads the machine's commit left and its limit (GlobalMemoryStatusEx).
+// MachineCommit is the machine's commit left and its limit, as processcontrol reads it (processcontrol.MachineCommit).
 func MachineCommit() (Commit, error) {
-	// status is MEMORYSTATUSEX: its length, the memory load, then the physical, page-file and virtual totals and
-	// what of each is available; the page-file pair is the commit limit and the commit left.
-	var status struct {
-		length, load                                      uint32
-		totalPhysical, availablePhysical, limit, left     uint64
-		totalVirtual, availableVirtual, availableExtended uint64
-	}
-	status.length = uint32(unsafe.Sizeof(status))
-	if ok, _, err := globalMemoryStatusEx.Call(uintptr(unsafe.Pointer(&status))); ok == 0 {
-		return Commit{}, fmt.Errorf("GlobalMemoryStatusEx: %w", err)
-	}
-	return Commit{Left: status.left, Limit: status.limit}, nil
+	left, limit, err := processcontrol.MachineCommit()
+	return Commit{Left: left, Limit: limit}, err
 }
 
 // processCurrentBytes and processPeakBytes are the device memory every

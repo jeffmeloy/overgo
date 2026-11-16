@@ -20,31 +20,6 @@
       ]
     },
     {
-      "id": "check-memory",
-      "title": "A check's processes are held to the memory the machine has free when it starts, so a runaway is ended there and the run says so",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A check's processes are held to the memory the machine has free when it starts, so a runaway is ended there and the run says so",
-          "verify": "go test ./internal/processcontrol -count=1 -run '^TestARunawayChildIsEndedAtTheMachinesFreeMemory$'",
-          "files": [
-            "internal/processcontrol/commit.go",
-            "internal/processcontrol/commit_windows.go",
-            "internal/processcontrol/job_bound.go",
-            "internal/processcontrol/job_need_windows.go",
-            "internal/processcontrol/job_need_unix.go",
-            "internal/processcontrol/job_bound_windows_test.go",
-            "internal/processcontrol/supervisor.go",
-            "internal/processcontrol/supervisor_windows.go",
-            "internal/processcontrol/supervisor_unix.go",
-            "internal/processcontrol/supervisor_windows_test.go",
-            "internal/cuda/driver/driver_windows.go"
-          ],
-          "rationale": "Note: Serves: a check that runs away with memory is ended at what the machine had to give, and says so, where it took the whole machine.\n\nThe evidence (2026-11-15): a replayed check at its parent (empty-added-token/refuse) took 279 GB of commit at 10:05, the page file grown to about 256 GB, and a Flash-Next server's read failed beside it (event 2004; TestFlashNextLongContextAcceptance). Volsnap 36 at 02:17:54 and dispatch-next/do's space refusal at 02:19:55 fall inside the first lanes run's replay test (02:14:42 to 02:21:43). Every check starts through processcontrol.Run (supervisor.go): the replay's parent check (cmd/loop/replay.go), the undo run (internal/landing/undo.go), a landing's verify, the lanes (cmd/validate/run.go); newProcessTree's job sets JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE alone, so nothing bounds a check's memory but the machine.\n\nThe change: the job a check starts in is held to the commit the machine has free when the check starts, read where driver.MachineCommit reads it (moved below both, read once), so no number is kept; a runaway is ended at that limit and the run says the limit and what reached it. Known cost: a check started while another holds memory gets a lower limit; the card's turn keeps the large ones apart. Read the limit against the peaks the run records hold first (the Flash-Next server stood at 87 GB in the event).\n\nCheck: TestARunawayChildIsEndedAtTheMachinesFreeMemory starts a child that allocates without end and holds it ended at the limit, the run saying so.\n\nNote: Measured 2026-11-15, before any code: Flash-Next's server alone, in TestFlashNextLongContextAcceptance on a clear host, reached 112.5 GiB of private bytes, the machine 145.5 GiB committed, its commit limit grown from 107 to 151 GiB by the page file. A bound of the commit free at a check's start (about 90 GiB) ends that server; physical memory (96 GB) does too; the commit the page file can grow to (about 358 GiB) does not stop the runaway (279 to 350 GB). So the limit needs a record of what the job needs: the proposal, not yet the owner's, is each command's whole-job peak (PeakJobMemoryUsed) recorded when it exits 0, the limit that need plus the commit free at its start, set on the outermost job only, a first run having the free commit alone. The basis waits for the owner's word.\n\nNote: files set to internal/processcontrol/commit.go, internal/processcontrol/commit_windows.go, internal/processcontrol/job_bound.go, internal/processcontrol/job_need_windows.go, internal/processcontrol/job_need_unix.go, internal/processcontrol/job_bound_windows_test.go, internal/processcontrol/supervisor.go, internal/processcontrol/supervisor_windows.go, internal/processcontrol/supervisor_unix.go, internal/processcontrol/supervisor_windows_test.go, internal/cuda/driver/driver_windows.go: the bound's files alone, so its landing takes none of card-free-dispatch's uncommitted processcontrol and driver files\n\nNote: Decided 2026-11-15 (the owner left the basis to the lead): need = the whole tree's peak commit (PeakJobMemoryUsed) of the command's last run that exited 0, recorded per command (its program's name and arguments) beside the turn records; has = the commit free as the job starts (processcontrol.MachineCommit, the one reading of it, which the driver now takes); the limit, need plus has, is set on every job processcontrol starts, a nested job's only ever tighter. A command with no recorded need runs unbounded and its pass records it: bound by the free commit alone, the models lane, whose Flash-Next server alone holds 112.5 GiB, could never pass to record its need. A check undone in its landing runs the command its verify has just recorded, so every undo run is bound. The job's notifications are read while the tree runs and a commit past the bound ends the tree there: a Go child whose commit failed at its bound never ended, its own one-minute timeout stalled with it. Measured: the bound test's runaway child ends at a 256 MiB bound in 0.28 s, saying so, and records no need."
-        }
-      ]
-    },
-    {
       "id": "card-free-dispatch",
       "title": "While another process holds the card, dispatch gives out the next step that needs no card",
       "steps": [

@@ -29,12 +29,16 @@ type Command struct {
 	// Stdout and Stderr receive drained output; nil discards.
 	Stdout io.Writer
 	Stderr io.Writer
+	// bounded reads the tree's bound in boundOf's place, so a test bounds one tree without bounding another.
+	bounded func(*exec.Cmd) (jobBound, error)
 }
 
 // Receipt is the terminal evidence of one supervised execution: how it
 // ended, whether the tree had to be terminated, how much output each
-// pipe drained, the measured wall time, and the most memory any one process
-// of the tree committed, zero where the operating system does not say.
+// pipe drained, the measured wall time, the most memory any one process
+// of the tree committed, zero where the operating system does not say, and
+// the tree's memory limit (jobBound), zero where it had none, and whether it
+// reached it.
 type Receipt struct {
 	ExitCode         int
 	Interrupted      bool
@@ -43,6 +47,8 @@ type Receipt struct {
 	StderrBytes      int64
 	WallNS           int64
 	PeakProcessBytes uint64
+	MemoryLimit      uint64
+	MemoryLimited    bool
 }
 
 // Supervised is one running process tree under supervision.
@@ -59,6 +65,8 @@ type Supervised struct {
 	// waitErr carries the raw wait result for Wait to interpret.
 	exited  chan struct{}
 	waitErr error
+	// limited says a commit of the tree would have passed its bound, read as the tree ended.
+	limited bool
 
 	mu         sync.Mutex
 	terminated bool
@@ -71,7 +79,8 @@ type Supervised struct {
 
 // Start launches the command under tree containment and begins
 // draining both pipes. A command that cannot start returns before any
-// process exists.
+// process exists. The tree commits no more than its command's recorded
+// need and the commit free as it starts (jobBound).
 func Start(ctx context.Context, command Command) (*Supervised, error) {
 	if ctx == nil || command.Path == "" {
 		return nil, errors.New("processcontrol: nil context or empty command path")
@@ -92,6 +101,14 @@ func Start(ctx context.Context, command Command) (*Supervised, error) {
 	if err != nil {
 		return nil, fmt.Errorf("processcontrol: stderr pipe: %w", err)
 	}
+	bounded := command.bounded
+	if bounded == nil {
+		bounded = boundOf
+	}
+	bound, err := bounded(run)
+	if err != nil {
+		return nil, err
+	}
 	resourceMu.Lock()
 	defer resourceMu.Unlock()
 	run.Env = resourceEnvironment(run.Environ())
@@ -99,7 +116,7 @@ func Start(ctx context.Context, command Command) (*Supervised, error) {
 		return nil, fmt.Errorf("processcontrol: start %s: %w", command.Path, err)
 	}
 	supervised := &Supervised{command: run, clock: processmeasure.NewStopwatch()}
-	tree, err := newProcessTree(run)
+	tree, err := newProcessTree(run, bound)
 	if err != nil {
 		_ = run.Process.Kill()
 		_ = run.Wait()
@@ -116,7 +133,8 @@ func Start(ctx context.Context, command Command) (*Supervised, error) {
 	go supervised.drainPipe(stdout, stdoutSink, &supervised.stdoutBytes)
 	go supervised.drainPipe(stderr, stderrSink, &supervised.stderrBytes)
 	go func() {
-		treeErr := supervised.tree.wait()
+		limited, treeErr := supervised.tree.wait()
+		supervised.limited = limited
 		supervised.drain.Wait()
 		supervised.waitErr = run.Wait()
 		if treeErr != nil {
@@ -209,6 +227,7 @@ func (s *Supervised) Wait(ctx context.Context) (Receipt, error) {
 		return s.receipt, s.receiptErr
 	}
 	s.peak = s.tree.peakProcessBytes()
+	jobPeak := s.tree.peakJobBytes()
 	_ = s.tree.close()
 	s.finished = true
 	wall, wallErr := s.clock.Elapsed()
@@ -219,6 +238,8 @@ func (s *Supervised) Wait(ctx context.Context) (Receipt, error) {
 		StderrBytes:      s.stderrBytes,
 		WallNS:           int64(wall),
 		PeakProcessBytes: s.peak,
+		MemoryLimit:      s.tree.bound.limit,
+		MemoryLimited:    s.limited,
 	}
 	if wallErr != nil {
 		s.receiptErr = fmt.Errorf("processcontrol: wall: %w", wallErr)
@@ -228,6 +249,13 @@ func (s *Supervised) Wait(ctx context.Context) (Receipt, error) {
 	}
 	if ctx.Err() != nil {
 		s.receiptErr = errors.Join(s.receiptErr, fmt.Errorf("processcontrol: cancellation terminated the tree: %w", ctx.Err()))
+	}
+	switch {
+	case s.limited:
+		s.receiptErr = errors.Join(s.receiptErr, s.tree.bound.reached())
+	case s.receipt.ExitCode == 0 && s.receiptErr == nil && jobPeak > 0:
+		// A run that passed by itself records what its command needs, the bound of its next run.
+		recordJobNeed(s.tree.bound.key, jobPeak)
 	}
 	return s.receipt, s.receiptErr
 }

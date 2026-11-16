@@ -42,21 +42,6 @@
       "steps": []
     },
     {
-      "id": "moss-import-admission",
-      "title": "The MOSS Ultra import admits its metadata, destination and storage before reading any payload",
-      "steps": [
-        {
-          "id": "convrot",
-          "title": "ConvRot storage is resolved before the shared lazy resident binding",
-          "verify": "go test ./internal/latentimage -count=1 -run '^TestAConvRotWeightBindsThroughTheResidentPath$'",
-          "files": [
-            "internal/latentimage"
-          ],
-          "rationale": "Serves: MOSS Ultra's Base serves from its 8-bit ConvRot file through the loader that binds every other weight (SQA-386, P2: model output).\n\nThe evidence (the review's, shown from source): the ConvRot adapter refuses directly named quantized weights through the production loader, can select the wrong row scales for an admitted shape other than [rows, 1], and decodes again what the resident cache holds.\n\nThe change, the finding's: storage format and logical view are resolved before the payload reader is chosen, shape admitted from metadata, [rows, 1] scales required before payloads are read, and ConvRot weights bound through ResidentSession.Bind's lazy payload.\n\nCheck: TestAConvRotWeightBindsThroughTheResidentPath binds a ConvRot fixture weight by its direct name, refuses one with other scale geometry before reading it, and holds a second bind to the cache."
-        }
-      ]
-    },
-    {
       "id": "comfy-recorder",
       "title": "A ComfyUI recorder runs a saved workflow in ComfyUI's own process and records each section's settings, sigmas, latents and images as goldens, first the MOSS Ultra workflow",
       "steps": [

@@ -55,7 +55,7 @@ func TestConvRotDecodesAsComfyKitchenDoes(t *testing.T) {
 			path = filepath.Join(ultra, "text_encoder", reading.File)
 		}
 		source := testcheck.Must(safetensors.OpenFile(path))(t)
-		decoded, shape, quantized, err := convRotWeight(source, reading.Tensor+".weight")
+		decoded, shape, quantized, err := convRotDecoded(source, reading.Tensor+".weight")
 		if err != nil || !quantized || !slices.Equal(shape, reading.Shape) {
 			t.Fatalf("%s decoded as %v of shape %v (quantized %t); want %v", reading.Tensor, err, shape, quantized, reading.Shape)
 		}
@@ -83,7 +83,7 @@ func TestConvRotDecodesAsComfyKitchenDoes(t *testing.T) {
 		}
 		t.Logf("%s: %d of %d elements differ from comfy_kitchen's, the farthest %g of its row's scale", reading.Tensor, len(reading.Differ), len(decoded), largest)
 		if reading.Tensor == "layers.0.proj.qkv" {
-			key, keyShape, _, err := convRotWeight(source, "layers.0.proj.k.weight")
+			key, keyShape, _, err := convRotDecoded(source, "layers.0.proj.k.weight")
 			third := reading.Shape[0] / 3
 			if err != nil || !slices.Equal(keyShape, []uint64{third, reading.Shape[1]}) || !slices.Equal(key, decoded[third*reading.Shape[1]:2*third*reading.Shape[1]]) {
 				t.Errorf("the k projection decodes as %v of shape %v; want the fused qkv's middle third", err, keyShape)
@@ -110,4 +110,14 @@ func bf16Step(magnitude float64) float64 {
 	}
 	_, exponent := math.Frexp(magnitude)
 	return math.Ldexp(1, exponent-8)
+}
+
+// convRotDecoded is the weight convRotView resolves, decoded, with its shape and whether the file holds it quantized.
+func convRotDecoded(source *safetensors.Source, name string) ([]uint16, []uint64, bool, error) {
+	stored, quantized, err := convRotView(source, name)
+	if err != nil || !quantized {
+		return nil, nil, quantized, err
+	}
+	decoded, err := stored.decode()
+	return decoded, stored.shape(), true, err
 }

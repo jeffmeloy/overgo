@@ -26,53 +26,70 @@ type convRotRecord struct {
 // fusedProjections are the projections a ConvRot file fuses into one qkv weight, in its row order.
 var fusedProjections = []string{"q", "k", "v"}
 
-// convRotWeight reads the weight a graph names (<base>.weight) from a ComfyUI ConvRot file as bfloat16 bits, where the
-// file holds it quantized: as <base>.weight in int8 with <base>.weight_scale and <base>.comfy_quant, or, for a q, k or
-// v projection, as its third of the fused <prefix>.qkv weight, whose rows are q's, then k's, then v's. It reports
-// whether the file holds the weight so, its shape in the file's order (rows, columns) and the decoded rows.
-func convRotWeight(source *safetensors.Source, name string) ([]uint16, []uint64, bool, error) {
+// convRotStored is a weight a ComfyUI ConvRot file holds quantized, as its header and comfy_quant record admit it: its
+// int8 values and F32 row scales, and the rows of them that are the weight's, first on.
+type convRotStored struct {
+	values, scales       safetensors.Tensor
+	first, rows, columns uint64
+}
+
+// convRotView resolves the weight a graph names (<base>.weight) in a ComfyUI ConvRot file, where the file holds it
+// quantized: as <base>.weight in int8 with <base>.weight_scale and <base>.comfy_quant, or, for a q, k or v projection,
+// as its third of the fused <prefix>.qkv weight, whose rows are q's, then k's, then v's. It reads the comfy_quant record
+// alone and admits the values' and scales' shapes from the header, an F32 scale a row ([rows, 1]), so a weight it
+// refuses has no payload read. It reports whether the file holds the weight so.
+func convRotView(source *safetensors.Source, name string) (convRotStored, bool, error) {
 	base, weight := strings.CutSuffix(name, ".weight")
 	if !weight {
-		return nil, nil, false, nil
+		return convRotStored{}, false, nil
 	}
 	stored, part, parts := base, 0, 1
 	if _, quantized := source.Tensors[base+".comfy_quant"]; !quantized {
 		at := strings.LastIndex(base, ".")
 		prefix, index := base[:max(at, 0)], slices.Index(fusedProjections, base[at+1:])
 		if _, fused := source.Tensors[prefix+".qkv.comfy_quant"]; index < 0 || !fused {
-			return nil, nil, false, nil
+			return convRotStored{}, false, nil
 		}
 		stored, part, parts = prefix+".qkv", index, len(fusedProjections)
 	}
 	values, scales, recordTensor := source.Tensors[stored+".weight"], source.Tensors[stored+".weight_scale"], source.Tensors[stored+".comfy_quant"]
 	record := make([]byte, recordTensor.Size())
 	if _, err := recordTensor.ReadAt(record, 0); err != nil {
-		return nil, nil, true, err
+		return convRotStored{}, true, err
 	}
 	var declared convRotRecord
 	if err := json.Unmarshal(record, &declared); err != nil || declared != (convRotRecord{Format: "int8_tensorwise", ConvRot: true, GroupSize: convRotGroup}) {
-		return nil, nil, true, fmt.Errorf("convrot: %s declares %q, not int8 ConvRot over %d columns (%v)", stored, record, convRotGroup, err)
+		return convRotStored{}, true, fmt.Errorf("convrot: %s declares %q, not int8 ConvRot over %d columns (%v)", stored, record, convRotGroup, err)
 	}
-	if values.DType != "I8" || len(values.Shape) != 2 || scales.DType != "F32" || len(scales.Shape) != 2 || scales.Shape[0] != values.Shape[0] ||
+	if values.DType != "I8" || len(values.Shape) != 2 || scales.DType != "F32" || !slices.Equal(scales.Shape, []uint64{values.Shape[0], 1}) ||
 		values.Shape[1]%convRotGroup != 0 || values.Shape[0]%uint64(parts) != 0 {
-		return nil, nil, true, fmt.Errorf("convrot: %s is %s %v with scales %s %v, not int8 rows in groups of %d with an F32 scale a row", stored, values.DType, values.Shape, scales.DType, scales.Shape, convRotGroup)
+		return convRotStored{}, true, fmt.Errorf("convrot: %s is %s %v with scales %s %v, not int8 rows in groups of %d with an F32 scale a row", stored, values.DType, values.Shape, scales.DType, scales.Shape, convRotGroup)
 	}
-	rows, columns := values.Shape[0]/uint64(parts), values.Shape[1]
-	first := uint64(part) * rows
-	quantized := make([]byte, rows*columns)
-	if _, err := values.ReadAt(quantized, int64(first*columns)); err != nil {
-		return nil, nil, true, err
+	rows := values.Shape[0] / uint64(parts)
+	return convRotStored{values: values, scales: scales, first: uint64(part) * rows, rows: rows, columns: values.Shape[1]}, true, nil
+}
+
+// shape is the weight's shape in the file's order (rows, columns).
+func (w convRotStored) shape() []uint64 {
+	return []uint64{w.rows, w.columns}
+}
+
+// decode reads the weight's int8 rows and their scales and decodes them as bfloat16 bits (decodeConvRotRow).
+func (w convRotStored) decode() ([]uint16, error) {
+	quantized := make([]byte, w.rows*w.columns)
+	if _, err := w.values.ReadAt(quantized, int64(w.first*w.columns)); err != nil {
+		return nil, err
 	}
-	scaleBytes := make([]byte, rows*4)
-	if _, err := scales.ReadAt(scaleBytes, int64(first*4)); err != nil {
-		return nil, nil, true, err
+	scaleBytes := make([]byte, w.rows*4)
+	if _, err := w.scales.ReadAt(scaleBytes, int64(w.first*4)); err != nil {
+		return nil, err
 	}
-	decoded := make([]uint16, rows*columns)
-	for row := range rows {
+	decoded := make([]uint16, w.rows*w.columns)
+	for row := range w.rows {
 		scale := math.Float32frombits(binary.LittleEndian.Uint32(scaleBytes[4*row:]))
-		decodeConvRotRow(decoded[row*columns:(row+1)*columns], quantized[row*columns:(row+1)*columns], scale)
+		decodeConvRotRow(decoded[row*w.columns:(row+1)*w.columns], quantized[row*w.columns:(row+1)*w.columns], scale)
 	}
-	return decoded, []uint64{rows, columns}, true, nil
+	return decoded, nil
 }
 
 // decodeConvRotRow decodes one row of an int8 ConvRot weight as comfy_kitchen's decode means it, (q * scale) times the

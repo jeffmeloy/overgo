@@ -2,27 +2,19 @@
   "branch": "master",
   "findings": [
     {
-      "id": "SQA-283",
-      "severity": "P2",
-      "files": [
-        "internal/evaluation/campaign.go",
-        "cmd/evaluate/capability.go",
-        "cmd/evaluate/projection.go",
-        "internal/discovery/capability.go",
-        "internal/scorecard/scorecard.go",
-        "internal/evaluation/evidence_index.go",
-        "internal/runrecord/record.go",
-        "internal/modelrecipe/loaded_program.go",
-        "internal/servingattempt/servingattempt.go",
-        "internal/trainingworkflow/session_observation.go",
-        "internal/scorecard/heldout_state_test.go",
-        "internal/gemma4convert/convert.go",
-        "internal/server/generation_store_workspace.go"
-      ],
-      "input": "A result published by one of the three publication owners that still read recipe state at publication, when (a) the store read of the recipe state fails, or (b) the same recipe is activated again, verified, after a run executed it not verified.",
-      "expected": "Publication carries the state the executed recipe and task had at execution. A failed state read is told apart from a historical absent state and earns no verified credit, and a later activation does not replace execution-time state. Legacy bytes, the own-verifying-run exception and partial or cancelled results keep their contract.",
-      "actual": "The three owners read state at publication and drop the lookup error: (a) leaves Verification empty, which earned and unverifiedAside pass as the legacy-compatible accepted path, and (b) publishes the later verified state in place of the executed not-verified one. Read from source; the exact task and recipe repair of 0efe83b82 and 31e95d725 stands."
-    },
+  "id": "SQA-283",
+  "severity": "P2",
+  "files": [
+    "internal/servingattempt/servingattempt.go",
+    "internal/trainingworkflow/session_observation.go",
+    "internal/scorecard/scorecard.go",
+    "internal/runrecord/record.go",
+    "internal/modelrecipe/loaded_program.go"
+  ],
+  "input": "A serving or training observation published by servingattempt.Record or trainingworkflow.Observer.finish when (a) the recipe-state read fails and the incoming Verification is empty, or (b) the same recipe is activated again, verified, after the recorded attempt executed it not verified.",
+  "expected": "Publication carries the state the executed recipe and task had at execution. A failed state read is told apart from a historical absent state and earns no verified credit, and a later activation does not replace execution-time state. Legacy bytes, the own-verifying-run exception and partial or cancelled results keep their contract.",
+  "actual": "The two remaining owners still read state at publication and drop the lookup error: servingattempt.Record (servingattempt.go:117-119) and Observer.finish (session_observation.go:271-273). A failed read leaves an empty Verification; scorecard.unverifiedAside rejects only explicit not-verified/broken and accepts that empty value as legacy. A later same-recipe activation is written as the attempt's state in place of its execution-time not-verified state. Shown from source at 8acbf71d17dfd3e1e35313b370f900b21f0fdf10; no SQA execution."
+},
     {
       "id": "SQA-340",
       "severity": "P2",

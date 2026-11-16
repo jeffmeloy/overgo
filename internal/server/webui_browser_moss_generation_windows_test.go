@@ -78,7 +78,7 @@ func TestWebUIBrowserMOSSGeneration(t *testing.T) {
   window.mossField=(name)=>[...document.querySelectorAll('.composer label.control')].find(label=>label.firstChild.textContent===name)?.querySelector('input,textarea,select');
   window.mossSend=(text)=>{const input=document.querySelector('.composer>textarea');input.value=text;input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('.send-button').click();};
   const advanced=document.querySelector('.composer .advanced-controls');
-  return !advanced.open && mossField('width').value==='1024' && mossField('height').value==='1024' && mossField('steps').value==='50' && mossField('guidance scale').value==='3' && !mossField('mu') && !mossField('num train timesteps');
+  return !advanced.open && mossField('width').value==='1024' && mossField('height').value==='1024' && mossField('steps').placeholder==='50' && mossField('guidance scale').placeholder==='3' && ['steps','guidance scale'].every(name=>mossField(name).value==='') && !mossField('mu') && !mossField('num train timesteps');
 })()`)
 	check(`(() => { const help=document.querySelector('.composer .control-help'); help.querySelector('summary').click(); return help.open && help.textContent.includes('canvas center') && help.textContent.includes('"bbox_format":"yxyx"'); })()`)
 	check(`(() => {document.querySelector('.composer .advanced-controls summary').click();mossField('guidance scale').value='0';mossField('seed').value='42';return true;})()`)

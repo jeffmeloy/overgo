@@ -136,11 +136,17 @@
           el("option", { value: "", text: control.required ? "select" : control.default ? "default (" + control.default + ")" : "unset", disabled: control.required, selected: true }),
           ...choices.map((choice) => el("option", { value: choice, text: choice })));
       } else {
-        // A declared bound prefills the default and steps the field by the model's stride.
+        // A declared bound steps the field by the model's stride. Its default fills a required field and the picture's
+        // geometry, which no preset chooses; in a sampling field a request may leave out it is a hint, so a request
+        // carries what the person set and a preset chosen beside it is not overridden by values the person never
+        // touched (SQA-340, preset-form/do).
         const bounds = control.bounds || {};
+        const declared = control.bounds ? String(bounds.default) : null;
+        const filled = control.required || geometryControls.has(control.name);
         input = el(control.type === "text" ? "textarea" : "input", {
           class: "text", type: control.type === "integer" || control.type === "number" ? "number" : null,
-          step: bounds.step || (control.type === "integer" ? "1" : "any"), required: control.required, value: control.bounds ? String(bounds.default) : null,
+          step: bounds.step || (control.type === "integer" ? "1" : "any"), required: control.required,
+          value: filled ? declared : null, placeholder: filled ? null : declared,
         });
       }
       fields.set(control.name, { control, input });
@@ -154,6 +160,10 @@
     if (advanced.children.length > 1) host.appendChild(advanced);
     return fields;
   };
+
+  // geometryControls are the bounded fields that size the picture or clip, which its declared default fills: a request
+  // without them names no size (a layout prompt's canvas read 0 x 0), and the chips below set them.
+  const geometryControls = new Set(["width", "height", "frames"]);
 
   // Presets derived from declared bounds alone: aspect ratios keep the default's pixel area over the
   // width and height strides; durations take whole seconds at the frame count's declared rate.

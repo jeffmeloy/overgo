@@ -179,7 +179,7 @@ func run() error {
 	videoPath := flag.String("video", "", "encoded multimodal video; GIF native, other formats through FFmpeg")
 	videoMaxFrames := clioptions.IntOverride(flag.CommandLine, "video-max-frames", "maximum decoded video frames; unset uses recipe policy")
 	videoFPS := clioptions.Float64Override(flag.CommandLine, "video-fps", "source FPS for multimodal video timestamps; unset uses recipe policy")
-	ffmpegPath := flag.String("ffmpeg", os.Getenv("OVERGO_FFMPEG"), "FFmpeg executable for non-GIF video input")
+	ffmpegPath := flag.String("ffmpeg", "", "FFmpeg executable for non-GIF video input (default: the one OVERGO_FFMPEG names, else one on the path)")
 	imageThinking := flag.Bool("image-thinking", true, "retain Qwen3.5 thinking preamble for image prompts")
 	promptIDsFlag := flag.String("prompt-ids", "", "comma-separated prompt token IDs; bypasses tokenization (prompt argument optional)")
 	debugTopLogits := clioptions.IntOverride(flag.CommandLine, "debug-top-logits", "print top-N (id, logit) pairs per generated step to stderr; zero disables")

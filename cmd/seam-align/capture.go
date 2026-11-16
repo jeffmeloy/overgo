@@ -110,7 +110,7 @@ func captureSeams(ctx context.Context, specPath string) (err error) {
 	defer func() { err = errors.Join(err, text.Close()) }()
 	_, _, hidden := encoder.Shape()
 	width := text.Width
-	ffmpeg, err := media.ResolveFFmpeg(os.Getenv("OVERGO_FFMPEG"))
+	ffmpeg, err := media.ResolveFFmpeg("")
 	if err != nil {
 		return err
 	}

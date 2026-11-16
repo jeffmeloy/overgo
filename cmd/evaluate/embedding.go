@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"overgo/internal/envsetting"
 	"overgo/internal/evaluation"
 	"overgo/internal/inference"
 	"overgo/internal/media"
@@ -107,7 +106,7 @@ func writeSceneRetrieval(ctx context.Context, clips, framesOut, out string, dist
 	}
 	images := map[string]string{}
 	for _, pick := range picks {
-		frame, err := cutFrame(ctx, filepath.Join(clips, pick.Clip+clipFileExtension), envsetting.Result("OVERGO_FFMPEG"))
+		frame, err := cutFrame(ctx, filepath.Join(clips, pick.Clip+clipFileExtension), "")
 		if err != nil {
 			return err
 		}

@@ -3,6 +3,7 @@ package media
 import (
 	"bufio"
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -337,15 +338,18 @@ func decodeFFmpegFiltered(ctx context.Context, ffmpeg, input string, stdin io.Re
 }
 
 // FFmpeg is the FFmpeg a served clip is written and read with, and an upload
-// of one is accepted for: the one OVERGO_FFMPEG names, else the one
-// ResolveFFmpeg finds.
+// of one is accepted for (ResolveFFmpeg with none named).
 //   - one resolution for the clip runtime and the server's intake, so an MP4 is accepted exactly when one can be written and read.
 func FFmpeg() (string, error) {
-	return ResolveFFmpeg(envsetting.Result("OVERGO_FFMPEG"))
+	return ResolveFFmpeg("")
 }
 
+// ResolveFFmpeg is the FFmpeg configured names, else the one OVERGO_FFMPEG names, else one on the path, else the one a
+// Windows download helper installs. A caller naming none read the setting no more: the judge read a rendered clip with
+// the path's FFmpeg while the render was written with the one OVERGO_FFMPEG named (cycle-lanes/ffmpeg-setting).
 func ResolveFFmpeg(configured string) (string, error) {
-	if strings.TrimSpace(configured) != "" {
+	configured = cmp.Or(strings.TrimSpace(configured), strings.TrimSpace(envsetting.Result("OVERGO_FFMPEG")))
+	if configured != "" {
 		if _, err := os.Stat(configured); err != nil {
 			return "", fmt.Errorf("media: FFmpeg executable: %w", err)
 		}

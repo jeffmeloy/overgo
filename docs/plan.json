@@ -43,26 +43,19 @@
           "title": "A check's processes are held to the memory the machine has free when it starts, so a runaway is ended there and the run says so",
           "verify": "go test ./internal/processcontrol -count=1 -run '^TestARunawayChildIsEndedAtTheMachinesFreeMemory$'",
           "files": [
-            "internal/processcontrol",
-            "internal/cuda/driver"
+            "internal/processcontrol/commit.go",
+            "internal/processcontrol/commit_windows.go",
+            "internal/processcontrol/job_bound.go",
+            "internal/processcontrol/job_need_windows.go",
+            "internal/processcontrol/job_need_unix.go",
+            "internal/processcontrol/job_bound_windows_test.go",
+            "internal/processcontrol/supervisor.go",
+            "internal/processcontrol/supervisor_windows.go",
+            "internal/processcontrol/supervisor_unix.go",
+            "internal/processcontrol/supervisor_windows_test.go",
+            "internal/cuda/driver/driver_windows.go"
           ],
-          "rationale": "Note: Serves: a check that runs away with memory is ended at what the machine had to give, and says so, where it took the whole machine.\n\nThe evidence (2026-11-15): a replayed check at its parent (empty-added-token/refuse) took 279 GB of commit at 10:05, the page file grown to about 256 GB, and a Flash-Next server's read failed beside it (event 2004; TestFlashNextLongContextAcceptance). Volsnap 36 at 02:17:54 and dispatch-next/do's space refusal at 02:19:55 fall inside the first lanes run's replay test (02:14:42 to 02:21:43). Every check starts through processcontrol.Run (supervisor.go): the replay's parent check (cmd/loop/replay.go), the undo run (internal/landing/undo.go), a landing's verify, the lanes (cmd/validate/run.go); newProcessTree's job sets JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE alone, so nothing bounds a check's memory but the machine.\n\nThe change: the job a check starts in is held to the commit the machine has free when the check starts, read where driver.MachineCommit reads it (moved below both, read once), so no number is kept; a runaway is ended at that limit and the run says the limit and what reached it. Known cost: a check started while another holds memory gets a lower limit; the card's turn keeps the large ones apart. Read the limit against the peaks the run records hold first (the Flash-Next server stood at 87 GB in the event).\n\nCheck: TestARunawayChildIsEndedAtTheMachinesFreeMemory starts a child that allocates without end and holds it ended at the limit, the run saying so."
-        }
-      ]
-    },
-    {
-      "id": "space-record",
-      "title": "The space floor is read from the greatest fall of free space a run recorded, and no constant holds this machine's figure",
-      "steps": [
-        {
-          "id": "do",
-          "title": "The space floor is read from the greatest fall of free space a run recorded, and no constant holds this machine's figure",
-          "verify": "go test ./internal/landing -count=1 -run '^TestTheSpaceFloorIsReadFromTheLastRecordedFall$'",
-          "files": [
-            "internal/landing",
-            "cmd/loop/leftovers.go"
-          ],
-          "rationale": "Note: Serves: the space floor compares what a run needs, from a record a run wrote, with what the disk has, read when the floor is read; no constant holds this machine's figure.\n\nThe evidence: internal/landing/space.go's largestCheckWrites and measurementRunWrites were measured by hand on this machine on 2026-10-12 and 10-13, with a note to measure again; cmd/loop/leftovers.go's checkoutCacheBytes is the same figure. On 2026-11-15 dispatch-next/do was refused on space at 34.1 GiB free while a runaway's page file had taken the disk, 268 GB free fifteen minutes later.\n\nThe change: a landing and a measurement run record their own greatest fall of free space; the floor is read from the last such record, and the two constants, the note and checkoutCacheBytes go.\n\nCheck: TestTheSpaceFloorIsReadFromTheLastRecordedFall holds the floor to a recorded fall, not to a constant."
+          "rationale": "Note: Serves: a check that runs away with memory is ended at what the machine had to give, and says so, where it took the whole machine.\n\nThe evidence (2026-11-15): a replayed check at its parent (empty-added-token/refuse) took 279 GB of commit at 10:05, the page file grown to about 256 GB, and a Flash-Next server's read failed beside it (event 2004; TestFlashNextLongContextAcceptance). Volsnap 36 at 02:17:54 and dispatch-next/do's space refusal at 02:19:55 fall inside the first lanes run's replay test (02:14:42 to 02:21:43). Every check starts through processcontrol.Run (supervisor.go): the replay's parent check (cmd/loop/replay.go), the undo run (internal/landing/undo.go), a landing's verify, the lanes (cmd/validate/run.go); newProcessTree's job sets JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE alone, so nothing bounds a check's memory but the machine.\n\nThe change: the job a check starts in is held to the commit the machine has free when the check starts, read where driver.MachineCommit reads it (moved below both, read once), so no number is kept; a runaway is ended at that limit and the run says the limit and what reached it. Known cost: a check started while another holds memory gets a lower limit; the card's turn keeps the large ones apart. Read the limit against the peaks the run records hold first (the Flash-Next server stood at 87 GB in the event).\n\nCheck: TestARunawayChildIsEndedAtTheMachinesFreeMemory starts a child that allocates without end and holds it ended at the limit, the run saying so.\n\nNote: Measured 2026-11-15, before any code: Flash-Next's server alone, in TestFlashNextLongContextAcceptance on a clear host, reached 112.5 GiB of private bytes, the machine 145.5 GiB committed, its commit limit grown from 107 to 151 GiB by the page file. A bound of the commit free at a check's start (about 90 GiB) ends that server; physical memory (96 GB) does too; the commit the page file can grow to (about 358 GiB) does not stop the runaway (279 to 350 GB). So the limit needs a record of what the job needs: the proposal, not yet the owner's, is each command's whole-job peak (PeakJobMemoryUsed) recorded when it exits 0, the limit that need plus the commit free at its start, set on the outermost job only, a first run having the free commit alone. The basis waits for the owner's word.\n\nNote: files set to internal/processcontrol/commit.go, internal/processcontrol/commit_windows.go, internal/processcontrol/job_bound.go, internal/processcontrol/job_need_windows.go, internal/processcontrol/job_need_unix.go, internal/processcontrol/job_bound_windows_test.go, internal/processcontrol/supervisor.go, internal/processcontrol/supervisor_windows.go, internal/processcontrol/supervisor_unix.go, internal/processcontrol/supervisor_windows_test.go, internal/cuda/driver/driver_windows.go: the bound's files alone, so its landing takes none of card-free-dispatch's uncommitted processcontrol and driver files\n\nNote: Decided 2026-11-15 (the owner left the basis to the lead): need = the whole tree's peak commit (PeakJobMemoryUsed) of the command's last run that exited 0, recorded per command (its program's name and arguments) beside the turn records; has = the commit free as the job starts (processcontrol.MachineCommit, the one reading of it, which the driver now takes); the limit, need plus has, is set on every job processcontrol starts, a nested job's only ever tighter. A command with no recorded need runs unbounded and its pass records it: bound by the free commit alone, the models lane, whose Flash-Next server alone holds 112.5 GiB, could never pass to record its need. A check undone in its landing runs the command its verify has just recorded, so every undo run is bound. The job's notifications are read while the tree runs and a commit past the bound ends the tree there: a Go child whose commit failed at its bound never ended, its own one-minute timeout stalled with it. Measured: the bound test's runaway child ends at a 256 MiB bound in 0.28 s, saying so, and records no need."
         }
       ]
     },
@@ -87,6 +80,21 @@
       ]
     },
     {
+      "id": "waiter-bound",
+      "title": "The turn test fails, not hangs, when a waiter says nothing as the turn passes",
+      "steps": [
+        {
+          "id": "do",
+          "title": "TestAWaiterSaysEachNewHolder bounds its wait for the third's line",
+          "verify": "go test ./internal/processcontrol -count=1 -run '^TestAWaiterSaysEachNewHolder$'",
+          "files": [
+            "internal/processcontrol/turn_windows_test.go"
+          ],
+          "rationale": "Serves: a check that fails says so, never holds the gate for ever.\n\nThe evidence: turn-holder/do's undo run (2026-11-15) restored the waiter without its watch and ran TestAWaiterSaysEachNewHolder, which reads the third probe's next line before telling the second to give its turn up: the third said nothing, the second held the turn, and the check, run with no timeout, waited 32 minutes until its probes were ended by hand.\n\nThe change: the test reads the third's line apart and fails, on its assertion, when no line comes within a bound far past the milliseconds the watch takes, so the undo run of a waiter without the watch is evidence in a minute.\n\nCheck: TestAWaiterSaysEachNewHolder fails on its assertion, not by hanging, with the watch removed."
+        }
+      ]
+    },
+    {
       "id": "turn-outcome",
       "title": "A wait for the card is recorded under the stage that waits, not the one before",
       "steps": [
@@ -102,17 +110,80 @@
       ]
     },
     {
-      "id": "waiter-bound",
-      "title": "The turn test fails, not hangs, when a waiter says nothing as the turn passes",
+      "id": "preset-evidence",
+      "title": "A preset's verdict is bound to the renders and records it compared, and admitted by the statistic its evidence supports",
+      "steps": [
+        {
+          "id": "statistic",
+          "title": "Preset admission reads the statistic its grouped evidence supports",
+          "verify": "go test ./internal/evaluation -count=1 -run '^TestPresetAdmissionReadsItsNullFromItsGroups$'",
+          "files": [
+            "internal/evaluation",
+            "internal/tensorstats",
+            "cmd/evaluate/preset_reading.go",
+            "cmd/evaluate/preset_reading_test.go"
+          ],
+          "rationale": "Serves: a preset is admitted or refused by a test its evidence supports (SQA-342, P2: held-out quality claims).\n\nThe evidence (the review's, shown from source): the accuracy null treats each question's sign as independent where the questions are grouped by the media they ask about, and semantic prompt-loss rejection sits in admission without the evidence to support it.\n\nThe change, the finding's: the null is read through tensorstats over the groups the evidence has; numeric and identity checks stay in admission, and unsupported semantic rejection and stillness are diagnostics beside it.\n\nCheck: TestPresetAdmissionReadsItsNullFromItsGroups holds two suites with one question sign pattern, one grouped by media and one not, to different tails.\n\nNote: The review, 2026-11-14: AdmitPreset admits on no loss beyond chance and on quality alone, among about 97% ties, so a preset that shows no gain and costs more reads the same as one that costs nothing. PresetArm holds the preset, its settings and its format, and no wall. If the render records hold each arm's wall per case, the verdict's Says carries the arms' cost difference beside the counts (\"no gain, costs N% more\"); first read whether they do.\n\nNote: The render records (rendered.json) hold no wall: each draw names its run (run:sha256:...), so a case's cost is read from the run records the store holds, if they hold its wall; read that before the verdict says a cost.\n\nNote: Draft kept at tmp/preset-evidence/grouped-tail.patch (git apply it): tensorstats.GroupedSignTail, the exact sign-flip tail over the groups' nets, and its test (TestGroupedSignTailReadsGroupsAsUnits). Left: AdmitPreset reads each case's group (the suite's cases carry group, the clip) and admits on the grouped tail; the record's dataset holds the suite, reached through the evaluation's plan.\n\nNote: files set to internal/evaluation, internal/tensorstats, cmd/evaluate/preset_reading.go, cmd/evaluate/preset_reading_test.go: -admit-preset reads each arm's case media for AdmitPreset"
+        },
+        {
+          "id": "diagnostics",
+          "title": "The semantic screen and stillness are diagnostics beside admission, refusing no candidate",
+          "verify": "go test ./internal/evaluation -count=1 -run '^TestTheSemanticScreenAndStillnessAreDiagnostics$'",
+          "files": [
+            "internal/evaluation",
+            "cmd/evaluate"
+          ],
+          "rationale": "Serves: a candidate is refused only by a test its evidence supports (SQA-342, items 1 and 2).\n\nThe evidence (the review's, read from source): the semantic screen refuses a candidate whose embedding distance from the reference exceeds a reseeded draw's (internal/evaluation/screen.go ScreenCase.Lost, cmd/evaluate/screen.go printScreen), a prompt-loss measure nothing establishes; stillness counts a clip stiller than the stillest source clip of its suite (internal/evaluation/clip_motion.go), so a stationary source scores 1 and hides a freeze.\n\nThe change, the finding's: the screen's distance and stillness are diagnostics printed beside admission, which they no longer refuse or bound; stillness is said relative to the clip's own source.\n\nCheck: TestTheSemanticScreenAndStillnessAreDiagnostics."
+        }
+      ]
+    },
+    {
+      "id": "landing-record",
+      "title": "A landing's run record is written as it starts and finished as it ends, so a run ended from outside counts as an attempt",
       "steps": [
         {
           "id": "do",
-          "title": "TestAWaiterSaysEachNewHolder bounds its wait for the third's line",
-          "verify": "go test ./internal/processcontrol -count=1 -run '^TestAWaiterSaysEachNewHolder$'",
+          "title": "A landing's run record is written as it starts and finished as it ends, so a run ended from outside counts as an attempt",
+          "verify": "go test ./internal/landing -count=1 -run '^TestALandingEndedFromOutsideLeavesItsAttempt$'",
           "files": [
-            "internal/processcontrol/turn_windows_test.go"
+            "internal/landing"
           ],
-          "rationale": "Serves: a check that fails says so, never holds the gate for ever.\n\nThe evidence: turn-holder/do's undo run (2026-11-15) restored the waiter without its watch and ran TestAWaiterSaysEachNewHolder, which reads the third probe's next line before telling the second to give its turn up: the third said nothing, the second held the turn, and the check, run with no timeout, waited 32 minutes until its probes were ended by hand.\n\nThe change: the test reads the third's line apart and fails, on its assertion, when no line comes within a bound far past the milliseconds the watch takes, so the undo run of a waiter without the watch is evidence in a minute.\n\nCheck: TestAWaiterSaysEachNewHolder fails on its assertion, not by hanging, with the watch removed."
+          "rationale": "Note: Serves: the first-attempt rate and the gate's hours count every attempt, an attempt ended from outside among them.\n\nThe evidence (2026-11-15): the cycle-lanes/do landing ended from outside at 18:01, its lanes doomed by a test the next setting enabled, left no entry in landing_waits.json: the record is written as a landing ends (Run), so a process ended from outside writes none, and the day's first-attempt rate and check time read better than the day was.\n\nThe change: a landing writes its entry as it starts, and finishes it as it ends; an entry whose process is gone with no end reads as ended from outside, at the stage it had reached, and counts as a failed attempt.\n\nCheck: TestALandingEndedFromOutsideLeavesItsAttempt."
+        }
+      ]
+    },
+    {
+      "id": "clip-runtimes",
+      "title": "The clip runtimes are found where the product reads them, the NVENC FFmpeg and NVIDIA's effects runtime, so no session names them",
+      "steps": [
+        {
+          "id": "do",
+          "title": "The clip runtimes are found where the product reads them, the NVENC FFmpeg and NVIDIA's effects runtime, so no session names them",
+          "verify": "go test ./internal/media -count=1 -run '^TestTheClipRuntimesAreFoundWithoutASessionSetting$'",
+          "files": [
+            "internal/media",
+            "internal/cuda/nvvfx",
+            "internal/latentvideo",
+            "cmd/evaluate",
+            "cmd/generate"
+          ],
+          "rationale": "Note: Serves: a person's clip is finished and encoded on the card wherever the machine has the runtimes, without a session's setting naming them.\n\nThe evidence (2026-11-15): internal/latentvideo's finish, internal/cuda/nvvfx, cmd/generate and cmd/evaluate read OVERGO_NVVFX and OVERGO_FFMPEG for a user's clip. Unset, the effects runtime is refused and FFmpeg resolves to the path's or a download helper's build, which has no NVENC: TestAFinishedClipIsEncodedOnNVENC took 167 s on libx264 where the NVENC build takes 8.3 s, and the product pays that wherever the settings are unset, not the lanes alone. The cycle's lanes refused after about 5 hours for each setting a session left out (parked finding evidence:sha256:44047f2c..., whose second closure this takes).\n\nThe change: the runtimes are found where the product reads them, from what the machine holds, so OVERGO_NVVFX and OVERGO_FFMPEG stop being session settings: an FFmpeg is chosen among those found by the encoders the clip asks for (NVENC listed by the build itself), and the effects runtime's directory is read from where it is installed or from a record the data root keeps, written once. NVIDIA's runtime is never copied. The master environment then drops both.\n\nCheck: TestTheClipRuntimesAreFoundWithoutASessionSetting."
+        }
+      ]
+    },
+    {
+      "id": "space-record",
+      "title": "The space floor is read from the greatest fall of free space a run recorded, and no constant holds this machine's figure",
+      "steps": [
+        {
+          "id": "do",
+          "title": "The space floor is read from the greatest fall of free space a run recorded, and no constant holds this machine's figure",
+          "verify": "go test ./internal/landing -count=1 -run '^TestTheSpaceFloorIsReadFromTheLastRecordedFall$'",
+          "files": [
+            "internal/landing",
+            "cmd/loop/leftovers.go"
+          ],
+          "rationale": "Note: Serves: the space floor compares what a run needs, from a record a run wrote, with what the disk has, read when the floor is read; no constant holds this machine's figure.\n\nThe evidence: internal/landing/space.go's largestCheckWrites and measurementRunWrites were measured by hand on this machine on 2026-10-12 and 10-13, with a note to measure again; cmd/loop/leftovers.go's checkoutCacheBytes is the same figure. On 2026-11-15 dispatch-next/do was refused on space at 34.1 GiB free while a runaway's page file had taken the disk, 268 GB free fifteen minutes later.\n\nThe change: a landing and a measurement run record their own greatest fall of free space; the floor is read from the last such record, and the two constants, the note and checkoutCacheBytes go.\n\nCheck: TestTheSpaceFloorIsReadFromTheLastRecordedFall holds the floor to a recorded fall, not to a constant."
         }
       ]
     },
@@ -148,34 +219,6 @@
             "cmd/validate"
           ],
           "rationale": "Note: The evidence: cuda-synthetic/tag moved every untagged CUDA test that reads the data root behind modeltest but one. TestSenseNovaVariableRequestResources runs SenseNova's 8B production generation in an isolated measurement process, and docs/image_video_capacity.json names its retained measurement by the bytes of its file (evidence:sha256:888854b5...), which the store holds; tagged, its bytes changed and TestImageVideoCapacityAcceptance found no evidence under the new identity. A measurement is taken again only on a card to itself, and the readings campaign holds the card until its Wan arms are drawn, so the file stays in the gate, named by the check as measuredInPlace, and this row follows the campaign.\n\nThe change: the test carries //go:build modeltest, it is measured again on a quiet card into the store, the capacity record and its protocol digest (imageVideoCapacitySHA256) name the new identity, and measuredInPlace goes, so internal/sensenovarecipe leaves the cuda lane.\n\nCheck: a whole-tree test with measuredInPlace gone, named afresh so it fails before the change: TestTheGateRunsNoRealModelTest."
-        }
-      ]
-    },
-    {
-      "id": "preset-evidence",
-      "title": "A preset's verdict is bound to the renders and records it compared, and admitted by the statistic its evidence supports",
-      "steps": [
-        {
-          "id": "statistic",
-          "title": "Preset admission reads the statistic its grouped evidence supports",
-          "verify": "go test ./internal/evaluation -count=1 -run '^TestPresetAdmissionReadsItsNullFromItsGroups$'",
-          "files": [
-            "internal/evaluation",
-            "internal/tensorstats",
-            "cmd/evaluate/preset_reading.go",
-            "cmd/evaluate/preset_reading_test.go"
-          ],
-          "rationale": "Serves: a preset is admitted or refused by a test its evidence supports (SQA-342, P2: held-out quality claims).\n\nThe evidence (the review's, shown from source): the accuracy null treats each question's sign as independent where the questions are grouped by the media they ask about, and semantic prompt-loss rejection sits in admission without the evidence to support it.\n\nThe change, the finding's: the null is read through tensorstats over the groups the evidence has; numeric and identity checks stay in admission, and unsupported semantic rejection and stillness are diagnostics beside it.\n\nCheck: TestPresetAdmissionReadsItsNullFromItsGroups holds two suites with one question sign pattern, one grouped by media and one not, to different tails.\n\nNote: The review, 2026-11-14: AdmitPreset admits on no loss beyond chance and on quality alone, among about 97% ties, so a preset that shows no gain and costs more reads the same as one that costs nothing. PresetArm holds the preset, its settings and its format, and no wall. If the render records hold each arm's wall per case, the verdict's Says carries the arms' cost difference beside the counts (\"no gain, costs N% more\"); first read whether they do.\n\nNote: The render records (rendered.json) hold no wall: each draw names its run (run:sha256:...), so a case's cost is read from the run records the store holds, if they hold its wall; read that before the verdict says a cost.\n\nNote: Draft kept at tmp/preset-evidence/grouped-tail.patch (git apply it): tensorstats.GroupedSignTail, the exact sign-flip tail over the groups' nets, and its test (TestGroupedSignTailReadsGroupsAsUnits). Left: AdmitPreset reads each case's group (the suite's cases carry group, the clip) and admits on the grouped tail; the record's dataset holds the suite, reached through the evaluation's plan.\n\nNote: files set to internal/evaluation, internal/tensorstats, cmd/evaluate/preset_reading.go, cmd/evaluate/preset_reading_test.go: -admit-preset reads each arm's case media for AdmitPreset"
-        },
-        {
-          "id": "diagnostics",
-          "title": "The semantic screen and stillness are diagnostics beside admission, refusing no candidate",
-          "verify": "go test ./internal/evaluation -count=1 -run '^TestTheSemanticScreenAndStillnessAreDiagnostics$'",
-          "files": [
-            "internal/evaluation",
-            "cmd/evaluate"
-          ],
-          "rationale": "Serves: a candidate is refused only by a test its evidence supports (SQA-342, items 1 and 2).\n\nThe evidence (the review's, read from source): the semantic screen refuses a candidate whose embedding distance from the reference exceeds a reseeded draw's (internal/evaluation/screen.go ScreenCase.Lost, cmd/evaluate/screen.go printScreen), a prompt-loss measure nothing establishes; stillness counts a clip stiller than the stillest source clip of its suite (internal/evaluation/clip_motion.go), so a stationary source scores 1 and hides a freeze.\n\nThe change, the finding's: the screen's distance and stillness are diagnostics printed beside admission, which they no longer refuse or bound; stillness is said relative to the clip's own source.\n\nCheck: TestTheSemanticScreenAndStillnessAreDiagnostics."
         }
       ]
     },

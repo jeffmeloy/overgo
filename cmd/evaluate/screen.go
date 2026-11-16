@@ -14,7 +14,6 @@ import (
 	"slices"
 	"strings"
 
-	"overgo/internal/envsetting"
 	"overgo/internal/evaluation"
 	"overgo/internal/media"
 	"overgo/internal/vitencoder"
@@ -128,7 +127,7 @@ func embedOutput(ctx context.Context, encoder imageEmbedder, path string) ([]flo
 		}
 		return encoder.Embed(ctx, picture)
 	}
-	frames, err := media.DecodeVideoFile(ctx, path, envsetting.Result("OVERGO_FFMPEG"), frameSampleFPS, frameSampleCount)
+	frames, err := media.DecodeVideoFile(ctx, path, "", frameSampleFPS, frameSampleCount)
 	if err != nil || len(frames) == 0 {
 		return nil, fmt.Errorf("evaluate: decode the frames of %s: %d frames, %v", path, len(frames), err)
 	}

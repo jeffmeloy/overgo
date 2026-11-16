@@ -207,7 +207,7 @@ func bridgeTokens(ctx context.Context, pair *rae.Autoencoder, source *vitencoder
 
 // clipFirstFrame cuts a clip's first frame to a square of side, keeping its proportions.
 func clipFirstFrame(ctx context.Context, clip string, side int) (image.Image, error) {
-	frames, err := media.DecodeVideoFileCovering(ctx, clip, os.Getenv("OVERGO_FFMPEG"), bridgeFrameFPS, tensor.SingletonExtent, side, side)
+	frames, err := media.DecodeVideoFileCovering(ctx, clip, "", bridgeFrameFPS, tensor.SingletonExtent, side, side)
 	if err != nil || len(frames) != tensor.SingletonExtent {
 		return nil, fmt.Errorf("encoder bridge: %s gave %d frames: %w", clip, len(frames), err)
 	}

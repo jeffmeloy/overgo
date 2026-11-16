@@ -244,7 +244,21 @@
       "input": "(1) A root package embedding value.txt, checked by go test . -run TestValue, with only value.txt changed. (2) A production file built with -tags=fixturelane embedding value.txt, checked by go test -tags=fixturelane ./p, with only value.txt changed.",
       "expected": "The embedded asset enters the undo run's restoration set, so the unchanged test runs against the restored input and fails on its assertion.",
       "actual": "(1) path.Dir(value.txt) is \".\" and the ancestor loop stops before adding it, so the asset is not restored and undoable says no production Go changed. (2) Production calls go list without the verifier's flags, so the tag-gated embed is not listed and the asset-only change skips the undo. Read from source."
-    }
+    },
+    {
+  "id": "SQA-404",
+  "severity": "P2",
+  "files": [
+    "internal/processcontrol/job_bound.go",
+    "internal/processcontrol/supervisor.go",
+    "internal/processcontrol/supervisor_windows.go",
+    "internal/processcontrol/job_bound_windows_test.go",
+    "cmd/loop/replay.go"
+  ],
+  "input": "A standalone fresh Windows supervisor starts a first-seen command through processcontrol.Start/Run with the default Command.bounded (nil), and that command grows memory without ending. A concrete child is the existing TestJobChildProcess with OVERGO_TEST_JOB_CHILD=runaway and no injected bound. The retained empty-added-token/refuse parent check is the historical replay instance of this failure class; there is no earlier successful run of that command in this supervisor.",
+  "expected": "The existing processcontrol job owner admits a finite memory budget or refuses the unsupported check before launching it, including first use and restart. A successful earlier run must not be required to contain a known runaway. Keep whole-tree termination, cancellation, peak/error receipts and valid large-model admission; close this case through the existing child fixture using the default admission path, without a per-command file ledger or another supervisor.",
+  "actual": "Shown from source at a5337cca749323cddaf13ebe3302a563ad18b571, not an SQA execution: boundOf returns a zero-limit jobBound before reading MachineCommit when jobNeeds has no successful run. newProcessTree sets JOB_OBJECT_LIMIT_JOB_MEMORY only for a nonzero limit, so this first check starts without that protection. Only an exit-0 run records a need; a runaway that never passes cannot establish its own bound, and restart forgets prior needs. TestARunawayChildIsEndedAtTheMachinesFreeMemory explicitly expects the first passing run's MemoryLimit to be zero and injects runaway.bounded=256 MiB for its runaway arm, bypassing the default branch. Thus its passing assertion does not establish protection for the stated input. The earlier retained replay landing reports 279 GB of commit and a served Flash-Next read failure; SQA did not repeat that allocation."
+}
   ],
   "master_lead_triage": {
     "at": "2026-11-13",
@@ -340,7 +354,7 @@
       }
 }
   },
-  "next_finding_number": 404,
+  "next_finding_number": 405,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

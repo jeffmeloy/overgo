@@ -20,21 +20,6 @@
       ]
     },
     {
-      "id": "turn-outcome",
-      "title": "A wait for the card is recorded under the stage that waits, not the one before",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A wait for the card is recorded under the stage that waits, not the one before",
-          "verify": "go test ./internal/landing -count=1 -run '^TestACardWaitIsRecordedUnderItsStage$'",
-          "files": [
-            "internal/landing"
-          ],
-          "rationale": "Serves: the owner's review of 2026-11-14 (point 3): a failure recorded under another stage is counted against the wrong cause.\n\nThe evidence: the stage loop (landing.go Run) takes the card's turn for a stage on the card (holdCard) before it sets l.spent.Outcome to that stage, so a landing that fails or is refused while it waits for the turn is recorded under the stage before it: on 2026-11-14 a wait of 130 minutes sits in landing_waits.json under \"test\".\n\nThe change: the stage is the outcome from before its card turn is taken, so the wait, and a refusal in it, is the stage's own.\n\nCheck: TestACardWaitIsRecordedUnderItsStage refuses a landing while it waits for the card's turn and reads its record's outcome as the stage on the card."
-        }
-      ]
-    },
-    {
       "id": "preset-evidence",
       "title": "A preset's verdict is bound to the renders and records it compared, and admitted by the statistic its evidence supports",
       "steps": [

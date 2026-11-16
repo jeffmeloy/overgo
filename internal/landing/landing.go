@@ -277,6 +277,9 @@ func Run(ctx context.Context, options Options) (landed string, err error) {
 				return "", fmt.Errorf("%scandidate worktree: %w", stagePrefix, err)
 			}
 		}
+		// The stage is the outcome from before its card turn is taken, so a wait for the turn, and a refusal in it, is
+		// the stage's own: one set after the hold recorded a 130-minute wait on 2026-11-14 under the stage before it.
+		l.spent.Outcome = check.name
 		// The card's turn is held from the landing's first stage on the card to its end, a check on the card's apart.
 		if !options.Preflight && l.card == nil {
 			if card, err := l.onCard(check.name); err != nil {
@@ -290,7 +293,6 @@ func Run(ctx context.Context, options Options) (landed string, err error) {
 		// Each stage is said as it starts, by its count, so a reader knows how far the landing has come without a clock.
 		fmt.Fprintf(options.Log, "land: stage %d of %d: %s\n", index+1, len(checks), check.name)
 		started := time.Now()
-		l.spent.Outcome = check.name
 		err := check.run(ctx)
 		wall := time.Since(started).Round(time.Millisecond)
 		if l.spent.Stages[check.name] = wall; err != nil {

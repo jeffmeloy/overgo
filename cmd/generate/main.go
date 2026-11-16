@@ -16,7 +16,9 @@ import (
 	"overgo/internal/binaryschema"
 	"overgo/internal/checked"
 	"overgo/internal/clioptions"
+	"overgo/internal/cuda/nvvfx"
 	"overgo/internal/inference"
+	"overgo/internal/media"
 	"overgo/internal/model"
 	"overgo/internal/modelcli"
 	"overgo/internal/overgodb"
@@ -179,11 +181,20 @@ func run() error {
 	videoPath := flag.String("video", "", "encoded multimodal video; GIF native, other formats through FFmpeg")
 	videoMaxFrames := clioptions.IntOverride(flag.CommandLine, "video-max-frames", "maximum decoded video frames; unset uses recipe policy")
 	videoFPS := clioptions.Float64Override(flag.CommandLine, "video-fps", "source FPS for multimodal video timestamps; unset uses recipe policy")
-	ffmpegPath := flag.String("ffmpeg", "", "FFmpeg executable for non-GIF video input (default: the one OVERGO_FFMPEG names, else one on the path)")
+	ffmpegPath := flag.String("ffmpeg", "", "FFmpeg executable for non-GIF video input (default: the one the data root records, else one on the path); with -clip-runtimes, the one to record")
+	clipRuntimes := flag.Bool("clip-runtimes", false, "record, once, where this machine holds the runtimes a clip is encoded and finished with, -ffmpeg and -effects, in the data root, so no session names them")
+	effectsPath := flag.String("effects", "", "with -clip-runtimes: the directory NVIDIA's Video Effects runtime is installed in")
 	imageThinking := flag.Bool("image-thinking", true, "retain Qwen3.5 thinking preamble for image prompts")
 	promptIDsFlag := flag.String("prompt-ids", "", "comma-separated prompt token IDs; bypasses tokenization (prompt argument optional)")
 	debugTopLogits := clioptions.IntOverride(flag.CommandLine, "debug-top-logits", "print top-N (id, logit) pairs per generated step to stderr; zero disables")
 	flag.Parse()
+	if *clipRuntimes {
+		record, err := media.RecordClipRuntimes(media.ClipRuntimes{FFmpeg: *ffmpegPath, Effects: *effectsPath}, nvvfx.Files())
+		if err == nil {
+			fmt.Printf("generate: the clip runtimes are recorded in %s\n", record)
+		}
+		return err
+	}
 	explicit := clioptions.ExplicitOverrides(flag.CommandLine)
 	if flag.NArg() != 2 && !(*promptIDsFlag != "" && flag.NArg() == 1) {
 		return errors.New("usage: generate [options] <model.gguf> <prompt>  (prompt optional with -prompt-ids)")

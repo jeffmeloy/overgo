@@ -3,7 +3,6 @@ package media
 import (
 	"bufio"
 	"bytes"
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -14,15 +13,12 @@ import (
 	"image/png"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
-	"overgo/internal/envsetting"
 	"overgo/internal/processcontrol"
 	"overgo/internal/tensor"
 )
@@ -344,29 +340,25 @@ func FFmpeg() (string, error) {
 	return ResolveFFmpeg("")
 }
 
-// ResolveFFmpeg is the FFmpeg configured names, else the one OVERGO_FFMPEG names, else one on the path, else the one a
-// Windows download helper installs. A caller naming none read the setting no more: the judge read a rendered clip with
-// the path's FFmpeg while the render was written with the one OVERGO_FFMPEG named (cycle-lanes/ffmpeg-setting).
-func ResolveFFmpeg(configured string) (string, error) {
-	configured = cmp.Or(strings.TrimSpace(configured), strings.TrimSpace(envsetting.Result("OVERGO_FFMPEG")))
-	if configured != "" {
+// ResolveFFmpeg is the FFmpeg configured names, else the first the machine holds that lists every encoder asked for,
+// else the first it holds (ffmpegCandidates): one resolution for a clip's writer and its reader, so the judge reads a
+// render with the FFmpeg that wrote it (cycle-lanes/ffmpeg-setting), and no session names one (clip-runtimes/do).
+func ResolveFFmpeg(configured string, encoders ...string) (string, error) {
+	if configured = strings.TrimSpace(configured); configured != "" {
 		if _, err := os.Stat(configured); err != nil {
 			return "", fmt.Errorf("media: FFmpeg executable: %w", err)
 		}
 		return configured, nil
 	}
-	if path, err := exec.LookPath("ffmpeg"); err == nil {
-		return path, nil
+	recorded, record, err := ReadClipRuntimes()
+	if err != nil {
+		return "", err
 	}
-	if runtime.GOOS == "windows" {
-		if programFiles := envsetting.Result("ProgramFiles"); programFiles != "" {
-			candidate := filepath.Join(programFiles, "DownloadHelper CoApp", "ffmpeg.exe")
-			if _, err := os.Stat(candidate); err == nil {
-				return candidate, nil
-			}
-		}
+	candidates, err := ffmpegCandidates(recorded, record)
+	if err != nil {
+		return "", err
 	}
-	return "", errors.New("media: FFmpeg is unavailable")
+	return chooseFFmpeg(candidates, encoders)
 }
 
 // The box an MP4 opens with (ISO/IEC 14496-12 section 4.3): its type follows

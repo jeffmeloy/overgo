@@ -9,7 +9,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"math"
-	"os"
 	"testing"
 	"time"
 
@@ -53,14 +52,14 @@ var bindingDigests = map[uint32]string{
 // sameSize reports a level that keeps the frame's size: denoising (8 to 11) and deblurring (12 to 15).
 func sameSize(level uint32) bool { return level >= 8 && level <= 15 }
 
-// TestVideoSuperResMatchesNvidiasBinding: overgo runs RTX Video Super Resolution from the runtime OVERGO_NVVFX names,
+// TestVideoSuperResMatchesNvidiasBinding: overgo runs RTX Video Super Resolution from the runtime the data root records,
 // on a frame in its own device memory and on its own stream, and gives what NVIDIA's nvidia-vfx binding gives on the
 // same frame at every level, to the bit: bicubic, the four upscaling levels for compressed video and the four for
 // clean sources at twice the size, and the four denoising and four deblurring levels at the frame's own size.
 func TestVideoSuperResMatchesNvidiasBinding(t *testing.T) {
 	cudatest.Require(t)
-	if os.Getenv(directoryEnvironment) == "" {
-		testskip.NotApplicable(t, directoryEnvironment+" names no NVIDIA Video Effects runtime here")
+	if _, err := Found(); err != nil {
+		testskip.NotApplicable(t, err.Error())
 	}
 	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()

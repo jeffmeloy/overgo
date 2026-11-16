@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"math"
-	"os"
 	"testing"
 
 	"overgo/internal/cuda/device"
@@ -23,8 +22,8 @@ import (
 // pixel's alone, chroma sample 90's U reading 155 against its block's 142.
 func TestAYUVFrameIsBT709LimitedRange(t *testing.T) {
 	cudatest.Require(t)
-	if os.Getenv(directoryEnvironment) == "" {
-		testskip.NotApplicable(t, directoryEnvironment+" names no NVIDIA Video Effects runtime here")
+	if _, err := Found(); err != nil {
+		testskip.NotApplicable(t, err.Error())
 	}
 	const width, height = 64, 32
 	worker := testcheck.Must(device.New(0))(t)

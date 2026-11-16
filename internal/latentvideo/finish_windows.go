@@ -20,7 +20,7 @@ import (
 )
 
 // ClipFinish is how a clip's frames are finished on the card before they are encoded, by NVIDIA's RTX Video Super
-// Resolution from the runtime OVERGO_NVVFX names (internal/cuda/nvvfx): denoised, then deblurred, then upscaled, each
+// Resolution from the runtime the data root records (internal/cuda/nvvfx): denoised, then deblurred, then upscaled, each
 // only where the request asks, in the order NVIDIA's own upscaler script runs them (upscale_video.py _PIPELINE_ORDER).
 type ClipFinish struct {
 	// Upscale multiplies the clip's sides by 2, 3 or 4; none where unset.
@@ -185,7 +185,7 @@ func newFinishingEncoder(next clipEncoder, finish ClipFinish, pixels PixelRange)
 	if err := finish.Validate(); err != nil {
 		return nil, err
 	}
-	// The runtime is opened here, not at the first frame: a finish whose OVERGO_NVVFX is unset or misses a library is
+	// The runtime is opened here, not at the first frame: a finish whose runtime is not found or misses a library is
 	// refused before the generation runs, where Wan's 50 steps and its decode ran first (clip-encode/admit-runtime).
 	runtime, err := nvvfx.Open()
 	if err != nil {

@@ -1,9 +1,9 @@
 //go:build windows
 
 // Package nvvfx runs NVIDIA's Video Effects runtime, its RTX Video Super Resolution effect among them, from the
-// directory OVERGO_NVVFX names: its libraries loaded by syscall from that directory, as internal/cuda/cudnn loads
-// cuDNN, with no Python and no cgo. The runtime is NVIDIA's, under NVIDIA's licence: overgo loads it where it is
-// installed and never copies it. Its interface is the one NVIDIA publishes (github.com/NVIDIA-Maxine/Maxine-VFX-SDK,
+// directory the data root's record or NVIDIA's installer names (Found): its libraries loaded by syscall from that
+// directory, as internal/cuda/cudnn loads cuDNN, with no Python and no cgo. The runtime is NVIDIA's, under NVIDIA's
+// licence: overgo loads it where it is installed and never copies it. Its interface is the one NVIDIA publishes (github.com/NVIDIA-Maxine/Maxine-VFX-SDK,
 // nvvfx/include); the effect's selector and level parameter are those its nvidia-vfx binding names.
 package nvvfx
 
@@ -11,32 +11,12 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"os"
 	"path/filepath"
 	"runtime"
 	"syscall"
 	"unsafe"
 
 	"overgo/internal/cuda/driver"
-	"overgo/internal/envsetting"
-)
-
-// directoryEnvironment names the directory NVIDIA's Video Effects runtime is loaded from, as its nvidia-vfx wheel
-// installs it (nvvfx/libs).
-const directoryEnvironment = "OVERGO_NVVFX"
-
-// runtimeFiles are the runtime's libraries in the order NVIDIA's binding loads them (nvidia-vfx 0.1.0.1, _lib_loader.py):
-// each part before the libraries that ask for it by name, so a name asked for is a library already loaded.
-var runtimeFiles = []string{
-	"nppc64_12.dll", "nppial64_12.dll", "nppicc64_12.dll", "nppidei64_12.dll", "nppif64_12.dll", "nppig64_12.dll",
-	"nppim64_12.dll", "nppist64_12.dll", "nppitc64_12.dll", "nvinfer_10.dll", "nvinfer_plugin_10.dll",
-	"nvonnxparser_10.dll", imageLibrary, "nvngxruntime.dll", effectsLibrary, "nvVFXVideoSuperRes.dll", "nvngx_vsr.dll",
-}
-
-// The two libraries whose entry points overgo calls.
-const (
-	imageLibrary   = "NVCVImage.dll"
-	effectsLibrary = "NVVideoEffects.dll"
 )
 
 // The names the effect is created and set by (nvVideoEffects.h, and nvidia-vfx's video_super_res.py for the RTX
@@ -91,20 +71,14 @@ type Runtime struct {
 	run, imageInit, transferImage, errorString         *syscall.Proc
 }
 
-// Open loads the runtime from the directory OVERGO_NVVFX names, every library by its path in runtimeFiles order, and
-// resolves the entry points overgo calls. An unset setting or a library missing from the directory is refused by
-// name before anything is loaded; nothing falls back to another upscaler. The libraries stay loaded for the life of the
-// process, as the runtime keeps them.
+// Open loads the runtime from the directory it is found in, every library by its path in runtimeFiles order, and
+// resolves the entry points overgo calls. A runtime not found, or missing a library, is refused by name before
+// anything is loaded; nothing falls back to another upscaler. The libraries stay loaded for the life of the process,
+// as the runtime keeps them.
 func Open() (*Runtime, error) {
-	// A result setting: the identity of a capability that finishes its clips counts its value (internal/envsetting).
-	directory := envsetting.Result("OVERGO_NVVFX")
-	if directory == "" {
-		return nil, fmt.Errorf("nvvfx: %s names no directory of NVIDIA's Video Effects runtime", directoryEnvironment)
-	}
-	for _, file := range runtimeFiles {
-		if _, err := os.Stat(filepath.Join(directory, file)); err != nil {
-			return nil, fmt.Errorf("nvvfx: the runtime %s names has no %s: %w", directoryEnvironment, file, err)
-		}
+	directory, err := Found()
+	if err != nil {
+		return nil, err
 	}
 	loaded := map[string]*syscall.DLL{}
 	for _, file := range runtimeFiles {

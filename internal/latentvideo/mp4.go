@@ -9,7 +9,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"sync"
 
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
@@ -93,7 +92,7 @@ func newFinishedMP4Encoder(ctx context.Context, ffmpeg string, fps int, pixels P
 	if err != nil {
 		return nil, "", err
 	}
-	listed, err := ffmpegEncoders(ffmpeg)
+	listed, err := media.Encoders(ffmpeg)
 	if err != nil {
 		return nil, "", err
 	}
@@ -103,37 +102,6 @@ func newFinishedMP4Encoder(ctx context.Context, ffmpeg string, fps int, pixels P
 	encoder.codec = nvencCodec
 	return encoder, nvencEncoder, nil
 }
-
-// ffmpegEncoders are the encoders an FFmpeg lists (ffmpeg -encoders), read once for each executable.
-var ffmpegEncoders = func() func(string) ([]string, error) {
-	var mu sync.Mutex
-	read := map[string][]string{}
-	return func(ffmpeg string) ([]string, error) {
-		mu.Lock()
-		defer mu.Unlock()
-		if listed, known := read[ffmpeg]; known {
-			return listed, nil
-		}
-		var output, diagnostic bytes.Buffer
-		receipt, err := processcontrol.Run(context.Background(), processcontrol.Command{Path: ffmpeg,
-			Args: []string{"-hide_banner", "-encoders"}, Stdout: &output, Stderr: &diagnostic})
-		if err == nil && receipt.ExitCode != 0 {
-			err = fmt.Errorf("latent video: %s -encoders exited %d: %s", ffmpeg, receipt.ExitCode, diagnostic.String())
-		}
-		if err != nil {
-			return nil, err
-		}
-		var listed []string
-		for line := range strings.Lines(output.String()) {
-			// Each encoder's line is its capability flags, then its name.
-			if fields := strings.Fields(line); len(fields) > 1 {
-				listed = append(listed, fields[1])
-			}
-		}
-		read[ffmpeg] = listed
-		return listed, nil
-	}
-}()
 
 // NewMP4Encoder writes a clip as H.264 in a fragmented MP4 through the FFmpeg
 // at ffmpeg.

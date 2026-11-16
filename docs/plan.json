@@ -20,25 +20,6 @@
       ]
     },
     {
-      "id": "clip-runtimes",
-      "title": "The clip runtimes are found where the product reads them, the NVENC FFmpeg and NVIDIA's effects runtime, so no session names them",
-      "steps": [
-        {
-          "id": "do",
-          "title": "The clip runtimes are found where the product reads them, the NVENC FFmpeg and NVIDIA's effects runtime, so no session names them",
-          "verify": "go test ./internal/media -count=1 -run '^TestTheClipRuntimesAreFoundWithoutASessionSetting$'",
-          "files": [
-            "internal/media",
-            "internal/cuda/nvvfx",
-            "internal/latentvideo",
-            "cmd/evaluate",
-            "cmd/generate"
-          ],
-          "rationale": "Note: Serves: a person's clip is finished and encoded on the card wherever the machine has the runtimes, without a session's setting naming them.\n\nThe evidence (2026-11-15): internal/latentvideo's finish, internal/cuda/nvvfx, cmd/generate and cmd/evaluate read OVERGO_NVVFX and OVERGO_FFMPEG for a user's clip. Unset, the effects runtime is refused and FFmpeg resolves to the path's or a download helper's build, which has no NVENC: TestAFinishedClipIsEncodedOnNVENC took 167 s on libx264 where the NVENC build takes 8.3 s, and the product pays that wherever the settings are unset, not the lanes alone. The cycle's lanes refused after about 5 hours for each setting a session left out (parked finding evidence:sha256:44047f2c..., whose second closure this takes).\n\nThe change: the runtimes are found where the product reads them, from what the machine holds, so OVERGO_NVVFX and OVERGO_FFMPEG stop being session settings: an FFmpeg is chosen among those found by the encoders the clip asks for (NVENC listed by the build itself), and the effects runtime's directory is read from where it is installed or from a record the data root keeps, written once. NVIDIA's runtime is never copied. The master environment then drops both.\n\nCheck: TestTheClipRuntimesAreFoundWithoutASessionSetting."
-        }
-      ]
-    },
-    {
       "id": "space-record",
       "title": "The space floor is read from the greatest fall of free space a run recorded, and no constant holds this machine's figure",
       "steps": [

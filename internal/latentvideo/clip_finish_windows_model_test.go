@@ -8,10 +8,10 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"math"
-	"os"
 	"testing"
 	"time"
 
+	"overgo/internal/cuda/nvvfx"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/media"
 	"overgo/internal/testcheck"
@@ -55,8 +55,8 @@ func (c *captureEncoder) Close() error { return nil }
 // before upscale, as NVIDIA's script runs them), the scale, and the runtime's seventeen libraries by their digests.
 func TestAClipIsFinishedOnTheCardBeforeItIsEncoded(t *testing.T) {
 	cudatest.Require(t)
-	if os.Getenv("OVERGO_NVVFX") == "" {
-		testskip.NotApplicable(t, "OVERGO_NVVFX names no NVIDIA Video Effects runtime here")
+	if _, err := nvvfx.Found(); err != nil {
+		testskip.NotApplicable(t, err.Error())
 	}
 	frame := make([]float32, media.RGBChannels*finishReferenceHeight*finishReferenceWidth)
 	plane := finishReferenceHeight * finishReferenceWidth

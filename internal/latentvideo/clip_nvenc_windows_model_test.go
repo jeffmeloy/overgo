@@ -10,6 +10,7 @@ import (
 	"slices"
 	"testing"
 
+	"overgo/internal/cuda/nvvfx"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/dataroot"
 	"overgo/internal/media"
@@ -34,8 +35,8 @@ const (
 func studentClipFeed(tb testing.TB) func(VideoFrameSink) error {
 	tb.Helper()
 	cudatest.Require(tb)
-	if os.Getenv("OVERGO_NVVFX") == "" {
-		testskip.NotApplicable(tb, "OVERGO_NVVFX names no NVIDIA Video Effects runtime here")
+	if _, err := nvvfx.Found(); err != nil {
+		testskip.NotApplicable(tb, err.Error())
 	}
 	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(tb)))(tb)
 	path := filepath.Join(roots.Datasets, "VidGen", "self-forcing-generated", studentClip)
@@ -76,7 +77,7 @@ func studentClipFeed(tb testing.TB) func(VideoFrameSink) error {
 }
 
 // TestAFinishedClipIsEncodedOnNVENC: a finished clip is encoded on the card's NVENC as HEVC tagged hvc1 where the
-// resolved FFmpeg lists it (the build OVERGO_FFMPEG names), the record saying so, and two writes of one clip are the
+// FFmpeg the machine holds lists it (the build the data root records), the clip's record saying so, and two writes of one clip are the
 // same bytes, so a finished clip stays one clip. Its time is BenchmarkFinishedClipWrite's.
 func TestAFinishedClipIsEncodedOnNVENC(t *testing.T) {
 	feed := studentClipFeed(t)
@@ -101,7 +102,7 @@ func TestAFinishedClipIsEncodedOnNVENC(t *testing.T) {
 // BenchmarkFinishedClipWrite times a finished clip's whole write, the effect and the encode together, on the Wan
 // student clip at two and four times, in frames a second; the effect alone took 3.8 s of the four-times write
 // (rtx-vsr/nvenc, 16c3e5e8e). Opt in: go test -tags modeltest ./internal/latentvideo -run '^$' -bench
-// '^BenchmarkFinishedClipWrite$' with OVERGO_CUDA_TEST=1 and OVERGO_NVVFX set.
+// '^BenchmarkFinishedClipWrite$' with OVERGO_CUDA_TEST=1 and the effects runtime recorded.
 func BenchmarkFinishedClipWrite(b *testing.B) {
 	feed := studentClipFeed(b)
 	for _, upscale := range []int{2, studentUpscale} {

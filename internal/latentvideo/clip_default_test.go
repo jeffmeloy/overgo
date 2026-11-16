@@ -20,9 +20,9 @@ import (
 // from its bytes, and the arguments it was given, which the serving record reads (media.EncodingOf); a GIF names none.
 // The same frames written twice are the same bytes, and they read back nearer the frames the generator handed over
 // than the GIF of them does, the format it replaces setting the bar. Where no FFmpeg resolves, an MP4 is refused, the
-// refusal naming OVERGO_FFMPEG and "format": "gif".
+// refusal naming the command that records one and "format": "gif".
 //
-// Not parallel: the refusal is read with OVERGO_FFMPEG naming a file that is not there.
+// Not parallel: the refusal is read with the data root's record naming an FFmpeg that is not there.
 func TestAClipIsSavedAsMP4ByDefault(t *testing.T) {
 	var offered ClipFormat
 	format := ClipFormat(offered.Default())
@@ -69,9 +69,9 @@ func TestAClipIsSavedAsMP4ByDefault(t *testing.T) {
 		t.Fatalf("the MP4 reads back at %.2f dB and the GIF at %.2f dB; the MP4 is to lie nearer the frames", mp4Ratio, gifRatio)
 	}
 
-	t.Setenv("OVERGO_FFMPEG", filepath.Join(t.TempDir(), "ffmpeg.exe"))
+	recordedRuntimes(t, media.ClipRuntimes{FFmpeg: filepath.Join(t.TempDir(), "ffmpeg.exe")})
 	if _, err := newServedEncoder(t.Context(), format, ClipFinish{}, fps, UnitPixels); err == nil ||
-		!strings.Contains(err.Error(), "OVERGO_FFMPEG") || !strings.Contains(err.Error(), `"format": "gif"`) {
-		t.Fatalf("with no FFmpeg an MP4 is refused with %v, which is to name OVERGO_FFMPEG and \"format\": \"gif\"", err)
+		!strings.Contains(err.Error(), "-clip-runtimes") || !strings.Contains(err.Error(), `"format": "gif"`) {
+		t.Fatalf("with no FFmpeg an MP4 is refused with %v, which is to name the command that records one and \"format\": \"gif\"", err)
 	}
 }

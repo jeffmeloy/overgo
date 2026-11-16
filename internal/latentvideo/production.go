@@ -344,16 +344,20 @@ func newServedEncoder(ctx context.Context, format ClipFormat, finish ClipFinish,
 	return finishing, nil
 }
 
-// newFormatEncoder is the encoder a clip of the format is written by: a finished MP4 on NVENC where the FFmpeg lists
-// it, saying which encoder and, where not NVENC, why.
+// newFormatEncoder is the encoder a clip of the format is written by: a finished MP4 on NVENC, by an FFmpeg the
+// machine holds that lists it where one does, saying which encoder and, where not NVENC, why.
 func newFormatEncoder(ctx context.Context, format ClipFormat, fps int, pixels PixelRange, finished bool) (clipEncoder, string, error) {
 	if format.IsZero() {
 		encoder, err := NewClipEncoder(fps, pixels)
 		return encoder, "", err
 	}
-	ffmpeg, err := media.FFmpeg()
+	var asked []string
+	if finished {
+		asked = []string{nvencEncoder}
+	}
+	ffmpeg, err := media.ResolveFFmpeg("", asked...)
 	if err != nil {
-		return nil, "", fmt.Errorf("latent video: an MP4 clip is written through FFmpeg, and none resolves: set OVERGO_FFMPEG to an FFmpeg executable, or ask for \"format\": \"gif\": %w", err)
+		return nil, "", fmt.Errorf("latent video: an MP4 clip is written through FFmpeg, and none resolves: record one (%s), or ask for \"format\": \"gif\": %w", media.RecordClipRuntimesCommand, err)
 	}
 	if finished {
 		return newFinishedMP4Encoder(ctx, ffmpeg, fps, pixels)

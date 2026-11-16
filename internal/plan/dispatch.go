@@ -166,11 +166,7 @@ func ResolveDispatch(ctx context.Context, root string, request DispatchRequest) 
 	if err != nil {
 		return Dispatch{}, err
 	}
-	if document.parked, err = readParked(repository, head); err != nil {
-		return Dispatch{}, err
-	}
-	run, recorded := ReadMeasurementRun(repository)
-	if document.cardHolder, err = cardHolder(run, recorded, processcontrol.CardTurnPrefix); err != nil {
+	if document, err = besideThePlan(document, repository, head, processcontrol.CardTurnPrefix); err != nil {
 		return Dispatch{}, err
 	}
 	if other := otherLane(document, role); other != "" {
@@ -300,10 +296,39 @@ func selectDispatch(document Plan, reference string) (Dispatch, error) {
 	return finishDispatch(Dispatch{Complete: true}), nil
 }
 
+// besideThePlan is document with what the repository records beside it, which dispatch and admission both read: the
+// rows parked at head, and the card's holder, the measurement run or another process holding a turn named under turn.
+// Admission read neither, so while the readings campaign held the card on 2026-11-16 -next gave the step that needs
+// none and the gate refused it for the card step (admit-card/do).
+func besideThePlan(document Plan, repository, head, turn string) (Plan, error) {
+	var err error
+	if document.parked, err = readParked(repository, head); err != nil {
+		return Plan{}, err
+	}
+	run, recorded := ReadMeasurementRun(repository)
+	if document.cardHolder, err = cardHolder(run, recorded, turn); err != nil {
+		return Plan{}, err
+	}
+	return document, nil
+}
+
 // AdmitLanding refuses refs, landed together on document in the worktree at root, that dispatch would not give the
 // request's role: any step while a recorded stop holds its mode, a step that waits on a prerequisite or a decision,
 // another lane's row, and, for a worker, any step but the one dispatch names, the batch's earlier steps having left.
+// It reads what dispatch reads beside the plan (besideThePlan).
 func AdmitLanding(ctx context.Context, root string, document Plan, request DispatchRequest, refs []Ref) error {
+	return admitLanding(ctx, root, document, request, refs, processcontrol.CardTurnPrefix)
+}
+
+// admitLanding is AdmitLanding with the card's turns read under turn.
+func admitLanding(ctx context.Context, root string, document Plan, request DispatchRequest, refs []Ref, turn string) error {
+	repository, head, err := resolveRevision(ctx, root, gitHeadRevision)
+	if err != nil {
+		return err
+	}
+	if document, err = besideThePlan(document, repository, head, turn); err != nil {
+		return err
+	}
 	role, err := AutomationRole(request.Role)
 	if err != nil {
 		return err

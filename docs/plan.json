@@ -48,7 +48,7 @@
         {
           "id": "do",
           "title": "A preset chosen on a page reaches the model without the form's untouched defaults overriding it",
-          "verify": "go test ./internal/server -count=1 -run '^TestAPresetChoiceSubmitsOnlyWhatThePersonSet$'",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserPresetChoiceSubmitsOnlyWhatThePersonSet$'",
           "files": [
             "internal/server"
           ],

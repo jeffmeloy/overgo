@@ -20,41 +20,6 @@
       ]
     },
     {
-      "id": "card-free-dispatch",
-      "title": "While another process holds the card, dispatch gives out the next step that needs no card",
-      "steps": [
-        {
-          "id": "do",
-          "title": "While another process holds the card, dispatch gives out the next step that needs no card",
-          "verify": "go test ./internal/plan -count=1 -run '^TestWhileTheCardIsHeldDispatchGivesAStepThatNeedsNone$'",
-          "files": [
-            "internal/plan",
-            "cmd/plan",
-            "internal/processcontrol",
-            "internal/cuda/driver/driver.go",
-            "internal/landing",
-            "skill.md"
-          ],
-          "rationale": "Serves: the owner's review of 2026-11-14, from a read of LoopForge, whose scheduler starts any step whose dependencies are done: ours gives out one step, and when it waits for the card the session waits too.\n\nThe evidence: dispatch already passes over a step marked NeedsCard while the card is held (selectDispatch, dispatchPriority), and admits the step it gives out; but the card counts as held only while a measurement run holds it (MeasurementRun.HoldsTheCard), never while a render, a run of the lanes or a landing holds the card's turn, which on 2026-11-14 held it for hours. NeedsCard is set by hand: of 73 open steps 54 carry it, 49 of them with a check that sets OVERGO_CUDA_TEST=1; one such check carries none (cycle-lanes/do), and five carry it for work that needs the card though their check does not (rendering a preset's readings, recording ComfyUI, training).\n\nThe change: the card counts as held while any other process holds its turn, read from the turn's record without opening the card; a step needs the card where it is marked so or its check runs on the card (the landing's onTheCard, moved where dispatch reads it); while the card is held, dispatch and admission give out the first step that needs none, as they do for a measurement run.\n\nCheck: TestWhileTheCardIsHeldDispatchGivesAStepThatNeedsNone holds the card's turn in another process and holds dispatch to the first step whose check and mark need no card, and to the card step once the turn is free.\n\nNote: files set to internal/plan, cmd/plan, internal/processcontrol, internal/cuda/driver/driver.go, internal/landing, skill.md: the card's turn prefix is processcontrol's and driver builds the turn's name on it; the landing's onTheCard moves to plan, its tests name plan's setting; skill.md's rule names the new check"
-        }
-      ]
-    },
-    {
-      "id": "waiter-bound",
-      "title": "The turn test fails, not hangs, when a waiter says nothing as the turn passes",
-      "steps": [
-        {
-          "id": "do",
-          "title": "TestAWaiterSaysEachNewHolder bounds its wait for the third's line",
-          "verify": "go test ./internal/processcontrol -count=1 -run '^TestAWaiterSaysEachNewHolder$'",
-          "files": [
-            "internal/processcontrol/turn_windows_test.go"
-          ],
-          "rationale": "Serves: a check that fails says so, never holds the gate for ever.\n\nThe evidence: turn-holder/do's undo run (2026-11-15) restored the waiter without its watch and ran TestAWaiterSaysEachNewHolder, which reads the third probe's next line before telling the second to give its turn up: the third said nothing, the second held the turn, and the check, run with no timeout, waited 32 minutes until its probes were ended by hand.\n\nThe change: the test reads the third's line apart and fails, on its assertion, when no line comes within a bound far past the milliseconds the watch takes, so the undo run of a waiter without the watch is evidence in a minute.\n\nCheck: TestAWaiterSaysEachNewHolder fails on its assertion, not by hanging, with the watch removed."
-        }
-      ]
-    },
-    {
       "id": "turn-outcome",
       "title": "A wait for the card is recorded under the stage that waits, not the one before",
       "steps": [
@@ -144,6 +109,21 @@
             "cmd/loop/leftovers.go"
           ],
           "rationale": "Note: Serves: the space floor compares what a run needs, from a record a run wrote, with what the disk has, read when the floor is read; no constant holds this machine's figure.\n\nThe evidence: internal/landing/space.go's largestCheckWrites and measurementRunWrites were measured by hand on this machine on 2026-10-12 and 10-13, with a note to measure again; cmd/loop/leftovers.go's checkoutCacheBytes is the same figure. On 2026-11-15 dispatch-next/do was refused on space at 34.1 GiB free while a runaway's page file had taken the disk, 268 GB free fifteen minutes later.\n\nThe change: a landing and a measurement run record their own greatest fall of free space; the floor is read from the last such record, and the two constants, the note and checkoutCacheBytes go.\n\nCheck: TestTheSpaceFloorIsReadFromTheLastRecordedFall holds the floor to a recorded fall, not to a constant."
+        }
+      ]
+    },
+    {
+      "id": "waiter-bound",
+      "title": "The turn test fails, not hangs, when a waiter says nothing as the turn passes",
+      "steps": [
+        {
+          "id": "do",
+          "title": "TestAWaiterSaysEachNewHolder bounds its wait for the third's line",
+          "verify": "go test ./internal/processcontrol -count=1 -run '^TestAWaiterSaysEachNewHolder$'",
+          "files": [
+            "internal/processcontrol/turn_windows_test.go"
+          ],
+          "rationale": "Serves: a check that fails says so, never holds the gate for ever.\n\nThe evidence: turn-holder/do's undo run (2026-11-15) restored the waiter without its watch and ran TestAWaiterSaysEachNewHolder, which reads the third probe's next line before telling the second to give its turn up: the third said nothing, the second held the turn, and the check, run with no timeout, waited 32 minutes until its probes were ended by hand.\n\nThe change: the test reads the third's line apart and fails, on its assertion, when no line comes within a bound far past the milliseconds the watch takes, so the undo run of a waiter without the watch is evidence in a minute.\n\nCheck: TestAWaiterSaysEachNewHolder fails on its assertion, not by hanging, with the watch removed.\n\nNote: 2026-11-16: the drafted cure, each probe line read within a minute (tmp/waiter-bound/line-bound.patch), fails repoanalysis TestNoFixedTimers (a duration the source fixes; wait on the operation's own progress under caller cancellation), so it is parked. The hang's cause is wider than this test: runrecord adds -timeout=0 to every go test check that names none (verify_command.go), so any check that waits on something a fault never sends waits for ever, the undo run's among them. The cure belongs where checks run, as check-memory bounds their memory: a check's time bound by what its command took when it last passed, read from a record a run wrote, not fixed in a test. Moved after the ready rows until that is designed."
         }
       ]
     },

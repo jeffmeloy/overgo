@@ -22,7 +22,7 @@ func TestACheckOnTheCardHoldsTheCardsTurn(t *testing.T) {
 	t.Cleanup(func() { laneTurn, lanes = turn, gated })
 	fixture := newRowFixture(t, map[string]string{"internal/p/p.go": "package p\n\nfunc a() string { return \"base\" }\n"})
 	editPlan(t, fixture, func(document *plan.Plan) {
-		document.Items[0].Steps[0].Verify = cudaTestSetting + " go test ./internal/p -run '^TestA$' -count=1"
+		document.Items[0].Steps[0].Verify = plan.CardCheckSetting + " go test ./internal/p -run '^TestA$' -count=1"
 	})
 	fixture.git("add", "-A")
 	fixture.git("commit", "-q", "-m", "the row's check")

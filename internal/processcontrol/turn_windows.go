@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"syscall"
 
@@ -117,6 +118,43 @@ func turnHolder(name string) (turnRecord, bool, error) {
 	}
 	users, err := turnUsers(name)
 	return record, slices.Contains(users, record.Process), err
+}
+
+// TurnsHeld says each turn whose name begins with prefix that another process holds now, its holder as a waiter names
+// it (holderSaid), read from the holders' records without taking or waiting on any turn: dispatch reads so whether a
+// render, a run of the lanes or a landing holds the card, which on 2026-11-14 held it for hours while dispatch gave out
+// a step that waited on it (card-free-dispatch/do). A record its holder no longer has open names no one.
+func TurnsHeld(prefix string) ([]string, error) {
+	admission, err := resourceAdmissionPath(prefix)
+	if err != nil {
+		return nil, err
+	}
+	records, err := filepath.Glob(filepath.Join(filepath.Dir(admission), resourceObjectPrefix+"*"+turnRecordFile))
+	if err != nil {
+		return nil, err
+	}
+	var held []string
+	for _, path := range records {
+		var record turnRecord
+		data, err := os.ReadFile(path)
+		if errors.Is(err, os.ErrNotExist) || err == nil && json.Unmarshal(data, &record) != nil {
+			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("processcontrol: read the turns held: %w", err)
+		}
+		if !strings.HasPrefix(record.Name, prefix) || record.Process == uint32(os.Getpid()) {
+			continue
+		}
+		users, err := fsatomic.FileUsers(path)
+		if err != nil {
+			return nil, fmt.Errorf("processcontrol: read the turn %q: %w", record.Name, err)
+		}
+		if slices.Contains(users, record.Process) {
+			held = append(held, holderSaid(record, true))
+		}
+	}
+	return held, nil
 }
 
 // turnUsers are the processes holding the turn's record open: its holder keeps it open while it holds the turn

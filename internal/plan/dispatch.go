@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"overgo/internal/processcontrol"
 	"overgo/internal/worklease"
 )
 
@@ -169,7 +170,9 @@ func ResolveDispatch(ctx context.Context, root string, request DispatchRequest) 
 		return Dispatch{}, err
 	}
 	run, recorded := ReadMeasurementRun(repository)
-	document.cardHeld = recorded && run.HoldsTheCard()
+	if document.cardHolder, err = cardHolder(run, recorded, processcontrol.CardTurnPrefix); err != nil {
+		return Dispatch{}, err
+	}
 	if other := otherLane(document, role); other != "" {
 		return finishDispatch(Dispatch{Waiting: other}), nil
 	}
@@ -229,7 +232,7 @@ func dispatchPriority(document Plan) ([]Ref, error) {
 		}
 		visited[ref.String()] = true
 		if ready[ref.String()] {
-			if !awaiting[item.ID] && !slices.Contains(document.parked, ref.String()) && !(document.cardHeld && step.NeedsCard) {
+			if !awaiting[item.ID] && !slices.Contains(document.parked, ref.String()) && !document.cardWaits(step) {
 				ordered = append(ordered, ref)
 			}
 			return
@@ -264,7 +267,7 @@ func selectDispatch(document Plan, reference string) (Dispatch, error) {
 	}
 	awaiting := awaitingDecision(document)
 	if item, step, open := Current(document); open && !awaiting[item.ID] && reference == "" &&
-		!slices.Contains(document.parked, item.ID+"/"+step.ID) && !(document.cardHeld && step.NeedsCard) {
+		!slices.Contains(document.parked, item.ID+"/"+step.ID) && !document.cardWaits(step) {
 		// Preserve the empty-rung dispatch until the rung is given steps.
 		return stepDispatch(item, step), nil
 	}
@@ -423,11 +426,10 @@ func parkedNote(document Plan) []string {
 	if len(document.parked) != 0 {
 		notes = append(notes, "parked until a commit: "+strings.Join(document.parked, ", "))
 	}
-	// Steps that need the card wait while a run holds it, said, so an empty dispatch is not read as an empty plan.
-	for _, item := range document.Items {
-		if document.cardHeld && slices.ContainsFunc(item.Steps, func(step Step) bool { return step.NeedsCard }) {
-			return append(notes, "the measurement run holds the graphics card, which the steps left need")
-		}
+	// Steps that need the card wait while another holds it, said with its holder, so an empty dispatch is not read as
+	// an empty plan.
+	if slices.ContainsFunc(document.Items, func(item Item) bool { return slices.ContainsFunc(item.Steps, document.cardWaits) }) {
+		return append(notes, document.cardHolder+" holds the graphics card, which the steps left need")
 	}
 	return notes
 }

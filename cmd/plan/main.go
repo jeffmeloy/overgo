@@ -87,7 +87,7 @@ func main() {
 	runCmd := flag.String("run", "", "with -addstep: a run step's command, which the driver runs with no worker; -record names the file it writes, which -vcmd reads")
 	record := flag.String("record", "", "with -addstep -run: the file the run step's command writes")
 	files := flag.String("files", "", "with -add, -addstep or -setfiles: the files and directories, comma-separated, a code step's change may write; its landing commits only them and names a changed path it left out")
-	needsCard := flag.Bool("needs-card", false, "with -addstep: the step's work needs the graphics card, so dispatch passes over it while a measurement run holds the card")
+	needsCard := flag.Bool("needs-card", false, "with -addstep: the step's work needs the graphics card though its check does not set OVERGO_CUDA_TEST=1, so dispatch passes over it while another holds the card")
 	role := flag.String("role", "", "lane role for dispatch (default OVERGO_AUTOMATION_ROLE, then unassigned)")
 	worker := flag.String("worker", "", "stable session identity a stop is scoped by (default OVERGO_AUTOMATION_WORKER)")
 	handled, err := commanddoc.Plan.Command.ParseCommandLine(flag.CommandLine, os.Stdout)

@@ -8,6 +8,7 @@ import (
 	"sync"
 	"testing"
 
+	"overgo/internal/plan"
 	"overgo/internal/processcontrol"
 	"overgo/internal/testcheck"
 )
@@ -90,7 +91,7 @@ func TestALandingHoldsTheCardForItsCardStagesAlone(t *testing.T) {
 		t.Errorf("the landing waited for the card's turn before its host stages passed, or ran its lane without it:\n%s", before)
 	}
 	var order []string
-	for _, stage := range (&landing{verifiers: []string{cudaTestSetting + " go test ./internal/p -run '^TestP$'"}}).checks() {
+	for _, stage := range (&landing{verifiers: []string{plan.CardCheckSetting + " go test ./internal/p -run '^TestP$'"}}).checks() {
 		order = append(order, stage.name)
 	}
 	if slices.Index(order, "verify") > slices.Index(order, "test") {

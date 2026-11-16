@@ -48,7 +48,6 @@ import (
 	"overgo/internal/processcontrol"
 	"overgo/internal/quietmachine"
 	"overgo/internal/repoanalysis"
-	"overgo/internal/runrecord"
 	"overgo/internal/testevidence"
 )
 
@@ -375,7 +374,7 @@ var cardStages = []string{"lanes", "scorecard"}
 // per context and waited out a render's clip at each: tabfm-cases/do's waited on its first context for a Wan clip
 // while its trainer, run with the turn held, takes 11.5 minutes in all (check-turn/do).
 func (l *landing) onCard(stage string) (bool, error) {
-	if stage == "verify" && slices.ContainsFunc(l.verifiers, onTheCard) {
+	if stage == "verify" && slices.ContainsFunc(l.verifiers, plan.OnTheCard) {
 		return true, nil
 	}
 	if !slices.Contains(cardStages, stage) {
@@ -383,19 +382,6 @@ func (l *landing) onCard(stage string) (bool, error) {
 	}
 	return l.reachesCard()
 }
-
-// onTheCard says a step's check runs on the graphics card: it sets OVERGO_CUDA_TEST=1, without which cudatest.Require
-// skips every test that reaches the card. A check that needs model files alone (the modeltest tag) runs on the host
-// (cheap-first/form).
-func onTheCard(verify string) bool {
-	parsed, err := runrecord.ParseVerify(verify)
-	return err == nil && slices.ContainsFunc(parsed.Segments, func(segment runrecord.VerifySegment) bool {
-		return slices.Contains(segment.Env, cudaTestSetting)
-	})
-}
-
-// cudaTestSetting is how a check asks for the card: the setting cudatest.Require reads.
-const cudaTestSetting = "OVERGO_CUDA_TEST=1"
 
 // stagePrefix opens the refusal of a stage, before the stage's name.
 const stagePrefix = "land: "

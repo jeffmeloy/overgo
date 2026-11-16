@@ -21,9 +21,14 @@ import (
 // quietmachine.HeldEnvironment does for the quiet machine, so a child its holder waits on never waits for its parent.
 const TurnEnvironment = "OVERGO_TURNS_HELD"
 
-// turnRecord is what a holder writes where a waiter reads it: its process, what it holds the turn for and since when,
-// and, where it counts its work (TurnCount), how far it has come and when it got there.
+// CardTurnPrefix begins the name of every graphics card's turn (driver.CardTurn), by which a reader finds the card's
+// holder without opening the card (TurnsHeld).
+const CardTurnPrefix = "overgo-card-turn:"
+
+// turnRecord is what a holder writes where a waiter reads it: the turn's name, its process, what it holds the turn for
+// and since when, and, where it counts its work (TurnCount), how far it has come and when it got there.
 type turnRecord struct {
+	Name    string    `json:"name,omitzero"`
 	Process uint32    `json:"process"`
 	Purpose string    `json:"purpose"`
 	Since   time.Time `json:"since"`
@@ -192,7 +197,7 @@ func takePlace(name, purpose string, output io.Writer) (give func() error, count
 	if busy {
 		fmt.Fprintf(output, "%s took the turn %s after %s\n", processLabel(uint32(os.Getpid())), name, time.Since(started).Round(time.Millisecond))
 	}
-	record := turnRecord{Process: uint32(os.Getpid()), Purpose: purpose, Since: time.Now()}
+	record := turnRecord{Name: name, Process: uint32(os.Getpid()), Purpose: purpose, Since: time.Now()}
 	rewrite, unrecord, err := recordTurn(name, record)
 	if err != nil {
 		return nil, nil, errors.Join(err, leave())

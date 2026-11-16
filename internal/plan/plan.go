@@ -43,8 +43,8 @@ type Step struct {
 	// and what the build regenerates, and a refused one names a changed path it left out with the plan -setfiles command
 	// that lists it. A step that lists none may write anywhere a landing admits.
 	Files []string `json:"files,omitempty"`
-	// NeedsCard says the step's work needs the graphics card: while a measurement run holds it, dispatch passes over the
-	// step for one that does not.
+	// NeedsCard says the step's work needs the graphics card where its check does not run on it (OnTheCard): while
+	// another holds the card, dispatch passes over the step for one that does not (cardWaits).
 	NeedsCard bool `json:"needs_card,omitzero"`
 	// Campaign detail carried from the merged design record (owner directive
 	// 2026-08-16: one plan document). Rationale says why the row exists;
@@ -112,9 +112,9 @@ type Plan struct {
 	Answered []Decision `json:"answered,omitempty"`
 	// parked are the rows dispatch passes over at this commit (ParkRow); they are the worktree's state, not the plan's.
 	parked []string
-	// cardHeld says a measurement run holds the graphics card at this reading (MeasurementRun.HoldsTheCard): the
-	// machine's state, not the plan's.
-	cardHeld bool
+	// cardHolder names who holds the graphics card at this reading (cardHolder), empty while it is free: the machine's
+	// state, not the plan's.
+	cardHolder string
 }
 
 // Retirement is a step, or a row with every step it had, removed without landing, as item/step or item, and why.

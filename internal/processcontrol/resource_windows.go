@@ -20,8 +20,11 @@ var (
 	resourceJobs          = map[string]uintptr{}
 )
 
+// resourceObjectPrefix begins the name of every resource's objects and files (resourceObjectName).
+const resourceObjectPrefix = "Overgo.Resource."
+
 func resourceObjectName(name string) string {
-	return fmt.Sprintf("Overgo.Resource.%x", sha256.Sum256([]byte(name)))
+	return fmt.Sprintf("%s%x", resourceObjectPrefix, sha256.Sum256([]byte(name)))
 }
 
 // claimResource retains the handle: membership alone does not retain the name.

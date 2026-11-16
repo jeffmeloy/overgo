@@ -4,11 +4,13 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+
+	"overgo/internal/processcontrol"
 )
 
 // CardTurn names the turn every user of the card whose identity is uuid queues for (processcontrol.TakeTurn): each
 // context is created in it.
-func CardTurn(uuid string) string { return "overgo-card-turn:" + uuid }
+func CardTurn(uuid string) string { return processcontrol.CardTurnPrefix + uuid }
 
 // CardTurnOf names the turn of the card of ordinal (CardTurn), for a job that takes it once for the processes it runs
 // on the card, which ride on its place (processcontrol.TurnEnvironment): a landing's lanes and a measurement run's

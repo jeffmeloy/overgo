@@ -76,7 +76,7 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 		branches[name] = v
 		return v, nil
 	}
-	// The conditioned branch scales the values of a weighted prompt's rows; the negative prompt is weighed as written.
+	// Each branch scales the values of its prompt's rows by that prompt's weights.
 	conditional, e := load("positive", positive, nil, settings.weights...)
 	if e != nil {
 		return nil, e
@@ -279,7 +279,7 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 				if len(skip) > 0 {
 					name = "negative-skipped"
 				}
-				v, e := load(name, negative, skip)
+				v, e := load(name, negative, skip, settings.negativeWeights...)
 				if e != nil {
 					return e
 				}

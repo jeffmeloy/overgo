@@ -42,21 +42,6 @@
       "steps": []
     },
     {
-      "id": "prompt-weights",
-      "title": "Prompt weights bind the token rows the encoder runs, the positive and the negative prompt's alike",
-      "steps": [
-        {
-          "id": "negative",
-          "title": "A negative prompt's weights reach its rows, and a prompt's weights ride with its conditioning through the cache",
-          "verify": "go test ./internal/latentimage -count=1 -run '^TestANegativePromptsWeightsReachItsRows$'",
-          "files": [
-            "internal/latentimage"
-          ],
-          "rationale": "Serves: a weighted negative prompt guides by what its weights ask, and a prompt's weights are its conditioning's (SQA-382, P2: model output).\n\nThe evidence (the review's, shown from source; split from prompt-weights/rows on 2026-11-16): the Krea graph scales the values of the positive prompt's rows alone (CompileDenoiserProgram takes one textWeights, the negative guide none), and the rotary sampler weighs its positive pass alone (settings.weights from conditioner.weights(request.Prompt)), so a negative prompt's weights are lost; and the rotary path renders and tokenizes the prompt again for its weights after the conditioning cache answered, where the weights belong with the conditioning they were rendered beside.\n\nThe change: the negative guide carries its rows' weights into the guided branch's value scale, the rotary sampler weighs its negative pass by the negative prompt's, and the conditioning cache keeps each prompt's weights with its hidden state.\n\nCheck: TestANegativePromptsWeightsReachItsRows."
-        }
-      ]
-    },
-    {
       "id": "moss-import-admission",
       "title": "The MOSS Ultra import admits its metadata, destination and storage before reading any payload",
       "steps": [

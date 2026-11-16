@@ -38,14 +38,17 @@ type DenoiserProgram struct {
 	InTembMod *tensor.Tensor // (ModFields*Hidden)      host AdaLN-single vector
 	InDelta   *tensor.Tensor // (1)                     flow Euler delta
 	// InNegative is the negative prompt's text conditioning (Hidden, textSeq) where the program guides by it
-	// (NegativeGuide), nil otherwise; negativeBias masks its padding as keyBias the prompt's.
-	InNegative   *tensor.Tensor
-	negativeBias *tensor.Tensor
-	negativeData []float32
-	keyBias      *tensor.Tensor
-	keyData      []float32
-	// valueScale scales each row's attention value (compileWeightedDenoiserProgram), none for a prompt that weights
-	// nothing.
+	// (NegativeGuide), nil otherwise; negativeBias masks its padding as keyBias the prompt's, and negativeScale weighs
+	// its rows' values as valueScale the prompt's.
+	InNegative        *tensor.Tensor
+	negativeBias      *tensor.Tensor
+	negativeData      []float32
+	negativeScale     *tensor.Tensor
+	negativeScaleData []float32
+	keyBias           *tensor.Tensor
+	keyData           []float32
+	// valueScale scales each row's attention value by the prompt's weights (CompileDenoiserProgram's textWeights),
+	// none for a prompt that weights nothing.
 	valueScale *tensor.Tensor
 	valueData  []float32
 
@@ -77,6 +80,9 @@ func CompileDenoiserProgram(t TransformerSpec, eps float32, textMask []bool, tex
 	guided := guide.Mask != nil && guide.Attention.On()
 	if guided && len(guide.Mask) != textSeq {
 		return nil, fmt.Errorf("denoiser program: %d negative prompt rows for %d prompt rows", len(guide.Mask), textSeq)
+	}
+	if guided && guide.Weights != nil && len(guide.Weights) != textSeq {
+		return nil, fmt.Errorf("denoiser program: %d negative prompt weights for %d rows", len(guide.Weights), textSeq)
 	}
 	if err := guide.Attention.Validate(); err != nil {
 		return nil, fmt.Errorf("denoiser program: %w", err)
@@ -128,14 +134,9 @@ func CompileDenoiserProgram(t TransformerSpec, eps float32, textMask []bool, tex
 	p.InTemb = b.Input("timestep_embed", dtype.F32, tensor.MustShape(h))
 	p.InTembMod = b.Input("timestep_mod", dtype.F32, tensor.MustShape(uint64(t.ModFields)*h))
 	p.InDelta = b.Input("flow_delta", dtype.F32, tensor.MustShape(tensor.SingletonExtent))
-	if textWeights != nil {
-		// The image rows weigh one: only a weighted prompt's tokens move.
-		p.valueScale = b.Input("denoiser_value_scale", dtype.F32, tensor.MustShape(tensor.SingletonExtent, tensor.SingletonExtent, uint64(seq)))
-		p.valueData = make([]float32, seq)
-		copy(p.valueData, textWeights)
-		for index := textSeq; index < seq; index++ {
-			p.valueData[index] = unweighted
-		}
+	valueShape := tensor.MustShape(tensor.SingletonExtent, tensor.SingletonExtent, uint64(seq))
+	if p.valueData = rowScales(textWeights, seq); p.valueData != nil {
+		p.valueScale = b.Input("denoiser_value_scale", dtype.F32, valueShape)
 	}
 	if p.keyData = paddingBias(textMask, seq); p.keyData != nil {
 		p.keyBias = b.Input("denoiser_key_bias", dtype.F32, tensor.MustShape(uint64(seq)))
@@ -146,6 +147,9 @@ func CompileDenoiserProgram(t TransformerSpec, eps float32, textMask []bool, tex
 		negative = p.InNegative
 		if p.negativeData = paddingBias(guide.Mask, seq); p.negativeData != nil {
 			p.negativeBias = b.Input("denoiser_negative_key_bias", dtype.F32, tensor.MustShape(uint64(seq)))
+		}
+		if p.negativeScaleData = rowScales(guide.Weights, seq); p.negativeScaleData != nil {
+			p.negativeScale = b.Input("denoiser_negative_value_scale", dtype.F32, valueShape)
 		}
 	}
 
@@ -227,7 +231,7 @@ func CompileDenoiserProgram(t TransformerSpec, eps float32, textMask []bool, tex
 				return b.Concat(own, image(shared), tensor.SingletonExtent)
 			}
 			m1 := modulated(negative)
-			against := attend(beside(b.MulMat(toQ, m1), q), beside(b.MulMat(toK, m1), k), beside(b.MulMat(toV, m1), v), nil, p.negativeBias)
+			against := attend(beside(b.MulMat(toQ, m1), q), beside(b.MulMat(toK, m1), k), beside(b.MulMat(toV, m1), v), p.negativeScale, p.negativeBias)
 			attn = b.Concat(text(attn), model.BuildNormalizedAttention(b, image(attn), image(against), guide.Attention), tensor.SingletonExtent)
 			negative = b.Add(negative, output(text(against), b.MulMat(toGate, m1)))
 			negative = b.Add(negative, feedForward(negative))
@@ -335,13 +339,41 @@ func (p *DenoiserProgram) hostFeeds(
 	feeds[p.InTemb] = reference.Value{Shape: p.InTemb.Shape, Data: dtype.Float64SliceToFloat32(temb)}
 	feeds[p.InTembMod] = reference.Value{Shape: p.InTembMod.Shape, Data: dtype.Float64SliceToFloat32(tembMod)}
 	feeds[p.InDelta] = reference.Value{Shape: p.InDelta.Shape, Data: make([]float32, tensor.SingletonExtent)}
-	if p.keyBias != nil {
-		feeds[p.keyBias] = reference.Value{Shape: p.keyBias.Shape, Data: p.keyData}
-	}
-	if p.valueScale != nil {
-		feeds[p.valueScale] = reference.Value{Shape: p.valueScale.Shape, Data: p.valueData}
+	for _, row := range p.staticRows() {
+		feeds[row.node] = reference.Value{Shape: row.node.Shape, Data: row.data}
 	}
 	return feeds, nil
+}
+
+// staticRow is an input of a program whose rows are fixed when it compiles: a prompt's padding mask as a key bias, or
+// its weights as a value scale.
+type staticRow struct {
+	name string
+	node *tensor.Tensor
+	data []float32
+}
+
+// staticRows are the fixed rows a program reads, the prompt's and the negative prompt's, those it holds.
+func (p *DenoiserProgram) staticRows() []staticRow {
+	rows := []staticRow{
+		{"key bias", p.keyBias, p.keyData}, {"value scale", p.valueScale, p.valueData},
+		{"negative key bias", p.negativeBias, p.negativeData}, {"negative value scale", p.negativeScale, p.negativeScaleData},
+	}
+	return slices.DeleteFunc(rows, func(row staticRow) bool { return row.node == nil })
+}
+
+// rowScales are a prompt's weights as a value scale over a sequence of rows, the prompt's first: the image rows weigh
+// one, so only a weighted prompt's rows move. A prompt that weights nothing has none.
+func rowScales(weights []float32, rows int) []float32 {
+	if weights == nil {
+		return nil
+	}
+	scales := make([]float32, rows)
+	for index := range scales {
+		scales[index] = unweighted
+	}
+	copy(scales, weights)
+	return scales
 }
 
 // zeroCenteredRMSNorm mirrors Krea2RMSNorm: x/sqrt(mean(x^2)+eps) * (1+weight),
@@ -376,14 +408,16 @@ func buildInterleavedRoPE(b *tensor.Builder, x *tensor.Tensor, axes [tensor.Trip
 }
 
 // NegativeGuide is a negative prompt a step graph guides by through NAG (arXiv 2505.21179), its rows' padding mask and
-// the attention guidance that weighs it, as guidance-ops/nag-krea reads the paper for joint attention: the negative
-// prompt's rows are a stream of their own through every block, as the prompt's are, attending to themselves and the
-// image rows, whose queries, keys and values are the one image stream's; NAG replaces the image rows' attention output,
-// before its gate, with its combination of theirs against the prompt and against the negative prompt
-// (model.BuildNormalizedAttention). The negative prompt's values are not weighted. A guide with no mask, or its
-// attention guidance off, guides by nothing.
+// weights and the attention guidance that weighs it, as guidance-ops/nag-krea reads the paper for joint attention: the
+// negative prompt's rows are a stream of their own through every block, as the prompt's are, attending to themselves
+// and the image rows, whose queries, keys and values are the one image stream's; NAG replaces the image rows' attention
+// output, before its gate, with its combination of theirs against the prompt and against the negative prompt
+// (model.BuildNormalizedAttention). Weights scale the negative prompt's rows' values as the prompt's weights scale its
+// own (weightedSpans), none for a negative prompt that weights nothing. A guide with no mask, or its attention guidance
+// off, guides by nothing.
 type NegativeGuide struct {
 	Mask      []bool
+	Weights   []float32
 	Attention sampling.NormalizedAttention
 }
 

@@ -452,7 +452,7 @@ group typed-test-held-outside
 class: test-held
 surface: outside
 declarations: 80
-lines: 1005
+lines: 1002
 members: internal/agenttool/stream.go StreamEvent.ArtifactContent StreamTerminal.ArtifactContent
 members: internal/benchmarkrecord/comparison.go BenchmarkComparisonRecord.Batch BenchmarkComparisonRecord.ValidateIdentity
 members: internal/controllertrain/corpus.go Corpus.PublicationBatch Corpus.Split

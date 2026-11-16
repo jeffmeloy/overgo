@@ -64,20 +64,18 @@ func (c *modelConditioner) input(prompt string) (textInput, []float32, error) {
 	if err != nil {
 		return text, nil, err
 	}
-	for _, binding := range c.catalog.Bindings() {
-		if binding.Target == c.catalog.Weights.TokenEmbedding.Name {
-			rows, err := safetensors.ReadTensorRowsF32(filepath.Join(c.root, "text_encoder"), binding.Source, int(c.catalog.Spec.EmbeddingLength), text.IDs)
-			return text, rows, err
-		}
-	}
-	return text, nil, fmt.Errorf("model conditioning has no source token embedding binding")
+	rows, err := c.embedding(text)
+	return text, rows, err
 }
 
-// weights are the attention-value weights of a prompt's rendered rows (weightedSpans), none for a prompt that weights
-// nothing: what the prompt says alone, so a prompt whose conditioning is kept is weighed without encoding it again.
-func (c *modelConditioner) weights(prompt string) ([]float32, error) {
-	text, err := renderTextInput(c.tokenizer, prompt, c.template)
-	return text.Weights, err
+// embedding is a rendered prompt's token embedding rows, as the text encoder reads them.
+func (c *modelConditioner) embedding(text textInput) ([]float32, error) {
+	for _, binding := range c.catalog.Bindings() {
+		if binding.Target == c.catalog.Weights.TokenEmbedding.Name {
+			return safetensors.ReadTensorRowsF32(filepath.Join(c.root, "text_encoder"), binding.Source, int(c.catalog.Spec.EmbeddingLength), text.IDs)
+		}
+	}
+	return nil, fmt.Errorf("model conditioning has no source token embedding binding")
 }
 
 func (c *modelConditioner) encode(ctx context.Context, session *graphruntime.ResidentSession, text textInput, embedding []float32, observe func(string, []float32) error) ([]float32, error) {

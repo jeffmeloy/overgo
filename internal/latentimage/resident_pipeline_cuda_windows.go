@@ -158,8 +158,9 @@ func (p *ResidentImagePipeline) loadText(ctx context.Context) (err error) {
 // bindDenoiser binds the pipeline's denoiser program to the transformer's
 // weights, which the session shares by name: a program compiled for another
 // prompt's mask takes the weights the program it replaces holds, and loads
-// none. The replaced program is released before the new mask is bound, since
-// the two masks have one name and a bound input is shared by its name.
+// none. The replaced program is released before the new rows are bound, so
+// its rows leave with it; a bound input is shared by its name, so each fixed
+// row's name holds its data's digest.
 func (p *ResidentImagePipeline) bindDenoiser(ctx context.Context, replaced *graphruntime.ResidentProgram) (*graphruntime.ResidentProgram, error) {
 	denoiser := p.Denoiser
 	program, err := compileResidentWeights(
@@ -171,16 +172,13 @@ func (p *ResidentImagePipeline) bindDenoiser(ctx context.Context, replaced *grap
 	if err == nil {
 		err = p.runtime.Release(ctx, replaced)
 	}
-	if err == nil && denoiser.valueScale != nil {
-		err = p.runtime.BindF32(ctx, program, fmt.Sprintf("static:resident image denoiser value scale:%x", sha256.Sum256(driver.Bytes(denoiser.valueData))), denoiser.valueScale, denoiser.valueData)
+	for _, row := range denoiser.staticRows() {
+		if err != nil {
+			break
+		}
+		err = p.runtime.BindF32(ctx, program, fmt.Sprintf("static:resident image denoiser %s:%x", row.name, sha256.Sum256(driver.Bytes(row.data))), row.node, row.data)
 	}
-	if err == nil && denoiser.negativeBias != nil {
-		err = p.runtime.BindF32(ctx, program, "static:resident image denoiser negative", denoiser.negativeBias, denoiser.negativeData)
-	}
-	if err != nil || denoiser.keyBias == nil {
-		return program, err
-	}
-	return program, p.runtime.BindF32(ctx, program, "static:resident image denoiser", denoiser.keyBias, denoiser.keyData)
+	return program, err
 }
 
 func (p *ResidentImagePipeline) prepareGeneration(ctx context.Context) (err error) {

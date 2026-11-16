@@ -27,9 +27,10 @@ type rotaryGeneration struct {
 	decoder            *VAEProgram
 	latent             *residentLatent
 	positive, negative []float32
-	// weights are the attention-value weights of the prompt's rows, none for a prompt that weights nothing.
-	weights  []float32
-	guidance float32
+	// weights are the attention-value weights of the prompt's rows, and negativeWeights the negative prompt's, none
+	// for a prompt that weights nothing.
+	weights, negativeWeights []float32
+	guidance                 float32
 }
 
 func loadRotaryGenerator(ctx context.Context, root string, profile Profile, request Request) (_ *Generator, err error) {
@@ -204,21 +205,27 @@ func (g *Generator) prepareRotary(ctx context.Context, request Request) (_ *Gene
 	// The request's prompts not encoded before pass through the text encoder
 	// together, a block at a time, so the device holds one block of it. An
 	// observed request reports every boundary, so it encodes what a cached
-	// prompt skips.
+	// prompt skips. Each prompt is rendered once, its rows' weights read from that
+	// rendering whether its conditioning is kept or encoded.
 	prompts := []string{request.Prompt}
 	if g.rotary.guidance != tensor.UnitScale {
 		prompts = append(prompts, request.NegativePrompt)
 	}
-	hidden := make([][]float32, len(prompts))
+	hidden, weights := make([][]float32, len(prompts)), make([][]float32, len(prompts))
 	var texts []textInput
 	var embeddings [][]float32
 	var missing []int
 	for index, prompt := range prompts {
+		text, err := renderTextInput(g.rotary.conditioner.tokenizer, prompt, g.rotary.conditioner.template)
+		if err != nil {
+			return nil, err
+		}
+		weights[index] = text.Weights
 		if cached, ok := g.rotary.conditioned.Lookup("", prompt); ok && g.observe == nil {
 			hidden[index] = cached
 			continue
 		}
-		text, embedding, err := g.rotary.conditioner.input(prompt)
+		embedding, err := g.rotary.conditioner.embedding(text)
 		if err != nil {
 			return nil, err
 		}
@@ -247,12 +254,9 @@ func (g *Generator) prepareRotary(ctx context.Context, request Request) (_ *Gene
 			}
 		}
 	}
-	g.rotary.positive, g.rotary.negative = hidden[0], nil
+	g.rotary.positive, g.rotary.weights, g.rotary.negative, g.rotary.negativeWeights = hidden[0], weights[0], nil, nil
 	if len(hidden) > negativeBranch {
-		g.rotary.negative = hidden[negativeBranch]
-	}
-	if g.rotary.weights, err = g.rotary.conditioner.weights(request.Prompt); err != nil {
-		return nil, err
+		g.rotary.negative, g.rotary.negativeWeights = hidden[negativeBranch], weights[negativeBranch]
 	}
 	g.prepared = true
 	return g, nil
@@ -268,7 +272,7 @@ func (g *Generator) integrateRotary(ctx context.Context) (*Generator, error) {
 		return nil, err
 	}
 	settings := g.rotarySettings(g.request, g.schedule, g.rotary.guidance)
-	settings.weights = g.rotary.weights
+	settings.weights, settings.negativeWeights = g.rotary.weights, g.rotary.negativeWeights
 	result, err := runRotarySampling(ctx, g.rotary.runtime, g.modelDir, g.rotary.transformer, g.shape.Height, g.shape.Width, initial, g.rotary.positive, g.rotary.negative, settings, g.observe)
 	if err != nil {
 		return nil, err

@@ -242,7 +242,7 @@ func (g *Generator) compilePrompt(request Request, gridH, gridW int) (promptProg
 		if err != nil {
 			return promptPrograms{}, err
 		}
-		prompt.negative, guides = &negative, []NegativeGuide{{Mask: negative.mask, Attention: guide.attention}}
+		prompt.negative, guides = &negative, []NegativeGuide{{Mask: negative.mask, Weights: negative.weights, Attention: guide.attention}}
 	}
 	prompt.denoiser, err = CompileDenoiserProgram(
 		g.spec.Transformer, float32(g.spec.Transformer.NormEps), prompt.mask, prompt.weights, gridH, gridW, dtype.BF16, guides...,

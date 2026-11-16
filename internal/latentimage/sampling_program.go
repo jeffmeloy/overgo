@@ -15,9 +15,9 @@ type rotarySamplingSpec struct {
 	varies sampling.Guidance
 	// override is what the negative branch changes of the transformer's blocks (sampling.BlockOverride).
 	override sampling.BlockOverride
-	// weights are the conditioned branch's text rows' attention-value weights (weightedSpans), none for a prompt that
-	// weights nothing.
-	weights []float32
+	// weights are the conditioned branch's text rows' attention-value weights (weightedSpans), and negativeWeights the
+	// negative branch's, none for a prompt that weights nothing.
+	weights, negativeWeights []float32
 	// sampler is the request's sampler (sampling.Schedule), flow Euler where it names none, and seed the request's seed,
 	// from which ER-SDE draws its fresh noise.
 	sampler string

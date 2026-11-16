@@ -8,6 +8,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -17,6 +18,7 @@ import (
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 	"overgo/internal/torchrng"
 )
 
@@ -176,5 +178,35 @@ func TestMOSSSamplingCUDAGolden(t *testing.T) {
 				t.Fatalf("cancelled run error=%v", e)
 			}
 		})
+	}
+}
+
+// TestTheRotarySamplersNegativePassWeighsItsPrompt holds the negative prompt's weights in the rotary sampler on the
+// device: the update steps by negative + g*(positive - negative), so with the prompt as its own negative and its weights
+// on both passes the two predictions are one and the guidance scale moves nothing; with the negative pass's weights
+// left off, the passes differ and the scale moves the result.
+func TestTheRotarySamplersNegativePassWeighsItsPrompt(t *testing.T) {
+	cudatest.Require(t)
+	oracle, cases := samplingFixture(t)
+	root := samplingModelFixture(t)
+	runtime := testcheck.Must(graphruntime.NewResidentSession(0))(t)
+	defer runtime.Close(context.WithoutCancel(t.Context()))
+	c := cases[0]
+	prompt := refinementValues(t, oracle, "cuda-bf16."+c.Name+".positive")
+	weights := slices.Repeat([]float32{1}, len(prompt)/denoiserSpec().TextHidden)
+	weights[1] = 3
+	initial := testcheck.Must(torchrng.CPUNormal(42, 24))(t)
+	sample := func(guidance float32, negativeWeights []float32) []float32 {
+		t.Helper()
+		settings := rotarySamplingSpec{schedule: samplingSettings(t, c).schedule, guidance: guidance, weights: weights, negativeWeights: negativeWeights}
+		result := testcheck.Must(runRotarySampling(t.Context(), runtime, root, denoiserSpec(), 2, 3, initial, prompt, prompt, settings, nil))(t)
+		defer result.outputs.Release(context.WithoutCancel(t.Context()))
+		return testcheck.Must(result.outputs.CopyToHost(t.Context(), result.node))(t).Data
+	}
+	if !slices.Equal(sample(3, weights), sample(5, weights)) {
+		t.Fatal("the prompt as its own negative, weighed alike on both passes, moved with the guidance scale: the negative pass did not weigh its rows as the prompt's")
+	}
+	if slices.Equal(sample(3, nil), sample(5, nil)) {
+		t.Fatal("the negative pass with its weights left off moved nothing with the guidance scale: it weighed as the weighted prompt")
 	}
 }

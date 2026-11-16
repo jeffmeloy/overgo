@@ -34,12 +34,12 @@ func TestAPresetVerdictSaysItScreensHarm(t *testing.T) {
 		admitted      bool
 		says, counted string
 	}{
-		{"cfg-zero-star's", 5, 6, true, "admitted on no loss beyond chance, which shows no gain", "5 wins, 6 losses and 389 ties"},
-		{"a gain's", 40, 5, true, "admitted: a gain beyond chance", "40 wins, 5 losses and 355 ties"},
-		{"a loss's", 5, 40, false, "refused: a loss beyond chance", "5 wins, 40 losses and 355 ties"},
+		{"cfg-zero-star's", 5, 6, true, "admitted on no loss beyond chance, which shows no gain", "5 wins, 6 losses and 389 ties over 400 media"},
+		{"a gain's", 40, 5, true, "admitted: a gain beyond chance", "40 wins, 5 losses and 355 ties over 400 media"},
+		{"a loss's", 5, 40, false, "refused: a loss beyond chance", "5 wins, 40 losses and 355 ties over 400 media"},
 	} {
 		referenceRight, presetRight := arms(reading.wins, reading.losses)
-		verdict := testcheck.Must(AdmitPreset(person, reference, candidate, referenceRight, presetRight))(t)
+		verdict := testcheck.Must(AdmitPreset(person, reference, candidate, referenceRight, presetRight, alone(referenceRight)))(t)
 		if verdict.Admitted != reading.admitted || !strings.HasPrefix(verdict.Says, reading.says) || !strings.HasSuffix(verdict.Says, reading.counted) {
 			t.Errorf("%s reading: admitted %t, says %q; want admitted %t, saying %q with %q", reading.name, verdict.Admitted, verdict.Says, reading.admitted, reading.says, reading.counted)
 		}

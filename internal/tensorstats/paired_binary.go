@@ -30,6 +30,47 @@ func ExactPairedBinary(wins, losses, ties uint64) PairedBinary {
 	return PairedBinary{Pairs: wins + losses + ties, Wins: wins, Losses: losses, Ties: ties, Tail: BinomialUpperTail(wins+losses, wins, half)}
 }
 
+// GroupedSignTail is the exact one-sided tail of a paired comparison whose pairs come in groups that are not
+// independent within themselves, as several questions about one clip: each group is one unit, nets[g] its wins less
+// its losses, and the null, that the arms are exchangeable within a group, flips every group's sign at once with chance
+// one half. The tail is the chance, under that null, of a total at least the nets' sum, summed exactly over the 2^n sign
+// choices by their totals: a group's absolute net is a step either way, and the totals are integers within the steps'
+// sum. A group that nets nothing adds nothing, and with no net in any group the tail is 1: nothing was seen. Where
+// every group holds one pair, it is ExactPairedBinary's tail; questions that share a clip no longer count as as many
+// independent pairs, which stated a smaller tail than the data gives (preset-evidence/statistic, SQA-342).
+func GroupedSignTail(nets []int64) float64 {
+	var sum, span int64
+	for _, net := range nets {
+		sum, span = sum+net, span+max(net, -net)
+	}
+	if span == 0 {
+		return 1
+	}
+	// chance[total+span] is the chance of each total of the groups flipped so far.
+	chance := make([]float64, 2*span+1)
+	chance[span] = 1
+	for _, net := range nets {
+		step := max(net, -net)
+		if step == 0 {
+			continue
+		}
+		next := make([]float64, len(chance))
+		for at, held := range chance {
+			if held == 0 {
+				continue
+			}
+			next[int64(at)+step] += held * half
+			next[int64(at)-step] += held * half
+		}
+		chance = next
+	}
+	tail := float64(0)
+	for _, held := range chance[sum+span:] {
+		tail += held
+	}
+	return min(1, tail)
+}
+
 // BinomialUpperTail is the chance of at least successes successes in trials
 // independent trials of one chance each. It sums the terms from successes up
 // and those below it, each from the one before it and in units of the term at

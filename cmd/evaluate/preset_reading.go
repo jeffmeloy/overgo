@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -61,6 +62,7 @@ func admitPresetReading(ctx context.Context, repository, modelPath, referenceDir
 		drawn             renderManifest
 		arm               evaluation.PresetArm
 		right             map[string]bool
+		media             map[string]string
 	}
 	reference, preset := &read{directory: referenceDirectory, record: referenceRecord}, &read{directory: presetDirectory, record: presetRecord}
 	for _, arm := range []*read{reference, preset} {
@@ -92,6 +94,13 @@ func admitPresetReading(ctx context.Context, repository, modelPath, referenceDir
 			return fmt.Errorf("evaluate: no case outcomes can be read from evaluation %s", record)
 		}
 		arm.right = outcomes
+		if arm.media, found = evaluation.CaseMedia(ctx, store, record); !found {
+			return fmt.Errorf("evaluate: what each case asks about cannot be read from evaluation %s", record)
+		}
+	}
+	// The null flips each medium's cases together (AdmitPreset), so both arms' suites name each case's medium alike.
+	if !maps.Equal(reference.media, preset.media) {
+		return errors.New("evaluate: the preset's suite and its reference's name different media for their cases, which do not pair")
 	}
 	selected, err := modelrecipe.ResolveActiveExecution(ctx, store, preset.drawn.Model, preset.drawn.Task, modelrecipe.SessionWarm)
 	if err != nil {
@@ -110,7 +119,7 @@ func admitPresetReading(ctx context.Context, repository, modelPath, referenceDir
 			person[name] = value
 		}
 	}
-	verdict, err := evaluation.AdmitPreset(person, reference.arm, preset.arm, reference.right, preset.right)
+	verdict, err := evaluation.AdmitPreset(person, reference.arm, preset.arm, reference.right, preset.right, preset.media)
 	if err != nil {
 		return err
 	}

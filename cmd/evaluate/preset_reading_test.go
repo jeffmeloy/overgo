@@ -33,18 +33,18 @@ func TestAPresetIsAdmittedOnlyAtAPersonsSize(t *testing.T) {
 		}
 		return renderManifest{Task: recipe.TaskVideoGen, Preset: preset, Format: format, Draws: draws}
 	}
-	right := map[string]bool{"a": true, "b": true, "c": false}
+	right, media := map[string]bool{"a": true, "b": true, "c": false}, map[string]string{"a": "clip-0", "b": "clip-1", "c": "clip-2"}
 	arm := func(drawn renderManifest) evaluation.PresetArm { return testcheck.Must(drawnArm(drawn))(t) }
 
 	reference, preset := arm(manifest("", "mp4", 81, 832, 480, 50)), arm(manifest("cfg-zero-star", "mp4", 81, 832, 480, 50))
-	if verdict, err := evaluation.AdmitPreset(person, reference, preset, right, right); err != nil || !verdict.Admitted {
+	if verdict, err := evaluation.AdmitPreset(person, reference, preset, right, right, media); err != nil || !verdict.Admitted {
 		t.Errorf("a preset drawn beside its reference at a person's size was not admitted: %+v, %v", verdict, err)
 	}
 	smaller := arm(manifest("", "", 17, 416, 240, 20))
 	if smaller.Format != "gif" {
 		t.Errorf("a clip render that names no format reads as %q; want gif, what its requests asked for by naming none", smaller.Format)
 	}
-	if _, err := evaluation.AdmitPreset(person, smaller, preset, right, right); err == nil {
+	if _, err := evaluation.AdmitPreset(person, smaller, preset, right, right, media); err == nil {
 		t.Error("a reference drawn at 17 frames and 416 x 240 was taken as a preset's evidence against a person's 81 at 832 x 480")
 	}
 	mixed := manifest("", "mp4", 81, 832, 480, 50)

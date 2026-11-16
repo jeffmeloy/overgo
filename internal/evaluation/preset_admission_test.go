@@ -25,12 +25,12 @@ func TestAPresetIsAdmittedOnlyAtAPersonsSize(t *testing.T) {
 		}
 		return cases
 	}
-	held := testcheck.Must(AdmitPreset(person, reference, candidate, outcomes(30), outcomes(30)))(t)
+	held := testcheck.Must(AdmitPreset(person, reference, candidate, outcomes(30), outcomes(30), alone(outcomes(30))))(t)
 	if !held.Admitted {
 		t.Errorf("a preset that loses no case was refused: %+v", held)
 	}
-	worse := testcheck.Must(AdmitPreset(person, reference, candidate, outcomes(30), outcomes(10)))(t)
-	if worse.Admitted || worse.Paired.Losses != 20 {
+	worse := testcheck.Must(AdmitPreset(person, reference, candidate, outcomes(30), outcomes(10), alone(outcomes(30))))(t)
+	if worse.Admitted || worse.Losses != 20 {
 		t.Errorf("a preset that loses 20 cases of 40 was admitted, or its losses miscounted: %+v", worse)
 	}
 	for name, arms := range map[string][2]PresetArm{
@@ -39,11 +39,11 @@ func TestAPresetIsAdmittedOnlyAtAPersonsSize(t *testing.T) {
 		"arms in two formats":       {reference, {Preset: "cfg-zero-star", Settings: person, Format: "gif"}},
 		"a reference with a preset": {{Preset: "guidance-interval", Settings: person, Format: "mp4"}, candidate},
 	} {
-		if _, err := AdmitPreset(person, arms[0], arms[1], outcomes(30), outcomes(30)); err == nil {
+		if _, err := AdmitPreset(person, arms[0], arms[1], outcomes(30), outcomes(30), alone(outcomes(30))); err == nil {
 			t.Errorf("%s was taken as a preset's evidence", name)
 		}
 	}
-	if _, err := AdmitPreset(person, reference, candidate, outcomes(30), map[string]bool{"case-00": true}); err == nil || !strings.Contains(err.Error(), "case") {
+	if _, err := AdmitPreset(person, reference, candidate, outcomes(30), map[string]bool{"case-00": true}, alone(outcomes(30))); err == nil || !strings.Contains(err.Error(), "case") {
 		t.Errorf("arms of different cases were paired: %v", err)
 	}
 }

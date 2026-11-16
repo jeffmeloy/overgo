@@ -61,7 +61,7 @@ func AdmitPreset(person map[string]float64, reference, candidate PresetArm, refe
 	if !slices.Equal(slices.Sorted(maps.Keys(referenceRight)), slices.Sorted(maps.Keys(candidateRight))) {
 		return PresetVerdict{}, errors.New("evaluation: the preset and its reference answered different cases, which do not pair")
 	}
-	verdict := PresetVerdict{Preset: candidate.Preset}
+	var wins, losses, ties uint64
 	nets := map[string]int64{}
 	for name, right := range referenceRight {
 		medium, named := media[name]
@@ -71,16 +71,23 @@ func AdmitPreset(person map[string]float64, reference, candidate PresetArm, refe
 		net := nets[medium]
 		switch {
 		case candidateRight[name] == right:
-			verdict.Ties++
+			ties++
 		case candidateRight[name]:
-			verdict.Wins++
+			wins++
 			net++
 		default:
-			verdict.Losses++
+			losses++
 			net--
 		}
 		nets[medium] = net
 	}
+	return presetVerdict(candidate.Preset, wins, losses, ties, nets), nil
+}
+
+// presetVerdict is the verdict on a preset whose evidence is its wins, losses and ties and each medium's net: the
+// grouped tail of a gain, admission where no loss is beyond chance (falseGain), and both in words.
+func presetVerdict(preset string, wins, losses, ties uint64, nets map[string]int64) PresetVerdict {
+	verdict := PresetVerdict{Preset: preset, Wins: wins, Losses: losses, Ties: ties}
 	gained := slices.Collect(maps.Values(nets))
 	lost := make([]int64, len(gained))
 	for at, net := range gained {
@@ -98,5 +105,5 @@ func AdmitPreset(person map[string]float64, reference, candidate PresetArm, refe
 	default:
 		verdict.Says = "admitted on no loss beyond chance, which shows no gain: " + counts
 	}
-	return verdict, nil
+	return verdict
 }

@@ -139,42 +139,44 @@ func comparableArms(reference, preset renderManifest) error {
 		return fmt.Errorf("evaluate: the preset's render is of model %s, task %s and recipe %s, its reference's of %s, %s and %s: no one reading",
 			preset.Model, preset.Task, preset.Recipe, reference.Model, reference.Task, reference.Recipe)
 	}
-	// unpreset is the requests a render drew, each without its preset, as JSON with its keys in order.
-	unpreset := func(drawn renderManifest) (map[string]bool, error) {
-		requests := map[string]bool{}
-		for key, media := range drawn.Draws {
-			var request map[string]any
-			if err := json.Unmarshal(media.Request, &request); err != nil {
-				return nil, fmt.Errorf("evaluate: the request of draw %s: %w", key, err)
-			}
-			delete(request, "preset")
-			encoded, err := json.Marshal(request)
-			if err != nil {
-				return nil, err
-			}
-			requests[string(encoded)] = true
-		}
-		return requests, nil
-	}
-	asked, err := unpreset(reference)
+	asked, err := unpresetDraws(reference)
 	if err != nil {
 		return err
 	}
-	guided, err := unpreset(preset)
+	guided, err := unpresetDraws(preset)
 	if err != nil {
 		return err
 	}
 	for request := range guided {
-		if !asked[request] {
+		if _, drawn := asked[request]; !drawn {
 			return fmt.Errorf("evaluate: the preset's render drew %s, which its reference did not draw, the preset aside: no one reading", request)
 		}
 	}
 	for request := range asked {
-		if !guided[request] {
+		if _, drawn := guided[request]; !drawn {
 			return fmt.Errorf("evaluate: the reference drew %s, which the preset's render did not draw: no one reading", request)
 		}
 	}
 	return nil
+}
+
+// unpresetDraws are a render's draws by the request each drew without its preset, as JSON with its keys in order: the
+// request a preset's draw shares with its reference's (comparableArms, pairedDraws).
+func unpresetDraws(drawn renderManifest) (map[string]string, error) {
+	requests := map[string]string{}
+	for key, media := range drawn.Draws {
+		var request map[string]any
+		if err := json.Unmarshal(media.Request, &request); err != nil {
+			return nil, fmt.Errorf("evaluate: the request of draw %s: %w", key, err)
+		}
+		delete(request, "preset")
+		encoded, err := json.Marshal(request)
+		if err != nil {
+			return nil, err
+		}
+		requests[string(encoded)] = key
+	}
+	return requests, nil
 }
 
 // judging is who judged a reading's media: the runtime that answered and the scorer that scored.

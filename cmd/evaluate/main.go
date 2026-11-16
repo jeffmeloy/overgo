@@ -117,6 +117,8 @@ func run() error {
 	referenceRender := flag.String("reference-render", "", "with -admit-preset: the render directory of the model's reference")
 	presetEvaluation := flag.String("preset-evaluation", "", "with -admit-preset: the judged evaluation record of the preset's suite")
 	referenceEvaluation := flag.String("reference-evaluation", "", "with -admit-preset: the judged evaluation record of the reference's suite")
+	pairwisePreset := flag.String("pairwise-preset", "", "a preset's picture render directory, read pairwise against -reference-render: with -media-out, -suite-out and -judge, each request both drew is set side by side in each order and the suite asks the judge which picture better shows its prompt; with -pairwise-evaluation, the judged record of that suite is read as the preset's verdict")
+	pairwiseEvaluation := flag.String("pairwise-evaluation", "", "with -pairwise-preset: the judged evaluation record of the pairwise suite")
 	drawnText := flag.Bool("render-drawn-text", false, "draw an infographic from each of -cases briefs of a fixed list with the image model -model-path names, each asked to hold a title, three lines with a figure and a line of small print, and write the suite that asks the judge which of four texts each picture holds to -suite-out, the pictures to -media-out")
 	renderPreset := flag.String("render-preset", "", "with -render-tifa, -render-drawn-text or -render-vidgen: the preset of the model's profile to draw with, none for its reference (the authors' recipe); its media go into a directory of their own")
 	renderSet := flag.String("render-set", "", "with -render-tifa, -render-drawn-text or -render-vidgen: comma-separated name=number settings that replace fields of the request the model's verification ran, such as width=416,height=240")
@@ -282,6 +284,15 @@ func run() error {
 		}
 		return admitPresetReading(context.Background(), *repository, strings.TrimSpace(*modelPath), strings.TrimSpace(*referenceRender), strings.TrimSpace(*admitPreset),
 			strings.TrimSpace(*referenceEvaluation), strings.TrimSpace(*presetEvaluation), os.Stdout)
+	}
+	if preset := strings.TrimSpace(*pairwisePreset); preset != "" {
+		if record := strings.TrimSpace(*pairwiseEvaluation); record != "" {
+			return readPairwiseVerdict(context.Background(), *repository, preset, record, os.Stdout)
+		}
+		if strings.TrimSpace(*referenceRender) == "" || strings.TrimSpace(*mediaOut) == "" || strings.TrimSpace(*suiteOut) == "" || strings.TrimSpace(*speechJudge) == "" {
+			return errors.New("usage: evaluate -pairwise-preset <preset render directory> -reference-render <directory> -media-out <directory> -suite-out <suite.json> -judge <vision-language model>, or -pairwise-preset <directory> -pairwise-evaluation <record> [-repo <store>]")
+		}
+		return writePairwise(strings.TrimSpace(*referenceRender), preset, strings.TrimSpace(*mediaOut), strings.TrimSpace(*suiteOut), strings.TrimSpace(*speechJudge))
 	}
 	if *drawnText {
 		if flag.NArg() != 0 || strings.TrimSpace(*suiteOut) == "" || strings.TrimSpace(*mediaOut) == "" || strings.TrimSpace(*speechJudge) == "" || strings.TrimSpace(*modelPath) == "" ||

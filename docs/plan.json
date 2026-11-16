@@ -59,21 +59,6 @@
       ]
     },
     {
-      "id": "first-bound",
-      "title": "A first-seen command is bounded at the commit free as it starts, as every run after it",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A first-seen command is bounded at the commit free as it starts, as every run after it",
-          "verify": "go test ./internal/processcontrol -count=1 -run '^TestAFirstSeenRunawayIsEndedAtTheMachinesFreeMemory$'",
-          "files": [
-            "internal/processcontrol"
-          ],
-          "rationale": "Note: Serves: a runaway check is ended before the machine's memory is gone, its first run as much as any after (SQA-404, P2; the owner's reading of 2026-11-16, point 1).\n\nThe evidence (the review's, shown from source): boundOf (internal/processcontrol/job_bound.go) returns a jobBound with no limit when no passing run of the command recorded a need, and newProcessTree sets JOB_OBJECT_LIMIT_JOB_MEMORY only for a nonzero limit, so a command's first run, and every run after a restart forgets the needs, runs unbounded: the retained empty-added-token/refuse check took 279 GB of commit on 2026-11-15. replay-bound/do (144dc735e) cured the replay's instance, a check run at its landed commit first; any other first-seen command still meets no limit.\n\nThe change: removing what failed. boundOf no longer returns early for a command with no recorded need: its need is none and its limit the commit free as it starts, what the machine has read at decision time (owner, thresholds), so a first run may use all the machine has and no more, and a run after a passing one keeps its need beside it. TestARunawayChildIsEndedAtTheMachinesFreeMemory's runaway arm drops its injected 256 MiB bound and runs on the default path.\n\nCheck: TestAFirstSeenRunawayIsEndedAtTheMachinesFreeMemory runs TestJobChildProcess's runaway child as a first-seen command through processcontrol.Run with no bound injected and holds it ended at its job's memory limit, the commit free at its start, with the tree ended and the limit named in the error."
-        }
-      ]
-    },
-    {
       "id": "undo-overrun",
       "title": "The undo run's overrun report times the test binaries' run, not their build",
       "steps": [

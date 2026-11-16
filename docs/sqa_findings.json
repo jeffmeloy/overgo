@@ -16,24 +16,6 @@
   "actual": "The two remaining owners still read state at publication and drop the lookup error: servingattempt.Record (servingattempt.go:117-119) and Observer.finish (session_observation.go:271-273). A failed read leaves an empty Verification; scorecard.unverifiedAside rejects only explicit not-verified/broken and accepts that empty value as legacy. A later same-recipe activation is written as the attempt's state in place of its execution-time not-verified state. Shown from source at 8acbf71d17dfd3e1e35313b370f900b21f0fdf10; no SQA execution."
 },
     {
-      "id": "SQA-340",
-      "severity": "P2",
-      "files": [
-        "internal/server/webui/workflow.js",
-        "internal/server/webui/composer.js",
-        "internal/mediacapability/controls_cuda_windows.go",
-        "internal/latentimage/profiles.json",
-        "internal/latentimage/runtime_cuda_windows.go",
-        "internal/latentimage/preset_windows_test.go",
-        "internal/mediacapability/moss_controls_windows_test.go",
-        "internal/server/moss_generation_windows_test.go",
-        "internal/server/webui_browser_moss_generation_windows_test.go"
-      ],
-      "input": "A fresh MOSS form with the comfy-tutorial preset selected and no number touched; likewise Krea with the draft preset.",
-      "expected": "The request carries no steps or guidance the user did not set, so the preset resolves 25 steps and guidance 2.5 for MOSS and 4 steps for Krea draft. An explicit override, guidance 0 and a value equal to the default among them, stays exact.",
-      "actual": "The form fills every bounded numeric input with its default and controlValues sends each nonempty one, so the request carries steps 50 and guidance 3, which Request.withPreset keeps as explicit overrides; Krea draft keeps 8 steps. No handler reacts to the preset choice. The browser fixture expects 50 and 3 and the native preset fixture omits them, so both pass. Read from source at bb3e392b1."
-    },
-    {
   "id": "SQA-342",
   "severity": "P2",
   "files": [
@@ -164,44 +146,6 @@
       "actual": "(1) liveSource runs plan -prompt and then currentStep separately, reasoned adds rationale from the second read, planStepFrom reads again for verify and files, and execWorld.Prompt and execWorld.Verify ignore the step they are given, so one step's task, check and files can go with another's rationale; the landing still verifies by step.Key(). (2) replayed.measurement labels every changed docs/verification path of the commit as model-produced work, so 3ef2c5d8f becomes a measurement. Read from source."
     },
     {
-      "id": "SQA-382",
-      "severity": "P2",
-      "files": [
-        "internal/latentimage/prompt_weights.go",
-        "internal/latentimage/textinput.go",
-        "internal/representation/sequence.go",
-        "internal/hfbpe/tokenizer.go",
-        "internal/latentimage/runtime_cuda_windows.go",
-        "internal/latentimage/generator_rotary_windows.go",
-        "internal/latentimage/model_encoder_windows.go",
-        "internal/latentimage/rotary_sampling_windows.go",
-        "internal/latentimage/textinput_test.go",
-        "internal/latentimage/conditioning_test.go",
-        "internal/latentimage/prompt_weights_test.go",
-        "internal/latentimage/moss_prompt_weights_test.go"
-      ],
-      "input": "(1) A prompt with unit-weight markup, (a:1)b, under a byte-level BPE vocabulary a, b, ab with the merge a b. (2) A full-budget prompt with prefix 3, budget 5 and suffix 1, its fifth prompt token weighted 2. (3) A MOSS negative prompt with weight markup.",
-      "expected": "(1) The marked and clean prompts give identical token IDs, mask and conditioning. (2) Prefix, suffix and pad rows stay unweighted and the truncation geometry is kept. (3) Negative weights reach both the ordinary and the skipped branch, or unsupported markup is refused early.",
-      "actual": "(1) spanTokens encodes each stretch separately, so (a:1)b takes two tokens where ab takes one, and chatTokens renders a sentinel in place of the prompt. (2) AssemblePaddedSequence puts the suffix at prefix+maximum-suffixLen, over the last prompt slot, while rowWeights copies the weights unshifted, so the suffix at row 7, a row Krea attends, gets weight 2. (3) Markup is stripped from the negative prompt, but only request.Prompt supplies settings.weights and load(name, negative, skip) passes none, so the negative weights are dropped silently. Read from source."
-    },
-    {
-      "id": "SQA-386",
-      "severity": "P2",
-      "files": [
-        "internal/latentimage/resident_graph_cuda_windows.go",
-        "internal/latentimage/convrot.go",
-        "internal/graphruntime/resident.go",
-        "internal/safetensors/convert.go",
-        "internal/latentimage/convrot_modeltest_test.go",
-        "internal/latentimage/generator_composition_windows_test.go",
-        "internal/latentimage/refinement_verify_windows.go",
-        "fixtures/comfy/moss-ultra/convrot_decode.json"
-      ],
-      "input": "(1) MOSS Ultra's direct I8 ConvRot tensors with comfy_quant metadata (layers.41.proj.ffn_down, model.language_model.layers.0.linear_attn.in_proj_z) loaded through the resident binder. (2) An F32 scale tensor shaped [2,2].",
-      "expected": "(1) Direct I8 ConvRot and fused q/k/v inputs load through the resident binder, and a repeated binding decodes no payload again. (2) A scale whose second axis is not 1 is refused before decode.",
-      "actual": "(1) compileResidentWeights calls convRotWeight only when source.Tensors[name] is absent, so a direct I8 tensor goes to weightPayload and F32Reader, whose PromoteF32Reader refuses I8; the golden calls the helper directly and misses it. The fused q/k/v branch decodes before Bind, though Bind skips its payload on an existing allocation. (2) The resolver never checks axis 1 and reads one float per row, so row 1 takes row 0's column 1. Read from source, with no Ultra load run."
-    },
-    {
       "id": "SQA-388",
       "severity": "P2",
       "files": [
@@ -251,33 +195,11 @@
     "head": "0ef92bbeb509dbb96070d1f6e9161e95538210b7",
     "findings": {
   "SQA-346": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "observation-binding/do"
         ],
-        "note": "Answered by the lead on 2026-11-13: filed, held-out readings credited to media they did not read."
-      },
-  "SQA-340": {
-        "action": "implemented",
-        "rows": [
-          "preset-form/do"
-        ],
-        "note": "Answered by the lead on 2026-11-13: filed, a served choice misrepresented. Implemented 2026-11-16 by preset-form/do (e630267ae), for the review's recheck."
-      },
-  "SQA-382": {
-        "action": "implemented",
-        "rows": [
-          "prompt-weights/rows",
-          "prompt-weights/negative"
-        ],
-        "note": "Answered by the lead on 2026-11-13: filed, model output. Implemented 2026-11-16 by prompt-weights/rows (0343601c3) and prompt-weights/negative (ca84b3b3c), for the review's recheck."
-      },
-  "SQA-386": {
-        "action": "implemented",
-        "rows": [
-          "moss-import-admission/convrot"
-        ],
-        "note": "Answered by the lead on 2026-11-13: filed, MOSS Ultra's Base serving from its own file. Implemented 2026-11-16 by moss-import-admission/convrot (fa598795d), for the review's recheck."
+        "note": "Answered by the lead on 2026-11-13: filed, held-out readings credited to media they did not read. Implemented 2026-11-16 by observation-binding/do (d9afe59b3), for the review's recheck."
       },
   "SQA-342": {
         "action": "implemented",

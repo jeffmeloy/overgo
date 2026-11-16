@@ -262,11 +262,12 @@
         "note": "Reopened by the lead's recheck on 2026-11-13: run-from-files/do and recipe-state made the first repair, whose tests pass at f110d30b1, but the review's evidence names three publication owners that still read recipe state at publication and drop a lookup error, so an empty Verification earns the legacy path and a later activation can replace execution-time state. execution-state/do carries the state read at execution to publication. Implemented 2026-11-16 by execution-state/do (f7338b9b0), for the review's recheck."
       },
   "SQA-404": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
+          "replay-bound/do",
           "first-bound/do"
         ],
-        "note": "Answered by the lead on 2026-11-16: replay-bound/do (144dc735e) runs a replayed check at its landed commit first, so the replay meets the bound a pass records; a first-seen command elsewhere still runs with no job memory limit, which first-bound/do carries."
+        "note": "Answered by the lead on 2026-11-16: replay-bound/do (144dc735e) runs a replayed check at its landed commit first, so the replay meets the bound a pass records; first-bound/do (bd7843ca5) bounds a first-seen command by the commit free as it starts, for the review's recheck."
       }
 }
   },

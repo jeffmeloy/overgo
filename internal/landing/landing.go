@@ -963,7 +963,7 @@ func (l *landing) verify(ctx context.Context) error {
 		}
 		// The check shows its progress in the landing's log as it runs, as each stage does.
 		started := time.Now()
-		if _, err := planverify.ExecuteShowing(ctx, l.stageRoot(), verifier, nil, l.Log); err != nil {
+		if _, err := planverify.ExecuteShowing(ctx, l.stageRoot(), verifier, nil, l.Log, nil); err != nil {
 			return err
 		}
 		if l.passedWalls == nil {

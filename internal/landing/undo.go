@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"overgo/internal/plan"
@@ -23,9 +24,35 @@ import (
 // undoSection opens the message's account of the undo run.
 const undoSection = "Checked by undoing:"
 
-// undoOverrun is how many times the wall a check took with the change its run without the change runs before it is
-// said: the run builds what the change's run built, and runs the same tests.
+// undoOverrun is how many times the wall a check took with the change its tests without the change run before they are
+// said: they are the same tests, and the change's wall holds its build besides.
 const undoOverrun = 2
+
+// overrunClock says, by say, a run without the change whose tests outlast bound: timed from began, the moment its first
+// test binary starts, not the command's, since the run first builds the production the change's run found built. On
+// 2026-11-16 three undo runs that rebuilt and failed within seconds were each said to wait (undo-overrun/do). stop ends
+// the clock, said or not; a clock stopped before its tests began says nothing.
+func overrunClock(bound time.Duration, say func()) (began, stop func()) {
+	var mu sync.Mutex
+	var timer *time.Timer
+	stopped := false
+	began = func() {
+		mu.Lock()
+		defer mu.Unlock()
+		if timer == nil && !stopped {
+			timer = time.AfterFunc(bound, say)
+		}
+	}
+	stop = func() {
+		mu.Lock()
+		defer mu.Unlock()
+		stopped = true
+		if timer != nil {
+			timer.Stop()
+		}
+	}
+	return began, stop
+}
 
 // productionGo says a changed path is production Go, the code a change's behaviour lives in: a Go file, not a test,
 // not testdata.
@@ -128,17 +155,15 @@ func (l *landing) undo(ctx context.Context) error {
 		// of TestAWaiterSaysEachNewHolder held the gate 32 minutes before its probes were found and ended by hand
 		// (waiter-bound/do). The clock says and ends nothing (TestNoClockEndsWorkInsideTheMachine): a run ended by hand
 		// fails before a test asserts, and is no evidence.
-		var overrun *time.Timer
+		began, stop := func() {}, func() {}
 		if wall, timed := l.passedWalls[check]; timed && l.Log != nil {
-			overrun = time.AfterFunc(undoOverrun*wall, func() {
-				fmt.Fprintf(l.Log, "land: with %s, %s has run %s, twice the %s it took with the change: it may wait on what only the change sends; ending its processes in %s ends it as no evidence\n",
+			began, stop = overrunClock(undoOverrun*wall, func() {
+				fmt.Fprintf(l.Log, "land: with %s, the tests of %s have run %s since they started, twice the %s it took with the change: it may wait on what only the change sends; ending its processes in %s ends it as no evidence\n",
 					said, check, (undoOverrun * wall).Round(time.Second), wall.Round(time.Second), tree)
 			})
 		}
-		_, err := planverify.ExecuteShowing(ctx, tree, check, nil, l.Log)
-		if overrun != nil {
-			overrun.Stop()
-		}
+		_, err := planverify.ExecuteShowing(ctx, tree, check, nil, l.Log, began)
+		stop()
 		failure, _, _ := strings.Cut(fmt.Sprint(err), "\n")
 		switch {
 		case err == nil:

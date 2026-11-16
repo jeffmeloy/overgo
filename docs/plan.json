@@ -59,22 +59,6 @@
       ]
     },
     {
-      "id": "undo-overrun",
-      "title": "The undo run's overrun report times the test binaries' run, not their build",
-      "steps": [
-        {
-          "id": "do",
-          "title": "The undo run's overrun report times the test binaries' run, not their build",
-          "verify": "go test ./internal/landing -count=1 -run '^TestAnUndoRunsRebuildIsNoWait$'",
-          "files": [
-            "internal/landing",
-            "internal/planverify"
-          ],
-          "rationale": "Note: Serves: a landing's log says a wait only where one is (the parked finding evidence:sha256:1514770740993be590a367bf721fc2a00811ddfa262fe0a2ea796b6d471be8cb).\n\nThe evidence, 2026-11-16: the undo run's report (\"has run X, twice the Y it took with the change: it may wait on what only the change sends\") printed in three of the day's six landings: execution-state/do, replay-bound/do (at 4s, twice its 2s) and moss-import-admission/convrot (at 2s, twice its 1s). None waited: each undone check failed or did not build within seconds of the report. The bound is twice the wall the check took with the change (passedWalls, time.Since(started) around the verify run), and that run's package was built warm by the fix and vet stages, where the undo run first compiles the restored production and the packages above it; so the bound compares a cold build and run against a warm one.\n\nThe change: both walls are the test binaries' run, not their build: the undo run's report is timed from the moment go test starts the check's test binary, and bounded by the time the change's binary ran (go test -json's start event and package elapsed, which planverify already reads to print the verify lines), so a rebuild says nothing and a test that waits on what only the change sends still is said.\n\nCheck: a fixture landing whose undone check spends its first seconds building and then fails at once prints no overrun line; one whose undone test waits prints it, as TestAnUndoRunThatOutlastsTwiceItsPassingWallIsSaid holds now."
-        }
-      ]
-    },
-    {
       "id": "cuda-resources",
       "title": "SenseNova's request-resources test is measured again on a card to itself and carries modeltest, so the gate's cuda lane runs no real-model test",
       "steps": [

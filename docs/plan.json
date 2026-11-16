@@ -42,21 +42,6 @@
       "steps": []
     },
     {
-      "id": "replay-bound",
-      "title": "A replayed check runs at its landed commit first, so its runs at the parent are held to the memory it needed",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A replayed check runs at its landed commit first, so its runs at the parent are held to the memory it needed",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestAReplayedCheckRunsAtItsLandedCommitFirst$'",
-          "files": [
-            "cmd/loop/replay.go",
-            "cmd/loop/replay_bound_test.go"
-          ]
-        }
-      ]
-    },
-    {
       "id": "prompt-weights",
       "title": "Prompt weights bind the token rows the encoder runs, the positive and the negative prompt's alike",
       "steps": [

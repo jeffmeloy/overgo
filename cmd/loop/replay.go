@@ -240,12 +240,24 @@ func holdReplayCheckout(root string) (replayHold, error) {
 }
 
 // replay works step with worker in checkout, from the step's parent with the landing's tests in place: the check must
-// fail there first, then the worker works up to attempts times, each after the first told the last failure.
+// pass at the landed commit and fail at the parent first, then the worker works up to attempts times, each after the
+// first told the last failure.
 func replay(ctx context.Context, root, checkout string, step replayed, worker replayWorker, attempts int) (replayRecord, error) {
 	records, err := step.measurement(ctx, root)
 	if err != nil || len(records) != 0 {
 		return replayRecord{Worker: worker.name, Kind: stepKind(step.step.Files, step.step.NeedsCard), Step: step.reference, Landed: step.landed,
 			Skipped: "a measurement: its landing wrote " + strings.Join(records, ", ") + ", which a model run makes and no worker's tools can"}, err
+	}
+	// The check runs first at the landed commit, where it passes, so its runs at the parent, the worker's among them, are
+	// held to the memory it needed there (processcontrol's job bound, kept for a command once it passes in this process):
+	// run first at the parent, it had no need recorded and ran unbounded, as empty-added-token's did there on 2026-11-15,
+	// taking 279 GB of commit (replay-bound/do).
+	if err := moveReplay(root, checkout, step.landed); err != nil {
+		return replayRecord{}, err
+	}
+	if failure, err := (replayTask{Verify: step.step.Verify}).check(ctx, checkout); err != nil {
+		return replayRecord{Worker: worker.name, Kind: stepKind(step.step.Files, step.step.NeedsCard), Step: step.reference, Landed: step.landed,
+			Skipped: fmt.Sprintf("the check fails at the landed commit %.12s, so no run of it bounds its run at the parent: %s", step.landed, clioptions.Tail(failure, replayFailure))}, nil
 	}
 	if err := moveReplay(root, checkout, step.parent); err != nil {
 		return replayRecord{}, err

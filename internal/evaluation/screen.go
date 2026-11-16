@@ -4,8 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-
-	"overgo/internal/tensorstats"
 )
 
 // ScreenCase is one prompt and seed of a media screen: how far a candidate path's output lies from the reference path's
@@ -17,22 +15,17 @@ type ScreenCase struct {
 	Reseeded  float64 `json:"reseeded"`
 }
 
-// Lost is whether the candidate lies farther from the reference than another seed of the prompt does. Two seeds of a
-// prompt are two outputs the prompt allows, so a candidate farther than that has lost what the prompt asked.
-func (c ScreenCase) Lost() bool { return c.Candidate > c.Reseeded }
+// Farther is whether the candidate lies farther from the reference than another seed of the prompt does.
+func (c ScreenCase) Farther() bool { return c.Candidate > c.Reseeded }
 
-// Screen is a candidate path screened against its reference: each case, how many it lost and kept, and the exact sign
-// test's chance of losing at least that many were a case as likely kept as lost, as a candidate that differs from its
-// reference only as much as another seed would be. Passed is whether that chance stays above the level at which a
-// held-out comparison accepts a false gain, so only a candidate the screen passes is judged.
+// Screen is a diagnostic beside a candidate path's admission: each case, and how many lie farther from the reference
+// than another seed of the prompt does, nearer, or as near. An embedding's distance establishes no loss of what a prompt
+// asked (SQA-342), so the screen refuses no candidate and a person reads its cases.
 type Screen struct {
-	Cases  []ScreenCase `json:"cases"`
-	Lost   uint64       `json:"lost"`
-	Kept   uint64       `json:"kept"`
-	Ties   uint64       `json:"ties"`
-	Tail   float64      `json:"tail"`
-	Level  float64      `json:"level"`
-	Passed bool         `json:"passed"`
+	Cases   []ScreenCase `json:"cases"`
+	Farther uint64       `json:"farther"`
+	Nearer  uint64       `json:"nearer"`
+	Ties    uint64       `json:"ties"`
 }
 
 // ScreenCandidate screens a candidate path by its cases.
@@ -40,7 +33,7 @@ func ScreenCandidate(cases []ScreenCase) (Screen, error) {
 	if len(cases) == 0 {
 		return Screen{}, errors.New("evaluation: a screen with no case says nothing")
 	}
-	screen := Screen{Cases: cases, Level: falseGain}
+	screen := Screen{Cases: cases}
 	for _, screened := range cases {
 		for _, distance := range []float64{screened.Candidate, screened.Reseeded} {
 			if math.IsNaN(distance) || math.IsInf(distance, 0) {
@@ -48,15 +41,19 @@ func ScreenCandidate(cases []ScreenCase) (Screen, error) {
 			}
 		}
 		switch {
-		case screened.Lost():
-			screen.Lost++
+		case screened.Farther():
+			screen.Farther++
 		case screened.Candidate < screened.Reseeded:
-			screen.Kept++
+			screen.Nearer++
 		default:
 			screen.Ties++
 		}
 	}
-	screen.Tail = tensorstats.ExactPairedBinary(screen.Lost, screen.Kept, screen.Ties).Tail
-	screen.Passed = screen.Tail > screen.Level
 	return screen, nil
+}
+
+// Says is the screen as a person reads it: a diagnostic, with its counts.
+func (s Screen) Says() string {
+	return fmt.Sprintf("a diagnostic, refusing no candidate: the candidate lies farther from the reference than another seed in %d of %d cases, nearer in %d, as near in %d",
+		s.Farther, len(s.Cases), s.Nearer, s.Ties)
 }

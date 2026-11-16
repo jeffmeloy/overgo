@@ -24,9 +24,10 @@ const stillnessClips = 4
 // TestAFrozenClipReadsAsTooStill holds the frame-to-frame measure to a clip that does not move: judge-calibration/
 // sensitivity measured the judge's caption questions blind to a clip frozen on its first frame (1 lower of 10), and the
 // measure read such a clip's similarity, 1 between every frame, as the best a clip has. Of four VidGen clips, three are
-// asked about as they are and the fourth frozen on its first frame, each measured beside its source: the frozen clip
-// is more alike frame to frame than the stillest of the four sources, and it alone, so a quarter of the suite's clips
-// read as stiller than its sources.
+// asked about as they are and the fourth frozen on its first frame, each measured beside its own source: the frozen
+// clip is more alike frame to frame than its source, and it alone, so a quarter of the suite's clips read as stiller
+// than their source (preset-evidence/diagnostics: the stillest source of a suite let a freeze beside a moving source
+// pass).
 func TestAFrozenClipReadsAsTooStill(t *testing.T) {
 	cudatest.Require(t)
 	ctx := t.Context()
@@ -68,15 +69,12 @@ func TestAFrozenClipReadsAsTooStill(t *testing.T) {
 	card := testcheck.Must(encoder.OpenCard(ctx, 0))(t)
 	t.Cleanup(func() { testcheck.NoError(t, card.Close()) })
 	testcheck.NoError(t, measureMotion(ctx, card, "webssl-dino300m-full2b-224", &suite, drawn, sources))
-	var ceiling float64
-	for _, source := range suite.Motion.Sources {
-		ceiling = max(ceiling, source.Mean)
-	}
 	frozen := items[stillnessClips-1].ID
 	for _, item := range items {
-		t.Logf("%s: mean %.4f beside its source's %.4f, the stillest source %.4f", item.ID, suite.Motion.Clips[item.ID].Mean, suite.Motion.Sources[item.ID].Mean, ceiling)
-		if stiller := suite.Motion.Clips[item.ID].Mean > ceiling; stiller != (item.ID == frozen) {
-			t.Errorf("%s reads as stiller than the stillest source: %t, frozen: %t", item.ID, stiller, item.ID == frozen)
+		clip, source := suite.Motion.Clips[item.ID].Mean, suite.Motion.Sources[item.ID].Mean
+		t.Logf("%s: mean %.4f beside its source's %.4f", item.ID, clip, source)
+		if stiller := clip > source; stiller != (item.ID == frozen) {
+			t.Errorf("%s reads as stiller than its source: %t, frozen: %t", item.ID, stiller, item.ID == frozen)
 		}
 	}
 	metrics := map[string]float64{}
@@ -84,7 +82,7 @@ func TestAFrozenClipReadsAsTooStill(t *testing.T) {
 		metrics[metric.Name] = metric.Value
 	}
 	// The metric is read by the name a judged reading records it under, which stored readings keep.
-	if still, read := metrics["stiller-than-sources"]; !read || still != 1.0/stillnessClips {
-		t.Fatalf("the suite records %v, want a quarter of its clips stiller than its sources", metrics)
+	if still, read := metrics["stiller-than-source"]; !read || still != 1.0/stillnessClips {
+		t.Fatalf("the suite records %v, want a quarter of its clips stiller than their source", metrics)
 	}
 }

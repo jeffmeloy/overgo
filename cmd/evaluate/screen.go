@@ -178,20 +178,17 @@ func runScreen(ctx context.Context, encoderPath string, device int, candidate, r
 	if err != nil {
 		return errors.Join(err, card.Close())
 	}
-	return errors.Join(printScreen(screen), card.Close())
+	printScreen(screen)
+	return card.Close()
 }
 
-// printScreen prints each case the candidate lost and the screen's verdict, and refuses a candidate that failed.
-func printScreen(screen evaluation.Screen) error {
+// printScreen prints each case where the candidate lies farther from the reference than another seed, and the
+// screen's counts: a diagnostic, which refuses no candidate.
+func printScreen(screen evaluation.Screen) {
 	for _, screened := range screen.Cases {
-		if screened.Lost() {
-			fmt.Printf("screen: %s lost: %.4f from the reference, another seed %.4f\n", screened.Name, screened.Candidate, screened.Reseeded)
+		if screened.Farther() {
+			fmt.Printf("screen: %s lies %.4f from the reference, another seed %.4f\n", screened.Name, screened.Candidate, screened.Reseeded)
 		}
 	}
-	fmt.Printf("screen: the candidate lost %d of %d cases, kept %d, tied %d; chance %.3g at level %.3g\n",
-		screen.Lost, len(screen.Cases), screen.Kept, screen.Ties, screen.Tail, screen.Level)
-	if !screen.Passed {
-		return errors.New("evaluate: the candidate failed the screen: it lies farther from the reference than another seed in more cases than chance allows")
-	}
-	return nil
+	fmt.Println("screen: " + screen.Says())
 }

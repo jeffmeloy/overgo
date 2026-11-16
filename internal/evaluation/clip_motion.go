@@ -20,11 +20,12 @@ const (
 	// BelowSourceMetric is the share of the clips with a source clip whose lowest neighbour similarity falls below
 	// their source's: a step between frames larger than any the real clip the caption describes takes.
 	BelowSourceMetric = "below-source-frame-similarity"
-	// StillerThanSourcesMetric is the share of the suite's clips more alike frame to frame, by their mean neighbour
-	// similarity, than the stillest of the suite's source clips: a clip frozen on one frame, which the judge's caption
-	// questions pass (judge-calibration/sensitivity) and whose mean and lowest similarity read as the best a clip can
-	// have, reads here as too still.
-	StillerThanSourcesMetric = "stiller-than-sources"
+	// StillerThanSourceMetric is the share of the clips with a source clip more alike frame to frame, by their mean
+	// neighbour similarity, than their own source: a clip frozen on one frame, which the judge's caption questions pass
+	// (judge-calibration/sensitivity) and whose mean and lowest similarity read as the best a clip can have, reads here
+	// as stiller than the real clip its caption describes. A diagnostic, recorded neutral: no evidence sets how much
+	// stiller than its source a clip may be, so it bounds nothing.
+	StillerThanSourceMetric = "stiller-than-source"
 	// minimumMotionFrames is the fewest frames a clip has a neighbour pair in.
 	minimumMotionFrames = 2
 )
@@ -106,7 +107,7 @@ func (m ClipMotion) validate(cases []GeneratedAnswerCase) error {
 // Metrics are the motion metrics a judged reading of the suite records.
 func (m ClipMotion) Metrics() []runrecord.Metric {
 	var mean, lowest float64
-	var below, sourced int
+	var below, stiller, sourced int
 	for group, measured := range m.Clips {
 		mean += measured.Mean / float64(len(m.Clips))
 		lowest += measured.Lowest / float64(len(m.Clips))
@@ -115,6 +116,9 @@ func (m ClipMotion) Metrics() []runrecord.Metric {
 			if measured.Lowest < source.Lowest {
 				below++
 			}
+			if measured.Mean > source.Mean {
+				stiller++
+			}
 		}
 	}
 	metrics := []runrecord.Metric{
@@ -122,22 +126,9 @@ func (m ClipMotion) Metrics() []runrecord.Metric {
 		{Name: LowestFrameSimilarityMetric, Value: lowest, Direction: runrecord.DirectionMaximize},
 	}
 	if sourced > 0 {
-		metrics = append(metrics, runrecord.Metric{Name: BelowSourceMetric, Value: float64(below) / float64(sourced), Direction: runrecord.DirectionMinimize})
-	}
-	// The stillest real clip the suite's captions describe sets how still a clip of them may be; any clip of the suite
-	// beyond it, a composed caption's too, reads as too still.
-	if len(m.Sources) > 0 {
-		var ceiling float64
-		for _, source := range m.Sources {
-			ceiling = max(ceiling, source.Mean)
-		}
-		var still int
-		for _, measured := range m.Clips {
-			if measured.Mean > ceiling {
-				still++
-			}
-		}
-		metrics = append(metrics, runrecord.Metric{Name: StillerThanSourcesMetric, Value: float64(still) / float64(len(m.Clips)), Direction: runrecord.DirectionMinimize})
+		metrics = append(metrics,
+			runrecord.Metric{Name: BelowSourceMetric, Value: float64(below) / float64(sourced), Direction: runrecord.DirectionMinimize},
+			runrecord.Metric{Name: StillerThanSourceMetric, Value: float64(stiller) / float64(sourced), Direction: runrecord.DirectionNeutral})
 	}
 	return metrics
 }

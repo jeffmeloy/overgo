@@ -161,12 +161,12 @@ type Cell struct {
 
 // Motion is a suite's clips' similarity of each frame's image embedding to the next: the mean over its clips of each
 // clip's mean and of each clip's lowest, the share of the clips with a source clip whose lowest falls below their
-// source's, and the share of the clips stiller than the stillest source, where the suite had sources.
+// source's, and the share of them stiller than their source, where the suite had sources.
 type Motion struct {
-	Mean               float64  `json:"mean"`
-	Lowest             float64  `json:"lowest"`
-	BelowSource        *float64 `json:"below_source,omitempty"`
-	StillerThanSources *float64 `json:"stiller_than_sources,omitempty"`
+	Mean              float64  `json:"mean"`
+	Lowest            float64  `json:"lowest"`
+	BelowSource       *float64 `json:"below_source,omitempty"`
+	StillerThanSource *float64 `json:"stiller_than_source,omitempty"`
 }
 
 // readMetric is the value of the metric named that a reading's metrics carry, nil where they carry none.
@@ -187,7 +187,7 @@ func readMotion(metrics map[string]float64) *Motion {
 	if below, sourced := metrics[evaluation.BelowSourceMetric]; sourced {
 		motion.BelowSource = &below
 	}
-	motion.StillerThanSources = readMetric(metrics, evaluation.StillerThanSourcesMetric)
+	motion.StillerThanSource = readMetric(metrics, evaluation.StillerThanSourceMetric)
 	return motion
 }
 
@@ -214,8 +214,8 @@ func (c Cell) QualityText() string {
 		if c.Motion.BelowSource != nil {
 			text += fmt.Sprintf(", %.3g of clips below their source's lowest", *c.Motion.BelowSource)
 		}
-		if c.Motion.StillerThanSources != nil {
-			text += fmt.Sprintf(", %.3g of clips stiller than the stillest source", *c.Motion.StillerThanSources)
+		if c.Motion.StillerThanSource != nil {
+			text += fmt.Sprintf(", %.3g of clips stiller than their source", *c.Motion.StillerThanSource)
 		}
 	}
 	if c.Characters != nil {

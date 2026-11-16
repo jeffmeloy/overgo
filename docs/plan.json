@@ -20,22 +20,6 @@
       ]
     },
     {
-      "id": "preset-evidence",
-      "title": "A preset's verdict is bound to the renders and records it compared, and admitted by the statistic its evidence supports",
-      "steps": [
-        {
-          "id": "diagnostics",
-          "title": "The semantic screen and stillness are diagnostics beside admission, refusing no candidate",
-          "verify": "go test ./internal/evaluation -count=1 -run '^TestTheSemanticScreenAndStillnessAreDiagnostics$'",
-          "files": [
-            "internal/evaluation",
-            "cmd/evaluate"
-          ],
-          "rationale": "Serves: a candidate is refused only by a test its evidence supports (SQA-342, items 1 and 2).\n\nThe evidence (the review's, read from source): the semantic screen refuses a candidate whose embedding distance from the reference exceeds a reseeded draw's (internal/evaluation/screen.go ScreenCase.Lost, cmd/evaluate/screen.go printScreen), a prompt-loss measure nothing establishes; stillness counts a clip stiller than the stillest source clip of its suite (internal/evaluation/clip_motion.go), so a stationary source scores 1 and hides a freeze.\n\nThe change, the finding's: the screen's distance and stillness are diagnostics printed beside admission, which they no longer refuse or bound; stillness is said relative to the clip's own source.\n\nCheck: TestTheSemanticScreenAndStillnessAreDiagnostics."
-        }
-      ]
-    },
-    {
       "id": "landing-record",
       "title": "A landing's run record is written as it starts and finished as it ends, so a run ended from outside counts as an attempt",
       "steps": [

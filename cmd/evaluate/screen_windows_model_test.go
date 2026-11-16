@@ -26,13 +26,13 @@ import (
 // screenFixtureClips is how many VidGen source clips the screen's fixture is cut from: a case each.
 const screenFixtureClips = 32
 
-// TestTheScreenFailsACandidateThatLostItsPrompt holds the media screen to what it is for. Its fixture is cut from VidGen
-// source clips, each clip's caption a prompt: the reference path's output is a clip's first sampled frame, and the
-// reference path's output at another seed is a frame of the same clip seconds later, another picture the caption
-// allows. A candidate that rounds differently, each channel one level off, keeps every case and passes; a candidate
-// whose outputs lost their prompt, each the next clip's first frame, lies farther from the reference than the other
-// seed and fails. Both are embedded with webssl-dino300m on the card.
-func TestTheScreenFailsACandidateThatLostItsPrompt(t *testing.T) {
+// TestTheScreenSetsACandidateThatLostItsPromptFarther holds the media screen, a diagnostic that refuses no candidate
+// (preset-evidence/diagnostics), to what it shows. Its fixture is cut from VidGen source clips, each clip's caption a
+// prompt: the reference path's output is a clip's first sampled frame, and the reference path's output at another seed
+// is a frame of the same clip seconds later, another picture the caption allows. A candidate whose outputs lost their
+// prompt, each the next clip's first frame, lies farther from the reference than the other seed in more cases than a
+// candidate that rounds differently, each channel one level off. Both are embedded with webssl-dino300m on the card.
+func TestTheScreenSetsACandidateThatLostItsPromptFarther(t *testing.T) {
 	cudatest.Require(t)
 	ctx := t.Context()
 	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
@@ -67,17 +67,15 @@ func TestTheScreenFailsACandidateThatLostItsPrompt(t *testing.T) {
 	encoder := testcheck.Must(vitencoder.Load(roots.ResolveModelPath("webssl-dino300m-full2b-224")))(t)
 	card := testcheck.Must(encoder.OpenCard(ctx, 0))(t)
 	t.Cleanup(func() { testcheck.NoError(t, card.Close()) })
-	for _, candidate := range []struct {
-		name    string
-		outputs [][]byte
-		passes  bool
-	}{{"rounds differently", rounded, true}, {"lost its prompt", lost, false}} {
-		screen := testcheck.Must(screenPaths(ctx, card, writeScreenDirectory(t, prompts, candidate.outputs, referenceSeed), reference, reseeded))(t)
-		t.Logf("a candidate that %s lost %d of %d cases, kept %d, tied %d: chance %.3g at level %.3g, passed %t",
-			candidate.name, screen.Lost, len(screen.Cases), screen.Kept, screen.Ties, screen.Tail, screen.Level, screen.Passed)
-		if screen.Passed != candidate.passes {
-			t.Errorf("a candidate that %s passed the screen: %t, want %t", candidate.name, screen.Passed, candidate.passes)
-		}
+	farther := map[string]uint64{}
+	for name, outputs := range map[string][][]byte{"rounds differently": rounded, "lost its prompt": lost} {
+		screen := testcheck.Must(screenPaths(ctx, card, writeScreenDirectory(t, prompts, outputs, referenceSeed), reference, reseeded))(t)
+		t.Logf("a candidate that %s: %s", name, screen.Says())
+		farther[name] = screen.Farther
+	}
+	if farther["lost its prompt"] <= farther["rounds differently"] {
+		t.Errorf("a candidate that lost its prompt lies farther in %d cases and one that rounds differently in %d; want the first more",
+			farther["lost its prompt"], farther["rounds differently"])
 	}
 }
 

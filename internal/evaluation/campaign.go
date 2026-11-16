@@ -162,12 +162,26 @@ func (campaign *Campaign) Evaluate(ctx context.Context, suite CompiledSuite) (Ca
 			}
 		}
 	}
+	state := campaign.executionState(ctx)
 	result, evaluateErr := executeSuite(ctx, campaign.repository, campaign.runtime, suite)
 	measured, err := stopwatch.Elapsed()
 	if err != nil {
 		return CampaignResult{}, errors.Join(evaluateErr, err)
 	}
+	result.state = state
 	return campaign.finishEvaluation(ctx, suite, result, evaluateErr, measured)
+}
+
+// executionState is the state of the campaign's recipe as its run executes, read once there and carried to its
+// publication: an activation of the recipe after the run is no verification of it, and a state the store could not
+// say is published as runrecord.StateUnread, which earns no verified row (SQA-283). Read at publication with its error
+// dropped, an empty state took the accepted path, and a run executed not verified published verified.
+func (campaign *Campaign) executionState(ctx context.Context) string {
+	state, err := modelrecipe.ReadRecipeState(ctx, campaign.repository, campaign.identity.Model, campaign.identity.Recipe)
+	if err != nil {
+		return runrecord.StateUnread
+	}
+	return string(state.Verification)
 }
 
 // finishEvaluation owns successful and terminal publication.
@@ -246,11 +260,8 @@ func (campaign *Campaign) publishSuccess(
 	if err != nil {
 		return retained, err
 	}
-	// A store that cannot say leaves the reading without a state: a record of what ran stands without one.
-	if state, err := modelrecipe.ReadRecipeState(ctx, campaign.repository, campaign.identity.Model, campaign.identity.Recipe); err == nil {
-		if record, err = record.UnderState(string(state.Verification)); err != nil {
-			return retained, err
-		}
+	if record, err = record.UnderState(result.state); err != nil {
+		return retained, err
 	}
 	batch, observation, err := campaign.preparePublication(ctx, run, &record, resources)
 	if err != nil {

@@ -1549,11 +1549,11 @@ var heldoutProposals = map[recipe.Task]string{
 // reads not applicable when its task has a held-out evaluation proposed, else
 // a gap.
 // earned is the readings a row may hold of a model in the state given. A reading taken while nothing verified the model, a
-// candidate's before it activated, is no reading of the verified model. A model nothing has verified keeps its own, and the
-// row says what it is.
+// candidate's before it activated, is no reading of the verified model, and neither is one whose state the store could
+// not say as it ran (runrecord.StateUnread). A model nothing has verified keeps its own, and the row says what it is.
 func earned(summaries []evaluation.EvalSummary, state modelrecipe.ModelState) []evaluation.EvalSummary {
 	unverified := func(reading string) bool {
-		return reading == string(modelrecipe.StateNotVerified) || reading == string(modelrecipe.StateBroken)
+		return reading == string(modelrecipe.StateNotVerified) || reading == string(modelrecipe.StateBroken) || reading == runrecord.StateUnread
 	}
 	if unverified(string(state.Verification)) {
 		return summaries

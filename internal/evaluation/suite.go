@@ -134,6 +134,8 @@ func choiceChance(suite []byte) float64 {
 type suiteResult struct {
 	Report  artifact.ID
 	Metrics []runrecord.Metric
+	// state is the recipe's state as the suite executed (Campaign.executionState).
+	state string
 }
 
 type CompiledSuite struct {

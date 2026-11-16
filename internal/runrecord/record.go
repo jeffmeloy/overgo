@@ -363,6 +363,10 @@ func NewEvaluation(
 	return evaluationCodec.New(evaluation)
 }
 
+// StateUnread is the state of a reading whose recipe's state the store could not say as its run executed: it earns no
+// verified row, where an empty state was taken as a reading from before states were kept (execution-state/do).
+const StateUnread = "state unread"
+
 // UnderState is the evaluation as a reading under the state the store recorded of its model.
 func (e Evaluation) UnderState(state string) (Evaluation, error) {
 	e.Verification = state

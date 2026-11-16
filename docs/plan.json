@@ -37,46 +37,9 @@
       ]
     },
     {
-      "id": "cuda-resources",
-      "title": "SenseNova's request-resources test is measured again on a card to itself and carries modeltest, so the gate's cuda lane runs no real-model test",
-      "steps": [
-        {
-          "id": "do",
-          "title": "SenseNova's request-resources test is measured again on a card to itself and carries modeltest, so the gate's cuda lane runs no real-model test",
-          "verify": "go test -tags wholetree ./internal/landing -count=1 -run '^TestTheGateRunsNoRealModelTest$'",
-          "files": [
-            "internal/sensenovarecipe",
-            "internal/landing",
-            "docs/image_video_capacity.json",
-            "cmd/validate"
-          ],
-          "rationale": "Note: The evidence: cuda-synthetic/tag moved every untagged CUDA test that reads the data root behind modeltest but one. TestSenseNovaVariableRequestResources runs SenseNova's 8B production generation in an isolated measurement process, and docs/image_video_capacity.json names its retained measurement by the bytes of its file (evidence:sha256:888854b5...), which the store holds; tagged, its bytes changed and TestImageVideoCapacityAcceptance found no evidence under the new identity. A measurement is taken again only on a card to itself, and the readings campaign holds the card until its Wan arms are drawn, so the file stays in the gate, named by the check as measuredInPlace, and this row follows the campaign.\n\nThe change: the test carries //go:build modeltest, it is measured again on a quiet card into the store, the capacity record and its protocol digest (imageVideoCapacitySHA256) name the new identity, and measuredInPlace goes, so internal/sensenovarecipe leaves the cuda lane.\n\nCheck: a whole-tree test with measuredInPlace gone, named afresh so it fails before the change: TestTheGateRunsNoRealModelTest."
-        }
-      ]
-    },
-    {
       "id": "full-run",
       "title": "One full measurement run with the card to itself, once its known causes are cured: TabFM's held-out cases, gemma-4-12B-it-fp8 onboarded, and the owner's answer to speed-table-run",
       "steps": []
-    },
-    {
-      "id": "execution-state",
-      "title": "A published evaluation holds the recipe state its execution read, and a state it could not read is no verified row",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A published evaluation holds the recipe state its execution read, and a state it could not read is no verified row",
-          "verify": "go test ./internal/evaluation -count=1 -run '^TestAPublishedEvaluationHoldsTheStateItsExecutionRead$'",
-          "files": [
-            "internal/evaluation",
-            "cmd/evaluate",
-            "internal/discovery",
-            "internal/scorecard",
-            "internal/runrecord"
-          ],
-          "rationale": "Serves: a held-out reading credits a model only with the verification its run executed under (SQA-283, P2, shown from source).\n\nThe evidence (the review's, at 4cb1c8aead: 0efe83b82 and 31e95d725 credited): three publication owners (cmd/evaluate capability and projection, internal/evaluation campaign) still read recipe state at publication and drop a lookup error; an empty Verification then follows the legacy-compatible accepted path, since earned and unverifiedAside refuse only an explicit not-verified or broken; and a later activation of the same recipe can turn an execution-time not-verified into a publication-time verified. The lead triaged it implemented on 2026-11-08 from run-from-files/do and recipe-state, which made the first repair; rechecked on 2026-11-13, the remaining paths stand.\n\nThe cure the finding recommends: the state is read once where the run executes and carried to publication; a read error is published as unknown state, which earns no verified row.\n\nCheck: TestAPublishedEvaluationHoldsTheStateItsExecutionRead extends the campaign's publication fixture (TestMediaEvidenceNamesConsumedInputsAndKeepsItsMethod's runtime pattern): a run executed not-verified and published after an activation reads not-verified, and a run whose state read fails publishes no verified row. At the base the later activation's state is published."
-        }
-      ]
     },
     {
       "id": "preset-form",
@@ -153,6 +116,24 @@
             "cmd/evaluate"
           ],
           "rationale": "Serves: an OCR or motion reading is credited to the media it read (SQA-346, P2: held-out readings).\n\nThe evidence (the review's, shown from source): OCR and motion observations are produced outside the media compiler, so Campaign.CompileSuite binds the cases and not their observations, and an old observation can be attributed to newly consumed media.\n\nThe change, the finding's: both producers go through the content, runtime and decoder identity owners, and the suite binds their observations with its cases, the measuring runtime kept apart from the answering judge.\n\nCheck: TestOCRAndMotionObservationsBindTheirConsumedMedia compiles a suite over media whose bytes changed after an observation and holds the stale observation out."
+        }
+      ]
+    },
+    {
+      "id": "cuda-resources",
+      "title": "SenseNova's request-resources test is measured again on a card to itself and carries modeltest, so the gate's cuda lane runs no real-model test",
+      "steps": [
+        {
+          "id": "do",
+          "title": "SenseNova's request-resources test is measured again on a card to itself and carries modeltest, so the gate's cuda lane runs no real-model test",
+          "verify": "go test -tags wholetree ./internal/landing -count=1 -run '^TestTheGateRunsNoRealModelTest$'",
+          "files": [
+            "internal/sensenovarecipe",
+            "internal/landing",
+            "docs/image_video_capacity.json",
+            "cmd/validate"
+          ],
+          "rationale": "Note: The evidence: cuda-synthetic/tag moved every untagged CUDA test that reads the data root behind modeltest but one. TestSenseNovaVariableRequestResources runs SenseNova's 8B production generation in an isolated measurement process, and docs/image_video_capacity.json names its retained measurement by the bytes of its file (evidence:sha256:888854b5...), which the store holds; tagged, its bytes changed and TestImageVideoCapacityAcceptance found no evidence under the new identity. A measurement is taken again only on a card to itself, and the readings campaign holds the card until its Wan arms are drawn, so the file stays in the gate, named by the check as measuredInPlace, and this row follows the campaign.\n\nThe change: the test carries //go:build modeltest, it is measured again on a quiet card into the store, the capacity record and its protocol digest (imageVideoCapacitySHA256) name the new identity, and measuredInPlace goes, so internal/sensenovarecipe leaves the cuda lane.\n\nCheck: a whole-tree test with measuredInPlace gone, named afresh so it fails before the change: TestTheGateRunsNoRealModelTest."
         }
       ]
     },

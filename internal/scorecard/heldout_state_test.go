@@ -13,7 +13,8 @@ import (
 
 // TestAHeldOutReadingKeepsTheStateItRanUnder: a reading says what was known of its model, as an attempt does, and a record
 // from before that keeps its identity. A candidate read before it activated reaches no row of the verified model, whose
-// other readings stand, and a model nothing has verified keeps its own.
+// other readings stand, nor one whose state the store could not say as it ran; a model nothing has verified keeps its
+// own.
 func TestAHeldOutReadingKeepsTheStateItRanUnder(t *testing.T) {
 	t.Parallel()
 	metrics := []runrecord.Metric{{Name: "accuracy", Value: 0.5, Direction: runrecord.DirectionMaximize}}
@@ -32,6 +33,7 @@ func TestAHeldOutReadingKeepsTheStateItRanUnder(t *testing.T) {
 	readings := []evaluation.EvalSummary{
 		{Suite: "before", Verification: string(modelrecipe.StateNotVerified)}, {Suite: "broken", Verification: string(modelrecipe.StateBroken)},
 		{Suite: "after", Verification: string(modelrecipe.StateVerified)}, {Suite: "older"},
+		{Suite: "unread", Verification: runrecord.StateUnread},
 	}
 	kept := earned(readings, modelrecipe.ModelState{Verification: modelrecipe.StateVerified})
 	if len(kept) != 2 || kept[0].Suite != "after" || kept[1].Suite != "older" {

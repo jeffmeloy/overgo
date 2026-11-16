@@ -30,7 +30,7 @@ func WeekPace(root string, now time.Time) (Pace, error) {
 		return Pace{}, err
 	}
 	since := now.Add(-paceWindow)
-	runs = slices.DeleteFunc(runs, func(run spent) bool { return run.Outcome == outcomePreflight || run.Started.Before(since) })
+	runs = slices.DeleteFunc(settled(runs), func(run spent) bool { return run.Outcome == outcomePreflight || run.Started.Before(since) })
 	slices.SortFunc(runs, func(a, b spent) int { return a.Started.Compare(b.Started) })
 	var pace Pace
 	landed := 0

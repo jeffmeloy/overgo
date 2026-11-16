@@ -127,6 +127,7 @@ func (delivery *Delivery) readRuns(root string) error {
 	if err := json.Unmarshal(data, &runs); err != nil {
 		return err
 	}
+	runs = settled(runs)
 	slices.SortStableFunc(runs, func(a, b spent) int { return a.Started.Compare(b.Started) })
 	// A landing's attempts are its reference's refused commit attempts since that reference last landed, and itself.
 	attempts := map[string]int{}

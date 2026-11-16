@@ -196,13 +196,15 @@ func Run(ctx context.Context, options Options) (landed string, err error) {
 			}
 		}
 	}()
-	// Where the run's time went is recorded however it ends. A record that
-	// cannot be written is said and changes nothing: the landing stands.
-	l.spent = spent{Reference: options.Ref, Started: time.Now(), Outcome: gateClass, Kind: runKind(options.Preflight), Stages: map[string]time.Duration{}}
+	// Where the run's time went is recorded as it starts, as each stage starts, and as it ends however it ends; a run
+	// ended from outside is read from where it was last heard (settled).
+	l.spent = spent{Reference: options.Ref, Started: time.Now(), Outcome: gateClass, Kind: runKind(options.Preflight), Stages: map[string]time.Duration{},
+		Process: os.Getpid()}
+	l.spent.Began, _ = processcontrol.ProcessStart(l.spent.Process)
+	l.writeSpent()
 	defer func() {
-		if unrecorded := l.recordSpent(); unrecorded != nil {
-			fmt.Fprintf(options.Log, "land: where the run's time went was not recorded: %v\n", unrecorded)
-		}
+		l.spent.Ended = time.Now()
+		l.writeSpent()
 	}()
 	// A run that may commit takes the repository's one turn first, and holds it to its end.
 	if !options.Preflight {
@@ -280,6 +282,7 @@ func Run(ctx context.Context, options Options) (landed string, err error) {
 		// The stage is the outcome from before its card turn is taken, so a wait for the turn, and a refusal in it, is
 		// the stage's own: one set after the hold recorded a 130-minute wait on 2026-11-14 under the stage before it.
 		l.spent.Outcome = check.name
+		l.writeSpent()
 		// The card's turn is held from the landing's first stage on the card to its end, a check on the card's apart.
 		if !options.Preflight && l.card == nil {
 			if card, err := l.onCard(check.name); err != nil {

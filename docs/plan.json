@@ -20,21 +20,6 @@
       ]
     },
     {
-      "id": "landing-record",
-      "title": "A landing's run record is written as it starts and finished as it ends, so a run ended from outside counts as an attempt",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A landing's run record is written as it starts and finished as it ends, so a run ended from outside counts as an attempt",
-          "verify": "go test ./internal/landing -count=1 -run '^TestALandingEndedFromOutsideLeavesItsAttempt$'",
-          "files": [
-            "internal/landing"
-          ],
-          "rationale": "Note: Serves: the first-attempt rate and the gate's hours count every attempt, an attempt ended from outside among them.\n\nThe evidence (2026-11-15): the cycle-lanes/do landing ended from outside at 18:01, its lanes doomed by a test the next setting enabled, left no entry in landing_waits.json: the record is written as a landing ends (Run), so a process ended from outside writes none, and the day's first-attempt rate and check time read better than the day was.\n\nThe change: a landing writes its entry as it starts, and finishes it as it ends; an entry whose process is gone with no end reads as ended from outside, at the stage it had reached, and counts as a failed attempt.\n\nCheck: TestALandingEndedFromOutsideLeavesItsAttempt."
-        }
-      ]
-    },
-    {
       "id": "clip-runtimes",
       "title": "The clip runtimes are found where the product reads them, the NVENC FFmpeg and NVIDIA's effects runtime, so no session names them",
       "steps": [

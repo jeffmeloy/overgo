@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 	"unicode/utf8"
 
 	"overgo/internal/artifact"
@@ -907,9 +908,9 @@ func temporaryBuilds(f *facts, line place) []leftover {
 // The go build cache keeps its entries in cacheParts directories, each named
 // by the first byte of an entry's hash, so cachePart, one of them, holds one
 // part in cacheParts of the cache whatever the cache holds. The cache is keyed
-// by a checkout's path, so each registered checkout may hold of its own what
-// the last landing that landed fell of free space (landing.LastLandingFall,
-// space-record/do), none where no landing recorded one.
+// by a checkout's path, so each registered checkout may hold of its own the
+// greatest fall of free space a landing that landed recorded in the week
+// (landing.WeekLandingFall, space-week/do), none where none recorded one.
 const (
 	cacheParts = 256
 	cachePart  = "00"
@@ -1643,7 +1644,7 @@ func realMachine(store string) (h hygiene, err error) {
 		return h, err
 	}
 	h = hygiene{checkout: trees[0].Root, running: running, temporary: os.TempDir(), removeTree: fsatomic.RemoveTree}
-	fall, err := landing.LastLandingFall(h.checkout)
+	fall, err := landing.WeekLandingFall(h.checkout, time.Now())
 	if err != nil {
 		return h, err
 	}

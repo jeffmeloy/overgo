@@ -37,22 +37,6 @@
       ]
     },
     {
-      "id": "space-week",
-      "title": "The space floor is the greatest fall a landing that landed recorded in the week, so a small landing does not lower it and one run's fall does not hold it for good",
-      "steps": [
-        {
-          "id": "do",
-          "title": "The space floor is the greatest fall a landing that landed recorded in the week, so a small landing does not lower it and one run's fall does not hold it for good",
-          "verify": "go test ./internal/landing -count=1 -run '^TestTheSpaceFloorIsTheGreatestLandedFallOfTheWeek$'",
-          "files": [
-            "internal/landing",
-            "cmd/loop/leftovers.go"
-          ],
-          "rationale": "Note: files set to internal/landing, cmd/loop/leftovers.go: the leftovers' cache allowance reads the same landed fall, under the reader's new name (landing.WeekLandingFall)"
-        }
-      ]
-    },
-    {
       "id": "cuda-resources",
       "title": "SenseNova's request-resources test is measured again on a card to itself and carries modeltest, so the gate's cuda lane runs no real-model test",
       "steps": [

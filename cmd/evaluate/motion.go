@@ -11,6 +11,7 @@ import (
 	"path"
 	"path/filepath"
 
+	"overgo/internal/artifact"
 	"overgo/internal/evaluation"
 	"overgo/internal/jsonfile"
 	"overgo/internal/media"
@@ -58,8 +59,13 @@ func clipFile(directory, name string) (string, error) {
 	return mediaPath(directory, name)
 }
 
-// clipMotion reads the clip at path at motionFrameRate and measures how it moves.
+// clipMotion reads the clip at path at motionFrameRate and measures how it moves, naming the digest of the bytes it
+// read.
 func clipMotion(ctx context.Context, encoder imageEmbedder, ffmpeg, path string) (evaluation.FrameSimilarity, error) {
+	content, err := artifact.IdentifyFile(artifact.KindFile, path)
+	if err != nil {
+		return evaluation.FrameSimilarity{}, err
+	}
 	frames, err := media.DecodeVideoFile(ctx, path, ffmpeg, motionFrameRate, motionFrames)
 	if err != nil {
 		return evaluation.FrameSimilarity{}, fmt.Errorf("evaluate: read the frames of %s: %w", path, err)
@@ -72,6 +78,7 @@ func clipMotion(ctx context.Context, encoder imageEmbedder, ffmpeg, path string)
 	if err != nil {
 		return evaluation.FrameSimilarity{}, fmt.Errorf("evaluate: %s: %w", path, err)
 	}
+	measured.Content = content.DigestHex()
 	return measured, nil
 }
 

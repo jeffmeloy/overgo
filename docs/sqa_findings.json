@@ -258,32 +258,33 @@
         "note": "Answered by the lead on 2026-11-13: filed, held-out readings credited to media they did not read."
       },
   "SQA-340": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "preset-form/do"
         ],
-        "note": "Answered by the lead on 2026-11-13: filed, a served choice misrepresented."
+        "note": "Answered by the lead on 2026-11-13: filed, a served choice misrepresented. Implemented 2026-11-16 by preset-form/do (e630267ae), for the review's recheck."
       },
   "SQA-382": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
-          "prompt-weights/rows"
+          "prompt-weights/rows",
+          "prompt-weights/negative"
         ],
-        "note": "Answered by the lead on 2026-11-13: filed, model output."
+        "note": "Answered by the lead on 2026-11-13: filed, model output. Implemented 2026-11-16 by prompt-weights/rows (0343601c3) and prompt-weights/negative (ca84b3b3c), for the review's recheck."
       },
   "SQA-386": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "moss-import-admission/convrot"
         ],
-        "note": "Answered by the lead on 2026-11-13: filed, MOSS Ultra's Base serving from its own file."
+        "note": "Answered by the lead on 2026-11-13: filed, MOSS Ultra's Base serving from its own file. Implemented 2026-11-16 by moss-import-admission/convrot (fa598795d), for the review's recheck."
       },
   "SQA-342": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "preset-evidence/statistic"
         ],
-        "note": "Answered by the lead on 2026-11-13: filed after preset-readings, whose admissions it bears on; a held-out quality claim."
+        "note": "Answered by the lead on 2026-11-13: filed after preset-readings, whose admissions it bears on; a held-out quality claim. Implemented 2026-11-16 by preset-evidence/statistic (9ed242b6c), for the review's recheck."
       },
   "SQA-388": {
         "action": "filed",
@@ -332,11 +333,18 @@
         "note": "Checked 2026-11-13 at 8ab8f2e44: the module root holds no Go file, so no package there can embed a file below it, and the one build-tagged file with a go:embed directive is a test (internal/dataset/speech_source_acceptance_model_test.go), which the undo does not restore as production. Neither shape the finding names occurs today; it is taken up when one does, or with the verifier's build-context work it names."
       },
   "SQA-283": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "execution-state/do"
         ],
-        "note": "Reopened by the lead's recheck on 2026-11-13: run-from-files/do and recipe-state made the first repair, whose tests pass at f110d30b1, but the review's evidence names three publication owners that still read recipe state at publication and drop a lookup error, so an empty Verification earns the legacy path and a later activation can replace execution-time state. execution-state/do carries the state read at execution to publication."
+        "note": "Reopened by the lead's recheck on 2026-11-13: run-from-files/do and recipe-state made the first repair, whose tests pass at f110d30b1, but the review's evidence names three publication owners that still read recipe state at publication and drop a lookup error, so an empty Verification earns the legacy path and a later activation can replace execution-time state. execution-state/do carries the state read at execution to publication. Implemented 2026-11-16 by execution-state/do (f7338b9b0), for the review's recheck."
+      },
+  "SQA-404": {
+        "action": "filed",
+        "rows": [
+          "first-bound/do"
+        ],
+        "note": "Answered by the lead on 2026-11-16: replay-bound/do (144dc735e) runs a replayed check at its landed commit first, so the replay meets the bound a pass records; a first-seen command elsewhere still runs with no job memory limit, which first-bound/do carries."
       }
 }
   },

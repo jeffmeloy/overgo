@@ -30,9 +30,9 @@ func (s scriptedReader) read(_ context.Context, name string, _ image.Image) (tex
 }
 
 // TestDrawnTextScoresTheCharactersReadBack holds -read-suite's reading of a drawn-text suite: each picture a case asks
-// about is read once from the suite's picture directory, its rows kept as the reading of that picture with the reader's
-// identities, so the suite's score is the share of the asked characters read back. A picture read whole scores 1 and
-// one read with a character wrong scores below it.
+// about is read once from the suite's picture directory, its rows kept as the reading of that picture with the digest
+// of the bytes read and the reader's identities, so the suite's score is the share of the asked characters read back. A
+// picture read whole scores 1 and one read with a character wrong scores below it.
 func TestDrawnTextScoresTheCharactersReadBack(t *testing.T) {
 	t.Parallel()
 	items := testcheck.Must(evaluation.PickDrawnText(2, 7))(t)
@@ -57,9 +57,11 @@ func TestDrawnTextScoresTheCharactersReadBack(t *testing.T) {
 		Projection: testutil.ArtifactID(t, artifact.KindRecipe, "projection"),
 	}
 	testcheck.NoError(t, readSuite(t.Context(), scriptedReader{rows: rows, reader: reader}, &suite, pictures))
+	first := items[0].ID + ".png"
+	content := testcheck.Must(artifact.IdentifyFile(artifact.KindFile, filepath.Join(pictures, first)))(t).DigestHex()
 	if suite.Readings == nil || suite.Readings.Reader != reader || len(suite.Readings.Read) != len(items) ||
-		suite.Readings.Read[items[0].ID+".png"] != strings.Join(rows[items[0].ID+".png"], "\n") {
-		t.Fatalf("the suite's readings are %+v, want each picture's rows under its name with the reader", suite.Readings)
+		suite.Readings.Read[first] != (evaluation.PictureReading{Content: content, Text: strings.Join(rows[first], "\n")}) {
+		t.Fatalf("the suite's readings are %+v, want each picture's rows under its name, with the digest of the bytes read, and the reader", suite.Readings)
 	}
 	cases := map[string][]evaluation.GeneratedAnswerCase{}
 	for _, testCase := range suite.Cases {

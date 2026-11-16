@@ -31,11 +31,14 @@ const (
 )
 
 // FrameSimilarity is how a clip moves: the cosine of each frame's image embedding with the next frame's, their mean,
-// and the lowest.
+// and the lowest; and the content it read, the digest of the clip's bytes as artifact.IdentifyBytes names them, so a
+// suite binds a clip's motion to the media its cases judge (bindObservations). A measure made before clips' content
+// was recorded names none, and binds to no media.
 type FrameSimilarity struct {
 	Neighbours []float64 `json:"neighbours"`
 	Mean       float64   `json:"mean"`
 	Lowest     float64   `json:"lowest"`
+	Content    string    `json:"content,omitempty"`
 }
 
 // ClipMotion is how a suite's clips move, each by what its cases ask about (MotionKey), with the image encoder that

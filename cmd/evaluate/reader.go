@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -12,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 
+	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
 	"overgo/internal/evaluation"
 	"overgo/internal/inference"
@@ -50,9 +52,10 @@ type textRow struct {
 }
 
 // textReading is what a reader read off one picture, row by row, with who read it: the reader's model, recipe and
-// projection.
+// projection; and the digest of the picture's bytes it read.
 type textReading struct {
 	Picture string                  `json:"picture"`
+	Content string                  `json:"content"`
 	Rows    []textRow               `json:"rows"`
 	Reader  evaluation.MediaRuntime `json:"reader"`
 }
@@ -155,17 +158,23 @@ func (r textReading) text() string {
 	return strings.Join(lines, "\n")
 }
 
-// readFile reads the picture at path, named name in what it records.
+// readFile reads the picture at path, named name in what it records, with the digest of the bytes it decoded.
 func readFile(ctx context.Context, reader pictureReader, path, name string) (textReading, error) {
-	file, err := os.Open(path)
+	raw, err := os.ReadFile(path)
 	if err != nil {
 		return textReading{}, err
 	}
-	picture, _, err := image.Decode(file)
-	if err = errors.Join(err, file.Close()); err != nil {
+	content, err := artifact.IdentifyBytes(artifact.KindFile, raw)
+	if err != nil {
+		return textReading{}, err
+	}
+	picture, _, err := image.Decode(bytes.NewReader(raw))
+	if err != nil {
 		return textReading{}, fmt.Errorf("evaluate: decode %s: %w", name, err)
 	}
-	return reader.read(ctx, name, picture)
+	reading, err := reader.read(ctx, name, picture)
+	reading.Content = content.DigestHex()
+	return reading, err
 }
 
 // withReader opens the reader at modelPath and projectorPath over the store at repository on the card of device, runs
@@ -218,7 +227,7 @@ func writeReadings(ctx context.Context, repository, directory, modelPath, projec
 // readSuite reads each picture a suite of drawn text asks about, from pictures, and keeps the readings in the suite by
 // the picture's name.
 func readSuite(ctx context.Context, reader pictureReader, suite *evaluation.GeneratedAnswerSuite, pictures string) error {
-	readings := evaluation.PictureReadings{Read: map[string]string{}}
+	readings := evaluation.PictureReadings{Read: map[string]evaluation.PictureReading{}}
 	for _, testCase := range suite.Cases {
 		name, _, asked := testCase.Asked()
 		if _, read := readings.Read[name]; !asked || read {
@@ -228,7 +237,7 @@ func readSuite(ctx context.Context, reader pictureReader, suite *evaluation.Gene
 		if err != nil {
 			return err
 		}
-		readings.Read[name], readings.Reader = reading.text(), reading.Reader
+		readings.Read[name], readings.Reader = evaluation.PictureReading{Content: reading.Content, Text: reading.text()}, reading.Reader
 	}
 	if len(readings.Read) == 0 {
 		return errors.New("evaluate: the suite asks about no picture")

@@ -57,7 +57,7 @@ func TestDrawnTextScoresTheCharactersReadBack(t *testing.T) {
 		Model: testutil.ArtifactID(t, artifact.KindModel, "reader"), Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "inference"),
 		Projection: testutil.ArtifactID(t, artifact.KindRecipe, "projection"),
 	}
-	suite.Readings = &PictureReadings{Reader: reader, Read: map[string]string{clean: cleanRead, flawed: flawedRead}}
+	suite.Readings = &PictureReadings{Reader: reader, Read: map[string]PictureReading{clean: {Text: cleanRead}, flawed: {Text: flawedRead}}}
 	testcheck.Must(CompileGeneratedAnswer(suite))(t)
 	recorded := map[string]float64{}
 	for _, metric := range generatedAnswerMetrics(suite, 1, 1) {
@@ -67,8 +67,8 @@ func TestDrawnTextScoresTheCharactersReadBack(t *testing.T) {
 		t.Fatalf("a judged reading records %v, want the pictures' mean share %v", recorded, (whole+short)/2)
 	}
 	for name, readings := range map[string]PictureReadings{
-		"a picture unread": {Reader: reader, Read: map[string]string{clean: cleanRead}},
-		"no reader":        {Read: map[string]string{clean: cleanRead, flawed: flawedRead}},
+		"a picture unread": {Reader: reader, Read: map[string]PictureReading{clean: {Text: cleanRead}}},
+		"no reader":        {Read: map[string]PictureReading{clean: {Text: cleanRead}, flawed: {Text: flawedRead}}},
 	} {
 		suite.Readings = &readings
 		if _, err := CompileGeneratedAnswer(suite); err == nil {

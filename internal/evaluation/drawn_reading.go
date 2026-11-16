@@ -18,8 +18,15 @@ const CharacterMetric = "characters-read"
 // chooses among near texts and so cannot say how many characters a picture got right. A picture is named and not
 // grouped since suites built before cases had groups ask about many pictures under none.
 type PictureReadings struct {
-	Reader MediaRuntime      `json:"reader"`
-	Read   map[string]string `json:"read"`
+	Reader MediaRuntime              `json:"reader"`
+	Read   map[string]PictureReading `json:"read"`
+}
+
+// PictureReading is the text a reader read off a picture, and the content it read: the digest of the picture's bytes,
+// as artifact.IdentifyBytes names them, so a suite binds the reading to the media its cases judge (bindObservations).
+type PictureReading struct {
+	Content string `json:"content"`
+	Text    string `json:"text"`
 }
 
 // Asked is the picture the case asks about and the text it asks whether that picture holds: the choice its answer
@@ -79,7 +86,7 @@ func (r PictureReadings) Metrics(cases []GeneratedAnswerCase) []runrecord.Metric
 	asked, _ := askedTexts(cases)
 	var mean float64
 	for picture, texts := range asked {
-		mean += characterShare(texts, r.Read[picture]) / float64(len(asked))
+		mean += characterShare(texts, r.Read[picture].Text) / float64(len(asked))
 	}
 	return []runrecord.Metric{{Name: CharacterMetric, Value: mean, Direction: runrecord.DirectionMaximize}}
 }

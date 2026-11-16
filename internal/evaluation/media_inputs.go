@@ -86,6 +86,7 @@ func (campaign *Campaign) CompileSuite(ctx context.Context, data []byte) (Compil
 	}
 	methodCases := make([]map[string]json.RawMessage, len(cases))
 	var inputs []MediaInput
+	var judged []judgedMedia
 	resolved := map[struct {
 		kind MediaKind
 		name string
@@ -126,6 +127,7 @@ func (campaign *Campaign) CompileSuite(ctx context.Context, data []byte) (Compil
 		if err != nil {
 			return CompiledSuite{}, err
 		}
+		judged = append(judged, judgedMedia{kind: kind, name: name, reference: reference, content: input.Content.DigestHex(), motionKey: motionKey(testCase)})
 		testCase["prompt"], err = json.Marshal(mediaPrompt(kind, reference, question))
 		if err != nil {
 			return CompiledSuite{}, err
@@ -160,6 +162,15 @@ func (campaign *Campaign) CompileSuite(ctx context.Context, data []byte) (Compil
 	if len(inputs) == 0 {
 		return CompileSuite(data, authorities)
 	}
+	// How the cases are asked is their method; what an instrument observed of the media is not, so the observations
+	// leave the method and are bound to the media the cases judge.
+	observed := map[string]json.RawMessage{}
+	for _, field := range observationFields {
+		if raw, held := document[field]; held {
+			observed[field] = raw
+			delete(document, field)
+		}
+	}
 	document["cases"], _ = json.Marshal(methodCases)
 	methodData, err := json.Marshal(document)
 	if err != nil {
@@ -172,6 +183,9 @@ func (campaign *Campaign) CompileSuite(ctx context.Context, data []byte) (Compil
 	authorities.media = &mediaAuthority{Method: method.plan.body.CaseProfile, Inputs: inputs}
 	authorities.mediaProfile = method.plan.authorities[0]
 	document["cases"], _ = json.Marshal(cases)
+	if err := bindObservations(document, observed, judged); err != nil {
+		return CompiledSuite{}, err
+	}
 	bound, err := json.Marshal(document)
 	if err != nil {
 		return CompiledSuite{}, err

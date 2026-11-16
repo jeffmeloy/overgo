@@ -36,6 +36,8 @@ type MeasurementRun struct {
 	// Digests is each model file's digest as the run hashed it, by path, which its later phases read instead of
 	// hashing the file again (RecordDigests).
 	Digests map[string]string `json:"digests,omitempty"`
+	// Fall is the greatest fall of free space the run saw (landing.WatchFall), which a landing's space floor reads.
+	Fall uint64 `json:"space_fall,omitzero"`
 }
 
 // MeasurementPhase is one phase of a run: when it began, when it is expected to

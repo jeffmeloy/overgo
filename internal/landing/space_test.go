@@ -30,14 +30,16 @@ import (
 // run given no reader, a fixture's, is held to no floor and has no such
 // stage. The real reader reads this machine's temporary directory and refuses
 // a directory that is not there. Every figure the stand-in reader returns is
-// derived from the floor, so the test holds whatever the measured floor is.
+// derived from the floor the fixture's records set (recordFalls).
 func TestCommitChecksRefuseBelowTheFreeSpaceFloor(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	fixture := newRowFixture(t, map[string]string{"a.txt": "base\n", "internal/p/p.go": "// Package p is the fixture.\npackage p\n"})
 	fixture.write("a.txt", "changed\n")
 	message := []byte("Change the fixture\n\nCause: the fixture needs a change.\nPredicted effect: first-output holds.\n")
-	const floor uint64 = freeSpaceFloor
+	landedFall, measuredFall := uint64(3*gibibyte), uint64(40*gibibyte)
+	recordFalls(t, fixture.repo, landedFall, measuredFall)
+	floor := landedFall + measuredFall
 	gibibytes := func(count uint64) string { return fmt.Sprintf("%.1f GiB", float64(count)/gibibyte) }
 
 	// The stand-in reader: what it returns, how often it was asked, and of which directory.
@@ -74,7 +76,7 @@ func TestCommitChecksRefuseBelowTheFreeSpaceFloor(t *testing.T) {
 		t.Fatalf("a preflight with %d bytes free, half the floor of %d, passed; its log:\n%s", free, floor, log)
 	}
 	for _, want := range []string{"land: space:", fmt.Sprint(free), fmt.Sprint(floor), gibibytes(free), gibibytes(floor),
-		fmt.Sprint(largestCheckWrites), fmt.Sprint(measurementRunWrites), "go run ./cmd/loop -leftovers"} {
+		gibibytes(landedFall), gibibytes(measuredFall), "go run ./cmd/loop -leftovers"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("the refusal below the floor is %q, which lacks %q", err, want)
 		}

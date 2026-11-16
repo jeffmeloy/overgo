@@ -20,22 +20,6 @@
       ]
     },
     {
-      "id": "space-record",
-      "title": "The space floor is read from the greatest fall of free space a run recorded, and no constant holds this machine's figure",
-      "steps": [
-        {
-          "id": "do",
-          "title": "The space floor is read from the greatest fall of free space a run recorded, and no constant holds this machine's figure",
-          "verify": "go test ./internal/landing -count=1 -run '^TestTheSpaceFloorIsReadFromTheLastRecordedFall$'",
-          "files": [
-            "internal/landing",
-            "cmd/loop/leftovers.go"
-          ],
-          "rationale": "Note: Serves: the space floor compares what a run needs, from a record a run wrote, with what the disk has, read when the floor is read; no constant holds this machine's figure.\n\nThe evidence: internal/landing/space.go's largestCheckWrites and measurementRunWrites were measured by hand on this machine on 2026-10-12 and 10-13, with a note to measure again; cmd/loop/leftovers.go's checkoutCacheBytes is the same figure. On 2026-11-15 dispatch-next/do was refused on space at 34.1 GiB free while a runaway's page file had taken the disk, 268 GB free fifteen minutes later.\n\nThe change: a landing and a measurement run record their own greatest fall of free space; the floor is read from the last such record, and the two constants, the note and checkoutCacheBytes go.\n\nCheck: TestTheSpaceFloorIsReadFromTheLastRecordedFall holds the floor to a recorded fall, not to a constant."
-        }
-      ]
-    },
-    {
       "id": "waiter-bound",
       "title": "The turn test fails, not hangs, when a waiter says nothing as the turn passes",
       "steps": [

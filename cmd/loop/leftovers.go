@@ -906,15 +906,13 @@ func temporaryBuilds(f *facts, line place) []leftover {
 
 // The go build cache keeps its entries in cacheParts directories, each named
 // by the first byte of an entry's hash, so cachePart, one of them, holds one
-// part in cacheParts of the cache whatever the cache holds. checkoutCacheBytes
-// is what one checkout's whole build and tests left in an empty cache, the
-// 2,210,006,016 bytes measured on 2026-10-12 at beb6a2137 (internal/landing,
-// largestCheckWrites). The cache is keyed by a checkout's path, so each
-// registered checkout may hold that much of its own.
+// part in cacheParts of the cache whatever the cache holds. The cache is keyed
+// by a checkout's path, so each registered checkout may hold of its own what
+// the last landing that landed fell of free space (landing.LastLandingFall,
+// space-record/do), none where no landing recorded one.
 const (
-	cacheParts               = 256
-	cachePart                = "00"
-	checkoutCacheBytes int64 = 2_210_006_016
+	cacheParts = 256
+	cachePart  = "00"
 )
 
 // buildCache lists the go build cache as one entry. Its size is read from one
@@ -1644,7 +1642,12 @@ func realMachine(store string) (h hygiene, err error) {
 	if err = errors.Join(err, absErr); err != nil {
 		return h, err
 	}
-	h = hygiene{checkout: trees[0].Root, running: running, temporary: os.TempDir(), removeTree: fsatomic.RemoveTree, checkoutCache: checkoutCacheBytes}
+	h = hygiene{checkout: trees[0].Root, running: running, temporary: os.TempDir(), removeTree: fsatomic.RemoveTree}
+	fall, err := landing.LastLandingFall(h.checkout)
+	if err != nil {
+		return h, err
+	}
+	h.checkoutCache = int64(fall)
 	roots, err := dataroot.Resolve(h.checkout)
 	if err != nil {
 		return h, err

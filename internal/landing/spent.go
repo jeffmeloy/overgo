@@ -44,6 +44,9 @@ type spent struct {
 	Process int       `json:"process,omitempty"`
 	Began   int64     `json:"process_start,omitempty"`
 	Heard   time.Time `json:"heard,omitzero"`
+	// Fall is the greatest fall of free space the run saw, so far where it has not ended (WatchFall): what the next
+	// run's space floor reads, where it landed.
+	Fall uint64 `json:"space_fall,omitzero"`
 }
 
 // The kinds of a run.
@@ -74,6 +77,9 @@ const spentRecord = "landing_waits.json"
 // that cannot be written is said and changes nothing: the landing stands.
 func (l *landing) writeSpent() {
 	l.spent.Heard = time.Now()
+	if l.fall != nil {
+		l.spent.Fall = l.fall()
+	}
 	record, earlier, err := stateRecords[spent](l.Repo, spentRecord)
 	if err == nil {
 		earlier = slices.DeleteFunc(earlier, func(run spent) bool { return run.Process == l.spent.Process && run.Started.Equal(l.spent.Started) })

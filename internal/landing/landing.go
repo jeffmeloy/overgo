@@ -146,6 +146,8 @@ type landing struct {
 	checkFiles map[string][]string
 	// spent is where the run's time went, for the checkout's record.
 	spent spent
+	// fall reads the greatest fall of free space since the run started, nil where nothing reads free space.
+	fall func() uint64
 	// composed is the message the landing wrote for the change (compose), before what the gate measured; undone is
 	// what the change's checks did with its production Go restored (undo).
 	composed string
@@ -206,6 +208,21 @@ func Run(ctx context.Context, options Options) (landed string, err error) {
 		l.spent.Ended = time.Now()
 		l.writeSpent()
 	}()
+	// What the run needs free is watched from its start to its end, before the record closes, so the next run's space
+	// floor reads it (space): the volume's own fall, wherever free space is read at all.
+	if options.Free != nil {
+		fall, stop, watched := WatchFall(scratch, VolumeFree)
+		if watched != nil {
+			fmt.Fprintf(options.Log, "land: the run's fall of free space is not watched: %v\n", watched)
+		} else {
+			l.fall = fall
+			defer func() {
+				if _, unwatched := stop(); unwatched != nil {
+					fmt.Fprintf(options.Log, "land: the watch of the run's fall of free space ended with %v\n", unwatched)
+				}
+			}()
+		}
+	}
 	// A run that may commit takes the repository's one turn first, and holds it to its end.
 	if !options.Preflight {
 		if l.turn, err = l.holdTurn(ctx); err != nil {

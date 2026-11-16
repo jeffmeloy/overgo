@@ -58,15 +58,21 @@ type improvement struct {
 type runRecorder struct {
 	root string
 	run  plan.MeasurementRun
+	// fall and stopFall read and end the watch of the run's fall of free space (landing.WatchFall), nil where the
+	// volume's free space cannot be read.
+	fall     func() uint64
+	stopFall func() (uint64, error)
 }
 
-// begin starts the record of a run at commit.
+// begin starts the record of a run at commit, and the watch of its fall of free space, which a landing's space floor
+// reads from the record.
 func (r *runRecorder) begin(commit string) {
 	if r == nil {
 		return
 	}
 	start, _ := processcontrol.ProcessStart(os.Getpid())
 	r.run = plan.MeasurementRun{Commit: commit, Process: os.Getpid(), ProcessStart: start, Started: time.Now()}
+	r.fall, r.stopFall, _ = landing.WatchFall(r.root, landing.VolumeFree)
 	r.write()
 }
 
@@ -115,9 +121,12 @@ func (r *runRecorder) filed(rows int) {
 	}
 }
 
-// end records the run's end.
+// end records the run's end and its fall of free space.
 func (r *runRecorder) end() {
 	if r != nil {
+		if r.stopFall != nil {
+			_, _ = r.stopFall()
+		}
 		r.run.Ended = time.Now()
 		r.write()
 	}
@@ -125,6 +134,9 @@ func (r *runRecorder) end() {
 
 // write keeps the record; a record that cannot be kept leaves the run as it is.
 func (r *runRecorder) write() {
+	if r.fall != nil {
+		r.run.Fall = r.fall()
+	}
 	// What the run's phases wrote into the record as they ran is kept: each phase's failed tests and packages
 	// (plan.RecordFailure, plan.RecordPackage) and the run's file digests (plan.RecordDigests). A run begun again is a
 	// record of its own, so it hashes every file again.

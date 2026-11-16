@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"overgo/internal/plan"
 	"overgo/internal/planverify"
@@ -21,6 +22,10 @@ import (
 
 // undoSection opens the message's account of the undo run.
 const undoSection = "Checked by undoing:"
+
+// undoOverrun is how many times the wall a check took with the change its run without the change runs before it is
+// said: the run builds what the change's run built, and runs the same tests.
+const undoOverrun = 2
 
 // productionGo says a changed path is production Go, the code a change's behaviour lives in: a Go file, not a test,
 // not testdata.
@@ -118,7 +123,22 @@ func (l *landing) undo(ctx context.Context) error {
 			trees[set] = undone
 		}
 		tree, said := undone.tree, undone.said
+		// A run without the change that outlasts twice the check's run with it is said, with the tree it runs in: a check
+		// that waits on what only the change sends waits for ever without it, and on 2026-11-15 turn-holder/do's undo run
+		// of TestAWaiterSaysEachNewHolder held the gate 32 minutes before its probes were found and ended by hand
+		// (waiter-bound/do). The clock says and ends nothing (TestNoClockEndsWorkInsideTheMachine): a run ended by hand
+		// fails before a test asserts, and is no evidence.
+		var overrun *time.Timer
+		if wall, timed := l.passedWalls[check]; timed && l.Log != nil {
+			overrun = time.AfterFunc(undoOverrun*wall, func() {
+				fmt.Fprintf(l.Log, "land: with %s, %s has run %s, twice the %s it took with the change: it may wait on what only the change sends; ending its processes in %s ends it as no evidence\n",
+					said, check, (undoOverrun * wall).Round(time.Second), wall.Round(time.Second), tree)
+			})
+		}
 		_, err := planverify.ExecuteShowing(ctx, tree, check, nil, l.Log)
+		if overrun != nil {
+			overrun.Stop()
+		}
 		failure, _, _ := strings.Cut(fmt.Sprint(err), "\n")
 		switch {
 		case err == nil:

@@ -148,6 +148,8 @@ type landing struct {
 	spent spent
 	// fall reads the greatest fall of free space since the run started, nil where nothing reads free space.
 	fall func() uint64
+	// passedWalls is the wall each check took with the change, which bounds its undo run (undo).
+	passedWalls map[string]time.Duration
 	// composed is the message the landing wrote for the change (compose), before what the gate measured; undone is
 	// what the change's checks did with its production Go restored (undo).
 	composed string
@@ -960,9 +962,14 @@ func (l *landing) verify(ctx context.Context) error {
 			continue
 		}
 		// The check shows its progress in the landing's log as it runs, as each stage does.
+		started := time.Now()
 		if _, err := planverify.ExecuteShowing(ctx, l.stageRoot(), verifier, nil, l.Log); err != nil {
 			return err
 		}
+		if l.passedWalls == nil {
+			l.passedWalls = map[string]time.Duration{}
+		}
+		l.passedWalls[verifier] = time.Since(started)
 	}
 	return l.undo(ctx)
 }

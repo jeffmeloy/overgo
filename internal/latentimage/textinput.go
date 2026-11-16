@@ -73,7 +73,7 @@ func renderTextInput(tok *hfbpe.Tokenizer, prompt string, tmpl textTemplate) (te
 			}
 			return formatted, nil
 		}
-		tokens, err := chatTokens(prompt, render, tok.Encode)
+		tokens, err := chatTokens(prompt, render, tok)
 		if err != nil {
 			return out, err
 		}
@@ -121,8 +121,8 @@ func renderTextInput(tok *hfbpe.Tokenizer, prompt string, tmpl textTemplate) (te
 	if !checked.NonemptyAll(prefixIDs, suffixIDs) {
 		return out, fmt.Errorf("image template prefix/suffix tokenized empty")
 	}
-	// A prompt that weights stretches of itself is tokenized a stretch at a time, so each token's weight is known; one
-	// that weights nothing is tokenized whole, as it always was.
+	// A prompt that weights stretches of itself is tokenized whole, its markup gone, and each token weighed by the
+	// stretch that holds it (alignedTokens); one that weights nothing is tokenized whole, as it always was.
 	spans, err := weightedSpans(prompt)
 	if err != nil {
 		return out, err
@@ -131,7 +131,7 @@ func renderTextInput(tok *hfbpe.Tokenizer, prompt string, tmpl textTemplate) (te
 	if spans == nil {
 		tokens.ids, err = tok.Encode(prompt)
 	} else {
-		tokens, err = spanTokens(spans, tok.Encode)
+		tokens, err = alignedTokens(cleanText(spans), 0, spans, tok)
 	}
 	promptIDs, promptWeights := tokens.ids, tokens.weights
 	if err != nil {
@@ -141,11 +141,15 @@ func renderTextInput(tok *hfbpe.Tokenizer, prompt string, tmpl textTemplate) (te
 	if err != nil {
 		return out, fmt.Errorf("image text sequence: %w", err)
 	}
-	return textInput{IDs: sequence.IDs, Mask: sequence.Mask, PromptRows: sequence.PromptRows, Weights: rowWeights(len(sequence.IDs), len(prefixIDs), sequence.PromptRows, promptWeights)}, nil
+	// The suffix is written over the prompt's last rows, so the prompt holds the rows before it alone.
+	held := sequence.PromptRows - len(suffixIDs)
+	return textInput{IDs: sequence.IDs, Mask: sequence.Mask, PromptRows: sequence.PromptRows, Weights: rowWeights(len(sequence.IDs), len(prefixIDs), held, promptWeights)}, nil
 }
 
 // rowWeights are the weights of rows rows of which the prompt's start after prefix and fill at most promptRows, the
-// prompt's tokens weighing promptWeights and every other row one; none for a prompt that weights nothing.
+// prompt's tokens weighing promptWeights and every other row one, the template's suffix among them; none for a prompt
+// that weights nothing. Placed on as many rows as the prompt has tokens, a prompt long enough to reach the suffix
+// scaled the suffix's rows (SQA-382).
 func rowWeights(rows, prefix, promptRows int, promptWeights []float32) []float32 {
 	if promptWeights == nil {
 		return nil

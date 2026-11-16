@@ -12,14 +12,14 @@ import (
 )
 
 // TestAPromptWeightScalesMOSSTokensAttentionValue holds MOSS's prompt weights (krea-pack/moss-weighting): MOSS renders
-// its prompt through its chat template, so a weighted prompt is rendered around a mark, and the text the template puts
-// before it, each stretch and the text after are tokenized apart, every row but a stretch's weighing one; a prompt that
+// its prompt through its chat template, so a weighted prompt's clean text is rendered and tokenized whole, found by a
+// mark, every row but a stretch's weighing one; a prompt that
 // weights nothing is rendered and tokenized whole as before, with no weights. In the denoiser on the golden's weights,
 // weights of one give the unweighted output bit for bit, and a weight on a text row moves it.
 func TestAPromptWeightScalesMOSSTokensAttentionValue(t *testing.T) {
 	t.Parallel()
 	render := func(content string) (string, error) { return "<user> " + content + " <assistant>", nil }
-	words := func(text string) ([]int, error) { return make([]int, len(strings.Fields(text))), nil }
+	words := &wordTokens{}
 	weighted := testcheck.Must(chatTokens("a (red:2) fox", render, words))(t)
 	if !slices.Equal(weighted.weights, []float32{1, 1, 2, 1, 1}) || len(weighted.ids) != len(weighted.weights) {
 		t.Fatalf("a weighted prompt's rendering weighs %v over %d tokens; want the template's tokens and the plain words at one, red at two", weighted.weights, len(weighted.ids))

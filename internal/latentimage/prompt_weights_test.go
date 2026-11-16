@@ -10,9 +10,40 @@ import (
 	"overgo/internal/testcheck"
 )
 
+// wordTokens is a tokenizer whose tokens are a text's words, each holding the spaces before it, as a byte-level BPE's
+// do; a piece it has seen keeps its id.
+type wordTokens struct {
+	pieces []string
+}
+
+func (w *wordTokens) Encode(text string) ([]int, error) {
+	var ids []int
+	for rest := text; rest != ""; {
+		word := len(rest) - len(strings.TrimLeft(rest, " "))
+		end := word + strings.IndexByte(rest[word:]+" ", ' ')
+		piece := rest[:end]
+		id := slices.Index(w.pieces, piece)
+		if id < 0 {
+			id = len(w.pieces)
+			w.pieces = append(w.pieces, piece)
+		}
+		ids = append(ids, id)
+		rest = rest[end:]
+	}
+	return ids, nil
+}
+
+func (w *wordTokens) TokenBytes(ids []int) ([][]byte, error) {
+	pieces := make([][]byte, len(ids))
+	for index, id := range ids {
+		pieces[index] = []byte(w.pieces[id])
+	}
+	return pieces, nil
+}
+
 // TestAPromptWeightScalesItsTokensAttentionValue holds a prompt's weights (krea-pack/prompt-weighting) to their one
 // sentence: a weighted token's attention value is scaled by its weight and no other value changes. A prompt that writes
-// (text:weight) weighs its stretches, each tokenized on its own so its tokens' rows carry the weight, the prompt's rows
+// (text:weight) weighs its stretches, its clean text tokenized whole and each token's row carrying its stretch's weight, the prompt's rows
 // starting after the template's prefix; a parenthesis that weights nothing is text, a prompt that weights nothing is
 // tokenized whole as before, and a weight that is no positive number is refused. In the denoiser, weights of one give
 // the unweighted program's velocity bit for bit, a weight on a prompt token moves it, and a weight on a padding row,
@@ -32,8 +63,7 @@ func TestAPromptWeightScalesItsTokensAttentionValue(t *testing.T) {
 	if _, err := weightedSpans("a (red:-1) fox"); err == nil {
 		t.Error("a negative weight was taken")
 	}
-	words := func(text string) ([]int, error) { return make([]int, len(strings.Fields(text))), nil }
-	rows := rowWeights(10, 3, 5, testcheck.Must(spanTokens(spans, words))(t).weights)
+	rows := rowWeights(10, 3, 5, testcheck.Must(alignedTokens(cleanText(spans), 0, spans, &wordTokens{}))(t).weights)
 	if !slices.Equal(rows, []float32{1, 1, 1, 1, 2, 1, 0.5, 0.5, 1, 1}) {
 		t.Fatalf("the rows weigh %v; want the prompt's tokens weighed after the 3 prefix rows", rows)
 	}

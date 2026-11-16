@@ -46,16 +46,6 @@
       "title": "Prompt weights bind the token rows the encoder runs, the positive and the negative prompt's alike",
       "steps": [
         {
-          "id": "rows",
-          "title": "Prompt weights bind the token rows the encoder runs, the positive and the negative prompt's alike",
-          "verify": "go test ./internal/latentimage -count=1 -run '^TestPromptWeightsBindTheRowsTheyExecute$'",
-          "files": [
-            "internal/latentimage",
-            "internal/hfbpe"
-          ],
-          "rationale": "Serves: a weighted prompt draws what its weights ask (SQA-382, P2: model output).\n\nThe evidence (the review's, shown from source): weights are derived from a separate encode of the marked-up text, so markup at weight 1 changes the tokens, the template's suffix tokens are scaled, and a negative prompt's weights are lost; the rendering and tokenizing are repeated after an uncached positive input.\n\nThe change, the finding's: the clean rendered sequence and its weight alignment are resolved together from the retained prompt range, a weight inside a token defined or refused, and the weights carried with both conditionings through the cache.\n\nCheck: TestPromptWeightsBindTheRowsTheyExecute holds a prompt with weight-1 markup to the plain prompt's tokens, the suffix rows unweighted, and a negative prompt's weight to its rows.\n\nNote: files set to internal/latentimage, internal/hfbpe: a token's weight is read from the bytes it spells (hfbpe.Tokenizer.TokenBytes, added)\n\nNote: 2026-11-16: split. This step holds the rows a weighted prompt executes: its clean text tokenized whole, each token weighed by the stretch holding most of its bytes (hfbpe.Tokenizer.TokenBytes, added), and no weight on the rows the template's suffix overwrites; files gain internal/hfbpe for TokenBytes. The negative prompt's weights, which need a value scale on the guided branch of the Krea graph and on the rotary sampler's negative pass, and the weights kept with their conditioning in the rotary cache, move to prompt-weights/negative. Check: TestPromptWeightsBindTheRowsTheyExecute, on Krea-2-Turbo's own tokenizer: weight-1 markup renders the plain prompt's rows, all at 1; a weight of 2 lands on the weighted word's rows; and a weighted prompt longer than its rows leaves the suffix at 1 (at the base the suffix rows read [1 2 1 2 1])."
-        },
-        {
           "id": "negative",
           "title": "A negative prompt's weights reach its rows, and a prompt's weights ride with its conditioning through the cache",
           "verify": "go test ./internal/latentimage -count=1 -run '^TestANegativePromptsWeightsReachItsRows$'",

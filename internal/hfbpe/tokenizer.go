@@ -330,6 +330,20 @@ func (t *Tokenizer) DecodeText(ids []int) (string, error) {
 	return t.decode(ids, true, true)
 }
 
+// TokenBytes are the bytes each token of ids spells, in order, as Decode joins them before it strips anything: what a
+// reader aligns stretches of an encoded text to its tokens by. An id the vocabulary does not hold is refused.
+func (t *Tokenizer) TokenBytes(ids []int) ([][]byte, error) {
+	pieces := make([][]byte, len(ids))
+	for index, id := range ids {
+		piece, err := t.decodeBytes([]int{id}, true, false)
+		if err != nil {
+			return nil, err
+		}
+		pieces[index] = piece
+	}
+	return pieces, nil
+}
+
 func (t *Tokenizer) decode(ids []int, strict, skipSpecial bool) (string, error) {
 	bytes, err := t.decodeBytes(ids, strict, skipSpecial)
 	if err != nil {

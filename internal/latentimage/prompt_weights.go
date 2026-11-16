@@ -78,20 +78,66 @@ type weightedTokens struct {
 	weights []float32
 }
 
-// spanTokens tokenizes each span through encode.
-func spanTokens(spans []weightedSpan, encode func(string) ([]int, error)) (weightedTokens, error) {
-	var tokens weightedTokens
+// tokenizer is what a prompt's weights are aligned to its tokens with: its encoding, and the bytes each token spells.
+type tokenizer interface {
+	Encode(string) ([]int, error)
+	TokenBytes([]int) ([][]byte, error)
+}
+
+// cleanText is the prompt spans spell with their markup gone: the text the model reads.
+func cleanText(spans []weightedSpan) string {
+	var text strings.Builder
 	for _, span := range spans {
-		encoded, err := encode(span.text)
-		if err != nil {
-			return weightedTokens{}, err
-		}
-		tokens.ids = append(tokens.ids, encoded...)
-		for range encoded {
-			tokens.weights = append(tokens.weights, span.weight)
-		}
+		text.WriteString(span.text)
 	}
-	return tokens, nil
+	return text.String()
+}
+
+// alignedTokens are the tokens of text, encoded whole, and the weight of each: the clean prompt the spans spell stands
+// at byte start of text, every other byte weighing one, and a token takes the weight of the stretch that holds most of
+// its bytes, the later on a tie. Tokenized a stretch at a time, markup at weight 1 changed the prompt's tokens where a
+// stretch's edge split what the whole text merges (SQA-382). A text the tokens do not spell, a normalizing tokenizer's,
+// is refused, as no byte of it can be weighed.
+func alignedTokens(text string, start int, spans []weightedSpan, tok tokenizer) (weightedTokens, error) {
+	ids, err := tok.Encode(text)
+	if err != nil {
+		return weightedTokens{}, err
+	}
+	pieces, err := tok.TokenBytes(ids)
+	if err != nil {
+		return weightedTokens{}, err
+	}
+	spelled := slices.Concat(pieces...)
+	// A tokenizer that opens its text with a space marker spells one more byte before it.
+	shift := len(spelled) - len(text)
+	if shift < 0 || string(spelled[shift:]) != text {
+		return weightedTokens{}, fmt.Errorf("latent image: the tokenizer's tokens do not spell the weighted prompt, so its weights cannot be placed")
+	}
+	byteWeight := make([]float32, len(spelled))
+	for index := range byteWeight {
+		byteWeight[index] = unweighted
+	}
+	at := shift + start
+	for _, span := range spans {
+		for index := range len(span.text) {
+			byteWeight[at+index] = span.weight
+		}
+		at += len(span.text)
+	}
+	weights := make([]float32, len(ids))
+	offset := 0
+	for index, piece := range pieces {
+		counts := map[float32]int{}
+		chosen, most := float32(unweighted), 0
+		for _, weight := range byteWeight[offset : offset+len(piece)] {
+			if counts[weight]++; counts[weight] >= most {
+				chosen, most = weight, counts[weight]
+			}
+		}
+		weights[index] = chosen
+		offset += len(piece)
+	}
+	return weightedTokens{ids: ids, weights: weights}, nil
 }
 
 // promptMark stands for the prompt in a chat template's rendering, so the text the template puts before and after it is
@@ -99,10 +145,9 @@ func spanTokens(spans []weightedSpan, encode func(string) ([]int, error)) (weigh
 const promptMark = "\x00overgo prompt\x00"
 
 // chatTokens are the tokens of a chat template's rendering of prompt (render) and the weight of each: a prompt that
-// weights nothing is rendered and tokenized whole, as it always was; one that weights its stretches is rendered around
-// promptMark, and the text before it, each stretch and the text after it are tokenized apart, every token but a
-// stretch's weighing one.
-func chatTokens(prompt string, render func(string) (string, error), encode func(string) ([]int, error)) (weightedTokens, error) {
+// weights nothing is rendered and tokenized whole, as it always was; one that weights its stretches renders its clean
+// text whole and its tokens are weighed where the template placed it (alignedTokens), found by rendering promptMark.
+func chatTokens(prompt string, render func(string) (string, error), tok tokenizer) (weightedTokens, error) {
 	spans, err := weightedSpans(prompt)
 	if err != nil {
 		return weightedTokens{}, err
@@ -112,17 +157,24 @@ func chatTokens(prompt string, render func(string) (string, error), encode func(
 		if err != nil {
 			return weightedTokens{}, err
 		}
-		ids, err := encode(formatted)
+		ids, err := tok.Encode(formatted)
 		return weightedTokens{ids: ids}, err
 	}
-	formatted, err := render(promptMark)
+	marked, err := render(promptMark)
 	if err != nil {
 		return weightedTokens{}, err
 	}
-	before, after, found := strings.Cut(formatted, promptMark)
+	before, after, found := strings.Cut(marked, promptMark)
 	if !found {
 		return weightedTokens{}, fmt.Errorf("latent image: the chat template's rendering holds no prompt to weigh")
 	}
-	stretches := append(append([]weightedSpan{{text: before, weight: unweighted}}, spans...), weightedSpan{text: after, weight: unweighted})
-	return spanTokens(slices.DeleteFunc(stretches, func(span weightedSpan) bool { return span.text == "" }), encode)
+	clean := cleanText(spans)
+	formatted, err := render(clean)
+	if err != nil {
+		return weightedTokens{}, err
+	}
+	if formatted != before+clean+after {
+		return weightedTokens{}, fmt.Errorf("latent image: the chat template changes the prompt it renders, so its weights cannot be placed")
+	}
+	return alignedTokens(formatted, len(before), spans, tok)
 }

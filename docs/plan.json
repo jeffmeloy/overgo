@@ -7,20 +7,6 @@
       "title": "overgo runs every section of the MOSS Ultra workflow: bong_tangent, beta57 and request sigmas, ER-SDE, image to image, depth estimation and control, prompt modes 2 and 3, and the finishing steps",
       "steps": [
         {
-          "id": "depth-control",
-          "title": "Depth control concatenates the VAE-encoded, normalised map times strength to the noise channels for the first half of sigma, through the control adapter's widened input layer",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestDepthControlMeetsItsSectionFloor$'",
-          "files": [
-            "internal/latentimage"
-          ],
-          "needs_card": true,
-          "rationale": "The map comes from overgo's depth estimator or from an image the request supplies; it is encoded with the VAE, given the Flux2 latent normalisation, resized bilinearly to the latent size, and concatenated as [zeros | depth] x strength to the noise channels for the first 50% of sigma.\n\nServes: a capability MOSS lacks.\nDisappears: nothing.\nEvidence: the depth section meets its golden floor.\nBatch: device lane.",
-          "depends_on": [
-            "moss-ultra-sections/depth",
-            "media-lora/unmerged"
-          ]
-        },
-        {
           "id": "prompt-modes",
           "title": "Prompt mode 2's enhancer and mode 3's boxes run as typed Go, the cleaned negative and the layout string equal to ComfyUI's",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestPromptModesTwoAndThreeEqualTheRecordedStrings$'",

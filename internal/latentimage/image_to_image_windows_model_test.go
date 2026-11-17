@@ -5,23 +5,15 @@ package latentimage
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
-	"encoding/json"
 	"image"
 	"image/png"
 	"math"
-	"os"
-	"path/filepath"
 	"testing"
 
 	cudatest "overgo/internal/cuda/testutil"
-	"overgo/internal/dataroot"
-	"overgo/internal/safetensors"
 	"overgo/internal/sampling"
 	"overgo/internal/testcheck"
-	"overgo/internal/testutil"
 )
 
 // Declared before the first run. ComfyUI encodes the picture with flux2-vae_small in bfloat16, overgo in F32, so the
@@ -41,14 +33,11 @@ const imageToImageFloor = imageToImageMeasured - 3
 // imageToImageMeasured is the agreement the first run of the section measured, 2026-11-17.
 const imageToImageMeasured = 17.91
 
-// The recording holds the section at denoise 0.6 (comfy-recorder's recorder, -set 506.denoise=0.6, with the latents
-// of the encode, 606:503, and of the sampler, 506), and the picture it was given.
+// The recording holds the section at denoise 0.6 (comfy-recorder's recorder, run denoise, -set 506.denoise=0.6, with
+// the latents of the encode, 606:503, and of the sampler, 506), given the recorder's picture.
 const (
-	imageToImageRecording = "fixtures/comfy/moss-ultra/recordings/denoise/image-to-image.json"
-	imageToImageRequest   = "fixtures/comfy/moss-ultra/requests/image-to-image.json"
-	imageToImagePicture   = "8f6948d0518656d9d19c2dc797e05e95fd990e37d84eadf0436d52be9de53d8a"
-	imageToImageSampler   = "506"
-	imageToImageEncode    = "606:503"
+	imageToImageSampler = "506"
+	imageToImageEncode  = "606:503"
 )
 
 // TestImageToImageMeetsItsSectionFloor holds MOSS's image to image (moss-ultra-sections/img2img) to the MOSS Ultra
@@ -61,54 +50,15 @@ const (
 func TestImageToImageMeetsItsSectionFloor(t *testing.T) {
 	cudatest.Require(t)
 	ctx := t.Context()
-	repo := testutil.RepoRoot(t)
-	references := filepath.Join(testcheck.Must(dataroot.Resolve(repo))(t).References(), "comfy", "moss-ultra")
-	var recording struct {
-		Set    map[string]any       `json:"set"`
-		Sigmas map[string][]float64 `json:"sigmas"`
-		Texts  map[string][]string  `json:"texts"`
-		Files  []struct {
-			Node   string `json:"node"`
-			Name   string `json:"name"`
-			SHA256 string `json:"sha256"`
-		} `json:"files"`
-	}
-	testcheck.NoError(t, json.Unmarshal(testcheck.Must(os.ReadFile(filepath.Join(repo, filepath.FromSlash(imageToImageRecording))))(t), &recording))
-	var request map[string]struct {
-		Inputs map[string]any `json:"inputs"`
-	}
-	testcheck.NoError(t, json.Unmarshal(testcheck.Must(os.ReadFile(filepath.Join(repo, filepath.FromSlash(imageToImageRequest))))(t), &request))
-	sampler := request[imageToImageSampler].Inputs
+	recording := readComfySection(t, "denoise", "image-to-image")
+	sampler := recording.inputs(imageToImageSampler)
 	denoise, given := recording.Set[imageToImageSampler+".denoise"].(float64)
 	if !given || denoise >= 1 || recording.Set["428.image"] != "overgo-recorder-input.png" || recording.Set["680.megapixels"] != 0.5625 ||
 		sampler["sampler_name"] != "er_sde" || sampler["scheduler"] != sampling.ScheduleBongTangent || len(recording.Texts["585"]) != 1 || len(recording.Texts["586"]) != 1 {
 		t.Fatalf("the recording set %v over a sampler of %v with prompts %v; want the section at a denoise below 1, 1024 x 576, from the recorder's picture", recording.Set, sampler, recording.Texts)
 	}
-	latent := func(node string) []float32 {
-		t.Helper()
-		for _, file := range recording.Files {
-			if file.Node != latentNode(node) {
-				continue
-			}
-			path := filepath.Join(references, "denoise", "image-to-image", file.Name)
-			if sum := sha256.Sum256(testcheck.Must(os.ReadFile(path))(t)); hex.EncodeToString(sum[:]) != file.SHA256 {
-				t.Fatalf("%s hashes %x; want the recorded %s", path, sum, file.SHA256)
-			}
-			source := testcheck.Must(safetensors.OpenFile(path))(t)
-			defer source.Close()
-			value := source.Tensors["latent_tensor"]
-			if len(value.Shape) != 4 || value.Shape[0] != 1 || value.Shape[1] != 128 || value.Shape[2] != 36 || value.Shape[3] != 64 {
-				t.Fatalf("%s holds a latent of shape %v; want [1 128 36 64]", path, value.Shape)
-			}
-			return testcheck.Must(safetensors.ReadF32(value))(t)
-		}
-		t.Fatalf("the recording keeps no latent of %s", node)
-		return nil
-	}
-	picture := testcheck.Must(os.ReadFile(filepath.Join(references, "overgo-recorder-input.png")))(t)
-	if sum := sha256.Sum256(picture); hex.EncodeToString(sum[:]) != imageToImagePicture {
-		t.Fatalf("the recorder's picture hashes %x; want %s", sum, imageToImagePicture)
-	}
+	latent := func(node string) []float32 { return recording.latent(t, node) }
+	picture := ultraPictureBytes(t)
 	guidance := float32(sampler["cfg"].(float64))
 	section := Request{Prompt: recording.Texts["585"][0], NegativePrompt: recording.Texts["586"][0], GuidanceScale: &guidance, Width: 1024, Height: 576,
 		Steps: int(sampler["steps"].(float64)), Seed: int64(sampler["seed"].(float64)), Denoise: denoise, Image: base64.StdEncoding.EncodeToString(picture),
@@ -174,9 +124,6 @@ func mirrored(t *testing.T, picture []byte) []byte {
 	testcheck.NoError(t, png.Encode(&encoded, flipped))
 	return encoded.Bytes()
 }
-
-// latentNode is the node a recording names a saved latent by: the saver the recorder adds after the node.
-func latentNode(node string) string { return "overgo-latent-" + node }
 
 // latentAgreement is the cosine between two latents and the relative L2 distance of got from want.
 func latentAgreement(got, want []float32) (cosine, relative float64) {

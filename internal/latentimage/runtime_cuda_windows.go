@@ -68,6 +68,12 @@ type Request struct {
 	// from σ₀ times the noise plus 1 − σ₀ times the picture's latent, or none. 0 where the request states none, 1 in
 	// effect, and above 0.9999 the whole schedule, as ComfyUI rounds it.
 	Denoise float64 `json:"denoise,omitzero"`
+	// Control is a depth map a rotary request samples by, through the control adapter it names (DepthControl).
+	Control *DepthControl `json:"control,omitempty"`
+	// SkipBlocks are the blocks a rotary profile's negative pass skips, as ComfyUI's SkipLayerGuidanceDiTSimple names
+	// them: the profile's where the request states none (MOSS's 22, which the MOSS Ultra workflow's text and image
+	// sections skip), none where it states an empty list (its depth sections, which skip none).
+	SkipBlocks *[]int `json:"skip_blocks,omitempty"`
 }
 
 // denoiseWhole is the denoise above which ComfyUI samples the whole schedule (KSampler.set_steps).
@@ -136,9 +142,9 @@ func admitPicture(ctx context.Context, session *graphruntime.ResidentSession, to
 }
 
 func ValidateRequest(request Request) error {
-	// A request that samples from a picture may leave its prompt empty, as the MOSS Ultra workflow's image to image does:
-	// the picture conditions what it draws.
-	if !checked.Nonzero(request.Prompt) && request.Image == "" {
+	// A request that samples from a picture or by a depth map may leave its prompt empty, as the MOSS Ultra workflow's
+	// image to image and depth sections do: the picture or the map conditions what it draws.
+	if !checked.Nonzero(request.Prompt) && request.Image == "" && request.Control == nil {
 		return errors.New("latent image: prompt is empty")
 	}
 	if err := media.ValidateSpatialGeometry(request.Height, request.Width); err != nil {
@@ -171,6 +177,14 @@ func ValidateRequest(request Request) error {
 	}
 	if request.cutsSchedule() && request.Schedule != nil && request.Schedule.Name == "" && len(request.Schedule.Sigmas) != 0 {
 		return errors.New("latent image: a request that lists its own sigmas samples them all; denoise cuts a drawn schedule")
+	}
+	if request.Control != nil {
+		if err := request.Control.Validate(); err != nil {
+			return err
+		}
+		if request.Adapter == "" {
+			return errors.New("latent image: a depth control is read through its control adapter; name it (moss-control)")
+		}
 	}
 	return validatePrompt(request.PromptMode, request.Prompt, request.Width, request.Height)
 }
@@ -605,11 +619,12 @@ var errRotaryOnly = errors.New("latent image: selected profile does not support 
 
 // rotaryOnly is whether the request asks what only a rotary profile runs: a negative prompt or guidance over its
 // steps, except normalized attention guidance's (attentionGuided), a guidance scale of its own, layout validation, a
-// sharpening of its picture, an adapter, or a picture or denoise to sample from.
+// sharpening of its picture, an adapter, a picture or denoise to sample from, a depth control, or the blocks its
+// negative pass skips.
 func (r Request) rotaryOnly() bool {
 	return !r.attentionGuided() && (r.NegativePrompt != "" || r.Guidance != (sampling.Guidance{})) ||
 		r.GuidanceScale != nil || r.PromptMode == promptLayout || r.Sharpen != nil || r.Adapter != "" || r.AdapterStrength != nil ||
-		r.Image != "" || r.Denoise != 0
+		r.Image != "" || r.Denoise != 0 || r.Control != nil || r.SkipBlocks != nil
 }
 
 // attentionGuided says the request's guidance is normalized attention guidance's alone, which a Krea session runs by

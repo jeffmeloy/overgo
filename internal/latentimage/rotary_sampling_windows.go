@@ -225,6 +225,19 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 			return nil, e
 		}
 	}
+	// controlAt is what a widened embedder reads at a step of sigma: the control within its window, zeros outside it and
+	// where the request has none, as ComfyUI's MOSS feeds its concat latent (concat_cond).
+	var zeros []float32
+	controlAt := func(node *tensor.Tensor, sigma float64) []float32 {
+		if settings.control != nil && sigma >= settings.controlLow && sigma <= settings.controlHigh {
+			return settings.control
+		}
+		if zeros == nil {
+			elements, _ := node.Shape.Elements()
+			zeros = make([]float32, elements)
+		}
+		return zeros
+	}
 	forwardIndex := 0
 	sampler, e := settings.schedule.sampler()
 	if e != nil {
@@ -251,7 +264,13 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 		}
 		advanceErr := func() error {
 			run := func(v branch) (*residentLatent, error) {
-				out, e := runtime.Retain(ctx, v.program, map[*tensor.Tensor]reference.Value{v.plan.embedding: {Shape: v.plan.embedding.Shape, Data: embedding}}, []driver.DevicePtr{current.value.Pointer})
+				inputs := map[*tensor.Tensor]reference.Value{v.plan.embedding: {Shape: v.plan.embedding.Shape, Data: embedding}}
+				if v.plan.control != nil {
+					inputs[v.plan.control] = reference.Value{Shape: v.plan.control.Shape, Data: controlAt(v.plan.control, settings.schedule.Sigmas[index])}
+				} else if settings.control != nil {
+					return nil, errors.New("rotary sampling: the request's control needs an adapter whose embedder reads one (moss-control)")
+				}
+				out, e := runtime.Retain(ctx, v.program, inputs, []driver.DevicePtr{current.value.Pointer})
 				if e != nil {
 					return nil, e
 				}

@@ -27,6 +27,11 @@ type rotarySamplingSpec struct {
 	// adapter is the adapter the request names, applied unmerged at strength (Request.Adapter); none where it names none.
 	adapter  *mediaAdapter
 	strength float32
+	// control is what a widened embedder reads beside the latent while a step's sigma lies within
+	// [controlLow, controlHigh] (Request.Control): a depth map's control latent times its strength, each channel's
+	// tokens after another's; zeros at any other step, and where the request has none.
+	control                 []float32
+	controlLow, controlHigh float64
 }
 
 func (s rotarySamplingSpec) validate(layers int) error {

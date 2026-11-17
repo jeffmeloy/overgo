@@ -18,8 +18,9 @@ import (
 // Ultra workflow's adapters use: a kohya pair with its alpha, scaled by alpha over its rank, under ComfyUI's
 // diffusion_model. prefix; a PEFT pair, scaled by 1, with no alpha; a joint block's fused qkv pair, read as the graph's
 // q, k and v, each a third of the up rows, its third's payload those rows, while a text embedder's fused qkv, which the
-// graph reads fused, stays one; and the full differences of a norm's weight and a bias. A tensor no format names, a
-// pair missing a half, and a file of no patch are refused.
+// graph reads fused, stays one; the full differences of a norm's weight and a bias; and a weight and bias named
+// plainly, replaced outright at the file's shape. A tensor no format names, a pair missing a half, and a file of no
+// patch are refused.
 func TestAMediaAdapterReadsItsThreeFormats(t *testing.T) {
 	t.Parallel()
 	up := []float32{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}
@@ -88,12 +89,21 @@ func TestAMediaAdapterReadsItsThreeFormats(t *testing.T) {
 		shapes  map[string][]int
 		says    string
 	}{
-		"a replaced weight": {map[string][]float32{"video_embedder.weight": make([]float32, 4)}, map[string][]int{"video_embedder.weight": {2, 2}}, "no patch this reader applies"},
-		"a half pair":       {map[string][]float32{"layers.0.proj.q.lora_A.weight": make([]float32, 4)}, map[string][]int{"layers.0.proj.q.lora_A.weight": {2, 2}}, "no up half"},
+		"a tensor of no form": {map[string][]float32{"video_embedder.scale": make([]float32, 4)}, map[string][]int{"video_embedder.scale": {2, 2}}, "no patch this reader applies"},
+		"a half pair":         {map[string][]float32{"layers.0.proj.q.lora_A.weight": make([]float32, 4)}, map[string][]int{"layers.0.proj.q.lora_A.weight": {2, 2}}, "no up half"},
 	} {
 		if _, err := readMediaAdapter(writeAdapter(t, strings.ReplaceAll(name, " ", "-"), refused.tensors, refused.shapes)); err == nil || !strings.Contains(err.Error(), refused.says) {
 			t.Errorf("an adapter with %s read with %v; want a refusal saying %q", name, err, refused.says)
 		}
+	}
+	// A weight or bias named plainly is replaced outright, as ComfyUI sets it, at the file's own shape, which may be
+	// wider than the model's (moss-control's video_embedder, moss-ultra-sections/depth-control).
+	replacing := testcheck.Must(readMediaAdapter(writeAdapter(t, "replacing", map[string][]float32{
+		"video_embedder.weight": make([]float32, 6), "video_embedder.bias": make([]float32, 2),
+	}, map[string][]int{"video_embedder.weight": {2, 3}, "video_embedder.bias": {2}})))(t)
+	if weight := replacing.replaced["video_embedder.weight"]; weight.tensor != "video_embedder.weight" || !slices.Equal(weight.shape, []uint64{2, 3}) ||
+		replacing.replaced["video_embedder.bias"].tensor != "video_embedder.bias" {
+		t.Errorf("an adapter replacing the embedder reads %+v; want its weight at [2 3] and its bias", replacing.replaced)
 	}
 }
 

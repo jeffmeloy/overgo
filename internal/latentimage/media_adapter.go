@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"overgo/internal/safetensors"
@@ -18,7 +19,9 @@ import (
 // the patches:
 //   - kohya: <name>.lora_down.weight [rank, in], <name>.lora_up.weight [out, rank] and an optional <name>.alpha;
 //   - PEFT: <name>.lora_A.weight [rank, in] and <name>.lora_B.weight [out, rank];
-//   - full differences: <name>.diff for a weight and <name>.diff_b for a bias.
+//   - full differences: <name>.diff for a weight and <name>.diff_b for a bias;
+//   - replacements: <name>.weight or <name>.bias named plainly, which ComfyUI sets in place of the model's whatever the
+//     strength, and which may be wider (moss-control's video_embedder, which reads a control beside the latent).
 //
 // A pair's scale is alpha over its rank where the file holds an alpha tensor, and 1 where it holds none, as ComfyUI's
 // calculate_weight reads it. A name may open with diffusion_model., which the graph's names do not. A joint block's
@@ -45,6 +48,16 @@ type mediaAdapter struct {
 	// diffs holds each weight's or bias's full difference, by the graph's weight name (layers.0.norm1.weight), as the
 	// file names the tensor.
 	diffs map[string]string
+	// replaced holds each weight or bias the adapter replaces outright, by the graph's weight name, as ComfyUI sets a
+	// tensor a LoRA file names plainly: moss-control's video_embedder, widened to read its control beside the latent.
+	replaced map[string]replacement
+}
+
+// replacement is a tensor an adapter replaces outright: the file's tensor and its shape, which may be wider than the
+// weight it replaces.
+type replacement struct {
+	tensor string
+	shape  []uint64
 }
 
 // lowRankPatch is one projection's pair: the file's down and up tensors, the rows of up it reads (all, or where split a
@@ -65,7 +78,7 @@ func readMediaAdapter(path string) (*mediaAdapter, error) {
 		return nil, err
 	}
 	defer source.Close()
-	adapter := &mediaAdapter{path: path, lowRank: map[string]lowRankPatch{}, diffs: map[string]string{}}
+	adapter := &mediaAdapter{path: path, lowRank: map[string]lowRankPatch{}, diffs: map[string]string{}, replaced: map[string]replacement{}}
 	downs, ups, alphas := map[string]string{}, map[string]string{}, map[string]float32{}
 	for name, value := range source.Tensors {
 		base := strings.TrimPrefix(name, adapterPrefix)
@@ -88,6 +101,8 @@ func readMediaAdapter(path string) (*mediaAdapter, error) {
 			adapter.diffs[strings.TrimSuffix(base, adapterDiffB)+".bias"] = name
 		case strings.HasSuffix(base, adapterDiff):
 			adapter.diffs[strings.TrimSuffix(base, adapterDiff)+".weight"] = name
+		case strings.HasSuffix(base, ".weight") || strings.HasSuffix(base, ".bias"):
+			adapter.replaced[base] = replacement{tensor: name, shape: slices.Clone(value.Shape)}
 		default:
 			return nil, fmt.Errorf("media adapter %s: tensor %s is no patch this reader applies", path, name)
 		}
@@ -124,7 +139,7 @@ func readMediaAdapter(path string) (*mediaAdapter, error) {
 			return nil, fmt.Errorf("media adapter %s: %s has an up half and no down half", path, base)
 		}
 	}
-	if len(adapter.lowRank) == 0 && len(adapter.diffs) == 0 {
+	if len(adapter.lowRank) == 0 && len(adapter.diffs) == 0 && len(adapter.replaced) == 0 {
 		return nil, fmt.Errorf("media adapter %s holds no patch", path)
 	}
 	return adapter, nil

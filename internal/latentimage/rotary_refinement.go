@@ -103,17 +103,44 @@ func (g *rotaryGraph) round(x *tensor.Tensor) *tensor.Tensor {
 	return x
 }
 func (g *rotaryGraph) linear(name string, x *tensor.Tensor, in, out uint64, bias bool) *tensor.Tensor {
-	y := g.b.MulMat(g.bind.Input(name+".weight", in, out), x)
+	y := g.b.MulMat(g.weight(name+".weight", in, out), x)
 	if branch := g.lowRank(name, x); branch != nil {
 		y = g.b.Add(y, branch)
 	}
 	if bias {
-		y = g.b.Add(y, g.round(g.patched(name+".bias", g.bind.Input(name+".bias", out), out)))
+		y = g.b.Add(y, g.round(g.patched(name+".bias", g.weight(name+".bias", out), out)))
 	}
 	return g.round(y)
 }
+
+// weight is the graph input of a weight or bias: the adapter's replacement where it names one, read from its file in
+// the model's own storage, since it stands in the model's weight's place, else the model's.
+func (g *rotaryGraph) weight(name string, dimensions ...uint64) *tensor.Tensor {
+	if g.adapter != nil {
+		if replaced, held := g.adapter.replaced[name]; held {
+			if node := g.adapterInputs.Bindings.Node(replaced.tensor); node != nil {
+				return node
+			}
+			stored := tensor.WeightInputs{Builder: g.b, Bindings: g.adapterInputs.Bindings, MatrixType: g.bind.MatrixType}
+			return stored.Input(replaced.tensor, dimensions...)
+		}
+	}
+	return g.bind.Input(name, dimensions...)
+}
+
+// replacedWidth is the width of the input a weight the adapter replaces reads, 0 where it replaces none.
+func (g *rotaryGraph) replacedWidth(name string) uint64 {
+	if g.adapter == nil {
+		return 0
+	}
+	if replaced, held := g.adapter.replaced[name]; held && len(replaced.shape) == tensor.PairedExtent {
+		return replaced.shape[1]
+	}
+	return 0
+}
+
 func (g *rotaryGraph) norm(name string, x *tensor.Tensor, channels uint64) *tensor.Tensor {
-	weight := g.bind.Input(name+".weight", channels)
+	weight := g.weight(name+".weight", channels)
 	if patched := g.patched(name+".weight", weight, channels); patched != weight {
 		weight = g.round(patched)
 	}

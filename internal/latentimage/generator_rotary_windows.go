@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"overgo/internal/checked"
 	"overgo/internal/cuda/driver"
@@ -173,6 +174,9 @@ func (p Profile) rotarySchedule(ctx context.Context, request Request) (FlowSched
 func (g *Generator) rotarySettings(request Request, schedule FlowSchedule, guidance float32) rotarySamplingSpec {
 	settings := rotarySamplingSpec{schedule: schedule, guidance: guidance, varies: request.Guidance, override: g.profile.Rotary.negativeOverride(), seed: request.Seed,
 		eightBit: request.EightBitAttention, adapter: g.rotary.adapter, strength: request.adapterStrength()}
+	if request.SkipBlocks != nil {
+		settings.override.Blocks = slices.Clone(*request.SkipBlocks)
+	}
 	if request.Schedule != nil {
 		settings.sampler = request.Schedule.Sampler
 	}
@@ -302,6 +306,12 @@ func (g *Generator) integrateRotary(ctx context.Context) (*Generator, error) {
 	}
 	settings := g.rotarySettings(g.request, g.schedule, g.rotary.guidance)
 	settings.weights, settings.negativeWeights = g.rotary.weights, g.rotary.negativeWeights
+	if control := g.request.Control; control != nil {
+		if settings.control, err = controlLatent(ctx, g.modelDir, *control, g.request.Width, g.request.Height); err != nil {
+			return nil, err
+		}
+		settings.controlLow, settings.controlHigh = control.window(g.profile.Rotary.Shift)
+	}
 	result, err := runRotarySampling(ctx, g.rotary.runtime, g.modelDir, g.rotary.transformer, g.shape.Height, g.shape.Width, initial, g.rotary.positive, g.rotary.negative, settings, g.observe)
 	if err != nil {
 		return nil, err

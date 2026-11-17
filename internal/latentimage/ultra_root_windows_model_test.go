@@ -4,8 +4,10 @@ package latentimage
 
 import (
 	"encoding/json"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"overgo/internal/testcheck"
@@ -21,9 +23,12 @@ var ultraFiles = map[string]string{
 	"vae":          "vae/flux2-vae_small.safetensors",
 }
 
+// ultraAdapters are the workflow's adapters, which a MOSS root holds under adapters/ by name (modelAdapter).
+var ultraAdapters = []string{"adapters/8-steps-dmd2-lora.safetensors", "adapters/moss_image_sft.safetensors", "adapters/moss-control.safetensors"}
+
 // ultraModelRoot is a MOSS model root of the Ultra workflow's files, hard-linked from the import (moss_ultra_import.json
-// pins each, as the test confirms), beside MOSS-Image-SFT's pipeline index, scheduler, configs and tokenizer, which the
-// Ultra files share: what overgo reads as the workflow's MOSS.
+// pins each, as the test confirms), its adapters under adapters/, beside MOSS-Image-SFT's pipeline index, scheduler,
+// configs and tokenizer, which the Ultra files share: what overgo reads as the workflow's MOSS.
 func ultraModelRoot(t *testing.T) string {
 	t.Helper()
 	repo := testutil.RepoRoot(t)
@@ -34,7 +39,7 @@ func ultraModelRoot(t *testing.T) string {
 	}
 	testcheck.NoError(t, json.Unmarshal(testcheck.Must(os.ReadFile(filepath.Join(repo, "internal", "modelrecipe", "moss_ultra_import.json")))(t), &recipe))
 	sft, ultra, root := testutil.ModelArtifactDir(t, "MOSS-Image-SFT-797fa8e678b4f"), testutil.ModelArtifactDir(t, "moss-ultra"), t.TempDir()
-	for _, folder := range []string{"scheduler", "transformer", "text_encoder", "tokenizer", "vae"} {
+	for _, folder := range []string{"scheduler", "transformer", "text_encoder", "tokenizer", "vae", "adapters"} {
 		testcheck.NoError(t, os.Mkdir(filepath.Join(root, folder), 0o700))
 	}
 	for _, name := range []string{"model_index.json", "scheduler/scheduler_config.json", "transformer/config.json", "text_encoder/config.json",
@@ -45,7 +50,7 @@ func ultraModelRoot(t *testing.T) string {
 	for _, file := range recipe.Files {
 		pinned[file.Path] = true
 	}
-	for _, path := range ultraFiles {
+	for _, path := range append(slices.Collect(maps.Values(ultraFiles)), ultraAdapters...) {
 		if !pinned[path] {
 			t.Fatalf("the import recipe pins no %s", path)
 		}

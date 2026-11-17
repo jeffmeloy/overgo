@@ -32,8 +32,11 @@ type rotaryDenoiserProgram struct {
 	weightInputs tensor.WeightBindings
 	// adapterInputs are an adapter's tensors the graph reads, bound from its file, and strength the scalar fed each run as
 	// its strength; neither for a program without one (rotaryOptions).
-	adapterInputs       tensor.WeightBindings
-	strength            *tensor.Tensor
+	adapterInputs tensor.WeightBindings
+	strength      *tensor.Tensor
+	// control is the control a widened embedder reads beside the latent, each channel's tokens after another's, fed
+	// each run; none for a program whose embedder reads the latent alone.
+	control             *tensor.Tensor
 	spec                TransformerSpec
 	height, width, text int
 }
@@ -84,7 +87,14 @@ func compileRotaryDenoiserProgram(t TransformerSpec, epsilon float32, height, wi
 	mod := b.Reshape(g.linear("shared_block_modulation", time, g.width, jointModulationFields*g.width, true), jointModulationFields*g.width)
 	head := b.Reshape(g.linear("video_head_modulation", time, g.width, tensor.PairedExtent*g.width, true), tensor.PairedExtent*g.width)
 	p.boundaries["timestep_embedding"], p.boundaries["modulation"], p.boundaries["head_modulation"] = time, mod, head
-	video := g.linear("video_embedder", g.round(b.Transpose2D(p.latent)), uint64(t.InChannels), g.width, true)
+	// A control adapter widens the embedder to read its control beside the latent (moss-ultra-sections/depth-control),
+	// as ComfyUI's MOSS reads its concat latent: the control's channels after the latent's, zeros where no control runs.
+	in, latent := uint64(t.InChannels), p.latent
+	if wider := g.replacedWidth("video_embedder.weight"); wider > in {
+		p.control = b.Input("control", dtype.F32, tensor.MustShape(uint64(image), wider-in))
+		latent, in = b.Concat(p.latent, p.control, tensor.SingletonExtent), wider
+	}
+	video := g.linear("video_embedder", g.round(b.Transpose2D(latent)), in, g.width, true)
 	p.boundaries["video"] = video
 	textGraph := *g
 	textGraph.sequence = uint64(text)

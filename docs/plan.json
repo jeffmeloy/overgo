@@ -42,22 +42,6 @@
       "steps": []
     },
     {
-      "id": "pairwise-reading",
-      "title": "A preset is read pairwise: the judge chooses between the reference's and the preset's picture of a prompt in both orders, an instrument first shown to see a change it must see",
-      "steps": [
-        {
-          "id": "sensitivity",
-          "title": "The served judge prefers the matching and the sharp picture of a known pair beyond chance before any preset is read pairwise",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/evaluate -count=1 -run '^TestThePairwiseJudgeSeesAPictureOfAnotherPrompt$' -timeout=0",
-          "files": [
-            "cmd/evaluate",
-            "internal/evaluation"
-          ],
-          "rationale": "Serves: a pairwise reading is used for a verdict only once it is shown to see a change it must see (the ceiling note's condition, guidance-ops/preset-readings, 2026-11-16).\n\nThe change: before any preset is read pairwise, the served judge reads a known pair on the card: MOSS's reference pictures of the held-out suite against the same pictures each paired with the reference's picture of another prompt (the arms' prompts shifted by one), and against the reference's own pictures blurred to a quarter of their size and back. The judge must prefer the matching and the sharp picture beyond chance, by the grouped sign test the reading uses; a judge that cannot is no instrument for presets, and the verdicts wait on another.\n\nCheck: TestThePairwiseJudgeSeesAPictureOfAnotherPrompt, on the served judge and MOSS's retained reference render: both known changes are seen beyond chance (tail under falseGain), and the identical pair, the reference against itself, shows no gain or loss beyond chance."
-        }
-      ]
-    },
-    {
       "id": "comfy-recorder",
       "title": "A ComfyUI recorder runs a saved workflow in ComfyUI's own process and records each section's settings, sigmas, latents and images as goldens, first the MOSS Ultra workflow",
       "steps": [

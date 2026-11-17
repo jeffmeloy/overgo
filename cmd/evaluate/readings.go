@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/evaluation"
 	"overgo/internal/processcontrol"
 	"overgo/internal/strictjson"
 )
@@ -63,6 +64,8 @@ type readingArm struct {
 	name, preset  string
 	media, record string
 	pairs         *[2]string
+	// walls is how long the arm took to draw and judge, where this campaign timed it.
+	walls time.Duration
 }
 
 func (arm readingArm) suite() string { return arm.media + "-suite.json" }
@@ -120,8 +123,9 @@ func readReadingsCampaign(path string) (readingsCampaign, error) {
 }
 
 // runReadings runs the campaign at path with this build, whose commit each judged run names as its producer: a model
-// whose reference cannot be drawn or judged is passed over for the next, a preset whose arm cannot for the next preset,
-// and the error names every arm that failed once the rest are read.
+// whose reference cannot be drawn or judged is passed over for the next, as is one whose reference leaves no gain able
+// to show (room), its arms undrawn, a preset whose arm cannot be drawn or judged for the next preset, and the error
+// names every arm that failed once the rest are read.
 func runReadings(ctx context.Context, path string, run readingsRunner, commit string, now func() time.Time) (result error) {
 	campaign, err := readReadingsCampaign(path)
 	if err != nil {
@@ -148,6 +152,12 @@ func runReadings(ctx context.Context, path string, run readingsRunner, commit st
 		reference := readingArm{model: model, name: model.Name + "-reference", media: model.Reference}
 		if err := r.arm(ctx, &reference); err != nil {
 			failed = append(failed, err)
+			continue
+		}
+		if room, err := r.room(ctx, reference); err != nil || !room.Possible() {
+			if err != nil {
+				failed = append(failed, err)
+			}
 			continue
 		}
 		for _, preset := range model.Presets {
@@ -206,10 +216,12 @@ func (r *readings) append(file string, lines map[string]string, name, rest strin
 // arm draws an arm's suite where it is not drawn, and judges it where it is not judged, setting its record.
 func (r *readings) arm(ctx context.Context, arm *readingArm) error {
 	if recorded, done := r.records[arm.name]; done {
-		arm.record, _, _ = strings.Cut(recorded, " ")
+		fields := strings.Fields(recorded)
+		arm.record, arm.walls = fields[0], recordedWalls(fields)
 		r.say("%s: judged already, %s", arm.name, arm.record)
 		return nil
 	}
+	began := r.now()
 	if err := r.draw(ctx, *arm); err != nil {
 		return r.failed(arm.name, err)
 	}
@@ -217,12 +229,56 @@ func (r *readings) arm(ctx context.Context, arm *readingArm) error {
 	if err != nil {
 		return r.failed(arm.name, err)
 	}
-	if err := r.append(readingsRecords, r.records, arm.name, record+" "+arm.media); err != nil {
+	arm.walls = r.now().Sub(began)
+	if err := r.append(readingsRecords, r.records, arm.name, fmt.Sprintf("%s %s %s%d", record, arm.media, wallsField, int64(arm.walls.Seconds()))); err != nil {
 		return r.failed(arm.name, err)
 	}
 	arm.record = record
 	r.say("%s: judged, %s", arm.name, record)
 	return nil
+}
+
+// wallsField opens the field of an arm's records line that holds, in seconds, how long its draw and judging took.
+const wallsField = "walls="
+
+// recordedWalls is how long an arm's draw and judging took, as its records line holds it; zero where it holds none,
+// a line written before the campaign timed its arms.
+func recordedWalls(fields []string) time.Duration {
+	for _, field := range fields {
+		if seconds, held := strings.CutPrefix(field, wallsField); held {
+			if count, err := strconv.ParseInt(seconds, 10, 64); err == nil {
+				return time.Duration(count) * time.Second
+			}
+		}
+	}
+	return 0
+}
+
+// room reads, before any of a model's arms is drawn, the room a reading against its reference has, from the reference's
+// own answers (evaluation.ReadingRoom), and says it with the card hours the arms take: where no gain can show, the
+// campaign draws none of them (reading-power/do).
+func (r *readings) room(ctx context.Context, reference readingArm) (evaluation.ReadingRoom, error) {
+	var said bytes.Buffer
+	if err := r.logged(ctx, reference.name, "room", []string{"-reading-room", reference.record, "-repo", r.campaign.Repository}, &said); err != nil {
+		return evaluation.ReadingRoom{}, r.failed(reference.name, err)
+	}
+	var room evaluation.ReadingRoom
+	if err := json.Unmarshal(bytes.TrimSpace(said.Bytes()), &room); err != nil {
+		return evaluation.ReadingRoom{}, r.failed(reference.name, fmt.Errorf("the reading's room printed nothing to read: %w", err))
+	}
+	arms := len(reference.model.Presets)
+	hours := "card hours unknown, its reference's draw and judging untimed"
+	if reference.walls > 0 {
+		hours = fmt.Sprintf("about %.1f card hours, each as its reference's %s", float64(arms)*reference.walls.Hours(), reference.walls.Round(time.Minute))
+	}
+	if !room.Possible() {
+		r.say("%s: no gain can show: its reference answers a question wrong in %d of %d media, so the best a reading shows is a gain's tail of %.3g, over the pass mark %g; its %d arms are not drawn, %s",
+			reference.model.Name, room.Room, room.Media, room.BestTail, room.PassMark, arms, hours)
+	} else {
+		r.say("%s: a gain shows only where a preset turns a wrong answer right in at least %d of the %d media its reference answers wrong in, breaking none (best tail %.3g); its %d arms take %s",
+			reference.model.Name, room.Needed, room.Room, room.BestTail, arms, hours)
+	}
+	return room, nil
 }
 
 func (r *readings) failed(name string, err error) error {

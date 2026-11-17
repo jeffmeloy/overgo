@@ -167,3 +167,34 @@ func readPairwiseVerdict(ctx context.Context, repository, presetDirectory, recor
 	_, err = fmt.Fprintf(said, "%s\n", encoded)
 	return err
 }
+
+// printReadingRoom prints, as JSON, the room a reading against the reference judged in record has (evaluation.ReadingRoom).
+func printReadingRoom(ctx context.Context, repository, record string, said io.Writer) error {
+	id, err := artifact.ParseID(record)
+	if err != nil {
+		return err
+	}
+	store, err := overgodb.OpenContext(ctx, repository)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	outcomes, found := evaluation.CaseOutcomes(ctx, store, id)
+	if !found {
+		return fmt.Errorf("evaluate: no case outcomes can be read from evaluation %s", id)
+	}
+	media, found := evaluation.CaseMedia(ctx, store, id)
+	if !found {
+		return fmt.Errorf("evaluate: what each case asks about cannot be read from evaluation %s", id)
+	}
+	room, err := evaluation.ReadingRoomOf(outcomes, media)
+	if err != nil {
+		return err
+	}
+	encoded, err := json.Marshal(room)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(said, "%s\n", encoded)
+	return err
+}

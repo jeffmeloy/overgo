@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/evaluation"
 	"overgo/internal/recipe"
 	"overgo/internal/strictjson"
 	"overgo/internal/testcheck"
@@ -21,13 +22,18 @@ import (
 )
 
 // readingsFake stands in for the build's processes: a render writes its suite unless its arm is told to fail, a judged
-// run prints another suite's record before its own, and an admission prints a verdict over several lines.
+// run prints another suite's record before its own, an admission prints a verdict over several lines, and a
+// reference's room prints a gain possible unless the reference's record is roomless.
 type readingsFake struct {
 	t        *testing.T
 	failDraw map[string]bool
 	calls    []string
 	// negatives are the negative prompts each render asked with, by its media directory.
 	negatives map[string]string
+	// roomless are the reference records whose room leaves no gain able to show, and rooms the records whose room
+	// was read.
+	roomless map[string]bool
+	rooms    []string
 }
 
 func readingsRecord(t *testing.T, suite string) string {
@@ -41,6 +47,13 @@ func (f *readingsFake) run(_ context.Context, args []string, stdout, stderr io.W
 		named[args[index]] = args[index+1]
 	}
 	switch {
+	case named["-reading-room"] != "":
+		f.rooms = append(f.rooms, named["-reading-room"])
+		room := evaluation.ReadingRoom{Media: 80, Room: 30, BestTail: 1.0 / (1 << 30), PassMark: 0.05, Needed: 5}
+		if f.roomless[named["-reading-room"]] {
+			room = evaluation.ReadingRoom{Media: 80, Room: 4, BestTail: 1.0 / 16, PassMark: 0.05}
+		}
+		return json.NewEncoder(stdout).Encode(room)
 	case named["-pairwise-evaluation"] != "":
 		f.calls = append(f.calls, "admit-pairwise "+filepath.Base(named["-pairwise-preset"]))
 		fmt.Fprintf(stdout, "{\"Preset\": %q, \"Admitted\": true}\n", named["-pairwise-evaluation"])
@@ -117,7 +130,7 @@ func TestAReadingsCampaignReadsEachArmsOwnRecord(t *testing.T) {
 	}
 	records := testcheck.Must(readArmLines(filepath.Join(out, readingsRecords)))(t)
 	for name, media := range map[string]string{"pictures-reference": "pictures-person", "pictures-interval": "pictures-interval", "clips-reference": "clips-person", "clips-shift": "clips-shift"} {
-		want := readingsRecord(t, filepath.Join(root, media+"-suite.json")) + " " + filepath.Join(root, media)
+		want := readingsRecord(t, filepath.Join(root, media+"-suite.json")) + " " + filepath.Join(root, media) + " " + wallsField + "0"
 		if records[name] != want {
 			t.Errorf("record of %s = %q, want its own suite's %q", name, records[name], want)
 		}
@@ -224,5 +237,49 @@ func TestANAGArmAsksWithItsNegativePromptAndIsReadPairwise(t *testing.T) {
 	}
 	if _, err := pairedDraws(reference, drawn("nag", "", `{"negative_prompt":"blurry","preset":"nag","prompt":"a river","seed":7}`)); err == nil {
 		t.Error("an arm whose manifest names no negative prompt was paired aside the one its requests asked with")
+	}
+}
+
+// TestACampaignDrawsNoArmThatCannotShowAGain holds the campaign to its reference's own scores (reading-power/do, the
+// owner's direction of 2026-11-16): before a model's arms are drawn, the room a reading against its reference has is
+// read; a reference that leaves no gain able to reach the pass mark draws none of the model's arms and says so with the
+// card hours they would take, read from the reference's own timed draw and judging, and one with room draws its arms
+// and says how many media a gain must turn right.
+func TestACampaignDrawsNoArmThatCannotShowAGain(t *testing.T) {
+	root := t.TempDir()
+	out := filepath.Join(root, "out")
+	campaign := readingsCampaign{Out: out, Repository: filepath.Join(root, "store"), Catalog: filepath.Join(root, "catalog.json"),
+		Judge: "judge.gguf", Projector: "projector.gguf", Models: []readingsModel{
+			{Name: "full", Path: "full-model", Task: "image-gen", Source: "tifa.json", Cases: 4,
+				Reference: filepath.Join(root, "full-person"), Arms: filepath.Join(root, "full"), Presets: []string{"apg", "interval"}},
+			{Name: "open", Path: "open-model", Task: "image-gen", Source: "tifa.json", Cases: 4,
+				Reference: filepath.Join(root, "open-person"), Arms: filepath.Join(root, "open"), Presets: []string{"apg"}},
+		}}
+	path := filepath.Join(root, "campaign.json")
+	testcheck.NoError(t, os.WriteFile(path, testcheck.Must(json.Marshal(campaign))(t), 0o644))
+	testcheck.NoError(t, os.MkdirAll(out, 0o755))
+	full := readingsRecord(t, filepath.Join(root, "full-person-suite.json"))
+	timed := strings.Join([]string{"full-reference", full, filepath.Join(root, "full-person"), wallsField + "5400"}, " ")
+	testcheck.NoError(t, os.WriteFile(filepath.Join(out, readingsRecords), []byte(timed+"\n"), 0o644))
+	now := func() time.Time { return time.Date(2026, 11, 16, 23, 0, 0, 0, time.UTC) }
+
+	fake := &readingsFake{t: t, roomless: map[string]bool{full: true}}
+	testcheck.NoError(t, runReadings(t.Context(), path, fake.run, "commit-under-test", now))
+	if slices.ContainsFunc(fake.calls, func(call string) bool {
+		return strings.Contains(call, "full-") && !strings.Contains(call, "full-person")
+	}) {
+		t.Errorf("calls = %q; a model whose reference leaves no gain able to show drew an arm", fake.calls)
+	}
+	if !slices.Contains(fake.calls, "render open-apg") || !slices.Contains(fake.calls, "admit open-apg") {
+		t.Errorf("calls = %q; want the model with room drawn, judged and admitted", fake.calls)
+	}
+	if len(fake.rooms) != 2 || fake.rooms[0] != full {
+		t.Errorf("rooms read = %q; want each model's reference read before its arms", fake.rooms)
+	}
+	said := string(testcheck.Must(os.ReadFile(filepath.Join(out, "campaign.log")))(t))
+	for _, want := range []string{"full: no gain can show", "its 2 arms are not drawn, about 3.0 card hours", "open: a gain shows only where a preset turns a wrong answer right in at least 5 of the 30 media"} {
+		if !strings.Contains(said, want) {
+			t.Errorf("the campaign's log says %q; want %q", said, want)
+		}
 	}
 }

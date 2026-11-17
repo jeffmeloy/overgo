@@ -207,7 +207,9 @@ func dispatchStep(document Plan, ref string) (Item, Step, bool) {
 }
 
 // Visit prerequisites before the blocked objective's later siblings; retain
-// document order otherwise. This changes scheduling, never dependency evidence.
+// document order otherwise. A step that waits for the card another holds
+// (cardWaits) comes after every one that does not, its card work queued at the
+// card's turn. This changes scheduling, never dependency evidence.
 func dispatchPriority(document Plan) ([]Ref, error) {
 	frontier, err := ReadyFrontier(document)
 	if err != nil {
@@ -219,7 +221,7 @@ func dispatchPriority(document Plan) ([]Ref, error) {
 	}
 	awaiting := awaitingDecision(document)
 	visited := map[string]bool{}
-	var ordered []Ref
+	var ordered, carded []Ref
 	var visit func(Item, Step)
 	visit = func(item Item, step Step) {
 		ref := Ref{Item: item.ID, Step: step.ID}
@@ -228,7 +230,11 @@ func dispatchPriority(document Plan) ([]Ref, error) {
 		}
 		visited[ref.String()] = true
 		if ready[ref.String()] {
-			if !awaiting[item.ID] && !slices.Contains(document.parked, ref.String()) && !document.cardWaits(step) {
+			switch {
+			case awaiting[item.ID] || slices.Contains(document.parked, ref.String()):
+			case document.cardWaits(step):
+				carded = append(carded, ref)
+			default:
 				ordered = append(ordered, ref)
 			}
 			return
@@ -244,7 +250,7 @@ func dispatchPriority(document Plan) ([]Ref, error) {
 			visit(item, step)
 		}
 	}
-	return ordered, nil
+	return append(ordered, carded...), nil
 }
 
 // selectDispatch picks the first ready row in prerequisite order, or the
@@ -263,7 +269,7 @@ func selectDispatch(document Plan, reference string) (Dispatch, error) {
 	}
 	awaiting := awaitingDecision(document)
 	if item, step, open := Current(document); open && !awaiting[item.ID] && reference == "" &&
-		!slices.Contains(document.parked, item.ID+"/"+step.ID) && !document.cardWaits(step) {
+		!slices.Contains(document.parked, item.ID+"/"+step.ID) {
 		// Preserve the empty-rung dispatch until the rung is given steps.
 		return stepDispatch(item, step), nil
 	}
@@ -450,11 +456,6 @@ func parkedNote(document Plan) []string {
 	var notes []string
 	if len(document.parked) != 0 {
 		notes = append(notes, "parked until a commit: "+strings.Join(document.parked, ", "))
-	}
-	// Steps that need the card wait while another holds it, said with its holder, so an empty dispatch is not read as
-	// an empty plan.
-	if slices.ContainsFunc(document.Items, func(item Item) bool { return slices.ContainsFunc(item.Steps, document.cardWaits) }) {
-		return append(notes, document.cardHolder+" holds the graphics card, which the steps left need")
 	}
 	return notes
 }

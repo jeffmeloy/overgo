@@ -44,7 +44,7 @@ type Step struct {
 	// that lists it. A step that lists none may write anywhere a landing admits.
 	Files []string `json:"files,omitempty"`
 	// NeedsCard says the step's work needs the graphics card where its check does not run on it (OnTheCard): while
-	// another holds the card, dispatch passes over the step for one that does not (cardWaits).
+	// another holds the card, dispatch orders the step after those that do not (cardWaits).
 	NeedsCard bool `json:"needs_card,omitzero"`
 	// Campaign detail carried from the merged design record (owner directive
 	// 2026-08-16: one plan document). Rationale says why the row exists;

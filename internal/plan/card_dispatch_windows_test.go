@@ -38,8 +38,9 @@ func TestCardTurnHolder(t *testing.T) {
 // on 2026-11-14 held it for hours. A step needs the card where it is marked so or its check runs on the card. With the
 // card free the first step, marked, is dispatched; while another process holds the card's turn, read from its record,
 // the first step whose mark and check need none is, past one whose check runs on the card; with only card steps left
-// dispatch waits and names the holder, not that the plan is done; once the turn is given up the marked step is
-// dispatched again. A measurement run holds the card while it has not ended and its process lives.
+// the first of them is (card-order/do), since its code needs no card and its card work queues at the card's turn,
+// where dispatch had waited on the holder from 10:58 to 19:32 on 2026-11-16; once the turn is given up the marked step
+// is dispatched again. A measurement run holds the card while it has not ended and its process lives.
 func TestWhileTheCardIsHeldDispatchGivesAStepThatNeedsNone(t *testing.T) {
 	t.Parallel()
 	marked := Item{ID: "bridge", Title: "bridge", Steps: []Step{{ID: "capture", Title: "capture", Verify: "true", NeedsCard: true}}}
@@ -70,9 +71,8 @@ func TestWhileTheCardIsHeldDispatchGivesAStepThatNeedsNone(t *testing.T) {
 	if held := dispatched(marked, checked, host); held.Item != "host" {
 		t.Errorf("while another process holds the card's turn dispatch gave %q; want host, the step that needs no card", held.Item)
 	}
-	if waiting := dispatched(marked, checked); waiting.Complete || !strings.Contains(waiting.Waiting, "the fixture's render") ||
-		!strings.Contains(waiting.Waiting, "holds the graphics card") {
-		t.Errorf("with only card steps left and the card's turn held, dispatch gave %+v; want it waiting on the turn's holder", waiting)
+	if carded := dispatched(marked, checked); carded.Item != "bridge" || carded.Waiting != "" {
+		t.Errorf("with only card steps left and the card's turn held, dispatch gave %+v; want bridge, the first of them, and no wait", carded)
 	}
 	testcheck.NoError(t, input.Close())
 	testcheck.NoError(t, holder.Wait())

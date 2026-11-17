@@ -24,6 +24,15 @@
       "title": "CFG-Zero*, the guidance interval, APG and NAG are guider functions written from their papers, each a preset admitted per model by its held-out suite on no loss beyond chance, a gain claimed only where the paired test shows one",
       "steps": [
         {
+          "id": "nag-negative",
+          "title": "A preset's arm asks with the negative prompt its campaign names, and a picture model's arm is read pairwise beside its questions",
+          "verify": "go test ./cmd/evaluate -count=1 -run '^TestANAGArmAsksWithItsNegativePromptAndIsReadPairwise$'",
+          "files": [
+            "cmd/evaluate"
+          ],
+          "rationale": "The NAG readings need what the campaign cannot yet do, and the campaign runs from a clean checkout at its build, so this lands first.\n\nNAG guides away from a negative prompt, and Krea's nag preset with none draws the authors' picture byte for byte (nag-krea's check), while the held-out suites' cases hold no negative prompt. So a preset's arm asks each case with a negative prompt the campaign names for that preset: evaluate -render-negative, beside -render-preset, sets each request's negative_prompt, and the render's manifest records it, so a render resumes only at the same one. A reading pairs an arm's draws with its reference's by the request, the preset and the negative prompt its manifest names aside, so a reference drawn with a negative prompt pairs with none, as one drawn with a preset is refused. A negative prompt without a preset is refused, since a reference is the authors' recipe.\n\npairwise-reading/sensitivity showed the pairwise judge to see another prompt's picture (79 of 80) and a blurred one (77 of 80), so the campaign reads a picture model's preset pairwise beside its questions where it says so: the reference's and the arm's pictures composed (-pairwise-preset), judged in a manifest of their own, and read (-pairwise-evaluation), each once, its verdict the arm's \u003cname\u003e-pairwise line. A pairwise suite names its judge by the judge file's name, as the question suites do; it named the path it was given.\n\nCheck: TestANAGArmAsksWithItsNegativePromptAndIsReadPairwise, on the campaign with a stand-in for each process: the arm alone asks with its negative prompt, its pairwise reading is composed from the two renders, judged and read once, a run again makes nothing, and a negative prompt for no preset or a clip model read pairwise is refused; pairing strips only the negative prompt the arm's manifest names."
+        },
+        {
           "id": "nag-readings",
           "title": "Krea's and the Self-Forcing student's NAG presets are each read against their model's reference with a named negative prompt, and offered only once admitted",
           "verify": "go test ./internal/mediacapability -count=1 -run '^TestEveryGuidancePresetHoldsItsVerdict$'",

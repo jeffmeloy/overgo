@@ -5,7 +5,6 @@
       "eight-bit-attention": {}
     },
     "MOSS-Image-SFT": {
-      "eight-bit-attention": {},
       "apg": {
         "arm": "evaluation:sha256:7902918137c16603c4b5f46106ad3d278a6d9afe52916998f0336e24edc2772e",
         "pairwise": {
@@ -54,6 +53,31 @@
           "tail": 0.71875,
           "ties": 513,
           "wins": 5
+        }
+      },
+      "eight-bit-attention": {
+        "arm": "evaluation:sha256:a6c0cea0216d2fb67eaa29b5816799c9cee8acb824f6d03dea1198b75808dc38",
+        "pairwise": {
+          "record": "evaluation:sha256:fee4dffc9aa7c853dd9d7506cbdc4b96dc3ae840d3b81ba81bf3f4fc550df433",
+          "verdict": {
+            "admitted": true,
+            "losses": 3,
+            "media": 80,
+            "says": "admitted on no loss beyond chance, which shows no gain: 1 wins, 3 losses and 76 ties over 80 media",
+            "tail": 0.9375,
+            "ties": 76,
+            "wins": 1
+          }
+        },
+        "reference": "evaluation:sha256:741c0bb271e0be36bcbb15d833a1146d2394860e7640115877f2a39698a9001d",
+        "verdict": {
+          "admitted": true,
+          "losses": 2,
+          "media": 80,
+          "says": "admitted on no loss beyond chance, which shows no gain: 3 wins, 2 losses and 519 ties over 80 media",
+          "tail": 0.5,
+          "ties": 519,
+          "wins": 3
         }
       },
       "guidance-interval": {

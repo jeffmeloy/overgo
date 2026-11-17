@@ -3,27 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "eight-bit-attention",
-      "title": "An 8-bit flash-attention kernel for sm_89, INT8 QK and FP8 PV with two-level FP16 accumulation, served as an opt-in preset per model and admitted by its held-out suite on no loss beyond chance, a gain claimed only where the paired test shows one",
-      "steps": [
-        {
-          "id": "images",
-          "title": "Krea-2-Turbo at 2048 x 2048, MOSS and SenseNova gain the 8-bit attention preset, each read on its suite",
-          "verify": "go test ./internal/mediacapability -count=1 -run '^TestEachImageModelOffersEightBitAttentionOnItsReadings$'",
-          "files": [
-            "internal/mediacapability",
-            "internal/server"
-          ],
-          "needs_card": true,
-          "rationale": "Attention is about 34% of Krea's FLOPs at 2048 x 2048, about 47% of MOSS's 552.8 s run at that size, and about 16% of SenseNova's over its prefix and image span.\n\nNote: files set to internal/latentimage, internal/cuda, internal/media, internal/capabilityruntime, internal/servingattempt, internal/runrecord, cmd/recipe, internal/scorecard: a measuring step records its time through the timing chain the owner named (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard), so its landing may write there\n\nNote: The owner, 2026-11-16: before a campaign draws anything, it works out from the reference set's own scores whether a gain could reach its pass mark, and prints that with the card hours the campaign takes; where a gain cannot show it says so and draws nothing (reading-power/do). Card time freed from the dropped readings goes to this row.\n\nNote: 2026-11-17, the owner's point that SenseNova's 71 pairwise ties needed the judge's sensitivity read at SenseNova's own composite size first: read on 20 of SenseNova's reference prompts at 2048 x 2048 (4096 x 2048 composites, 19 s a case), the served judge chose the reference over another prompt's picture in all 20 prompts and over the blurred picture in all 20, both orders agreeing (tmp/common-controls/knownpair composed the arms; evaluate -pairwise-preset, a judge-as-itself manifest and -pairwise-evaluation read them at 3e909c50a). The pairwise reading is an instrument at the image models' person sizes, 1024 and 2048 alike, so this step's pairwise readings need no sensitivity check of their own.\n\nNote: 2026-11-17: SenseNova is left out of this step. Attention is about 16% of its work, so 8-bit attention, at best halving it, would gain at most about 9%, less than a speed choice beside its recipe is worth, and its reading would take about 3.5 card hours. Krea and MOSS are wired in images-wiring (1.19x and 1.15x at a person's size), and this step reads their eight-bit-attention presets: a speed preset is offered once its readings find no loss beyond chance, since the owner's gain rule holds guidance methods and a canned choice is a speed tier with its measured cost; the record keys readings by model, so each model's reading of the one preset name is its own.\n\nNote: files set to internal/mediacapability: The step's change is the record of its readings and the rule that offers a speed preset on no loss beyond chance, both in internal/mediacapability; the wiring and its timing landed in images-wiring (13cf8abc4), so no other package changes.\n\nNote: files set to internal/mediacapability, internal/server: MOSS's page now offers the speed preset its readings admit, which the server's MOSS generation test reads beside the page's own test; the wiring and its timing landed in images-wiring (13cf8abc4).\n\nServes: first-output at large sizes.\nDisappears: nothing.\nEvidence: each preset's time and sign test are recorded.\nBatch: device lane.",
-          "depends_on": [
-            "eight-bit-attention/kernel",
-            "quality-instruments/soft-tifa"
-          ]
-        }
-      ]
-    },
-    {
       "id": "campaign-line",
       "title": "The plan tool sets the campaign line, and the plan's line is the owner's: MOSS in overgo does what the MOSS Ultra workflow does in ComfyUI, each section held to ComfyUI's recording",
       "steps": [

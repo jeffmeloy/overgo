@@ -12,9 +12,10 @@ import (
 // the owner's direction of 2026-11-16: a canned choice is a speed tier, and a guidance method reaches a page only on a
 // gain). A preset admitted on no loss beyond chance and showing no gain is not offered, though its reading admits it;
 // one whose question or pairwise verdict shows a gain is, where neither shows a loss; one with a gain on one
-// instrument and a loss on the other is not; a pending one is not; and a preset the record does not read, a step count
-// or a scale from its authors, is offered as declared, as is each preset of a model the record reads nothing of. On
-// the embedded record every read preset a page offers shows a gain.
+// instrument and a loss on the other is not; a pending one is not; the speed preset, a speed tier, is offered on no
+// loss beyond chance, gain or none, and not on a loss; and a preset the record does not read, a step count or a scale
+// from its authors, is offered as declared, as is each preset of a model the record reads nothing of. On the embedded
+// record every read preset a page offers but the speed preset shows a gain.
 func TestAGuidancePresetIsOfferedOnlyOnAGain(t *testing.T) {
 	t.Parallel()
 	tie := evaluation.PresetVerdict{Wins: 12, Losses: 9, Ties: 59, Media: 80, Tail: 0.33, Admitted: true}
@@ -27,10 +28,16 @@ func TestAGuidancePresetIsOfferedOnlyOnAGain(t *testing.T) {
 		"split":           {Verdict: &gain, Pairwise: &pairwiseReading{Verdict: loss}},
 		"tied unpairwise": {Verdict: &tie},
 		"pending":         {},
+		speedPreset:       {Verdict: &tie, Pairwise: &pairwiseReading{Verdict: tie}},
+	}, "Losing": {
+		speedPreset: {Verdict: &tie, Pairwise: &pairwiseReading{Verdict: loss}},
 	}}}
-	declared := []string{"asked", "draft", "gaining", "pending", "split", "tied", "tied unpairwise"}
-	if offered := offeredPresets(record, "Model", declared); !slices.Equal(offered, []string{"asked", "draft", "gaining"}) {
-		t.Errorf("a page offers %v; want the presets that gained on a reading with no loss, and the one not read", offered)
+	declared := []string{"asked", "draft", speedPreset, "gaining", "pending", "split", "tied", "tied unpairwise"}
+	if offered := offeredPresets(record, "Model", declared); !slices.Equal(offered, []string{"asked", "draft", speedPreset, "gaining"}) {
+		t.Errorf("a page offers %v; want the presets that gained on a reading with no loss, the speed preset with no loss, and the one not read", offered)
+	}
+	if offered := offeredPresets(record, "Losing", []string{speedPreset}); len(offered) != 0 {
+		t.Errorf("a page offers %v, a speed preset whose pairwise reading shows a loss", offered)
 	}
 	// Another model's page reads none of these readings, so it offers each preset as declared.
 	if offered := offeredPresets(record, "Other", declared); !slices.Equal(offered, declared) {
@@ -41,7 +48,7 @@ func TestAGuidancePresetIsOfferedOnlyOnAGain(t *testing.T) {
 	for model, presets := range embedded.Readings {
 		for preset, reading := range presets {
 			names := []string{preset}
-			if offered := offeredPresets(embedded, model, names); len(offered) == 1 &&
+			if offered := offeredPresets(embedded, model, names); len(offered) == 1 && preset != speedPreset &&
 				!(reading.Verdict.Gained() || reading.Pairwise != nil && reading.Pairwise.Verdict.Gained()) {
 				t.Errorf("%s's preset %s is offered with no gain on any reading", model, preset)
 			}

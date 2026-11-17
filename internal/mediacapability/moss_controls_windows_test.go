@@ -29,9 +29,9 @@ func TestMOSSImageGenerationContract(t *testing.T) {
 			t.Fatal("missing supported control", name)
 		}
 	}
-	// Of MOSS's presets the page offers its authors' tutorial setting, which no reading reads; no guidance preset read
-	// shows a gain (common-controls/gain-only), and its speed preset awaits its reading.
-	if len(held) != 9 || !slices.Equal(held["preset"].Choices, []string{"comfy-tutorial"}) || held["guidance_scale"].Type != ControlNumber || len(held["prompt_mode"].Choices) != 2 || held["prompt_mode"].Help == "" {
+	// Of MOSS's presets the page offers its authors' tutorial setting, which no reading reads, and 8-bit attention,
+	// a speed tier its readings admit; no guidance preset read shows a gain (common-controls/gain-only).
+	if len(held) != 9 || !slices.Equal(held["preset"].Choices, []string{"comfy-tutorial", "eight-bit-attention"}) || held["guidance_scale"].Type != ControlNumber || len(held["prompt_mode"].Choices) != 2 || held["prompt_mode"].Help == "" {
 		t.Fatal("unsupported controls", held)
 	}
 	// Tuning sits behind the disclosure as on every page (common-controls/do), and the negative prompt beside the prompt.

@@ -55,9 +55,9 @@ func TestOnlyAnAdmittedGuidancePresetIsOffered(t *testing.T) {
 				t.Errorf("%s declares the preset %s, which the record does not read", name, preset)
 			}
 			gained := read && reading.Verdict != nil && (reading.Verdict.Gained() || reading.Pairwise != nil && reading.Pairwise.Verdict.Gained())
-			admitted := !read || gained && reading.Verdict.Admitted && (reading.Pairwise == nil || reading.Pairwise.Verdict.Admitted)
+			admitted := !read || reading.Verdict != nil && (gained || preset == speedPreset) && reading.Verdict.Admitted && (reading.Pairwise == nil || reading.Pairwise.Verdict.Admitted)
 			if slices.Contains(offered, preset) != admitted {
-				t.Errorf("%s offers %v; its preset %s, read %t with verdict %+v and pairwise %+v, is offered only unread, or gaining on a reading and admitted by both",
+				t.Errorf("%s offers %v; its preset %s, read %t with verdict %+v and pairwise %+v, is offered only unread, or admitted by both and, but for the speed preset, gaining on one",
 					name, offered, preset, read, reading.Verdict, reading.Pairwise)
 			}
 		}

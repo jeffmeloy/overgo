@@ -173,9 +173,9 @@ func TestMOSSImageGenerationContract(t *testing.T) {
 		if c.Name == "guidance_scale" && (!c.Advanced || c.Bounds == nil || c.Bounds.Default != 3) {
 			t.Fatal("guidance declaration lost", c)
 		}
-		// The page offers its authors' tutorial setting beside their recipe; a guidance preset reaches it only on a measured gain,
-		// which none has shown (common-controls/gain-only).
-		if c.Name == "preset" && (!c.Advanced || !slices.Equal(c.Choices, []string{"comfy-tutorial"})) {
+		// The page offers its authors' tutorial setting and the 8-bit speed tier its readings admit beside their recipe; a guidance
+		// preset reaches it only on a measured gain, which none has shown (common-controls/gain-only).
+		if c.Name == "preset" && (!c.Advanced || !slices.Equal(c.Choices, []string{"comfy-tutorial", "eight-bit-attention"})) {
 			t.Fatal("MOSS's presets are not offered", c)
 		}
 	}

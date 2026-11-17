@@ -45,12 +45,17 @@ type pairwiseReading struct {
 	Verdict evaluation.PresetVerdict `json:"verdict"`
 }
 
+// speedPreset is the preset that changes how fast a model draws and nothing of what it is asked to draw, under one name
+// on every model that offers it (the profiles' eight-bit-attention, 8-bit attention).
+const speedPreset = "eight-bit-attention"
+
 // offered says a page offers the read preset (the owner's direction of 2026-11-16, common-controls/gain-only): its
-// verdict, and its pairwise verdict where it was read so, each find no loss beyond chance, and one of them a gain.
-func (reading presetReading) offered() bool {
+// verdict, and its pairwise verdict where it was read so, each find no loss beyond chance, and for a guidance method one
+// of them a gain; a speed preset, a speed tier with its measured cost, needs none.
+func (reading presetReading) offered(speed bool) bool {
 	verdict, pairwise := reading.Verdict, reading.Pairwise
 	return verdict != nil && verdict.Admitted && (pairwise == nil || pairwise.Verdict.Admitted) &&
-		(verdict.Gained() || pairwise != nil && pairwise.Verdict.Gained())
+		(speed || verdict.Gained() || pairwise != nil && pairwise.Verdict.Gained())
 }
 
 // presetReadings is the embedded record, read once.
@@ -62,11 +67,11 @@ var presetReadings = sync.OnceValues(func() (presetRecord, error) {
 	return record, nil
 })
 
-// offeredPresets are the presets of the named model a page offers: each the record reads only where its reading shows a
-// gain, and every other as declared.
+// offeredPresets are the presets of the named model a page offers: each the record reads only where its readings admit
+// it (presetReading.offered), and every other as declared.
 func offeredPresets(record presetRecord, model string, presets []string) []string {
 	return slices.DeleteFunc(slices.Clone(presets), func(preset string) bool {
 		reading, read := record.Readings[model][preset]
-		return read && !reading.offered()
+		return read && !reading.offered(preset == speedPreset)
 	})
 }

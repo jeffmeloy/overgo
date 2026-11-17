@@ -1,0 +1,178 @@
+{
+  "workflow_sha256": "60bf094f438d07deda059b85eefc305fe519b289e7cfe62abfe12792526a0e4a",
+  "section": "TEXT TO IMAGE TURBO",
+  "request_sha256": "318c56523680268cbc0b01480cc60055b33b357dd486d2e42e9636741467c1ea",
+  "set": {
+    "675.megapixels": 0.5625
+  },
+  "comfyui_version": "0.42.0",
+  "commits": {
+    ".": "7cebca52227c63b4180ceed448cbd7ad22903b6d",
+    "custom_nodes/ComfyUI-KJNodes": "ab72eda7ffad6280422d71ab7d54d3fb87c0ba18",
+    "custom_nodes/ComfyUI-Manager": "4c50a2bc8b9e684d8a85930567957470b952bebe",
+    "custom_nodes/RES4LYF": "6780724de0ddb98e7454d54bb80387836a911ece",
+    "custom_nodes/comfyui_controlnet_aux": "a587a4c1594524c1d2de5cd1a86cd868ff448e1c",
+    "custom_nodes/rgthree-comfy": "bc48c6aaeca87bedbc14245d89f9bc6be37a630e"
+  },
+  "models": [
+    {
+      "node": "1",
+      "input": "unet_name",
+      "folder": "diffusion_models",
+      "name": "moss_image_base_int8_convrot.safetensors",
+      "sha256": "f601c1e1161915fb3fea003da0c1782e374dd960fbb3978bc0e4e3fa1f2d8e6f"
+    },
+    {
+      "node": "2",
+      "input": "clip_name",
+      "folder": "text_encoders",
+      "name": "Qwen3.5-9B-abliterated_int8_convrot.safetensors",
+      "sha256": "e7ba909fd9d9e2557eb566e00ffb34226706f3e7425dc3f187246382edc282f6"
+    },
+    {
+      "node": "3",
+      "input": "vae_name",
+      "folder": "vae",
+      "name": "flux2-vae_small.safetensors",
+      "sha256": "d8d52ba036475f5fb07c8b435e176d3d97ebfa82f0d1a1c317f9cc1e25bd013b"
+    },
+    {
+      "node": "341",
+      "input": "lora_1.lora",
+      "folder": "loras",
+      "name": "8-steps-dmd2-lora.safetensors",
+      "sha256": "7683fe1fb51f73f5d690f24dd6b7f46f31ab9a9873729a854ac5c9a420ffe6f2"
+    },
+    {
+      "node": "341",
+      "input": "lora_2.lora",
+      "folder": "loras",
+      "name": "moss_image_sft.safetensors",
+      "sha256": "6b443a4597694769b527a43d5aed7f0c8265d59a9eceab164ab29eb4bb3af7bf"
+    }
+  ],
+  "prompt_id": "dc1c7698-57e9-4cf5-944b-fd8bf5f29efe",
+  "milliseconds": 1964,
+  "peak_card_bytes": 42177903297,
+  "sigmas": {
+    "331": [
+      1,
+      0.9713438749313354,
+      0.9294229745864868,
+      0.8628878593444824,
+      0.7442997097969055,
+      0.5,
+      0.21312162280082703,
+      0.06964603066444397,
+      0
+    ]
+  },
+  "progress": {
+    "331": [
+      {
+        "value": 1,
+        "max": 8,
+        "us": 1117789
+      },
+      {
+        "value": 3,
+        "max": 8,
+        "us": 1245423
+      },
+      {
+        "value": 5,
+        "max": 8,
+        "us": 1391364
+      },
+      {
+        "value": 7,
+        "max": 8,
+        "us": 1563093
+      },
+      {
+        "value": 8,
+        "max": 8,
+        "us": 1632860
+      }
+    ]
+  },
+  "files": [
+    {
+      "node": "147",
+      "kind": "images",
+      "type": "output",
+      "name": "147-sharpened_00014_.png",
+      "sha256": "b3b62203e4d3cf7e518349dae41dae15bd32d9024f341bb89955b0155576e057",
+      "bytes": 1008758
+    },
+    {
+      "node": "324",
+      "kind": "a_images",
+      "type": "temp",
+      "name": "324-rgthree.compare._temp_qdabx_00001_.png",
+      "sha256": "e19cf32c675cd1d1d0c432a17e3819fd1abe37214667fef0904db1994707df44",
+      "bytes": 1040569
+    },
+    {
+      "node": "324",
+      "kind": "b_images",
+      "type": "temp",
+      "name": "324-rgthree.compare._temp_qdabx_00002_.png",
+      "sha256": "7c4efe789a1ab4108e4813f635bb1e45d39e19fcce83da57e2deb6cb56e20952",
+      "bytes": 1454782
+    },
+    {
+      "node": "86",
+      "kind": "images",
+      "type": "output",
+      "name": "86-original_00014_.png",
+      "sha256": "2727381f01536aaa8a2af5a166e2ea77d9df8fecb3893e1c0e86d156b4ead057",
+      "bytes": 670655
+    },
+    {
+      "node": "overgo-latent-331",
+      "kind": "latents",
+      "type": "output",
+      "name": "overgo-latent-331-text-to-image-turbo_00006_.latent",
+      "sha256": "750b523cc8c5d8f6144af42c07d121fe9765203f1ce76ec86383203ffdc0ef4f",
+      "bytes": 1216296
+    }
+  ],
+  "texts": {
+    "27": [
+      ""
+    ],
+    "325": [
+      "unwanted rendering artifacts, unintended distortion, accidental duplicate subjects, inconsistent perspective, unrequested text overlays, unwanted watermarks"
+    ]
+  },
+  "cached": [
+    "1",
+    "104",
+    "105",
+    "154",
+    "2",
+    "27",
+    "3",
+    "325",
+    "337:326:103",
+    "337:326:108",
+    "337:326:118",
+    "337:326:14",
+    "337:326:156",
+    "337:326:173",
+    "337:326:99",
+    "337:327:17",
+    "337:327:171",
+    "337:327:172",
+    "337:327:231",
+    "337:328",
+    "337:329",
+    "337:330",
+    "337:677:678",
+    "337:677:679",
+    "675",
+    "676",
+    "92"
+  ]
+}

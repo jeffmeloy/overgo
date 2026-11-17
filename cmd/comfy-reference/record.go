@@ -21,26 +21,41 @@ import (
 
 	"overgo/internal/gitauthority"
 	"overgo/internal/jsonfile"
+	"overgo/internal/modelartifact"
 )
 
 // recording is what one run of a section in ComfyUI's own process gave: what ran (the workflow's hash, the section,
 // the hash of the request posted and each input set over the section's own, ComfyUI's version and the commit of it
-// and of each custom-node pack), how long ComfyUI says it ran, the most of the card's memory in use while it ran, and
-// each output: a file by its node, kind, name and SHA-256, or a node's text.
+// and of each custom-node pack, and each model file by the SHA-256 its recipe pins), how long ComfyUI says it ran and
+// each node's steps as they came, the most of the card's memory in use while it ran, each sampler's sigmas, and each
+// output: a file by its node, kind, name and SHA-256, or a node's text.
 type recording struct {
-	Workflow      string              `json:"workflow_sha256"`
-	Section       string              `json:"section"`
-	Request       string              `json:"request_sha256"`
-	Set           map[string]any      `json:"set,omitzero"`
-	ComfyUI       string              `json:"comfyui_version"`
-	Commits       map[string]string   `json:"commits"`
-	Prompt        string              `json:"prompt_id"`
-	Milliseconds  int64               `json:"milliseconds"`
-	PeakCardBytes uint64              `json:"peak_card_bytes"`
-	Files         []recordedFile      `json:"files"`
-	Texts         map[string][]string `json:"texts,omitzero"`
+	Workflow      string               `json:"workflow_sha256"`
+	Section       string               `json:"section"`
+	Request       string               `json:"request_sha256"`
+	Set           map[string]any       `json:"set,omitzero"`
+	ComfyUI       string               `json:"comfyui_version"`
+	Commits       map[string]string    `json:"commits"`
+	Models        []recordedModel      `json:"models"`
+	Prompt        string               `json:"prompt_id"`
+	Milliseconds  int64                `json:"milliseconds"`
+	PeakCardBytes uint64               `json:"peak_card_bytes"`
+	Sigmas        map[string][]float64 `json:"sigmas"`
+	// Progress are each node's progress events by node, as ComfyUI's websocket told them; none where the recording
+	// resumed a run the recorder posted before (Resumed), whose events it did not hear.
+	Progress map[string][]progressStamp `json:"progress,omitzero"`
+	Resumed  bool                       `json:"resumed,omitzero"`
+	Files    []recordedFile             `json:"files"`
+	Texts    map[string][]string        `json:"texts,omitzero"`
 	// Cached are the nodes ComfyUI answered from its cache of an earlier prompt, none of whose outputs this run computed.
 	Cached []string `json:"cached,omitzero"`
+}
+
+// accepted is the prompt ComfyUI accepted for a request, kept beside the recording it will make from the moment
+// ComfyUI accepts it until the recording is written, so a recording interrupted meanwhile resumes that prompt.
+type accepted struct {
+	Prompt  string `json:"prompt_id"`
+	Request string `json:"request_sha256"`
 }
 
 // recordedFile is one file a run wrote, as ComfyUI's history names it, kept beside the recording.
@@ -57,7 +72,9 @@ type recordedFile struct {
 // recorder runs a fixture's sections in a ComfyUI listening at server, an install's ComfyUI folder at install, and
 // keeps each run's files and recording in out.
 type recorder struct {
-	ultra   *fixture
+	ultra *fixture
+	// recipe is the import recipe that pins the model files the workflow loads.
+	recipe  modelartifact.LocalImport
 	server  string
 	install string
 	out     string
@@ -72,12 +89,15 @@ type recorder struct {
 func latentSaver(node string) string { return "overgo-latent-" + node }
 
 // record runs the section titled title and returns its recording, written to out as <section>.json beside its files.
+// Its destination is admitted before anything is posted: a folder that already holds the section's recording is
+// refused. The prompt ComfyUI accepts is kept at once (<section>.accepted.json) until the recording is written, and a
+// recording of the same request that finds it resumes that prompt through ComfyUI's history, posting nothing.
 func (r recorder) record(ctx context.Context, title string) (recording, error) {
 	request, err := r.ultra.request(title)
 	if err != nil {
 		return recording{}, err
 	}
-	taken := recording{Workflow: hashOf(r.ultra.workflow), Section: title, Set: map[string]any{}, Commits: map[string]string{}, Texts: map[string][]string{}}
+	taken := recording{Workflow: hashOf(r.ultra.workflow), Section: title, Set: map[string]any{}, Commits: map[string]string{}, Texts: map[string][]string{}, Sigmas: map[string][]float64{}}
 	for _, setting := range r.set {
 		at, value, given := strings.Cut(setting, "=")
 		node, input, named := strings.Cut(at, ".")
@@ -96,11 +116,32 @@ func (r recorder) record(ctx context.Context, title string) (recording, error) {
 		}
 		request[latentSaver(node)] = apiNode{ClassType: "SaveLatent", Inputs: map[string]any{"samples": []any{node, 0}, "filename_prefix": "overgo-recorder/" + slug(title)}}
 	}
+	previews := sigmaNodes(request)
+	if len(previews) == 0 {
+		return recording{}, fmt.Errorf("comfy-reference: the request of %q runs no %s", title, sampler)
+	}
 	posted, err := json.Marshal(request)
 	if err != nil {
 		return recording{}, err
 	}
 	taken.Request = hashOf(posted)
+
+	folder, kept, acceptedPath := filepath.Join(r.out, slug(title)), filepath.Join(r.out, slug(title)+".json"), filepath.Join(r.out, slug(title)+".accepted.json")
+	if _, err := os.Stat(kept); err == nil {
+		return recording{}, fmt.Errorf("comfy-reference: %s already holds a recording of %q", kept, title)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return recording{}, err
+	}
+	if err := os.MkdirAll(folder, 0o755); err != nil {
+		return recording{}, err
+	}
+	var before accepted
+	if err := readJSON(acceptedPath, &before); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return recording{}, err
+	}
+	if taken.Models, err = r.models(ctx, r.recipe, request); err != nil {
+		return recording{}, err
+	}
 	if taken.Commits, err = commits(ctx, r.install); err != nil {
 		return recording{}, err
 	}
@@ -109,35 +150,59 @@ func (r recorder) record(ctx context.Context, title string) (recording, error) {
 		return recording{}, err
 	}
 	taken.ComfyUI = stats.System.Version
-	var queued struct {
-		Prompt string                     `json:"prompt_id"`
-		Errors map[string]json.RawMessage `json:"node_errors"`
+	var watch *progressWatch
+	if before.Request == taken.Request && before.Prompt != "" {
+		taken.Prompt, taken.Resumed = before.Prompt, true
+	} else {
+		// The socket is open before the request is posted, so it hears the run's every event.
+		if watch, err = watchProgress(ctx, r.server); err != nil {
+			return recording{}, err
+		}
+		defer watch.close()
+		var queued struct {
+			Prompt string                     `json:"prompt_id"`
+			Errors map[string]json.RawMessage `json:"node_errors"`
+		}
+		if err := r.call(ctx, http.MethodPost, "/prompt", map[string]any{"prompt": json.RawMessage(posted), "client_id": clientID}, &queued); err != nil {
+			return recording{}, err
+		}
+		if len(queued.Errors) > 0 || queued.Prompt == "" {
+			return recording{}, fmt.Errorf("comfy-reference: ComfyUI refused the request of %q: %v", title, queued.Errors)
+		}
+		taken.Prompt = queued.Prompt
+		if err := jsonfile.Write(acceptedPath, accepted{Prompt: taken.Prompt, Request: taken.Request}, fixtureMode); err != nil {
+			return recording{}, err
+		}
 	}
-	if err := r.call(ctx, http.MethodPost, "/prompt", map[string]any{"prompt": json.RawMessage(posted), "client_id": "overgo-comfy-reference"}, &queued); err != nil {
-		return recording{}, err
-	}
-	if len(queued.Errors) > 0 || queued.Prompt == "" {
-		return recording{}, fmt.Errorf("comfy-reference: ComfyUI refused the request of %q: %v", title, queued.Errors)
-	}
-	taken.Prompt = queued.Prompt
-	run, peak, err := r.await(ctx, queued.Prompt, stats)
+	run, peak, err := r.await(ctx, taken.Prompt, stats)
 	if err != nil {
 		return recording{}, fmt.Errorf("comfy-reference: %q: %w", title, err)
+	}
+	if watch != nil {
+		if taken.Progress, err = watch.stamps(ctx, taken.Prompt, socketWait); err != nil {
+			return recording{}, err
+		}
 	}
 	taken.PeakCardBytes = peak
 	taken.Milliseconds, taken.Cached, err = run.events()
 	if err != nil {
 		return recording{}, err
 	}
-	folder := filepath.Join(r.out, slug(title))
-	if err := os.MkdirAll(folder, 0o755); err != nil {
-		return recording{}, err
+	sigmaOf := map[string]string{}
+	for node, preview := range previews {
+		sigmaOf[preview] = node
 	}
 	for _, node := range slices.Sorted(maps.Keys(run.Outputs)) {
 		for _, kind := range slices.Sorted(maps.Keys(run.Outputs[node])) {
 			raw := run.Outputs[node][kind]
 			var texts []string
 			if json.Unmarshal(raw, &texts) == nil {
+				if sampled, held := sigmaOf[node]; held {
+					if taken.Sigmas[sampled], err = readSigmas(texts); err != nil {
+						return recording{}, err
+					}
+					continue
+				}
 				taken.Texts[node] = append(taken.Texts[node], texts...)
 				continue
 			}
@@ -146,15 +211,23 @@ func (r recorder) record(ctx context.Context, title string) (recording, error) {
 				continue // an output that is neither files nor text (a flag, a count) names nothing to keep
 			}
 			for _, file := range files {
-				kept, err := r.keep(ctx, folder, node, kind, file.Filename, file.Subfolder, file.Type)
+				written, err := r.keep(ctx, folder, node, kind, file.Filename, file.Subfolder, file.Type)
 				if err != nil {
 					return recording{}, err
 				}
-				taken.Files = append(taken.Files, kept)
+				taken.Files = append(taken.Files, written)
 			}
 		}
 	}
-	return taken, jsonfile.Write(filepath.Join(r.out, slug(title)+".json"), taken, fixtureMode)
+	for node := range previews {
+		if _, held := taken.Sigmas[node]; !held {
+			return recording{}, fmt.Errorf("comfy-reference: the run of %q gave no sigmas of sampler %s", title, node)
+		}
+	}
+	if err := jsonfile.Write(kept, taken, fixtureMode); err != nil {
+		return recording{}, err
+	}
+	return taken, os.Remove(acceptedPath)
 }
 
 // history is one prompt's entry in ComfyUI's history: whether it ended, how, the events it passed with their times,

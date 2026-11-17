@@ -3,23 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "comfy-recorder",
-      "title": "A ComfyUI recorder runs a saved workflow in ComfyUI's own process and records each section's settings, sigmas, latents and images as goldens, first the MOSS Ultra workflow",
-      "steps": [
-        {
-          "id": "record-rest",
-          "title": "Each recording holds its samplers' sigmas, the time of each step, the model files' hashes, and the workflow's prompt modes 2 and 3",
-          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/comfy-reference -count=1 -run '^TestTheUltraRecordingsAgreeAndParseStrictly$'",
-          "files": [
-            "cmd/comfy-reference",
-            "fixtures/comfy"
-          ],
-          "needs_card": true,
-          "rationale": "Serves: setup-steps; the rest of what comfy-recorder/record's rationale names, which the 2026-11-11 recordings do not hold.\n\nThe recordings of 2026-11-11 keep each section's request hash, the inputs set over it, ComfyUI's version and the commits of it and each node pack, the final prompts (each PreviewAny node's text), the final latent (a SaveLatent after the section's KSampler), every picture by its SHA-256, the run's whole time, the card's most memory in use and the nodes answered from ComfyUI's cache. They do not hold: the sigmas each sampler ran, the time each step took, each model file's SHA-256 as ComfyUI loaded it, and the workflow's prompt modes 2 and 3, which the sections were recorded in mode 1 alone.\n\nThe change: the recorder reads ComfyUI's progress events over its websocket for the time each step took; each sampler's sigmas are recorded by a node of ComfyUI's own that outputs them (BasicScheduler, or KSampler's scheduler and steps read through ComfyUI's /object_info and the sigmas computed by a node added beside it, whichever ComfyUI's install holds), saved as a file; the model files' hashes are those moss_ultra_import.json pins, named by the recording with the install's paths read through ComfyUI's /models; and each prompt mode is recorded by the input that selects it, set over the section's own.\n\nCheck: TestTheUltraRecordingsAgreeAndParseStrictly, widened to hold each recording to its sigmas, its step times, its model hashes and the three prompt modes.\n\nBatch: device lane; a recording runs only while no reading holds the card.\n\nNote: 2026-11-13, findings this step carries (the lead's answer): SQA-345 (P2), the recorder reads the request ComfyUI itself exports for a workflow, under the section and source owner, and the separate UI compiler (flatten.go, widgets.go, workflow.go) goes, a malformed or missing request refused before the reference runs; SQA-388 (P2), the recorder admits its destination before it posts, records the accepted prompt's id with its request at once, and resumes that id through history after an interruption, never posting an unchanged accepted request again."
-        }
-      ]
-    },
-    {
       "id": "moss-ultra-sections",
       "title": "overgo runs every section of the MOSS Ultra workflow: bong_tangent, beta57 and request sigmas, ER-SDE, image to image, depth estimation and control, prompt modes 2 and 3, and the finishing steps",
       "steps": [

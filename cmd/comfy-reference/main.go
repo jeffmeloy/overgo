@@ -1,11 +1,12 @@
-// Command comfy-reference turns a ComfyUI workflow, as ComfyUI's page saves it, into the API request ComfyUI runs for
-// one of its sections, and keeps the workflow and ComfyUI's own requests for it as a fixture.
+// Command comfy-reference keeps a ComfyUI workflow and the API requests ComfyUI's own page exports for its sections as a
+// fixture, prints a section's request, and records a section run in ComfyUI.
 //
-// ComfyUI runs as a separate process; this command reads only the files its page saves and the answers of its HTTP API.
+// ComfyUI runs as a separate process; this command reads only the files its page saves and the answers of its HTTP API
+// and websocket.
 //
 //	comfy-reference -import-workflow MOSS_IMAGE_ULTRA_WORKFLOW.json -import-object-info object_info.json -import-saved <user>/default
 //	comfy-reference -section "TEXT TO IMAGE"
-//	comfy-reference -record "TEXT TO IMAGE" -install <portable>/ComfyUI -out <folder> [-set node.input=<JSON>] [-save-latent node]
+//	comfy-reference -record "TEXT TO IMAGE" -install <portable>/ComfyUI -out <folder> [-recipe <recipe>] [-set node.input=<JSON>] [-save-latent node]
 package main
 
 import (
@@ -18,6 +19,7 @@ import (
 	"time"
 
 	"overgo/internal/clioptions"
+	"overgo/internal/modelartifact"
 )
 
 func main() {
@@ -34,6 +36,7 @@ func run() error {
 	server := flag.String("server", "http://127.0.0.1:8189", "with -record: the ComfyUI the section runs in, listening on the machine only")
 	install := flag.String("install", "", "with -record: that ComfyUI's folder, whose commit and custom-node packs' commits the recording names")
 	out := flag.String("out", "", "with -record: the folder the recording and its files are kept in")
+	recipe := flag.String("recipe", filepath.Join("internal", "modelrecipe", "moss_ultra_import.json"), "with -record: the import recipe pinning the model files the workflow loads, which the recording names by their SHA-256")
 	var set, latents []string
 	flag.Func("set", "with -record: an input given over the section's own, node.input=<JSON value>; repeatable", func(value string) error {
 		set = append(set, value)
@@ -54,7 +57,11 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	taken, err := recorder{ultra: ultra, server: *server, install: *install, out: *out, set: set, latents: latents, poll: time.Second}.record(context.Background(), *record)
+	pinned, err := modelartifact.ReadLocalImport(*recipe)
+	if err != nil {
+		return err
+	}
+	taken, err := recorder{ultra: ultra, recipe: pinned, server: *server, install: *install, out: *out, set: set, latents: latents, poll: time.Second}.record(context.Background(), *record)
 	if err != nil {
 		return err
 	}

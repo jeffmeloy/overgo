@@ -1,0 +1,217 @@
+{
+  "workflow_sha256": "60bf094f438d07deda059b85eefc305fe519b289e7cfe62abfe12792526a0e4a",
+  "section": "DEPTH CONTROL TURBO",
+  "request_sha256": "bdc5a39b20448438898491e7105c690d2e7399191616240f9f59172685ac52a8",
+  "set": {
+    "215.image": "overgo-recorder-input.png",
+    "695.megapixels": 0.5625
+  },
+  "comfyui_version": "0.42.0",
+  "commits": {
+    ".": "7cebca52227c63b4180ceed448cbd7ad22903b6d",
+    "custom_nodes/ComfyUI-KJNodes": "ab72eda7ffad6280422d71ab7d54d3fb87c0ba18",
+    "custom_nodes/ComfyUI-Manager": "4c50a2bc8b9e684d8a85930567957470b952bebe",
+    "custom_nodes/RES4LYF": "6780724de0ddb98e7454d54bb80387836a911ece",
+    "custom_nodes/comfyui_controlnet_aux": "a587a4c1594524c1d2de5cd1a86cd868ff448e1c",
+    "custom_nodes/rgthree-comfy": "bc48c6aaeca87bedbc14245d89f9bc6be37a630e"
+  },
+  "models": [
+    {
+      "node": "1",
+      "input": "unet_name",
+      "folder": "diffusion_models",
+      "name": "moss_image_base_int8_convrot.safetensors",
+      "sha256": "f601c1e1161915fb3fea003da0c1782e374dd960fbb3978bc0e4e3fa1f2d8e6f"
+    },
+    {
+      "node": "2",
+      "input": "clip_name",
+      "folder": "text_encoders",
+      "name": "Qwen3.5-9B-abliterated_int8_convrot.safetensors",
+      "sha256": "e7ba909fd9d9e2557eb566e00ffb34226706f3e7425dc3f187246382edc282f6"
+    },
+    {
+      "node": "3",
+      "input": "vae_name",
+      "folder": "vae",
+      "name": "flux2-vae_small.safetensors",
+      "sha256": "d8d52ba036475f5fb07c8b435e176d3d97ebfa82f0d1a1c317f9cc1e25bd013b"
+    },
+    {
+      "node": "422",
+      "input": "lora_1.lora",
+      "folder": "loras",
+      "name": "moss-control.safetensors",
+      "sha256": "e5c0c3efd05e4269207a39de6005798f14c90c6687c89c54eaffe4b76c43a763"
+    },
+    {
+      "node": "422",
+      "input": "lora_2.lora",
+      "folder": "loras",
+      "name": "8-steps-dmd2-lora.safetensors",
+      "sha256": "7683fe1fb51f73f5d690f24dd6b7f46f31ab9a9873729a854ac5c9a420ffe6f2"
+    },
+    {
+      "node": "422",
+      "input": "lora_3.lora",
+      "folder": "loras",
+      "name": "moss_image_sft.safetensors",
+      "sha256": "6b443a4597694769b527a43d5aed7f0c8265d59a9eceab164ab29eb4bb3af7bf"
+    }
+  ],
+  "prompt_id": "8e561e51-4566-4d64-a541-1d6187e39614",
+  "milliseconds": 2175,
+  "peak_card_bytes": 42159690433,
+  "sigmas": {
+    "48": [
+      1,
+      0.9713438749313354,
+      0.9294229745864868,
+      0.8628878593444824,
+      0.7442997097969055,
+      0.5,
+      0.21312162280082703,
+      0.06964603066444397,
+      0
+    ]
+  },
+  "progress": {
+    "48": [
+      {
+        "value": 1,
+        "max": 8,
+        "us": 1298598
+      },
+      {
+        "value": 3,
+        "max": 8,
+        "us": 1431081
+      },
+      {
+        "value": 5,
+        "max": 8,
+        "us": 1580078
+      },
+      {
+        "value": 7,
+        "max": 8,
+        "us": 1745636
+      },
+      {
+        "value": 8,
+        "max": 8,
+        "us": 1817604
+      }
+    ]
+  },
+  "files": [
+    {
+      "node": "364",
+      "kind": "images",
+      "type": "output",
+      "name": "364-sharpened_00010_.png",
+      "sha256": "6cf41f44cef6c5226e3c2d06a24f46507d48f01f17ea5832ad2633b195e11eef",
+      "bytes": 1201865
+    },
+    {
+      "node": "365",
+      "kind": "a_images",
+      "type": "temp",
+      "name": "365-rgthree.compare._temp_egpcy_00001_.png",
+      "sha256": "37068505dc8e80b9b107f6745437cf77f7ccfc30d0aca503380f935302c34598",
+      "bytes": 1045745
+    },
+    {
+      "node": "365",
+      "kind": "b_images",
+      "type": "temp",
+      "name": "365-rgthree.compare._temp_egpcy_00002_.png",
+      "sha256": "3ed9b10251b0cfb04e7ffecdef311cb4be95bf48a7d715ff2aaa8ec7471f9570",
+      "bytes": 1600906
+    },
+    {
+      "node": "421",
+      "kind": "images",
+      "type": "temp",
+      "name": "421-ComfyUI_temp_etuvp_00001_.png",
+      "sha256": "0c3346f109d128b240aa78a0eec5f720f81e5bd9bcb447833cd6a8b6cac839bd",
+      "bytes": 210997
+    },
+    {
+      "node": "423",
+      "kind": "a_images",
+      "type": "temp",
+      "name": "423-rgthree.compare._temp_fhlng_00001_.png",
+      "sha256": "37068505dc8e80b9b107f6745437cf77f7ccfc30d0aca503380f935302c34598",
+      "bytes": 1045745
+    },
+    {
+      "node": "423",
+      "kind": "b_images",
+      "type": "temp",
+      "name": "423-rgthree.compare._temp_fhlng_00002_.png",
+      "sha256": "1ddebe0eebcee9cdd456e0bca7a01e621eb708d8ad9e429172f3fc419ff8c9dd",
+      "bytes": 1207623
+    },
+    {
+      "node": "50",
+      "kind": "images",
+      "type": "output",
+      "name": "50-depth_control_00010_.png",
+      "sha256": "fc230de7721ddac628608041c375c31f9dbe62dd563999df8c0bc56c8c1f5cfc",
+      "bytes": 841488
+    },
+    {
+      "node": "overgo-latent-48",
+      "kind": "latents",
+      "type": "output",
+      "name": "overgo-latent-48-depth-control-turbo_00005_.latent",
+      "sha256": "b64f28170a590be7952e6628e694a7cf1919009ee695259b36b6164458aab702",
+      "bytes": 1219024
+    }
+  ],
+  "texts": {
+    "361": [
+      ""
+    ],
+    "362": [
+      "unwanted rendering artifacts, unintended distortion, accidental duplicate subjects, inconsistent perspective, unrequested text overlays, unwanted watermarks"
+    ]
+  },
+  "cached": [
+    "1",
+    "2",
+    "215",
+    "3",
+    "318",
+    "319",
+    "361",
+    "362",
+    "366:216",
+    "366:217",
+    "366:220",
+    "366:370:371",
+    "366:370:385",
+    "366:370:386",
+    "366:370:387",
+    "366:388:389",
+    "366:388:393",
+    "366:388:397",
+    "366:388:399",
+    "366:388:407",
+    "366:388:419",
+    "366:388:420",
+    "366:41",
+    "366:42",
+    "366:45",
+    "366:46",
+    "366:47",
+    "366:697:698",
+    "366:697:699",
+    "368",
+    "421",
+    "695",
+    "696",
+    "92"
+  ]
+}

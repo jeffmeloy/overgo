@@ -1,0 +1,733 @@
+{
+  "workflow_sha256": "60bf094f438d07deda059b85eefc305fe519b289e7cfe62abfe12792526a0e4a",
+  "section": "TEXT TO IMAGE",
+  "request_sha256": "070a15301531a52675d4efe967e3354f8f5eb485730edad3bbac56cbc7ee3be6",
+  "set": {
+    "483.value": 2,
+    "670.megapixels": 0.5625
+  },
+  "comfyui_version": "0.42.0",
+  "commits": {
+    ".": "7cebca52227c63b4180ceed448cbd7ad22903b6d",
+    "custom_nodes/ComfyUI-KJNodes": "ab72eda7ffad6280422d71ab7d54d3fb87c0ba18",
+    "custom_nodes/ComfyUI-Manager": "4c50a2bc8b9e684d8a85930567957470b952bebe",
+    "custom_nodes/RES4LYF": "6780724de0ddb98e7454d54bb80387836a911ece",
+    "custom_nodes/comfyui_controlnet_aux": "a587a4c1594524c1d2de5cd1a86cd868ff448e1c",
+    "custom_nodes/rgthree-comfy": "bc48c6aaeca87bedbc14245d89f9bc6be37a630e"
+  },
+  "models": [
+    {
+      "node": "1",
+      "input": "unet_name",
+      "folder": "diffusion_models",
+      "name": "moss_image_base_int8_convrot.safetensors",
+      "sha256": "f601c1e1161915fb3fea003da0c1782e374dd960fbb3978bc0e4e3fa1f2d8e6f"
+    },
+    {
+      "node": "2",
+      "input": "clip_name",
+      "folder": "text_encoders",
+      "name": "Qwen3.5-9B-abliterated_int8_convrot.safetensors",
+      "sha256": "e7ba909fd9d9e2557eb566e00ffb34226706f3e7425dc3f187246382edc282f6"
+    },
+    {
+      "node": "3",
+      "input": "vae_name",
+      "folder": "vae",
+      "name": "flux2-vae_small.safetensors",
+      "sha256": "d8d52ba036475f5fb07c8b435e176d3d97ebfa82f0d1a1c317f9cc1e25bd013b"
+    }
+  ],
+  "prompt_id": "0bd8d31e-6d1c-4db7-974d-31a8322752ff",
+  "milliseconds": 18261,
+  "peak_card_bytes": 25175776693,
+  "sigmas": {
+    "598": [
+      1,
+      0.9972407817840576,
+      0.9943000674247742,
+      0.9911596775054932,
+      0.9877990484237671,
+      0.9841945767402649,
+      0.9803193211555481,
+      0.976142406463623,
+      0.9716281890869141,
+      0.9667351841926575,
+      0.9614152908325195,
+      0.9556121230125427,
+      0.9492592215538025,
+      0.942278265953064,
+      0.9345757365226746,
+      0.9260401129722595,
+      0.9165371060371399,
+      0.9059043526649475,
+      0.8939446806907654,
+      0.8804175853729248,
+      0.865028977394104,
+      0.8474193215370178,
+      0.8271505236625671,
+      0.8036947846412659,
+      0.7764295935630798,
+      0.7446503639221191,
+      0.7076191902160645,
+      0.6646791696548462,
+      0.6154629588127136,
+      0.5601956248283386,
+      0.5,
+      0.43925926089286804,
+      0.3812241852283478,
+      0.3279404640197754,
+      0.2804907560348511,
+      0.2390919178724289,
+      0.20338986814022064,
+      0.17275124788284302,
+      0.14646469056606293,
+      0.12385084480047226,
+      0.10430954396724701,
+      0.08733189105987549,
+      0.07249562442302704,
+      0.0594540573656559,
+      0.047923654317855835,
+      0.037672534584999084,
+      0.02851058356463909,
+      0.020281312987208366,
+      0.012855276465415955,
+      0.006124838255345821,
+      0
+    ]
+  },
+  "progress": {
+    "598": [
+      {
+        "value": 1,
+        "max": 50,
+        "us": 9381269
+      },
+      {
+        "value": 2,
+        "max": 50,
+        "us": 9558779
+      },
+      {
+        "value": 3,
+        "max": 50,
+        "us": 9724065
+      },
+      {
+        "value": 4,
+        "max": 50,
+        "us": 9900522
+      },
+      {
+        "value": 5,
+        "max": 50,
+        "us": 10068481
+      },
+      {
+        "value": 6,
+        "max": 50,
+        "us": 10249879
+      },
+      {
+        "value": 7,
+        "max": 50,
+        "us": 10411255
+      },
+      {
+        "value": 8,
+        "max": 50,
+        "us": 10588846
+      },
+      {
+        "value": 9,
+        "max": 50,
+        "us": 10761496
+      },
+      {
+        "value": 10,
+        "max": 50,
+        "us": 10934329
+      },
+      {
+        "value": 11,
+        "max": 50,
+        "us": 11102573
+      },
+      {
+        "value": 12,
+        "max": 50,
+        "us": 11287794
+      },
+      {
+        "value": 13,
+        "max": 50,
+        "us": 11451727
+      },
+      {
+        "value": 14,
+        "max": 50,
+        "us": 11635835
+      },
+      {
+        "value": 15,
+        "max": 50,
+        "us": 11795833
+      },
+      {
+        "value": 16,
+        "max": 50,
+        "us": 11984948
+      },
+      {
+        "value": 17,
+        "max": 50,
+        "us": 12156291
+      },
+      {
+        "value": 18,
+        "max": 50,
+        "us": 12324124
+      },
+      {
+        "value": 19,
+        "max": 50,
+        "us": 12489106
+      },
+      {
+        "value": 20,
+        "max": 50,
+        "us": 12659835
+      },
+      {
+        "value": 21,
+        "max": 50,
+        "us": 12848501
+      },
+      {
+        "value": 22,
+        "max": 50,
+        "us": 13025965
+      },
+      {
+        "value": 23,
+        "max": 50,
+        "us": 13178658
+      },
+      {
+        "value": 24,
+        "max": 50,
+        "us": 13368437
+      },
+      {
+        "value": 25,
+        "max": 50,
+        "us": 13546965
+      },
+      {
+        "value": 26,
+        "max": 50,
+        "us": 13713529
+      },
+      {
+        "value": 27,
+        "max": 50,
+        "us": 13890675
+      },
+      {
+        "value": 28,
+        "max": 50,
+        "us": 14068728
+      },
+      {
+        "value": 29,
+        "max": 50,
+        "us": 14234316
+      },
+      {
+        "value": 30,
+        "max": 50,
+        "us": 14413285
+      },
+      {
+        "value": 31,
+        "max": 50,
+        "us": 14588343
+      },
+      {
+        "value": 32,
+        "max": 50,
+        "us": 14757319
+      },
+      {
+        "value": 33,
+        "max": 50,
+        "us": 14936191
+      },
+      {
+        "value": 34,
+        "max": 50,
+        "us": 15110482
+      },
+      {
+        "value": 35,
+        "max": 50,
+        "us": 15284115
+      },
+      {
+        "value": 36,
+        "max": 50,
+        "us": 15454704
+      },
+      {
+        "value": 37,
+        "max": 50,
+        "us": 15622353
+      },
+      {
+        "value": 38,
+        "max": 50,
+        "us": 15813537
+      },
+      {
+        "value": 39,
+        "max": 50,
+        "us": 15974711
+      },
+      {
+        "value": 40,
+        "max": 50,
+        "us": 16157450
+      },
+      {
+        "value": 41,
+        "max": 50,
+        "us": 16332169
+      },
+      {
+        "value": 42,
+        "max": 50,
+        "us": 16492375
+      },
+      {
+        "value": 43,
+        "max": 50,
+        "us": 16675250
+      },
+      {
+        "value": 44,
+        "max": 50,
+        "us": 16844127
+      },
+      {
+        "value": 45,
+        "max": 50,
+        "us": 17028768
+      },
+      {
+        "value": 46,
+        "max": 50,
+        "us": 17198529
+      },
+      {
+        "value": 47,
+        "max": 50,
+        "us": 17369167
+      },
+      {
+        "value": 48,
+        "max": 50,
+        "us": 17541798
+      },
+      {
+        "value": 49,
+        "max": 50,
+        "us": 17726866
+      },
+      {
+        "value": 50,
+        "max": 50,
+        "us": 17907374
+      }
+    ],
+    "707:703:453": [
+      {
+        "value": 1,
+        "max": 2048,
+        "us": 1029263
+      },
+      {
+        "value": 12,
+        "max": 2048,
+        "us": 1235431
+      },
+      {
+        "value": 23,
+        "max": 2048,
+        "us": 1354360
+      },
+      {
+        "value": 34,
+        "max": 2048,
+        "us": 1473465
+      },
+      {
+        "value": 45,
+        "max": 2048,
+        "us": 1593942
+      },
+      {
+        "value": 56,
+        "max": 2048,
+        "us": 1715499
+      },
+      {
+        "value": 67,
+        "max": 2048,
+        "us": 1836891
+      },
+      {
+        "value": 78,
+        "max": 2048,
+        "us": 1958038
+      },
+      {
+        "value": 89,
+        "max": 2048,
+        "us": 2079501
+      },
+      {
+        "value": 100,
+        "max": 2048,
+        "us": 2198371
+      },
+      {
+        "value": 111,
+        "max": 2048,
+        "us": 2317416
+      },
+      {
+        "value": 122,
+        "max": 2048,
+        "us": 2436211
+      },
+      {
+        "value": 133,
+        "max": 2048,
+        "us": 2554935
+      },
+      {
+        "value": 144,
+        "max": 2048,
+        "us": 2674290
+      },
+      {
+        "value": 155,
+        "max": 2048,
+        "us": 2793836
+      },
+      {
+        "value": 166,
+        "max": 2048,
+        "us": 2912925
+      },
+      {
+        "value": 177,
+        "max": 2048,
+        "us": 3031811
+      },
+      {
+        "value": 188,
+        "max": 2048,
+        "us": 3150809
+      },
+      {
+        "value": 199,
+        "max": 2048,
+        "us": 3268981
+      },
+      {
+        "value": 210,
+        "max": 2048,
+        "us": 3387627
+      },
+      {
+        "value": 221,
+        "max": 2048,
+        "us": 3505918
+      },
+      {
+        "value": 232,
+        "max": 2048,
+        "us": 3624685
+      },
+      {
+        "value": 243,
+        "max": 2048,
+        "us": 3743340
+      },
+      {
+        "value": 254,
+        "max": 2048,
+        "us": 3861378
+      },
+      {
+        "value": 265,
+        "max": 2048,
+        "us": 3979726
+      },
+      {
+        "value": 276,
+        "max": 2048,
+        "us": 4100312
+      },
+      {
+        "value": 287,
+        "max": 2048,
+        "us": 4218615
+      },
+      {
+        "value": 298,
+        "max": 2048,
+        "us": 4337134
+      },
+      {
+        "value": 309,
+        "max": 2048,
+        "us": 4455427
+      },
+      {
+        "value": 320,
+        "max": 2048,
+        "us": 4573815
+      },
+      {
+        "value": 331,
+        "max": 2048,
+        "us": 4692524
+      },
+      {
+        "value": 342,
+        "max": 2048,
+        "us": 4811385
+      },
+      {
+        "value": 353,
+        "max": 2048,
+        "us": 4929858
+      },
+      {
+        "value": 364,
+        "max": 2048,
+        "us": 5048626
+      },
+      {
+        "value": 375,
+        "max": 2048,
+        "us": 5167085
+      },
+      {
+        "value": 386,
+        "max": 2048,
+        "us": 5285302
+      },
+      {
+        "value": 397,
+        "max": 2048,
+        "us": 5403501
+      },
+      {
+        "value": 408,
+        "max": 2048,
+        "us": 5522494
+      },
+      {
+        "value": 419,
+        "max": 2048,
+        "us": 5641035
+      },
+      {
+        "value": 430,
+        "max": 2048,
+        "us": 5759626
+      },
+      {
+        "value": 441,
+        "max": 2048,
+        "us": 5878512
+      },
+      {
+        "value": 452,
+        "max": 2048,
+        "us": 5997755
+      },
+      {
+        "value": 463,
+        "max": 2048,
+        "us": 6116607
+      },
+      {
+        "value": 474,
+        "max": 2048,
+        "us": 6235199
+      },
+      {
+        "value": 485,
+        "max": 2048,
+        "us": 6353689
+      },
+      {
+        "value": 496,
+        "max": 2048,
+        "us": 6472174
+      },
+      {
+        "value": 507,
+        "max": 2048,
+        "us": 6590325
+      },
+      {
+        "value": 518,
+        "max": 2048,
+        "us": 6708798
+      },
+      {
+        "value": 529,
+        "max": 2048,
+        "us": 6827233
+      },
+      {
+        "value": 540,
+        "max": 2048,
+        "us": 6946376
+      },
+      {
+        "value": 551,
+        "max": 2048,
+        "us": 7064967
+      },
+      {
+        "value": 562,
+        "max": 2048,
+        "us": 7183442
+      },
+      {
+        "value": 573,
+        "max": 2048,
+        "us": 7302127
+      },
+      {
+        "value": 584,
+        "max": 2048,
+        "us": 7420547
+      },
+      {
+        "value": 595,
+        "max": 2048,
+        "us": 7538732
+      }
+    ],
+    "707:703:468": [
+      {
+        "value": 1,
+        "max": 384,
+        "us": 8371131
+      },
+      {
+        "value": 5,
+        "max": 384,
+        "us": 8479083
+      },
+      {
+        "value": 15,
+        "max": 384,
+        "us": 8587351
+      },
+      {
+        "value": 25,
+        "max": 384,
+        "us": 8694893
+      },
+      {
+        "value": 35,
+        "max": 384,
+        "us": 8802264
+      },
+      {
+        "value": 45,
+        "max": 384,
+        "us": 8909806
+      },
+      {
+        "value": 55,
+        "max": 384,
+        "us": 9017147
+      }
+    ]
+  },
+  "files": [
+    {
+      "node": "449",
+      "kind": "images",
+      "type": "output",
+      "name": "449-original_00016_.png",
+      "sha256": "5c21dc9a58c46714f5374230203f67446e8ea0c6b78554b42a91a9872094d6a4",
+      "bytes": 918398
+    },
+    {
+      "node": "482",
+      "kind": "images",
+      "type": "output",
+      "name": "482-sharpened_00016_.png",
+      "sha256": "f011da6a2886e7109efcdc9e654b92df0f20c849595db7925187380eb89a6c7c",
+      "bytes": 1255673
+    },
+    {
+      "node": "709",
+      "kind": "a_images",
+      "type": "temp",
+      "name": "709-rgthree.compare._temp_vvsal_00003_.png",
+      "sha256": "d73daf40f18758b886858765d2b6702ce22d7f7a05ac304dbd8ccdc2ad98e3d0",
+      "bytes": 1311980
+    },
+    {
+      "node": "709",
+      "kind": "b_images",
+      "type": "temp",
+      "name": "709-rgthree.compare._temp_vvsal_00004_.png",
+      "sha256": "3d8e3ea688b36f278ecde1dfebd82acc3e35815cbdd9f34cf4afacc80aa7974b",
+      "bytes": 1682071
+    },
+    {
+      "node": "overgo-latent-598",
+      "kind": "latents",
+      "type": "output",
+      "name": "overgo-latent-598-text-to-image_00010_.latent",
+      "sha256": "feb2c32adb9692dfeba67b537225d4eb8003b1d23a035c2c0712a9de3176d13d",
+      "bytes": 1215840
+    }
+  ],
+  "texts": {
+    "436": [
+      "A hyper-realistic, full-body portrait of a young woman with warm olive skin and a soft, contemplative expression, captured in a sun-drenched Mediterranean courtyard. She stands slightly angled to the camera-left, her body relaxed but poised, wearing a flowing, linen summer dress in pale sage green that clings gently to her form at the waist before flaring out into loose, airy folds around her legs. Her dark brown hair is styled in a loose, wind-swept updo with several stray strands framing her face, catching the light with subtle highlights. The lighting is dominated by a strong, natural key light coming from the upper camera-left, simulating bright midday sunlight streaming through an open archway, which casts sharp, defined shadows across the right side of her face and the deep crevices of her dress fabric. This primary illumination creates a high-contrast look, emphasizing the texture of her skin pores and the fine weave of the cotton-linen material. A soft fill light from the camera-right gently lifts the shadowed areas on her left cheek and the underside of her collarbone without washing out the depth.\n\nThe setting is an ancient stone courtyard paved with uneven, weathered cobblestones in shades of beige and terracotta, scattered with fallen leaves and small patches of dry grass. Behind her, a crumbling stone wall painted with faded ochre and sienna hues rises up, partially covered by climbing ivy and blooming white jasmine flowers that add delicate pops of color against the earthy tones. In the background, slightly out of focus due to a shallow depth of field rendered by a 50mm lens, there are hints of wrought-iron garden furniture and a distant view of blue sea meeting a clear sky. The composition utilizes a low-angle shot looking slightly upward at the subject, making her appear graceful and commanding within the frame, while the leading lines of the stone path draw the viewer's eye directly to her figure.\n\nThe atmosphere is one of serene warmth and timeless beauty, evoking a feeling of quiet solitude amidst a vibrant landscape. Colors are rich yet harmonious, dominated by warm earth tones, soft greens, and the cool azure of the distant water, all unified under a golden-hour glow that enhances the tactile quality of every surface. The rendering style blends the crisp detail of high-resolution photography with a painterly touch in the background bokeh, creating a dreamlike yet grounded aesthetic. Every fold in the dress, every grain in the stone, and every drop of sweat on her temple is rendered with photorealistic precision. The image feels candid yet composed, as if caught in a fleeting moment of peaceful reflection. There is no clutter in the foreground; the space immediately surrounding her feet is clear, allowing the viewer to focus entirely on her posture and the interplay of light and shadow on her form. The overall mood is tranquil, inviting, and visually lush, capturing the essence of a perfect summer afternoon in a historic European village."
+    ],
+    "592": [
+      "blurry, overexposed, underexposed, flat lighting, low contrast, wax doll, overly smooth, harsh shadows, noise, grainy, banding, color cast, vignette, distortion, double exposure, extra limbs, floating elements, watermark"
+    ]
+  },
+  "cached": [
+    "1",
+    "2",
+    "3",
+    "459",
+    "460",
+    "601",
+    "671",
+    "707:702:497",
+    "707:703:470",
+    "707:706",
+    "92",
+    "overgo-sigma-floats-598",
+    "overgo-sigma-text-598",
+    "overgo-sigmas-598"
+  ]
+}

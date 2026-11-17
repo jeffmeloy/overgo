@@ -1,0 +1,197 @@
+{
+  "workflow_sha256": "60bf094f438d07deda059b85eefc305fe519b289e7cfe62abfe12792526a0e4a",
+  "section": "IMAGE TO IMAGE TURBO",
+  "request_sha256": "8ddbcb2b4bad33baa5a488661a9157a43383a710ece89121b8b8801d97b3de8e",
+  "set": {
+    "685.megapixels": 0.5625,
+    "8.image": "overgo-recorder-input.png"
+  },
+  "comfyui_version": "0.42.0",
+  "commits": {
+    ".": "7cebca52227c63b4180ceed448cbd7ad22903b6d",
+    "custom_nodes/ComfyUI-KJNodes": "ab72eda7ffad6280422d71ab7d54d3fb87c0ba18",
+    "custom_nodes/ComfyUI-Manager": "4c50a2bc8b9e684d8a85930567957470b952bebe",
+    "custom_nodes/RES4LYF": "6780724de0ddb98e7454d54bb80387836a911ece",
+    "custom_nodes/comfyui_controlnet_aux": "a587a4c1594524c1d2de5cd1a86cd868ff448e1c",
+    "custom_nodes/rgthree-comfy": "bc48c6aaeca87bedbc14245d89f9bc6be37a630e"
+  },
+  "models": [
+    {
+      "node": "1",
+      "input": "unet_name",
+      "folder": "diffusion_models",
+      "name": "moss_image_base_int8_convrot.safetensors",
+      "sha256": "f601c1e1161915fb3fea003da0c1782e374dd960fbb3978bc0e4e3fa1f2d8e6f"
+    },
+    {
+      "node": "2",
+      "input": "clip_name",
+      "folder": "text_encoders",
+      "name": "Qwen3.5-9B-abliterated_int8_convrot.safetensors",
+      "sha256": "e7ba909fd9d9e2557eb566e00ffb34226706f3e7425dc3f187246382edc282f6"
+    },
+    {
+      "node": "3",
+      "input": "vae_name",
+      "folder": "vae",
+      "name": "flux2-vae_small.safetensors",
+      "sha256": "d8d52ba036475f5fb07c8b435e176d3d97ebfa82f0d1a1c317f9cc1e25bd013b"
+    },
+    {
+      "node": "314",
+      "input": "lora_1.lora",
+      "folder": "loras",
+      "name": "8-steps-dmd2-lora.safetensors",
+      "sha256": "7683fe1fb51f73f5d690f24dd6b7f46f31ab9a9873729a854ac5c9a420ffe6f2"
+    },
+    {
+      "node": "314",
+      "input": "lora_2.lora",
+      "folder": "loras",
+      "name": "moss_image_sft.safetensors",
+      "sha256": "6b443a4597694769b527a43d5aed7f0c8265d59a9eceab164ab29eb4bb3af7bf"
+    }
+  ],
+  "prompt_id": "8f5a1659-3019-4961-a34d-51905b298bf1",
+  "milliseconds": 2015,
+  "peak_card_bytes": 42175806121,
+  "sigmas": {
+    "198": [
+      0.9002703428268433,
+      0.8304001092910767,
+      0.7129003405570984,
+      0.5,
+      0.2804907560348511,
+      0.14646469056606293,
+      0.07249562442302704,
+      0.02851058356463909,
+      0
+    ]
+  },
+  "progress": {
+    "198": [
+      {
+        "value": 1,
+        "max": 8,
+        "us": 1155379
+      },
+      {
+        "value": 3,
+        "max": 8,
+        "us": 1282936
+      },
+      {
+        "value": 5,
+        "max": 8,
+        "us": 1433012
+      },
+      {
+        "value": 7,
+        "max": 8,
+        "us": 1591835
+      },
+      {
+        "value": 8,
+        "max": 8,
+        "us": 1671979
+      }
+    ]
+  },
+  "files": [
+    {
+      "node": "214",
+      "kind": "images",
+      "type": "output",
+      "name": "214-image_to_image_00010_.png",
+      "sha256": "9cd1da42108b525e1f5efe9f50edb21f6e589c4300040c045f907164f84cf86e",
+      "bytes": 690421
+    },
+    {
+      "node": "344",
+      "kind": "images",
+      "type": "output",
+      "name": "344-sharpened_00010_.png",
+      "sha256": "f1a746aa99e0f8ce7fc9e11e1e8cb219785efaecf7c09a76bede079032177219",
+      "bytes": 1008267
+    },
+    {
+      "node": "345",
+      "kind": "a_images",
+      "type": "temp",
+      "name": "345-rgthree.compare._temp_zapnj_00001_.png",
+      "sha256": "0f42b6cf7ac8be59faf7026406f985c18435d05d5cf6410839e11a4538dfcba7",
+      "bytes": 1084016
+    },
+    {
+      "node": "345",
+      "kind": "b_images",
+      "type": "temp",
+      "name": "345-rgthree.compare._temp_zapnj_00002_.png",
+      "sha256": "1abc86fe66fcf0fdf13cd97b4169810c8b4018c54a2c33909a26e3f79a54e6d4",
+      "bytes": 1509645
+    },
+    {
+      "node": "367",
+      "kind": "a_images",
+      "type": "temp",
+      "name": "367-rgthree.compare._temp_ahbqo_00001_.png",
+      "sha256": "0f42b6cf7ac8be59faf7026406f985c18435d05d5cf6410839e11a4538dfcba7",
+      "bytes": 1084016
+    },
+    {
+      "node": "367",
+      "kind": "b_images",
+      "type": "temp",
+      "name": "367-rgthree.compare._temp_ahbqo_00002_.png",
+      "sha256": "894e7be1e0b7dc6d9aca15da677e1a9ec3aac02dc157e74cbcb0232c78f84834",
+      "bytes": 1044475
+    },
+    {
+      "node": "overgo-latent-198",
+      "kind": "latents",
+      "type": "output",
+      "name": "overgo-latent-198-image-to-image-turbo_00005_.latent",
+      "sha256": "95038b741c8b5af6ed6b25b06161617240ef3fd476979986f578f16d5040e054",
+      "bytes": 1217616
+    }
+  ],
+  "texts": {
+    "316": [
+      ""
+    ],
+    "317": [
+      "unwanted rendering artifacts, unintended distortion, accidental duplicate subjects, inconsistent perspective, unrequested text overlays, unwanted watermarks"
+    ]
+  },
+  "cached": [
+    "1",
+    "2",
+    "257",
+    "258",
+    "259",
+    "3",
+    "316",
+    "317",
+    "346:195",
+    "346:196",
+    "346:197",
+    "346:263:264",
+    "346:263:278",
+    "346:263:279",
+    "346:263:280",
+    "346:281:282",
+    "346:281:286",
+    "346:281:290",
+    "346:281:292",
+    "346:281:300",
+    "346:281:312",
+    "346:281:313",
+    "346:687:688",
+    "346:687:689",
+    "346:9",
+    "685",
+    "686",
+    "8",
+    "92"
+  ]
+}

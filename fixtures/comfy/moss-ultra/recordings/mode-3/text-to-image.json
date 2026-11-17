@@ -1,0 +1,433 @@
+{
+  "workflow_sha256": "60bf094f438d07deda059b85eefc305fe519b289e7cfe62abfe12792526a0e4a",
+  "section": "TEXT TO IMAGE",
+  "request_sha256": "e86ac62a06a109bdac5b914b1b5286f009907ddd622c40e882b13d41710a637c",
+  "set": {
+    "483.value": 3,
+    "670.megapixels": 0.5625
+  },
+  "comfyui_version": "0.42.0",
+  "commits": {
+    ".": "7cebca52227c63b4180ceed448cbd7ad22903b6d",
+    "custom_nodes/ComfyUI-KJNodes": "ab72eda7ffad6280422d71ab7d54d3fb87c0ba18",
+    "custom_nodes/ComfyUI-Manager": "4c50a2bc8b9e684d8a85930567957470b952bebe",
+    "custom_nodes/RES4LYF": "6780724de0ddb98e7454d54bb80387836a911ece",
+    "custom_nodes/comfyui_controlnet_aux": "a587a4c1594524c1d2de5cd1a86cd868ff448e1c",
+    "custom_nodes/rgthree-comfy": "bc48c6aaeca87bedbc14245d89f9bc6be37a630e"
+  },
+  "models": [
+    {
+      "node": "1",
+      "input": "unet_name",
+      "folder": "diffusion_models",
+      "name": "moss_image_base_int8_convrot.safetensors",
+      "sha256": "f601c1e1161915fb3fea003da0c1782e374dd960fbb3978bc0e4e3fa1f2d8e6f"
+    },
+    {
+      "node": "2",
+      "input": "clip_name",
+      "folder": "text_encoders",
+      "name": "Qwen3.5-9B-abliterated_int8_convrot.safetensors",
+      "sha256": "e7ba909fd9d9e2557eb566e00ffb34226706f3e7425dc3f187246382edc282f6"
+    },
+    {
+      "node": "3",
+      "input": "vae_name",
+      "folder": "vae",
+      "name": "flux2-vae_small.safetensors",
+      "sha256": "d8d52ba036475f5fb07c8b435e176d3d97ebfa82f0d1a1c317f9cc1e25bd013b"
+    }
+  ],
+  "prompt_id": "b5b10190-7be9-4748-9dae-8398e2991943",
+  "milliseconds": 8385,
+  "peak_card_bytes": 25181628353,
+  "sigmas": {
+    "598": [
+      1,
+      0.9972407817840576,
+      0.9943000674247742,
+      0.9911596775054932,
+      0.9877990484237671,
+      0.9841945767402649,
+      0.9803193211555481,
+      0.976142406463623,
+      0.9716281890869141,
+      0.9667351841926575,
+      0.9614152908325195,
+      0.9556121230125427,
+      0.9492592215538025,
+      0.942278265953064,
+      0.9345757365226746,
+      0.9260401129722595,
+      0.9165371060371399,
+      0.9059043526649475,
+      0.8939446806907654,
+      0.8804175853729248,
+      0.865028977394104,
+      0.8474193215370178,
+      0.8271505236625671,
+      0.8036947846412659,
+      0.7764295935630798,
+      0.7446503639221191,
+      0.7076191902160645,
+      0.6646791696548462,
+      0.6154629588127136,
+      0.5601956248283386,
+      0.5,
+      0.43925926089286804,
+      0.3812241852283478,
+      0.3279404640197754,
+      0.2804907560348511,
+      0.2390919178724289,
+      0.20338986814022064,
+      0.17275124788284302,
+      0.14646469056606293,
+      0.12385084480047226,
+      0.10430954396724701,
+      0.08733189105987549,
+      0.07249562442302704,
+      0.0594540573656559,
+      0.047923654317855835,
+      0.037672534584999084,
+      0.02851058356463909,
+      0.020281312987208366,
+      0.012855276465415955,
+      0.006124838255345821,
+      0
+    ]
+  },
+  "progress": {
+    "598": [
+      {
+        "value": 1,
+        "max": 50,
+        "us": 627582
+      },
+      {
+        "value": 2,
+        "max": 50,
+        "us": 777667
+      },
+      {
+        "value": 3,
+        "max": 50,
+        "us": 929246
+      },
+      {
+        "value": 4,
+        "max": 50,
+        "us": 1083044
+      },
+      {
+        "value": 5,
+        "max": 50,
+        "us": 1231057
+      },
+      {
+        "value": 6,
+        "max": 50,
+        "us": 1384455
+      },
+      {
+        "value": 7,
+        "max": 50,
+        "us": 1526021
+      },
+      {
+        "value": 8,
+        "max": 50,
+        "us": 1690745
+      },
+      {
+        "value": 9,
+        "max": 50,
+        "us": 1838414
+      },
+      {
+        "value": 10,
+        "max": 50,
+        "us": 2002382
+      },
+      {
+        "value": 11,
+        "max": 50,
+        "us": 2143804
+      },
+      {
+        "value": 12,
+        "max": 50,
+        "us": 2286873
+      },
+      {
+        "value": 13,
+        "max": 50,
+        "us": 2433778
+      },
+      {
+        "value": 14,
+        "max": 50,
+        "us": 2587633
+      },
+      {
+        "value": 15,
+        "max": 50,
+        "us": 2749294
+      },
+      {
+        "value": 16,
+        "max": 50,
+        "us": 2911065
+      },
+      {
+        "value": 17,
+        "max": 50,
+        "us": 3071984
+      },
+      {
+        "value": 18,
+        "max": 50,
+        "us": 3208436
+      },
+      {
+        "value": 19,
+        "max": 50,
+        "us": 3353373
+      },
+      {
+        "value": 20,
+        "max": 50,
+        "us": 3496723
+      },
+      {
+        "value": 21,
+        "max": 50,
+        "us": 3648248
+      },
+      {
+        "value": 22,
+        "max": 50,
+        "us": 3817050
+      },
+      {
+        "value": 23,
+        "max": 50,
+        "us": 3955410
+      },
+      {
+        "value": 24,
+        "max": 50,
+        "us": 4119220
+      },
+      {
+        "value": 25,
+        "max": 50,
+        "us": 4271778
+      },
+      {
+        "value": 26,
+        "max": 50,
+        "us": 4419898
+      },
+      {
+        "value": 27,
+        "max": 50,
+        "us": 4564931
+      },
+      {
+        "value": 28,
+        "max": 50,
+        "us": 4727750
+      },
+      {
+        "value": 29,
+        "max": 50,
+        "us": 4877107
+      },
+      {
+        "value": 30,
+        "max": 50,
+        "us": 5035553
+      },
+      {
+        "value": 31,
+        "max": 50,
+        "us": 5177950
+      },
+      {
+        "value": 32,
+        "max": 50,
+        "us": 5320960
+      },
+      {
+        "value": 33,
+        "max": 50,
+        "us": 5476214
+      },
+      {
+        "value": 34,
+        "max": 50,
+        "us": 5626075
+      },
+      {
+        "value": 35,
+        "max": 50,
+        "us": 5772872
+      },
+      {
+        "value": 36,
+        "max": 50,
+        "us": 5936260
+      },
+      {
+        "value": 37,
+        "max": 50,
+        "us": 6091215
+      },
+      {
+        "value": 38,
+        "max": 50,
+        "us": 6238885
+      },
+      {
+        "value": 39,
+        "max": 50,
+        "us": 6389807
+      },
+      {
+        "value": 40,
+        "max": 50,
+        "us": 6534193
+      },
+      {
+        "value": 41,
+        "max": 50,
+        "us": 6698809
+      },
+      {
+        "value": 42,
+        "max": 50,
+        "us": 6844414
+      },
+      {
+        "value": 43,
+        "max": 50,
+        "us": 7004083
+      },
+      {
+        "value": 44,
+        "max": 50,
+        "us": 7160035
+      },
+      {
+        "value": 45,
+        "max": 50,
+        "us": 7304735
+      },
+      {
+        "value": 46,
+        "max": 50,
+        "us": 7461487
+      },
+      {
+        "value": 47,
+        "max": 50,
+        "us": 7610599
+      },
+      {
+        "value": 48,
+        "max": 50,
+        "us": 7746646
+      },
+      {
+        "value": 49,
+        "max": 50,
+        "us": 7910559
+      },
+      {
+        "value": 50,
+        "max": 50,
+        "us": 8061606
+      }
+    ]
+  },
+  "files": [
+    {
+      "node": "449",
+      "kind": "images",
+      "type": "output",
+      "name": "449-original_00017_.png",
+      "sha256": "14c38db42d8c1822acc5c95a8191543615e515699d1f4c82b247a9b6e4c24f50",
+      "bytes": 376736
+    },
+    {
+      "node": "482",
+      "kind": "images",
+      "type": "output",
+      "name": "482-sharpened_00017_.png",
+      "sha256": "f4dfc4171e49e9dc7d105323f8b6cb6b0ef494ffd66fee49778e9e4667ef5225",
+      "bytes": 660320
+    },
+    {
+      "node": "709",
+      "kind": "a_images",
+      "type": "temp",
+      "name": "709-rgthree.compare._temp_vvsal_00005_.png",
+      "sha256": "8e3c4abacd6c1d36d07c9b42349aa4af312fea003ec36d5f6953bcf6abe3640b",
+      "bytes": 627171
+    },
+    {
+      "node": "709",
+      "kind": "b_images",
+      "type": "temp",
+      "name": "709-rgthree.compare._temp_vvsal_00006_.png",
+      "sha256": "75903ed0627c4120cdda493c1dd7dece7c0bc3735a62ae898e013a93370d88e3",
+      "bytes": 1023713
+    },
+    {
+      "node": "overgo-latent-598",
+      "kind": "latents",
+      "type": "output",
+      "name": "overgo-latent-598-text-to-image_00011_.latent",
+      "sha256": "b69e16d902f8353692c63c620983a34c649f16eac310c92b32f497b8b506c9e4",
+      "bytes": 1215840
+    }
+  ],
+  "texts": {
+    "436": [
+      "Scene: \nBackground: \nAesthetics: \nLighting: \nCamera: \nMedium: \nArt style: \nPalette: "
+    ],
+    "592": [
+      "unwanted rendering artifacts, unintended distortion, accidental duplicate subjects, inconsistent perspective, unrequested text overlays, unwanted watermarks"
+    ]
+  },
+  "cached": [
+    "1",
+    "2",
+    "3",
+    "459",
+    "460",
+    "601",
+    "670",
+    "671",
+    "707:672:673",
+    "707:672:674",
+    "707:702:497",
+    "707:703:451",
+    "707:703:452",
+    "707:703:453",
+    "707:703:455",
+    "707:703:456",
+    "707:703:457",
+    "707:703:466",
+    "707:703:470",
+    "707:703:471",
+    "707:703:474",
+    "707:703:476",
+    "707:705",
+    "707:706",
+    "92",
+    "overgo-sigma-floats-598",
+    "overgo-sigma-text-598",
+    "overgo-sigmas-598"
+  ]
+}

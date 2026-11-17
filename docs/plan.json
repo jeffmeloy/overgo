@@ -7,21 +7,6 @@
       "title": "overgo runs every section of the MOSS Ultra workflow: bong_tangent, beta57 and request sigmas, ER-SDE, image to image, depth estimation and control, prompt modes 2 and 3, and the finishing steps",
       "steps": [
         {
-          "id": "depth",
-          "title": "Depth Anything V2 Small runs on internal/vitencoder with a DPT head, its depth map within one 8-bit level of the recorded one",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/vitencoder -count=1 -run '^TestDepthMapIsWithinOneLevelOfTheRecordedOne$'",
-          "files": [
-            "internal/vitencoder",
-            "internal/pytorchzip",
-            "internal/media"
-          ],
-          "needs_card": true,
-          "rationale": "The owner decided on 2026-11-05 that the workflow's depth estimator is built in overgo. depth_anything_v2_vits.pth is read with internal/pytorchzip. Its encoder is DINOv2 ViT-S/14 without registers, so its options are added to internal/vitencoder and no second ViT is written; the DPT head is written from the Depth Anything V2 paper and its Apache-2.0 code. Pre- and post-processing follow the workflow's DepthAnythingV2Preprocessor from comfyui_controlnet_aux (Apache-2.0): resolution 512, a size that is a multiple of 14, scaling to 8 bits, white for near.\n\nServes: a capability of its own, depth from any image, which vace-control's depth mode reuses.\nDisappears: nothing.\nEvidence: overgo's depth map is within one 8-bit level of the recorded one.\nBatch: device lane.",
-          "depends_on": [
-            "comfy-recorder/record"
-          ]
-        },
-        {
           "id": "depth-control",
           "title": "Depth control concatenates the VAE-encoded, normalised map times strength to the noise channels for the first half of sigma, through the control adapter's widened input layer",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestDepthControlMeetsItsSectionFloor$'",

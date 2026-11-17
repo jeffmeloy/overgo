@@ -1,0 +1,46 @@
+{
+  "model_type": "depth_anything_v2",
+  "geometry": {
+    "model_type": "depth_anything_v2",
+    "hidden_size": 384,
+    "num_attention_heads": 6,
+    "num_hidden_layers": 12,
+    "patch_size": 14,
+    "image_size": 518,
+    "num_register_tokens": 0,
+    "layer_norm_eps": 1e-6
+  },
+  "depth": {
+    "layers": [2, 5, 8, 11],
+    "features": 64,
+    "out_channels": [48, 96, 192, 384],
+    "input_size": 518,
+    "position_offset": 0.1,
+    "mean": [0.485, 0.456, 0.406],
+    "std": [0.229, 0.224, 0.225]
+  },
+  "tensors": {
+    "class_token": "pretrained.cls_token",
+    "position_embeddings": "pretrained.pos_embed",
+    "patch_weight": "pretrained.patch_embed.proj.weight",
+    "patch_bias": "pretrained.patch_embed.proj.bias",
+    "final_norm_weight": "pretrained.norm.weight",
+    "final_norm_bias": "pretrained.norm.bias",
+    "layer": {
+      "norm1_weight": "pretrained.blocks.%d.norm1.weight",
+      "norm1_bias": "pretrained.blocks.%d.norm1.bias",
+      "qkv": "pretrained.blocks.%d.attn.qkv.weight",
+      "qkv_bias": "pretrained.blocks.%d.attn.qkv.bias",
+      "output": "pretrained.blocks.%d.attn.proj.weight",
+      "output_bias": "pretrained.blocks.%d.attn.proj.bias",
+      "scale1": "pretrained.blocks.%d.ls1.gamma",
+      "norm2_weight": "pretrained.blocks.%d.norm2.weight",
+      "norm2_bias": "pretrained.blocks.%d.norm2.bias",
+      "up": "pretrained.blocks.%d.mlp.fc1.weight",
+      "up_bias": "pretrained.blocks.%d.mlp.fc1.bias",
+      "down": "pretrained.blocks.%d.mlp.fc2.weight",
+      "down_bias": "pretrained.blocks.%d.mlp.fc2.bias",
+      "scale2": "pretrained.blocks.%d.ls2.gamma"
+    }
+  }
+}

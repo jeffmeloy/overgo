@@ -30,6 +30,10 @@ type LayerTensors struct {
 	KeyBias     string `json:"key_bias"`
 	Value       string `json:"value"`
 	ValueBias   string `json:"value_bias"`
+	// QKV and QKVBias name the query, key and value fused in one projection, in that order, for a checkpoint that
+	// fuses them, in place of Query, Key and Value.
+	QKV         string `json:"qkv,omitzero"`
+	QKVBias     string `json:"qkv_bias,omitzero"`
 	Output      string `json:"output"`
 	OutputBias  string `json:"output_bias"`
 	Scale1      string `json:"scale1,omitzero"`
@@ -48,7 +52,11 @@ type LayerTensors struct {
 // its tensors lives.
 type Declaration struct {
 	ModelType string `json:"model_type"`
-	Tensors   struct {
+	// Geometry is the encoder's shape, for a checkpoint that states none of its own (a PyTorch file).
+	Geometry *geometry `json:"geometry,omitzero"`
+	// Depth is a depth checkpoint's head and how it reads the encoder (DepthModel).
+	Depth   *depthSpec `json:"depth,omitzero"`
+	Tensors struct {
 		ClassToken         string       `json:"class_token"`
 		RegisterTokens     string       `json:"register_tokens,omitzero"`
 		PositionEmbeddings string       `json:"position_embeddings"`
@@ -162,10 +170,24 @@ func Load(directory string) (*Encoder, error) {
 		}
 	}
 	e.position = fitPositions(e.position, trained, e.grid, g.Hidden)
+	if e.layers, err = bindLayers(read, g, t.Layer); err != nil {
+		return nil, err
+	}
+	return e, nil
+}
+
+// bindLayers reads each block's tensors by the declaration's names through read, which refuses a tensor of another
+// size than it is given (checked.UnknownCount() for any). A declaration that fuses the query, key and value in one
+// projection (qkv) has it split into its thirds, in that order, rows and biases alike.
+func bindLayers(read func(name string, size int) ([]float32, error), g geometry, names LayerTensors) ([]layer, error) {
 	square := g.Hidden * g.Hidden
+	if (names.QKV == "") == (names.Query == "") {
+		return nil, errors.New("vitencoder: a declaration names its query, key and value, or their fused projection, not both")
+	}
+	var layers []layer
 	for index := range g.Layers {
-		names := t.Layer
 		var l layer
+		var fused, fusedBias []float32
 		for _, binding := range []struct {
 			target *[]float32
 			name   string
@@ -175,6 +197,7 @@ func Load(directory string) (*Encoder, error) {
 			{&l.query, names.Query, square}, {&l.queryBias, names.QueryBias, g.Hidden},
 			{&l.key, names.Key, square}, {&l.keyBias, names.KeyBias, g.Hidden},
 			{&l.value, names.Value, square}, {&l.valueBias, names.ValueBias, g.Hidden},
+			{&fused, names.QKV, 3 * square}, {&fusedBias, names.QKVBias, 3 * g.Hidden},
 			{&l.output, names.Output, square}, {&l.outputBias, names.OutputBias, g.Hidden},
 			{&l.scale1, names.Scale1, g.Hidden},
 			{&l.norm2Weight, names.Norm2Weight, g.Hidden}, {&l.norm2Bias, names.Norm2Bias, g.Hidden},
@@ -186,8 +209,15 @@ func Load(directory string) (*Encoder, error) {
 			if binding.name == "" {
 				continue
 			}
+			var err error
 			if *binding.target, err = read(fmt.Sprintf(binding.name, index), binding.size); err != nil {
 				return nil, err
+			}
+		}
+		if fused != nil {
+			l.query, l.key, l.value = fused[:square], fused[square:2*square], fused[2*square:]
+			if fusedBias != nil {
+				l.queryBias, l.keyBias, l.valueBias = fusedBias[:g.Hidden], fusedBias[g.Hidden:2*g.Hidden], fusedBias[2*g.Hidden:]
 			}
 		}
 		// The gated feed-forward fuses its gate and its value in one input
@@ -197,9 +227,9 @@ func Load(directory string) (*Encoder, error) {
 			len(l.down) != g.Hidden*l.intermediate {
 			return nil, fmt.Errorf("vitencoder: layer %d feed-forward shapes disagree", index)
 		}
-		e.layers = append(e.layers, l)
+		layers = append(layers, l)
 	}
-	return e, nil
+	return layers, nil
 }
 
 // Embed decodes one PNG or JPEG image, prepares it as the checkpoint's image
@@ -258,39 +288,11 @@ func (e *Encoder) Shape() (input, grid, hidden int) {
 // patches.
 func (e *Encoder) encode(pixels []float32, affine bool) ([]float32, error) {
 	g := e.geometry
-	hidden, err := e.embed(pixels)
+	hidden, err := e.squareEmbed(pixels)
 	if err != nil {
 		return nil, err
 	}
-	normed := make([]float32, len(hidden))
-	q, k, v := make([]float32, len(hidden)), make([]float32, len(hidden)), make([]float32, len(hidden))
-	projected := make([]float32, len(hidden))
-	for _, l := range e.layers {
-		hostmath.LayerNormInto(normed, hidden, l.norm1Weight, l.norm1Bias, e.tokens, g.Hidden, g.Epsilon)
-		hostmath.LinearBias(q, normed, l.query, l.queryBias, e.tokens, g.Hidden, g.Hidden)
-		hostmath.LinearBias(k, normed, l.key, l.keyBias, e.tokens, g.Hidden, g.Hidden)
-		hostmath.LinearBias(v, normed, l.value, l.valueBias, e.tokens, g.Hidden, g.Hidden)
-		attended := hostmath.BatchedAttentionF32(q, k, v, len(q)/(e.tokens*g.Hidden), e.tokens, e.tokens, g.Hidden, g.Heads)
-		hostmath.LinearBias(projected, attended, l.output, l.outputBias, e.tokens, g.Hidden, g.Hidden)
-		addScaled(hidden, projected, l.scale1, g.Hidden)
-		hostmath.LayerNormInto(normed, hidden, l.norm2Weight, l.norm2Bias, e.tokens, g.Hidden, g.Epsilon)
-		inner := make([]float32, e.tokens*l.intermediate)
-		if l.up != nil {
-			hostmath.LinearBias(inner, normed, l.up, l.upBias, e.tokens, g.Hidden, l.intermediate)
-			hostmath.GELUErfInPlace(inner)
-		} else {
-			gated := make([]float32, e.tokens*2*l.intermediate)
-			hostmath.LinearBias(gated, normed, l.gateUp, l.gateUpBias, e.tokens, g.Hidden, 2*l.intermediate)
-			for token := range e.tokens {
-				row := gated[token*2*l.intermediate:]
-				for index := range l.intermediate {
-					inner[token*l.intermediate+index] = float32(hostmath.SiLU(float64(row[index]))) * row[l.intermediate+index]
-				}
-			}
-		}
-		hostmath.LinearBias(projected, inner, l.down, l.downBias, e.tokens, l.intermediate, g.Hidden)
-		addScaled(hidden, projected, l.scale2, g.Hidden)
-	}
+	e.blocks(hidden, e.tokens, nil)
 	finalWeight, finalBias := e.finalWeight, e.finalBias
 	if !affine {
 		finalWeight, finalBias = nil, nil
@@ -299,22 +301,66 @@ func (e *Encoder) encode(pixels []float32, affine bool) ([]float32, error) {
 	return finite(hidden)
 }
 
-// embed is the encoder's input rows for normalized channel-first pixels: the class token, any registers, then the
-// patches, the class token and the patches with their positions.
-func (e *Encoder) embed(pixels []float32) ([]float32, error) {
+// blocks runs the encoder's blocks over tokens rows of hidden in place, calling after, where given, with each block's
+// index once the block has run.
+func (e *Encoder) blocks(hidden []float32, tokens int, after func(index int)) {
 	g := e.geometry
-	crop := e.preprocess.crop
+	normed := make([]float32, len(hidden))
+	q, k, v := make([]float32, len(hidden)), make([]float32, len(hidden)), make([]float32, len(hidden))
+	projected := make([]float32, len(hidden))
+	for index, l := range e.layers {
+		hostmath.LayerNormInto(normed, hidden, l.norm1Weight, l.norm1Bias, tokens, g.Hidden, g.Epsilon)
+		hostmath.LinearBias(q, normed, l.query, l.queryBias, tokens, g.Hidden, g.Hidden)
+		hostmath.LinearBias(k, normed, l.key, l.keyBias, tokens, g.Hidden, g.Hidden)
+		hostmath.LinearBias(v, normed, l.value, l.valueBias, tokens, g.Hidden, g.Hidden)
+		attended := hostmath.BatchedAttentionF32(q, k, v, len(q)/(tokens*g.Hidden), tokens, tokens, g.Hidden, g.Heads)
+		hostmath.LinearBias(projected, attended, l.output, l.outputBias, tokens, g.Hidden, g.Hidden)
+		addScaled(hidden, projected, l.scale1, g.Hidden)
+		hostmath.LayerNormInto(normed, hidden, l.norm2Weight, l.norm2Bias, tokens, g.Hidden, g.Epsilon)
+		inner := make([]float32, tokens*l.intermediate)
+		if l.up != nil {
+			hostmath.LinearBias(inner, normed, l.up, l.upBias, tokens, g.Hidden, l.intermediate)
+			hostmath.GELUErfInPlace(inner)
+		} else {
+			gated := make([]float32, tokens*2*l.intermediate)
+			hostmath.LinearBias(gated, normed, l.gateUp, l.gateUpBias, tokens, g.Hidden, 2*l.intermediate)
+			for token := range tokens {
+				row := gated[token*2*l.intermediate:]
+				for index := range l.intermediate {
+					inner[token*l.intermediate+index] = float32(hostmath.SiLU(float64(row[index]))) * row[l.intermediate+index]
+				}
+			}
+		}
+		hostmath.LinearBias(projected, inner, l.down, l.downBias, tokens, l.intermediate, g.Hidden)
+		addScaled(hidden, projected, l.scale2, g.Hidden)
+		if after != nil {
+			after(index)
+		}
+	}
+}
+
+// squareEmbed is the encoder's input rows for normalized channel-first pixels of its square input size.
+func (e *Encoder) squareEmbed(pixels []float32) ([]float32, error) {
 	if !checked.Equal(len(pixels), e.pixelCount) {
 		return nil, fmt.Errorf("vitencoder: %d pixels, want %d", len(pixels), e.pixelCount)
 	}
-	patches := make([]float32, e.grid*e.grid*e.patchInputSize)
-	for row := range e.grid {
-		for column := range e.grid {
-			patch := patches[(row*e.grid+column)*e.patchInputSize:]
+	return e.embed(pixels, e.grid, e.grid, e.position), nil
+}
+
+// embed is the encoder's input rows for normalized channel-first pixels of rows by columns patches: the class token,
+// any registers, then the patches, row by row, the class token and the patches with position's positions.
+func (e *Encoder) embed(pixels []float32, rows, columns int, position []float32) []float32 {
+	g := e.geometry
+	width := columns * g.PatchSize
+	height := rows * g.PatchSize
+	patches := make([]float32, rows*columns*e.patchInputSize)
+	for row := range rows {
+		for column := range columns {
+			patch := patches[(row*columns+column)*e.patchInputSize:]
 			for c := range channels {
 				for y := range g.PatchSize {
 					for x := range g.PatchSize {
-						patch[(c*g.PatchSize+y)*g.PatchSize+x] = pixels[(c*crop+row*g.PatchSize+y)*crop+column*g.PatchSize+x]
+						patch[(c*g.PatchSize+y)*g.PatchSize+x] = pixels[(c*height+row*g.PatchSize+y)*width+column*g.PatchSize+x]
 					}
 				}
 			}
@@ -322,17 +368,17 @@ func (e *Encoder) embed(pixels []float32) ([]float32, error) {
 	}
 	// The class token and the patches take their positions; the registers
 	// sit between them and take none.
-	hidden := make([]float32, e.tokens*g.Hidden)
+	hidden := make([]float32, (1+g.Registers+rows*columns)*g.Hidden)
 	patched := hidden[(1+g.Registers)*g.Hidden:]
-	hostmath.LinearBias(patched, patches, e.patchWeight, e.patchBias, e.grid*e.grid, e.patchInputSize, g.Hidden)
-	for index, value := range e.position[g.Hidden:] {
+	hostmath.LinearBias(patched, patches, e.patchWeight, e.patchBias, rows*columns, e.patchInputSize, g.Hidden)
+	for index, value := range position[g.Hidden:] {
 		patched[index] += value
 	}
 	for index, value := range e.classToken {
-		hidden[index] = value + e.position[index]
+		hidden[index] = value + position[index]
 	}
 	copy(hidden[g.Hidden:], e.registers)
-	return hidden, nil
+	return hidden
 }
 
 // finite is tokens, refused when one holds a non-finite value.

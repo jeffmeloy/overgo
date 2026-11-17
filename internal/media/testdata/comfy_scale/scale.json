@@ -2,6 +2,7 @@
   "source_sha256": "548f1bef6b381eb783ded2664be5a2099c3e3ef5e04f9840e553ff8b78e9307d",
   "pillow": "12.3.0",
   "numpy": "2.5.3",
+  "torch": "2.14.0+cu130",
   "cases": [
     {
       "width": 160,
@@ -37,6 +38,23 @@
       "width": 40,
       "height": 300,
       "rgb_sha256": "f0e09c2521943a150d40ac8193315aeda19dc0e0959b980b1bfb17a95d5c6b90"
+    }
+  ],
+  "bilinear": [
+    {
+      "width": 250,
+      "height": 150,
+      "float32_sha256": "ea3e32fdba4b70867d30738e844521ec2f62edd3d42d7ca8d006460f172fc2c0"
+    },
+    {
+      "width": 100,
+      "height": 60,
+      "float32_sha256": "d18133d7000b943ee96a2bf232138707b6d10e653e6bd737f424baa2a9d853a8"
+    },
+    {
+      "width": 161,
+      "height": 97,
+      "float32_sha256": "6c1319092f300462366d507f7aaeb07ba2875143532d02719b477e6cab13d993"
     }
   ]
 }

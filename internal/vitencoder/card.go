@@ -112,7 +112,7 @@ func (c *Card) Tokens(ctx context.Context, image []byte) ([]float32, error) {
 	if err != nil {
 		return nil, err
 	}
-	embedded, err := c.encoder.embed(pixels)
+	embedded, err := c.encoder.squareEmbed(pixels)
 	if err != nil {
 		return nil, err
 	}

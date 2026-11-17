@@ -17,8 +17,14 @@ var dinov2Declaration []byte
 //go:embed recipes/dinov2_with_registers.json
 var dinov2WithRegistersDeclaration []byte
 
+//go:embed recipes/depth_anything_v2.json
+var depthAnythingV2Declaration []byte
+
+// depthAnythingV2 is the model type of Depth Anything V2's checkpoints, whose PyTorch file states no geometry of its own.
+const depthAnythingV2 = "depth_anything_v2"
+
 // reviewed maps a model type to its reviewed declaration.
-var reviewed = map[string][]byte{"dinov2": dinov2Declaration, "dinov2_with_registers": dinov2WithRegistersDeclaration}
+var reviewed = map[string][]byte{"dinov2": dinov2Declaration, "dinov2_with_registers": dinov2WithRegistersDeclaration, depthAnythingV2: depthAnythingV2Declaration}
 
 // declarationFor returns the reviewed declaration for a model type; known is
 // false when no reviewed declaration answers for it.

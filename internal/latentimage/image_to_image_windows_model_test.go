@@ -1,0 +1,209 @@
+//go:build modeltest && windows
+
+package latentimage
+
+import (
+	"bytes"
+	"context"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
+	"image"
+	"image/png"
+	"math"
+	"os"
+	"path/filepath"
+	"testing"
+
+	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/dataroot"
+	"overgo/internal/safetensors"
+	"overgo/internal/sampling"
+	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
+)
+
+// Declared before the first run. ComfyUI encodes the picture with flux2-vae_small in bfloat16, overgo in F32, so the
+// latents differ by bfloat16's rounding through the encoder; a picture scaled, read or normalized otherwise, or encoded
+// with MOSS-Image-SFT's encoder and statistics, lies far outside both bounds.
+const (
+	sourceLatentCosine     = 0.999
+	sourceLatentRelativeL2 = 0.04
+)
+
+// imageToImageFloor is the agreement in dB over squares the section's final latent keeps with ComfyUI's, the golden
+// floor moss-ultra-compare/golden-floor sets for each section, set as it sets them: from the first measured run, less
+// 3 dB. ComfyUI runs the Base's projections in int8 with its activations quantized per row, overgo the weights decoded
+// to bfloat16, so the latents part over the 50 steps; from the picture mirrored, the same run kept -0.92 dB.
+const imageToImageFloor = imageToImageMeasured - 3
+
+// imageToImageMeasured is the agreement the first run of the section measured, 2026-11-17.
+const imageToImageMeasured = 17.91
+
+// The recording holds the section at denoise 0.6 (comfy-recorder's recorder, -set 506.denoise=0.6, with the latents
+// of the encode, 606:503, and of the sampler, 506), and the picture it was given.
+const (
+	imageToImageRecording = "fixtures/comfy/moss-ultra/recordings/denoise/image-to-image.json"
+	imageToImageRequest   = "fixtures/comfy/moss-ultra/requests/image-to-image.json"
+	imageToImagePicture   = "8f6948d0518656d9d19c2dc797e05e95fd990e37d84eadf0436d52be9de53d8a"
+	imageToImageSampler   = "506"
+	imageToImageEncode    = "606:503"
+)
+
+// TestImageToImageMeetsItsSectionFloor holds MOSS's image to image (moss-ultra-sections/img2img) to the MOSS Ultra
+// workflow's section as ComfyUI ran it at denoise 0.6, on the workflow's own files (ultraModelRoot), with the
+// section's prompts, guidance, sampler, schedule, seed and steps as its request and recording give them: the schedule
+// cut by the denoise is ComfyUI's sigmas exactly; the picture, scaled and encoded, is ComfyUI's encoded latent within
+// the declared bounds; and the final latent, sampled from σ₀ times the noise plus 1 − σ₀ times that latent, keeps the
+// section's floor of agreement with ComfyUI's, where the same request from the picture mirrored does not. The section's
+// positive prompt is empty, as the workflow saves it: the picture conditions it.
+func TestImageToImageMeetsItsSectionFloor(t *testing.T) {
+	cudatest.Require(t)
+	ctx := t.Context()
+	repo := testutil.RepoRoot(t)
+	references := filepath.Join(testcheck.Must(dataroot.Resolve(repo))(t).References(), "comfy", "moss-ultra")
+	var recording struct {
+		Set    map[string]any       `json:"set"`
+		Sigmas map[string][]float64 `json:"sigmas"`
+		Texts  map[string][]string  `json:"texts"`
+		Files  []struct {
+			Node   string `json:"node"`
+			Name   string `json:"name"`
+			SHA256 string `json:"sha256"`
+		} `json:"files"`
+	}
+	testcheck.NoError(t, json.Unmarshal(testcheck.Must(os.ReadFile(filepath.Join(repo, filepath.FromSlash(imageToImageRecording))))(t), &recording))
+	var request map[string]struct {
+		Inputs map[string]any `json:"inputs"`
+	}
+	testcheck.NoError(t, json.Unmarshal(testcheck.Must(os.ReadFile(filepath.Join(repo, filepath.FromSlash(imageToImageRequest))))(t), &request))
+	sampler := request[imageToImageSampler].Inputs
+	denoise, given := recording.Set[imageToImageSampler+".denoise"].(float64)
+	if !given || denoise >= 1 || recording.Set["428.image"] != "overgo-recorder-input.png" || recording.Set["680.megapixels"] != 0.5625 ||
+		sampler["sampler_name"] != "er_sde" || sampler["scheduler"] != sampling.ScheduleBongTangent || len(recording.Texts["585"]) != 1 || len(recording.Texts["586"]) != 1 {
+		t.Fatalf("the recording set %v over a sampler of %v with prompts %v; want the section at a denoise below 1, 1024 x 576, from the recorder's picture", recording.Set, sampler, recording.Texts)
+	}
+	latent := func(node string) []float32 {
+		t.Helper()
+		for _, file := range recording.Files {
+			if file.Node != latentNode(node) {
+				continue
+			}
+			path := filepath.Join(references, "denoise", "image-to-image", file.Name)
+			if sum := sha256.Sum256(testcheck.Must(os.ReadFile(path))(t)); hex.EncodeToString(sum[:]) != file.SHA256 {
+				t.Fatalf("%s hashes %x; want the recorded %s", path, sum, file.SHA256)
+			}
+			source := testcheck.Must(safetensors.OpenFile(path))(t)
+			defer source.Close()
+			value := source.Tensors["latent_tensor"]
+			if len(value.Shape) != 4 || value.Shape[0] != 1 || value.Shape[1] != 128 || value.Shape[2] != 36 || value.Shape[3] != 64 {
+				t.Fatalf("%s holds a latent of shape %v; want [1 128 36 64]", path, value.Shape)
+			}
+			return testcheck.Must(safetensors.ReadF32(value))(t)
+		}
+		t.Fatalf("the recording keeps no latent of %s", node)
+		return nil
+	}
+	picture := testcheck.Must(os.ReadFile(filepath.Join(references, "overgo-recorder-input.png")))(t)
+	if sum := sha256.Sum256(picture); hex.EncodeToString(sum[:]) != imageToImagePicture {
+		t.Fatalf("the recorder's picture hashes %x; want %s", sum, imageToImagePicture)
+	}
+	guidance := float32(sampler["cfg"].(float64))
+	section := Request{Prompt: recording.Texts["585"][0], NegativePrompt: recording.Texts["586"][0], GuidanceScale: &guidance, Width: 1024, Height: 576,
+		Steps: int(sampler["steps"].(float64)), Seed: int64(sampler["seed"].(float64)), Denoise: denoise, Image: base64.StdEncoding.EncodeToString(picture),
+		Schedule: &sampling.Schedule{Sampler: sampling.SamplerERSDE, Name: sampling.ScheduleBongTangent}}
+
+	root := ultraModelRoot(t)
+	profile := testcheck.Must(ResolveProfile(root))(t)
+	schedule := testcheck.Must(profile.rotarySchedule(ctx, section))(t)
+	recorded := recording.Sigmas[imageToImageSampler]
+	if len(schedule.Sigmas) != len(recorded) || schedule.Steps != section.Steps {
+		t.Fatalf("the cut schedule has %d sigmas over %d steps; want ComfyUI's %d over %d", len(schedule.Sigmas), schedule.Steps, len(recorded), section.Steps)
+	}
+	for index, sigma := range recorded {
+		if float32(schedule.Sigmas[index]) != float32(sigma) {
+			t.Errorf("the cut schedule's sigma %d is %v; want ComfyUI's %v", index, schedule.Sigmas[index], sigma)
+		}
+	}
+
+	encoded := testcheck.Must(sourceLatent(ctx, root, section.Image, section.Width, section.Height))(t)
+	cosine, relative := latentAgreement(encoded, latent(imageToImageEncode))
+	t.Logf("the encoded picture: cosine %.6f, relative L2 %.5f of ComfyUI's", cosine, relative)
+	if !(cosine >= sourceLatentCosine) || !(relative <= sourceLatentRelativeL2) {
+		t.Errorf("the encoded picture lies at cosine %.6f and relative L2 %.5f of ComfyUI's; want at least %g and at most %g", cosine, relative, sourceLatentCosine, sourceLatentRelativeL2)
+	}
+
+	want := latent(imageToImageSampler)
+	generator := testcheck.Must(LoadGenerator(ctx, root, profile, section))(t)
+	defer closeReporting(t, context.WithoutCancel(ctx), generator)
+	sampled := func(request Request) float64 {
+		t.Helper()
+		session := testcheck.Must(generator.prepare(ctx, request))(t)
+		testcheck.Must(generator.integrate(ctx, session))(t)
+		final := testcheck.Must(generator.rotary.latent.outputs.CopyToHost(ctx, generator.rotary.latent.node))(t)
+		testcheck.Must(generator.decode(ctx, session))(t)
+		return decibelsOverSquares(final.Data, want)
+	}
+	agreement := sampled(section)
+	control := section
+	control.Image = base64.StdEncoding.EncodeToString(mirrored(t, picture))
+	testcheck.NoError(t, generator.Reset(ctx, control))
+	other := sampled(control)
+	t.Logf("the final latent keeps %.2f dB of agreement with ComfyUI's; from the picture mirrored, %.2f dB; the floor %.2f dB", agreement, other, imageToImageFloor)
+	if !(agreement >= imageToImageFloor) {
+		t.Errorf("the final latent keeps %.2f dB of agreement with ComfyUI's; want at least the section's floor, %.2f dB", agreement, imageToImageFloor)
+	}
+	if other >= imageToImageFloor {
+		t.Errorf("from the picture mirrored the final latent keeps %.2f dB, the floor %.2f dB or more, so the floor does not hold the picture's part", other, imageToImageFloor)
+	}
+}
+
+// mirrored is a PNG of picture's pixels mirrored left to right.
+func mirrored(t *testing.T, picture []byte) []byte {
+	t.Helper()
+	decoded := testcheck.Must(png.Decode(bytes.NewReader(picture)))(t)
+	bounds := decoded.Bounds()
+	flipped := image.NewNRGBA(bounds)
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			flipped.Set(bounds.Max.X-1-(x-bounds.Min.X), y, decoded.At(x, y))
+		}
+	}
+	var encoded bytes.Buffer
+	testcheck.NoError(t, png.Encode(&encoded, flipped))
+	return encoded.Bytes()
+}
+
+// latentNode is the node a recording names a saved latent by: the saver the recorder adds after the node.
+func latentNode(node string) string { return "overgo-latent-" + node }
+
+// latentAgreement is the cosine between two latents and the relative L2 distance of got from want.
+func latentAgreement(got, want []float32) (cosine, relative float64) {
+	if len(got) != len(want) || len(want) == 0 {
+		return 0, math.Inf(1)
+	}
+	var dot, gotSquares, wantSquares, differenceSquares float64
+	for index, value := range got {
+		g, w := float64(value), float64(want[index])
+		dot += g * w
+		gotSquares += g * g
+		wantSquares += w * w
+		differenceSquares += (g - w) * (g - w)
+	}
+	return dot / math.Sqrt(gotSquares*wantSquares), math.Sqrt(differenceSquares / wantSquares)
+}
+
+// decibelsOverSquares is how far got agrees with want in dB: want's sum of squares over the sum of the differences'.
+func decibelsOverSquares(got, want []float32) float64 {
+	if len(got) != len(want) || len(want) == 0 {
+		return math.Inf(-1)
+	}
+	var signal, noise float64
+	for index, value := range got {
+		w := float64(want[index])
+		signal += w * w
+		noise += (float64(value) - w) * (float64(value) - w)
+	}
+	return 10 * math.Log10(signal/noise)
+}

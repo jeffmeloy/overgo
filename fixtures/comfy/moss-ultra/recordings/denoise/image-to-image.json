@@ -1,0 +1,428 @@
+{
+  "workflow_sha256": "60bf094f438d07deda059b85eefc305fe519b289e7cfe62abfe12792526a0e4a",
+  "section": "IMAGE TO IMAGE",
+  "request_sha256": "b53493c96288bf029488e0ca99472ff9c19a66476df857e4d61afcb6edb89808",
+  "set": {
+    "428.image": "overgo-recorder-input.png",
+    "506.denoise": 0.6,
+    "680.megapixels": 0.5625
+  },
+  "comfyui_version": "0.42.0",
+  "commits": {
+    ".": "7cebca52227c63b4180ceed448cbd7ad22903b6d",
+    "custom_nodes/ComfyUI-KJNodes": "ab72eda7ffad6280422d71ab7d54d3fb87c0ba18",
+    "custom_nodes/ComfyUI-Manager": "4c50a2bc8b9e684d8a85930567957470b952bebe",
+    "custom_nodes/RES4LYF": "6780724de0ddb98e7454d54bb80387836a911ece",
+    "custom_nodes/comfyui_controlnet_aux": "a587a4c1594524c1d2de5cd1a86cd868ff448e1c",
+    "custom_nodes/rgthree-comfy": "bc48c6aaeca87bedbc14245d89f9bc6be37a630e"
+  },
+  "models": [
+    {
+      "node": "1",
+      "input": "unet_name",
+      "folder": "diffusion_models",
+      "name": "moss_image_base_int8_convrot.safetensors",
+      "sha256": "f601c1e1161915fb3fea003da0c1782e374dd960fbb3978bc0e4e3fa1f2d8e6f"
+    },
+    {
+      "node": "2",
+      "input": "clip_name",
+      "folder": "text_encoders",
+      "name": "Qwen3.5-9B-abliterated_int8_convrot.safetensors",
+      "sha256": "e7ba909fd9d9e2557eb566e00ffb34226706f3e7425dc3f187246382edc282f6"
+    },
+    {
+      "node": "3",
+      "input": "vae_name",
+      "folder": "vae",
+      "name": "flux2-vae_small.safetensors",
+      "sha256": "d8d52ba036475f5fb07c8b435e176d3d97ebfa82f0d1a1c317f9cc1e25bd013b"
+    }
+  ],
+  "prompt_id": "de7caa7e-505b-45f0-85ba-b7f66a54258b",
+  "milliseconds": 11307,
+  "peak_card_bytes": 33722386433,
+  "sigmas": {
+    "506": [
+      0.8710855841636658,
+      0.8611139059066772,
+      0.8502618074417114,
+      0.8384261727333069,
+      0.8254916667938232,
+      0.8113300204277039,
+      0.7958003878593445,
+      0.7787506580352783,
+      0.7600204944610596,
+      0.7394472360610962,
+      0.7168751955032349,
+      0.6921702027320862,
+      0.6652389168739319,
+      0.6360539197921753,
+      0.6046817302703857,
+      0.5713092684745789,
+      0.5362613797187805,
+      0.5,
+      0.462740957736969,
+      0.4261268079280853,
+      0.3907378911972046,
+      0.35704076290130615,
+      0.3253633379936218,
+      0.2958943843841553,
+      0.26870104670524597,
+      0.24375571310520172,
+      0.22096410393714905,
+      0.20019066333770752,
+      0.181278258562088,
+      0.16406263411045074,
+      0.14838193356990814,
+      0.13408252596855164,
+      0.12102216482162476,
+      0.10907139629125595,
+      0.09811369329690933,
+      0.08804499357938766,
+      0.07877283543348312,
+      0.07021528482437134,
+      0.06229991093277931,
+      0.054962676018476486,
+      0.04814697429537773,
+      0.04180273041129112,
+      0.035885587334632874,
+      0.030356204137206078,
+      0.02517962083220482,
+      0.020324720069766045,
+      0.015763746574521065,
+      0.011471891775727272,
+      0.007426939904689789,
+      0.003608953207731247,
+      0
+    ]
+  },
+  "progress": {
+    "506": [
+      {
+        "value": 1,
+        "max": 50,
+        "us": 3659632
+      },
+      {
+        "value": 2,
+        "max": 50,
+        "us": 3770043
+      },
+      {
+        "value": 3,
+        "max": 50,
+        "us": 3919327
+      },
+      {
+        "value": 4,
+        "max": 50,
+        "us": 4072027
+      },
+      {
+        "value": 5,
+        "max": 50,
+        "us": 4213267
+      },
+      {
+        "value": 6,
+        "max": 50,
+        "us": 4359174
+      },
+      {
+        "value": 7,
+        "max": 50,
+        "us": 4516573
+      },
+      {
+        "value": 8,
+        "max": 50,
+        "us": 4660090
+      },
+      {
+        "value": 9,
+        "max": 50,
+        "us": 4798885
+      },
+      {
+        "value": 10,
+        "max": 50,
+        "us": 4946515
+      },
+      {
+        "value": 11,
+        "max": 50,
+        "us": 5098048
+      },
+      {
+        "value": 12,
+        "max": 50,
+        "us": 5259031
+      },
+      {
+        "value": 13,
+        "max": 50,
+        "us": 5393776
+      },
+      {
+        "value": 14,
+        "max": 50,
+        "us": 5546501
+      },
+      {
+        "value": 15,
+        "max": 50,
+        "us": 5698578
+      },
+      {
+        "value": 16,
+        "max": 50,
+        "us": 5842521
+      },
+      {
+        "value": 17,
+        "max": 50,
+        "us": 5979078
+      },
+      {
+        "value": 18,
+        "max": 50,
+        "us": 6125563
+      },
+      {
+        "value": 19,
+        "max": 50,
+        "us": 6285942
+      },
+      {
+        "value": 20,
+        "max": 50,
+        "us": 6438565
+      },
+      {
+        "value": 21,
+        "max": 50,
+        "us": 6579477
+      },
+      {
+        "value": 22,
+        "max": 50,
+        "us": 6730605
+      },
+      {
+        "value": 23,
+        "max": 50,
+        "us": 6888203
+      },
+      {
+        "value": 24,
+        "max": 50,
+        "us": 7018346
+      },
+      {
+        "value": 25,
+        "max": 50,
+        "us": 7162718
+      },
+      {
+        "value": 26,
+        "max": 50,
+        "us": 7319973
+      },
+      {
+        "value": 27,
+        "max": 50,
+        "us": 7479676
+      },
+      {
+        "value": 28,
+        "max": 50,
+        "us": 7615039
+      },
+      {
+        "value": 29,
+        "max": 50,
+        "us": 7754063
+      },
+      {
+        "value": 30,
+        "max": 50,
+        "us": 7901603
+      },
+      {
+        "value": 31,
+        "max": 50,
+        "us": 8056802
+      },
+      {
+        "value": 32,
+        "max": 50,
+        "us": 8207057
+      },
+      {
+        "value": 33,
+        "max": 50,
+        "us": 8346175
+      },
+      {
+        "value": 34,
+        "max": 50,
+        "us": 8510237
+      },
+      {
+        "value": 35,
+        "max": 50,
+        "us": 8645672
+      },
+      {
+        "value": 36,
+        "max": 50,
+        "us": 8805288
+      },
+      {
+        "value": 37,
+        "max": 50,
+        "us": 8943485
+      },
+      {
+        "value": 38,
+        "max": 50,
+        "us": 9101958
+      },
+      {
+        "value": 39,
+        "max": 50,
+        "us": 9241668
+      },
+      {
+        "value": 40,
+        "max": 50,
+        "us": 9401335
+      },
+      {
+        "value": 41,
+        "max": 50,
+        "us": 9552245
+      },
+      {
+        "value": 42,
+        "max": 50,
+        "us": 9682364
+      },
+      {
+        "value": 43,
+        "max": 50,
+        "us": 9849183
+      },
+      {
+        "value": 44,
+        "max": 50,
+        "us": 9980577
+      },
+      {
+        "value": 45,
+        "max": 50,
+        "us": 10148206
+      },
+      {
+        "value": 46,
+        "max": 50,
+        "us": 10285819
+      },
+      {
+        "value": 47,
+        "max": 50,
+        "us": 10432803
+      },
+      {
+        "value": 48,
+        "max": 50,
+        "us": 10583940
+      },
+      {
+        "value": 49,
+        "max": 50,
+        "us": 10721425
+      },
+      {
+        "value": 50,
+        "max": 50,
+        "us": 10868295
+      }
+    ]
+  },
+  "files": [
+    {
+      "node": "512",
+      "kind": "images",
+      "type": "output",
+      "name": "512-image_to_image_00013_.png",
+      "sha256": "1d273852b3ef37065d5c9a7f64ee07afad6e5ee27785d9514467336b6dd089b3",
+      "bytes": 695847
+    },
+    {
+      "node": "604",
+      "kind": "images",
+      "type": "output",
+      "name": "604-sharpened_00013_.png",
+      "sha256": "0ef795e768752486589a9b7dbd7edc3d4da3ef9dd08726fd4d6725aa562d2e08",
+      "bytes": 1037739
+    },
+    {
+      "node": "605",
+      "kind": "a_images",
+      "type": "temp",
+      "name": "605-rgthree.compare._temp_ptoat_00001_.png",
+      "sha256": "3c2ee969193edb90d14eef13a74740f791153c9d8447c0ab9d051f872e9f183b",
+      "bytes": 1081352
+    },
+    {
+      "node": "605",
+      "kind": "b_images",
+      "type": "temp",
+      "name": "605-rgthree.compare._temp_ptoat_00002_.png",
+      "sha256": "e197137627d3eb0a27abb888b5455a5858a42ddce2360c72348e9b59aed1598f",
+      "bytes": 1521604
+    },
+    {
+      "node": "613",
+      "kind": "a_images",
+      "type": "temp",
+      "name": "613-rgthree.compare._temp_celdu_00001_.png",
+      "sha256": "3c2ee969193edb90d14eef13a74740f791153c9d8447c0ab9d051f872e9f183b",
+      "bytes": 1081352
+    },
+    {
+      "node": "613",
+      "kind": "b_images",
+      "type": "temp",
+      "name": "613-rgthree.compare._temp_celdu_00002_.png",
+      "sha256": "ab50ac7bc76119fa71e4e0e45abe9f20c1cda4cd8091c72e01dd150488c760c2",
+      "bytes": 1044469
+    },
+    {
+      "node": "overgo-latent-506",
+      "kind": "latents",
+      "type": "output",
+      "name": "overgo-latent-506-image-to-image_00008_.latent",
+      "sha256": "6066f06b017c12d28b239a1c0289091d1aea4fea94a541c4acac8d15300c5cb0",
+      "bytes": 1217600
+    },
+    {
+      "node": "overgo-latent-606:503",
+      "kind": "latents",
+      "type": "output",
+      "name": "overgo-latent-606-503-image-to-image_00007_.latent",
+      "sha256": "c7453e1d2e2330f48206c413ca59924e527f7124d09f2334a2ab90febcbb1ac0",
+      "bytes": 1217600
+    }
+  ],
+  "texts": {
+    "585": [
+      ""
+    ],
+    "586": [
+      "unwanted rendering artifacts, unintended distortion, accidental duplicate subjects, inconsistent perspective, unrequested text overlays, unwanted watermarks"
+    ]
+  }
+}

@@ -131,7 +131,9 @@ func (g *Generator) configureRotary(ctx context.Context, request Request) error 
 // rotarySchedule is a rotary request's schedule at its steps, the profile's default where it names none: the profile's
 // own, its shifted knots snapped to its training grid, or the request's (Request.Schedule), drawn over the profile's
 // flow levels as ComfyUI's KSampler draws it and not snapped, since ComfyUI samples the sigmas as drawn
-// (moss-ultra-sections/schedules). A list of the request's own sigmas is its steps.
+// (moss-ultra-sections/schedules). A list of the request's own sigmas is its steps. A request that denoises part of
+// its schedule has it drawn for int(steps / denoise) steps, its last steps + 1 sigmas kept, as ComfyUI's KSampler does
+// (moss-ultra-sections/img2img).
 func (p Profile) rotarySchedule(ctx context.Context, request Request) (FlowSchedule, error) {
 	total := p.Sampling.TrainTimesteps
 	// A schedule that names a sampler alone samples by the profile's own sigmas.
@@ -139,18 +141,31 @@ func (p Profile) rotarySchedule(ctx context.Context, request Request) (FlowSched
 	if request.Steps == 0 && (!own || request.Schedule.Name != "") {
 		request.Steps = p.Sampling.DefaultSteps
 	}
+	drawn := request.Steps
+	if request.cutsSchedule() {
+		drawn = int(float64(request.Steps) / request.Denoise)
+	}
+	var schedule FlowSchedule
 	if !own {
-		return compileNearestGridFlowSchedule(ctx, request.Steps, total, p.Rotary.Shift, p.Rotary.TrainingShift)
+		var err error
+		if schedule, err = compileNearestGridFlowSchedule(ctx, drawn, total, p.Rotary.Shift, p.Rotary.TrainingShift); err != nil {
+			return FlowSchedule{}, err
+		}
+	} else {
+		table, err := sampling.ShiftedFlowTable(total, p.Rotary.Shift)
+		if err != nil {
+			return FlowSchedule{}, err
+		}
+		sigmas, err := request.Schedule.Draw(drawn, table)
+		if err != nil {
+			return FlowSchedule{}, fmt.Errorf("rotary image: %w", err)
+		}
+		schedule = sigmaFlowSchedule(sigmas, total)
 	}
-	table, err := sampling.ShiftedFlowTable(total, p.Rotary.Shift)
-	if err != nil {
-		return FlowSchedule{}, err
+	if !request.cutsSchedule() {
+		return schedule, nil
 	}
-	sigmas, err := request.Schedule.Draw(request.Steps, table)
-	if err != nil {
-		return FlowSchedule{}, fmt.Errorf("rotary image: %w", err)
-	}
-	return sigmaFlowSchedule(sigmas, total), nil
+	return cutSchedule(schedule, request.Steps)
 }
 
 // rotarySettings is the sampling a rotary request runs: its schedule, its guidance scale and how the guidance varies over
@@ -277,7 +292,11 @@ func (g *Generator) integrateRotary(ctx context.Context) (*Generator, error) {
 	if !ok {
 		return nil, errors.New("rotary image: latent extent overflows")
 	}
-	initial, err := torchrng.CPUNormal(g.request.Seed, count)
+	noise, err := torchrng.CPUNormal(g.request.Seed, count)
+	if err != nil {
+		return nil, err
+	}
+	initial, err := g.startLatent(ctx, noise)
 	if err != nil {
 		return nil, err
 	}

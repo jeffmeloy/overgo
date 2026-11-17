@@ -49,7 +49,7 @@
   ],
   "input": "(3) Gemma accuracy over 32 independent media, each with two uniformly guessed 3-choice questions. (4) Two judges ranked on all-constant finite scores, and on probabilities (.9,.1) against (.45,.45). (6) Two GIF media inputs for their own bound renders, with one judge and scorer, decoded at 16 frames against 1. (7) The embedded SenseNova APG verdict edited to 0 wins, 524 losses, 0 ties, 80 media and tail 0.0001, Admitted left true, with Says changed consistently to 'admitted: a gain beyond chance, 0 wins, 524 losses and 0 ties over 80 media'; its evaluation IDs stay unchanged. (8) A render campaign resumed after an earlier item's request changed while its last item drew the same, or with truncated bookkeeping.",
   "expected": "(3) The accuracy null matches the actual choice counts and within-media dependence. (4) Ranking uses the aggregation production scores with, and an undefined tau or omitted resamples are said, without a panic. (6) A reading is admitted only from evaluations bound to the same render, decode sampling and question contract, and a control offers a candidate only by the admission for its own model, recipe and request. (7) The record's verdict, counts and tail are derived through AdmitPreset and its bound evaluations, so drift is refused. (8) A completed arm or verdict is reused only for the same bound inputs, evaluator and producer; changed work is refused or redone, and truncated bookkeeping does not count as complete.",
-  "actual": "(3) Correct count minus sum(1/choices) against zero is taken as a fair sign for ExactPairedBinary: a medium is positive with probability 5/9, and uniform guessing passes the 22-positive threshold (nominal tail 0.0250512) with probability 0.0914273, above the 0.05 level. (4) Arithmetic probability means rank (.9,.1) above (.45,.45), the reverse of production softShare's geometric mean; constant scores give a NaN tau, all 2000 resamples are dropped and resampledTau indexes an empty slice. (6) judgedRender compares content, request, producer, runtime and scorer but not MediaInput.Decode or the question contract, readRender never calls verifyRendered, ResolveActiveExecution takes the current activation, and the embedded offering requires no recorded loss and a recorded gain under a published model name/preset key, without runtime recipe/request binding. (7) The native record test checks evaluation-ID syntax, displayed counts and admitted/refused wording, but does not recompute Admitted or Tail through AdmitPreset and the bound evaluations. Gained trusts Tail <= falseGain, so the consistently worded false gain in input 7 passes the record and gain checks and offers APG on SenseNova's page despite its stated 524 losses and zero wins. (8) Arm, suite and verdict skips trust names and file existence and accept truncated bookkeeping, and a new build is validated by re-rendering only the last item. Remaining counterexamples shown from source and arithmetic at 13cf8abc414dcea07f9d324285264d4b305f2938; no SQA execution."
+  "actual": "(3) Correct count minus sum(1/choices) against zero is taken as a fair sign for ExactPairedBinary: a medium is positive with probability 5/9, and uniform guessing passes the 22-positive threshold (nominal tail 0.0250512) with probability 0.0914273, above the 0.05 level. (4) Arithmetic probability means rank (.9,.1) above (.45,.45), the reverse of production softShare's geometric mean; constant scores give a NaN tau, all 2000 resamples are dropped and resampledTau indexes an empty slice. (6) judgedRender compares content, request, producer, runtime and scorer but not MediaInput.Decode or the question contract, readRender never calls verifyRendered, ResolveActiveExecution takes the current activation, and the embedded offering uses recorded no-loss flags (plus a recorded gain for guidance methods) under a published model name/preset key, without runtime recipe/request binding. (7) The native record test checks evaluation-ID syntax, displayed counts and admitted/refused wording, but does not recompute Admitted or Tail through AdmitPreset and the bound evaluations. Gained trusts Tail <= falseGain, so the consistently worded false gain in input 7 passes the record and gain checks and offers APG on SenseNova's page despite its stated 524 losses and zero wins. (8) Arm, suite and verdict skips trust names and file existence and accept truncated bookkeeping, and a new build is validated by re-rendering only the last item. Remaining counterexamples shown from source and arithmetic at 0c24aca5b670940f95c0f8156c13804a9e2fd9ea; no SQA execution."
 },
     {
   "id": "SQA-346",
@@ -83,20 +83,6 @@
       "actual": "The start stays without a marker, noteUncleanEnd cannot close it, and landing.cost charges the elapsed time to now through the downtime; an old record cannot be matched by Step and Started. Two active-start stores remain. Worker-Wall-Seconds drops the unknown interrupted wall and printCosts presents the rest as worker wall with no qualification. Read from source."
     },
     {
-      "id": "SQA-366",
-      "severity": "P3",
-      "files": [
-        "cmd/loop/tools.go",
-        "internal/planverify/verify.go",
-        "internal/testevidence/evidence.go",
-        "cmd/loop/tools_missing_test_test.go",
-        "cmd/loop/replay.go"
-      ],
-      "input": "A step whose check TestTheChangeHolds exists and calls t.Skip for an unavailable prerequisite, run by the worker's run_check.",
-      "expected": "The result says the test skipped and keeps its diagnostic; passing no evidence is not presented as a missing test.",
-      "actual": "go test exits 0, planverify returns VACUOUS: ... skipped, and run_check appends missingTest to any VACUOUS result, telling the worker the test is \"in no file yet. Write it first\". The fixture covers an absent test only. Read from source."
-    },
-    {
       "id": "SQA-371",
       "severity": "P2",
       "files": [
@@ -124,38 +110,16 @@
       "actual": "The held-test wrapper compares cleaned path strings with slices.Contains, so scripts/HELD_test.go misses the held name, stays under the allowed scripts directory and is admitted; os.WriteFile or os.Remove then rewrites or deletes the held test. Read from source."
     },
     {
-      "id": "SQA-374",
-      "severity": "P3",
-      "files": [
-        "cmd/loop/reasoning.go",
-        "cmd/loop/main.go",
-        "cmd/loop/tools.go",
-        "cmd/plan/dispatch.go",
-        "cmd/loop/reasoning_test.go",
-        "cmd/loop/replay.go",
-        "cmd/loop/replay_measurement_test.go",
-        "internal/plan/plan.go",
-        "internal/loop/driver.go",
-        "internal/plan/dispatch.go"
-      ],
-      "input": "(1) The live driver showing, checking and landing a step while the plan changes between its reads. (2) Replay of 3ef2c5d8f, whose host-only change to docs/verification/unreached-declarations.txt landed with its step.",
-      "expected": "(1) Prompt, check, files and rationale come from one identified plan-owned step. (2) Replay eligibility derives from the held step and its prerequisites, not from any docs/verification path the commit carries.",
-      "actual": "(1) liveSource runs plan -prompt and then currentStep separately, reasoned adds rationale from the second read, planStepFrom reads again for verify and files, and execWorld.Prompt and execWorld.Verify ignore the step they are given, so one step's task, check and files can go with another's rationale; the landing still verifies by step.Key(). (2) replayed.measurement labels every changed docs/verification path of the commit as model-produced work, so 3ef2c5d8f becomes a measurement. Read from source."
-    },
-    {
-      "id": "SQA-388",
-      "severity": "P2",
-      "files": [
-        "cmd/comfy-reference/main.go",
-        "cmd/comfy-reference/record.go",
-        "internal/jsonfile/decode.go",
-        "internal/fsatomic/publish_directory.go",
-        "cmd/comfy-reference/record_test.go"
-      ],
-      "input": "(1) comfy-reference recording to an out path that is a regular file, or with a history or /view call failing after the prompt was accepted, then run again. (2) Two outputs of one node with the same basename in different subfolders. (3) A prompt whose card memory peaks between the once-a-second polls.",
-      "expected": "(1) An invalid destination is refused before the POST; an accepted prompt survives a later failure in the durable recording, a retry resumes it without another POST, and a previous complete recording stays readable. (2) Distinct outputs do not overwrite one another. (3) The record names sampled whole-device usage and its window, not a run's peak.",
-      "actual": "(1) record POSTs /prompt, creates the output directory only after history and writes its JSON after every /view download, so a failure returns recording{} with no durable prompt id and a rerun POSTs a new prompt; keep writes into the final folder first, so a failed retry overwrites files an older record names. (2) Files are named by node id and basename alone, so they alias. (3) await takes the largest of device 0's Total-Free snapshots and the JSON calls it peak_card_bytes, which misses an unsampled peak and counts other processes. Read from source."
-    },
+  "id": "SQA-388",
+  "severity": "P2",
+  "files": [
+    "cmd/comfy-reference/record.go",
+    "cmd/comfy-reference/record_test.go"
+  ],
+  "input": "(1) ComfyUI completes a prompt at installation/custom-node commit A, but a /view failure leaves its accepted receipt. Change that installation or pack to commit B and retry the identical request with the old history still available. (2) Two outputs of one node with the same basename in different subfolders. (3) A prompt whose card memory peaks between the once-a-second polls, or whose completed history is resumed after its original sampling window.",
+  "expected": "The existing recorder owns recovery and truthful output identity: (1) an accepted run retains its execution-time producer commits/version, or reuse is refused when that identity cannot be established; a retry must not credit old output to a new installation. Keep the repaired destination preflight, completed-record refusal and same-request prompt reuse. (2) Distinct outputs keep distinct paths and bytes. (3) Record sampled whole-device usage with its actual sampling window; a resumed run with no samples of its original execution has no measured execution peak.",
+  "actual": "(1) accepted stores only prompt_id and request_sha256. On retry, record fills taken.Commits from the current checkout and taken.ComfyUI from current /system_stats before matching that receipt, then publishes the old prompt's history and outputs with the new metadata (record.go:138-155). The original run at A is labelled B. The retained resume fixture keeps the installation unchanged. (2) keep names files by cleaned node id and basename alone, ignoring subfolder, so the second output overwrites the first. (3) await labels the largest device-0 Total-Free snapshot peak_card_bytes, without a sampling window; on completed-history resume it immediately returns the retry's initial snapshot as the old run's peak. Shown from source at 0c24aca5b670940f95c0f8156c13804a9e2fd9ea; no SQA execution."
+},
     {
       "id": "SQA-401",
       "severity": "P2",
@@ -205,13 +169,6 @@
         ],
         "note": "Answered by the lead on 2026-11-13: carried by the local worker's demonstration step, which reads the worker's cost."
       },
-  "SQA-366": {
-        "action": "filed",
-        "rows": [
-          "loop-proof/local-demonstrated"
-        ],
-        "note": "Answered by the lead on 2026-11-13: carried by the local worker's demonstration step, on the worker's path."
-      },
   "SQA-371": {
         "action": "filed",
         "rows": [
@@ -225,13 +182,6 @@
           "loop-proof/local-demonstrated"
         ],
         "note": "Answered by the lead on 2026-11-13: carried by the local worker's demonstration step; a held check altered through another spelling is the check class."
-      },
-  "SQA-374": {
-        "action": "filed",
-        "rows": [
-          "loop-proof/local-demonstrated"
-        ],
-        "note": "Answered by the lead on 2026-11-13: carried by the local worker's demonstration step, on the worker's path."
       },
   "SQA-401": {
         "action": "deferred",

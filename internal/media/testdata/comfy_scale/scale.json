@@ -1,0 +1,42 @@
+{
+  "source_sha256": "548f1bef6b381eb783ded2664be5a2099c3e3ef5e04f9840e553ff8b78e9307d",
+  "pillow": "12.3.0",
+  "numpy": "2.5.3",
+  "cases": [
+    {
+      "width": 160,
+      "height": 96,
+      "rgb_sha256": "de69c6b23489ebd74dfeaa9534d439a2e6980d754059ce4af361914ddf25b32b"
+    },
+    {
+      "width": 100,
+      "height": 60,
+      "rgb_sha256": "d98d7a032c8cef42943a8a6921a9aeb6430611e7061c9a30770eade96dbadeaf"
+    },
+    {
+      "width": 320,
+      "height": 192,
+      "rgb_sha256": "53c6f748d77e21b638a50e1df6f66b1ae2cc117667991da94ebc6d0731c988f2"
+    },
+    {
+      "width": 96,
+      "height": 96,
+      "rgb_sha256": "ff614203c772d01b61aed78c8e34af15232a03a7e4411b269b8e508cea1ecd00"
+    },
+    {
+      "width": 80,
+      "height": 120,
+      "rgb_sha256": "1b7bb9774de55c65e3b82434db5e991156b0888d17108ef495c401d48159521b"
+    },
+    {
+      "width": 157,
+      "height": 101,
+      "rgb_sha256": "04062c7b34aad6389c99375ff1addfdb907e17f5866e9ebc2a3a4e2a6d2e9e20"
+    },
+    {
+      "width": 40,
+      "height": 300,
+      "rgb_sha256": "f0e09c2521943a150d40ac8193315aeda19dc0e0959b980b1bfb17a95d5c6b90"
+    }
+  ]
+}

@@ -70,6 +70,21 @@ func sigmaFlowSchedule(sigmas []float32, total int) FlowSchedule {
 	return result
 }
 
+// cutSchedule is the last steps of a schedule, its last steps + 1 sigmas with their timesteps and deltas, as ComfyUI's
+// KSampler keeps of a schedule drawn for a denoise below 1; a schedule of steps or fewer is kept whole.
+func cutSchedule(schedule FlowSchedule, steps int) (FlowSchedule, error) {
+	if steps <= 0 || len(schedule.Sigmas) != schedule.Steps+1 || len(schedule.Timesteps) != schedule.Steps || len(schedule.Deltas) != schedule.Steps {
+		return FlowSchedule{}, fmt.Errorf("flow schedule: cannot keep the last %d steps of %d", steps, schedule.Steps)
+	}
+	if schedule.Steps <= steps {
+		return schedule, nil
+	}
+	from := schedule.Steps - steps
+	schedule.Sigmas, schedule.Timesteps, schedule.Deltas = schedule.Sigmas[from:], schedule.Timesteps[from:], schedule.Deltas[from:]
+	schedule.Steps = steps
+	return schedule, nil
+}
+
 // nearestGridSigma preserves the pinned CPU linspace and unfused float32 shift arithmetic.
 func nearestGridSigma(index, count, total int, shift float64) float32 {
 	lower := float32(shift / (float64(total) + shift - 1))

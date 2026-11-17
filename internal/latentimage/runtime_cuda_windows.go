@@ -58,7 +58,23 @@ type Request struct {
 	// unmerged at AdapterStrength, 1 where the request states none (mediaAdapter): a new strength rewrites no weight.
 	Adapter         string   `json:"adapter,omitzero"`
 	AdapterStrength *float32 `json:"adapter_strength,omitempty"`
+	// Image is a picture, a PNG in base64 as JSON gives bytes, that a rotary profile samples from (image to image):
+	// scaled to the canvas as ComfyUI's ImageScale scales it at lanczos with a centre crop (media.ScaleLikeComfyUI),
+	// encoded by the model's VAE, and started from at the schedule's first sigma, σ₀ times the noise plus 1 − σ₀
+	// times the picture's latent (sourceLatent). It is text so the request stays comparable.
+	Image string `json:"image,omitzero"`
+	// Denoise is the share of its schedule a request samples, as ComfyUI's KSampler takes it: below 1 the schedule is
+	// drawn for int(steps / denoise) steps and its last steps + 1 sigmas kept (cutSchedule), and the sampling starts
+	// from σ₀ times the noise plus 1 − σ₀ times the picture's latent, or none. 0 where the request states none, 1 in
+	// effect, and above 0.9999 the whole schedule, as ComfyUI rounds it.
+	Denoise float64 `json:"denoise,omitzero"`
 }
+
+// denoiseWhole is the denoise above which ComfyUI samples the whole schedule (KSampler.set_steps).
+const denoiseWhole = 0.9999
+
+// cutsSchedule is whether the request samples part of its schedule.
+func (r Request) cutsSchedule() bool { return r.Denoise != 0 && r.Denoise <= denoiseWhole }
 
 // adapterStrength is the strength the request applies its adapter at, 1 where it states none.
 func (r Request) adapterStrength() float32 {
@@ -120,7 +136,9 @@ func admitPicture(ctx context.Context, session *graphruntime.ResidentSession, to
 }
 
 func ValidateRequest(request Request) error {
-	if !checked.Nonzero(request.Prompt) {
+	// A request that samples from a picture may leave its prompt empty, as the MOSS Ultra workflow's image to image does:
+	// the picture conditions what it draws.
+	if !checked.Nonzero(request.Prompt) && request.Image == "" {
 		return errors.New("latent image: prompt is empty")
 	}
 	if err := media.ValidateSpatialGeometry(request.Height, request.Width); err != nil {
@@ -148,6 +166,12 @@ func ValidateRequest(request Request) error {
 	if request.AdapterStrength != nil && (request.Adapter == "" || !checked.Finite32(*request.AdapterStrength)) {
 		return errors.New("latent image: an adapter's strength is a finite number beside the adapter it scales")
 	}
+	if !(request.Denoise >= 0 && request.Denoise <= 1) {
+		return fmt.Errorf("latent image: denoise %g is not a share of the schedule, above 0 and at most 1", request.Denoise)
+	}
+	if request.cutsSchedule() && request.Schedule != nil && request.Schedule.Name == "" && len(request.Schedule.Sigmas) != 0 {
+		return errors.New("latent image: a request that lists its own sigmas samples them all; denoise cuts a drawn schedule")
+	}
 	return validatePrompt(request.PromptMode, request.Prompt, request.Width, request.Height)
 }
 
@@ -169,7 +193,7 @@ func LoadGenerator(ctx context.Context, modelDir string, profile Profile, reques
 		return loadRotaryGenerator(ctx, modelDir, profile, request)
 	}
 	if request.rotaryOnly() {
-		return nil, errors.New("latent image: selected profile does not support negative prompts, guidance overrides, layout validation or adapters")
+		return nil, errRotaryOnly
 	}
 	spec, err := Derive(modelDir)
 	if err != nil {
@@ -349,7 +373,7 @@ func (g *Generator) Reset(ctx context.Context, request Request) error {
 		return g.resetRotary(ctx, request)
 	}
 	if request.rotaryOnly() {
-		return errors.New("latent image: selected profile does not support negative prompts, guidance overrides, layout validation or adapters")
+		return errRotaryOnly
 	}
 	if g == nil || g.pipeline == nil || !g.completed {
 		return errors.New("latent image: resident session is unavailable")
@@ -576,12 +600,16 @@ func (r Request) withPreset(directory string) (Request, error) {
 	return r, nil
 }
 
+// errRotaryOnly refuses a request that asks what only a rotary profile runs (rotaryOnly) of a profile that is not one.
+var errRotaryOnly = errors.New("latent image: selected profile does not support negative prompts, guidance overrides, layout validation, adapters or image to image")
+
 // rotaryOnly is whether the request asks what only a rotary profile runs: a negative prompt or guidance over its
 // steps, except normalized attention guidance's (attentionGuided), a guidance scale of its own, layout validation, a
-// sharpening of its picture, or an adapter.
+// sharpening of its picture, an adapter, or a picture or denoise to sample from.
 func (r Request) rotaryOnly() bool {
 	return !r.attentionGuided() && (r.NegativePrompt != "" || r.Guidance != (sampling.Guidance{})) ||
-		r.GuidanceScale != nil || r.PromptMode == promptLayout || r.Sharpen != nil || r.Adapter != "" || r.AdapterStrength != nil
+		r.GuidanceScale != nil || r.PromptMode == promptLayout || r.Sharpen != nil || r.Adapter != "" || r.AdapterStrength != nil ||
+		r.Image != "" || r.Denoise != 0
 }
 
 // attentionGuided says the request's guidance is normalized attention guidance's alone, which a Krea session runs by

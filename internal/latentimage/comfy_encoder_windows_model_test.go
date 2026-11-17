@@ -68,22 +68,11 @@ func TestTheUltraEncoderConditionsAsComfyUIDoes(t *testing.T) {
 	}
 	testcheck.NoError(t, json.Unmarshal(testcheck.Must(os.ReadFile(filepath.Join(repo, "internal", "modelrecipe", "moss_ultra_import.json")))(t), &recipe))
 	encoderPath := "text_encoder/" + golden.Encoder
-	if !slices.Contains(recipe.Files, pinned{Path: encoderPath, SHA256: golden.SHA256}) {
-		t.Fatalf("the golden read %s at %s; the import recipe pins no such file", golden.Encoder, golden.SHA256)
+	if !slices.Contains(recipe.Files, pinned{Path: encoderPath, SHA256: golden.SHA256}) || ultraFiles["text_encoder"] != encoderPath {
+		t.Fatalf("the golden read %s at %s; the import recipe pins no such file, or the Ultra root reads another", golden.Encoder, golden.SHA256)
 	}
-
-	// The model root: the Ultra file beside MOSS-Image-SFT's encoder config, and SFT's tokenizer and template.
 	roots := testcheck.Must(dataroot.Resolve(repo))(t)
-	sft := testutil.ModelArtifactDir(t, "MOSS-Image-SFT-797fa8e678b4f")
-	root := t.TempDir()
-	for _, directory := range []string{"text_encoder", "tokenizer"} {
-		testcheck.NoError(t, os.Mkdir(filepath.Join(root, directory), 0o700))
-	}
-	for _, name := range []string{"text_encoder/config.json", "tokenizer/tokenizer.json", "tokenizer/tokenizer_config.json", "tokenizer/chat_template.jinja"} {
-		testcheck.NoError(t, os.WriteFile(filepath.Join(root, filepath.FromSlash(name)), testcheck.Must(os.ReadFile(filepath.Join(sft, filepath.FromSlash(name))))(t), 0o600))
-	}
-	testcheck.NoError(t, os.Link(filepath.Join(testutil.ModelArtifactDir(t, "moss-ultra"), filepath.FromSlash(encoderPath)), filepath.Join(root, filepath.FromSlash(encoderPath))))
-
+	root := ultraModelRoot(t)
 	conditioner := testcheck.Must(loadModelConditioner(root, textTemplate{MaxTokens: mossConditioningTokens, EnableThinking: true}))(t)
 	t.Cleanup(func() { testcheck.NoError(t, conditioner.source.Close()) })
 	texts := make([]textInput, len(golden.Cases))

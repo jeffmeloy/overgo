@@ -40,3 +40,50 @@ func TestARotaryRequestSamplesItsOwnSchedule(t *testing.T) {
 		t.Errorf("a flow profile drew a request's schedule: %v", err)
 	}
 }
+
+// TestADenoiseCutsTheScheduleAsComfyUIDoes holds a request's denoise (moss-ultra-sections/img2img) to ComfyUI's
+// KSampler: below 1 a schedule, named or the profile's own, is drawn for int(steps / denoise) steps and its last
+// steps + 1 sigmas kept with their timesteps and deltas; above 0.9999 the whole schedule is sampled; a denoise outside
+// (0, 1], or one beside a list of the request's own sigmas, is refused; a request may leave its prompt empty only
+// where it brings a picture; and only a rotary profile takes a picture or a denoise.
+func TestADenoiseCutsTheScheduleAsComfyUIDoes(t *testing.T) {
+	profile := Profile{Sampling: samplingPolicy{DefaultSteps: 50, TrainTimesteps: 1000}, Rotary: &rotaryPolicy{Shift: 5, TrainingShift: 3}}
+	named := &sampling.Schedule{Name: sampling.ScheduleBongTangent}
+	cut := testcheck.Must(profile.rotarySchedule(t.Context(), Request{Steps: 10, Schedule: named, Denoise: 0.6}))(t)
+	whole := testcheck.Must(sampling.BongTangent(16))(t)
+	if cut.Steps != 10 || len(cut.Sigmas) != 11 || len(cut.Timesteps) != 10 || len(cut.Deltas) != 10 {
+		t.Fatalf("10 steps at denoise 0.6 kept %d steps of %d sigmas", cut.Steps, len(cut.Sigmas))
+	}
+	for index, sigma := range cut.Sigmas {
+		if sigma != float64(whole[index+6]) {
+			t.Fatalf("10 steps at denoise 0.6 kept sigmas %v; want the last 11 of bong_tangent at int(10 / 0.6) = 16 steps, %v", cut.Sigmas, whole[6:])
+		}
+	}
+	if cut.Timesteps[0] != float64(whole[6]*1000) || cut.Deltas[0] != float64(whole[7]-whole[6]) {
+		t.Errorf("the cut schedule's timesteps %v and deltas %v are not its sigmas'", cut.Timesteps, cut.Deltas)
+	}
+	own := testcheck.Must(profile.rotarySchedule(t.Context(), Request{Steps: 8, Denoise: 0.5}))(t)
+	drawn := testcheck.Must(profile.rotarySchedule(t.Context(), Request{Steps: 16}))(t)
+	if !slices.Equal(own.Sigmas, drawn.Sigmas[8:]) {
+		t.Errorf("the profile's own schedule at 8 steps and denoise 0.5 kept %v; want the last 9 of its 16, %v", own.Sigmas, drawn.Sigmas[8:])
+	}
+	full := testcheck.Must(profile.rotarySchedule(t.Context(), Request{Steps: 10, Schedule: named, Denoise: 0.99995}))(t)
+	ten := testcheck.Must(profile.rotarySchedule(t.Context(), Request{Steps: 10, Schedule: named}))(t)
+	if !slices.Equal(full.Sigmas, ten.Sigmas) {
+		t.Errorf("a denoise above 0.9999 sampled %v; want the whole schedule, %v", full.Sigmas, ten.Sigmas)
+	}
+	for _, request := range []Request{
+		{Prompt: "a lighthouse", Width: 1024, Height: 576, Denoise: 1.5},
+		{Prompt: "a lighthouse", Width: 1024, Height: 576, Denoise: -0.2},
+		{Prompt: "a lighthouse", Width: 1024, Height: 576, Denoise: 0.5, Schedule: &sampling.Schedule{Sigmas: []float32{1, 0.5, 0}}},
+		{Width: 1024, Height: 576},
+	} {
+		if ValidateRequest(request) == nil {
+			t.Errorf("the request %+v was admitted; want it refused", request)
+		}
+	}
+	testcheck.NoError(t, ValidateRequest(Request{Width: 1024, Height: 576, Image: "cGljdHVyZQ==", Denoise: 0.6}))
+	if !(Request{Image: "cGljdHVyZQ=="}).rotaryOnly() || !(Request{Denoise: 0.6}).rotaryOnly() {
+		t.Error("a request with a picture or a denoise is run by a profile that is not rotary")
+	}
+}

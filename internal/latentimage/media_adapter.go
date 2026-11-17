@@ -40,6 +40,21 @@ const (
 	adapterThird = "#"
 )
 
+// AppliedAdapter is one adapter a request applies: its name among the model's adapters
+// (<model>/adapters/<name>.safetensors) and its strength, 1 where it states none.
+type AppliedAdapter struct {
+	Name     string   `json:"name"`
+	Strength *float32 `json:"strength,omitempty"`
+}
+
+// strength is the strength the adapter is applied at, 1 where the request states none.
+func (a AppliedAdapter) strength() float32 {
+	if a.Strength == nil {
+		return tensor.UnitScale
+	}
+	return *a.Strength
+}
+
 // mediaAdapter is an adapter file's patches by the graph weight each changes.
 type mediaAdapter struct {
 	path string

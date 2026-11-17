@@ -14,6 +14,11 @@ import (
 	"overgo/internal/testutil"
 )
 
+// mossSectionPresets are the MOSS Ultra workflow's section presets MOSS's catalog declares
+// (moss-ultra-compare/section-presets), in the order a page lists them.
+var mossSectionPresets = []string{"ultra-depth-control", "ultra-depth-control-turbo", "ultra-image-to-image", "ultra-image-to-image-turbo",
+	"ultra-text-to-image", "ultra-text-to-image-turbo"}
+
 func TestMOSSImageGenerationContract(t *testing.T) {
 	root := testutil.ExtractTarGzip(t, testutil.FixturePath(t, "moss", "generator-compact.tar.gz"), "150c4263057d72476ef4399a442c2b7dbadcb955670232fc2ea869c71f07c5db")
 	controls, refusal := Controls(modelrecipe.ModuleLatentImagePrepare, root)
@@ -29,9 +34,10 @@ func TestMOSSImageGenerationContract(t *testing.T) {
 			t.Fatal("missing supported control", name)
 		}
 	}
-	// Of MOSS's presets the page offers its authors' tutorial setting, which no reading reads, and 8-bit attention,
-	// a speed tier its readings admit; no guidance preset read shows a gain (common-controls/gain-only).
-	if len(held) != 9 || !slices.Equal(held["preset"].Choices, []string{"comfy-tutorial", "eight-bit-attention"}) || held["guidance_scale"].Type != ControlNumber || len(held["prompt_mode"].Choices) != 2 || held["prompt_mode"].Help == "" {
+	// Of MOSS's presets the page offers its authors' tutorial setting and the MOSS Ultra workflow's six section
+	// presets, which no reading reads, and 8-bit attention, a speed tier its readings admit; no guidance preset read
+	// shows a gain (common-controls/gain-only).
+	if len(held) != 9 || !slices.Equal(held["preset"].Choices, append([]string{"comfy-tutorial", "eight-bit-attention"}, mossSectionPresets...)) || held["guidance_scale"].Type != ControlNumber || len(held["prompt_mode"].Choices) != 2 || held["prompt_mode"].Help == "" {
 		t.Fatal("unsupported controls", held)
 	}
 	// Tuning sits behind the disclosure as on every page (common-controls/do), and the negative prompt beside the prompt.

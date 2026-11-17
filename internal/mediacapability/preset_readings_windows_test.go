@@ -20,7 +20,8 @@ import (
 // (guidance-ops/preset-readings): a preset the record reads on a model is offered on its page only once its verdict,
 // read against that model's reference, admits it, and its pairwise verdict where it was read so, so a pending or refused
 // one is not; and every preset a model declares is read but those that are no guider: Krea's draft and MOSS's
-// comfy-tutorial, steps and a scale from their authors, and Wan's eight-bit-attention, a speed choice its clips' frame
+// comfy-tutorial, steps and a scale from their authors, MOSS's six MOSS Ultra section presets, each a section's settings
+// from the workflow's own file, and Wan's eight-bit-attention, a speed choice its clips' frame
 // bound holds (TestWanEightBitAttentionKeepsItsClipsWithinTheirBound). The record reads only presets its model declares;
 // a verdict holds two evaluation records, its model's reference the same for each of its presets, and the counts its
 // words say, and its model's suite is named. SenseNova's page, whose presets its recipe declares with no model files, is
@@ -42,7 +43,7 @@ func TestOnlyAnAdmittedGuidancePresetIsOffered(t *testing.T) {
 	}
 	models := map[string]model{
 		"Krea-2-Turbo":                       {image("Krea2Pipeline"), []string{"draft"}},
-		"MOSS-Image-SFT":                     {image("MOSSImagePipeline"), []string{"comfy-tutorial"}},
+		"MOSS-Image-SFT":                     {image("MOSSImagePipeline"), append([]string{"comfy-tutorial"}, mossSectionPresets...)},
 		"Wan2.1-T2V-1.3B":                    {testcheck.Must(latentvideo.PresetNames(t.TempDir()))(t), []string{"eight-bit-attention"}},
 		"Self-Forcing":                       {testcheck.Must(latentvideo.PresetNames(student))(t), nil},
 		"SenseNova-U1-8B-MoT-Infographic-V3": {testcheck.Must(sensenovarecipe.PresetNames())(t), nil},

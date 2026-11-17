@@ -10,9 +10,11 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"sync"
 
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
+	"overgo/internal/media"
 	"overgo/internal/sampling"
 	"overgo/internal/strictjson"
 )
@@ -210,6 +212,17 @@ type imagePreset struct {
 	// EightBitAttention computes the denoiser's attention in 8 bits (tensor.AttentionAttributes.EightBit), a speed
 	// preset's whole recipe.
 	EightBitAttention bool `json:"eight_bit_attention,omitzero"`
+	// A section of the MOSS Ultra workflow (moss-ultra-compare/section-presets) fixes its schedule, its denoise, its
+	// adapters, its canvas, its sharpening and the blocks its negative pass skips, which fill a request that leaves them
+	// unset as the fields above do, the canvas only where the request gives no size; and its negative the exclusions or
+	// the workflow's backup negative where they are empty or a none (BackupNegative, RegexReplace 707:703:470).
+	Schedule       *sampling.Schedule `json:"schedule,omitempty"`
+	Denoise        float64            `json:"denoise,omitzero"`
+	Adapters       *[]AppliedAdapter  `json:"adapters,omitempty"`
+	Canvas         *media.Canvas      `json:"canvas,omitempty"`
+	Sharpen        *media.Sharpening  `json:"sharpen,omitempty"`
+	SkipBlocks     *[]int             `json:"skip_blocks,omitempty"`
+	BackupNegative bool               `json:"backup_negative,omitzero"`
 }
 
 // catalogOf is the catalog's entry for the model in directory, by its pipeline class.
@@ -266,13 +279,15 @@ func lookupCatalogProfile(pipeline string) (catalogProfile, error) {
 	return catalogProfile{}, fmt.Errorf("latent image: unsupported pipeline class %q", pipeline)
 }
 
-func profileCatalog() ([]catalogProfile, error) {
+// profileCatalog is the embedded catalog, decoded once, so a preset's fields are the same values each time a request
+// takes them and a request a preset filled twice is one request.
+var profileCatalog = sync.OnceValues(func() ([]catalogProfile, error) {
 	var catalog []catalogProfile
 	if err := strictjson.DecodeBytes(profileCatalogJSON, &catalog); err != nil {
 		return nil, fmt.Errorf("latent image: decode profile catalog: %w", err)
 	}
 	return catalog, nil
-}
+})
 
 func ReadProfile(ctx context.Context, store artifact.Reader, id artifact.ID) (Profile, error) {
 	return profileCodec.Require(ctx, store, id)

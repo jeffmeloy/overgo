@@ -46,6 +46,35 @@
       },
       "guidance-interval": {
         "guidance": {"interval": {"low": 0.219, "high": 0.844}}
+      },
+      "ultra-text-to-image": {
+        "steps": 50, "guidance_scale": 4, "schedule": {"sampler": "er_sde", "name": "bong_tangent"},
+        "canvas": {"aspect": "16:9", "megapixels": 3, "multiple": 32}, "sharpen": {"radius": 1, "sigma": 0.6, "alpha": 0.7}, "backup_negative": true
+      },
+      "ultra-text-to-image-turbo": {
+        "steps": 8, "guidance_scale": 1, "schedule": {"sampler": "er_sde", "name": "bong_tangent"},
+        "adapters": [{"name": "8-steps-dmd2-lora", "strength": 1}, {"name": "moss_image_sft", "strength": 1}],
+        "canvas": {"aspect": "16:9", "megapixels": 3, "multiple": 32}, "sharpen": {"radius": 1, "sigma": 0.6, "alpha": 0.7}, "backup_negative": true
+      },
+      "ultra-image-to-image": {
+        "steps": 50, "guidance_scale": 4, "schedule": {"sampler": "er_sde", "name": "bong_tangent"},
+        "canvas": {"aspect": "16:9", "megapixels": 3, "multiple": 32}, "sharpen": {"radius": 1, "sigma": 0.6, "alpha": 0.7}, "backup_negative": true
+      },
+      "ultra-image-to-image-turbo": {
+        "steps": 8, "guidance_scale": 1, "schedule": {"sampler": "er_sde", "name": "bong_tangent"}, "denoise": 0.72,
+        "adapters": [{"name": "8-steps-dmd2-lora", "strength": 1}, {"name": "moss_image_sft", "strength": 1}],
+        "canvas": {"aspect": "16:9", "megapixels": 3, "multiple": 32}, "sharpen": {"radius": 1, "sigma": 0.6, "alpha": 0.7}, "backup_negative": true
+      },
+      "ultra-depth-control": {
+        "steps": 50, "guidance_scale": 4, "schedule": {"sampler": "er_sde", "name": "bong_tangent"},
+        "adapters": [{"name": "moss-control", "strength": 1}], "skip_blocks": [],
+        "canvas": {"aspect": "16:9", "megapixels": 3, "multiple": 32}, "sharpen": {"radius": 1, "sigma": 0.6, "alpha": 0.7}, "backup_negative": true
+      },
+      "ultra-depth-control-turbo": {
+        "steps": 8, "guidance_scale": 1, "schedule": {"sampler": "er_sde", "name": "bong_tangent"},
+        "adapters": [{"name": "moss-control", "strength": 1}, {"name": "8-steps-dmd2-lora", "strength": 1}, {"name": "moss_image_sft", "strength": 1}],
+        "skip_blocks": [],
+        "canvas": {"aspect": "16:9", "megapixels": 3, "multiple": 32}, "sharpen": {"radius": 1, "sigma": 0.6, "alpha": 0.7}, "backup_negative": true
       }
     },
     "model": "MOSS-Image-SFT",

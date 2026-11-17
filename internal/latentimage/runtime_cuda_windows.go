@@ -109,21 +109,6 @@ func (r Request) prompt() string {
 // cutsSchedule is whether the request samples part of its schedule.
 func (r Request) cutsSchedule() bool { return r.Denoise != 0 && r.Denoise <= denoiseWhole }
 
-// AppliedAdapter is one adapter a request applies: its name among the model's adapters
-// (<model>/adapters/<name>.safetensors) and its strength, 1 where it states none.
-type AppliedAdapter struct {
-	Name     string   `json:"name"`
-	Strength *float32 `json:"strength,omitempty"`
-}
-
-// strength is the strength the adapter is applied at, 1 where the request states none.
-func (a AppliedAdapter) strength() float32 {
-	if a.Strength == nil {
-		return tensor.UnitScale
-	}
-	return *a.Strength
-}
-
 // applied are the adapters the request applies, in its order: its Adapters, or its one Adapter at AdapterStrength.
 func (r Request) applied() []AppliedAdapter {
 	if r.Adapters != nil {
@@ -643,16 +628,6 @@ func RegisterRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, gene
 // so a request naming a preset and one stating its values are one request. A request naming none is the authors'
 // recipe, its profile's.
 func (r Request) withPreset(directory string) (Request, error) {
-	if r.Canvas != nil {
-		if r.Width != 0 || r.Height != 0 {
-			return Request{}, errors.New("latent image: a request gives its width and height or its canvas, not both")
-		}
-		var err error
-		if r.Width, r.Height, err = r.Canvas.Size(); err != nil {
-			return Request{}, fmt.Errorf("latent image: %w", err)
-		}
-		r.Canvas = nil
-	}
 	if r.Preset != "" {
 		preset, err := presetOf(directory, r.Preset)
 		if err != nil {
@@ -668,7 +643,21 @@ func (r Request) withPreset(directory string) (Request, error) {
 			r.Guidance = preset.Guidance
 		}
 		r.EightBitAttention = r.EightBitAttention || preset.EightBitAttention
+		if r, err = r.withSection(preset); err != nil {
+			return Request{}, err
+		}
 		r.Preset = ""
+	}
+	// A canvas, the request's or its preset's, sizes the picture.
+	if r.Canvas != nil {
+		if r.Width != 0 || r.Height != 0 {
+			return Request{}, errors.New("latent image: a request gives its width and height or its canvas, not both")
+		}
+		var err error
+		if r.Width, r.Height, err = r.Canvas.Size(); err != nil {
+			return Request{}, fmt.Errorf("latent image: %w", err)
+		}
+		r.Canvas = nil
 	}
 	// A distilled model honours a negative prompt given it by its normalized attention guidance, where the request
 	// states no guidance of its own (catalogProfile.NegativeGuidance).
@@ -684,12 +673,45 @@ func (r Request) withPreset(directory string) (Request, error) {
 	return r, nil
 }
 
-// errRotaryOnly refuses a request that asks what only a rotary profile runs (rotaryOnly) of a profile that is not one.
+// withSection fills what the request leaves unset of a MOSS Ultra section's preset (imagePreset): its schedule, its
+// denoise, its adapters where the request names none, its canvas where it gives no size, its sharpening and its skipped
+// blocks, each the preset's own value, the catalog's, so a request filled twice is one; and its negative the workflow's
+// backup where the request's is empty or a none (isNoNegative).
+func (r Request) withSection(preset imagePreset) (Request, error) {
+	if r.Schedule == nil {
+		r.Schedule = preset.Schedule
+	}
+	if r.Denoise == 0 {
+		r.Denoise = preset.Denoise
+	}
+	if r.Adapter == "" && r.Adapters == nil {
+		r.Adapters = preset.Adapters
+	}
+	if r.Canvas == nil && r.Width == 0 && r.Height == 0 {
+		r.Canvas = preset.Canvas
+	}
+	if r.Sharpen == nil {
+		r.Sharpen = preset.Sharpen
+	}
+	if r.SkipBlocks == nil {
+		r.SkipBlocks = preset.SkipBlocks
+	}
+	if preset.BackupNegative && isNoNegative(r.NegativePrompt) {
+		data, err := mossEnhancer()
+		if err != nil {
+			return Request{}, err
+		}
+		r.NegativePrompt = data.NegativeBackup
+	}
+	return r, nil
+}
+
 // errEmptyPrompt refuses a flow profile's request of no prompt. A rotary profile (MOSS) conditions on an empty prompt
 // as ComfyUI's encoder does, as the MOSS Ultra workflow saves its sections and its recordings draw them
 // (moss-ultra-compare/golden-floor).
 var errEmptyPrompt = errors.New("latent image: prompt is empty")
 
+// errRotaryOnly refuses a request that asks what only a rotary profile runs (rotaryOnly) of a profile that is not one.
 var errRotaryOnly = errors.New("latent image: selected profile does not support negative prompts, guidance overrides, layouts, adapters or image to image")
 
 // rotaryOnly is whether the request asks what only a rotary profile runs: a negative prompt or guidance over its

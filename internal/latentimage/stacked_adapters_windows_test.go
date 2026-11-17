@@ -42,8 +42,8 @@ func TestAdaptersStackAsTheWorkflowsLoaderStacksThem(t *testing.T) {
 	if replaced := p.adapterInputs[1].Node("video_embedder.weight@1"); replaced == nil || replaced.Type != dtype.BF16 || p.control == nil {
 		t.Errorf("the weight the second adapter replaces is bound as %v with the control %v; want it from the second's file in the model's storage", replaced, p.control)
 	}
-	if replacedTwice([]*mediaAdapter{second, second}) != "video_embedder.bias" && replacedTwice([]*mediaAdapter{second, second}) != "video_embedder.weight" {
-		t.Error("two adapters replacing one weight were not found")
+	if twice := replacedTwice([]*mediaAdapter{second, second}); twice != "video_embedder.bias" && twice != "video_embedder.weight" {
+		t.Errorf("two adapters replacing one weight were found as %q", twice)
 	}
 	if replacedTwice([]*mediaAdapter{first, second}) != "" {
 		t.Error("adapters replacing different weights were refused")

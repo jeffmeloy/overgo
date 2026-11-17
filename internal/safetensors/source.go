@@ -307,6 +307,15 @@ func (s *Source) ContainsOnlyShard(name string) bool {
 	return true
 }
 
+// Retensored is a source over the same files holding tensors in place of the source's, a view a reader takes a
+// checkpoint's tensors through (names it renames, payloads it decodes). It takes the files over: closing it closes them,
+// and the source it came from holds none.
+func (s *Source) Retensored(tensors map[string]Tensor) *Source {
+	view := &Source{Tensors: tensors, Metadata: s.Metadata, files: s.files, shards: s.shards, indexed: s.indexed, index: s.index}
+	s.files, s.shards = nil, nil
+	return view
+}
+
 // Close: release shard handles.
 func (s *Source) Close() error {
 	if s == nil {

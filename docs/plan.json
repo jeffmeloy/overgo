@@ -3,27 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "moss-ultra-import",
-      "title": "The MOSS Ultra workflow's six model files serve in overgo as published: Base in ComfyUI's 8-bit ConvRot format, the abliterated Qwen3.5-9B encoder, the Flux2 VAE and three adapters",
-      "steps": [
-        {
-          "id": "encoder",
-          "title": "The abliterated Qwen3.5-9B conditions MOSS under the workflow's template, and its language-model head serves the same file as a chat model",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestTheUltraEncoderConditionsAsComfyUIDoes$'",
-          "files": [
-            "internal/latentimage",
-            "internal/inference",
-            "internal/modelrecipe"
-          ],
-          "needs_card": true,
-          "rationale": "It is the Qwen3.5 architecture overgo's MOSS encoder runs, under a model. prefix (model.language_model., model.visual., lm_head), so the names map. Conditioning is the last layer's states under the template \u003c|im_start|\u003euser ... \u003c|im_end|\u003e \u003c|im_start|\u003eassistant \u003cthink\u003e. Its language-model head lets the same file serve prompt mode 2 as a chat model through overgo's LLM serving: one file, two uses.\n\nServes: setup-steps.\nDisappears: nothing.\nEvidence: token IDs and conditioning states for the golden prompts equal those ComfyUI produces, recorded by the golden script.\nBatch: device lane.",
-          "depends_on": [
-            "moss-ultra-import/convrot"
-          ]
-        }
-      ]
-    },
-    {
       "id": "comfy-recorder",
       "title": "A ComfyUI recorder runs a saved workflow in ComfyUI's own process and records each section's settings, sigmas, latents and images as goldens, first the MOSS Ultra workflow",
       "steps": [
@@ -96,7 +75,7 @@
             "internal/workflowruntime"
           ],
           "needs_card": true,
-          "rationale": "The recorder reads the enhancer's system prompts and request templates out of the workflow file as data. Sampling follows the workflow: temperature 0.7, top-k 20, top-p 0.8, presence penalty 1.5, seed 0, thinking off. The 450-word test with one retry, the negative written from the final positive, the photo-or-other choice and the negative clean-up are Go string code, not regular expressions. Mode 3 converts 0 to 1000 boxes to centred-pixel yxyx layout JSON, which overgo already validates.\n\nServes: capabilities MOSS lacks.\nDisappears: nothing.\nEvidence: given the same generated text, the cleaned negative equals ComfyUI's string exactly; the generated text is held token for token under greedy decoding; sampled text is compared only through the image; mode 3's layout equals the recorded string.\nBatch: device lane.",
+          "rationale": "The recorder reads the enhancer's system prompts and request templates out of the workflow file as data. Sampling follows the workflow: temperature 0.7, top-k 20, top-p 0.8, presence penalty 1.5, seed 0, thinking off. The 450-word test with one retry, the negative written from the final positive, the photo-or-other choice and the negative clean-up are Go string code, not regular expressions. Mode 3 converts 0 to 1000 boxes to centred-pixel yxyx layout JSON, which overgo already validates.\n\nNote: 2026-11-17, from moss-ultra-import/encoder: the enhancer's chat runs the Ultra encoder file with its head (lm_head, int8 ConvRot like the rest) through overgo's LLM serving, the file's own names those of a Hugging Face checkpoint for generation (model.language_model., lm_head), which overgo's Qwen 3.5 adapter maps. ComfyUI's generate runs the int8 matmul with activations quantized per row after the rotation (comfy_kitchen int8_linear), where its conditioning decodes the weights; greedy text is held token for token, so the chat's own path is the one to match.\n\nServes: capabilities MOSS lacks.\nDisappears: nothing.\nEvidence: given the same generated text, the cleaned negative equals ComfyUI's string exactly; the generated text is held token for token under greedy decoding; sampled text is compared only through the image; mode 3's layout equals the recorded string.\nBatch: device lane.",
           "depends_on": [
             "moss-ultra-import/encoder"
           ]

@@ -40,6 +40,10 @@ func loadModelConditioner(root string, template textTemplate) (_ *modelCondition
 			err = errors.Join(err, source.Close())
 		}
 	}()
+	// A ComfyUI encoder file is read as the Hugging Face language model it holds (comfyLanguageView).
+	if source.Tensors, err = comfyLanguageView(source.Tensors); err != nil {
+		return nil, err
+	}
 	catalog, err := hfgguf.InspectLanguageModel(source, hfgguf.LanguageHidden)
 	if err != nil {
 		return nil, err
@@ -72,7 +76,11 @@ func (c *modelConditioner) input(prompt string) (textInput, []float32, error) {
 func (c *modelConditioner) embedding(text textInput) ([]float32, error) {
 	for _, binding := range c.catalog.Bindings() {
 		if binding.Target == c.catalog.Weights.TokenEmbedding.Name {
-			return safetensors.ReadTensorRowsF32(filepath.Join(c.root, "text_encoder"), binding.Source, int(c.catalog.Spec.EmbeddingLength), text.IDs)
+			tensor, held := c.source.Tensors.Tensors[binding.Source]
+			if !held {
+				return nil, fmt.Errorf("model conditioning: the encoder holds no token embedding %s", binding.Source)
+			}
+			return safetensors.TensorRowsF32(tensor, int(c.catalog.Spec.EmbeddingLength), text.IDs)
 		}
 	}
 	return nil, fmt.Errorf("model conditioning has no source token embedding binding")

@@ -64,6 +64,12 @@ func ReadTensorRowsF32(directory, name string, rowWidth int, rows []int) ([]floa
 	if !ok {
 		return nil, fmt.Errorf("safetensors: missing tensor %s", name)
 	}
+	return TensorRowsF32(tensor, rowWidth, rows)
+}
+
+// TensorRowsF32 reads the given rows of a BF16 or F32 matrix of rowWidth columns as F32, a row's values after another's.
+func TensorRowsF32(tensor Tensor, rowWidth int, rows []int) ([]float32, error) {
+	name := tensor.Name
 	_, width, shapeErr := MatrixShape(tensor)
 	if shapeErr != nil || rowWidth <= extent.FirstOffset || width != uint64(rowWidth) {
 		return nil, fmt.Errorf("safetensors: tensor %s shape %v, want [*,%d]", name, tensor.Shape, rowWidth)

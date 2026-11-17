@@ -183,6 +183,8 @@ func Decoded(source *safetensors.Source) (*safetensors.Source, error) {
 		if err != nil {
 			return nil, fmt.Errorf("convrot: %s: %w", name, err)
 		}
+		// The decoded weight lies in the file its values do, which the source's shards name (SQA-407).
+		decoded.Shard = value.Shard
 		tensors[name] = decoded
 	}
 	return source.Retensored(tensors), nil

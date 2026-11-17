@@ -45,10 +45,13 @@ func adapterControl(c Control) bool {
 	return c.Name == adapterNameControl || c.Name == adapterStrengthControl
 }
 
-// pictureControl says the control is a request's picture to sample from or its denoise (moss-ultra-sections/img2img),
-// which no page offers: a picture is bytes a page attaches, not text it types, and moss-ultra-compare/workbench offers
-// it with its denoise.
-func pictureControl(c Control) bool { return c.Name == "image" || c.Name == "denoise" }
+// workbenchControl says the control is one of the MOSS Ultra workflow's sections that moss-ultra-compare/workbench
+// offers and no page offers before it: a request's picture to sample from and its denoise (moss-ultra-sections/img2img),
+// a picture being bytes a page attaches, not text it types, and prompt mode 2's enhancing
+// (moss-ultra-sections/prompt-modes), which the workbench offers beside modes 1 and 3.
+func workbenchControl(c Control) bool {
+	return c.Name == "image" || c.Name == "denoise" || c.Name == "enhance"
+}
 
 func imageControls(directory string, controls []Control) ([]Control, error) {
 	profile, err := latentimage.ResolveProfile(directory)
@@ -81,7 +84,7 @@ func imageControls(directory string, controls []Control) ([]Control, error) {
 			return nil, err
 		}
 		return slices.DeleteFunc(controls, func(c Control) bool {
-			return c.Name == "negative_prompt" && !guided || c.Name == "guidance_scale" || c.Name == "prompt_mode" || adapterControl(c) || pictureControl(c)
+			return c.Name == "negative_prompt" && !guided || c.Name == "guidance_scale" || c.Name == "prompt_mode" || adapterControl(c) || workbenchControl(c)
 		}), nil
 	}
 	// A rotary model offers the adapters it holds, applied unmerged at a strength of 1 unless the person states one,
@@ -103,7 +106,7 @@ func imageControls(directory string, controls []Control) ([]Control, error) {
 	if policy.DefaultSize <= 0 || float32(int(policy.Guidance)) != policy.Guidance {
 		return nil, fmt.Errorf("image controls: source default extent or guidance cannot be represented")
 	}
-	controls = slices.DeleteFunc(controls, func(c Control) bool { return c.Name == "mu" || c.Name == "num_train_timesteps" || pictureControl(c) })
+	controls = slices.DeleteFunc(controls, func(c Control) bool { return c.Name == "mu" || c.Name == "num_train_timesteps" || workbenchControl(c) })
 	applyBounds(controls, map[string]Bounds{
 		"width":          {Default: policy.DefaultSize, Step: policy.SpatialScale},
 		"height":         {Default: policy.DefaultSize, Step: policy.SpatialScale},

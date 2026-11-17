@@ -71,12 +71,7 @@ func TestTheEnhancersGreedyTextHoldsComfyUIs(t *testing.T) {
 	systems := map[string]string{"positive_system": enhancer.PositiveSystem, "negative_system_photo": enhancer.NegativeSystemPhoto,
 		"negative_system_protected": enhancer.NegativeSystemProtected}
 
-	root, directory := ultraModelRoot(t), t.TempDir()
-	testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "config.json"), testcheck.Must(os.ReadFile(filepath.Join(fixtures, "enhancer", "config.json")))(t), 0o600))
-	for _, name := range []string{"tokenizer.json", "tokenizer_config.json", "chat_template.jinja"} {
-		testcheck.NoError(t, os.WriteFile(filepath.Join(directory, name), testcheck.Must(os.ReadFile(filepath.Join(root, "tokenizer", name)))(t), 0o600))
-	}
-	testcheck.NoError(t, os.Link(filepath.Join(root, filepath.FromSlash(ultraFiles["text_encoder"])), filepath.Join(directory, golden.Encoder)))
+	directory := ultraEnhancer(t, ultraModelRoot(t))
 	loaded := testcheck.Must(servingtest.ResolveActiveGGUFWithPolicy(directory, recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyDeviceNative))(t)
 	runner := testcheck.Must(inference.OpenWithProgram(ctx, &loaded, inference.OpenOptions{}))(t)
 	t.Cleanup(func() { testcheck.NoError(t, runner.Close()) })

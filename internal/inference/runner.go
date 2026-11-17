@@ -94,6 +94,10 @@ type GenerateOptions struct {
 	// PromptTokenIDs, when non-nil, replaces text tokenization with this exact
 	// caller-owned prompt sequence; No BOS/EOS token is inserted implicitly
 	PromptTokenIDs []tokenizer.TokenID
+	// PenaltiesFrom is where in the generation's tokens its sampler's repetition, presence and frequency penalties
+	// start reading: 0 reads its prompt too, as llama.cpp's penalties do, and the prompt's length only what it writes,
+	// as ComfyUI's TextGenerate penalizes (the MOSS Ultra workflow's enhancer, moss-ultra-sections/prompt-modes).
+	PenaltiesFrom int
 	// ContextShift: permits generation to discard oldest attention KV
 	// entries when active cache reaches model context length; Absolute
 	// token positions and hybrid recurrent state are preserved

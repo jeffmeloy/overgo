@@ -3,26 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "moss-ultra-sections",
-      "title": "overgo runs every section of the MOSS Ultra workflow: bong_tangent, beta57 and request sigmas, ER-SDE, image to image, depth estimation and control, prompt modes 2 and 3, and the finishing steps",
-      "steps": [
-        {
-          "id": "prompt-modes",
-          "title": "Prompt mode 2's enhancer and mode 3's boxes run as typed Go, the cleaned negative and the layout string equal to ComfyUI's",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestPromptModesTwoAndThreeEqualTheRecordedStrings$'",
-          "files": [
-            "internal/latentimage",
-            "internal/workflowruntime"
-          ],
-          "needs_card": true,
-          "rationale": "The recorder reads the enhancer's system prompts and request templates out of the workflow file as data. Sampling follows the workflow: temperature 0.7, top-k 20, top-p 0.8, presence penalty 1.5, seed 0, thinking off. The 450-word test with one retry, the negative written from the final positive, the photo-or-other choice and the negative clean-up are Go string code, not regular expressions. Mode 3 converts 0 to 1000 boxes to centred-pixel yxyx layout JSON, which overgo already validates.\n\nNote: 2026-11-17, from moss-ultra-import/encoder: the enhancer's chat runs the Ultra encoder file with its head (lm_head, int8 ConvRot like the rest) through overgo's LLM serving, the file's own names those of a Hugging Face checkpoint for generation (model.language_model., lm_head), which overgo's Qwen 3.5 adapter maps. ComfyUI's generate runs the int8 matmul with activations quantized per row after the rotation (comfy_kitchen int8_linear), where its conditioning decodes the weights; greedy text is held token for token, so the chat's own path is the one to match.\n\nServes: capabilities MOSS lacks.\nDisappears: nothing.\nEvidence: given the same generated text, the cleaned negative equals ComfyUI's string exactly; the generated text is held token for token under greedy decoding; sampled text is compared only through the image; mode 3's layout equals the recorded string.\nBatch: device lane.",
-          "depends_on": [
-            "moss-ultra-import/encoder"
-          ]
-        }
-      ]
-    },
-    {
       "id": "moss-ultra-compare",
       "title": "overgo on the Ultra workflow's models is held to the golden per section, and overgo's MOSS-Image-SFT runs the same sections as a measured band",
       "steps": [
@@ -68,7 +48,7 @@
             "internal/server",
             "fixtures/comfy"
           ],
-          "rationale": "The workflow review (C:/Users/jeffm/Downloads/MOSS workflow review.md) lists the controls a user needs to run the sections from overgo's workbench. The presets are read from the recorded settings as data.\n\nServes: setup-steps for a user.\nDisappears: nothing.\nEvidence: the workbench lists six presets whose values equal the recorded settings, each offering the listed controls.\nBatch: host lane.",
+          "rationale": "The workflow review (C:/Users/jeffm/Downloads/MOSS workflow review.md) lists the controls a user needs to run the sections from overgo's workbench. The presets are read from the recorded settings as data.\n\nNote: 2026-11-17, from moss-ultra-sections/prompt-modes: the workflow's negative in modes 1 and 3 is its exclusions as RegexReplace 707:703:470 reads them, the backup negative (moss_enhancer.json negative_backup) where they are empty or a \"none\" (isNoNegative); mode 2's chain applies it itself. A request's negative is drawn as given, so the workbench offers that backup as the negative of an empty or none exclusion in modes 1 and 3. It offers mode 2 (the request's enhance, held back from pages until then by mediacapability workbenchControl, with the picture and its denoise), mode 3 (the request's layout, LayoutDraft), and the model's enhancer folder, which a MOSS Ultra root holds beside its encoder (latentimage enhancerDirectory).\n\nServes: setup-steps for a user.\nDisappears: nothing.\nEvidence: the workbench lists six presets whose values equal the recorded settings, each offering the listed controls.\nBatch: host lane.",
           "depends_on": [
             "moss-ultra-compare/golden-floor"
           ]

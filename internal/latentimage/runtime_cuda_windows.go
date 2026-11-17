@@ -78,7 +78,18 @@ type Request struct {
 	// fields and regions, which make MOSS's layout prompt on the canvas the request draws (LayoutDraft.prompt) in place
 	// of a prompt of its own.
 	Layout *LayoutDraft `json:"layout,omitempty"`
+	// Enhance asks the MOSS Ultra workflow's prompt mode 2 of a rotary request: its prompt a source idea and its negative
+	// the exclusions, of which the model's enhancer chat writes the prompt and negative it is drawn by (EnhanceRequest),
+	// before the picture session takes it.
+	Enhance bool `json:"enhance,omitzero"`
 }
+
+// errEnhanceBesideLayout refuses prompt modes 2 and 3 asked together, as the workflow's one prompt mode takes either.
+var errEnhanceBesideLayout = errors.New("latent image: prompt mode 2 enhances a prompt, and a layout is mode 3's; ask the one or the other")
+
+// errNotEnhanced refuses a request still asking prompt mode 2 where a picture session takes it: its enhancer chat
+// writes it first (EnhanceRequest).
+var errNotEnhanced = errors.New("latent image: a request asking prompt mode 2 is enhanced (EnhanceRequest) before a picture session draws it")
 
 // denoiseWhole is the denoise above which ComfyUI samples the whole schedule (KSampler.set_steps).
 const denoiseWhole = 0.9999
@@ -156,6 +167,12 @@ func admitPicture(ctx context.Context, session *graphruntime.ResidentSession, to
 func ValidateRequest(request Request) error {
 	// A request that samples from a picture or by a depth map may leave its prompt empty, as the MOSS Ultra workflow's
 	// image to image and depth sections do: the picture or the map conditions what it draws. A layout is its prompt.
+	if request.Enhance {
+		if request.Layout != nil {
+			return errEnhanceBesideLayout
+		}
+		return errNotEnhanced
+	}
 	if !checked.Nonzero(request.Prompt) && request.Image == "" && request.Control == nil && request.Layout == nil {
 		return errors.New("latent image: prompt is empty")
 	}
@@ -639,7 +656,7 @@ var errRotaryOnly = errors.New("latent image: selected profile does not support 
 
 // rotaryOnly is whether the request asks what only a rotary profile runs: a negative prompt or guidance over its
 // steps, except normalized attention guidance's (attentionGuided), a guidance scale of its own, layout validation or
-// boxes, a sharpening of its picture, an adapter, a picture or denoise to sample from, a depth control, or the blocks
+// a layout, a sharpening of its picture, an adapter, a picture or denoise to sample from, a depth control, or the blocks
 // its negative pass skips.
 func (r Request) rotaryOnly() bool {
 	return !r.attentionGuided() && (r.NegativePrompt != "" || r.Guidance != (sampling.Guidance{})) ||

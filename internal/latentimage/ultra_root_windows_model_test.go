@@ -58,3 +58,20 @@ func ultraModelRoot(t *testing.T) string {
 	}
 	return root
 }
+
+// ultraEnhancer gives an Ultra root its enhancer folder (enhancerDirectory), the encoder file served as a chat model:
+// Qwen3.5-9B's own config for generation (fixtures/comfy/moss-ultra/enhancer/config.json, Qwen/Qwen3.5-9B's
+// config.json), the root's tokenizer and chat template, and the encoder file hard-linked; it returns the folder.
+func ultraEnhancer(t *testing.T, root string) string {
+	t.Helper()
+	directory := filepath.Join(root, enhancerDirectory)
+	testcheck.NoError(t, os.Mkdir(directory, 0o700))
+	config := filepath.Join(testutil.RepoRoot(t), "fixtures", "comfy", "moss-ultra", "enhancer", "config.json")
+	testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "config.json"), testcheck.Must(os.ReadFile(config))(t), 0o600))
+	for _, name := range []string{"tokenizer.json", "tokenizer_config.json", "chat_template.jinja"} {
+		testcheck.NoError(t, os.WriteFile(filepath.Join(directory, name), testcheck.Must(os.ReadFile(filepath.Join(root, "tokenizer", name)))(t), 0o600))
+	}
+	encoder := filepath.FromSlash(ultraFiles["text_encoder"])
+	testcheck.NoError(t, os.Link(filepath.Join(root, encoder), filepath.Join(directory, filepath.Base(encoder))))
+	return directory
+}

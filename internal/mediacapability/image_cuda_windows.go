@@ -64,7 +64,7 @@ func imageCapability() Capability {
 		sensenovarecipe.RegisterRuntime,
 	)
 	routed := sessionExecutor(routedDirector, routedErr)
-	latent := sessionExecutor(pictureSessions())
+	latent := enhancedFirst(sessionExecutor(pictureSessions()))
 	oscillator := capabilityruntime.JSONScalar[oscillatorimage.Request, *oscillatorimage.Model, latentimage.EncodedImage](
 		"image-gen", oscillatorimage.ValidateRequest,
 		capabilityruntime.IgnoreInput[oscillatorimage.Request](oscillatorimage.Load), oscillatorimage.RegisterRuntime,
@@ -91,6 +91,27 @@ func imageCapability() Capability {
 			modelrecipe.ModuleDiffusionImagePrepare:  diffusion,
 			modelrecipe.ModuleRAEImagePrepare:        raeImage,
 		}.Execute,
+	}
+}
+
+// enhancedFirst runs prompt mode 2 ahead of a latent picture session: a request asking the MOSS Ultra workflow's
+// enhancer has its prompt and negative written by the model's enhancer chat (latentimage.EnhanceRequest) and is served
+// as the request stating what it wrote; any other input goes to the session as it is.
+func enhancedFirst(next capabilityruntime.Executor) capabilityruntime.Executor {
+	return func(ctx context.Context, store artifact.Repository, path string, selection modelrecipe.CapabilityEvidenceSelection, input string) (any, error) {
+		var request latentimage.Request
+		if err := json.Unmarshal([]byte(input), &request); err != nil || !request.Enhance {
+			return next(ctx, store, path, selection, input)
+		}
+		enhanced, err := latentimage.EnhanceRequest(ctx, store, path, request)
+		if err != nil {
+			return nil, err
+		}
+		written, err := json.Marshal(enhanced)
+		if err != nil {
+			return nil, err
+		}
+		return next(ctx, store, path, selection, string(written))
 	}
 }
 

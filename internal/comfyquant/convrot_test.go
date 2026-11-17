@@ -55,8 +55,8 @@ func TestADecodedRowIsComfyKitchensRotation(t *testing.T) {
 
 // TestAQuantizedCheckpointReadsAsTheOneItDecodesTo holds the view a repository reads a ComfyUI ConvRot checkpoint
 // through (moss-ultra-sections/enhancer-chat): each quantized weight under its own name as its decoded bfloat16 rows,
-// read whole or a row at a time alike, every other tensor as stored, neither records nor scales, and a checkpoint that
-// holds no quantized weight returned as it is.
+// read whole or a row at a time alike, in the shard its values lie in, every other tensor as stored, neither records nor
+// scales, and a checkpoint that holds no quantized weight returned as it is.
 func TestAQuantizedCheckpointReadsAsTheOneItDecodesTo(t *testing.T) {
 	const rows, columns = 3, Group
 	record := []byte(`{"format":"int8_tensorwise","convrot":true,"convrot_groupsize":256}`)
@@ -71,8 +71,11 @@ func TestAQuantizedCheckpointReadsAsTheOneItDecodesTo(t *testing.T) {
 	}
 	plain := []byte{1, 2, 3, 4}
 	tensors := map[string]safetensors.Tensor{}
+	const shard = "model.safetensors"
 	add := func(name, dataType string, shape []uint64, data []byte) {
-		tensors[name] = testcheck.Must(safetensors.NewTensor(name, dataType, shape, bytes.NewReader(data), 0, int64(len(data))))(t)
+		tensor := testcheck.Must(safetensors.NewTensor(name, dataType, shape, bytes.NewReader(data), 0, int64(len(data))))(t)
+		tensor.Shard = shard
+		tensors[name] = tensor
 	}
 	add("head.weight", "I8", []uint64{rows, columns}, quantized)
 	add("head.weight_scale", "F32", []uint64{rows, 1}, scaleBytes)
@@ -87,6 +90,10 @@ func TestAQuantizedCheckpointReadsAsTheOneItDecodesTo(t *testing.T) {
 		}
 	}); !slices.Equal(names, []string{"head.weight", "norm.weight"}) {
 		t.Fatalf("the view holds %v, want the decoded weight and the plain tensor alone", names)
+	}
+	// Its shards are the files its tensors lie in, which an inventory hashes (SQA-407).
+	if shards := view.Shards(); !slices.Equal(shards, []string{shard}) {
+		t.Fatalf("the view names the shards %q, want the checkpoint's %q", shards, shard)
 	}
 	head := view.Tensors["head.weight"]
 	if head.DType != "BF16" || !slices.Equal(head.Shape, []uint64{rows, columns}) {

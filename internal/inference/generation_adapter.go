@@ -23,6 +23,9 @@ func normalizeGenerateOptions(options *GenerateOptions, maxStopSequences int) er
 	if options.DiscardTokens < 0 {
 		return errors.New("inference: discard token count is negative")
 	}
+	if options.PenaltiesFrom < 0 {
+		return errors.New("inference: the penalties' first token is negative")
+	}
 	if options.PostSamplingProbabilities < 0 {
 		return errors.New("inference: post-sampling probability count is negative")
 	}
@@ -63,6 +66,11 @@ func (r *Runner) applyGenerationLoRA(options *GenerateOptions) (func(), error) {
 
 func tokenHistory(ids []tokenizer.TokenID) []int { return dtype.ConvertSlice[int](ids) }
 
+// penaltyHistory is the history a generation's sampler penalizes: its tokens from options.PenaltiesFrom on.
+func penaltyHistory(ids []tokenizer.TokenID, options GenerateOptions) []int {
+	return tokenHistory(ids[min(options.PenaltiesFrom, len(ids)):])
+}
+
 // deviceTopK is the top K a request's sampled rows come down from the card as (DeviceTopK), zero for whole rows: its
 // sampler's bounded top K, where the request reads no row's probabilities and its sampler cuts to the top K first.
 func deviceTopK(options GenerateOptions, vocabulary int) int {
@@ -100,7 +108,7 @@ func (r *Runner) sampleGenerationRow(
 	for index, candidate := range candidates {
 		topIDs[index], topLogits[index] = int(candidate.ID), candidate.Logit
 	}
-	next, err := options.Sampler.SampleTopK(topIDs, topLogits, int(r.spec.VocabularySize), tokenHistory(ids))
+	next, err := options.Sampler.SampleTopK(topIDs, topLogits, int(r.spec.VocabularySize), penaltyHistory(ids, options))
 	return TokenEvent{ID: tokenizer.TokenID(next)}, err
 }
 
@@ -109,7 +117,7 @@ func sampleGenerationToken(
 	ids []tokenizer.TokenID,
 	options GenerateOptions,
 ) (TokenEvent, error) {
-	history := tokenHistory(ids)
+	history := penaltyHistory(ids, options)
 	if options.PostSamplingProbabilities > 0 {
 		result, err := options.Sampler.SampleWithHistoryProbabilities(
 			logits, history, options.PostSamplingProbabilities,

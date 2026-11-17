@@ -3,6 +3,7 @@
 package latentimage
 
 import (
+	"errors"
 	"math"
 	"testing"
 
@@ -39,5 +40,28 @@ func TestARequestsLayoutBecomesItsPrompt(t *testing.T) {
 	}
 	if !(Request{Layout: draft}).rotaryOnly() {
 		t.Error("a layout was offered to a flow profile")
+	}
+}
+
+// TestARequestAskingModeTwoIsEnhancedFirst holds prompt mode 2 on a request (moss-ultra-sections/prompt-modes): a
+// request still asking it is refused where a picture session would draw it, as is one asking mode 3 beside it, and
+// EnhanceRequest returns a request asking no enhancing as it is and refuses the two modes together before opening a
+// chat.
+func TestARequestAskingModeTwoIsEnhancedFirst(t *testing.T) {
+	asking := Request{Enhance: true, Prompt: "a fox", Width: 1024, Height: 576}
+	if err := ValidateRequest(asking); !errors.Is(err, errNotEnhanced) {
+		t.Errorf("a request still asking mode 2 was validated with %v, want it refused as not yet enhanced", err)
+	}
+	both := Request{Enhance: true, Width: 1024, Height: 576, Layout: &LayoutDraft{Style: draftStylePhoto}}
+	if err := ValidateRequest(both); !errors.Is(err, errEnhanceBesideLayout) {
+		t.Errorf("modes 2 and 3 together were validated with %v, want them refused", err)
+	}
+	// Neither request reaches a chat: the store and model root are none.
+	plain := Request{Prompt: "a fox", Width: 1024, Height: 576}
+	if got := testcheck.Must(EnhanceRequest(t.Context(), nil, "", plain))(t); got != plain {
+		t.Errorf("a request asking no enhancing came back as %+v", got)
+	}
+	if _, err := EnhanceRequest(t.Context(), nil, "", both); !errors.Is(err, errEnhanceBesideLayout) {
+		t.Errorf("enhancing modes 2 and 3 together gave %v, want them refused", err)
 	}
 }

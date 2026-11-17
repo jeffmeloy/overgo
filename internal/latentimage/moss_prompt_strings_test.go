@@ -37,12 +37,12 @@ type promptStringsGolden struct {
 		Result json.RawMessage `json:"result"`
 	} `json:"rules"`
 	Layouts []struct {
-		Prompt     string      `json:"prompt"`
-		Elements   []LayoutBox `json:"elements"`
-		Width      int         `json:"width"`
-		Height     int         `json:"height"`
-		Characters string      `json:"characters"`
-		Layout     string      `json:"layout"`
+		Prompt     string          `json:"prompt"`
+		Elements   []layoutElement `json:"elements"`
+		Width      int             `json:"width"`
+		Height     int             `json:"height"`
+		Characters string          `json:"characters"`
+		Layout     string          `json:"layout"`
 	} `json:"layouts"`
 }
 
@@ -101,7 +101,7 @@ func TestPromptModeStringsEqualComfyUIsNodes(t *testing.T) {
 		}
 	}
 	for index, layout := range golden.Layouts {
-		if got := layoutPrompt(layout.Prompt, LayoutBoxes{Boxes: layout.Elements, Characters: layout.Characters}, layout.Width, layout.Height); got != layout.Layout {
+		if got := layoutPrompt(layout.Prompt, layout.Elements, layout.Width, layout.Height, layout.Characters); got != layout.Layout {
 			t.Errorf("layout %d = %s, ComfyUI's %s", index, got, layout.Layout)
 		}
 	}

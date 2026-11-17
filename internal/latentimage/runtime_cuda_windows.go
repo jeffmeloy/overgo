@@ -74,21 +74,21 @@ type Request struct {
 	// them: the profile's where the request states none (MOSS's 22, which the MOSS Ultra workflow's text and image
 	// sections skip), none where it states an empty list (its depth sections, which skip none).
 	SkipBlocks *[]int `json:"skip_blocks,omitempty"`
-	// Layout is boxes that make a rotary request's prompt MOSS's layout prompt, as the MOSS Ultra workflow's prompt mode
-	// 3 makes it (layoutPrompt), on the canvas the request draws.
-	Layout *LayoutBoxes `json:"layout,omitempty"`
+	// Layout is a rotary request's prompt as the MOSS Ultra workflow's prompt mode 3 takes it, its Ideogram 4 builder's
+	// fields and regions, which make MOSS's layout prompt on the canvas the request draws (LayoutDraft.prompt) in place
+	// of a prompt of its own.
+	Layout *LayoutDraft `json:"layout,omitempty"`
 }
 
 // denoiseWhole is the denoise above which ComfyUI samples the whole schedule (KSampler.set_steps).
 const denoiseWhole = 0.9999
 
-// prompt is what the request's text encoder reads: its prompt, or the layout its boxes make of it on its canvas
-// (layoutPrompt).
+// prompt is what the request's text encoder reads: its prompt, or the layout prompt its layout makes on its canvas.
 func (r Request) prompt() string {
 	if r.Layout == nil {
 		return r.Prompt
 	}
-	return layoutPrompt(r.Prompt, *r.Layout, r.Width, r.Height)
+	return r.Layout.prompt(r.Width, r.Height)
 }
 
 // cutsSchedule is whether the request samples part of its schedule.
@@ -155,11 +155,14 @@ func admitPicture(ctx context.Context, session *graphruntime.ResidentSession, to
 
 func ValidateRequest(request Request) error {
 	// A request that samples from a picture or by a depth map may leave its prompt empty, as the MOSS Ultra workflow's
-	// image to image and depth sections do: the picture or the map conditions what it draws.
-	if !checked.Nonzero(request.Prompt) && request.Image == "" && request.Control == nil {
+	// image to image and depth sections do: the picture or the map conditions what it draws. A layout is its prompt.
+	if !checked.Nonzero(request.Prompt) && request.Image == "" && request.Control == nil && request.Layout == nil {
 		return errors.New("latent image: prompt is empty")
 	}
 	if request.Layout != nil {
+		if request.Prompt != "" {
+			return errLayoutBesidePrompt
+		}
 		if err := request.Layout.validate(); err != nil {
 			return err
 		}

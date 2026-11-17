@@ -1,0 +1,367 @@
+{
+ "cases": [
+  {
+   "inputs": {
+    "name": "recording",
+    "width": 1024,
+    "height": 576,
+    "style": "photo",
+    "fields": {},
+    "palette": [],
+    "regions": [],
+    "characters": ""
+   },
+   "caption": "{\"style_description\":{\"aesthetics\":\"\",\"lighting\":\"\",\"photo\":\"\",\"medium\":\"\"},\"compositional_deconstruction\":{\"background\":\"\",\"elements\":[]}}",
+   "prompt": "Scene: \nBackground: \nAesthetics: \nLighting: \nCamera: \nMedium: \nArt style: \nPalette: ",
+   "elements_text": "[]",
+   "elements": [],
+   "layout": "Scene: \nBackground: \nAesthetics: \nLighting: \nCamera: \nMedium: \nArt style: \nPalette: "
+  },
+  {
+   "inputs": {
+    "name": "photo",
+    "width": 1024,
+    "height": 576,
+    "style": "photo",
+    "characters": "1",
+    "fields": {
+     "high_level_description": "A quiet café at dusk",
+     "background": "a cobbled street, wet after rain",
+     "photo": "35mm, f/1.8",
+     "aesthetics": "cinematic",
+     "lighting": "warm streetlights",
+     "medium": "photograph"
+    },
+    "palette": [
+     "#ff8800",
+     "",
+     "#112233"
+    ],
+    "regions": [
+     {
+      "x": 0.1,
+      "y": 0.2,
+      "w": 0.35,
+      "h": 0.4,
+      "type": "obj",
+      "text": "",
+      "desc": "a café table",
+      "palette": [
+       "#aabbcc"
+      ]
+     },
+     {
+      "x": 0.6,
+      "y": 0.05,
+      "w": 0.25,
+      "h": 0.1,
+      "type": "text",
+      "text": "OPEN",
+      "desc": "a neon sign",
+      "palette": []
+     },
+     {
+      "x": 0.9,
+      "y": 0.9,
+      "w": -0.3,
+      "h": -0.2,
+      "type": "obj",
+      "text": "ignored",
+      "desc": "a \"lamp\" {lit}",
+      "palette": [
+       "#ffffff",
+       "#000000"
+      ]
+     }
+    ]
+   },
+   "caption": "{\"high_level_description\":\"A quiet café at dusk\",\"style_description\":{\"aesthetics\":\"cinematic\",\"lighting\":\"warm streetlights\",\"photo\":\"35mm, f/1.8\",\"medium\":\"photograph\",\"color_palette\":[\"#FF8800\",\"#112233\"]},\"compositional_deconstruction\":{\"background\":\"a cobbled street, wet after rain\",\"elements\":[{\"type\":\"obj\",\"bbox\":[200,100,600,450],\"desc\":\"a café table\",\"color_palette\":[\"#AABBCC\"]},{\"type\":\"text\",\"bbox\":[50,600,150,850],\"text\":\"OPEN\",\"desc\":\"a neon sign\"},{\"type\":\"obj\",\"bbox\":[700,600,900,900],\"desc\":\"a \\\"lamp\\\" {lit}\",\"color_palette\":[\"#FFFFFF\",\"#000000\"]}]}}",
+   "prompt": "Scene: A quiet café at dusk\nBackground: a cobbled street, wet after rain\nAesthetics: cinematic\nLighting: warm streetlights\nCamera: 35mm, f/1.8\nMedium: photograph\nArt style: \nPalette: ['#FF8800', '#112233']",
+   "elements_text": "[{\"type\":\"obj\",\"bbox\":[200,100,600,450],\"desc\":\"a café table\",\"color_palette\":[\"#AABBCC\"]},{\"type\":\"text\",\"bbox\":[50,600,150,850],\"text\":\"OPEN\",\"desc\":\"a neon sign\"},{\"type\":\"obj\",\"bbox\":[700,600,900,900],\"desc\":\"a \\\"lamp\\\" {lit}\",\"color_palette\":[\"#FFFFFF\",\"#000000\"]}]",
+   "elements": [
+    {
+     "type": "obj",
+     "bbox": [
+      200,
+      100,
+      599,
+      449
+     ],
+     "desc": "a café table",
+     "color_palette": [
+      "#AABBCC"
+     ]
+    },
+    {
+     "type": "text",
+     "bbox": [
+      50,
+      600,
+      151,
+      850
+     ],
+     "text": "OPEN",
+     "desc": "a neon sign"
+    },
+    {
+     "type": "obj",
+     "bbox": [
+      700,
+      600,
+      899,
+      899
+     ],
+     "desc": "a \"lamp\" {lit}",
+     "color_palette": [
+      "#FFFFFF",
+      "#000000"
+     ]
+    }
+   ],
+   "layout": "{\"summary\":{\"caption\":\"Scene: A quiet café at dusk\\nBackground: a cobbled street, wet after rain\\nAesthetics: cinematic\\nLighting: warm streetlights\\nCamera: 35mm, f/1.8\\nMedium: photograph\\nArt style: \\nPalette: ['#FF8800', '#112233']\"},\"items\":[{\"label\":\"character\",\"caption\":\"a café table\",\"palette\":[\"#AABBCC\"],\"bbox\":[-173,-410,58,-52]},{\"label\":\"text\",\"caption\":\"a neon sign\",\"text\":\"OPEN\",\"bbox\":[-260,102,-201,359]},{\"label\":\"object\",\"caption\":\"a \\\"lamp\\\" {lit}\",\"palette\":[\"#FFFFFF\",\"#000000\"],\"bbox\":[115,102,230,409]}],\"bbox_coord_space\":\"abs_centralized\",\"bbox_format\":\"yxyx\"}"
+  },
+  {
+   "inputs": {
+    "name": "art-style",
+    "width": 1920,
+    "height": 1088,
+    "style": "art_style",
+    "characters": "2, 3",
+    "fields": {
+     "high_level_description": "東京の夜景 — «night»",
+     "background": "a {garden} where they say \"hi\"",
+     "art_style": "ukiyo-e",
+     "aesthetics": "flat colour, it's calm",
+     "lighting": "",
+     "medium": "woodblock print"
+    },
+    "palette": [
+     "#010203",
+     "#a0b0c0",
+     "#ddeeff",
+     "#123456",
+     "#654321",
+     "#abcdef"
+    ],
+    "regions": [
+     {
+      "x": 0.0005,
+      "y": 0.0015,
+      "w": 0.0015,
+      "h": 0.0025,
+      "type": "obj",
+      "text": "",
+      "desc": "a speck",
+      "palette": []
+     },
+     {
+      "x": 0.25,
+      "y": 0.125,
+      "w": 0.5,
+      "h": 0.375,
+      "type": "obj",
+      "text": "",
+      "desc": "the tower",
+      "palette": [
+       "#111111",
+       "#222222",
+       "#333333",
+       "#444444",
+       "#555555",
+       "#666666",
+       "#777777"
+      ]
+     },
+     {
+      "x": 0.3333,
+      "y": 0.6667,
+      "w": 0.3333,
+      "h": 0.2222,
+      "type": "text",
+      "text": "夜 \"night\"",
+      "desc": "",
+      "palette": [
+       "#ff0000"
+      ]
+     }
+    ]
+   },
+   "caption": "{\"high_level_description\":\"東京の夜景 — «night»\",\"style_description\":{\"aesthetics\":\"flat colour, it's calm\",\"lighting\":\"\",\"medium\":\"woodblock print\",\"art_style\":\"ukiyo-e\",\"color_palette\":[\"#010203\",\"#A0B0C0\",\"#DDEEFF\",\"#123456\",\"#654321\",\"#ABCDEF\"]},\"compositional_deconstruction\":{\"background\":\"a {garden} where they say \\\"hi\\\"\",\"elements\":[{\"type\":\"obj\",\"bbox\":[2,0,4,2],\"desc\":\"a speck\"},{\"type\":\"obj\",\"bbox\":[125,250,500,750],\"desc\":\"the tower\",\"color_palette\":[\"#111111\",\"#222222\",\"#333333\",\"#444444\",\"#555555\"]},{\"type\":\"text\",\"bbox\":[667,333,889,667],\"text\":\"夜 \\\"night\\\"\",\"desc\":\"\",\"color_palette\":[\"#FF0000\"]}]}}",
+   "prompt": "Scene: 東京の夜景 — «night»\nBackground: a {garden} where they say \"hi\"\nAesthetics: flat colour, it's calm\nLighting: \nCamera: \nMedium: woodblock print\nArt style: ukiyo-e\nPalette: ['#010203', '#A0B0C0', '#DDEEFF', '#123456', '#654321', '#ABCDEF']",
+   "elements_text": "[{\"type\":\"obj\",\"bbox\":[2,0,4,2],\"desc\":\"a speck\"},{\"type\":\"obj\",\"bbox\":[125,250,500,750],\"desc\":\"the tower\",\"color_palette\":[\"#111111\",\"#222222\",\"#333333\",\"#444444\",\"#555555\"]},{\"type\":\"text\",\"bbox\":[667,333,889,667],\"text\":\"夜 \\\"night\\\"\",\"desc\":\"\",\"color_palette\":[\"#FF0000\"]}]",
+   "elements": [
+    {
+     "type": "obj",
+     "bbox": [
+      2,
+      0,
+      4,
+      2
+     ],
+     "desc": "a speck"
+    },
+    {
+     "type": "obj",
+     "bbox": [
+      125,
+      250,
+      500,
+      750
+     ],
+     "desc": "the tower",
+     "color_palette": [
+      "#111111",
+      "#222222",
+      "#333333",
+      "#444444",
+      "#555555"
+     ]
+    },
+    {
+     "type": "text",
+     "bbox": [
+      667,
+      333,
+      890,
+      667
+     ],
+     "text": "夜 \"night\"",
+     "desc": "",
+     "color_palette": [
+      "#FF0000"
+     ]
+    }
+   ],
+   "layout": "{\"summary\":{\"caption\":\"Scene: 東京の夜景 — «night»\\nBackground: a {garden} where they say \\\"hi\\\"\\nAesthetics: flat colour, it's calm\\nLighting: \\nCamera: \\nMedium: woodblock print\\nArt style: ukiyo-e\\nPalette: ['#010203', '#A0B0C0', '#DDEEFF', '#123456', '#654321', '#ABCDEF']\"},\"items\":[{\"label\":\"object\",\"caption\":\"a speck\",\"bbox\":[-542,-960,-539,-956]},{\"label\":\"character\",\"caption\":\"the tower\",\"palette\":[\"#111111\",\"#222222\",\"#333333\",\"#444444\",\"#555555\"],\"bbox\":[-408,-480,0,480]},{\"label\":\"text\",\"caption\":\"\",\"text\":\"夜 \\\"night\\\"\",\"palette\":[\"#FF0000\"],\"bbox\":[181,-321,425,321]}],\"bbox_coord_space\":\"abs_centralized\",\"bbox_format\":\"yxyx\"}"
+  },
+  {
+   "inputs": {
+    "name": "no-style",
+    "width": 1000,
+    "height": 1000,
+    "style": "none",
+    "characters": "",
+    "fields": {
+     "high_level_description": "   ",
+     "background": "plain white",
+     "aesthetics": "unused",
+     "medium": "unused"
+    },
+    "palette": [
+     "#ffffff"
+    ],
+    "regions": [
+     {
+      "x": 0.1,
+      "y": 0.1,
+      "w": 0.2,
+      "h": 0.2,
+      "type": "obj",
+      "text": "",
+      "desc": "a cube",
+      "palette": []
+     },
+     {
+      "x": 0.5,
+      "y": 0.5,
+      "w": 0.3,
+      "h": 0.1,
+      "type": "text",
+      "text": "",
+      "desc": "a blank sign",
+      "palette": []
+     }
+    ]
+   },
+   "caption": "{\"compositional_deconstruction\":{\"background\":\"plain white\",\"elements\":[{\"type\":\"obj\",\"bbox\":[100,100,300,300],\"desc\":\"a cube\"},{\"type\":\"text\",\"bbox\":[500,500,600,800],\"text\":\"\",\"desc\":\"a blank sign\"}]}}",
+   "prompt": "Scene: \nBackground: plain white\nAesthetics: \nLighting: \nCamera: \nMedium: \nArt style: \nPalette: ",
+   "elements_text": "[{\"type\":\"obj\",\"bbox\":[100,100,300,300],\"desc\":\"a cube\"},{\"type\":\"text\",\"bbox\":[500,500,600,800],\"text\":\"\",\"desc\":\"a blank sign\"}]",
+   "elements": [
+    {
+     "type": "obj",
+     "bbox": [
+      100,
+      100,
+      300,
+      300
+     ],
+     "desc": "a cube"
+    },
+    {
+     "type": "text",
+     "bbox": [
+      500,
+      500,
+      600,
+      800
+     ],
+     "text": "",
+     "desc": "a blank sign"
+    }
+   ],
+   "layout": "{\"summary\":{\"caption\":\"Scene: \\nBackground: plain white\\nAesthetics: \\nLighting: \\nCamera: \\nMedium: \\nArt style: \\nPalette:\"},\"items\":[{\"label\":\"object\",\"caption\":\"a cube\",\"bbox\":[-400,-400,-200,-200]},{\"label\":\"text\",\"caption\":\"a blank sign\",\"text\":\"\",\"bbox\":[0,0,100,300]}],\"bbox_coord_space\":\"abs_centralized\",\"bbox_format\":\"yxyx\"}"
+  },
+  {
+   "inputs": {
+    "name": "clamped",
+    "width": 832,
+    "height": 1216,
+    "style": "photo",
+    "characters": "1",
+    "fields": {
+     "background": "sea",
+     "photo": "telephoto"
+    },
+    "palette": [],
+    "regions": [
+     {
+      "x": -0.1,
+      "y": 0.95,
+      "w": 0.3,
+      "h": 0.2,
+      "type": "obj",
+      "text": "",
+      "desc": "a buoy",
+      "palette": []
+     },
+     {
+      "x": 0.4999,
+      "y": 0.5001,
+      "w": 0.2502,
+      "h": 0.1249,
+      "type": "obj",
+      "text": "",
+      "desc": "a gull",
+      "palette": []
+     }
+    ]
+   },
+   "caption": "{\"style_description\":{\"aesthetics\":\"\",\"lighting\":\"\",\"photo\":\"telephoto\",\"medium\":\"\"},\"compositional_deconstruction\":{\"background\":\"sea\",\"elements\":[{\"type\":\"obj\",\"bbox\":[950,0,1000,200],\"desc\":\"a buoy\"},{\"type\":\"obj\",\"bbox\":[500,500,625,750],\"desc\":\"a gull\"}]}}",
+   "prompt": "Scene: \nBackground: sea\nAesthetics: \nLighting: \nCamera: telephoto\nMedium: \nArt style: \nPalette: ",
+   "elements_text": "[{\"type\":\"obj\",\"bbox\":[950,0,1000,200],\"desc\":\"a buoy\"},{\"type\":\"obj\",\"bbox\":[500,500,625,750],\"desc\":\"a gull\"}]",
+   "elements": [
+    {
+     "type": "obj",
+     "bbox": [
+      950,
+      0,
+      1000,
+      200
+     ],
+     "desc": "a buoy"
+    },
+    {
+     "type": "obj",
+     "bbox": [
+      500,
+      500,
+      625,
+      750
+     ],
+     "desc": "a gull"
+    }
+   ],
+   "layout": "{\"summary\":{\"caption\":\"Scene: \\nBackground: sea\\nAesthetics: \\nLighting: \\nCamera: telephoto\\nMedium: \\nArt style: \\nPalette:\"},\"items\":[{\"label\":\"character\",\"caption\":\"a buoy\",\"bbox\":[547,-416,608,-249]},{\"label\":\"object\",\"caption\":\"a gull\",\"bbox\":[0,0,152,208]}],\"bbox_coord_space\":\"abs_centralized\",\"bbox_format\":\"yxyx\"}"
+  }
+ ]
+}

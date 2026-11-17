@@ -14,8 +14,10 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/recipe"
 	"overgo/internal/strictjson"
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 )
 
 // readingsFake stands in for the build's processes: a render writes its suite unless its arm is told to fail, a judged
@@ -24,6 +26,8 @@ type readingsFake struct {
 	t        *testing.T
 	failDraw map[string]bool
 	calls    []string
+	// negatives are the negative prompts each render asked with, by its media directory.
+	negatives map[string]string
 }
 
 func readingsRecord(t *testing.T, suite string) string {
@@ -37,8 +41,18 @@ func (f *readingsFake) run(_ context.Context, args []string, stdout, stderr io.W
 		named[args[index]] = args[index+1]
 	}
 	switch {
+	case named["-pairwise-evaluation"] != "":
+		f.calls = append(f.calls, "admit-pairwise "+filepath.Base(named["-pairwise-preset"]))
+		fmt.Fprintf(stdout, "{\"Preset\": %q, \"Admitted\": true}\n", named["-pairwise-evaluation"])
+		return nil
+	case named["-pairwise-preset"] != "":
+		f.calls = append(f.calls, "compose "+filepath.Base(named["-media-out"])+" from "+filepath.Base(named["-reference-render"])+" and "+filepath.Base(named["-pairwise-preset"]))
+		return os.WriteFile(named["-suite-out"], []byte("{}"), 0o644)
 	case named["-render-tifa"] != "" || named["-render-vidgen"] != "":
 		f.calls = append(f.calls, "render "+filepath.Base(named["-media-out"]))
+		if f.negatives != nil {
+			f.negatives[filepath.Base(named["-media-out"])] = named["-render-negative"]
+		}
 		if f.failDraw[filepath.Base(named["-media-out"])] {
 			fmt.Fprintln(stderr, "workflow runtime: step integrate: artifact: invalid content size")
 			return errors.New("exit status 1")
@@ -131,5 +145,77 @@ func TestAJudgedRunThatNamesNoRecordOfItsSuiteFailsItsArm(t *testing.T) {
 	}
 	if _, err := evaluatedRecord(strings.NewReader(evaluatedLine+"run:sha256:00"+evaluatedOf+suite+"\n"), suite); err == nil {
 		t.Error("a record that is no evaluation was taken")
+	}
+}
+
+// TestANAGArmAsksWithItsNegativePromptAndIsReadPairwise holds a NAG preset's reading (guidance-ops/nag-negative): the
+// campaign draws the preset's arm with the negative prompt it names for that preset and the reference with none, and
+// reads a picture model's arm pairwise beside its questions, the two renders composed, judged and read once each; a
+// negative prompt for no preset, or a clip model read pairwise, is refused. A reading pairs the arm's draws with the
+// reference's alike but the preset and the negative prompt the arm's manifest names, so a reference that drew with a
+// negative prompt pairs with none.
+func TestANAGArmAsksWithItsNegativePromptAndIsReadPairwise(t *testing.T) {
+	root := t.TempDir()
+	model := readingsModel{Name: "pictures", Path: "picture-model", Task: "image-gen", Source: "tifa.json", Cases: 2,
+		Reference: filepath.Join(root, "pictures-person"), Arms: filepath.Join(root, "pictures"), Presets: []string{"nag"},
+		Negative: map[string]string{"nag": "low resolution, blurry"}, Pairwise: true}
+	campaign := readingsCampaign{Out: filepath.Join(root, "out"), Repository: filepath.Join(root, "store"), Catalog: filepath.Join(root, "catalog.json"),
+		Judge: "judge.gguf", Projector: "projector.gguf", Models: []readingsModel{model}}
+	path := filepath.Join(root, "campaign.json")
+	testcheck.NoError(t, os.WriteFile(path, testcheck.Must(json.Marshal(campaign))(t), 0o644))
+	now := func() time.Time { return time.Date(2026, 11, 16, 21, 0, 0, 0, time.UTC) }
+
+	first := &readingsFake{t: t, negatives: map[string]string{}}
+	testcheck.NoError(t, runReadings(t.Context(), path, first.run, "commit-under-test", now))
+	want := []string{"render pictures-person", "judge pictures-person-suite.json", "render pictures-nag", "judge pictures-nag-suite.json", "admit pictures-nag",
+		"compose pictures-nag-pairwise from pictures-person and pictures-nag", "judge pictures-nag-pairwise-suite.json", "admit-pairwise pictures-nag"}
+	if !slices.Equal(first.calls, want) {
+		t.Errorf("calls = %q, want %q", first.calls, want)
+	}
+	if first.negatives["pictures-nag"] != "low resolution, blurry" || first.negatives["pictures-person"] != "" {
+		t.Errorf("the renders asked with negative prompts %q; want the preset's arm alone asked with its own", first.negatives)
+	}
+	verdicts := testcheck.Must(readArmLines(filepath.Join(campaign.Out, readingsVerdicts)))(t)
+	if _, read := verdicts["pictures-nag-pairwise"]; !read || len(verdicts) != 2 {
+		t.Errorf("verdicts = %v, want the arm's questions' and its pairwise reading's", verdicts)
+	}
+	again := &readingsFake{t: t}
+	testcheck.NoError(t, runReadings(t.Context(), path, again.run, "commit-under-test", now))
+	if len(again.calls) != 0 {
+		t.Errorf("a campaign run again made %q, want nothing", again.calls)
+	}
+	for name, refused := range map[string]readingsModel{
+		"a negative prompt for no preset": {Negative: map[string]string{"apg": "blurry"}},
+		"clips read pairwise":             {Task: "video-gen"},
+	} {
+		changed := model
+		if refused.Negative != nil {
+			changed.Negative = refused.Negative
+		}
+		if refused.Task != "" {
+			changed.Task = refused.Task
+		}
+		campaign.Models = []readingsModel{changed}
+		testcheck.NoError(t, os.WriteFile(path, testcheck.Must(json.Marshal(campaign))(t), 0o644))
+		if _, err := readReadingsCampaign(path); err == nil {
+			t.Errorf("a campaign with %s was read", name)
+		}
+	}
+
+	painter, painting := testutil.ArtifactID(t, artifact.KindModel, "painter"), testutil.ArtifactID(t, artifact.KindRecipe, "painting")
+	drawn := func(preset, negative string, request string) renderManifest {
+		return renderManifest{Model: painter, Recipe: painting, Task: recipe.TaskImageGen, Preset: preset, Negative: negative,
+			Draws: map[string]renderedMedia{"river": {File: "river.png", Request: json.RawMessage(request)}}}
+	}
+	reference := drawn("", "", `{"prompt":"a river","seed":7}`)
+	guided := drawn("nag", "blurry", `{"negative_prompt":"blurry","preset":"nag","prompt":"a river","seed":7}`)
+	if pairs, err := pairedDraws(reference, guided); err != nil || len(pairs) != 1 {
+		t.Errorf("the arm asked with its negative prompt paired %d draws (%v); want its reference's one", len(pairs), err)
+	}
+	if _, err := pairedDraws(drawn("", "", `{"negative_prompt":"blurry","prompt":"a river","seed":7}`), guided); err == nil {
+		t.Error("a reference drawn with a negative prompt was paired with the arm that asked with it")
+	}
+	if _, err := pairedDraws(reference, drawn("nag", "", `{"negative_prompt":"blurry","preset":"nag","prompt":"a river","seed":7}`)); err == nil {
+		t.Error("an arm whose manifest names no negative prompt was paired aside the one its requests asked with")
 	}
 }

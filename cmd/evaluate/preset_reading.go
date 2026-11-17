@@ -160,8 +160,9 @@ func comparableArms(reference, preset renderManifest) error {
 	return nil
 }
 
-// unpresetDraws are a render's draws by the request each drew without its preset, as JSON with its keys in order: the
-// request a preset's draw shares with its reference's (comparableArms, pairedDraws).
+// unpresetDraws are a render's draws by the request each drew without its preset and the negative prompt its manifest
+// says was asked beside it, as JSON with its keys in order: the request a preset's draw shares with its reference's
+// (comparableArms, pairedDraws).
 func unpresetDraws(drawn renderManifest) (map[string]string, error) {
 	requests := map[string]string{}
 	for key, media := range drawn.Draws {
@@ -170,6 +171,9 @@ func unpresetDraws(drawn renderManifest) (map[string]string, error) {
 			return nil, fmt.Errorf("evaluate: the request of draw %s: %w", key, err)
 		}
 		delete(request, "preset")
+		if drawn.Negative != "" && request["negative_prompt"] == drawn.Negative {
+			delete(request, "negative_prompt")
+		}
 		encoded, err := json.Marshal(request)
 		if err != nil {
 			return nil, err

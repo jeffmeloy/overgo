@@ -58,6 +58,9 @@ type renderManifest struct {
 	// Preset is the preset of its model the media were drawn with, none for its reference, the authors' recipe
 	// (judge-calibration/user-size): a preset's arm and its reference's are drawn into directories of their own.
 	Preset string `json:"preset,omitempty"`
+	// Negative is the negative prompt each request of a preset's arm asks with, beside a preset that guides away from
+	// one (NAG): a reading pairs its draws with its reference's alike but the preset and it (unpresetDraws).
+	Negative string `json:"negative,omitempty"`
 	// Format is the format the clips were asked in (clipFormat); a picture render holds none.
 	Format string                   `json:"format,omitempty"`
 	Draws  map[string]renderedMedia `json:"draws"`
@@ -105,8 +108,9 @@ func alreadyDrawn(directory string, want renderManifest) (renderManifest, error)
 		return renderManifest{}, fmt.Errorf("evaluate: %s holds media drawn by %s under %s with settings %v, not by %s under %s with %v: draw into another directory",
 			directory, held.Model, held.Recipe, held.Settings, want.Model, want.Recipe, want.Settings)
 	}
-	if held.Preset != want.Preset {
-		return renderManifest{}, fmt.Errorf("evaluate: %s holds media drawn with preset %q, and this render draws with %q: draw into another directory", directory, held.Preset, want.Preset)
+	if held.Preset != want.Preset || held.Negative != want.Negative {
+		return renderManifest{}, fmt.Errorf("evaluate: %s holds media drawn with preset %q and negative prompt %q, and this render draws with %q and %q: draw into another directory",
+			directory, held.Preset, held.Negative, want.Preset, want.Negative)
 	}
 	if held.clipFormat() != want.clipFormat() {
 		return renderManifest{}, fmt.Errorf("evaluate: %s holds clips written as %s, and this render writes %s: draw into another directory", directory, held.clipFormat(), want.clipFormat())
@@ -115,6 +119,13 @@ func alreadyDrawn(directory string, want renderManifest) (renderManifest, error)
 		return renderManifest{}, errors.New("evaluate: legacy render provenance is unknown; draw into another directory")
 	}
 	return held, nil
+}
+
+// renderArm is what a render draws with beside the authors' recipe, none for a reference: a preset of the model's
+// profile (-render-preset), and the negative prompt every request asks with beside a preset that guides away from one
+// (-render-negative).
+type renderArm struct {
+	preset, negative string
 }
 
 // renderPrompt is one caption to draw and the identity the suite refers to it by.
@@ -226,7 +237,7 @@ func withDeclaredDefaults(selected modelrecipe.CapabilityEvidenceSelection, dire
 // the digest of its bytes, and writes the manifest that binds them to the recipe. It
 // returns the request key of each prompt's media. A model whose verified request takes no
 // prompt draws nothing from a caption and is refused.
-func renderMedia(ctx context.Context, repository, path string, task recipe.Task, directory string, prompts []renderPrompt, settings map[string]float64, preset, commit string) (names map[string]string, err error) {
+func renderMedia(ctx context.Context, repository, path string, task recipe.Task, directory string, prompts []renderPrompt, settings map[string]float64, arm renderArm, commit string) (names map[string]string, err error) {
 	store, err := overgodb.OpenContext(ctx, repository)
 	if err != nil {
 		return nil, err
@@ -260,14 +271,21 @@ func renderMedia(ctx context.Context, repository, path string, task recipe.Task,
 	if template, err = personSized(selected, path, template, settings); err != nil {
 		return nil, err
 	}
-	if preset != "" {
-		template["preset"] = preset
+	switch {
+	case arm.negative != "" && arm.preset == "":
+		return nil, errors.New("evaluate: a negative prompt is asked beside the preset that guides away from it; a reference is the authors' recipe, asked with none")
+	case arm.negative != "":
+		template["negative_prompt"] = arm.negative
+		fallthrough
+	case arm.preset != "":
+		template["preset"] = arm.preset
 	}
 	if err := os.MkdirAll(directory, renderDirectoryMode); err != nil {
 		return nil, err
 	}
 	want := renderManifest{
-		Model: modelID, Recipe: selected.Activation.Definition.ID, Task: task, CodeCommit: commit, Settings: settings, Preset: preset, Draws: map[string]renderedMedia{},
+		Model: modelID, Recipe: selected.Activation.Definition.ID, Task: task, CodeCommit: commit, Settings: settings,
+		Preset: arm.preset, Negative: arm.negative, Draws: map[string]renderedMedia{},
 	}
 	if format, named := template["format"].(string); named && task == recipe.TaskVideoGen {
 		want.Format = format
@@ -427,7 +445,7 @@ const composedShare = 4
 
 // writeTIFAImages draws the pictures of -cases TIFA captions and writes the suite
 // that asks the judge about them.
-func writeTIFAImages(ctx context.Context, questions, model, repository, judge, directory, out, settings, preset string, cases int, seed uint64) error {
+func writeTIFAImages(ctx context.Context, questions, model, repository, judge, directory, out, settings string, arm renderArm, cases int, seed uint64) error {
 	commit, err := runrecord.ExecutableCodeCommit(".")
 	if err != nil {
 		return err
@@ -449,7 +467,7 @@ func writeTIFAImages(ctx context.Context, questions, model, repository, judge, d
 	for index, item := range items {
 		prompts[index] = renderPrompt{ID: item.ID, Prompt: item.Caption}
 	}
-	images, err := renderMedia(ctx, repository, model, recipe.TaskImageGen, directory, prompts, changes, preset, commit)
+	images, err := renderMedia(ctx, repository, model, recipe.TaskImageGen, directory, prompts, changes, arm, commit)
 	if err != nil {
 		return err
 	}
@@ -462,7 +480,7 @@ func writeTIFAImages(ctx context.Context, questions, model, repository, judge, d
 
 // writeDrawnText draws an infographic from each of -cases briefs and writes the suite
 // that asks the judge which text each picture holds.
-func writeDrawnText(ctx context.Context, model, repository, judge, directory, out, settings, preset string, cases int, seed uint64) error {
+func writeDrawnText(ctx context.Context, model, repository, judge, directory, out, settings string, arm renderArm, cases int, seed uint64) error {
 	commit, err := runrecord.ExecutableCodeCommit(".")
 	if err != nil {
 		return err
@@ -484,7 +502,7 @@ func writeDrawnText(ctx context.Context, model, repository, judge, directory, ou
 	for index, item := range items {
 		prompts[index] = renderPrompt{ID: item.ID, Prompt: item.Caption}
 	}
-	images, err := renderMedia(ctx, repository, model, recipe.TaskImageGen, directory, prompts, changes, preset, commit)
+	images, err := renderMedia(ctx, repository, model, recipe.TaskImageGen, directory, prompts, changes, arm, commit)
 	if err != nil {
 		return err
 	}
@@ -498,7 +516,7 @@ func writeDrawnText(ctx context.Context, model, repository, judge, directory, ou
 // writeVidGenClips draws the clips of -cases VidGen captions and of the captions composed
 // beside them, and writes the suite that asks the judge which of four captions each picked
 // one shows and what each composed one holds.
-func writeVidGenClips(ctx context.Context, captions, model, repository, judge, directory, out, settings, preset string, cases int, seed uint64) error {
+func writeVidGenClips(ctx context.Context, captions, model, repository, judge, directory, out, settings string, arm renderArm, cases int, seed uint64) error {
 	commit, err := runrecord.ExecutableCodeCommit(".")
 	if err != nil {
 		return err
@@ -511,7 +529,7 @@ func writeVidGenClips(ctx context.Context, captions, model, repository, judge, d
 	if err != nil {
 		return err
 	}
-	clips, err := renderMedia(ctx, repository, model, recipe.TaskVideoGen, directory, prompts, changes, preset, commit)
+	clips, err := renderMedia(ctx, repository, model, recipe.TaskVideoGen, directory, prompts, changes, arm, commit)
 	if err != nil {
 		return err
 	}
@@ -632,7 +650,7 @@ func writeVideoEdits(ctx context.Context, clips, captions, model, repository, ju
 	for index, item := range items {
 		prompts[index] = renderPrompt{ID: item.ID, Prompt: item.Instruction, Source: sources[item.ID]}
 	}
-	edited, err := renderMedia(ctx, repository, model, recipe.TaskVideoGen, directory, prompts, nil, "", commit)
+	edited, err := renderMedia(ctx, repository, model, recipe.TaskVideoGen, directory, prompts, nil, renderArm{}, commit)
 	if err != nil {
 		return err
 	}

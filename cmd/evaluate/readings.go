@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -42,6 +43,11 @@ type readingsModel struct {
 	Reference string   `json:"reference"`
 	Arms      string   `json:"arms"`
 	Presets   []string `json:"presets"`
+	// Negative is, by preset, the negative prompt its arm asks each case with (-render-negative).
+	Negative map[string]string `json:"negative,omitempty"`
+	// Pairwise reads each preset's arm of a picture model pairwise against the reference beside its questions
+	// (-pairwise-preset), which pairwise-reading/sensitivity showed the judge to see.
+	Pairwise bool `json:"pairwise,omitempty"`
 }
 
 // readingsRender is the render flag that draws a task's suite from its source.
@@ -50,11 +56,13 @@ var readingsRender = map[string]string{"image-gen": "-render-tifa", "video-gen":
 // readingsRunner runs this build of evaluate with args, its output to stdout and stderr.
 type readingsRunner func(ctx context.Context, args []string, stdout, stderr io.Writer) error
 
-// readingArm is one drawn and judged suite of a campaign: a model's reference (no preset) or one of its presets.
+// readingArm is one drawn and judged suite of a campaign: a model's reference (no preset), one of its presets, or a
+// preset's pairwise reading, which composes the reference's and the preset's renders it pairs where the others draw.
 type readingArm struct {
 	model         readingsModel
 	name, preset  string
 	media, record string
+	pairs         *[2]string
 }
 
 func (arm readingArm) suite() string { return arm.media + "-suite.json" }
@@ -98,6 +106,14 @@ func readReadingsCampaign(path string) (readingsCampaign, error) {
 		if model.Name == "" || strings.ContainsAny(model.Name, " \t") || names[model.Name] || model.Path == "" || model.Source == "" || model.Cases <= 0 || model.Reference == "" || model.Arms == "" {
 			return readingsCampaign{}, fmt.Errorf("evaluate: readings campaign %s: model %q needs a name of its own with no space, a path, a source, cases, a reference and arms", path, model.Name)
 		}
+		for preset := range model.Negative {
+			if !slices.Contains(model.Presets, preset) {
+				return readingsCampaign{}, fmt.Errorf("evaluate: readings campaign %s: model %q names a negative prompt for %q, none of its presets", path, model.Name, preset)
+			}
+		}
+		if model.Pairwise && model.Task != "image-gen" {
+			return readingsCampaign{}, fmt.Errorf("evaluate: readings campaign %s: model %q is read pairwise, which sets pictures side by side, and draws %s", path, model.Name, model.Task)
+		}
 		names[model.Name] = true
 	}
 	return campaign, nil
@@ -139,6 +155,9 @@ func runReadings(ctx context.Context, path string, run readingsRunner, commit st
 			read := r.arm(ctx, &arm)
 			if read == nil {
 				read = r.admit(ctx, reference, arm)
+			}
+			if read == nil && model.Pairwise {
+				read = r.pairwise(ctx, reference, arm)
 			}
 			if read != nil {
 				failed = append(failed, read)
@@ -237,7 +256,13 @@ func (r *readings) draw(ctx context.Context, arm readingArm) error {
 	r.say("%s: drawing into %s", arm.name, arm.media)
 	args := []string{readingsRender[arm.model.Task], arm.model.Source, "-model-path", arm.model.Path, "-cases", strconv.Itoa(arm.model.Cases),
 		"-judge", r.campaign.Judge, "-suite-out", arm.suite(), "-media-out", arm.media, "-repo", r.campaign.Repository}
-	if arm.preset != "" {
+	switch negative := arm.model.Negative[arm.preset]; {
+	case arm.pairs != nil:
+		args = []string{"-pairwise-preset", arm.pairs[1], "-reference-render", arm.pairs[0], "-judge", r.campaign.Judge, "-suite-out", arm.suite(), "-media-out", arm.media}
+	case negative != "":
+		args = append(args, "-render-negative", negative)
+		fallthrough
+	case arm.preset != "":
 		args = append(args, "-render-preset", arm.preset)
 	}
 	if err := r.logged(ctx, arm.name, "render", args, nil); err != nil {
@@ -308,14 +333,36 @@ func (r *readings) admit(ctx context.Context, reference, arm readingArm) error {
 		"-repo", r.campaign.Repository}, &said); err != nil {
 		return r.failed(arm.name, err)
 	}
+	return r.verdict(arm.name, said.Bytes())
+}
+
+// pairwise reads a preset's arm pairwise against its model's reference, once: their pictures composed side by side in
+// both orders, judged, and the verdict written as <arm>-pairwise's.
+func (r *readings) pairwise(ctx context.Context, reference, arm readingArm) error {
+	paired := readingArm{model: arm.model, name: arm.name + "-pairwise", preset: arm.preset, media: arm.media + "-pairwise", pairs: &[2]string{reference.media, arm.media}}
+	if err := r.arm(ctx, &paired); err != nil {
+		return err
+	}
+	if _, done := r.verdicts[paired.name]; done {
+		return nil
+	}
+	var said bytes.Buffer
+	if err := r.logged(ctx, paired.name, "admit", []string{"-pairwise-preset", arm.media, "-pairwise-evaluation", paired.record, "-repo", r.campaign.Repository}, &said); err != nil {
+		return r.failed(paired.name, err)
+	}
+	return r.verdict(paired.name, said.Bytes())
+}
+
+// verdict writes the verdict a reading printed on the arm's one line.
+func (r *readings) verdict(name string, said []byte) error {
 	var verdict bytes.Buffer
-	if err := json.Compact(&verdict, bytes.TrimSpace(said.Bytes())); err != nil {
-		return r.failed(arm.name, fmt.Errorf("the reading printed no verdict: %w", err))
+	if err := json.Compact(&verdict, bytes.TrimSpace(said)); err != nil {
+		return r.failed(name, fmt.Errorf("the reading printed no verdict: %w", err))
 	}
-	if err := r.append(readingsVerdicts, r.verdicts, arm.name, verdict.String()); err != nil {
-		return r.failed(arm.name, err)
+	if err := r.append(readingsVerdicts, r.verdicts, name, verdict.String()); err != nil {
+		return r.failed(name, err)
 	}
-	r.say("%s: %s", arm.name, verdict.String())
+	r.say("%s: %s", name, verdict.String())
 	return nil
 }
 

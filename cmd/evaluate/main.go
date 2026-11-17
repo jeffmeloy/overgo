@@ -121,6 +121,7 @@ func run() error {
 	pairwiseEvaluation := flag.String("pairwise-evaluation", "", "with -pairwise-preset: the judged evaluation record of the pairwise suite")
 	drawnText := flag.Bool("render-drawn-text", false, "draw an infographic from each of -cases briefs of a fixed list with the image model -model-path names, each asked to hold a title, three lines with a figure and a line of small print, and write the suite that asks the judge which of four texts each picture holds to -suite-out, the pictures to -media-out")
 	renderPreset := flag.String("render-preset", "", "with -render-tifa, -render-drawn-text or -render-vidgen: the preset of the model's profile to draw with, none for its reference (the authors' recipe); its media go into a directory of their own")
+	renderNegative := flag.String("render-negative", "", "with -render-preset: the negative prompt each request of the preset's arm asks with, beside a preset that guides away from one (NAG); a reading pairs its draws with the reference's alike but the preset and it")
 	renderSet := flag.String("render-set", "", "with -render-tifa, -render-drawn-text or -render-vidgen: comma-separated name=number settings that replace fields of the request the model's verification ran, such as width=416,height=240")
 	readText := flag.String("read-text", "", "read the text of each picture of this directory with the OCR model -reader names through its projector -reader-projector on -device, and print each reading, row by row with its box and the reader's model, recipe and projection, as a line of JSON")
 	readSuitePath := flag.String("read-suite", "", "read each picture of this drawn-text suite, from -media, with the OCR model -reader names, and write the suite with its readings to -suite-out: a judged reading of the suite records the share of the characters each picture was asked to hold that the reader read back")
@@ -158,6 +159,7 @@ func run() error {
 	if err := dataroot.ResolveStore(repository); err != nil {
 		return err
 	}
+	arm := renderArm{preset: strings.TrimSpace(*renderPreset), negative: strings.TrimSpace(*renderNegative)}
 	asked, err := evaluation.PromptingNamed(*protocol)
 	if err != nil {
 		return err
@@ -299,7 +301,7 @@ func run() error {
 			strings.TrimSpace(*tifaQuestions) != "" || strings.TrimSpace(*vidgenCaptions) != "" {
 			return errors.New("usage: evaluate -render-drawn-text -model-path <generator directory> -judge <vision-language model> -media-out <directory> -suite-out <suite.json> [-repo <store>] [-render-set name=number,...] [-cases N] [-seed N]")
 		}
-		if err := writeDrawnText(context.Background(), strings.TrimSpace(*modelPath), *repository, strings.TrimSpace(*speechJudge), strings.TrimSpace(*mediaOut), strings.TrimSpace(*suiteOut), strings.TrimSpace(*renderSet), strings.TrimSpace(*renderPreset), *captionCases, *captionSeed); err != nil ||
+		if err := writeDrawnText(context.Background(), strings.TrimSpace(*modelPath), *repository, strings.TrimSpace(*speechJudge), strings.TrimSpace(*mediaOut), strings.TrimSpace(*suiteOut), strings.TrimSpace(*renderSet), arm, *captionCases, *captionSeed); err != nil ||
 			strings.TrimSpace(*readerModel) == "" {
 			return err
 		}
@@ -314,7 +316,7 @@ func run() error {
 		if strings.TrimSpace(*vidgenCaptions) != "" {
 			draw = writeVidGenClips
 		}
-		if err := draw(context.Background(), source, strings.TrimSpace(*modelPath), *repository, strings.TrimSpace(*speechJudge), strings.TrimSpace(*mediaOut), strings.TrimSpace(*suiteOut), strings.TrimSpace(*renderSet), strings.TrimSpace(*renderPreset), *captionCases, *captionSeed); err != nil ||
+		if err := draw(context.Background(), source, strings.TrimSpace(*modelPath), *repository, strings.TrimSpace(*speechJudge), strings.TrimSpace(*mediaOut), strings.TrimSpace(*suiteOut), strings.TrimSpace(*renderSet), arm, *captionCases, *captionSeed); err != nil ||
 			strings.TrimSpace(*vidgenCaptions) == "" || strings.TrimSpace(*screenEncoder) == "" {
 			return err
 		}

@@ -48,7 +48,7 @@ func TestAPairwiseSuiteSetsEachRequestsPicturesSideBySide(t *testing.T) {
 	}
 	reference, preset := render("", "river", 7, red), render("apg", "river-apg", 7, blue)
 	media, suitePath := t.TempDir(), filepath.Join(t.TempDir(), "pairwise.json")
-	testcheck.NoError(t, writePairwise(reference, preset, media, suitePath, "judge"))
+	testcheck.NoError(t, writePairwise(reference, preset, media, suitePath))
 	var suite evaluation.GeneratedAnswerSuite
 	testcheck.NoError(t, jsonfile.DecodeStrict(suitePath, &suite))
 	if len(suite.Cases) != 2 {
@@ -67,7 +67,7 @@ func TestAPairwiseSuiteSetsEachRequestsPicturesSideBySide(t *testing.T) {
 			t.Errorf("case %s asks %q; want the request's prompt", testCase.Name, question)
 		}
 	}
-	if err := writePairwise(reference, render("apg", "river-apg", 8, blue), t.TempDir(), filepath.Join(t.TempDir(), "other.json"), "judge"); err == nil {
+	if err := writePairwise(reference, render("apg", "river-apg", 8, blue), t.TempDir(), filepath.Join(t.TempDir(), "other.json")); err == nil {
 		t.Error("renders of two seeds were paired")
 	}
 	if _, err := os.Stat(filepath.Join(media, evaluation.PairwiseMedium("river", "A"))); err != nil {

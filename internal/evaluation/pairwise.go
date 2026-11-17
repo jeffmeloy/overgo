@@ -45,18 +45,20 @@ func ComposePair(left, right image.Image) (*image.RGBA, error) {
 // for each medium both arms drew, by the prompt it was drawn from, one case for each side the preset is set on, asking
 // which of the two pictures better shows the prompt, its answer the preset's letter, its group the medium. Arms drawn
 // at other settings or in other formats, or a reference drawn with a preset, are refused, as AdmitPreset refuses them.
-func BuildPairwise(reference, candidate PresetArm, prompts map[string]string, judge string) (GeneratedAnswerSuite, error) {
+// The suite names no judge: the judge answers as itself about composites no model drew, as it answers its calibration
+// suites, where a judged suite's pictures are each the evaluated recipe's own drawing (guidance-ops/pairwise-judge).
+func BuildPairwise(reference, candidate PresetArm, prompts map[string]string) (GeneratedAnswerSuite, error) {
 	switch {
 	case reference.Preset != "" || candidate.Preset == "":
 		return GeneratedAnswerSuite{}, fmt.Errorf("evaluation: a preset is read against its model's reference, not %q against %q", candidate.Preset, reference.Preset)
 	case reference.Format != candidate.Format || !maps.Equal(reference.Settings, candidate.Settings):
 		return GeneratedAnswerSuite{}, fmt.Errorf("evaluation: %s was drawn at %v as %q and its reference at %v as %q; a pair is drawn alike but the preset",
 			candidate.Preset, candidate.Settings, candidate.Format, reference.Settings, reference.Format)
-	case len(prompts) == 0 || strings.TrimSpace(judge) == "":
-		return GeneratedAnswerSuite{}, errors.New("evaluation: a pairwise reading asks about at least one prompt and names its judge")
+	case len(prompts) == 0:
+		return GeneratedAnswerSuite{}, errors.New("evaluation: a pairwise reading asks about at least one prompt")
 	}
 	suite := GeneratedAnswerSuite{
-		Kind: GeneratedAnswerKind, Schema: pairwiseSchema, Source: pairwiseSource, Judge: judge,
+		Kind: GeneratedAnswerKind, Schema: pairwiseSchema, Source: pairwiseSource,
 		Transforms: []string{TransformTrimSpace, transformLowercase},
 	}
 	for _, medium := range slices.Sorted(maps.Keys(prompts)) {

@@ -249,8 +249,10 @@ func (r *readings) logged(ctx context.Context, name, step string, args []string,
 	return nil
 }
 
+// draw draws an arm's suite where it is not drawn; a pairwise arm, cheap to compose and drawing nothing, is composed
+// each time it is not yet judged, so a suite written by an earlier build is not judged by this one.
 func (r *readings) draw(ctx context.Context, arm readingArm) error {
-	if _, err := os.Stat(arm.suite()); err == nil {
+	if _, err := os.Stat(arm.suite()); err == nil && arm.pairs == nil {
 		return nil
 	}
 	r.say("%s: drawing into %s", arm.name, arm.media)
@@ -258,7 +260,7 @@ func (r *readings) draw(ctx context.Context, arm readingArm) error {
 		"-judge", r.campaign.Judge, "-suite-out", arm.suite(), "-media-out", arm.media, "-repo", r.campaign.Repository}
 	switch negative := arm.model.Negative[arm.preset]; {
 	case arm.pairs != nil:
-		args = []string{"-pairwise-preset", arm.pairs[1], "-reference-render", arm.pairs[0], "-judge", r.campaign.Judge, "-suite-out", arm.suite(), "-media-out", arm.media}
+		args = []string{"-pairwise-preset", arm.pairs[1], "-reference-render", arm.pairs[0], "-suite-out", arm.suite(), "-media-out", arm.media}
 	case negative != "":
 		args = append(args, "-render-negative", negative)
 		fallthrough
@@ -276,15 +278,17 @@ func (r *readings) draw(ctx context.Context, arm readingArm) error {
 
 // judge reads an arm's suite with the campaign's judge in a manifest of its own, and gives the evaluation record the
 // judged run printed for that suite: a record found as the store's newest would be another process's where one
-// committed in between.
+// committed in between. A question suite's manifest names the generator, whose drawings its judge reads; a pairwise
+// suite's names the judge itself with its projector, since no model drew its composites.
 func (r *readings) judge(ctx context.Context, arm readingArm) (string, error) {
 	r.say("%s: judging %s", arm.name, arm.suite())
+	asked := modelRequest{Path: arm.model.Path, Task: arm.model.Task, Suites: []string{arm.suite()},
+		Judge: r.campaign.Judge, Projector: r.campaign.Projector, MediaRoot: arm.media}
+	if arm.pairs != nil {
+		asked = modelRequest{Path: r.campaign.Judge, Suites: []string{arm.suite()}, Projector: r.campaign.Projector, MediaRoot: arm.media}
+	}
 	encoded, err := json.MarshalIndent(manifest{
-		Repository: r.campaign.Repository, Catalog: r.campaign.Catalog, CodeCommit: r.commit,
-		Models: []modelRequest{{
-			Path: arm.model.Path, Task: arm.model.Task, Suites: []string{arm.suite()},
-			Judge: r.campaign.Judge, Projector: r.campaign.Projector, MediaRoot: arm.media,
-		}},
+		Repository: r.campaign.Repository, Catalog: r.campaign.Catalog, CodeCommit: r.commit, Models: []modelRequest{asked},
 	}, "", "  ")
 	if err != nil {
 		return "", err

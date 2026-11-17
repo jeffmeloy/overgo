@@ -38,7 +38,7 @@ func TestAPairwiseReadingCountsAPromptByBothOrders(t *testing.T) {
 	settings := map[string]float64{"width": 512, "height": 512, "steps": 8}
 	reference, preset := PresetArm{Settings: settings}, PresetArm{Preset: "apg", Settings: settings}
 	prompts := map[string]string{"fox": "a red fox", "hen": "a white hen", "owl": "an owl at night"}
-	suite := testcheck.Must(BuildPairwise(reference, preset, prompts, "judge"))(t)
+	suite := testcheck.Must(BuildPairwise(reference, preset, prompts))(t)
 	testcheck.Must(CompileGeneratedAnswer(suite))(t)
 	if len(suite.Cases) != 2*len(prompts) {
 		t.Fatalf("the suite asks %d cases of %d prompts; want each prompt in both orders", len(suite.Cases), len(prompts))
@@ -76,10 +76,10 @@ func TestAPairwiseReadingCountsAPromptByBothOrders(t *testing.T) {
 		t.Errorf("a judge answering by side read %+v; want every prompt a tie", bySide)
 	}
 
-	if _, err := BuildPairwise(reference, PresetArm{Preset: "apg", Settings: map[string]float64{"width": 256, "height": 256, "steps": 8}}, prompts, "judge"); err == nil {
+	if _, err := BuildPairwise(reference, PresetArm{Preset: "apg", Settings: map[string]float64{"width": 256, "height": 256, "steps": 8}}, prompts); err == nil {
 		t.Error("arms drawn at other sizes were paired")
 	}
-	if _, err := BuildPairwise(preset, preset, prompts, "judge"); err == nil {
+	if _, err := BuildPairwise(preset, preset, prompts); err == nil {
 		t.Error("a reference drawn with a preset was paired")
 	}
 	delete(media, suite.Cases[0].Name)

@@ -69,8 +69,15 @@ func (f *readingsFake) run(_ context.Context, args []string, stdout, stderr io.W
 		}
 		suite := judged.Models[0].Suites[0]
 		f.calls = append(f.calls, "judge "+filepath.Base(suite))
-		if judged.CodeCommit != "commit-under-test" || judged.Models[0].MediaRoot+"-suite.json" != suite {
+		asked := judged.Models[0]
+		if judged.CodeCommit != "commit-under-test" || asked.MediaRoot+"-suite.json" != suite || asked.Projector != "projector.gguf" {
 			f.t.Errorf("judge manifest = %s", data)
+		}
+		// A pairwise suite's composites no model drew, so the judge answers as itself; a question suite's judge reads
+		// the generator's drawings.
+		if paired := strings.HasSuffix(suite, "-pairwise-suite.json"); paired && (asked.Path != "judge.gguf" || asked.Judge != "" || asked.Task != "") ||
+			!paired && (asked.Path == "judge.gguf" || asked.Judge != "judge.gguf") {
+			f.t.Errorf("the manifest judging %s names model %q with judge %q and task %q", filepath.Base(suite), asked.Path, asked.Judge, asked.Task)
 		}
 		other := filepath.Join(filepath.Dir(suite), "another-suite.json")
 		fmt.Fprintf(stdout, "  progress image-questions: 1/1 score=1.000\n%s%s%s%s\n", evaluatedLine, readingsRecord(f.t, other), evaluatedOf, other)

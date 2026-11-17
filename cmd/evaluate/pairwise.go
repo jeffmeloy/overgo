@@ -66,9 +66,9 @@ func readPicture(directory, file string) (image.Image, error) {
 
 // writePairwise composes the pairwise reading of the preset drawn into presetDirectory against its reference drawn
 // into referenceDirectory (pairwise-reading/do): each request both drew, its two pictures side by side in each order,
-// written to mediaOut as evaluation.PairwiseMedium names them, and the suite that asks judge which better shows its
-// prompt, written to suiteOut, naming its judge as the question suites name theirs.
-func writePairwise(referenceDirectory, presetDirectory, mediaOut, suiteOut, judge string) error {
+// written to mediaOut as evaluation.PairwiseMedium names them, and the suite that asks which better shows its prompt,
+// written to suiteOut, for the judge to answer as itself over mediaOut (a manifest naming it with its projector).
+func writePairwise(referenceDirectory, presetDirectory, mediaOut, suiteOut string) error {
 	reference, err := readRender(referenceDirectory)
 	if err != nil {
 		return err
@@ -116,7 +116,7 @@ func writePairwise(referenceDirectory, presetDirectory, mediaOut, suiteOut, judg
 		}
 		prompts[medium] = pair.prompt
 	}
-	suite, err := evaluation.BuildPairwise(referenceArm, presetArm, prompts, filepath.Base(judge))
+	suite, err := evaluation.BuildPairwise(referenceArm, presetArm, prompts)
 	if err != nil {
 		return err
 	}

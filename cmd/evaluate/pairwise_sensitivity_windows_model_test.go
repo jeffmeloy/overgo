@@ -62,13 +62,12 @@ func TestThePairwiseJudgeSeesAPictureOfAnotherPrompt(t *testing.T) {
 		}
 		testcheck.NoError(t, jsonfile.Write(filepath.Join(directory, renderManifestFile), drawn, renderFileMode))
 		path := filepath.Join(t.TempDir(), "pairwise.json")
-		testcheck.NoError(t, writePairwise(referenceDirectory, directory, filepath.Join(root, arm.name), path, "Qwen3.8-27B-UD-Q6_K"))
+		testcheck.NoError(t, writePairwise(referenceDirectory, directory, filepath.Join(root, arm.name), path))
 		var asked evaluation.GeneratedAnswerSuite
 		testcheck.NoError(t, jsonfile.DecodeStrict(path, &asked))
 		if suite.Cases == nil {
-			// The judge answers these as itself, a vision-language model shown fixed media, so the suite names no judge.
 			suite = asked
-			suite.Cases, suite.Judge = []evaluation.GeneratedAnswerCase{}, ""
+			suite.Cases = []evaluation.GeneratedAnswerCase{}
 		}
 		for _, testCase := range asked.Cases {
 			_, named, _, _ := evaluation.ParseMediaPrompt(testCase.Prompt)

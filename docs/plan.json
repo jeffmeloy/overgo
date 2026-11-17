@@ -7,26 +7,6 @@
       "title": "overgo on the Ultra workflow's models is held to the golden per section, and overgo's MOSS-Image-SFT runs the same sections as a measured band",
       "steps": [
         {
-          "id": "golden-floor",
-          "title": "Each section and prompt mode's final latent and image agree with the golden above a floor, and the workflow-size run records time per step, total and peak memory against ComfyUI's",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestUltraSectionsHoldTheirGoldenFloors$'",
-          "files": [
-            "docs/plan.json",
-            "internal/latentimage",
-            "fixtures/comfy"
-          ],
-          "needs_card": true,
-          "rationale": "Agreement is in dB over squares, the shape internal/adaptiveparity already uses for Krea (fixtures/krea/own_picture.json): a floor set from the first measured run less a margin. Once, at the workflow's own size, overgo and ComfyUI are timed on the same card and recorded as media cells.\n\nNote: files set to docs/plan.json, internal/latentimage, fixtures/comfy: a section's final latent is the generator's, which only internal/latentimage's tests reach, beside the section checks it already holds\n\nNote: 2026-11-17, the check as written: TestUltraSectionsHoldTheirGoldenFloors (internal/latentimage, where a section's final latent is reachable) draws the workflow's 50-step sections and prompt modes as their recordings ask them (text to image, prompt modes 2 and 3, image to image at denoise 1 and at 0.6, depth control; the Turbo sections are moss-eight-step's), each final latent and finished picture held above a floor of its first run less 3 dB, each with its input changed (other noise, or the picture or map mirrored) below. First run: text to image 1.55 / 15.11 dB (latent / picture), mode 2 15.57 / 32.73, mode 3 0.88 / 16.50, image to image at denoise 1 1.55 / 15.11, at 0.6 17.91 / 32.94, depth control 14.13 / 28.08. ComfyUI repeats itself exactly (pass-1 against pass-2, 354 dB); on the workflow's saved empty prompt overgo's own 8-bit attention moves overgo to 2.38 dB of itself (17.00 dB on mode 2's prompt), so the low readings are the trajectory's sensitivity to arithmetic, not a fault. An empty prompt is now a rotary request's to give, as the workflow saves its sections; a flow profile refuses it. The own-size reading, logged beside ComfyUI's on the same card at 2368x1344: overgo 6.11 s a step, 5m58.6s, 13.60 GiB; ComfyUI 1.11 s a step, 58.1 s, 23.39 GiB, parked as a finding (evidence:sha256:b277875b15c9c6a5c3b301ccd63f4cec8d861aa304656e10388db6556d3b9d2b) rather than recorded as media cells.\n\nServes: held-out-quality (agreement), first-output and peak-device-memory against ComfyUI on the same files.\nDisappears: nothing.\nEvidence: one device test per section, broken below its floor.\nBatch: device lane.",
-          "depends_on": [
-            "moss-ultra-sections/img2img",
-            "moss-ultra-sections/er-sde",
-            "moss-ultra-sections/depth-control",
-            "moss-ultra-sections/prompt-modes",
-            "moss-ultra-sections/finishing",
-            "media-lora/unmerged"
-          ]
-        },
-        {
           "id": "sft-band",
           "title": "MOSS-Image-SFT with the official encoder runs every section, DMD2 and the control adapter applied to it, its agreement with the golden recorded as a band",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/adaptiveparity -count=1 -run '^TestServedMossCompletesEveryUltraSection$'",

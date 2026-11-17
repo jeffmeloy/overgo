@@ -17,12 +17,19 @@ import (
 )
 
 // comfySection is a recorded run of a MOSS Ultra section in ComfyUI (comfy-recorder): the inputs set over its request,
-// the sigmas each sampler ran, its nodes' texts, its saved files, and its request's nodes' inputs.
+// the sigmas each sampler ran, its nodes' texts, its saved files, and its request's nodes' inputs; and the run's time,
+// the card's peak and each sampler's progress stamps, its step and the microseconds since the run began.
 type comfySection struct {
-	Set    map[string]any       `json:"set"`
-	Sigmas map[string][]float64 `json:"sigmas"`
-	Texts  map[string][]string  `json:"texts"`
-	Files  []struct {
+	Set           map[string]any       `json:"set"`
+	Sigmas        map[string][]float64 `json:"sigmas"`
+	Texts         map[string][]string  `json:"texts"`
+	Milliseconds  int64                `json:"milliseconds"`
+	PeakCardBytes uint64               `json:"peak_card_bytes"`
+	Progress      map[string][]struct {
+		Value        int   `json:"value"`
+		Microseconds int64 `json:"us"`
+	} `json:"progress"`
+	Files []struct {
 		Node   string `json:"node"`
 		Name   string `json:"name"`
 		SHA256 string `json:"sha256"`

@@ -165,16 +165,11 @@ func admitPicture(ctx context.Context, session *graphruntime.ResidentSession, to
 }
 
 func ValidateRequest(request Request) error {
-	// A request that samples from a picture or by a depth map may leave its prompt empty, as the MOSS Ultra workflow's
-	// image to image and depth sections do: the picture or the map conditions what it draws. A layout is its prompt.
 	if request.Enhance {
 		if request.Layout != nil {
 			return errEnhanceBesideLayout
 		}
 		return errNotEnhanced
-	}
-	if !checked.Nonzero(request.Prompt) && request.Image == "" && request.Control == nil && request.Layout == nil {
-		return errors.New("latent image: prompt is empty")
 	}
 	if request.Layout != nil {
 		if request.Prompt != "" {
@@ -245,6 +240,9 @@ func LoadGenerator(ctx context.Context, modelDir string, profile Profile, reques
 	}
 	if request.rotaryOnly() {
 		return nil, errRotaryOnly
+	}
+	if !checked.Nonzero(request.Prompt) {
+		return nil, errEmptyPrompt
 	}
 	spec, err := Derive(modelDir)
 	if err != nil {
@@ -425,6 +423,9 @@ func (g *Generator) Reset(ctx context.Context, request Request) error {
 	}
 	if request.rotaryOnly() {
 		return errRotaryOnly
+	}
+	if !checked.Nonzero(request.Prompt) {
+		return errEmptyPrompt
 	}
 	if g == nil || g.pipeline == nil || !g.completed {
 		return errors.New("latent image: resident session is unavailable")
@@ -652,6 +653,11 @@ func (r Request) withPreset(directory string) (Request, error) {
 }
 
 // errRotaryOnly refuses a request that asks what only a rotary profile runs (rotaryOnly) of a profile that is not one.
+// errEmptyPrompt refuses a flow profile's request of no prompt. A rotary profile (MOSS) conditions on an empty prompt
+// as ComfyUI's encoder does, as the MOSS Ultra workflow saves its sections and its recordings draw them
+// (moss-ultra-compare/golden-floor).
+var errEmptyPrompt = errors.New("latent image: prompt is empty")
+
 var errRotaryOnly = errors.New("latent image: selected profile does not support negative prompts, guidance overrides, layouts, adapters or image to image")
 
 // rotaryOnly is whether the request asks what only a rotary profile runs: a negative prompt or guidance over its

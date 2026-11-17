@@ -51,18 +51,9 @@ func TestImageToImageMeetsItsSectionFloor(t *testing.T) {
 	cudatest.Require(t)
 	ctx := t.Context()
 	recording := readComfySection(t, "denoise", "image-to-image")
-	sampler := recording.inputs(imageToImageSampler)
-	denoise, given := recording.Set[imageToImageSampler+".denoise"].(float64)
-	if !given || denoise >= 1 || recording.Set["428.image"] != "overgo-recorder-input.png" || recording.Set["680.megapixels"] != 0.5625 ||
-		sampler["sampler_name"] != "er_sde" || sampler["scheduler"] != sampling.ScheduleBongTangent || len(recording.Texts["585"]) != 1 || len(recording.Texts["586"]) != 1 {
-		t.Fatalf("the recording set %v over a sampler of %v with prompts %v; want the section at a denoise below 1, 1024 x 576, from the recorder's picture", recording.Set, sampler, recording.Texts)
-	}
 	latent := func(node string) []float32 { return recording.latent(t, node) }
 	picture := ultraPictureBytes(t)
-	guidance := float32(sampler["cfg"].(float64))
-	section := Request{Prompt: recording.Texts["585"][0], NegativePrompt: recording.Texts["586"][0], GuidanceScale: &guidance, Width: 1024, Height: 576,
-		Steps: int(sampler["steps"].(float64)), Seed: int64(sampler["seed"].(float64)), Denoise: denoise, Image: base64.StdEncoding.EncodeToString(picture),
-		Schedule: &sampling.Schedule{Sampler: sampling.SamplerERSDE, Name: sampling.ScheduleBongTangent}}
+	section := denoiseSection(t, recording)
 
 	root := ultraModelRoot(t)
 	profile := testcheck.Must(ResolveProfile(root))(t)
@@ -153,4 +144,20 @@ func decibelsOverSquares(got, want []float32) float64 {
 		noise += (float64(value) - w) * (float64(value) - w)
 	}
 	return 10 * math.Log10(signal/noise)
+}
+
+// denoiseSection is the image to image section's request as the denoise run's recording asks it: at a denoise below 1,
+// 1024 x 576, from the recorder's picture.
+func denoiseSection(t *testing.T, recording comfySection) Request {
+	t.Helper()
+	sampler := recording.inputs(imageToImageSampler)
+	denoise, given := recording.Set[imageToImageSampler+".denoise"].(float64)
+	if !given || denoise >= 1 || recording.Set["428.image"] != "overgo-recorder-input.png" || recording.Set["680.megapixels"] != 0.5625 ||
+		sampler["sampler_name"] != "er_sde" || sampler["scheduler"] != sampling.ScheduleBongTangent || len(recording.Texts["585"]) != 1 || len(recording.Texts["586"]) != 1 {
+		t.Fatalf("the recording set %v over a sampler of %v with prompts %v; want the section at a denoise below 1, 1024 x 576, from the recorder's picture", recording.Set, sampler, recording.Texts)
+	}
+	guidance := float32(sampler["cfg"].(float64))
+	return Request{Prompt: recording.Texts["585"][0], NegativePrompt: recording.Texts["586"][0], GuidanceScale: &guidance, Width: 1024, Height: 576,
+		Steps: int(sampler["steps"].(float64)), Seed: int64(sampler["seed"].(float64)), Denoise: denoise, Image: base64.StdEncoding.EncodeToString(ultraPictureBytes(t)),
+		Schedule: &sampling.Schedule{Sampler: sampling.SamplerERSDE, Name: sampling.ScheduleBongTangent}}
 }

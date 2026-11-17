@@ -3,6 +3,7 @@
 package latentimage
 
 import (
+	"errors"
 	"slices"
 	"testing"
 
@@ -44,8 +45,9 @@ func TestARotaryRequestSamplesItsOwnSchedule(t *testing.T) {
 // TestADenoiseCutsTheScheduleAsComfyUIDoes holds a request's denoise (moss-ultra-sections/img2img) to ComfyUI's
 // KSampler: below 1 a schedule, named or the profile's own, is drawn for int(steps / denoise) steps and its last
 // steps + 1 sigmas kept with their timesteps and deltas; above 0.9999 the whole schedule is sampled; a denoise outside
-// (0, 1], or one beside a list of the request's own sigmas, is refused; a request may leave its prompt empty only
-// where it brings a picture; and only a rotary profile takes a picture or a denoise.
+// (0, 1], or one beside a list of the request's own sigmas, is refused; a request may leave its prompt empty, as the
+// MOSS Ultra workflow's sections do, where a flow profile refuses one; and only a rotary profile takes a picture or a
+// denoise.
 func TestADenoiseCutsTheScheduleAsComfyUIDoes(t *testing.T) {
 	profile := Profile{Sampling: samplingPolicy{DefaultSteps: 50, TrainTimesteps: 1000}, Rotary: &rotaryPolicy{Shift: 5, TrainingShift: 3}}
 	named := &sampling.Schedule{Name: sampling.ScheduleBongTangent}
@@ -76,13 +78,16 @@ func TestADenoiseCutsTheScheduleAsComfyUIDoes(t *testing.T) {
 		{Prompt: "a lighthouse", Width: 1024, Height: 576, Denoise: 1.5},
 		{Prompt: "a lighthouse", Width: 1024, Height: 576, Denoise: -0.2},
 		{Prompt: "a lighthouse", Width: 1024, Height: 576, Denoise: 0.5, Schedule: &sampling.Schedule{Sigmas: []float32{1, 0.5, 0}}},
-		{Width: 1024, Height: 576},
 	} {
 		if ValidateRequest(request) == nil {
 			t.Errorf("the request %+v was admitted; want it refused", request)
 		}
 	}
 	testcheck.NoError(t, ValidateRequest(Request{Width: 1024, Height: 576, Image: "cGljdHVyZQ==", Denoise: 0.6}))
+	testcheck.NoError(t, ValidateRequest(Request{Width: 1024, Height: 576}))
+	if err := (&Generator{}).Reset(t.Context(), Request{Width: 1024, Height: 576}); !errors.Is(err, errEmptyPrompt) {
+		t.Errorf("a flow session took a request of no prompt with %v; want it refused", err)
+	}
 	if !(Request{Image: "cGljdHVyZQ=="}).rotaryOnly() || !(Request{Denoise: 0.6}).rotaryOnly() {
 		t.Error("a request with a picture or a denoise is run by a profile that is not rotary")
 	}

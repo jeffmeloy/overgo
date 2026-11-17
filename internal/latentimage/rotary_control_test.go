@@ -21,11 +21,11 @@ func TestAWideningAdapterGivesTheDenoiserItsControl(t *testing.T) {
 		"video_embedder.bias":   {tensor: "video_embedder.bias", shape: []uint64{uint64(spec.Hidden)}},
 	}}
 	for _, storage := range []dtype.Type{dtype.BF16, dtype.F32} {
-		p := testcheck.Must(compileRotaryDenoiserProgram(spec, 1e-6, 2, 3, 4, nil, storage, rotaryOptions{adapter: adapter}))(t)
+		p := testcheck.Must(compileRotaryDenoiserProgram(spec, 1e-6, 2, 3, 4, nil, storage, rotaryOptions{adapters: []*mediaAdapter{adapter}}))(t)
 		if p.control == nil || !slices.Equal(p.control.Shape.Slice(), []uint64{6, uint64(2 * spec.InChannels)}) {
 			t.Fatalf("a %v denoiser with a widening adapter reads the control %v; want 6 tokens of %d channels", storage, p.control, 2*spec.InChannels)
 		}
-		weight := p.adapterInputs.Node("video_embedder.weight")
+		weight := p.adapterInputs[0].Node("video_embedder.weight")
 		if weight == nil || weight.Type != storage {
 			t.Errorf("a %v denoiser binds the replaced embedder as %v; want it from the adapter in the model's storage", storage, weight)
 		}

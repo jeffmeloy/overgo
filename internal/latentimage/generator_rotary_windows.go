@@ -32,9 +32,9 @@ type rotaryGeneration struct {
 	// for a prompt that weights nothing.
 	weights, negativeWeights []float32
 	guidance                 float32
-	// adapter is the adapter the request names (Request.Adapter), read from its file when the request is configured;
-	// none where it names none.
-	adapter *mediaAdapter
+	// adapters are the adapters the request applies (Request.applied), each read from its file when the request is
+	// configured; none where it names none.
+	adapters []*mediaAdapter
 }
 
 func loadRotaryGenerator(ctx context.Context, root string, profile Profile, request Request) (_ *Generator, err error) {
@@ -115,11 +115,16 @@ func (g *Generator) configureRotary(ctx context.Context, request Request) error 
 	if request.GuidanceScale != nil {
 		guidance = *request.GuidanceScale
 	}
-	g.rotary.adapter = nil
-	if request.Adapter != "" {
-		if g.rotary.adapter, err = modelAdapter(g.modelDir, request.Adapter); err != nil {
+	g.rotary.adapters = nil
+	for _, applied := range request.applied() {
+		adapter, err := modelAdapter(g.modelDir, applied.Name)
+		if err != nil {
 			return err
 		}
+		g.rotary.adapters = append(g.rotary.adapters, adapter)
+	}
+	if twice := replacedTwice(g.rotary.adapters); twice != "" {
+		return fmt.Errorf("rotary image: two of the request's adapters replace %s, which a graph reads from one", twice)
 	}
 	if err = g.rotarySettings(request, schedule, guidance).validate(g.rotary.transformer.Layers); err != nil {
 		return err
@@ -173,7 +178,10 @@ func (p Profile) rotarySchedule(ctx context.Context, request Request) (FlowSched
 // the steps, the negative branch changing the profile's blocks, and the sampler it names and its seed.
 func (g *Generator) rotarySettings(request Request, schedule FlowSchedule, guidance float32) rotarySamplingSpec {
 	settings := rotarySamplingSpec{schedule: schedule, guidance: guidance, varies: request.Guidance, override: g.profile.Rotary.negativeOverride(), seed: request.Seed,
-		eightBit: request.EightBitAttention, adapter: g.rotary.adapter, strength: request.adapterStrength()}
+		eightBit: request.EightBitAttention, adapters: g.rotary.adapters}
+	for _, applied := range request.applied() {
+		settings.strengths = append(settings.strengths, applied.strength())
+	}
 	if request.SkipBlocks != nil {
 		settings.override.Blocks = slices.Clone(*request.SkipBlocks)
 	}

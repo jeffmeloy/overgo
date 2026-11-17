@@ -46,7 +46,7 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 		if existing, ok := branches[name]; ok {
 			return existing, nil
 		}
-		p, e := compileRotaryDenoiserProgram(spec, mossRefinementEpsilon, height, width, len(conditioning)/spec.TextHidden, skip, dtype.BF16, rotaryOptions{eightBit: settings.eightBit, adapter: settings.adapter}, weights...)
+		p, e := compileRotaryDenoiserProgram(spec, mossRefinementEpsilon, height, width, len(conditioning)/spec.TextHidden, skip, dtype.BF16, rotaryOptions{eightBit: settings.eightBit, adapters: settings.adapters}, weights...)
 		if e != nil {
 			return branch{}, e
 		}
@@ -59,13 +59,13 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 			return branch{}, e
 		}
 		programs = append(programs, program)
-		if settings.adapter != nil {
-			if e := bindAdapterInputs(ctx, runtime, program, "rotary sampling "+name, settings.adapter, p.adapterInputs); e != nil {
+		for index, adapter := range settings.adapters {
+			if e := bindAdapterInputs(ctx, runtime, program, "rotary sampling "+name, adapter, p.adapterInputs[index]); e != nil {
 				return branch{}, e
 			}
-			feeds[p.strength] = reference.Value{Shape: p.strength.Shape, Data: []float32{settings.strength}}
+			feeds[p.strengths[index]] = reference.Value{Shape: p.strengths[index].Shape, Data: []float32{settings.strengths[index]}}
 		}
-		for _, node := range []*tensor.Tensor{p.context, p.rope, p.unit, p.valueScale, p.strength} {
+		for _, node := range append([]*tensor.Tensor{p.context, p.rope, p.unit, p.valueScale}, p.strengths...) {
 			if node == nil {
 				continue
 			}

@@ -158,15 +158,19 @@ func (patch lowRankPatch) upInputName() string {
 	return fmt.Sprintf("%s%s%d", patch.up, adapterThird, patch.from/patch.rows)
 }
 
-// adapterPayload is the F32 payload of an adapter's graph input: a file tensor whole, or rows of a fused up tensor.
+// adapterPayload is the F32 payload of an adapter's graph input: a file tensor whole, or rows of a fused up tensor. An
+// input of an adapter after the first carries its place (adapterPlace), which the file's name lacks.
 func adapterPayload(source *safetensors.Source, node *tensor.Tensor) (func() ([]byte, error), error) {
-	name, third, split := strings.Cut(node.Name, adapterThird)
+	stored, _, _ := strings.Cut(node.Name, adapterPlace)
+	name, third, split := strings.Cut(stored, adapterThird)
 	value, held := source.Tensors[name]
 	if !held {
 		return nil, fmt.Errorf("missing from the adapter %s", name)
 	}
 	if !split {
-		return residentPayload(source, node)
+		plain := *node
+		plain.Name = stored
+		return residentPayload(source, &plain)
 	}
 	if len(value.Shape) != 2 || value.Shape[0]%tensor.TripleExtent != 0 {
 		return nil, errors.New("a fused up tensor is no three thirds")

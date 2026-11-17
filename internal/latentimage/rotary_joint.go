@@ -7,8 +7,11 @@ import (
 )
 
 type rotaryJointProgram struct {
-	input, rope, modulation, unit, output, strength *tensor.Tensor
-	weightInputs, adapterInputs                     tensor.WeightBindings
+	input, rope, modulation, unit, output *tensor.Tensor
+	weightInputs                          tensor.WeightBindings
+	// adapterInputs and strengths are each adapter's tensors and strength input, in the request's order (rotaryOptions).
+	adapterInputs []tensor.WeightBindings
+	strengths     []*tensor.Tensor
 }
 
 // Joint modulation positions follow the pinned _Block.forward unbind order.
@@ -37,8 +40,8 @@ func compileRotaryJointProgram(t TransformerSpec, epsilon float32, tokens, index
 	if err != nil {
 		return nil, err
 	}
-	g.use(options, &p.adapterInputs)
-	p.strength = g.strength
+	p.adapterInputs = make([]tensor.WeightBindings, len(options.adapters))
+	p.strengths = g.use(options, p.adapterInputs)
 	b := g.b
 	p.input = b.Input("joint_hidden", dtype.F32, tensor.MustShape(g.width, g.sequence))
 	p.modulation = b.Input("joint_modulation", dtype.F32, tensor.MustShape(uint64(t.ModFieldsOr6())*g.width))

@@ -58,6 +58,10 @@ type Request struct {
 	// unmerged at AdapterStrength, 1 where the request states none (mediaAdapter): a new strength rewrites no weight.
 	Adapter         string   `json:"adapter,omitzero"`
 	AdapterStrength *float32 `json:"adapter_strength,omitempty"`
+	// Adapters names several of the model's adapters, each at its strength, applied together in their order, as the
+	// MOSS Ultra workflow's Turbo sections stack theirs (rgthree's Power Lora Loader: DMD2, moss-control, the SFT
+	// adapter); a request names its adapters so or one Adapter, not both.
+	Adapters *[]AppliedAdapter `json:"adapters,omitempty"`
 	// Image is a picture, a PNG in base64 as JSON gives bytes, that a rotary profile samples from (image to image):
 	// scaled to the canvas as ComfyUI's ImageScale scales it at lanczos with a centre crop (media.ScaleLikeComfyUI),
 	// encoded by the model's VAE, and started from at the schedule's first sigma, σ₀ times the noise plus 1 − σ₀
@@ -105,12 +109,30 @@ func (r Request) prompt() string {
 // cutsSchedule is whether the request samples part of its schedule.
 func (r Request) cutsSchedule() bool { return r.Denoise != 0 && r.Denoise <= denoiseWhole }
 
-// adapterStrength is the strength the request applies its adapter at, 1 where it states none.
-func (r Request) adapterStrength() float32 {
-	if r.AdapterStrength == nil {
+// AppliedAdapter is one adapter a request applies: its name among the model's adapters
+// (<model>/adapters/<name>.safetensors) and its strength, 1 where it states none.
+type AppliedAdapter struct {
+	Name     string   `json:"name"`
+	Strength *float32 `json:"strength,omitempty"`
+}
+
+// strength is the strength the adapter is applied at, 1 where the request states none.
+func (a AppliedAdapter) strength() float32 {
+	if a.Strength == nil {
 		return tensor.UnitScale
 	}
-	return *r.AdapterStrength
+	return *a.Strength
+}
+
+// applied are the adapters the request applies, in its order: its Adapters, or its one Adapter at AdapterStrength.
+func (r Request) applied() []AppliedAdapter {
+	if r.Adapters != nil {
+		return *r.Adapters
+	}
+	if r.Adapter != "" {
+		return []AppliedAdapter{{Name: r.Adapter, Strength: r.AdapterStrength}}
+	}
+	return nil
 }
 
 // errDrawsItsOwnSchedule refuses a request's schedule on a profile that samples its model's own (a flow profile's
@@ -204,6 +226,16 @@ func ValidateRequest(request Request) error {
 	if request.AdapterStrength != nil && (request.Adapter == "" || !checked.Finite32(*request.AdapterStrength)) {
 		return errors.New("latent image: an adapter's strength is a finite number beside the adapter it scales")
 	}
+	if request.Adapters != nil {
+		if request.Adapter != "" || request.AdapterStrength != nil || len(*request.Adapters) == 0 {
+			return errors.New("latent image: a request names its adapters or one adapter, not both, and a list names at least one")
+		}
+		for index, applied := range *request.Adapters {
+			if applied.Name == "" || applied.Strength != nil && !checked.Finite32(*applied.Strength) {
+				return fmt.Errorf("latent image: adapter %d needs a name and a finite strength", index+1)
+			}
+		}
+	}
 	if !(request.Denoise >= 0 && request.Denoise <= 1) {
 		return fmt.Errorf("latent image: denoise %g is not a share of the schedule, above 0 and at most 1", request.Denoise)
 	}
@@ -214,7 +246,7 @@ func ValidateRequest(request Request) error {
 		if err := request.Control.Validate(); err != nil {
 			return err
 		}
-		if request.Adapter == "" {
+		if len(request.applied()) == 0 {
 			return errors.New("latent image: a depth control is read through its control adapter; name it (moss-control)")
 		}
 	}
@@ -666,7 +698,7 @@ var errRotaryOnly = errors.New("latent image: selected profile does not support 
 // its negative pass skips.
 func (r Request) rotaryOnly() bool {
 	return !r.attentionGuided() && (r.NegativePrompt != "" || r.Guidance != (sampling.Guidance{})) ||
-		r.GuidanceScale != nil || r.PromptMode == promptLayout || r.Layout != nil || r.Sharpen != nil || r.Adapter != "" ||
+		r.GuidanceScale != nil || r.PromptMode == promptLayout || r.Layout != nil || r.Sharpen != nil || r.Adapter != "" || r.Adapters != nil ||
 		r.AdapterStrength != nil || r.Image != "" || r.Denoise != 0 || r.Control != nil || r.SkipBlocks != nil
 }
 

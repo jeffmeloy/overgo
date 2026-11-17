@@ -68,19 +68,19 @@ func TestAnUnmergedAdapterMatchesItsMergedWeight(t *testing.T) {
 			p.input: {Shape: p.input.Shape, Data: hidden}, p.modulation: {Shape: p.modulation.Shape, Data: modulation},
 			p.unit: {Shape: p.unit.Shape, Data: unit}, p.rope: {Shape: p.rope.Shape, Data: rope},
 		}
-		if p.strength != nil {
-			feeds[p.strength] = reference.Value{Shape: p.strength.Shape, Data: []float32{strength}}
+		for _, node := range p.strengths {
+			feeds[node] = reference.Value{Shape: node.Shape, Data: []float32{strength}}
 		}
 		return testcheck.Must(session.Execute(ctx, program, feeds))(t)[p.output].Data
 	}
 
-	unmerged := testcheck.Must(compileRotaryJointProgram(spec, mossRefinementEpsilon, tokens, block, dtype.F32, rotaryOptions{adapter: adapter}))(t)
+	unmerged := testcheck.Must(compileRotaryJointProgram(spec, mossRefinementEpsilon, tokens, block, dtype.F32, rotaryOptions{adapters: []*mediaAdapter{adapter}}))(t)
 	program := testcheck.Must(compileResidentWeights(ctx, session, "unmerged", transformer, unmerged.weightInputs, nil, unmerged.output))(t)
-	testcheck.NoError(t, bindAdapterInputs(ctx, session, program, "unmerged", adapter, unmerged.adapterInputs))
+	testcheck.NoError(t, bindAdapterInputs(ctx, session, program, "unmerged", adapter, unmerged.adapterInputs[0]))
 	resident := session.StaticBytes()
-	again := testcheck.Must(compileRotaryJointProgram(spec, mossRefinementEpsilon, tokens, block, dtype.F32, rotaryOptions{adapter: adapter}))(t)
+	again := testcheck.Must(compileRotaryJointProgram(spec, mossRefinementEpsilon, tokens, block, dtype.F32, rotaryOptions{adapters: []*mediaAdapter{adapter}}))(t)
 	second := testcheck.Must(compileResidentWeights(ctx, session, "unmerged again", transformer, again.weightInputs, nil, again.output))(t)
-	testcheck.NoError(t, bindAdapterInputs(ctx, session, second, "unmerged again", adapter, again.adapterInputs))
+	testcheck.NoError(t, bindAdapterInputs(ctx, session, second, "unmerged again", adapter, again.adapterInputs[0]))
 	if uploaded := session.StaticBytes() - resident; uploaded != 0 {
 		t.Errorf("a second program with the adapter uploaded %d bytes; its weights and the adapter's were resident", uploaded)
 	}

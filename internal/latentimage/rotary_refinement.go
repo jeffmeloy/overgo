@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strconv"
+
 	"overgo/internal/checked"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
@@ -29,63 +31,90 @@ type rotaryGraph struct {
 	// eightBit computes the attention in 8 bits (tensor.AttentionAttributes.EightBit), from F32 heads with no storage
 	// round before it.
 	eightBit bool
-	// adapter patches the graph's projections and weights unmerged (mediaAdapter), its tensors bound from its file as
-	// adapterInputs and scaled by the strength fed each run; none for a graph without one.
-	adapter       *mediaAdapter
-	adapterInputs tensor.WeightInputs
-	strength      *tensor.Tensor
+	// adapters patch the graph's projections and weights unmerged (mediaAdapter), each its tensors bound from its file
+	// and scaled by a strength of its own fed each run, in the order a request names them; none for a graph without one.
+	adapters []graphAdapter
 }
 
-// rotaryOptions are what a rotary program computes beside its weights: its attention in 8 bits, and an adapter.
+// rotaryOptions are what a rotary program computes beside its weights: its attention in 8 bits, and its adapters, in
+// the order a request names them.
 type rotaryOptions struct {
 	eightBit bool
-	adapter  *mediaAdapter
+	adapters []*mediaAdapter
 }
 
-// adapterStrengthInput names the scalar fed each run as an adapter's strength.
+// graphAdapter is one adapter a rotary graph applies: its patches, its tensors' inputs, bound from its file, the scalar
+// fed each run as its strength, and the place its inputs' names carry (none for the first, adapterPlace and its number
+// for each after it), since two files name the same projection's tensors alike.
+type graphAdapter struct {
+	adapter  *mediaAdapter
+	inputs   tensor.WeightInputs
+	strength *tensor.Tensor
+	place    string
+}
+
+// adapterStrengthInput names the scalar fed each run as an adapter's strength, its place after it.
 const adapterStrengthInput = "adapter_strength"
 
-// use takes the options into the graph, binding an adapter's tensors into adapterBindings.
-func (g *rotaryGraph) use(options rotaryOptions, adapterBindings *tensor.WeightBindings) {
-	g.eightBit, g.adapter = options.eightBit, options.adapter
-	if g.adapter != nil {
-		g.adapterInputs = tensor.WeightInputs{Builder: g.b, Bindings: adapterBindings, MatrixType: dtype.F32}
-		g.strength = g.b.Input(adapterStrengthInput, dtype.F32, tensor.MustShape(tensor.SingletonExtent))
+// adapterPlace opens an adapter's place in the name of each of its inputs after the first adapter's.
+const adapterPlace = "@"
+
+// use takes the options into the graph, binding each adapter's tensors into its bindings, and gives each adapter's
+// strength input.
+func (g *rotaryGraph) use(options rotaryOptions, bindings []tensor.WeightBindings) []*tensor.Tensor {
+	g.eightBit = options.eightBit
+	strengths := make([]*tensor.Tensor, len(options.adapters))
+	for index, adapter := range options.adapters {
+		place := ""
+		if index > 0 {
+			place = adapterPlace + strconv.Itoa(index)
+		}
+		strengths[index] = g.b.Input(adapterStrengthInput+place, dtype.F32, tensor.MustShape(tensor.SingletonExtent))
+		g.adapters = append(g.adapters, graphAdapter{adapter: adapter, place: place, strength: strengths[index],
+			inputs: tensor.WeightInputs{Builder: g.b, Bindings: &bindings[index], MatrixType: dtype.F32}})
 	}
+	return strengths
 }
 
-// patched adds to a weight or bias the adapter's full difference of it times the strength, where it has one.
+// patched adds to a weight or bias each adapter's full difference of it times its strength, where it has one.
 func (g *rotaryGraph) patched(name string, weight *tensor.Tensor, dimensions ...uint64) *tensor.Tensor {
-	if g.adapter == nil {
-		return weight
-	}
-	if diff, held := g.adapter.diffs[name]; held {
-		return g.b.Add(weight, g.b.Multiply(g.adapterInput(diff, dimensions...), g.strength))
+	for _, applied := range g.adapters {
+		if diff, held := applied.adapter.diffs[name]; held {
+			weight = g.b.Add(weight, g.b.Multiply(applied.input(diff, dimensions...), applied.strength))
+		}
 	}
 	return weight
 }
 
-// adapterInput is the graph input of an adapter tensor, one for every projection that reads it (a fused pair's down).
-func (g *rotaryGraph) adapterInput(name string, dimensions ...uint64) *tensor.Tensor {
-	if held := g.adapterInputs.Bindings.Node(name); held != nil {
+// input is the graph input of the adapter's tensor named name in its file, at the adapter's place, one for every
+// projection that reads it (a fused pair's down).
+func (a graphAdapter) input(name string, dimensions ...uint64) *tensor.Tensor {
+	name += a.place
+	if held := a.inputs.Bindings.Node(name); held != nil {
 		return held
 	}
-	return g.adapterInputs.Input(name, dimensions...)
+	return a.inputs.Input(name, dimensions...)
 }
 
-// lowRank is the adapter's branch of a projection, s * scale * (x down) up at F32, or none.
+// lowRank is the adapters' branches of a projection summed, each s * scale * (x down) up at F32, or none.
 func (g *rotaryGraph) lowRank(name string, x *tensor.Tensor) *tensor.Tensor {
-	if g.adapter == nil {
-		return nil
+	var sum *tensor.Tensor
+	for _, applied := range g.adapters {
+		patch, held := applied.adapter.lowRank[name]
+		if !held {
+			continue
+		}
+		down := applied.input(patch.down, patch.in, patch.rank)
+		up := applied.input(patch.upInputName(), patch.rank, patch.rows)
+		branch := g.b.MulMatWithCompute(up, g.b.MulMatWithCompute(down, x, tensor.MulMatComputeExact), tensor.MulMatComputeExact)
+		branch = g.b.Multiply(g.b.Scale(branch, patch.scale), applied.strength)
+		if sum == nil {
+			sum = branch
+		} else {
+			sum = g.b.Add(sum, branch)
+		}
 	}
-	patch, held := g.adapter.lowRank[name]
-	if !held {
-		return nil
-	}
-	down := g.adapterInput(patch.down, patch.in, patch.rank)
-	up := g.adapterInput(patch.upInputName(), patch.rank, patch.rows)
-	branch := g.b.MulMatWithCompute(up, g.b.MulMatWithCompute(down, x, tensor.MulMatComputeExact), tensor.MulMatComputeExact)
-	return g.b.Multiply(g.b.Scale(branch, patch.scale), g.strength)
+	return sum
 }
 
 func newRotaryGraph(t TransformerSpec, epsilon float32, tokens int, storage dtype.Type, weights *tensor.WeightBindings) (*rotaryGraph, error) {
@@ -113,30 +142,44 @@ func (g *rotaryGraph) linear(name string, x *tensor.Tensor, in, out uint64, bias
 	return g.round(y)
 }
 
-// weight is the graph input of a weight or bias: the adapter's replacement where it names one, read from its file in
-// the model's own storage, since it stands in the model's weight's place, else the model's.
+// weight is the graph input of a weight or bias: the replacement of the adapter that names one, read from its file in
+// the model's own storage, since it stands in the model's weight's place, else the model's. At most one adapter
+// replaces a weight (replacedTwice).
 func (g *rotaryGraph) weight(name string, dimensions ...uint64) *tensor.Tensor {
-	if g.adapter != nil {
-		if replaced, held := g.adapter.replaced[name]; held {
-			if node := g.adapterInputs.Bindings.Node(replaced.tensor); node != nil {
+	for _, applied := range g.adapters {
+		if replaced, held := applied.adapter.replaced[name]; held {
+			stored := replaced.tensor + applied.place
+			if node := applied.inputs.Bindings.Node(stored); node != nil {
 				return node
 			}
-			stored := tensor.WeightInputs{Builder: g.b, Bindings: g.adapterInputs.Bindings, MatrixType: g.bind.MatrixType}
-			return stored.Input(replaced.tensor, dimensions...)
+			return tensor.WeightInputs{Builder: g.b, Bindings: applied.inputs.Bindings, MatrixType: g.bind.MatrixType}.Input(stored, dimensions...)
 		}
 	}
 	return g.bind.Input(name, dimensions...)
 }
 
-// replacedWidth is the width of the input a weight the adapter replaces reads, 0 where it replaces none.
+// replacedWidth is the width of the input a weight an adapter replaces reads, 0 where none replaces it.
 func (g *rotaryGraph) replacedWidth(name string) uint64 {
-	if g.adapter == nil {
-		return 0
-	}
-	if replaced, held := g.adapter.replaced[name]; held && len(replaced.shape) == tensor.PairedExtent {
-		return replaced.shape[1]
+	for _, applied := range g.adapters {
+		if replaced, held := applied.adapter.replaced[name]; held && len(replaced.shape) == tensor.PairedExtent {
+			return replaced.shape[1]
+		}
 	}
 	return 0
+}
+
+// replacedTwice is a weight two of adapters replace, which no graph can read from both; empty where none is.
+func replacedTwice(adapters []*mediaAdapter) string {
+	replacing := map[string]bool{}
+	for _, adapter := range adapters {
+		for name := range adapter.replaced {
+			if replacing[name] {
+				return name
+			}
+			replacing[name] = true
+		}
+	}
+	return ""
 }
 
 func (g *rotaryGraph) norm(name string, x *tensor.Tensor, channels uint64) *tensor.Tensor {

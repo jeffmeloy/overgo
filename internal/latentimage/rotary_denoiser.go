@@ -30,10 +30,10 @@ type rotaryDenoiserProgram struct {
 	output       *tensor.Tensor
 	boundaries   map[string]*tensor.Tensor
 	weightInputs tensor.WeightBindings
-	// adapterInputs are an adapter's tensors the graph reads, bound from its file, and strength the scalar fed each run as
-	// its strength; neither for a program without one (rotaryOptions).
-	adapterInputs tensor.WeightBindings
-	strength      *tensor.Tensor
+	// adapterInputs are each adapter's tensors the graph reads, bound from its file, and strengths the scalar fed each run
+	// as its strength, in the request's order; none for a program without one (rotaryOptions).
+	adapterInputs []tensor.WeightBindings
+	strengths     []*tensor.Tensor
 	// control is the control a widened embedder reads beside the latent, each channel's tokens after another's, fed
 	// each run; none for a program whose embedder reads the latent alone.
 	control             *tensor.Tensor
@@ -74,8 +74,8 @@ func compileRotaryDenoiserProgram(t TransformerSpec, epsilon float32, height, wi
 	if err != nil {
 		return nil, err
 	}
-	g.use(options, &p.adapterInputs)
-	p.strength = g.strength
+	p.adapterInputs = make([]tensor.WeightBindings, len(options.adapters))
+	p.strengths = g.use(options, p.adapterInputs)
 	b := g.b
 	p.latent = b.Input("latent", dtype.F32, latentShape)
 	p.context = b.Input("context", dtype.F32, tensor.MustShape(uint64(t.TextHidden), uint64(text)))

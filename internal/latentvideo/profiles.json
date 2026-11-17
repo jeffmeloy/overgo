@@ -36,10 +36,6 @@
         "shift": 8
       }
     },
-    "student_presets": {
-      "nag": {
-        "guidance": {"attention": {"scale": 4, "tau": 2.5, "alpha": 0.25}}
-      }
-    }
+    "student_negative_guidance": {"scale": 4, "tau": 2.5, "alpha": 0.25}
   }
 ]

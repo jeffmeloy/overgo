@@ -100,6 +100,11 @@ type catalogProfile struct {
 	// Presets are the model's other recipes beside the authors', each named, which a request may name: no part of a
 	// recipe's profile either.
 	Presets map[string]imagePreset `json:"presets,omitempty"`
+	// NegativeGuidance is the normalized attention guidance a distilled model honours a negative prompt by (NAG, arXiv
+	// 2505.21179), on only where a request gives a negative prompt and states no guidance of its own, so the negative
+	// prompt works on it as on a guided model, with no preset to pick (common-controls/negative). No part of a recipe's
+	// profile: a request without a negative prompt draws as the authors' recipe does.
+	NegativeGuidance *sampling.NormalizedAttention `json:"negative_guidance,omitempty"`
 }
 
 type schedulerProfile struct {
@@ -201,29 +206,37 @@ type imagePreset struct {
 	Guidance sampling.Guidance `json:"guidance,omitzero"`
 }
 
-// PresetNames are the presets the catalog declares for the model in directory, in order, for a page to offer.
-func PresetNames(directory string) ([]string, error) {
+// catalogOf is the catalog's entry for the model in directory, by its pipeline class.
+func catalogOf(directory string) (catalogProfile, error) {
 	var index modelIndex
 	if err := readJSON(filepath.Join(directory, "model_index.json"), &index); err != nil {
-		return nil, err
+		return catalogProfile{}, err
 	}
-	catalog, err := lookupCatalogProfile(index.ClassName)
+	return lookupCatalogProfile(index.ClassName)
+}
+
+// PresetNames are the presets the catalog declares for the model in directory, in order, for a page to offer.
+func PresetNames(directory string) ([]string, error) {
+	catalog, err := catalogOf(directory)
 	return slices.Sorted(maps.Keys(catalog.Presets)), err
+}
+
+// NegativeGuided says the model in directory honours a negative prompt by normalized attention guidance
+// (catalogProfile.NegativeGuidance), so a page offers its negative prompt though the model runs unguided.
+func NegativeGuided(directory string) (bool, error) {
+	catalog, err := catalogOf(directory)
+	return catalog.NegativeGuidance != nil, err
 }
 
 // presetOf is the preset the catalog names for the model in directory.
 func presetOf(directory, name string) (imagePreset, error) {
-	var index modelIndex
-	if err := readJSON(filepath.Join(directory, "model_index.json"), &index); err != nil {
-		return imagePreset{}, err
-	}
-	catalog, err := lookupCatalogProfile(index.ClassName)
+	catalog, err := catalogOf(directory)
 	if err != nil {
 		return imagePreset{}, err
 	}
 	preset, declared := catalog.Presets[name]
 	if !declared {
-		return imagePreset{}, fmt.Errorf("latent image: %s declares no preset %q", index.ClassName, name)
+		return imagePreset{}, fmt.Errorf("latent image: %s declares no preset %q", catalog.Pipeline, name)
 	}
 	return preset, nil
 }

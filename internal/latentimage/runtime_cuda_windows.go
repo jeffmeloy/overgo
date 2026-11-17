@@ -525,23 +525,33 @@ func (r Request) withPreset(directory string) (Request, error) {
 		}
 		r.Canvas = nil
 	}
-	if r.Preset == "" {
-		return r, nil
+	if r.Preset != "" {
+		preset, err := presetOf(directory, r.Preset)
+		if err != nil {
+			return Request{}, err
+		}
+		if r.Steps == 0 {
+			r.Steps = preset.Steps
+		}
+		if r.GuidanceScale == nil {
+			r.GuidanceScale = preset.GuidanceScale
+		}
+		if r.Guidance == (sampling.Guidance{}) {
+			r.Guidance = preset.Guidance
+		}
+		r.Preset = ""
 	}
-	preset, err := presetOf(directory, r.Preset)
-	if err != nil {
-		return Request{}, err
+	// A distilled model honours a negative prompt given it by its normalized attention guidance, where the request
+	// states no guidance of its own (catalogProfile.NegativeGuidance).
+	if r.NegativePrompt != "" && r.Guidance == (sampling.Guidance{}) {
+		catalog, err := catalogOf(directory)
+		if err != nil {
+			return Request{}, err
+		}
+		if catalog.NegativeGuidance != nil {
+			r.Guidance = sampling.Guidance{Attention: *catalog.NegativeGuidance}
+		}
 	}
-	if r.Steps == 0 {
-		r.Steps = preset.Steps
-	}
-	if r.GuidanceScale == nil {
-		r.GuidanceScale = preset.GuidanceScale
-	}
-	if r.Guidance == (sampling.Guidance{}) {
-		r.Guidance = preset.Guidance
-	}
-	r.Preset = ""
 	return r, nil
 }
 

@@ -63,8 +63,13 @@ func TestMOSSImageGenerationContract(t *testing.T) {
 	if refusal != "" {
 		t.Fatal(refusal)
 	}
+	// Krea runs unguided, so it offers no guidance scale or layout mode, and its negative prompt, which it honours by
+	// NAG (common-controls/negative).
+	if !slices.ContainsFunc(controls, func(c Control) bool { return c.Name == "negative_prompt" && c.Role == "negative prompt" && !c.Advanced }) {
+		t.Fatal("Krea's page offers no negative prompt beside its prompt", controls)
+	}
 	for _, c := range controls {
-		if c.Name == "negative_prompt" || c.Name == "guidance_scale" || c.Name == "prompt_mode" {
+		if c.Name == "guidance_scale" || c.Name == "prompt_mode" {
 			t.Fatal("unsupported override offered for another profile", c)
 		}
 		// Krea-2-Turbo's page offers the size its publisher draws, 2048 by 2048.

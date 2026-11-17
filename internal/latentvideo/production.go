@@ -105,12 +105,13 @@ type generationPolicy struct {
 
 // profileEntry is the catalog's Wan profile and its presets: the profile is the authors' recipe, which a recipe binds,
 // and each preset another recipe of the same model named beside it, which a request may name. The presets are no part
-// of the profile a recipe binds, so stating one moves no recipe. A few-step student of Wan has its own presets, which
-// change nothing its distillation fixed: its steps, shift and guidance scale.
+// of the profile a recipe binds, so stating one moves no recipe. A few-step student of Wan, distilled to run unguided,
+// has no presets: it honours a negative prompt by its normalized attention guidance (NAG, arXiv 2505.21179), on only
+// where a person gives one (common-controls/negative), no part of a recipe's profile either.
 type profileEntry struct {
 	Profile
-	Presets        map[string]generationPolicy `json:"presets,omitempty"`
-	StudentPresets map[string]generationPolicy `json:"student_presets,omitempty"`
+	Presets                 map[string]generationPolicy   `json:"presets,omitempty"`
+	StudentNegativeGuidance *sampling.NormalizedAttention `json:"student_negative_guidance,omitempty"`
 }
 
 // declaredEntry is the supported Wan profile and its presets as the catalog declares them, before any artifact is read
@@ -144,23 +145,18 @@ func (p Profile) complete(request WanRequest) (WanRequest, error) {
 }
 
 // PresetNames are the presets the model in directory may be asked for, in order, for a page to offer: the Wan
-// profile's, or a student's own.
+// profile's, and none for a student.
 func PresetNames(directory string) ([]string, error) {
-	entry, err := declaredEntry()
 	if IsWanStudent(directory) {
-		return slices.Sorted(maps.Keys(entry.StudentPresets)), err
+		return nil, nil
 	}
+	entry, err := declaredEntry()
 	return slices.Sorted(maps.Keys(entry.Presets)), err
 }
 
 // withPreset fills what a request leaves unset from the preset it names, and clears the name, so a request naming a
 // preset and one stating its values are one request. A request naming none is the authors' recipe, its profile's.
 func (request WanRequest) withPreset() (WanRequest, error) {
-	return request.withPresetOf(func(entry profileEntry) map[string]generationPolicy { return entry.Presets })
-}
-
-// withPresetOf is withPreset from the presets of the catalog entry that presets gives.
-func (request WanRequest) withPresetOf(presets func(profileEntry) map[string]generationPolicy) (WanRequest, error) {
 	if request.Preset == "" {
 		return request, nil
 	}
@@ -168,7 +164,7 @@ func (request WanRequest) withPresetOf(presets func(profileEntry) map[string]gen
 	if err != nil {
 		return WanRequest{}, err
 	}
-	preset, declared := presets(entry)[request.Preset]
+	preset, declared := entry.Presets[request.Preset]
 	if !declared {
 		return WanRequest{}, fmt.Errorf("latent video: the profile declares no preset %q", request.Preset)
 	}

@@ -2,12 +2,10 @@
   {
     "default_size": 2048,
     "default_steps": 8,
+    "negative_guidance": {"scale": 4, "tau": 2.5, "alpha": 0.25},
     "presets": {
       "draft": {
         "steps": 4
-      },
-      "nag": {
-        "guidance": {"attention": {"scale": 4, "tau": 2.5, "alpha": 0.25}}
       }
     },
     "pipeline": "Krea2Pipeline",

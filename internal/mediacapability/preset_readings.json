@@ -79,9 +79,6 @@
           "ties": 469,
           "wins": 15
         }
-      },
-      "nag": {
-        "model": "Krea-2-Turbo"
       }
     },
     "latentvideo": {
@@ -126,9 +123,6 @@
           "ties": 256,
           "wins": 20
         }
-      },
-      "nag": {
-        "model": "Self-Forcing"
       }
     },
     "sensenova": {
@@ -149,6 +143,18 @@
       "cfg-zero-star": {
         "arm": "evaluation:sha256:2a14f2d799123724267bf8b3b464db8fb2e1da745f4358acb96a1d802920d4e8",
         "model": "SenseNova-U1-8B-MoT-Infographic-V3",
+        "pairwise": {
+          "record": "evaluation:sha256:43ac1b4021994dcfdec186a07b942761bc1e0a7f9aa22bd7167531836e7777bf",
+          "verdict": {
+            "admitted": true,
+            "losses": 6,
+            "media": 80,
+            "says": "admitted on no loss beyond chance, which shows no gain: 3 wins, 6 losses and 71 ties over 80 media",
+            "tail": 0.91015625,
+            "ties": 71,
+            "wins": 3
+          }
+        },
         "reference": "evaluation:sha256:82283c10307b93d7de66e48f212fa3bd4711906f5a77de10f241c765a2ae0f8f",
         "verdict": {
           "admitted": true,
@@ -163,6 +169,18 @@
       "guidance-interval": {
         "arm": "evaluation:sha256:9080101428473da6e6a96c018c31cb6b2a8f3a69dd14bbb016eb6ac0d068c05f",
         "model": "SenseNova-U1-8B-MoT-Infographic-V3",
+        "pairwise": {
+          "record": "evaluation:sha256:0787c1ccb45008002a11b7ace381a03c7d7e67bacaf5c0858c8fdc9b38b0a88a",
+          "verdict": {
+            "admitted": false,
+            "losses": 22,
+            "media": 80,
+            "says": "refused: a loss beyond chance, 8 wins, 22 losses and 50 ties over 80 media",
+            "tail": 0.9973885603249073,
+            "ties": 50,
+            "wins": 8
+          }
+        },
         "reference": "evaluation:sha256:82283c10307b93d7de66e48f212fa3bd4711906f5a77de10f241c765a2ae0f8f",
         "verdict": {
           "admitted": true,

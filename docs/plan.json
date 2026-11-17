@@ -20,20 +20,89 @@
       ]
     },
     {
-      "id": "common-controls",
-      "title": "Every media page offers one set of controls, in one order and under one name each, each model's publisher's recipe its default",
+      "id": "eight-bit-attention",
+      "title": "An 8-bit flash-attention kernel for sm_89, INT8 QK and FP8 PV with two-level FP16 accumulation, served as an opt-in preset per model and admitted by its held-out suite on no loss beyond chance, a gain claimed only where the paired test shows one",
       "steps": [
         {
-          "id": "negative",
-          "title": "A distilled model honours a typed negative prompt through NAG, with no preset, and its page offers the negative prompt",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/evaluate -count=1 -run '^TestATypedNegativePromptRemovesWhatItNames$' -timeout=0",
+          "id": "kernel",
+          "title": "The kernel's output is within a tolerance declared first of the FP32 attention reference over the shapes Wan, Krea, MOSS and SenseNova use",
+          "verify": "OVERGO_CUDA_TEST=1 go test -tags modeltest ./internal/cuda/executor -count=1 -run '^TestEightBitAttentionMatchesTheReferenceWithinItsTolerance$'",
+          "files": [
+            "kernels",
+            "internal/cuda"
+          ],
+          "needs_card": true,
+          "rationale": "SageAttention2's algorithm (arXiv 2411.10958; SageAttention2++ arXiv 2505.21136; Apache-2.0): Q and K quantised to INT8 per thread with K smoothed by its mean, P and V in FP8 with FP16 accumulation in two levels, written in FlashAttention-2-style mma.sync for sm_89. FlashAttention-3 is Hopper-only and SageAttention3 is Blackwell FP4, so neither applies. About 3x the attention kernel on a 4090; the 4090 D has 114 SMs to the 4090's 128, so about 0.89 of that.\n\nServes: first-output.\nDisappears: nothing.\nEvidence: the kernel's output is within the declared tolerance of the FP32 reference over each model's shapes.\nBatch: device lane."
+        },
+        {
+          "id": "wan-speed",
+          "title": "Wan's 50-step path and the student run with 8-bit attention as a speed choice, its speed measured on their user-size cells and their clips held to the full-precision path's within a frame bound declared first",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestWanEightBitAttentionKeepsItsClipsWithinTheirBound$'",
+          "rationale": "Wan's 50-step path and the Self-Forcing student run with the 8-bit attention kernel (eight-bit-attention/kernel), a speed choice beside the authors' recipe. The owner, 2026-11-16: no video readings until clips can be compared side by side, since 100 clips cost about 10 hours and can say only \"not worse\"; and a canned choice is a speed tier with its measured cost. So this step measures the kernel's speed on Wan's and the student's user-size cells (832 x 480, 81 frames; the student's four steps), and holds each clip to the full-precision path's of the same request by a frame difference bound declared before the run, over a handful of requests; no judged clip suite is read.\n\nCheck: TestWanEightBitAttentionKeepsItsClipsWithinTheirBound, on the card: Wan's and the student's clips with 8-bit attention stay within the declared bound of their full-precision clips, frame by frame, and each user-size cell records its wall beside the full-precision one's."
+        },
+        {
+          "id": "images",
+          "title": "Krea-2-Turbo at 2048 x 2048, MOSS and SenseNova gain the 8-bit attention preset, each read on its suite",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestImageEightBitAttentionPresetsAreReadAgainstTheirSuites$'",
           "files": [
             "internal/latentimage",
-            "internal/latentvideo",
-            "internal/mediacapability",
-            "cmd/evaluate"
+            "internal/cuda",
+            "internal/media",
+            "internal/capabilityruntime",
+            "internal/servingattempt",
+            "internal/runrecord",
+            "cmd/recipe",
+            "internal/scorecard"
           ],
-          "rationale": "The owner's direction (2026-11-16): the negative prompt works on every model by its own means. Measured (tmp/common-controls/survey): Krea's page has no negative prompt, since its profile has no rotary block and imageControls drops the field for it, so its nag preset, admitted or not, would draw a person's picture byte for byte as without it (nag-krea: the preset with no negative prompt draws the authors' picture); the student's NAG runs only under its preset, against the reference default negative prompt the request fills.\n\nThe change: a distilled model guides away from a negative prompt through NAG at its declared values (Krea's and the student's catalogs, the paper's Table 5), switched on by a negative prompt a person gives and by nothing else, with no preset to pick; its page offers the negative prompt beside the prompt. A request with no negative prompt draws as the authors' recipe does, byte for byte. The nag presets go: the reading of NAG (guidance-ops/nag-readings) is the reading of a typed negative prompt on these models, its record entry kept under that name.\n\nCheck: on the card, a Krea request and a student request each draw the authors' picture or clip without a negative prompt and another with one, and no preset is named; their pages offer the negative prompt. SenseNova's negative prompt, which its request does not take, is a step of its own.\n\nNote: The owner, 2026-11-16: NAG's job is tested directly and small, a handful of prompts, each with a negative prompt naming one thing, the judge asked whether that thing is absent, with NAG and without: tens of pictures, not 160 at 2048 x 2048. The check is that test, on Krea's pictures (a clip is not read until clips compare side by side): TestATypedNegativePromptRemovesWhatItNames (cmd/evaluate, the served judge, as the pairwise sensitivity check runs it), each picture drawn at Krea's own steps at 512 x 512, with the same seed with and without the negative prompt; the thing named is absent beyond chance more often with it. The student's NAG is held by its byte-level card test (TestATypedNegativePromptGuidesTheStudentByNAG) and no judged reading. The nag readings leave the record, since no preset is read for NAG.\n\nNote: files set to internal/latentimage, internal/latentvideo, internal/mediacapability, cmd/evaluate: NAG's job is read by the served judge over Krea's pictures (cmd/evaluate), as the owner asked on 2026-11-16."
+          "needs_card": true,
+          "rationale": "Attention is about 34% of Krea's FLOPs at 2048 x 2048, about 47% of MOSS's 552.8 s run at that size, and about 16% of SenseNova's over its prefix and image span.\n\nNote: files set to internal/latentimage, internal/cuda, internal/media, internal/capabilityruntime, internal/servingattempt, internal/runrecord, cmd/recipe, internal/scorecard: a measuring step records its time through the timing chain the owner named (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard), so its landing may write there\n\nNote: The owner, 2026-11-16: before a campaign draws anything, it works out from the reference set's own scores whether a gain could reach its pass mark, and prints that with the card hours the campaign takes; where a gain cannot show it says so and draws nothing (reading-power/do). Card time freed from the dropped readings goes to this row.\n\nNote: 2026-11-17, the owner's point that SenseNova's 71 pairwise ties needed the judge's sensitivity read at SenseNova's own composite size first: read on 20 of SenseNova's reference prompts at 2048 x 2048 (4096 x 2048 composites, 19 s a case), the served judge chose the reference over another prompt's picture in all 20 prompts and over the blurred picture in all 20, both orders agreeing (tmp/common-controls/knownpair composed the arms; evaluate -pairwise-preset, a judge-as-itself manifest and -pairwise-evaluation read them at 3e909c50a). The pairwise reading is an instrument at the image models' person sizes, 1024 and 2048 alike, so this step's pairwise readings need no sensitivity check of their own.\n\nServes: first-output at large sizes.\nDisappears: nothing.\nEvidence: each preset's time and sign test are recorded.\nBatch: device lane.",
+          "depends_on": [
+            "eight-bit-attention/kernel",
+            "quality-instruments/soft-tifa"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "step-cache",
+      "title": "The 50-step models skip steps by MagCache's magnitude ratio, and LiveEdit recomputes attention only where its edit changed the latent, each a preset admitted by its suite",
+      "steps": [
+        {
+          "id": "magcache",
+          "title": "MagCache skips steps on Wan's 50-step path, MOSS, SenseNova and RAE where its accumulated error estimate stays under a declared bound",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo ./internal/latentimage -count=1 -run '^TestMagCacheSkipsOnlyUnderItsErrorBound$'",
+          "files": [
+            "internal/sampling",
+            "internal/latentvideo",
+            "internal/latentimage",
+            "internal/rae",
+            "internal/media",
+            "internal/capabilityruntime",
+            "internal/servingattempt",
+            "internal/runrecord",
+            "cmd/recipe",
+            "internal/scorecard"
+          ],
+          "needs_card": true,
+          "rationale": "MagCache (arXiv 2506.09045, Apache-2.0) reuses the last residual while the residual magnitude ratio predicts little error: Wan 1.3B went from about 189 s to 68 s on an A800, and 2.10 to 2.68x across video DiTs; First-Block Cache gave 1.55 to 1.91x on FLUX on an Ada L20. Caches exploit similarity between adjacent steps, which few-step students lack, so the cache is not offered on Krea, LiveEdit or the Wan student and never stacked on distillation.\n\nNote: files set to internal/sampling, internal/latentvideo, internal/latentimage, internal/rae, internal/media, internal/capabilityruntime, internal/servingattempt, internal/runrecord, cmd/recipe, internal/scorecard: a measuring step records its time through the timing chain the owner named (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard), so its landing may write there\n\nNote: The owner, 2026-11-16: before a campaign draws anything, it works out from the reference set's own scores whether a gain could reach its pass mark, and prints that with the card hours the campaign takes; where a gain cannot show it says so and draws nothing (reading-power/do). Card time freed from the dropped readings goes to this row.\n\nServes: first-output.\nDisappears: nothing.\nEvidence: the cache skips only steps whose accumulated estimate stays under the bound, and each preset's time and sign test are recorded.\nBatch: device lane.",
+          "depends_on": [
+            "sampling-split/interface",
+            "media-user-size/user-size",
+            "quality-instruments/soft-tifa"
+          ]
+        },
+        {
+          "id": "liveedit-mask",
+          "title": "LiveEdit recomputes self-attention only for tokens whose source and edited latents differ, its feed-forward kept dense, read on its 64-clip suite",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestLiveEditMaskCacheKeepsTheFeedForwardDense$'",
+          "files": [
+            "internal/latentvideo"
+          ],
+          "needs_card": true,
+          "rationale": "LiveEdit's paper (arXiv 2606.26740) prunes 70% of spatial tokens from self-attention at small cost: dynamic degree 0.282 to 0.256, imaging quality 0.720 to 0.708, text alignment 0.265 to 0.270. Caching the feed-forward too collapses quality, so it stays dense. overgo's latentvideo has no such path.\n\nServes: first-output.\nDisappears: nothing.\nEvidence: the masked preset recomputes attention only for changed tokens, and its sign test on the 64-clip suite is recorded.\nBatch: device lane.",
+          "depends_on": [
+            "media-user-size/stages"
+          ]
         }
       ]
     },
@@ -281,65 +350,6 @@
       ]
     },
     {
-      "id": "eight-bit-attention",
-      "title": "An 8-bit flash-attention kernel for sm_89, INT8 QK and FP8 PV with two-level FP16 accumulation, served as an opt-in preset per model and admitted by its held-out suite on no loss beyond chance, a gain claimed only where the paired test shows one",
-      "steps": [
-        {
-          "id": "kernel",
-          "title": "The kernel's output is within a tolerance declared first of the FP32 attention reference over the shapes Wan, Krea, MOSS and SenseNova use",
-          "verify": "OVERGO_CUDA_TEST=1 go test -tags modeltest ./internal/cuda/executor -count=1 -run '^TestEightBitAttentionMatchesTheReferenceWithinItsTolerance$'",
-          "files": [
-            "kernels",
-            "internal/cuda"
-          ],
-          "needs_card": true,
-          "rationale": "SageAttention2's algorithm (arXiv 2411.10958; SageAttention2++ arXiv 2505.21136; Apache-2.0): Q and K quantised to INT8 per thread with K smoothed by its mean, P and V in FP8 with FP16 accumulation in two levels, written in FlashAttention-2-style mma.sync for sm_89. FlashAttention-3 is Hopper-only and SageAttention3 is Blackwell FP4, so neither applies. About 3x the attention kernel on a 4090; the 4090 D has 114 SMs to the 4090's 128, so about 0.89 of that.\n\nServes: first-output.\nDisappears: nothing.\nEvidence: the kernel's output is within the declared tolerance of the FP32 reference over each model's shapes.\nBatch: device lane."
-        },
-        {
-          "id": "wan",
-          "title": "Wan's 50-step path and the student run with 8-bit attention as a preset, read on the user-size cell and the 128-clip suite by a per-case sign test",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestWanEightBitAttentionPresetIsReadAgainstItsSuite$'",
-          "files": [
-            "internal/latentvideo",
-            "internal/cuda",
-            "internal/media",
-            "internal/capabilityruntime",
-            "internal/servingattempt",
-            "internal/runrecord",
-            "cmd/recipe",
-            "internal/scorecard"
-          ],
-          "needs_card": true,
-          "rationale": "Self-attention is about 70% of a 32,760-token Wan pass, so the kernel's gain mostly reaches the clip: an estimated 1.5 to 1.9x end to end. A community measurement of Wan 2.1 on a 4090 went from 33.40 s an iteration with SDPA to 18.22 with SageAttention2 at FP16 accumulation. Field reports are mixed: one 4090 user saw no gain and another found it degrades Wan 2.2, so it is admitted only on the suite.\n\nNote: files set to internal/latentvideo, internal/cuda, internal/media, internal/capabilityruntime, internal/servingattempt, internal/runrecord, cmd/recipe, internal/scorecard: a measuring step records its time through the timing chain the owner named (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard), so its landing may write there\n\nNote: The owner, 2026-11-16: no video readings until clips can be compared side by side; 100 clips cost about 10 hours and can say only \"not worse\". So this step measures 8-bit attention's speed on Wan's and the student's user-size cells and holds their clips to the full-precision path's by a frame difference bound declared before the run; no judged clip suite.\n\nServes: first-output.\nDisappears: nothing.\nEvidence: the preset's user-size time and its sign test against the reference on the 128-clip suite are recorded.\nBatch: device lane.",
-          "depends_on": [
-            "eight-bit-attention/kernel",
-            "media-user-size/user-size"
-          ]
-        },
-        {
-          "id": "images",
-          "title": "Krea-2-Turbo at 2048 x 2048, MOSS and SenseNova gain the 8-bit attention preset, each read on its suite",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestImageEightBitAttentionPresetsAreReadAgainstTheirSuites$'",
-          "files": [
-            "internal/latentimage",
-            "internal/cuda",
-            "internal/media",
-            "internal/capabilityruntime",
-            "internal/servingattempt",
-            "internal/runrecord",
-            "cmd/recipe",
-            "internal/scorecard"
-          ],
-          "needs_card": true,
-          "rationale": "Attention is about 34% of Krea's FLOPs at 2048 x 2048, about 47% of MOSS's 552.8 s run at that size, and about 16% of SenseNova's over its prefix and image span.\n\nNote: files set to internal/latentimage, internal/cuda, internal/media, internal/capabilityruntime, internal/servingattempt, internal/runrecord, cmd/recipe, internal/scorecard: a measuring step records its time through the timing chain the owner named (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard), so its landing may write there\n\nNote: The owner, 2026-11-16: before a campaign draws anything, it works out from the reference set's own scores whether a gain could reach its pass mark, and prints that with the card hours the campaign takes; where a gain cannot show it says so and draws nothing (reading-power/do). Card time freed from the dropped readings goes to this row.\n\nServes: first-output at large sizes.\nDisappears: nothing.\nEvidence: each preset's time and sign test are recorded.\nBatch: device lane.",
-          "depends_on": [
-            "eight-bit-attention/kernel",
-            "quality-instruments/soft-tifa"
-          ]
-        }
-      ]
-    },
-    {
       "id": "w8a8-gemm",
       "title": "FP8 and INT8 W8A8 matrix products with fused epilogues, weights quantized at load from the published files, first on Krea-2-Turbo",
       "steps": [
@@ -411,49 +421,6 @@
           "rationale": "Estimated about 1.5 to 1.7x a step for MOSS; about 1.6x a pass for SenseNova's generation tower, whose 35 GB of BF16 weights fall to about 17.5 GB with both towers resident; only 1.1 to 1.3x for Wan at full size, where attention dominates.\n\nNote: files set to internal/latentimage, internal/latentvideo, internal/cuda, internal/media, internal/capabilityruntime, internal/servingattempt, internal/runrecord, cmd/recipe, internal/scorecard: a measuring step records its time through the timing chain the owner named (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard), so its landing may write there\n\nServes: first-output, peak-device-memory.\nDisappears: nothing.\nEvidence: each preset's time, peak memory and sign test are recorded.\nBatch: device lane.",
           "depends_on": [
             "w8a8-gemm/krea"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "step-cache",
-      "title": "The 50-step models skip steps by MagCache's magnitude ratio, and LiveEdit recomputes attention only where its edit changed the latent, each a preset admitted by its suite",
-      "steps": [
-        {
-          "id": "magcache",
-          "title": "MagCache skips steps on Wan's 50-step path, MOSS, SenseNova and RAE where its accumulated error estimate stays under a declared bound",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo ./internal/latentimage -count=1 -run '^TestMagCacheSkipsOnlyUnderItsErrorBound$'",
-          "files": [
-            "internal/sampling",
-            "internal/latentvideo",
-            "internal/latentimage",
-            "internal/rae",
-            "internal/media",
-            "internal/capabilityruntime",
-            "internal/servingattempt",
-            "internal/runrecord",
-            "cmd/recipe",
-            "internal/scorecard"
-          ],
-          "needs_card": true,
-          "rationale": "MagCache (arXiv 2506.09045, Apache-2.0) reuses the last residual while the residual magnitude ratio predicts little error: Wan 1.3B went from about 189 s to 68 s on an A800, and 2.10 to 2.68x across video DiTs; First-Block Cache gave 1.55 to 1.91x on FLUX on an Ada L20. Caches exploit similarity between adjacent steps, which few-step students lack, so the cache is not offered on Krea, LiveEdit or the Wan student and never stacked on distillation.\n\nNote: files set to internal/sampling, internal/latentvideo, internal/latentimage, internal/rae, internal/media, internal/capabilityruntime, internal/servingattempt, internal/runrecord, cmd/recipe, internal/scorecard: a measuring step records its time through the timing chain the owner named (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard), so its landing may write there\n\nNote: The owner, 2026-11-16: before a campaign draws anything, it works out from the reference set's own scores whether a gain could reach its pass mark, and prints that with the card hours the campaign takes; where a gain cannot show it says so and draws nothing (reading-power/do). Card time freed from the dropped readings goes to this row.\n\nServes: first-output.\nDisappears: nothing.\nEvidence: the cache skips only steps whose accumulated estimate stays under the bound, and each preset's time and sign test are recorded.\nBatch: device lane.",
-          "depends_on": [
-            "sampling-split/interface",
-            "media-user-size/user-size",
-            "quality-instruments/soft-tifa"
-          ]
-        },
-        {
-          "id": "liveedit-mask",
-          "title": "LiveEdit recomputes self-attention only for tokens whose source and edited latents differ, its feed-forward kept dense, read on its 64-clip suite",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestLiveEditMaskCacheKeepsTheFeedForwardDense$'",
-          "files": [
-            "internal/latentvideo"
-          ],
-          "needs_card": true,
-          "rationale": "LiveEdit's paper (arXiv 2606.26740) prunes 70% of spatial tokens from self-attention at small cost: dynamic degree 0.282 to 0.256, imaging quality 0.720 to 0.708, text alignment 0.265 to 0.270. Caching the feed-forward too collapses quality, so it stays dense. overgo's latentvideo has no such path.\n\nServes: first-output.\nDisappears: nothing.\nEvidence: the masked preset recomputes attention only for changed tokens, and its sign test on the 64-clip suite is recorded.\nBatch: device lane.",
-          "depends_on": [
-            "media-user-size/stages"
           ]
         }
       ]

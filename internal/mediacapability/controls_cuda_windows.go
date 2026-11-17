@@ -55,8 +55,13 @@ func imageControls(directory string, controls []Control) ([]Control, error) {
 		applyBounds(controls, map[string]Bounds{
 			"width": {Default: side}, "height": {Default: side}, "steps": {Default: profile.Sampling.DefaultSteps, Step: 1},
 		})
+		// It runs unguided, so it takes a negative prompt only where it honours one by normalized attention guidance.
+		guided, err := latentimage.NegativeGuided(directory)
+		if err != nil {
+			return nil, err
+		}
 		return slices.DeleteFunc(controls, func(c Control) bool {
-			return c.Name == "negative_prompt" || c.Name == "guidance_scale" || c.Name == "prompt_mode"
+			return c.Name == "negative_prompt" && !guided || c.Name == "guidance_scale" || c.Name == "prompt_mode"
 		}), nil
 	}
 	policy := profile.Rotary

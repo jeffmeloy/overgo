@@ -93,17 +93,24 @@ func LoadWanStudentRuntime(ctx context.Context, store artifact.Repository, path 
 	}, nil
 }
 
-// studentPresets are a student's own presets in the catalog.
-func studentPresets(entry profileEntry) map[string]generationPolicy { return entry.StudentPresets }
-
-// resolveStudentRequest fills what a request leaves unset from the student preset it names, then from the student's
-// generation in its profile, and refuses one the student does not run as it asks: one with no prompt, one with steps,
-// a shift or a guidance scale other than the student's own, which its distillation fixed, or with any guidance but NAG,
-// which guides its attention and reads no unconditioned pass.
+// resolveStudentRequest guides a request by the student's NAG where a person gives a negative prompt and states no
+// guidance of its own (profileEntry.StudentNegativeGuidance), fills what it leaves unset from the student's generation
+// in its profile, and refuses one the student does not run as it asks: one naming a preset, which a student has none
+// of, one with no prompt, one with steps, a shift or a guidance scale other than the student's own, which its
+// distillation fixed, or with any guidance but NAG, which guides its attention and reads no unconditioned pass. The
+// negative prompt the profile fills where none is given (withGeneration) guides nothing.
 func resolveStudentRequest(profile Profile, request WanRequest) (WanRequest, error) {
-	request, err := request.withPresetOf(studentPresets)
-	if err != nil {
-		return WanRequest{}, err
+	if request.Preset != "" {
+		return WanRequest{}, fmt.Errorf("latent video: a few-step student has no presets, asked %q", request.Preset)
+	}
+	if request.NegativePrompt != "" && request.Guidance == (sampling.Guidance{}) {
+		entry, err := declaredEntry()
+		if err != nil {
+			return WanRequest{}, err
+		}
+		if entry.StudentNegativeGuidance != nil {
+			request.Guidance = sampling.Guidance{Attention: *entry.StudentNegativeGuidance}
+		}
 	}
 	request = request.withGeneration(profile.Generation)
 	generation := profile.Generation

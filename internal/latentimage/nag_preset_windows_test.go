@@ -10,17 +10,16 @@ import (
 	"overgo/internal/testcheck"
 )
 
-// TestNAGAppliesANegativePromptAtGuidanceOne holds Krea's nag preset on the card (guidance-ops/nag-krea): Krea-2-Turbo
-// runs without guidance, so it honoured no negative prompt; with the nag preset a negative prompt draws another picture,
-// the nag preset without one draws the authors' picture byte for byte, and a session loaded with the negative prompt
-// draws the picture one given it by Reset draws.
-func TestNAGAppliesANegativePromptAtGuidanceOne(t *testing.T) {
+// TestATypedNegativePromptGuidesKreaByNAG holds Krea's negative prompt on the card (guidance-ops/nag-krea,
+// common-controls/negative): Krea-2-Turbo runs without guidance, so it honoured no negative prompt; a negative prompt a
+// person gives now turns on its NAG, with no preset to pick, and draws another picture; the same request given no
+// negative prompt again draws the authors' picture byte for byte; and a session loaded with the negative prompt draws
+// the picture one given it by Reset draws.
+func TestATypedNegativePromptGuidesKreaByNAG(t *testing.T) {
 	cudatest.Require(t)
 	ctx := t.Context()
 	authors := Request{Prompt: "a red fox licking a vanilla ice cream cone in snow", Width: 256, Height: 256, Steps: 2, Seed: 42}
-	nag := authors
-	nag.Preset = "nag"
-	negative := nag
+	negative := authors
 	negative.NegativePrompt = "snow"
 	directory, profile := kreaDirOrSkip(t), kreaProfileOrSkip(t)
 	generator := testcheck.Must(LoadGenerator(ctx, directory, profile, authors))(t)
@@ -32,13 +31,13 @@ func TestNAGAppliesANegativePromptAtGuidanceOne(t *testing.T) {
 		t.Logf("%q against %q drew in %s", request.Prompt, request.NegativePrompt, took)
 		return image
 	}
-	unguided, guided := draw(nag), draw(negative)
+	guided, unguided := draw(negative), draw(authors)
 	closeReporting(t, ctx, generator)
-	if !bytes.Equal(unguided.Data, reference.Data) {
-		t.Error("the nag preset with no negative prompt drew another picture than the authors' recipe")
-	}
 	if bytes.Equal(guided.Data, reference.Data) {
-		t.Error("the nag preset's negative prompt left the picture as the authors' recipe drew it")
+		t.Error("a typed negative prompt left the picture as the authors' recipe drew it")
+	}
+	if !bytes.Equal(unguided.Data, reference.Data) {
+		t.Error("given no negative prompt again, the session drew another picture than the authors' recipe")
 	}
 	loaded := testcheck.Must(LoadGenerator(ctx, directory, profile, negative))(t)
 	defer closeReporting(t, ctx, loaded)

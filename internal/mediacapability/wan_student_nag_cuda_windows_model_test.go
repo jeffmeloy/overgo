@@ -20,12 +20,12 @@ import (
 	"overgo/internal/testcheck"
 )
 
-// TestNAGAppliesANegativePromptAtGuidanceOne serves the Wan student requests of one prompt and seed through the video
-// capability (guidance-ops/nag-wan). Unguided, the student reads no negative prompt, so a plain request with one draws
-// the plain clip's bytes; the nag preset, NAG in each block's cross-attention at the paper's Table 5 values, draws
-// another clip at the student's own steps and guidance; and under it another negative prompt draws another clip again,
-// so the negative prompt is what steers it.
-func TestNAGAppliesANegativePromptAtGuidanceOne(t *testing.T) {
+// TestATypedNegativePromptGuidesTheStudentByNAG serves the Wan student requests of one prompt and seed through the
+// video capability (guidance-ops/nag-wan, common-controls/negative). A negative prompt a person gives turns on NAG in
+// each block's cross-attention at the paper's Table 5 values, with no preset to pick: it draws another clip than the
+// plain request, at the student's own steps and guidance, and another negative prompt draws another clip again, so the
+// negative prompt is what steers it. The negative prompt the profile fills where none is given guides nothing.
+func TestATypedNegativePromptGuidesTheStudentByNAG(t *testing.T) {
 	cudatest.Require(t)
 	directory := modeltest.Directory(t, "Self-Forcing")
 	capability := videoCapability()
@@ -54,23 +54,19 @@ func TestNAGAppliesANegativePromptAtGuidanceOne(t *testing.T) {
 		return video
 	}
 	plain := draw("plain", latentvideo.WanRequest{})
-	negated := draw("plain request with a negative prompt", latentvideo.WanRequest{NegativePrompt: "blurry, static, low resolution"})
-	if !bytes.Equal(plain.Data, negated.Data) {
-		t.Fatal("unguided, the student drew another clip for a negative prompt, which it does not read")
-	}
-	guided := draw("nag", latentvideo.WanRequest{Preset: "nag", NegativePrompt: "blurry, static, low resolution"})
+	guided := draw("negative prompt", latentvideo.WanRequest{NegativePrompt: "blurry, static, low resolution"})
 	if bytes.Equal(plain.Data, guided.Data) {
-		t.Fatal("the nag preset with a negative prompt drew the plain clip")
+		t.Fatal("a typed negative prompt drew the plain clip")
 	}
 	want := media.Preset{Width: 64, Height: 32, Frames: 21, Steps: 4, Guidance: 1, Sampler: "chunk-causal flow", Shift: 5}
 	if guided.Preset != want {
-		t.Fatalf("the nag request ran %+v, want the student's own %+v", guided.Preset, want)
+		t.Fatalf("the negative prompt's request ran %+v, want the student's own %+v", guided.Preset, want)
 	}
-	other := draw("nag with another negative prompt", latentvideo.WanRequest{Preset: "nag", NegativePrompt: "a dog, a city street, summer"})
+	other := draw("another negative prompt", latentvideo.WanRequest{NegativePrompt: "a dog, a city street, summer"})
 	if bytes.Equal(guided.Data, other.Data) {
-		t.Fatal("under the nag preset two negative prompts drew one clip")
+		t.Fatal("two negative prompts drew one clip")
 	}
-	// Of guidance the student reads NAG alone, and of presets its own, at the steps its distillation fixed.
+	// Of guidance the student reads NAG alone, and no preset, at the steps its distillation fixed.
 	for name, request := range map[string]latentvideo.WanRequest{
 		"CFG-Zero*":        {Guidance: sampling.Guidance{ZeroSteps: 1, Projected: true}},
 		"Wan's model-card": {Preset: "model-card"},

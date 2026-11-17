@@ -135,7 +135,22 @@
       "input": "(1) A root package embedding value.txt, checked by go test . -run TestValue, with only value.txt changed. (2) A production file built with -tags=fixturelane embedding value.txt, checked by go test -tags=fixturelane ./p, with only value.txt changed.",
       "expected": "The embedded asset enters the undo run's restoration set, so the unchanged test runs against the restored input and fails on its assertion.",
       "actual": "(1) path.Dir(value.txt) is \".\" and the ancestor loop stops before adding it, so the asset is not restored and undoable says no production Go changed. (2) Production calls go list without the verifier's flags, so the tag-gated embed is not listed and the asset-only change skips the undo. Read from source."
-    }
+    },
+    {
+  "id": "SQA-406",
+  "severity": "P2",
+  "files": [
+    "internal/latentimage/media_adapter.go",
+    "internal/mediacapability/image_cuda_windows.go",
+    "internal/mediacapability/image_source.go",
+    "internal/modelartifact/pipeline.go",
+    "internal/capabilityruntime/session_director.go",
+    "internal/capabilityruntime/run_key.go"
+  ],
+  "input": "With a valid MOSS HF pipeline whose model_index declares the normal components and no adapters component, serve a fixed-seed image-gen request naming an adapter in <model>/adapters/<name>.safetensors and keep its completed run. Replace that file with different compatible adapter tensors under the same name, leaving the base components, recipe, request JSON and build unchanged, then repeat the request without FreshRun.",
+  "expected": "The image source/request-binding owner must bind the selected adapter's content identity before the existing director checks for a completed result. Changed adapter bytes cannot reuse the earlier computation or claim its output; unchanged adapter bytes may still reuse resident weights across strength changes, while differing strengths remain distinct requests. Keep the current artifact, replay and resident-session owners.",
+  "actual": "modelAdapter reads weights from the named file, but fromHFPipeline inventories only model_index components, leaving the adapters directory outside the model identity. imageCapability passes the latent executor straight to pictureSessions without an adapter-content binding. RunKeyOf therefore stays identical (recipe, JSON request and code), and ModelSessionDirector.serve calls measuredRun/Replay before modelAdapter is reached: the previous image and run are returned without reading the replacement adapter. The retained adapter comparison checks fixed files and strengths, not invalidation of a served result after a file changes. Shown from source at a11ed7e3b5b58078ea7b7627ac687058420c0eb9; no SQA execution."
+}
   ],
   "master_lead_triage": {
     "at": "2026-11-13",
@@ -196,7 +211,7 @@
       }
 }
   },
-  "next_finding_number": 406,
+  "next_finding_number": 407,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

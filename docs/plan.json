@@ -7,6 +7,12 @@
       "title": "overgo runs every section of the MOSS Ultra workflow: bong_tangent, beta57 and request sigmas, ER-SDE, image to image, depth estimation and control, prompt modes 2 and 3, and the finishing steps",
       "steps": [
         {
+          "id": "enhancer-chat",
+          "title": "The Ultra encoder file with its head serves as the enhancer's chat model, its greedy text held token for token against ComfyUI's to the first near tie",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestTheEnhancersGreedyTextHoldsComfyUIs$'",
+          "rationale": "Prompt mode 2's three generations (TextGenerate 707:703:453, 465, 468) run the Ultra encoder file with its head as a chat model: the file names its tensors as a Hugging Face checkpoint for generation does (model.language_model., lm_head; no MTP), each projection, the embedding and the head in int8 ConvRot, which overgo's Qwen 3.5 adapter maps under a ForConditionalGeneration config, the weights decoded as the conditioner's view decodes them, the vision tower left out. ComfyUI's generate runs the int8 matmul with activations quantized per row after the rotation (comfy_kitchen int8_linear) where overgo decodes the weights to bfloat16, so the check reads where the two part: ComfyUI's greedy text (TextGenerate with sampling off, recorded with its token IDs by a golden script) against overgo's greedy decode on the same chat template (thinking off), held token for token up to where the two models' top two logits lie within the gap their arithmetic leaves, the first parting reported. Sampled text (temperature 0.7, top-k 20, top-p 0.8, presence penalty 1.5, seed 0) is compared only through the picture.\n\nServes: prompt mode 2's enhancer; moss-ultra-sections/prompt-modes wires it.\n\nCheck: TestTheEnhancersGreedyTextHoldsComfyUIs.\n\nBatch: device lane."
+        },
+        {
           "id": "prompt-modes",
           "title": "Prompt mode 2's enhancer and mode 3's boxes run as typed Go, the cleaned negative and the layout string equal to ComfyUI's",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestPromptModesTwoAndThreeEqualTheRecordedStrings$'",
@@ -104,12 +110,11 @@
         {
           "id": "named",
           "title": "When the slow test stage fails, the landing's refusal and its record name each failing test and its package",
-          "verify": "go test ./internal/landing -count=1 -run '^TestALaneFailureNamesItsFailingTests$'",
+          "verify": "go test ./cmd/device-lane -count=1 -run '^TestALaneFailureNamesItsFailingTests$'",
           "files": [
-            "internal/landing",
-            "cmd/loop"
+            "cmd/device-lane"
           ],
-          "rationale": "The owner's note of 2026-11-17 keeps the small fixes that protect working models: the slow tests are rerun, and the failing test is recorded when the slow test stage fails. On 2026-11-17 a landing was refused by its lanes with a cause that named no test, and the lanes passed when run again, so the failing test was never known.\n\nServes: the slow tests that protect working models, read by name when they fail.\nDisappears: a lanes refusal that names no test.\nEvidence: a failing lane's refusal and record name the failing tests.\nBatch: host lane."
+          "rationale": "The owner's note of 2026-11-17 keeps the small fixes that protect working models: the slow tests are rerun, and the failing test is recorded when the slow test stage fails. On 2026-11-17 a landing was refused by its lanes with a cause that named no test, and the lanes passed when run again, so the failing test was never known.\n\nNote: files set to cmd/device-lane: The refusal named no test because cmd/device-lane read its step's output strictly: its stdout and stderr joined, one line of the go command's own beside the test JSON made the reader refuse the stream, and the diagnostic fell back to the tail. The landing already reads a lane's output past such lines; the cure is the device lane's, and internal/landing and cmd/loop change nothing.\n\nNote: 2026-11-17, the cause, reproduced (tmp/lane-failure/mixed.go): cmd/device-lane's deviceDiagnostic reads its step's stdout and stderr joined with testevidence.GoTestJSONReader, which errs on any line that is no JSON event; one line of the go command's own (a download, a build note) beside a failing test's events made it fall back to the bare tail, so the device lane's refusal named its command and no test. The landing reads a lane's output past such lines (testevidence.FailureSummary), and GoTestJSONReader's strict reading has no other caller. The cure, written and held on 2026-11-17 while the workflow's rows came first: deviceDiagnostic returns testevidence.FailedTests + testevidence.FailureSummary(out) where that names failures, else the tail as before; its check, cmd/device-lane's TestALaneFailureNamesItsFailingTests, gives deviceDiagnostic a failing stream with a \"go: downloading\" line after it and wants the diagnostic to open by the failed test and keep its words (it fails without the cure). internal/landing and cmd/loop change nothing.\n\nServes: the slow tests that protect working models, read by name when they fail.\nDisappears: a lanes refusal that names no test.\nEvidence: a failing lane's refusal and record name the failing tests.\nBatch: host lane."
         }
       ]
     },

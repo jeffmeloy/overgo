@@ -236,7 +236,7 @@ func (g *Generator) prepareRotary(ctx context.Context, request Request) (_ *Gene
 	// observed request reports every boundary, so it encodes what a cached
 	// prompt skips. Each prompt is rendered once, its rows' weights read from that
 	// rendering whether its conditioning is kept or encoded.
-	prompts := []string{request.Prompt}
+	prompts := []string{request.prompt()}
 	if g.rotary.guidance != tensor.UnitScale {
 		prompts = append(prompts, request.NegativePrompt)
 	}

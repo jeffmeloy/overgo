@@ -9,13 +9,13 @@
         {
           "id": "sft-band",
           "title": "MOSS-Image-SFT with the official encoder runs every section, DMD2 and the control adapter applied to it, its agreement with the golden recorded as a band",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/adaptiveparity -count=1 -run '^TestServedMossCompletesEveryUltraSection$'",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestServedMossCompletesEveryUltraSection$'",
           "files": [
-            "internal/adaptiveparity",
+            "docs/plan.json",
             "internal/latentimage"
           ],
           "needs_card": true,
-          "rationale": "The owner's plan of 2026-11-05 keeps the golden on the workflow's models and adds a separate check that the model overgo already serves works in the workflow. Mode 2's enhancer runs on a served Qwen3.5-9B. The weights differ, and the 50-step golden is Base without SFT, so agreement is reported as a band, not held to the golden's floor.\n\nServes: held-out-quality for the served model.\nDisappears: nothing.\nEvidence: every section and mode completes on SFT, with its band recorded.\nBatch: device lane.",
+          "rationale": "The owner's plan of 2026-11-05 keeps the golden on the workflow's models and adds a separate check that the model overgo already serves works in the workflow. Mode 2's enhancer runs on a served Qwen3.5-9B. The weights differ, and the 50-step golden is Base without SFT, so agreement is reported as a band, not held to the golden's floor.\n\nNote: files set to docs/plan.json, internal/latentimage: the sections' requests and their latents are internal/latentimage's tests'\n\nNote: 2026-11-17, scope as dispatched: a request applies one adapter (latentimage Request.Adapter), so SFT runs each section whose adapters on SFT are one or none: text to image, prompt modes 2 and 3, image to image at denoise 1 and 0.6, depth control (moss-control), and the Turbo text to image and image to image (DMD2 at 8 steps and guidance 1); the depth Turbo section, moss-control and DMD2 together, waits for moss-eight-step, which gives SFT the Turbo preset. Mode 2's enhancer on SFT is the served Qwen3.5-9B (models/Qwen3.5-9B-Q8_0.gguf) as the model's enhancer (latentimage enhancerDirectory, a GGUF file or a Hugging Face folder). Each section's final latent and finished picture against the Ultra golden (ComfyUI on Base) is recorded as the band, its lowest and highest; the check holds that each completes.\n\nServes: held-out-quality for the served model.\nDisappears: nothing.\nEvidence: every section and mode completes on SFT, with its band recorded.\nBatch: device lane.",
           "depends_on": [
             "moss-ultra-compare/golden-floor"
           ]

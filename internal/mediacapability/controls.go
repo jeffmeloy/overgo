@@ -46,7 +46,40 @@ type Control struct {
 	// Bounds are a numeric field's declared default, step and rate (the
 	// model's profile and strides), from which a page derives its presets.
 	Bounds *Bounds
+	// Role is the common control the field is on every media page (its role tag, one of controlRoles), whatever its
+	// own JSON name: guidance strength is guidance_scale, cfg_scale or guide_scale by model, and "guidance" on each.
+	Role string
 }
+
+// controlRoles are the controls every media page offers under one name each, in the order a page lists them (the
+// owner's direction of 2026-11-16: one set of controls for every model); those from steps on are tuning, behind the
+// page's disclosure on every page alike.
+var controlRoles = []string{"prompt", "class", "source", "negative prompt", "width", "height", "frames", "steps", "guidance", "seed", "preset", "format"}
+
+// tuningRoles is where the tuning roles begin in controlRoles.
+var tuningRoles = slices.Index(controlRoles, "steps")
+
+// byRole lists a page's controls in the roles' order, its tuning roles and every field with no role behind the
+// disclosure; a request whose fields name no role (speech, VQA) keeps its order.
+func byRole(controls []Control) []Control {
+	if !slices.ContainsFunc(controls, func(c Control) bool { return c.Role != "" }) {
+		return controls
+	}
+	rank := func(control Control) int {
+		if at := slices.Index(controlRoles, control.Role); at >= 0 {
+			return at
+		}
+		return len(controlRoles)
+	}
+	slices.SortStableFunc(controls, func(a, b Control) int { return rank(a) - rank(b) })
+	for index := range controls {
+		controls[index].Advanced = rank(controls[index]) >= tuningRoles
+	}
+	return controls
+}
+
+// Labelled reports the name a page shows a control by: its role where it has one, empty where the page names it.
+func (control Control) Labelled() string { return control.Role }
 
 // Bounds is a numeric control's declared default, the step a valid value
 // moves by (zero when any value is valid) and, for a frame count, the
@@ -127,7 +160,7 @@ func Controls(entry recipe.ModuleID, directory string) ([]Control, string) {
 	}
 	controls, refusal := describe(reflect.TypeOf(request))
 	if refusal != "" || directory == "" {
-		return controls, refusal
+		return byRole(controls), refusal
 	}
 	if provider, provides := controlProviders[entry]; provides {
 		declared, err := provider(directory, controls)
@@ -136,7 +169,7 @@ func Controls(entry recipe.ModuleID, directory string) ([]Control, string) {
 		}
 		controls = declared
 	}
-	return controls, ""
+	return byRole(controls), ""
 }
 
 // controlProviders apply source-declared choices, bounds and supported fields.
@@ -192,7 +225,7 @@ func offerPresets(controls []Control, family string, presets []string) ([]Contro
 	}
 	for index := range controls {
 		if controls[index].Name == presetControl {
-			controls[index].Choices, controls[index].Advanced = presets, true
+			controls[index].Choices = presets
 		}
 	}
 	return controls, nil
@@ -230,7 +263,7 @@ func describe(request reflect.Type) ([]Control, string) {
 			continue
 		}
 		optional := strings.Contains(options, "omitzero") || strings.Contains(options, "omitempty")
-		control := Control{Name: name, With: field.Tag.Get("with")}
+		control := Control{Name: name, With: field.Tag.Get("with"), Role: field.Tag.Get("role")}
 		// An artifact id names something the store holds (a clip a page
 		// attaches), which a page fills from a media card rather than types.
 		if field.Type == reflect.TypeFor[artifact.ID]() {

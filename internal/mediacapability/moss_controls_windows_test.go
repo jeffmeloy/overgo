@@ -32,10 +32,14 @@ func TestMOSSImageGenerationContract(t *testing.T) {
 	if len(held) != 9 || !slices.Equal(held["preset"].Choices, []string{"apg", "cfg-zero-star", "comfy-tutorial"}) || held["guidance_scale"].Type != ControlNumber || len(held["prompt_mode"].Choices) != 2 || held["prompt_mode"].Help == "" {
 		t.Fatal("unsupported controls", held)
 	}
-	for _, name := range []string{"negative_prompt", "steps", "seed", "guidance_scale", "preset"} {
+	// Tuning sits behind the disclosure as on every page (common-controls/do), and the negative prompt beside the prompt.
+	for _, name := range []string{"steps", "seed", "guidance_scale", "preset"} {
 		if !held[name].Secondary() || held[name].Required {
 			t.Fatal("optional tuning control is not secondary", name)
 		}
+	}
+	if held["negative_prompt"].Secondary() || held["negative_prompt"].Required {
+		t.Fatal("the negative prompt is behind the disclosure or required", held["negative_prompt"])
 	}
 	for name, want := range map[string]Bounds{"width": {Default: 1024, Step: 16}, "height": {Default: 1024, Step: 16}, "steps": {Default: 50, Step: 1}, "guidance_scale": {Default: 3}} {
 		if held[name].Bounds == nil || *held[name].Bounds != want {

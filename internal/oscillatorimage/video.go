@@ -15,12 +15,12 @@ import (
 )
 
 type VideoRequest struct {
-	Class  int   `json:"class"`
-	Seed   int64 `json:"seed"`
-	Frames int   `json:"frames"`
+	Class  int   `json:"class" role:"class"`
+	Seed   int64 `json:"seed" role:"seed"`
+	Frames int   `json:"frames" role:"frames"`
 	Scale  int   `json:"scale"`
 	// Format is the form the clip is written in, a GIF where the request names none (latentvideo.ClipFormat).
-	Format latentvideo.ClipFormat `json:"format,omitzero"`
+	Format latentvideo.ClipFormat `json:"format,omitzero" role:"format"`
 	// ClipFinish finishes the clip's frames on the card before they are encoded (latentvideo.ClipFinish).
 	latentvideo.ClipFinish
 }

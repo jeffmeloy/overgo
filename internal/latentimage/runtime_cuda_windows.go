@@ -29,20 +29,20 @@ import (
 const activationBytes = 4
 
 type Request struct {
-	Prompt            string     `json:"prompt"`
+	Prompt            string     `json:"prompt" role:"prompt"`
 	PromptMode        PromptMode `json:"prompt_mode,omitempty"`
-	NegativePrompt    string     `json:"negative_prompt,omitempty"`
-	GuidanceScale     *float32   `json:"guidance_scale,omitempty"`
-	Width             int        `json:"width"`
-	Height            int        `json:"height"`
-	Steps             int        `json:"steps,omitzero"`
-	Seed              int64      `json:"seed"`
+	NegativePrompt    string     `json:"negative_prompt,omitempty" role:"negative prompt"`
+	GuidanceScale     *float32   `json:"guidance_scale,omitempty" role:"guidance"`
+	Width             int        `json:"width" role:"width"`
+	Height            int        `json:"height" role:"height"`
+	Steps             int        `json:"steps,omitzero" role:"steps"`
+	Seed              int64      `json:"seed" role:"seed"`
 	DynamicShiftMu    float64    `json:"mu,omitzero"`
 	NumTrainTimesteps int        `json:"num_train_timesteps,omitzero"`
 	// Guidance is how the guidance varies over the steps (sampling.Guider.At), which a rotary profile alone runs.
 	Guidance sampling.Guidance `json:"guidance,omitzero"`
 	// Preset names a recipe of the model's catalog presets, its steps and guidance filling what the request leaves unset.
-	Preset string `json:"preset,omitzero"`
+	Preset string `json:"preset,omitzero" role:"preset"`
 	// Schedule is the sigmas a rotary profile (MOSS) samples by in place of its own: a scheduler by name (bong_tangent,
 	// beta57) or a list of the request's own, as ComfyUI's KSampler takes them.
 	Schedule *sampling.Schedule `json:"schedule,omitempty"`

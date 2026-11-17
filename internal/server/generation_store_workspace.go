@@ -58,6 +58,9 @@ func BindGenerationCatalog[
 		Secondary() bool
 		// Guidance describes the control's accepted input.
 		Guidance() string
+		// Labelled reports the common control a field is on every media page, the name a page shows it by; empty
+		// where the page names it from the field.
+		Labelled() string
 	},
 ](
 	catalog map[recipe.Task]Capability,
@@ -76,7 +79,7 @@ func BindGenerationCatalog[
 			for _, control := range declared {
 				name, kind, required, choices := control.Declared()
 				label, media := control.Slot()
-				wire := workflowControl{Name: name, Type: workflowControlType(kind), Required: required, Advanced: control.Secondary(), Choices: choices, Default: control.Defaulted(), With: control.Accompanies(), Label: label, Media: media, Help: control.Guidance()}
+				wire := workflowControl{Name: name, Type: workflowControlType(kind), Required: required, Advanced: control.Secondary(), Choices: choices, Default: control.Defaulted(), With: control.Accompanies(), Label: label, Media: media, Help: control.Guidance(), Role: control.Labelled()}
 				if defaultValue, step, rate, declared := control.Bounded(); declared {
 					wire.Bounds = &workflowControlBounds{Default: defaultValue, Step: step, Rate: rate}
 				}

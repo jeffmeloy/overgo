@@ -105,7 +105,7 @@
   function datasetPicker(control) {
     const { api, el, fmt, friendlyError } = window.overgo;
     const placeholder = el("option", { value: "", text: "select", disabled: control.required, selected: true });
-    const select = el("select", { class: "text", "aria-label": control.label || control.name.replace(/_/g, " ") }, placeholder);
+    const select = el("select", { class: "text", "aria-label": control.label || control.role || control.name.replace(/_/g, " ") }, placeholder);
     api.get("/datasets").then((catalog) => {
       const offered = (catalog.datasets || []).filter((entry) => entry.available && (entry.formats || []).includes(control.format));
       for (const entry of offered) offerDataset(select, entry.dataset, entry.name + " · " + fmt.grouped(entry.files) + " files");
@@ -131,7 +131,7 @@
       if (picksDataset(control)) {
         input = datasetPicker(control);
       } else if (choices) {
-        input = el("select", { class: "text", "aria-label": control.label || control.name.replace(/_/g, " ") },
+        input = el("select", { class: "text", "aria-label": control.label || control.role || control.name.replace(/_/g, " ") },
           // A field left unset is given the default its control declares where the request is taken in.
           el("option", { value: "", text: control.required ? "select" : control.default ? "default (" + control.default + ")" : "unset", disabled: control.required, selected: true }),
           ...choices.map((choice) => el("option", { value: choice, text: choice })));
@@ -152,8 +152,8 @@
       fields.set(control.name, { control, input });
       const slot = control.type === "artifact" ? intakeStrip(control, input) : null;
       const target = control.advanced && !control.required ? advanced : host;
-      target.appendChild(el("label", { class: "control" }, el("span", { text: control.label || control.name.replace(/_/g, " ") }), input, slot));
-      if (control.help) target.appendChild(el('details', { class: 'control-help' }, el('summary', { text: 'About ' + (control.label || control.name.replace(/_/g, ' ')) }), el('p', { class: 'note', text: control.help })));
+      target.appendChild(el("label", { class: "control" }, el("span", { text: control.label || control.role || control.name.replace(/_/g, " ") }), input, slot));
+      if (control.help) target.appendChild(el('details', { class: 'control-help' }, el('summary', { text: 'About ' + (control.label || control.role || control.name.replace(/_/g, ' ')) }), el('p', { class: 'note', text: control.help })));
     }
     const chips = presetChips(fields);
     if (chips) host.appendChild(chips);

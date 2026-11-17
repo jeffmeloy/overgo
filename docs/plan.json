@@ -20,6 +20,32 @@
       ]
     },
     {
+      "id": "common-controls",
+      "title": "Every media page offers one set of controls, in one order and under one name each, each model's publisher's recipe its default",
+      "steps": [
+        {
+          "id": "gain-only",
+          "title": "A guidance-method preset reaches a page only where a reading shows a gain",
+          "verify": "go test ./internal/mediacapability -count=1 -run '^TestAGuidancePresetIsOfferedOnlyOnAGain$'",
+          "files": [
+            "internal/mediacapability"
+          ],
+          "rationale": "The owner's direction (2026-11-16): a canned choice on a page is a speed tier with its measured cost, not a guidance algorithm, and a guidance-method preset reaches a page only on a measured gain. Of the seven guidance presets read (MOSS's and SenseNova's CFG-Zero*, guidance interval and APG, Wan's CFG-Zero*), none showed a gain on its questions, and five are offered today on no loss beyond chance; the pairwise readings of the six image presets (pairwise-judge's campaign) are the instrument shown to see a change a person sees.\n\nThe change: a guidance-method preset in the record is offered only where its question verdict or its pairwise verdict shows a gain beyond chance, and neither shows a loss; a preset that is no guidance method (Krea's draft, MOSS's comfy-tutorial, Wan's model-card shift, steps and scales from their authors) is offered as its model declares it, and is a speed tier's to keep or not. Lands once the pairwise readings of the image presets are in the record, so the record it reads holds every reading made.\n\nCheck: TestAGuidancePresetIsOfferedOnlyOnAGain, on the embedded record: a guidance preset admitted with no gain is not offered, one whose pairwise verdict shows a gain is, and one showing a loss on either instrument is not."
+        },
+        {
+          "id": "negative",
+          "title": "A distilled model honours a typed negative prompt through NAG, with no preset, and its page offers the negative prompt",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test ./internal/mediacapability -count=1 -run '^TestADistilledModelHonoursATypedNegativePrompt$' -timeout=0",
+          "files": [
+            "internal/latentimage",
+            "internal/latentvideo",
+            "internal/mediacapability"
+          ],
+          "rationale": "The owner's direction (2026-11-16): the negative prompt works on every model by its own means. Measured (tmp/common-controls/survey): Krea's page has no negative prompt, since its profile has no rotary block and imageControls drops the field for it, so its nag preset, admitted or not, would draw a person's picture byte for byte as without it (nag-krea: the preset with no negative prompt draws the authors' picture); the student's NAG runs only under its preset, against the reference default negative prompt the request fills.\n\nThe change: a distilled model guides away from a negative prompt through NAG at its declared values (Krea's and the student's catalogs, the paper's Table 5), switched on by a negative prompt a person gives and by nothing else, with no preset to pick; its page offers the negative prompt beside the prompt. A request with no negative prompt draws as the authors' recipe does, byte for byte. The nag presets go: the reading of NAG (guidance-ops/nag-readings) is the reading of a typed negative prompt on these models, its record entry kept under that name.\n\nCheck: on the card, a Krea request and a student request each draw the authors' picture or clip without a negative prompt and another with one, and no preset is named; their pages offer the negative prompt. SenseNova's negative prompt, which its request does not take, is a step of its own."
+        }
+      ]
+    },
+    {
       "id": "guidance-ops",
       "title": "CFG-Zero*, the guidance interval, APG and NAG are guider functions written from their papers, each a preset admitted per model by its held-out suite on no loss beyond chance, a gain claimed only where the paired test shows one",
       "steps": [

@@ -46,8 +46,9 @@ func TestControlsDeclareTheWanPromptForm(t *testing.T) {
 		names = append(names, control.Name+":"+control.Type)
 		editByName[control.Name] = control
 	}
-	// The clip's finish follows its format: an upscale and its level, a denoise and a deblur (latentvideo.ClipFinish).
-	if joined := strings.Join(names, ","); joined != "prompt:text,seed:integer,source_artifact:artifact,format:text,"+
+	// The page lists the common controls in their order, the source clip before the seed, and the clip's finish after
+	// them: an upscale and its level, a denoise and a deblur (latentvideo.ClipFinish), which name no common control.
+	if joined := strings.Join(names, ","); joined != "prompt:text,source_artifact:artifact,seed:integer,format:text,"+
 		"upscale:integer,upscale_level:text,denoise:integer,deblur:integer" {
 		t.Fatalf("LiveEdit controls = %s", joined)
 	}

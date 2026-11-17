@@ -99,9 +99,9 @@ func ResolveCollection(directory string) (collection Collection, held bool, err 
 // the reference draws the starting noise from. A positive Steps replaces the
 // sampler's grid points.
 type Request struct {
-	Class int   `json:"class"`
-	Seed  int64 `json:"seed"`
-	Steps int   `json:"steps,omitzero"`
+	Class int   `json:"class" role:"class"`
+	Seed  int64 `json:"seed" role:"seed"`
+	Steps int   `json:"steps,omitzero" role:"steps"`
 }
 
 // ValidateRequest refuses a negative class or a grid too short to integrate

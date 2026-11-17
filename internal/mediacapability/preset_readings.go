@@ -32,10 +32,28 @@ type presetRecord struct {
 
 // presetReading is one preset's reading on its model: pending while it has no verdict.
 type presetReading struct {
-	Model     string         `json:"model"`
-	Reference string         `json:"reference,omitempty"`
-	Arm       string         `json:"arm,omitempty"`
-	Verdict   *presetVerdict `json:"verdict,omitempty"`
+	Model     string `json:"model"`
+	Reference string `json:"reference,omitempty"`
+	Arm       string `json:"arm,omitempty"`
+	// Negative is the negative prompt the arm asked each case with, beside a preset that guides away from one (NAG);
+	// none where the arm named none, a model asking its own then (Wan's student, its reference default).
+	Negative string         `json:"negative,omitempty"`
+	Verdict  *presetVerdict `json:"verdict,omitempty"`
+	// Pairwise is the verdict of the arm's pictures chosen against the reference's in both orders, with the evaluation
+	// record it read, where the model's pictures were read so (evaluate -pairwise-evaluation).
+	Pairwise *pairwiseReading `json:"pairwise,omitempty"`
+}
+
+// pairwiseReading is a preset's pairwise verdict and the judged record of its pairwise suite.
+type pairwiseReading struct {
+	Record  string        `json:"record"`
+	Verdict presetVerdict `json:"verdict"`
+}
+
+// admits says the reading admits its preset: its verdict, and its pairwise verdict where it was read so, each found no
+// loss beyond chance.
+func (reading presetReading) admits() bool {
+	return reading.Verdict != nil && reading.Verdict.Admitted && (reading.Pairwise == nil || reading.Pairwise.Verdict.Admitted)
 }
 
 // presetVerdict is the verdict evaluate -admit-preset prints for the reading's two records.
@@ -58,11 +76,11 @@ var presetReadings = sync.OnceValues(func() (presetRecord, error) {
 	return record, nil
 })
 
-// offeredPresets are the presets of a family a page offers: each the record reads only once its verdict admits it,
+// offeredPresets are the presets of a family a page offers: each the record reads only once its reading admits it,
 // and every other as declared.
 func offeredPresets(record presetRecord, family string, presets []string) []string {
 	return slices.DeleteFunc(slices.Clone(presets), func(preset string) bool {
 		reading, read := record.Readings[family][preset]
-		return read && (reading.Verdict == nil || !reading.Verdict.Admitted)
+		return read && !reading.admits()
 	})
 }

@@ -13,10 +13,10 @@ import (
 )
 
 type Request struct {
-	Seed   int64 `json:"seed"`
-	Steps  int   `json:"steps"`
-	Height int   `json:"height"`
-	Width  int   `json:"width"`
+	Seed   int64 `json:"seed" role:"seed"`
+	Steps  int   `json:"steps" role:"steps"`
+	Height int   `json:"height" role:"height"`
+	Width  int   `json:"width" role:"width"`
 	// Batch is how many pictures the network draws at once, each from the next noise the seed gives, one where unset:
 	// train.py's sample() draws sixteen, its transformer blocks interleave the batch, and the weights were trained at
 	// batches of 16 to 128, so a picture drawn alone is pale and noisy (readme-samples/simplediffusion-fifty). One stays

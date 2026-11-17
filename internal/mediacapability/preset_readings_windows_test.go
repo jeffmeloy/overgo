@@ -3,11 +3,9 @@
 package mediacapability
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
-	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -20,11 +18,12 @@ import (
 
 // TestOnlyAnAdmittedGuidancePresetIsOffered holds each model's presets to the record of their readings
 // (guidance-ops/preset-readings): a preset the record reads is offered only once its verdict, read on its model against
-// that model's reference, admits it, so a pending or refused one is not, and every preset a model declares is read but
-// Krea's draft and MOSS's comfy-tutorial, steps and a scale from their authors, no guider. A reading names the one
-// model of its family that declares the preset, so a family's verdict is that model's; a verdict holds two evaluation
-// records, its model's reference the same for each of its presets, and the counts its words say, and its model's suite
-// is named. SenseNova's page, whose presets its recipe declares with no model files, is read whole.
+// that model's reference, admits it, and its pairwise verdict where it was read so, so a pending or refused one is not,
+// and every preset a model declares is read but Krea's draft and MOSS's comfy-tutorial, steps and a scale from their
+// authors, no guider. A reading names the one model of its family that declares the preset, so a family's verdict is
+// that model's; a verdict holds two evaluation records, its model's reference the same for each of its presets, and the
+// counts its words say, and its model's suite is named. SenseNova's page, whose presets its recipe declares with no
+// model files, is read whole.
 func TestOnlyAnAdmittedGuidancePresetIsOffered(t *testing.T) {
 	t.Parallel()
 	record := testcheck.Must(presetReadings())(t)
@@ -56,8 +55,10 @@ func TestOnlyAnAdmittedGuidancePresetIsOffered(t *testing.T) {
 			if !read && !slices.Contains(unread, preset) {
 				t.Errorf("%s declares the preset %s, which the record does not read", name, preset)
 			}
-			if admitted := !read || reading.Verdict != nil && reading.Verdict.Admitted; slices.Contains(offered, preset) != admitted {
-				t.Errorf("%s offers %v; its preset %s, read %t with verdict %+v, is offered only unread or admitted", name, offered, preset, read, reading.Verdict)
+			admitted := !read || reading.Verdict != nil && reading.Verdict.Admitted && (reading.Pairwise == nil || reading.Pairwise.Verdict.Admitted)
+			if slices.Contains(offered, preset) != admitted {
+				t.Errorf("%s offers %v; its preset %s, read %t with verdict %+v and pairwise %+v, is offered only unread or admitted by both",
+					name, offered, preset, read, reading.Verdict, reading.Pairwise)
 			}
 		}
 	}
@@ -89,10 +90,8 @@ func TestOnlyAnAdmittedGuidancePresetIsOffered(t *testing.T) {
 				t.Errorf("%s's preset %s is read against %s, its arm %s; %s's other presets against %s", family, preset, reading.Reference, reading.Arm, reading.Model, known)
 			}
 			references[reading.Model] = reading.Reference
-			counts := fmt.Sprintf("%d wins, %d losses and %d ties over %d media", verdict.Wins, verdict.Losses, verdict.Ties, verdict.Media)
-			if verdict.Wins+verdict.Losses+verdict.Ties == 0 || verdict.Media == 0 || !strings.HasSuffix(verdict.Says, counts) ||
-				strings.HasPrefix(verdict.Says, "refused") == verdict.Admitted {
-				t.Errorf("%s's preset %s holds %s, admitted %t, saying %q", family, preset, counts, verdict.Admitted, verdict.Says)
+			if err := verdictSaid(*verdict); err != nil {
+				t.Errorf("%s's preset %s: %v", family, preset, err)
 			}
 			if record.Judge == "" || record.Suites[reading.Model] == "" {
 				t.Errorf("%s's preset %s was read on %s with judge %q and suite %q", family, preset, reading.Model, record.Judge, record.Suites[reading.Model])

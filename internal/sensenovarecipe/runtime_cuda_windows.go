@@ -28,16 +28,16 @@ import (
 )
 
 type GenerationRequest struct {
-	Prompt        string  `json:"prompt"`
-	Width         int     `json:"width"`
-	Height        int     `json:"height"`
-	Steps         int     `json:"steps"`
-	Seed          int64   `json:"seed"`
-	CFGScale      float32 `json:"cfg_scale"`
+	Prompt        string  `json:"prompt" role:"prompt"`
+	Width         int     `json:"width" role:"width"`
+	Height        int     `json:"height" role:"height"`
+	Steps         int     `json:"steps" role:"steps"`
+	Seed          int64   `json:"seed" role:"seed"`
+	CFGScale      float32 `json:"cfg_scale" role:"guidance"`
 	TimestepShift float64 `json:"timestep_shift"`
 	// Preset names one of SenseNova's presets (PresetNames), its guidance varying over the steps; none is the authors'
 	// recipe.
-	Preset string `json:"preset,omitzero"`
+	Preset string `json:"preset,omitzero" role:"preset"`
 }
 
 // GenerationStats partitions one production request without synchronizing

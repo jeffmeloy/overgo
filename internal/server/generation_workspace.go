@@ -67,6 +67,9 @@ type workflowControl struct {
 	// which a page derives its presets (aspect ratios, durations).
 	Bounds *workflowControlBounds               `json:"bounds,omitempty"`
 	Audio  *speechrecognition.InputRequirements `json:"audio,omitempty"`
+	// Role is the common control the field is on every media page (guidance strength is "guidance" whatever the
+	// model's request calls it), the name a page shows it by where it has no label.
+	Role string `json:"role,omitzero"`
 }
 
 func audioFormatMessage(audio *speechrecognition.InputRequirements) string {

@@ -12,8 +12,8 @@ import (
 var videoContract = artifact.JSONContract(artifact.KindOutput, "overgo.generated-video.v1")
 
 type Request struct {
-	Class int   `json:"class"`
-	Seed  int64 `json:"seed"`
+	Class int   `json:"class" role:"class"`
+	Seed  int64 `json:"seed" role:"seed"`
 }
 
 type planarImage struct {

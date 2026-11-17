@@ -70,11 +70,5 @@ func imageControls(directory string, controls []Control) ([]Control, error) {
 		"steps":          {Default: profile.Sampling.DefaultSteps, Step: 1},
 		"guidance_scale": {Default: int(policy.Guidance)},
 	})
-	for i := range controls {
-		switch controls[i].Name {
-		case "negative_prompt", "steps", "seed", "guidance_scale":
-			controls[i].Advanced = true
-		}
-	}
 	return controls, nil
 }

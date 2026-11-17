@@ -567,20 +567,20 @@ func (s *gifEncoder) Finish() (EncodedVideo, error) {
 // policy, so a page composes it from typed controls and the runtime
 // resolves the rest through the model's own text pipeline.
 type WanRequest struct {
-	Frames     int     `json:"frames"`
-	Width      int     `json:"width"`
-	Height     int     `json:"height"`
-	Steps      int     `json:"steps"`
+	Frames     int     `json:"frames" role:"frames"`
+	Width      int     `json:"width" role:"width"`
+	Height     int     `json:"height" role:"height"`
+	Steps      int     `json:"steps" role:"steps"`
 	Shift      float64 `json:"shift"`
-	GuideScale float64 `json:"guide_scale"`
+	GuideScale float64 `json:"guide_scale" role:"guidance"`
 	// Guidance is how the guidance varies over the steps (sampling.Guidance); a preset may state it.
 	Guidance       sampling.Guidance `json:"guidance,omitzero"`
-	Prompt         string            `json:"prompt,omitzero"`
-	NegativePrompt string            `json:"negative_prompt,omitzero"`
-	Seed           uint64            `json:"seed,omitzero"`
+	Prompt         string            `json:"prompt,omitzero" role:"prompt"`
+	NegativePrompt string            `json:"negative_prompt,omitzero" role:"negative prompt"`
+	Seed           uint64            `json:"seed,omitzero" role:"seed"`
 	// Preset names a recipe of the profile's presets, its values filling what the request leaves unset.
-	Preset string     `json:"preset,omitzero"`
-	Format ClipFormat `json:"format,omitzero"`
+	Preset string     `json:"preset,omitzero" role:"preset"`
+	Format ClipFormat `json:"format,omitzero" role:"format"`
 	ClipFinish
 	CondContext   []float32                 `json:"cond_context,omitempty"`
 	UncondContext []float32                 `json:"uncond_context,omitempty"`
@@ -647,11 +647,11 @@ type SourceVideo struct {
 type ReferenceEditRequest struct {
 	Condition      ReferenceEditCondition `json:"condition,omitzero"`
 	Source         SourceVideo            `json:"source,omitzero"`
-	Prompt         string                 `json:"prompt,omitzero"`
-	Seed           int64                  `json:"seed,omitzero"`
-	SourceArtifact artifact.ID            `json:"source_artifact,omitzero" label:"source clip" media:"video"`
+	Prompt         string                 `json:"prompt,omitzero" role:"prompt"`
+	Seed           int64                  `json:"seed,omitzero" role:"seed"`
+	SourceArtifact artifact.ID            `json:"source_artifact,omitzero" label:"source clip" media:"video" role:"source"`
 	// Format and the finish are the clip form's, which resolving moves into the condition.
-	Format ClipFormat `json:"format,omitzero"`
+	Format ClipFormat `json:"format,omitzero" role:"format"`
 	ClipFinish
 }
 

@@ -19,10 +19,18 @@
         {
           "recipe": "recipe:sha256:404afc8b12a845f40474999a2167c9ba7d133b0a6ca8c8e79c4d57a8bd167a49",
           "status": "superseded"
-        },
+        }
+      ]
+    },
+    {
+      "finding": "d01d4958",
+      "owner": "master-lead",
+      "reason": "guidance-ops/krea-recipe activated Krea-2-Turbo's candidate image-gen recipe on 2026-11-16, verified again on the request its last accepted verification ran, for the NAG readings: its identity had moved with its inventory at 22960ddad and no recipe was active under it. The MOSS lane's candidate is now this cell; freezing its cell and its protocol case is the lead's.",
+      "cells": [
         {
-          "recipe": "recipe:sha256:b935833ba39704b1086369c69bc453b453a0183411d36dcd144a08dd1b6969ee",
-          "status": "candidate"
+          "model": "model:sha256:4ad720595938a39340a70f4298398a8201b5ea6e214883c9e166b4a0d3af8401",
+          "task": "image-gen",
+          "recipe": "recipe:sha256:b935833ba39704b1086369c69bc453b453a0183411d36dcd144a08dd1b6969ee"
         }
       ]
     },

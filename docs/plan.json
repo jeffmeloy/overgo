@@ -1,23 +1,7 @@
 {
-  "campaign": "Image and video generation: fewer network passes, cheaper passes, and the ComfyUI capabilities worth having, each measured at a user's size",
+  "campaign": "MOSS in overgo does what the MOSS Ultra workflow does in ComfyUI, each section held to ComfyUI's recording",
   "lane": "master-lead",
   "items": [
-    {
-      "id": "campaign-line",
-      "title": "The plan tool sets the campaign line, and the plan's line is the owner's: MOSS in overgo does what the MOSS Ultra workflow does in ComfyUI, each section held to ComfyUI's recording",
-      "steps": [
-        {
-          "id": "set",
-          "title": "The plan tool sets the campaign line, and the plan's line is the owner's: MOSS in overgo does what the MOSS Ultra workflow does in ComfyUI, each section held to ComfyUI's recording",
-          "verify": "go test ./cmd/plan -count=1 -run '^TestTheCampaignLineIsSetByTheTool$'",
-          "files": [
-            "cmd/plan",
-            "docs/plan.json"
-          ],
-          "rationale": "The owner's note of 2026-11-17: scope is one supplied workflow at a time, not everything ComfyUI can do, and the plan's campaign line says so: MOSS in overgo does what the MOSS Ultra workflow does in ComfyUI, each section held to ComfyUI's recording. The plan tool sets the line only when it files rows into an empty plan, and the plan is edited only through its tool, so the tool gains the flag that sets it and the landing sets the line with it.\n\nServes: the campaign's scope, said where dispatch and sessions read it.\nDisappears: the old campaign line.\nEvidence: the tool sets the line and the plan holds the owner's.\nBatch: host lane."
-        }
-      ]
-    },
     {
       "id": "media-lora",
       "title": "Media adapters load in kohya, PEFT and full-difference formats and apply unmerged at run time, with a strength per request",

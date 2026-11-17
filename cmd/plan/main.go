@@ -72,6 +72,7 @@ func main() {
 	retire := flag.Bool("retire", false, "remove a row, or one step, that will not be worked: -retire -reason <why> <item-id>[/<step-id>]. A landing completes an open step by its check and records it in a Landed-Row trailer; a retirement runs no check, and the plan records it with its reason until the next landing's message says it")
 	move := flag.Bool("move", false, "re-rank an open item: -move <item-id> [-before <id>] (default: top of the plan)")
 	retitle := flag.Bool("retitle", false, "re-scope an open item and its single step: -retitle <item-id> -title <t>")
+	campaign := flag.Bool("campaign", false, "set the plan's campaign line, the goal its rows serve: -campaign -title <line>")
 	setverify := flag.Bool("setverify", false, "set an existing step's verify: -setverify <item> <step> -vcmd <cmd> (then runs it; exit code is the verdict)")
 	jsonFlag := flag.Bool("json", false, "with -next or -prompt: print typed JSON")
 	stop := flag.Bool("stop", false, "record a scoped stop until explicit resume: -stop <requested|licence|hardware>: <detail>, a licence or hardware stop naming what it waits on and -clears-when; a choice between options is no stop")
@@ -92,7 +93,7 @@ func main() {
 	worker := flag.String("worker", "", "stable session identity a stop is scoped by (default OVERGO_AUTOMATION_WORKER)")
 	handled, err := commanddoc.Plan.Command.ParseCommandLine(flag.CommandLine, os.Stdout)
 	if err == nil && !handled {
-		err = run(cli{needsCard: *needsCard, runCmd: *runCmd, record: *record, files: *files, clearsWhen: *clearsWhen, resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, next: *next, prompt: *prompt, verify: *verify, status: *status, decisions: *decisions, answer: *answer, doctrine: *doctrine, reserved: *reserved, add: *add, setverify: *setverify, stop: *stop, title: *title, class: *class, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker,
+		err = run(cli{needsCard: *needsCard, runCmd: *runCmd, record: *record, files: *files, clearsWhen: *clearsWhen, resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, campaign: *campaign, next: *next, prompt: *prompt, verify: *verify, status: *status, decisions: *decisions, answer: *answer, doctrine: *doctrine, reserved: *reserved, add: *add, setverify: *setverify, stop: *stop, title: *title, class: *class, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker,
 			from: *from, setcount: *setcount, setfiles: *setfiles, nodes: *nodes, reason: *reason, addstep: *addstep, note: *note, rationaleFile: *rationaleFile, show: *show, retire: *retire}, flag.Args())
 	}
 	clioptions.MainNamed("plan", func() error { return err })
@@ -103,7 +104,7 @@ type cli struct {
 	worker                                       string
 	next, prompt, verify, status, add, setverify bool
 	decisions, answer, doctrine, reserved        bool
-	stop, move, retitle, json                    bool
+	stop, move, retitle, campaign, json          bool
 	title, class, before, verifyCmd, role        string
 	setcount, addstep, note, show, retire        bool
 	setfiles                                     bool
@@ -186,6 +187,13 @@ func run(c cli, args []string) error {
 			return errors.New("usage: plan -retitle <item-id> -title <title>")
 		}
 		return retitleItem(commandWorktree, args[0], c.title, role)
+	case c.campaign:
+		if len(args) != 0 {
+			return errors.New("usage: plan -campaign -title <line>")
+		}
+		return mutatePlan(commandWorktree, role, "campaign line set", func(document plan.Plan) (plan.Plan, error) {
+			return setCampaign(document, c.title)
+		})
 	case c.setverify:
 		if len(args) != extent.PairedExtent || strings.TrimSpace(c.verifyCmd) == "" {
 			return errors.New("usage: plan -setverify <item-id> <step-id> -vcmd <cmd>")
@@ -235,7 +243,7 @@ func run(c cli, args []string) error {
 			return nil
 		})
 	default:
-		return errors.New("one of -next, -prompt, -verify, -status, -show, -decisions, -answer, -doctrine, -reserved, -add, -addstep, -move, -retitle, -setverify, -setcount, -note, -retire, -stop is required")
+		return errors.New("one of -next, -prompt, -verify, -status, -show, -decisions, -answer, -doctrine, -reserved, -add, -addstep, -move, -retitle, -campaign, -setverify, -setcount, -note, -retire, -stop is required")
 	}
 }
 
@@ -306,6 +314,15 @@ func mutatePlan(root, role, what string, mutation func(plan.Plan) (plan.Plan, er
 		fmt.Printf("%s; next: %s\n", what, action)
 		return nil
 	})
+}
+
+// setCampaign sets the plan's campaign line, the goal its rows serve, whatever rows it holds; an empty line is refused.
+func setCampaign(document plan.Plan, line string) (plan.Plan, error) {
+	if line = strings.TrimSpace(line); line == "" {
+		return plan.Plan{}, errors.New("campaign: the line is empty")
+	}
+	document.Campaign = line
+	return document, nil
 }
 
 // rescopeItem is the pure core of retitleItem. No I/O.

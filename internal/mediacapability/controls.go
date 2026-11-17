@@ -280,8 +280,10 @@ func describe(request reflect.Type) ([]Control, string) {
 		optional := strings.Contains(options, "omitzero") || strings.Contains(options, "omitempty")
 		control := Control{Name: name, With: field.Tag.Get("with"), Role: field.Tag.Get("role")}
 		// An artifact id names something the store holds (a clip a page
-		// attaches), which a page fills from a media card rather than types.
-		if field.Type == reflect.TypeFor[artifact.ID]() {
+		// attaches), which a page fills from a media card rather than types;
+		// so does a field of media a request may carry as its bytes, which a
+		// page names by the stored file it attached (a MOSS picture).
+		if field.Type == reflect.TypeFor[artifact.ID]() || field.Type.Kind() == reflect.String && field.Tag.Get("media") != "" {
 			control.Type, control.Required = ControlArtifact, !optional
 			control.Label, control.Media = field.Tag.Get("label"), field.Tag.Get("media")
 			controls = append(controls, control)

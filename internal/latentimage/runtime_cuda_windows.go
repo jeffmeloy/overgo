@@ -65,8 +65,10 @@ type Request struct {
 	// Image is a picture, a PNG in base64 as JSON gives bytes, that a rotary profile samples from (image to image):
 	// scaled to the canvas as ComfyUI's ImageScale scales it at lanczos with a centre crop (media.ScaleLikeComfyUI),
 	// encoded by the model's VAE, and started from at the schedule's first sigma, σ₀ times the noise plus 1 − σ₀
-	// times the picture's latent (sourceLatent). It is text so the request stays comparable.
-	Image string `json:"image,omitzero"`
+	// times the picture's latent (sourceLatent). It is text so the request stays comparable. A page names it by its
+	// stored identity instead, the file it attached, as the workflow's LoadImage reads one, which the image capability
+	// reads into its bytes before the session takes the request (ReadPictures).
+	Image string `json:"image,omitzero" label:"picture" media:"image" role:"source"`
 	// Denoise is the share of its schedule a request samples, as ComfyUI's KSampler takes it: below 1 the schedule is
 	// drawn for int(steps / denoise) steps and its last steps + 1 sigmas kept (cutSchedule), and the sampling starts
 	// from σ₀ times the noise plus 1 − σ₀ times the picture's latent, or none. 0 where the request states none, 1 in

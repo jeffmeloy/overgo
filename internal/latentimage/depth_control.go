@@ -13,8 +13,9 @@ import (
 // model's VAE, after a colour map's latent of zeros, times its strength, while the sampling's sigma lies within the
 // share of the sampling from Start to End.
 type DepthControl struct {
-	// Map is the depth map, a PNG in base64 as JSON gives bytes, white for near (cmd/depth makes one of a picture).
-	Map string `json:"map"`
+	// Map is the depth map, a PNG in base64 as JSON gives bytes, white for near (cmd/depth makes one of a picture), or,
+	// as a page names it, its stored identity, which the image capability reads into its bytes (Request.ReadPictures).
+	Map string `json:"map" label:"depth map" media:"image"`
 	// Strength scales the map's latent: 0 is no control, 1 the adapter's trained strength (where unstated), at most 10.
 	Strength *float32 `json:"strength,omitempty"`
 	// Start and End are the shares of the sampling the control runs over, from its start: 0 and 1 where unstated.

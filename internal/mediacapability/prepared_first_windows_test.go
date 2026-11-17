@@ -1,0 +1,112 @@
+//go:build windows
+
+package mediacapability
+
+import (
+	"context"
+	"encoding/base64"
+	"slices"
+	"testing"
+
+	"overgo/internal/artifact"
+	"overgo/internal/latentimage"
+	"overgo/internal/modelrecipe"
+	"overgo/internal/overgodbtest"
+	"overgo/internal/strictjson"
+	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
+)
+
+// TestAStoredPictureReachesItsSessionAsItsBytes holds the pictures a page attaches to a MOSS request
+// (moss-ultra-compare/stored-pictures): a request naming its picture and its depth map by their stored identity reaches
+// the picture session with each one's bytes in base64 and the rest as it asked; one giving its picture as its bytes
+// reaches it as it came; one naming a picture the store does not hold, or a stored record that is no file, is refused
+// before the session; and a rotary page offers the picture as a slot of image media beside the denoise and the enhance,
+// where a flow profile's page offers none of them.
+func TestAStoredPictureReachesItsSessionAsItsBytes(t *testing.T) {
+	store := overgodbtest.Open(t, t.TempDir())
+	stored := func(data []byte) artifact.Content {
+		id := testcheck.Must(artifact.IdentifyBytes(artifact.KindFile, data))(t)
+		return artifact.Content{Descriptor: artifact.Descriptor{ID: id, Size: uint64(len(data)), MediaType: "image/png"}, Data: data}
+	}
+	picture, depth := stored([]byte("a picture")), stored([]byte("a depth map"))
+	testcheck.Must(artifact.Publish(t.Context(), store, artifact.Batch{Key: "fixture/stored-pictures",
+		Artifacts: []artifact.Descriptor{picture.Descriptor, depth.Descriptor}, Contents: []artifact.Content{picture, depth}}))(t)
+	var reached []string
+	session := func(_ context.Context, _ artifact.Repository, _ string, _ modelrecipe.CapabilityEvidenceSelection, input string) (any, error) {
+		reached = append(reached, input)
+		return "drawn", nil
+	}
+	run := preparedFirst(session)
+	named := `{"prompt":"a fox","width":1024,"height":576,"image":"` + picture.Descriptor.ID.String() + `","denoise":0.72,"control":{"map":"` + depth.Descriptor.ID.String() + `","start":0.1}}`
+	if got := testcheck.Must(run(t.Context(), store, "", modelrecipe.CapabilityEvidenceSelection{}, named))(t); got != "drawn" || len(reached) != 1 {
+		t.Fatalf("the request naming stored pictures gave %v and reached the session %d times", got, len(reached))
+	}
+	var taken latentimage.Request
+	testcheck.NoError(t, strictjson.DecodeBytes([]byte(reached[0]), &taken))
+	if taken.Image != base64.StdEncoding.EncodeToString(picture.Data) || taken.Control == nil || taken.Control.Map != base64.StdEncoding.EncodeToString(depth.Data) ||
+		taken.Control.Start != 0.1 || taken.Prompt != "a fox" || taken.Width != 1024 || taken.Denoise != 0.72 {
+		t.Errorf("the session took %s; want the stored picture's and map's bytes and the rest as asked", reached[0])
+	}
+	bytes := `{"prompt":"a fox","width":1024,"height":576,"image":"` + base64.StdEncoding.EncodeToString(picture.Data) + `"}`
+	testcheck.Must(run(t.Context(), store, "", modelrecipe.CapabilityEvidenceSelection{}, bytes))(t)
+	if reached[len(reached)-1] != bytes {
+		t.Errorf("a picture given as its bytes reached the session as %s", reached[len(reached)-1])
+	}
+	absent := testcheck.Must(artifact.IdentifyBytes(artifact.KindFile, []byte("never stored")))(t)
+	record := testcheck.Must(artifact.IdentifyBytes(artifact.KindEvaluation, []byte("a record")))(t)
+	for _, refused := range []string{`{"prompt":"a fox","image":"` + absent.String() + `"}`, `{"prompt":"a fox","control":{"map":"` + record.String() + `"}}`} {
+		before := len(reached)
+		if _, err := run(t.Context(), store, "", modelrecipe.CapabilityEvidenceSelection{}, refused); err == nil || len(reached) != before {
+			t.Errorf("%s was taken (%v) or reached the session", refused, err)
+		}
+	}
+
+	root := testutil.ExtractTarGzip(t, testutil.FixturePath(t, "moss", "generator-compact.tar.gz"), "150c4263057d72476ef4399a442c2b7dbadcb955670232fc2ea869c71f07c5db")
+	controls, refusal := Controls(modelrecipe.ModuleLatentImagePrepare, root)
+	if refusal != "" {
+		t.Fatal(refusal)
+	}
+	slot := slices.IndexFunc(controls, func(c Control) bool { return c.Name == "image" })
+	if slot < 0 || controls[slot].Type != ControlArtifact || controls[slot].Media != "image" || controls[slot].Label != "picture" || controls[slot].Required || controls[slot].Advanced {
+		t.Errorf("MOSS's page offers its picture as %+v; want an optional slot of image media beside the prompt", controls)
+	}
+	for _, name := range []string{"denoise", "enhance"} {
+		if !slices.ContainsFunc(controls, func(c Control) bool { return c.Name == name }) {
+			t.Errorf("MOSS's page offers no %s", name)
+		}
+	}
+	krea := t.TempDir()
+	testutil.WriteImageProfileFixture(t, krea)
+	controls, refusal = Controls(modelrecipe.ModuleLatentImagePrepare, krea)
+	if refusal != "" {
+		t.Fatal(refusal)
+	}
+	if slices.ContainsFunc(controls, rotaryControl) {
+		t.Errorf("a flow profile's page offers a rotary profile's control: %+v", controls)
+	}
+}
+
+// TestAPictureRequestAskingNoEnhancingGoesToItsSessionAsItIs holds the image capability's prompt mode 2 step
+// (moss-ultra-sections/prompt-modes): a request asking no enhancing, an input that is no request, and a request asking
+// enhancing that the session's strict reading refuses, by an unknown member or a repeated one (SQA-408), reach the
+// picture session as they came, the session's answer returned, no chat opened (the store and model are none).
+func TestAPictureRequestAskingNoEnhancingGoesToItsSessionAsItIs(t *testing.T) {
+	var reached []string
+	session := func(_ context.Context, _ artifact.Repository, _ string, _ modelrecipe.CapabilityEvidenceSelection, input string) (any, error) {
+		reached = append(reached, input)
+		return "drawn", nil
+	}
+	inputs := []string{`{"prompt":"a fox","width":1024,"height":576}`, `{"prompt":"a fox","enhance":false}`, `not a request`,
+		`{"enhance":true,"prompt":"a fox","width":1024,"height":576,"stepps":1}`, `{"enhance":true,"prompt":"a fox","steps":1,"steps":50}`}
+	for _, input := range inputs {
+		if got := testcheck.Must(preparedFirst(session)(t.Context(), nil, "", modelrecipe.CapabilityEvidenceSelection{}, input))(t); got != "drawn" {
+			t.Errorf("%s gave %v, want the session's answer", input, got)
+		}
+	}
+	for index, input := range inputs {
+		if reached[index] != input {
+			t.Errorf("the session took %q, want %q as it came", reached[index], input)
+		}
+	}
+}

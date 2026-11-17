@@ -65,7 +65,7 @@ func imageCapability() Capability {
 		sensenovarecipe.RegisterRuntime,
 	)
 	routed := sessionExecutor(routedDirector, routedErr)
-	latent := enhancedFirst(sessionExecutor(pictureSessions()))
+	latent := preparedFirst(sessionExecutor(pictureSessions()))
 	oscillator := capabilityruntime.JSONScalar[oscillatorimage.Request, *oscillatorimage.Model, latentimage.EncodedImage](
 		"image-gen", oscillatorimage.ValidateRequest,
 		capabilityruntime.IgnoreInput[oscillatorimage.Request](oscillatorimage.Load), oscillatorimage.RegisterRuntime,
@@ -95,22 +95,31 @@ func imageCapability() Capability {
 	}
 }
 
-// enhancedFirst runs prompt mode 2 ahead of a latent picture session: a request asking the MOSS Ultra workflow's
-// enhancer has its prompt and negative written by the model's enhancer chat (latentimage.EnhanceRequest) and is served
-// as the request stating what it wrote; any other input goes to the session as it is. A request is read as strictly as
-// the session reads it, so one the session would refuse (an unknown or repeated member) reaches the session as it came
-// and is refused there, no chat opened for it (SQA-408).
-func enhancedFirst(next capabilityruntime.Executor) capabilityruntime.Executor {
+// preparedFirst prepares a latent picture request ahead of its session: the pictures it names by their stored identity,
+// as a page attaches them, are read into the bytes the session takes (latentimage Request.ReadPictures), and a request
+// asking the MOSS Ultra workflow's prompt mode 2 has its prompt and negative written by the model's enhancer chat
+// (latentimage.EnhanceRequest); it is served as the request stating what was read and written, and an input naming no
+// stored picture and asking no enhancing goes to the session as it is. A request is read as strictly as the session
+// reads it, so one the session would refuse (an unknown or repeated member) reaches the session as it came and is
+// refused there, nothing read and no chat opened for it (SQA-408).
+func preparedFirst(next capabilityruntime.Executor) capabilityruntime.Executor {
 	return func(ctx context.Context, store artifact.Repository, path string, selection modelrecipe.CapabilityEvidenceSelection, input string) (any, error) {
 		var request latentimage.Request
-		if err := strictjson.DecodeBytes([]byte(input), &request); err != nil || !request.Enhance {
+		if err := strictjson.DecodeBytes([]byte(input), &request); err != nil {
 			return next(ctx, store, path, selection, input)
 		}
-		enhanced, err := latentimage.EnhanceRequest(ctx, store, path, request)
+		prepared, err := request.ReadPictures(ctx, store)
 		if err != nil {
 			return nil, err
 		}
-		written, err := json.Marshal(enhanced)
+		if request.Enhance {
+			if prepared, err = latentimage.EnhanceRequest(ctx, store, path, prepared); err != nil {
+				return nil, err
+			}
+		} else if prepared.Image == request.Image && prepared.Control == request.Control {
+			return next(ctx, store, path, selection, input)
+		}
+		written, err := json.Marshal(prepared)
 		if err != nil {
 			return nil, err
 		}

@@ -12,6 +12,7 @@ import (
 	"image/color"
 	"image/png"
 
+	"overgo/internal/artifact"
 	"overgo/internal/media"
 )
 
@@ -96,6 +97,45 @@ func controlLatent(ctx context.Context, root string, control DepthControl, width
 		out[len(latent)+index] = value * strength
 	}
 	return out, nil
+}
+
+// ReadPictures is the request with the pictures it names by their stored identity, as a page attaches them, read into
+// the bytes its session takes: its picture to sample from and its depth control's map, each a stored file, in base64.
+// A picture the request gives as its bytes stays as it came, and so does a request naming none.
+func (r Request) ReadPictures(ctx context.Context, store artifact.Reader) (Request, error) {
+	read := func(named, which string) (string, error) {
+		id, err := artifact.ParseID(named)
+		if err != nil {
+			return named, nil
+		}
+		if id.Kind() != artifact.KindFile {
+			return "", fmt.Errorf("latent image: the request's %s names %s, not a stored file", which, id)
+		}
+		content, present, err := artifact.ReadContent(ctx, store, id)
+		if err != nil {
+			return "", err
+		}
+		if !present {
+			return "", fmt.Errorf("latent image: the request's %s, %s, is not stored", which, id)
+		}
+		return base64.StdEncoding.EncodeToString(content.Data), nil
+	}
+	var err error
+	if r.Image, err = read(r.Image, "picture"); err != nil {
+		return Request{}, err
+	}
+	if r.Control != nil {
+		named, err := read(r.Control.Map, "depth map")
+		if err != nil {
+			return Request{}, err
+		}
+		if named != r.Control.Map {
+			control := *r.Control
+			control.Map = named
+			r.Control = &control
+		}
+	}
+	return r, nil
 }
 
 // requestPNG is a PNG a request carries in base64, which of the request's pictures it is named in a refusal.

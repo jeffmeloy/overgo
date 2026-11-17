@@ -7,8 +7,8 @@ import (
 )
 
 type rotaryJointProgram struct {
-	input, rope, modulation, unit, output *tensor.Tensor
-	weightInputs                          tensor.WeightBindings
+	input, rope, modulation, unit, output, strength *tensor.Tensor
+	weightInputs, adapterInputs                     tensor.WeightBindings
 }
 
 // Joint modulation positions follow the pinned _Block.forward unbind order.
@@ -23,7 +23,9 @@ const (
 	jointModulationFields
 )
 
-func compileRotaryJointProgram(t TransformerSpec, epsilon float32, tokens, index int, storage dtype.Type) (*rotaryJointProgram, error) {
+// compileRotaryJointProgram compiles one joint block of MOSS's denoiser over tokens rows, options applying an adapter or 8-bit
+// attention as the denoiser's do (rotaryOptions).
+func compileRotaryJointProgram(t TransformerSpec, epsilon float32, tokens, index int, storage dtype.Type, options rotaryOptions) (*rotaryJointProgram, error) {
 	if index < 0 || index >= t.Layers {
 		return nil, fmt.Errorf("rotary joint block %d outside %d layers", index, t.Layers)
 	}
@@ -35,6 +37,8 @@ func compileRotaryJointProgram(t TransformerSpec, epsilon float32, tokens, index
 	if err != nil {
 		return nil, err
 	}
+	g.use(options, &p.adapterInputs)
+	p.strength = g.strength
 	b := g.b
 	p.input = b.Input("joint_hidden", dtype.F32, tensor.MustShape(g.width, g.sequence))
 	p.modulation = b.Input("joint_modulation", dtype.F32, tensor.MustShape(uint64(t.ModFieldsOr6())*g.width))

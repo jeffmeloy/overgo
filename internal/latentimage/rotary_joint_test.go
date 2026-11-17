@@ -50,7 +50,7 @@ func TestMOSSRotaryJointGolden(t *testing.T) {
 	for _, length := range []int{2, 4} {
 		for block := range 2 {
 			t.Run(fmt.Sprintf("%d/%d", length, block), func(t *testing.T) {
-				p := testcheck.Must(compileRotaryJointProgram(spec, 1e-6, length+6, block, dtype.F32))(t)
+				p := testcheck.Must(compileRotaryJointProgram(spec, 1e-6, length+6, block, dtype.F32, rotaryOptions{}))(t)
 				prefix := fmt.Sprintf("cpu-f32.%d.block.%d.", length, block)
 				got := testcheck.Must(reference.Execute([]*tensor.Tensor{p.output}, jointFeeds(t, p, oracle, prefix, dtype.F32)))(t)
 				compareRefinement(t, got[p.output].Data, refinementValues(t, oracle, prefix+"output"), 1.3e-6)
@@ -64,7 +64,7 @@ func TestMOSSRotaryJointRefusesInvalidGeometry(t *testing.T) {
 		s := refinementSpec()
 		s.Layers = 2
 		change(&s)
-		if _, err := compileRotaryJointProgram(s, 1e-6, 8, 0, dtype.F32); err == nil {
+		if _, err := compileRotaryJointProgram(s, 1e-6, 8, 0, dtype.F32, rotaryOptions{}); err == nil {
 			t.Fatal("invalid joint geometry accepted")
 		}
 	}

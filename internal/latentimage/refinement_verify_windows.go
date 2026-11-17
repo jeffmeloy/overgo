@@ -194,7 +194,7 @@ func VerifyMOSSTransformer(ctx context.Context, modelRoot, referenceRoot, contra
 				inputs[hiddenName], inputs[ropeName] = p.InEncoder, p.InRoPE
 				result, rotary, weights = p.Fused, p.InRoPE, p.weightInputs
 			} else if stage == "joint" {
-				p, err := compileRotaryJointProgram(spec, mossRefinementEpsilon, tokens, 0, dtype.BF16)
+				p, err := compileRotaryJointProgram(spec, mossRefinementEpsilon, tokens, 0, dtype.BF16, rotaryOptions{})
 				if err != nil {
 					return err
 				}
@@ -210,7 +210,7 @@ func VerifyMOSSTransformer(ctx context.Context, modelRoot, referenceRoot, contra
 				if len(latent.Shape) != rotaryCoordinateAxes || latent.Shape[0] != tensor.SingletonExtent || latent.Shape[1] != uint64(spec.InChannels) {
 					return fmt.Errorf("MOSS latent input shape differs: %v", latent.Shape)
 				}
-				p, err := compileRotaryDenoiserProgram(spec, mossRefinementEpsilon, int(latent.Shape[tensor.PairedExtent]), int(latent.Shape[tensor.TripleExtent]), tokens, nil, dtype.BF16, false)
+				p, err := compileRotaryDenoiserProgram(spec, mossRefinementEpsilon, int(latent.Shape[tensor.PairedExtent]), int(latent.Shape[tensor.TripleExtent]), tokens, nil, dtype.BF16, rotaryOptions{})
 				if err != nil {
 					return err
 				}

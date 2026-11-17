@@ -29,6 +29,63 @@ type rotaryGraph struct {
 	// eightBit computes the attention in 8 bits (tensor.AttentionAttributes.EightBit), from F32 heads with no storage
 	// round before it.
 	eightBit bool
+	// adapter patches the graph's projections and weights unmerged (mediaAdapter), its tensors bound from its file as
+	// adapterInputs and scaled by the strength fed each run; none for a graph without one.
+	adapter       *mediaAdapter
+	adapterInputs tensor.WeightInputs
+	strength      *tensor.Tensor
+}
+
+// rotaryOptions are what a rotary program computes beside its weights: its attention in 8 bits, and an adapter.
+type rotaryOptions struct {
+	eightBit bool
+	adapter  *mediaAdapter
+}
+
+// adapterStrengthInput names the scalar fed each run as an adapter's strength.
+const adapterStrengthInput = "adapter_strength"
+
+// use takes the options into the graph, binding an adapter's tensors into adapterBindings.
+func (g *rotaryGraph) use(options rotaryOptions, adapterBindings *tensor.WeightBindings) {
+	g.eightBit, g.adapter = options.eightBit, options.adapter
+	if g.adapter != nil {
+		g.adapterInputs = tensor.WeightInputs{Builder: g.b, Bindings: adapterBindings, MatrixType: dtype.F32}
+		g.strength = g.b.Input(adapterStrengthInput, dtype.F32, tensor.MustShape(tensor.SingletonExtent))
+	}
+}
+
+// patched adds to a weight or bias the adapter's full difference of it times the strength, where it has one.
+func (g *rotaryGraph) patched(name string, weight *tensor.Tensor, dimensions ...uint64) *tensor.Tensor {
+	if g.adapter == nil {
+		return weight
+	}
+	if diff, held := g.adapter.diffs[name]; held {
+		return g.b.Add(weight, g.b.Multiply(g.adapterInput(diff, dimensions...), g.strength))
+	}
+	return weight
+}
+
+// adapterInput is the graph input of an adapter tensor, one for every projection that reads it (a fused pair's down).
+func (g *rotaryGraph) adapterInput(name string, dimensions ...uint64) *tensor.Tensor {
+	if held := g.adapterInputs.Bindings.Node(name); held != nil {
+		return held
+	}
+	return g.adapterInputs.Input(name, dimensions...)
+}
+
+// lowRank is the adapter's branch of a projection, s * scale * (x down) up at F32, or none.
+func (g *rotaryGraph) lowRank(name string, x *tensor.Tensor) *tensor.Tensor {
+	if g.adapter == nil {
+		return nil
+	}
+	patch, held := g.adapter.lowRank[name]
+	if !held {
+		return nil
+	}
+	down := g.adapterInput(patch.down, patch.in, patch.rank)
+	up := g.adapterInput(patch.upInputName(), patch.rank, patch.rows)
+	branch := g.b.MulMatWithCompute(up, g.b.MulMatWithCompute(down, x, tensor.MulMatComputeExact), tensor.MulMatComputeExact)
+	return g.b.Multiply(g.b.Scale(branch, patch.scale), g.strength)
 }
 
 func newRotaryGraph(t TransformerSpec, epsilon float32, tokens int, storage dtype.Type, weights *tensor.WeightBindings) (*rotaryGraph, error) {
@@ -47,13 +104,20 @@ func (g *rotaryGraph) round(x *tensor.Tensor) *tensor.Tensor {
 }
 func (g *rotaryGraph) linear(name string, x *tensor.Tensor, in, out uint64, bias bool) *tensor.Tensor {
 	y := g.b.MulMat(g.bind.Input(name+".weight", in, out), x)
+	if branch := g.lowRank(name, x); branch != nil {
+		y = g.b.Add(y, branch)
+	}
 	if bias {
-		y = g.b.Add(y, g.round(g.bind.Input(name+".bias", out)))
+		y = g.b.Add(y, g.round(g.patched(name+".bias", g.bind.Input(name+".bias", out), out)))
 	}
 	return g.round(y)
 }
 func (g *rotaryGraph) norm(name string, x *tensor.Tensor, channels uint64) *tensor.Tensor {
-	return g.round(g.b.Multiply(g.round(g.b.RMSNormNativeMean(x, g.epsilon)), g.bind.Input(name+".weight", channels)))
+	weight := g.bind.Input(name+".weight", channels)
+	if patched := g.patched(name+".weight", weight, channels); patched != weight {
+		weight = g.round(patched)
+	}
+	return g.round(g.b.Multiply(g.round(g.b.RMSNormNativeMean(x, g.epsilon)), weight))
 }
 func (g *rotaryGraph) part(x *tensor.Tensor, start, count uint64) *tensor.Tensor {
 	dimensions := x.Shape.Slice()

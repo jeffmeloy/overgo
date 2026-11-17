@@ -79,7 +79,7 @@ func TestMOSSSamplingGolden(t *testing.T) {
 			predictionIndex := 0
 			for i, time := range settings.schedule.Timesteps {
 				forward := func(context []float32, skip []int) []float32 {
-					p, e := compileRotaryDenoiserProgram(denoiserSpec(), 1e-6, 2, 3, len(context)/8, skip, dtype.F32, false)
+					p, e := compileRotaryDenoiserProgram(denoiserSpec(), 1e-6, 2, 3, len(context)/8, skip, dtype.F32, rotaryOptions{})
 					if e != nil {
 						t.Fatal(e)
 					}

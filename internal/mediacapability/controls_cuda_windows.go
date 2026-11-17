@@ -34,6 +34,17 @@ func routedImageControls(_ string, controls []Control) ([]Control, error) {
 	return offerPresets(controls, senseNovaModel, presets)
 }
 
+// The request fields that name an image model's adapter and its strength (latentimage.Request.Adapter).
+const (
+	adapterNameControl     = "adapter"
+	adapterStrengthControl = "adapter_strength"
+)
+
+// adapterControl says the control names an adapter or its strength.
+func adapterControl(c Control) bool {
+	return c.Name == adapterNameControl || c.Name == adapterStrengthControl
+}
+
 func imageControls(directory string, controls []Control) ([]Control, error) {
 	profile, err := latentimage.ResolveProfile(directory)
 	if err != nil {
@@ -65,9 +76,24 @@ func imageControls(directory string, controls []Control) ([]Control, error) {
 			return nil, err
 		}
 		return slices.DeleteFunc(controls, func(c Control) bool {
-			return c.Name == "negative_prompt" && !guided || c.Name == "guidance_scale" || c.Name == "prompt_mode"
+			return c.Name == "negative_prompt" && !guided || c.Name == "guidance_scale" || c.Name == "prompt_mode" || adapterControl(c)
 		}), nil
 	}
+	// A rotary model offers the adapters it holds, applied unmerged at a strength of 1 unless the person states one,
+	// and no adapter control where it holds none.
+	adapters, err := latentimage.AdapterNames(directory)
+	if err != nil {
+		return nil, err
+	}
+	if len(adapters) == 0 {
+		controls = slices.DeleteFunc(controls, adapterControl)
+	}
+	for index := range controls {
+		if controls[index].Name == adapterNameControl {
+			controls[index].Choices = adapters
+		}
+	}
+	applyBounds(controls, map[string]Bounds{adapterStrengthControl: {Default: 1}})
 	policy := profile.Rotary
 	if policy.DefaultSize <= 0 || float32(int(policy.Guidance)) != policy.Guidance {
 		return nil, fmt.Errorf("image controls: source default extent or guidance cannot be represented")

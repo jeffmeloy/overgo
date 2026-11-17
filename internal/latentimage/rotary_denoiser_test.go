@@ -67,7 +67,7 @@ func TestMOSSRotaryDenoiserGolden(t *testing.T) {
 			skip []int
 		}{{"all", nil}, {"skip-1", []int{1}}, {"skip-all", []int{0, 1}}} {
 			t.Run(fmt.Sprintf("%d/%s", length, variant.name), func(t *testing.T) {
-				p := testcheck.Must(compileRotaryDenoiserProgram(denoiserSpec(), 1e-6, 2, 3, length, variant.skip, dtype.F32, false))(t)
+				p := testcheck.Must(compileRotaryDenoiserProgram(denoiserSpec(), 1e-6, 2, 3, length, variant.skip, dtype.F32, rotaryOptions{}))(t)
 				outputs, named := denoiserOutputs(p)
 				got := testcheck.Must(reference.Execute(outputs, denoiserFeeds(t, p, index, dtype.F32)))(t)
 				prefix := fmt.Sprintf("cpu-f32.%d.%s.", length, variant.name)
@@ -81,18 +81,18 @@ func TestMOSSRotaryDenoiserGolden(t *testing.T) {
 
 func TestMOSSRotaryDenoiserRefusesInvalidInput(t *testing.T) {
 	for _, skip := range [][]int{{-1}, {2}} {
-		if _, err := compileRotaryDenoiserProgram(denoiserSpec(), 1e-6, 2, 3, 4, skip, dtype.F32, false); err == nil {
+		if _, err := compileRotaryDenoiserProgram(denoiserSpec(), 1e-6, 2, 3, 4, skip, dtype.F32, rotaryOptions{}); err == nil {
 			t.Fatal("invalid skip accepted")
 		}
 	}
 	for _, change := range []func(*TransformerSpec){func(s *TransformerSpec) { s.TimestepEmbed = 3 }, func(s *TransformerSpec) { s.HeadDim = 7 }, func(s *TransformerSpec) { s.RopeTheta = math.Inf(1) }, func(s *TransformerSpec) { s.Layers = 0 }} {
 		s := denoiserSpec()
 		change(&s)
-		if _, err := compileRotaryDenoiserProgram(s, 1e-6, 2, 3, 4, nil, dtype.F32, false); err == nil {
+		if _, err := compileRotaryDenoiserProgram(s, 1e-6, 2, 3, 4, nil, dtype.F32, rotaryOptions{}); err == nil {
 			t.Fatal("invalid geometry accepted")
 		}
 	}
-	p := testcheck.Must(compileRotaryDenoiserProgram(denoiserSpec(), 1e-6, 2, 3, 4, nil, dtype.F32, false))(t)
+	p := testcheck.Must(compileRotaryDenoiserProgram(denoiserSpec(), 1e-6, 2, 3, 4, nil, dtype.F32, rotaryOptions{}))(t)
 	for _, input := range []struct {
 		latent, context []float32
 		time            float32

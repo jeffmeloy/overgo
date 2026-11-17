@@ -26,7 +26,7 @@ func TestMOSSRotaryDenoiserCUDAGolden(t *testing.T) {
 			skip []int
 		}{{"all", nil}, {"skip-1", []int{1}}, {"skip-all", []int{0, 1}}} {
 			t.Run(fmt.Sprintf("%d/%s", length, variant.name), func(t *testing.T) {
-				p := testcheck.Must(compileRotaryDenoiserProgram(denoiserSpec(), 1e-6, 2, 3, length, variant.skip, dtype.BF16, false))(t)
+				p := testcheck.Must(compileRotaryDenoiserProgram(denoiserSpec(), 1e-6, 2, 3, length, variant.skip, dtype.BF16, rotaryOptions{}))(t)
 				outputs, named := denoiserOutputs(p)
 				program := testcheck.Must(runtime.Compile(t.Context(), "native complete denoiser", nil, outputs...))(t)
 				defer runtime.Release(context.WithoutCancel(t.Context()), program)
@@ -59,7 +59,7 @@ func TestMOSSRotaryDenoiserCUDAGolden(t *testing.T) {
 func TestMOSSRotaryDenoiserFinalOutputResidency(t *testing.T) {
 	cudatest.Require(t)
 	oracle := denoiserFixture(t)
-	p := testcheck.Must(compileRotaryDenoiserProgram(denoiserSpec(), 1e-6, 2, 3, 4, []int{0, 1, 1}, dtype.BF16, false))(t)
+	p := testcheck.Must(compileRotaryDenoiserProgram(denoiserSpec(), 1e-6, 2, 3, 4, []int{0, 1, 1}, dtype.BF16, rotaryOptions{}))(t)
 	feeds := denoiserFeeds(t, p, 0, dtype.BF16)
 	values := map[string][]float32{}
 	shapes := map[string][]int{}

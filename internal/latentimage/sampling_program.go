@@ -24,6 +24,9 @@ type rotarySamplingSpec struct {
 	seed    int64
 	// eightBit computes the denoiser's attention in 8 bits, as a speed preset asks (Request.EightBitAttention).
 	eightBit bool
+	// adapter is the adapter the request names, applied unmerged at strength (Request.Adapter); none where it names none.
+	adapter  *mediaAdapter
+	strength float32
 }
 
 func (s rotarySamplingSpec) validate(layers int) error {

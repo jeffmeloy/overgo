@@ -25,20 +25,24 @@ type rotaryDenoiserProgram struct {
 	latent, context, embedding, rope, unit *tensor.Tensor
 	// valueScale and valueData scale each row's attention value in the joint blocks, the image rows by one and the text
 	// rows by a weighted prompt's weights (weightedSpans); none for a program that weights nothing.
-	valueScale          *tensor.Tensor
-	valueData           []float32
-	output              *tensor.Tensor
-	boundaries          map[string]*tensor.Tensor
-	weightInputs        tensor.WeightBindings
+	valueScale   *tensor.Tensor
+	valueData    []float32
+	output       *tensor.Tensor
+	boundaries   map[string]*tensor.Tensor
+	weightInputs tensor.WeightBindings
+	// adapterInputs are an adapter's tensors the graph reads, bound from its file, and strength the scalar fed each run as
+	// its strength; neither for a program without one (rotaryOptions).
+	adapterInputs       tensor.WeightBindings
+	strength            *tensor.Tensor
 	spec                TransformerSpec
 	height, width, text int
 }
 
 // compileRotaryDenoiserProgram compiles MOSS's denoiser for a picture of height by width patches and text rows of
 // conditioning, the blocks skip names set to identity; textWeights, where given, are the text rows' attention-value
-// weights, and none compile the graph as it was. eightBit computes every block's attention in 8 bits
-// (tensor.AttentionAttributes.EightBit).
-func compileRotaryDenoiserProgram(t TransformerSpec, epsilon float32, height, width, text int, skip []int, storage dtype.Type, eightBit bool, textWeights ...float32) (*rotaryDenoiserProgram, error) {
+// weights, and none compile the graph as it was. options compute every block's attention in 8 bits
+// (tensor.AttentionAttributes.EightBit) and apply an adapter unmerged (mediaAdapter), where they ask.
+func compileRotaryDenoiserProgram(t TransformerSpec, epsilon float32, height, width, text int, skip []int, storage dtype.Type, options rotaryOptions, textWeights ...float32) (*rotaryDenoiserProgram, error) {
 	if len(textWeights) != 0 && len(textWeights) != text {
 		return nil, fmt.Errorf("rotary denoiser: %d text weights for %d text rows", len(textWeights), text)
 	}
@@ -67,7 +71,8 @@ func compileRotaryDenoiserProgram(t TransformerSpec, epsilon float32, height, wi
 	if err != nil {
 		return nil, err
 	}
-	g.eightBit = eightBit
+	g.use(options, &p.adapterInputs)
+	p.strength = g.strength
 	b := g.b
 	p.latent = b.Input("latent", dtype.F32, latentShape)
 	p.context = b.Input("context", dtype.F32, tensor.MustShape(uint64(t.TextHidden), uint64(text)))
@@ -150,7 +155,7 @@ func (p *rotaryDenoiserProgram) feeds(latent, context []float32, timestep float3
 // RotaryWeightShapes is the shape the denoiser's graph reads each of its weights at, as a checkpoint stores it, so a trainer
 // of those weights holds them to what inference does. It compiles the smallest program, whose weights are every program's.
 func RotaryWeightShapes(t TransformerSpec) (map[string][]uint64, error) {
-	program, err := compileRotaryDenoiserProgram(t, mossRefinementEpsilon, tensor.SingletonExtent, tensor.SingletonExtent, tensor.SingletonExtent, nil, dtype.F32, false)
+	program, err := compileRotaryDenoiserProgram(t, mossRefinementEpsilon, tensor.SingletonExtent, tensor.SingletonExtent, tensor.SingletonExtent, nil, dtype.F32, rotaryOptions{})
 	if err != nil {
 		return nil, err
 	}

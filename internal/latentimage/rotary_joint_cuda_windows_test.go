@@ -26,7 +26,7 @@ func TestMOSSRotaryJointCUDAGolden(t *testing.T) {
 	for _, length := range []int{2, 4} {
 		for block := range 2 {
 			t.Run(fmt.Sprintf("%d/%d", length, block), func(t *testing.T) {
-				p := testcheck.Must(compileRotaryJointProgram(spec, 1e-6, length+6, block, dtype.BF16))(t)
+				p := testcheck.Must(compileRotaryJointProgram(spec, 1e-6, length+6, block, dtype.BF16, rotaryOptions{}))(t)
 				prefix := fmt.Sprintf("cuda-bf16.%d.block.%d.", length, block)
 				program := testcheck.Must(runtime.Compile(t.Context(), "joint block", nil, p.output))(t)
 				defer runtime.Release(context.WithoutCancel(t.Context()), program)

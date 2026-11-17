@@ -34,23 +34,41 @@ func compileResidentWeights(
 		return nil, fmt.Errorf("%s: open weights: %w", label, err)
 	}
 	defer source.Close()
+	return program, bindResident(ctx, session, program, label, sourcePath, source, inputs, residentPayload)
+}
+
+// bindAdapterInputs binds an adapter's tensors a compiled program reads from its file (adapterPayload), each uploaded
+// once for every program that reads it.
+func bindAdapterInputs(ctx context.Context, session *graphruntime.ResidentSession, program *graphruntime.ResidentProgram, label string,
+	adapter *mediaAdapter, inputs tensor.WeightBindings) error {
+	source, err := safetensors.OpenFile(adapter.path)
+	if err != nil {
+		return fmt.Errorf("%s: open adapter: %w", label, err)
+	}
+	defer source.Close()
+	return bindResident(ctx, session, program, label, adapter.path, source, inputs, adapterPayload)
+}
+
+// bindResident binds each input the program reads from source by payload, keyed by the source's path and the input's
+// name.
+func bindResident(ctx context.Context, session *graphruntime.ResidentSession, program *graphruntime.ResidentProgram, label, sourcePath string,
+	source *safetensors.Source, inputs tensor.WeightBindings, payloadOf func(*safetensors.Source, *tensor.Tensor) (func() ([]byte, error), error)) error {
 	for _, node := range inputs {
 		if _, required := program.Graph.InputSlot(node); !required {
 			continue
 		}
-		name := node.Name
 		if err := ctx.Err(); err != nil {
-			return nil, err
+			return err
 		}
-		payload, err := residentPayload(source, node)
+		payload, err := payloadOf(source, node)
 		if err == nil {
-			err = session.Bind(ctx, program, sourcePath, name, node, payload)
+			err = session.Bind(ctx, program, sourcePath, node.Name, node, payload)
 		}
 		if err != nil {
-			return nil, fmt.Errorf("%s: tensor %s: %w", label, name, err)
+			return fmt.Errorf("%s: tensor %s: %w", label, node.Name, err)
 		}
 	}
-	return program, nil
+	return nil
 }
 
 func compileResidentStatic(

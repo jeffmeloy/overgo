@@ -46,7 +46,7 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 		if existing, ok := branches[name]; ok {
 			return existing, nil
 		}
-		p, e := compileRotaryDenoiserProgram(spec, mossRefinementEpsilon, height, width, len(conditioning)/spec.TextHidden, skip, dtype.BF16, settings.eightBit, weights...)
+		p, e := compileRotaryDenoiserProgram(spec, mossRefinementEpsilon, height, width, len(conditioning)/spec.TextHidden, skip, dtype.BF16, rotaryOptions{eightBit: settings.eightBit, adapter: settings.adapter}, weights...)
 		if e != nil {
 			return branch{}, e
 		}
@@ -59,7 +59,13 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 			return branch{}, e
 		}
 		programs = append(programs, program)
-		for _, node := range []*tensor.Tensor{p.context, p.rope, p.unit, p.valueScale} {
+		if settings.adapter != nil {
+			if e := bindAdapterInputs(ctx, runtime, program, "rotary sampling "+name, settings.adapter, p.adapterInputs); e != nil {
+				return branch{}, e
+			}
+			feeds[p.strength] = reference.Value{Shape: p.strength.Shape, Data: []float32{settings.strength}}
+		}
+		for _, node := range []*tensor.Tensor{p.context, p.rope, p.unit, p.valueScale, p.strength} {
 			if node == nil {
 				continue
 			}

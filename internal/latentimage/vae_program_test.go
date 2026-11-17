@@ -227,7 +227,7 @@ func TestCompileVAEProgramRefusesUnrepresentableExtents(t *testing.T) {
 		t.Fatal("packed decoder compiled an unrepresentable extent")
 	}
 	const hugeGrid = 1 << 31
-	if _, err := compileRotaryDenoiserProgram(denoiserSpec(), syntheticEpsilon, hugeGrid, hugeGrid, tensor.SingletonExtent, nil, dtype.F32, false); err == nil {
+	if _, err := compileRotaryDenoiserProgram(denoiserSpec(), syntheticEpsilon, hugeGrid, hugeGrid, tensor.SingletonExtent, nil, dtype.F32, rotaryOptions{}); err == nil {
 		t.Fatal("rotary denoiser compiled an unrepresentable extent")
 	}
 	if _, err := CompileDenoiserProgram(syntheticSpec(), syntheticEpsilon, []bool{true}, nil, hugeGrid, hugeGrid, dtype.F32, false); err == nil {

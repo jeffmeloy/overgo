@@ -225,7 +225,8 @@ const (
 	kernelRopeNormalF32
 	kernelRwkv6F32
 	kernelRwkv7F32
-	kernelSageKeyMeanF32
+	kernelSageBlockStatsF32
+	kernelSageChannelStatsF32
 	kernelSageQuantizeI8F32
 	kernelSageQuantizeVFp8F32
 	kernelSamAttentionF32
@@ -715,7 +716,8 @@ var kernelFunctionNames = [...]string{
 	"rope_normal_f32",
 	"rwkv6_f32",
 	"rwkv7_f32",
-	"sage_key_mean_f32",
+	"sage_block_stats_f32",
+	"sage_channel_stats_f32",
 	"sage_quantize_i8_f32",
 	"sage_quantize_v_fp8_f32",
 	"sam_attention_f32",
@@ -1204,7 +1206,8 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	16,
 	11,
 	12,
-	5,
+	7,
+	7,
 	7,
 	7,
 	18,
@@ -1694,7 +1697,8 @@ var kernelFunctionArgumentWidths = [...][]uint16{
 	{8, 8, 8, 8, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
 	{8, 8, 8, 8, 8, 8, 8, 4, 4, 4, 4},
 	{8, 8, 8, 8, 8, 8, 8, 8, 4, 4, 4, 4},
-	{8, 8, 4, 4, 4},
+	{8, 8, 8, 8, 4, 4, 4},
+	{8, 8, 8, 8, 4, 4, 4},
 	{8, 8, 8, 8, 4, 4, 4},
 	{8, 8, 8, 4, 4, 4, 4},
 	{8, 8, 8, 8, 8, 8, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
@@ -1969,6 +1973,7 @@ var kernelFunctionArgumentWidths = [...][]uint16{
 const kernelModuleCount = 4
 
 var kernelFunctionModules = [...]uint8{
+	0,
 	0,
 	0,
 	0,

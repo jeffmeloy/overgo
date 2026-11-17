@@ -265,6 +265,10 @@ type AttentionAttributes struct {
 	// attention keeps its f32 paths: the kernel's products moved dense models' held-out quality (gemma-4-12B-it-fp8's
 	// BBH 0.657 to 0.643, restored to 0.657 by the f32 path at the same commit, 2026-10-24), which a speed path may not.
 	TensorCores bool
+	// EightBit computes a non-causal attention over F32 heads of 128 channels in 8 bits, after SageAttention2: Q and
+	// K, smoothed by its mean, in INT8 per 64-token block, P and V in FP8 E4M3, on the 8-bit tensor cores. A speed
+	// choice: its error against exact attention is FP8's (eight-bit-attention/kernel).
+	EightBit bool
 }
 
 type Conv1DAttributes struct {

@@ -6,8 +6,9 @@
 // interleaved [sequence][token][head][channel], query heads sharing a key/value head in groups (query_heads /
 // key_value_heads), and a key's bias is added to its scaled score, as attention_native_bf16_f32 adds it.
 //
-// Four launches: sage_key_mean_f32, sage_quantize_i8_f32 for Q and for K, sage_quantize_v_fp8_f32, then
-// attention_sage_128_f32. The quantised operands and their scales are the launches' staging.
+// Six launches: sage_block_stats_f32 and sage_channel_stats_f32 for K's means and V's scales, sage_quantize_i8_f32 for
+// Q and for K, sage_quantize_v_fp8_f32, then attention_sage_128_f32. The quantised operands, their scales and the
+// statistics are the launches' staging.
 
 #define SAGE_WIDTH 128u
 #define SAGE_BLOCK 64u
@@ -34,19 +35,48 @@ __device__ __forceinline__ uint32_t sage_fp8x4(float x0, float x1, float x2, flo
     return lo | (hi << 16);
 }
 
-// sage_key_mean_f32: the mean over a sequence's tokens of each channel of each key/value head's keys. Grid (heads,
-// sequences), 128 threads, a channel each.
-extern "C" __global__ void sage_key_mean_f32(
-        const float * key, float * mean, unsigned int heads, unsigned int tokens, unsigned int sequences) {
+// sage_block_stats_f32: over each 64-token block of each key/value head, each channel's sum of K and absolute maximum
+// of V. Grid (blocks, heads, sequences), 128 threads, a channel each; both [sequence][head][block][channel].
+extern "C" __global__ void sage_block_stats_f32(
+        const float * key, const float * value, float * key_sums, float * value_maxima,
+        unsigned int heads, unsigned int tokens, unsigned int sequences) {
+    const unsigned int block = blockIdx.x, head = blockIdx.y, sequence = blockIdx.z, channel = threadIdx.x;
+    const unsigned int blocks = (tokens + SAGE_BLOCK - 1u) / SAGE_BLOCK;
+    if (block >= blocks || head >= heads || sequence >= sequences || channel >= SAGE_WIDTH) {
+        return;
+    }
+    const unsigned int first = block * SAGE_BLOCK, last = min(first + SAGE_BLOCK, tokens);
+    float sum = 0.0f, maximum = 0.0f;
+    for (unsigned int token = first; token < last; ++token) {
+        const unsigned int at = ((sequence * tokens + token) * heads + head) * SAGE_WIDTH + channel;
+        sum += key[at];
+        maximum = fmaxf(maximum, fabsf(value[at]));
+    }
+    const unsigned int out = ((sequence * heads + head) * blocks + block) * SAGE_WIDTH + channel;
+    key_sums[out] = sum;
+    value_maxima[out] = maximum;
+}
+
+// sage_channel_stats_f32: each channel's mean of K over a sequence's tokens and V's FP8 scale, its absolute maximum
+// over 448, from the blocks' statistics in block order. Grid (heads, sequences), 128 threads, a channel each; both
+// [sequence][head][channel].
+extern "C" __global__ void sage_channel_stats_f32(
+        const float * key_sums, const float * value_maxima, float * key_mean, float * value_scales,
+        unsigned int heads, unsigned int tokens, unsigned int sequences) {
     const unsigned int head = blockIdx.x, sequence = blockIdx.y, channel = threadIdx.x;
     if (head >= heads || sequence >= sequences || channel >= SAGE_WIDTH) {
         return;
     }
-    float sum = 0.0f;
-    for (unsigned int token = 0; token < tokens; ++token) {
-        sum += key[((sequence * tokens + token) * heads + head) * SAGE_WIDTH + channel];
+    const unsigned int blocks = (tokens + SAGE_BLOCK - 1u) / SAGE_BLOCK;
+    float sum = 0.0f, maximum = 0.0f;
+    for (unsigned int block = 0; block < blocks; ++block) {
+        const unsigned int at = ((sequence * heads + head) * blocks + block) * SAGE_WIDTH + channel;
+        sum += key_sums[at];
+        maximum = fmaxf(maximum, value_maxima[at]);
     }
-    mean[(sequence * heads + head) * SAGE_WIDTH + channel] = tokens == 0 ? 0.0f : sum / (float) tokens;
+    const unsigned int out = (sequence * heads + head) * SAGE_WIDTH + channel;
+    key_mean[out] = tokens == 0 ? 0.0f : sum / (float) tokens;
+    value_scales[out] = fmaxf(maximum, 1e-20f) / 448.0f;
 }
 
 // sage_quantize_i8_f32: each 64-token block of each head as INT8 against its own scale, its absolute maximum over 127,
@@ -85,27 +115,30 @@ extern "C" __global__ void sage_quantize_i8_f32(
     }
 }
 
-// sage_quantize_v_fp8_f32: each channel of each key/value head's values as FP8 E4M3 against its own scale, its absolute
-// maximum over 448, written transposed, [sequence][head][channel][token], each channel's tokens padded with zeros to
-// padded (a multiple of 64). Grid (heads, sequences), 128 threads, a channel each; the scales are
-// [sequence][head][channel].
+// sage_quantize_v_fp8_f32: each 64-token block of each key/value head's values as FP8 E4M3 against its channels' scales
+// (sage_channel_stats_f32), written transposed, [sequence][head][channel][token], each channel's tokens padded with
+// zeros to padded (a multiple of 64). Grid (blocks, heads, sequences), 128 threads, a channel each, each writing its
+// channel's 64 codes of the block.
 extern "C" __global__ void sage_quantize_v_fp8_f32(
-        const float * value, unsigned char * codes, float * scales,
+        const float * value, const float * scales, unsigned char * codes,
         unsigned int heads, unsigned int tokens, unsigned int padded, unsigned int sequences) {
-    const unsigned int head = blockIdx.x, sequence = blockIdx.y, channel = threadIdx.x;
-    if (head >= heads || sequence >= sequences || channel >= SAGE_WIDTH) {
+    const unsigned int block = blockIdx.x, head = blockIdx.y, sequence = blockIdx.z, channel = threadIdx.x;
+    if (block * SAGE_BLOCK >= padded || head >= heads || sequence >= sequences || channel >= SAGE_WIDTH) {
         return;
     }
-    float maximum = 0.0f;
-    for (unsigned int token = 0; token < tokens; ++token) {
-        maximum = fmaxf(maximum, fabsf(value[((sequence * tokens + token) * heads + head) * SAGE_WIDTH + channel]));
+    const float scale = scales[(sequence * heads + head) * SAGE_WIDTH + channel];
+    uint32_t words[SAGE_BLOCK / 4u];
+    for (unsigned int word = 0; word < SAGE_BLOCK / 4u; ++word) {
+        float v[4];
+        for (unsigned int i = 0; i < 4u; ++i) {
+            const unsigned int token = block * SAGE_BLOCK + word * 4u + i;
+            v[i] = token < tokens ? value[((sequence * tokens + token) * heads + head) * SAGE_WIDTH + channel] / scale : 0.0f;
+        }
+        words[word] = sage_fp8x4(v[0], v[1], v[2], v[3]);
     }
-    const float scale = fmaxf(maximum, 1e-20f) / 448.0f;
-    scales[(sequence * heads + head) * SAGE_WIDTH + channel] = scale;
-    unsigned char * row = codes + ((size_t) (sequence * heads + head) * SAGE_WIDTH + channel) * padded;
-    for (unsigned int token = 0; token < padded; ++token) {
-        const float v = token < tokens ? value[((sequence * tokens + token) * heads + head) * SAGE_WIDTH + channel] / scale : 0.0f;
-        row[token] = (unsigned char) __nv_cvt_float_to_fp8(v, __NV_SATFINITE, __NV_E4M3);
+    uint4 * row = reinterpret_cast<uint4 *>(codes + ((size_t) (sequence * heads + head) * SAGE_WIDTH + channel) * padded + block * SAGE_BLOCK);
+    for (unsigned int part = 0; part < SAGE_BLOCK / 16u; ++part) {
+        row[part] = make_uint4(words[part * 4u], words[part * 4u + 1u], words[part * 4u + 2u], words[part * 4u + 3u]);
     }
 }
 

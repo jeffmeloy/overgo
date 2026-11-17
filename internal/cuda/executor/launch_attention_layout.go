@@ -579,6 +579,9 @@ func launchAttentionLayout(
 		if attributes.NativeMath {
 			return launchNativeAttention(state, functions, blas, node, pointers)
 		}
+		if attributes.EightBit {
+			return launchEightBitAttention(state, functions, blas, node, attributes, pointers)
+		}
 		count := shapeCount32(node.Shape)
 		queryNode := node.Inputs[0]
 		keyNode := node.Inputs[1]

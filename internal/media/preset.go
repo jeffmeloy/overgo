@@ -17,13 +17,15 @@ type Preset struct {
 	Guidance float64 `json:"guidance,omitzero"`
 	Sampler  string  `json:"sampler"`
 	Shift    float64 `json:"shift,omitzero"`
+	// EightBitAttention says the generation computed its attention in 8 bits, a speed preset's choice.
+	EightBitAttention bool `json:"eight_bit_attention,omitzero"`
 }
 
 // Ran says the preset names a generation: one with no size, steps or sampler was resolved by none.
 func (p Preset) Ran() bool { return p.Width > 0 && p.Height > 0 && p.Steps > 0 && p.Sampler != "" }
 
 // String is the preset as a row prints it, "832 x 480, 81 frames, 50 steps, flow UniPC, guidance 5, shift 5", each part
-// the generation has.
+// the generation has, and "8-bit attention" where it computed its attention so.
 func (p Preset) String() string {
 	parts := []string{fmt.Sprintf("%d x %d", p.Width, p.Height)}
 	if p.Frames > 0 {
@@ -37,6 +39,9 @@ func (p Preset) String() string {
 		if part.value != 0 {
 			parts = append(parts, fmt.Sprintf("%s %.4g", part.name, part.value))
 		}
+	}
+	if p.EightBitAttention {
+		parts = append(parts, "8-bit attention")
 	}
 	return strings.Join(parts, ", ")
 }

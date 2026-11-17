@@ -1068,7 +1068,7 @@ func applyBF16AttentionRewrite(context *rewriteContext) {
 			continue
 		}
 		attributes, ok := node.Attrs.(tensor.AttentionAttributes)
-		if !ok || attributes.NativeMath || attributes.Causal || attributes.HasSinks || attributes.HasBlockMask ||
+		if !ok || attributes.NativeMath || attributes.EightBit || attributes.Causal || attributes.HasSinks || attributes.HasBlockMask ||
 			attributes.SymmetricWindow || attributes.ChunkedWindow ||
 			attributes.Softcap != 0 || attributes.MaxALiBiBias != 0 ||
 			attributes.QueryStart != 0 || attributes.KeyValueTokens != 0 ||

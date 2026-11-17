@@ -29,6 +29,9 @@
       "cfg-zero-star": {
         "guidance": {"zero_steps": 1, "projected": true}
       },
+      "eight-bit-attention": {
+        "eight_bit_attention": true
+      },
       "guidance-interval": {
         "guidance": {"interval": {"low": 0.219, "high": 0.844}}
       },

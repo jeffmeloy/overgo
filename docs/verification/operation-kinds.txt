@@ -74,7 +74,7 @@ The preamble's row is the plan's step shape-reading/launch-checks, and TestNoLau
 == switches ==
 family: internal/tensor.Op
 switches: 11
-lines: 1909
+lines: 1912
 functions: 11
 packages: 4
 constants: 76
@@ -90,11 +90,11 @@ row: a method of each of the nine attribute types with per-step values, in one i
 table: yes
 
 switch: internal/cuda/executor/launch_attention_layout.go#launchAttentionLayout
-lines: 360
+lines: 363
 constants: 8
 clauses: 9
 dispatch-lines: 12
-decides: the device launch of reshape as a copy, of attention by one of six paths (the split single-query decode kernel, the tensor-core prompt kernel, the batched matrix products, the tiled kernel, the online kernel and the plain kernel), attention over a BF16 cache by the decode, tensor-core prompt and online kernels that widen it as they read it, of concat as an append in place when its output is its left input, F32 or BF16, of cache_store as F32 rows stored as BF16, of cache_append as a copy and a write at a device-resident offset, a BF16 cache's rows rounded as they land, of qsa_attention as Strata's QSA layer, its kernels launched in Strata's order (in place over its fixed state for a verify window), of qsa_commit as the window's commit, its tail restored and its kept rows' keys appended again, and of cell_attention as an attention layer's int8 cells appended and read by Strata's kernels at the layer's geometry
+decides: the device launch of reshape as a copy, of attention by one of seven paths (the 8-bit kernel where the node asks it, the split single-query decode kernel, the tensor-core prompt kernel, the batched matrix products, the tiled kernel, the online kernel and the plain kernel), attention over a BF16 cache by the decode, tensor-core prompt and online kernels that widen it as they read it, of concat as an append in place when its output is its left input, F32 or BF16, of cache_store as F32 rows stored as BF16, of cache_append as a copy and a write at a device-resident offset, a BF16 cache's rows rounded as they land, of qsa_attention as Strata's QSA layer, its kernels launched in Strata's order (in place over its fixed state for a verify window), of qsa_commit as the window's commit, its tail restored and its kept rows' keys appended again, and of cell_attention as an attention layer's int8 cells appended and read by Strata's kernels at the layer's geometry
 row: the entry of each operation, while attention's choice of path is attention's own and stays whole in its function
 table: yes
 

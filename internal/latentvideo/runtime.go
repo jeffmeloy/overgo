@@ -60,10 +60,12 @@ type Generator struct {
 
 	geometry        LatentGeometry
 	contextElements int
-	stats           VAELatentStats
-	denoiser        *DenoiserCUDASession
-	decoder         *vaeDecoderCUDASession
-	branches        map[[sha256.Size]byte]any
+	// eightBitAttention is whether its denoiser computes attention in 8 bits (DenoiserPrecision.EightBitAttention).
+	eightBitAttention bool
+	stats             VAELatentStats
+	denoiser          *DenoiserCUDASession
+	decoder           *vaeDecoderCUDASession
+	branches          map[[sha256.Size]byte]any
 }
 
 // NewGenerator: compile and upload both production stages once.
@@ -95,7 +97,7 @@ func NewGenerator(config GeneratorConfig) (generator *Generator, err error) {
 	}
 	generator = &Generator{
 		geometry: geometry, contextElements: denoiserConfig.TextLen * denoiserConfig.Dim,
-		stats: config.LatentStats, denoiser: denoiser,
+		eightBitAttention: config.Precision.EightBitAttention, stats: config.LatentStats, denoiser: denoiser,
 		branches: make(map[[sha256.Size]byte]any, tensor.PairedExtent),
 	}
 	defer func() {

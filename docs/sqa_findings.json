@@ -171,33 +171,12 @@
       "input": "(1) A root package embedding value.txt, checked by go test . -run TestValue, with only value.txt changed. (2) A production file built with -tags=fixturelane embedding value.txt, checked by go test -tags=fixturelane ./p, with only value.txt changed.",
       "expected": "The embedded asset enters the undo run's restoration set, so the unchanged test runs against the restored input and fails on its assertion.",
       "actual": "(1) path.Dir(value.txt) is \".\" and the ancestor loop stops before adding it, so the asset is not restored and undoable says no production Go changed. (2) Production calls go list without the verifier's flags, so the tag-gated embed is not listed and the asset-only change skips the undo. Read from source."
-    },
-    {
-  "id": "SQA-405",
-  "severity": "P2",
-  "files": [
-    "cmd/evaluate/readings.go",
-    "cmd/evaluate/readings_test.go",
-    "internal/evaluation/reading_room.go",
-    "internal/evaluation/pairwise.go",
-    "internal/mediacapability/preset_readings.go"
-  ],
-  "input": "A picture readings campaign with pairwise:true and five independent media. The reference answers every question correctly; the candidate keeps those answers correct and is preferred in both pairwise orders for each medium. These outcomes give no question gain and five pairwise wins with no losses.",
-  "expected": "The existing runReadings owner must allow the configured pairwise comparison: ReadPairwise gives a gain tail of 1/32, below 0.05, and offered admits a pairwise gain with no question loss. Keep the cheap question-ceiling refusal for a question-only campaign; skip all arms only when none of the configured comparisons can show an admissible gain.",
-  "actual": "runReadings (readings.go:157-163) continues to the next model whenever the question reference has no room, before consulting model.Pairwise at line 169. ReadingRoomOf returns BestTail 1 for the all-correct reference, so neither the candidate nor its pairwise comparison runs; the campaign logs no gain can show and ends with zero failed arms. ReadPairwise and presetReading.offered would accept the stated five-win pairwise result. The preflight applies one instrument's ceiling to another and silently suppresses an eligible preset reading. Shown from source and arithmetic at 344679be256e01238319864c718021505d5f934e; no SQA execution. The reference readings retained with this landing have question room; this branch was not observed there."
-}
+    }
   ],
   "master_lead_triage": {
     "at": "2026-11-13",
     "head": "0ef92bbeb509dbb96070d1f6e9161e95538210b7",
     "findings": {
-  "SQA-405": {
-        "action": "filed",
-        "rows": [
-          "reading-room/do"
-        ],
-        "note": "Answered by the lead on 2026-11-17: filed, the lead's defect in reading-power/do; a campaign passes over a model's arms only where none of its readings can show a gain."
-      },
   "SQA-346": {
         "action": "implemented",
         "rows": [

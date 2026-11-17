@@ -24,12 +24,6 @@
       "title": "An 8-bit flash-attention kernel for sm_89, INT8 QK and FP8 PV with two-level FP16 accumulation, served as an opt-in preset per model and admitted by its held-out suite on no loss beyond chance, a gain claimed only where the paired test shows one",
       "steps": [
         {
-          "id": "wan-speed",
-          "title": "Wan's 50-step path and the student run with 8-bit attention as a speed choice, its speed measured on their user-size cells and their clips held to the full-precision path's within a frame bound declared first",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestWanEightBitAttentionKeepsItsClipsWithinTheirBound$'",
-          "rationale": "Wan's 50-step path and the Self-Forcing student run with the 8-bit attention kernel (eight-bit-attention/kernel), a speed choice beside the authors' recipe. The owner, 2026-11-16: no video readings until clips can be compared side by side, since 100 clips cost about 10 hours and can say only \"not worse\"; and a canned choice is a speed tier with its measured cost. So this step measures the kernel's speed on Wan's and the student's user-size cells (832 x 480, 81 frames; the student's four steps), and holds each clip to the full-precision path's of the same request by a frame difference bound declared before the run, over a handful of requests; no judged clip suite is read.\n\nCheck: TestWanEightBitAttentionKeepsItsClipsWithinTheirBound, on the card: Wan's and the student's clips with 8-bit attention stay within the declared bound of their full-precision clips, frame by frame, and each user-size cell records its wall beside the full-precision one's."
-        },
-        {
           "id": "images",
           "title": "Krea-2-Turbo at 2048 x 2048, MOSS and SenseNova gain the 8-bit attention preset, each read on its suite",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestImageEightBitAttentionPresetsAreReadAgainstTheirSuites$'",

@@ -153,6 +153,7 @@ func (request WanRequest) withGeneration(policy generationPolicy) WanRequest {
 	if request.Seed == 0 {
 		request.Seed = policy.Seed
 	}
+	request.EightBitAttention = request.EightBitAttention || policy.EightBitAttention
 	if request.PromptForm() && request.NegativePrompt == "" {
 		request.NegativePrompt = referenceNegativePrompt
 	}

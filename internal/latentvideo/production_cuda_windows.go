@@ -76,6 +76,7 @@ func LoadWanRuntime(ctx context.Context, store artifact.Repository, path string,
 			Frames: request.Frames, Width: request.Width, Height: request.Height,
 			Precision: DenoiserPrecision{
 				MatmulWeights: storage, RoundAttentionStorage: profile.Precision.RoundAttentionStorage,
+				EightBitAttention: request.EightBitAttention,
 			}, DeviceOrdinal: ordinal, CodecLibrary: true,
 		})
 		if err != nil {
@@ -147,6 +148,15 @@ func (r *WanRuntime) Reset(_ context.Context, request WanRequest) error {
 	if !checked.Equal(geometry.LatentWidth, volume.Width) {
 		return errors.New("latent video: request differs from resident Wan geometry")
 	}
+	return r.admitsAttention(request)
+}
+
+// admitsAttention refuses a request whose attention, 8-bit or not, is not the one the resident denoiser was compiled
+// with, so its director loads one for it.
+func (r *WanRuntime) admitsAttention(request WanRequest) error {
+	if request.EightBitAttention != r.generator.eightBitAttention {
+		return errors.New("latent video: request differs from the resident Wan's attention")
+	}
 	return nil
 }
 
@@ -155,25 +165,31 @@ func (r *WanRuntime) Generate(ctx context.Context, request WanRequest) (EncodedV
 	if err != nil {
 		return EncodedVideo{}, err
 	}
+	if err := r.admitsAttention(request); err != nil {
+		return EncodedVideo{}, err
+	}
 	encoder, err := newServedEncoder(ctx, request.Format, request.ClipFinish, r.profile.SampleFPS, SignedUnitPixels)
 	if err != nil {
 		return EncodedVideo{}, err
 	}
-	video, err := writeClip(ctx, encoder, func(sink VideoFrameSink) error {
-		_, err := r.generator.Generate(ctx, GenerateRequest{
-			Steps: request.Steps, Shift: request.Shift, GuideScale: request.GuideScale, Guidance: request.Guidance,
-			CondContext: request.CondContext, UncondContext: request.UncondContext,
-			InitialSample: request.InitialSample, Noise: request.Noise, Sink: sink,
-		})
-		return err
-	})
+	video, err := writeClip(ctx, encoder, func(sink VideoFrameSink) error { return r.draw(ctx, request, sink) })
 	if err == nil {
 		r.runs++
 		video.ResidentRun = r.runs
 		video.Preset = media.Preset{Width: request.Width, Height: request.Height, Frames: request.Frames, Steps: request.Steps,
-			Guidance: request.GuideScale, Sampler: "flow UniPC", Shift: request.Shift}
+			Guidance: request.GuideScale, Sampler: "flow UniPC", Shift: request.Shift, EightBitAttention: request.EightBitAttention}
 	}
 	return video, err
+}
+
+// draw denoises a resolved request's clip and decodes its frames into sink.
+func (r *WanRuntime) draw(ctx context.Context, request WanRequest, sink VideoFrameSink) error {
+	_, err := r.generator.Generate(ctx, GenerateRequest{
+		Steps: request.Steps, Shift: request.Shift, GuideScale: request.GuideScale, Guidance: request.Guidance,
+		CondContext: request.CondContext, UncondContext: request.UncondContext,
+		InitialSample: request.InitialSample, Noise: request.Noise, Sink: sink,
+	})
+	return err
 }
 
 // PeakDeviceBytes reports the largest peak the resident device

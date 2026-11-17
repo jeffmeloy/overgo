@@ -101,6 +101,10 @@ type generationPolicy struct {
 	GuideScale float64           `json:"guide_scale"`
 	Guidance   sampling.Guidance `json:"guidance,omitzero"`
 	Seed       uint64            `json:"seed"`
+	// EightBitAttention computes the denoiser's attention in 8 bits (DenoiserPrecision.EightBitAttention), a speed
+	// preset's whole recipe. A student is offered none: its chunks each read the ones before them, so 8-bit attention's
+	// error compounds, and its clips fell below the frame bound Wan's held (eight-bit-attention/wan-speed).
+	EightBitAttention bool `json:"eight_bit_attention,omitzero"`
 }
 
 // profileEntry is the catalog's Wan profile and its presets: the profile is the authors' recipe, which a recipe binds,
@@ -575,8 +579,11 @@ type WanRequest struct {
 	NegativePrompt string            `json:"negative_prompt,omitzero" role:"negative prompt"`
 	Seed           uint64            `json:"seed,omitzero" role:"seed"`
 	// Preset names a recipe of the profile's presets, its values filling what the request leaves unset.
-	Preset string     `json:"preset,omitzero" role:"preset"`
-	Format ClipFormat `json:"format,omitzero" role:"format"`
+	Preset string `json:"preset,omitzero" role:"preset"`
+	// EightBitAttention is the speed a preset chose (generationPolicy.EightBitAttention). A request asks it only by
+	// that preset, so a page offers it as the speed choice it is and no control beside it.
+	EightBitAttention bool       `json:"-"`
+	Format            ClipFormat `json:"format,omitzero" role:"format"`
 	ClipFinish
 	CondContext   []float32                 `json:"cond_context,omitempty"`
 	UncondContext []float32                 `json:"uncond_context,omitempty"`

@@ -408,6 +408,9 @@ func selfAttentionWeights(bind tensor.WeightInputs, prefix string, d uint64) mod
 type DenoiserPrecision struct {
 	MatmulWeights         dtype.Type
 	RoundAttentionStorage bool
+	// EightBitAttention computes every block's attention in 8 bits (tensor.AttentionAttributes.EightBit), a speed
+	// choice a request makes through its preset (generationPolicy.EightBitAttention).
+	EightBitAttention bool
 }
 
 // denoiserHistory fixes one chunk's retained self-attention boundary.
@@ -457,6 +460,7 @@ func compileDenoiserProgram(c DenoiserConfig, weights *DenoiserWeights, geometry
 		RotaryBase:            float32(c.Policy.RotaryFrequencyBase),
 		AxisChannels:          model.ThreeAxisRotaryChannels(headWidth),
 		RoundAttentionStorage: precision.RoundAttentionStorage,
+		EightBitAttention:     precision.EightBitAttention,
 		Attention:             attention,
 	}
 	for axis := range options.AxisPositions {

@@ -36,73 +36,10 @@ type sageGeometry struct {
 	masked                                                            bool
 }
 
-// launchSageAttention runs the 8-bit attention's five launches over F32 query, key and value in the interleaved
-// [sequence][token][head][channel] layout: K's channel means, Q's and K's INT8 codes and scales, V's transposed FP8
-// codes and scales, then the attention, writing output in query's layout. staging holds the codes, scales and means
-// (sageStagingBytes).
-func launchSageAttention(state *device.State, functions functionSet, query, key, value, keyBias, output, staging driver.DevicePtr,
-	geometry sageGeometry, scale float32) error {
-	queryBlocks := (geometry.queryTokens + sageBlock - 1) / sageBlock
-	keyBlocks := (geometry.keyValueTokens + sageBlock - 1) / sageBlock
-	padded := keyBlocks * sageBlock
-	parts := sageStagingParts(geometry)
-	offsets := make([]driver.DevicePtr, len(parts))
-	at := staging
-	for index, bytes := range parts {
-		offsets[index] = at
-		at += driver.DevicePtr((bytes + 255) &^ 255)
-	}
-	queryCodes, keyCodes, valueCodes, queryScales, keyScales, valueScales, keyMean :=
-		offsets[0], offsets[1], offsets[2], offsets[3], offsets[4], offsets[5], offsets[6]
-	threads := driver.Dim3{X: sageWidth, Y: 1, Z: 1}
-	var none driver.DevicePtr
-	keyValueHeads, queryHeads := geometry.keyValueHeads, geometry.queryHeads
-	keyValueTokens, queryTokens, sequences := geometry.keyValueTokens, geometry.queryTokens, geometry.sequences
-	if err := launchGridABI(state, functions[kernelSageKeyMeanF32], driver.Dim3{X: keyValueHeads, Y: sequences, Z: 1}, threads,
-		&key, &keyMean, &keyValueHeads, &keyValueTokens, &sequences); err != nil {
-		return err
-	}
-	if err := launchGridABI(state, functions[kernelSageQuantizeI8F32], driver.Dim3{X: queryBlocks, Y: queryHeads, Z: sequences}, threads,
-		&query, &none, &queryCodes, &queryScales, &queryHeads, &queryTokens, &sequences); err != nil {
-		return err
-	}
-	if err := launchGridABI(state, functions[kernelSageQuantizeI8F32], driver.Dim3{X: keyBlocks, Y: keyValueHeads, Z: sequences}, threads,
-		&key, &keyMean, &keyCodes, &keyScales, &keyValueHeads, &keyValueTokens, &sequences); err != nil {
-		return err
-	}
-	if err := launchGridABI(state, functions[kernelSageQuantizeVFp8F32], driver.Dim3{X: keyValueHeads, Y: sequences, Z: 1}, threads,
-		&value, &valueCodes, &valueScales, &keyValueHeads, &keyValueTokens, &padded, &sequences); err != nil {
-		return err
-	}
-	return launchGridABI(state, functions[kernelAttentionSage128F32], driver.Dim3{X: queryBlocks, Y: queryHeads, Z: sequences}, threads,
-		&queryCodes, &queryScales, &keyCodes, &keyScales, &valueCodes, &valueScales, &keyBias, &output,
-		&queryHeads, &keyValueHeads, &queryTokens, &keyValueTokens, &sequences, &scale)
-}
-
-// sageStagingParts are the bytes of the attention's staging, in order: Q's and K's INT8 codes, V's transposed FP8
-// codes padded to whole blocks, Q's and K's block scales, V's channel scales and K's channel means.
-func sageStagingParts(geometry sageGeometry) []uint64 {
-	queryBlocks := uint64((geometry.queryTokens + sageBlock - 1) / sageBlock)
-	keyBlocks := uint64((geometry.keyValueTokens + sageBlock - 1) / sageBlock)
-	sequences, queryHeads, keyValueHeads := uint64(geometry.sequences), uint64(geometry.queryHeads), uint64(geometry.keyValueHeads)
-	return []uint64{
-		sequences * uint64(geometry.queryTokens) * queryHeads * sageWidth,
-		sequences * uint64(geometry.keyValueTokens) * keyValueHeads * sageWidth,
-		sequences * keyValueHeads * sageWidth * keyBlocks * sageBlock,
-		sequences * queryHeads * queryBlocks * 4,
-		sequences * keyValueHeads * keyBlocks * 4,
-		sequences * keyValueHeads * sageWidth * 4,
-		sequences * keyValueHeads * sageWidth * 4,
-	}
-}
-
-// sageStagingBytes is the staging's whole size, each part aligned to 256 bytes.
-func sageStagingBytes(geometry sageGeometry) int {
-	total := uint64(0)
-	for _, bytes := range sageStagingParts(geometry) {
-		total += (bytes + 255) &^ 255
-	}
-	return int(total)
+// shape is the geometry as the launch takes it.
+func (geometry sageGeometry) shape() eightBitGeometry {
+	return eightBitGeometry{queryHeads: geometry.queryHeads, keyValueHeads: geometry.keyValueHeads,
+		queryTokens: geometry.queryTokens, keyValueTokens: geometry.keyValueTokens, sequences: geometry.sequences}
 }
 
 // TestEightBitAttentionMatchesTheReferenceWithinItsTolerance holds the 8-bit attention (eight-bit-attention/kernel) to
@@ -159,9 +96,10 @@ func sageAgreement(t *testing.T, cuda *Executor, geometry sageGeometry) {
 		biasBuffer = buffers.upload(t, float32Bytes(bias))
 	}
 	outputBuffer := buffers.zeros(t, queryCount*4)
-	staging := buffers.zeros(t, sageStagingBytes(geometry))
+	staging := buffers.zeros(t, int(geometry.shape().stagingBytes()))
 	buffers.run(t, func(state *device.State, functions functionSet) error {
-		return launchSageAttention(state, functions, queryBuffer, keyBuffer, valueBuffer, biasBuffer, outputBuffer, staging, geometry, scale)
+		return launchEightBitAttentionKernels(state, functions, queryBuffer, keyBuffer, valueBuffer, biasBuffer, outputBuffer, staging,
+			geometry.shape(), scale)
 	})
 	output := float32s(buffers.read(t, outputBuffer, queryCount*4))
 
@@ -230,11 +168,11 @@ func newSageAlgorithm(query, key, value, bias []float32, geometry sageGeometry, 
 	for sequence := range geometry.sequences {
 		for head := range geometry.keyValueHeads {
 			for channel := range uint32(sageWidth) {
-				sum := float32(0)
+				sum := 0.0
 				for token := range geometry.keyValueTokens {
-					sum += key[((sequence*geometry.keyValueTokens+token)*geometry.keyValueHeads+head)*sageWidth+channel]
+					sum += float64(key[((sequence*geometry.keyValueTokens+token)*geometry.keyValueHeads+head)*sageWidth+channel])
 				}
-				keyMean[(sequence*geometry.keyValueHeads+head)*sageWidth+channel] = sum / float32(geometry.keyValueTokens)
+				keyMean[(sequence*geometry.keyValueHeads+head)*sageWidth+channel] = float32(sum / float64(geometry.keyValueTokens))
 			}
 		}
 	}

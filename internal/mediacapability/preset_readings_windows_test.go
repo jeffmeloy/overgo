@@ -20,7 +20,8 @@ import (
 // (guidance-ops/preset-readings): a preset the record reads is offered only once its verdict, read on its model against
 // that model's reference, admits it, and its pairwise verdict where it was read so, so a pending or refused one is not,
 // and every preset a model declares is read but Krea's draft and MOSS's comfy-tutorial, steps and a scale from their
-// authors, no guider. A reading names the one model of its family that declares the preset, so a family's verdict is
+// authors, and Wan's eight-bit-attention, a speed choice its clips' frame bound holds
+// (TestWanEightBitAttentionKeepsItsClipsWithinTheirBound), none of them a guider. A reading names the one model of its family that declares the preset, so a family's verdict is
 // that model's; a verdict holds two evaluation records, its model's reference the same for each of its presets, and the
 // counts its words say, and its model's suite is named. SenseNova's page, whose presets its recipe declares with no
 // model files, is read whole.
@@ -47,7 +48,7 @@ func TestOnlyAnAdmittedGuidancePresetIsOffered(t *testing.T) {
 		"Self-Forcing":                       {latentVideoPresets, testcheck.Must(latentvideo.PresetNames(student))(t)},
 		"SenseNova-U1-8B-MoT-Infographic-V3": {senseNovaPresets, testcheck.Must(sensenovarecipe.PresetNames())(t)},
 	}
-	unread := []string{"draft", "comfy-tutorial"}
+	unread := []string{"draft", "comfy-tutorial", "eight-bit-attention"}
 	for name, declared := range models {
 		offered := offeredPresets(record, declared.family, declared.presets)
 		for _, preset := range declared.presets {

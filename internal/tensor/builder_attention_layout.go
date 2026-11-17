@@ -19,6 +19,9 @@ const (
 // Reconsider this boundary when admitting another source attention policy.
 const AttentionF32PanelWidth = 128
 
+// EightBitAttentionWidth is the head width the 8-bit attention computes (AttentionAttributes.EightBit).
+const EightBitAttentionWidth = 128
+
 // Reshape: changes only logical dimensions and preserves contiguous order
 func (b *Builder) Reshape(input *Tensor, dimensions ...uint64) *Tensor {
 	if b.err != nil {
@@ -299,6 +302,7 @@ type attentionOptions struct {
 	memoryEfficientF32    bool
 	nativeMath            bool
 	tensorCores           bool
+	eightBit              bool
 	queryStart, window    uint32
 }
 
@@ -326,6 +330,8 @@ type AttentionOptions struct {
 	MemoryEfficientF32 bool
 	// TensorCores admits a prompt's causal attention to the half-precision tensor-core kernel (AttentionAttributes.TensorCores).
 	TensorCores bool
+	// EightBit computes the attention in 8 bits (AttentionAttributes.EightBit).
+	EightBit bool
 }
 
 // NativeAttentionSoftmaxWidth bounds the native F32 reductions validated through the source prompt limit.
@@ -352,6 +358,7 @@ func (b *Builder) AttentionWithOptions(
 		window: options.Window, naiveF32: options.NaiveF32, memoryEfficientF32: options.MemoryEfficientF32,
 		nativeMath:  options.NativeMath,
 		tensorCores: options.TensorCores,
+		eightBit:    options.EightBit,
 	})
 }
 
@@ -519,6 +526,15 @@ func (b *Builder) buildAttention(
 	if options.keyBias != nil {
 		inputs = append(inputs, options.keyBias)
 	}
+	if options.eightBit && (query.Type != dtype.F32 || key.Type != dtype.F32 || value.Type != dtype.F32 ||
+		query.Shape.Dims[0] != EightBitAttentionWidth || value.Shape.Dims[0] != EightBitAttentionWidth ||
+		options.causal || options.symmetricWindow || options.chunkedWindow || options.queryStart != 0 || options.window != 0 ||
+		options.softcap != 0 || options.maxALiBiBias != 0 || options.bias != nil || options.sinks != nil ||
+		options.blockIDs != nil || options.naiveF32 || options.memoryEfficientF32 || options.nativeMath ||
+		options.tensorCores || key.Op == OpCacheAppend) {
+		b.setError(fmt.Errorf("8-bit attention requires F32 heads of %d channels over every key, with no mask but a key bias", EightBitAttentionWidth))
+		return nil
+	}
 	var keyValueTokens uint32
 	if key.Op == OpCacheAppend {
 		appendAttributes, ok := key.Attrs.(CacheAppendAttributes)
@@ -557,6 +573,7 @@ func (b *Builder) buildAttention(
 			NaiveF32:              options.naiveF32,
 			MemoryEfficientF32:    options.memoryEfficientF32,
 			TensorCores:           options.tensorCores,
+			EightBit:              options.eightBit,
 		},
 	)
 }

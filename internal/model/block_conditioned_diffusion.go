@@ -59,6 +59,9 @@ type ConditionedDiffusionBlockOptions struct {
 	AxisPositions      [3][]uint32
 	// RoundAttentionStorage inserts BF16 storage rounds.
 	RoundAttentionStorage bool
+	// EightBitAttention computes each block's self- and cross-attention in 8 bits (tensor.AttentionAttributes.EightBit),
+	// from F32 heads, so no storage round precedes it.
+	EightBitAttention bool
 	// Attention is NAG on each block's cross-attention, which a block given a negative context runs
 	// (BuildGuidedBlock); its zero value guides nothing.
 	Attention sampling.NormalizedAttention
@@ -346,14 +349,14 @@ func buildConditionedDiffusionBlock(
 	}
 	result.SelfKeyCache, result.SelfValueCache = attentionKey, attentionValue
 	roundStorage := func(x *tensor.Tensor) *tensor.Tensor {
-		if options.RoundAttentionStorage {
+		if options.RoundAttentionStorage && !options.EightBitAttention {
 			return builder.BF16Round(x)
 		}
 		return x
 	}
 	attention := builder.AttentionWithOptions(
 		roundStorage(result.SelfQueryRotated), roundStorage(attentionKey),
-		roundStorage(attentionValue), tensor.AttentionOptions{Scale: attentionScale, Causal: false})
+		roundStorage(attentionValue), tensor.AttentionOptions{Scale: attentionScale, Causal: false, EightBit: options.EightBitAttention})
 
 	result.SelfAttention = builder.Reshape(attention, dim, tokens)
 	result.SelfProjected = buildBiasedProjection(builder, weights.SelfAttention.Output, weights.SelfAttention.OutputBias, result.SelfAttention)
@@ -373,7 +376,7 @@ func buildConditionedDiffusionBlock(
 	crossHeads := roundStorage(builder.Reshape(crossQuery, headWidth, heads, tokens))
 	attend := func(key, value *tensor.Tensor) *tensor.Tensor {
 		return builder.Reshape(builder.AttentionWithOptions(crossHeads, roundStorage(key), roundStorage(value),
-			tensor.AttentionOptions{Scale: attentionScale, Causal: false}), dim, tokens)
+			tensor.AttentionOptions{Scale: attentionScale, Causal: false, EightBit: options.EightBitAttention}), dim, tokens)
 	}
 	result.CrossAttention = attend(crossKey, crossValue)
 	if negativeKey != nil {

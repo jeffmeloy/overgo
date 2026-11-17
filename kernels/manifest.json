@@ -120,7 +120,7 @@
         },
         {
           "path": "kernels/cuda/ops_f32_sage_attention.cuh",
-          "sha256": "f2fcebe4244fd1d315d21fe3d586489212355aa574f3f27bd1cb41de40094904"
+          "sha256": "9bea780358443b33a376ed17720f52a806b05833cfba76cc4cd5f510f994601c"
         },
         {
           "path": "kernels/cuda/ops_f32_selection.cuh",
@@ -148,7 +148,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "08b85d956bcd7048f1aad0bd7b6cd34911684ab02688f2c384092d31a3b4ce27",
+      "assetSha256": "1a87ac87d0666a372ee3b12974d9dce6d64bf16fa171c7e4fdc0d504f09803cc",
       "functions": [
         "activated_gate_f32",
         "activated_gate_q8_0_f32",
@@ -368,7 +368,8 @@
         "rope_normal_f32",
         "rwkv6_f32",
         "rwkv7_f32",
-        "sage_key_mean_f32",
+        "sage_block_stats_f32",
+        "sage_channel_stats_f32",
         "sage_quantize_i8_f32",
         "sage_quantize_v_fp8_f32",
         "sam_attention_f32",
@@ -624,7 +625,6 @@
             "head_major_inverse_f32",
             "rope_half_backward_f32",
             "rope_half_f32",
-            "sage_key_mean_f32",
             "top_k_pairs_f32",
             "transpose_2d_f32"
           ]
@@ -1597,6 +1597,8 @@
             "mul_mat_bf16_append_f32",
             "mul_mat_bf16_gate_f32",
             "mul_mat_fp8_f32",
+            "sage_block_stats_f32",
+            "sage_channel_stats_f32",
             "sage_quantize_i8_f32"
           ]
         },

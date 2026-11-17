@@ -24,15 +24,6 @@
       "title": "Every media page offers one set of controls, in one order and under one name each, each model's publisher's recipe its default",
       "steps": [
         {
-          "id": "gain-only",
-          "title": "A guidance-method preset reaches a page only where a reading shows a gain",
-          "verify": "go test ./internal/mediacapability -count=1 -run '^TestAGuidancePresetIsOfferedOnlyOnAGain$'",
-          "files": [
-            "internal/mediacapability"
-          ],
-          "rationale": "The owner's direction (2026-11-16): a canned choice on a page is a speed tier with its measured cost, not a guidance algorithm, and a guidance-method preset reaches a page only on a measured gain. Of the seven guidance presets read (MOSS's and SenseNova's CFG-Zero*, guidance interval and APG, Wan's CFG-Zero*), none showed a gain on its questions, and five are offered today on no loss beyond chance; the pairwise readings of the six image presets (pairwise-judge's campaign) are the instrument shown to see a change a person sees.\n\nThe change: a guidance-method preset in the record is offered only where its question verdict or its pairwise verdict shows a gain beyond chance, and neither shows a loss; a preset that is no guidance method (Krea's draft, MOSS's comfy-tutorial, Wan's model-card shift, steps and scales from their authors) is offered as its model declares it, and is a speed tier's to keep or not. Lands once the pairwise readings of the image presets are in the record, so the record it reads holds every reading made.\n\nCheck: TestAGuidancePresetIsOfferedOnlyOnAGain, on the embedded record: a guidance preset admitted with no gain is not offered, one whose pairwise verdict shows a gain is, and one showing a loss on either instrument is not."
-        },
-        {
           "id": "negative",
           "title": "A distilled model honours a typed negative prompt through NAG, with no preset, and its page offers the negative prompt",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test ./internal/mediacapability -count=1 -run '^TestADistilledModelHonoursATypedNegativePrompt$' -timeout=0",

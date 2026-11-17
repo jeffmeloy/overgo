@@ -6,6 +6,7 @@ import (
 	"slices"
 	"sync"
 
+	"overgo/internal/evaluation"
 	"overgo/internal/strictjson"
 )
 
@@ -37,8 +38,8 @@ type presetReading struct {
 	Arm       string `json:"arm,omitempty"`
 	// Negative is the negative prompt the arm asked each case with, beside a preset that guides away from one (NAG);
 	// none where the arm named none, a model asking its own then (Wan's student, its reference default).
-	Negative string         `json:"negative,omitempty"`
-	Verdict  *presetVerdict `json:"verdict,omitempty"`
+	Negative string                    `json:"negative,omitempty"`
+	Verdict  *evaluation.PresetVerdict `json:"verdict,omitempty"`
 	// Pairwise is the verdict of the arm's pictures chosen against the reference's in both orders, with the evaluation
 	// record it read, where the model's pictures were read so (evaluate -pairwise-evaluation).
 	Pairwise *pairwiseReading `json:"pairwise,omitempty"`
@@ -46,25 +47,16 @@ type presetReading struct {
 
 // pairwiseReading is a preset's pairwise verdict and the judged record of its pairwise suite.
 type pairwiseReading struct {
-	Record  string        `json:"record"`
-	Verdict presetVerdict `json:"verdict"`
+	Record  string                   `json:"record"`
+	Verdict evaluation.PresetVerdict `json:"verdict"`
 }
 
-// admits says the reading admits its preset: its verdict, and its pairwise verdict where it was read so, each found no
-// loss beyond chance.
-func (reading presetReading) admits() bool {
-	return reading.Verdict != nil && reading.Verdict.Admitted && (reading.Pairwise == nil || reading.Pairwise.Verdict.Admitted)
-}
-
-// presetVerdict is the verdict evaluate -admit-preset prints for the reading's two records.
-type presetVerdict struct {
-	Wins     uint64  `json:"wins"`
-	Losses   uint64  `json:"losses"`
-	Ties     uint64  `json:"ties"`
-	Media    int     `json:"media"`
-	Tail     float64 `json:"tail"`
-	Admitted bool    `json:"admitted"`
-	Says     string  `json:"says"`
+// offered says a page offers the read preset (the owner's direction of 2026-11-16, common-controls/gain-only): its
+// verdict, and its pairwise verdict where it was read so, each find no loss beyond chance, and one of them a gain.
+func (reading presetReading) offered() bool {
+	verdict, pairwise := reading.Verdict, reading.Pairwise
+	return verdict != nil && verdict.Admitted && (pairwise == nil || pairwise.Verdict.Admitted) &&
+		(verdict.Gained() || pairwise != nil && pairwise.Verdict.Gained())
 }
 
 // presetReadings is the embedded record, read once.
@@ -76,11 +68,11 @@ var presetReadings = sync.OnceValues(func() (presetRecord, error) {
 	return record, nil
 })
 
-// offeredPresets are the presets of a family a page offers: each the record reads only once its reading admits it,
+// offeredPresets are the presets of a family a page offers: each the record reads only where its reading shows a gain,
 // and every other as declared.
 func offeredPresets(record presetRecord, family string, presets []string) []string {
 	return slices.DeleteFunc(slices.Clone(presets), func(preset string) bool {
 		reading, read := record.Readings[family][preset]
-		return read && !reading.admits()
+		return read && !reading.offered()
 	})
 }

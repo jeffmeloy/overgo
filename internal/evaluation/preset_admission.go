@@ -84,6 +84,10 @@ func AdmitPreset(person map[string]float64, reference, candidate PresetArm, refe
 	return presetVerdict(candidate.Preset, wins, losses, ties, nets), nil
 }
 
+// Gained says the verdict shows a gain beyond chance: were the preset no better, a net gain at least its own over its
+// media would come by chance at most falseGain of the time.
+func (verdict PresetVerdict) Gained() bool { return verdict.Tail <= falseGain }
+
 // presetVerdict is the verdict on a preset whose evidence is its wins, losses and ties and each medium's net: the
 // grouped tail of a gain, admission where no loss is beyond chance (falseGain), and both in words.
 func presetVerdict(preset string, wins, losses, ties uint64, nets map[string]int64) PresetVerdict {
@@ -100,7 +104,7 @@ func presetVerdict(preset string, wins, losses, ties uint64, nets map[string]int
 	switch {
 	case !verdict.Admitted:
 		verdict.Says = "refused: a loss beyond chance, " + counts
-	case verdict.Tail <= falseGain:
+	case verdict.Gained():
 		verdict.Says = "admitted: a gain beyond chance, " + counts
 	default:
 		verdict.Says = "admitted on no loss beyond chance, which shows no gain: " + counts

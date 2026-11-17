@@ -1,63 +1,184 @@
 {
   "judge": "Qwen3.8-27B-UD-Q6_K, by its projector, on the questions of each case",
+  "readings": {
+    "latentimage": {
+      "apg": {
+        "arm": "evaluation:sha256:7902918137c16603c4b5f46106ad3d278a6d9afe52916998f0336e24edc2772e",
+        "model": "MOSS-Image-SFT",
+        "pairwise": {
+          "record": "evaluation:sha256:96fbf61db5d8281f959e070ab1777e4f3bdeb5a45312d61203c06463f82ab237",
+          "verdict": {
+            "admitted": false,
+            "losses": 32,
+            "media": 80,
+            "says": "refused: a loss beyond chance, 6 wins, 32 losses and 42 ties over 80 media",
+            "tail": 0.9999978720188665,
+            "ties": 42,
+            "wins": 6
+          }
+        },
+        "reference": "evaluation:sha256:741c0bb271e0be36bcbb15d833a1146d2394860e7640115877f2a39698a9001d",
+        "verdict": {
+          "admitted": true,
+          "losses": 19,
+          "media": 80,
+          "says": "admitted on no loss beyond chance, which shows no gain: 13 wins, 19 losses and 492 ties over 80 media",
+          "tail": 0.8561879396438599,
+          "ties": 492,
+          "wins": 13
+        }
+      },
+      "cfg-zero-star": {
+        "arm": "evaluation:sha256:a6e78ae4d480b93cff51343a21d375229ca142a3bc0d8b0bf0dde0e551d94f78",
+        "model": "MOSS-Image-SFT",
+        "pairwise": {
+          "record": "evaluation:sha256:36532057088f55d0a19905cec6fad5a5238b22416c61d69699c5328b9158bd26",
+          "verdict": {
+            "admitted": true,
+            "losses": 9,
+            "media": 80,
+            "says": "admitted on no loss beyond chance, which shows no gain: 12 wins, 9 losses and 59 ties over 80 media",
+            "tail": 0.33181190490722656,
+            "ties": 59,
+            "wins": 12
+          }
+        },
+        "reference": "evaluation:sha256:741c0bb271e0be36bcbb15d833a1146d2394860e7640115877f2a39698a9001d",
+        "verdict": {
+          "admitted": true,
+          "losses": 6,
+          "media": 80,
+          "says": "admitted on no loss beyond chance, which shows no gain: 5 wins, 6 losses and 513 ties over 80 media",
+          "tail": 0.71875,
+          "ties": 513,
+          "wins": 5
+        }
+      },
+      "guidance-interval": {
+        "arm": "evaluation:sha256:c52d14ced844c85b03505b527c2334722772a6b6d9c9cd61640f6b682a96ac8d",
+        "model": "MOSS-Image-SFT",
+        "pairwise": {
+          "record": "evaluation:sha256:341a9aa55e877e6113d30715e5ad22f98c87f8fccc2d14904f0cb3d30c806bd3",
+          "verdict": {
+            "admitted": false,
+            "losses": 55,
+            "media": 80,
+            "says": "refused: a loss beyond chance, 3 wins, 55 losses and 22 ties over 80 media",
+            "tail": 0.999999999999994,
+            "ties": 22,
+            "wins": 3
+          }
+        },
+        "reference": "evaluation:sha256:741c0bb271e0be36bcbb15d833a1146d2394860e7640115877f2a39698a9001d",
+        "verdict": {
+          "admitted": false,
+          "losses": 40,
+          "media": 80,
+          "says": "refused: a loss beyond chance, 15 wins, 40 losses and 469 ties over 80 media",
+          "tail": 0.9989269459620118,
+          "ties": 469,
+          "wins": 15
+        }
+      },
+      "nag": {
+        "model": "Krea-2-Turbo"
+      }
+    },
+    "latentvideo": {
+      "cfg-zero-star": {
+        "arm": "evaluation:sha256:ac4898f2ec91e3fcf1bfc1f85930b3cc425cde6c11c7d9267c615972f4d120f1",
+        "model": "Wan2.1-T2V-1.3B",
+        "reference": "evaluation:sha256:cda5afd56e111decfe506216e02d2955356be9a5fee3591cb7dc83f8cd5ab7f6",
+        "verdict": {
+          "admitted": true,
+          "losses": 16,
+          "media": 100,
+          "says": "admitted on no loss beyond chance, which shows no gain: 18 wins, 16 losses and 255 ties over 100 media",
+          "tail": 0.446441650390625,
+          "ties": 255,
+          "wins": 18
+        }
+      },
+      "guidance-interval": {
+        "arm": "evaluation:sha256:3a0ab0d45fd225db03ea29b167dbdbf64e6f4237467a169bb4e77a858c46e0c9",
+        "model": "Wan2.1-T2V-1.3B",
+        "reference": "evaluation:sha256:cda5afd56e111decfe506216e02d2955356be9a5fee3591cb7dc83f8cd5ab7f6",
+        "verdict": {
+          "admitted": false,
+          "losses": 32,
+          "media": 100,
+          "says": "refused: a loss beyond chance, 17 wins, 32 losses and 240 ties over 100 media",
+          "tail": 0.9904595762491226,
+          "ties": 240,
+          "wins": 17
+        }
+      },
+      "model-card": {
+        "arm": "evaluation:sha256:eea6a55ab856b18dcac2507c87520f84200a031ce34c68341db6217c00a94082",
+        "model": "Wan2.1-T2V-1.3B",
+        "reference": "evaluation:sha256:cda5afd56e111decfe506216e02d2955356be9a5fee3591cb7dc83f8cd5ab7f6",
+        "verdict": {
+          "admitted": true,
+          "losses": 13,
+          "media": 100,
+          "says": "admitted on no loss beyond chance, which shows no gain: 20 wins, 13 losses and 256 ties over 100 media",
+          "tail": 0.13470458984375,
+          "ties": 256,
+          "wins": 20
+        }
+      },
+      "nag": {
+        "model": "Self-Forcing"
+      }
+    },
+    "sensenova": {
+      "apg": {
+        "arm": "evaluation:sha256:5bf63ea8154e16743245650616e3af9bab752e109fcbebba6b35523ce6071477",
+        "model": "SenseNova-U1-8B-MoT-Infographic-V3",
+        "reference": "evaluation:sha256:82283c10307b93d7de66e48f212fa3bd4711906f5a77de10f241c765a2ae0f8f",
+        "verdict": {
+          "admitted": true,
+          "losses": 15,
+          "media": 80,
+          "says": "admitted on no loss beyond chance, which shows no gain: 13 wins, 15 losses and 496 ties over 80 media",
+          "tail": 0.6871337890625,
+          "ties": 496,
+          "wins": 13
+        }
+      },
+      "cfg-zero-star": {
+        "arm": "evaluation:sha256:2a14f2d799123724267bf8b3b464db8fb2e1da745f4358acb96a1d802920d4e8",
+        "model": "SenseNova-U1-8B-MoT-Infographic-V3",
+        "reference": "evaluation:sha256:82283c10307b93d7de66e48f212fa3bd4711906f5a77de10f241c765a2ae0f8f",
+        "verdict": {
+          "admitted": true,
+          "losses": 8,
+          "media": 80,
+          "says": "admitted on no loss beyond chance, which shows no gain: 3 wins, 8 losses and 513 ties over 80 media",
+          "tail": 0.939453125,
+          "ties": 513,
+          "wins": 3
+        }
+      },
+      "guidance-interval": {
+        "arm": "evaluation:sha256:9080101428473da6e6a96c018c31cb6b2a8f3a69dd14bbb016eb6ac0d068c05f",
+        "model": "SenseNova-U1-8B-MoT-Infographic-V3",
+        "reference": "evaluation:sha256:82283c10307b93d7de66e48f212fa3bd4711906f5a77de10f241c765a2ae0f8f",
+        "verdict": {
+          "admitted": true,
+          "losses": 18,
+          "media": 80,
+          "says": "admitted on no loss beyond chance, which shows no gain: 14 wins, 18 losses and 492 ties over 80 media",
+          "tail": 0.7867889404296875,
+          "ties": 492,
+          "wins": 14
+        }
+      }
+    }
+  },
   "suites": {
     "MOSS-Image-SFT": "tifa-v1.0's image questions: 524 questions over 80 media at 1024 x 1024",
     "SenseNova-U1-8B-MoT-Infographic-V3": "tifa-v1.0's image questions: 524 questions over 80 media at 1024 x 1024",
     "Wan2.1-T2V-1.3B": "VidGen-1M's captions: 289 questions over 100 clips at 832 x 480, 81 frames"
-  },
-  "readings": {
-    "latentimage": {
-      "apg": {"model": "MOSS-Image-SFT",
-        "reference": "evaluation:sha256:741c0bb271e0be36bcbb15d833a1146d2394860e7640115877f2a39698a9001d",
-        "arm": "evaluation:sha256:7902918137c16603c4b5f46106ad3d278a6d9afe52916998f0336e24edc2772e",
-        "verdict": {"wins": 13, "losses": 19, "ties": 492, "media": 80, "tail": 0.8561879396438599, "admitted": true,
-          "says": "admitted on no loss beyond chance, which shows no gain: 13 wins, 19 losses and 492 ties over 80 media"}},
-      "cfg-zero-star": {"model": "MOSS-Image-SFT",
-        "reference": "evaluation:sha256:741c0bb271e0be36bcbb15d833a1146d2394860e7640115877f2a39698a9001d",
-        "arm": "evaluation:sha256:a6e78ae4d480b93cff51343a21d375229ca142a3bc0d8b0bf0dde0e551d94f78",
-        "verdict": {"wins": 5, "losses": 6, "ties": 513, "media": 80, "tail": 0.71875, "admitted": true,
-          "says": "admitted on no loss beyond chance, which shows no gain: 5 wins, 6 losses and 513 ties over 80 media"}},
-      "guidance-interval": {"model": "MOSS-Image-SFT",
-        "reference": "evaluation:sha256:741c0bb271e0be36bcbb15d833a1146d2394860e7640115877f2a39698a9001d",
-        "arm": "evaluation:sha256:c52d14ced844c85b03505b527c2334722772a6b6d9c9cd61640f6b682a96ac8d",
-        "verdict": {"wins": 15, "losses": 40, "ties": 469, "media": 80, "tail": 0.9989269459620118, "admitted": false,
-          "says": "refused: a loss beyond chance, 15 wins, 40 losses and 469 ties over 80 media"}},
-      "nag": {"model": "Krea-2-Turbo"}
-    },
-    "latentvideo": {
-      "cfg-zero-star": {"model": "Wan2.1-T2V-1.3B",
-        "reference": "evaluation:sha256:cda5afd56e111decfe506216e02d2955356be9a5fee3591cb7dc83f8cd5ab7f6",
-        "arm": "evaluation:sha256:ac4898f2ec91e3fcf1bfc1f85930b3cc425cde6c11c7d9267c615972f4d120f1",
-        "verdict": {"wins": 18, "losses": 16, "ties": 255, "media": 100, "tail": 0.446441650390625, "admitted": true,
-          "says": "admitted on no loss beyond chance, which shows no gain: 18 wins, 16 losses and 255 ties over 100 media"}},
-      "guidance-interval": {"model": "Wan2.1-T2V-1.3B",
-        "reference": "evaluation:sha256:cda5afd56e111decfe506216e02d2955356be9a5fee3591cb7dc83f8cd5ab7f6",
-        "arm": "evaluation:sha256:3a0ab0d45fd225db03ea29b167dbdbf64e6f4237467a169bb4e77a858c46e0c9",
-        "verdict": {"wins": 17, "losses": 32, "ties": 240, "media": 100, "tail": 0.9904595762491226, "admitted": false,
-          "says": "refused: a loss beyond chance, 17 wins, 32 losses and 240 ties over 100 media"}},
-      "model-card": {"model": "Wan2.1-T2V-1.3B",
-        "reference": "evaluation:sha256:cda5afd56e111decfe506216e02d2955356be9a5fee3591cb7dc83f8cd5ab7f6",
-        "arm": "evaluation:sha256:eea6a55ab856b18dcac2507c87520f84200a031ce34c68341db6217c00a94082",
-        "verdict": {"wins": 20, "losses": 13, "ties": 256, "media": 100, "tail": 0.13470458984375, "admitted": true,
-          "says": "admitted on no loss beyond chance, which shows no gain: 20 wins, 13 losses and 256 ties over 100 media"}},
-      "nag": {"model": "Self-Forcing"}
-    },
-    "sensenova": {
-      "apg": {"model": "SenseNova-U1-8B-MoT-Infographic-V3",
-        "reference": "evaluation:sha256:82283c10307b93d7de66e48f212fa3bd4711906f5a77de10f241c765a2ae0f8f",
-        "arm": "evaluation:sha256:5bf63ea8154e16743245650616e3af9bab752e109fcbebba6b35523ce6071477",
-        "verdict": {"wins": 13, "losses": 15, "ties": 496, "media": 80, "tail": 0.6871337890625, "admitted": true,
-          "says": "admitted on no loss beyond chance, which shows no gain: 13 wins, 15 losses and 496 ties over 80 media"}},
-      "cfg-zero-star": {"model": "SenseNova-U1-8B-MoT-Infographic-V3",
-        "reference": "evaluation:sha256:82283c10307b93d7de66e48f212fa3bd4711906f5a77de10f241c765a2ae0f8f",
-        "arm": "evaluation:sha256:2a14f2d799123724267bf8b3b464db8fb2e1da745f4358acb96a1d802920d4e8",
-        "verdict": {"wins": 3, "losses": 8, "ties": 513, "media": 80, "tail": 0.939453125, "admitted": true,
-          "says": "admitted on no loss beyond chance, which shows no gain: 3 wins, 8 losses and 513 ties over 80 media"}},
-      "guidance-interval": {"model": "SenseNova-U1-8B-MoT-Infographic-V3",
-        "reference": "evaluation:sha256:82283c10307b93d7de66e48f212fa3bd4711906f5a77de10f241c765a2ae0f8f",
-        "arm": "evaluation:sha256:9080101428473da6e6a96c018c31cb6b2a8f3a69dd14bbb016eb6ac0d068c05f",
-        "verdict": {"wins": 14, "losses": 18, "ties": 492, "media": 80, "tail": 0.7867889404296875, "admitted": true,
-          "says": "admitted on no loss beyond chance, which shows no gain: 14 wins, 18 losses and 492 ties over 80 media"}}
-    }
   }
 }

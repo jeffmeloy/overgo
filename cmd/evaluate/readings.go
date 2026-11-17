@@ -154,10 +154,12 @@ func runReadings(ctx context.Context, path string, run readingsRunner, commit st
 			failed = append(failed, err)
 			continue
 		}
-		if room, err := r.room(ctx, reference); err != nil || !room.Possible() {
-			if err != nil {
-				failed = append(failed, err)
-			}
+		// A model is passed over only where none of its readings can show a gain: a pairwise reading is its own
+		// instrument, whatever room the questions leave (SQA-405).
+		if room, err := r.room(ctx, reference); err != nil {
+			failed = append(failed, err)
+			continue
+		} else if !room.Possible() && !model.Pairwise {
 			continue
 		}
 		for _, preset := range model.Presets {
@@ -254,9 +256,9 @@ func recordedWalls(fields []string) time.Duration {
 	return 0
 }
 
-// room reads, before any of a model's arms is drawn, the room a reading against its reference has, from the reference's
-// own answers (evaluation.ReadingRoom), and says it with the card hours the arms take: where no gain can show, the
-// campaign draws none of them (reading-power/do).
+// room reads, before any of a model's arms is drawn, the room its questions' reading against its reference has, from the
+// reference's own answers (evaluation.ReadingRoom), and says it with the card hours the arms take: where the questions
+// can show no gain and the model is not read pairwise, the campaign draws none of them (reading-power/do, SQA-405).
 func (r *readings) room(ctx context.Context, reference readingArm) (evaluation.ReadingRoom, error) {
 	var said bytes.Buffer
 	if err := r.logged(ctx, reference.name, "room", []string{"-reading-room", reference.record, "-repo", r.campaign.Repository}, &said); err != nil {
@@ -271,10 +273,14 @@ func (r *readings) room(ctx context.Context, reference readingArm) (evaluation.R
 	if reference.walls > 0 {
 		hours = fmt.Sprintf("about %.1f card hours, each as its reference's %s", float64(arms)*reference.walls.Hours(), reference.walls.Round(time.Minute))
 	}
-	if !room.Possible() {
+	switch {
+	case !room.Possible() && reference.model.Pairwise:
+		r.say("%s: its questions can show no gain: its reference answers a question wrong in %d of %d media, a best tail of %.3g over the pass mark %g; its pairwise reading can, so its %d arms are drawn, %s",
+			reference.model.Name, room.Room, room.Media, room.BestTail, room.PassMark, arms, hours)
+	case !room.Possible():
 		r.say("%s: no gain can show: its reference answers a question wrong in %d of %d media, so the best a reading shows is a gain's tail of %.3g, over the pass mark %g; its %d arms are not drawn, %s",
 			reference.model.Name, room.Room, room.Media, room.BestTail, room.PassMark, arms, hours)
-	} else {
+	default:
 		r.say("%s: a gain shows only where a preset turns a wrong answer right in at least %d of the %d media its reference answers wrong in, breaking none (best tail %.3g); its %d arms take %s",
 			reference.model.Name, room.Needed, room.Room, room.BestTail, arms, hours)
 	}

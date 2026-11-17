@@ -129,6 +129,18 @@
       "apg": {
         "arm": "evaluation:sha256:5bf63ea8154e16743245650616e3af9bab752e109fcbebba6b35523ce6071477",
         "model": "SenseNova-U1-8B-MoT-Infographic-V3",
+        "pairwise": {
+          "record": "evaluation:sha256:52ae278b232b3e1758dfb70cbed49f41790155532c9030f5b8ee669356aa8033",
+          "verdict": {
+            "admitted": true,
+            "losses": 17,
+            "media": 80,
+            "says": "admitted on no loss beyond chance, which shows no gain: 10 wins, 17 losses and 53 ties over 80 media",
+            "tail": 0.9389609396457672,
+            "ties": 53,
+            "wins": 10
+          }
+        },
         "reference": "evaluation:sha256:82283c10307b93d7de66e48f212fa3bd4711906f5a77de10f241c765a2ae0f8f",
         "verdict": {
           "admitted": true,

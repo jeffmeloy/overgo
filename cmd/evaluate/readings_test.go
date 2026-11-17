@@ -283,3 +283,42 @@ func TestACampaignDrawsNoArmThatCannotShowAGain(t *testing.T) {
 		}
 	}
 }
+
+// TestACampaignReadsPairwiseWhereTheQuestionsHaveNoRoom holds the campaign to each reading's own instrument (SQA-405):
+// a picture model read pairwise, whose reference leaves its questions no room for a gain, still draws, judges and
+// reads pairwise its arm, the log saying the questions can show no gain and the pairwise reading can; a model not read
+// pairwise, with the same reference room, draws none.
+func TestACampaignReadsPairwiseWhereTheQuestionsHaveNoRoom(t *testing.T) {
+	root := t.TempDir()
+	out := filepath.Join(root, "out")
+	full := func(name string, pairwise bool) readingsModel {
+		return readingsModel{Name: name, Path: name + "-model", Task: "image-gen", Source: "tifa.json", Cases: 4,
+			Reference: filepath.Join(root, name+"-person"), Arms: filepath.Join(root, name), Presets: []string{"apg"}, Pairwise: pairwise}
+	}
+	campaign := readingsCampaign{Out: out, Repository: filepath.Join(root, "store"), Catalog: filepath.Join(root, "catalog.json"),
+		Judge: "judge.gguf", Projector: "projector.gguf", Models: []readingsModel{full("paired", true), full("asked", false)}}
+	path := filepath.Join(root, "campaign.json")
+	testcheck.NoError(t, os.WriteFile(path, testcheck.Must(json.Marshal(campaign))(t), 0o644))
+	now := func() time.Time { return time.Date(2026, 11, 17, 3, 0, 0, 0, time.UTC) }
+	roomless := map[string]bool{}
+	for _, name := range []string{"paired", "asked"} {
+		roomless[readingsRecord(t, filepath.Join(root, name+"-person-suite.json"))] = true
+	}
+
+	fake := &readingsFake{t: t, roomless: roomless}
+	testcheck.NoError(t, runReadings(t.Context(), path, fake.run, "commit-under-test", now))
+	for _, want := range []string{"render paired-apg", "admit paired-apg", "compose paired-apg-pairwise from paired-person and paired-apg", "admit-pairwise paired-apg"} {
+		if !slices.Contains(fake.calls, want) {
+			t.Errorf("calls = %q; want %q, the pairwise model's arm read though its questions have no room", fake.calls, want)
+		}
+	}
+	if slices.Contains(fake.calls, "render asked-apg") {
+		t.Errorf("calls = %q; a model read by its questions alone, with no room, drew its arm", fake.calls)
+	}
+	said := string(testcheck.Must(os.ReadFile(filepath.Join(out, "campaign.log")))(t))
+	for _, want := range []string{"paired: its questions can show no gain", "its pairwise reading can, so its 1 arms are drawn", "asked: no gain can show"} {
+		if !strings.Contains(said, want) {
+			t.Errorf("the campaign's log says %q; want %q", said, want)
+		}
+	}
+}

@@ -191,6 +191,13 @@
     "at": "2026-11-13",
     "head": "0ef92bbeb509dbb96070d1f6e9161e95538210b7",
     "findings": {
+  "SQA-405": {
+        "action": "filed",
+        "rows": [
+          "reading-room/do"
+        ],
+        "note": "Answered by the lead on 2026-11-17: filed, the lead's defect in reading-power/do; a campaign passes over a model's arms only where none of its readings can show a gain."
+      },
   "SQA-346": {
         "action": "implemented",
         "rows": [

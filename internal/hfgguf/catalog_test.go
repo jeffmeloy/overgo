@@ -13,6 +13,7 @@ import (
 
 	"overgo/internal/hfrepo"
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 )
 
 func TestValidateDenseRepositoryUsesRuntimeCatalog(t *testing.T) {
@@ -85,6 +86,22 @@ func TestValidateQwen35RepositoryUsesRuntimeCatalog(t *testing.T) {
 	if spec.Architecture != "qwen35" || spec.BlockCount != 4 || spec.NextNPredictLayers != 1 ||
 		spec.SSMInnerSize != 8 || spec.VocabularySize != 32 || !spec.IsRecurrentLayer(0) || spec.IsRecurrentLayer(3) {
 		t.Fatalf("spec = %+v", spec)
+	}
+}
+
+// TestAQwen35CheckpointWithoutItsDraftServesUndrafted holds a checkpoint saved without its draft layer (ComfyUI's text
+// encoder files, moss-ultra-sections/enhancer-chat): its config's draft layer aside, it serves its tokens undrafted, as
+// ComfyUI's TextGenerate does without MTP weights.
+func TestAQwen35CheckpointWithoutItsDraftServesUndrafted(t *testing.T) {
+	repository := qwen35Fixture(t)
+	for name := range repository.Tensors.Tensors {
+		if strings.HasPrefix(name, qwen35DraftPrefix) {
+			delete(repository.Tensors.Tensors, name)
+		}
+	}
+	spec := testcheck.Must(ValidateRepository(repository))(t)
+	if spec.BlockCount != 4 || spec.NextNPredictLayers != 0 {
+		t.Fatalf("a checkpoint without its draft served %d blocks and %d draft layers, want 4 and none", spec.BlockCount, spec.NextNPredictLayers)
 	}
 }
 

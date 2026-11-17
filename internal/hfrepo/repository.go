@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 
+	"overgo/internal/comfyquant"
 	"overgo/internal/safetensors"
 	"overgo/internal/strictjson"
 )
@@ -88,6 +89,13 @@ func Open(directory string) (*Repository, error) {
 	if err != nil {
 		return nil, err
 	}
+	// A checkpoint ComfyUI quantized (the MOSS Ultra workflow's text encoder) is read as the one it decodes to.
+	decoded, err := comfyquant.Decoded(source)
+	if err != nil {
+		_ = source.Close()
+		return nil, err
+	}
+	source = decoded
 	companions, err := CompanionFiles(absolute)
 	if err != nil {
 		_ = source.Close()

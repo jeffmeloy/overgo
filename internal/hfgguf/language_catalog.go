@@ -142,6 +142,19 @@ func qwen35BaseModel(repository *hfrepo.Repository) bool {
 	return slices.Contains(repository.Identity.Architectures, "Qwen3_5Model")
 }
 
+// qwen35DraftPrefix names the tensors of a Qwen 3.5 checkpoint's draft (multi-token prediction) layer.
+const qwen35DraftPrefix = "mtp."
+
+// qwen35HoldsDraft is whether the checkpoint holds its draft layer's tensors.
+func qwen35HoldsDraft(repository *hfrepo.Repository) bool {
+	for name := range repository.Tensors.Tensors {
+		if strings.HasPrefix(name, qwen35DraftPrefix) {
+			return true
+		}
+	}
+	return false
+}
+
 func qwen35MappingsForOutput(repository *hfrepo.Repository, blocks uint32, output LanguageOutput, native bool) ([]tensorMapping, error) {
 	dims, err := qwen35LinearDimensions(repository)
 	if err != nil {

@@ -6,6 +6,7 @@ import (
 	"math"
 	"testing"
 
+	"overgo/internal/comfyquant"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
@@ -31,7 +32,7 @@ func (r *countedReads) ReadAt(destination []byte, offset int64) (int, error) {
 // from the header with neither its values nor its scales read.
 func TestAConvRotWeightBindsThroughTheResidentPath(t *testing.T) {
 	t.Parallel()
-	const rows, columns = 2, convRotGroup
+	const rows, columns = 2, comfyquant.Group
 	record := []byte(`{"format":"int8_tensorwise","convrot":true,"convrot_groupsize":256}`)
 	quantized := make([]byte, rows*columns)
 	for index := range quantized {
@@ -64,7 +65,7 @@ func TestAConvRotWeightBindsThroughTheResidentPath(t *testing.T) {
 	}
 	want := make([]uint16, rows*columns)
 	for row := range rows {
-		decodeConvRotRow(want[row*columns:(row+1)*columns], quantized[row*columns:(row+1)*columns], scales[row])
+		comfyquant.DecodeRow(want[row*columns:(row+1)*columns], quantized[row*columns:(row+1)*columns], scales[row], comfyquant.Group)
 	}
 	if got := testcheck.Must(payload())(t); !bytes.Equal(got, bf16Payload(want, dtype.BF16)) {
 		t.Fatal("the weight held under its own name did not bind as its decoded rows")

@@ -137,15 +137,20 @@ func qwen35MetadataForOutput(repository *hfrepo.Repository, output LanguageOutpu
 	feedForwardLength, headCount, kvHeadCount, headLength := dimensions[3], dimensions[4], dimensions[5], dimensions[6]
 	vocabulary, fullAttentionInterval, convKernel := dimensions[7], dimensions[8], dimensions[9]
 	stateSize, groupCount, timeStepRank, valueHeadLength := dimensions[10], dimensions[11], dimensions[12], dimensions[13]
+	// A checkpoint saved without its draft layer (ComfyUI's text encoder files) serves its tokens undrafted, as
+	// ComfyUI's TextGenerate does without MTP weights; one holding it holds the one its config declares.
 	var mtpBlocks uint32
-	if output == LanguageTokens {
+	if output == LanguageTokens && qwen35HoldsDraft(repository) {
 		mtpBlocks, err = required[uint32](text, "mtp_num_hidden_layers")
 		if err != nil {
 			return nil, 0, err
 		}
+		if mtpBlocks != 1 {
+			return nil, 0, errors.New("HF/GGUF adapter: Qwen 3.5 holds one valid MTP layer where it holds any")
+		}
 	}
-	if (output == LanguageTokens && mtpBlocks != 1) || blockCount == math.MaxUint32 {
-		return nil, 0, errors.New("HF/GGUF adapter: Qwen 3.5 requires one valid MTP layer")
+	if blockCount == math.MaxUint32 {
+		return nil, 0, errors.New("HF/GGUF adapter: Qwen 3.5 block count is invalid")
 	}
 	normEpsilon, err := required[float32](text, "rms_norm_eps")
 	if err != nil {

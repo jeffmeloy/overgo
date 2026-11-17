@@ -13,6 +13,7 @@ import (
 	"slices"
 	"testing"
 
+	"overgo/internal/comfyquant"
 	"overgo/internal/dataroot"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor/dtype"
@@ -112,12 +113,12 @@ func bf16Step(magnitude float64) float64 {
 	return math.Ldexp(1, exponent-8)
 }
 
-// convRotDecoded is the weight convRotView resolves, decoded, with its shape and whether the file holds it quantized.
+// convRotDecoded is the weight comfyquant.Find resolves, decoded, with its shape and whether the file holds it quantized.
 func convRotDecoded(source *safetensors.Source, name string) ([]uint16, []uint64, bool, error) {
-	stored, quantized, err := convRotView(source, name)
+	stored, quantized, err := comfyquant.Find(source, name)
 	if err != nil || !quantized {
 		return nil, nil, quantized, err
 	}
-	decoded, err := stored.decode()
-	return decoded, stored.shape(), true, err
+	decoded, err := stored.Decode()
+	return decoded, stored.Shape(), true, err
 }

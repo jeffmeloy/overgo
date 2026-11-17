@@ -7,12 +7,6 @@
       "title": "overgo runs every section of the MOSS Ultra workflow: bong_tangent, beta57 and request sigmas, ER-SDE, image to image, depth estimation and control, prompt modes 2 and 3, and the finishing steps",
       "steps": [
         {
-          "id": "enhancer-chat",
-          "title": "The Ultra encoder file with its head serves as the enhancer's chat model, its greedy text held token for token against ComfyUI's to the first near tie",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestTheEnhancersGreedyTextHoldsComfyUIs$'",
-          "rationale": "Prompt mode 2's three generations (TextGenerate 707:703:453, 465, 468) run the Ultra encoder file with its head as a chat model: the file names its tensors as a Hugging Face checkpoint for generation does (model.language_model., lm_head; no MTP), each projection, the embedding and the head in int8 ConvRot, which overgo's Qwen 3.5 adapter maps under a ForConditionalGeneration config, the weights decoded as the conditioner's view decodes them, the vision tower left out. ComfyUI's generate runs the int8 matmul with activations quantized per row after the rotation (comfy_kitchen int8_linear) where overgo decodes the weights to bfloat16, so the check reads where the two part: ComfyUI's greedy text (TextGenerate with sampling off, recorded with its token IDs by a golden script) against overgo's greedy decode on the same chat template (thinking off), held token for token up to where the two models' top two logits lie within the gap their arithmetic leaves, the first parting reported. Sampled text (temperature 0.7, top-k 20, top-p 0.8, presence penalty 1.5, seed 0) is compared only through the picture.\n\nServes: prompt mode 2's enhancer; moss-ultra-sections/prompt-modes wires it.\n\nCheck: TestTheEnhancersGreedyTextHoldsComfyUIs.\n\nBatch: device lane."
-        },
-        {
           "id": "prompt-modes",
           "title": "Prompt mode 2's enhancer and mode 3's boxes run as typed Go, the cleaned negative and the layout string equal to ComfyUI's",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -run '^TestPromptModesTwoAndThreeEqualTheRecordedStrings$'",
@@ -134,6 +128,24 @@
           ],
           "needs_card": true,
           "rationale": "The evidence: cuda-synthetic/tag moved every untagged CUDA test that reads the data root behind modeltest but one. TestSenseNovaVariableRequestResources runs SenseNova's 8B production generation in an isolated measurement process, and docs/image_video_capacity.json names its retained measurement by the bytes of its file (evidence:sha256:888854b5...), which the store holds; tagged, its bytes changed and TestImageVideoCapacityAcceptance found no evidence under the new identity. A measurement is taken again only on a card to itself, and the readings campaign holds the card until its Wan arms are drawn, so the file stays in the gate, named by the check as measuredInPlace, and this row follows the campaign.\n\nThe change: the test carries //go:build modeltest, it is measured again on a quiet card into the store, the capacity record and its protocol digest (imageVideoCapacitySHA256) name the new identity, and measuredInPlace goes, so internal/sensenovarecipe leaves the cuda lane.\n\nCheck: a whole-tree test with measuredInPlace gone, named afresh so it fails before the change: TestTheGateRunsNoRealModelTest.\n\nRefiled 2026-11-16 from cuda-resources/do, whose step carried no card need, so dispatch gave it while the readings campaign held the card: this step carries -needs-card and waits for a card to itself."
+        }
+      ]
+    },
+    {
+      "id": "adapter-identity",
+      "title": "A picture request naming an adapter is bound to the adapter's bytes, so a replaced adapter is read again and never replayed",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A picture request naming an adapter is bound to the adapter's bytes, so a replaced adapter is read again and never replayed",
+          "verify": "go test ./internal/mediacapability -count=1 -run '^TestAReplacedAdapterIsReadAgain$'",
+          "files": [
+            "docs/plan.json",
+            "internal/mediacapability",
+            "internal/capabilityruntime",
+            "internal/modelartifact"
+          ],
+          "rationale": "Note: SQA-406 (P2): a picture request naming an adapter (\u003cmodel\u003e/adapters/\u003cname\u003e.safetensors) keys its run by the recipe, the request's JSON and the code (capabilityruntime RunKeyOf), and the HF pipeline's inventory (modelartifact fromHFPipeline) holds model_index's components alone, so the adapters directory is outside the model's identity: a replaced adapter file under the same name replays the earlier run's picture before media_adapter reads the new weights. The cure binds the named adapter's content to the request where the image source resolves it, so a changed adapter is a new run and an unchanged one keeps its resident weights across strengths; the artifact, replay and resident-session owners stay as they are. The check serves a fixed-seed request naming an adapter, replaces the adapter's bytes under its name, and wants the second request computed afresh (its run key differs), and the same bytes again to replay.\n\nServes: SQA-406, a served picture that follows its adapter's bytes.\n\nBatch: host lane."
         }
       ]
     }

@@ -41,9 +41,7 @@ func loadModelConditioner(root string, template textTemplate) (_ *modelCondition
 		}
 	}()
 	// A ComfyUI encoder file is read as the Hugging Face language model it holds (comfyLanguageView).
-	if source.Tensors, err = comfyLanguageView(source.Tensors); err != nil {
-		return nil, err
-	}
+	source.Tensors = comfyLanguageView(source.Tensors)
 	catalog, err := hfgguf.InspectLanguageModel(source, hfgguf.LanguageHidden)
 	if err != nil {
 		return nil, err

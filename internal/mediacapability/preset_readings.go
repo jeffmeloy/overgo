@@ -2,24 +2,19 @@ package mediacapability
 
 import (
 	_ "embed"
-	"encoding/json"
 	"fmt"
 	"slices"
 	"sync"
+
+	"overgo/internal/strictjson"
 )
 
-// presetReadingsJSON names each preset under reading by its family, the package that declares it: pending until its
-// verdict, then admitted or refused (guidance-ops/preset-readings writes each with its evidence in docs/verification).
+// presetReadingsJSON is the record of the guidance presets under reading (guidance-ops/preset-readings): each by its
+// family, the package that declares it, and the model it is read on, with its verdict once read against that model's
+// reference at a person's size, the two evaluation records it read, and the judge and suite that read them.
 //
 //go:embed preset_readings.json
 var presetReadingsJSON []byte
-
-// The statuses a preset under reading takes.
-const (
-	presetPending  = "pending"
-	presetAdmitted = "admitted"
-	presetRefused  = "refused"
-)
 
 // Preset families: the packages whose declarations a page's presets come from.
 const (
@@ -28,27 +23,46 @@ const (
 	senseNovaPresets   = "sensenova"
 )
 
-// presetReadings is the embedded record, read once, every status in it one it knows.
-var presetReadings = sync.OnceValues(func() (map[string]map[string]string, error) {
-	var readings map[string]map[string]string
-	if err := json.Unmarshal(presetReadingsJSON, &readings); err != nil {
-		return nil, fmt.Errorf("media capability: preset readings: %w", err)
+// presetRecord is the record's form: the judge and each read model's suite, said once, and the readings.
+type presetRecord struct {
+	Judge    string                              `json:"judge"`
+	Suites   map[string]string                   `json:"suites"`
+	Readings map[string]map[string]presetReading `json:"readings"`
+}
+
+// presetReading is one preset's reading on its model: pending while it has no verdict.
+type presetReading struct {
+	Model     string         `json:"model"`
+	Reference string         `json:"reference,omitempty"`
+	Arm       string         `json:"arm,omitempty"`
+	Verdict   *presetVerdict `json:"verdict,omitempty"`
+}
+
+// presetVerdict is the verdict evaluate -admit-preset prints for the reading's two records.
+type presetVerdict struct {
+	Wins     uint64  `json:"wins"`
+	Losses   uint64  `json:"losses"`
+	Ties     uint64  `json:"ties"`
+	Media    int     `json:"media"`
+	Tail     float64 `json:"tail"`
+	Admitted bool    `json:"admitted"`
+	Says     string  `json:"says"`
+}
+
+// presetReadings is the embedded record, read once.
+var presetReadings = sync.OnceValues(func() (presetRecord, error) {
+	var record presetRecord
+	if err := strictjson.DecodeBytes(presetReadingsJSON, &record); err != nil {
+		return presetRecord{}, fmt.Errorf("media capability: preset readings: %w", err)
 	}
-	for family, presets := range readings {
-		for preset, status := range presets {
-			if !slices.Contains([]string{presetPending, presetAdmitted, presetRefused}, status) {
-				return nil, fmt.Errorf("media capability: the reading of %s's preset %s is %q, none of pending, admitted and refused", family, preset, status)
-			}
-		}
-	}
-	return readings, nil
+	return record, nil
 })
 
-// offeredPresets are the presets of a family a page offers: each its readings name only once admitted, and every
-// other as declared.
-func offeredPresets(readings map[string]map[string]string, family string, presets []string) []string {
+// offeredPresets are the presets of a family a page offers: each the record reads only once its verdict admits it,
+// and every other as declared.
+func offeredPresets(record presetRecord, family string, presets []string) []string {
 	return slices.DeleteFunc(slices.Clone(presets), func(preset string) bool {
-		status, read := readings[family][preset]
-		return read && status != presetAdmitted
+		reading, read := record.Readings[family][preset]
+		return read && (reading.Verdict == nil || !reading.Verdict.Admitted)
 	})
 }

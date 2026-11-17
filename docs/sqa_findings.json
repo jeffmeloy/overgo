@@ -52,22 +52,19 @@
   "actual": "(3) Correct count minus sum(1/choices) against zero is taken as a fair sign for ExactPairedBinary: a medium is positive with probability 5/9, and uniform guessing passes the 22-positive threshold (nominal tail 0.0250512) with probability 0.0914273, above the 0.05 level. (4) Arithmetic probability means rank (.9,.1) above (.45,.45), the reverse of production softShare's geometric mean; constant scores give a NaN tau, all 2000 resamples are dropped and resampledTau indexes an empty slice. (6) judgedRender compares content, request, producer, runtime and scorer but not MediaInput.Decode or the question contract, readRender never calls verifyRendered, ResolveActiveExecution takes the current activation, and the embedded offering admits by family, name and status. (7) The native record test reads no Tail and calls no AdmitPreset, so the edited record passes. (8) Arm, suite and verdict skips trust names and file existence and accept truncated bookkeeping, and a new build is validated by re-rendering only the last item. Remaining counterexamples shown from source and arithmetic at 2c66ec909527c68afa61600c56714081efe8d4cd; no SQA execution."
 },
     {
-      "id": "SQA-346",
-      "severity": "P2",
-      "files": [
-        "cmd/evaluate/reader.go",
-        "cmd/evaluate/motion.go",
-        "cmd/evaluate/session.go",
-        "internal/evaluation/media_inputs.go",
-        "cmd/evaluate/media_inputs.go",
-        "internal/evaluation/drawn_reading.go",
-        "internal/evaluation/clip_motion.go",
-        "internal/evaluation/media_inputs_test.go"
-      ],
-      "input": "(1) An OCR suite produced by evaluate -read-suite, compiled through the media-bound campaign. (2) A motion suite measured on clip A, then judged against a changed clip B of the same name.",
-      "expected": "(1) The suite passes the campaign and keeps its character metrics through both identity-rewriting passes. (2) OCR and motion observations bind to the exact content and instrument they measured, so changed media or a changed instrument inherits no old metric.",
-      "actual": "(1) readSuite keys Readings.Read by filename (first.png); Campaign.CompileSuite first rewrites case prompts to method digests, and PictureReadings.validate asks Readings.Read for the digest, which is absent, so an ordinary -read-suite result is refused. The tests call CompileGeneratedAnswer directly and miss it. (2) Motion stores no clip or source digest and no decoder identity, only an encoder basename, so A's motion attaches to B's new judgement. Read from source."
-    },
+  "id": "SQA-346",
+  "severity": "P2",
+  "files": [
+    "cmd/evaluate/motion.go",
+    "internal/evaluation/clip_motion.go",
+    "internal/evaluation/observation_binding.go",
+    "internal/evaluation/media_inputs.go",
+    "internal/evaluation/observation_binding_test.go"
+  ],
+  "input": "A retained ClipMotion observation of unchanged MP4 bytes, then a motion encoder checkpoint or FFmpeg/preprocessing configuration changes under the same encoder basename. The suite is compiled again with that old observation and the same matching clip-content digest.",
+  "expected": "Motion readings identify the encoder/checkpoint and decoder/sampling contract that produced them, so changed instruments cannot silently reuse or be credited with an old metric. Keep the repaired OCR re-keying, content checks and whole-set exclusion in the existing media compiler and observation producers; the observation instrument is separate from the answering judge.",
+  "actual": "The remaining motion instrument is not bound: writeMotion passes filepath.Base(encoderPath) to measureMotion; ClipMotion stores that Encoder string and clip/source content digests, with no encoder/checkpoint or FFmpeg/sampling identity. ClipMotion.validate requires only a nonempty encoder name, and bindObservations compares clip.Content alone before keeping the motion set. Changing an instrument while the clip bytes and encoder basename stay the same therefore leaves the old motion admissible and its actual producing instrument indistinguishable. Shown from source at ba0405e63d92653b84f617d8c332d5546529e444; no SQA execution."
+},
     {
       "id": "SQA-356",
       "severity": "P2",
@@ -174,21 +171,7 @@
       "input": "(1) A root package embedding value.txt, checked by go test . -run TestValue, with only value.txt changed. (2) A production file built with -tags=fixturelane embedding value.txt, checked by go test -tags=fixturelane ./p, with only value.txt changed.",
       "expected": "The embedded asset enters the undo run's restoration set, so the unchanged test runs against the restored input and fails on its assertion.",
       "actual": "(1) path.Dir(value.txt) is \".\" and the ancestor loop stops before adding it, so the asset is not restored and undoable says no production Go changed. (2) Production calls go list without the verifier's flags, so the tag-gated embed is not listed and the asset-only change skips the undo. Read from source."
-    },
-    {
-  "id": "SQA-404",
-  "severity": "P2",
-  "files": [
-    "internal/processcontrol/job_bound.go",
-    "internal/processcontrol/supervisor.go",
-    "internal/processcontrol/supervisor_windows.go",
-    "internal/processcontrol/job_bound_windows_test.go",
-    "cmd/loop/replay.go"
-  ],
-  "input": "A standalone fresh Windows supervisor starts a first-seen command through processcontrol.Start/Run with the default Command.bounded (nil), and that command grows memory without ending. A concrete child is the existing TestJobChildProcess with OVERGO_TEST_JOB_CHILD=runaway and no injected bound. The retained empty-added-token/refuse parent check is the historical replay instance of this failure class; there is no earlier successful run of that command in this supervisor.",
-  "expected": "The existing processcontrol job owner admits a finite memory budget or refuses the unsupported check before launching it, including first use and restart. A successful earlier run must not be required to contain a known runaway. Keep whole-tree termination, cancellation, peak/error receipts and valid large-model admission; close this case through the existing child fixture using the default admission path, without a per-command file ledger or another supervisor.",
-  "actual": "Shown from source at a5337cca749323cddaf13ebe3302a563ad18b571, not an SQA execution: boundOf returns a zero-limit jobBound before reading MachineCommit when jobNeeds has no successful run. newProcessTree sets JOB_OBJECT_LIMIT_JOB_MEMORY only for a nonzero limit, so this first check starts without that protection. Only an exit-0 run records a need; a runaway that never passes cannot establish its own bound, and restart forgets prior needs. TestARunawayChildIsEndedAtTheMachinesFreeMemory explicitly expects the first passing run's MemoryLimit to be zero and injects runaway.bounded=256 MiB for its runaway arm, bypassing the default branch. Thus its passing assertion does not establish protection for the stated input. The earlier retained replay landing reports 279 GB of commit and a served Flash-Next read failure; SQA did not repeat that allocation."
-}
+    }
   ],
   "master_lead_triage": {
     "at": "2026-11-13",
@@ -260,14 +243,6 @@
           "execution-state/do"
         ],
         "note": "Reopened by the lead's recheck on 2026-11-13: run-from-files/do and recipe-state made the first repair, whose tests pass at f110d30b1, but the review's evidence names three publication owners that still read recipe state at publication and drop a lookup error, so an empty Verification earns the legacy path and a later activation can replace execution-time state. execution-state/do carries the state read at execution to publication. Implemented 2026-11-16 by execution-state/do (f7338b9b0), for the review's recheck."
-      },
-  "SQA-404": {
-        "action": "implemented",
-        "rows": [
-          "replay-bound/do",
-          "first-bound/do"
-        ],
-        "note": "Answered by the lead on 2026-11-16: replay-bound/do (144dc735e) runs a replayed check at its landed commit first, so the replay meets the bound a pass records; first-bound/do (bd7843ca5) bounds a first-seen command by the commit free as it starts, for the review's recheck."
       }
 }
   },

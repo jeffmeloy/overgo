@@ -64,7 +64,7 @@
     },
     {
       "source": "kernels/cuda/ops_f32.cu",
-      "sourceSha256": "0ac2e90aecf219dad8af52eefc9579cf20cd91fd3e6e1b1cb58516d4edceb1b8",
+      "sourceSha256": "b483d04a16281816d8cca4b763ddbc5a7f0c810e315463d14734b9eb17ce26c6",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/attention_row.cuh",
@@ -119,6 +119,10 @@
           "sha256": "6dd16e3e906ae39dbc8942dcd2f15486eb009d46422f4cac2c9dac87c9907b34"
         },
         {
+          "path": "kernels/cuda/ops_f32_sage_attention.cuh",
+          "sha256": "f2fcebe4244fd1d315d21fe3d586489212355aa574f3f27bd1cb41de40094904"
+        },
+        {
           "path": "kernels/cuda/ops_f32_selection.cuh",
           "sha256": "b0d6528204531a2fe5ffdf2a5caf8d7e62c5bf1efb44c659769a8f8ce6251c24"
         },
@@ -144,7 +148,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "9f400a55df919e882e3cd763e164efb7f8f3cff014ac786b467e23541c47f163",
+      "assetSha256": "08b85d956bcd7048f1aad0bd7b6cd34911684ab02688f2c384092d31a3b4ce27",
       "functions": [
         "activated_gate_f32",
         "activated_gate_q8_0_f32",
@@ -169,6 +173,7 @@
         "attention_online_finalize_f32",
         "attention_online_init_f32",
         "attention_online_softmax_f32",
+        "attention_sage_128_f32",
         "attention_score_affine_backward_f32",
         "attention_tiled_bf16_f32",
         "attention_tiled_f32",
@@ -363,6 +368,9 @@
         "rope_normal_f32",
         "rwkv6_f32",
         "rwkv7_f32",
+        "sage_key_mean_f32",
+        "sage_quantize_i8_f32",
+        "sage_quantize_v_fp8_f32",
         "sam_attention_f32",
         "sam_attention_grouped_f32",
         "scale_bf16_round_f32",
@@ -616,6 +624,7 @@
             "head_major_inverse_f32",
             "rope_half_backward_f32",
             "rope_half_f32",
+            "sage_key_mean_f32",
             "top_k_pairs_f32",
             "transpose_2d_f32"
           ]
@@ -769,6 +778,27 @@
           ],
           "functions": [
             "attention_online_softmax_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".f32"
+          ],
+          "functions": [
+            "attention_sage_128_f32"
           ]
         },
         {
@@ -944,6 +974,7 @@
             "gather_last_f32",
             "gather_last_q8_0_f32",
             "mul_mat_q8_0_input_f32",
+            "sage_quantize_v_fp8_f32",
             "ssm_conv_f32"
           ]
         },
@@ -1565,7 +1596,8 @@
             "moss_rotate_bf16_round_f32",
             "mul_mat_bf16_append_f32",
             "mul_mat_bf16_gate_f32",
-            "mul_mat_fp8_f32"
+            "mul_mat_fp8_f32",
+            "sage_quantize_i8_f32"
           ]
         },
         {

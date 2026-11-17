@@ -24,17 +24,6 @@
       "title": "An 8-bit flash-attention kernel for sm_89, INT8 QK and FP8 PV with two-level FP16 accumulation, served as an opt-in preset per model and admitted by its held-out suite on no loss beyond chance, a gain claimed only where the paired test shows one",
       "steps": [
         {
-          "id": "kernel",
-          "title": "The kernel's output is within a tolerance declared first of the FP32 attention reference over the shapes Wan, Krea, MOSS and SenseNova use",
-          "verify": "OVERGO_CUDA_TEST=1 go test -tags modeltest ./internal/cuda/executor -count=1 -run '^TestEightBitAttentionMatchesTheReferenceWithinItsTolerance$'",
-          "files": [
-            "kernels",
-            "internal/cuda"
-          ],
-          "needs_card": true,
-          "rationale": "SageAttention2's algorithm (arXiv 2411.10958; SageAttention2++ arXiv 2505.21136; Apache-2.0): Q and K quantised to INT8 per thread with K smoothed by its mean, P and V in FP8 with FP16 accumulation in two levels, written in FlashAttention-2-style mma.sync for sm_89. FlashAttention-3 is Hopper-only and SageAttention3 is Blackwell FP4, so neither applies. About 3x the attention kernel on a 4090; the 4090 D has 114 SMs to the 4090's 128, so about 0.89 of that.\n\nServes: first-output.\nDisappears: nothing.\nEvidence: the kernel's output is within the declared tolerance of the FP32 reference over each model's shapes.\nBatch: device lane."
-        },
-        {
           "id": "wan-speed",
           "title": "Wan's 50-step path and the student run with 8-bit attention as a speed choice, its speed measured on their user-size cells and their clips held to the full-precision path's within a frame bound declared first",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentvideo -count=1 -run '^TestWanEightBitAttentionKeepsItsClipsWithinTheirBound$'",

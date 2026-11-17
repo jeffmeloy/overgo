@@ -30,6 +30,7 @@ const (
 	kernelAttentionOnlineFinalizeF32
 	kernelAttentionOnlineInitF32
 	kernelAttentionOnlineSoftmaxF32
+	kernelAttentionSage128F32
 	kernelAttentionScoreAffineBackwardF32
 	kernelAttentionTiledBf16F32
 	kernelAttentionTiledF32
@@ -224,6 +225,9 @@ const (
 	kernelRopeNormalF32
 	kernelRwkv6F32
 	kernelRwkv7F32
+	kernelSageKeyMeanF32
+	kernelSageQuantizeI8F32
+	kernelSageQuantizeVFp8F32
 	kernelSamAttentionF32
 	kernelSamAttentionGroupedF32
 	kernelScaleBf16RoundF32
@@ -516,6 +520,7 @@ var kernelFunctionNames = [...]string{
 	"attention_online_finalize_f32",
 	"attention_online_init_f32",
 	"attention_online_softmax_f32",
+	"attention_sage_128_f32",
 	"attention_score_affine_backward_f32",
 	"attention_tiled_bf16_f32",
 	"attention_tiled_f32",
@@ -710,6 +715,9 @@ var kernelFunctionNames = [...]string{
 	"rope_normal_f32",
 	"rwkv6_f32",
 	"rwkv7_f32",
+	"sage_key_mean_f32",
+	"sage_quantize_i8_f32",
+	"sage_quantize_v_fp8_f32",
 	"sam_attention_f32",
 	"sam_attention_grouped_f32",
 	"scale_bf16_round_f32",
@@ -1001,6 +1009,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	6,
 	5,
 	16,
+	14,
 	8,
 	12,
 	13,
@@ -1195,6 +1204,9 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	16,
 	11,
 	12,
+	5,
+	7,
+	7,
 	18,
 	17,
 	4,
@@ -1487,6 +1499,7 @@ var kernelFunctionArgumentWidths = [...][]uint16{
 	{8, 8, 4, 4, 4, 4},
 	{8, 8, 4, 4, 4},
 	{8, 8, 8, 8, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
+	{8, 8, 8, 8, 8, 8, 8, 8, 4, 4, 4, 4, 4, 4},
 	{8, 8, 8, 8, 8, 4, 4, 4},
 	{8, 8, 8, 8, 8, 4, 4, 4, 4, 4, 4, 4},
 	{8, 8, 8, 8, 8, 4, 4, 4, 4, 4, 4, 4, 4},
@@ -1681,6 +1694,9 @@ var kernelFunctionArgumentWidths = [...][]uint16{
 	{8, 8, 8, 8, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
 	{8, 8, 8, 8, 8, 8, 8, 4, 4, 4, 4},
 	{8, 8, 8, 8, 8, 8, 8, 8, 4, 4, 4, 4},
+	{8, 8, 4, 4, 4},
+	{8, 8, 8, 8, 4, 4, 4},
+	{8, 8, 8, 4, 4, 4, 4},
 	{8, 8, 8, 8, 8, 8, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
 	{8, 8, 8, 8, 8, 8, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
 	{8, 8, 4, 4},
@@ -1953,6 +1969,10 @@ var kernelFunctionArgumentWidths = [...][]uint16{
 const kernelModuleCount = 4
 
 var kernelFunctionModules = [...]uint8{
+	0,
+	0,
+	0,
+	0,
 	0,
 	0,
 	0,

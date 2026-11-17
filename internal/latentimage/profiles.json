@@ -6,8 +6,12 @@
     "presets": {
       "draft": {
         "steps": 4
+      },
+      "eight-bit-attention": {
+        "eight_bit_attention": true
       }
     },
+    "model": "Krea-2-Turbo",
     "pipeline": "Krea2Pipeline",
     "prompt": {
       "max_tokens": 512,
@@ -37,10 +41,14 @@
       "apg": {
         "guidance": {"adaptive": {"threshold": 40, "momentum": -0.5}}
       },
+      "eight-bit-attention": {
+        "eight_bit_attention": true
+      },
       "guidance-interval": {
         "guidance": {"interval": {"low": 0.219, "high": 0.844}}
       }
     },
+    "model": "MOSS-Image-SFT",
     "pipeline": "MOSSImagePipeline",
     "prompt": {
       "enable_thinking": true,

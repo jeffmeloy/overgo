@@ -68,7 +68,9 @@ type DenoiserProgram struct {
 // textWeights are each text row's attention-value weight (weightedSpans): the co-attention scales the values of the
 // text rows by them, the image rows' by one. None compile the graph as it was.
 // A negative guide, at most one, guides the graph by a negative prompt (NegativeGuide); none compiles it unguided.
-func CompileDenoiserProgram(t TransformerSpec, eps float32, textMask []bool, textWeights []float32, gh, gw int, matmulType dtype.Type, guides ...NegativeGuide) (*DenoiserProgram, error) {
+// eightBit computes the co-attention in 8 bits (tensor.AttentionAttributes.EightBit), from F32 heads with no storage
+// round before it.
+func CompileDenoiserProgram(t TransformerSpec, eps float32, textMask []bool, textWeights []float32, gh, gw int, matmulType dtype.Type, eightBit bool, guides ...NegativeGuide) (*DenoiserProgram, error) {
 	textSeq := len(textMask)
 	if len(guides) > 1 {
 		return nil, fmt.Errorf("denoiser program: %d negative prompts, where a graph guides by one", len(guides))
@@ -203,8 +205,10 @@ func CompileDenoiserProgram(t TransformerSpec, eps float32, textMask []bool, tex
 			}
 			q = buildInterleavedRoPE(b, zeroCenteredRMSNorm(b, q, normQ, eps), axes, positions, theta)
 			k = buildInterleavedRoPE(b, zeroCenteredRMSNorm(b, k, normK, eps), axes, positions, theta)
-			q, k, v = roundAttentionForStorage(b, matmulType, q, k, v)
-			return b.Reshape(b.AttentionWithOptions(q, k, v, tensor.AttentionOptions{KeyBias: keyBias, Scale: scale, Causal: false}), h, uint64(seq))
+			if !eightBit {
+				q, k, v = roundAttentionForStorage(b, matmulType, q, k, v)
+			}
+			return b.Reshape(b.AttentionWithOptions(q, k, v, tensor.AttentionOptions{KeyBias: keyBias, Scale: scale, Causal: false, EightBit: eightBit}), h, uint64(seq))
 		}
 		// output is the attention's sigmoid-gated projection, as its residual adds it.
 		output := func(attn, gate *tensor.Tensor) *tensor.Tensor {

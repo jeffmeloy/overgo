@@ -30,7 +30,7 @@ func TestMOSSImageGenerationContract(t *testing.T) {
 		}
 	}
 	// Of MOSS's presets the page offers its authors' tutorial setting, which no reading reads; no guidance preset read
-	// shows a gain (common-controls/gain-only).
+	// shows a gain (common-controls/gain-only), and its speed preset awaits its reading.
 	if len(held) != 9 || !slices.Equal(held["preset"].Choices, []string{"comfy-tutorial"}) || held["guidance_scale"].Type != ControlNumber || len(held["prompt_mode"].Choices) != 2 || held["prompt_mode"].Help == "" {
 		t.Fatal("unsupported controls", held)
 	}

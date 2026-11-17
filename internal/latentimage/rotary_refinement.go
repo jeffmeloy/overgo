@@ -26,6 +26,9 @@ type rotaryGraph struct {
 	// valueScale scales each row's attention value in the joint blocks (a weighted prompt's rows), none for a graph
 	// that weights nothing.
 	valueScale *tensor.Tensor
+	// eightBit computes the attention in 8 bits (tensor.AttentionAttributes.EightBit), from F32 heads with no storage
+	// round before it.
+	eightBit bool
 }
 
 func newRotaryGraph(t TransformerSpec, epsilon float32, tokens int, storage dtype.Type, weights *tensor.WeightBindings) (*rotaryGraph, error) {
@@ -74,8 +77,13 @@ func (g *rotaryGraph) rotate(x *tensor.Tensor) *tensor.Tensor {
 	return g.round(g.b.Add(g.round(g.b.Multiply(x, g.cosine)), g.round(g.b.Multiply(turned, g.sine))))
 }
 func (g *rotaryGraph) attention(q, k, v *tensor.Tensor) *tensor.Tensor {
-	q, k, v = g.round(g.rotate(q)), g.round(g.rotate(k)), g.round(v)
-	return g.b.Reshape(g.round(g.b.AttentionWithOptions(q, k, v, tensor.AttentionOptions{Scale: float32(float64(tensor.UnitScale) / math.Sqrt(float64(g.headWidth)))})), g.width, g.sequence)
+	if g.eightBit {
+		q, k = g.rotate(q), g.rotate(k)
+	} else {
+		q, k, v = g.round(g.rotate(q)), g.round(g.rotate(k)), g.round(v)
+	}
+	options := tensor.AttentionOptions{Scale: float32(float64(tensor.UnitScale) / math.Sqrt(float64(g.headWidth))), EightBit: g.eightBit}
+	return g.b.Reshape(g.round(g.b.AttentionWithOptions(q, k, v, options)), g.width, g.sequence)
 }
 func (g *rotaryGraph) situ(up, gate *tensor.Tensor) *tensor.Tensor {
 	boundedGate := g.round(g.b.Scale(g.round(g.b.Tanh(g.round(g.b.Scale(gate, tensor.UnitScale/refinementGateBound)))), refinementGateBound))

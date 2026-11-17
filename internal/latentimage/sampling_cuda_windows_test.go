@@ -29,7 +29,7 @@ func samplingModelFixture(t *testing.T) string {
 	if e := os.Mkdir(directory, 0700); e != nil {
 		t.Fatal(e)
 	}
-	p, e := compileRotaryDenoiserProgram(denoiserSpec(), 1e-6, 2, 3, 4, nil, dtype.BF16)
+	p, e := compileRotaryDenoiserProgram(denoiserSpec(), 1e-6, 2, 3, 4, nil, dtype.BF16, false)
 	if e != nil {
 		t.Fatal(e)
 	}

@@ -31,7 +31,7 @@ func TestAPromptWeightScalesMOSSTokensAttentionValue(t *testing.T) {
 	const text = 4
 	output := func(weights ...float32) []float32 {
 		t.Helper()
-		program := testcheck.Must(compileRotaryDenoiserProgram(denoiserSpec(), 1e-6, 2, 3, text, nil, dtype.F32, weights...))(t)
+		program := testcheck.Must(compileRotaryDenoiserProgram(denoiserSpec(), 1e-6, 2, 3, text, nil, dtype.F32, false, weights...))(t)
 		got := testcheck.Must(reference.Execute([]*tensor.Tensor{program.output}, denoiserFeeds(t, program, 0, dtype.F32)))(t)
 		return got[program.output].Data
 	}

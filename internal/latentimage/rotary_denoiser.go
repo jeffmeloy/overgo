@@ -36,8 +36,9 @@ type rotaryDenoiserProgram struct {
 
 // compileRotaryDenoiserProgram compiles MOSS's denoiser for a picture of height by width patches and text rows of
 // conditioning, the blocks skip names set to identity; textWeights, where given, are the text rows' attention-value
-// weights, and none compile the graph as it was.
-func compileRotaryDenoiserProgram(t TransformerSpec, epsilon float32, height, width, text int, skip []int, storage dtype.Type, textWeights ...float32) (*rotaryDenoiserProgram, error) {
+// weights, and none compile the graph as it was. eightBit computes every block's attention in 8 bits
+// (tensor.AttentionAttributes.EightBit).
+func compileRotaryDenoiserProgram(t TransformerSpec, epsilon float32, height, width, text int, skip []int, storage dtype.Type, eightBit bool, textWeights ...float32) (*rotaryDenoiserProgram, error) {
 	if len(textWeights) != 0 && len(textWeights) != text {
 		return nil, fmt.Errorf("rotary denoiser: %d text weights for %d text rows", len(textWeights), text)
 	}
@@ -66,6 +67,7 @@ func compileRotaryDenoiserProgram(t TransformerSpec, epsilon float32, height, wi
 	if err != nil {
 		return nil, err
 	}
+	g.eightBit = eightBit
 	b := g.b
 	p.latent = b.Input("latent", dtype.F32, latentShape)
 	p.context = b.Input("context", dtype.F32, tensor.MustShape(uint64(t.TextHidden), uint64(text)))
@@ -148,7 +150,7 @@ func (p *rotaryDenoiserProgram) feeds(latent, context []float32, timestep float3
 // RotaryWeightShapes is the shape the denoiser's graph reads each of its weights at, as a checkpoint stores it, so a trainer
 // of those weights holds them to what inference does. It compiles the smallest program, whose weights are every program's.
 func RotaryWeightShapes(t TransformerSpec) (map[string][]uint64, error) {
-	program, err := compileRotaryDenoiserProgram(t, mossRefinementEpsilon, tensor.SingletonExtent, tensor.SingletonExtent, tensor.SingletonExtent, nil, dtype.F32)
+	program, err := compileRotaryDenoiserProgram(t, mossRefinementEpsilon, tensor.SingletonExtent, tensor.SingletonExtent, tensor.SingletonExtent, nil, dtype.F32, false)
 	if err != nil {
 		return nil, err
 	}

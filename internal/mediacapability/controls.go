@@ -205,22 +205,37 @@ var controlProviders = map[recipe.ModuleID]func(string, []Control) ([]Control, e
 		if err != nil {
 			return nil, err
 		}
-		return offerPresets(controls, latentVideoPresets, presets)
+		return offerPresets(controls, videoModel(directory), presets)
 	},
+}
+
+// The published models a page's preset readings are recorded under (presetRecord), where their packages name none.
+const (
+	wanModel        = "Wan2.1-T2V-1.3B"
+	wanStudentModel = "Self-Forcing"
+	senseNovaModel  = "SenseNova-U1-8B-MoT-Infographic-V3"
+)
+
+// videoModel is the published Wan model in directory: its few-step student, or the base.
+func videoModel(directory string) string {
+	if latentvideo.IsWanStudent(directory) {
+		return wanStudentModel
+	}
+	return wanModel
 }
 
 // presetControl is the request field that names a recipe of the model's presets.
 const presetControl = "preset"
 
-// offerPresets gives the preset control the model's declared presets as its choices, a tuning control beside the
-// authors' recipe, each one under reading only once its verdict admits it (offeredPresets), and removes the control
-// from a model that offers none.
-func offerPresets(controls []Control, family string, presets []string) ([]Control, error) {
+// offerPresets gives the preset control the declared presets of the named model as its choices, a tuning control
+// beside the authors' recipe, each one under reading only once its verdict admits it (offeredPresets), and removes the
+// control from a model that offers none.
+func offerPresets(controls []Control, model string, presets []string) ([]Control, error) {
 	readings, err := presetReadings()
 	if err != nil {
 		return nil, err
 	}
-	if presets = offeredPresets(readings, family, presets); len(presets) == 0 {
+	if presets = offeredPresets(readings, model, presets); len(presets) == 0 {
 		return slices.DeleteFunc(controls, func(c Control) bool { return c.Name == presetControl }), nil
 	}
 	for index := range controls {

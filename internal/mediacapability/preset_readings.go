@@ -10,21 +10,16 @@ import (
 	"overgo/internal/strictjson"
 )
 
-// presetReadingsJSON is the record of the guidance presets under reading (guidance-ops/preset-readings): each by its
-// family, the package that declares it, and the model it is read on, with its verdict once read against that model's
-// reference at a person's size, the two evaluation records it read, and the judge and suite that read them.
+// presetReadingsJSON is the record of the presets under reading (guidance-ops/preset-readings): each by the model it is
+// read on, with its verdict once read against that model's reference at a person's size, the two evaluation records it
+// read, and the judge and suite that read them.
 //
 //go:embed preset_readings.json
 var presetReadingsJSON []byte
 
-// Preset families: the packages whose declarations a page's presets come from.
-const (
-	latentImagePresets = "latentimage"
-	latentVideoPresets = "latentvideo"
-	senseNovaPresets   = "sensenova"
-)
-
-// presetRecord is the record's form: the judge and each read model's suite, said once, and the readings.
+// presetRecord is the record's form: the judge and each read model's suite, said once, and each model's readings by
+// preset, the model by its published name, so two models may each read a preset of one name (a speed choice that every
+// model offers alike).
 type presetRecord struct {
 	Judge    string                              `json:"judge"`
 	Suites   map[string]string                   `json:"suites"`
@@ -33,7 +28,6 @@ type presetRecord struct {
 
 // presetReading is one preset's reading on its model: pending while it has no verdict.
 type presetReading struct {
-	Model     string `json:"model"`
 	Reference string `json:"reference,omitempty"`
 	Arm       string `json:"arm,omitempty"`
 	// Negative is the negative prompt the arm asked each case with, beside a preset that guides away from one (NAG);
@@ -68,11 +62,11 @@ var presetReadings = sync.OnceValues(func() (presetRecord, error) {
 	return record, nil
 })
 
-// offeredPresets are the presets of a family a page offers: each the record reads only where its reading shows a gain,
-// and every other as declared.
-func offeredPresets(record presetRecord, family string, presets []string) []string {
+// offeredPresets are the presets of the named model a page offers: each the record reads only where its reading shows a
+// gain, and every other as declared.
+func offeredPresets(record presetRecord, model string, presets []string) []string {
 	return slices.DeleteFunc(slices.Clone(presets), func(preset string) bool {
-		reading, read := record.Readings[family][preset]
+		reading, read := record.Readings[model][preset]
 		return read && !reading.offered()
 	})
 }

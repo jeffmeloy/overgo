@@ -74,7 +74,7 @@ func newGuidedStep(t *testing.T, mask []bool, weights []float32) guidedStep {
 // compile is the step's program, guided by the guides given and unguided by none.
 func (s guidedStep) compile(t *testing.T, guides ...NegativeGuide) *DenoiserProgram {
 	t.Helper()
-	return testcheck.Must(CompileDenoiserProgram(s.spec, 1e-5, s.mask, s.weights, guidedHeight, guidedWidth, dtype.F32, guides...))(t)
+	return testcheck.Must(CompileDenoiserProgram(s.spec, 1e-5, s.mask, s.weights, guidedHeight, guidedWidth, dtype.F32, false, guides...))(t)
 }
 
 // unguided is the image rows' velocity of the step guided by nothing.

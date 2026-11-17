@@ -147,7 +147,8 @@ func (p Profile) rotarySchedule(ctx context.Context, request Request) (FlowSched
 // rotarySettings is the sampling a rotary request runs: its schedule, its guidance scale and how the guidance varies over
 // the steps, the negative branch changing the profile's blocks, and the sampler it names and its seed.
 func (g *Generator) rotarySettings(request Request, schedule FlowSchedule, guidance float32) rotarySamplingSpec {
-	settings := rotarySamplingSpec{schedule: schedule, guidance: guidance, varies: request.Guidance, override: g.profile.Rotary.negativeOverride(), seed: request.Seed}
+	settings := rotarySamplingSpec{schedule: schedule, guidance: guidance, varies: request.Guidance, override: g.profile.Rotary.negativeOverride(), seed: request.Seed,
+		eightBit: request.EightBitAttention}
 	if request.Schedule != nil {
 		settings.sampler = request.Schedule.Sampler
 	}

@@ -43,6 +43,9 @@ type Request struct {
 	Guidance sampling.Guidance `json:"guidance,omitzero"`
 	// Preset names a recipe of the model's catalog presets, its steps and guidance filling what the request leaves unset.
 	Preset string `json:"preset,omitzero" role:"preset"`
+	// EightBitAttention is the speed a preset chose (imagePreset.EightBitAttention). A request asks it only by that
+	// preset, so a page offers it as the speed choice it is and no control beside it.
+	EightBitAttention bool `json:"-"`
 	// Schedule is the sigmas a rotary profile (MOSS) samples by in place of its own: a scheduler by name (bong_tangent,
 	// beta57) or a list of the request's own, as ComfyUI's KSampler takes them.
 	Schedule *sampling.Schedule `json:"schedule,omitempty"`
@@ -245,7 +248,8 @@ func (g *Generator) compilePrompt(request Request, gridH, gridW int) (promptProg
 		prompt.negative, guides = &negative, []NegativeGuide{{Mask: negative.mask, Weights: negative.weights, Attention: guide.attention}}
 	}
 	prompt.denoiser, err = CompileDenoiserProgram(
-		g.spec.Transformer, float32(g.spec.Transformer.NormEps), prompt.mask, prompt.weights, gridH, gridW, dtype.BF16, guides...,
+		g.spec.Transformer, float32(g.spec.Transformer.NormEps), prompt.mask, prompt.weights, gridH, gridW, dtype.BF16,
+		request.EightBitAttention, guides...,
 	)
 	return prompt, err
 }
@@ -348,7 +352,8 @@ func (g *Generator) Reset(ctx context.Context, request Request) error {
 	if request.Width != g.request.Width || request.Height != g.request.Height || request.NumTrainTimesteps != g.request.NumTrainTimesteps {
 		return errors.New("latent image: request requires another resident session")
 	}
-	if request.Prompt != g.request.Prompt || request.guide() != g.request.guide() {
+	// The denoiser compiled with its attention, 8-bit or not, is recompiled with the prompt for a request asking the other.
+	if request.Prompt != g.request.Prompt || request.guide() != g.request.guide() || request.EightBitAttention != g.request.EightBitAttention {
 		prompt, err := g.compilePrompt(request, gridH, gridW)
 		if err != nil {
 			return err
@@ -539,6 +544,7 @@ func (r Request) withPreset(directory string) (Request, error) {
 		if r.Guidance == (sampling.Guidance{}) {
 			r.Guidance = preset.Guidance
 		}
+		r.EightBitAttention = r.EightBitAttention || preset.EightBitAttention
 		r.Preset = ""
 	}
 	// A distilled model honours a negative prompt given it by its normalized attention guidance, where the request

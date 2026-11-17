@@ -210,7 +210,7 @@ func VerifyMOSSTransformer(ctx context.Context, modelRoot, referenceRoot, contra
 				if len(latent.Shape) != rotaryCoordinateAxes || latent.Shape[0] != tensor.SingletonExtent || latent.Shape[1] != uint64(spec.InChannels) {
 					return fmt.Errorf("MOSS latent input shape differs: %v", latent.Shape)
 				}
-				p, err := compileRotaryDenoiserProgram(spec, mossRefinementEpsilon, int(latent.Shape[tensor.PairedExtent]), int(latent.Shape[tensor.TripleExtent]), tokens, nil, dtype.BF16)
+				p, err := compileRotaryDenoiserProgram(spec, mossRefinementEpsilon, int(latent.Shape[tensor.PairedExtent]), int(latent.Shape[tensor.TripleExtent]), tokens, nil, dtype.BF16, false)
 				if err != nil {
 					return err
 				}

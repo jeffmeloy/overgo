@@ -76,7 +76,7 @@ func TestAPromptWeightScalesItsTokensAttentionValue(t *testing.T) {
 	mask := []bool{true, true, false}
 	velocity := func(weights []float32) []float32 {
 		t.Helper()
-		program := testcheck.Must(CompileDenoiserProgram(spec, 1e-5, mask, weights, gh, gw, dtype.F32))(t)
+		program := testcheck.Must(CompileDenoiserProgram(spec, 1e-5, mask, weights, gh, gw, dtype.F32, false))(t)
 		return testcheck.Must(program.Forward(reference.Execute, denoiser, patches, encoded, 0.9))(t).Velocity
 	}
 	plain := velocity(nil)

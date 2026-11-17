@@ -23,7 +23,7 @@ func TestANegativePromptsWeightsReachItsRows(t *testing.T) {
 	if gap := velocityGap(t, guided.velocity(t, unweighed, guided.prompt), unguided); gap < 1e-4 {
 		t.Fatalf("the prompt as its own negative with its weights left off moved the velocity by %.3e; unweighted, it is another negative", gap)
 	}
-	if _, err := CompileDenoiserProgram(guided.spec, 1e-5, mask, weights, guidedHeight, guidedWidth, dtype.F32, NegativeGuide{Mask: mask, Weights: weights[:2], Attention: guided.attention}); err == nil {
+	if _, err := CompileDenoiserProgram(guided.spec, 1e-5, mask, weights, guidedHeight, guidedWidth, dtype.F32, false, NegativeGuide{Mask: mask, Weights: weights[:2], Attention: guided.attention}); err == nil {
 		t.Fatal("a negative guide with two weights for three rows compiled")
 	}
 }

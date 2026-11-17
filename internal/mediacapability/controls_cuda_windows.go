@@ -31,7 +31,7 @@ func routedImageControls(_ string, controls []Control) ([]Control, error) {
 	if err != nil {
 		return nil, err
 	}
-	return offerPresets(controls, senseNovaPresets, presets)
+	return offerPresets(controls, senseNovaModel, presets)
 }
 
 func imageControls(directory string, controls []Control) ([]Control, error) {
@@ -43,7 +43,11 @@ func imageControls(directory string, controls []Control) ([]Control, error) {
 	if err != nil {
 		return nil, err
 	}
-	if controls, err = offerPresets(controls, latentImagePresets, presets); err != nil {
+	model, err := latentimage.ModelName(directory)
+	if err != nil {
+		return nil, err
+	}
+	if controls, err = offerPresets(controls, model, presets); err != nil {
 		return nil, err
 	}
 	if profile.Rotary == nil {

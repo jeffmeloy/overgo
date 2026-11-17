@@ -83,6 +83,9 @@ type rotaryPolicy struct {
 }
 
 type catalogProfile struct {
+	// Model is the published model the entry serves, as the record of its presets' readings names it; no part of a
+	// recipe's profile.
+	Model                 string        `json:"model"`
 	Pipeline              string        `json:"pipeline"`
 	Transformer           string        `json:"transformer"`
 	VAE                   string        `json:"vae"`
@@ -204,6 +207,9 @@ type imagePreset struct {
 	GuidanceScale *float32 `json:"guidance_scale,omitempty"`
 	// Guidance is how the guidance varies over the steps (sampling.Guidance), the key Wan's presets use.
 	Guidance sampling.Guidance `json:"guidance,omitzero"`
+	// EightBitAttention computes the denoiser's attention in 8 bits (tensor.AttentionAttributes.EightBit), a speed
+	// preset's whole recipe.
+	EightBitAttention bool `json:"eight_bit_attention,omitzero"`
 }
 
 // catalogOf is the catalog's entry for the model in directory, by its pipeline class.
@@ -213,6 +219,12 @@ func catalogOf(directory string) (catalogProfile, error) {
 		return catalogProfile{}, err
 	}
 	return lookupCatalogProfile(index.ClassName)
+}
+
+// ModelName is the published model the catalog entry for the model in directory serves (catalogProfile.Model).
+func ModelName(directory string) (string, error) {
+	catalog, err := catalogOf(directory)
+	return catalog.Model, err
 }
 
 // PresetNames are the presets the catalog declares for the model in directory, in order, for a page to offer.

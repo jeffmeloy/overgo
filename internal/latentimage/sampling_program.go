@@ -22,6 +22,8 @@ type rotarySamplingSpec struct {
 	// from which ER-SDE draws its fresh noise.
 	sampler string
 	seed    int64
+	// eightBit computes the denoiser's attention in 8 bits, as a speed preset asks (Request.EightBitAttention).
+	eightBit bool
 }
 
 func (s rotarySamplingSpec) validate(layers int) error {

@@ -45,7 +45,7 @@ func TestDenoiserResidentG2Distribution(t *testing.T) {
 	const textSeq = 16 // representative; exact prompt length is gap1 (not oracle-relevant)
 	imgSeq := gh * gw
 
-	prog, err := CompileDenoiserProgram(tr, float32(tr.NormEps), attendedTextMask(textSeq), nil, gh, gw, dtype.BF16)
+	prog, err := CompileDenoiserProgram(tr, float32(tr.NormEps), attendedTextMask(textSeq), nil, gh, gw, dtype.BF16, false)
 	if err != nil {
 		t.Fatalf("CompileDenoiserProgram: %v", err)
 	}

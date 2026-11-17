@@ -152,19 +152,19 @@
   "actual": "modelAdapter reads weights from the named file, but fromHFPipeline inventories only model_index components, leaving the adapters directory outside the model identity. imageCapability passes the latent executor straight to pictureSessions without an adapter-content binding. RunKeyOf therefore stays identical (recipe, JSON request and code), and ModelSessionDirector.serve calls measuredRun/Replay before modelAdapter is reached: the previous image and run are returned without reading the replacement adapter. The retained adapter comparison checks fixed files and strengths, not invalidation of a served result after a file changes. Shown from source at a11ed7e3b5b58078ea7b7627ac687058420c0eb9; no SQA execution."
 },
     {
-  "id": "SQA-407",
+  "id": "SQA-408",
   "severity": "P2",
   "files": [
-    "internal/comfyquant/convrot.go",
-    "internal/comfyquant/convrot_test.go",
-    "internal/hfrepo/repository.go",
-    "internal/safetensors/source.go",
-    "internal/modelartifact/inventory.go",
-    "internal/modelintake/import.go"
+    "internal/mediacapability/image_cuda_windows.go",
+    "internal/mediacapability/enhanced_first_windows_test.go",
+    "internal/latentimage/enhancer_chat_windows.go",
+    "internal/capabilityruntime/session_director.go",
+    "internal/strictjson/decode.go",
+    "cmd/recipe/main.go"
   ],
-  "input": "recipe inspect on a valid non-pipeline HF directory containing ComfyUI int8 ConvRot weights and its config/tokenizer, such as the Ultra encoder directory assembled by the enhancer chat fixture. The named safetensors checkpoint is a real file; at least one projection carries a valid comfy_quant record.",
-  "expected": "The shared ConvRot decoder must preserve each original tensor's physical Shard when it creates its lazy decoded view. HF inventory and modelintake.InspectImport must hash the actual checkpoint filenames and complete structural inspection while the existing decoder and executor retain the same numerical values and file lifetime.",
-  "actual": "hfrepo.Open now calls comfyquant.Decoded. Decoded creates BF16 tensors through safetensors.NewTensor but does not copy value.Shard; NewTensor leaves it empty. Source.Retensored preserves the handles, but Source.Shards derives names from the view's tensors and therefore includes an empty filename. modelartifact.fromHFRepository joins that name to the model directory and tries to hash the directory as a weight component, failing InspectImport before inspection can complete. The retained chat fixture calls ResolveActiveGGUFWithPolicy through the GGUF view, and the decoder unit fixture uses anonymous in-memory tensors; neither exercises this HF inventory path. Shown from source at cef8ff28265c451ccebd4f31023e5eb65dc2e443; no SQA execution."
+  "input": "On a configured Ultra model, give recipe run an image-gen input with enhance:true, prompt:\"a fox\", width:1024, height:576 and the unknown field stepps:1. Alternatively give that input duplicate steps members, first 1 then 50. These are invalid under the existing strict request decoder; the workbench has an earlier guard, but the recipe run path calls the capability directly.",
+  "expected": "The existing enhancedFirst admission boundary must apply strictjson to the original request before opening the enhancer. Unknown and duplicate members are refused as they are on the plain image path, with no enhancer or image execution. A valid enhanced request still resolves its prompt and reaches the existing picture director.",
+  "actual": "enhancedFirst uses json.Unmarshal into Request, which ignores stepps and accepts duplicate steps with the last value winning. It calls EnhanceRequest and marshals the result into new JSON before passing it to the director. decodeJSONInput then strictly decodes only that rewritten document: the unknown field or duplicate is already gone, so the invalid original input is accepted and may draw with default or last-wins steps. cmd/recipe.executeCapability/attemptCapability has no earlier schema check. The retained wrapper test covers enhance:false and malformed JSON, not an invalid enhance:true request. Shown from source at d9606e89c04e11c700ed3393fbf6899826f40191; no SQA execution."
 }
   ],
   "master_lead_triage": {
@@ -231,16 +231,16 @@
         ],
         "note": "Answered by the lead on 2026-11-17 at 496a0f87d: filed as its own row after the owner's workflow rows and small fixes; the adapter's bytes are bound where the image source resolves the request, the replay and session owners kept."
       },
-  "SQA-407": {
+  "SQA-408": {
         "action": "implemented",
         "rows": [
-          "moss-ultra-sections/prompt-modes"
+          "moss-ultra-compare/enhance-strict"
         ],
-        "note": "Answered by the lead on 2026-11-17 at cef8ff282: comfyquant.Decoded gives each decoded weight the shard its values lie in, so a decoded source's Shards name its files; held by TestAQuantizedCheckpointReadsAsTheOneItDecodesTo. Implemented with moss-ultra-sections/prompt-modes, which serves the enhancer through that view, for the review's recheck."
+        "note": "Answered by the lead on 2026-11-17 at d5bada126: enhancedFirst reads a request with strictjson.DecodeBytes, as the picture session does, and hands one it refuses to the session as it came, which refuses it, no chat opened; held by TestAPictureRequestAskingNoEnhancingGoesToItsSessionAsItIs on an unknown and a repeated member with enhance asked. Implemented by moss-ultra-compare/enhance-strict, for the review's recheck."
       }
 }
   },
-  "next_finding_number": 408,
+  "next_finding_number": 409,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

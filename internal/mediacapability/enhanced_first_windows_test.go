@@ -12,15 +12,17 @@ import (
 )
 
 // TestAPictureRequestAskingNoEnhancingGoesToItsSessionAsItIs holds the image capability's prompt mode 2 step
-// (moss-ultra-sections/prompt-modes): a request asking no enhancing, and an input that is no request, reach the
-// picture session as they came, the session's answer returned, no chat opened.
+// (moss-ultra-sections/prompt-modes): a request asking no enhancing, an input that is no request, and a request asking
+// enhancing that the session's strict reading refuses, by an unknown member or a repeated one (SQA-408), reach the
+// picture session as they came, the session's answer returned, no chat opened (the store and model are none).
 func TestAPictureRequestAskingNoEnhancingGoesToItsSessionAsItIs(t *testing.T) {
 	var reached []string
 	session := func(_ context.Context, _ artifact.Repository, _ string, _ modelrecipe.CapabilityEvidenceSelection, input string) (any, error) {
 		reached = append(reached, input)
 		return "drawn", nil
 	}
-	inputs := []string{`{"prompt":"a fox","width":1024,"height":576}`, `{"prompt":"a fox","enhance":false}`, `not a request`}
+	inputs := []string{`{"prompt":"a fox","width":1024,"height":576}`, `{"prompt":"a fox","enhance":false}`, `not a request`,
+		`{"enhance":true,"prompt":"a fox","width":1024,"height":576,"stepps":1}`, `{"enhance":true,"prompt":"a fox","steps":1,"steps":50}`}
 	for _, input := range inputs {
 		if got := testcheck.Must(enhancedFirst(session)(t.Context(), nil, "", modelrecipe.CapabilityEvidenceSelection{}, input))(t); got != "drawn" {
 			t.Errorf("%s gave %v, want the session's answer", input, got)

@@ -16,6 +16,7 @@ import (
 	"overgo/internal/oscillatorimage"
 	"overgo/internal/recipe"
 	"overgo/internal/sensenovarecipe"
+	"overgo/internal/strictjson"
 )
 
 const (
@@ -96,11 +97,13 @@ func imageCapability() Capability {
 
 // enhancedFirst runs prompt mode 2 ahead of a latent picture session: a request asking the MOSS Ultra workflow's
 // enhancer has its prompt and negative written by the model's enhancer chat (latentimage.EnhanceRequest) and is served
-// as the request stating what it wrote; any other input goes to the session as it is.
+// as the request stating what it wrote; any other input goes to the session as it is. A request is read as strictly as
+// the session reads it, so one the session would refuse (an unknown or repeated member) reaches the session as it came
+// and is refused there, no chat opened for it (SQA-408).
 func enhancedFirst(next capabilityruntime.Executor) capabilityruntime.Executor {
 	return func(ctx context.Context, store artifact.Repository, path string, selection modelrecipe.CapabilityEvidenceSelection, input string) (any, error) {
 		var request latentimage.Request
-		if err := json.Unmarshal([]byte(input), &request); err != nil || !request.Enhance {
+		if err := strictjson.DecodeBytes([]byte(input), &request); err != nil || !request.Enhance {
 			return next(ctx, store, path, selection, input)
 		}
 		enhanced, err := latentimage.EnhanceRequest(ctx, store, path, request)

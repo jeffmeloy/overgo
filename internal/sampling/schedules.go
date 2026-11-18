@@ -234,9 +234,15 @@ type Schedule struct {
 	Sigmas  []float32 `json:"sigmas,omitempty"`
 }
 
+// SamplerNames are the samplers a schedule may name, as a page offers them.
+func SamplerNames() []string { return []string{SamplerEuler, SamplerERSDE} }
+
+// ScheduleNames are the schedulers a schedule may name, as a page offers them.
+func ScheduleNames() []string { return []string{ScheduleBongTangent, ScheduleBeta57} }
+
 // Validate holds a schedule to a known sampler, and to a known name or a valid list of its own, not both.
 func (s Schedule) Validate() error {
-	if s.Sampler != "" && s.Sampler != SamplerEuler && s.Sampler != SamplerERSDE {
+	if s.Sampler != "" && !slices.Contains(SamplerNames(), s.Sampler) {
 		return fmt.Errorf("sampling: no sampler is named %q (%s or %s)", s.Sampler, SamplerEuler, SamplerERSDE)
 	}
 	switch {
@@ -248,7 +254,7 @@ func (s Schedule) Validate() error {
 		}
 		return nil
 	case s.Name != "":
-		if s.Name != ScheduleBongTangent && s.Name != ScheduleBeta57 {
+		if !slices.Contains(ScheduleNames(), s.Name) {
 			return fmt.Errorf("sampling: no schedule is named %q (%s or %s)", s.Name, ScheduleBongTangent, ScheduleBeta57)
 		}
 		return nil

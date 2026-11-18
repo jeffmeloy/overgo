@@ -29,7 +29,7 @@ func TestMOSSImageGenerationContract(t *testing.T) {
 	for _, c := range controls {
 		held[c.Name] = c
 	}
-	for _, name := range []string{"prompt", "prompt_mode", "negative_prompt", "width", "height", "steps", "seed", "guidance_scale", "preset", "image", "denoise", "enhance"} {
+	for _, name := range []string{"prompt", "prompt_mode", "negative_prompt", "width", "height", "steps", "seed", "guidance_scale", "preset", "image", "denoise", "enhance", "schedule", "canvas", "sharpen", "control", "layout"} {
 		if _, ok := held[name]; !ok {
 			t.Fatal("missing supported control", name)
 		}
@@ -37,7 +37,7 @@ func TestMOSSImageGenerationContract(t *testing.T) {
 	// Of MOSS's presets the page offers its authors' tutorial setting and the MOSS Ultra workflow's six section
 	// presets, which no reading reads, and 8-bit attention, a speed tier its readings admit; no guidance preset read
 	// shows a gain (common-controls/gain-only).
-	if len(held) != 12 || !slices.Equal(held["preset"].Choices, append([]string{"comfy-tutorial", "eight-bit-attention"}, mossSectionPresets...)) || held["guidance_scale"].Type != ControlNumber || len(held["prompt_mode"].Choices) != 2 || held["prompt_mode"].Help == "" {
+	if len(held) != 17 || !slices.Equal(held["preset"].Choices, append([]string{"comfy-tutorial", "eight-bit-attention"}, mossSectionPresets...)) || held["guidance_scale"].Type != ControlNumber || len(held["prompt_mode"].Choices) != 2 || held["prompt_mode"].Help == "" {
 		t.Fatal("unsupported controls", held)
 	}
 	// Tuning sits behind the disclosure as on every page (common-controls/do), and the negative prompt beside the prompt.

@@ -282,6 +282,15 @@ input.text:focus, select.text:focus, textarea.text:focus { border-color:var(--ac
 .control input[type=number] { max-width:16ch; }
 .control:has(textarea), .control:has(.intake-strip) { grid-column:1 / -1; grid-template-columns:minmax(0, 1fr); gap:var(--s1); }
 .control textarea { min-height:72px; resize:vertical; }
+/* A setting set part by part (a schedule, the adapters a section stacks) is a group across the form: an object's
+   fields packed as the form's are, a list's items a row each beside its removal. */
+.control-group { grid-column:1 / -1; border:1px solid var(--line); border-radius:var(--radius-s); padding:var(--s2) var(--s3); margin:0; min-width:0; }
+.control-group > legend { color:var(--dim); font-size:var(--t-md); padding:0 var(--s1); }
+.control-group > legend::first-letter { text-transform:uppercase; }
+.control-group > .control-grid { margin:var(--s1) 0; }
+.control-items { display:grid; gap:var(--s2); margin:var(--s1) 0 var(--s2); }
+.control-item { display:flex; align-items:flex-start; gap:var(--s2); min-width:0; }
+.control-item > :first-child { flex:1; min-width:0; }
 .intake-strip { display:flex; flex-wrap:wrap; gap:var(--s1); }
 .preset-chips { display:flex; flex-wrap:wrap; gap:var(--s1); grid-column:1 / -1; }
 /* Saved presets read as one row across the form: the list, a name for the next one, and its save. */

@@ -39,7 +39,8 @@ type generationCatalog struct {
 // executors, its control declarations and its output publisher, so the
 // launcher and the tests bind the same shape once while the catalog's own
 // types stay outside this package: a capability names its executor and a
-// control reports its declaration as one tuple.
+// control reports its declaration as one tuple, an object or a list control
+// its parts as controls of its own type.
 func BindGenerationCatalog[
 	Capability interface {
 		Executor() capabilityruntime.Executor
@@ -61,6 +62,10 @@ func BindGenerationCatalog[
 		// Labelled reports the common control a field is on every media page, the name a page shows it by; empty
 		// where the page names it from the field.
 		Labelled() string
+		// Nested reports an object control's fields and a list control's item as the catalog's own control types, a
+		// []Control and a *Control, none for a scalar: a constraint whose method named its own type parameter would hold
+		// no type, so the walk that reaches declarations (internal/repoanalysis) would find none implementing it.
+		Nested() (fields, item any)
 	},
 ](
 	catalog map[recipe.Task]Capability,
@@ -71,21 +76,33 @@ func BindGenerationCatalog[
 	for task, capability := range catalog {
 		execute[task] = capability.Executor()
 	}
+	// bind is the controls as a page takes them, an object's fields and a list's item each bound as a control is.
+	var bind func([]Control) []workflowControl
+	bind = func(declared []Control) []workflowControl {
+		bound := make([]workflowControl, 0, len(declared))
+		for _, control := range declared {
+			name, kind, required, choices := control.Declared()
+			label, media := control.Slot()
+			wire := workflowControl{Name: name, Type: workflowControlType(kind), Required: required, Advanced: control.Secondary(), Choices: choices, Default: control.Defaulted(), With: control.Accompanies(), Label: label, Media: media, Help: control.Guidance(), Role: control.Labelled()}
+			if defaultValue, step, rate, declared := control.Bounded(); declared {
+				wire.Bounds = &workflowControlBounds{Default: defaultValue, Step: step, Rate: rate}
+			}
+			fields, item := control.Nested()
+			if parts, _ := fields.([]Control); len(parts) > 0 {
+				wire.Fields = bind(parts)
+			}
+			if part, _ := item.(*Control); part != nil {
+				wire.Item = &bind([]Control{*part})[0]
+			}
+			bound = append(bound, wire)
+		}
+		return bound
+	}
 	return generationCatalog{
 		Execute: execute,
 		Controls: func(entry recipe.ModuleID, directory string) ([]workflowControl, string) {
 			declared, refusal := controls(entry, directory)
-			bound := make([]workflowControl, 0, len(declared))
-			for _, control := range declared {
-				name, kind, required, choices := control.Declared()
-				label, media := control.Slot()
-				wire := workflowControl{Name: name, Type: workflowControlType(kind), Required: required, Advanced: control.Secondary(), Choices: choices, Default: control.Defaulted(), With: control.Accompanies(), Label: label, Media: media, Help: control.Guidance(), Role: control.Labelled()}
-				if defaultValue, step, rate, declared := control.Bounded(); declared {
-					wire.Bounds = &workflowControlBounds{Default: defaultValue, Step: step, Rate: rate}
-				}
-				bound = append(bound, wire)
-			}
-			return bound, refusal
+			return bind(declared), refusal
 		},
 		OutputContent: output,
 	}

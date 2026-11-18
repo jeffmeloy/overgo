@@ -82,7 +82,7 @@ func TestAStoredPictureReachesItsSessionAsItsBytes(t *testing.T) {
 	if refusal != "" {
 		t.Fatal(refusal)
 	}
-	if slices.ContainsFunc(controls, rotaryControl) {
+	if slices.ContainsFunc(controls, func(c Control) bool { return slices.Contains(rotaryControls, c.Name) }) {
 		t.Errorf("a flow profile's page offers a rotary profile's control: %+v", controls)
 	}
 }

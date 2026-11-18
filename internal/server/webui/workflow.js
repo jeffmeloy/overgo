@@ -118,48 +118,127 @@
   // input per control, typed by the declaration; the returned map binds each
   // control name to its declaration and input. The generation tabs and the
   // front page's generation modes render from the same declaration.
-  window.overgo.controlInputs = function (host, controls) {
+  // An object or a list control is set part by part: an object field by field (a MOSS section's schedule), a list item
+  // by item (the adapters a section stacks).
+  const setPartByPart = (control) => control.type === "object" || control.type === "list";
+  // controlLabel: the name a page shows a control by.
+  const controlLabel = (control) => control.label || control.role || control.name.replace(/_/g, " ");
+
+  // controlInputs renders a capability's declared controls into host: one
+  // input per control, typed by the declaration; the returned map binds each
+  // control name to its declaration and input. The generation tabs and the
+  // front page's generation modes render from the same declaration. An
+  // object's fields render through it too (nested), with no disclosure or
+  // chips of their own.
+  window.overgo.controlInputs = function (host, controls, nested) {
     const el = window.overgo.el;
     const fields = new Map();
     const advanced = el("details", { class: "advanced-controls" }, el("summary", { text: "Advanced options" }));
     host.replaceChildren();
     for (const control of controls || []) {
-      let input;
-      // A field the model's artifact exports values for (a voice) is a
-      // choice, never a free input; a boolean is one too.
-      const choices = (control.choices || []).length ? control.choices : (control.type === "boolean" ? ["true", "false"] : null);
-      if (picksDataset(control)) {
-        input = datasetPicker(control);
-      } else if (choices) {
-        input = el("select", { class: "text", "aria-label": control.label || control.role || control.name.replace(/_/g, " ") },
-          // A field left unset is given the default its control declares where the request is taken in.
-          el("option", { value: "", text: control.required ? "select" : control.default ? "default (" + control.default + ")" : "unset", disabled: control.required, selected: true }),
-          ...choices.map((choice) => el("option", { value: choice, text: choice })));
-      } else {
-        // A declared bound steps the field by the model's stride. Its default fills a required field and the picture's
-        // geometry, which no preset chooses; in a sampling field a request may leave out it is a hint, so a request
-        // carries what the person set and a preset chosen beside it is not overridden by values the person never
-        // touched (SQA-340, preset-form/do).
-        const bounds = control.bounds || {};
-        const declared = control.bounds ? String(bounds.default) : null;
-        const filled = control.required || geometryControls.has(control.name);
-        input = el(control.type === "text" ? "textarea" : "input", {
-          class: "text", type: control.type === "integer" || control.type === "number" ? "number" : null,
-          step: bounds.step || (control.type === "integer" ? "1" : "any"), required: control.required,
-          value: filled ? declared : null, placeholder: filled ? null : declared,
-        });
-      }
+      const input = controlInput(control);
       fields.set(control.name, { control, input });
       const slot = control.type === "artifact" ? intakeStrip(control, input) : null;
-      const target = control.advanced && !control.required ? advanced : host;
-      target.appendChild(el("label", { class: "control" }, el("span", { text: control.label || control.role || control.name.replace(/_/g, " ") }), input, slot));
-      if (control.help) target.appendChild(el('details', { class: 'control-help' }, el('summary', { text: 'About ' + (control.label || control.role || control.name.replace(/_/g, ' ')) }), el('p', { class: 'note', text: control.help })));
+      const target = !nested && control.advanced && !control.required ? advanced : host;
+      target.appendChild(setPartByPart(control) ? input : el("label", { class: "control" }, el("span", { text: controlLabel(control) }), input, slot));
+      if (control.help) target.appendChild(el('details', { class: 'control-help' }, el('summary', { text: 'About ' + controlLabel(control) }), el('p', { class: 'note', text: control.help })));
     }
+    if (nested) return fields;
     const chips = presetChips(fields);
     if (chips) host.appendChild(chips);
     if (advanced.children.length > 1) host.appendChild(advanced);
     return fields;
   };
+
+  // controlInput: the one input a control is set by, typed by its declaration.
+  function controlInput(control) {
+    const el = window.overgo.el;
+    if (control.type === "object") return objectInput(control);
+    if (control.type === "list") return listInput(control);
+    // A field the model's artifact exports values for (a voice) is a
+    // choice, never a free input; a boolean is one too.
+    const choices = (control.choices || []).length ? control.choices : (control.type === "boolean" ? ["true", "false"] : null);
+    if (picksDataset(control)) return datasetPicker(control);
+    if (choices) {
+      return el("select", { class: "text", "aria-label": controlLabel(control) },
+        // A field left unset is given the default its control declares where the request is taken in.
+        el("option", { value: "", text: control.required ? "select" : control.default ? "default (" + control.default + ")" : "unset", disabled: control.required, selected: true }),
+        ...choices.map((choice) => el("option", { value: choice, text: choice })));
+    }
+    // A declared bound steps the field by the model's stride. Its default fills a required field and the picture's
+    // geometry, which no preset chooses; in a sampling field a request may leave out it is a hint, so a request
+    // carries what the person set and a preset chosen beside it is not overridden by values the person never
+    // touched (SQA-340, preset-form/do).
+    const bounds = control.bounds || {};
+    const declared = control.bounds ? String(bounds.default) : null;
+    const filled = control.required || geometryControls.has(control.name);
+    return el(control.type === "text" ? "textarea" : "input", {
+      class: "text", type: control.type === "integer" || control.type === "number" ? "number" : null,
+      step: bounds.step || (control.type === "integer" ? "1" : "any"), required: control.required,
+      value: filled ? declared : null, placeholder: filled ? null : declared,
+    });
+  }
+
+  // partsValue gives a group the value a typed input has, so remembered entries and presets set and read it alike: the
+  // parts set, as JSON, or empty where none is.
+  function partsValue(group, read, write) {
+    Object.defineProperty(group, "value", {
+      get() { const value = read(); return value === null ? "" : JSON.stringify(value); },
+      set(text) { let value = null; try { value = text ? JSON.parse(text) : null; } catch (_) { /* a malformed entry sets nothing */ } write(value); },
+    });
+    return group;
+  }
+
+  // setPart sets one part's input to a value the request holds: an object or a list as JSON, a scalar as its text; a
+  // value a choice does not offer is left unset.
+  function setPart(field, value) {
+    const text = value === undefined || value === null ? "" : (typeof value === "object" ? JSON.stringify(value) : String(value));
+    field.input.value = field.control.choices?.length && text && !field.control.choices.includes(text) ? "" : text;
+  }
+
+  // objectInput: an object control's fields, a group of controls of their own.
+  function objectInput(control) {
+    const el = window.overgo.el;
+    const host = el("div", { class: "control-grid" });
+    const group = el("fieldset", { class: "control-group", "data-control": control.name }, el("legend", { text: controlLabel(control) }), host);
+    const fields = window.overgo.controlInputs(host, control.fields, true);
+    return partsValue(group, () => { const { input } = window.overgo.controlValues(fields); return Object.keys(input).length ? input : null; },
+      (value) => { for (const [name, field] of fields) setPart(field, value ? value[name] : null); });
+  }
+
+  // listInput: a list control's items, rows a person adds and removes, each the item's control.
+  function listInput(control) {
+    const el = window.overgo.el;
+    const item = { ...control.item, name: control.name };
+    const rows = el("div", { class: "control-items" });
+    const inputs = [];
+    const changed = () => rows.dispatchEvent(new Event("change", { bubbles: true }));
+    const add = (value) => {
+      const input = controlInput(item);
+      // An item's input stands in no label of its own, so it is named for its list.
+      if (!setPartByPart(item)) input.setAttribute("aria-label", controlLabel(control));
+      const row = el("div", { class: "control-item" }, input, el("button", { class: "btn alt", type: "button", text: "Remove", "aria-label": "Remove " + controlLabel(control), onclick: () => {
+        inputs.splice(inputs.indexOf(input), 1); row.remove(); changed();
+      } }));
+      setPart({ control: item, input }, value);
+      inputs.push(input);
+      rows.appendChild(row);
+    };
+    const group = el("fieldset", { class: "control-group control-list", "data-control": control.name }, el("legend", { text: controlLabel(control) }), rows,
+      el("button", { class: "btn alt", type: "button", text: "Add", "aria-label": "Add " + controlLabel(control), onclick: () => { add(null); changed(); } }));
+    return partsValue(group, () => { const values = inputs.map((input) => partValue(item, input.value)).filter((value) => value !== undefined); return values.length ? values : null; },
+      (value) => { inputs.length = 0; rows.replaceChildren(); for (const entry of Array.isArray(value) ? value : []) add(entry); });
+  }
+
+  // partValue is a control's entry as the request holds it: nothing where it is empty, a boolean, a number, an object
+  // or a list as typed, text as it is.
+  function partValue(control, text) {
+    if (text === "") return undefined;
+    if (control.type === "boolean") return text === "true";
+    if (control.type === "integer" || control.type === "number") return Number(text);
+    if (setPartByPart(control)) return JSON.parse(text);
+    return text;
+  }
 
   // geometryControls are the bounded fields that size the picture or clip, which its declared default fills: a request
   // without them names no size (a layout prompt's canvas read 0 x 0), and the chips below set them.
@@ -274,8 +353,7 @@
         if (!refused) { refused = name; refusal = name + " must be a whole number from " + Number.MIN_SAFE_INTEGER + " to " + Number.MAX_SAFE_INTEGER; }
         continue;
       }
-      input[name] = field.control.type === "boolean" ? value === "true" :
-        (field.control.type === "integer" || field.control.type === "number" ? Number(value) : value);
+      input[name] = partValue(field.control, value);
     }
     return { input, missing, refused, refusal };
   };

@@ -148,6 +148,24 @@ func TestWebUIBrowserMOSSGeneration(t *testing.T) {
 	if spaced := inputs[len(inputs)-2]; spaced.Prompt != "  spaced prompt\n" {
 		t.Fatalf("the prompt changed on its way: %q", spaced.Prompt)
 	}
+	// A section's settings are set part by part (moss-ultra-compare/object-controls): the schedule's sampler and
+	// scheduler chosen and the sharpening typed field by field reach the request as its objects; a group left empty
+	// sends nothing.
+	check(`(() => {
+  const group=(name)=>document.querySelector('.composer fieldset[data-control="'+name+'"]');
+  const [sampler, scheduler]=group('schedule').querySelectorAll('select');
+  sampler.value='er_sde'; scheduler.value='bong_tangent';
+  const [radius, sigma, alpha]=group('sharpen').querySelectorAll('input');
+  radius.value='1'; sigma.value='0.6'; alpha.value='0.7';
+  mossSend('a section');
+  return group('canvas').value==='' && group('schedule').value==='{"sampler":"er_sde","name":"bong_tangent"}';
+})()`)
+	settle(`document.querySelectorAll('.artifact.msg.media img').length===6 && !document.querySelector('.send-button').disabled`)
+	inputs = fixture.requests()
+	if section := inputs[len(inputs)-1]; section.Prompt != "a section" || section.Schedule == nil || section.Schedule.Sampler != "er_sde" || section.Schedule.Name != "bong_tangent" ||
+		section.Sharpen == nil || section.Sharpen.Radius != 1 || section.Sharpen.Sigma != 0.6 || section.Sharpen.Alpha != 0.7 || section.Canvas != nil || section.Control != nil {
+		t.Fatalf("the section's settings reached the request as %+v", section)
+	}
 	check(`window.overgo.errors.length===0`)
-	webuilane.Leg(t, "moss-generation", "Empty catalog, local source import, registered candidate, activation, refreshed composer modes, model choice, native defaults, optional controls, layout mode with example and coordinate errors, exact Unicode prompt transport, PNG preview/download, invalid size, resource refusal, cancellation without output and retry pass. Execution and activation use hermetic fixtures; native quality is checked separately.")
+	webuilane.Leg(t, "moss-generation", "Empty catalog, local source import, registered candidate, activation, refreshed composer modes, model choice, native defaults, optional controls, layout mode with example and coordinate errors, exact Unicode prompt transport, PNG preview/download, invalid size, resource refusal, cancellation without output and retry pass, and a section's schedule and sharpening set part by part. Execution and activation use hermetic fixtures; native quality is checked separately.")
 }

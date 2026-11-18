@@ -37,6 +37,10 @@ const (
 	// workflowControlArtifact names an artifact the store holds; a page
 	// fills it from a media card's stored id rather than typing it.
 	workflowControlArtifact workflowControlType = "artifact"
+	// workflowControlObject is a setting a page sets field by field, each one of its Fields (a MOSS section's
+	// schedule); workflowControlList is one it sets as items, each its Item (the adapters a section stacks).
+	workflowControlObject workflowControlType = "object"
+	workflowControlList   workflowControlType = "list"
 )
 
 type workflowControl struct {
@@ -70,6 +74,10 @@ type workflowControl struct {
 	// Role is the common control the field is on every media page (guidance strength is "guidance" whatever the
 	// model's request calls it), the name a page shows it by where it has no label.
 	Role string `json:"role,omitzero"`
+	// Fields are an object control's own controls and Item a list control's one item, which a page sets as it sets a
+	// request's fields and which a value is validated by part by part.
+	Fields []workflowControl `json:"fields,omitempty"`
+	Item   *workflowControl  `json:"item,omitempty"`
 }
 
 func audioFormatMessage(audio *speechrecognition.InputRequirements) string {
@@ -543,19 +551,48 @@ func validateWorkflowCapabilities(capabilities []WorkflowCapability) error {
 			return fmt.Errorf("workflow workspace: duplicate capability %s for %q", capability.Recipe, capability.Task)
 		}
 		seen[capability.Recipe] = true
-		fields := make(map[string]bool, len(capability.Controls))
-		for _, control := range capability.Controls {
-			if control.Name == "" || !control.Type.valid() || fields[control.Name] || !slotMedia[control.Media] ||
-				control.Format != "" && control.Type != workflowControlDataset ||
-				control.Default != "" && (control.Type != workflowControlText || len(control.Choices) > 0 && !slices.Contains(control.Choices, control.Default)) ||
-				control.Bounds != nil && (control.Bounds.Step < 0 || control.Bounds.Rate < 0) {
-				return fmt.Errorf("workflow workspace: invalid control %q", control.Name)
-			}
-			if control.Audio != nil && (control.Type != workflowControlArtifact || control.Media != "audio" || control.Audio.Format.Validate() != nil || control.Audio.MaximumEncodedBytes == 0 || control.Audio.MaximumSamples == 0) {
-				return fmt.Errorf("workflow workspace: invalid audio input %q", control.Name)
-			}
-			fields[control.Name] = true
+		if err := validateWorkflowControls(capability.Controls); err != nil {
+			return err
 		}
+	}
+	return nil
+}
+
+// validateWorkflowControls refuses a set of controls a page could not offer: one unnamed or named twice, of an unknown
+// type or media, with a default, format or bounds its type does not take, an audio input that is no audio slot, or an
+// object or list whose own controls are such, or that holds none.
+func validateWorkflowControls(controls []workflowControl) error {
+	fields := make(map[string]bool, len(controls))
+	for _, control := range controls {
+		if control.Name == "" || fields[control.Name] {
+			return fmt.Errorf("workflow workspace: invalid control %q", control.Name)
+		}
+		if err := validateWorkflowControl(control); err != nil {
+			return err
+		}
+		fields[control.Name] = true
+	}
+	return nil
+}
+
+func validateWorkflowControl(control workflowControl) error {
+	if !control.Type.valid() || !slotMedia[control.Media] ||
+		control.Format != "" && control.Type != workflowControlDataset ||
+		control.Default != "" && (control.Type != workflowControlText || len(control.Choices) > 0 && !slices.Contains(control.Choices, control.Default)) ||
+		control.Bounds != nil && (control.Bounds.Step < 0 || control.Bounds.Rate < 0) ||
+		(control.Type == workflowControlObject) != (len(control.Fields) > 0) || (control.Type == workflowControlList) != (control.Item != nil) {
+		return fmt.Errorf("workflow workspace: invalid control %q", control.Name)
+	}
+	if control.Audio != nil && (control.Type != workflowControlArtifact || control.Media != "audio" || control.Audio.Format.Validate() != nil || control.Audio.MaximumEncodedBytes == 0 || control.Audio.MaximumSamples == 0) {
+		return fmt.Errorf("workflow workspace: invalid audio input %q", control.Name)
+	}
+	if control.Item != nil {
+		if err := validateWorkflowControl(*control.Item); err != nil {
+			return fmt.Errorf("workflow workspace: control %q's item: %w", control.Name, err)
+		}
+	}
+	if err := validateWorkflowControls(control.Fields); err != nil {
+		return fmt.Errorf("workflow workspace: control %q: %w", control.Name, err)
 	}
 	return nil
 }
@@ -564,7 +601,8 @@ func (kind workflowControlType) valid() bool {
 	return kind == workflowControlText || kind == workflowControlInteger ||
 		kind == workflowControlNumber || kind == workflowControlBoolean ||
 		kind == workflowControlDataset || kind == workflowControlCheckpoint ||
-		kind == workflowControlOutput || kind == workflowControlArtifact
+		kind == workflowControlOutput || kind == workflowControlArtifact ||
+		kind == workflowControlObject || kind == workflowControlList
 }
 
 func selectWorkflowCapability(capabilities []WorkflowCapability, task recipe.Task, recipeID artifact.ID) (WorkflowCapability, error) {
@@ -598,8 +636,32 @@ func validateWorkflowInput(controls []workflowControl, raw json.RawMessage) erro
 		if !ok {
 			return fmt.Errorf("workflow workspace: input %q is undeclared", name)
 		}
-		if err := validateWorkflowValue(control.Type, rawValue); err != nil {
+		if err := validateWorkflowPart(control, rawValue); err != nil {
 			return fmt.Errorf("workflow workspace: input %q: %w", name, err)
+		}
+	}
+	return nil
+}
+
+// validateWorkflowPart validates a control's value: an object's as a request's input is, field by field, a list's item
+// by item, and a scalar's by its type; null sets an object or a list to nothing.
+func validateWorkflowPart(control workflowControl, raw json.RawMessage) error {
+	if control.Type != workflowControlObject && control.Type != workflowControlList {
+		return validateWorkflowValue(control.Type, raw)
+	}
+	if string(bytes.TrimSpace(raw)) == "null" {
+		return nil
+	}
+	if control.Type == workflowControlObject {
+		return validateWorkflowInput(control.Fields, raw)
+	}
+	var items []json.RawMessage
+	if err := strictjson.Decode(bytes.NewReader(raw), &items); err != nil {
+		return err
+	}
+	for index, item := range items {
+		if err := validateWorkflowPart(*control.Item, item); err != nil {
+			return fmt.Errorf("item %d: %w", index+1, err)
 		}
 	}
 	return nil

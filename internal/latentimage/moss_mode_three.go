@@ -43,8 +43,8 @@ type LayoutDraft struct {
 	Aesthetics  string         `json:"aesthetics,omitzero"`
 	Lighting    string         `json:"lighting,omitzero"`
 	Medium      string         `json:"medium,omitzero"`
-	Palette     []string       `json:"palette,omitzero"`
-	Regions     []LayoutRegion `json:"regions,omitzero"`
+	Palette     []string       `json:"palette,omitzero" controls:"fields"`
+	Regions     []LayoutRegion `json:"regions,omitzero" controls:"fields"`
 	Characters  string         `json:"character_boxes,omitzero"`
 }
 
@@ -59,7 +59,7 @@ type LayoutRegion struct {
 	Type    string   `json:"type,omitzero"`
 	Text    string   `json:"text,omitzero"`
 	Desc    string   `json:"desc,omitzero"`
-	Palette []string `json:"palette,omitzero"`
+	Palette []string `json:"palette,omitzero" controls:"fields"`
 }
 
 // style is the draft's style as the builder reads it: none where it names none.

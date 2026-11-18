@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"overgo/internal/latentimage"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/sampling"
 	"overgo/internal/sensenovarecipe"
 	"slices"
 )
@@ -34,22 +35,35 @@ func routedImageControls(_ string, controls []Control) ([]Control, error) {
 	return offerPresets(controls, senseNovaModel, presets)
 }
 
-// The request fields that name an image model's adapter and its strength (latentimage.Request.Adapter).
+// The request fields that name an image model's adapter and its strength (latentimage.Request.Adapter), and the
+// adapters it stacks, each with its strength (Request.Adapters).
 const (
 	adapterNameControl     = "adapter"
 	adapterStrengthControl = "adapter_strength"
+	adaptersControl        = "adapters"
 )
 
-// adapterControl says the control names an adapter or its strength.
+// adapterControl says the control names an adapter or its strength, or the adapters a request stacks.
 func adapterControl(c Control) bool {
-	return c.Name == adapterNameControl || c.Name == adapterStrengthControl
+	return c.Name == adapterNameControl || c.Name == adapterStrengthControl || c.Name == adaptersControl
 }
 
-// rotaryControl says the control is one only a rotary profile takes, of the MOSS Ultra workflow's sections: a request's
-// picture to sample from, which a page attaches, and its denoise (moss-ultra-sections/img2img), and prompt mode 2's
-// enhancing by the enhancer a MOSS Ultra root holds (moss-ultra-sections/prompt-modes).
-func rotaryControl(c Control) bool {
-	return c.Name == "image" || c.Name == "denoise" || c.Name == "enhance"
+// rotaryControls are the controls only a rotary profile takes, of the MOSS Ultra workflow's sections: a request's
+// picture to sample from, which a page attaches, and its denoise (moss-ultra-sections/img2img), prompt mode 2's
+// enhancing by the enhancer a MOSS Ultra root holds (moss-ultra-sections/prompt-modes), its sampler and scheduler, its
+// canvas, its sharpening, its depth control and prompt mode 3's layout.
+var rotaryControls = []string{"image", "denoise", "enhance", "schedule", "canvas", "sharpen", "control", "layout"}
+
+// part is the field of an object control, or of a list control's object item, that the name names; nil where none.
+func part(control *Control, name string) *Control {
+	fields := control.Fields
+	if control.Item != nil {
+		fields = control.Item.Fields
+	}
+	if at := slices.IndexFunc(fields, func(c Control) bool { return c.Name == name }); at >= 0 {
+		return &fields[at]
+	}
+	return nil
 }
 
 func imageControls(directory string, controls []Control) ([]Control, error) {
@@ -83,7 +97,7 @@ func imageControls(directory string, controls []Control) ([]Control, error) {
 			return nil, err
 		}
 		return slices.DeleteFunc(controls, func(c Control) bool {
-			return c.Name == "negative_prompt" && !guided || c.Name == "guidance_scale" || c.Name == "prompt_mode" || adapterControl(c) || rotaryControl(c)
+			return c.Name == "negative_prompt" && !guided || c.Name == "guidance_scale" || c.Name == "prompt_mode" || adapterControl(c) || slices.Contains(rotaryControls, c.Name)
 		}), nil
 	}
 	// A rotary model offers the adapters it holds, applied unmerged at a strength of 1 unless the person states one,
@@ -95,9 +109,22 @@ func imageControls(directory string, controls []Control) ([]Control, error) {
 	if len(adapters) == 0 {
 		controls = slices.DeleteFunc(controls, adapterControl)
 	}
+	// A rotary page offers the model's adapters, and the samplers and schedulers its schedule may name, as choices.
 	for index := range controls {
-		if controls[index].Name == adapterNameControl {
-			controls[index].Choices = adapters
+		control := &controls[index]
+		switch control.Name {
+		case adapterNameControl:
+			control.Choices = adapters
+		case adaptersControl:
+			if name := part(control, "name"); name != nil {
+				name.Choices = adapters
+			}
+		case "schedule":
+			for field, choices := range map[string][]string{"sampler": sampling.SamplerNames(), "name": sampling.ScheduleNames()} {
+				if named := part(control, field); named != nil {
+					named.Choices = choices
+				}
+			}
 		}
 	}
 	applyBounds(controls, map[string]Bounds{adapterStrengthControl: {Default: 1}})

@@ -152,19 +152,20 @@
   "actual": "modelAdapter reads weights from the named file, but fromHFPipeline inventories only model_index components, leaving the adapters directory outside the model identity. imageCapability passes the latent executor straight to pictureSessions without an adapter-content binding. RunKeyOf therefore stays identical (recipe, JSON request and code), and ModelSessionDirector.serve calls measuredRun/Replay before modelAdapter is reached: the previous image and run are returned without reading the replacement adapter. The retained adapter comparison checks fixed files and strengths, not invalidation of a served result after a file changes. Shown from source at a11ed7e3b5b58078ea7b7627ac687058420c0eb9; no SQA execution."
 },
     {
-  "id": "SQA-408",
+  "id": "SQA-409",
   "severity": "P2",
   "files": [
     "internal/mediacapability/image_cuda_windows.go",
-    "internal/mediacapability/enhanced_first_windows_test.go",
-    "internal/latentimage/enhancer_chat_windows.go",
+    "internal/latentimage/runtime_cuda_windows.go",
+    "internal/latentimage/profile.go",
+    "internal/latentimage/profiles.json",
+    "internal/latentimage/section_presets_windows_test.go",
     "internal/capabilityruntime/session_director.go",
-    "internal/strictjson/decode.go",
     "cmd/recipe/main.go"
   ],
-  "input": "On a configured Ultra model, give recipe run an image-gen input with enhance:true, prompt:\"a fox\", width:1024, height:576 and the unknown field stepps:1. Alternatively give that input duplicate steps members, first 1 then 50. These are invalid under the existing strict request decoder; the workbench has an earlier guard, but the recipe run path calls the capability directly.",
-  "expected": "The existing enhancedFirst admission boundary must apply strictjson to the original request before opening the enhancer. Unknown and duplicate members are refused as they are on the plain image path, with no enhancer or image execution. A valid enhanced request still resolves its prompt and reaches the existing picture director.",
-  "actual": "enhancedFirst uses json.Unmarshal into Request, which ignores stepps and accepts duplicate steps with the last value winning. It calls EnhanceRequest and marshals the result into new JSON before passing it to the director. decodeJSONInput then strictly decodes only that rewritten document: the unknown field or duplicate is already gone, so the invalid original input is accepted and may draw with default or last-wins steps. cmd/recipe.executeCapability/attemptCapability has no earlier schema check. The retained wrapper test covers enhance:false and malformed JSON, not an invalid enhance:true request. Shown from source at d9606e89c04e11c700ed3393fbf6899826f40191; no SQA execution."
+  "input": "With an active valid MOSS image-gen recipe, give recipe run {\"prompt\":\"a fox\",\"preset\":\"ultra-text-to-image\",\"seed\":42}, leaving width, height and canvas unset. The section preset declares its own 16:9, 3-megapixel canvas, which withSection applies when the request gives no size.",
+  "expected": "The existing latent-image preset/canvas owner resolves the effective request before the picture director validates its geometry. This preset-only request reaches the ordinary image session with the declared canvas; explicitly supplied dimensions retain their documented precedence. Keep strict decoding and the existing director and model loader as the shared admission/execution owners.",
+  "actual": "At 1a0c6e44e7cd2b8d1d63630fca7b36eeabe547ea, recipe run passes the raw input to imageCapability. enhancedFirst forwards this non-enhanced input unchanged. pictureSessions installs latentimage.ValidateRequest; ModelSessionDirector.execute/decodeJSONInput calls it before loading, so zero width/height return \"latent image: invalid extent: media: invalid spatial geometry 0x0\". LoadGenerator calls withPreset only after that boundary; its canvas resolution is unreachable. TestTheUltraSectionPresetsHoldTheRecordedSettings calls withPreset directly and proves the defaults, bypassing the failing admission path. Shown from source; no SQA execution."
 }
   ],
   "master_lead_triage": {
@@ -230,17 +231,10 @@
           "adapter-identity/do"
         ],
         "note": "Answered by the lead on 2026-11-17 at 496a0f87d: filed as its own row after the owner's workflow rows and small fixes; the adapter's bytes are bound where the image source resolves the request, the replay and session owners kept."
-      },
-  "SQA-408": {
-        "action": "implemented",
-        "rows": [
-          "moss-ultra-compare/enhance-strict"
-        ],
-        "note": "Answered by the lead on 2026-11-17 at d5bada126: enhancedFirst reads a request with strictjson.DecodeBytes, as the picture session does, and hands one it refuses to the session as it came, which refuses it, no chat opened; held by TestAPictureRequestAskingNoEnhancingGoesToItsSessionAsItIs on an unknown and a repeated member with enhance asked. Implemented by moss-ultra-compare/enhance-strict, for the review's recheck."
       }
 }
   },
-  "next_finding_number": 409,
+  "next_finding_number": 410,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

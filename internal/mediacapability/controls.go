@@ -49,7 +49,15 @@ type Control struct {
 	// Role is the common control the field is on every media page (its role tag, one of controlRoles), whatever its
 	// own JSON name: guidance strength is guidance_scale, cfg_scale or guide_scale by model, and "guidance" on each.
 	Role string
+	// Fields are an object control's own controls, as a request's fields are its controls (a MOSS section's schedule:
+	// its sampler and scheduler); Item is a list control's one item, a control a page repeats (an adapter of those a
+	// section stacks). Both are none for a scalar.
+	Fields []Control
+	Item   *Control
 }
+
+// Nested reports an object control's fields, a []Control, and a list control's item, a *Control, none for a scalar.
+func (control Control) Nested() (fields, item any) { return control.Fields, control.Item }
 
 // controlRoles are the controls every media page offers under one name each, in the order a page lists them (the
 // owner's direction of 2026-11-16: one set of controls for every model); those from steps on are tuning, behind the
@@ -131,6 +139,10 @@ const (
 	ControlNumber = "number"
 	// ControlBoolean is a request field a page sets true or false.
 	ControlBoolean = "boolean"
+	// ControlObject is a request field whose own fields a page sets, each a control (Control.Fields).
+	ControlObject = "object"
+	// ControlList is a request field a page sets as items it adds and removes, each the one control Control.Item.
+	ControlList = "list"
 )
 
 // requestTypes binds each entry module to the zero value of the request its
@@ -303,17 +315,22 @@ func describe(request reflect.Type) ([]Control, string) {
 		if typed.Kind() == reflect.Pointer {
 			typed = typed.Elem()
 		}
-		switch typed.Kind() {
-		case reflect.String:
-			control.Type, control.Required = ControlText, !optional
-		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
-			reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-			control.Type = ControlInteger
-		case reflect.Float32, reflect.Float64:
-			control.Type = ControlNumber
-		case reflect.Bool:
-			control.Type = ControlBoolean
-		default:
+		// A field tagged controls:"fields" is a control of its own fields, the settings a request holds as an object
+		// or a list (a MOSS section's schedule, the adapters it stacks), which a page sets part by part.
+		if field.Tag.Get("controls") == "fields" {
+			parts, refusal := nested(typed)
+			if refusal != "" {
+				return nil, fmt.Sprintf("field %s: %s", name, refusal)
+			}
+			control.Type, control.Fields, control.Item, control.Required = parts.Type, parts.Fields, parts.Item, !optional
+			control.Label = field.Tag.Get("label")
+			controls = append(controls, control)
+			continue
+		}
+		switch control.Type = scalar(typed); control.Type {
+		case ControlText:
+			control.Required = !optional
+		case "":
 			if optional {
 				continue
 			}
@@ -322,4 +339,43 @@ func describe(request reflect.Type) ([]Control, string) {
 		controls = append(controls, control)
 	}
 	return controls, ""
+}
+
+// scalar is the control a page types a value of the type as, empty for a type it cannot type.
+func scalar(typed reflect.Type) string {
+	switch typed.Kind() {
+	case reflect.String:
+		return ControlText
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return ControlInteger
+	case reflect.Float32, reflect.Float64:
+		return ControlNumber
+	case reflect.Bool:
+		return ControlBoolean
+	}
+	return ""
+}
+
+// nested is the control of a field a page sets part by part: an object of a struct's fields, each a control as a
+// request's field is, or a list of a slice's items, each a scalar or an object of a struct's fields.
+func nested(typed reflect.Type) (Control, string) {
+	switch typed.Kind() {
+	case reflect.Struct:
+		fields, refusal := describe(typed)
+		return Control{Type: ControlObject, Fields: fields}, refusal
+	case reflect.Slice:
+		element := typed.Elem()
+		if element.Kind() == reflect.Pointer {
+			element = element.Elem()
+		}
+		if element.Kind() == reflect.Struct {
+			item, refusal := nested(element)
+			return Control{Type: ControlList, Item: &item}, refusal
+		}
+		if kind := scalar(element); kind != "" {
+			return Control{Type: ControlList, Item: &Control{Type: kind}}, ""
+		}
+	}
+	return Control{}, fmt.Sprintf("a page cannot set %s part by part", typed)
 }

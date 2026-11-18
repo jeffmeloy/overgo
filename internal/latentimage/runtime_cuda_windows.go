@@ -48,12 +48,12 @@ type Request struct {
 	EightBitAttention bool `json:"-"`
 	// Schedule is the sigmas a rotary profile (MOSS) samples by in place of its own: a scheduler by name (bong_tangent,
 	// beta57) or a list of the request's own, as ComfyUI's KSampler takes them.
-	Schedule *sampling.Schedule `json:"schedule,omitempty"`
+	Schedule *sampling.Schedule `json:"schedule,omitempty" controls:"fields"`
 	// Canvas sizes the picture from an aspect ratio and megapixels, as ComfyUI's ResolutionSelector does, in place of a
 	// width and height the request then leaves unset.
-	Canvas *media.Canvas `json:"canvas,omitempty"`
+	Canvas *media.Canvas `json:"canvas,omitempty" controls:"fields"`
 	// Sharpen sharpens a rotary profile's picture after it is decoded, as ComfyUI's ImageSharpen does.
-	Sharpen *media.Sharpening `json:"sharpen,omitempty"`
+	Sharpen *media.Sharpening `json:"sharpen,omitempty" controls:"fields" label:"sharpening"`
 	// Adapter names one of the model's adapters (<model>/adapters/<name>.safetensors), which a rotary profile applies
 	// unmerged at AdapterStrength, 1 where the request states none (mediaAdapter): a new strength rewrites no weight.
 	Adapter         string   `json:"adapter,omitzero"`
@@ -61,7 +61,7 @@ type Request struct {
 	// Adapters names several of the model's adapters, each at its strength, applied together in their order, as the
 	// MOSS Ultra workflow's Turbo sections stack theirs (rgthree's Power Lora Loader: DMD2, moss-control, the SFT
 	// adapter); a request names its adapters so or one Adapter, not both.
-	Adapters *[]AppliedAdapter `json:"adapters,omitempty"`
+	Adapters *[]AppliedAdapter `json:"adapters,omitempty" controls:"fields"`
 	// Image is a picture, a PNG in base64 as JSON gives bytes, that a rotary profile samples from (image to image):
 	// scaled to the canvas as ComfyUI's ImageScale scales it at lanczos with a centre crop (media.ScaleLikeComfyUI),
 	// encoded by the model's VAE, and started from at the schedule's first sigma, σ₀ times the noise plus 1 − σ₀
@@ -75,7 +75,7 @@ type Request struct {
 	// effect, and above 0.9999 the whole schedule, as ComfyUI rounds it.
 	Denoise float64 `json:"denoise,omitzero"`
 	// Control is a depth map a rotary request samples by, through the control adapter it names (DepthControl).
-	Control *DepthControl `json:"control,omitempty"`
+	Control *DepthControl `json:"control,omitempty" controls:"fields" label:"depth control"`
 	// SkipBlocks are the blocks a rotary profile's negative pass skips, as ComfyUI's SkipLayerGuidanceDiTSimple names
 	// them: the profile's where the request states none (MOSS's 22, which the MOSS Ultra workflow's text and image
 	// sections skip), none where it states an empty list (its depth sections, which skip none).
@@ -83,7 +83,7 @@ type Request struct {
 	// Layout is a rotary request's prompt as the MOSS Ultra workflow's prompt mode 3 takes it, its Ideogram 4 builder's
 	// fields and regions, which make MOSS's layout prompt on the canvas the request draws (LayoutDraft.prompt) in place
 	// of a prompt of its own.
-	Layout *LayoutDraft `json:"layout,omitempty"`
+	Layout *LayoutDraft `json:"layout,omitempty" controls:"fields"`
 	// Enhance asks the MOSS Ultra workflow's prompt mode 2 of a rotary request: its prompt a source idea and its negative
 	// the exclusions, of which the model's enhancer chat writes the prompt and negative it is drawn by (EnhanceRequest),
 	// before the picture session takes it.

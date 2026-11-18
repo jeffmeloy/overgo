@@ -9,7 +9,7 @@
         {
           "id": "workbench",
           "title": "Six workbench presets, one per section, take their values from the recorded settings, with sampler, schedule, denoise, adapter, depth preview, size, box editor, enhance, A/B and sharpen controls",
-          "verify": "go test ./internal/server -count=1 -run '^TestTheWorkbenchOffersTheUltraPresets$'",
+          "verify": "OVERGO_WEBUI_LANE=1 go test ./internal/server -count=1 -run '^TestTheWorkbenchOffersTheUltraPresets$'",
           "files": [
             "internal/server",
             "fixtures/comfy"

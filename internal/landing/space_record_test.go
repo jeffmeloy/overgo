@@ -73,9 +73,12 @@ func TestTheSpaceFloorIsTheGreatestLandedFallOfTheWeek(t *testing.T) {
 	_, stop, err := WatchFall(directory, VolumeFree)
 	testcheck.NoError(t, err)
 	written := filepath.Join(directory, "written")
-	const size = 64 << 20
+	// The volume is shared: whatever frees space beside the write lowers the fall the watch reads (a landing's parallel
+	// tests removing their temporary files took one 4 KiB cluster off it on 2026-11-18), so the watch is held to the
+	// write less besideSlack, which still tells a fall it saw from none.
+	const size, besideSlack = 64 << 20, 1 << 20
 	testcheck.NoError(t, os.WriteFile(written, make([]byte, size), 0o600))
-	if fall := testcheck.Must(stop())(t); fall < size {
-		t.Errorf("a watch over a write of %d bytes read a fall of %d bytes; want at least the write", size, fall)
+	if fall := testcheck.Must(stop())(t); fall < size-besideSlack {
+		t.Errorf("a watch over a write of %d bytes read a fall of %d bytes; want the write, less %d bytes freed beside it at most", size, fall, besideSlack)
 	}
 }

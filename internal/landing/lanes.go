@@ -160,6 +160,10 @@ var cycleLanes = []lane{
 			// it shares, so any file there reaches it.
 			"internal/audioparity/"},
 		command: func(string) []string { return []string{"run", "./cmd/webui-lane", "-journeys"} },
+		// A journey's Library validation runs in its own test process, the cold proxy's workbench, and records and
+		// replays its suite on the card, which a test reaches only under the CUDA switch (driver hostTestReach): run
+		// without it, the validation failed on 2026-11-17 and its cause stayed hidden (failure-cause).
+		environment: []string{cudaTestEnvironment},
 	},
 	{
 		// The audio acceptances run the recorded speech models against the

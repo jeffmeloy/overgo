@@ -3,22 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "failure-cause",
-      "title": "An operation that fails before recording its run names its cause beside the run it lacks, so the Library's failed validation in the model-journey lane says why",
-      "steps": [
-        {
-          "id": "cure",
-          "title": "The Library's validation of the hub model completes as the model-journey lane drives it, its cause, which failure-cause/do names, found by reproducing it and cured",
-          "verify": "OVERGO_MODEL_JOURNEY=1 OVERGO_WEBUI_LANE=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test ./internal/server -count=1 -timeout=0 -run '^TestModelJourneyLibraryValidation$'",
-          "files": [
-            "internal/libraryintake",
-            "internal/server"
-          ],
-          "rationale": "The owner's review of 2026-11-17: failure-cause/do makes the model journey's failure say why; the break itself stays. The Library's validation of the hub model (Qwen2.5-0.5B, libraryintake validate: an exact suite recorded and replayed on the card, its verification published and the capability activated) returned an error before it published its run, and its cause was hidden behind the run it lacked. With failure-cause/do the journey's failure names it; the step reproduces the validation as the journey drives it, finds where it fails among the commits since 8dfa48064, where the lane last passed, and cures it, the journey's validation completing again.\n\nServes: a working model's Library validation, the model-journey lane.\n\nCheck: TestModelJourneyLibraryValidation, in the model-journey lane's environment, on the card.\n\nBatch: device lane."
-        }
-      ]
-    },
-    {
       "id": "moss-eight-step",
       "title": "MOSS's three Turbo sections, 8 steps at guidance 1 through the adapters each stacks, are held to the workflow's Turbo recordings as its sections of 50 steps are",
       "steps": [

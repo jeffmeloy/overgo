@@ -300,6 +300,17 @@ func TestAudioLaneOptsIntoTheStoreAcceptance(t *testing.T) {
 	}
 }
 
+// TestTheModelJourneyLaneAdmitsTheCard holds the model-journey lane to the card's switch (failure-cause/cure): its
+// Library validation records and replays its suite on the card from its own test process, which the driver refuses a
+// context without OVERGO_CUDA_TEST=1, so the lane that runs the journeys sets it.
+func TestTheModelJourneyLaneAdmitsTheCard(t *testing.T) {
+	t.Parallel()
+	index := slices.IndexFunc(cycleLanes, func(candidate lane) bool { return candidate.name == "model-journey" })
+	if index < 0 || !slices.Contains(cycleLanes[index].environment, cudaTestEnvironment) {
+		t.Fatalf("the model-journey lane runs without %s; its Library validation is refused the card", cudaTestEnvironment)
+	}
+}
+
 // TestARunnersImportsRunOnlyItsOwnTests holds the device and browser lanes' reach to their tests: each runner's own
 // files reach its lane, through a prefix of its directory, and what the runner alone imports does not, since that
 // cannot change a device or browser result and the runner's tests hold the commands it builds. A fixture module pins the

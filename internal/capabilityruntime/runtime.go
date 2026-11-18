@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"os"
 	"time"
 
 	"overgo/internal/artifact"
@@ -50,44 +51,79 @@ func (catalog ExecutorCatalog) Execute(
 // inventory to the key its run is kept under.
 type besideContextKey struct{}
 
+// Beside names, for Reading, what a request's answer reads beside its model's inventory, from the model's path and the
+// request: a text encoder, a tokenizer, an image processor, a picture's adapters. It gives what it held for the naming
+// back by release once the request is served; a naming it cannot make holds nothing.
+type Beside func(ctx context.Context, store artifact.Repository, path, raw string) (named string, release func() error, err error)
+
 // Reading returns an executor whose answers are kept under what its model
-// reads beside its inventory as well: a text encoder, a tokenizer, an image
-// processor, whose bytes beside names from the model's path. A model's
-// identity is its inventory's, so a file outside it can change with no
-// identity moving, and the answer it shaped would be given again. What beside
-// cannot name authorizes no reuse: the request is executed, and its answer
-// answers no other (FreshRun).
-func Reading(execute Executor, beside func(ctx context.Context, store artifact.Repository, path string) (string, error)) Executor {
+// reads beside its inventory as well, as beside names it. A model's identity
+// is its inventory's, so a file outside it can change with no identity
+// moving, and the answer it shaped would be given again. What beside cannot
+// name authorizes no reuse: the request is executed, and its answer answers
+// no other (FreshRun). A request beside names nothing for is kept as it
+// would be without it.
+func Reading(execute Executor, beside Beside) Executor {
 	return func(ctx context.Context, store artifact.Repository, path string, execution modelrecipe.CapabilityEvidenceSelection, raw string) (any, error) {
 		naming := processmeasure.Stage(ctx, "files beside the model named")
-		named, err := beside(ctx, store, path)
+		named, release, err := beside(ctx, store, path, raw)
 		naming()
 		if err != nil {
 			return execute(FreshRun(ctx), store, path, execution, raw)
 		}
-		return execute(context.WithValue(ctx, besideContextKey{}, named), store, path, execution, raw)
+		if named != "" {
+			ctx = context.WithValue(ctx, besideContextKey{}, named)
+		}
+		output, err := execute(ctx, store, path, execution, raw)
+		return output, errors.Join(err, release())
 	}
 }
 
-// Contents names files by their bytes, each read whole, for Reading: the
-// files a model reads beside its inventory that are small enough to read for
-// every request. One that is absent is named so; one that cannot be read is
-// not named.
-func Contents(files func(path string) []string) func(context.Context, artifact.Repository, string) (string, error) {
-	return func(_ context.Context, _ artifact.Repository, path string) (string, error) {
+// PathNaming is a Beside that names from the model's path alone, as name does, and holds nothing.
+func PathNaming(name func(ctx context.Context, store artifact.Repository, path string) (string, error)) Beside {
+	return func(ctx context.Context, store artifact.Repository, path, _ string) (string, func() error, error) {
+		named, err := name(ctx, store, path)
+		return named, func() error { return nil }, err
+	}
+}
+
+// Contents names files by their bytes, each read whole for every request, for Reading: the files a request's answer
+// reads beside its model's inventory, which files lists from the model's path and the request. One that is absent is
+// named so; one that cannot be read is not named; a request it lists none for is named nothing. Each file named is held
+// open, sharing reading alone, until the request is served (holdFile), so it is read as it was named: a picture's
+// adapter switched between its naming and its reading was answered under the earlier adapter's name (SQA-406).
+func Contents(files func(path, raw string) ([]string, error)) Beside {
+	return func(_ context.Context, _ artifact.Repository, path, raw string) (string, func() error, error) {
+		listed, err := files(path, raw)
+		if err != nil || len(listed) == 0 {
+			return "", func() error { return nil }, err
+		}
+		var held []*os.File
+		release := func() error {
+			var err error
+			for _, file := range held {
+				err = errors.Join(err, file.Close())
+			}
+			return err
+		}
 		named := sha256.New()
-		for _, file := range files(path) {
-			id, err := artifact.IdentifyFile(artifact.KindFile, file)
+		for _, file := range listed {
+			opened, err := holdFile(file)
 			if errors.Is(err, fs.ErrNotExist) {
 				fmt.Fprintln(named, "absent")
 				continue
 			}
 			if err != nil {
-				return "", err
+				return "", nil, errors.Join(err, release())
+			}
+			held = append(held, opened)
+			id, _, err := artifact.Identify(artifact.KindFile, opened)
+			if err != nil {
+				return "", nil, errors.Join(err, release())
 			}
 			fmt.Fprintln(named, id)
 		}
-		return hex.EncodeToString(named.Sum(nil)), nil
+		return hex.EncodeToString(named.Sum(nil)), release, nil
 	}
 }
 

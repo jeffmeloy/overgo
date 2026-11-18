@@ -3,6 +3,22 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "lanes-card-order",
+      "title": "A lanes package on the card takes the card before the test turn, so a commit's tests never wait on a package waiting for the card",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A lanes package on the card takes the card before the test turn, so a commit's tests never wait on a package waiting for the card",
+          "verify": "go test ./internal/landing -count=1 -run '^TestALanesPackageWaitingForTheCardHoldsNoTestTurn$'",
+          "files": [
+            "internal/landing",
+            "cmd/validate"
+          ],
+          "rationale": "Note: Measured on 2026-11-18 with the lanes run c308e6088 started on its row's close: the models lane's package internal/latentimage took the test turn, then waited 20 min 47 s for the card turn, which adapter-identity's landing held for its lanes, while holding the test turn; depth-preset's landing, whose tests do not use the card, waited 1 h 3 min for the test turn, that wait and the package's run. A lanes package on the card takes the test turn first (landing.HoldTestTurnEach) and the card turn inside it (plan.HoldsCard in cmd/validate's lanes loop), so the test turn, which bounds the machine's memory for host tests, is held idle while the package waits for the card.\n\nThe cure: a lanes package on the card takes the card turn before the test turn and gives both up, the test turn yielded to a waiting commit as now, so a package waiting for the card holds nothing a commit's tests take; while it waits, a commit's tests run. A landing's own order stays: its tests in the test turn, then its lanes on the card.\n\nCheck: a lanes package on the card waiting for the card turn holds no test turn: a commit coming to the test turn meanwhile takes it at once.\n\nServes: every commit landing beside the cycle's lanes."
+        }
+      ]
+    },
+    {
       "id": "moss-speed",
       "title": "Where a MOSS step's time goes at 2368 x 1344, against ComfyUI's 1.1 s, and the depth estimate's 80 s on the processor, is measured part by part, the largest share cured after",
       "steps": [

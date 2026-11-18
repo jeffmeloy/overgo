@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	goruntime "runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -72,14 +73,19 @@ func TestStoredResultIsReusedOnlyUnderItsOwnIdentity(t *testing.T) {
 		func(runtime *workflowruntime.Runtime, bound artifact.ID, _ reusedModel) error {
 			return workflowruntime.RegisterJSONStage[scalarRequest, int](runtime, scalarModule, bound, contract, func(request scalarRequest) (int, error) {
 				executed++
+				// While the model reads it, the file named beside it is held as it was named (holdFile); the table's
+				// next write to it finds it given back.
+				if !unreadable && goruntime.GOOS == "windows" && os.WriteFile(preprocessor, []byte("rewritten while read"), 0o644) == nil {
+					t.Error("the file named beside the model was written while the request read it")
+				}
 				return request.Value * gain, nil
 			})
 		},
-	), func(ctx context.Context, store artifact.Repository, path string) (string, error) {
+	), func(ctx context.Context, store artifact.Repository, path, raw string) (string, func() error, error) {
 		if unreadable {
-			return "", errors.New("the file beside the model cannot be read")
+			return "", nil, errors.New("the file beside the model cannot be read")
 		}
-		return Contents(func(string) []string { return []string{preprocessor} })(ctx, store, path)
+		return Contents(func(string, string) ([]string, error) { return []string{preprocessor}, nil })(ctx, store, path, raw)
 	})
 	scorer := JSONScalar[scoreRequest, *strings.Builder, int](
 		"scalar", func(scoreRequest) error { return nil },

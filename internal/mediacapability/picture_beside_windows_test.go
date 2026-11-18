@@ -9,80 +9,82 @@ import (
 	"time"
 
 	"overgo/internal/capabilityruntime"
-	"overgo/internal/latentimage"
-	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 )
 
-// TestAReplacedAdapterIsReadAgain holds a picture request naming an adapter to the adapter's bytes (SQA-406): the
-// picture director keys its run by the file's content as well as the request, so a file replaced under the adapter's
-// name is a new run, computed afresh, and the earlier bytes again key the earlier run, which the store replays. A run was
-// keyed by the request alone, and a replaced adapter replayed the picture the earlier file made. So is a depth control
-// drawn from a picture keyed by the depth estimator it is read by, and one given its map by none. A request naming no
-// adapter is keyed as before, and a name that is no file name is refused.
+// TestAReplacedAdapterIsReadAgain holds a picture request naming an adapter to the adapter's bytes (SQA-406): its
+// answer is kept under the bytes of the files it reads beside its model (pictureFiles, capabilityruntime.Contents), so
+// other weights installed under the adapter's name are a new run, computed afresh, even under the size and the time
+// the earlier file had, and the earlier bytes again name the earlier run, which the store replays. Each file named is
+// held as named until the request is served, so no weights are switched under it between its naming and its reading.
+// A request's preset's adapter is named as its own, a depth control drawn from a picture names the depth estimator it
+// is read by and one given its map does not, a request reading no such file is named nothing and kept as before, and a
+// name that is no file name is not named, so the request is run afresh and refused by its session.
 func TestAReplacedAdapterIsReadAgain(t *testing.T) {
 	t.Parallel()
 	model := t.TempDir()
 	adapter, estimator := filepath.Join(model, "adapters", "turbo.safetensors"), filepath.Join(model, "depth", "depth_anything_v2_vits.pth")
-	written := time.Now()
-	write := func(file, bytes string) {
+	installed := time.Now().Add(-time.Hour)
+	install := func(file, bytes string) {
 		t.Helper()
-		// Each write is a later file, as a replaced one is.
-		written = written.Add(time.Second)
+		// Each file is installed under the one time, as a copy keeping its source's time installs it.
 		testcheck.NoError(t, os.MkdirAll(filepath.Dir(file), 0o755))
 		testcheck.NoError(t, os.WriteFile(file, []byte(bytes), 0o600))
-		testcheck.NoError(t, os.Chtimes(file, written, written))
+		testcheck.NoError(t, os.Chtimes(file, installed, installed))
 	}
-	director := pictureService(t)
-	var definition recipe.Definition
-	key := func(request latentimage.Request) string {
+	naming := capabilityruntime.Contents(pictureFiles)
+	name := func(request string) string {
 		t.Helper()
-		content := testcheck.Must(capabilityruntime.InputContent("overgo.image-gen.request.v1", request))(t)
-		return testcheck.Must(director.RunKey(t.Context(), model, definition, request, content))(t)
+		named, release, err := naming(t.Context(), nil, model, request)
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, release())
+		return named
 	}
-	named := latentimage.Request{Prompt: "a lighthouse at dusk", Width: 64, Height: 64, Seed: 7, Adapters: &[]latentimage.AppliedAdapter{{Name: "turbo"}}}
+	const named = `{"prompt":"a lighthouse at dusk","width":64,"height":64,"seed":7,"adapters":[{"name":"turbo"}]}`
 
-	write(adapter, "the first adapter's weights")
-	first := key(named)
-	write(adapter, "the second adapter weights!")
-	if second := key(named); second == first {
-		t.Fatalf("a request naming an adapter replaced under its name is keyed %s, as the earlier file's run; want a run of its own", second)
+	install(adapter, "the first adapter's weights")
+	first := name(named)
+	install(adapter, "the other adapter's weights")
+	if second := name(named); second == first || second == "" {
+		t.Fatalf("other weights under the adapter's name, size and time are named %q, as the earlier file's %q; want a run of their own", second, first)
 	}
-	write(adapter, "the first adapter's weights")
-	if again := key(named); again != first {
-		t.Fatalf("a request naming the adapter's first bytes again is keyed %s; want the first run's key %s, which the store replays", again, first)
+	install(adapter, "the first adapter's weights")
+	if again := name(named); again != first {
+		t.Fatalf("the adapter's first bytes again are named %q; want the first run's %q, which the store replays", again, first)
 	}
+
+	_, release, err := naming(t.Context(), nil, model, named)
+	testcheck.NoError(t, err)
+	if os.WriteFile(adapter, []byte("weights switched while read"), 0o600) == nil {
+		t.Error("the adapter was written between its naming and the request's end; want it held as named")
+	}
+	testcheck.NoError(t, release())
+	testcheck.NoError(t, os.WriteFile(adapter, []byte("the first adapter's weights"), 0o600))
 
 	// A preset's adapters are read as the request's own: the depth section's control adapter here.
 	testcheck.NoError(t, os.WriteFile(filepath.Join(model, "model_index.json"), []byte(`{"_class_name": "MOSSImagePipeline"}`), 0o600))
 	control := filepath.Join(model, "adapters", "moss-control.safetensors")
-	preset := latentimage.Request{Prompt: "a fox", Width: 64, Height: 64, Preset: "ultra-depth-control"}
-	write(control, "the first control adapter")
-	presetFirst := key(preset)
-	write(control, "the other control adapter")
-	if key(preset) == presetFirst {
-		t.Fatal("a request whose preset names an adapter replaced under its name is keyed as before; want a run of its own")
+	const preset = `{"prompt":"a fox","width":64,"height":64,"seed":7,"preset":"ultra-depth-control","control":{"map":"a depth map"}}`
+	install(control, "the first control adapter")
+	presetFirst := name(preset)
+	install(control, "the other control adapter")
+	if name(preset) == presetFirst {
+		t.Fatal("a request whose preset names an adapter replaced under its name is named as before; want a run of its own")
 	}
 
-	drawn, given := named, named
-	drawn.Control, given.Control = &latentimage.DepthControl{Picture: "a picture"}, &latentimage.DepthControl{Map: "a depth map"}
-	write(estimator, "the first estimator's weights")
-	drawnFirst, givenFirst := key(drawn), key(given)
-	write(estimator, "the other estimator weights!!")
-	if key(drawn) == drawnFirst || key(given) != givenFirst {
-		t.Fatal("a depth control is keyed apart from its estimator's bytes; want one drawn from a picture keyed by them, and one given its map not")
+	const drawn = `{"prompt":"a fox","width":64,"height":64,"seed":7,"adapter":"turbo","control":{"picture":"a picture"}}`
+	const given = `{"prompt":"a fox","width":64,"height":64,"seed":7,"adapter":"turbo","control":{"map":"a depth map"}}`
+	install(estimator, "the first estimator's weights")
+	drawnFirst, givenFirst := name(drawn), name(given)
+	install(estimator, "the other estimator weights!!")
+	if name(drawn) == drawnFirst || name(given) != givenFirst {
+		t.Fatal("a depth control is named apart from its estimator's bytes; want one drawn from a picture named by them, and one given its map not")
 	}
 
-	bare := named
-	bare.Adapters = nil
-	content := testcheck.Must(capabilityruntime.InputContent("overgo.image-gen.request.v1", bare))(t)
-	if got, want := key(bare), capabilityruntime.RunKeyOf[*latentimage.Generator](definition, content); got != want {
-		t.Fatalf("a request naming no adapter is keyed %s; want %s, as before", got, want)
+	if bare := name(`{"prompt":"a lighthouse at dusk","width":64,"height":64,"seed":7}`); bare != "" {
+		t.Fatalf("a request naming no adapter is named %q; want nothing, so it is kept as before", bare)
 	}
-	outside := named
-	outside.Adapter, outside.Adapters = `..\turbo`, nil
-	content = testcheck.Must(capabilityruntime.InputContent("overgo.image-gen.request.v1", outside))(t)
-	if _, err := director.RunKey(t.Context(), model, definition, outside, content); err == nil {
-		t.Fatal("a request naming an adapter outside the model's adapters was keyed; want it refused")
+	if _, _, err := naming(t.Context(), nil, model, `{"prompt":"a lighthouse","width":64,"height":64,"adapter":"..\\turbo"}`); err == nil {
+		t.Fatal("a request naming an adapter outside the model's adapters was named; want it run afresh, named nothing")
 	}
 }

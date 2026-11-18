@@ -29,10 +29,9 @@ type pictureDirector = capabilityruntime.ModelSessionDirector[latentimage.Reques
 
 // pictureSessions makes a director of latent picture sessions. A session is
 // compiled for a picture's extent, and serves any prompt and seed
-// (latentimage Request.SessionKey). A request's run is keyed by the adapters
-// and depth estimator it reads as well (pictureBeside).
+// (latentimage Request.SessionKey).
 func pictureSessions() (*pictureDirector, error) {
-	director, err := capabilityruntime.NewModelSessionDirector[latentimage.Request, *latentimage.Generator, latentimage.EncodedImage](
+	return capabilityruntime.NewModelSessionDirector[latentimage.Request, *latentimage.Generator, latentimage.EncodedImage](
 		"image-gen", imageDevice, imageSessionCapacity,
 		latentimage.ValidateRequest,
 		func(ctx context.Context, store artifact.Repository, path string, program recipe.Program, request latentimage.Request) (*latentimage.Generator, error) {
@@ -51,10 +50,6 @@ func pictureSessions() (*pictureDirector, error) {
 		},
 		latentimage.RegisterRuntime,
 	)
-	if err != nil {
-		return nil, err
-	}
-	return director.BindContent(pictureBeside), nil
 }
 
 func imageCapability() Capability {
@@ -70,7 +65,7 @@ func imageCapability() Capability {
 		sensenovarecipe.RegisterRuntime,
 	)
 	routed := sessionExecutor(routedDirector, routedErr)
-	latent := preparedFirst(sessionExecutor(pictureSessions()))
+	latent := capabilityruntime.Reading(preparedFirst(sessionExecutor(pictureSessions())), capabilityruntime.Contents(pictureFiles))
 	oscillator := capabilityruntime.JSONScalar[oscillatorimage.Request, *oscillatorimage.Model, latentimage.EncodedImage](
 		"image-gen", oscillatorimage.ValidateRequest,
 		capabilityruntime.IgnoreInput[oscillatorimage.Request](oscillatorimage.Load), oscillatorimage.RegisterRuntime,
@@ -114,6 +109,18 @@ func depthPreview(ctx context.Context, store artifact.Repository, path string, _
 		return nil, err
 	}
 	return latentimage.DepthPreview(path, read)
+}
+
+// pictureFiles are the files a latent picture request reads beside its model's components, which its answer is kept
+// under as well (capabilityruntime.Reading): the adapters it or its preset names and the depth estimator a control
+// picture is read by (latentimage Request.Beside). A file replaced under its name gave the earlier file's picture again
+// (SQA-406). A request that cannot be read names none, and the session refuses it.
+func pictureFiles(path, raw string) ([]string, error) {
+	var request latentimage.Request
+	if strictjson.DecodeBytes([]byte(raw), &request) != nil {
+		return nil, nil
+	}
+	return request.Beside(path)
 }
 
 // preparedFirst prepares a latent picture request ahead of its session: a request stating no size is given its

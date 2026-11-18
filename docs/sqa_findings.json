@@ -142,17 +142,16 @@
       "id": "SQA-406",
       "severity": "P2",
       "files": [
-        "internal/mediacapability/image_source.go",
-        "internal/mediacapability/image_cuda_windows.go",
-        "internal/modelartifact/pipeline.go",
+        "internal/mediacapability/picture_beside_windows.go",
+        "internal/mediacapability/picture_beside_windows_test.go",
+        "internal/latentimage/runtime_cuda_windows.go",
         "internal/capabilityruntime/session_director.go",
-        "internal/capabilityruntime/run_key.go",
         "internal/latentimage/media_adapter.go",
         "internal/latentimage/source_latent_windows.go"
       ],
-      "input": "Complete a fixed-seed MOSS image-gen run in a valid HF pipeline whose model_index omits adapters and depth. Repeat it after replacing only (1) the named adapter with compatible weights or (2) depth/depth_anything_v2_vits.pth for a control.picture request with explicit size and moss-control. Keep the picture, recipe, request, code and base files identical.",
-      "expected": "Bind the bytes of the selected adapter(s) and, for control.picture, the depth estimator before checking replay. Replacing a consumed file recomputes the image. Unchanged inputs may replay. A supplied control.map needs no depth estimator.",
-      "actual": "fromHFPipeline inventories declared components. preparedFirst resolves stored pictures, but neither it nor resolveImageSource binds either external weight to this run. The director can return a completed image before modelAdapter or sectionDepth reads the changed file. In case 2 the preview reads the current estimator while generation can return the old result. Both cases follow the same missing binding. Source at 12f172302, no replacement run performed."
+      "input": "In one running MOSS server, finish a fixed-seed request with adapter A. At the same path install different compatible weights B with the same byte count and modification time, then repeat. The same case applies to the estimator for control.picture. Separately, on a cache miss, switch the weights from A to B after RunKey returns and before the executor opens the file.",
+      "expected": "The picture director may replay only for the weights selected by the request. On a miss the image executor must consume the same content the run key names, or decline to publish under that key. Preserve replay for unchanged content and keep control.map independent of the estimator.",
+      "actual": "Source at fe5d0849f. The director now includes adapter and estimator digests. besideIdentity reuses the old digest on path, size and modification time alone, so the repeated request returns A's stored image for B. On a miss, modelAdapter or sectionDepth reopens the mutable path after lookup. ExecuteMeasured can then publish B's result under A's key. The retained replacement check advances the timestamp on every write."
     },
     {
       "id": "SQA-409",
@@ -208,12 +207,12 @@
         "note": "Answered by the lead on 2026-11-17: a rehearsal clone's slot restore, outside the MOSS Ultra workflow campaign the owner scoped the plan to and on no working model's path (a clone rehearses a store migration), so it waits with the other rows the campaign set aside; the source store's restore is unaffected."
       },
   "SQA-409": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "preset-size/do",
-          "depth-preset/do"
+          "depth-preset/served"
         ],
-        "note": "Answered by the lead on 2026-11-17, at the owner's note: the image capability's preparing step gives a request stating no size its canvas's or its preset's before the picture session's director checks it. Implemented by preset-size/do (1ab2ac601). Reopened by the review at a821fd2fd and answered by the lead on 2026-11-18: valid from source (the director validates a preset-only depth request before withSection fills its control adapter, and neither depth preset fills the recorded end_percent of 0.5, which the golden comparisons take from the recording themselves), so the served depth sections leave the workflow's recording; filed as depth-preset/do, ahead of the speed work, a workflow row."
+        "note": "Answered by the lead on 2026-11-17, at the owner's note: the image capability's preparing step gives a request stating no size its canvas's or its preset's before the picture session's director checks it. Implemented by preset-size/do (1ab2ac601). Reopened by the review at a821fd2fd and answered by the lead on 2026-11-18: valid from source (the director validates a preset-only depth request before withSection fills its control adapter, and neither depth preset fills the recorded end_percent of 0.5, which the golden comparisons take from the recording themselves), so the served depth sections leave the workflow's recording; filed as depth-preset/do, ahead of the speed work, a workflow row, and implemented by depth-preset/served (3b17585dc), the section presets' test holding each depth preset to its MOSSImageControl, for the review's recheck."
       },
   "SQA-410": {
         "action": "filed",
@@ -276,11 +275,12 @@
         "note": "Reopened by the lead's recheck on 2026-11-13: run-from-files/do and recipe-state made the first repair, whose tests pass at f110d30b1, but the review's evidence names three publication owners that still read recipe state at publication and drop a lookup error, so an empty Verification earns the legacy path and a later activation can replace execution-time state. execution-state/do carries the state read at execution to publication. Implemented 2026-11-16 by execution-state/do (f7338b9b0), for the review's recheck."
       },
   "SQA-406": {
-        "action": "implemented",
+        "action": "filed",
         "rows": [
-          "adapter-identity/do"
+          "adapter-identity/do",
+          "beside-content/do"
         ],
-        "note": "Answered by the lead on 2026-11-17 at 496a0f87d: filed as its own row after the owner's workflow rows and small fixes; the adapter's bytes are bound where the image source resolves the request, the replay and session owners kept. The review's extension to the depth estimator a control picture reads is taken in the same step (2026-11-18): the picture director keys a run by the content of every file a request reads beside its model's components, its preset's adapters among them (latentimage Request.Beside). Implemented by adapter-identity/do, for the review's recheck."
+        "note": "Answered by the lead on 2026-11-17 at 496a0f87d: filed as its own row after the owner's workflow rows and small fixes; the adapter's bytes are bound where the image source resolves the request, the replay and session owners kept. The review's extension to the depth estimator a control picture reads is taken in the same step (2026-11-18): the picture director keys a run by the content of every file a request reads beside its model's components, its preset's adapters among them (latentimage Request.Beside). Implemented by adapter-identity/do (fe5d0849f). Reopened by the review at fe5d0849f and answered by the lead on 2026-11-18: both points valid from source (the digest cache trusted path, size and time, and the session reopens a file after its naming), and the binding duplicated capabilityruntime.Reading; filed as beside-content/do, which serves the picture through Reading with Contents over the request's files, reads each whole for every request and holds it, sharing reading alone, until the request is served."
       }
 }
   },

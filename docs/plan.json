@@ -3,22 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "lanes-on-close",
-      "title": "A row's closing commit runs the cycle's lanes at that commit, with no timer, so a break in a working model is found beside the commit that caused it",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A row's closing commit runs the cycle's lanes at that commit, with no timer, so a break in a working model is found beside the commit that caused it",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestARowsClosingRunsTheLanesAtItsCommit$'",
-          "files": [
-            "cmd/loop",
-            "internal/landing"
-          ],
-          "rationale": "Note: The owner's review of 2026-11-17: two of the cycle's five lanes failed at 1ab2ac601, 66 commits after their last run (8dfa48064, 2026-11-16), so a break in a working model was found a day from the commit that caused it: the oscillator clip asked at scale 0 since preset-form/do (clip-scale), and the Library's validation (failure-cause). Nothing ran the lanes between: a cycle runs them only when the plan is empty (HandStartDue), and a timer would guess a cadence. A row's closing commit, the landing that completes its last open step, starts the cycle's lanes at that commit, from a checkout of it so the working folder stays free (as the owner's note asked), taking turns with commits (lanes-turns), its record kept where the lanes' is (lane_runs.json); a run already going at an older commit is overtaken by the next close, not stacked.\n\nServes: a working model's break found beside the row that broke it.\n\nCheck: TestARowsClosingRunsTheLanesAtItsCommit, host only.\n\nBatch: host lane."
-        }
-      ]
-    },
-    {
       "id": "moss-speed",
       "title": "Where a MOSS step's time goes at 2368 x 1344, against ComfyUI's 1.1 s, and the depth estimate's 80 s on the processor, is measured part by part, the largest share cured after",
       "steps": [

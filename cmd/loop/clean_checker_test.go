@@ -35,7 +35,7 @@ func TestALandingsCheckerIsBuiltFromCommittedCode(t *testing.T) {
 		output, err := exec.Command(arguments[0], arguments[1:]...).CombinedOutput()
 		return string(output), err
 	}
-	if refusal, err := buildChecker(root, checker, build); err != nil {
+	if refusal, err := buildChecker(root, checker, "./cmd/gate", build); err != nil {
 		t.Fatalf("the checker was not built: %v: %s", err, refusal)
 	}
 	if said := testcheck.Must(exec.Command(checker).Output())(t); string(said) != "committed" {

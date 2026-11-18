@@ -42,6 +42,14 @@ const (
 	// jobObjectLimitKillOnJobClose is JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE:
 	// closing the last job handle terminates every process in the job.
 	jobObjectLimitKillOnJobClose = 0x2000
+	// jobObjectLimitBreakawayOK is JOB_OBJECT_LIMIT_BREAKAWAY_OK: a process started asking to leave the job
+	// (createBreakawayFromJob) leaves it, as StartDetached asks, and every other stays in it.
+	jobObjectLimitBreakawayOK = 0x800
+	// createBreakawayFromJob, createNewProcessGroup and createNoWindow are CREATE_BREAKAWAY_FROM_JOB,
+	// CREATE_NEW_PROCESS_GROUP and CREATE_NO_WINDOW, the creation flags of a detached start (detach).
+	createBreakawayFromJob = 0x01000000
+	createNewProcessGroup  = 0x00000200
+	createNoWindow         = 0x08000000
 	// processAccessForJob combines PROCESS_SET_QUOTA, PROCESS_TERMINATE,
 	// PROCESS_DUP_HANDLE and PROCESS_SUSPEND_RESUME: job assignment,
 	// resource-handle retention, and the child's resume once it is contained.
@@ -138,6 +146,18 @@ type processTree struct {
 	bound      jobBound
 }
 
+// detach starts command out of the job this process runs in, whose close would end it, in a process group of its own,
+// which its starter's console's interrupt does not reach, with a console of its own that shows no window: a process
+// with none (DETACHED_PROCESS) gives each console program it starts a window of its own, as go run's compiler.
+func detach(command *exec.Cmd) error {
+	command.SysProcAttr = &syscall.SysProcAttr{CreationFlags: createBreakawayFromJob | createNewProcessGroup | createNoWindow}
+	err := command.Start()
+	if errors.Is(err, syscall.ERROR_ACCESS_DENIED) {
+		return fmt.Errorf("processcontrol: the job this process runs in admits no process leaving it: %w", err)
+	}
+	return err
+}
+
 func configureSysProc(command *exec.Cmd) {
 	if command.SysProcAttr == nil {
 		command.SysProcAttr = &syscall.SysProcAttr{}
@@ -154,7 +174,9 @@ func newProcessTree(command *exec.Cmd, bound jobBound) (processTree, error) {
 		return processTree{}, fmt.Errorf("create job object: %w", callErr)
 	}
 	limits := jobExtendedLimits{}
-	limits.BasicLimitInformation.LimitFlags = jobObjectLimitKillOnJobClose
+	// A process a supervised one starts detached (StartDetached) leaves the tree: a closing landing's lanes runner,
+	// started by a landing the gate runs in a tree, outlives it (lanes-on-close).
+	limits.BasicLimitInformation.LimitFlags = jobObjectLimitKillOnJobClose | jobObjectLimitBreakawayOK
 	if bound.limit > 0 {
 		limits.BasicLimitInformation.LimitFlags |= jobObjectLimitJobMemory
 		limits.JobMemoryLimit = uintptr(bound.limit)

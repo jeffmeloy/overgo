@@ -30,10 +30,10 @@ func TestACheckerThatCannotBeBuiltRefusesWithWhatStoppedIt(t *testing.T) {
 		return string(output), err
 	}
 	checker := filepath.Join(t.TempDir(), "gate.exe")
-	if refusal, err := buildChecker(root, checker, build); err != nil {
+	if refusal, err := buildChecker(root, checker, "./cmd/gate", build); err != nil {
 		t.Fatalf("in a checkout with no data-root file the checker was not built: %v: %s", err, refusal)
 	}
-	refusal, err := buildChecker(t.TempDir(), checker, build)
+	refusal, err := buildChecker(t.TempDir(), checker, "./cmd/gate", build)
 	if err == nil || refusal == "" || !strings.Contains(refusal, err.Error()) {
 		t.Fatalf("a checker git could not set up refused with %q (%v), want the error that stopped it", refusal, err)
 	}

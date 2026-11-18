@@ -57,6 +57,9 @@ type landOutcome struct {
 	Refusal *landing.Refusal `json:"refusal,omitempty"`
 	// Cleared says what a confirmed landing's clearing removed, or why it could not.
 	Cleared string `json:"cleared,omitzero"`
+	// Lanes says, of a confirmed landing that closed a row, where and when the cycle's lanes run at its commit
+	// (lanesOnClose).
+	Lanes string `json:"lanes,omitzero"`
 }
 
 // rowWorld is what the row sequence drives. A step that refuses returns its
@@ -137,14 +140,14 @@ func (w *execRowWorld) tool(echo, said io.Writer, arguments ...string) (string, 
 // checkerCheckout is the worktree under the repository's process state the checker is built in, beside the replay's.
 const checkerCheckout = "checker"
 
-// buildChecker builds the gate into output from the trunk's commit alone, in a worktree of its own moved there by git
-// (moveTree), one build at a time, so a commit is checked by committed code: built in the checkout, the uncommitted
-// files of the landing, the plan or process control changed how a commit was checked, and 3e7b49d0c was checked with
-// uncommitted counts code (clean-checker/do). Building cmd/gate reads no data root, so none is copied in. A checker
-// that cannot be set up refuses with what stopped it, as one that does not build refuses with the build's output: Gate
-// took an empty refusal for a checker that ran, and its landing went on to confirm a commit that was never made
-// (SQA-397).
-func buildChecker(root, output string, build func(arguments ...string) (string, error)) (refusal string, err error) {
+// buildChecker builds command, the gate or the lanes runner (startLanesRunner), into output from the trunk's commit
+// alone, in a worktree of its own moved there by git (moveTree), one build at a time, so a commit is checked by
+// committed code: built in the checkout, the uncommitted files of the landing, the plan or process control changed how
+// a commit was checked, and 3e7b49d0c was checked with uncommitted counts code (clean-checker/do). Building reads no
+// data root, so none is copied in. A checker that cannot be set up refuses with what stopped it, as one that does not
+// build refuses with the build's output: Gate took an empty refusal for a checker that ran, and its landing went on to
+// confirm a commit that was never made (SQA-397).
+func buildChecker(root, output, command string, build func(arguments ...string) (string, error)) (refusal string, err error) {
 	defer func() {
 		if err != nil && refusal == "" {
 			refusal = err.Error()
@@ -170,7 +173,7 @@ func buildChecker(root, output string, build func(arguments ...string) (string, 
 	if err := moveTree(root, tree, strings.TrimSpace(string(head))); err != nil {
 		return "", err
 	}
-	return build("go", "-C", tree, "build", "-o", output, "./cmd/gate")
+	return build("go", "-C", tree, "build", "-o", output, command)
 }
 
 // Gate lands the row through the small gate, built from the tree it lands
@@ -184,7 +187,7 @@ func (w *execRowWorld) Gate(reference, messageFile string) (string, error) {
 	}
 	defer os.RemoveAll(directory)
 	gate := filepath.Join(directory, "gate.exe")
-	refusal, err := buildChecker(loopWorktree, gate, func(arguments ...string) (string, error) {
+	refusal, err := buildChecker(loopWorktree, gate, "./cmd/gate", func(arguments ...string) (string, error) {
 		return w.tool(io.Discard, io.Discard, arguments...)
 	})
 	if err == nil {
@@ -255,6 +258,13 @@ func landCommand(reference, messageFile string, input io.Reader, output io.Write
 		}
 	}
 	outcome, err := landRow(&execRowWorld{message: message}, reference, messageFile)
+	if err == nil && outcome.Outcome == outcomeReady {
+		// The commit landed whatever the lanes do: a runner that does not start is said, and fails the command.
+		outcome.Lanes, err = lanesOnClose(loopWorktree, reference, outcome.Commit, startLanesRunner)
+		if err != nil {
+			outcome.Lanes = "the cycle's lanes did not start: " + err.Error()
+		}
+	}
 	if outcome.Detail != "" {
 		refusal, recordErr := landing.RecordRefusal(loopWorktree, landing.Classify(reference, outcome.Detail))
 		outcome.Refusal, err = &refusal, errors.Join(err, recordErr)

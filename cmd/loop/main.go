@@ -147,6 +147,7 @@ func run(args []string) error {
 	endSession := flags.String("end-session", "", "with -leftovers: record that the session of this id has ended, as the session-end hook does, for a session that ended before the hook was there; its scratch folder may then be finished, and nothing is removed")
 	confirmToken := flags.String("confirm", "", "with -leftovers -delete or -withdraw: the token the listing printed; removes or withdraws exactly the entries that listing showed, a line each, appended to a receipt in the trunk checkout's process state, and is refused when the listing is no longer the same")
 	closeout := flags.Bool("closeout", false, "the campaign's close-out check: list every place files accumulate, without sizes, write the listing to the trunk checkout's process state, and fail while an entry of a line whose action is delete is finished; removes nothing, and takes no -delete and no -withdraw")
+	lanesDueRun := flags.Bool("lanes-due", false, "run the cycle's lanes at the newest commit that closed a row, which its landing names and starts this run for, in the lanes checkout under the trunk's process state, and again at the newest commit that closed one while they ran, until none is newer; runs nothing where another run holds the lanes")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -175,6 +176,11 @@ func run(args []string) error {
 		return err
 	}
 	*repoPath = resolved
+	if *lanesDueRun {
+		return runLanesDue(loopWorktree, os.Stdout, func(checkout string) error {
+			return validateTo(os.Stdout, checkout, *repoPath, nil, "-run", "-lanes")
+		})
+	}
 	switch {
 	case *pushCommit != "":
 		commit, err := pushNamed(loopWorktree, *pushCommit, pushRemote, *confirmPush, os.Getenv(plan.AutomationWorkerEnvironment) != "")

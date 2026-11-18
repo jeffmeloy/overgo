@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"sync"
 
@@ -294,4 +295,26 @@ func Run(ctx context.Context, command Command) (Receipt, error) {
 		return Receipt{}, err
 	}
 	return supervised.Wait(ctx)
+}
+
+// StartDetached starts command as a process that outlives this one, which nothing here contains or waits on: a run that
+// goes on once its starter has ended, as the cycle's lanes a closing landing starts (lanes-on-close). It leaves the tree
+// this process runs in (detach), so the tree's end does not end it; a tree that admits no leaving refuses the start. It
+// reads no input, and its output goes to the files Stdout and Stderr name, or nowhere, since no process is left here to
+// drain a pipe. It returns the process's id.
+func StartDetached(command Command) (int, error) {
+	if command.Stdin != nil {
+		return 0, errors.New("processcontrol: a detached process reads no input")
+	}
+	for _, output := range []io.Writer{command.Stdout, command.Stderr} {
+		if _, file := output.(*os.File); output != nil && !file {
+			return 0, errors.New("processcontrol: a detached process writes to files alone")
+		}
+	}
+	child := exec.Command(command.Path, command.Args...)
+	child.Dir, child.Env, child.Stdout, child.Stderr = command.Dir, command.Env, command.Stdout, command.Stderr
+	if err := detach(child); err != nil {
+		return 0, err
+	}
+	return child.Process.Pid, nil
 }

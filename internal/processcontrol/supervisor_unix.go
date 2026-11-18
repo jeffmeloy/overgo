@@ -37,6 +37,12 @@ type processTree struct {
 	bound jobBound
 }
 
+// detach starts command in a session of its own, which its starter's terminal and process group do not reach.
+func detach(command *exec.Cmd) error {
+	command.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	return command.Start()
+}
+
 func configureSysProc(command *exec.Cmd) {
 	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 }

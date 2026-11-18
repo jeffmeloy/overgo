@@ -11,6 +11,7 @@ import (
 	"overgo/internal/capabilityruntime"
 	"overgo/internal/checked"
 	"overgo/internal/diffusionimage"
+	"overgo/internal/enhancerchat"
 	"overgo/internal/latentimage"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/oscillatorimage"
@@ -111,6 +112,14 @@ func depthPreview(ctx context.Context, store artifact.Repository, path string, _
 	return latentimage.DepthPreview(path, read)
 }
 
+// enhancerOpener opens a MOSS model's enhancer chat through the store's profiles (enhancerchat.Open), sampled and
+// trimmed as the picture package asks (latentimage.EnhancerOpener).
+func enhancerOpener(store artifact.Repository) latentimage.EnhancerOpener {
+	return func(ctx context.Context, directory string) (func(context.Context, string, string, int) (string, error), func() error, error) {
+		return enhancerchat.Open(ctx, store, directory, latentimage.EnhancerSampling(), latentimage.PythonSpace)
+	}
+}
+
 // pictureFiles are the files a latent picture request reads beside its model's components, which its answer is kept
 // under as well (capabilityruntime.Reading): the adapters it or its preset names and the depth estimator a control
 // picture is read by (latentimage Request.Beside). A file replaced under its name gave the earlier file's picture again
@@ -146,7 +155,7 @@ func preparedFirst(next capabilityruntime.Executor) capabilityruntime.Executor {
 			return nil, err
 		}
 		if request.Enhance {
-			if prepared, err = latentimage.EnhanceRequest(ctx, store, path, prepared); err != nil {
+			if prepared, err = latentimage.EnhanceRequest(ctx, enhancerOpener(store), path, prepared); err != nil {
 				return nil, err
 			}
 		} else if prepared.Image == request.Image && prepared.Control == request.Control && prepared.Width == request.Width && prepared.Canvas == request.Canvas {

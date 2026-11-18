@@ -95,7 +95,7 @@ func TestServedMossCompletesEveryUltraSection(t *testing.T) {
 		if section.name == "prompt mode 2" {
 			// SFT's mode 2 enhances the recording's own source and exclusions, as the workflow's enhancer did.
 			request.Prompt, request.NegativePrompt, request.Enhance = field(recording.inputs("459"), "value"), field(recording.inputs("460"), "value"), true
-			request = testcheck.Must(EnhanceRequest(ctx, store, root, request))(t)
+			request = testcheck.Must(EnhanceRequest(ctx, enhancerOpener(store), root, request))(t)
 		}
 		generator := testcheck.Must(LoadGenerator(ctx, root, profile, request))(t)
 		session := testcheck.Must(generator.prepare(ctx, request))(t)

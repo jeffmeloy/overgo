@@ -11,14 +11,14 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"overgo/internal/testcheck"
-	"overgo/internal/testutil"
 )
 
 // TestTheDepthPreviewAgreesWithComfyUIs holds a depth section's preview (moss-ultra-compare/depth-preview) to the MOSS
 // Ultra workflow's: the depth control given the recorder's picture at the recorded section's canvas makes the map
-// ComfyUI's PreviewImage 667 showed of it, level for level.
+// ComfyUI's PreviewImage 667 showed of it, level for level, within depthPreviewTime (moss-speed/attention).
 func TestTheDepthPreviewAgreesWithComfyUIs(t *testing.T) {
 	recording := readComfySection(t, "pass-1", "depth-control")
 	if recording.Set["513.image"] != "overgo-recorder-input.png" || recording.inputs("612:438")["resolution"] != float64(depthResolution) {
@@ -26,10 +26,16 @@ func TestTheDepthPreviewAgreesWithComfyUIs(t *testing.T) {
 	}
 	root := t.TempDir()
 	testcheck.NoError(t, os.WriteFile(filepath.Join(root, "model_index.json"), []byte(`{"_class_name": "MOSSImagePipeline"}`), 0o600))
-	testcheck.NoError(t, os.MkdirAll(filepath.Join(root, depthDirectory), 0o755))
-	testcheck.NoError(t, os.Link(filepath.Join(testutil.ModelArtifactDir(t, "depth-anything-v2-small"), depthCheckpoint), filepath.Join(root, depthDirectory, depthCheckpoint)))
+	ultraDepth(t, root)
 	const width, height = 1024, 576
-	preview := testcheck.Must(DepthPreview(root, Request{Width: width, Height: height, Control: &DepthControl{Picture: base64.StdEncoding.EncodeToString(ultraPictureBytes(t))}}))(t)
+	asked := Request{Width: width, Height: height, Control: &DepthControl{Picture: base64.StdEncoding.EncodeToString(ultraPictureBytes(t))}}
+	start := time.Now()
+	preview := testcheck.Must(DepthPreview(root, asked))(t)
+	if took := time.Since(start); took > depthPreviewTime {
+		t.Errorf("the preview took %v; want it within %v", took, depthPreviewTime)
+	} else {
+		t.Logf("the preview took %v", took)
+	}
 	got := testcheck.Must(png.Decode(bytes.NewReader(preview.Data)))(t)
 	want := testcheck.Must(png.Decode(bytes.NewReader(recording.picture(t, "667"))))(t)
 	if got.Bounds() != want.Bounds() || got.Bounds() != image.Rect(0, 0, width, height) {
@@ -56,6 +62,12 @@ func TestTheDepthPreviewAgreesWithComfyUIs(t *testing.T) {
 			equal, width*height, share, largest, leastEqualDepthShare)
 	}
 }
+
+// depthPreviewTime is the longest a depth preview of a 1024 x 576 picture takes on the host, its checkpoint loaded with
+// it (moss-speed/attention): its estimate took 59 s with its encoder's attention on one thread, and 10.3 s with that
+// attention's rows split across the host's workers beside a run of the cycle's lanes sharing the host, which this
+// bound, twice that, holds on a busy host and the one thread fails.
+const depthPreviewTime = 20 * time.Second
 
 // leastEqualDepthShare is the share of a depth preview's levels that equal ComfyUI's at least: measured 0.9927, the
 // rest one level apart where the host's float sums round otherwise than the card's.

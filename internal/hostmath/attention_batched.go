@@ -119,19 +119,24 @@ const (
 	qkvValueOffset = 2
 )
 
+// BatchedAttentionF32 is softmax attention of each batch's query rows over its key and value rows, by head: f32
+// products summed in f64, the softmax in f64, the values summed in f32. Each query row reads its own scores, softmax and
+// values in one order whichever worker computes it, so the rows split across the host's workers give the bits one
+// thread gives (a DINOv2 encoder's 2442 tokens took 52 s of a depth estimate's 59 on one thread, moss-speed/depth).
 func BatchedAttentionF32(q, k, v []float32, batches, queryRows, keyRows, hidden, heads int) []float32 {
 	headWidth := hidden / heads
 	output := make([]float32, batches*queryRows*hidden)
-	scores := make([]float64, keyRows)
 	scale := 1 / math.Sqrt(float64(headWidth))
-	for batch := range batches {
-		for query := range queryRows {
+	parallelRangeCost(batches*queryRows, 2*keyRows*hidden, macF64, func(first, last int) {
+		scores := make([]float64, keyRows)
+		for row := first; row < last; row++ {
+			batch := row / queryRows
 			for head := range heads {
 				maximum := math.Inf(-1)
 				for key := range keyRows {
 					var score float64
 					for channel := range headWidth {
-						qIndex := (batch*queryRows+query)*hidden + head*headWidth + channel
+						qIndex := row*hidden + head*headWidth + channel
 						kIndex := (batch*keyRows+key)*hidden + head*headWidth + channel
 						score += float64(q[qIndex] * k[kIndex])
 					}
@@ -146,14 +151,14 @@ func BatchedAttentionF32(q, k, v []float32, batches, queryRows, keyRows, hidden,
 				for key := range keyRows {
 					factor := float32(scores[key] / total)
 					for channel := range headWidth {
-						outIndex := (batch*queryRows+query)*hidden + head*headWidth + channel
+						outIndex := row*hidden + head*headWidth + channel
 						vIndex := (batch*keyRows+key)*hidden + head*headWidth + channel
 						output[outIndex] += factor * v[vIndex]
 					}
 				}
 			}
 		}
-	}
+	})
 	return output
 }
 

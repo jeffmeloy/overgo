@@ -3,6 +3,76 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "clip-scale",
+      "title": "An oscillator clip's page asks the clip's declared scale, as it asks its frames, so a clip asked with neither is drawn at the model's own size",
+      "steps": [
+        {
+          "id": "do",
+          "title": "An oscillator clip's page asks the clip's declared scale, as it asks its frames, so a clip asked with neither is drawn at the model's own size",
+          "verify": "OVERGO_WEBUI_LANE=1 go test ./internal/server -count=1 -run '^TestWebUIBrowserAClipIsAskedAtItsDeclaredSize$'",
+          "files": [
+            "internal/server"
+          ],
+          "rationale": "Note: The cycle's lanes, rerun at 1ab2ac601 on 2026-11-17 as the owner asked (they last passed at 8dfa48064), failed the model-journey lane's TestModelJourneyFirstRun: the host oscillator's clip was refused, \"video requires non-negative class and positive frame count and scale\". The oscillator's request takes a frame count and a scale, both with declared defaults (oscillatorimage.VideoDefaults: one second at its rate, at the model's own size), which a page offered empty before declared-defaults/do filled them. preset-form/do (SQA-340, after the lanes' last pass) made a form's untouched sampling defaults hints, filling only a required field and the fields that size the picture or clip (workflow.js geometryControls: width, height, frames); the scale sizes the clip too but was not among them, so a fresh clip form sent no scale and the clip was asked at 0. The scale joins the geometry fields, filled from its declared default as the frames are.\n\nServes: the oscillator's clips on every page, a working model's journey.\n\nCheck: TestWebUIBrowserAClipIsAskedAtItsDeclaredSize, in the web UI lane: a fresh clip form asks the declared frames and scale, its steps left a hint; it fails with the scale out of the geometry fields.\n\nBatch: host lane."
+        }
+      ]
+    },
+    {
+      "id": "lane-failure",
+      "title": "When the slow test stage fails, the landing records the failing test by name",
+      "steps": [
+        {
+          "id": "named",
+          "title": "When the slow test stage fails, the landing's refusal and its record name each failing test and its package",
+          "verify": "go test ./cmd/device-lane -count=1 -run '^TestALaneFailureNamesItsFailingTests$'",
+          "files": [
+            "cmd/device-lane"
+          ],
+          "rationale": "The owner's note of 2026-11-17 keeps the small fixes that protect working models: the slow tests are rerun, and the failing test is recorded when the slow test stage fails. On 2026-11-17 a landing was refused by its lanes with a cause that named no test, and the lanes passed when run again, so the failing test was never known.\n\nNote: files set to cmd/device-lane: The refusal named no test because cmd/device-lane read its step's output strictly: its stdout and stderr joined, one line of the go command's own beside the test JSON made the reader refuse the stream, and the diagnostic fell back to the tail. The landing already reads a lane's output past such lines; the cure is the device lane's, and internal/landing and cmd/loop change nothing.\n\nNote: 2026-11-17, the cause, reproduced (tmp/lane-failure/mixed.go): cmd/device-lane's deviceDiagnostic reads its step's stdout and stderr joined with testevidence.GoTestJSONReader, which errs on any line that is no JSON event; one line of the go command's own (a download, a build note) beside a failing test's events made it fall back to the bare tail, so the device lane's refusal named its command and no test. The landing reads a lane's output past such lines (testevidence.FailureSummary), and GoTestJSONReader's strict reading has no other caller. The cure, written and held on 2026-11-17 while the workflow's rows came first: deviceDiagnostic returns testevidence.FailedTests + testevidence.FailureSummary(out) where that names failures, else the tail as before; its check, cmd/device-lane's TestALaneFailureNamesItsFailingTests, gives deviceDiagnostic a failing stream with a \"go: downloading\" line after it and wants the diagnostic to open by the failed test and keep its words (it fails without the cure). internal/landing and cmd/loop change nothing.\n\nNote: 2026-11-17, what the cure leaves: deviceDiagnostic was testevidence.GoTestJSONReader's one production caller, so with the cure the declaration reach check refuses GoTestJSONReader (internal/testevidence/evidence.go), which only tests then use: testevidence's own (package_updates_test, execution_cost_test) and cmd/validate's (tests_test, tests_failure_diagnostics_test, six calls building a report from JSON). The step's files grow to internal/testevidence and cmd/validate: GoTestJSONReader is deleted, testevidence's tests read through readGoTestJSON, and cmd/validate's take their report through RunGoTestCommand on their own child process, the path cmd/validate's production reads by, its read-error case moving to testevidence's tests. RunGoTestCommand also reads its joined stdout and stderr strictly; whether a go command line beside the JSON costs cmd/validate's diagnostics too is read before the change. The cure and its check sit in the session scratchpad (lane-failure-aside) until dispatch gives this step.\n\nNote: 2026-11-17, the change as written, which supersedes the deletion the note before planned: GoTestJSONReader becomes ReadGoTestJSON(reader, GoTestOptions), the reader RunGoTestCommand reads its command's stream by (its observe and progress the queued and peak-carrying ones), so a command reaches it and the tests keep building reports from JSON through it: testevidence's (execution_cost_test, package_updates_test, short_profile_test) and cmd/validate's (tests_test, tests_failure_diagnostics_test), each call's short and diagnostic budget as options. The device lane's cure reads with FailureSummary. internal/testevidence, cmd/validate and cmd/device-lane pass with the reach check; the files are cmd/device-lane, internal/testevidence and cmd/validate. Written and set aside in the session scratchpad (lane-failure-aside2) when dispatch returned to moss-ultra-compare/golden-floor.\n\nServes: the slow tests that protect working models, read by name when they fail.\nDisappears: a lanes refusal that names no test.\nEvidence: a failing lane's refusal and record name the failing tests.\nBatch: host lane."
+        }
+      ]
+    },
+    {
+      "id": "failure-cause",
+      "title": "An operation that fails before recording its run names its cause beside the run it lacks, so the Library's failed validation in the model-journey lane says why",
+      "steps": [
+        {
+          "id": "do",
+          "title": "An operation that fails before recording its run names its cause beside the run it lacks, so the Library's failed validation in the model-journey lane says why",
+          "verify": "go test ./internal/operation -count=1 -run '^TestAFailureWithoutARunNamesItsCause$'",
+          "files": [
+            "internal/operation"
+          ],
+          "rationale": "Note: The cycle's lanes, rerun at 1ab2ac601 on 2026-11-17, failed the model-journey lane's TestModelJourneyLibraryValidation: the hub model's validation operation ended \"operation: completion lacks durable run\" and nothing else. The operation manager checks a completion for its run before it reads the execution's error (operation.Manager.run, validateCompletion first), and the Library's validation returns an empty completion beside every error before its verification is published (libraryintake validate), so whatever failed the validation was never shown, to the page or to the lane. The failed status names the execution's error beside the run it lacks. The validation's own cause is found with it in the lanes' next run of the journey, and cured after.\n\nServes: every operation whose execution fails before recording its run (a Library validation, an intake), and the model-journey lane's reading.\n\nCheck: TestAFailureWithoutARunNamesItsCause, host only.\n\nBatch: host lane."
+        },
+        {
+          "id": "cure",
+          "title": "The Library's validation of the hub model completes as the model-journey lane drives it, its cause, which failure-cause/do names, found by reproducing it and cured",
+          "verify": "OVERGO_MODEL_JOURNEY=1 OVERGO_WEBUI_LANE=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test ./internal/server -count=1 -timeout=0 -run '^TestModelJourneyLibraryValidation$'",
+          "files": [
+            "internal/libraryintake",
+            "internal/server"
+          ],
+          "rationale": "The owner's review of 2026-11-17: failure-cause/do makes the model journey's failure say why; the break itself stays. The Library's validation of the hub model (Qwen2.5-0.5B, libraryintake validate: an exact suite recorded and replayed on the card, its verification published and the capability activated) returned an error before it published its run, and its cause was hidden behind the run it lacked. With failure-cause/do the journey's failure names it; the step reproduces the validation as the journey drives it, finds where it fails among the commits since 8dfa48064, where the lane last passed, and cures it, the journey's validation completing again.\n\nServes: a working model's Library validation, the model-journey lane.\n\nCheck: TestModelJourneyLibraryValidation, in the model-journey lane's environment, on the card.\n\nBatch: device lane."
+        }
+      ]
+    },
+    {
+      "id": "moss-eight-step",
+      "title": "MOSS's three Turbo sections, 8 steps at guidance 1 through the adapters each stacks, are held to the workflow's Turbo recordings as its sections of 50 steps are",
+      "steps": [
+        {
+          "id": "do",
+          "title": "MOSS's three Turbo sections, 8 steps at guidance 1 through the adapters each stacks, are held to the workflow's Turbo recordings as its sections of 50 steps are",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^TestTheTurboSectionsHoldTheirGoldenFloors$'",
+          "files": [
+            "internal/latentimage"
+          ],
+          "rationale": "Note: The owner's note of 2026-11-17: moss-eight-step comes before the 3-megapixel speed work, since three of the MOSS Ultra workflow's six sections are Turbo, none held to its recording yet, and 8 steps is the workflow's own fast path. moss-ultra-compare gave each Turbo section a preset (section-presets: 8 steps at guidance 1 on ER-SDE and bong_tangent, DMD2 and the SFT adapter stacked at 1, moss-control before them for depth, image to image Turbo at denoise 0.72) and the adapters' stacking (stacked-adapters), and the recorder kept each Turbo section's final latent and finished picture (fixtures/comfy/moss-ultra/recordings/pass-1). Each is asked as its recording asks it (its loader's adapters at their strengths, its sharpening, its picture, the depth section's control over the first half of the sampling with no block skipped and its map made as the section makes it) on the workflow's own files, and held to floors of agreement with ComfyUI's set from its first measured run less 3 dB, its input changed (reseeded, or its picture mirrored) keeping the latent below, as golden-floor holds the sections of 50 steps; the floor test's loop is shared. Its check sits beside those floors in internal/latentimage, whose recordings and model root it reads, in place of the adaptiveparity test the step was filed with.\n\nServes: done = each of the six sections agrees with its ComfyUI recording.\n\nCheck: TestTheTurboSectionsHoldTheirGoldenFloors, on the card.\n\nBatch: device lane."
+        }
+      ]
+    },
+    {
       "id": "moss-speed",
       "title": "Where a MOSS step's time goes at 2368 x 1344, against ComfyUI's 1.1 s, and the depth estimate's 80 s on the processor, is measured part by part, the largest share cured after",
       "steps": [
@@ -30,44 +100,40 @@
             "internal/latentimage",
             "fixtures/comfy"
           ],
-          "rationale": "Note: The owner's note of 2026-11-17: text to image and prompt mode 3 were recorded on the workflow's empty prompt and an empty builder, so their floors (golden-floor: 1.55 dB on latents, 15.11 dB on pictures for text to image; 0.88 and 16.50 for mode 3) show only that overgo's draw is closer to ComfyUI's than another seed's is, the chaotic sensitivity an empty prompt has (overgo against its own 8-bit attention: 2.38 dB). Both sections are recorded again with a real prompt, and mode 3 with the builder's fields and regions filled (comfy-reference -record with -set on the prompt node and the builder's inputs), twice each as pass-1 and pass-2 were, and their floors are set from those recordings by the golden-floor method (the first reading less 3 dB, beside a reseeded control). Image to image at denoise 1 starts from the noise alone, the same run as text to image, so its case goes.\n\nServes: done = each section and prompt mode agrees with its ComfyUI recording, on prompts that say something.\n\nCheck: TestUltraSectionsHoldTheirGoldenFloors, on the card, with ComfyUI's recordings.\n\nBatch: device lane."
+          "rationale": "Note: The owner's note of 2026-11-17: text to image and prompt mode 3 were recorded on the workflow's empty prompt and an empty builder, so their floors (golden-floor: 1.55 dB on latents, 15.11 dB on pictures for text to image; 0.88 and 16.50 for mode 3) show only that overgo's draw is closer to ComfyUI's than another seed's is, the chaotic sensitivity an empty prompt has (overgo against its own 8-bit attention: 2.38 dB). Both sections are recorded again with a real prompt, and mode 3 with the builder's fields and regions filled (comfy-reference -record with -set on the prompt node and the builder's inputs), twice each as pass-1 and pass-2 were, and their floors are set from those recordings by the golden-floor method (the first reading less 3 dB, beside a reseeded control). Image to image at denoise 1 starts from the noise alone, the same run as text to image, so its case goes.\n\nNote: 2026-11-17, SQA-410 folded in (the owner's note): the floors' comparison scores pictures and latents it should refuse. squareColourMeans drops a picture's partial 8-pixel squares and pictureDecibels checks only that the two lists of means are as long, so a picture a column wider agrees at +Inf dB; decibelsOverSquares answers -Inf on lists of different lengths and NaN from a NaN sample; and each negative control (the reseeded and mirrored draws) is held only to scoring under its floor, so an invalid comparison passes it. The comparison refuses two pictures of different sizes, latents of different lengths, and any non-finite number, before it scores them, and a control counts only as a valid comparison scoring under the floor (golden_floor, image_to_image and depth_control model tests).\n\nServes: done = each section and prompt mode agrees with its ComfyUI recording, on prompts that say something.\n\nCheck: TestUltraSectionsHoldTheirGoldenFloors, on the card, with ComfyUI's recordings.\n\nBatch: device lane."
         }
       ]
     },
     {
-      "id": "moss-eight-step",
-      "title": "MOSS-Image-SFT gains the workflow's eight-step Turbo preset, the local DMD2 adapter unmerged at guidance 1, held to the workflow's Turbo recordings",
+      "id": "lanes-turns",
+      "title": "The cycle's lanes and a commit take turns at the machine, a ready commit first, so neither stops the other",
       "steps": [
         {
-          "id": "turbo",
-          "title": "MOSS-Image-SFT gains the workflow's eight-step Turbo preset, the local DMD2 adapter unmerged at guidance 1, held to the workflow's Turbo recordings",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/adaptiveparity -count=1 -run '^TestMossTurboPresetAgreesWithItsRecordings$'",
+          "id": "do",
+          "title": "The cycle's lanes and a commit take turns at the machine, a ready commit first, so neither stops the other",
+          "verify": "go test ./internal/landing -count=1 -run '^TestTheLanesGiveTheirTurnToAReadyCommit$'",
           "files": [
-            "internal/latentimage",
-            "internal/adaptiveparity",
-            "internal/mediacapability"
+            "internal/landing",
+            "cmd/validate",
+            "internal/processcontrol"
           ],
-          "needs_card": true,
-          "rationale": "Filed again from media-lora/moss-eight-step, the owner's order of 2026-11-17: the last of the MOSS Ultra workflow's rows, after moss-ultra-compare, and its check the workflow's Turbo recordings (fixtures/comfy/moss-ultra/recordings: text-to-image-turbo, image-to-image-turbo, depth-control-turbo), not the 415-question suite: no suite readings on the workflow's path.\n\nMOSS's 50-step denoise takes 63.4 s at 1024 x 1024 (docs/MOSS_IMAGE.md). The Kromoss 8-steps-dmd2-lora (rank 128, F32, Apache-2.0) is on disk in the ComfyUI install and imported by moss-ultra-import. It was trained on Base, not SFT, so SFT's agreement with the recordings is a band, as moss-ultra-compare/sft-band reports.\n\nServes: first-output.\nDisappears: nothing; the 50-step recipe stays.\nEvidence: the preset runs eight steps at guidance 1 with the adapter unmerged, its time recorded and its pictures held to the Turbo recordings.\nBatch: device lane.",
-          "depends_on": [
-            "media-lora/unmerged",
-            "moss-ultra-compare/golden-floor"
-          ]
+          "rationale": "Note: The owner's review of 2026-11-17: the cycle's lanes and a commit could not run together. Checked: a commit's test stage holds at most the machine's commit free as it starts (processcontrol jobBound: need + free), and with the lanes' model tests holding the rest, moss-speed/attention's commit was refused at 18.3 GiB (\"the tree reached its memory limit ... the commit free at its start\"); the audio lane's test process died out of memory (VirtualAlloc errno 1455) while other work shared the machine; and four finished steps waited the lanes' hours. The two take turns at the machine: the lanes run takes a turn for each package it runs and gives it up between packages, a commit takes the same turn for its stages, and a commit waiting is served first (processcontrol TurnWaited tells a holder another waits), so the lanes yield between packages to a ready commit and resume after it, neither refused for the other's memory and neither stopped.\n\nServes: every commit while the lanes run, and lanes-on-close, which starts lanes beside the work of the next row.\n\nCheck: TestTheLanesGiveTheirTurnToAReadyCommit, host only.\n\nBatch: host lane."
         }
       ]
     },
     {
-      "id": "lane-failure",
-      "title": "When the slow test stage fails, the landing records the failing test by name",
+      "id": "lanes-on-close",
+      "title": "A row's closing commit runs the cycle's lanes at that commit, with no timer, so a break in a working model is found beside the commit that caused it",
       "steps": [
         {
-          "id": "named",
-          "title": "When the slow test stage fails, the landing's refusal and its record name each failing test and its package",
-          "verify": "go test ./cmd/device-lane -count=1 -run '^TestALaneFailureNamesItsFailingTests$'",
+          "id": "do",
+          "title": "A row's closing commit runs the cycle's lanes at that commit, with no timer, so a break in a working model is found beside the commit that caused it",
+          "verify": "go test ./cmd/loop -count=1 -run '^TestARowsClosingRunsTheLanesAtItsCommit$'",
           "files": [
-            "cmd/device-lane"
+            "cmd/loop",
+            "internal/landing"
           ],
-          "rationale": "The owner's note of 2026-11-17 keeps the small fixes that protect working models: the slow tests are rerun, and the failing test is recorded when the slow test stage fails. On 2026-11-17 a landing was refused by its lanes with a cause that named no test, and the lanes passed when run again, so the failing test was never known.\n\nNote: files set to cmd/device-lane: The refusal named no test because cmd/device-lane read its step's output strictly: its stdout and stderr joined, one line of the go command's own beside the test JSON made the reader refuse the stream, and the diagnostic fell back to the tail. The landing already reads a lane's output past such lines; the cure is the device lane's, and internal/landing and cmd/loop change nothing.\n\nNote: 2026-11-17, the cause, reproduced (tmp/lane-failure/mixed.go): cmd/device-lane's deviceDiagnostic reads its step's stdout and stderr joined with testevidence.GoTestJSONReader, which errs on any line that is no JSON event; one line of the go command's own (a download, a build note) beside a failing test's events made it fall back to the bare tail, so the device lane's refusal named its command and no test. The landing reads a lane's output past such lines (testevidence.FailureSummary), and GoTestJSONReader's strict reading has no other caller. The cure, written and held on 2026-11-17 while the workflow's rows came first: deviceDiagnostic returns testevidence.FailedTests + testevidence.FailureSummary(out) where that names failures, else the tail as before; its check, cmd/device-lane's TestALaneFailureNamesItsFailingTests, gives deviceDiagnostic a failing stream with a \"go: downloading\" line after it and wants the diagnostic to open by the failed test and keep its words (it fails without the cure). internal/landing and cmd/loop change nothing.\n\nNote: 2026-11-17, what the cure leaves: deviceDiagnostic was testevidence.GoTestJSONReader's one production caller, so with the cure the declaration reach check refuses GoTestJSONReader (internal/testevidence/evidence.go), which only tests then use: testevidence's own (package_updates_test, execution_cost_test) and cmd/validate's (tests_test, tests_failure_diagnostics_test, six calls building a report from JSON). The step's files grow to internal/testevidence and cmd/validate: GoTestJSONReader is deleted, testevidence's tests read through readGoTestJSON, and cmd/validate's take their report through RunGoTestCommand on their own child process, the path cmd/validate's production reads by, its read-error case moving to testevidence's tests. RunGoTestCommand also reads its joined stdout and stderr strictly; whether a go command line beside the JSON costs cmd/validate's diagnostics too is read before the change. The cure and its check sit in the session scratchpad (lane-failure-aside) until dispatch gives this step.\n\nNote: 2026-11-17, the change as written, which supersedes the deletion the note before planned: GoTestJSONReader becomes ReadGoTestJSON(reader, GoTestOptions), the reader RunGoTestCommand reads its command's stream by (its observe and progress the queued and peak-carrying ones), so a command reaches it and the tests keep building reports from JSON through it: testevidence's (execution_cost_test, package_updates_test, short_profile_test) and cmd/validate's (tests_test, tests_failure_diagnostics_test), each call's short and diagnostic budget as options. The device lane's cure reads with FailureSummary. internal/testevidence, cmd/validate and cmd/device-lane pass with the reach check; the files are cmd/device-lane, internal/testevidence and cmd/validate. Written and set aside in the session scratchpad (lane-failure-aside2) when dispatch returned to moss-ultra-compare/golden-floor.\n\nServes: the slow tests that protect working models, read by name when they fail.\nDisappears: a lanes refusal that names no test.\nEvidence: a failing lane's refusal and record name the failing tests.\nBatch: host lane."
+          "rationale": "Note: The owner's review of 2026-11-17: two of the cycle's five lanes failed at 1ab2ac601, 66 commits after their last run (8dfa48064, 2026-11-16), so a break in a working model was found a day from the commit that caused it: the oscillator clip asked at scale 0 since preset-form/do (clip-scale), and the Library's validation (failure-cause). Nothing ran the lanes between: a cycle runs them only when the plan is empty (HandStartDue), and a timer would guess a cadence. A row's closing commit, the landing that completes its last open step, starts the cycle's lanes at that commit, from a checkout of it so the working folder stays free (as the owner's note asked), taking turns with commits (lanes-turns), its record kept where the lanes' is (lane_runs.json); a run already going at an older commit is overtaken by the next close, not stacked.\n\nServes: a working model's break found beside the row that broke it.\n\nCheck: TestARowsClosingRunsTheLanesAtItsCommit, host only.\n\nBatch: host lane."
         }
       ]
     },

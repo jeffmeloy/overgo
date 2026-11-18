@@ -59,6 +59,14 @@ func ultraModelRoot(t *testing.T) string {
 	return root
 }
 
+// ultraDepth gives a root its depth folder (depthDirectory), the Depth Anything V2 Small checkpoint its depth sections
+// estimate a picture's depth with, hard-linked from the model store.
+func ultraDepth(t *testing.T, root string) {
+	t.Helper()
+	testcheck.NoError(t, os.MkdirAll(filepath.Join(root, depthDirectory), 0o755))
+	testcheck.NoError(t, os.Link(filepath.Join(testutil.ModelArtifactDir(t, "depth-anything-v2-small"), depthCheckpoint), filepath.Join(root, depthDirectory, depthCheckpoint)))
+}
+
 // ultraEnhancer gives an Ultra root its enhancer folder (enhancerDirectory), the encoder file served as a chat model:
 // Qwen3.5-9B's own config for generation (fixtures/comfy/moss-ultra/enhancer/config.json, Qwen/Qwen3.5-9B's
 // config.json), the root's tokenizer and chat template, and the encoder file hard-linked; it returns the folder.

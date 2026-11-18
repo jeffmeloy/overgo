@@ -164,9 +164,9 @@
         "internal/latentimage/section_presets_windows_test.go",
         "internal/capabilityruntime/session_director.go"
       ],
-      "input": "Use recipe run on a configured MOSS image-gen recipe. (1) Give {\"prompt\":\"a fox\",\"preset\":\"ultra-text-to-image\",\"seed\":42} without dimensions. (2) Give preset ultra-depth-control, prompt \"a fox\", 1024x576 and control.map containing a valid base64 PNG, omitting the adapter supplied by the preset.",
-      "expected": "Strictly decode and resolve the effective request through the existing preset owner before checking geometry and required adapters. Case 1 uses the preset canvas. Case 2 keeps its explicit size and uses moss-control. Invalid or conflicting explicit values still fail admission.",
-      "actual": "The picture director validates the unfilled request. Case 1 fails on 0x0 before the 3 MP canvas is resolved. Case 2 passes geometry but fails the empty applied-adapter check before withSection supplies moss-control. The retained six-section fixture calls withPreset directly. Source at 12f172302, no SQA execution."
+      "input": "Run a configured MOSS image recipe with preset ultra-depth-control, prompt 'a fox', width 1024, height 576 and control.map containing a valid base64 PNG. The installed moss-control adapter is supplied by the preset. Omit adapter and adapters from the request.",
+      "expected": "The image capability admits the same depth request with the catalog defaults as with those values stated explicitly. Resolve the preset through the existing latentimage owner before the picture director validates required adapters. Keep the explicit size and reject invalid explicit settings.",
+      "actual": "At 1ab2ac601, Sized fixes the preset-only text request's geometry but returns an explicitly sized request as given. The director calls ValidateRequest while applied() is empty and refuses the depth map. withSection would supply moss-control later in LoadGenerator. Source-demonstrated on the recipe path."
     },
     {
       "id": "SQA-410",
@@ -200,6 +200,25 @@
     "at": "2026-11-13",
     "head": "0ef92bbeb509dbb96070d1f6e9161e95538210b7",
     "findings": {
+  "SQA-411": {
+        "action": "deferred",
+        "rows": [],
+        "note": "Answered by the lead on 2026-11-17: a rehearsal clone's slot restore, outside the MOSS Ultra workflow campaign the owner scoped the plan to and on no working model's path (a clone rehearses a store migration), so it waits with the other rows the campaign set aside; the source store's restore is unaffected."
+      },
+  "SQA-409": {
+        "action": "implemented",
+        "rows": [
+          "preset-size/do"
+        ],
+        "note": "Answered by the lead on 2026-11-17, at the owner's note: the image capability's preparing step gives a request stating no size its canvas's or its preset's before the picture session's director checks it. Implemented by preset-size/do (1ab2ac601), for the review's recheck."
+      },
+  "SQA-410": {
+        "action": "filed",
+        "rows": [
+          "moss-real-prompt/do"
+        ],
+        "note": "Answered by the lead on 2026-11-17, at the owner's note: folded into moss-real-prompt/do, whose floors are set again; the comparison refuses pictures of different sizes, latents of different lengths and non-finite numbers before it scores them, and a control counts only as a valid comparison under its floor."
+      },
   "SQA-346": {
         "action": "implemented",
         "rows": [

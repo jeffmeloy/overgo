@@ -332,17 +332,26 @@ func CycleLanes() []CycleLane {
 var testTurn = func() string { return "overgo-test-turn" }
 
 // HoldTestTurnEach runs each step in the test turn for purpose, giving the turn up between steps, so a commit's tests
-// waiting for it run before the next step: the packages of a cycle lane, one by one. It runs every step, and answers
-// their errors together.
-func HoldTestTurnEach(purpose string, steps []func() error) error {
+// waiting for it run before the next step: the packages of a cycle lane, one by one. Each step takes the test turn
+// inside outer, which holds what the step needs beside it and is taken first (a lane on the card holds the card's
+// turn): a package that took the test turn and then waited 20 min 47 s for the card held the turn idle, and a commit's
+// tests, which do not use the card, waited the whole of it (lanes-card-order). It runs every step, and answers their
+// errors together; a turn it cannot take ends it.
+func HoldTestTurnEach(purpose string, outer func(work func() error) error, steps []func() error) error {
 	var failed error
 	for index, step := range steps {
-		name := testTurn()
-		release, err := processcontrol.TakeTurn(name, fmt.Sprintf("%s, %d of %d", purpose, index+1, len(steps)), os.Stderr)
-		if err != nil {
-			return errors.Join(failed, err)
+		var taking error
+		failed = errors.Join(failed, outer(func() error {
+			name := testTurn()
+			release, err := processcontrol.TakeTurn(name, fmt.Sprintf("%s, %d of %d", purpose, index+1, len(steps)), os.Stderr)
+			if taking = err; err != nil {
+				return err
+			}
+			return errors.Join(step(), processcontrol.YieldTurn(name, release))
+		}))
+		if taking != nil {
+			return failed
 		}
-		failed = errors.Join(failed, step(), processcontrol.YieldTurn(name, release))
 	}
 	return failed
 }

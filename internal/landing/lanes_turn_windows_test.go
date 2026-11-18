@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"runtime"
 	"slices"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -67,7 +68,7 @@ func TestTheLanesGiveTheirTurnToAReadyCommit(t *testing.T) {
 			return nil
 		},
 	}
-	testcheck.NoError(t, HoldTestTurnEach("a fixture lane", steps))
+	testcheck.NoError(t, HoldTestTurnEach("a fixture lane", func(work func() error) error { return work() }, steps))
 	testcheck.NoError(t, <-ended)
 
 	index := slices.IndexFunc(CycleLanes(), func(candidate CycleLane) bool { return candidate.Name == "models" })
@@ -83,5 +84,42 @@ func TestTheLanesGiveTheirTurnToAReadyCommit(t *testing.T) {
 			slices.ContainsFunc(modelPackages, func(other string) bool { return other != modelPackages[position] && slices.Contains(arguments, other) }) {
 			t.Errorf("the models lane runs %s as %q; want it alone with the lane's flags and tags", modelPackages[position], arguments)
 		}
+	}
+}
+
+// TestALanesPackageWaitingForTheCardHoldsNoTestTurn holds a lanes package on the card to taking the card's turn before
+// the test turn (lanes-card-order): while it waits for the card, a commit coming to the test turn takes it at once,
+// and the package runs once it holds both. A package that took the test turn first and then waited 20 min 47 s for the
+// card held a commit's tests, which do not use the card, the whole of it.
+func TestALanesPackageWaitingForTheCardHoldsNoTestTurn(t *testing.T) {
+	// Serial: it names the test turn the lanes and the commits take.
+	turn := testTurn
+	testTurn = func() string { return "overgo-test-lanes-card-order" }
+	t.Cleanup(func() { testTurn = turn })
+	waitingForTheCard := func(work func() error) error {
+		commit := exec.Command(os.Args[0], "-test.run=^TestLaneTurnHolder$")
+		// A commit's tests are no process of the lanes', so they hold none of the turns the lanes hold (TurnEnvironment).
+		commit.Env = append(slices.DeleteFunc(os.Environ(), func(setting string) bool {
+			return strings.HasPrefix(setting, processcontrol.TurnEnvironment+"=")
+		}), laneTurnHolderEnvironment+"="+testTurn())
+		input := testcheck.Must(commit.StdinPipe())(t)
+		output := testcheck.Must(commit.StdoutPipe())(t)
+		testcheck.NoError(t, commit.Start())
+		said := bufio.NewScanner(output)
+		taken := said.Scan() && said.Text() == "taken"
+		if !taken {
+			t.Errorf("a commit coming to the test turn while a lanes package waited for the card said %q; want the turn taken at once", said.Text())
+			testcheck.NoError(t, commit.Process.Kill())
+		}
+		closed, ended := input.Close(), commit.Wait()
+		if taken {
+			testcheck.NoError(t, errors.Join(closed, ended))
+		}
+		return work()
+	}
+	ran := false
+	testcheck.NoError(t, HoldTestTurnEach("a fixture lane", waitingForTheCard, []func() error{func() error { ran = true; return nil }}))
+	if !ran {
+		t.Error("the package did not run once it held the card and the test turn")
 	}
 }

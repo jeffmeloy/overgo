@@ -237,8 +237,10 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 	for _, suite := range suites {
 		fmt.Fprintf(output, "validate -run cycle lane %s\n", suite.Lane)
 		// A lane runs in the test turn, a lane of several packages one package at a time (landing.HoldTestTurnEach),
-		// and on the card in the card's turn for each, so a commit's tests and its lanes take the machine between them
-		// (lanes-turns): a commit beside the lanes was refused for memory, and its lanes waited the models lane's hours.
+		// and on the card in the card's turn for each, taken before the test turn, so a commit's tests and its lanes
+		// take the machine between them (lanes-turns) and a package waiting for the card holds no test turn
+		// (lanes-card-order): a commit beside the lanes was refused for memory, and its lanes waited the models lane's
+		// hours.
 		var reports []testevidence.GoTestReport
 		steps := [][]string{suite.Arguments}
 		if len(suite.Each) > 0 {
@@ -247,18 +249,20 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 		runs := make([]func() error, len(steps))
 		for index, arguments := range steps {
 			runs[index] = func() error {
-				run := func() error {
-					report, err := acquire(ctx, output, root, "go", arguments, suite.Environment...)
-					reports = append(reports, report)
-					return err
-				}
-				if plan.HoldsCard != nil && landing.OnCard(suite.Environment) {
-					return plan.HoldsCard("the cycle lane "+suite.Lane, run)
-				}
-				return run()
+				report, err := acquire(ctx, output, root, "go", arguments, suite.Environment...)
+				reports = append(reports, report)
+				return err
 			}
 		}
-		err := landing.HoldTestTurnEach("the cycle lane "+suite.Lane, runs)
+		outer := func(work func() error) error { return work() }
+		if plan.HoldsCard != nil && landing.OnCard(suite.Environment) {
+			outer = func(work func() error) error { return plan.HoldsCard("the cycle lane "+suite.Lane, work) }
+		}
+		each := plan.TakesTurns
+		if each == nil {
+			each = inNoTurn
+		}
+		err := each("the cycle lane "+suite.Lane, outer, runs)
 		record("cycle lane "+suite.Lane, err)
 		if plan.LanesKept == "" {
 			continue
@@ -569,6 +573,16 @@ func requiredPass(report testevidence.GoTestReport, packages []string, selected 
 		return errors.New("the run names no package it requires")
 	}
 	return nil
+}
+
+// inNoTurn runs each step inside outer and in no turn of the machine, as a test's lanes run (Plan.TakesTurns), and
+// answers their errors together.
+func inNoTurn(_ string, outer func(work func() error) error, steps []func() error) error {
+	var failed error
+	for _, step := range steps {
+		failed = errors.Join(failed, outer(step))
+	}
+	return failed
 }
 
 // linkedRun gives a command this one starts with go run the execution

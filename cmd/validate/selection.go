@@ -94,6 +94,10 @@ type Plan struct {
 	// lane's tests ride the run's place and a render beside it gives the card up once for the lane, where each test
 	// had waited out a picture; validate's own run sets it and no test does, so a run without it holds nothing.
 	HoldsCard func(purpose string, work func() error) error `json:"-"`
+	// TakesTurns runs a lane's packages in the machine's test turn, each inside outer, giving the turn to a waiting
+	// commit between them (landing.HoldTestTurnEach); validate's own run sets it and no test does, so a test's lanes take
+	// no turn of the machine and do not wait out the packages of the cycle's lanes a closing commit runs (lanes-on-close).
+	TakesTurns func(purpose string, outer func(work func() error) error, steps []func() error) error `json:"-"`
 }
 
 // measuredModelsFile lists the models a full run measures again, by the names -model takes: one per runtime path,

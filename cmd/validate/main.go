@@ -299,7 +299,7 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 		}
 		if scope == scopeLanes {
 			// The lanes need no model resolved: only they run.
-			return executeRun(ctx, output, *root, storeRoot, store, Plan{Suites: cycleSuites(), LanesKept: trunkCheckout(ctx, *root), HoldsCard: landing.HoldLaneTurn}, scope)
+			return executeRun(ctx, output, *root, storeRoot, store, Plan{Suites: cycleSuites(), LanesKept: trunkCheckout(ctx, *root), HoldsCard: landing.HoldLaneTurn, TakesTurns: landing.HoldTestTurnEach}, scope)
 		}
 	}
 	registered, err := registeredCells(ctx, store)
@@ -358,7 +358,7 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 		return executeRun(ctx, output, *root, storeRoot, store, plan.OnlyTrained(), scopeCells)
 	}
 	if *execute {
-		plan.LanesKept, plan.HoldsCard = trunkCheckout(ctx, *root), landing.HoldLaneTurn
+		plan.LanesKept, plan.HoldsCard, plan.TakesTurns = trunkCheckout(ctx, *root), landing.HoldLaneTurn, landing.HoldTestTurnEach
 		return executeRun(ctx, output, *root, storeRoot, store, plan, scope)
 	}
 	return clioptions.WritePrettyJSON(output, plan)

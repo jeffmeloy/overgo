@@ -19,14 +19,14 @@ import (
 // (TestLaneTurnHolder).
 const laneTurnHolderEnvironment = "OVERGO_TEST_LANE_TURN_HOLDER"
 
-// TestLaneTurnHolder is a process of heldTurn: it holds the turn its environment names, says so, and gives it up when
-// its parent closes its input. It passes at once in any other run.
+// TestLaneTurnHolder is a process of heldTurn: it holds the turn its environment names, says any wait for it and that
+// it holds it, and gives it up when its parent closes its input. It passes at once in any other run.
 func TestLaneTurnHolder(t *testing.T) {
 	name := os.Getenv(laneTurnHolderEnvironment)
 	if name == "" {
 		return
 	}
-	release := testcheck.Must(processcontrol.TakeTurn(name, "a lane turn's holder", io.Discard))(t)
+	release := testcheck.Must(processcontrol.TakeTurn(name, "a lane turn's holder", os.Stdout))(t)
 	fmt.Println("taken")
 	_, err := io.Copy(io.Discard, os.Stdin)
 	testcheck.NoError(t, errors.Join(err, release()))

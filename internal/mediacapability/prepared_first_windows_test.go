@@ -5,17 +5,57 @@ package mediacapability
 import (
 	"context"
 	"encoding/base64"
+	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 
 	"overgo/internal/artifact"
 	"overgo/internal/latentimage"
+	"overgo/internal/media"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodbtest"
 	"overgo/internal/strictjson"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
+
+// TestAPresetOnlyRequestTakesItsPresetsSize holds SQA-409: a MOSS request naming a section preset and no size, as recipe
+// run takes it, reaches the picture session with the size the preset's canvas gives, its preset still named for the
+// rest, and passes the session's check of its size; a request stating its size reaches it as it came; and a request's
+// own canvas gives its size in place of the canvas.
+func TestAPresetOnlyRequestTakesItsPresetsSize(t *testing.T) {
+	t.Parallel()
+	directory := t.TempDir()
+	testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "model_index.json"), []byte(`{"_class_name": "MOSSImagePipeline"}`), 0o600))
+	var reached []string
+	session := func(_ context.Context, _ artifact.Repository, _ string, _ modelrecipe.CapabilityEvidenceSelection, input string) (any, error) {
+		reached = append(reached, input)
+		return "drawn", nil
+	}
+	run := func(input string) latentimage.Request {
+		t.Helper()
+		testcheck.Must(preparedFirst(session)(t.Context(), nil, directory, modelrecipe.CapabilityEvidenceSelection{}, input))(t)
+		var taken latentimage.Request
+		testcheck.NoError(t, strictjson.DecodeBytes([]byte(reached[len(reached)-1]), &taken))
+		return taken
+	}
+	canvas := testcheck.Must(func() ([2]int, error) {
+		width, height, err := media.Canvas{Aspect: "16:9", Megapixels: 3, Multiple: 32}.Size()
+		return [2]int{width, height}, err
+	}())(t)
+	if taken := run(`{"prompt":"a fox","preset":"ultra-text-to-image","seed":42}`); [2]int{taken.Width, taken.Height} != canvas ||
+		taken.Preset != "ultra-text-to-image" || taken.Seed != 42 || taken.Canvas != nil || latentimage.ValidateRequest(taken) != nil {
+		t.Errorf("a preset-only request reached the session as %+v (%v); want the preset's canvas, %v, and the preset named", taken, latentimage.ValidateRequest(taken), canvas)
+	}
+	own := `{"prompt":"a fox","preset":"ultra-text-to-image","width":1024,"height":576}`
+	if run(own); reached[len(reached)-1] != own {
+		t.Errorf("a request stating its size reached the session as %s", reached[len(reached)-1])
+	}
+	if taken := run(`{"prompt":"a fox","canvas":{"aspect":"1:1","megapixels":1,"multiple":64}}`); taken.Width != 1024 || taken.Height != 1024 || taken.Canvas != nil {
+		t.Errorf("a request's own canvas reached the session as %+v; want its size, 1024 x 1024, in its place", taken)
+	}
+}
 
 // TestAStoredPictureReachesItsSessionAsItsBytes holds the pictures a page attaches to a MOSS request
 // (moss-ultra-compare/stored-pictures): a request naming its picture and its depth map by their stored identity reaches

@@ -3,6 +3,38 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "moss-speed",
+      "title": "Where a MOSS step's time goes at 2368 x 1344, against ComfyUI's 1.1 s, and the depth estimate's 80 s on the processor, is measured part by part, the largest share cured after",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Where a MOSS step's time goes at 2368 x 1344, against ComfyUI's 1.1 s, and the depth estimate's 80 s on the processor, is measured part by part, the largest share cured after",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^TestWhereAMossStepsTimeGoes$'",
+          "files": [
+            "internal/latentimage",
+            "internal/vitencoder"
+          ],
+          "rationale": "Note: The owner's note of 2026-11-17: speed is the largest gap left. At the sections' own size, 2368 x 1344, a MOSS step takes 6.1 s in overgo and 1.1 s in ComfyUI (golden-floor's own-size reading, finding evidence:sha256:b277875b), and a depth section's Depth Anything V2 Small estimate takes 80 s on the processor for a 1024 x 576 picture, 0.35 s of it loading (finding evidence:sha256:9f5331e7). Speed work first finds where the time goes (lessons: a part judged slow is compared with the reference engine's same phase on the same input), so this step times one step at 2368 x 1344 part by part (the denoiser's blocks by kind: attention, feed-forward, the adapters' branches, guidance's passes; the host's share between launches) and the depth estimate by its encoder blocks and its head, and holds that the parts account for the whole. The cure of the largest share is filed from what it shows.\n\nServes: the six sections at their own size, and the depth sections' runs and previews.\n\nCheck: TestWhereAMossStepsTimeGoes, on the card.\n\nBatch: device lane."
+        }
+      ]
+    },
+    {
+      "id": "moss-real-prompt",
+      "title": "Text to image and prompt mode 3 are held to ComfyUI on a real prompt and a filled builder, their floors set from recordings of them, and image to image at denoise 1, the same run as text to image, goes",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Text to image and prompt mode 3 are held to ComfyUI on a real prompt and a filled builder, their floors set from recordings of them, and image to image at denoise 1, the same run as text to image, goes",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^TestUltraSectionsHoldTheirGoldenFloors$'",
+          "files": [
+            "internal/latentimage",
+            "fixtures/comfy"
+          ],
+          "rationale": "Note: The owner's note of 2026-11-17: text to image and prompt mode 3 were recorded on the workflow's empty prompt and an empty builder, so their floors (golden-floor: 1.55 dB on latents, 15.11 dB on pictures for text to image; 0.88 and 16.50 for mode 3) show only that overgo's draw is closer to ComfyUI's than another seed's is, the chaotic sensitivity an empty prompt has (overgo against its own 8-bit attention: 2.38 dB). Both sections are recorded again with a real prompt, and mode 3 with the builder's fields and regions filled (comfy-reference -record with -set on the prompt node and the builder's inputs), twice each as pass-1 and pass-2 were, and their floors are set from those recordings by the golden-floor method (the first reading less 3 dB, beside a reseeded control). Image to image at denoise 1 starts from the noise alone, the same run as text to image, so its case goes.\n\nServes: done = each section and prompt mode agrees with its ComfyUI recording, on prompts that say something.\n\nCheck: TestUltraSectionsHoldTheirGoldenFloors, on the card, with ComfyUI's recordings.\n\nBatch: device lane."
+        }
+      ]
+    },
+    {
       "id": "moss-eight-step",
       "title": "MOSS-Image-SFT gains the workflow's eight-step Turbo preset, the local DMD2 adapter unmerged at guidance 1, held to the workflow's Turbo recordings",
       "steps": [

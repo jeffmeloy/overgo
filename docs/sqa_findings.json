@@ -110,16 +110,18 @@
       "actual": "The held-test wrapper compares cleaned path strings with slices.Contains, so scripts/HELD_test.go misses the held name, stays under the allowed scripts directory and is admitted; os.WriteFile or os.Remove then rewrites or deletes the held test. Read from source."
     },
     {
-  "id": "SQA-388",
-  "severity": "P2",
-  "files": [
-    "cmd/comfy-reference/record.go",
-    "cmd/comfy-reference/record_test.go"
-  ],
-  "input": "(1) ComfyUI completes a prompt at installation/custom-node commit A, but a /view failure leaves its accepted receipt. Change that installation or pack to commit B and retry the identical request with the old history still available. (2) Two outputs of one node with the same basename in different subfolders. (3) A prompt whose card memory peaks between the once-a-second polls, or whose completed history is resumed after its original sampling window.",
-  "expected": "The existing recorder owns recovery and truthful output identity: (1) an accepted run retains its execution-time producer commits/version, or reuse is refused when that identity cannot be established; a retry must not credit old output to a new installation. Keep the repaired destination preflight, completed-record refusal and same-request prompt reuse. (2) Distinct outputs keep distinct paths and bytes. (3) Record sampled whole-device usage with its actual sampling window; a resumed run with no samples of its original execution has no measured execution peak.",
-  "actual": "(1) accepted stores only prompt_id and request_sha256. On retry, record fills taken.Commits from the current checkout and taken.ComfyUI from current /system_stats before matching that receipt, then publishes the old prompt's history and outputs with the new metadata (record.go:138-155). The original run at A is labelled B. The retained resume fixture keeps the installation unchanged. (2) keep names files by cleaned node id and basename alone, ignoring subfolder, so the second output overwrites the first. (3) await labels the largest device-0 Total-Free snapshot peak_card_bytes, without a sampling window; on completed-history resume it immediately returns the retry's initial snapshot as the old run's peak. Shown from source at 0c24aca5b670940f95c0f8156c13804a9e2fd9ea; no SQA execution."
-},
+      "id": "SQA-388",
+      "severity": "P2",
+      "files": [
+        "cmd/comfy-reference/record.go",
+        "cmd/comfy-reference/record_test.go",
+        "internal/latentimage/golden_floor_windows_model_test.go",
+        "internal/cuda/driver/driver_windows.go"
+      ],
+      "input": "(1) After ComfyUI at revision A completes, /view fails. Retry the same accepted prompt after changing the installation to B. (2) Return two outputs of one node with the same basename in different subfolders. (3) Resume completed history or compare the retained 2368x1344 MOSS own-size run with overgo.",
+      "expected": "The recorder preserves the producer of the accepted prompt and both distinct outputs. Report the memory instrument and sampling window and the start and end of each timing. A resumed run without original samples has no measured original peak.",
+      "actual": "The accepted receipt binds only prompt and request, so the retry credits A's output to B. keep writes both subfolders to the same path. await samples whole-device Total-Free, starting with the retry snapshot even for completed history. ownSizeReading displays overgo's 13.6 GiB process allocation high-water beside ComfyUI's 23.4 GiB whole-device samples as comparable peaks. Its 359 s starts after LoadGenerator; the reference's 58.123 s spans execution_start to execution_success with cached nodes. Retained values and source at 12f172302; the difference in process memory is unmeasured."
+    },
     {
       "id": "SQA-401",
       "severity": "P2",
@@ -137,36 +139,62 @@
       "actual": "(1) path.Dir(value.txt) is \".\" and the ancestor loop stops before adding it, so the asset is not restored and undoable says no production Go changed. (2) Production calls go list without the verifier's flags, so the tag-gated embed is not listed and the asset-only change skips the undo. Read from source."
     },
     {
-  "id": "SQA-406",
-  "severity": "P2",
-  "files": [
-    "internal/latentimage/media_adapter.go",
-    "internal/mediacapability/image_cuda_windows.go",
-    "internal/mediacapability/image_source.go",
-    "internal/modelartifact/pipeline.go",
-    "internal/capabilityruntime/session_director.go",
-    "internal/capabilityruntime/run_key.go"
-  ],
-  "input": "With a valid MOSS HF pipeline whose model_index declares the normal components and no adapters component, serve a fixed-seed image-gen request naming an adapter in <model>/adapters/<name>.safetensors and keep its completed run. Replace that file with different compatible adapter tensors under the same name, leaving the base components, recipe, request JSON and build unchanged, then repeat the request without FreshRun.",
-  "expected": "The image source/request-binding owner must bind the selected adapter's content identity before the existing director checks for a completed result. Changed adapter bytes cannot reuse the earlier computation or claim its output; unchanged adapter bytes may still reuse resident weights across strength changes, while differing strengths remain distinct requests. Keep the current artifact, replay and resident-session owners.",
-  "actual": "modelAdapter reads weights from the named file, but fromHFPipeline inventories only model_index components, leaving the adapters directory outside the model identity. imageCapability passes the latent executor straight to pictureSessions without an adapter-content binding. RunKeyOf therefore stays identical (recipe, JSON request and code), and ModelSessionDirector.serve calls measuredRun/Replay before modelAdapter is reached: the previous image and run are returned without reading the replacement adapter. The retained adapter comparison checks fixed files and strengths, not invalidation of a served result after a file changes. Shown from source at a11ed7e3b5b58078ea7b7627ac687058420c0eb9; no SQA execution."
-},
+      "id": "SQA-406",
+      "severity": "P2",
+      "files": [
+        "internal/mediacapability/image_source.go",
+        "internal/mediacapability/image_cuda_windows.go",
+        "internal/modelartifact/pipeline.go",
+        "internal/capabilityruntime/session_director.go",
+        "internal/capabilityruntime/run_key.go",
+        "internal/latentimage/media_adapter.go",
+        "internal/latentimage/source_latent_windows.go"
+      ],
+      "input": "Complete a fixed-seed MOSS image-gen run in a valid HF pipeline whose model_index omits adapters and depth. Repeat it after replacing only (1) the named adapter with compatible weights or (2) depth/depth_anything_v2_vits.pth for a control.picture request with explicit size and moss-control. Keep the picture, recipe, request, code and base files identical.",
+      "expected": "Bind the bytes of the selected adapter(s) and, for control.picture, the depth estimator before checking replay. Replacing a consumed file recomputes the image. Unchanged inputs may replay. A supplied control.map needs no depth estimator.",
+      "actual": "fromHFPipeline inventories declared components. preparedFirst resolves stored pictures, but neither it nor resolveImageSource binds either external weight to this run. The director can return a completed image before modelAdapter or sectionDepth reads the changed file. In case 2 the preview reads the current estimator while generation can return the old result. Both cases follow the same missing binding. Source at 12f172302, no replacement run performed."
+    },
     {
-  "id": "SQA-409",
-  "severity": "P2",
-  "files": [
-    "internal/mediacapability/image_cuda_windows.go",
-    "internal/latentimage/runtime_cuda_windows.go",
-    "internal/latentimage/profile.go",
-    "internal/latentimage/profiles.json",
-    "internal/latentimage/section_presets_windows_test.go",
-    "internal/capabilityruntime/session_director.go",
-    "cmd/recipe/main.go"
-  ],
-  "input": "With an active valid MOSS image-gen recipe, give recipe run {\"prompt\":\"a fox\",\"preset\":\"ultra-text-to-image\",\"seed\":42}, leaving width, height and canvas unset. The section preset declares its own 16:9, 3-megapixel canvas, which withSection applies when the request gives no size.",
-  "expected": "The existing latent-image preset/canvas owner resolves the effective request before the picture director validates its geometry. This preset-only request reaches the ordinary image session with the declared canvas; explicitly supplied dimensions retain their documented precedence. Keep strict decoding and the existing director and model loader as the shared admission/execution owners.",
-  "actual": "At 1a0c6e44e7cd2b8d1d63630fca7b36eeabe547ea, recipe run passes the raw input to imageCapability. enhancedFirst forwards this non-enhanced input unchanged. pictureSessions installs latentimage.ValidateRequest; ModelSessionDirector.execute/decodeJSONInput calls it before loading, so zero width/height return \"latent image: invalid extent: media: invalid spatial geometry 0x0\". LoadGenerator calls withPreset only after that boundary; its canvas resolution is unreachable. TestTheUltraSectionPresetsHoldTheRecordedSettings calls withPreset directly and proves the defaults, bypassing the failing admission path. Shown from source; no SQA execution."
-}
+      "id": "SQA-409",
+      "severity": "P2",
+      "files": [
+        "internal/mediacapability/image_cuda_windows.go",
+        "internal/latentimage/runtime_cuda_windows.go",
+        "internal/latentimage/profiles.json",
+        "internal/latentimage/section_presets_windows_test.go",
+        "internal/capabilityruntime/session_director.go"
+      ],
+      "input": "Use recipe run on a configured MOSS image-gen recipe. (1) Give {\"prompt\":\"a fox\",\"preset\":\"ultra-text-to-image\",\"seed\":42} without dimensions. (2) Give preset ultra-depth-control, prompt \"a fox\", 1024x576 and control.map containing a valid base64 PNG, omitting the adapter supplied by the preset.",
+      "expected": "Strictly decode and resolve the effective request through the existing preset owner before checking geometry and required adapters. Case 1 uses the preset canvas. Case 2 keeps its explicit size and uses moss-control. Invalid or conflicting explicit values still fail admission.",
+      "actual": "The picture director validates the unfilled request. Case 1 fails on 0x0 before the 3 MP canvas is resolved. Case 2 passes geometry but fails the empty applied-adapter check before withSection supplies moss-control. The retained six-section fixture calls withPreset directly. Source at 12f172302, no SQA execution."
+    },
+    {
+      "id": "SQA-410",
+      "severity": "P2",
+      "files": [
+        "internal/latentimage/golden_floor_windows_model_test.go",
+        "internal/latentimage/image_to_image_windows_model_test.go",
+        "internal/latentimage/depth_control_windows_model_test.go"
+      ],
+      "input": "Compare a recorded 1024x576 PNG to the same pixels with one extra column (1025x576). Separately, give the mirrored-input latent comparison a short vector or a NaN element while the unchanged baseline passes.",
+      "expected": "The MOSS section comparison checks exact image dimensions and comparable finite latent inputs before scoring. Only a valid changed input yielding a score below the floor counts as a successful negative control.",
+      "actual": "squareColourMeans ignores partial 8x8 tiles and pictureDecibels compares only vector lengths: the extra column yields zero error and +Inf agreement. decibelsOverSquares returns -Inf on a length mismatch and NaN propagates from a NaN sample. All three negative-control assertions reject only score >= floor, accepting both invalid comparisons. Source-demonstrated at 12f172302, no SQA execution."
+    },
+    {
+      "id": "SQA-411",
+      "severity": "P2",
+      "files": [
+        "cmd/overgodb/rehearse.go",
+        "internal/overgodb/clone.go",
+        "internal/objectstore/store.go",
+        "internal/server/server_admin.go",
+        "internal/server/slot_state_test.go",
+        "internal/overgodb/clone_test.go"
+      ],
+      "input": "Save a named prompt state on slot 0 with one supported model and max_concurrent=1. Make a rehearsal clone into a different directory. Serve the same model and recipe on that clone and POST /slots/0?action=restore with the saved filename and an idle slot.",
+      "expected": "Restore the saved state from the rehearsal's published object while preserving the source store, its alias, and its locations. Clone the immutable data without redundant full copies where the storage owner guarantees sharing is safe.",
+      "actual": "CloneStore links blobs/ but byte-copies objects/ and the database records with the original absolute locations. restoreSlot resolves the copied alias. objectstore.Open requires a published location equal to the clone's own object path, so it returns 'object store: object location is not published' and the route returns HTTP 500 despite the copied bytes. The clone fixture covers blob sharing and source survival; the slot fixture restores in its original directory. Source at 12f172302, no SQA execution."
+    }
   ],
   "master_lead_triage": {
     "at": "2026-11-13",
@@ -234,7 +262,7 @@
       }
 }
   },
-  "next_finding_number": 410,
+  "next_finding_number": 412,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

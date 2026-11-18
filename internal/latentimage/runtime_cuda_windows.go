@@ -668,6 +668,22 @@ func PresetSettings(directory string) (map[string]json.RawMessage, error) {
 	return settings, nil
 }
 
+// Sized is the request with the size its canvas, or its preset's, gives it where it states no width and height (a MOSS
+// Ultra section's 16:9 at 3 megapixels), the rest as it came, its preset still named for what it fills besides; a
+// request that states its size, or names neither canvas, is as it came. A session is chosen and checked by its size
+// before its model loads (ValidateRequest, SessionKey), so a size the preset gives is given before (SQA-409).
+func (r Request) Sized(directory string) (Request, error) {
+	if r.Width != 0 || r.Height != 0 || r.Canvas == nil && r.Preset == "" {
+		return r, nil
+	}
+	filled, err := r.withPreset(directory)
+	if err != nil {
+		return Request{}, err
+	}
+	r.Width, r.Height, r.Canvas = filled.Width, filled.Height, nil
+	return r, nil
+}
+
 // withPreset fills what a request leaves unset from the preset it names in its model's catalog, and clears the name,
 // so a request naming a preset and one stating its values are one request. A request naming none is the authors'
 // recipe, its profile's.

@@ -111,20 +111,25 @@ func depthPreview(ctx context.Context, store artifact.Repository, path string, _
 	return latentimage.DepthPreview(path, read)
 }
 
-// preparedFirst prepares a latent picture request ahead of its session: the pictures it names by their stored identity,
-// as a page attaches them, are read into the bytes the session takes (latentimage Request.ReadPictures), and a request
-// asking the MOSS Ultra workflow's prompt mode 2 has its prompt and negative written by the model's enhancer chat
-// (latentimage.EnhanceRequest); it is served as the request stating what was read and written, and an input naming no
-// stored picture and asking no enhancing goes to the session as it is. A request is read as strictly as the session
-// reads it, so one the session would refuse (an unknown or repeated member) reaches the session as it came and is
-// refused there, nothing read and no chat opened for it (SQA-408).
+// preparedFirst prepares a latent picture request ahead of its session: a request stating no size is given its
+// canvas's or its preset's (latentimage Request.Sized), since the session is chosen and checked by its size before its
+// model loads (SQA-409); the pictures it names by their stored identity, as a page attaches them, are read into the
+// bytes the session takes (Request.ReadPictures); and a request asking the MOSS Ultra workflow's prompt mode 2 has its
+// prompt and negative written by the model's enhancer chat (latentimage.EnhanceRequest). It is served as the request
+// stating what was given, read and written, and an input needing none of them goes to the session as it is. A request is
+// read as strictly as the session reads it, so one the session would refuse (an unknown or repeated member) reaches the
+// session as it came and is refused there, nothing read and no chat opened for it (SQA-408).
 func preparedFirst(next capabilityruntime.Executor) capabilityruntime.Executor {
 	return func(ctx context.Context, store artifact.Repository, path string, selection modelrecipe.CapabilityEvidenceSelection, input string) (any, error) {
 		var request latentimage.Request
 		if err := strictjson.DecodeBytes([]byte(input), &request); err != nil {
 			return next(ctx, store, path, selection, input)
 		}
-		prepared, err := request.ReadPictures(ctx, store)
+		sized, err := request.Sized(path)
+		if err != nil {
+			return nil, err
+		}
+		prepared, err := sized.ReadPictures(ctx, store)
 		if err != nil {
 			return nil, err
 		}
@@ -132,7 +137,7 @@ func preparedFirst(next capabilityruntime.Executor) capabilityruntime.Executor {
 			if prepared, err = latentimage.EnhanceRequest(ctx, store, path, prepared); err != nil {
 				return nil, err
 			}
-		} else if prepared.Image == request.Image && prepared.Control == request.Control {
+		} else if prepared.Image == request.Image && prepared.Control == request.Control && prepared.Width == request.Width && prepared.Canvas == request.Canvas {
 			return next(ctx, store, path, selection, input)
 		}
 		written, err := json.Marshal(prepared)

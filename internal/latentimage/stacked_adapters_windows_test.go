@@ -48,6 +48,19 @@ func TestAdaptersStackAsTheWorkflowsLoaderStacksThem(t *testing.T) {
 	if replacedTwice([]*mediaAdapter{first, second}) != "" {
 		t.Error("adapters replacing different weights were refused")
 	}
+	// A third adapter's patch of the embedder the second widened reads the latent's own width, as the SFT adapter's
+	// does after moss-control in the depth Turbo section: ComfyUI cannot reshape its difference to the widened weight
+	// and keeps the weight, so the graph leaves the branch out and compiles (moss-eight-step).
+	third := &mediaAdapter{lowRank: map[string]lowRankPatch{"video_embedder": {down: "e.lora_down.weight", up: "e.lora_up.weight", rank: 2,
+		rows: width, in: uint64(spec.InChannels), out: width, scale: 1}}, diffs: map[string]string{}, replaced: map[string]replacement{}}
+	stacked3 := testcheck.Must(compileRotaryDenoiserProgram(spec, 1e-6, 2, 3, 4, nil, dtype.BF16, rotaryOptions{adapters: []*mediaAdapter{first, second, third}}))(t)
+	if stacked3.adapterInputs[2].Node("e.lora_down.weight@2") != nil {
+		t.Error("a patch of a widened embedder reading its old width was bound; ComfyUI leaves it out")
+	}
+	alone := testcheck.Must(compileRotaryDenoiserProgram(spec, 1e-6, 2, 3, 4, nil, dtype.BF16, rotaryOptions{adapters: []*mediaAdapter{third}}))(t)
+	if alone.adapterInputs[0].Node("e.lora_down.weight") == nil {
+		t.Error("the embedder's patch at its own width was left out")
+	}
 
 	path := writeAdapter(t, "placed", map[string][]float32{"q.lora_down.weight": {1, 2, 3, 4}}, map[string][]int{"q.lora_down.weight": {2, 2}})
 	source := testcheck.Must(safetensors.OpenFile(path))(t)

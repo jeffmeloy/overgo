@@ -37,7 +37,7 @@ const pictureSquare = 8
 // drawn from noise on the workflow's saved empty prompt, or mode 3's eight empty lines, parts the most: there overgo's
 // own attention in 8 bits moves overgo to 2.38 dB of itself, where on mode 2's long prompt it keeps 17.00 dB, so
 // ComfyUI's arithmetic reaching 1.55 dB is that sensitivity, not a fault; a picture or depth map holds its section.
-var goldenFloors = map[string]struct{ latent, picture float64 }{
+var goldenFloors = map[string]goldenFloor{
 	"text to image":                 {latent: 1.55 - goldenFloorMargin, picture: 15.11 - goldenFloorMargin},
 	"prompt mode 2":                 {latent: 15.57 - goldenFloorMargin, picture: 32.73 - goldenFloorMargin},
 	"prompt mode 3":                 {latent: 0.88 - goldenFloorMargin, picture: 16.50 - goldenFloorMargin},
@@ -45,6 +45,9 @@ var goldenFloors = map[string]struct{ latent, picture float64 }{
 	"image to image at denoise 0.6": {latent: 17.91 - goldenFloorMargin, picture: 32.94 - goldenFloorMargin},
 	"depth control":                 {latent: 14.13 - goldenFloorMargin, picture: 28.08 - goldenFloorMargin},
 }
+
+// goldenFloor is a case's floors: its final latent's and its finished picture's least agreement with ComfyUI's, in dB.
+type goldenFloor struct{ latent, picture float64 }
 
 // goldenCase is one section or prompt mode of the MOSS Ultra workflow as a recording of it holds it: the run and
 // section it was recorded in, its sampler (whose final latent the recorder saved), the node that saved its finished
@@ -123,16 +126,11 @@ var goldenCases = []goldenCase{
 			request.Image, request.Denoise = base64.StdEncoding.EncodeToString(ultraPictureBytes(t)), recording.inputs("506")["denoise"].(float64)
 			return request
 		}},
-	{name: "image to image at denoise 0.6", run: "denoise", slug: "image-to-image", sampler: imageToImageSampler, finished: "604",
+	{name: "image to image at denoise 0.6", run: "denoise", slug: "image-to-image", sampler: imageToImageSampler, finished: "604", control: mirroredPicture,
 		request: func(t *testing.T, recording comfySection) Request {
 			t.Helper()
 			request := denoiseSection(t, recording)
 			request.Sharpen = textSection(t, recording, imageToImageSampler, "585", "586", "603").Sharpen
-			return request
-		},
-		control: func(t *testing.T, request Request) Request {
-			t.Helper()
-			request.Image = base64.StdEncoding.EncodeToString(mirrored(t, ultraPictureBytes(t)))
 			return request
 		}},
 	{name: "depth control", run: "pass-1", slug: "depth-control", sampler: depthControlSampler, finished: "610",
@@ -160,10 +158,18 @@ var goldenCases = []goldenCase{
 // holds the input's part.
 func TestUltraSectionsHoldTheirGoldenFloors(t *testing.T) {
 	cudatest.Require(t)
-	ctx := t.Context()
 	root := ultraModelRoot(t)
 	profile := testcheck.Must(ResolveProfile(root))(t)
-	for _, golden := range goldenCases {
+	holdGoldenFloors(t, root, profile, goldenCases, goldenFloors)
+	t.Run("own size", func(t *testing.T) { ownSizeReading(t, root, profile) })
+}
+
+// holdGoldenFloors draws each case as its recording asks it, and with its input changed, on the root, and holds its
+// final latent and finished picture to its floors, its changed draw's latent below.
+func holdGoldenFloors(t *testing.T, root string, profile Profile, cases []goldenCase, floors map[string]goldenFloor) {
+	t.Helper()
+	ctx := t.Context()
+	for _, golden := range cases {
 		recording := readComfySection(t, golden.run, golden.slug)
 		request := golden.request(t, recording)
 		wantLatent, wantPicture := recording.latent(t, golden.sampler), recording.picture(t, golden.finished)
@@ -183,7 +189,7 @@ func TestUltraSectionsHoldTheirGoldenFloors(t *testing.T) {
 		controlLatent, _ := drawn(changed)
 		controlAgreement := decibelsOverSquares(controlLatent, wantLatent)
 		closeReporting(t, context.WithoutCancel(ctx), generator)
-		floor, declared := goldenFloors[golden.name]
+		floor, declared := floors[golden.name]
 		t.Logf("%s: the final latent keeps %.2f dB, the finished picture %.2f dB over %d-pixel squares; with its input changed the latent keeps %.2f dB",
 			golden.name, latentAgreement, pictureAgreement, pictureSquare, controlAgreement)
 		if !declared {
@@ -199,7 +205,6 @@ func TestUltraSectionsHoldTheirGoldenFloors(t *testing.T) {
 				golden.name, controlAgreement, floor.latent)
 		}
 	}
-	t.Run("own size", func(t *testing.T) { ownSizeReading(t, root, profile) })
 }
 
 // ownSizeReading reads the workflow's text to image section at its own size (the own-size recording: its canvas 16:9

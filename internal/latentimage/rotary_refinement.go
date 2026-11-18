@@ -96,12 +96,16 @@ func (a graphAdapter) input(name string, dimensions ...uint64) *tensor.Tensor {
 	return a.inputs.Input(name, dimensions...)
 }
 
-// lowRank is the adapters' branches of a projection summed, each s * scale * (x down) up at F32, or none.
-func (g *rotaryGraph) lowRank(name string, x *tensor.Tensor) *tensor.Tensor {
+// lowRank is the adapters' branches of a projection reading in values summed, each s * scale * (x down) up at F32, or
+// none. A branch reading another width than a weight an adapter replaced at in is left out, as ComfyUI leaves a LoRA
+// whose difference cannot take its weight's shape (comfy/weight_adapter/lora.py calculate_weight logs the error and
+// keeps the weight): the SFT adapter's patch of the patch embedder reads the latent's 128 channels where moss-control,
+// before it in the depth Turbo section's stack, widened the embedder to 384 (moss-eight-step).
+func (g *rotaryGraph) lowRank(name string, x *tensor.Tensor, in uint64) *tensor.Tensor {
 	var sum *tensor.Tensor
 	for _, applied := range g.adapters {
 		patch, held := applied.adapter.lowRank[name]
-		if !held {
+		if !held || patch.in != in && g.replacedWidth(name+".weight") == in {
 			continue
 		}
 		down := applied.input(patch.down, patch.in, patch.rank)
@@ -133,7 +137,7 @@ func (g *rotaryGraph) round(x *tensor.Tensor) *tensor.Tensor {
 }
 func (g *rotaryGraph) linear(name string, x *tensor.Tensor, in, out uint64, bias bool) *tensor.Tensor {
 	y := g.b.MulMat(g.weight(name+".weight", in, out), x)
-	if branch := g.lowRank(name, x); branch != nil {
+	if branch := g.lowRank(name, x, in); branch != nil {
 		y = g.b.Add(y, branch)
 	}
 	if bias {

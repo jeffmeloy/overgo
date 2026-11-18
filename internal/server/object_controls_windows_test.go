@@ -20,7 +20,7 @@ import (
 // TestObjectControlsAreTakenFieldByField holds the settings a request holds as objects and lists
 // (moss-ultra-compare/object-controls): MOSS's page declares a MOSS Ultra section's schedule with its samplers and
 // schedulers as choices, its canvas, its sharpening, the adapters it stacks with the model's adapters as choices, its
-// depth control with its map a slot of image media, and its layout with its regions and palette as lists; a value is
+// depth control with its picture and its map slots of image media, and its layout with its regions and palette as lists; a value is
 // taken field by field and item by item, and refused where a part is undeclared, mistyped or missing, or a list is not
 // one; a flow profile's page declares none of them; and a capability declaring an object with no fields, or a list
 // with no item, is refused.
@@ -61,8 +61,10 @@ func TestObjectControlsAreTakenFieldByField(t *testing.T) {
 	for _, name := range []string{"radius", "sigma", "alpha"} {
 		field(held["sharpen"], name)
 	}
-	if depth := field(held["control"], "map"); depth.Type != workflowControlArtifact || depth.Media != "image" || !depth.Required {
-		t.Errorf("the depth control's map is %+v; want a required slot of image media", depth)
+	for _, name := range []string{"picture", "map"} {
+		if slot := field(held["control"], name); slot.Type != workflowControlArtifact || slot.Media != "image" || slot.Required {
+			t.Errorf("the depth control's %s is %+v; want an optional slot of image media, the run taking one of them", name, slot)
+		}
 	}
 	adapters := held["adapters"]
 	if adapters.Type != workflowControlList || adapters.Item == nil || adapters.Item.Type != workflowControlObject || !slices.Equal(field(*adapters.Item, "name").Choices, []string{"moss-control"}) {
@@ -80,7 +82,7 @@ func TestObjectControlsAreTakenFieldByField(t *testing.T) {
 	for name, refused := range map[string]string{
 		"an undeclared field":   `{"prompt":"a fox","schedule":{"samplr":"er_sde"}}`,
 		"a mistyped field":      `{"prompt":"a fox","canvas":{"megapixels":"many"}}`,
-		"a missing map":         `{"prompt":"a fox","control":{"strength":1}}`,
+		"a nameless adapter":    `{"prompt":"a fox","adapters":[{"strength":1}]}`,
 		"a map that is no file": `{"prompt":"a fox","control":{"map":"a picture"}}`,
 		"a mistyped item":       `{"prompt":"a fox","adapters":[{"name":3}]}`,
 		"an object for a list":  `{"prompt":"a fox","adapters":{"name":"moss-control"}}`,

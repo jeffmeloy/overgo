@@ -105,6 +105,7 @@ var routeCatalog = []routeDescriptor{
 	{Path: "/generation/run", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: workflowRoute(workflowGeneration, (*Handler).workflowRun)},
 	{Path: "/generation/command", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: workflowRoute(workflowGeneration, (*Handler).workflowCommands)},
 	{Path: "/generation/enhance", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).promptEnhance},
+	{Path: "/generation/preview", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: workflowRoute(workflowGeneration, (*Handler).workflowPreview)},
 	{Path: "/training/capabilities", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: workflowRoute(WorkflowTraining, (*Handler).workflowCapabilities)},
 	{Path: "/training/run", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: workflowRoute(WorkflowTraining, (*Handler).workflowRun)},
 	{Path: "/training/command", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: workflowRoute(WorkflowTraining, (*Handler).workflowCommands)},

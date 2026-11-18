@@ -30,7 +30,9 @@ import (
 // controls a stage's request declares for a model directory, and the
 // media artifact an executor's output becomes.
 type generationCatalog struct {
-	Execute       map[recipe.Task]capabilityruntime.Executor
+	Execute map[recipe.Task]capabilityruntime.Executor
+	// Preview shows, per task that previews, what a run reads of its input before any run (a MOSS depth section's map).
+	Preview       map[recipe.Task]capabilityruntime.Executor
 	Controls      func(entry recipe.ModuleID, directory string) ([]workflowControl, string)
 	OutputContent func(output any) (artifact.Content, error)
 }
@@ -44,6 +46,8 @@ type generationCatalog struct {
 func BindGenerationCatalog[
 	Capability interface {
 		Executor() capabilityruntime.Executor
+		// Previewer reports what shows a run's input before any run, nil where the capability previews nothing.
+		Previewer() capabilityruntime.Executor
 	},
 	Control interface {
 		Declared() (name, kind string, required bool, choices []string)
@@ -74,9 +78,12 @@ func BindGenerationCatalog[
 	controls func(recipe.ModuleID, string) ([]Control, string),
 	output func(any) (artifact.Content, error),
 ) generationCatalog {
-	execute := make(map[recipe.Task]capabilityruntime.Executor, len(catalog))
+	execute, preview := make(map[recipe.Task]capabilityruntime.Executor, len(catalog)), map[recipe.Task]capabilityruntime.Executor{}
 	for task, capability := range catalog {
 		execute[task] = capability.Executor()
+		if previewer := capability.Previewer(); previewer != nil {
+			preview[task] = previewer
+		}
 	}
 	// bind is the controls as a page takes them, an object's fields and a list's item each bound as a control is.
 	var bind func([]Control) []workflowControl
@@ -102,6 +109,7 @@ func BindGenerationCatalog[
 	}
 	return generationCatalog{
 		Execute: execute,
+		Preview: preview,
 		Controls: func(entry recipe.ModuleID, directory string) ([]workflowControl, string) {
 			declared, refusal := controls(entry, directory)
 			return bind(declared), refusal
@@ -362,6 +370,51 @@ func (workspace *storeGenerationWorkspace) ExecuteWorkflow(ctx context.Context, 
 	workspace.observe(ctx, capability.Model, recipeID, run.ID, task, started, end-begin, measured, nil)
 	reporter.Publishing()
 	return operation.Completion{Run: run.ID, Outputs: []artifact.ID{content.Descriptor.ID}}, nil
+}
+
+// generationPreview is what a preview shows of a run's input: a stored picture (a MOSS depth section's map) and its
+// media type, which a page shows beside the controls it previews.
+type generationPreview struct {
+	Output    artifact.ID `json:"output"`
+	MediaType string      `json:"media_type"`
+}
+
+// PreviewWorkflow shows what a listed capability's run would read of the page's request before any run, as the
+// capability's preview makes it (a MOSS depth section's depth map as the workflow's PreviewImage shows it), and stores
+// it so the page shows it; a capability that previews nothing answers errWorkflowPreviewUnavailable. A preview is one
+// picture, so its page is the whole of it.
+func (workspace *storeGenerationWorkspace) PreviewWorkflow(ctx context.Context, kind WorkflowKind, task recipe.Task, recipeID artifact.ID, raw json.RawMessage, _, _ int) (any, error) {
+	capabilities, err := workspace.WorkflowCapabilities(ctx, kind)
+	if err != nil {
+		return nil, err
+	}
+	capability, err := selectWorkflowCapability(capabilities, task, recipeID)
+	if err != nil {
+		return nil, err
+	}
+	preview := workspace.catalog.Preview[task]
+	if preview == nil || workspace.catalog.OutputContent == nil {
+		return nil, errWorkflowPreviewUnavailable
+	}
+	if capability.Refusal != "" {
+		return nil, errors.New("generation workspace: " + capability.Refusal)
+	}
+	if err := validateWorkflowInput(capability.Controls, raw); err != nil {
+		return nil, err
+	}
+	output, err := preview(ctx, workspace.store, capability.directory, capability.execution, string(raw))
+	if err != nil {
+		return nil, err
+	}
+	content, err := workspace.catalog.OutputContent(capabilityruntime.Unwrap(output))
+	if err != nil {
+		return nil, err
+	}
+	if _, err := artifact.Publish(ctx, workspace.store, artifact.Batch{Key: "generation/preview/" + content.Descriptor.ID.String(),
+		Artifacts: []artifact.Descriptor{content.Descriptor}, Contents: []artifact.Content{content}}); err != nil {
+		return nil, err
+	}
+	return generationPreview{Output: content.Descriptor.ID, MediaType: content.Descriptor.MediaType}, nil
 }
 
 // generationPhases names the existing image pipeline's user-visible stages.

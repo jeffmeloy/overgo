@@ -39,6 +39,8 @@ type mossGenerationFixture struct {
 	root      string
 	mu        sync.Mutex
 	inputs    []latentimage.Request
+	// previewed are the inputs the capability's preview was asked, as they came.
+	previewed []string
 }
 
 func (fixture *mossGenerationFixture) requests() []latentimage.Request {
@@ -80,6 +82,15 @@ func newMOSSGenerationFixture(t *testing.T, onRequest func(context.Context, arti
 			}
 			input, err := inputContract.ContentBytes([]byte(raw))
 			return capabilityruntime.Measured{Output: image, Input: input}, err
+		},
+		Preview: func(_ context.Context, _ artifact.Repository, path string, _ modelrecipe.CapabilityEvidenceSelection, raw string) (any, error) {
+			if path != root {
+				t.Error("preview lost the model's path", path)
+			}
+			fixture.mu.Lock()
+			fixture.previewed = append(fixture.previewed, raw)
+			fixture.mu.Unlock()
+			return image, nil
 		},
 	}}
 	intake := LibraryIntake{ModelFiles: libraryintake.ModelFiles, Register: libraryintake.Register,

@@ -13,9 +13,13 @@ import (
 // model's VAE, after a colour map's latent of zeros, times its strength, while the sampling's sigma lies within the
 // share of the sampling from Start to End.
 type DepthControl struct {
-	// Map is the depth map, a PNG in base64 as JSON gives bytes, white for near (cmd/depth makes one of a picture), or,
-	// as a page names it, its stored identity, which the image capability reads into its bytes (Request.ReadPictures).
-	Map string `json:"map" label:"depth map" media:"image"`
+	// Picture is the picture whose depth map the control is, made as the MOSS Ultra workflow's depth sections make it
+	// (sectionDepth): a PNG in base64 as JSON gives bytes, or, as a page names it, its stored identity, which the image
+	// capability reads into its bytes (Request.ReadPictures).
+	Picture string `json:"picture,omitzero" label:"picture" media:"image"`
+	// Map is, in place of a picture, the depth map itself, white for near (cmd/depth makes one of a picture), given as
+	// a picture is.
+	Map string `json:"map,omitzero" label:"depth map" media:"image"`
 	// Strength scales the map's latent: 0 is no control, 1 the adapter's trained strength (where unstated), at most 10.
 	Strength *float32 `json:"strength,omitempty"`
 	// Start and End are the shares of the sampling the control runs over, from its start: 0 and 1 where unstated.
@@ -26,11 +30,11 @@ type DepthControl struct {
 // largestControlStrength is the most a control's strength may be, as ComfyUI's node admits.
 const largestControlStrength = 10
 
-// Validate refuses a control without a map, of a strength outside 0..10, or whose share does not run from Start to
-// End within the sampling.
+// Validate refuses a control without a map or a picture, or with both, of a strength outside 0..10, or whose share does
+// not run from Start to End within the sampling.
 func (c DepthControl) Validate() error {
-	if c.Map == "" {
-		return errors.New("latent image: a depth control needs its map")
+	if (c.Map == "") == (c.Picture == "") {
+		return errors.New("latent image: a depth control takes its map or its picture, one of them")
 	}
 	if strength := c.strength(); !checked.Finite32(strength) || strength < 0 || strength > largestControlStrength {
 		return fmt.Errorf("latent image: a depth control's strength %g is outside 0..%d", strength, largestControlStrength)

@@ -291,6 +291,7 @@ input.text:focus, select.text:focus, textarea.text:focus { border-color:var(--ac
 .control-items { display:grid; gap:var(--s2); margin:var(--s1) 0 var(--s2); }
 .control-item { display:flex; align-items:flex-start; gap:var(--s2); min-width:0; }
 .control-item > :first-child { flex:1; min-width:0; }
+.depth-preview-image { display:block; max-width:100%; max-height:20rem; margin-top:var(--s2); border:1px solid var(--line); border-radius:var(--radius-s); }
 .intake-strip { display:flex; flex-wrap:wrap; gap:var(--s1); }
 .preset-chips { display:flex; flex-wrap:wrap; gap:var(--s1); grid-column:1 / -1; }
 /* Saved presets read as one row across the form: the list, a name for the next one, and its save. */

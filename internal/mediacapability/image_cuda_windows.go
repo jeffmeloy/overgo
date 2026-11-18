@@ -92,7 +92,23 @@ func imageCapability() Capability {
 			modelrecipe.ModuleDiffusionImagePrepare:  diffusion,
 			modelrecipe.ModuleRAEImagePrepare:        raeImage,
 		}.Execute,
+		Preview: capabilityruntime.ExecutorCatalog{modelrecipe.ModuleLatentImagePrepare: depthPreview}.Execute,
 	}
+}
+
+// depthPreview is the depth map a latent picture request's depth control samples by, as the MOSS Ultra workflow
+// previews it (latentimage.DepthPreview), the pictures the request names by their stored identity read as its run
+// reads them.
+func depthPreview(ctx context.Context, store artifact.Repository, path string, _ modelrecipe.CapabilityEvidenceSelection, input string) (any, error) {
+	var request latentimage.Request
+	if err := strictjson.DecodeBytes([]byte(input), &request); err != nil {
+		return nil, err
+	}
+	read, err := request.ReadPictures(ctx, store)
+	if err != nil {
+		return nil, err
+	}
+	return latentimage.DepthPreview(path, read)
 }
 
 // preparedFirst prepares a latent picture request ahead of its session: the pictures it names by their stored identity,

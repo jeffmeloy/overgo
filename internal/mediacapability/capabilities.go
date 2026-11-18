@@ -39,11 +39,17 @@ type Capability struct {
 	// ValidationInput derives a bounded functional request from source geometry.
 	// It establishes executable output and repeatability rather than model quality.
 	ValidationInput func(directory, prompt string) (string, error)
+	// Preview shows what a request's run reads of its input before any run (a MOSS depth section's depth map); nil
+	// where the capability previews nothing.
+	Preview capabilityruntime.Executor
 }
 
 // Executor reports the capability's executor, so a consumer binding a
 // catalog by task names the executor without naming this type.
 func (capability Capability) Executor() capabilityruntime.Executor { return capability.Execute }
+
+// Previewer reports the capability's preview, nil where it previews nothing.
+func (capability Capability) Previewer() capabilityruntime.Executor { return capability.Preview }
 
 // Source is what Resolve reads from a model path: the model inventory, the
 // related inventories (a projector), the component-group manifests, and the

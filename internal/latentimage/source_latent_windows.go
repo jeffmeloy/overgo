@@ -11,9 +11,11 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"path/filepath"
 
 	"overgo/internal/artifact"
 	"overgo/internal/media"
+	"overgo/internal/vitencoder"
 )
 
 // startLatent is where a rotary request's sampling starts (moss-ultra-sections/img2img): the noise as drawn where the
@@ -66,12 +68,101 @@ func sourceLatent(ctx context.Context, root, encoded string, width, height int) 
 	return encodeUnit(ctx, root, unit, width, height)
 }
 
+// depthDirectory and depthCheckpoint are the folder of a MOSS Ultra root that holds the Depth Anything V2 Small
+// checkpoint its depth sections estimate a picture's depth with, beside its enhancer, and the checkpoint's name there,
+// as the workflow's DepthAnythingV2Preprocessor names it (612:438 ckpt_name).
+const depthDirectory, depthCheckpoint = "depth", "depth_anything_v2_vits.pth"
+
+// depthResolution is the detect resolution the workflow's preprocessor sizes its estimate to (612:438 resolution).
+const depthResolution = 512
+
+// sectionDepth is the depth map of a picture as the MOSS Ultra workflow's depth sections make it: the picture scaled
+// to the canvas as ComfyUI's ImageScale scales it at lanczos with a centre crop (612:514), its depth estimated by the
+// root's Depth Anything V2 Small at the detect resolution (612:438), a grey map at the estimate's size, white for near.
+func sectionDepth(root string, picture image.Image, width, height int) (*image.Gray, error) {
+	levels, err := media.ScaleLikeComfyUI(picture, width, height)
+	if err != nil {
+		return nil, err
+	}
+	unit := make([]float32, len(levels))
+	for index, level := range levels {
+		unit[index] = float32(level) / media.UnitLevels
+	}
+	estimator, err := vitencoder.LoadDepthAnything(filepath.Join(root, depthDirectory, depthCheckpoint))
+	if err != nil {
+		return nil, err
+	}
+	depth, mapHeight, mapWidth, err := estimator.DepthMap(unit, height, width, depthResolution)
+	if err != nil {
+		return nil, err
+	}
+	gray := image.NewGray(image.Rect(0, 0, mapWidth, mapHeight))
+	copy(gray.Pix, depth)
+	return gray, nil
+}
+
+// controlDepth is the depth map a request's control samples by: its map, or the section's depth of its picture.
+func controlDepth(root string, control DepthControl, width, height int) (image.Image, error) {
+	if control.Picture == "" {
+		return requestPNG(control.Map, "depth map")
+	}
+	picture, err := requestPNG(control.Picture, "depth control's picture")
+	if err != nil {
+		return nil, err
+	}
+	return sectionDepth(root, picture, width, height)
+}
+
+// DepthPreview is the depth map a request's depth control samples by as the MOSS Ultra workflow previews it
+// (PreviewImage 667): the map (controlDepth) scaled to the request's canvas as ComfyUI's ImageScale scales it at
+// bilinear without a crop (612:439), written as ComfyUI writes a picture, 255 times each level truncated to 8 bits. The
+// request is taken as its run takes it, its preset and canvas filling its size.
+func DepthPreview(root string, request Request) (EncodedImage, error) {
+	filled, err := request.withPreset(root)
+	if err != nil {
+		return EncodedImage{}, err
+	}
+	if filled.Control == nil {
+		return EncodedImage{}, errors.New("latent image: the request holds no depth control to preview")
+	}
+	if err := filled.Control.Validate(); err != nil {
+		return EncodedImage{}, err
+	}
+	if filled.Width <= 0 || filled.Height <= 0 {
+		return EncodedImage{}, fmt.Errorf("latent image: a depth preview needs the request's size, not %d x %d", filled.Width, filled.Height)
+	}
+	depth, err := controlDepth(root, *filled.Control, filled.Width, filled.Height)
+	if err != nil {
+		return EncodedImage{}, err
+	}
+	bounds := depth.Bounds()
+	shown := make([]float32, 0, bounds.Dx()*bounds.Dy())
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			shown = append(shown, float32(color.GrayModel.Convert(depth.At(x, y)).(color.Gray).Y)/media.UnitLevels)
+		}
+	}
+	scaled, err := media.BilinearLikeComfyUI(shown, bounds.Dy(), bounds.Dx(), 1, filled.Height, filled.Width)
+	if err != nil {
+		return EncodedImage{}, err
+	}
+	preview := image.NewGray(image.Rect(0, 0, filled.Width, filled.Height))
+	for index, value := range scaled {
+		preview.Pix[index] = uint8(min(max(value*media.UnitLevels, 0), media.UnitLevels))
+	}
+	var encoded bytes.Buffer
+	if err := png.Encode(&encoded, preview); err != nil {
+		return EncodedImage{}, err
+	}
+	return EncodedImage{Data: encoded.Bytes(), MediaType: media.PNGMediaType, Channels: 1, Height: filled.Height, Width: filled.Width, Maximum: 1}, nil
+}
+
 // controlLatent is a request's depth control as its sampling reads it (moss-ultra-sections/depth-control), as ComfyUI's
-// MOSSImageControl makes it: the map, a PNG, its levels over 255 scaled to the canvas as ComfyUI's ImageScale scales
-// it at bilinear without a crop, encoded (encodeUnit), after a colour map's latent of zeros, and the whole times the
-// control's strength in float32.
+// MOSSImageControl makes it: the map (controlDepth), its levels over 255 scaled to the canvas as ComfyUI's ImageScale
+// scales it at bilinear without a crop, encoded (encodeUnit), after a colour map's latent of zeros, and the whole times
+// the control's strength in float32.
 func controlLatent(ctx context.Context, root string, control DepthControl, width, height int) ([]float32, error) {
-	depth, err := requestPNG(control.Map, "depth map")
+	depth, err := controlDepth(root, control, width, height)
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +191,8 @@ func controlLatent(ctx context.Context, root string, control DepthControl, width
 }
 
 // ReadPictures is the request with the pictures it names by their stored identity, as a page attaches them, read into
-// the bytes its session takes: its picture to sample from and its depth control's map, each a stored file, in base64.
+// the bytes its session takes: its picture to sample from and its depth control's map or picture, each a stored file,
+// in base64.
 // A picture the request gives as its bytes stays as it came, and so does a request naming none.
 func (r Request) ReadPictures(ctx context.Context, store artifact.Reader) (Request, error) {
 	read := func(named, which string) (string, error) {
@@ -125,13 +217,17 @@ func (r Request) ReadPictures(ctx context.Context, store artifact.Reader) (Reque
 		return Request{}, err
 	}
 	if r.Control != nil {
-		named, err := read(r.Control.Map, "depth map")
+		depth, err := read(r.Control.Map, "depth map")
 		if err != nil {
 			return Request{}, err
 		}
-		if named != r.Control.Map {
+		picture, err := read(r.Control.Picture, "depth control's picture")
+		if err != nil {
+			return Request{}, err
+		}
+		if depth != r.Control.Map || picture != r.Control.Picture {
 			control := *r.Control
-			control.Map = named
+			control.Map, control.Picture = depth, picture
 			r.Control = &control
 		}
 	}

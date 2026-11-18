@@ -3,6 +3,7 @@
 package mediacapability
 
 import (
+	"encoding/json"
 	"fmt"
 	"overgo/internal/latentimage"
 	"overgo/internal/modelrecipe"
@@ -81,6 +82,19 @@ func imageControls(directory string, controls []Control) ([]Control, error) {
 	}
 	if controls, err = offerPresets(controls, model, presets); err != nil {
 		return nil, err
+	}
+	// The preset control carries what each preset it offers fills, so a page choosing one shows it.
+	settings, err := latentimage.PresetSettings(directory)
+	if err != nil {
+		return nil, err
+	}
+	for index := range controls {
+		if control := &controls[index]; control.Name == presetControl {
+			control.Settings = make(map[string]json.RawMessage, len(control.Choices))
+			for _, choice := range control.Choices {
+				control.Settings[choice] = settings[choice]
+			}
+		}
 	}
 	if profile.Rotary == nil {
 		// A flow model offers the side its publisher draws (latentimage.PersonSize).

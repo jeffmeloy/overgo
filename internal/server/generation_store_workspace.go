@@ -66,6 +66,8 @@ func BindGenerationCatalog[
 		// []Control and a *Control, none for a scalar: a constraint whose method named its own type parameter would hold
 		// no type, so the walk that reaches declarations (internal/repoanalysis) would find none implementing it.
 		Nested() (fields, item any)
+		// ChoiceSettings reports what each of the control's choices fills, none where its choices fill nothing.
+		ChoiceSettings() map[string]json.RawMessage
 	},
 ](
 	catalog map[recipe.Task]Capability,
@@ -83,7 +85,7 @@ func BindGenerationCatalog[
 		for _, control := range declared {
 			name, kind, required, choices := control.Declared()
 			label, media := control.Slot()
-			wire := workflowControl{Name: name, Type: workflowControlType(kind), Required: required, Advanced: control.Secondary(), Choices: choices, Default: control.Defaulted(), With: control.Accompanies(), Label: label, Media: media, Help: control.Guidance(), Role: control.Labelled()}
+			wire := workflowControl{Name: name, Type: workflowControlType(kind), Required: required, Advanced: control.Secondary(), Choices: choices, Default: control.Defaulted(), With: control.Accompanies(), Label: label, Media: media, Help: control.Guidance(), Role: control.Labelled(), Settings: control.ChoiceSettings()}
 			if defaultValue, step, rate, declared := control.Bounded(); declared {
 				wire.Bounds = &workflowControlBounds{Default: defaultValue, Step: step, Rate: rate}
 			}

@@ -78,6 +78,9 @@ type workflowControl struct {
 	// request's fields and which a value is validated by part by part.
 	Fields []workflowControl `json:"fields,omitempty"`
 	Item   *workflowControl  `json:"item,omitempty"`
+	// Settings are what each of the control's choices fills in a request that sets nothing (a preset's steps,
+	// schedule and size), each an object of the request's fields, which a page sets its controls to on the choice.
+	Settings map[string]json.RawMessage `json:"settings,omitempty"`
 }
 
 func audioFormatMessage(audio *speechrecognition.InputRequirements) string {
@@ -585,6 +588,12 @@ func validateWorkflowControl(control workflowControl) error {
 	}
 	if control.Audio != nil && (control.Type != workflowControlArtifact || control.Media != "audio" || control.Audio.Format.Validate() != nil || control.Audio.MaximumEncodedBytes == 0 || control.Audio.MaximumSamples == 0) {
 		return fmt.Errorf("workflow workspace: invalid audio input %q", control.Name)
+	}
+	for choice, settings := range control.Settings {
+		var fields map[string]json.RawMessage
+		if !slices.Contains(control.Choices, choice) || strictjson.DecodeBytes(settings, &fields) != nil || fields == nil {
+			return fmt.Errorf("workflow workspace: control %q's choice %q fills no request's fields", control.Name, choice)
+		}
 	}
 	if control.Item != nil {
 		if err := validateWorkflowControl(*control.Item); err != nil {

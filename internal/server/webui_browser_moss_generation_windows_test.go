@@ -166,6 +166,17 @@ func TestWebUIBrowserMOSSGeneration(t *testing.T) {
 		section.Sharpen == nil || section.Sharpen.Radius != 1 || section.Sharpen.Sigma != 0.6 || section.Sharpen.Alpha != 0.7 || section.Canvas != nil || section.Control != nil {
 		t.Fatalf("the section's settings reached the request as %+v", section)
 	}
+	// Choosing a section's preset shows what it fills (moss-ultra-compare/preset-values), and choosing another returns
+	// what only the first filled to what it held.
+	check(`(() => {
+  const preset=mossField('preset');
+  const choose=(name)=>{preset.value=name;preset.dispatchEvent(new Event('change',{bubbles:true}));};
+  choose('ultra-image-to-image-turbo');
+  const schedule=document.querySelector('.composer fieldset[data-control="schedule"]').value;
+  const filled=mossField('denoise').value==='0.72' && mossField('steps').value==='8' && mossField('width').value==='2368' && mossField('height').value==='1344' && schedule==='{"sampler":"er_sde","name":"bong_tangent"}';
+  choose('comfy-tutorial');
+  return filled && mossField('denoise').value==='' && mossField('width').value==='1024' && mossField('height').value==='1024';
+})()`)
 	check(`window.overgo.errors.length===0`)
 	webuilane.Leg(t, "moss-generation", "Empty catalog, local source import, registered candidate, activation, refreshed composer modes, model choice, native defaults, optional controls, layout mode with example and coordinate errors, exact Unicode prompt transport, PNG preview/download, invalid size, resource refusal, cancellation without output and retry pass, and a section's schedule and sharpening set part by part. Execution and activation use hermetic fixtures; native quality is checked separately.")
 }

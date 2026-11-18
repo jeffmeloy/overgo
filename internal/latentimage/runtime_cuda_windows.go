@@ -3,9 +3,12 @@
 package latentimage
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"path/filepath"
 
@@ -624,6 +627,45 @@ func RegisterRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, gene
 		modelrecipe.ModuleLatentImageDecode, generator.decode,
 		PNGContent,
 	)
+}
+
+// PresetSettings are the settings each preset of the model in directory fills in a request that sets nothing, as a
+// request states them (withPreset), each a JSON object of the fields it sets, so a page choosing a preset shows what it
+// fills: its steps, guidance and schedule, and a MOSS Ultra section's denoise, adapters, size, sharpening, skipped
+// blocks and backup negative.
+func PresetSettings(directory string) (map[string]json.RawMessage, error) {
+	names, err := PresetNames(directory)
+	if err != nil {
+		return nil, err
+	}
+	fields := func(request Request) (map[string]json.RawMessage, error) {
+		var held map[string]json.RawMessage
+		written, err := json.Marshal(request)
+		if err == nil {
+			err = json.Unmarshal(written, &held)
+		}
+		return held, err
+	}
+	unset, err := fields(Request{})
+	if err != nil {
+		return nil, err
+	}
+	settings := make(map[string]json.RawMessage, len(names))
+	for _, name := range names {
+		filled, err := Request{Preset: name}.withPreset(directory)
+		if err != nil {
+			return nil, err
+		}
+		set, err := fields(filled)
+		if err != nil {
+			return nil, err
+		}
+		maps.DeleteFunc(set, func(field string, value json.RawMessage) bool { return bytes.Equal(value, unset[field]) })
+		if settings[name], err = json.Marshal(set); err != nil {
+			return nil, err
+		}
+	}
+	return settings, nil
 }
 
 // withPreset fills what a request leaves unset from the preset it names in its model's catalog, and clears the name,

@@ -144,6 +144,7 @@
       if (control.help) target.appendChild(el('details', { class: 'control-help' }, el('summary', { text: 'About ' + controlLabel(control) }), el('p', { class: 'note', text: control.help })));
     }
     if (nested) return fields;
+    presetSettings(fields);
     const chips = presetChips(fields);
     if (chips) host.appendChild(chips);
     if (advanced.children.length > 1) host.appendChild(advanced);
@@ -189,11 +190,36 @@
     return group;
   }
 
-  // setPart sets one part's input to a value the request holds: an object or a list as JSON, a scalar as its text; a
-  // value a choice does not offer is left unset.
+  // partText is a value the request holds as its input shows it: an object or a list as JSON, a scalar as its text.
+  const partText = (value) => value === undefined || value === null ? "" : (typeof value === "object" ? JSON.stringify(value) : String(value));
+
+  // setPart sets one part's input to a value the request holds; a value a choice does not offer is left unset.
   function setPart(field, value) {
-    const text = value === undefined || value === null ? "" : (typeof value === "object" ? JSON.stringify(value) : String(value));
+    const text = partText(value);
     field.input.value = field.control.choices?.length && text && !field.control.choices.includes(text) ? "" : text;
+  }
+
+  // presetSettings: choosing a preset sets each control it fills to its value (a MOSS Ultra section's steps, schedule,
+  // denoise, adapters and size) and returns what the preset chosen before it filled, and the person left as it was, to
+  // what it held before any preset (a size its declared default), so the page shows what a preset runs; the request
+  // still names the preset for what no control offers.
+  function presetSettings(fields) {
+    const preset = fields.get("preset");
+    const settings = preset && preset.control.settings;
+    if (!settings) return;
+    let filled = {};
+    const before = new Map();
+    preset.input.addEventListener("change", () => {
+      const chosen = settings[preset.input.value] || {};
+      for (const [name, field] of fields) {
+        if (name === "preset") continue;
+        if (Object.hasOwn(chosen, name)) {
+          if (!before.has(name)) before.set(name, field.input.value);
+          setPart(field, chosen[name]);
+        } else if (Object.hasOwn(filled, name) && field.input.value === partText(filled[name])) field.input.value = before.get(name) ?? "";
+      }
+      filled = chosen;
+    });
   }
 
   // objectInput: an object control's fields, a group of controls of their own.

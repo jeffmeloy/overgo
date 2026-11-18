@@ -1,6 +1,7 @@
 package mediacapability
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"slices"
@@ -54,7 +55,13 @@ type Control struct {
 	// section stacks). Both are none for a scalar.
 	Fields []Control
 	Item   *Control
+	// Settings are what each of a preset control's choices fills in a request that sets nothing, each a JSON object of
+	// the request's fields (latentimage.PresetSettings), so a page choosing one shows what it fills.
+	Settings map[string]json.RawMessage
 }
+
+// ChoiceSettings reports what each of the control's choices fills, none where its choices fill nothing.
+func (control Control) ChoiceSettings() map[string]json.RawMessage { return control.Settings }
 
 // Nested reports an object control's fields, a []Control, and a list control's item, a *Control, none for a scalar.
 func (control Control) Nested() (fields, item any) { return control.Fields, control.Item }

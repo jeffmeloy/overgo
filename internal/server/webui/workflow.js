@@ -325,8 +325,9 @@
   }
 
   // geometryControls are the bounded fields that size the picture or clip, which its declared default fills: a request
-  // without them names no size (a layout prompt's canvas read 0 x 0), and the chips below set them.
-  const geometryControls = new Set(["width", "height", "frames"]);
+  // without them names no size (a layout prompt's canvas read 0 x 0, an oscillator's clip at scale 0 was refused, the
+  // model-journey lane on 2026-11-17), and the chips below set the picture's and the clip's.
+  const geometryControls = new Set(["width", "height", "frames", "scale"]);
 
   // Presets derived from declared bounds alone: aspect ratios keep the default's pixel area over the
   // width and height strides; durations take whole seconds at the frame count's declared rate.

@@ -3,21 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "clip-scale",
-      "title": "An oscillator clip's page asks the clip's declared scale, as it asks its frames, so a clip asked with neither is drawn at the model's own size",
-      "steps": [
-        {
-          "id": "do",
-          "title": "An oscillator clip's page asks the clip's declared scale, as it asks its frames, so a clip asked with neither is drawn at the model's own size",
-          "verify": "OVERGO_WEBUI_LANE=1 go test ./internal/server -count=1 -run '^TestWebUIBrowserAClipIsAskedAtItsDeclaredSize$'",
-          "files": [
-            "internal/server"
-          ],
-          "rationale": "Note: The cycle's lanes, rerun at 1ab2ac601 on 2026-11-17 as the owner asked (they last passed at 8dfa48064), failed the model-journey lane's TestModelJourneyFirstRun: the host oscillator's clip was refused, \"video requires non-negative class and positive frame count and scale\". The oscillator's request takes a frame count and a scale, both with declared defaults (oscillatorimage.VideoDefaults: one second at its rate, at the model's own size), which a page offered empty before declared-defaults/do filled them. preset-form/do (SQA-340, after the lanes' last pass) made a form's untouched sampling defaults hints, filling only a required field and the fields that size the picture or clip (workflow.js geometryControls: width, height, frames); the scale sizes the clip too but was not among them, so a fresh clip form sent no scale and the clip was asked at 0. The scale joins the geometry fields, filled from its declared default as the frames are.\n\nServes: the oscillator's clips on every page, a working model's journey.\n\nCheck: TestWebUIBrowserAClipIsAskedAtItsDeclaredSize, in the web UI lane: a fresh clip form asks the declared frames and scale, its steps left a hint; it fails with the scale out of the geometry fields.\n\nBatch: host lane."
-        }
-      ]
-    },
-    {
       "id": "lane-failure",
       "title": "When the slow test stage fails, the landing records the failing test by name",
       "steps": [

@@ -236,22 +236,34 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 	}
 	for _, suite := range suites {
 		fmt.Fprintf(output, "validate -run cycle lane %s\n", suite.Lane)
-		var report testevidence.GoTestReport
-		lane := func() (err error) {
-			report, err = acquire(ctx, output, root, "go", suite.Arguments, suite.Environment...)
-			return err
+		// A lane runs in the test turn, a lane of several packages one package at a time (landing.HoldTestTurnEach),
+		// and on the card in the card's turn for each, so a commit's tests and its lanes take the machine between them
+		// (lanes-turns): a commit beside the lanes was refused for memory, and its lanes waited the models lane's hours.
+		var reports []testevidence.GoTestReport
+		steps := [][]string{suite.Arguments}
+		if len(suite.Each) > 0 {
+			steps = suite.Each
 		}
-		var err error
-		if plan.HoldsCard != nil && landing.OnCard(suite.Environment) {
-			err = plan.HoldsCard("the cycle lane "+suite.Lane, lane)
-		} else {
-			err = lane()
+		runs := make([]func() error, len(steps))
+		for index, arguments := range steps {
+			runs[index] = func() error {
+				run := func() error {
+					report, err := acquire(ctx, output, root, "go", arguments, suite.Environment...)
+					reports = append(reports, report)
+					return err
+				}
+				if plan.HoldsCard != nil && landing.OnCard(suite.Environment) {
+					return plan.HoldsCard("the cycle lane "+suite.Lane, run)
+				}
+				return run()
+			}
 		}
+		err := landing.HoldTestTurnEach("the cycle lane "+suite.Lane, runs)
 		record("cycle lane "+suite.Lane, err)
 		if plan.LanesKept == "" {
 			continue
 		}
-		if kept := keepLaneRun(ctx, plan.LanesKept, root, suite.Lane, err == nil, report); kept != nil {
+		if kept := keepLaneRun(ctx, plan.LanesKept, root, suite.Lane, err == nil, reports...); kept != nil {
 			fmt.Fprintf(output, "validate -run: the cycle lane %s's end is not kept: %v\n", suite.Lane, kept)
 		}
 	}
@@ -683,7 +695,7 @@ func trunkCheckout(ctx context.Context, root string) string {
 // keepLaneRun records a cycle lane's end in the state of the checkout kept (plan.RecordLaneRun): the commit the lane
 // ran at, read from the checkout root it ran in, which may be a worktree of the trunk's, and its verdict, so the status
 // says where each lane last passed (lane-passes/do).
-func keepLaneRun(ctx context.Context, kept, root, lane string, passed bool, report testevidence.GoTestReport) error {
+func keepLaneRun(ctx context.Context, kept, root, lane string, passed bool, reports ...testevidence.GoTestReport) error {
 	head, err := gitauthority.Query(ctx, root, "rev-parse", "HEAD")
 	if err != nil {
 		return err
@@ -691,9 +703,11 @@ func keepLaneRun(ctx context.Context, kept, root, lane string, passed bool, repo
 	commit, ended := strings.TrimSpace(string(head)), time.Now()
 	// Each test the lane passed is kept as passing at that commit too, which a claim reads (single-source/claim-record).
 	var tests []string
-	for _, test := range report.TestCosts() {
-		if test.Action == "pass" && !strings.Contains(test.Name, "/") {
-			tests = append(tests, plan.PassedTest(test.Package, test.Name))
+	for _, report := range reports {
+		for _, test := range report.TestCosts() {
+			if test.Action == "pass" && !strings.Contains(test.Name, "/") {
+				tests = append(tests, plan.PassedTest(test.Package, test.Name))
+			}
 		}
 	}
 	return errors.Join(plan.RecordLaneRun(kept, lane, plan.LaneRun{Commit: commit, Passed: passed, Ended: ended}),

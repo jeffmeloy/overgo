@@ -376,7 +376,7 @@ func (l *landing) checks() []check {
 		{"format", l.format, true}, {"fix", l.fix, true}, {"vet", l.vet, true}, {"rules", l.rules, true},
 		{"form", l.form, true}, {"invariants", l.invariants, true},
 	}
-	long := []check{{"test", l.test, false}, {"lanes", l.lanes, false}}
+	long := []check{{"test", l.testInTurn, false}, {"lanes", l.lanes, false}}
 	verify, scorecard := check{"verify", l.verify, true}, check{"scorecard", l.scorecard, false}
 	// The step's check runs before the tests and the lanes wherever it runs: on the card it takes the turn for itself
 	// and gives it up after (Run), and the lanes take it again. Run after them, 13 of 26 checks on the card failed only

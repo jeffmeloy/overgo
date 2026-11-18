@@ -3,6 +3,22 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "lanes-on-close",
+      "title": "A row's closing commit runs the cycle's lanes at that commit, with no timer, so a break in a working model is found beside the commit that caused it",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A row's closing commit runs the cycle's lanes at that commit, with no timer, so a break in a working model is found beside the commit that caused it",
+          "verify": "go test ./cmd/loop -count=1 -run '^TestARowsClosingRunsTheLanesAtItsCommit$'",
+          "files": [
+            "cmd/loop",
+            "internal/landing"
+          ],
+          "rationale": "Note: The owner's review of 2026-11-17: two of the cycle's five lanes failed at 1ab2ac601, 66 commits after their last run (8dfa48064, 2026-11-16), so a break in a working model was found a day from the commit that caused it: the oscillator clip asked at scale 0 since preset-form/do (clip-scale), and the Library's validation (failure-cause). Nothing ran the lanes between: a cycle runs them only when the plan is empty (HandStartDue), and a timer would guess a cadence. A row's closing commit, the landing that completes its last open step, starts the cycle's lanes at that commit, from a checkout of it so the working folder stays free (as the owner's note asked), taking turns with commits (lanes-turns), its record kept where the lanes' is (lane_runs.json); a run already going at an older commit is overtaken by the next close, not stacked.\n\nServes: a working model's break found beside the row that broke it.\n\nCheck: TestARowsClosingRunsTheLanesAtItsCommit, host only.\n\nBatch: host lane."
+        }
+      ]
+    },
+    {
       "id": "moss-speed",
       "title": "Where a MOSS step's time goes at 2368 x 1344, against ComfyUI's 1.1 s, and the depth estimate's 80 s on the processor, is measured part by part, the largest share cured after",
       "steps": [
@@ -31,39 +47,6 @@
             "fixtures/comfy"
           ],
           "rationale": "Note: The owner's note of 2026-11-17: text to image and prompt mode 3 were recorded on the workflow's empty prompt and an empty builder, so their floors (golden-floor: 1.55 dB on latents, 15.11 dB on pictures for text to image; 0.88 and 16.50 for mode 3) show only that overgo's draw is closer to ComfyUI's than another seed's is, the chaotic sensitivity an empty prompt has (overgo against its own 8-bit attention: 2.38 dB). Both sections are recorded again with a real prompt, and mode 3 with the builder's fields and regions filled (comfy-reference -record with -set on the prompt node and the builder's inputs), twice each as pass-1 and pass-2 were, and their floors are set from those recordings by the golden-floor method (the first reading less 3 dB, beside a reseeded control). Image to image at denoise 1 starts from the noise alone, the same run as text to image, so its case goes.\n\nNote: 2026-11-17, SQA-410 folded in (the owner's note): the floors' comparison scores pictures and latents it should refuse. squareColourMeans drops a picture's partial 8-pixel squares and pictureDecibels checks only that the two lists of means are as long, so a picture a column wider agrees at +Inf dB; decibelsOverSquares answers -Inf on lists of different lengths and NaN from a NaN sample; and each negative control (the reseeded and mirrored draws) is held only to scoring under its floor, so an invalid comparison passes it. The comparison refuses two pictures of different sizes, latents of different lengths, and any non-finite number, before it scores them, and a control counts only as a valid comparison scoring under the floor (golden_floor, image_to_image and depth_control model tests).\n\nNote: 2026-11-18, from moss-eight-step: text to image Turbo is recorded with the real prompt too and held here. On the workflow's empty prompt its final latent kept -1.54 dB of ComfyUI's and a reseeded draw -2.19 dB, so no floor 3 dB below the first reading keeps the control under it; its picture kept 9.89 dB. Its request reads sampler 331, prompts 27 and 325, sharpening 336, loader 341 and the picture 147 (text-to-image-turbo), the positive prompt node to set being the one 27 previews.\n\nServes: done = each section and prompt mode agrees with its ComfyUI recording, on prompts that say something.\n\nCheck: TestUltraSectionsHoldTheirGoldenFloors, on the card, with ComfyUI's recordings.\n\nBatch: device lane."
-        }
-      ]
-    },
-    {
-      "id": "lanes-turns",
-      "title": "The cycle's lanes and a commit take turns at the machine, a ready commit first, so neither stops the other",
-      "steps": [
-        {
-          "id": "do",
-          "title": "The cycle's lanes and a commit take turns at the machine, a ready commit first, so neither stops the other",
-          "verify": "go test ./internal/landing -count=1 -run '^TestTheLanesGiveTheirTurnToAReadyCommit$'",
-          "files": [
-            "internal/landing",
-            "cmd/validate",
-            "internal/processcontrol"
-          ],
-          "rationale": "Note: The owner's review of 2026-11-17: the cycle's lanes and a commit could not run together. Checked: a commit's test stage holds at most the machine's commit free as it starts (processcontrol jobBound: need + free), and with the lanes' model tests holding the rest, moss-speed/attention's commit was refused at 18.3 GiB (\"the tree reached its memory limit ... the commit free at its start\"); the audio lane's test process died out of memory (VirtualAlloc errno 1455) while other work shared the machine; and four finished steps waited the lanes' hours. The two take turns at the machine: the lanes run takes a turn for each package it runs and gives it up between packages, a commit takes the same turn for its stages, and a commit waiting is served first (processcontrol TurnWaited tells a holder another waits), so the lanes yield between packages to a ready commit and resume after it, neither refused for the other's memory and neither stopped.\n\nServes: every commit while the lanes run, and lanes-on-close, which starts lanes beside the work of the next row.\n\nCheck: TestTheLanesGiveTheirTurnToAReadyCommit, host only.\n\nBatch: host lane."
-        }
-      ]
-    },
-    {
-      "id": "lanes-on-close",
-      "title": "A row's closing commit runs the cycle's lanes at that commit, with no timer, so a break in a working model is found beside the commit that caused it",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A row's closing commit runs the cycle's lanes at that commit, with no timer, so a break in a working model is found beside the commit that caused it",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestARowsClosingRunsTheLanesAtItsCommit$'",
-          "files": [
-            "cmd/loop",
-            "internal/landing"
-          ],
-          "rationale": "Note: The owner's review of 2026-11-17: two of the cycle's five lanes failed at 1ab2ac601, 66 commits after their last run (8dfa48064, 2026-11-16), so a break in a working model was found a day from the commit that caused it: the oscillator clip asked at scale 0 since preset-form/do (clip-scale), and the Library's validation (failure-cause). Nothing ran the lanes between: a cycle runs them only when the plan is empty (HandStartDue), and a timer would guess a cadence. A row's closing commit, the landing that completes its last open step, starts the cycle's lanes at that commit, from a checkout of it so the working folder stays free (as the owner's note asked), taking turns with commits (lanes-turns), its record kept where the lanes' is (lane_runs.json); a run already going at an older commit is overtaken by the next close, not stacked.\n\nServes: a working model's break found beside the row that broke it.\n\nCheck: TestARowsClosingRunsTheLanesAtItsCommit, host only.\n\nBatch: host lane."
         }
       ]
     },

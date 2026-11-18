@@ -163,6 +163,9 @@ type SelectedSuite struct {
 	Lane        string   `json:"lane"`
 	Arguments   []string `json:"arguments"`
 	Environment []string `json:"environment,omitzero"`
+	// Each are the arguments that run each of the lane's packages alone, which run one by one in the test turn so a
+	// commit's tests take the machine between them (landing.CycleLane.Each); none where the lane runs whole.
+	Each [][]string `json:"each,omitzero"`
 }
 
 // cycleSuites lists the improvement cycle's lanes, which run every cycle, each
@@ -170,7 +173,7 @@ type SelectedSuite struct {
 func cycleSuites() []SelectedSuite {
 	suites := []SelectedSuite{}
 	for _, lane := range landing.CycleLanes() {
-		suites = append(suites, SelectedSuite{Lane: lane.Name, Arguments: lane.Arguments, Environment: lane.Environment})
+		suites = append(suites, SelectedSuite{Lane: lane.Name, Arguments: lane.Arguments, Environment: lane.Environment, Each: lane.Each})
 	}
 	return suites
 }

@@ -111,6 +111,44 @@ func TurnWaited() (bool, error) {
 	return false, nil
 }
 
+// YieldTurn gives the turn named, which this process holds in its own place, up to the processes waiting for it
+// (release, as TakeTurn returned it), and returns once another process holds it, or once every process that waited as
+// it was given up has ended: a holder that gives its turn up between pieces of work and takes it again for the next
+// took it back first, as a waiter that has marked itself waiting has yet to wait on the turn itself (lanes-turns). It
+// returns at once where none waits. The wait is on the turn's record and on the waiters' ends, never on a clock.
+func YieldTurn(name string, release func() error) error {
+	waiters, err := turnWaiters(name)
+	if err != nil || len(waiters) == 0 {
+		return errors.Join(err, release())
+	}
+	self, passed := uint32(os.Getpid()), make(chan struct{})
+	pass := sync.OnceFunc(func() { close(passed) })
+	stop, err := watchTurn(name, func(record turnRecord) {
+		if record.Process != self {
+			pass()
+		}
+	})
+	if err != nil {
+		return errors.Join(err, release())
+	}
+	defer stop()
+	var ended sync.WaitGroup
+	for _, pid := range waiters {
+		if waiter, found := os.FindProcess(int(pid)); found == nil {
+			ended.Go(func() { _, _ = waiter.Wait() })
+		}
+	}
+	go func() { ended.Wait(); pass() }()
+	if err := release(); err != nil {
+		return err
+	}
+	if record, held, err := turnHolder(name); err == nil && held && record.Process != self {
+		pass()
+	}
+	<-passed
+	return nil
+}
+
 // TurnCount records, where a waiter reads it, how far this process has come in the work it holds its turns for, done
 // of total, and when it got there, as a render does where it says "drew n/N": a waiter says its holder's count, so a
 // reader tells a holder that advances from one that does not by the holder's own count, not a clock.

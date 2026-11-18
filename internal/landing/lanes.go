@@ -294,21 +294,67 @@ func laneEnvironment(candidate lane) []string {
 	return append(append(os.Environ(), candidate.environment...), driver.IdentityEnvironment+"="+driver.LibraryIdentity())
 }
 
-// CycleLane is one lane of the improvement cycle: the go command's arguments
-// that run it and the environment it adds.
+// CycleLane is one lane of the improvement cycle: the go command's arguments that run it, the environment it adds, and,
+// for a lane whose go test runs several packages in turn (the models lane), the arguments that run each package alone,
+// which a run of the lanes runs one by one in the test turn (HoldTestTurnEach), so a commit's tests take the machine
+// between them.
 type CycleLane struct {
 	Name        string
 	Arguments   []string
 	Environment []string
+	Each        [][]string
 }
 
 // CycleLanes lists the improvement cycle's lanes, which run every cycle.
 func CycleLanes() []CycleLane {
 	var listed []CycleLane
 	for _, candidate := range cycleLanes {
-		listed = append(listed, CycleLane{Name: candidate.name, Arguments: candidate.arguments(""), Environment: candidate.environment})
+		cycle := CycleLane{Name: candidate.name, Arguments: candidate.arguments(""), Environment: candidate.environment}
+		command := candidate.command("")
+		if count := len(candidate.packages); count > 1 && command[0] == "test" && len(command) > count && slices.Equal(command[len(command)-count:], candidate.packages) {
+			for _, pkg := range candidate.packages {
+				alone := lane{tags: candidate.tags, command: func(string) []string { return append(slices.Clone(command[:len(command)-count]), pkg) }}
+				cycle.Each = append(cycle.Each, alone.arguments(""))
+			}
+		}
+		listed = append(listed, cycle)
 	}
 	return listed
+}
+
+// testTurn names the machine's turn for the test runs that hold much of its memory, one at a time: a commit's test
+// stage (testInTurn) and each package of a cycle lane run package by package (CycleLane.Each). A commit's tests hold at
+// most the commit free as they start (processcontrol jobBound), and beside the cycle's model tests that was 18.3 GiB,
+// so a commit was refused for memory while the lanes ran (lanes-turns, the owner's review of 2026-11-17). The turn is a
+// named mutex, which the system hands to a process already waiting as its holder gives it up, so a run of the lanes that
+// gives it up after each package and takes it again for the next lets a waiting commit's tests run first; a render
+// never takes it. A test names its own.
+var testTurn = func() string { return "overgo-test-turn" }
+
+// HoldTestTurnEach runs each step in the test turn for purpose, giving the turn up between steps, so a commit's tests
+// waiting for it run before the next step: the packages of a cycle lane, one by one. It runs every step, and answers
+// their errors together.
+func HoldTestTurnEach(purpose string, steps []func() error) error {
+	var failed error
+	for index, step := range steps {
+		name := testTurn()
+		release, err := processcontrol.TakeTurn(name, fmt.Sprintf("%s, %d of %d", purpose, index+1, len(steps)), os.Stderr)
+		if err != nil {
+			return errors.Join(failed, err)
+		}
+		failed = errors.Join(failed, step(), processcontrol.YieldTurn(name, release))
+	}
+	return failed
+}
+
+// testInTurn runs the commit's tests in the test turn, after any package of a cycle lane that holds it ends, so the
+// commit's tests have the machine's commit to themselves (testTurn).
+func (l *landing) testInTurn(ctx context.Context) error {
+	release, err := processcontrol.TakeTurn(testTurn(), "the tests of "+l.Ref, l.Log)
+	if err != nil {
+		return err
+	}
+	return errors.Join(l.test(ctx), release())
 }
 
 // arguments run the lane, its build tags after the command's verb.

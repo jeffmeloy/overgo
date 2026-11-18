@@ -95,13 +95,16 @@ func RequireComplete(report GoTestReport) error {
 	return nil
 }
 
-// GoTestJSONReader streams test evidence, retaining bounded failure
-// diagnostics and completed verdicts even when a later event is malformed.
-func GoTestJSONReader(reader io.Reader, short bool, diagnosticBytes int, observe func(string, bool) error) (GoTestReport, error) {
-	if diagnosticBytes <= 0 {
+// ReadGoTestJSON reads a go test -json stream as RunGoTestCommand reads its command's: test evidence under the
+// options' short skips and diagnostic budget, each package's verdict, terminal event and each top-level test's
+// lifecycle given to the options' observers as the stream reports them, its bounded failure diagnostics and completed
+// verdicts kept even when a later event is malformed.
+func ReadGoTestJSON(reader io.Reader, options GoTestOptions) (GoTestReport, error) {
+	if options.DiagnosticBytes <= 0 {
 		return GoTestReport{}, fmt.Errorf("diagnostic byte limit must be positive")
 	}
-	return readGoTestJSON(reader, short, false, diagnosticBytes, observe, nil)
+	return readGoTestJSON(reader, options.Short, false, options.DiagnosticBytes, options.Observe,
+		packageProgressObserver(options.Progress, testProgressObserver(options.Tests, options.DiagnosticBytes)))
 }
 
 // GoTestJSONReport decodes complete test evidence without crediting skips.

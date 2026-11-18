@@ -52,7 +52,7 @@ func TestPackageExecutionCostAcceptance(t *testing.T) {
 			t.Fatalf("package time includes test time: %+v", got)
 		}
 	}
-	partial, err := GoTestJSONReader(strings.NewReader(events+"not JSON\n"), false, 1024, nil)
+	partial, err := ReadGoTestJSON(strings.NewReader(events+"not JSON\n"), GoTestOptions{DiagnosticBytes: 1024})
 	if err == nil || len(partial.Executions) != len(report.Executions) || partial.PackagePassed("good") {
 		t.Fatalf("malformed stream lost observations or retained invalid credit: %v, %+v", err, partial)
 	}

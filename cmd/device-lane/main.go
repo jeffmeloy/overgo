@@ -119,10 +119,12 @@ func deviceDiagnostic(out string, err error) string {
 	// Render every failed test's bounded diagnostics from the step's test JSON so
 	// an early package failure is not hidden behind a later passing package's
 	// output, opened by the line the landing names the lane's failed tests by.
-	// Output that is not test JSON (a launch or build failure) falls back to the
-	// bounded tail.
-	report, parseErr := testevidence.GoTestJSONReader(strings.NewReader(out), false, clioptions.DiagnosticTailBytes, nil)
-	if failures := testevidence.Failures(report); parseErr == nil && failures != "" {
+	// The step's output is its stdout and its stderr joined, so the go command's
+	// own lines (a download, a build note) lie beside the JSON; they are read
+	// past, as the landing reads a lane's (lane-failure/named): read strictly,
+	// one such line cost a refusal every test's name. Output that is no test JSON
+	// (a launch or build failure) falls back to the bounded tail.
+	if failures := testevidence.FailureSummary(out); failures != "" {
 		return testevidence.FailedTests + failures + "\n"
 	}
 	return clioptions.Tail(out, clioptions.DiagnosticTailBytes)

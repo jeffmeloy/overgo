@@ -57,7 +57,7 @@ func TestFailureDiagnostics(t *testing.T) {
 	runFixture := func(t *testing.T, input string, processErr error) (string, testevidence.GoTestReport) {
 		t.Helper()
 		var output strings.Builder
-		report, parseErr := testevidence.GoTestJSONReader(strings.NewReader(input), true, clioptions.DiagnosticTailBytes, nil)
+		report, parseErr := testevidence.ReadGoTestJSON(strings.NewReader(input), testevidence.GoTestOptions{Short: true, DiagnosticBytes: clioptions.DiagnosticTailBytes})
 		err := runTests(nil, &output, func([]string) (testevidence.GoTestReport, error) {
 			return report, errors.Join(parseErr, processErr)
 		})
@@ -161,7 +161,7 @@ func TestFailureDiagnostics(t *testing.T) {
 			name := fmt.Sprintf("TestOptional%d", index)
 			input.WriteString(diagnosticEvent("output", "optional", name, strings.Repeat("unavailable fixture ", 100)) + diagnosticEvent("skip", "optional", name, ""))
 		}
-		report, err := testevidence.GoTestJSONReader(strings.NewReader(input.String()), false, clioptions.DiagnosticTailBytes, nil)
+		report, err := testevidence.ReadGoTestJSON(strings.NewReader(input.String()), testevidence.GoTestOptions{DiagnosticBytes: clioptions.DiagnosticTailBytes})
 		if err != nil || len(report.Skipped) != 100 || len(report.Diagnostics) != 1 || !strings.Contains(report.Diagnostics[0], "causal assertion") {
 			t.Fatalf("err=%v report=%+v", err, report)
 		}
@@ -172,7 +172,7 @@ func TestFailureDiagnostics(t *testing.T) {
 			diagnosticEvent("pass", "okpkg", "TestWorks", "") + diagnosticEvent("pass", "okpkg", "", "")
 		var output strings.Builder
 		err := runTests(nil, &output, func([]string) (testevidence.GoTestReport, error) {
-			return testevidence.GoTestJSONReader(strings.NewReader(input), true, clioptions.DiagnosticTailBytes, nil)
+			return testevidence.ReadGoTestJSON(strings.NewReader(input), testevidence.GoTestOptions{Short: true, DiagnosticBytes: clioptions.DiagnosticTailBytes})
 		})
 		if err != nil || strings.Contains(output.String(), "diagnostic from passing test") || !strings.Contains(output.String(), "PASS packages=1 tests=1") {
 			t.Fatalf("err=%v output=%s", err, output.String())
@@ -234,7 +234,7 @@ func TestFailureDiagnostics(t *testing.T) {
 	})
 	t.Run("read errors retain failures", func(t *testing.T) {
 		reader := io.MultiReader(strings.NewReader(diagnosticEvent("fail", "broken", "TestRead", "")), diagnosticReadError{})
-		report, err := testevidence.GoTestJSONReader(reader, true, clioptions.DiagnosticTailBytes, nil)
+		report, err := testevidence.ReadGoTestJSON(reader, testevidence.GoTestOptions{Short: true, DiagnosticBytes: clioptions.DiagnosticTailBytes})
 		if err == nil || len(report.Failed) != 1 {
 			t.Fatalf("err=%v report=%+v", err, report)
 		}

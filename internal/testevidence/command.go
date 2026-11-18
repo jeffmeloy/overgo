@@ -128,7 +128,9 @@ func RunGoTestCommand(ctx context.Context, command processcontrol.Command, optio
 			options.Progress(done)
 		}
 	}
-	report, parseErr := readGoTestJSON(reader, options.Short, false, options.DiagnosticBytes, observe, packageProgressObserver(progress, testProgressObserver(options.Tests, options.DiagnosticBytes)))
+	reading := options
+	reading.Observe, reading.Progress = observe, progress
+	report, parseErr := ReadGoTestJSON(reader, reading)
 	if parseErr != nil {
 		cancel(parseErr)
 	}

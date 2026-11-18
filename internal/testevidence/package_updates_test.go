@@ -134,13 +134,13 @@ func TestPackageCreditTransitions(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			credited := false
-			_, _ = GoTestJSONReader(strings.NewReader(tc.stream), tc.short, len(tc.stream), func(pkg string, credit bool) error {
+			_, _ = ReadGoTestJSON(strings.NewReader(tc.stream), GoTestOptions{Short: tc.short, DiagnosticBytes: len(tc.stream), Observe: func(pkg string, credit bool) error {
 				if pkg != "example" {
 					t.Fatal("credit transition for an unexpected package")
 				}
 				credited = credit
 				return nil
-			})
+			}})
 			if credited != tc.credited {
 				t.Fatalf("credited=%v want=%v", credited, tc.credited)
 			}
@@ -168,13 +168,13 @@ func TestTerminalPackageUpdates(t *testing.T) {
 			updates := make(chan bool, 2)
 			finished := make(chan GoTestReport, 1)
 			go func() {
-				report, _ := GoTestJSONReader(reader, false, 1024, func(pkg string, passed bool) error {
+				report, _ := ReadGoTestJSON(reader, GoTestOptions{DiagnosticBytes: 1024, Observe: func(pkg string, passed bool) error {
 					if pkg != "good" {
 						return errors.New("unexpected package credited")
 					}
 					updates <- passed
 					return nil
-				})
+				}})
 				finished <- report
 			}()
 			if _, err := io.WriteString(writer, good); err != nil {
@@ -213,7 +213,7 @@ func TestTerminalPackageUpdates(t *testing.T) {
 			strings.Replace(good, `"Action":"pass"`, `"Action":"skip"`, 1),
 		} {
 			calls := 0
-			_, err := GoTestJSONReader(strings.NewReader(transcript), false, 1024, func(string, bool) error { calls++; return nil })
+			_, err := ReadGoTestJSON(strings.NewReader(transcript), GoTestOptions{DiagnosticBytes: 1024, Observe: func(string, bool) error { calls++; return nil }})
 			if err != nil || calls != 0 {
 				t.Fatalf("vacuous stream credited: calls=%d error=%v", calls, err)
 			}

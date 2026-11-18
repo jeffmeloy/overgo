@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/clioptions"
+	"overgo/internal/testevidence"
 )
 
 // TestDeviceDiagnosticSurfacesEarlyFailure proves a failed package is reported
@@ -44,6 +45,27 @@ func TestDeviceDiagnosticSurfacesEarlyFailure(t *testing.T) {
 	}
 	if len(diagnostic) > 4*clioptions.DiagnosticTailBytes {
 		t.Fatalf("diagnostic is not bounded: %d bytes", len(diagnostic))
+	}
+}
+
+// TestALaneFailureNamesItsFailingTests holds the device lane's refusal to its failed tests (lane-failure/named) when a
+// step's output holds the go command's own lines beside its test JSON, as its stdout and stderr joined do: the
+// diagnostic opens with the line the landing names the lane's failed tests by, naming the failed test and its package
+// and keeping the test's words. Read strictly, one such line cost the refusal every test's name, and the landing named
+// the lane's command alone.
+func TestALaneFailureNamesItsFailingTests(t *testing.T) {
+	var stream strings.Builder
+	event := func(format string, args ...any) { fmt.Fprintf(&stream, format+"\n", args...) }
+	const failedPackage = "overgo/internal/latentimage"
+	event(`{"Action":"run","Package":%q,"Test":"TestDepthMapIsNear"}`, failedPackage)
+	event(`{"Action":"output","Package":%q,"Test":"TestDepthMapIsNear","Output":"    depth_test.go:12: the map is far\n"}`, failedPackage)
+	event(`{"Action":"fail","Package":%q,"Test":"TestDepthMapIsNear","Elapsed":0.1}`, failedPackage)
+	event(`{"Action":"fail","Package":%q,"Elapsed":0.1}`, failedPackage)
+	stream.WriteString("go: downloading example.com/module v1.0.0\n")
+
+	diagnostic := deviceDiagnostic(stream.String(), errors.New("exit code 1"))
+	if !strings.HasPrefix(diagnostic, testevidence.FailedTests+failedPackage+": TestDepthMapIsNear") || !strings.Contains(diagnostic, "the map is far") {
+		t.Fatalf("a step's failure beside the go command's own line was rendered as:\n%s\nwant it to open by its failed test", diagnostic)
 	}
 }
 

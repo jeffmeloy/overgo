@@ -33,13 +33,13 @@ func TestShortProfilePackageEvidence(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var updates []bool
-			report, err := GoTestJSONReader(strings.NewReader(tc.stream), tc.short, len(tc.stream), func(pkg string, passed bool) error {
+			report, err := ReadGoTestJSON(strings.NewReader(tc.stream), GoTestOptions{Short: tc.short, DiagnosticBytes: len(tc.stream), Observe: func(pkg string, passed bool) error {
 				if pkg != "example" {
 					t.Fatalf("unexpected package %q", pkg)
 				}
 				updates = append(updates, passed)
 				return nil
-			})
+			}})
 			if err != nil || report.PackagePassed("example") != tc.want {
 				t.Fatalf("profile credit=%t want=%t error=%v report=%+v", report.PackagePassed("example"), tc.want, err, report)
 			}

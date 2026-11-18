@@ -20,7 +20,9 @@ import (
 // nothing with its section's sampler steps, guidance, sampler and scheduler, denoise, its adapters with their strengths
 // as its LoRA loader stacks them, its canvas as its ResolutionSelector sizes it, its sharpening, its skipped blocks (the
 // profile's where the section skips layers, none where it has no SkipLayerGuidance node) and the workflow's backup
-// negative of an empty exclusion; and a request's own settings stand over the preset's.
+// negative of an empty exclusion, and a depth section's control the strength and window its MOSSImageControl runs it
+// at, a request stating its map alone admitted before its preset fills its control adapter (SQA-409); and a request's
+// own settings stand over the preset's, a depth control's end among them.
 func TestTheUltraSectionPresetsHoldTheRecordedSettings(t *testing.T) {
 	sections := map[string]struct{ slug, sampler string }{
 		"ultra-text-to-image": {"text-to-image", "598"}, "ultra-text-to-image-turbo": {"text-to-image-turbo", "331"},
@@ -44,6 +46,7 @@ func TestTheUltraSectionPresetsHoldTheRecordedSettings(t *testing.T) {
 		var canvas media.Canvas
 		var sharpen media.Sharpening
 		var adapters []AppliedAdapter
+		var recorded *DepthControl
 		skips := false
 		for _, node := range nodes {
 			switch in := node.Inputs; node.Class {
@@ -63,6 +66,9 @@ func TestTheUltraSectionPresetsHoldTheRecordedSettings(t *testing.T) {
 						adapters = append(adapters, AppliedAdapter{Name: strings.TrimSuffix(lora["lora"].(string), ".safetensors"), Strength: &strength})
 					}
 				}
+			case "MOSSImageControl":
+				strength, end := float32(in["strength"].(float64)), in["end_percent"].(float64)
+				recorded = &DepthControl{Strength: &strength, Start: in["start_percent"].(float64), End: &end}
 			case "SkipLayerGuidanceDiTSimple":
 				skips = true
 			}
@@ -91,6 +97,26 @@ func TestTheUltraSectionPresetsHoldTheRecordedSettings(t *testing.T) {
 		if skips != (filled.SkipBlocks == nil) || !skips && len(*filled.SkipBlocks) != 0 {
 			t.Errorf("%s skips %v; want the profile's blocks where %s skips layers (%t), none where it does not", preset, filled.SkipBlocks, section.slug, skips)
 		}
+		if recorded == nil {
+			continue
+		}
+		// A depth section's request states its map alone: the director admits it before its preset fills its control
+		// adapter, and the preset fills the control's window as the section's MOSSImageControl runs it.
+		depth := Request{Prompt: "a fox", Width: 1024, Height: 576, Preset: preset, Control: &DepthControl{Map: "a depth map"}}
+		testcheck.NoError(t, ValidateRequest(depth))
+		drawn := testcheck.Must(depth.withPreset(directory))(t).Control
+		if drawn.strength() != *recorded.Strength || drawn.Start != recorded.Start || drawn.end() != *recorded.End {
+			t.Errorf("%s runs its depth control at %g from %g to %g; want %s's MOSSImageControl, %g from %g to %g",
+				preset, drawn.strength(), drawn.Start, drawn.end(), section.slug, *recorded.Strength, recorded.Start, *recorded.End)
+		}
+	}
+	whole := 1.0
+	stated := testcheck.Must(Request{Preset: "ultra-depth-control", Control: &DepthControl{Map: "a depth map", End: &whole}}.withPreset(directory))(t)
+	if stated.Control.end() != whole {
+		t.Errorf("a depth control stating its end under the depth preset ends at %g; want its own %g", stated.Control.end(), whole)
+	}
+	if ValidateRequest(Request{Prompt: "a fox", Width: 1024, Height: 576, Control: &DepthControl{Map: "a depth map"}}) == nil {
+		t.Error("a depth request naming neither a preset nor an adapter was admitted; want it refused for its control adapter")
 	}
 	own := float32(2)
 	mine := testcheck.Must(Request{Preset: "ultra-text-to-image", Steps: 20, GuidanceScale: &own, Width: 1024, Height: 576, NegativePrompt: "blur"}.withPreset(directory))(t)

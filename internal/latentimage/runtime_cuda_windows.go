@@ -259,7 +259,10 @@ func ValidateRequest(request Request) error {
 		if err := request.Control.Validate(); err != nil {
 			return err
 		}
-		if len(request.applied()) == 0 {
+		// A request naming a preset takes the preset's adapters where it names none, and is checked again with them
+		// (LoadGenerator, configureRotary): the picture director checks it before they are filled, and refused a
+		// preset-only depth request (SQA-409).
+		if len(request.applied()) == 0 && request.Preset == "" {
 			return errors.New("latent image: a depth control is read through its control adapter; name it (moss-control)")
 		}
 	}
@@ -757,9 +760,9 @@ func (r Request) withPreset(directory string) (Request, error) {
 }
 
 // withSection fills what the request leaves unset of a MOSS Ultra section's preset (imagePreset): its schedule, its
-// denoise, its adapters where the request names none, its canvas where it gives no size, its sharpening and its skipped
-// blocks, each the preset's own value, the catalog's, so a request filled twice is one; and its negative the workflow's
-// backup where the request's is empty or a none (isNoNegative).
+// denoise, its adapters where the request names none, its canvas where it gives no size, its sharpening, its skipped
+// blocks and its depth control's end, each the preset's own value, the catalog's, so a request filled twice is one; and
+// its negative the workflow's backup where the request's is empty or a none (isNoNegative).
 func (r Request) withSection(preset imagePreset) (Request, error) {
 	if r.Schedule == nil {
 		r.Schedule = preset.Schedule
@@ -778,6 +781,11 @@ func (r Request) withSection(preset imagePreset) (Request, error) {
 	}
 	if r.SkipBlocks == nil {
 		r.SkipBlocks = preset.SkipBlocks
+	}
+	if r.Control != nil && r.Control.End == nil && preset.ControlEnd != nil {
+		control := *r.Control
+		control.End = preset.ControlEnd
+		r.Control = &control
 	}
 	if preset.BackupNegative && isNoNegative(r.NegativePrompt) {
 		data, err := mossEnhancer()

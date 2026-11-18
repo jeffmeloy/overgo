@@ -223,6 +223,9 @@ type imagePreset struct {
 	Sharpen        *media.Sharpening  `json:"sharpen,omitempty"`
 	SkipBlocks     *[]int             `json:"skip_blocks,omitempty"`
 	BackupNegative bool               `json:"backup_negative,omitzero"`
+	// ControlEnd is the share of the sampling a depth section's control ends at, as its MOSSImageControl takes
+	// end_percent (0.5 at 612:441 and 366:46), which fills a depth control that states no end.
+	ControlEnd *float64 `json:"control_end,omitempty"`
 }
 
 // catalogOf is the catalog's entry for the model in directory, by its pipeline class.

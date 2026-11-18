@@ -142,32 +142,15 @@
       "id": "SQA-406",
       "severity": "P2",
       "files": [
-        "internal/mediacapability/picture_beside_windows.go",
-        "internal/mediacapability/picture_beside_windows_test.go",
-        "internal/latentimage/runtime_cuda_windows.go",
-        "internal/capabilityruntime/session_director.go",
+        "internal/capabilityruntime/runtime.go",
+        "internal/capabilityruntime/measured.go",
+        "internal/mediacapability/image_cuda_windows.go",
         "internal/latentimage/media_adapter.go",
         "internal/latentimage/source_latent_windows.go"
       ],
-      "input": "In one running MOSS server, finish a fixed-seed request with adapter A. At the same path install different compatible weights B with the same byte count and modification time, then repeat. The same case applies to the estimator for control.picture. Separately, on a cache miss, switch the weights from A to B after RunKey returns and before the executor opens the file.",
-      "expected": "The picture director may replay only for the weights selected by the request. On a miss the image executor must consume the same content the run key names, or decline to publish under that key. Preserve replay for unchanged content and keep control.map independent of the estimator.",
-      "actual": "Source at fe5d0849f. The director now includes adapter and estimator digests. besideIdentity reuses the old digest on path, size and modification time alone, so the repeated request returns A's stored image for B. On a miss, modelAdapter or sectionDepth reopens the mutable path after lookup. ExecuteMeasured can then publish B's result under A's key. The retained replacement check advances the timestamp on every write."
-    },
-    {
-      "id": "SQA-409",
-      "severity": "P2",
-      "files": [
-        "internal/mediacapability/image_cuda_windows.go",
-        "internal/latentimage/runtime_cuda_windows.go",
-        "internal/latentimage/profiles.json",
-        "internal/latentimage/section_presets_windows_test.go",
-        "internal/capabilityruntime/session_director.go",
-        "internal/latentimage/depth_control.go",
-        "internal/latentimage/turbo_floor_windows_model_test.go"
-      ],
-      "input": "Run the MOSS image recipe with ultra-depth-control, prompt 'a fox', 1024x576 and a valid nonuniform PNG in control.map. Omit adapter and adapters. Then supply the preset's installed adapter stack explicitly and omit control.end. Repeat the second case with ultra-depth-control-turbo and its own stack.",
-      "expected": "Resolve the depth section through the existing latentimage preset owner before admission. Both presets accept their adapters implicitly and use the recorded control end of 0.5 when omitted. Keep an explicit end, including 1, and the existing default for requests without a preset.",
-      "actual": "Shown from source at a821fd2fd. Without explicit adapters the director rejects the depth map before withSection fills them. With the stack supplied the request passes, but neither preset fills control.end. DepthControl.end returns 1, so the sampler keeps applying depth beyond the recorded window. The reference requests specify 0.5 at nodes 612:441 and 366:46. The ordinary and Turbo comparisons supply that value themselves, bypassing the served preset."
+      "input": "On a cache miss submit a fixed-seed MOSS request with a named, missing adapter. Install valid adapter weights after Contents checks the path but before modelAdapter opens it. After the request completes, remove the adapter and repeat. The same sequence applies to a required depth estimator for control.picture.",
+      "expected": "Reject missing required picture weights before lookup or model loading. Only a run bound to the content actually read may be reused. Keep the existing content-based replay and Windows read holds for present files, and allow requests that supply a depth map without an estimator.",
+      "actual": "Source at 5e82b8710. Contents hashes the literal 'absent' and continues on ErrNotExist without holding a file. The executor can then open the newly installed weights and publish their output under that absence key. When the file is missing again, the director returns the stored image before reopening it. Same-size replacements of files present at binding are fixed."
     },
     {
       "id": "SQA-410",
@@ -195,6 +178,21 @@
       "input": "Save a named prompt state on slot 0 with one supported model and max_concurrent=1. Make a rehearsal clone into a different directory. Serve the same model and recipe on that clone and POST /slots/0?action=restore with the saved filename and an idle slot.",
       "expected": "Restore the saved state from the rehearsal's published object while preserving the source store, its alias, and its locations. Clone the immutable data without redundant full copies where the storage owner guarantees sharing is safe.",
       "actual": "CloneStore links blobs/ but byte-copies objects/ and the database records with the original absolute locations. restoreSlot resolves the copied alias. objectstore.Open requires a published location equal to the clone's own object path, so it returns 'object store: object location is not published' and the route returns HTTP 500 despite the copied bytes. The clone fixture covers blob sharing and source survival; the slot fixture restores in its original directory. Source at 12f172302, no SQA execution."
+    },
+    {
+      "id": "SQA-412",
+      "severity": "P2",
+      "files": [
+        "internal/mediacapability/video_cuda_windows.go",
+        "internal/latentvideo/wan_form.go",
+        "internal/latentvideo/prompt_encoder.go",
+        "internal/discovery/memo.go",
+        "internal/latentvideo/prompt_rows_content_test.go",
+        "internal/capabilityruntime/measured.go"
+      ],
+      "input": "Complete a fixed-seed Wan prompt-to-video request with a writable store. Stop the server, install a different compatible umT5 checkpoint at the same path with the same byte count and modification time, then restart against the same store. Repeat the request with the same tokenizer, recipe and denoiser.",
+      "expected": "Verify that the current checkpoint matches the persisted identity before reusing the clip. The text-pipeline admission should reuse a proven unchanged checkpoint across restarts and compute again when its bytes change.",
+      "actual": "Source at 5e82b8710. TextPipelineIdentity loads the store memo. admitCheckpoint accepts its old digest on size and time alone. TestTextPipelineNamesItsCheckpointThroughTheStore explicitly expects the old name after a same-stat replacement even though a fresh digest differs. Reading passes that name to measuredRun, so the previous clip can replay before the new encoder runs. The replay consequence was traced from source."
     }
   ],
   "master_lead_triage": {
@@ -205,14 +203,6 @@
         "action": "deferred",
         "rows": [],
         "note": "Answered by the lead on 2026-11-17: a rehearsal clone's slot restore, outside the MOSS Ultra workflow campaign the owner scoped the plan to and on no working model's path (a clone rehearses a store migration), so it waits with the other rows the campaign set aside; the source store's restore is unaffected."
-      },
-  "SQA-409": {
-        "action": "implemented",
-        "rows": [
-          "preset-size/do",
-          "depth-preset/served"
-        ],
-        "note": "Answered by the lead on 2026-11-17, at the owner's note: the image capability's preparing step gives a request stating no size its canvas's or its preset's before the picture session's director checks it. Implemented by preset-size/do (1ab2ac601). Reopened by the review at a821fd2fd and answered by the lead on 2026-11-18: valid from source (the director validates a preset-only depth request before withSection fills its control adapter, and neither depth preset fills the recorded end_percent of 0.5, which the golden comparisons take from the recording themselves), so the served depth sections leave the workflow's recording; filed as depth-preset/do, ahead of the speed work, a workflow row, and implemented by depth-preset/served (3b17585dc), the section presets' test holding each depth preset to its MOSSImageControl, for the review's recheck."
       },
   "SQA-410": {
         "action": "filed",
@@ -284,7 +274,7 @@
       }
 }
   },
-  "next_finding_number": 412,
+  "next_finding_number": 413,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

@@ -153,7 +153,7 @@ func mutate(ctx context.Context, root, checkout string, step replayed) (mutantRe
 		record.Skipped = "its landing wrote no comparison in production Go"
 		return record, nil
 	}
-	if err := moveReplay(root, checkout, step.landed); err != nil {
+	if err := moveWithRoots(root, checkout, step.landed); err != nil {
 		return record, err
 	}
 	if _, err := planverify.Execute(ctx, checkout, step.step.Verify, nil); err != nil {

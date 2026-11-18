@@ -190,10 +190,10 @@ func lanesRecords(state string) (due, began lanesDue, err error) {
 	return due, began, err
 }
 
-// runLanesAt moves checkout to the commit due (moveTree) and runs the lanes there with run, saying when they began and
-// how they ended; only a checkout that cannot be moved fails it.
+// runLanesAt moves checkout to the commit due with the data roots (moveWithRoots) and runs the lanes there with run,
+// saying when they began and how they ended; only a checkout that cannot be moved fails it.
 func runLanesAt(root, checkout string, due lanesDue, output io.Writer, run func(checkout string) error) error {
-	if err := moveTree(root, checkout, due.Commit); err != nil {
+	if err := moveWithRoots(root, checkout, due.Commit); err != nil {
 		return err
 	}
 	began := time.Now()

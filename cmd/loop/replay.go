@@ -193,9 +193,10 @@ func moveTree(root, checkout, commit string) error {
 	return errors.Join(gitWrite(checkout, "checkout", "--quiet", "--detach", "--force", commit), gitWrite(checkout, "clean", "--quiet", "-d", "--force"))
 }
 
-// moveReplay moves the replay checkout to commit (moveTree) and gives it the data roots the main checkout reads, which
-// a replay's tests open models through.
-func moveReplay(root, checkout, commit string) error {
+// moveWithRoots moves a checkout under the process state to commit (moveTree) and gives it the data roots the main
+// checkout reads, which the tests run there open models through: the replay's, and the cycle's lanes on a row's close,
+// whose replay test read the file from the lanes checkout and found none (lanes-roots).
+func moveWithRoots(root, checkout, commit string) error {
 	if err := moveTree(root, checkout, commit); err != nil {
 		return err
 	}
@@ -215,7 +216,7 @@ func (r replayed) measurement(ctx context.Context, root string) ([]string, error
 }
 
 // replayHold is the one replay checkout, under the repository's process state, held by a replay until it closes lock.
-// A replay cut short leaves it for the next to move (moveReplay), not a worktree of its own: a test's replay in a
+// A replay cut short leaves it for the next to move (moveWithRoots), not a worktree of its own: a test's replay in a
 // checkout of its own left 12 worktrees when go test's timeout ended it before its cleanup ran (replay-checkout/do).
 type replayHold struct {
 	checkout string
@@ -252,14 +253,14 @@ func replay(ctx context.Context, root, checkout string, step replayed, worker re
 	// held to the memory it needed there (processcontrol's job bound, kept for a command once it passes in this process):
 	// run first at the parent, it had no need recorded and ran unbounded, as empty-added-token's did there on 2026-11-15,
 	// taking 279 GB of commit (replay-bound/do).
-	if err := moveReplay(root, checkout, step.landed); err != nil {
+	if err := moveWithRoots(root, checkout, step.landed); err != nil {
 		return replayRecord{}, err
 	}
 	if failure, err := (replayTask{Verify: step.step.Verify}).check(ctx, checkout); err != nil {
 		return replayRecord{Worker: worker.name, Kind: stepKind(step.step.Files, step.step.NeedsCard), Step: step.reference, Landed: step.landed,
 			Skipped: fmt.Sprintf("the check fails at the landed commit %.12s, so no run of it bounds its run at the parent: %s", step.landed, clioptions.Tail(failure, replayFailure))}, nil
 	}
-	if err := moveReplay(root, checkout, step.parent); err != nil {
+	if err := moveWithRoots(root, checkout, step.parent); err != nil {
 		return replayRecord{}, err
 	}
 	tests, err := step.tests(ctx, root)

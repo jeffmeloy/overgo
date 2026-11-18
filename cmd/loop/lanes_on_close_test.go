@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"overgo/internal/dataroot"
 	"overgo/internal/plan"
 	"overgo/internal/processlock"
 	"overgo/internal/testcheck"
@@ -20,11 +21,14 @@ import (
 // runner, which runs the lanes in the lanes checkout moved to that commit; a close while they run starts no second
 // runner, and the runner runs the lanes at it once its run ends, a run that failed being said; a runner started while
 // another holds the lanes runs nothing. Nothing had run the lanes while the plan held rows, and two of five failed 66
-// commits after their last run.
+// commits after their last run. Each run finds the trunk's data roots in its checkout, as the tests it runs read them:
+// the replay test found none in the lanes checkout (lanes-roots).
 func TestARowsClosingRunsTheLanesAtItsCommit(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	gitFixture(t, root, "init", "-q", "-b", "master")
+	const roots = `{"models": "C:/fixture/models"}`
+	testcheck.NoError(t, os.WriteFile(filepath.Join(root, dataroot.ConfigFile), []byte(roots), 0o600))
 	commitPlan := func(rows ...string) string {
 		document := plan.Plan{Campaign: "lanes", Lane: "master-lead"}
 		for _, row := range rows {
@@ -59,6 +63,9 @@ func TestARowsClosingRunsTheLanesAtItsCommit(t *testing.T) {
 			t.Errorf("the lanes ran in %s; want the lanes checkout %s", at, checkout)
 		}
 		ran = append(ran, gitFixture(t, at, "rev-parse", "HEAD"))
+		if held, err := os.ReadFile(filepath.Join(at, dataroot.ConfigFile)); err != nil || string(held) != roots {
+			t.Errorf("the lanes checkout holds data roots %q, %v; want the trunk's %q", held, err, roots)
+		}
 		if len(ran) > 1 {
 			return nil
 		}

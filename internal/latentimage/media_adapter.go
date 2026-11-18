@@ -221,12 +221,20 @@ func AdapterNames(directory string) ([]string, error) {
 	return names, err
 }
 
-// modelAdapter is the adapter a request names among its model's: <model>/adapters/<name>.safetensors.
-func modelAdapter(modelRoot, name string) (*mediaAdapter, error) {
+// adapterPath is the file of the adapter a request names among its model's: <model>/adapters/<name>.safetensors.
+func adapterPath(modelRoot, name string) (string, error) {
 	if name == "" || name != filepath.Base(name) || strings.ContainsAny(name, `/\`) {
-		return nil, fmt.Errorf("latent image: adapter %q is no file name", name)
+		return "", fmt.Errorf("latent image: adapter %q is no file name", name)
 	}
-	path := filepath.Join(modelRoot, "adapters", name+".safetensors")
+	return filepath.Join(modelRoot, "adapters", name+".safetensors"), nil
+}
+
+// modelAdapter is the adapter a request names among its model's (adapterPath).
+func modelAdapter(modelRoot, name string) (*mediaAdapter, error) {
+	path, err := adapterPath(modelRoot, name)
+	if err != nil {
+		return nil, err
+	}
 	if _, err := os.Stat(path); err != nil {
 		return nil, fmt.Errorf("latent image: the model holds no adapter %q: %w", name, err)
 	}

@@ -72,3 +72,39 @@ func TestReplayDoesNotCrossACodeChange(t *testing.T) {
 		})
 	}
 }
+
+// TestABoundFileKeysItsRun holds a director's served runs to the content it binds to each request (BindContent): a
+// request whose bound content changed is computed afresh, and the earlier content again is answered from the store
+// with no node run. A picture request's adapter replaced under its name had replayed the earlier file's picture
+// (SQA-406).
+func TestABoundFileKeysItsRun(t *testing.T) {
+	t.Parallel()
+	var runs atomic.Int32
+	bound := "first"
+	validate := func(scalarRequest) error { return nil }
+	load := func(context.Context, artifact.Repository, string, recipe.Program, scalarRequest) (int, error) {
+		return 0, nil
+	}
+	bind := func(runtime *workflowruntime.Runtime, model artifact.ID, _ int) error {
+		return workflowruntime.RegisterJSONStage[scalarRequest, int](
+			runtime, scalarModule, model, artifact.JSONContract(artifact.KindOutput, "test.bound-output.v1"),
+			func(request scalarRequest) (int, error) { runs.Add(1); return request.Value, nil },
+		)
+	}
+	director := testcheck.Must(NewModelSessionDirector[scalarRequest, int, int](
+		"scalar", "host", 1, validate, load, func(context.Context, int, scalarRequest) error { return nil }, bind,
+	))(t).BindContent(func(context.Context, string, scalarRequest) (string, error) { return bound, nil })
+	defer director.Close(t.Context())
+	store, _, program := capabilityFixture(t, "bound")
+	execution := modelrecipetest.CandidateExecution(t, store, program)
+	for index, step := range []struct {
+		bound string
+		runs  int32
+	}{{"first", 1}, {"first", 1}, {"replaced", 2}, {"first", 2}} {
+		bound = step.bound
+		testcheck.Must(director.Executor()(t.Context(), store, "model", execution, `{"value":4}`))(t)
+		if runs.Load() != step.runs {
+			t.Fatalf("serving %d with %s bound ran the node %d times; want %d, a changed binding run afresh and a binding seen before replayed", index, step.bound, runs.Load(), step.runs)
+		}
+	}
+}

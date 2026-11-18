@@ -58,6 +58,8 @@ type ModelSessionDirector[Input, Model, Output any] struct {
 	reset    func(context.Context, Model, Input) error
 	bind     func(*workflowruntime.Runtime, artifact.ID, Model) error
 	inputs   func(Input, artifact.Content, recipe.Definition) (map[recipe.PortName]workflowruntime.Value, error)
+	// bound names the identity of what a request's answer reads beside its document and its model's (BindContent).
+	bound func(ctx context.Context, path string, input Input) (string, error)
 
 	mu      sync.Mutex
 	tick    uint64
@@ -471,6 +473,29 @@ func newModelSessionDirector[Input, Model, Output any](
 	return director, nil
 }
 
+// BindContent binds to each request served the identity of what its answer reads beside its document and its model's,
+// as bound names it, which keys its run with the request (RunKey): a picture request reads the adapters it names from
+// its model's folder by their files' names, and a file replaced under its name gave the earlier file's answer again
+// (SQA-406). A request bound reads none of is keyed as before. It is set before the director serves.
+func (c *ModelSessionDirector[Input, Model, Output]) BindContent(bound func(ctx context.Context, path string, input Input) (string, error)) *ModelSessionDirector[Input, Model, Output] {
+	c.bound = bound
+	return c
+}
+
+// RunKey is the key the director serves input under, from the model at path: the recipe, the request and the code
+// (RunKeyOf), with the identity of what the request reads beside them where the director binds one (BindContent).
+func (c *ModelSessionDirector[Input, Model, Output]) RunKey(ctx context.Context, path string, definition recipe.Definition, input Input, content artifact.Content) (string, error) {
+	key := RunKeyOf[Model](definition, content)
+	if c.bound == nil {
+		return key, nil
+	}
+	bound, err := c.bound(ctx, path, input)
+	if err != nil || bound == "" {
+		return key, err
+	}
+	return key + "/bound/" + bound, nil
+}
+
 func (c *ModelSessionDirector[Input, Model, Output]) Executor() Executor {
 	return c.execute
 }
@@ -541,12 +566,12 @@ func (c *ModelSessionDirector[Input, Model, Output]) serve(
 	definition, resources := program.Definition(), execution.Resources
 	identified := processmeasure.Stage(ctx, "request inputs identified")
 	inputs, err := c.inputs(input, content, definition)
+	runKey, keyErr := c.RunKey(ctx, path, definition, input, content)
 	identified()
-	if err != nil {
+	if err = errors.Join(err, keyErr); err != nil {
 		return zero, err
 	}
 	// A request the store already answers is answered from it: no session is leased and no model loaded.
-	runKey := RunKeyOf[Model](definition, content)
 	sought := processmeasure.Stage(ctx, "stored answer sought")
 	output, result, held, err := measuredRun[Output](ctx, store, modelID, program, runKey, inputs, nil)
 	sought()

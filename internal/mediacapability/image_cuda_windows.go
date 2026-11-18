@@ -29,9 +29,10 @@ type pictureDirector = capabilityruntime.ModelSessionDirector[latentimage.Reques
 
 // pictureSessions makes a director of latent picture sessions. A session is
 // compiled for a picture's extent, and serves any prompt and seed
-// (latentimage Request.SessionKey).
+// (latentimage Request.SessionKey). A request's run is keyed by the adapters
+// and depth estimator it reads as well (pictureBeside).
 func pictureSessions() (*pictureDirector, error) {
-	return capabilityruntime.NewModelSessionDirector[latentimage.Request, *latentimage.Generator, latentimage.EncodedImage](
+	director, err := capabilityruntime.NewModelSessionDirector[latentimage.Request, *latentimage.Generator, latentimage.EncodedImage](
 		"image-gen", imageDevice, imageSessionCapacity,
 		latentimage.ValidateRequest,
 		func(ctx context.Context, store artifact.Repository, path string, program recipe.Program, request latentimage.Request) (*latentimage.Generator, error) {
@@ -50,6 +51,10 @@ func pictureSessions() (*pictureDirector, error) {
 		},
 		latentimage.RegisterRuntime,
 	)
+	if err != nil {
+		return nil, err
+	}
+	return director.BindContent(pictureBeside), nil
 }
 
 func imageCapability() Capability {

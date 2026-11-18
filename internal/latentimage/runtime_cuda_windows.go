@@ -114,6 +114,29 @@ func (r Request) prompt() string {
 // cutsSchedule is whether the request samples part of its schedule.
 func (r Request) cutsSchedule() bool { return r.Denoise != 0 && r.Denoise <= denoiseWhole }
 
+// Beside are the files a request's picture reads from its model's folder at root beyond the model's components, with
+// what its preset fills (withPreset), in the order it reads them: the adapters it applies (adapterPath) and, for a depth
+// control drawn from a picture, the depth estimator (sectionDepth). The model's inventory holds neither, so a run is
+// keyed by their bytes beside the request (SQA-406). An adapter's name that is no file name is refused.
+func (r Request) Beside(root string) ([]string, error) {
+	filled, err := r.withPreset(root)
+	if err != nil {
+		return nil, err
+	}
+	var files []string
+	for _, applied := range filled.applied() {
+		path, err := adapterPath(root, applied.Name)
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, path)
+	}
+	if filled.Control != nil && filled.Control.Picture != "" {
+		files = append(files, filepath.Join(root, depthDirectory, depthCheckpoint))
+	}
+	return files, nil
+}
+
 // applied are the adapters the request applies, in its order: its Adapters, or its one Adapter at AdapterStrength.
 func (r Request) applied() []AppliedAdapter {
 	if r.Adapters != nil {

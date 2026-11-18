@@ -386,6 +386,14 @@ func fromHFRepository(ctx context.Context, repository *hfrepo.Repository) (Inven
 	return Inventory{Manifest: manifest, TensorInventory: tensors, Components: descriptors, Locations: locations}, nil
 }
 
+// IdentifyWeights identifies the tensor file at path as a model's weights are identified, refusing one that changed
+// while it was read: a file a request reads beside its model, as a picture request its adapters.
+func IdentifyWeights(ctx context.Context, path string) (artifact.ID, error) {
+	kind, mediaType := fileContract(artifact.ComponentWeights, path)
+	descriptor, _, err := identifyFileContext(ctx, path, kind, mediaType)
+	return descriptor.ID, err
+}
+
 func identifyFile(path string, kind artifact.Kind, mediaType string) (artifact.Descriptor, string, error) {
 	return identifyFileContext(context.Background(), path, kind, mediaType)
 }

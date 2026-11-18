@@ -3,6 +3,22 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "depth-preset",
+      "title": "A depth section's preset is served as the workflow records it: its control adapter supplied before admission and its control ending at 0.5 of the sampling",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A depth section's preset is served as the workflow records it: its control adapter supplied before admission and its control ending at 0.5 of the sampling",
+          "verify": "go test ./internal/mediacapability -count=1 -run '^TestADepthPresetIsServedAsRecorded$'",
+          "files": [
+            "internal/latentimage",
+            "internal/mediacapability"
+          ],
+          "rationale": "Note: SQA-409, reopened by the review at a821fd2fd (P2): a request naming the depth preset ultra-depth-control with a control map and no adapters is refused by the picture director (\"a depth control is read through its control adapter\"), since the director validates it before the preset's adapters are filled (withSection, in LoadGenerator); and with its adapters stated, neither ultra-depth-control nor ultra-depth-control-turbo fills the control's end, which the workflow records as 0.5 (612:441 and 366:46 end_percent), so DepthControl.end gives 1 and the served depth sections apply the depth past the recorded window. The golden comparisons pass because they take the end from the recording themselves (turbo_floor and depth_control model tests), not from the served preset.\n\nThe cure: the depth presets carry the recorded control window (the catalog's, start 0 and end 0.5), filled where the request leaves the control's end unset and an explicit end kept, 1 included; and the image capability's preparing step resolves a preset's section (latentimage withPreset, the preset owner) before the director admits the request, as it gives a preset-only request its size (preset-size/do), so a preset-only depth request is admitted with the preset's adapters. A request naming no preset keeps today's defaults.\n\nCheck: TestADepthPresetIsServedAsRecorded, on the host: a preset-only depth request with a map and no adapters is admitted with the preset's adapter stack, both depth presets fill end 0.5 where it is unset, and an explicit end of 1 is kept.\n\nServes: the depth sections' runs as the workflow records them."
+        }
+      ]
+    },
+    {
       "id": "moss-speed",
       "title": "Where a MOSS step's time goes at 2368 x 1344, against ComfyUI's 1.1 s, and the depth estimate's 80 s on the processor, is measured part by part, the largest share cured after",
       "steps": [
@@ -50,24 +66,6 @@
           ],
           "needs_card": true,
           "rationale": "The evidence: cuda-synthetic/tag moved every untagged CUDA test that reads the data root behind modeltest but one. TestSenseNovaVariableRequestResources runs SenseNova's 8B production generation in an isolated measurement process, and docs/image_video_capacity.json names its retained measurement by the bytes of its file (evidence:sha256:888854b5...), which the store holds; tagged, its bytes changed and TestImageVideoCapacityAcceptance found no evidence under the new identity. A measurement is taken again only on a card to itself, and the readings campaign holds the card until its Wan arms are drawn, so the file stays in the gate, named by the check as measuredInPlace, and this row follows the campaign.\n\nThe change: the test carries //go:build modeltest, it is measured again on a quiet card into the store, the capacity record and its protocol digest (imageVideoCapacitySHA256) name the new identity, and measuredInPlace goes, so internal/sensenovarecipe leaves the cuda lane.\n\nCheck: a whole-tree test with measuredInPlace gone, named afresh so it fails before the change: TestTheGateRunsNoRealModelTest.\n\nRefiled 2026-11-16 from cuda-resources/do, whose step carried no card need, so dispatch gave it while the readings campaign held the card: this step carries -needs-card and waits for a card to itself."
-        }
-      ]
-    },
-    {
-      "id": "adapter-identity",
-      "title": "A picture request naming an adapter is bound to the adapter's bytes, so a replaced adapter is read again and never replayed",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A picture request naming an adapter is bound to the adapter's bytes, so a replaced adapter is read again and never replayed",
-          "verify": "go test ./internal/mediacapability -count=1 -run '^TestAReplacedAdapterIsReadAgain$'",
-          "files": [
-            "docs/plan.json",
-            "internal/mediacapability",
-            "internal/capabilityruntime",
-            "internal/modelartifact"
-          ],
-          "rationale": "Note: SQA-406 (P2): a picture request naming an adapter (\u003cmodel\u003e/adapters/\u003cname\u003e.safetensors) keys its run by the recipe, the request's JSON and the code (capabilityruntime RunKeyOf), and the HF pipeline's inventory (modelartifact fromHFPipeline) holds model_index's components alone, so the adapters directory is outside the model's identity: a replaced adapter file under the same name replays the earlier run's picture before media_adapter reads the new weights. The cure binds the named adapter's content to the request where the image source resolves it, so a changed adapter is a new run and an unchanged one keeps its resident weights across strengths; the artifact, replay and resident-session owners stay as they are. The check serves a fixed-seed request naming an adapter, replaces the adapter's bytes under its name, and wants the second request computed afresh (its run key differs), and the same bytes again to replay.\n\nServes: SQA-406, a served picture that follows its adapter's bytes.\n\nBatch: host lane."
         }
       ]
     }

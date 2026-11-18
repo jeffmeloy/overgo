@@ -162,11 +162,13 @@
         "internal/latentimage/runtime_cuda_windows.go",
         "internal/latentimage/profiles.json",
         "internal/latentimage/section_presets_windows_test.go",
-        "internal/capabilityruntime/session_director.go"
+        "internal/capabilityruntime/session_director.go",
+        "internal/latentimage/depth_control.go",
+        "internal/latentimage/turbo_floor_windows_model_test.go"
       ],
-      "input": "Run a configured MOSS image recipe with preset ultra-depth-control, prompt 'a fox', width 1024, height 576 and control.map containing a valid base64 PNG. The installed moss-control adapter is supplied by the preset. Omit adapter and adapters from the request.",
-      "expected": "The image capability admits the same depth request with the catalog defaults as with those values stated explicitly. Resolve the preset through the existing latentimage owner before the picture director validates required adapters. Keep the explicit size and reject invalid explicit settings.",
-      "actual": "At 1ab2ac601, Sized fixes the preset-only text request's geometry but returns an explicitly sized request as given. The director calls ValidateRequest while applied() is empty and refuses the depth map. withSection would supply moss-control later in LoadGenerator. Source-demonstrated on the recipe path."
+      "input": "Run the MOSS image recipe with ultra-depth-control, prompt 'a fox', 1024x576 and a valid nonuniform PNG in control.map. Omit adapter and adapters. Then supply the preset's installed adapter stack explicitly and omit control.end. Repeat the second case with ultra-depth-control-turbo and its own stack.",
+      "expected": "Resolve the depth section through the existing latentimage preset owner before admission. Both presets accept their adapters implicitly and use the recorded control end of 0.5 when omitted. Keep an explicit end, including 1, and the existing default for requests without a preset.",
+      "actual": "Shown from source at a821fd2fd. Without explicit adapters the director rejects the depth map before withSection fills them. With the stack supplied the request passes, but neither preset fills control.end. DepthControl.end returns 1, so the sampler keeps applying depth beyond the recorded window. The reference requests specify 0.5 at nodes 612:441 and 366:46. The ordinary and Turbo comparisons supply that value themselves, bypassing the served preset."
     },
     {
       "id": "SQA-410",
@@ -206,11 +208,12 @@
         "note": "Answered by the lead on 2026-11-17: a rehearsal clone's slot restore, outside the MOSS Ultra workflow campaign the owner scoped the plan to and on no working model's path (a clone rehearses a store migration), so it waits with the other rows the campaign set aside; the source store's restore is unaffected."
       },
   "SQA-409": {
-        "action": "implemented",
+        "action": "filed",
         "rows": [
-          "preset-size/do"
+          "preset-size/do",
+          "depth-preset/do"
         ],
-        "note": "Answered by the lead on 2026-11-17, at the owner's note: the image capability's preparing step gives a request stating no size its canvas's or its preset's before the picture session's director checks it. Implemented by preset-size/do (1ab2ac601), for the review's recheck."
+        "note": "Answered by the lead on 2026-11-17, at the owner's note: the image capability's preparing step gives a request stating no size its canvas's or its preset's before the picture session's director checks it. Implemented by preset-size/do (1ab2ac601). Reopened by the review at a821fd2fd and answered by the lead on 2026-11-18: valid from source (the director validates a preset-only depth request before withSection fills its control adapter, and neither depth preset fills the recorded end_percent of 0.5, which the golden comparisons take from the recording themselves), so the served depth sections leave the workflow's recording; filed as depth-preset/do, ahead of the speed work, a workflow row."
       },
   "SQA-410": {
         "action": "filed",
@@ -273,11 +276,11 @@
         "note": "Reopened by the lead's recheck on 2026-11-13: run-from-files/do and recipe-state made the first repair, whose tests pass at f110d30b1, but the review's evidence names three publication owners that still read recipe state at publication and drop a lookup error, so an empty Verification earns the legacy path and a later activation can replace execution-time state. execution-state/do carries the state read at execution to publication. Implemented 2026-11-16 by execution-state/do (f7338b9b0), for the review's recheck."
       },
   "SQA-406": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "adapter-identity/do"
         ],
-        "note": "Answered by the lead on 2026-11-17 at 496a0f87d: filed as its own row after the owner's workflow rows and small fixes; the adapter's bytes are bound where the image source resolves the request, the replay and session owners kept."
+        "note": "Answered by the lead on 2026-11-17 at 496a0f87d: filed as its own row after the owner's workflow rows and small fixes; the adapter's bytes are bound where the image source resolves the request, the replay and session owners kept. The review's extension to the depth estimator a control picture reads is taken in the same step (2026-11-18): the picture director keys a run by the content of every file a request reads beside its model's components, its preset's adapters among them (latentimage Request.Beside). Implemented by adapter-identity/do, for the review's recheck."
       }
 }
   },

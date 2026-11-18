@@ -3,25 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "moss-ultra-compare",
-      "title": "overgo on the Ultra workflow's models is held to the golden per section, and overgo's MOSS-Image-SFT runs the same sections as a measured band",
-      "steps": [
-        {
-          "id": "workbench",
-          "title": "Six workbench presets, one per section, take their values from the recorded settings, with sampler, schedule, denoise, adapter, depth preview, size, box editor, enhance, A/B and sharpen controls",
-          "verify": "OVERGO_WEBUI_LANE=1 go test ./internal/server -count=1 -run '^TestTheWorkbenchOffersTheUltraPresets$'",
-          "files": [
-            "internal/server",
-            "fixtures/comfy"
-          ],
-          "rationale": "The workflow review (C:/Users/jeffm/Downloads/MOSS workflow review.md) lists the controls a user needs to run the sections from overgo's workbench. The presets are read from the recorded settings as data.\n\nNote: 2026-11-17, from moss-ultra-sections/prompt-modes: the workflow's negative in modes 1 and 3 is its exclusions as RegexReplace 707:703:470 reads them, the backup negative (moss_enhancer.json negative_backup) where they are empty or a \"none\" (isNoNegative); mode 2's chain applies it itself. A request's negative is drawn as given, so the workbench offers that backup as the negative of an empty or none exclusion in modes 1 and 3. It offers mode 2 (the request's enhance, held back from pages until then by mediacapability workbenchControl, with the picture and its denoise), mode 3 (the request's layout, LayoutDraft), and the model's enhancer folder, which a MOSS Ultra root holds beside its encoder (latentimage enhancerDirectory).\n\nServes: setup-steps for a user.\nDisappears: nothing.\nEvidence: the workbench lists six presets whose values equal the recorded settings, each offering the listed controls.\nBatch: host lane.",
-          "depends_on": [
-            "moss-ultra-compare/golden-floor"
-          ]
-        }
-      ]
-    },
-    {
       "id": "moss-eight-step",
       "title": "MOSS-Image-SFT gains the workflow's eight-step Turbo preset, the local DMD2 adapter unmerged at guidance 1, held to the workflow's Turbo recordings",
       "steps": [

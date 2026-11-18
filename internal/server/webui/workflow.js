@@ -148,6 +148,15 @@
     const chips = presetChips(fields);
     if (chips) host.appendChild(chips);
     if (advanced.children.length > 1) host.appendChild(advanced);
+    // A canvas of boxes takes the picture's shape, its width and height as set or as declared, as they change.
+    const width = fields.get("width"), height = fields.get("height");
+    const canvases = [...host.querySelectorAll(".box-canvas")];
+    if (canvases.length && width && height) {
+      const side = (field) => Number(field.input.value || field.input.placeholder);
+      const shape = () => { for (const canvas of canvases) canvas.shape(side(width), side(height)); };
+      for (const name of ["input", "change"]) host.addEventListener(name, shape);
+      shape();
+    }
     return fields;
   };
 
@@ -232,12 +241,14 @@
       (value) => { for (const [name, field] of fields) setPart(field, value ? value[name] : null); });
   }
 
-  // listInput: a list control's items, rows a person adds and removes, each the item's control.
+  // listInput: a list control's items, rows a person adds and removes, each the item's control; a list of boxes on the
+  // picture is drawn and drawn on besides (boxEditor).
   function listInput(control) {
     const el = window.overgo.el;
     const item = { ...control.item, name: control.name };
     const rows = el("div", { class: "control-items" });
     const inputs = [];
+    const values = () => inputs.map((input) => partValue(item, input.value)).filter((value) => value !== undefined);
     const changed = () => rows.dispatchEvent(new Event("change", { bubbles: true }));
     const add = (value) => {
       const input = controlInput(item);
@@ -252,8 +263,55 @@
     };
     const group = el("fieldset", { class: "control-group control-list", "data-control": control.name }, el("legend", { text: controlLabel(control) }), rows,
       el("button", { class: "btn alt", type: "button", text: "Add", "aria-label": "Add " + controlLabel(control), onclick: () => { add(null); changed(); } }));
-    return partsValue(group, () => { const values = inputs.map((input) => partValue(item, input.value)).filter((value) => value !== undefined); return values.length ? values : null; },
-      (value) => { inputs.length = 0; rows.replaceChildren(); for (const entry of Array.isArray(value) ? value : []) add(entry); });
+    const editor = boxItem(control.item) ? boxEditor(values, (box) => { add(box); changed(); }) : null;
+    if (editor) {
+      group.insertBefore(editor, rows);
+      for (const name of ["input", "change"]) group.addEventListener(name, editor.draw);
+    }
+    return partsValue(group, () => { const held = values(); return held.length ? held : null; },
+      (value) => { inputs.length = 0; rows.replaceChildren(); for (const entry of Array.isArray(value) ? value : []) add(entry); if (editor) editor.draw(); });
+  }
+
+  // boxItem says a list's items are boxes on the picture, each a corner and an extent as shares of its canvas (a MOSS
+  // layout's regions, as the MOSS Ultra workflow's prompt builder draws them), which a page draws on.
+  const boxItem = (item) => item.type === "object" && ["x", "y", "w", "h"].every((name) => (item.fields || []).some((field) => field.name === name));
+
+  // boxEditor: a list's boxes on a canvas of the picture's shape, each numbered as its row; dragging across the canvas
+  // adds a box, its corner and extent as shares of the canvas to three places, as the builder's 0-1000 grid holds them.
+  // shape(width, height) gives the canvas the picture's shape.
+  function boxEditor(boxes, add) {
+    const el = window.overgo.el;
+    const canvas = el("div", { class: "box-canvas", role: "application", "aria-label": "Draw a region" });
+    const place = (node, box) => Object.assign(node.style, { left: box.x * 100 + "%", top: box.y * 100 + "%", width: box.w * 100 + "%", height: box.h * 100 + "%" });
+    canvas.draw = () => canvas.replaceChildren(...boxes().map((box, index) => {
+      const drawn = el("div", { class: "box", text: String(index + 1) });
+      place(drawn, box);
+      return drawn;
+    }));
+    canvas.shape = (width, height) => { canvas.style.aspectRatio = width > 0 && height > 0 ? width + " / " + height : ""; };
+    const share = (event) => {
+      const bounds = canvas.getBoundingClientRect();
+      return [Math.min(Math.max((event.clientX - bounds.left) / bounds.width, 0), 1), Math.min(Math.max((event.clientY - bounds.top) / bounds.height, 0), 1)];
+    };
+    const round = (value) => Math.round(value * 1000) / 1000;
+    const spanned = (from, to) => ({ x: round(Math.min(from[0], to[0])), y: round(Math.min(from[1], to[1])), w: round(Math.abs(to[0] - from[0])), h: round(Math.abs(to[1] - from[1])) });
+    let from = null, drawing = null;
+    canvas.addEventListener("pointerdown", (event) => {
+      from = share(event);
+      drawing = el("div", { class: "box drawing" });
+      canvas.appendChild(drawing);
+      if (canvas.setPointerCapture && event.isPrimary) try { canvas.setPointerCapture(event.pointerId); } catch (_) { /* a synthetic pointer holds no capture */ }
+    });
+    canvas.addEventListener("pointermove", (event) => { if (from) place(drawing, spanned(from, share(event))); });
+    canvas.addEventListener("pointerup", (event) => {
+      if (!from) return;
+      const box = spanned(from, share(event));
+      from = null;
+      drawing.remove();
+      if (box.w > 0 && box.h > 0) add(box);
+    });
+    canvas.draw();
+    return canvas;
   }
 
   // partValue is a control's entry as the request holds it: nothing where it is empty, a boolean, a number, an object

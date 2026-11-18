@@ -2,6 +2,7 @@ package operation
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"strings"
 	"testing"
@@ -253,4 +254,20 @@ func newTestManager(t *testing.T) *Manager {
 	manager := testcheck.Must(NewManager(8))(t)
 	t.Cleanup(manager.Close)
 	return manager
+}
+
+// TestAFailureWithoutARunNamesItsCause holds an operation whose execution fails and leaves no durable run to its
+// cause (failure-cause/do): its status fails naming the execution's error beside the run it lacks, where it named the
+// missing run alone and a Library validation's cause was lost.
+func TestAFailureWithoutARunNamesItsCause(t *testing.T) {
+	manager := newTestManager(t)
+	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "operation-failure-cause-recipe")
+	id := testcheck.Must(manager.Submit(t.Context(), Request{Task: recipe.TaskInference, Recipe: recipeID},
+		func(context.Context, Reporter) (Completion, error) {
+			return Completion{}, errors.New("the exact suite's replay differed at case 3")
+		}))(t)
+	status := testcheck.Must(manager.Wait(t.Context(), id))(t)
+	if status.State != StateFailed || !strings.Contains(status.Failure, "the exact suite's replay differed at case 3") || !strings.Contains(status.Failure, "lacks durable run") {
+		t.Fatalf("the failed operation's status is %+v; want it failed, naming its cause and the run it lacks", status)
+	}
 }

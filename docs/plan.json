@@ -7,15 +7,6 @@
       "title": "An operation that fails before recording its run names its cause beside the run it lacks, so the Library's failed validation in the model-journey lane says why",
       "steps": [
         {
-          "id": "do",
-          "title": "An operation that fails before recording its run names its cause beside the run it lacks, so the Library's failed validation in the model-journey lane says why",
-          "verify": "go test ./internal/operation -count=1 -run '^TestAFailureWithoutARunNamesItsCause$'",
-          "files": [
-            "internal/operation"
-          ],
-          "rationale": "Note: The cycle's lanes, rerun at 1ab2ac601 on 2026-11-17, failed the model-journey lane's TestModelJourneyLibraryValidation: the hub model's validation operation ended \"operation: completion lacks durable run\" and nothing else. The operation manager checks a completion for its run before it reads the execution's error (operation.Manager.run, validateCompletion first), and the Library's validation returns an empty completion beside every error before its verification is published (libraryintake validate), so whatever failed the validation was never shown, to the page or to the lane. The failed status names the execution's error beside the run it lacks. The validation's own cause is found with it in the lanes' next run of the journey, and cured after.\n\nServes: every operation whose execution fails before recording its run (a Library validation, an intake), and the model-journey lane's reading.\n\nCheck: TestAFailureWithoutARunNamesItsCause, host only.\n\nBatch: host lane."
-        },
-        {
           "id": "cure",
           "title": "The Library's validation of the hub model completes as the model-journey lane drives it, its cause, which failure-cause/do names, found by reproducing it and cured",
           "verify": "OVERGO_MODEL_JOURNEY=1 OVERGO_WEBUI_LANE=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test ./internal/server -count=1 -timeout=0 -run '^TestModelJourneyLibraryValidation$'",

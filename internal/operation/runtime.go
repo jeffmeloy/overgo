@@ -238,8 +238,10 @@ func (manager *Manager) run(ctx context.Context, current *entry) {
 	completionErr := validateCompletion(completion)
 	switch {
 	case completionErr != nil:
+		// An execution that failed names its cause beside the run it left unrecorded: a Library validation's failure
+		// read "completion lacks durable run" alone, its cause lost (the model-journey lane, 2026-11-17).
 		current.status.State = StateFailed
-		current.status.Failure = completionErr.Error()
+		current.status.Failure = errors.Join(err, completionErr).Error()
 	case errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || ctx.Err() != nil:
 		current.status.Run = &completion.Run
 		current.status.State = StateCancelled

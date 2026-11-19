@@ -30,6 +30,9 @@ type Command struct {
 	// Stdout and Stderr receive drained output; nil discards.
 	Stdout io.Writer
 	Stderr io.Writer
+	// Need is the commit the command states its tree needs, as a model server states what it loads: the tree is bounded
+	// by it and the commit free as it starts (jobBound.stating); none bounds it as its command's recorded need does.
+	Need uint64
 	// bounded reads the tree's bound in boundOf's place, so a test bounds one tree without bounding another.
 	bounded func(*exec.Cmd) (jobBound, error)
 }
@@ -110,6 +113,7 @@ func Start(ctx context.Context, command Command) (*Supervised, error) {
 	if err != nil {
 		return nil, err
 	}
+	bound = bound.stating(command.Need)
 	resourceMu.Lock()
 	defer resourceMu.Unlock()
 	run.Env = resourceEnvironment(run.Environ())

@@ -19,6 +19,19 @@ import (
 type jobBound struct {
 	key               string
 	need, free, limit uint64
+	// stated is whether need is the one the command stated (Command.Need) rather than one a pass recorded.
+	stated bool
+}
+
+// stating is the bound of a command that states its tree needs need, a model server what it loads (served-need): that
+// need and the commit free as it starts, where it is more than the need a pass recorded. A model server started at the
+// commit free at rest, 77.0 GiB of this machine's 99.6 GiB, was refused before it served Qwen3.8-Flash-Next, whose
+// weights alone are more (2026-11-19).
+func (bound jobBound) stating(need uint64) jobBound {
+	if need > bound.need {
+		bound.need, bound.stated, bound.limit = need, true, need+bound.free
+	}
+	return bound
 }
 
 // jobKey names a command by what it runs, its program's name and its arguments, not where it runs: a check run in the
@@ -57,6 +70,10 @@ func boundOf(command *exec.Cmd) (jobBound, error) {
 // reached says the bound a tree reached, for the run's error.
 func (bound jobBound) reached() error {
 	gib := func(bytes uint64) float64 { return float64(bytes) / (1 << 30) }
+	if bound.stated {
+		return fmt.Errorf("processcontrol: the tree reached its memory limit of %.1f GiB, the %.1f GiB it states it needs and the %.1f GiB of commit free at its start",
+			gib(bound.limit), gib(bound.need), gib(bound.free))
+	}
 	if bound.need == 0 {
 		return fmt.Errorf("processcontrol: the tree reached its memory limit of %.1f GiB, the commit free at its start; no run of its command passed to record its need",
 			gib(bound.limit))

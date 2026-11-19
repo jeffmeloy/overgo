@@ -102,3 +102,26 @@ func TestAFirstSeenRunawayIsEndedAtTheMachinesFreeMemory(t *testing.T) {
 		t.Error("a run that reached its bound recorded a need")
 	}
 }
+
+// TestALaunchStatingItsNeedIsBoundedByIt holds a command that states the commit its tree needs (served-need), as a
+// model server states what it loads, to a bound of that need and the commit free as it starts: a runaway child stating
+// 64 MiB, the commit free held to 256 MiB here, is ended at 320 MiB, its run saying the need it stated. A model server
+// had been bound at the commit free at rest alone, 77.0 GiB of this machine's 99.6 GiB, and was refused before it served
+// Qwen3.8-Flash-Next, whose weights alone are more (2026-11-19).
+func TestALaunchStatingItsNeedIsBoundedByIt(t *testing.T) {
+	t.Parallel()
+	var said strings.Builder
+	runaway := jobChildren(&said)("runaway")
+	const free, stated = 256 << 20, 64 << 20
+	runaway.Need = stated
+	runaway.bounded = func(command *exec.Cmd) (jobBound, error) {
+		bound, err := boundOf(command)
+		bound.free, bound.limit = min(bound.free, free), min(bound.limit, free)
+		return bound, err
+	}
+	receipt, err := testcheck.Must(Start(t.Context(), runaway))(t).Wait(t.Context())
+	if receipt.ExitCode == 0 || !receipt.MemoryLimited || receipt.MemoryLimit != free+stated || err == nil || !strings.Contains(err.Error(), "it states it needs") {
+		t.Fatalf("a child stating a need of %d bytes, %d free, ended %+v, %v; want it ended at %d, its run saying the need it stated; it said:\n%.3000s",
+			stated, free, receipt, err, free+stated, said.String())
+	}
+}

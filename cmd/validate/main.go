@@ -68,7 +68,7 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	cellsOnly := flags.Bool("cells", false, "with -run: execute only the cells the scorecard waits on, leaving the cycle lanes to -run -lanes, so a cycle runs its checks before its cells")
 	preflight := flags.Bool("preflight", false, "with -run: run each cell the scorecard waits on only to where its measurement begins (clioptions.PreflightEnvironment), so what would refuse a cell is known before any is measured; measures nothing and runs no lane")
 	lanesOnly := flags.Bool("lanes", false, "with -run: execute only the cycle lanes, which go test's cache replays for the packages no change reached")
-	reached := flags.Bool("reached", false, "with -run -cells or a dry run: measure only the cells whose measured path reads a file changed since the commit the newest scorecard record measured; with no record, every cell")
+	reached := flags.Bool("reached", false, "with -run -cells or a dry run: measure only the cells whose measured path reads a file changed since the commit the newest scorecard record measured; with no record, every cell. With -run -lanes: run only what the changes since each lane's last pass reach, a lane run package by package cut to the packages they enter and a lane they reach nowhere left out, as a run on a row's close runs them (lanes-reach); a lane with no pass kept runs whole")
 	inventory := flags.String("inventory", "", "comma-separated model roots: report each directory beneath them as activated, registered, unregistered or not a model, with the commands that would advance it; loads no model")
 	onboardPath := flags.String("onboard", "", "a model directory or GGUF: convert a Hugging Face directory, register, record and replay an exact suite, activate, and run the long-form guard, in one command")
 	draftOf := flags.String("draft", "", "a model GGUF the library has activated: register the draft layer GGUF beside it, replay the library's validation prompts speculatively through it, and activate it when the trunk keeps its share of the drafts; records nothing of the model's own")
@@ -299,7 +299,13 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 		}
 		if scope == scopeLanes {
 			// The lanes need no model resolved: only they run.
-			return executeRun(ctx, output, *root, storeRoot, store, Plan{Suites: cycleSuites(), LanesKept: trunkCheckout(ctx, *root), HoldsCard: landing.HoldLaneTurn, TakesTurns: landing.HoldTestTurnEach}, scope)
+			suites, kept := cycleSuites(), trunkCheckout(ctx, *root)
+			if *reached {
+				if suites, err = reachedSuites(ctx, output, *root, kept); err != nil {
+					return err
+				}
+			}
+			return executeRun(ctx, output, *root, storeRoot, store, Plan{Suites: suites, LanesKept: kept, HoldsCard: landing.HoldLaneTurn, TakesTurns: landing.HoldTestTurnEach}, scope)
 		}
 	}
 	registered, err := registeredCells(ctx, store)

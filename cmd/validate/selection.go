@@ -174,9 +174,12 @@ type SelectedSuite struct {
 
 // cycleSuites lists the improvement cycle's lanes, which run every cycle, each
 // go test lane afresh, since its models lie outside the module's cache keys.
-func cycleSuites() []SelectedSuite {
+func cycleSuites() []SelectedSuite { return suitesOf(landing.CycleLanes()) }
+
+// suitesOf are the cycle lanes given as the suites a run runs.
+func suitesOf(lanes []landing.CycleLane) []SelectedSuite {
 	suites := []SelectedSuite{}
-	for _, lane := range landing.CycleLanes() {
+	for _, lane := range lanes {
 		suites = append(suites, SelectedSuite{Lane: lane.Name, Arguments: lane.Arguments, Environment: lane.Environment, Each: lane.Each})
 	}
 	return suites

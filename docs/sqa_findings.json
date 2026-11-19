@@ -196,31 +196,23 @@
       "actual": "Source at 5e82b8710. TextPipelineIdentity loads the store memo. admitCheckpoint accepts its old digest on size and time alone. TestTextPipelineNamesItsCheckpointThroughTheStore explicitly expects the old name after a same-stat replacement even though a fresh digest differs. Reading passes that name to measuredRun, so the previous clip can replay before the new encoder runs. The replay consequence was traced from source."
     },
     {
-      "id": "SQA-413",
+      "id": "SQA-414",
       "severity": "P2",
       "files": [
-        "internal/mediacapability/image_cuda_windows.go",
-        "internal/latentimage/runtime_cuda_windows.go",
-        "internal/latentimage/enhancer_chat_windows.go",
-        "internal/latentimage/moss_enhancer_rules.go",
-        "internal/mediacapability/prepared_first_windows_test.go"
+        "internal/mediacapability/video_form.go",
+        "internal/mediacapability/video_form_test.go",
+        "internal/latentvideo/edit_form.go",
+        "internal/capabilityruntime/session_director.go"
       ],
-      "input": "Submit a MOSS Ultra image request through recipe run with enhance=true, prompt=\"a fox\", width=1024, height=576 and steps=-1. Use an otherwise admitted model and a working enhancer.",
-      "expected": "The image capability rejects the negative step count with its existing invalid sampling policy error before opening the enhancer. Share the static sampling checks in latentimage.ValidateRequest at admission. Valid mode 2 requests still reach the enhancer and the picture director.",
-      "actual": "Source at 39d27cd16. Strict decoding accepts this signed integer. Beside and Sized do not validate it. preparedFirst calls EnhanceRequest, which opens the 9B chat and requests a positive and negative prompt, with an optional extra positive. Only then does the director call ValidateRequest and reject steps=-1. If opening the enhancer fails, that error masks the invalid input. The existing admission fixture covers unknown and duplicate fields."
+      "input": "Use recipe run with an active LiveEdit model, a valid prompt and a stored source_artifact clip. In the otherwise valid clip-form JSON, give seed twice, first 7 then 8. An unknown field on the same form is also accepted.",
+      "expected": "At resolveEditForm, apply the existing strict request decoder to the original JSON. Reject duplicate or unknown fields before reading or decoding the source clip or encoding the prompt. A valid edit still sends the resolved pixels as a typed value and retains the compact clip request.",
+      "actual": "Source trace at 93ff989b7. resolveEditForm uses json.Unmarshal before selecting the clip form. It keeps seed 8, discards unknown fields and calls ResolveClipRequest. ExecuteInput sees the resolved value and the newly encoded request, so the retained input is identical to a valid seed-8 request. The full-form path passes the original JSON to decodeJSONInput, which rejects duplicate and unknown fields."
     }
   ],
   "master_lead_triage": {
     "at": "2026-11-13",
     "head": "0ef92bbeb509dbb96070d1f6e9161e95538210b7",
     "findings": {
-  "SQA-413": {
-        "action": "implemented",
-        "rows": [
-          "enhance-admission/do"
-        ],
-        "note": "Answered by the lead on 2026-11-18: valid from source (EnhanceRequest opened the chat before the director validated the request); filed and implemented by enhance-admission/do, which validates the request as the session will once enhanced before opening the chat, for the review's recheck."
-      },
   "SQA-411": {
         "action": "deferred",
         "rows": [],
@@ -296,7 +288,7 @@
       }
 }
   },
-  "next_finding_number": 414,
+  "next_finding_number": 415,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

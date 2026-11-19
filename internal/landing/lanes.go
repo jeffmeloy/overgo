@@ -322,6 +322,45 @@ func CycleLanes() []CycleLane {
 	return listed
 }
 
+// CycleLanesReached are the cycle's lanes (CycleLanes) cut to what changed reaches, as a commit's lanes stage reads
+// its own (discover): changed holds, for each lane, the paths changed since its last pass; a lane they do not reach is
+// left out, a lane run package by package keeps the packages whose test closure they enter, and a lane changed holds no
+// paths for, none of its passes kept, runs whole. Every close had run all five lanes, five hours beside the day's
+// landings, the card held all day (lanes-reach, the owner's review of 2026-11-18).
+func CycleLanesReached(repo string, changed map[string][]string) ([]CycleLane, error) {
+	candidates := slices.Clone(cycleLanes)
+	for index := range candidates {
+		// A lane run package by package names the packages a change enters, as a lane that finds its packages does.
+		if candidates[index].find == nil && len(candidates[index].packages) > 1 {
+			packages := candidates[index].packages
+			candidates[index].find = func(string) ([]string, error) { return packages, nil }
+		}
+	}
+	reached, err := discover(repo, candidates...)
+	if err != nil {
+		return nil, err
+	}
+	var kept []CycleLane
+	for index, cycle := range CycleLanes() {
+		paths, known := changed[cycle.Name]
+		if !known {
+			kept = append(kept, cycle)
+			continue
+		}
+		by := reached(candidates[index], paths)
+		if by.by == "" {
+			continue
+		}
+		if len(cycle.Each) > 0 {
+			cycle.Each = slices.DeleteFunc(cycle.Each, func(arguments []string) bool {
+				return !slices.Contains(by.packages, arguments[len(arguments)-1])
+			})
+		}
+		kept = append(kept, cycle)
+	}
+	return kept, nil
+}
+
 // testTurn names the machine's turn for the test runs that hold much of its memory, one at a time: a commit's test
 // stage (testInTurn) and each package of a cycle lane run package by package (CycleLane.Each). A commit's tests hold at
 // most the commit free as they start (processcontrol jobBound), and beside the cycle's model tests that was 18.3 GiB,

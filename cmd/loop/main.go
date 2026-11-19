@@ -178,7 +178,7 @@ func run(args []string) error {
 	*repoPath = resolved
 	if *lanesDueRun {
 		return runLanesDue(loopWorktree, os.Stdout, func(checkout string) error {
-			return validateTo(os.Stdout, checkout, *repoPath, nil, "-run", "-lanes")
+			return validateTo(os.Stdout, checkout, *repoPath, nil, "-run", "-lanes", "-reached")
 		})
 	}
 	switch {

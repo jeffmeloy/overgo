@@ -27,7 +27,8 @@ import (
 // closed a row while they ran, until none is newer. A close while a run goes waits for it rather than end it: the lanes
 // take turns with each commit (lanes-turns), so a run can outlast the time between two closes, and a run each close
 // overtook would never end. Two of the five lanes had failed at 1ab2ac601, 66 commits after their last run, since
-// nothing ran them while the plan held rows.
+// nothing ran them while the plan held rows. A run runs only what the changes since each lane's last pass reach
+// (validate -reached): running every lane on every close held the card from 11:57 to 19:30 on 2026-11-18 (lanes-reach).
 const (
 	// lanesCheckout is the detached worktree the lanes run in on a row's close, and lanesLock the lock a runner holds
 	// while it runs them there.

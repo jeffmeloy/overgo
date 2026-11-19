@@ -236,15 +236,15 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 	}
 	for _, suite := range suites {
 		fmt.Fprintf(output, "validate -run cycle lane %s\n", suite.Lane)
-		// A lane runs in the test turn, a lane of several packages one package at a time (landing.HoldTestTurnEach),
+		// A lane runs in the test turn, a lane of several packages one test at a time (testSteps, landing.HoldTestTurnEach),
 		// and on the card in the card's turn for each, taken before the test turn, so a commit's tests and its lanes
-		// take the machine between them (lanes-turns) and a package waiting for the card holds no test turn
-		// (lanes-card-order): a commit beside the lanes was refused for memory, and its lanes waited the models lane's
-		// hours.
+		// take the machine between them (lanes-turns) and a step waiting for the card holds no test turn
+		// (lanes-card-order): a commit beside the lanes was refused for memory, its lanes waited the models lane's hours,
+		// and a commit waited 81 min for a package that held the card (lanes-yield).
 		var reports []testevidence.GoTestReport
 		steps := [][]string{suite.Arguments}
 		if len(suite.Each) > 0 {
-			steps = suite.Each
+			steps = testSteps(ctx, root, suite.Each, suite.Environment)
 		}
 		runs := make([]func() error, len(steps))
 		for index, arguments := range steps {

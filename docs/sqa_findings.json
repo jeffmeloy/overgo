@@ -162,8 +162,8 @@
         "internal/latentimage/depth_control_windows_model_test.go"
       ],
       "input": "Compare a recorded 1024x576 PNG to the same pixels with one extra column (1025x576). Separately, give the mirrored-input latent comparison a short vector or a NaN element while the unchanged baseline passes.",
-      "expected": "The MOSS section comparison checks exact image dimensions and comparable finite latent inputs before scoring. Only a valid changed input yielding a score below the floor counts as a successful negative control.",
-      "actual": "squareColourMeans ignores partial 8x8 tiles and pictureDecibels compares only vector lengths: the extra column yields zero error and +Inf agreement. decibelsOverSquares returns -Inf on a length mismatch and NaN propagates from a NaN sample. All three negative-control assertions reject only score >= floor, accepting both invalid comparisons. Source-demonstrated at 12f172302, no SQA execution."
+      "expected": "Check exact PNG dimensions in pictureDecibels and require nonempty, equal-length, finite latents in decibelsOverSquares before scoring. All three callers should use the same below-floor check for changed inputs. Exercise the malformed cases with small in-memory inputs. Preserve the recorded floors and +Inf for an exact match with nonzero signal.",
+      "actual": "Source at c79cfc121. squareColourMeans drops partial 8x8 tiles, so a 1025th column can leave the means identical. decibelsOverSquares returns -Inf for a length mismatch and propagates NaN. The golden-section, image-to-image and depth checks each reject only score >= floor, giving both invalid results credit as negative controls."
     },
     {
       "id": "SQA-411",
@@ -205,8 +205,35 @@
         "internal/capabilityruntime/session_director.go"
       ],
       "input": "Use recipe run with an active LiveEdit model, a valid prompt and a stored source_artifact clip. In the otherwise valid clip-form JSON, give seed twice, first 7 then 8. An unknown field on the same form is also accepted.",
-      "expected": "At resolveEditForm, apply the existing strict request decoder to the original JSON. Reject duplicate or unknown fields before reading or decoding the source clip or encoding the prompt. A valid edit still sends the resolved pixels as a typed value and retains the compact clip request.",
-      "actual": "Source trace at 93ff989b7. resolveEditForm uses json.Unmarshal before selecting the clip form. It keeps seed 8, discards unknown fields and calls ResolveClipRequest. ExecuteInput sees the resolved value and the newly encoded request, so the retained input is identical to a valid seed-8 request. The full-form path passes the original JSON to decodeJSONInput, which rejects duplicate and unknown fields."
+      "expected": "Strictly decode each request once at resolveEditForm. Reject duplicate and unknown fields before clip resolution. Send both forms through the director's typed ExecuteInput path, preserving validation, authority checks and existing replay identities. TestClipFormRunRetainsItsRequest can check both forms and the refusals with its existing fixture.",
+      "actual": "Source at c79cfc121. resolveEditForm uses json.Unmarshal. A clip with duplicate seeds resolves and is recorded as an ordinary seed-8 request. A full request instead goes to next as raw text, so decodeJSONInput decodes its pixel and conditioning arrays again. The two-callback fixture requires that text handoff. Preserve the compact clip record and InputContent's digest for oversized full requests when removing it."
+    },
+    {
+      "id": "SQA-415",
+      "severity": "P2",
+      "files": [
+        "internal/landing/lanes.go",
+        "cmd/validate/lane_reach.go",
+        "cmd/validate/lane_reach_test.go",
+        "internal/seq2seq/upstream_calls_model_test.go",
+        "internal/latentimage/moss_golden_test.go"
+      ],
+      "input": "After a needle-reference pass, change only generated_tokens from 256 to 0 in fixtures/needle_upstream_calls.json and select the cycle lanes with -reached. For the models lane, after a pass change only the bytes of fixtures/moss/checkpoint.json.",
+      "expected": "CycleLanesReached selects the lane and package that read the changed fixture. The Needle check rejects zero tokens before loading its model and TestMOSSGoldenProvenance rejects the altered digest. Unrelated lanes and packages may still be skipped.",
+      "actual": "Source trace at c79cfc121. discover checks lane prefixes and enclosing Go package directories. Neither reader owns the repository-level fixtures directory in that selection. reachedSuites therefore omits needle-reference for the first change and models for the second. The existing reach test covers a Go file, plan.json, go.mod and missing baselines, but neither fixture input."
+    },
+    {
+      "id": "SQA-416",
+      "severity": "P2",
+      "files": [
+        "cmd/loop/mutants.go",
+        "cmd/loop/mutants_test.go",
+        "internal/planverify/verify.go",
+        "internal/landing/undo.go"
+      ],
+      "input": "In the existing mutantFixture, select a Go test that skips when Above(11) is false and otherwise passes. Above(v) returns v > 10. The baseline passes and reversing > to <= makes the only selected test skip.",
+      "expected": "Use the existing planverify verdict for Go tests. Count a failed test assertion as caught, a passing check as survived, and a skipped test or failed build as inconclusive. Exclude inconclusive attempts from the measured catch rate. The existing strong and weak fixture cases retain their verdicts.",
+      "actual": "Source trace at c79cfc121. planverify.Execute returns ErrVacuous for the skipped test. mutate counts every non-nil verifier error as Refused, so this example reports one of one caught without a failed assertion. A build failure before tests start earns the same credit. The undo checker already distinguishes ErrAssertion. The retained mutation totals do not identify why a mutation was counted as refused."
     }
   ],
   "master_lead_triage": {
@@ -288,7 +315,7 @@
       }
 }
   },
-  "next_finding_number": 415,
+  "next_finding_number": 417,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

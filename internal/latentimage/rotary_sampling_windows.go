@@ -102,6 +102,9 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 			return branch{}, e
 		}
 		programs = append(programs, program)
+		if e := bindMerged(ctx, runtime, program, "rotary sampling "+name, filepath.Join(modelRoot, "transformer"), p.merged, settings.adapters, settings.strengths); e != nil {
+			return branch{}, e
+		}
 		// The last sampling's programs go once this one holds the transformer's weights, before its adapters are read.
 		if len(previous) > 0 {
 			released := previous

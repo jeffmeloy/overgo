@@ -24,8 +24,8 @@ type rotarySamplingSpec struct {
 	seed    int64
 	// eightBit computes the denoiser's attention in 8 bits, as a speed preset asks (Request.EightBitAttention).
 	eightBit bool
-	// adapters are the adapters the request names, each applied unmerged at its strength (Request.applied), in its
-	// order; none where it names none.
+	// adapters are the adapters the request names, each applied at its strength (Request.applied), in its order, merged
+	// into the projections held in int8 (mergedProjection) and unmerged elsewhere; none where it names none.
 	adapters  []*mediaAdapter
 	strengths []float32
 	// control is what a widened embedder reads beside the latent while a step's sigma lies within

@@ -157,7 +157,7 @@ func adapterDeltas(t *testing.T, adapter *mediaAdapter, prefix string) map[strin
 						for r := range rank {
 							sum += float64(up[row*rank+r]) * float64(down[r*in+column])
 						}
-						delta[row*in+column] = float32(sum) * patch.scale
+						delta[row*in+column] = float32(sum) * float32(patch.scale)
 					}
 				}
 			})

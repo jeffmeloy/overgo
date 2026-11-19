@@ -73,7 +73,7 @@ func TestMOSSMultipliesInEightBitsAsComfyKitchen(t *testing.T) {
 // in one run, and holds each section's final latent, the denoiser's own output, to keeping at least BF16's agreement.
 // The finished picture's is read beside it: on 2026-11-19 int8 kept text to image's latent at 2.09 dB where BF16 keeps
 // 1.86, and its picture at 15.12 dB where BF16 keeps 15.39. A section whose adapters patch the projections multiplies
-// them in BF16 either way (rotaryGraph.projection).
+// them in int8 with its adapters merged in (mergedProjection, moss-int8-adapters).
 func holdInt8Sections(t *testing.T, root string) {
 	profile := testcheck.Must(ResolveProfile(root))(t)
 	served := samplingInt8

@@ -39,7 +39,25 @@ type rotaryGraph struct {
 	int8 map[string]bool
 	// adapters patch the graph's projections and weights unmerged (mediaAdapter), each its tensors bound from its file
 	// and scaled by a strength of its own fed each run, in the order a request names them; none for a graph without one.
+	// A projection held in int8 that adapters patch by pairs alone is read with them merged in (merged) instead.
 	adapters []graphAdapter
+	// merged are the projections the graph reads with their adapters' pairs merged into their int8 weights, which a
+	// program binds as the merge makes them (bindMerged), shared by the graph's copies.
+	merged *[]mergedProjection
+}
+
+// mergedProjection is a joint projection the graph reads with its adapters' pairs merged into its int8 ConvRot weight,
+// as ComfyUI merges a LoRA into one (moss-int8-adapters): the graph input the merge is bound to, named for the weight,
+// and the pairs, each with the index of its adapter among the request's, in their order.
+type mergedProjection struct {
+	input *tensor.Tensor
+	pairs []mergedPair
+}
+
+// mergedPair is one adapter's pair a merged projection takes, by the adapter's index among the request's.
+type mergedPair struct {
+	adapter int
+	patch   lowRankPatch
 }
 
 // rotaryOptions are what a rotary program computes beside its weights: its attention in 8 bits, or in BF16 with its
@@ -119,7 +137,7 @@ func (g *rotaryGraph) lowRank(name string, x *tensor.Tensor, in uint64) *tensor.
 		down := applied.input(patch.down, patch.in, patch.rank)
 		up := applied.input(patch.upInputName(), patch.rank, patch.rows)
 		branch := g.b.MulMatWithCompute(up, g.b.MulMatWithCompute(down, x, tensor.MulMatComputeExact), tensor.MulMatComputeExact)
-		branch = g.b.Multiply(g.b.Scale(branch, patch.scale), applied.strength)
+		branch = g.b.Multiply(g.b.Scale(branch, float32(patch.scale)), applied.strength)
 		if sum == nil {
 			sum = branch
 		} else {
@@ -135,7 +153,7 @@ func newRotaryGraph(t TransformerSpec, epsilon float32, tokens int, storage dtyp
 	}
 	b := tensor.NewBuilder()
 	setBuilderMatmulCompute(b, storage)
-	return &rotaryGraph{b: b, bind: tensor.WeightInputs{Builder: b, Bindings: weights, MatrixType: storage}, storage: storage, epsilon: epsilon, width: uint64(t.Hidden), heads: uint64(t.Heads), headWidth: uint64(t.HeadDim), sequence: uint64(tokens), intermediate: uint64(t.Intermediate)}, nil
+	return &rotaryGraph{b: b, bind: tensor.WeightInputs{Builder: b, Bindings: weights, MatrixType: storage}, merged: new([]mergedProjection), storage: storage, epsilon: epsilon, width: uint64(t.Hidden), heads: uint64(t.Heads), headWidth: uint64(t.HeadDim), sequence: uint64(tokens), intermediate: uint64(t.Intermediate)}, nil
 }
 func (g *rotaryGraph) round(x *tensor.Tensor) *tensor.Tensor {
 	if g.storage == dtype.BF16 {
@@ -145,21 +163,29 @@ func (g *rotaryGraph) round(x *tensor.Tensor) *tensor.Tensor {
 }
 
 // projection is a joint block's projection with no bias, which an int8 ConvRot file holds in int8: where the graph's
-// int8 weights name it and no adapter patches it, its weight is held as the file holds it and multiplied as
-// comfy_kitchen's int8_linear multiplies it (dtype.I8ConvRot, moss-int8), else as linear holds it. ComfyUI merges a
-// LoRA into the dequantized weight and quantizes the sum again with a seeded stochastic rounding (comfy/ops.py
-// set_weight), which overgo does not reproduce; with the int8 product beside its low-rank branch, the depth control
-// section, whose moss-control adapter patches every joint projection, kept 13.14 dB of latent where BF16 keeps 14.37.
+// int8 weights name it, its weight is held as the file holds it and multiplied as comfy_kitchen's int8_linear
+// multiplies it (dtype.I8ConvRot, moss-int8), with the pairs of the adapters that patch it merged in as ComfyUI merges
+// them (mergedProjection); where an adapter replaces it, or the file holds it otherwise, it is read as linear holds it.
 func (g *rotaryGraph) projection(name string, x *tensor.Tensor, in, out uint64) *tensor.Tensor {
 	weight := name + ".weight"
 	if !g.int8[weight] || slices.ContainsFunc(g.adapters, func(applied graphAdapter) bool {
 		_, replaced := applied.adapter.replaced[weight]
-		_, patched := applied.adapter.lowRank[name]
-		return replaced || patched
+		return replaced
 	}) {
 		return g.linear(name, x, in, out, false)
 	}
-	return g.round(g.b.MulMat(g.bind.InputOf(dtype.I8ConvRot, weight, in, out), x))
+	var pairs []mergedPair
+	for index, applied := range g.adapters {
+		if patch, patched := applied.adapter.lowRank[name]; patched {
+			pairs = append(pairs, mergedPair{adapter: index, patch: patch})
+		}
+	}
+	if len(pairs) == 0 {
+		return g.round(g.b.MulMat(g.bind.InputOf(dtype.I8ConvRot, weight, in, out), x))
+	}
+	input := g.b.Input(weight, dtype.I8ConvRot, tensor.MustShape(in, out))
+	*g.merged = append(*g.merged, mergedProjection{input: input, pairs: pairs})
+	return g.round(g.b.MulMat(input, x))
 }
 
 func (g *rotaryGraph) linear(name string, x *tensor.Tensor, in, out uint64, bias bool) *tensor.Tensor {

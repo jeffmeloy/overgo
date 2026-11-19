@@ -62,6 +62,7 @@ const (
 	kernelDequantRowsQ5KF16
 	kernelDequantRowsQ6KF16
 	kernelDequantRowsQ80F16
+	kernelDequantizeInt8ConvrotRowsF32
 	kernelDivideF32
 	kernelEmbeddingGatherRowsF32
 	kernelExpF32
@@ -206,6 +207,7 @@ const (
 	kernelPixelShuffle2dF32
 	kernelQuantizeFp8ColumnsF32
 	kernelQuantizeInt8ConvrotColumnsF32
+	kernelQuantizeInt8ConvrotRowsStochasticF32
 	kernelQuantizeQ80InputF32
 	kernelReduceGqaHeadsF32
 	kernelReluBackwardF32
@@ -556,6 +558,7 @@ var kernelFunctionNames = [...]string{
 	"dequant_rows_q5_K_f16",
 	"dequant_rows_q6_K_f16",
 	"dequant_rows_q8_0_f16",
+	"dequantize_int8_convrot_rows_f32",
 	"divide_f32",
 	"embedding_gather_rows_f32",
 	"exp_f32",
@@ -700,6 +703,7 @@ var kernelFunctionNames = [...]string{
 	"pixel_shuffle_2d_f32",
 	"quantize_fp8_columns_f32",
 	"quantize_int8_convrot_columns_f32",
+	"quantize_int8_convrot_rows_stochastic_f32",
 	"quantize_q8_0_input_f32",
 	"reduce_gqa_heads_f32",
 	"relu_backward_f32",
@@ -1049,6 +1053,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	5,
 	5,
 	5,
+	5,
 	4,
 	5,
 	3,
@@ -1193,6 +1198,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	7,
 	5,
 	5,
+	7,
 	3,
 	6,
 	4,
@@ -1543,6 +1549,7 @@ var kernelFunctionArgumentWidths = [...][]uint16{
 	{8, 8, 4, 4, 4},
 	{8, 8, 4, 4, 4},
 	{8, 8, 4, 4, 4},
+	{8, 8, 8, 4, 4},
 	{8, 8, 8, 4},
 	{8, 8, 8, 4, 4},
 	{8, 8, 4},
@@ -1687,6 +1694,7 @@ var kernelFunctionArgumentWidths = [...][]uint16{
 	{8, 8, 4, 4, 4, 4, 4},
 	{8, 8, 8, 4, 4},
 	{8, 8, 8, 4, 4},
+	{8, 8, 8, 4, 4, 8, 8},
 	{8, 8, 4},
 	{8, 8, 4, 4, 4, 4},
 	{8, 8, 8, 4},
@@ -1985,6 +1993,8 @@ var kernelFunctionArgumentWidths = [...][]uint16{
 const kernelModuleCount = 4
 
 var kernelFunctionModules = [...]uint8{
+	0,
+	0,
 	0,
 	0,
 	0,

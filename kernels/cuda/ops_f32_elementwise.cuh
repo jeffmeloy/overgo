@@ -231,27 +231,105 @@ __device__ __forceinline__ float bf16_rounded(float value) {
 }
 
 // INT8_CONVROT_GROUP is the width of comfy_kitchen's ConvRot rotation, rotated by H4's Kronecker power in four radix-4
-// stages (INT8_CONVROT_RADIX), one a base-4 digit of a value's index in its group, and divided by 16
-// (INT8_CONVROT_NORM). INT8_CONVROT_MAX_INNER is the widest token column quantize_int8_convrot_columns_f32 holds in
-// shared memory, MOSS's widest projection input (its feed-forward's 8,192). INT8_INVERSE_127 is 1/127 rounded to F32,
-// which a column's absolute maximum is multiplied by for its scale, at least INT8_SCALE_FLOOR.
+// stages (INT8_CONVROT_RADIX), each halving (INT8_CONVROT_HALF). INT8_CONVROT_MAX_INNER is the widest row the ConvRot
+// kernels hold in shared memory, MOSS's widest projection input (its feed-forward's 8,192). INT8_INVERSE_127 is 1/127
+// rounded to F32, which a row's absolute maximum is multiplied by for its scale, at least INT8_SCALE_FLOOR. A
+// stochastic rounding's noise is a 32-bit hash's top bits (below INT8_NOISE_SHIFT) times INT8_NOISE_UNIT, 2^-24.
 constexpr unsigned int INT8_CONVROT_GROUP = 256;
 constexpr unsigned int INT8_CONVROT_RADIX = 4;
 constexpr unsigned int INT8_CONVROT_MAX_INNER = 8192;
-constexpr float INT8_CONVROT_NORM = 0.0625f;
+constexpr float INT8_CONVROT_HALF = 0.5f;
 constexpr float INT8_INVERSE_127 = 1.0f / 127.0f;
 constexpr float INT8_SCALE_FLOOR = 1e-30f;
 constexpr float INT8_LOWEST = -128.0f;
 constexpr float INT8_HIGHEST = 127.0f;
+constexpr unsigned int INT8_NOISE_SHIFT = 8;
+constexpr float INT8_NOISE_UNIT = 5.9604644775390625e-08f;
+
+// int8_convrot_rotate rotates each INT8_CONVROT_GROUP-wide group of the inner values a block holds in shared memory by
+// H4's Kronecker power, H4 = [[1,1,1,-1],[1,1,-1,1],[1,-1,1,1],[-1,1,1,1]], as comfy_kitchen's convrot64 kernels do:
+// one radix-4 stage a base-4 digit of a value's index in its group, from the least significant, each output half the
+// left-to-right sum of its four signed inputs, so the four stages divide by 16. The block's threads share each stage's
+// butterflies and meet after it.
+__device__ __forceinline__ void int8_convrot_rotate(float * values, unsigned int inner) {
+    const unsigned int per_group = INT8_CONVROT_GROUP / INT8_CONVROT_RADIX;
+    const unsigned int butterflies = inner / INT8_CONVROT_RADIX;
+    for (unsigned int stride = 1; stride < INT8_CONVROT_GROUP; stride *= INT8_CONVROT_RADIX) {
+        for (unsigned int butterfly = threadIdx.x; butterfly < butterflies; butterfly += blockDim.x) {
+            const unsigned int group = butterfly / per_group;
+            const unsigned int within = butterfly - group * per_group;
+            const unsigned int high = within / stride;
+            const unsigned int base = group * INT8_CONVROT_GROUP + high * stride * INT8_CONVROT_RADIX + (within - high * stride);
+            const float x0 = values[base];
+            const float x1 = values[base + stride];
+            const float x2 = values[base + 2 * stride];
+            const float x3 = values[base + 3 * stride];
+            values[base] = __fmul_rn(INT8_CONVROT_HALF, __fsub_rn(__fadd_rn(__fadd_rn(x0, x1), x2), x3));
+            values[base + stride] = __fmul_rn(INT8_CONVROT_HALF, __fadd_rn(__fsub_rn(__fadd_rn(x0, x1), x2), x3));
+            values[base + 2 * stride] = __fmul_rn(INT8_CONVROT_HALF, __fadd_rn(__fadd_rn(__fsub_rn(x0, x1), x2), x3));
+            values[base + 3 * stride] = __fmul_rn(INT8_CONVROT_HALF, __fadd_rn(__fadd_rn(__fsub_rn(x1, x0), x2), x3));
+        }
+        __syncthreads();
+    }
+}
+
+// int8_noise is the noise comfy_kitchen's stochastic rounding adds at key, a value's flat index plus the seed: the
+// key's halves exclusive-ored, hashed by PCG's output permutation, its top 24 bits times 2^-24, rounded to BF16.
+__device__ __forceinline__ float int8_noise(unsigned long long key) {
+    const unsigned int folded = (unsigned int) key ^ (unsigned int) (key >> 32);
+    const unsigned int state = folded * 747796405u + 2891336453u;
+    const unsigned int word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
+    return bf16_rounded(__fmul_rn(__uint2float_rn(((word >> 22u) ^ word) >> INT8_NOISE_SHIFT), INT8_NOISE_UNIT));
+}
+
+// int8_convrot_quantize quantizes a row of inner values a block holds in shared memory, rotated (int8_convrot_rotate),
+// to int8 with one scale, as comfy_kitchen's convrot64_quantize_row does from a BF16 row: the scale is the row's
+// absolute maximum times 1/127, at least 1e-30, and each value's quotient is the value and the scale, each rounded to
+// BF16, divided and rounded to BF16. Nearest rounding rounds the quotient to an integer, ties to even; stochastic
+// rounding (STOCHASTIC) adds the noise at the value's flat index, first plus its index in the row, plus seed, as a BF16
+// addition rounds, and rounds down. Both saturate to int8. Every operation is a correctly rounded intrinsic, so
+// -use_fast_math changes no bit.
+template <bool STOCHASTIC>
+__device__ __forceinline__ void int8_convrot_quantize(
+        const float * values,
+        float * warp_amax,
+        signed char * destination,
+        float * scale,
+        unsigned int inner,
+        unsigned long long first,
+        unsigned long long seed) {
+    float amax = 0.0f;
+    for (unsigned int index = threadIdx.x; index < inner; index += blockDim.x) {
+        amax = fmaxf(amax, fabsf(values[index]));
+    }
+    for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset >>= 1) {
+        amax = fmaxf(amax, __shfl_xor_sync(0xffffffffu, amax, offset));
+    }
+    if (threadIdx.x % CUDA_WARP_WIDTH == 0) {
+        warp_amax[threadIdx.x / CUDA_WARP_WIDTH] = amax;
+    }
+    __syncthreads();
+    const unsigned int warps = (blockDim.x + CUDA_WARP_WIDTH - 1) / CUDA_WARP_WIDTH;
+    amax = 0.0f;
+    for (unsigned int warp = 0; warp < warps; ++warp) {
+        amax = fmaxf(amax, warp_amax[warp]);
+    }
+    const float row_scale = fmaxf(__fmul_rn(amax, INT8_INVERSE_127), INT8_SCALE_FLOOR);
+    if (threadIdx.x == 0) {
+        *scale = row_scale;
+    }
+    const float divisor = bf16_rounded(row_scale);
+    for (unsigned int index = threadIdx.x; index < inner; index += blockDim.x) {
+        const float quotient = bf16_rounded(__fdiv_rn(bf16_rounded(values[index]), divisor));
+        const float rounded = STOCHASTIC ? floorf(bf16_rounded(__fadd_rn(quotient, int8_noise(first + index + seed)))) : rintf(quotient);
+        destination[index] = (signed char) __float2int_rn(fminf(fmaxf(rounded, INT8_LOWEST), INT8_HIGHEST));
+    }
+}
 
 // quantize_int8_convrot_columns_f32: the activation side of the int8 ConvRot tensor-core product, as comfy_kitchen's
 // CUDA int8_linear forms it (moss-int8, its product matched bit for bit): one block per token column of `inner` F32
-// values, inner a multiple of INT8_CONVROT_GROUP and at most INT8_CONVROT_MAX_INNER. Each group is rotated in F32 by
-// H4's Kronecker power, H4 = [[1,1,1,-1],[1,1,-1,1],[1,-1,1,1],[-1,1,1,1]], one radix-4 stage a base-4 digit of the
-// index from the most significant, each output the left-to-right sum of its four signed inputs, then divided by 16. The
-// column's scale is its absolute maximum times 1/127, at least 1e-30, stored per column; each value is the quotient of
-// the value and the scale, each rounded to BF16, rounded to BF16 as a BF16 division rounds it, then to an integer, ties
-// to even, saturated to int8. Every operation is a correctly rounded intrinsic, so -use_fast_math changes no bit.
+// values, inner a multiple of INT8_CONVROT_GROUP and at most INT8_CONVROT_MAX_INNER, rotated (int8_convrot_rotate) and
+// quantized to the nearest (int8_convrot_quantize) with its scale stored per column.
 extern "C" __global__ void quantize_int8_convrot_columns_f32(
         const float * input,
         signed char * output,
@@ -269,52 +347,62 @@ extern "C" __global__ void quantize_int8_convrot_columns_f32(
         values[index] = source[index];
     }
     __syncthreads();
-    const unsigned int per_group = INT8_CONVROT_GROUP / INT8_CONVROT_RADIX;
-    const unsigned int butterflies = inner / INT8_CONVROT_RADIX;
-    for (unsigned int stride = per_group; stride > 0; stride /= INT8_CONVROT_RADIX) {
-        for (unsigned int butterfly = threadIdx.x; butterfly < butterflies; butterfly += blockDim.x) {
-            const unsigned int group = butterfly / per_group;
-            const unsigned int within = butterfly - group * per_group;
-            const unsigned int high = within / stride;
-            const unsigned int base = group * INT8_CONVROT_GROUP + high * stride * INT8_CONVROT_RADIX + (within - high * stride);
-            const float x0 = values[base];
-            const float x1 = values[base + stride];
-            const float x2 = values[base + 2 * stride];
-            const float x3 = values[base + 3 * stride];
-            values[base] = __fsub_rn(__fadd_rn(__fadd_rn(x0, x1), x2), x3);
-            values[base + stride] = __fadd_rn(__fsub_rn(__fadd_rn(x0, x1), x2), x3);
-            values[base + 2 * stride] = __fadd_rn(__fadd_rn(__fsub_rn(x0, x1), x2), x3);
-            values[base + 3 * stride] = __fadd_rn(__fadd_rn(__fsub_rn(x1, x0), x2), x3);
-        }
-        __syncthreads();
+    int8_convrot_rotate(values, inner);
+    int8_convrot_quantize<false>(values, warp_amax, output + (size_t) column * inner, scale + column, inner, 0, 0);
+}
+
+// quantize_int8_convrot_rows_stochastic_f32: an int8 ConvRot weight made of `rows` rows of `inner` F32 values, each a
+// BF16 value, as comfy_kitchen's quantize_int8_convrot_weight makes one with a stochastic rounding seeded by seed (the
+// requantize ComfyUI runs after merging a LoRA into the weight): one block per row, rotated (int8_convrot_rotate) and
+// quantized stochastically (int8_convrot_quantize) at the flat indexes of the weight whose row first_row the input's
+// first row is, its int8 rows written to output and its scales to scale.
+extern "C" __global__ void quantize_int8_convrot_rows_stochastic_f32(
+        const float * input,
+        signed char * output,
+        float * scale,
+        unsigned int inner,
+        unsigned int rows,
+        unsigned long long first_row,
+        unsigned long long seed) {
+    __shared__ float values[INT8_CONVROT_MAX_INNER];
+    __shared__ float warp_amax[CUDA_WARP_WIDTH];
+    const unsigned int row = blockIdx.x;
+    if (row >= rows || inner > INT8_CONVROT_MAX_INNER || inner % INT8_CONVROT_GROUP != 0) {
+        return;
     }
-    float amax = 0.0f;
+    const float * source = input + (size_t) row * inner;
     for (unsigned int index = threadIdx.x; index < inner; index += blockDim.x) {
-        const float value = __fmul_rn(values[index], INT8_CONVROT_NORM);
-        values[index] = value;
-        amax = fmaxf(amax, fabsf(value));
-    }
-    for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset >>= 1) {
-        amax = fmaxf(amax, __shfl_xor_sync(0xffffffffu, amax, offset));
-    }
-    if (threadIdx.x % CUDA_WARP_WIDTH == 0) {
-        warp_amax[threadIdx.x / CUDA_WARP_WIDTH] = amax;
+        values[index] = source[index];
     }
     __syncthreads();
-    const unsigned int warps = (blockDim.x + CUDA_WARP_WIDTH - 1) / CUDA_WARP_WIDTH;
-    amax = 0.0f;
-    for (unsigned int warp = 0; warp < warps; ++warp) {
-        amax = fmaxf(amax, warp_amax[warp]);
+    int8_convrot_rotate(values, inner);
+    int8_convrot_quantize<true>(values, warp_amax, output + (size_t) row * inner, scale + row, inner, (first_row + row) * inner, seed);
+}
+
+// dequantize_int8_convrot_rows_f32: an int8 ConvRot weight's `rows` rows of `inner` int8 values and their F32 scales
+// decoded to BF16 values in F32 as comfy_kitchen's CUDA dequantize_int8_convrot_groups64_kernel decodes them: one block
+// per row, each value its int8 times its row's scale in F32, rotated (int8_convrot_rotate), rounded to BF16.
+extern "C" __global__ void dequantize_int8_convrot_rows_f32(
+        const signed char * input,
+        const float * scale,
+        float * output,
+        unsigned int inner,
+        unsigned int rows) {
+    __shared__ float values[INT8_CONVROT_MAX_INNER];
+    const unsigned int row = blockIdx.x;
+    if (row >= rows || inner > INT8_CONVROT_MAX_INNER || inner % INT8_CONVROT_GROUP != 0) {
+        return;
     }
-    const float column_scale = fmaxf(__fmul_rn(amax, INT8_INVERSE_127), INT8_SCALE_FLOOR);
-    if (threadIdx.x == 0) {
-        scale[column] = column_scale;
-    }
-    const float divisor = bf16_rounded(column_scale);
-    signed char * destination = output + (size_t) column * inner;
+    const signed char * source = input + (size_t) row * inner;
+    const float row_scale = scale[row];
     for (unsigned int index = threadIdx.x; index < inner; index += blockDim.x) {
-        const float quotient = bf16_rounded(__fdiv_rn(bf16_rounded(values[index]), divisor));
-        destination[index] = (signed char) __float2int_rn(fminf(fmaxf(rintf(quotient), INT8_LOWEST), INT8_HIGHEST));
+        values[index] = __fmul_rn(__int2float_rn(source[index]), row_scale);
+    }
+    __syncthreads();
+    int8_convrot_rotate(values, inner);
+    float * destination = output + (size_t) row * inner;
+    for (unsigned int index = threadIdx.x; index < inner; index += blockDim.x) {
+        destination[index] = bf16_rounded(values[index]);
     }
 }
 

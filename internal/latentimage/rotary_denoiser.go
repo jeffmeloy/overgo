@@ -34,6 +34,9 @@ type rotaryDenoiserProgram struct {
 	// as its strength, in the request's order; none for a program without one (rotaryOptions).
 	adapterInputs []tensor.WeightBindings
 	strengths     []*tensor.Tensor
+	// merged are the projections the graph reads with their adapters' pairs merged into their int8 weights, bound as the
+	// merge makes them (bindMerged); none for a program whose adapters patch no int8 projection.
+	merged []mergedProjection
 	// control is the control a widened embedder reads beside the latent, each channel's tokens after another's, fed
 	// each run; none for a program whose embedder reads the latent alone.
 	control             *tensor.Tensor
@@ -127,6 +130,7 @@ func compileRotaryDenoiserProgram(t TransformerSpec, epsilon float32, height, wi
 	hidden = g.norm("final_norm_video", hidden, g.width)
 	hidden = g.modulate(hidden, b.FlatSlice(head, tensor.FirstOffset, g.width), b.FlatSlice(head, g.width, g.width), p.unit)
 	p.output = b.Transpose2D(g.linear("final_linear_video", hidden, g.width, uint64(t.InChannels), false))
+	p.merged = *g.merged
 	if err := b.Err(); err != nil {
 		return nil, fmt.Errorf("rotary denoiser: %w", err)
 	}

@@ -191,6 +191,59 @@ func (s *ResidentSession) Bind(
 	node *tensor.Tensor,
 	payload func() ([]byte, error),
 ) error {
+	return s.bind(ctx, program, source, name, node, func(bytes uint64) (residentFill, error) {
+		data, err := payload()
+		if err != nil {
+			return nil, err
+		}
+		if uint64(len(data)) != bytes {
+			return nil, fmt.Errorf("resident payload = %d bytes, want %d", len(data), bytes)
+		}
+		return func(state *device.State, placed driver.DevicePtr) error {
+			return state.Driver.MemcpyHtoD(placed, data)
+		}, nil
+	})
+}
+
+// BindMerged binds one immutable int8 ConvRot program input as an adapter merge makes it on the card
+// (executor.MergeInt8ConvRot, its output where the input is placed), or reuses the input of that source and name the
+// session holds, merge read only where it holds none.
+func (s *ResidentSession) BindMerged(
+	ctx context.Context,
+	program *ResidentProgram,
+	source string,
+	name string,
+	node *tensor.Tensor,
+	merge func() (executor.Int8ConvRotMerge, error),
+) error {
+	if node == nil || node.Type != dtype.I8ConvRot {
+		return errors.New("a merged resident input is an int8 ConvRot weight")
+	}
+	return s.bind(ctx, program, source, name, node, func(uint64) (residentFill, error) {
+		merged, err := merge()
+		if err != nil {
+			return nil, err
+		}
+		return func(state *device.State, placed driver.DevicePtr) error {
+			merged.Output = placed
+			return s.executor.MergeInt8ConvRot(state, merged)
+		}, nil
+	})
+}
+
+// residentFill writes an input's bytes where it is placed on the card, on the worker's turn.
+type residentFill func(state *device.State, placed driver.DevicePtr) error
+
+// bind places one immutable program input and fills it, the fill made of the input's bytes (prepare) only where the
+// session holds no input of its source, name, type and shape, which it reuses instead.
+func (s *ResidentSession) bind(
+	ctx context.Context,
+	program *ResidentProgram,
+	source string,
+	name string,
+	node *tensor.Tensor,
+	prepare func(bytes uint64) (residentFill, error),
+) error {
 	if s == nil || s.byBinding == nil || program == nil || program.Graph == nil || node == nil {
 		return errors.New("resident binding is unavailable")
 	}
@@ -208,12 +261,9 @@ func (s *ResidentSession) Bind(
 	if found {
 		pointer = s.allocations[allocationIndex].pointer
 	} else {
-		data, loadErr := payload()
-		if loadErr != nil {
-			return loadErr
-		}
-		if uint64(len(data)) != bytes {
-			return fmt.Errorf("resident payload = %d bytes, want %d", len(data), bytes)
+		fill, prepareErr := prepare(bytes)
+		if prepareErr != nil {
+			return prepareErr
 		}
 		var chunk *residentChunk
 		if err := s.worker.Do(ctx, func(state *device.State) error {
@@ -221,12 +271,12 @@ func (s *ResidentSession) Bind(
 			if placeErr != nil {
 				return placeErr
 			}
-			if copyErr := state.Driver.MemcpyHtoD(placed, data); copyErr != nil {
+			if fillErr := fill(state, placed); fillErr != nil {
 				freed, freeErr := held.drop(state)
 				if freed && held == program.chunk {
 					program.chunk = nil
 				}
-				return errors.Join(copyErr, freeErr)
+				return errors.Join(fillErr, freeErr)
 			}
 			pointer, chunk = placed, held
 			return nil

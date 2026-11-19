@@ -1,0 +1,61 @@
+{
+ "section": "DEPTH CONTROL",
+ "adapter": "moss-control",
+ "strength": 1.0,
+ "weights": [
+  {
+   "weight": "layers.0.proj.q.weight",
+   "module": "diffusion_model.layers.0.proj.qkv",
+   "seed": 3491659824,
+   "rows": 3072,
+   "inner": 3072,
+   "int8_sha256": "eb6474f0986d0b901aa5345b0ef71365130f998eba323985abeefa90d860e332",
+   "scales_sha256": "571aa5927ea7b890a0acf87400afc54fe6ade5140b14bb8f8b6b8a67637ab498"
+  },
+  {
+   "weight": "layers.0.proj.k.weight",
+   "module": "diffusion_model.layers.0.proj.qkv",
+   "seed": 3491659824,
+   "rows": 3072,
+   "inner": 3072,
+   "int8_sha256": "975c9592a820ab2bb113b8353868f85105531483961851fcfa54ee6eebb4c9d6",
+   "scales_sha256": "696a19372b27a11169ce6ecee4412ab53ec64b4f5efe38e2c3b0e425b0fe6027"
+  },
+  {
+   "weight": "layers.0.proj.v.weight",
+   "module": "diffusion_model.layers.0.proj.qkv",
+   "seed": 3491659824,
+   "rows": 3072,
+   "inner": 3072,
+   "int8_sha256": "b0623719250d5f9224959337c2355dbd0778f2b3d7b9f0eb10bf9daa78e65c4e",
+   "scales_sha256": "b48892437717184f3914156b8f73240a457616e6034bbecea37a9d0df2f53924"
+  },
+  {
+   "weight": "layers.0.proj.o.weight",
+   "module": "diffusion_model.layers.0.proj.o",
+   "seed": 3092738410,
+   "rows": 3072,
+   "inner": 3072,
+   "int8_sha256": "fe19ca441812e2c9a0607924aa8305b04b365106b6ef02dc9f6bf41d54d22741",
+   "scales_sha256": "c14c7aaca6fcd47cf223d49c23cc5540da38365c91523970f290c395804d2b65"
+  },
+  {
+   "weight": "layers.0.proj.ffn_up_gate.weight",
+   "module": "diffusion_model.layers.0.proj.ffn_up_gate",
+   "seed": 2812529776,
+   "rows": 16384,
+   "inner": 3072,
+   "int8_sha256": "11283e7956e1e6958a1d08bf3406fa95340acc74a15ccbf9540474f6e8efda3f",
+   "scales_sha256": "e1d10824ab418374765d9150b12ef8a73293eee15121a51f654f9f9dc7ebe9ef"
+  },
+  {
+   "weight": "layers.0.proj.ffn_down.weight",
+   "module": "diffusion_model.layers.0.proj.ffn_down",
+   "seed": 1645116668,
+   "rows": 3072,
+   "inner": 8192,
+   "int8_sha256": "7e9e7b007c701a903e6ece88d9680570b289b8fd8554853846374effcda549a8",
+   "scales_sha256": "3b0941767f031e090e794cc05acbf932dcf90de5eeab3542964fae82f8b02205"
+  }
+ ]
+}

@@ -3,26 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "moss-int8-adapters",
-      "title": "A MOSS section whose adapters patch its joint projections multiplies them as ComfyUI does: the LoRA merged into the dequantized weight, quantized again as comfy_kitchen's requantize_from_float does, and multiplied in int8",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A MOSS section whose adapters patch its joint projections multiplies them as ComfyUI does: the LoRA merged into the dequantized weight, quantized again as comfy_kitchen's requantize_from_float does, and multiplied in int8",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^TestMOSSAdapterSectionsMultiplyAsComfyUI$'",
-          "files": [
-            "internal/latentimage",
-            "internal/comfyquant",
-            "internal/cuda",
-            "internal/tensor",
-            "kernels",
-            "fixtures/comfy/moss-ultra"
-          ],
-          "rationale": "Note: From moss-int8/do (2026-11-19): four of the MOSS Ultra workflow's six sections load LoRAs (depth control moss-control; the three Turbo sections 8-steps-dmd2 and moss_image_sft), and moss-control patches every joint projection. ComfyUI patches an int8 ConvRot weight at load (comfy/model_patcher.py patch_weight_to_device): it dequantizes it (convert_weight), adds the LoRA in lora_compute_dtype (comfy.lora.calculate_weight), and sets it back through the op's set_weight, requantize_from_float(weight, scale=\"recalculate\", stochastic_rounding=string_to_seed(key)), which on the card is comfy_kitchen's fused ConvRot quantizer with its stochastic rounding (backends/cuda quantize_int8_convrot_weight). overgo multiplies a patched projection in BF16 beside the low-rank branch, which keeps depth control's 14.37 dB of latent; the int8 product beside the branch kept 13.14 dB. The cure merges and quantizes as ComfyUI does, its rounding captured on the card and fitted as moss-int8/product's was, so the adapter sections take the int8 products' speed and ComfyUI's arithmetic; its check holds a merged projection's int8 rows and scales to ComfyUI's for one adapter and each adapter section's final latent to at least the BF16 reading.\n\nNote: The owner's review of 2026-11-19, point 1: this row serves the four of the workflow's six sections that load adapters (depth control and the three Turbo sections), each of whose adapters patches all four joint projections, so none of them takes int8's saving and each request after an int8 one places the projections' BF16 form (9.4 GiB in 8.4 s). Its place against moss-fusion is moss-workflow-time's, by what each saves on the whole workflow's time.\n\nNote: Ordered by moss-workflow-time's reading (2026-11-19, a8a03e840, 1024 x 576 as recorded): the workflow's six sections took 113.9 s warm on overgo against ComfyUI's 34.4 s (pass-2); its four sections with adapters 73.1 s against 16.4 s (depth control 45.8 s against 10.1, its passes 0.37 s each in BF16 with low-rank branches beside them after 9.72 GiB placed; depth control Turbo 15.4 s against 2.2, 1.88 s a pass with three adapters' branches), its two without 40.8 s against 18.0 (0.19 to 0.21 s a pass in int8). ComfyUI merges each LoRA into its weights once and its passes carry no branch. Merging the adapters as ComfyUI does takes the adapter sections' branches and their BF16 placement (about 26 s in depth control, several seconds in each Turbo section), more of the workflow's time than fusing the elementwise kernels over its 324 passes, so this row runs before moss-fusion."
-        }
-      ]
-    },
-    {
       "id": "moss-fusion",
       "title": "The elementwise kernels and conversions between a MOSS pass's multiplies and attention fuse, reading and writing each activation once",
       "steps": [

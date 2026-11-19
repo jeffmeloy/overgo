@@ -43,10 +43,18 @@ type record struct {
 var fusedProjections = []string{"q", "k", "v"}
 
 // Weight is a weight a ComfyUI ConvRot file holds quantized, as its header and comfy_quant record admit it: its int8
-// values and F32 row scales, the rows of them that are the weight's, first on, and the group its rows are rotated in.
+// values and F32 row scales, the base name the file stores them under, the rows of them that are the weight's, first
+// on, and the group its rows are rotated in.
 type Weight struct {
 	values, scales              safetensors.Tensor
+	stored                      string
 	first, rows, columns, group uint64
+}
+
+// Module is the base name the file stores the weight under, its fused qkv's for a q, k or v projection, and the
+// weight's first row in it.
+func (w Weight) Module() (string, uint64) {
+	return w.stored, w.first
 }
 
 // rotationGroup is whether a declared group is one comfy_kitchen rotates in: a power of 4.
@@ -97,7 +105,7 @@ func Find(source *safetensors.Source, name string) (Weight, bool, error) {
 		return Weight{}, true, fmt.Errorf("convrot: %s is %s %v with scales %s %v, not int8 rows in groups of %d with an F32 scale a row", stored, values.DType, values.Shape, scales.DType, scales.Shape, group)
 	}
 	rows := values.Shape[0] / uint64(parts)
-	return Weight{values: values, scales: scales, first: uint64(part) * rows, rows: rows, columns: values.Shape[1], group: group}, true, nil
+	return Weight{values: values, scales: scales, stored: stored, first: uint64(part) * rows, rows: rows, columns: values.Shape[1], group: group}, true, nil
 }
 
 // Shape is the weight's shape in the file's order (rows, columns).

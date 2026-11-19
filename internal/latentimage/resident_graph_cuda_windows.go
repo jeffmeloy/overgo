@@ -6,7 +6,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
+	"overgo/internal/cuda/executor"
 	"overgo/internal/graphruntime"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor"
@@ -35,6 +37,44 @@ func compileResidentWeights(
 	}
 	defer source.Close()
 	return program, bindResident(ctx, session, program, label, sourcePath, source, inputs, residentPayload)
+}
+
+// bindMerged binds each projection a compiled program reads with adapters' pairs merged into its int8 weight
+// (mergedProjection) as the merge on the card makes it from the transformer's file at sourcePath (convRotMerge), each
+// adapter at its strength. It is held under the transformer's path, each merged adapter's file and strength, and the
+// weight's name, so a later sampling with those adapters at those strengths takes it as it is.
+func bindMerged(ctx context.Context, session *graphruntime.ResidentSession, program *graphruntime.ResidentProgram, label, sourcePath string,
+	merged []mergedProjection, adapters []*mediaAdapter, strengths []float32) (err error) {
+	if len(merged) == 0 {
+		return nil
+	}
+	source, err := safetensors.OpenSource(sourcePath)
+	if err != nil {
+		return fmt.Errorf("%s: open weights: %w", label, err)
+	}
+	defer func() { err = errors.Join(err, source.Close()) }()
+	for _, projection := range merged {
+		if _, required := program.Graph.InputSlot(projection.input); !required {
+			continue
+		}
+		pairs := make([]adapterPair, len(projection.pairs))
+		var identity strings.Builder
+		identity.WriteString(sourcePath)
+		for index, pair := range projection.pairs {
+			if pair.adapter >= len(adapters) || pair.adapter >= len(strengths) {
+				return fmt.Errorf("%s: %s merges adapter %d of %d", label, projection.input.Name, pair.adapter, len(adapters))
+			}
+			pairs[index] = adapterPair{adapter: adapters[pair.adapter], patch: pair.patch, strength: strengths[pair.adapter]}
+			identity.WriteString(fmt.Sprintf("+%s@%g", adapters[pair.adapter].path, strengths[pair.adapter]))
+		}
+		name := projection.input.Name
+		if err := session.BindMerged(ctx, program, identity.String(), name, projection.input, func() (executor.Int8ConvRotMerge, error) {
+			return convRotMerge(source, name, pairs)
+		}); err != nil {
+			return fmt.Errorf("%s: %s: %w", label, name, err)
+		}
+	}
+	return nil
 }
 
 // bindAdapterInputs binds an adapter's tensors a compiled program reads from its file (adapterPayload), each uploaded

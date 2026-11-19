@@ -117,11 +117,14 @@
         "cmd/comfy-reference/record_test.go",
         "internal/latentimage/golden_floor_windows_model_test.go",
         "internal/cuda/driver/driver_windows.go",
-        "internal/latentimage/step_time_windows_model_test.go"
+        "internal/latentimage/step_time_windows_model_test.go",
+        "internal/latentimage/workflow_time_windows_model_test.go",
+        "internal/latentimage/depth_control_windows_model_test.go",
+        "internal/latentimage/turbo_floor_windows_model_test.go"
       ],
-      "input": "(1) After ComfyUI at revision A completes, /view fails. Retry the same accepted prompt after changing the installation to B. (2) Return two outputs of one node with the same basename in different subfolders. (3) Resume completed history or compare the retained 2368x1344 MOSS own-size run with overgo.",
-      "expected": "Preserve the accepted prompt's producer and both outputs. Identify the memory instrument and observation window, including missing samples on resume. Separate sampling setup from guided steps when comparing with ComfyUI progress intervals.",
-      "actual": "The receipt binds only prompt and request, so retry credits A's output to B. keep overwrites the same node/basename across subfolders. await samples whole-device Total-Free starting at retry. ownSizeReading compares 13.6 GiB of process allocations with 23.4 GiB of whole-device use, and 359 s after LoadGenerator with 58.123 s between reference execution events with cached nodes. At 39d27cd16 it still divides the entire integrate duration by steps. The retained 6fdcde850 profile measured 33.4 s of fixed sampling setup and 5.30 s per guided step. The reference's 1.11 s uses intervals between progress events and excludes initial setup."
+      "input": "Resume a completed ComfyUI prompt after changing the installation, or return two outputs of one node with the same basename in different subfolders. Compare the 2368x1344 own-size run or the 1024x576 six-section workflow. The standard and Turbo depth sections both start from the recorder's input PNG.",
+      "expected": "Keep the accepted producer and both outputs across recovery. State the memory instrument and sampling window, including missing samples on resume. Time both depth sections from the same input picture through estimation and decode. Separate setup and depth processing from denoiser pass timing using the existing step measurement.",
+      "actual": "The receipt binds only prompt and request, so retry can credit revision A's output to B. keep overwrites the same node/basename across subfolders. await samples whole-device use starting at retry. ownSizeReading compares process allocations to whole-card use and divides integration including setup by steps. In 1ab50872c, depthControlSection runs DepthMap before the workflow timer starts and supplies Control.Map. Turbo supplies Control.Picture and runs the estimator inside integration. The 113.9 s warm total excludes standard depth estimation. ComfyUI's 10.142 s pass-2 standard-depth recording lists no cache hit for estimator 612:438. The reported 1.88 s per Turbo depth pass divides all integration, including estimation and weight placement, by eight. The omitted time and denoiser-only time are unmeasured."
     },
     {
       "id": "SQA-401",
@@ -237,19 +240,6 @@
       "actual": "Source trace at c79cfc121. planverify.Execute returns ErrVacuous for the skipped test. mutate counts every non-nil verifier error as Refused, so this example reports one of one caught without a failed assertion. A build failure before tests start earns the same credit. The undo checker already distinguishes ErrAssertion. The retained mutation totals do not identify why a mutation was counted as refused."
     },
     {
-      "id": "SQA-418",
-      "severity": "P2",
-      "files": [
-        "internal/latentimage/runtime_cuda_windows.go",
-        "internal/latentimage/generator_rotary_windows.go",
-        "internal/latentimage/section_presets_windows_test.go",
-        "internal/latentimage/depth_control_windows_model_test.go"
-      ],
-      "input": "On a cache miss, serve a 1024x576 MOSS request with prompt 'a fox', preset ultra-depth-control, a valid PNG in control.map and no control.end. Use the preset's installed adapters. The turbo depth preset has the same default.",
-      "expected": "Use the same resolved depth control when configuring and preparing the generator. An omitted end and an explicit 0.5 should both reach sampling with the recorded window. An explicit 1 must retain its own window, and a genuinely different request must still be rejected.",
-      "actual": "Source trace at 5dafd6d23. LoadGenerator or Reset applies withPreset, and prepare applies it again. Each call to withSection copies DepthControl to supply the default end. prepareRotary compares the two Request structs by pointer for Control and returns 'rotary image: request differs from loaded session' before sampling. The preset check asserts the filled value once. The depth image comparison supplies End explicitly and bypasses the failing branch."
-    },
-    {
       "id": "SQA-421",
       "severity": "P2",
       "files": [
@@ -274,30 +264,23 @@
       "actual": "Source trace at 65255b6d1. compileRotaryDenoiserProgram includes textGraph.refine before concatenating text and image rows. Its inputs are fixed for this branch and do not include the latent or timestep. runRotarySampling executes that graph on every step, so this request evaluates the same refinement 50 times. The joint image/text blocks still depend on the changing latent. The count follows from the graph and loop. Elapsed savings are unmeasured."
     },
     {
-      "id": "SQA-423",
+      "id": "SQA-424",
       "severity": "P2",
       "files": [
-        "internal/latentimage/rotary_sampling_windows.go",
-        "internal/latentimage/rotary_refinement.go",
-        "internal/latentimage/resident_payload.go",
-        "internal/comfyquant/convrot.go"
+        "internal/modelswap/launcher.go",
+        "internal/processcontrol/supervisor.go",
+        "internal/modelswap/supervisor.go",
+        "internal/processcontrol/job_bound_windows_test.go"
       ],
-      "input": "Serve an adapter-free text-to-image request from a fresh MOSS model directory. Keep layer 0's fused qkv in group-256 ConvRot and store layers.0.proj.o.weight as its decoded BF16 matrix, with the same shape and no scale or comfy_quant record for that matrix. Keep all other weights and configuration as in the Ultra model.",
-      "expected": "Bind the output projection as BF16 and eligible ConvRot projections with their own numerical contract. Use the existing per-weight metadata from comfyquant.Find for graph construction and binding. Verify that the mixed model samples, each product agrees with its storage-specific reference, and malformed ConvRot metadata is still rejected.",
-      "actual": "Source counterexample at 5da20f97b. heldInConvRot inspects only layers.0.proj.q.weight and sets one flag for all joint projections. The graph therefore requests I8ConvRot for layers.0.proj.o.weight. residentPayload rejects that valid BF16 tensor during sampling, after prompt preparation. At 65255b6d1 the same binding decoded ConvRot weights and read plain BF16 weights individually. The retained Ultra timing uses a uniformly quantized set of joint projections."
+      "input": "Request a cold model swap to a valid split GGUF, then cancel while servableNeed is reading the shard headers. The child binary and store are valid. The same ordering is deterministic in the existing processcontrol fixture if Command.bounded cancels the context before returning a valid bound.",
+      "expected": "If cancellation is already visible when sizing finishes, return context.Canceled with no child created. Have processcontrol.Start check cancellation before setup and again after acquiring its resource lock, immediately before process creation. Keep the existing readiness and cleanup path for a child already started and allow a later live request to launch normally.",
+      "actual": "Source counterexample at f46760944. ServerLauncher finishes sizing and calls Start with the canceled context. Start checks only that the context exists, obtains the bound and calls run.Start. It returns a process handle. In the swap path Ready sees cancellation and Supervisor.load calls Stop on the newly created server. The retained served-need run verifies successful startup and memory limits. This cancellation case was traced in source."
     }
   ],
   "master_lead_triage": {
     "at": "2026-11-19",
     "head": "4955a095c553224984c02256c64f64c77f6f6966",
     "findings": {
-  "SQA-423": {
-        "action": "filed",
-        "rows": [
-          "int8-per-weight/do"
-        ],
-        "note": "Answered by the lead on 2026-11-19 at 4955a095c: valid from source (heldInConvRot reads one projection and sets one flag for all, so a file holding one as plain BF16 is refused as sampling binds); the Ultra file holds all four uniformly, so no served request fails today, and it is filed as its own row after the served depth preset's break, ahead of the workflow timing."
-      },
   "SQA-422": {
         "action": "filed",
         "rows": [
@@ -311,13 +294,6 @@
           "moss-fusion/do"
         ],
         "note": "Answered by the lead on 2026-11-19 at 5da20f97b: valid from source (each executed step hands the latent and prediction to the host for ER-SDE and uploads the result, the terminal step 18.2 MiB for a result on the card); a speed item whose saving is unmeasured, so filed with moss-fusion, whose re-budget profile places the copies, and made a step where its share on the workflow's time earns it."
-      },
-  "SQA-418": {
-        "action": "filed",
-        "rows": [
-          "depth-preset-session/do"
-        ],
-        "note": "Answered by the lead on 2026-11-19 at b11230b4b: valid from source (withPreset applied at load and again at prepare copies DepthControl each time, and prepareRotary compares the two requests' Control pointers); a break of the served Ultra depth presets, a working model's path, so filed at once after moss-int8, ahead of the speed rows."
       },
   "SQA-416": {
         "action": "deferred",
@@ -410,7 +386,7 @@
       }
 }
   },
-  "next_finding_number": 424,
+  "next_finding_number": 425,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

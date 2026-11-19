@@ -76,13 +76,20 @@ type replacement struct {
 }
 
 // lowRankPatch is one projection's pair: the file's down and up tensors, the rows of up it reads (all, or where split a
-// third of a fused qkv), and its scale.
+// third of a fused qkv), and its scale: the alpha the file holds for it over its rank in float64, as ComfyUI's
+// calculate_weight divides them, or 1 where the file holds no alpha.
 type lowRankPatch struct {
 	down, up         string
 	rank, rows, from uint64
 	in, out          uint64
 	split            bool
-	scale            float32
+	scale            float64
+}
+
+// factor is what ComfyUI multiplies the pair's product by at a strength (comfy/weight_adapter/lora.py calculate_weight):
+// the strength times the scale in float64, rounded to F32 as torch rounds a scalar it multiplies a BF16 tensor by.
+func (patch lowRankPatch) factor(strength float32) float32 {
+	return float32(float64(strength) * patch.scale)
 }
 
 // readMediaAdapter reads the patches of the adapter file at path, refusing a tensor no format above names, a pair
@@ -133,7 +140,7 @@ func readMediaAdapter(path string) (*mediaAdapter, error) {
 		}
 		patch := lowRankPatch{down: down, up: up, rank: downShape[0], in: downShape[1], out: upShape[0], rows: upShape[0], scale: 1}
 		if alpha, held := alphas[base]; held {
-			patch.scale = alpha / float32(patch.rank)
+			patch.scale = float64(alpha) / float64(patch.rank)
 		}
 		if !fusedJointQKV(base) {
 			adapter.lowRank[base] = patch

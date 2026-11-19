@@ -251,9 +251,38 @@
     }
   ],
   "master_lead_triage": {
-    "at": "2026-11-13",
-    "head": "0ef92bbeb509dbb96070d1f6e9161e95538210b7",
+    "at": "2026-11-19",
+    "head": "97714132e1f7a6655ab039f939e50f99e76e936e",
     "findings": {
+  "SQA-417": {
+        "action": "filed",
+        "rows": [
+          "lanes-verdict/do"
+        ],
+        "note": "Answered by the lead on 2026-11-19 at 97714132e: valid, reproduced (TestALaneRunTestByTestIsJudgedAsItsPackages fails at 1b4b4b7c2's judging: a package whose test passed beside one declaring itself inapplicable is an inapplicable lane, and a failed test beside such a test is reported inapplicable). A regression of lanes-yield, which hides breaks from the lanes, so filed at once ahead of the speed rows; lanes-verdict/do judges each package once over its tests' verdicts."
+      },
+  "SQA-416": {
+        "action": "deferred",
+        "rows": [],
+        "note": "Answered by the lead on 2026-11-19: valid from source (mutate counts every verifier error as refused, ErrVacuous and a failed build among them). The mutation run (cmd/loop -mutants) is a measure the owner reads of the checks' strength and gates no landing, and is outside the MOSS Ultra workflow campaign, so it waits with the rows the campaign set aside; its catch rate is read with this finding beside it until then."
+      },
+  "SQA-415": {
+        "action": "filed",
+        "rows": [
+          "lanes-fixtures/do"
+        ],
+        "note": "Answered by the lead on 2026-11-19: valid from source (a data path walks up to a closure package's directory, and the repository's fixtures/ is under none, so it reaches no lane); filed after lanes-verdict, ahead of the speed rows, since the MOSS goldens read fixtures/moss."
+      },
+  "SQA-414": {
+        "action": "deferred",
+        "rows": [],
+        "note": "Answered by the lead on 2026-11-19: LiveEdit's clip form, outside the MOSS Ultra workflow campaign the owner scoped the plan to and on no MOSS path; it waits with the rows the campaign set aside."
+      },
+  "SQA-412": {
+        "action": "deferred",
+        "rows": [],
+        "note": "Answered by the lead on 2026-11-19: valid from source, the class of SQA-406 (a digest trusted on path, size and time); Wan's text pipeline is outside the MOSS Ultra workflow campaign, so it waits with the rows the campaign set aside, and its cure is SQA-406's, capabilityruntime.Contents reading each file whole for every request."
+      },
   "SQA-411": {
         "action": "deferred",
         "rows": [],
@@ -283,30 +312,24 @@
   "SQA-388": {
         "action": "filed",
         "rows": [
-          "comfy-recorder/record-rest"
+          "moss-real-prompt/do"
         ],
-        "note": "Answered by the lead on 2026-11-13: carried by the recorder's open step, whose files it names."
+        "note": "Answered by the lead on 2026-11-13: carried by the recorder's open step, whose files it names. comfy-recorder/record-rest landed (0c24aca5b) and the review's update stands at 39d27cd16; answered again on 2026-11-19: the step time is read apart from a request's setup by TestWhereAMossStepsTimeGoes (moss-speed/do), and moss-resident/do takes the setup's weight copy from every request after a session's first, but ownSizeReading in the golden-floor test still divides a whole sampling by its steps and sets process allocations beside ComfyUI's whole-card use, so it goes with moss-real-prompt/do, which sets those floors again. The recorder's receipt and same-basename outputs wait until a recording is taken again."
       },
   "SQA-356": {
-        "action": "filed",
-        "rows": [
-          "loop-proof/local-demonstrated"
-        ],
-        "note": "Answered by the lead on 2026-11-13: carried by the local worker's demonstration step, which reads the worker's cost."
+        "action": "deferred",
+        "rows": [],
+        "note": "Answered by the lead on 2026-11-13: carried by the local worker's demonstration step, which reads the worker's cost. That row was retired with the rows outside the MOSS Ultra workflow campaign (749c9615a, the owner's notes of 2026-11-17), so the finding waits with them."
       },
   "SQA-371": {
-        "action": "filed",
-        "rows": [
-          "loop-proof/local-demonstrated"
-        ],
-        "note": "Answered by the lead on 2026-11-13: carried by the local worker's demonstration step, on the worker's path."
+        "action": "deferred",
+        "rows": [],
+        "note": "Answered by the lead on 2026-11-13: carried by the local worker's demonstration step, on the worker's path. That row was retired with the rows outside the MOSS Ultra workflow campaign (749c9615a), so the finding waits with them."
       },
   "SQA-372": {
-        "action": "filed",
-        "rows": [
-          "loop-proof/local-demonstrated"
-        ],
-        "note": "Answered by the lead on 2026-11-13: carried by the local worker's demonstration step; a held check altered through another spelling is the check class."
+        "action": "deferred",
+        "rows": [],
+        "note": "Answered by the lead on 2026-11-13: carried by the local worker's demonstration step; a held check altered through another spelling is the check class. That row was retired with the rows outside the MOSS Ultra workflow campaign (749c9615a), so the finding waits with them."
       },
   "SQA-401": {
         "action": "deferred",
@@ -320,12 +343,12 @@
         "note": "Reopened by the lead's recheck on 2026-11-13: run-from-files/do and recipe-state made the first repair, whose tests pass at f110d30b1, but the review's evidence names three publication owners that still read recipe state at publication and drop a lookup error, so an empty Verification earns the legacy path and a later activation can replace execution-time state. execution-state/do carries the state read at execution to publication. Implemented 2026-11-16 by execution-state/do (f7338b9b0), for the review's recheck."
       },
   "SQA-406": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "adapter-identity/do",
           "beside-content/do"
         ],
-        "note": "Answered by the lead on 2026-11-17 at 496a0f87d: filed as its own row after the owner's workflow rows and small fixes; the adapter's bytes are bound where the image source resolves the request, the replay and session owners kept. The review's extension to the depth estimator a control picture reads is taken in the same step (2026-11-18): the picture director keys a run by the content of every file a request reads beside its model's components, its preset's adapters among them (latentimage Request.Beside). Implemented by adapter-identity/do (fe5d0849f). Reopened by the review at fe5d0849f and answered by the lead on 2026-11-18: both points valid from source (the digest cache trusted path, size and time, and the session reopens a file after its naming), and the binding duplicated capabilityruntime.Reading; filed as beside-content/do, which serves the picture through Reading with Contents over the request's files, reads each whole for every request and holds it, sharing reading alone, until the request is served."
+        "note": "Answered by the lead on 2026-11-17 at 496a0f87d: filed as its own row after the owner's workflow rows and small fixes; the adapter's bytes are bound where the image source resolves the request, the replay and session owners kept. The review's extension to the depth estimator a control picture reads is taken in the same step (2026-11-18): the picture director keys a run by the content of every file a request reads beside its model's components, its preset's adapters among them (latentimage Request.Beside). Implemented by adapter-identity/do (fe5d0849f). Reopened by the review at fe5d0849f and answered by the lead on 2026-11-18: both points valid from source (the digest cache trusted path, size and time, and the session reopens a file after its naming), and the binding duplicated capabilityruntime.Reading; filed as beside-content/do, which serves the picture through Reading with Contents over the request's files, reads each whole for every request and holds it, sharing reading alone, until the request is served. Implemented 2026-11-18 by beside-content/do (4d1e4ea3c), for the review's recheck."
       }
 }
   },

@@ -240,18 +240,21 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 		// and on the card in the card's turn for each, taken before the test turn, so a commit's tests and its lanes
 		// take the machine between them (lanes-turns) and a step waiting for the card holds no test turn
 		// (lanes-card-order): a commit beside the lanes was refused for memory, its lanes waited the models lane's hours,
-		// and a commit waited 81 min for a package that held the card (lanes-yield).
+		// and a commit waited 81 min for a package that held the card (lanes-yield). The lane is judged by its packages,
+		// each once over its steps (laneVerdict).
 		var reports []testevidence.GoTestReport
-		steps := [][]string{suite.Arguments}
+		steps := []laneStep{{arguments: suite.Arguments}}
 		if len(suite.Each) > 0 {
 			steps = testSteps(ctx, root, suite.Each, suite.Environment)
 		}
-		runs := make([]func() error, len(steps))
-		for index, arguments := range steps {
+		runs, verdicts := make([]func() error, len(steps)), make([]error, len(steps))
+		for index, step := range steps {
+			verdicts[index] = errNotRun(step)
 			runs[index] = func() error {
-				report, err := acquire(ctx, output, root, "go", arguments, suite.Environment...)
+				report, err := acquire(ctx, output, root, "go", step.arguments, suite.Environment...)
 				reports = append(reports, report)
-				return err
+				verdicts[index] = err
+				return nil
 			}
 		}
 		outer := func(work func() error) error { return work() }
@@ -263,6 +266,13 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 			each = inNoTurn
 		}
 		err := each("the cycle lane "+suite.Lane, outer, runs)
+		// A failure to take a turn stands with the packages' failures, never beside an inapplicable verdict that would hide it.
+		switch verdict := laneVerdict(steps, verdicts); {
+		case err == nil:
+			err = verdict
+		case !errors.Is(verdict, errInapplicable):
+			err = errors.Join(err, verdict)
+		}
 		record("cycle lane "+suite.Lane, err)
 		if plan.LanesKept == "" {
 			continue

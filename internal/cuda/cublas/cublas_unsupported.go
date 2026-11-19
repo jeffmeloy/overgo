@@ -57,6 +57,11 @@ func (l *Library) PlanBF16Bias(handle LtHandle, m, n, k, workspaceLimit uint64) 
 	return nil, errors.New("cuBLAS loading is currently supported only on Windows")
 }
 
+// PlanInt8 selects an int8 product accumulated into int32.
+func (l *Library) PlanInt8(handle LtHandle, m, n, k, workspaceLimit uint64) (*MatmulPlan, error) {
+	return nil, errors.New("cuBLAS loading is currently supported only on Windows")
+}
+
 // Matmul enqueues the planned product with its current bias address.
 func (l *Library) Matmul(
 	handle LtHandle,

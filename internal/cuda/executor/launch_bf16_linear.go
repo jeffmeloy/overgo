@@ -66,7 +66,7 @@ func launchBF16Linear(state *device.State, functions functionSet, blas *blasStat
 				return err
 			}
 		} else {
-			plan, err := blas.matmulPlan(inner, rows, tokens, true)
+			plan, err := blas.matmulPlan(inner, rows, tokens, matmulBF16Bias)
 			if err != nil {
 				return err
 			}

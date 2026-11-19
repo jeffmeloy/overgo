@@ -230,6 +230,122 @@ __device__ __forceinline__ float bf16_rounded(float value) {
     return __uint_as_float(raw);
 }
 
+// INT8_CONVROT_GROUP is the width of comfy_kitchen's ConvRot rotation, rotated by H4's Kronecker power in four radix-4
+// stages (INT8_CONVROT_RADIX), one a base-4 digit of a value's index in its group, and divided by 16
+// (INT8_CONVROT_NORM). INT8_CONVROT_MAX_INNER is the widest token column quantize_int8_convrot_columns_f32 holds in
+// shared memory, MOSS's widest projection input (its feed-forward's 8,192). INT8_INVERSE_127 is 1/127 rounded to F32,
+// which a column's absolute maximum is multiplied by for its scale, at least INT8_SCALE_FLOOR.
+constexpr unsigned int INT8_CONVROT_GROUP = 256;
+constexpr unsigned int INT8_CONVROT_RADIX = 4;
+constexpr unsigned int INT8_CONVROT_MAX_INNER = 8192;
+constexpr float INT8_CONVROT_NORM = 0.0625f;
+constexpr float INT8_INVERSE_127 = 1.0f / 127.0f;
+constexpr float INT8_SCALE_FLOOR = 1e-30f;
+constexpr float INT8_LOWEST = -128.0f;
+constexpr float INT8_HIGHEST = 127.0f;
+
+// quantize_int8_convrot_columns_f32: the activation side of the int8 ConvRot tensor-core product, as comfy_kitchen's
+// CUDA int8_linear forms it (moss-int8, its product matched bit for bit): one block per token column of `inner` F32
+// values, inner a multiple of INT8_CONVROT_GROUP and at most INT8_CONVROT_MAX_INNER. Each group is rotated in F32 by
+// H4's Kronecker power, H4 = [[1,1,1,-1],[1,1,-1,1],[1,-1,1,1],[-1,1,1,1]], one radix-4 stage a base-4 digit of the
+// index from the most significant, each output the left-to-right sum of its four signed inputs, then divided by 16. The
+// column's scale is its absolute maximum times 1/127, at least 1e-30, stored per column; each value is the quotient of
+// the value and the scale, each rounded to BF16, rounded to BF16 as a BF16 division rounds it, then to an integer, ties
+// to even, saturated to int8. Every operation is a correctly rounded intrinsic, so -use_fast_math changes no bit.
+extern "C" __global__ void quantize_int8_convrot_columns_f32(
+        const float * input,
+        signed char * output,
+        float * scale,
+        unsigned int inner,
+        unsigned int columns) {
+    __shared__ float values[INT8_CONVROT_MAX_INNER];
+    __shared__ float warp_amax[CUDA_WARP_WIDTH];
+    const unsigned int column = blockIdx.x;
+    if (column >= columns || inner > INT8_CONVROT_MAX_INNER || inner % INT8_CONVROT_GROUP != 0) {
+        return;
+    }
+    const float * source = input + (size_t) column * inner;
+    for (unsigned int index = threadIdx.x; index < inner; index += blockDim.x) {
+        values[index] = source[index];
+    }
+    __syncthreads();
+    const unsigned int per_group = INT8_CONVROT_GROUP / INT8_CONVROT_RADIX;
+    const unsigned int butterflies = inner / INT8_CONVROT_RADIX;
+    for (unsigned int stride = per_group; stride > 0; stride /= INT8_CONVROT_RADIX) {
+        for (unsigned int butterfly = threadIdx.x; butterfly < butterflies; butterfly += blockDim.x) {
+            const unsigned int group = butterfly / per_group;
+            const unsigned int within = butterfly - group * per_group;
+            const unsigned int high = within / stride;
+            const unsigned int base = group * INT8_CONVROT_GROUP + high * stride * INT8_CONVROT_RADIX + (within - high * stride);
+            const float x0 = values[base];
+            const float x1 = values[base + stride];
+            const float x2 = values[base + 2 * stride];
+            const float x3 = values[base + 3 * stride];
+            values[base] = __fsub_rn(__fadd_rn(__fadd_rn(x0, x1), x2), x3);
+            values[base + stride] = __fadd_rn(__fsub_rn(__fadd_rn(x0, x1), x2), x3);
+            values[base + 2 * stride] = __fadd_rn(__fadd_rn(__fsub_rn(x0, x1), x2), x3);
+            values[base + 3 * stride] = __fadd_rn(__fadd_rn(__fsub_rn(x1, x0), x2), x3);
+        }
+        __syncthreads();
+    }
+    float amax = 0.0f;
+    for (unsigned int index = threadIdx.x; index < inner; index += blockDim.x) {
+        const float value = __fmul_rn(values[index], INT8_CONVROT_NORM);
+        values[index] = value;
+        amax = fmaxf(amax, fabsf(value));
+    }
+    for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset >>= 1) {
+        amax = fmaxf(amax, __shfl_xor_sync(0xffffffffu, amax, offset));
+    }
+    if (threadIdx.x % CUDA_WARP_WIDTH == 0) {
+        warp_amax[threadIdx.x / CUDA_WARP_WIDTH] = amax;
+    }
+    __syncthreads();
+    const unsigned int warps = (blockDim.x + CUDA_WARP_WIDTH - 1) / CUDA_WARP_WIDTH;
+    amax = 0.0f;
+    for (unsigned int warp = 0; warp < warps; ++warp) {
+        amax = fmaxf(amax, warp_amax[warp]);
+    }
+    const float column_scale = fmaxf(__fmul_rn(amax, INT8_INVERSE_127), INT8_SCALE_FLOOR);
+    if (threadIdx.x == 0) {
+        scale[column] = column_scale;
+    }
+    const float divisor = bf16_rounded(column_scale);
+    signed char * destination = output + (size_t) column * inner;
+    for (unsigned int index = threadIdx.x; index < inner; index += blockDim.x) {
+        const float quotient = bf16_rounded(__fdiv_rn(bf16_rounded(values[index]), divisor));
+        destination[index] = (signed char) __float2int_rn(fminf(fmaxf(rintf(quotient), INT8_LOWEST), INT8_HIGHEST));
+    }
+}
+
+// scale_int8_product_bf16_f32: the epilogue of the int8 ConvRot tensor-core product, as comfy_kitchen's int8_linear
+// scales it: cuBLASLt's exact int32 product lands column-major [columns][rows] in the F32 output it is written back
+// over; entry (row, column) is its product times its activation column's scale and then its weight row's, each product
+// rounded to F32, rounded to BF16. rows is a multiple of four, so each thread scales four rows of one column;
+// quads = rows * columns / 4.
+extern "C" __global__ void scale_int8_product_bf16_f32(
+        float * output,
+        const float * row_scale,
+        const float * column_scale,
+        unsigned int rows,
+        unsigned int quads) {
+    const unsigned int quad = blockIdx.x * blockDim.x + threadIdx.x;
+    if (quad >= quads) {
+        return;
+    }
+    const unsigned int element = quad * FP8_QUAD_WIDTH;
+    const unsigned int column = element / rows;
+    const unsigned int row = element - column * rows;
+    const float factor = column_scale[column];
+    const float4 weight = *reinterpret_cast<const float4 *>(row_scale + row);
+    const int4 product = reinterpret_cast<const int4 *>(output)[quad];
+    reinterpret_cast<float4 *>(output)[quad] = make_float4(
+        bf16_rounded(__fmul_rn(__fmul_rn(__int2float_rn(product.x), factor), weight.x)),
+        bf16_rounded(__fmul_rn(__fmul_rn(__int2float_rn(product.y), factor), weight.y)),
+        bf16_rounded(__fmul_rn(__fmul_rn(__int2float_rn(product.z), factor), weight.z)),
+        bf16_rounded(__fmul_rn(__fmul_rn(__int2float_rn(product.w), factor), weight.w)));
+}
+
 // elementwise_store is what an elementwise kernel stores of value: value, or, for the <name>_bf16_round entry a BF16
 // rounding of its output folds into, its nearest BF16.
 template <bool ROUND>

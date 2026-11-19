@@ -50,7 +50,11 @@ const (
 	// alongside (native-dtype residency). Not a self-contained GGUF block type;
 	// this id is internal to the native-dtype matmul path. 1 byte/element.
 	F8E4M3 Type = 43
-	Count       = F8E4M3 + 1
+	// I8ConvRot is comfy_kitchen's int8 ConvRot weight (int8_tensorwise with a Hadamard rotation of each 256-column
+	// group), int8 rows with a per-output-row F32 scale carried alongside as F8E4M3 carries its own, the form the MOSS
+	// Ultra workflow's int8 ConvRot files hold. Internal to the int8 tensor-core product. 1 byte/element.
+	I8ConvRot Type = 44
+	Count          = I8ConvRot + 1
 )
 
 // Traits defines type's physical block layout
@@ -72,45 +76,46 @@ func BlockCount(elements, blockSize uint64) (uint64, bool) {
 }
 
 var traits = [Count]Traits{
-	F32:    {"f32", 1, 4, false},
-	F16:    {"f16", 1, 2, false},
-	Q4_0:   {"q4_0", 32, 18, true},
-	Q4_1:   {"q4_1", 32, 20, true},
-	Q5_0:   {"q5_0", 32, 22, true},
-	Q5_1:   {"q5_1", 32, 24, true},
-	Q8_0:   {"q8_0", 32, 34, true},
-	Q8_1:   {"q8_1", 32, 36, true},
-	Q2K:    {"q2_K", 256, 84, true},
-	Q3K:    {"q3_K", 256, 110, true},
-	Q4K:    {"q4_K", 256, 144, true},
-	Q5K:    {"q5_K", 256, 176, true},
-	Q6K:    {"q6_K", 256, 210, true},
-	Q8K:    {"q8_K", 256, 292, true},
-	IQ2XXS: {"iq2_xxs", 256, 66, true},
-	IQ2XS:  {"iq2_xs", 256, 74, true},
-	IQ3XXS: {"iq3_xxs", 256, 98, true},
-	IQ1S:   {"iq1_s", 256, 50, true},
-	IQ4NL:  {"iq4_nl", 32, 18, true},
-	IQ3S:   {"iq3_s", 256, 110, true},
-	IQ2S:   {"iq2_s", 256, 82, true},
-	IQ4XS:  {"iq4_xs", 256, 136, true},
-	I8:     {"i8", 1, 1, false},
-	I16:    {"i16", 1, 2, false},
-	I32:    {"i32", 1, 4, false},
-	I64:    {"i64", 1, 8, false},
-	F64:    {"f64", 1, 8, false},
-	IQ1M:   {"iq1_m", 256, 56, true},
-	BF16:   {"bf16", 1, 2, false},
-	TQ1_0:  {"tq1_0", 256, 54, true},
-	TQ2_0:  {"tq2_0", 256, 66, true},
-	MXFP4:  {"mxfp4", 32, 17, true},
-	NVFP4:  {"nvfp4", 64, 36, true},
-	Q1_0:   {"q1_0", 128, 18, true},
-	Q2_0:   {"q2_0", 64, 18, true},
-	F8E4M3: {"f8_e4m3", 1, 1, false},
+	F32:       {"f32", 1, 4, false},
+	F16:       {"f16", 1, 2, false},
+	Q4_0:      {"q4_0", 32, 18, true},
+	Q4_1:      {"q4_1", 32, 20, true},
+	Q5_0:      {"q5_0", 32, 22, true},
+	Q5_1:      {"q5_1", 32, 24, true},
+	Q8_0:      {"q8_0", 32, 34, true},
+	Q8_1:      {"q8_1", 32, 36, true},
+	Q2K:       {"q2_K", 256, 84, true},
+	Q3K:       {"q3_K", 256, 110, true},
+	Q4K:       {"q4_K", 256, 144, true},
+	Q5K:       {"q5_K", 256, 176, true},
+	Q6K:       {"q6_K", 256, 210, true},
+	Q8K:       {"q8_K", 256, 292, true},
+	IQ2XXS:    {"iq2_xxs", 256, 66, true},
+	IQ2XS:     {"iq2_xs", 256, 74, true},
+	IQ3XXS:    {"iq3_xxs", 256, 98, true},
+	IQ1S:      {"iq1_s", 256, 50, true},
+	IQ4NL:     {"iq4_nl", 32, 18, true},
+	IQ3S:      {"iq3_s", 256, 110, true},
+	IQ2S:      {"iq2_s", 256, 82, true},
+	IQ4XS:     {"iq4_xs", 256, 136, true},
+	I8:        {"i8", 1, 1, false},
+	I16:       {"i16", 1, 2, false},
+	I32:       {"i32", 1, 4, false},
+	I64:       {"i64", 1, 8, false},
+	F64:       {"f64", 1, 8, false},
+	IQ1M:      {"iq1_m", 256, 56, true},
+	BF16:      {"bf16", 1, 2, false},
+	TQ1_0:     {"tq1_0", 256, 54, true},
+	TQ2_0:     {"tq2_0", 256, 66, true},
+	MXFP4:     {"mxfp4", 32, 17, true},
+	NVFP4:     {"nvfp4", 64, 36, true},
+	Q1_0:      {"q1_0", 128, 18, true},
+	Q2_0:      {"q2_0", 64, 18, true},
+	F8E4M3:    {"f8_e4m3", 1, 1, false},
+	I8ConvRot: {"i8_convrot", 1, 1, false},
 }
 
-var auxiliaryRowBytes = [Count]uint64{F8E4M3: traits[F32].TypeSize}
+var auxiliaryRowBytes = [Count]uint64{F8E4M3: traits[F32].TypeSize, I8ConvRot: traits[F32].TypeSize}
 
 func (t Type) String() string {
 	if value, ok := t.Traits(); ok {

@@ -118,7 +118,7 @@ func (b *Builder) mulMat(left, right *Tensor, compute MulMatCompute) *Tensor {
 	}
 	outputType := left.Type
 	if (left.Type.IsQuantized() || left.Type == dtype.BF16 || left.Type == dtype.F16 ||
-		left.Type == dtype.F8E4M3) && right.Type == dtype.F32 {
+		left.Type == dtype.F8E4M3 || left.Type == dtype.I8ConvRot) && right.Type == dtype.F32 {
 		outputType = dtype.F32
 	} else if left.Type != right.Type {
 		b.setError(fmt.Errorf("mul_mat types are unsupported: %s and %s", left.Type, right.Type))

@@ -110,6 +110,13 @@ func launchLinearLayout(
 		rightRows := uint32(rightNode.Shape.Dims[1])
 		left := pointers.input(0)
 		right := pointers.input(1)
+		if leftNode.Type == dtype.I8ConvRot {
+			if !int8ConvRotMulMat(node) {
+				return errors.New("int8 ConvRot mul_mat shape is unsupported")
+			}
+			scale := left + driver.DevicePtr(uint64(inner)*uint64(leftRows))
+			return launchInt8ConvRotMulMat(state, functions, blas, rightNode, left, scale, right, output, inner, leftRows, rightRows)
+		}
 		if leftNode.Type == dtype.F16 || leftNode.Type == dtype.BF16 {
 			// A span the decode kernel serves keeps it: cuBLAS's smallest GEMM took 14.3 us for a 2,560 x 128 BF16 weight
 			// and two columns, about once a layer of a verify window, where the decode kernel reads the weight per column.
@@ -577,10 +584,27 @@ const fp8TensorCoreAlignment = uint64(16)
 // four output rows per thread.
 const fp8QuadWidth = uint64(4)
 
-// matmulWeightShape keys native tensor-core products by geometry and epilogue.
+// matmulProduct is the arithmetic a native tensor-core product runs: FP8 into F32, BF16 with its bias epilogue into
+// BF16, or int8 exactly into int32.
+type matmulProduct uint8
+
+const (
+	matmulFP8 matmulProduct = iota
+	matmulBF16Bias
+	matmulInt8
+)
+
+// matmulPlanners builds each product's cuBLASLt plan.
+var matmulPlanners = [...]func(*cublas.Library, cublas.LtHandle, uint64, uint64, uint64, uint64) (*cublas.MatmulPlan, error){
+	matmulFP8:      (*cublas.Library).PlanFP8,
+	matmulBF16Bias: (*cublas.Library).PlanBF16Bias,
+	matmulInt8:     (*cublas.Library).PlanInt8,
+}
+
+// matmulWeightShape keys native tensor-core products by geometry and arithmetic.
 type matmulWeightShape struct {
 	inner, rows uint32
-	bf16Bias    bool
+	product     matmulProduct
 }
 
 // fp8TensorCoreMulMat reports whether a mul_mat node multiplies native
@@ -596,9 +620,10 @@ func fp8TensorCoreMulMat(node *tensor.Tensor) bool {
 		inner%fp8TensorCoreAlignment == 0 && leftRows*f32ScalarBytes%fp8TensorCoreAlignment == 0
 }
 
-// fp8TensorCoreStagingBytes: the cuBLASLt workspace, then the e4m3
-// activation and its per-column F32 scales.
-func fp8TensorCoreStagingBytes(inner, rightRows uint64) uint64 {
+// byteActivationStagingBytes: the cuBLASLt workspace, then an activation of
+// a byte a value (the FP8 product's e4m3, the int8 ConvRot product's int8)
+// and its per-column F32 scales.
+func byteActivationStagingBytes(inner, rightRows uint64) uint64 {
 	return ltGemmWorkspaceBytes + inner*rightRows + rightRows*f32ScalarBytes
 }
 
@@ -616,7 +641,7 @@ func launchFP8TensorCoreMulMat(
 	left, weightScale, right, output driver.DevicePtr,
 	inner, leftRows, rightRows uint32,
 ) error {
-	if blas.lt == 0 || blas.stagingBytes < fp8TensorCoreStagingBytes(uint64(inner), uint64(rightRows)) {
+	if blas.lt == 0 || blas.stagingBytes < byteActivationStagingBytes(uint64(inner), uint64(rightRows)) {
 		return errors.New("fp8 tensor-core mul_mat workspace is unavailable")
 	}
 	outputElements := uint64(leftRows) * uint64(rightRows)
@@ -645,7 +670,7 @@ func launchFP8TensorCoreMulMat(
 		uint64(left), uint64(activation), uint64(output),
 		uint64(leftRows), uint64(rightRows), uint64(inner),
 	) {
-		plan, err := blas.matmulPlan(inner, leftRows, rightRows, false)
+		plan, err := blas.matmulPlan(inner, leftRows, rightRows, matmulFP8)
 		if err != nil {
 			return err
 		}
@@ -664,22 +689,18 @@ func launchFP8TensorCoreMulMat(
 
 // matmulPlan returns a native tensor-core product for a weight shape at this
 // column count, dropping the plans of a previous column count.
-func (b *blasState) matmulPlan(inner, leftRows, rightRows uint32, bf16Bias bool) (*cublas.MatmulPlan, error) {
+func (b *blasState) matmulPlan(inner, leftRows, rightRows uint32, product matmulProduct) (*cublas.MatmulPlan, error) {
 	if b.matmulPlanColumns != rightRows {
 		if err := b.dropMatmulPlans(); err != nil {
 			return nil, err
 		}
 		b.matmulPlanColumns = rightRows
 	}
-	shape := matmulWeightShape{inner: inner, rows: leftRows, bf16Bias: bf16Bias}
+	shape := matmulWeightShape{inner: inner, rows: leftRows, product: product}
 	if plan, ok := b.matmulPlans[shape]; ok {
 		return plan, nil
 	}
-	build := b.library.PlanFP8
-	if bf16Bias {
-		build = b.library.PlanBF16Bias
-	}
-	plan, err := build(b.lt, uint64(leftRows), uint64(rightRows), uint64(inner), ltGemmWorkspaceBytes)
+	plan, err := matmulPlanners[product](b.library, b.lt, uint64(leftRows), uint64(rightRows), uint64(inner), ltGemmWorkspaceBytes)
 	if err != nil {
 		return nil, err
 	}

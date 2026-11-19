@@ -1367,17 +1367,21 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 			(node.Inputs[0].Type == dtype.F32 || node.Inputs[0].Type == dtype.BF16) {
 			compiled.needBlas = true
 		}
-		if fp8TensorCoreMulMat(node) {
-			// FP8 tensor-core prefill stages the e4m3 activation, its
-			// column scales and the cuBLASLt workspace; the resident
-			// weight is multiplied as stored.
+		if node.Op == tensor.OpMulMat && node.Inputs[0].Type == dtype.I8ConvRot && !int8ConvRotMulMat(node) {
+			return nil, fmt.Errorf("int8 ConvRot mul_mat %q has a shape its product does not run", node.Name)
+		}
+		if fp8TensorCoreMulMat(node) || int8ConvRotMulMat(node) {
+			// FP8 tensor-core prefill, and every int8 ConvRot product,
+			// stages the byte activation, its column scales and the
+			// cuBLASLt workspace; the resident weight is multiplied as
+			// stored.
 			inner, rightRows := node.Inputs[0].Shape.Dims[0], node.Inputs[1].Shape.Dims[1]
 			if inner > math.MaxUint32 || rightRows > math.MaxUint32 {
 				return nil, errors.New("fp8 tensor-core mul_mat staging size overflows")
 			}
 			compiled.needBlas = true
 			compiled.matmulStagingBytes = max(
-				compiled.matmulStagingBytes, fp8TensorCoreStagingBytes(inner, rightRows),
+				compiled.matmulStagingBytes, byteActivationStagingBytes(inner, rightRows),
 			)
 			continue
 		}
@@ -2459,7 +2463,7 @@ func execute(
 		}
 		if deviceFed {
 			if node.Type != dtype.F32 && node.Type != dtype.BF16 && node.Type != dtype.F16 &&
-				node.Type != dtype.F8E4M3 && node.Type != dtype.I8 && node.Type != dtype.I32 && !nativeQuantizedType(node.Type) {
+				node.Type != dtype.F8E4M3 && node.Type != dtype.I8ConvRot && node.Type != dtype.I8 && node.Type != dtype.I32 && !nativeQuantizedType(node.Type) {
 				return nil, fmt.Errorf("CUDA device feed %q has unsupported type %s", node.Name, node.Type)
 			}
 			if pointer == 0 {

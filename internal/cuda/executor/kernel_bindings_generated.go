@@ -205,6 +205,7 @@ const (
 	kernelMultiplyF32
 	kernelPixelShuffle2dF32
 	kernelQuantizeFp8ColumnsF32
+	kernelQuantizeInt8ConvrotColumnsF32
 	kernelQuantizeQ80InputF32
 	kernelReduceGqaHeadsF32
 	kernelReluBackwardF32
@@ -235,6 +236,7 @@ const (
 	kernelScaleBf16RoundF32
 	kernelScaleF32
 	kernelScaleFp8ProductF32
+	kernelScaleInt8ProductBf16F32
 	kernelScaledActivationF32
 	kernelScaledActivationQ80F32
 	kernelShortConvBackwardF32
@@ -697,6 +699,7 @@ var kernelFunctionNames = [...]string{
 	"multiply_f32",
 	"pixel_shuffle_2d_f32",
 	"quantize_fp8_columns_f32",
+	"quantize_int8_convrot_columns_f32",
 	"quantize_q8_0_input_f32",
 	"reduce_gqa_heads_f32",
 	"relu_backward_f32",
@@ -727,6 +730,7 @@ var kernelFunctionNames = [...]string{
 	"scale_bf16_round_f32",
 	"scale_f32",
 	"scale_fp8_product_f32",
+	"scale_int8_product_bf16_f32",
 	"scaled_activation_f32",
 	"scaled_activation_q8_0_f32",
 	"short_conv_backward_f32",
@@ -1188,6 +1192,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	4,
 	7,
 	5,
+	5,
 	3,
 	6,
 	4,
@@ -1217,6 +1222,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	17,
 	4,
 	4,
+	5,
 	5,
 	5,
 	6,
@@ -1680,6 +1686,7 @@ var kernelFunctionArgumentWidths = [...][]uint16{
 	{8, 8, 8, 4},
 	{8, 8, 4, 4, 4, 4, 4},
 	{8, 8, 8, 4, 4},
+	{8, 8, 8, 4, 4},
 	{8, 8, 4},
 	{8, 8, 4, 4, 4, 4},
 	{8, 8, 8, 4},
@@ -1709,6 +1716,7 @@ var kernelFunctionArgumentWidths = [...][]uint16{
 	{8, 8, 8, 8, 8, 8, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
 	{8, 8, 4, 4},
 	{8, 8, 4, 4},
+	{8, 8, 8, 4, 4},
 	{8, 8, 8, 4, 4},
 	{8, 8, 4, 4, 4},
 	{8, 8, 8, 4, 4, 4},
@@ -1977,6 +1985,8 @@ var kernelFunctionArgumentWidths = [...][]uint16{
 const kernelModuleCount = 4
 
 var kernelFunctionModules = [...]uint8{
+	0,
+	0,
 	0,
 	0,
 	0,

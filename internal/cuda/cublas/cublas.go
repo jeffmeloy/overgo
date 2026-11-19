@@ -47,9 +47,11 @@ const ltAlgoWords = 8
 // The product accumulates A[k,m]^T * B[k,n] in F32.
 // FP8 products return F32 and callers apply row and column scales.
 // BF16 products apply a BF16 bias epilogue and return BF16.
+// Int8 products accumulate exactly in int32 and return int32, their scales integers.
 type MatmulPlan struct {
 	desc, a, b, d uintptr
 	algo          [ltAlgoWords]uint64
+	integer       bool
 }
 
 // RowMajorGEMMF32: row-major C[m,n] = A[m,k]*B[k,n].

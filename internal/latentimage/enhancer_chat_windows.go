@@ -35,13 +35,20 @@ type EnhancerOpener func(ctx context.Context, directory string) (chat func(ctx c
 // EnhanceRequest is a request that asks prompt mode 2 (its Enhance) as the request stating what mode 2 writes: its
 // prompt the source idea and its negative the exclusions the model's enhancer chat writes a positive and a negative of
 // (enhance), the chat opened by open from the model's enhancer folder and closed before the picture is drawn. A request
-// that asks no enhancing is returned as it is.
+// that asks no enhancing is returned as it is. A request the picture session would refuse once enhanced is refused
+// before the chat opens, as the session refuses it: a request of -1 steps had the 9B chat opened and asked, its refusal
+// coming after, or masked where the chat would not open (SQA-413).
 func EnhanceRequest(ctx context.Context, open EnhancerOpener, modelDir string, request Request) (_ Request, err error) {
 	if !request.Enhance {
 		return request, nil
 	}
 	if request.Layout != nil {
 		return Request{}, errEnhanceBesideLayout
+	}
+	enhanced := request
+	enhanced.Enhance = false
+	if err := ValidateRequest(enhanced); err != nil {
+		return Request{}, err
 	}
 	chat, closeChat, err := open(ctx, filepath.Join(modelDir, enhancerDirectory))
 	if err != nil {

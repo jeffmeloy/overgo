@@ -116,11 +116,12 @@
         "cmd/comfy-reference/record.go",
         "cmd/comfy-reference/record_test.go",
         "internal/latentimage/golden_floor_windows_model_test.go",
-        "internal/cuda/driver/driver_windows.go"
+        "internal/cuda/driver/driver_windows.go",
+        "internal/latentimage/step_time_windows_model_test.go"
       ],
       "input": "(1) After ComfyUI at revision A completes, /view fails. Retry the same accepted prompt after changing the installation to B. (2) Return two outputs of one node with the same basename in different subfolders. (3) Resume completed history or compare the retained 2368x1344 MOSS own-size run with overgo.",
-      "expected": "The recorder preserves the producer of the accepted prompt and both distinct outputs. Report the memory instrument and sampling window and the start and end of each timing. A resumed run without original samples has no measured original peak.",
-      "actual": "The accepted receipt binds only prompt and request, so the retry credits A's output to B. keep writes both subfolders to the same path. await samples whole-device Total-Free, starting with the retry snapshot even for completed history. ownSizeReading displays overgo's 13.6 GiB process allocation high-water beside ComfyUI's 23.4 GiB whole-device samples as comparable peaks. Its 359 s starts after LoadGenerator; the reference's 58.123 s spans execution_start to execution_success with cached nodes. Retained values and source at 12f172302; the difference in process memory is unmeasured."
+      "expected": "Preserve the accepted prompt's producer and both outputs. Identify the memory instrument and observation window, including missing samples on resume. Separate sampling setup from guided steps when comparing with ComfyUI progress intervals.",
+      "actual": "The receipt binds only prompt and request, so retry credits A's output to B. keep overwrites the same node/basename across subfolders. await samples whole-device Total-Free starting at retry. ownSizeReading compares 13.6 GiB of process allocations with 23.4 GiB of whole-device use, and 359 s after LoadGenerator with 58.123 s between reference execution events with cached nodes. At 39d27cd16 it still divides the entire integrate duration by steps. The retained 6fdcde850 profile measured 33.4 s of fixed sampling setup and 5.30 s per guided step. The reference's 1.11 s uses intervals between progress events and excludes initial setup."
     },
     {
       "id": "SQA-401",
@@ -193,12 +194,33 @@
       "input": "Complete a fixed-seed Wan prompt-to-video request with a writable store. Stop the server, install a different compatible umT5 checkpoint at the same path with the same byte count and modification time, then restart against the same store. Repeat the request with the same tokenizer, recipe and denoiser.",
       "expected": "Verify that the current checkpoint matches the persisted identity before reusing the clip. The text-pipeline admission should reuse a proven unchanged checkpoint across restarts and compute again when its bytes change.",
       "actual": "Source at 5e82b8710. TextPipelineIdentity loads the store memo. admitCheckpoint accepts its old digest on size and time alone. TestTextPipelineNamesItsCheckpointThroughTheStore explicitly expects the old name after a same-stat replacement even though a fresh digest differs. Reading passes that name to measuredRun, so the previous clip can replay before the new encoder runs. The replay consequence was traced from source."
+    },
+    {
+      "id": "SQA-413",
+      "severity": "P2",
+      "files": [
+        "internal/mediacapability/image_cuda_windows.go",
+        "internal/latentimage/runtime_cuda_windows.go",
+        "internal/latentimage/enhancer_chat_windows.go",
+        "internal/latentimage/moss_enhancer_rules.go",
+        "internal/mediacapability/prepared_first_windows_test.go"
+      ],
+      "input": "Submit a MOSS Ultra image request through recipe run with enhance=true, prompt=\"a fox\", width=1024, height=576 and steps=-1. Use an otherwise admitted model and a working enhancer.",
+      "expected": "The image capability rejects the negative step count with its existing invalid sampling policy error before opening the enhancer. Share the static sampling checks in latentimage.ValidateRequest at admission. Valid mode 2 requests still reach the enhancer and the picture director.",
+      "actual": "Source at 39d27cd16. Strict decoding accepts this signed integer. Beside and Sized do not validate it. preparedFirst calls EnhanceRequest, which opens the 9B chat and requests a positive and negative prompt, with an optional extra positive. Only then does the director call ValidateRequest and reject steps=-1. If opening the enhancer fails, that error masks the invalid input. The existing admission fixture covers unknown and duplicate fields."
     }
   ],
   "master_lead_triage": {
     "at": "2026-11-13",
     "head": "0ef92bbeb509dbb96070d1f6e9161e95538210b7",
     "findings": {
+  "SQA-413": {
+        "action": "implemented",
+        "rows": [
+          "enhance-admission/do"
+        ],
+        "note": "Answered by the lead on 2026-11-18: valid from source (EnhanceRequest opened the chat before the director validated the request); filed and implemented by enhance-admission/do, which validates the request as the session will once enhanced before opening the chat, for the review's recheck."
+      },
   "SQA-411": {
         "action": "deferred",
         "rows": [],
@@ -274,7 +296,7 @@
       }
 }
   },
-  "next_finding_number": 413,
+  "next_finding_number": 414,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

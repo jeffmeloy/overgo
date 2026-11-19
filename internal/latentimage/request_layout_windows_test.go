@@ -3,6 +3,7 @@
 package latentimage
 
 import (
+	"context"
 	"errors"
 	"math"
 	"testing"
@@ -45,8 +46,8 @@ func TestARequestsLayoutBecomesItsPrompt(t *testing.T) {
 
 // TestARequestAskingModeTwoIsEnhancedFirst holds prompt mode 2 on a request (moss-ultra-sections/prompt-modes): a
 // request still asking it is refused where a picture session would draw it, as is one asking mode 3 beside it, and
-// EnhanceRequest returns a request asking no enhancing as it is and refuses the two modes together before opening a
-// chat.
+// EnhanceRequest returns a request asking no enhancing as it is and refuses the two modes together, and a request the
+// session would refuse once enhanced, before opening a chat.
 func TestARequestAskingModeTwoIsEnhancedFirst(t *testing.T) {
 	asking := Request{Enhance: true, Prompt: "a fox", Width: 1024, Height: 576}
 	if err := ValidateRequest(asking); !errors.Is(err, errNotEnhanced) {
@@ -63,5 +64,19 @@ func TestARequestAskingModeTwoIsEnhancedFirst(t *testing.T) {
 	}
 	if _, err := EnhanceRequest(t.Context(), nil, "", both); !errors.Is(err, errEnhanceBesideLayout) {
 		t.Errorf("enhancing modes 2 and 3 together gave %v, want them refused", err)
+	}
+	// A request the session would refuse once enhanced is refused as the session refuses it, its chat never opened
+	// (SQA-413).
+	opened := false
+	open := func(context.Context, string) (func(context.Context, string, string, int) (string, error), func() error, error) {
+		opened = true
+		return nil, nil, errors.New("the chat would not open")
+	}
+	invalid := asking
+	invalid.Steps = -1
+	enhanced := invalid
+	enhanced.Enhance = false
+	if _, err := EnhanceRequest(t.Context(), open, "", invalid); opened || err == nil || err.Error() != ValidateRequest(enhanced).Error() {
+		t.Errorf("enhancing a request of -1 steps opened the chat (%t) and gave %v; want the session's refusal, %v, and no chat", opened, err, ValidateRequest(enhanced))
 	}
 }

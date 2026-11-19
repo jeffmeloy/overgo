@@ -3,24 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "moss-attention",
-      "title": "MOSS's attention, 44% of a pass at 28.9 ms a layer, runs through a faster kernel on the card's tensor cores, held to the sections' golden floors",
-      "steps": [
-        {
-          "id": "do",
-          "title": "MOSS's attention, 44% of a pass at 28.9 ms a layer, runs through a faster kernel on the card's tensor cores, held to the sections' golden floors",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^TestMOSSAttentionTakesHalfItsTime$'",
-          "files": [
-            "internal/latentimage",
-            "internal/cuda",
-            "internal/tensor",
-            "kernels"
-          ],
-          "rationale": "Note: moss-speed/do measured a MOSS pass at 2368 x 1344 (12432 image tokens, 42 layers) under Nsight Systems with CUDA graph nodes traced, 2026-11-18: of 2.8 s of kernels a pass, attention_native_bf16_f32 takes 1.2 s (44%, 28.9 ms a layer), the BF16 tensor-core GEMMs 0.76 s (26%, near the card's BF16 peak for the pass's 118 TFLOP), and the elementwise kernels and precision conversions between them 0.6 s (21%: f32_to_bf16 and bf16_to_f32 alone 7.4 s of the run). ComfyUI's guided step is 1.1 s: the workflow loads moss_image_base_int8_convrot.safetensors and sets its attention to \"comfy kitchen attention\" (ModelAttentionBackend). A guided step here is about 5.5 s of kernels.\n\nThe cure of the largest share in a step: MOSS's attention runs through a faster kernel on the card's tensor cores, the eight-bit attention the image presets already offer (tensor.AttentionAttributes.EightBit, rotaryOptions.eightBit) or a BF16 flash kernel, chosen by a reading at 12432 tokens, and held to the six sections' golden floors (the faster kernel taken only where every floor holds).\n\nCheck: a MOSS pass's attention at 2368 x 1344 takes at most half its 28.9 ms a layer, and the sections' golden floors hold.\n\nNote: The path to ComfyUI's speed, part by part (the owner's review of 2026-11-18): a MOSS pass at 2368 x 1344 takes 2.65 s (moss-speed/do) and ComfyUI's 0.555 s (its guided step 1.11 s, two passes). Of overgo's pass, attention takes 1.2 s, the matrix multiplies 0.76 s (BF16, near the card's BF16 peak), and the elementwise kernels and precision conversions 0.6 s; each request also copies the weights again, 33 s. The matrix multiplies alone exceed ComfyUI's whole pass, so no one row closes the gap: ComfyUI runs the workflow's int8 ConvRot file through comfy_kitchen's int8 matrix multiplies (overgo reads the same file and decodes it to BF16, comfyquant) and its own attention backend (comfy kitchen attention). The rows that close it, each owning its share: moss-attention (1.2 s), moss-int8 (0.76 s), moss-fusion (0.6 s), moss-resident (33 s a request). A finished row is read against its share, not against the gap; the gap closes when a pass reads 0.555 s.\n\nA speed change is shown to draw the same picture: its final latent and picture at the same request and seed against overgo's own before the change, at an agreement BF16-equivalent arithmetic keeps (measured, not chosen after), beside the golden floors, which sit 3 dB under readings as low as 1.5 dB and let the 8-bit attention's 1.85 dB loss of picture agreement pass (text to image, 15.11 to 13.26 dB). A change that takes up the workflow's own arithmetic (comfy_kitchen's int8) is shown by its agreement with the recording rising.\n\nNote: Probed 2026-11-18 at 2368 x 1344, a conditional pass, from one generator at 2 and 6 steps: the card's eight-bit attention (SageAttention, the image presets' eight-bit-attention) took a pass from 2.692 s to 1.822 s, but drew text to image's picture at 13.26 dB against the recording where BF16 drew 15.11, and prompt mode 2's at 30.08 against 32.73, 0.35 dB above its floor: the agreement fell where it was high, so ComfyUI's attention is not eight-bit, and the sections keep BF16. The established tiled BF16 kernel (attention_tiled_bf16_f32, taken where the graph's rounds are not native) was slower, 3.349 s a pass against the native kernel's 2.187 s in the same run. The native kernel reproduces PyTorch's memory-efficient attention's rounding, its scores through shared memory and sixteen lanes reducing a row; a kernel keeping its scores and softmax in registers, flash-attention fashion, is the candidate, shown by the same picture at the same seed against the native kernel's.\n\nServes: every MOSS section, 50 steps of two passes in three of them."
-        }
-      ]
-    },
-    {
       "id": "moss-resident",
       "title": "A MOSS session keeps its denoiser's weights on the card between requests and copies them through pinned memory, so a request after the first copies none of the 9.5 GB",
       "steps": [

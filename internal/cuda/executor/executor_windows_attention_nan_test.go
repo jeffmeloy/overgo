@@ -26,6 +26,7 @@ type nanAttentionCase struct {
 	selected                    uint64
 	causal, bf16                bool
 	tensorCores, memorySaving   bool
+	registers                   bool
 	scale                       float32
 }
 
@@ -72,7 +73,7 @@ func (c nanAttentionCase) build(t *testing.T) (*tensor.Tensor, *tensor.Tensor, m
 	} else {
 		attention = builder.AttentionWithOptions(queried, key, value, tensor.AttentionOptions{
 			Scale: scale, Causal: c.causal, QueryStart: uint32(c.pastTokens),
-			TensorCores: c.tensorCores, MemoryEfficientF32: c.memorySaving,
+			TensorCores: c.tensorCores, MemoryEfficientF32: c.memorySaving, ScoresInRegisters: c.registers,
 		})
 	}
 	if err := builder.Err(); err != nil {
@@ -87,6 +88,7 @@ var nanAttentionCases = []nanAttentionCase{
 	{name: "online", kernel: "attention_online_finalize_f32", width: 96, queryHeads: 4, keyHeads: 2, queryTokens: 100, keyTokens: 77},
 	{name: "tiled_bf16", kernel: "attention_tiled_bf16_f32", width: 128, queryHeads: 4, keyHeads: 4, queryTokens: 128, keyTokens: 96, bf16: true},
 	{name: "native_bf16", kernel: "attention_native_bf16_f32", width: 64, queryHeads: 4, keyHeads: 2, queryTokens: 65, keyTokens: 129, bf16: true},
+	{name: "registers_bf16", kernel: "attention_registers_bf16_f32", width: 128, queryHeads: 4, keyHeads: 2, queryTokens: 70, keyTokens: 129, bf16: true, registers: true},
 	{name: "flash_64", kernel: "attention_flash_64_f32", width: 64, queryHeads: 4, keyHeads: 4, queryTokens: 96, keyTokens: 96, causal: true, tensorCores: true},
 	{name: "flash_128", kernel: "attention_flash_128_f32", width: 128, queryHeads: 16, keyHeads: 2, queryTokens: 70, keyTokens: 70, causal: true, tensorCores: true},
 	{name: "flash_256", kernel: "attention_flash_256_f32", width: 256, queryHeads: 8, keyHeads: 2, queryTokens: 100, keyTokens: 100, causal: true, tensorCores: true},

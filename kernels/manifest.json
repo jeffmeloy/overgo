@@ -84,7 +84,7 @@
         },
         {
           "path": "kernels/cuda/ops_f32_attention.cuh",
-          "sha256": "87ae91ff4ef9f0405f9e5a1e6413938bbf51548977c0366cf54d5d4d9f5afbe2"
+          "sha256": "5fc504faf4d64ac113605e1cfe45c8c81e0d6d9594103aebdbf29e39f7cc1a52"
         },
         {
           "path": "kernels/cuda/ops_f32_common.cuh",
@@ -148,7 +148,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "1a87ac87d0666a372ee3b12974d9dce6d64bf16fa171c7e4fdc0d504f09803cc",
+      "assetSha256": "753cb449b4a2ea41dc8340a25c86302f986b22a7e3ac1ec1d5e7cd4b31b5a0b5",
       "functions": [
         "activated_gate_f32",
         "activated_gate_q8_0_f32",
@@ -173,6 +173,7 @@
         "attention_online_finalize_f32",
         "attention_online_init_f32",
         "attention_online_softmax_f32",
+        "attention_registers_bf16_f32",
         "attention_sage_128_f32",
         "attention_score_affine_backward_f32",
         "attention_tiled_bf16_f32",
@@ -705,6 +706,7 @@
           ],
           "functions": [
             "attention_native_bf16_f32",
+            "attention_registers_bf16_f32",
             "attention_tiled_bf16_f32"
           ]
         },

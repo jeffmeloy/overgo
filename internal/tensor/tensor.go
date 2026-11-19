@@ -269,6 +269,12 @@ type AttentionAttributes struct {
 	// K, smoothed by its mean, in INT8 per 64-token block, P and V in FP8 E4M3, on the 8-bit tensor cores. A speed
 	// choice: its error against exact attention is FP8's (eight-bit-attention/kernel).
 	EightBit bool
+	// ScoresInRegisters computes an attention the executor fuses into its BF16 kernel, over heads of 128 channels, with
+	// its scores, softmax and output in registers (attention_registers_bf16_f32): the native BF16 kernel's arithmetic
+	// without its shared score and probability tiles, a row's sums gathered over its quad, so its result differs from the
+	// native kernel's at that rounding. A speed choice: MOSS's attention took 28.9 ms a layer at 12432 tokens in the
+	// native kernel, 44% of a pass (moss-attention).
+	ScoresInRegisters bool
 }
 
 type Conv1DAttributes struct {

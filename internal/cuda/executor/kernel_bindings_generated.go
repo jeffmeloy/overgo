@@ -30,6 +30,7 @@ const (
 	kernelAttentionOnlineFinalizeF32
 	kernelAttentionOnlineInitF32
 	kernelAttentionOnlineSoftmaxF32
+	kernelAttentionRegistersBf16F32
 	kernelAttentionSage128F32
 	kernelAttentionScoreAffineBackwardF32
 	kernelAttentionTiledBf16F32
@@ -521,6 +522,7 @@ var kernelFunctionNames = [...]string{
 	"attention_online_finalize_f32",
 	"attention_online_init_f32",
 	"attention_online_softmax_f32",
+	"attention_registers_bf16_f32",
 	"attention_sage_128_f32",
 	"attention_score_affine_backward_f32",
 	"attention_tiled_bf16_f32",
@@ -1011,6 +1013,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	6,
 	5,
 	16,
+	12,
 	14,
 	8,
 	12,
@@ -1502,6 +1505,7 @@ var kernelFunctionArgumentWidths = [...][]uint16{
 	{8, 8, 4, 4, 4, 4},
 	{8, 8, 4, 4, 4},
 	{8, 8, 8, 8, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
+	{8, 8, 8, 8, 8, 4, 4, 4, 4, 4, 4, 4},
 	{8, 8, 8, 8, 8, 8, 8, 8, 4, 4, 4, 4, 4, 4},
 	{8, 8, 8, 8, 8, 4, 4, 4},
 	{8, 8, 8, 8, 8, 4, 4, 4, 4, 4, 4, 4},
@@ -1973,6 +1977,7 @@ var kernelFunctionArgumentWidths = [...][]uint16{
 const kernelModuleCount = 4
 
 var kernelFunctionModules = [...]uint8{
+	0,
 	0,
 	0,
 	0,

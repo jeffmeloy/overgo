@@ -234,6 +234,20 @@
       "input": "In the existing mutantFixture, select a Go test that skips when Above(11) is false and otherwise passes. Above(v) returns v > 10. The baseline passes and reversing > to <= makes the only selected test skip.",
       "expected": "Use the existing planverify verdict for Go tests. Count a failed test assertion as caught, a passing check as survived, and a skipped test or failed build as inconclusive. Exclude inconclusive attempts from the measured catch rate. The existing strong and weak fixture cases retain their verdicts.",
       "actual": "Source trace at c79cfc121. planverify.Execute returns ErrVacuous for the skipped test. mutate counts every non-nil verifier error as Refused, so this example reports one of one caught without a failed assertion. A build failure before tests start earns the same credit. The undo checker already distinguishes ErrAssertion. The retained mutation totals do not identify why a mutation was counted as refused."
+    },
+    {
+      "id": "SQA-417",
+      "severity": "P2",
+      "files": [
+        "cmd/validate/run.go",
+        "cmd/validate/test_steps.go",
+        "cmd/validate/run_test.go",
+        "internal/testevidence/testdata/probefixture/probe_test.go",
+        "internal/landing/lanes.go"
+      ],
+      "input": "Give the tested lane in TestValidateRunCycleLanes its existing probefixture package as a single Each entry, as the models lane does. TestExisting and TestUnavailableCapability pass and TestElsewhere declares itself inapplicable. In a second case, let TestExisting fail.",
+      "expected": "Release the GPU and test turn between tests. Have executeMeasured judge the collected outcomes once per original package under requiredPass rules. The first case earns the same credit as the whole-package run. The second reports a failure. A package with only declared exclusions stays inapplicable, and a pass in another package gives it no credit.",
+      "actual": "Source trace at 1b4b4b7c2. acquire calls requiredPass for each isolated test. TestElsewhere returns errInapplicable, so the first case records an unsuccessful lane and suppresses all pending cell measurements. In the second case HoldTestTurnEach joins both errors and record classifies the lane as inapplicable even though TestExisting failed."
     }
   ],
   "master_lead_triage": {
@@ -315,7 +329,7 @@
       }
 }
   },
-  "next_finding_number": 417,
+  "next_finding_number": 418,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

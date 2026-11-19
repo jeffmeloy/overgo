@@ -122,6 +122,8 @@ type bf16AppendFusion struct {
 type bf16AttentionFusion struct {
 	query, key, value, keyBias *tensor.Tensor
 	native                     bool
+	// registers takes the kernel that keeps the scores in registers (tensor.AttentionAttributes.ScoresInRegisters).
+	registers bool
 }
 
 type rewriteContext struct {
@@ -1110,12 +1112,12 @@ func applyBF16AttentionRewrite(context *rewriteContext) {
 		}
 		fusion := bf16AttentionFusion{
 			query: query.Inputs[0], key: key.Inputs[0], value: value.Inputs[0],
-			native: native,
+			native: native, registers: attributes.ScoresInRegisters,
 		}
 		if attributes.HasKeyBias {
 			fusion = bf16AttentionFusion{
 				query: query.Inputs[0], key: key.Inputs[0], value: value.Inputs[0], keyBias: node.Inputs[3],
-				native: native,
+				native: native, registers: attributes.ScoresInRegisters,
 			}
 		}
 		operands := []*tensor.Tensor{fusion.query, fusion.key, fusion.value}

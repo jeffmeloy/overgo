@@ -303,6 +303,7 @@ type attentionOptions struct {
 	nativeMath            bool
 	tensorCores           bool
 	eightBit              bool
+	scoresInRegisters     bool
 	queryStart, window    uint32
 }
 
@@ -332,6 +333,8 @@ type AttentionOptions struct {
 	TensorCores bool
 	// EightBit computes the attention in 8 bits (AttentionAttributes.EightBit).
 	EightBit bool
+	// ScoresInRegisters keeps a BF16 attention's scores in registers (AttentionAttributes.ScoresInRegisters).
+	ScoresInRegisters bool
 }
 
 // NativeAttentionSoftmaxWidth bounds the native F32 reductions validated through the source prompt limit.
@@ -356,9 +359,10 @@ func (b *Builder) AttentionWithOptions(
 		relativeBidirectional: options.RelativeBidirectional,
 		chunkedWindow:         options.ChunkedWindow, queryStart: options.QueryStart,
 		window: options.Window, naiveF32: options.NaiveF32, memoryEfficientF32: options.MemoryEfficientF32,
-		nativeMath:  options.NativeMath,
-		tensorCores: options.TensorCores,
-		eightBit:    options.EightBit,
+		nativeMath:        options.NativeMath,
+		tensorCores:       options.TensorCores,
+		eightBit:          options.EightBit,
+		scoresInRegisters: options.ScoresInRegisters,
 	})
 }
 
@@ -574,6 +578,7 @@ func (b *Builder) buildAttention(
 			MemoryEfficientF32:    options.memoryEfficientF32,
 			TensorCores:           options.tensorCores,
 			EightBit:              options.eightBit,
+			ScoresInRegisters:     options.scoresInRegisters,
 		},
 	)
 }

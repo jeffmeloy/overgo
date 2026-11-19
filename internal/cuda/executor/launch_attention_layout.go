@@ -32,6 +32,15 @@ const (
 		3*4*attentionBF16RowTile) // alpha/max/sum rows
 )
 
+// The BF16 attention that keeps its scores in registers (attention_registers_bf16_f32) takes 64 query rows a block,
+// four warps of 16, and streams 64-key panels of K and V, one each, Q staged through V's storage before the first.
+const (
+	attentionRegistersRows        = uint32(64)
+	attentionRegistersKeys        = uint32(64)
+	attentionRegistersThreads     = uint32(128)
+	attentionRegistersSharedBytes = uint32(2 * 2 * attentionRegistersKeys * (attentionBF16Width + 8))
+)
+
 // The established BF16 attention contract uses 64-row tiles and 64-key panels.
 // Shared storage follows attention_tiled_bf16_f32 including double-buffered K.
 const (
@@ -165,10 +174,13 @@ func launchBF16Attention(
 			return err
 		}
 	}
-	function, rows, shared := functions[kernelAttentionTiledBf16F32], attentionBF16EstablishedRows, attentionBF16EstablishedShared
-	if fusion.native {
+	function, rows, shared, threads := functions[kernelAttentionTiledBf16F32], attentionBF16EstablishedRows, attentionBF16EstablishedShared, attentionBF16Threads
+	switch {
+	case fusion.registers && keyWidth == attentionBF16Width:
+		function, rows, shared, threads = functions[kernelAttentionRegistersBf16F32], attentionRegistersRows, attentionRegistersSharedBytes, attentionRegistersThreads
+	case fusion.native || fusion.registers:
 		function, rows, shared = functions[kernelAttentionNativeBf16F32], attentionBF16RowTile, attentionBF16SharedBytes
-	} else if keyWidth != attentionBF16Width {
+	case keyWidth != attentionBF16Width:
 		return errors.New("established BF16 attention requires 128-channel heads")
 	}
 	grid := driver.Dim3{
@@ -178,7 +190,7 @@ func launchBF16Attention(
 	}
 	return launchGridSharedABI(
 		state, function,
-		grid, driver.Dim3{X: attentionBF16Threads, Y: 1, Z: 1}, shared,
+		grid, driver.Dim3{X: threads, Y: 1, Z: 1}, shared,
 		&query, &keyStage, &valueStage, &keyBias, &output,
 		&queryHeads, &keyValueHeads, &queryTokens, &keyValueTokens,
 		&sequences, &keyWidth, &scale,

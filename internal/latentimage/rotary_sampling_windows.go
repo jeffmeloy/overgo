@@ -20,6 +20,11 @@ import (
 	"overgo/internal/torchrng"
 )
 
+// samplingScoresInRegisters says a rotary sampling's BF16 attention keeps its scores in registers
+// (tensor.AttentionAttributes.ScoresInRegisters): the native kernel took 28.9 ms a layer of MOSS at 12432 tokens, 44%
+// of a pass (moss-attention). A test reads the native kernel's sampling beside it.
+var samplingScoresInRegisters = true
+
 // runRotarySampling retains latents through guidance and Euler updates.
 // The caller owns the session and returned latent, and observations alone download intermediate values.
 func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSession, modelRoot string, spec TransformerSpec, height, width int, initial, positive, negative []float32, settings rotarySamplingSpec, observe func(string, []float32) error) (result *residentLatent, err error) {
@@ -46,7 +51,7 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 		if existing, ok := branches[name]; ok {
 			return existing, nil
 		}
-		p, e := compileRotaryDenoiserProgram(spec, mossRefinementEpsilon, height, width, len(conditioning)/spec.TextHidden, skip, dtype.BF16, rotaryOptions{eightBit: settings.eightBit, adapters: settings.adapters}, weights...)
+		p, e := compileRotaryDenoiserProgram(spec, mossRefinementEpsilon, height, width, len(conditioning)/spec.TextHidden, skip, dtype.BF16, rotaryOptions{eightBit: settings.eightBit, registers: samplingScoresInRegisters, adapters: settings.adapters}, weights...)
 		if e != nil {
 			return branch{}, e
 		}

@@ -12,14 +12,21 @@ import (
 	"overgo/internal/testcheck"
 )
 
-// attentionShare is the share of a MOSS pass at 2368 x 1344 its BF16 attention took (moss-speed/do: 1.2 s of 2.8 s of
-// kernels, 28.9 ms a layer).
+// attentionShare is the share of a MOSS pass at 2368 x 1344 its native BF16 attention took (moss-speed/do: 1.2 s of
+// 2.8 s of kernels, 28.9 ms a layer).
 const attentionShare = 0.44
 
-// TestMOSSAttentionTakesHalfItsTime holds a MOSS pass at the sections' own size, 2368 x 1344, as the workflow's text
-// section's preset draws it (moss-attention), to saving at least half of what its attention took in BF16: one
-// generator samples the conditional pass at 2 and 6 steps in BF16 attention and as the preset asks, and a pass is
-// the difference over four steps, the request's own part left beside them.
+// samePicture is the least agreement, in dB, a sampling with its attention in registers keeps with the native kernel's
+// at the same request and seed, latent and picture, read as the golden floors read theirs: the same picture, where the
+// workflow's own recording keeps 1.55 dB of latent and 15.11 dB of picture.
+const samePicture = 30.0
+
+// TestMOSSAttentionTakesHalfItsTime holds MOSS's sampling at the sections' own size, 2368 x 1344, with its attention
+// in registers (samplingScoresInRegisters, moss-attention), to saving at least half what the native BF16 kernel's
+// attention took of a pass, and to drawing the same picture as the native kernel at the same request and seed: one
+// generator samples the conditional pass at 2 and 6 steps with each kernel, a pass being the difference over four
+// steps, and the 6-step samplings' final latents and pictures agree to samePicture. Golden floors 3 dB under readings
+// near 1.5 dB would pass a kernel that drew another picture (the owner's review of 2026-11-18).
 func TestMOSSAttentionTakesHalfItsTime(t *testing.T) {
 	cudatest.Require(t)
 	ctx := t.Context()
@@ -31,16 +38,24 @@ func TestMOSSAttentionTakesHalfItsTime(t *testing.T) {
 	request = testcheck.Must(request.Sized(root))(t)
 	one := float32(1)
 	request.GuidanceScale = &one
-	asking := func(steps int, preset string) Request {
+	served := samplingScoresInRegisters
+	t.Cleanup(func() { samplingScoresInRegisters = served })
+	asking := func(steps int) Request {
 		asked := request
-		asked.Steps, asked.Preset = steps, preset
+		asked.Steps = steps
 		return asked
 	}
-	generator, loaded := testcheck.Must(LoadGenerator(ctx, root, profile, asking(2, "")))(t), true
+	generator, loaded := testcheck.Must(LoadGenerator(ctx, root, profile, asking(2)))(t), true
 	defer closeReporting(t, context.WithoutCancel(ctx), generator)
-	sample := func(steps int, preset string) time.Duration {
+	type drawn struct {
+		wall    time.Duration
+		latent  []float32
+		picture []byte
+	}
+	sample := func(steps int, registers bool) drawn {
 		t.Helper()
-		asked := asking(steps, preset)
+		samplingScoresInRegisters = registers
+		asked := asking(steps)
 		if !loaded {
 			testcheck.NoError(t, generator.Reset(ctx, asked))
 		}
@@ -49,19 +64,24 @@ func TestMOSSAttentionTakesHalfItsTime(t *testing.T) {
 		start := time.Now()
 		testcheck.Must(generator.integrate(ctx, session))(t)
 		wall := time.Since(start)
-		testcheck.Must(generator.decode(ctx, session))(t)
-		return wall
+		latent := testcheck.Must(generator.rotary.latent.outputs.CopyToHost(ctx, generator.rotary.latent.node))(t)
+		picture := testcheck.Must(generator.decode(ctx, session))(t)
+		return drawn{wall: wall, latent: latent.Data, picture: picture.Data}
 	}
-	const preset = "ultra-text-to-image"
-	sample(2, "")
-	plain := (sample(6, "") - sample(2, "")) / 4
-	served := (sample(6, preset) - sample(2, preset)) / 4
-	if !generator.request.EightBitAttention {
-		t.Errorf("the %s preset draws its attention in BF16; want the faster attention it asks", preset)
+	sample(2, false)
+	nativeSix := sample(6, false)
+	native := (nativeSix.wall - sample(2, false).wall) / 4
+	registersSix := sample(6, true)
+	registers := (registersSix.wall - sample(2, true).wall) / 4
+	latentAgreement, pictureAgreement := decibelsOverSquares(registersSix.latent, nativeSix.latent), pictureDecibels(t, registersSix.picture, nativeSix.picture)
+	t.Logf("a conditional pass at %dx%d: %v with the native attention, %v with it in registers; the same seed's latent agrees to %.2f dB, its picture to %.2f dB",
+		request.Width, request.Height, native.Round(time.Millisecond), registers.Round(time.Millisecond), latentAgreement, pictureAgreement)
+	if saved := native - registers; float64(saved) < attentionShare/2*float64(native) {
+		t.Errorf("with its attention in registers a pass saves %v of the native %v; want at least half its attention's share, %v",
+			saved.Round(time.Millisecond), native.Round(time.Millisecond), time.Duration(attentionShare/2*float64(native)).Round(time.Millisecond))
 	}
-	t.Logf("a conditional pass at %dx%d: %v in BF16 attention, %v as %s draws it", request.Width, request.Height, plain.Round(time.Millisecond), served.Round(time.Millisecond), preset)
-	if saved := plain - served; float64(saved) < attentionShare/2*float64(plain) {
-		t.Errorf("as %s draws it a pass saves %v of BF16's %v; want at least half its attention's share, %v",
-			preset, saved.Round(time.Millisecond), plain.Round(time.Millisecond), time.Duration(attentionShare/2*float64(plain)).Round(time.Millisecond))
+	if !(latentAgreement >= samePicture) || !(pictureAgreement >= samePicture) {
+		t.Errorf("with its attention in registers the same seed's latent agrees to %.2f dB and its picture to %.2f dB with the native kernel's; want the same picture, at least %.0f dB",
+			latentAgreement, pictureAgreement, samePicture)
 	}
 }

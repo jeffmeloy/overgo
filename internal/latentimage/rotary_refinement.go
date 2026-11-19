@@ -31,16 +31,18 @@ type rotaryGraph struct {
 	// eightBit computes the attention in 8 bits (tensor.AttentionAttributes.EightBit), from F32 heads with no storage
 	// round before it.
 	eightBit bool
+	// registers keeps the BF16 attention's scores in registers (tensor.AttentionAttributes.ScoresInRegisters).
+	registers bool
 	// adapters patch the graph's projections and weights unmerged (mediaAdapter), each its tensors bound from its file
 	// and scaled by a strength of its own fed each run, in the order a request names them; none for a graph without one.
 	adapters []graphAdapter
 }
 
-// rotaryOptions are what a rotary program computes beside its weights: its attention in 8 bits, and its adapters, in
-// the order a request names them.
+// rotaryOptions are what a rotary program computes beside its weights: its attention in 8 bits, or in BF16 with its
+// scores in registers, and its adapters, in the order a request names them.
 type rotaryOptions struct {
-	eightBit bool
-	adapters []*mediaAdapter
+	eightBit, registers bool
+	adapters            []*mediaAdapter
 }
 
 // graphAdapter is one adapter a rotary graph applies: its patches, its tensors' inputs, bound from its file, the scalar
@@ -62,7 +64,7 @@ const adapterPlace = "@"
 // use takes the options into the graph, binding each adapter's tensors into its bindings, and gives each adapter's
 // strength input.
 func (g *rotaryGraph) use(options rotaryOptions, bindings []tensor.WeightBindings) []*tensor.Tensor {
-	g.eightBit = options.eightBit
+	g.eightBit, g.registers = options.eightBit, options.registers
 	strengths := make([]*tensor.Tensor, len(options.adapters))
 	for index, adapter := range options.adapters {
 		place := ""
@@ -220,7 +222,7 @@ func (g *rotaryGraph) attention(q, k, v *tensor.Tensor) *tensor.Tensor {
 	} else {
 		q, k, v = g.round(g.rotate(q)), g.round(g.rotate(k)), g.round(v)
 	}
-	options := tensor.AttentionOptions{Scale: float32(float64(tensor.UnitScale) / math.Sqrt(float64(g.headWidth))), EightBit: g.eightBit}
+	options := tensor.AttentionOptions{Scale: float32(float64(tensor.UnitScale) / math.Sqrt(float64(g.headWidth))), EightBit: g.eightBit, ScoresInRegisters: g.registers && !g.eightBit}
 	return g.b.Reshape(g.round(g.b.AttentionWithOptions(q, k, v, options)), g.width, g.sequence)
 }
 func (g *rotaryGraph) situ(up, gate *tensor.Tensor) *tensor.Tensor {

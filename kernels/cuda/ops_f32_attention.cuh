@@ -1409,6 +1409,219 @@ extern "C" __global__ void __launch_bounds__(512, 1) attention_native_bf16_f32(
     }
 }
 
+// BF16 attention with its scores, softmax and output in registers (attention_registers_bf16_f32): the native kernel's
+// arithmetic, one BF16 m16n8k16 product a term with F32 accumulation, the scores scaled, biased and multiplied by
+// log2(e) at their own F32 roundings and exponentiated in base 2, the probabilities rounded to BF16 for the value
+// product and summed unrounded, and the output multiplied by the rounded inverse of its row's sum, without the native
+// kernel's shared score and probability tiles. A block takes 64 query rows of one head, four warps of 16, and streams
+// 64-key tiles of K and V through shared memory by cp.async, the value tile during the scores and the next key tile
+// during the value product; Q is staged through the value tile's storage before the first. A row's running maximum
+// and sum gather over the four lanes of its quad where the native kernel's sixteen lanes reduce a panel in the
+// reference's order, so the two differ at that rounding (moss-attention: the native kernel took 28.9 ms a layer of
+// MOSS at 12432 tokens, 44% of a pass).
+#define ATTENTION_REGISTERS_ROWS 64u
+#define ATTENTION_REGISTERS_KEYS 64u
+#define ATTENTION_REGISTERS_THREADS 128u
+extern "C" __global__ void __launch_bounds__(ATTENTION_REGISTERS_THREADS) attention_registers_bf16_f32(
+        const float * query,
+        const unsigned short * key,
+        const unsigned short * value,
+        const float * key_bias,
+        float * output,
+        unsigned int query_heads,
+        unsigned int key_value_heads,
+        unsigned int query_tokens,
+        unsigned int key_value_tokens,
+        unsigned int sequences,
+        unsigned int head_width,
+        float scale) {
+    const unsigned int W = 128u;
+    const unsigned int BM = ATTENTION_REGISTERS_ROWS;
+    const unsigned int BN = ATTENTION_REGISTERS_KEYS;
+    const unsigned int LD = W + 8u;  // bf16 lds, multiple of 8
+    const unsigned int row_tile = blockIdx.x;
+    const unsigned int query_head = blockIdx.y;
+    const unsigned int sequence = blockIdx.z;
+    if (sequence >= sequences || query_head >= query_heads) {
+        return;
+    }
+    const unsigned int key_value_head = query_head / (query_heads / key_value_heads);
+    const unsigned int warp = threadIdx.x >> 5;
+    const unsigned int lane = threadIdx.x & 31u;
+    const unsigned int g = lane >> 2;
+    const unsigned int t = lane & 3u;
+
+    extern __shared__ unsigned char attention_registers_shared[];
+    __nv_bfloat16 * k_tile = (__nv_bfloat16 *) attention_registers_shared;  // [BN][LD]
+    __nv_bfloat16 * v_tile = k_tile + BN * LD;                               // [BN][LD]
+    __nv_bfloat16 * q_tile = v_tile;                                         // [BM][LD], dead before the first V
+
+    const unsigned int row_base = row_tile * BM;
+    for (unsigned int index = threadIdx.x; index < BM * W; index += blockDim.x) {
+        const unsigned int row = index >> 7;
+        const unsigned int channel = index & 127u;
+        const unsigned int token = row_base + row;
+        q_tile[row * LD + channel] = __float2bfloat16(token < query_tokens && channel < head_width
+            ? query[((sequence * query_tokens + token) * query_heads + query_head) * head_width + channel]
+            : 0.0f);
+    }
+    __syncthreads();
+
+    // ldmatrix lane->address roles, as attention_native_bf16_f32 takes them.
+    const unsigned int a_row = (lane & 7u) + ((lane >> 3u) & 1u) * 8u;
+    const unsigned int a_col = (lane >> 4u) * 8u;
+    const unsigned int bk_row = (lane & 7u) + (lane >> 4u) * 8u;
+    const unsigned int bk_col = ((lane >> 3u) & 1u) * 8u;
+    unsigned int q_frag[8][4];
+#pragma unroll
+    for (unsigned int k = 0; k < 8u; ++k) {
+        attention_ldx4(
+            attention_shared_address(q_tile + (warp * 16u + a_row) * LD + k * 16u + a_col),
+            q_frag[k][0], q_frag[k][1], q_frag[k][2], q_frag[k][3]);
+    }
+    __syncthreads();
+
+    const unsigned int kv_token_stride = key_value_heads * head_width;
+    const unsigned short * key_base = key +
+        sequence * key_value_tokens * kv_token_stride + key_value_head * head_width;
+    const unsigned short * value_base = value +
+        sequence * key_value_tokens * kv_token_stride + key_value_head * head_width;
+
+    float weighted[16][4];
+#pragma unroll
+    for (unsigned int tile = 0; tile < 16u; ++tile) {
+        weighted[tile][0] = weighted[tile][1] = weighted[tile][2] = weighted[tile][3] = 0.0f;
+    }
+    float maximum[2] = {-3.402823466e+38F, -3.402823466e+38F};
+    float sum[2] = {0.0f, 0.0f};
+    const float log2e = 1.4426950408889634074f;
+
+    attention_bf16_stage_rows(key_base, k_tile, 0u, key_value_tokens, kv_token_stride, head_width, BN);
+    __pipeline_commit();
+    for (unsigned int tile_base = 0; tile_base < key_value_tokens; tile_base += BN) {
+        // The key tile is in, and every warp finished the last value product, so the value tile is free.
+        __pipeline_wait_prior(0);
+        __syncthreads();
+        attention_bf16_stage_rows(value_base, v_tile, tile_base, key_value_tokens, kv_token_stride, head_width, BN);
+        __pipeline_commit();
+
+        // The warp's 16 rows against the tile's 64 keys, eight 16x8 accumulators.
+        float scores[8][4];
+#pragma unroll
+        for (unsigned int column = 0; column < 8u; ++column) {
+            scores[column][0] = scores[column][1] = scores[column][2] = scores[column][3] = 0.0f;
+        }
+#pragma unroll
+        for (unsigned int pair = 0; pair < 4u; ++pair) {
+            const __nv_bfloat16 * k_rows = k_tile + (pair * 16u + bk_row) * LD + bk_col;
+#pragma unroll
+            for (unsigned int k = 0; k < 8u; ++k) {
+                unsigned int b0, b1, b2, b3;
+                attention_ldx4(attention_shared_address(k_rows + k * 16u), b0, b1, b2, b3);
+                attention_mma(scores[2u * pair], q_frag[k], b0, b1);
+                attention_mma(scores[2u * pair + 1u], q_frag[k], b2, b3);
+            }
+        }
+
+        // Scale, bias and mask the scores, then each of the lane's two rows' running maximum over its quad.
+        float tile_maximum[2] = {-3.402823466e+38F, -3.402823466e+38F};
+#pragma unroll
+        for (unsigned int column = 0; column < 8u; ++column) {
+#pragma unroll
+            for (unsigned int element = 0; element < 4u; ++element) {
+                const unsigned int half = element / 2u;
+                const unsigned int key_token = tile_base + column * 8u + 2u * t + element % 2u;
+                const bool held = key_token < key_value_tokens;
+                const float score = __fmul_rn(scores[column][element], scale) +
+                    (key_bias != nullptr && held ? key_bias[key_token] : 0.0f);
+                const float scaled = __fmul_rn(score, log2e);
+                scores[column][element] = held ? scaled : -INFINITY;
+                if (held) {
+                    tile_maximum[half] = fmaxf(tile_maximum[half], scaled);
+                }
+            }
+        }
+        float alpha[2];
+#pragma unroll
+        for (unsigned int half = 0; half < 2u; ++half) {
+            tile_maximum[half] = fmaxf(tile_maximum[half], __shfl_xor_sync(0xffffffffu, tile_maximum[half], 1));
+            tile_maximum[half] = fmaxf(tile_maximum[half], __shfl_xor_sync(0xffffffffu, tile_maximum[half], 2));
+            const float next = fmaxf(maximum[half], tile_maximum[half]);
+            alpha[half] = __nv_exp2f(maximum[half] - next);
+            maximum[half] = next;
+            sum[half] = __fmul_rn(sum[half], alpha[half]);
+        }
+#pragma unroll
+        for (unsigned int column = 0; column < 8u; ++column) {
+#pragma unroll
+            for (unsigned int element = 0; element < 4u; ++element) {
+                const unsigned int half = element / 2u;
+                const float score = scores[column][element];
+                const float probability = score == -INFINITY ? 0.0f : __nv_exp2f(score - maximum[half]);
+                scores[column][element] = probability;
+                sum[half] += probability;
+            }
+        }
+#pragma unroll
+        for (unsigned int tile = 0; tile < 16u; ++tile) {
+            weighted[tile][0] *= alpha[0];
+            weighted[tile][1] *= alpha[0];
+            weighted[tile][2] *= alpha[1];
+            weighted[tile][3] *= alpha[1];
+        }
+
+        // The value tile is in, and every warp finished its scores, so the next key tile may load during the product.
+        __pipeline_wait_prior(0);
+        __syncthreads();
+        if (tile_base + BN < key_value_tokens) {
+            attention_bf16_stage_rows(key_base, k_tile, tile_base + BN, key_value_tokens, kv_token_stride, head_width, BN);
+            __pipeline_commit();
+        }
+#pragma unroll
+        for (unsigned int step = 0; step < 4u; ++step) {
+            // Two score accumulators are the A fragment of 16 keys, rounded to BF16 as the native kernel's P.
+            unsigned int p_frag[4];
+            const __nv_bfloat162 p0 = __floats2bfloat162_rn(scores[2u * step][0], scores[2u * step][1]);
+            const __nv_bfloat162 p1 = __floats2bfloat162_rn(scores[2u * step][2], scores[2u * step][3]);
+            const __nv_bfloat162 p2 = __floats2bfloat162_rn(scores[2u * step + 1u][0], scores[2u * step + 1u][1]);
+            const __nv_bfloat162 p3 = __floats2bfloat162_rn(scores[2u * step + 1u][2], scores[2u * step + 1u][3]);
+            p_frag[0] = *reinterpret_cast<const unsigned int *>(&p0);
+            p_frag[1] = *reinterpret_cast<const unsigned int *>(&p1);
+            p_frag[2] = *reinterpret_cast<const unsigned int *>(&p2);
+            p_frag[3] = *reinterpret_cast<const unsigned int *>(&p3);
+            const __nv_bfloat16 * v_rows = v_tile + (step * 16u + a_row) * LD + a_col;
+#pragma unroll
+            for (unsigned int column = 0; column < 8u; ++column) {
+                unsigned int b0, b1, b2, b3;
+                attention_ldx4_trans(attention_shared_address(v_rows + column * 16u), b0, b1, b2, b3);
+                attention_mma(weighted[2u * column], p_frag, b0, b1);
+                attention_mma(weighted[2u * column + 1u], p_frag, b2, b3);
+            }
+        }
+    }
+
+#pragma unroll
+    for (unsigned int half = 0; half < 2u; ++half) {
+        sum[half] += __shfl_xor_sync(0xffffffffu, sum[half], 1);
+        sum[half] += __shfl_xor_sync(0xffffffffu, sum[half], 2);
+    }
+#pragma unroll
+    for (unsigned int half = 0; half < 2u; ++half) {
+        const unsigned int token = row_base + warp * 16u + g + 8u * half;
+        if (token >= query_tokens) {
+            continue;
+        }
+        const float inverse = attention_row_frcp(sum[half]);
+        float * out = output + ((sequence * query_tokens + token) * query_heads + query_head) * head_width + 2u * t;
+#pragma unroll
+        for (unsigned int tile = 0; tile < 16u; ++tile) {
+            if (tile * 8u + 2u * t < head_width) {
+                *reinterpret_cast<float2 *>(out + tile * 8u) =
+                    make_float2(weighted[tile][2u * half] * inverse, weighted[tile][2u * half + 1u] * inverse);
+            }
+        }
+    }
+}
 
 // Dense prompt attention on tensor cores (attention_flash_<width>_f32): a block takes 64 rows of one sequence's
 // key/value head, a row being a query token and one of the group's query heads (token-major, so a group's heads

@@ -19,22 +19,6 @@
       ]
     },
     {
-      "id": "lanes-fixtures",
-      "title": "A changed data file outside every Go package, as under fixtures/, reaches the lanes and packages whose sources name it, so a closed row's lanes run the checks that read it",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A changed data file outside every Go package, as under fixtures/, reaches the lanes and packages whose sources name it, so a closed row's lanes run the checks that read it",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestARepositoryDataFileReachesTheLanesThatReadIt$'",
-          "files": [
-            "internal/landing",
-            "cmd/validate"
-          ],
-          "rationale": "Note: SQA-415 (the review, source at c79cfc121): discover walks a changed data file up to the directory of a package the lane takes in, and the repository's fixtures/ lies under none, so a change to fixtures/needle_upstream_calls.json reached no needle-reference run and one to fixtures/moss/checkpoint.json no models package (TestMOSSGoldenProvenance reads it). A file outside every package reaches the packages whose sources name its path, and the reach test gains a fixture input."
-        }
-      ]
-    },
-    {
       "id": "moss-int8",
       "title": "MOSS's matrix multiplies over the workflow's int8 ConvRot weights run as comfy_kitchen runs them, on the card's int8 tensor cores",
       "steps": [

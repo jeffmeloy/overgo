@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"maps"
 	"slices"
 	"testing"
 
@@ -57,6 +58,40 @@ func TestAClosesLanesRunWhatItsChangesReach(t *testing.T) {
 		want, _ := byName(all, whole)
 		if !held || !slices.Equal(lane.Arguments, want.Arguments) || len(lane.Each) != len(want.Each) {
 			t.Errorf("the %s lane runs as %+v (held %t); want it whole, %+v", whole, lane, held, want)
+		}
+	}
+}
+
+// TestARepositoryDataFileReachesTheLanesThatReadIt holds a close's lanes to the checks that read a changed data file
+// beneath no Go package (lanes-fixtures), read on the repository: a change to fixtures/needle_upstream_calls.json runs
+// the needle-reference lane, whose seq2seq tests read it, and neither the sequences nor the browser lane; a change to
+// fixtures/moss/checkpoint.json runs the models lane's internal/latentimage, whose golden provenance test reads it, and
+// not internal/mediacapability, which imports latentimage and reads no fixture; and a change to the plan and the
+// findings register runs no lane. Both fixtures had reached no lane, data reaching a lane only beneath a package of its
+// closure (SQA-415).
+func TestARepositoryDataFileReachesTheLanesThatReadIt(t *testing.T) {
+	t.Parallel()
+	needle, moss := "fixtures/needle_upstream_calls.json", "fixtures/moss/checkpoint.json"
+	lanes := testcheck.Must(landing.CycleLanesReached(testutil.RepoRoot(t), map[string][]string{
+		"needle-reference": {needle}, "models": {moss}, "sequences": {needle}, "model-journey": {needle, moss},
+		"audio": {"docs/plan.json", "docs/sqa_findings.json"},
+	}))(t)
+	held := map[string][]string{}
+	for _, lane := range lanes {
+		held[lane.Name] = nil
+		for _, arguments := range lane.Each {
+			held[lane.Name] = append(held[lane.Name], arguments[len(arguments)-1])
+		}
+	}
+	if _, ran := held["needle-reference"]; !ran {
+		t.Errorf("a change to %s runs the lanes %v; want the needle-reference lane", needle, slices.Sorted(maps.Keys(held)))
+	}
+	if models, ran := held["models"]; !ran || !slices.Contains(models, "./internal/latentimage") || slices.Contains(models, "./internal/mediacapability") {
+		t.Errorf("a change to %s runs the models lane's %v (run %t); want internal/latentimage, which reads it, and not internal/mediacapability", moss, models, ran)
+	}
+	for _, unread := range []string{"sequences", "model-journey", "audio"} {
+		if _, ran := held[unread]; ran {
+			t.Errorf("the %s lane runs for files none of its packages reads; want it left out", unread)
 		}
 	}
 }

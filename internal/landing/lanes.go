@@ -28,6 +28,7 @@ import (
 	"overgo/internal/gitauthority"
 	"overgo/internal/gosource"
 	"overgo/internal/processcontrol"
+	"overgo/internal/repoanalysis"
 	"overgo/internal/testskip"
 )
 
@@ -768,6 +769,29 @@ func discover(repo string, candidates ...lane) (func(lane, []string) reach, erro
 			calls[candidate.name] = called
 		}
 	}
+	// readBy is what a changed data file beneath no package of a lane's closure reaches the lane by, with the lane's own
+	// packages it enters: those that read it, as the checkout's document census finds them (documentReaders, taken once
+	// and only when such a file changed), as a golden test reads fixtures/ (SQA-415). The census counts a test's reads,
+	// which compile into its own package's test binary alone, so a reader enters only itself, as a test file does. The
+	// work's own records, which change with every landing, reach none, as before; a census that cannot be taken reaches
+	// the lane whole.
+	readers := sync.OnceValues(func() (map[string][]string, error) { return documentReaders(repo) })
+	readBy := func(name string, candidate lane) (by string, own []string) {
+		if slices.Contains(repoanalysis.WorkRecords, name) {
+			return "", nil
+		}
+		read, err := readers()
+		if err != nil {
+			return fmt.Sprintf("%s, whose readers are unknown (%v)", name, err), nil
+		}
+		for _, reader := range read[name] {
+			if candidate.owns(reader) {
+				by = cmp.Or(by, name+" read by "+reader)
+				own = append(own, reader)
+			}
+		}
+		return by, own
+	}
 	return func(candidate lane, paths []string) reach {
 		selection, directories, closure := selections[candidate.tags], directories[candidate.tags], map[string]string{}
 		// owners are, for each closure directory, every one of the lane's packages that takes it in.
@@ -800,60 +824,70 @@ func discover(repo string, candidates ...lane) (func(lane, []string) reach, erro
 			}
 		}
 		// enters is what a changed path reaches the lane by, with the closure
-		// directory it entered and the lane's package that took that one in;
-		// by is empty when the path reaches nothing.
-		enters := func(name string) (by, entered, owner string) {
+		// directories it entered, whose lane packages take it in, and the
+		// lane's own packages it entered alone; it reaches the lane whole when
+		// it enters neither, and nothing when by is empty.
+		enters := func(name string) (by string, entered, own []string) {
 			if name == "go.mod" || name == "go.sum" || slices.ContainsFunc(candidate.prefixes, func(prefix string) bool { return strings.HasPrefix(name, prefix) }) {
-				return name, "", ""
+				return name, nil, nil
 			}
 			// A test file compiles only into its own package's test binary,
 			// so it reaches the lane only when that package is the lane's and
 			// the lane's build compiles it; a deleted one no longer says
 			// which builds did, so its package's lane is reached.
 			if candidate.binary && (strings.HasSuffix(name, "_test.go") || slices.Contains(strings.Split(path.Dir(name), "/"), "testdata")) {
-				return "", "", ""
+				return "", nil, nil
 			}
 			if strings.HasSuffix(name, "_test.go") {
 				_, absent := os.Stat(filepath.Join(repo, filepath.FromSlash(name)))
 				if candidate.owns(path.Dir(name)) && (selection.Files[name] || errors.Is(absent, fs.ErrNotExist)) {
-					return name, "", ""
+					return name, nil, []string{path.Dir(name)}
 				}
-				return "", "", ""
+				return "", nil, nil
 			}
 			// A data file nested under a closure package, testdata or an
 			// embedded recipe, is that package's input; a Go file belongs to
-			// its own package, so only data walks up.
+			// its own package, so only data walks up, and data beneath no
+			// closure package, as under fixtures/, enters the lane's packages
+			// that read it.
 			for parent := path.Dir(name); ; parent = path.Dir(parent) {
 				if owner, held := closure[parent]; held {
 					if owner == parent {
-						return name, parent, owner
+						return name, []string{parent}, nil
 					}
-					return name + " through " + owner, parent, owner
+					return name + " through " + owner, []string{parent}, nil
 				}
-				if strings.HasSuffix(name, ".go") || parent == "." {
-					return "", "", ""
+				if strings.HasSuffix(name, ".go") {
+					return "", nil, nil
+				}
+				if parent == "." {
+					by, own := readBy(name, candidate)
+					return by, nil, own
 				}
 			}
 		}
 		called, narrowed := calls[candidate.name], reach{}
 		if candidate.find != nil {
 			// A lane that runs only the packages a change enters names them: every package taking in the directory a path
-			// entered, a test file's own package, and all of them for a path that reaches the lane whole.
+			// entered, a package a path entered alone (a test file's own, a reader of data beneath no package), and all of
+			// them for a path that reaches the lane whole.
 			entered := map[string]bool{}
 			for _, name := range paths {
-				by, directory, _ := enters(name)
-				switch {
-				case by == "":
+				by, entering, own := enters(name)
+				if by == "" {
 					continue
-				case strings.HasSuffix(name, "_test.go"):
-					entered["./"+path.Dir(name)] = true
-				case directory == "":
-					for _, pattern := range candidate.packages {
-						entered[pattern] = true
-					}
-				default:
+				}
+				for _, pkg := range own {
+					entered["./"+pkg] = true
+				}
+				for _, directory := range entering {
 					for _, owner := range owners[directory] {
 						entered["./"+owner] = true
+					}
+				}
+				if len(entering)+len(own) == 0 {
+					for _, pattern := range candidate.packages {
+						entered[pattern] = true
 					}
 				}
 				narrowed.by = cmp.Or(narrowed.by, by)
@@ -862,20 +896,62 @@ func discover(repo string, candidates ...lane) (func(lane, []string) reach, erro
 			return narrowed
 		}
 		for _, name := range paths {
-			by, entered, owner := enters(name)
-			switch {
-			case by == "":
-			case called == nil || owner != candidate.tests || entered == owner:
+			// A path that enters the lane's own packages alone runs the lane whole, as one that enters none does.
+			by, entering, _ := enters(name)
+			if by != "" && len(entering) == 0 {
 				return reach{by: by}
-			case len(called[entered]) > 0:
-				narrowed.by = cmp.Or(narrowed.by, by)
-				narrowed.tests = append(narrowed.tests, called[entered]...)
+			}
+			for _, entered := range entering {
+				switch owner := closure[entered]; {
+				case called == nil || owner != candidate.tests || entered == owner:
+					return reach{by: by}
+				case len(called[entered]) > 0:
+					narrowed.by = cmp.Or(narrowed.by, by)
+					narrowed.tests = append(narrowed.tests, called[entered]...)
+				}
 			}
 		}
 		slices.Sort(narrowed.tests)
 		narrowed.tests = slices.Compact(narrowed.tests)
 		return narrowed
 	}, nil
+}
+
+// documentReaders are, for each document of the checkout at repo, the package directories the document census finds
+// reading it (repoanalysis.CheckoutDocuments) or reading a document whose text names it, as a manifest names its
+// tensors; the work's records name documents without reading them (repoanalysis.WorkRecords) and lend no reader. A file
+// the checkout no longer holds is in no census, and a directory that is no checkout, as a test's fixture module, tracks
+// no document.
+func documentReaders(repo string) (map[string][]string, error) {
+	if _, err := os.Stat(filepath.Join(repo, ".git")); errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	census, err := repoanalysis.CheckoutDocuments(context.Background(), repo)
+	if err != nil {
+		return nil, err
+	}
+	byPath := map[string]repoanalysis.TrackedDocument{}
+	for _, document := range census {
+		byPath[document.Path] = document
+	}
+	readers := map[string][]string{}
+	for _, document := range census {
+		seen, pending, found := map[string]bool{document.Path: true}, []string{document.Path}, []string(nil)
+		for len(pending) > 0 {
+			named := byPath[pending[0]]
+			pending = pending[1:]
+			found = append(found, named.Readers...)
+			for _, referrer := range named.ReferencedBy {
+				if !seen[referrer] && !slices.Contains(repoanalysis.WorkRecords, referrer) {
+					seen[referrer] = true
+					pending = append(pending, referrer)
+				}
+			}
+		}
+		slices.Sort(found)
+		readers[document.Path] = slices.Compact(found)
+	}
+	return readers, nil
 }
 
 // calledTests lists, for each directory a test file of the lane's tests

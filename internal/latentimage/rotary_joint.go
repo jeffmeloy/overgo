@@ -2,9 +2,37 @@ package latentimage
 
 import (
 	"fmt"
+
+	"overgo/internal/comfyquant"
+	"overgo/internal/safetensors"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 )
+
+// jointProjections are a joint block's projections (rotaryGraph.projection), each under its layer's prefix.
+var jointProjections = []string{"proj.q", "proj.k", "proj.v", "proj.o", "proj.ffn_up_gate", "proj.ffn_down"}
+
+// convRotProjections are the weights of the layers' joint projections a source holds in int8 ConvRot over groups of 256
+// columns (comfyquant.Find: under its own name, or a q, k or v projection as its third of a fused qkv), each read from
+// the header and its comfy_quant record alone, so each projection is held as its file holds it (int8-per-weight): one
+// flag read from the first q projection had held them all in int8, and a projection the file holds as plain BF16 was
+// refused as sampling bound it (SQA-423).
+func convRotProjections(source *safetensors.Source, layers int) (map[string]bool, error) {
+	held := map[string]bool{}
+	for layer := range layers {
+		for _, projection := range jointProjections {
+			name := fmt.Sprintf("layers.%d.%s.weight", layer, projection)
+			stored, quantized, err := comfyquant.Find(source, name)
+			if err != nil {
+				return nil, fmt.Errorf("%s: %w", name, err)
+			}
+			if quantized && stored.Group() == comfyquant.Group {
+				held[name] = true
+			}
+		}
+	}
+	return held, nil
+}
 
 type rotaryJointProgram struct {
 	input, rope, modulation, unit, output *tensor.Tensor

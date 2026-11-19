@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"overgo/internal/comfyquant"
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/graphruntime"
@@ -33,17 +32,15 @@ var samplingScoresInRegisters = true
 // than ComfyUI's. A test reads the BF16 sampling beside it.
 var samplingInt8 = true
 
-// heldInConvRot says whether a transformer directory's file holds the joint blocks' projections in int8 ConvRot over
-// groups of 256 columns, as the MOSS Ultra workflow's file holds each: its first block's q projection, a third of its
-// fused qkv, is read from the header and the projection's comfy_quant record alone.
-func heldInConvRot(directory string) (bool, error) {
+// heldInConvRot is the joint projections a transformer directory's file holds in int8 ConvRot over groups of 256
+// columns (convRotProjections), as the MOSS Ultra workflow's file holds each of its layers' four.
+func heldInConvRot(directory string, layers int) (map[string]bool, error) {
 	source, err := safetensors.OpenSource(directory)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	defer source.Close()
-	stored, quantized, err := comfyquant.Find(source, "layers.0.proj.q.weight")
-	return quantized && stored.Group() == comfyquant.Group, err
+	return convRotProjections(source, layers)
 }
 
 // runRotarySampling retains latents through guidance and Euler updates.
@@ -60,9 +57,9 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 	if spec.TextHidden <= 0 || len(positive)%spec.TextHidden != 0 || len(negative)%spec.TextHidden != 0 {
 		return nil, errors.New("rotary sampling: conditioning widths differ")
 	}
-	int8 := false
+	var int8 map[string]bool
 	if samplingInt8 {
-		if int8, err = heldInConvRot(filepath.Join(modelRoot, "transformer")); err != nil {
+		if int8, err = heldInConvRot(filepath.Join(modelRoot, "transformer"), spec.Layers); err != nil {
 			return nil, err
 		}
 	}

@@ -16,14 +16,17 @@ import (
 	"overgo/internal/testutil"
 )
 
-// finishedRequestBytes bounds what a finished request leaves on the device, the
-// executor's own small handles (512 bytes when written).
+// finishedRequestBytes bounds what a finished request leaves on the device beside
+// the weights its session keeps, the executor's own small handles (512 bytes
+// when written).
 const finishedRequestBytes = 1 << 16
 
 // TestMOSSBoundedResidency holds a session to its bounded stages: a request
-// leaves no device memory behind, a prompt met again places no text encoder on
-// the device, two new prompts place it once, and none of this changes a
-// picture from a fresh session's.
+// leaves on the device its sampling's programs, which the session keeps for the
+// next (moss-resident), as many bytes as a fresh session's same request leaves,
+// and nothing else, a prompt met again places no text encoder on the device,
+// two new prompts place it once, and none of this changes a picture from a
+// fresh session's.
 func TestMOSSBoundedResidency(t *testing.T) {
 	cudatest.Require(t)
 	root, _ := compactGeneratorFixture(t)
@@ -40,12 +43,16 @@ func TestMOSSBoundedResidency(t *testing.T) {
 		s := testcheck.Must(g.rotary.runtime.Stats(t.Context()))(t)
 		return s
 	}
+	// kept are the static bytes each session's last finished request left: its sampling's programs, the transformer's
+	// weights and that request's conditioning, which the next sampling binds again or releases.
+	kept := map[*Generator]uint64{}
 	finish := func(g *Generator) []byte {
 		t.Helper()
 		session := testcheck.Must(g.integrate(t.Context(), g))(t)
 		image := testcheck.Must(g.decode(t.Context(), session))(t)
-		if s := stats(g); s.StaticBytes != 0 || s.Device.CurrentBytes > finishedRequestBytes {
-			t.Fatalf("a finished request left %d bytes of weights and %d bytes on the device", s.StaticBytes, s.Device.CurrentBytes)
+		s := stats(g)
+		if kept[g] = s.StaticBytes; s.StaticBytes == 0 || s.Device.CurrentBytes > s.StaticBytes+finishedRequestBytes {
+			t.Fatalf("a finished request left %d bytes of weights and %d bytes on the device; want its sampling's programs kept and nothing beside them", s.StaticBytes, s.Device.CurrentBytes)
 		}
 		if peak, err := g.PeakDeviceBytes(); err != nil || peak == 0 {
 			t.Fatalf("a finished request read a device peak of %d: %v", peak, err)
@@ -103,6 +110,9 @@ func TestMOSSBoundedResidency(t *testing.T) {
 			}
 			if !bytes.Equal(actual, finish(cold)) {
 				t.Fatal("session reuse changed the fresh image")
+			}
+			if kept[g] != kept[cold] {
+				t.Fatalf("a reused session kept %d static bytes after the request and a fresh one %d; want the same, nothing kept from an earlier request", kept[g], kept[cold])
 			}
 			testcheck.NoError(t, cold.Close(t.Context()))
 		})

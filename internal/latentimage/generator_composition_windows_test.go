@@ -130,7 +130,10 @@ func TestMOSSGeneratorLifecycle(t *testing.T) {
 			if !errors.Is(e, context.Canceled) {
 				t.Fatal("cancellation lost", e)
 			}
-			if g.completed || g.rotary.latent != nil || g.rotary.runtime.StaticBytes() != 0 {
+			// A request cancelled after its sampling ended leaves the transformer's weights its session keeps for the next
+			// (moss-resident); one cancelled before leaves none.
+			sampled := stage == "decode"
+			if g.completed || g.rotary.latent != nil || (g.rotary.runtime.StaticBytes() != 0) != sampled || (len(g.rotary.kept) != 0) != sampled {
 				t.Fatal("cancelled request published completion or retained temporary resources")
 			}
 			if e = g.Reset(t.Context(), request); e == nil {

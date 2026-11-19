@@ -101,7 +101,7 @@ func verifyMOSSTrajectory(ctx context.Context, runtime *graphruntime.ResidentSes
 	}
 	hashes := map[string][sha256.Size]byte{}
 	for pass := range tensor.PairedExtent {
-		result, e := runRotarySampling(ctx, runtime, modelRoot, spec, int(latent.Shape[tensor.PairedExtent]), int(latent.Shape[tensor.TripleExtent]), initial, positive, negative, settings, func(boundary string, actual []float32) error {
+		result, e := runRotarySampling(ctx, runtime, nil, modelRoot, spec, int(latent.Shape[tensor.PairedExtent]), int(latent.Shape[tensor.TripleExtent]), initial, positive, negative, settings, func(boundary string, actual []float32) error {
 			want, e := read(boundary)
 			if e != nil {
 				return e

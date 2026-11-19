@@ -213,14 +213,15 @@
       "severity": "P2",
       "files": [
         "internal/landing/lanes.go",
+        "internal/repoanalysis/tracked_documents.go",
         "cmd/validate/lane_reach.go",
         "cmd/validate/lane_reach_test.go",
         "internal/seq2seq/upstream_calls_model_test.go",
         "internal/latentimage/moss_golden_test.go"
       ],
-      "input": "After a needle-reference pass, change only generated_tokens from 256 to 0 in fixtures/needle_upstream_calls.json and select the cycle lanes with -reached. For the models lane, after a pass change only the bytes of fixtures/moss/checkpoint.json.",
-      "expected": "CycleLanesReached selects the lane and package that read the changed fixture. The Needle check rejects zero tokens before loading its model and TestMOSSGoldenProvenance rejects the altered digest. Unrelated lanes and packages may still be skipped.",
-      "actual": "Source trace at c79cfc121. discover checks lane prefixes and enclosing Go package directories. Neither reader owns the repository-level fixtures directory in that selection. reachedSuites therefore omits needle-reference for the first change and models for the second. The existing reach test covers a Go file, plan.json, go.mod and missing baselines, but neither fixture input."
+      "input": "After a passing needle-reference run, delete only fixtures/needle_upstream_calls.json and select lanes with -reached. The reader still names the old path. The same case applies to the models lane when only fixtures/moss/checkpoint.json is deleted.",
+      "expected": "CycleLanesReached selects the reader of the removed fixture, so the Needle or MOSS check reports the missing input. Use the existing reader lookup for deleted paths, or run the lane when its readers are unknown. Keep the current package selection for edits to existing fixtures.",
+      "actual": "Source trace at c71a1e230. The Git diff supplies the deleted path. TrackedDocuments lists only files still present, so documentReaders returns no entry. discover treats the missing entry as zero readers and omits the lane. Both checks fail on the missing file if selected. The retained gate verified selection for edits to both fixtures while they were present."
     },
     {
       "id": "SQA-416",
@@ -234,33 +235,12 @@
       "input": "In the existing mutantFixture, select a Go test that skips when Above(11) is false and otherwise passes. Above(v) returns v > 10. The baseline passes and reversing > to <= makes the only selected test skip.",
       "expected": "Use the existing planverify verdict for Go tests. Count a failed test assertion as caught, a passing check as survived, and a skipped test or failed build as inconclusive. Exclude inconclusive attempts from the measured catch rate. The existing strong and weak fixture cases retain their verdicts.",
       "actual": "Source trace at c79cfc121. planverify.Execute returns ErrVacuous for the skipped test. mutate counts every non-nil verifier error as Refused, so this example reports one of one caught without a failed assertion. A build failure before tests start earns the same credit. The undo checker already distinguishes ErrAssertion. The retained mutation totals do not identify why a mutation was counted as refused."
-    },
-    {
-      "id": "SQA-417",
-      "severity": "P2",
-      "files": [
-        "cmd/validate/run.go",
-        "cmd/validate/test_steps.go",
-        "cmd/validate/run_test.go",
-        "internal/testevidence/testdata/probefixture/probe_test.go",
-        "internal/landing/lanes.go"
-      ],
-      "input": "Give the tested lane in TestValidateRunCycleLanes its existing probefixture package as a single Each entry, as the models lane does. TestExisting and TestUnavailableCapability pass and TestElsewhere declares itself inapplicable. In a second case, let TestExisting fail.",
-      "expected": "Release the GPU and test turn between tests. Have executeMeasured judge the collected outcomes once per original package under requiredPass rules. The first case earns the same credit as the whole-package run. The second reports a failure. A package with only declared exclusions stays inapplicable, and a pass in another package gives it no credit.",
-      "actual": "Source trace at 1b4b4b7c2. acquire calls requiredPass for each isolated test. TestElsewhere returns errInapplicable, so the first case records an unsuccessful lane and suppresses all pending cell measurements. In the second case HoldTestTurnEach joins both errors and record classifies the lane as inapplicable even though TestExisting failed."
     }
   ],
   "master_lead_triage": {
     "at": "2026-11-19",
     "head": "97714132e1f7a6655ab039f939e50f99e76e936e",
     "findings": {
-  "SQA-417": {
-        "action": "filed",
-        "rows": [
-          "lanes-verdict/do"
-        ],
-        "note": "Answered by the lead on 2026-11-19 at 97714132e: valid, reproduced (TestALaneRunTestByTestIsJudgedAsItsPackages fails at 1b4b4b7c2's judging: a package whose test passed beside one declaring itself inapplicable is an inapplicable lane, and a failed test beside such a test is reported inapplicable). A regression of lanes-yield, which hides breaks from the lanes, so filed at once ahead of the speed rows; lanes-verdict/do judges each package once over its tests' verdicts."
-      },
   "SQA-416": {
         "action": "deferred",
         "rows": [],

@@ -27,16 +27,30 @@ var samplingScoresInRegisters = true
 
 // runRotarySampling retains latents through guidance and Euler updates.
 // The caller owns the session and returned latent, and observations alone download intermediate values.
-func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSession, modelRoot string, spec TransformerSpec, height, width int, initial, positive, negative []float32, settings rotarySamplingSpec, observe func(string, []float32) error) (result *residentLatent, err error) {
+// Where kept holds the programs a session's last sampling left it, their transformer weights stay on the card for this
+// one, which binds them by their file and name as they were, and the last's programs are released once this one's first
+// holds them, before its adapters are read, so an adapter is read again each sampling; this sampling's programs are
+// kept in their place for the next (moss-resident: each request had copied the transformer's 9.5 GB to the card again,
+// about 33 s at 2368 x 1344). A nil kept releases them as the sampling ends.
+func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSession, kept *[]*graphruntime.ResidentProgram, modelRoot string, spec TransformerSpec, height, width int, initial, positive, negative []float32, settings rotarySamplingSpec, observe func(string, []float32) error) (result *residentLatent, err error) {
 	if err = settings.validate(spec.Layers); err != nil {
 		return nil, err
 	}
 	if spec.TextHidden <= 0 || len(positive)%spec.TextHidden != 0 || len(negative)%spec.TextHidden != 0 {
 		return nil, errors.New("rotary sampling: conditioning widths differ")
 	}
-	var programs []*graphruntime.ResidentProgram
+	var programs, previous []*graphruntime.ResidentProgram
+	if kept != nil {
+		previous, *kept = *kept, nil
+	}
 	defer func() {
-		err = errors.Join(err, runtime.Release(context.WithoutCancel(ctx), programs...))
+		released := previous
+		if err != nil || kept == nil {
+			released = append(released, programs...)
+		} else {
+			*kept = programs
+		}
+		err = errors.Join(err, runtime.Release(context.WithoutCancel(ctx), released...))
 		if err != nil && result != nil {
 			err = errors.Join(err, result.outputs.Release(context.WithoutCancel(ctx)))
 			result = nil
@@ -64,6 +78,14 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 			return branch{}, e
 		}
 		programs = append(programs, program)
+		// The last sampling's programs go once this one holds the transformer's weights, before its adapters are read.
+		if len(previous) > 0 {
+			released := previous
+			previous = nil
+			if e := runtime.Release(ctx, released...); e != nil {
+				return branch{}, e
+			}
+		}
 		for index, adapter := range settings.adapters {
 			if e := bindAdapterInputs(ctx, runtime, program, "rotary sampling "+name, adapter, p.adapterInputs[index]); e != nil {
 				return branch{}, e

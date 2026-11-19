@@ -3,22 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "moss-resident",
-      "title": "A MOSS session keeps its denoiser's weights on the card between requests, so a request after the first copies none of the 9.5 GB",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A MOSS session keeps its denoiser's weights on the card between requests, so a request after the first copies none of the 9.5 GB",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^TestASecondMOSSRequestCopiesNoWeights$'",
-          "files": [
-            "internal/latentimage",
-            "internal/graphruntime"
-          ],
-          "rationale": "Note: moss-speed/do measured, 2026-11-18: each MOSS request copies the denoiser's weights to the card again, 9.5 GB in about 40 s, before its first step: runRotarySampling compiles its programs and binds their weights per sampling (compileResidentWeights) and releases them as it ends, and every copy is from pageable memory, the 96 MiB gate-and-up projections at about 400 MB/s (Nsight Systems: 69 GB in 3458 copies took 134 s of copying over the run). The MOSS Ultra workflow runs six sections, so a run spends about 4 minutes copying weights the card held a moment before; ComfyUI keeps its model resident between them.\n\nThe cure: a picture session keeps its denoiser's weights on the card from one request to the next, released with the session, so a request after the first copies none of them; and the weights it copies are read through pinned host memory, so the first copy runs at the bus's rate rather than the page cache's.\n\nCheck: a second request on the same MOSS session copies under a tenth of the first's bytes to the card, and its sampling's own part is under a second.\n\nNote: The path to ComfyUI's speed, part by part (the owner's review of 2026-11-18): a MOSS pass at 2368 x 1344 takes 2.65 s (moss-speed/do) and ComfyUI's 0.555 s (its guided step 1.11 s, two passes). Of overgo's pass, attention takes 1.2 s, the matrix multiplies 0.76 s (BF16, near the card's BF16 peak), and the elementwise kernels and precision conversions 0.6 s; each request also copies the weights again, 33 s. The matrix multiplies alone exceed ComfyUI's whole pass, so no one row closes the gap: ComfyUI runs the workflow's int8 ConvRot file through comfy_kitchen's int8 matrix multiplies (overgo reads the same file and decodes it to BF16, comfyquant) and its own attention backend (comfy kitchen attention). The rows that close it, each owning its share: moss-attention (1.2 s), moss-int8 (0.76 s), moss-fusion (0.6 s), moss-resident (33 s a request). A finished row is read against its share, not against the gap; the gap closes when a pass reads 0.555 s.\n\nA speed change is shown to draw the same picture: its final latent and picture at the same request and seed against overgo's own before the change, at an agreement BF16-equivalent arithmetic keeps (measured, not chosen after), beside the golden floors, which sit 3 dB under readings as low as 1.5 dB and let the 8-bit attention's 1.85 dB loss of picture agreement pass (text to image, 15.11 to 13.26 dB). A change that takes up the workflow's own arithmetic (comfy_kitchen's int8) is shown by its agreement with the recording rising.\n\nNote: Re-scoped 2026-11-19: this step keeps the weights on the card and holds that by bytes copied (TestASecondMOSSRequestCopiesNoWeights: a second request at the same extent copies under a tenth of the first's bytes, and a request naming an adapter reads the adapter again). It does not build the pinned-memory copy the first title promised, nor hold the second request's sampling under a second; the first request's copy is measured by the same test, and whether its rate is the bus's or the disk's decides a row of its own. A session is compiled for a picture's extent and the image director holds one (imageSessionCapacity 1), so a request at another extent loads a new session and copies the weights again; an idle MOSS session now holds the transformer's weights on the card until it closes.\n\nServes: every MOSS section after the first, and every Turbo section, whose 8 steps the copy outweighed."
-        }
-      ]
-    },
-    {
       "id": "moss-int8",
       "title": "MOSS's matrix multiplies over the workflow's int8 ConvRot weights run as comfy_kitchen runs them, on the card's int8 tensor cores",
       "steps": [

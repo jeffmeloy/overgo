@@ -95,7 +95,7 @@ func TestMOSSSamplingCancellationRecovers(t *testing.T) {
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 			seen := false
-			_, e := runRotarySampling(ctx, runtime, root, denoiserSpec(), 2, 3, initial, refinementValues(t, oracle, prefix+"positive"), refinementValues(t, oracle, prefix+"negative"), settings, func(name string, _ []float32) error {
+			_, e := runRotarySampling(ctx, runtime, nil, root, denoiserSpec(), 2, 3, initial, refinementValues(t, oracle, prefix+"positive"), refinementValues(t, oracle, prefix+"negative"), settings, func(name string, _ []float32) error {
 				if name == boundary {
 					seen = true
 					cancel()
@@ -108,7 +108,7 @@ func TestMOSSSamplingCancellationRecovers(t *testing.T) {
 			if runtime.StaticBytes() != 0 {
 				t.Fatalf("cancelled run retained weights: %d", runtime.StaticBytes())
 			}
-			result, e := runRotarySampling(t.Context(), runtime, root, denoiserSpec(), 2, 3, initial, refinementValues(t, oracle, prefix+"positive"), refinementValues(t, oracle, prefix+"negative"), settings, nil)
+			result, e := runRotarySampling(t.Context(), runtime, nil, root, denoiserSpec(), 2, 3, initial, refinementValues(t, oracle, prefix+"positive"), refinementValues(t, oracle, prefix+"negative"), settings, nil)
 			if e != nil {
 				t.Fatal(e)
 			}
@@ -143,7 +143,7 @@ func TestMOSSSamplingCUDAGolden(t *testing.T) {
 			}
 			hashes := map[string][sha256.Size]byte{}
 			for pass := range 2 {
-				result, e := runRotarySampling(t.Context(), runtime, root, denoiserSpec(), 2, 3, initial, refinementValues(t, oracle, prefix+"positive"), refinementValues(t, oracle, prefix+"negative"), settings, func(name string, values []float32) error {
+				result, e := runRotarySampling(t.Context(), runtime, nil, root, denoiserSpec(), 2, 3, initial, refinementValues(t, oracle, prefix+"positive"), refinementValues(t, oracle, prefix+"negative"), settings, func(name string, values []float32) error {
 					tolerance := 1.3e-6
 					if strings.HasPrefix(name, "prediction.") {
 						tolerance = .016
@@ -174,7 +174,7 @@ func TestMOSSSamplingCUDAGolden(t *testing.T) {
 			}
 			ctx, cancel := context.WithCancel(t.Context())
 			cancel()
-			if _, e := runRotarySampling(ctx, runtime, root, denoiserSpec(), 2, 3, initial, refinementValues(t, oracle, prefix+"positive"), nil, settings, nil); !errors.Is(e, context.Canceled) {
+			if _, e := runRotarySampling(ctx, runtime, nil, root, denoiserSpec(), 2, 3, initial, refinementValues(t, oracle, prefix+"positive"), nil, settings, nil); !errors.Is(e, context.Canceled) {
 				t.Fatalf("cancelled run error=%v", e)
 			}
 		})
@@ -199,7 +199,7 @@ func TestTheRotarySamplersNegativePassWeighsItsPrompt(t *testing.T) {
 	sample := func(guidance float32, negativeWeights []float32) []float32 {
 		t.Helper()
 		settings := rotarySamplingSpec{schedule: samplingSettings(t, c).schedule, guidance: guidance, weights: weights, negativeWeights: negativeWeights}
-		result := testcheck.Must(runRotarySampling(t.Context(), runtime, root, denoiserSpec(), 2, 3, initial, prompt, prompt, settings, nil))(t)
+		result := testcheck.Must(runRotarySampling(t.Context(), runtime, nil, root, denoiserSpec(), 2, 3, initial, prompt, prompt, settings, nil))(t)
 		defer result.outputs.Release(context.WithoutCancel(t.Context()))
 		return testcheck.Must(result.outputs.CopyToHost(t.Context(), result.node))(t).Data
 	}

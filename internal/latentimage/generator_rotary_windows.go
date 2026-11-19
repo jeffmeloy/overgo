@@ -28,6 +28,9 @@ type rotaryGeneration struct {
 	decoder            *VAEProgram
 	latent             *residentLatent
 	positive, negative []float32
+	// kept are the programs the last sampling left, whose transformer weights the next sampling binds again on the card
+	// (runRotarySampling); the session's close frees them.
+	kept []*graphruntime.ResidentProgram
 	// weights are the attention-value weights of the prompt's rows, and negativeWeights the negative prompt's, none
 	// for a prompt that weights nothing.
 	weights, negativeWeights []float32
@@ -320,7 +323,7 @@ func (g *Generator) integrateRotary(ctx context.Context) (*Generator, error) {
 		}
 		settings.controlLow, settings.controlHigh = control.window(g.profile.Rotary.Shift)
 	}
-	result, err := runRotarySampling(ctx, g.rotary.runtime, g.modelDir, g.rotary.transformer, g.shape.Height, g.shape.Width, initial, g.rotary.positive, g.rotary.negative, settings, g.observe)
+	result, err := runRotarySampling(ctx, g.rotary.runtime, &g.rotary.kept, g.modelDir, g.rotary.transformer, g.shape.Height, g.shape.Width, initial, g.rotary.positive, g.rotary.negative, settings, g.observe)
 	if err != nil {
 		return nil, err
 	}

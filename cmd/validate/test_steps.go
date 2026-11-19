@@ -74,7 +74,9 @@ func oneTest(arguments []string, name string) []string {
 // when a package failed, its error then wrapping no errInapplicable, so a failure is never reported as inapplicable;
 // else it is inapplicable when a package was. Judged test by test, a package whose one test declared itself
 // inapplicable had been an inapplicable lane, and one with a failure beside such a test an inapplicable lane too.
-func laneVerdict(steps []laneStep, verdicts []error) error {
+// The lane's packages that passed, by their place among its packages, are what a close's next run reads each one's
+// reach from (lanes-package-pass).
+func laneVerdict(steps []laneStep, verdicts []error) (passedPackages []int, err error) {
 	var failed, declared []error
 	packages := 0
 	for _, step := range steps {
@@ -98,12 +100,14 @@ func laneVerdict(steps []laneStep, verdicts []error) error {
 			failed = append(failed, broke...)
 		case !passed:
 			declared = append(declared, excluded...)
+		default:
+			passedPackages = append(passedPackages, pkg)
 		}
 	}
 	if len(failed) > 0 {
-		return errors.Join(failed...)
+		return passedPackages, errors.Join(failed...)
 	}
-	return errors.Join(declared...)
+	return passedPackages, errors.Join(declared...)
 }
 
 // errNotRun is the verdict of a lane's step before it runs, which a step that never ran keeps: it lends its package no

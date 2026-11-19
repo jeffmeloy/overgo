@@ -24,8 +24,8 @@ func TestADirectLaneRunRecordsEachLanesPass(t *testing.T) {
 		t.Fatalf("git worktree add: %v: %s", err, output)
 	}
 	kept := trunkCheckout(t.Context(), worktree)
-	testcheck.NoError(t, keepLaneRun(t.Context(), kept, worktree, "audio", true, testevidence.GoTestReport{}))
-	testcheck.NoError(t, keepLaneRun(t.Context(), kept, worktree, "audio", false, testevidence.GoTestReport{}))
+	testcheck.NoError(t, keepLaneRun(t.Context(), kept, worktree, "audio", true, nil, testevidence.GoTestReport{}))
+	testcheck.NoError(t, keepLaneRun(t.Context(), kept, worktree, "audio", false, nil, testevidence.GoTestReport{}))
 	record := plan.ReadLaneRuns(trunk)["audio"]
 	if record.Last.Commit != head || record.Last.Passed || record.Passed.Commit != head || !record.Passed.Passed || record.Passed.Ended.IsZero() {
 		t.Fatalf("the trunk keeps the lane as %+v; want its failed latest run and its pass, both at %s", record, head)

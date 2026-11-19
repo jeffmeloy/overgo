@@ -267,7 +267,8 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 		}
 		err := each("the cycle lane "+suite.Lane, outer, runs)
 		// A failure to take a turn stands with the packages' failures, never beside an inapplicable verdict that would hide it.
-		switch verdict := laneVerdict(steps, verdicts); {
+		passed, verdict := laneVerdict(steps, verdicts)
+		switch {
 		case err == nil:
 			err = verdict
 		case !errors.Is(verdict, errInapplicable):
@@ -277,7 +278,14 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 		if plan.LanesKept == "" {
 			continue
 		}
-		if kept := keepLaneRun(ctx, plan.LanesKept, root, suite.Lane, err == nil, reports...); kept != nil {
+		// A lane run package by package keeps each package that passed, read by its package path (lanes-package-pass).
+		var packages []string
+		for _, pkg := range passed {
+			if pkg < len(suite.Each) {
+				packages = append(packages, suite.Each[pkg][len(suite.Each[pkg])-1])
+			}
+		}
+		if kept := keepLaneRun(ctx, plan.LanesKept, root, suite.Lane, err == nil, packages, reports...); kept != nil {
 			fmt.Fprintf(output, "validate -run: the cycle lane %s's end is not kept: %v\n", suite.Lane, kept)
 		}
 	}
@@ -718,8 +726,9 @@ func trunkCheckout(ctx context.Context, root string) string {
 
 // keepLaneRun records a cycle lane's end in the state of the checkout kept (plan.RecordLaneRun): the commit the lane
 // ran at, read from the checkout root it ran in, which may be a worktree of the trunk's, and its verdict, so the status
-// says where each lane last passed (lane-passes/do).
-func keepLaneRun(ctx context.Context, kept, root, lane string, passed bool, reports ...testevidence.GoTestReport) error {
+// says where each lane last passed (lane-passes/do), and the lane's packages that passed in it, which a close reads each
+// one's reach from (lanes-package-pass).
+func keepLaneRun(ctx context.Context, kept, root, lane string, passed bool, packages []string, reports ...testevidence.GoTestReport) error {
 	head, err := gitauthority.Query(ctx, root, "rev-parse", "HEAD")
 	if err != nil {
 		return err
@@ -734,6 +743,8 @@ func keepLaneRun(ctx context.Context, kept, root, lane string, passed bool, repo
 			}
 		}
 	}
-	return errors.Join(plan.RecordLaneRun(kept, lane, plan.LaneRun{Commit: commit, Passed: passed, Ended: ended}),
+	run := plan.LaneRun{Commit: commit, Passed: passed, Ended: ended}
+	return errors.Join(plan.RecordLaneRun(kept, lane, run),
+		plan.RecordLanePackages(kept, lane, plan.LaneRun{Commit: commit, Passed: true, Ended: ended}, packages),
 		plan.RecordTestPasses(kept, plan.TestPass{Commit: commit, Ended: ended}, tests))
 }

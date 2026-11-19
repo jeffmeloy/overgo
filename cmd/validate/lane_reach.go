@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 
 	"overgo/internal/gitauthority"
@@ -31,11 +32,10 @@ func changedSinceLastPass(runs map[string]plan.LaneRecord, diff func(base string
 // changed at root since its last pass, kept at kept, reach; it says on output each lane it leaves out.
 func reachedSuites(ctx context.Context, output io.Writer, root, kept string) ([]SelectedSuite, error) {
 	runs := plan.ReadLaneRuns(kept)
-	changed := changedSinceLastPass(runs, func(base string) ([]string, error) {
+	lanes, err := reachedLanes(root, runs, func(base string) ([]string, error) {
 		listed, err := gitauthority.Query(ctx, root, "diff", "--name-only", base, "HEAD")
 		return strings.Fields(string(listed)), err
 	})
-	lanes, err := landing.CycleLanesReached(root, changed)
 	if err != nil {
 		return nil, err
 	}
@@ -45,6 +45,59 @@ func reachedSuites(ctx context.Context, output io.Writer, root, kept string) ([]
 		}
 	}
 	return suitesOf(lanes), nil
+}
+
+// reachedLanes are the cycle's lanes at root a close runs: each cut to what the paths changed since its last pass reach
+// (changedSinceLastPass, landing.CycleLanesReached), and a lane run package by package cut further, each package that
+// has a pass of its own kept to what the paths changed since that pass reach (lanes-package-pass), its packages read
+// together by the pass they share. A lane that failed in one package had kept no pass of the others, so every close ran
+// them all against its last pass: the models lane's, at 8dfa48064 on 2026-11-16, three days and every run full-size.
+// A package whose own pass diff cannot read keeps the lane's reach.
+func reachedLanes(root string, runs map[string]plan.LaneRecord, diff func(base string) ([]string, error)) ([]landing.CycleLane, error) {
+	lanes, err := landing.CycleLanesReached(root, changedSinceLastPass(runs, diff))
+	if err != nil {
+		return nil, err
+	}
+	emptied := map[string]bool{}
+	for index, lane := range lanes {
+		own := runs[lane.Name].Packages
+		if len(lane.Each) == 0 || len(own) == 0 {
+			continue
+		}
+		bases := map[string]map[string]bool{}
+		for _, arguments := range lane.Each {
+			pkg := arguments[len(arguments)-1]
+			if pass, held := own[pkg]; held && pass.Commit != "" {
+				if bases[pass.Commit] == nil {
+					bases[pass.Commit] = map[string]bool{}
+				}
+				bases[pass.Commit][pkg] = true
+			}
+		}
+		dropped := map[string]bool{}
+		for base, packages := range bases {
+			paths, err := diff(base)
+			if err != nil {
+				continue
+			}
+			reached, err := landing.CycleLanesReached(root, map[string][]string{lane.Name: paths})
+			if err != nil {
+				return nil, err
+			}
+			enters := map[string]bool{}
+			if at := slices.IndexFunc(reached, func(each landing.CycleLane) bool { return each.Name == lane.Name }); at >= 0 {
+				for _, arguments := range reached[at].Each {
+					enters[arguments[len(arguments)-1]] = true
+				}
+			}
+			for pkg := range packages {
+				dropped[pkg] = !enters[pkg]
+			}
+		}
+		lanes[index].Each = slices.DeleteFunc(slices.Clone(lane.Each), func(arguments []string) bool { return dropped[arguments[len(arguments)-1]] })
+		emptied[lane.Name] = len(lanes[index].Each) == 0
+	}
+	return slices.DeleteFunc(lanes, func(lane landing.CycleLane) bool { return emptied[lane.Name] }), nil
 }
 
 // containsLane says whether lanes holds the lane named.

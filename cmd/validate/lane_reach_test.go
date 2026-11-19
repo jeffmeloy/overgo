@@ -95,3 +95,63 @@ func TestARepositoryDataFileReachesTheLanesThatReadIt(t *testing.T) {
 		}
 	}
 }
+
+// TestAModelsLanePackageRunsWhatChangedSinceItsOwnPass holds a close's models lane to each package's own last pass
+// (lanes-package-pass), read on the repository: where the lane last passed long ago and changes since then reach
+// internal/latentimage and cmd/loop, but cmd/loop passed since, at a commit after which nothing changed, the lane runs
+// internal/latentimage and not cmd/loop; and where a path cmd/loop takes in changed after its own pass, it runs both. A
+// lane that failed in one package had kept no pass of the others, so every close ran them all against the lane's last
+// pass (the models lane's at 8dfa48064 on 2026-11-16, every run since full-size).
+func TestAModelsLanePackageRunsWhatChangedSinceItsOwnPass(t *testing.T) {
+	t.Parallel()
+	sinceLane := []string{"internal/latentimage/rotary_joint.go", "cmd/loop/main.go"}
+	quiet := map[string]plan.LaneRecord{}
+	for _, lane := range landing.CycleLanes() {
+		quiet[lane.Name] = plan.LaneRecord{Passed: plan.LaneRun{Commit: "quiet", Passed: true}}
+	}
+	reading := func(sinceLoop []string) []string {
+		runs := maps.Clone(quiet)
+		runs["models"] = plan.LaneRecord{
+			Passed:   plan.LaneRun{Commit: "lane-pass", Passed: true},
+			Packages: map[string]plan.LaneRun{"./cmd/loop": {Commit: "loop-pass", Passed: true}},
+		}
+		lanes := testcheck.Must(reachedLanes(testutil.RepoRoot(t), runs, func(base string) ([]string, error) {
+			switch base {
+			case "quiet":
+				return nil, nil
+			case "lane-pass":
+				return sinceLane, nil
+			case "loop-pass":
+				return sinceLoop, nil
+			}
+			return nil, errors.New("unknown revision")
+		}))(t)
+		var packages []string
+		for _, lane := range lanes {
+			if lane.Name != "models" {
+				t.Fatalf("the lane %s runs though nothing changed since its pass", lane.Name)
+			}
+			for _, arguments := range lane.Each {
+				packages = append(packages, arguments[len(arguments)-1])
+			}
+		}
+		return packages
+	}
+	if packages := reading(nil); !slices.Contains(packages, "./internal/latentimage") || slices.Contains(packages, "./cmd/loop") {
+		t.Errorf("with nothing changed since cmd/loop's own pass the models lane runs %v; want internal/latentimage and not cmd/loop", packages)
+	}
+	if packages := reading([]string{"cmd/loop/main.go"}); !slices.Contains(packages, "./internal/latentimage") || !slices.Contains(packages, "./cmd/loop") {
+		t.Errorf("with cmd/loop changed since its own pass the models lane runs %v; want internal/latentimage and cmd/loop", packages)
+	}
+	// A run keeps the passes reading reads: of a lane's two packages, the one whose test passed beside a declared
+	// exclusion passed, and the one whose test failed did not.
+	passed, verdict := laneVerdict([]laneStep{{pkg: 0}, {pkg: 0}, {pkg: 1}}, []error{nil, errInapplicable, errors.New("broken")})
+	if !slices.Equal(passed, []int{0}) || verdict == nil {
+		t.Fatalf("a lane of a passing and a failing package read %v passed (%v); want the first alone", passed, verdict)
+	}
+	kept := t.TempDir()
+	testcheck.NoError(t, plan.RecordLanePackages(kept, "models", plan.LaneRun{Commit: "loop-pass", Passed: true}, []string{"./cmd/loop"}))
+	if own := plan.ReadLaneRuns(kept)["models"].Packages["./cmd/loop"]; own.Commit != "loop-pass" {
+		t.Errorf("a package's pass was kept as %+v; want its commit", own)
+	}
+}

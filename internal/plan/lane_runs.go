@@ -16,10 +16,12 @@ type LaneRun struct {
 	Ended  time.Time `json:"ended"`
 }
 
-// LaneRecord is a lane's latest run and its latest pass, which may be the same run.
+// LaneRecord is a lane's latest run and its latest pass, which may be the same run, and, for a lane run package by
+// package, each package's latest pass (RecordLanePackages).
 type LaneRecord struct {
-	Last   LaneRun `json:"last"`
-	Passed LaneRun `json:"passed,omitzero"`
+	Last     LaneRun            `json:"last"`
+	Passed   LaneRun            `json:"passed,omitzero"`
+	Packages map[string]LaneRun `json:"packages,omitempty"`
 }
 
 // laneRunsFile keeps each lane's record in the trunk checkout's state, which a run from another checkout writes too.
@@ -37,6 +39,25 @@ func RecordLaneRun(root, lane string, run LaneRun) error {
 	record.Last = run
 	if run.Passed {
 		record.Passed = run
+	}
+	runs[lane] = record
+	return writeKept(root, laneRunsFile, runs)
+}
+
+// RecordLanePackages keeps run as the latest pass of each of packages, a lane's packages that passed in it, at root
+// (lanes-package-pass): a lane that failed in one package had kept no pass of the others, so every close ran them all
+// against the lane's last pass, days and dozens of commits old.
+func RecordLanePackages(root, lane string, run LaneRun, packages []string) error {
+	if len(packages) == 0 {
+		return nil
+	}
+	runs := ReadLaneRuns(root)
+	record := runs[lane]
+	if record.Packages == nil {
+		record.Packages = map[string]LaneRun{}
+	}
+	for _, pkg := range packages {
+		record.Packages[pkg] = run
 	}
 	runs[lane] = record
 	return writeKept(root, laneRunsFile, runs)

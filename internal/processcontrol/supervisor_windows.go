@@ -158,11 +158,16 @@ func detach(command *exec.Cmd) error {
 	return err
 }
 
+// configureSysProc creates a supervised child suspended, put in its tree's job before it runs, and with a console of its
+// own that shows no window (createNoWindow), so no process it starts depends on its starter's console: a landing whose
+// session had ended, the session's console host gone with it, started git, which could not initialize (0xC0000142), and
+// its commit attempt was refused unjudged (landing-console). Its output still comes through the pipes the supervisor
+// drains, and the tree still ends with its job.
 func configureSysProc(command *exec.Cmd) {
 	if command.SysProcAttr == nil {
 		command.SysProcAttr = &syscall.SysProcAttr{}
 	}
-	command.SysProcAttr.CreationFlags |= createSuspended
+	command.SysProcAttr.CreationFlags |= createSuspended | createNoWindow
 }
 
 func newProcessTree(command *exec.Cmd, bound jobBound) (processTree, error) {

@@ -21,21 +21,6 @@
       ]
     },
     {
-      "id": "landing-console",
-      "title": "A commit attempt survives the session that started it: each process processcontrol starts gets a console of its own",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A commit attempt survives the session that started it: each process processcontrol starts gets a console of its own",
-          "verify": "go test ./internal/processcontrol -count=1 -run '^TestAProcessStartsAfterItsConsoleHostEnds$'",
-          "files": [
-            "internal/processcontrol"
-          ],
-          "rationale": "Note: The owner's review of 2026-11-18 (evening): moss-attention's commit attempt was refused at 22:14, \"card turn: git worktree list --porcelain: exit=3221225794\", after the session that started it stopped at 21:31 on an expired sign-in; the change was never judged. 3221225794 is 0xC0000142, STATUS_DLL_INIT_FAILED. A landing started from a session runs in that session's console: go run, the loop and the gate, and each process the gate starts, inherit it. The gate, waiting for the card since 20:48, outlived the session, took the card at 22:09, and the first process it started after the session's console ended could not initialize. Reproduced (tmp/landing-survives/console_probe.go): a child with a console of its own starts git, which exits 0; with that console's host ended first, git exits 0xC0000142. The lanes runner, started with a console of its own (processcontrol.StartDetached), went on starting processes through the night.\n\nThe cure: each process processcontrol starts gets a console of its own, which shows no window (CREATE_NO_WINDOW), so no process a landing starts depends on the console of the session that started it; its output still comes through the pipes processcontrol drains, and a cancelled or ended tree still ends with its job.\n\nCheck: a process whose own console's host has ended starts git through processcontrol, and git exits 0.\n\nServes: every commit attempt, which survives the session that started it."
-        }
-      ]
-    },
-    {
       "id": "moss-resident",
       "title": "A MOSS session keeps its denoiser's weights on the card between requests and copies them through pinned memory, so a request after the first copies none of the 9.5 GB",
       "steps": [

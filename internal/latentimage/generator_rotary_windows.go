@@ -228,7 +228,10 @@ func (g *Generator) prepareRotary(ctx context.Context, request Request) (_ *Gene
 		actualGuidance = *normalized.GuidanceScale
 	}
 	normalized.GuidanceScale, expected.GuidanceScale = nil, nil
-	if normalized != expected || actualGuidance != g.rotary.guidance {
+	// A depth control is compared by what it draws (sameControl), a preset's fill of it being a copy each time.
+	controlsAlike := sameControl(normalized.Control, expected.Control)
+	normalized.Control, expected.Control = nil, nil
+	if !controlsAlike || normalized != expected || actualGuidance != g.rotary.guidance {
 		return nil, errors.New("rotary image: request differs from loaded session")
 	}
 	if g.observe != nil {

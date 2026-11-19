@@ -45,6 +45,17 @@ func (c DepthControl) Validate() error {
 	return nil
 }
 
+// sameControl says two requests' depth controls draw alike: none, or the same picture or map at the same strength over
+// the same share of the sampling, whatever pointers hold their values. A section preset fills an omitted end with a copy
+// of the request's control (Request.withSection), so a request filled at a session's load and again as it is prepared
+// holds two controls alike, and comparing their pointers refused it (SQA-418).
+func sameControl(a, b *DepthControl) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return a.Picture == b.Picture && a.Map == b.Map && a.strength() == b.strength() && a.Start == b.Start && a.end() == b.end()
+}
+
 func (c DepthControl) strength() float32 {
 	if c.Strength == nil {
 		return 1

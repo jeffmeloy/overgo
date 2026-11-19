@@ -3,21 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "depth-preset-session",
-      "title": "A depth control preset request that omits its control's end samples with the preset's end, as one naming 0.5 does, and its session admits it",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A depth control preset request that omits its control's end samples with the preset's end, as one naming 0.5 does, and its session admits it",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^TestADepthPresetRequestWithNoEndSamples$'",
-          "files": [
-            "internal/latentimage"
-          ],
-          "rationale": "Note: SQA-418 (the review, source at 5dafd6d23): LoadGenerator or Reset applies withPreset to a request, and prepare applies it again; each withSection copies DepthControl to fill the preset's default end (depth-preset/served, control_end 0.5), so the two requests hold different Control pointers and prepareRotary refuses the request as differing from the loaded session before it samples. The preset test checks the filled value once, and the depth image comparison names its end, so neither reached it. The served Ultra depth presets, with and without Turbo, are refused for a request that leaves the end to the preset."
-        }
-      ]
-    },
-    {
       "id": "moss-workflow-time",
       "title": "The MOSS Ultra workflow's six sections, run in its order on the served sessions, are timed whole against ComfyUI's recorded runs, and the remaining speed rows are ordered by what each saves on that time",
       "steps": [

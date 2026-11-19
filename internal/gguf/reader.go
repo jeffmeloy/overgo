@@ -880,6 +880,9 @@ func (c *cursor) tensor() (TensorInfo, error) {
 		return TensorInfo{}, err
 	}
 	tensor.Type = DType(rawType)
+	if err := fileType(name, tensor.Type); err != nil {
+		return TensorInfo{}, err
+	}
 	tensor.Size, err = tensor.Type.StorageBytes(elements, tensor.Shape[0])
 	if err != nil {
 		return TensorInfo{}, fmt.Errorf("tensor %q: %w", name, err)

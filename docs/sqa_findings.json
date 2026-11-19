@@ -248,23 +248,69 @@
       "input": "On a cache miss, serve a 1024x576 MOSS request with prompt 'a fox', preset ultra-depth-control, a valid PNG in control.map and no control.end. Use the preset's installed adapters. The turbo depth preset has the same default.",
       "expected": "Use the same resolved depth control when configuring and preparing the generator. An omitted end and an explicit 0.5 should both reach sampling with the recorded window. An explicit 1 must retain its own window, and a genuinely different request must still be rejected.",
       "actual": "Source trace at 5dafd6d23. LoadGenerator or Reset applies withPreset, and prepare applies it again. Each call to withSection copies DepthControl to supply the default end. prepareRotary compares the two Request structs by pointer for Control and returns 'rotary image: request differs from loaded session' before sampling. The preset check asserts the filled value once. The depth image comparison supplies End explicitly and bypasses the failing branch."
+    },
+    {
+      "id": "SQA-419",
+      "severity": "P2",
+      "files": [
+        "internal/gguf/reader.go",
+        "internal/gguf/types.go",
+        "internal/gguf/writer.go",
+        "internal/tensor/dtype/type.go"
+      ],
+      "input": "Give gguf.Write a 256-by-4 weight with dtype.I8ConvRot and its 1,040-byte payload, then open the output with gguf inspect.",
+      "expected": "Keep the GGUF file types explicit at the reader and writer boundary. Refuse type 44 before writing the header or accepting the tensor. The CUDA product can use I8ConvRot directly. Preserve the existing Gemma converter's explicit FP8 extension and its round trip.",
+      "actual": "Source trace at b11230b4b. NewTensorInfo and the reader both ask the runtime type for StorageBytes. Adding I8ConvRot to that table makes Write emit 44 and inspect report i8_convrot. The previous master refused 44. The local llama.cpp reader at 42fc24306 rejects it because GGML_TYPE_COUNT is 43."
+    },
+    {
+      "id": "SQA-420",
+      "severity": "P3",
+      "files": [
+        "internal/cuda/executor/executor_windows_int8_convrot_test.go",
+        "internal/cuda/executor/testdata/int8_convrot_product.json",
+        "kernels/cuda/ops_f32_elementwise.cuh"
+      ],
+      "input": "In the retained 256x3072 product, take the GPU result presented to the comparison and change a single positive zero in row 32 (zero-based) to the F32 value with bits 0x00000001. Leave every other result and the launch trace intact.",
+      "expected": "For moss-int8/do, have the existing product comparison reject a finite F32 result whose low 16 bits are nonzero before comparing its BF16 bits with the capture. The epilogue promises exact BF16 values in the F32 buffer consumed by the next graph node.",
+      "actual": "Source counterexample at b11230b4b. Row 32's retained digest matches 256 positive BF16 zeros. bf16Digest rounds each returned F32 to BF16, so the changed value also hashes as zero and both the row and whole-product comparisons pass. The committed epilogue does round its output. The check would also accept finite products with that last rounding removed."
     }
   ],
   "master_lead_triage": {
     "at": "2026-11-19",
-    "head": "97714132e1f7a6655ab039f939e50f99e76e936e",
+    "head": "b11230b4b9a12b69b1a9f67f372fb68f652c3c67",
     "findings": {
+  "SQA-420": {
+        "action": "filed",
+        "rows": [
+          "moss-int8/do"
+        ],
+        "note": "Answered by the lead on 2026-11-19 at b11230b4b: valid from source (bf16Digest rounds each F32 to BF16 before digesting, so a product value with its low 16 bits set digests as its rounding); taken in moss-int8/do, whose product checks, the executor's and the layer capture's in latentimage, refuse any product value that is no BF16 value before comparing digests."
+      },
+  "SQA-419": {
+        "action": "filed",
+        "rows": [
+          "gguf-int8-boundary/do"
+        ],
+        "note": "Answered by the lead on 2026-11-19 at b11230b4b: valid from source, a regression of moss-int8/product (the GGUF reader and writer take their types from the runtime table, gguf DTypeCount = dtype.Count, which I8ConvRot extended to 44); filed as its own row after the served depth preset's break, ahead of the speed rows."
+      },
+  "SQA-418": {
+        "action": "filed",
+        "rows": [
+          "depth-preset-session/do"
+        ],
+        "note": "Answered by the lead on 2026-11-19 at b11230b4b: valid from source (withPreset applied at load and again at prepare copies DepthControl each time, and prepareRotary compares the two requests' Control pointers); a break of the served Ultra depth presets, a working model's path, so filed at once after moss-int8, ahead of the speed rows."
+      },
   "SQA-416": {
         "action": "deferred",
         "rows": [],
         "note": "Answered by the lead on 2026-11-19: valid from source (mutate counts every verifier error as refused, ErrVacuous and a failed build among them). The mutation run (cmd/loop -mutants) is a measure the owner reads of the checks' strength and gates no landing, and is outside the MOSS Ultra workflow campaign, so it waits with the rows the campaign set aside; its catch rate is read with this finding beside it until then."
       },
   "SQA-415": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "lanes-fixtures/do"
         ],
-        "note": "Answered by the lead on 2026-11-19: valid from source (a data path walks up to a closure package's directory, and the repository's fixtures/ is under none, so it reaches no lane); filed after lanes-verdict, ahead of the speed rows, since the MOSS goldens read fixtures/moss."
+        "note": "Answered by the lead on 2026-11-19: valid from source (a data path walks up to a closure package's directory, and the repository's fixtures/ is under none, so it reaches no lane); filed after lanes-verdict, ahead of the speed rows, since the MOSS goldens read fixtures/moss. Implemented 2026-11-19 by lanes-fixtures/do (c71a1e230), for the review's recheck."
       },
   "SQA-414": {
         "action": "deferred",
@@ -345,7 +391,7 @@
       }
 }
   },
-  "next_finding_number": 419,
+  "next_finding_number": 421,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

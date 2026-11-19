@@ -99,8 +99,20 @@ const (
 	DTypeQ1_0   = dtype.Q1_0
 	DTypeQ2_0   = dtype.Q2_0
 	DTypeF8E4M3 = dtype.F8E4M3
-	DTypeCount  = dtype.Count
+	// DTypeCount bounds the types a GGUF file carries: ggml's, and F8E4M3, the Gemma converter's native-FP8 extension.
+	// A runtime type past it, as dtype.I8ConvRot, the CUDA int8 ConvRot product's own, is no file type (fileType).
+	DTypeCount = dtype.F8E4M3 + 1
 )
+
+// fileType refuses a tensor type no GGUF file carries, past DTypeCount: the reader and the writer took a tensor's storage
+// from the runtime's types, so dtype.I8ConvRot was written as type 44 and read back, which ggml's readers reject
+// (SQA-419).
+func fileType(name string, storage DType) error {
+	if storage >= DTypeCount {
+		return fmt.Errorf("tensor %q has type %s, which no GGUF file carries", name, storage)
+	}
+	return nil
+}
 
 // Value: contains one GGUF metadata value; ArrayType is set only when Type is
 // ValueTypeArray
@@ -252,6 +264,9 @@ func NewTensorInfo(name string, storage DType, shape []uint64) (TensorInfo, erro
 			return TensorInfo{}, fmt.Errorf("tensor %q dimension %d is invalid: %d", name, axis, dimension)
 		}
 		info.Shape[axis] = dimension
+	}
+	if err := fileType(name, storage); err != nil {
+		return TensorInfo{}, err
 	}
 	elements, err := info.ElementCount()
 	if err != nil {

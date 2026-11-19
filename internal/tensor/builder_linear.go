@@ -95,6 +95,11 @@ func (b *Builder) mulMat(left, right *Tensor, compute MulMatCompute) *Tensor {
 		b.setError(fmt.Errorf("mul_mat compute policy %d is invalid", compute))
 		return nil
 	}
+	if left.Type == dtype.I8ConvRot {
+		// An int8 ConvRot weight multiplies only as comfy_kitchen's int8_linear does, whatever the graph's policy names
+		// for its other projections (moss-int8).
+		compute = MulMatComputeExact
+	}
 	if compute == MulMatComputeBF16TensorCore && (left.Type != dtype.BF16 || right.Type != dtype.F32) {
 		b.setError(fmt.Errorf("BF16 tensor-core mul_mat requires BF16 x F32, got %s x %s", left.Type, right.Type))
 		return nil

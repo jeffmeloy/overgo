@@ -87,6 +87,9 @@ func TestAnInt8ConvRotProductIsComfyKitchens(t *testing.T) {
 					t.Fatalf("%s did not run: %v", kernel, ran)
 				}
 			}
+			if index := slices.IndexFunc(product, notBF16); index >= 0 {
+				t.Fatalf("product element %d holds the F32 bits %#08x, no BF16 value the next node can read as one", index, math.Float32bits(product[index]))
+			}
 			var differ []int
 			for row := range rows {
 				if bf16Digest(product[row*out:(row+1)*out]) != captured.RowSHA256[row] {
@@ -137,8 +140,13 @@ func runInt8ConvRotProduct(t *testing.T, storage []byte, input []float32, in, ou
 	return got[product].Data, ran
 }
 
+// notBF16 says an F32 value is no BF16 value, its low 16 bits set (SQA-420): bf16Digest would digest its rounding.
+func notBF16(value float32) bool {
+	return math.Float32bits(value)&0xffff != 0
+}
+
 // bf16Digest is the SHA-256 of values' BF16 bits, little-endian, as the capture digests a bfloat16 tensor's bytes; a
-// value BF16 does not hold exactly digests as its rounding.
+// value BF16 does not hold exactly digests as its rounding, so a product is held to notBF16 first.
 func bf16Digest(values []float32) string {
 	bits := make([]byte, 2*len(values))
 	for index, value := range values {

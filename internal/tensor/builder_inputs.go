@@ -41,13 +41,19 @@ type WeightInputs struct {
 }
 
 func (b WeightInputs) Input(name string, dimensions ...uint64) *Tensor {
-	if existing := b.Bindings.Node(name); existing != nil {
-		b.Builder.setError(fmt.Errorf("tensor weight binding %s is duplicated", name))
-		return existing
-	}
 	storage := dtype.F32
 	if len(dimensions) == 2 {
 		storage = b.MatrixType
+	}
+	return b.InputOf(storage, name, dimensions...)
+}
+
+// InputOf records a graph weight held in storage, whatever its rank, as an int8 ConvRot projection's is held in its
+// file's form (dtype.I8ConvRot).
+func (b WeightInputs) InputOf(storage dtype.Type, name string, dimensions ...uint64) *Tensor {
+	if existing := b.Bindings.Node(name); existing != nil {
+		b.Builder.setError(fmt.Errorf("tensor weight binding %s is duplicated", name))
+		return existing
 	}
 	node := b.Builder.Input(name, storage, MustShape(dimensions...))
 	*b.Bindings = append(*b.Bindings, node)

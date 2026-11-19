@@ -9,10 +9,12 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"overgo/internal/comfyquant"
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/graphruntime"
 	"overgo/internal/media"
+	"overgo/internal/safetensors"
 	"overgo/internal/sampling"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
@@ -24,6 +26,25 @@ import (
 // (tensor.AttentionAttributes.ScoresInRegisters): the native kernel took 28.9 ms a layer of MOSS at 12432 tokens, 44%
 // of a pass (moss-attention). A test reads the native kernel's sampling beside it.
 var samplingScoresInRegisters = true
+
+// samplingInt8 says a rotary sampling multiplies the joint blocks' projections in int8 as comfy_kitchen's int8_linear
+// does where the transformer's file holds them int8 ConvRot (heldInConvRot), as the MOSS Ultra workflow's does
+// (moss-int8): decoded to BF16, they took 0.76 s of a pass at 2368 x 1344 (moss-speed/do), and drew by other arithmetic
+// than ComfyUI's. A test reads the BF16 sampling beside it.
+var samplingInt8 = true
+
+// heldInConvRot says whether a transformer directory's file holds the joint blocks' projections in int8 ConvRot over
+// groups of 256 columns, as the MOSS Ultra workflow's file holds each: its first block's q projection, a third of its
+// fused qkv, is read from the header and the projection's comfy_quant record alone.
+func heldInConvRot(directory string) (bool, error) {
+	source, err := safetensors.OpenSource(directory)
+	if err != nil {
+		return false, err
+	}
+	defer source.Close()
+	stored, quantized, err := comfyquant.Find(source, "layers.0.proj.q.weight")
+	return quantized && stored.Group() == comfyquant.Group, err
+}
 
 // runRotarySampling retains latents through guidance and Euler updates.
 // The caller owns the session and returned latent, and observations alone download intermediate values.
@@ -38,6 +59,12 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 	}
 	if spec.TextHidden <= 0 || len(positive)%spec.TextHidden != 0 || len(negative)%spec.TextHidden != 0 {
 		return nil, errors.New("rotary sampling: conditioning widths differ")
+	}
+	int8 := false
+	if samplingInt8 {
+		if int8, err = heldInConvRot(filepath.Join(modelRoot, "transformer")); err != nil {
+			return nil, err
+		}
 	}
 	var programs, previous []*graphruntime.ResidentProgram
 	if kept != nil {
@@ -65,7 +92,7 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 		if existing, ok := branches[name]; ok {
 			return existing, nil
 		}
-		p, e := compileRotaryDenoiserProgram(spec, mossRefinementEpsilon, height, width, len(conditioning)/spec.TextHidden, skip, dtype.BF16, rotaryOptions{eightBit: settings.eightBit, registers: samplingScoresInRegisters, adapters: settings.adapters}, weights...)
+		p, e := compileRotaryDenoiserProgram(spec, mossRefinementEpsilon, height, width, len(conditioning)/spec.TextHidden, skip, dtype.BF16, rotaryOptions{eightBit: settings.eightBit, registers: samplingScoresInRegisters, int8: int8, adapters: settings.adapters}, weights...)
 		if e != nil {
 			return branch{}, e
 		}

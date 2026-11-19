@@ -71,15 +71,15 @@ func (g *rotaryGraph) joint(input, modulation, unit *tensor.Tensor, index int) *
 	feedShift, feedScale, feedGate := parts[jointFeedShift], parts[jointFeedScale], parts[jointFeedGate]
 	hidden := g.round(input)
 	y := g.modulate(g.norm(prefix+"norm1", hidden, g.width), attentionShift, attentionScale, unit)
-	q := g.norm(prefix+"q_norm", b.Reshape(g.linear(prefix+"proj.q", y, g.width, g.width, false), g.headWidth, g.heads, g.sequence), g.headWidth)
-	k := g.norm(prefix+"k_norm", b.Reshape(g.linear(prefix+"proj.k", y, g.width, g.width, false), g.headWidth, g.heads, g.sequence), g.headWidth)
-	v := b.Reshape(g.linear(prefix+"proj.v", y, g.width, g.width, false), g.headWidth, g.heads, g.sequence)
+	q := g.norm(prefix+"q_norm", b.Reshape(g.projection(prefix+"proj.q", y, g.width, g.width), g.headWidth, g.heads, g.sequence), g.headWidth)
+	k := g.norm(prefix+"k_norm", b.Reshape(g.projection(prefix+"proj.k", y, g.width, g.width), g.headWidth, g.heads, g.sequence), g.headWidth)
+	v := b.Reshape(g.projection(prefix+"proj.v", y, g.width, g.width), g.headWidth, g.heads, g.sequence)
 	if g.valueScale != nil {
 		v = b.Multiply(v, g.valueScale)
 	}
-	hidden = g.round(b.Add(hidden, g.round(b.Multiply(g.linear(prefix+"proj.o", g.attention(q, k, v), g.width, g.width, false), attentionGate))))
+	hidden = g.round(b.Add(hidden, g.round(b.Multiply(g.projection(prefix+"proj.o", g.attention(q, k, v), g.width, g.width), attentionGate))))
 	y = g.modulate(g.norm(prefix+"norm2", hidden, g.width), feedShift, feedScale, unit)
-	fused := g.linear(prefix+"proj.ffn_up_gate", y, g.width, tensor.PairedExtent*g.intermediate, false)
+	fused := g.projection(prefix+"proj.ffn_up_gate", y, g.width, tensor.PairedExtent*g.intermediate)
 	up, gate := g.part(fused, tensor.FirstOffset, g.intermediate), g.part(fused, g.intermediate, g.intermediate)
-	return g.round(b.Add(hidden, g.round(b.Multiply(g.linear(prefix+"proj.ffn_down", g.situ(up, gate), g.intermediate, g.width, false), feedGate))))
+	return g.round(b.Add(hidden, g.round(b.Multiply(g.projection(prefix+"proj.ffn_down", g.situ(up, gate), g.intermediate, g.width), feedGate))))
 }

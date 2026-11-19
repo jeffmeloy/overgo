@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -104,7 +105,27 @@ func (w Weight) Shape() []uint64 {
 	return []uint64{w.rows, w.columns}
 }
 
-// Decode reads the weight's int8 rows and their scales and decodes them as bfloat16 bits (DecodeRow).
+// Group is the width of the column groups the weight's rows are rotated in.
+func (w Weight) Group() uint64 {
+	return w.group
+}
+
+// Stored reads the weight as dtype.I8ConvRot holds it resident: its int8 rows, then their F32 scales, as the file
+// stores both.
+func (w Weight) Stored() ([]byte, error) {
+	stored := make([]byte, w.rows*w.columns+w.rows*4)
+	if _, err := w.values.ReadAt(stored[:w.rows*w.columns], int64(w.first*w.columns)); err != nil {
+		return nil, err
+	}
+	if _, err := w.scales.ReadAt(stored[w.rows*w.columns:], int64(w.first*4)); err != nil {
+		return nil, err
+	}
+	return stored, nil
+}
+
+// Decode reads the weight's int8 rows and their scales and decodes them as bfloat16 bits (DecodeRow), its rows spread
+// over the host's processors: one at a time, MOSS's 9.5 GB of projections decoded in about 33 s, the most of what its
+// first request spent placing its weights, where their int8 form copies in 2.8 s (moss-int8).
 func (w Weight) Decode() ([]uint16, error) {
 	quantized := make([]byte, w.rows*w.columns)
 	if _, err := w.values.ReadAt(quantized, int64(w.first*w.columns)); err != nil {
@@ -115,10 +136,17 @@ func (w Weight) Decode() ([]uint16, error) {
 		return nil, err
 	}
 	decoded := make([]uint16, w.rows*w.columns)
-	for row := range w.rows {
-		scale := math.Float32frombits(binary.LittleEndian.Uint32(scaleBytes[4*row:]))
-		DecodeRow(decoded[row*w.columns:(row+1)*w.columns], quantized[row*w.columns:(row+1)*w.columns], scale, w.group)
+	workers := uint64(max(1, min(runtime.GOMAXPROCS(0), int(w.rows))))
+	var decoding sync.WaitGroup
+	for worker := range workers {
+		decoding.Go(func() {
+			for row := worker; row < w.rows; row += workers {
+				scale := math.Float32frombits(binary.LittleEndian.Uint32(scaleBytes[4*row:]))
+				DecodeRow(decoded[row*w.columns:(row+1)*w.columns], quantized[row*w.columns:(row+1)*w.columns], scale, w.group)
+			}
+		})
 	}
+	decoding.Wait()
 	return decoded, nil
 }
 

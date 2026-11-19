@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"strconv"
 
 	"overgo/internal/checked"
@@ -33,16 +34,20 @@ type rotaryGraph struct {
 	eightBit bool
 	// registers keeps the BF16 attention's scores in registers (tensor.AttentionAttributes.ScoresInRegisters).
 	registers bool
+	// int8 holds the joint blocks' projections as the int8 ConvRot file stores them and multiplies them as
+	// comfy_kitchen's int8_linear does (dtype.I8ConvRot); off, they are decoded to the graph's storage.
+	int8 bool
 	// adapters patch the graph's projections and weights unmerged (mediaAdapter), each its tensors bound from its file
 	// and scaled by a strength of its own fed each run, in the order a request names them; none for a graph without one.
 	adapters []graphAdapter
 }
 
 // rotaryOptions are what a rotary program computes beside its weights: its attention in 8 bits, or in BF16 with its
-// scores in registers, and its adapters, in the order a request names them.
+// scores in registers, its joint projections in int8 as an int8 ConvRot file holds them, and its adapters, in the order
+// a request names them.
 type rotaryOptions struct {
-	eightBit, registers bool
-	adapters            []*mediaAdapter
+	eightBit, registers, int8 bool
+	adapters                  []*mediaAdapter
 }
 
 // graphAdapter is one adapter a rotary graph applies: its patches, its tensors' inputs, bound from its file, the scalar
@@ -64,7 +69,7 @@ const adapterPlace = "@"
 // use takes the options into the graph, binding each adapter's tensors into its bindings, and gives each adapter's
 // strength input.
 func (g *rotaryGraph) use(options rotaryOptions, bindings []tensor.WeightBindings) []*tensor.Tensor {
-	g.eightBit, g.registers = options.eightBit, options.registers
+	g.eightBit, g.registers, g.int8 = options.eightBit, options.registers, options.int8
 	strengths := make([]*tensor.Tensor, len(options.adapters))
 	for index, adapter := range options.adapters {
 		place := ""
@@ -137,6 +142,25 @@ func (g *rotaryGraph) round(x *tensor.Tensor) *tensor.Tensor {
 	}
 	return x
 }
+
+// projection is a joint block's projection with no bias, which an int8 ConvRot file holds in int8: under the int8
+// option, where no adapter patches it, its weight is held as the file holds it and multiplied as comfy_kitchen's
+// int8_linear multiplies it (dtype.I8ConvRot, moss-int8), else as linear holds it. ComfyUI merges a LoRA into the
+// dequantized weight and quantizes the sum again with a seeded stochastic rounding (comfy/ops.py set_weight), which
+// overgo does not reproduce; with the int8 product beside its low-rank branch, the depth control section, whose
+// moss-control adapter patches every joint projection, kept 13.14 dB of latent where the BF16 weight keeps 14.37.
+func (g *rotaryGraph) projection(name string, x *tensor.Tensor, in, out uint64) *tensor.Tensor {
+	weight := name + ".weight"
+	if !g.int8 || slices.ContainsFunc(g.adapters, func(applied graphAdapter) bool {
+		_, replaced := applied.adapter.replaced[weight]
+		_, patched := applied.adapter.lowRank[name]
+		return replaced || patched
+	}) {
+		return g.linear(name, x, in, out, false)
+	}
+	return g.round(g.b.MulMat(g.bind.InputOf(dtype.I8ConvRot, weight, in, out), x))
+}
+
 func (g *rotaryGraph) linear(name string, x *tensor.Tensor, in, out uint64, bias bool) *tensor.Tensor {
 	y := g.b.MulMat(g.weight(name+".weight", in, out), x)
 	if branch := g.lowRank(name, x, in); branch != nil {

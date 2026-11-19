@@ -16,15 +16,22 @@ import (
 // and that its shape is the graph's are read from the file's header, before any payload, and the payload is read, and
 // decoded where the file holds the weight quantized, only when the session's Bind calls for it, which a session that
 // holds the weight already does not. A ComfyUI ConvRot file holds a weight in int8, under its own name or as its third
-// of a fused qkv (comfyquant.Find); any other weight is read as the file stores it.
+// of a fused qkv (comfyquant.Find), decoded to the graph's storage, or, for a graph that holds it as the file does
+// (dtype.I8ConvRot), read as its int8 rows and their scales; any other weight is read as the file stores it.
 func residentPayload(source *safetensors.Source, node *tensor.Tensor) (func() ([]byte, error), error) {
 	stored, quantized, err := comfyquant.Find(source, node.Name)
 	if err != nil {
 		return nil, err
 	}
+	if node.Type == dtype.I8ConvRot && (!quantized || stored.Group() != comfyquant.Group) {
+		return nil, errors.New("is no int8 ConvRot weight over groups of 256 columns in the checkpoint")
+	}
 	if quantized {
 		if shape := stored.Shape(); node.Shape.Rank != tensor.SingletonExtent && (int(node.Shape.Rank) != len(shape) || shape[0] != node.Shape.Dims[1] || shape[1] != node.Shape.Dims[0]) {
 			return nil, errors.New("shape differs from graph")
+		}
+		if node.Type == dtype.I8ConvRot {
+			return stored.Stored, nil
 		}
 		return func() ([]byte, error) {
 			decoded, err := stored.Decode()

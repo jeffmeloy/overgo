@@ -16,8 +16,9 @@ import (
 // TestASecondMOSSRequestCopiesNoWeights holds a MOSS session's transformer weights on the card from one request to the
 // next (moss-resident): on the MOSS Ultra workflow's files, a session's first sampling copies the transformer's weights
 // to the card, a second request's copies under a tenth of that, and a request naming an adapter copies the adapter again,
-// so a file replaced under its name is read as it is. Each request had copied the transformer's 9.5 GB again, about 33 s
-// at 2368 x 1344 (moss-speed/do).
+// so a file replaced under its name is read as it is, and the BF16 form of the int8 projections it patches
+// (rotaryGraph.projection, moss-int8), which the next request naming it keeps, copying under a quarter. Each request had
+// copied the transformer's 9.5 GB again, about 33 s at 2368 x 1344 (moss-speed/do).
 func TestASecondMOSSRequestCopiesNoWeights(t *testing.T) {
 	cudatest.Require(t)
 	ctx := t.Context()
@@ -49,15 +50,17 @@ func TestASecondMOSSRequestCopiesNoWeights(t *testing.T) {
 	second := sample(request)
 	adapted := request
 	adapted.Adapter = "moss_image_sft"
-	withAdapter := sample(adapted)
+	withAdapter, again := sample(adapted), sample(adapted)
 	adapterFile := testcheck.Must(os.Stat(filepath.Join(root, "adapters", "moss_image_sft.safetensors")))(t)
-	t.Logf("a session's first sampling copied %.2f GiB in %v, its second %.3f GiB in %v, one naming an adapter %.3f GiB in %v",
+	t.Logf("a session's first sampling copied %.2f GiB in %v, its second %.3f GiB in %v, one naming an adapter %.3f GiB in %v, and the next %.3f GiB in %v",
 		float64(first.copied)/(1<<30), first.wall.Round(time.Millisecond), float64(second.copied)/(1<<30), second.wall.Round(time.Millisecond),
-		float64(withAdapter.copied)/(1<<30), withAdapter.wall.Round(time.Millisecond))
+		float64(withAdapter.copied)/(1<<30), withAdapter.wall.Round(time.Millisecond), float64(again.copied)/(1<<30), again.wall.Round(time.Millisecond))
 	if second.copied*10 >= first.copied {
 		t.Errorf("a second request copied %d bytes to the card, the first %d; want under a tenth", second.copied, first.copied)
 	}
-	if adapterBytes := uint64(adapterFile.Size()); withAdapter.copied < second.copied+adapterBytes/4 || withAdapter.copied*2 >= first.copied {
-		t.Errorf("a request naming an adapter file of %d bytes copied %d bytes, the transformer's first %d; want the adapter read again and the transformer not", adapterBytes, withAdapter.copied, first.copied)
+	adapterBytes := uint64(adapterFile.Size())
+	if withAdapter.copied < second.copied+adapterBytes/4 || again.copied < adapterBytes/4 || again.copied*4 >= withAdapter.copied {
+		t.Errorf("requests naming an adapter file of %d bytes copied %d and then %d bytes; want the adapter read again each time and the projections it patches kept",
+			adapterBytes, withAdapter.copied, again.copied)
 	}
 }

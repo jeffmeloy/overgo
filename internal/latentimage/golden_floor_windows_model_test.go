@@ -168,7 +168,35 @@ func TestUltraSectionsHoldTheirGoldenFloors(t *testing.T) {
 // final latent and finished picture to its floors, its changed draw's latent below.
 func holdGoldenFloors(t *testing.T, root string, profile Profile, cases []goldenCase, floors map[string]goldenFloor) {
 	t.Helper()
+	readings := readGoldenCases(t, root, profile, cases)
+	for _, golden := range cases {
+		reading := readings[golden.name]
+		floor, declared := floors[golden.name]
+		if !declared {
+			t.Errorf("%s declares no floor", golden.name)
+			continue
+		}
+		if !(reading.latent >= floor.latent) || !(reading.picture >= floor.picture) {
+			t.Errorf("%s keeps %.2f dB in its latent and %.2f dB in its picture; want at least its floors, %.2f and %.2f dB",
+				golden.name, reading.latent, reading.picture, floor.latent, floor.picture)
+		}
+		if reading.control >= floor.latent {
+			t.Errorf("%s with its input changed keeps %.2f dB in its latent, its floor %.2f dB or more, so the floor does not hold the input's part",
+				golden.name, reading.control, floor.latent)
+		}
+	}
+}
+
+// goldenReading is a case's agreement with its recording, in dB: its final latent's, its finished picture's, and its
+// final latent's with its input changed.
+type goldenReading struct{ latent, picture, control float64 }
+
+// readGoldenCases draws each case as its recording asks it, and with its input changed, on the root, and reads its
+// agreement with its recording.
+func readGoldenCases(t *testing.T, root string, profile Profile, cases []goldenCase) map[string]goldenReading {
+	t.Helper()
 	ctx := t.Context()
+	readings := map[string]goldenReading{}
 	for _, golden := range cases {
 		recording := readComfySection(t, golden.run, golden.slug)
 		request := golden.request(t, recording)
@@ -189,22 +217,11 @@ func holdGoldenFloors(t *testing.T, root string, profile Profile, cases []golden
 		controlLatent, _ := drawn(changed)
 		controlAgreement := decibelsOverSquares(controlLatent, wantLatent)
 		closeReporting(t, context.WithoutCancel(ctx), generator)
-		floor, declared := floors[golden.name]
 		t.Logf("%s: the final latent keeps %.2f dB, the finished picture %.2f dB over %d-pixel squares; with its input changed the latent keeps %.2f dB",
 			golden.name, latentAgreement, pictureAgreement, pictureSquare, controlAgreement)
-		if !declared {
-			t.Errorf("%s declares no floor", golden.name)
-			continue
-		}
-		if !(latentAgreement >= floor.latent) || !(pictureAgreement >= floor.picture) {
-			t.Errorf("%s keeps %.2f dB in its latent and %.2f dB in its picture; want at least its floors, %.2f and %.2f dB",
-				golden.name, latentAgreement, pictureAgreement, floor.latent, floor.picture)
-		}
-		if controlAgreement >= floor.latent {
-			t.Errorf("%s with its input changed keeps %.2f dB in its latent, its floor %.2f dB or more, so the floor does not hold the input's part",
-				golden.name, controlAgreement, floor.latent)
-		}
+		readings[golden.name] = goldenReading{latent: latentAgreement, picture: pictureAgreement, control: controlAgreement}
 	}
+	return readings
 }
 
 // ownSizeReading reads the workflow's text to image section at its own size (the own-size recording: its canvas 16:9

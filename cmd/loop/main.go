@@ -179,7 +179,7 @@ func run(args []string) error {
 	if *lanesDueRun {
 		return runLanesDue(loopWorktree, os.Stdout, func(checkout string) error {
 			return validateTo(os.Stdout, checkout, *repoPath, nil, "-run", "-lanes", "-reached")
-		})
+		}, startLanesRunner)
 	}
 	switch {
 	case *pushCommit != "":

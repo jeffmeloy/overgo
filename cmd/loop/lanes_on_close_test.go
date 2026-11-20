@@ -19,7 +19,8 @@ import (
 // TestARowsClosingRunsTheLanesAtItsCommit holds a row's closing commit to running the cycle's lanes at that commit
 // (lanes-on-close): a landing that leaves its row open runs none; one that closes it names its commit and starts a
 // runner, which runs the lanes in the lanes checkout moved to that commit; a close while they run starts no second
-// runner, and the runner runs the lanes at it once its run ends, a run that failed being said; a runner started while
+// runner, and the runner, once its run ends, starts the next, built from the trunk, which runs the lanes at it (each run
+// supervised by its own commit's runner, lanes-runner-current), a run that failed being said; a runner started while
 // another holds the lanes runs nothing. Nothing had run the lanes while the plan held rows, and two of five failed 66
 // commits after their last run. Each run finds the trunk's data roots in its checkout, as the tests it runs read them:
 // the replay test found none in the lanes checkout (lanes-roots).
@@ -70,22 +71,28 @@ func TestARowsClosingRunsTheLanesAtItsCommit(t *testing.T) {
 			return nil
 		}
 		// While the lanes run: a second runner runs nothing, and a close starts none.
-		testcheck.NoError(t, runLanesDue(root, io.Discard, func(string) error { return errors.New("a second runner ran the lanes") }))
+		testcheck.NoError(t, runLanesDue(root, io.Discard, func(string) error { return errors.New("a second runner ran the lanes") }, start))
 		closing := testcheck.Must(lanesOnClose(root, "later/do", second, start))(t)
 		if starts != 1 || !strings.Contains(closing, "once the run going there ends") {
 			t.Errorf("a close while the lanes ran said %q and started %d runners in all; want the one, and its run after", closing, starts)
 		}
 		return errors.New("the device lane did not pass")
 	}
-	testcheck.NoError(t, runLanesDue(root, &output, run))
-	if !slices.Equal(ran, []string{first, second}) {
-		t.Fatalf("the lanes ran at %q; want the closing commits %q, in turn", ran, []string{first, second})
+	testcheck.NoError(t, runLanesDue(root, &output, run, start))
+	if !slices.Equal(ran, []string{first}) || starts != 2 {
+		t.Fatalf("the first runner ran the lanes at %q and %d runners were started in all; want it to run its own commit %s alone and start the next for the later one",
+			ran, starts, first)
 	}
-	if !strings.Contains(output.String(), "did not pass: the device lane did not pass") || strings.Count(output.String(), "the cycle's lanes run at") != 2 {
-		t.Fatalf("the runner said:\n%s\nwant each run's start, and the first's failure", output.String())
+	if !strings.Contains(output.String(), "did not pass: the device lane did not pass") || !strings.Contains(output.String(), "the runner built from the trunk runs it") {
+		t.Fatalf("the runner said:\n%s\nwant its run's failure, and the later commit left to the runner it started", output.String())
+	}
+	// The runner it started, built from the trunk, runs the later commit.
+	testcheck.NoError(t, runLanesDue(root, &output, run, start))
+	if !slices.Equal(ran, []string{first, second}) || starts != 2 {
+		t.Fatalf("the lanes ran at %q, %d runners started; want the closing commits %q, in turn, each by its own runner", ran, starts, []string{first, second})
 	}
 	output.Reset()
-	testcheck.NoError(t, runLanesDue(root, &output, func(string) error { return errors.New("the lanes ran again at a commit they ran at") }))
+	testcheck.NoError(t, runLanesDue(root, &output, func(string) error { return errors.New("the lanes ran again at a commit they ran at") }, start))
 	if output.Len() != 0 {
 		t.Fatalf("a runner with no newer commit due said:\n%s\nwant nothing run", output.String())
 	}

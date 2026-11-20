@@ -146,19 +146,17 @@
       "id": "SQA-406",
       "severity": "P2",
       "files": [
+        "internal/mediacapability/image_cuda_windows.go",
         "internal/capabilityruntime/runtime.go",
         "internal/capabilityruntime/measured.go",
-        "internal/mediacapability/image_cuda_windows.go",
+        "internal/capabilityruntime/session_director.go",
+        "internal/latentimage/runtime_cuda_windows.go",
         "internal/latentimage/media_adapter.go",
-        "internal/latentimage/source_latent_windows.go",
-        "internal/latentimage/rotary_sampling_windows.go",
-        "internal/latentimage/resident_graph_cuda_windows.go",
-        "internal/graphruntime/resident.go",
-        "cmd/evaluate/render.go"
+        "internal/latentimage/source_latent_windows.go"
       ],
-      "input": "(1) On a fixed-seed MOSS cache miss, install a missing named adapter after Contents checks its path and before modelAdapter opens it. Remove it after the run and repeat. A required depth estimator has the same gap. (2) Between two same-size draws in a held MOSS Turbo render session, replace a LoRA at the same path with compatible weights that change a patched int8 projection. Keep the strength and tensor shapes. Compare the second draw with a cold draw using those replacement bytes and the same request.",
-      "expected": "Reject missing required weights before replay or loading. Keep the Windows read hold for present files and allow a supplied depth map without an estimator. Use the admitted adapter content identity for resident merge reuse. A changed adapter must produce the same merged bytes as a cold bind with its new weights. Identical bytes at the same strength should reuse the existing merge.",
-      "actual": "Source at 15ecde8d3. Contents records 'absent' without a hold, so a run can use weights installed later and replay under the absence key. For a replacement between draws, Contents names the new bytes, but bindMerged keys the GPU merge by paths and strengths. runRotarySampling binds before releasing the previous program. ResidentSession.bind finds the old pointer and skips convRotMerge. The retained ComfyUI captures verify six cold projection merges; the warm replacement is a source counterexample."
+      "input": "On a fixed-seed MOSS cache miss naming moss_image_sft, install the missing adapter after Contents checks its path and before modelAdapter opens it. Remove it after the draw and repeat the request. Separately, start with the adapter present and issue a cache miss for the same model.",
+      "expected": "Picture admission rejects a missing required adapter or depth estimator before replay or model loading. A supplied depth map needs no estimator. For a present adapter, use the content ID already computed from the held file for the resident merge, preserving adapter order and strengths. A direct generator without an admitted ID still identifies the file it opens.",
+      "actual": "Source at 5d7cb490b. Contents hashes the marker 'absent' for a missing file. The first draw can use the newly installed adapter and store its picture under that key. The repeat can return the picture before opening the missing adapter. A control picture has the same gap for its depth estimator. With the adapter present, Contents hashes the entire file but passes only the combined digest. readMediaAdapter calls fileContent to hash the same held bytes again. For the 285,329,336-byte adapter recorded at 8b21aba9d this costs one extra full host read per such bind."
     },
     {
       "id": "SQA-410",

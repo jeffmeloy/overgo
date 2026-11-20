@@ -147,38 +147,41 @@ func startLanesRunner() error {
 	return errors.Join(err, log.Close())
 }
 
-// runLanesDue runs the cycle's lanes with run at the commit due (lanesDue), in the lanes checkout moved there, and again
-// at the newest commit due once a run ends, until none is newer. Where another runner holds the lanes it runs nothing:
-// that runner reads the commit due once its run ends. A run that fails is said, and the next commit due still runs.
-func runLanesDue(root string, output io.Writer, run func(checkout string) error) error {
+// runLanesDue runs the cycle's lanes with run at the commit due (lanesDue), in the lanes checkout moved there, once. A
+// commit named due while it ran is run by the runner next starts, built from the trunk (startLanesRunner), once this
+// one lets the lanes go: a runner that ran each later commit itself supervised every run with its own build, and the
+// one built at f46760944 ended the runs at d0eaf0f9a and 9b40546f8 on 2026-11-20 at the bound verdict-steady had
+// replaced (lanes-runner-current). Where another runner holds the lanes it runs nothing: that runner starts the next
+// once its run ends. A run that fails is said, and the next commit due still runs.
+func runLanesDue(root string, output io.Writer, run func(checkout string) error, next func() error) error {
 	state := filepath.Join(root, processlock.StateDirectory)
 	checkout, err := filepath.Abs(filepath.Join(state, lanesCheckout))
 	if err != nil {
 		return err
 	}
-	for {
-		lock, err := processlock.Acquire(filepath.Join(state, lanesLock), clioptions.PrivateFileMode)
-		if errors.Is(err, processlock.ErrBusy) {
-			fmt.Fprintln(output, "loop: another runner holds the lanes, and runs them at the commit due")
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		due, began, err := lanesRecords(state)
-		if err == nil && due.Commit != began.Commit {
-			if err = jsonfile.Write(filepath.Join(state, lanesBeganFile), due, clioptions.PrivateFileMode); err == nil {
-				err = runLanesAt(root, checkout, due, output, run)
-			}
-		}
-		if err = errors.Join(err, lock.Close()); err != nil {
-			return err
-		}
-		// A close that named its commit while the lock was held left its run to this runner.
-		if due, began, err := lanesRecords(state); err != nil || due.Commit == began.Commit {
-			return err
+	lock, err := processlock.Acquire(filepath.Join(state, lanesLock), clioptions.PrivateFileMode)
+	if errors.Is(err, processlock.ErrBusy) {
+		fmt.Fprintln(output, "loop: another runner holds the lanes, and starts the next for the commit due")
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	due, began, err := lanesRecords(state)
+	if err == nil && due.Commit != began.Commit {
+		if err = jsonfile.Write(filepath.Join(state, lanesBeganFile), due, clioptions.PrivateFileMode); err == nil {
+			err = runLanesAt(root, checkout, due, output, run)
 		}
 	}
+	if err = errors.Join(err, lock.Close()); err != nil {
+		return err
+	}
+	// A close that named its commit while the lock was held left its run to the runner this one starts.
+	if due, began, err := lanesRecords(state); err != nil || due.Commit == began.Commit {
+		return err
+	}
+	fmt.Fprintln(output, "loop: a later commit is due; the runner built from the trunk runs it")
+	return next()
 }
 
 // lanesRecords reads the commit due and the one a runner last began the lanes at, none where none began: a runner

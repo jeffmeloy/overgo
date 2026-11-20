@@ -245,7 +245,9 @@ extern "C" __global__ void moss_situ_f32(
 // moss_situ_bf16_round_f32 is MOSS's SITU activation as the denoiser composes it (rotaryGraph.situ), each operation's
 // F32 result rounded to BF16 as bf16_round_f32 rounds it: bounded(gate) times sigmoid(gate), times bounded(up), where
 // bounded scales by its bound's inverse, takes the tanh and scales by the bound, the products in that order. The
-// training kernel moss_situ_f32 divides by the bounds and rounds nothing.
+// output's rows of width values are read from gate and up rows stride values apart: stride is width where each is
+// contiguous, and twice it where both are the halves of one gate-and-up product, read where the product holds them, as
+// ComfyUI's MOSS reads them as views of it. The training kernel moss_situ_f32 divides by the bounds and rounds nothing.
 extern "C" __global__ void moss_situ_bf16_round_f32(
         const float * gate,
         const float * up,
@@ -254,12 +256,15 @@ extern "C" __global__ void moss_situ_bf16_round_f32(
         float gate_bound,
         float hidden_inverse,
         float hidden_bound,
+        unsigned int width,
+        unsigned int stride,
         unsigned int count) {
     const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
     if (index < count) {
-        const float value = gate[index];
+        const size_t source = (size_t) (index / width) * stride + index % width;
+        const float value = gate[source];
         const float bounded_gate = bf16_rounded(bf16_rounded(tanhf(bf16_rounded(value * gate_inverse))) * gate_bound);
-        const float bounded_hidden = bf16_rounded(bf16_rounded(tanhf(bf16_rounded(up[index] * hidden_inverse))) * hidden_bound);
+        const float bounded_hidden = bf16_rounded(bf16_rounded(tanhf(bf16_rounded(up[source] * hidden_inverse))) * hidden_bound);
         const float sigmoid = bf16_rounded(1.0f / (1.0f + expf(-value)));
         output[index] = bf16_rounded(bf16_rounded(bounded_gate * sigmoid) * bounded_hidden);
     }

@@ -1,14 +1,19 @@
 package executor
 
 import (
+	"math"
+
 	"overgo/internal/cuda/device"
+	"overgo/internal/cuda/driver"
 	"overgo/internal/tensor"
 )
 
 // mossSituFusion is a rounded SITU activation's bounds: the scales by each bound's inverse and by the bound, the gate's
-// and the hidden value's.
+// and the hidden value's; and, where its gate and hidden values are the second and first halves of each row of one
+// gate-and-up product, its sole operand, the halves' width.
 type mossSituFusion struct {
 	gateInverse, gateBound, hiddenInverse, hiddenBound float32
+	halves                                             uint32
 }
 
 // roundedChain walks a chain of rounded operations backward from its last rounding: each step answers the operation a
@@ -85,10 +90,13 @@ func applyMOSSSituRewrite(context *rewriteContext) {
 		if !chain.ok || sigmoid.Inputs[0] != gate || !gate.Shape.Equal(node.Shape) || !up.Shape.Equal(node.Shape) {
 			continue
 		}
-		compiled.setFusion(node, &compiledFusion{
-			kind: compiledFusionMOSSSitu, operands: []*tensor.Tensor{gate, up},
-			situ: mossSituFusion{gateInverse: gateInverse, gateBound: gateBound, hiddenInverse: hiddenInverse, hiddenBound: hiddenBound},
-		})
+		situ := mossSituFusion{gateInverse: gateInverse, gateBound: gateBound, hiddenInverse: hiddenInverse, hiddenBound: hiddenBound}
+		operands := []*tensor.Tensor{gate, up}
+		if product, width, held := productHalves(context, gate, up); held {
+			operands, situ.halves = []*tensor.Tensor{product}, width
+			chain.parts = append(chain.parts, gate, gate.Inputs[0], up, up.Inputs[0])
+		}
+		compiled.setFusion(node, &compiledFusion{kind: compiledFusionMOSSSitu, operands: operands, situ: situ})
 		if compiled.skipped == nil {
 			compiled.skipped = make(map[*tensor.Tensor]struct{})
 		}
@@ -98,12 +106,53 @@ func applyMOSSSituRewrite(context *rewriteContext) {
 	}
 }
 
-// launchMOSSSitu computes a folded SITU activation from its gate and hidden values into its last rounding's output.
+// productHalves answers the gate-and-up product whose rows' second and first halves gate and up view, each a reshape of
+// a group slice of it that the activation alone reads (the gate's read by its bound and its sigmoid), and the halves'
+// width, as MOSS's denoiser splits the product (latentimage rotaryGraph.part), so the activation reads the halves where
+// the product holds them instead of each copied apart.
+func productHalves(context *rewriteContext, gate, up *tensor.Tensor) (*tensor.Tensor, uint32, bool) {
+	viewed := func(node *tensor.Tensor) (*tensor.Tensor, tensor.GroupSliceAttributes) {
+		if node.Op != tensor.OpReshape || len(node.Inputs) != 1 || node.Inputs[0].Op != tensor.OpGroupSlice || len(node.Inputs[0].Inputs) != 1 {
+			return nil, tensor.GroupSliceAttributes{}
+		}
+		attributes, _ := node.Inputs[0].Attrs.(tensor.GroupSliceAttributes)
+		return node.Inputs[0], attributes
+	}
+	gateSlice, gateRange := viewed(gate)
+	upSlice, upRange := viewed(up)
+	if gateSlice == nil || upSlice == nil || gateSlice.Inputs[0] != upSlice.Inputs[0] {
+		return nil, 0, false
+	}
+	product, width := gateSlice.Inputs[0], upRange.Width
+	if product.Shape.Rank != 2 || product.Shape.Dims[0] != 2*width || width > math.MaxUint32 ||
+		upRange != (tensor.GroupSliceAttributes{Offset: 0, Width: width, Groups: 1, Stride: width}) ||
+		gateRange != (tensor.GroupSliceAttributes{Offset: width, Width: width, Groups: 1, Stride: width}) {
+		return nil, 0, false
+	}
+	for node, reads := range map[*tensor.Tensor]int{gate: 2, gateSlice: 1, up: 1, upSlice: 1} {
+		_, retained := context.outputSet[node]
+		_, skipped := context.compiled.skipped[node]
+		if retained || skipped || context.uses[node] != reads || context.compiled.fusions[node] != nil {
+			return nil, 0, false
+		}
+	}
+	return product, uint32(width), true
+}
+
+// launchMOSSSitu computes a folded SITU activation from its gate and hidden values into its last rounding's output: two
+// operands of the output's shape, or one gate-and-up product whose rows' halves they are.
 func launchMOSSSitu(state *device.State, functions functionSet, node *tensor.Tensor, situ mossSituFusion, pointers launchPointerFrame) error {
 	count := shapeCount32(node.Shape)
-	gate, up, output := pointers.input(0), pointers.input(1), pointers.output()
+	output, width, stride := pointers.output(), count, count
+	var gate, up driver.DevicePtr
+	if situ.halves != 0 {
+		up = pointers.input(0)
+		gate, width, stride = up+driver.DevicePtr(4*uint64(situ.halves)), situ.halves, 2*situ.halves
+	} else {
+		gate, up = pointers.input(0), pointers.input(1)
+	}
 	return launch1DABI(
 		state, functions[kernelMossSituBf16RoundF32], count,
-		&gate, &up, &output, &situ.gateInverse, &situ.gateBound, &situ.hiddenInverse, &situ.hiddenBound, &count,
+		&gate, &up, &output, &situ.gateInverse, &situ.gateBound, &situ.hiddenInverse, &situ.hiddenBound, &width, &stride, &count,
 	)
 }

@@ -97,7 +97,11 @@ func (g *rotaryGraph) joint(input, modulation, unit *tensor.Tensor, index int) *
 	}
 	attentionShift, attentionScale, attentionGate := parts[jointAttentionShift], parts[jointAttentionScale], parts[jointAttentionGate]
 	feedShift, feedScale, feedGate := parts[jointFeedShift], parts[jointFeedScale], parts[jointFeedGate]
-	hidden := g.round(input)
+	// A block's input is the last block's rounded sum, which a rounding would not change (moss-fusion/copies).
+	hidden := input
+	if input.Op != tensor.OpBF16Round {
+		hidden = g.round(input)
+	}
 	y := g.modulate(g.norm(prefix+"norm1", hidden, g.width), attentionShift, attentionScale, unit)
 	q := g.norm(prefix+"q_norm", b.Reshape(g.projection(prefix+"proj.q", y, g.width, g.width), g.headWidth, g.heads, g.sequence), g.headWidth)
 	k := g.norm(prefix+"k_norm", b.Reshape(g.projection(prefix+"proj.k", y, g.width, g.width), g.headWidth, g.heads, g.sequence), g.headWidth)

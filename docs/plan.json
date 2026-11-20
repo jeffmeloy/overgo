@@ -7,17 +7,6 @@
       "title": "The elementwise kernels and conversions between a MOSS pass's multiplies and attention fuse, reading and writing each activation once",
       "steps": [
         {
-          "id": "copies",
-          "title": "A MOSS pass rounds no value that is already BF16 and copies neither half of its gate-and-up product, its final latent the one it drew before, bit for bit",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^(TestAMOSSPassRoundsNoValueTwice|TestTheMOSSPassFusesWithoutChangingABit)$'",
-          "files": [
-            "internal/latentimage",
-            "internal/cuda",
-            "kernels"
-          ],
-          "rationale": "The re-budget (this row's note of 2026-11-19) places 401 bf16_round_f32 launches in a pass at 1024 x 576 (19.1 ms) and 92 group_slice_f32 launches (13.6 ms). Of the roundings, the rotary graph asks 252 of the six int8 products a block makes (rotaryGraph.projection), whose epilogue (scale_int8_product_bf16_f32) already rounds each entry to BF16, and 42 of each block's input, the previous block's rounded sum, each a kernel reading and writing the whole activation for no change of a bit; of the slices, 84 are the two halves of each block's gate-and-up product, copied for SiTU (rotaryGraph.part), which ComfyUI's MOSS reads as views of the product (chunk). The step drops those roundings from the graph, and the SiTU rewrite (applyMOSSSituRewrite) claims the two slices of one product and reads both halves where the product holds them, through a row stride, as the training kernel moss_situ_f32 reads them. A rounding an attention or a rotation rewrite reads stays (bf16-attention reads q, k and v as roundings). Its check draws two steps of text to image and of depth control at the workflow's size to the final latents overgo drew before any fusion, bit for bit (TestTheMOSSPassFusesWithoutChangingABit); the pass's kernel time is read beside it."
-        },
-        {
           "id": "neighbors",
           "title": "A MOSS pass normalizes, weights and modulates each row in one kernel, adds each gated residual in one, and its int8 products compute the norms and activation they read and write the gated sums that read them, its final latent the one it drew before, bit for bit",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^TestTheMOSSPassFusesWithoutChangingABit$'",

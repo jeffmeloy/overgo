@@ -528,9 +528,12 @@ func acquire(ctx context.Context, output io.Writer, root, name string, args []st
 	report, err := testevidence.RunGoTestCommand(ctx, processcontrol.Command{
 		Path: name, Args: slices.Insert(slices.Clone(args), 1, "-json"), Dir: root, Env: append(inherited, environment...),
 	}, testevidence.GoTestOptions{DiagnosticBytes: clioptions.DiagnosticTailBytes, Progress: func(done testevidence.PackageProgress) {
-		fmt.Fprintf(output, "%s\t%s\t%s\n", done.Action, done.Package, done.Elapsed)
+		fmt.Fprintf(output, "%s\t%s\t%s\tpeak %.1f GiB\n", done.Action, done.Package, done.Elapsed, float64(done.PeakBytes)/(1<<30))
 		watch.ran(done)
 	}, Tests: watch.observe})
+	if err != nil {
+		watch.ended(err, report.PeakBytes)
+	}
 	for _, diagnostic := range report.Diagnostics {
 		fmt.Fprintf(output, "validate -run: diagnostic: %s\n", diagnostic)
 	}

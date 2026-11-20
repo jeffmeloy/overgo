@@ -137,5 +137,6 @@ func RunGoTestCommand(ctx context.Context, command processcontrol.Command, optio
 	// Even an oversized or unreadable event must not strand a writer on a full pipe.
 	_, drainErr := io.Copy(io.Discard, reader)
 	runErr := <-finished
+	report.PeakBytes = supervised.PeakProcessBytes()
 	return report, errors.Join(parseErr, drainErr, runErr, context.Cause(ctx), flush())
 }

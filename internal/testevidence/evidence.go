@@ -42,8 +42,11 @@ type GoTestReport struct {
 	Diagnostics []string
 	// Executions retain package lifecycle costs independently of evidence credit.
 	Executions []PackageExecution
-	tests      []testResult
-	packages   map[string]packageEvidence
+	// PeakBytes is the most memory one process of the run committed, read as its tree ended (processcontrol
+	// Receipt.PeakProcessBytes); zero for a report read from a stream alone.
+	PeakBytes uint64
+	tests     []testResult
+	packages  map[string]packageEvidence
 }
 
 type packageEvidence struct {

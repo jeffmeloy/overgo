@@ -61,3 +61,41 @@ func TestALaneTestThatFailsIsRecordedBeforeTheNextPackageEnds(t *testing.T) {
 		t.Fatalf("the run reads %q", report)
 	}
 }
+
+// TestAnEndedTestIsLoggedAsItEnds runs a lane over a package whose test ends its go test process from outside, as a
+// tree's bound ends one, so go test reports nothing of it (lanes-ended): the test is reported as failed the moment its
+// process ends, with how it ended and its largest process's memory, and recorded in the run, where ten tests the run
+// at f46760944 ended at its bound reached the lanes log only in the run's summary, 8h32m after the run began. A
+// package that ends is reported with its largest process's memory.
+func TestAnEndedTestIsLoggedAsItEnds(t *testing.T) {
+	root := t.TempDir()
+	write := func(name, content string) { testutil.WriteTextFile(t, root, name, content, 0o600) }
+	write("go.mod", "module lanefixture\n\ngo 1.26\n")
+	write("ran/ran_test.go", "package ran\n\nimport \"testing\"\n\nfunc TestRuns(t *testing.T) {}\n")
+	// The test waits for go test to have said it runs, then ends go test, its parent, and with it the run.
+	write("ended/ended_test.go", "package ended\n\nimport (\n\t\"os\"\n\t\"testing\"\n\t\"time\"\n)\n\n"+
+		"func TestEndsItsRun(t *testing.T) {\n\ttime.Sleep(2 * time.Second)\n\tparent, err := os.FindProcess(os.Getppid())\n"+
+		"\tif err != nil {\n\t\tt.Fatal(err)\n\t}\n\t_ = parent.Kill()\n\ttime.Sleep(time.Minute)\n}\n")
+	testcheck.NoError(t, processlock.EnsureStateDirectory(root))
+	record := filepath.Join(t.TempDir(), "measurement_run.json")
+	started := time.Now()
+	testcheck.NoError(t, jsonfile.Write(record, plan.MeasurementRun{Commit: "measured", Process: os.Getpid(), Started: started,
+		Phases: []plan.MeasurementPhase{{Name: "lanes", Started: started}}}, clioptions.PrivateFileMode))
+	t.Setenv(clioptions.MeasurementRunEnvironment, record)
+
+	var output bytes.Buffer
+	_, err := acquire(t.Context(), &output, root, "go", []string{"test", "-count=1", "-p=1", "-timeout=0", "./ran", "./ended"})
+	reported := output.String()
+	if err == nil || !strings.Contains(reported, "fail\tlanefixture/ended\tTestEndsItsRun\t") ||
+		!strings.Contains(reported, "validate -run: lanefixture/ended TestEndsItsRun ended without its result, its largest process at ") {
+		t.Fatalf("a test whose process ended without its result ended the lane with %v, said as:\n%s", err, reported)
+	}
+	if !strings.Contains(reported, "pass\tlanefixture/ran\t") || !strings.Contains(reported, " GiB\n") {
+		t.Fatalf("the package that ran was not said with its largest process's memory:\n%s", reported)
+	}
+	var kept plan.MeasurementRun
+	testcheck.NoError(t, jsonfile.Decode(record, &kept))
+	if !slices.Equal(kept.Phases[0].Failed, []string{"lanefixture/ended TestEndsItsRun"}) {
+		t.Fatalf("the run record's lanes phase = %+v, want the ended test failed", kept.Phases[0])
+	}
+}

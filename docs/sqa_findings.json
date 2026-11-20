@@ -282,6 +282,39 @@
       "input": "Use an active MOSS image recipe, prompt 'a fox', 8 steps, an undeclared preset and a syntactically valid file ID for a missing source picture. Compare the request with no dimensions to the same request with width 1024 and height 576. Also try the explicit dimensions with a stored PNG and enhance enabled.",
       "expected": "Both size forms should return the catalog's unknown-preset error before reading the picture or opening the enhancer. Have MOSS admission propagate the preset error its existing resolver already found. Preserve the content identity of admitted requests and fresh execution when only a reusable file identity is unavailable.",
       "actual": "Source at d0eaf0f9a. With no dimensions, Sized resolves the preset and rejects it. Explicit dimensions bypass that lookup. Beside later returns the catalog error, but Reading retries as FreshRun. preparedFirst then returns the missing-picture error, or reads a stored PNG and invokes the enhancer for a request with an invalid preset. The landing's retained check verifies the original negative-step case with both stored and absent pictures."
+    },
+    {
+      "id": "SQA-426",
+      "severity": "P2",
+      "files": [
+        "cmd/validate/run.go",
+        "cmd/validate/test_steps.go",
+        "cmd/validate/lane_walls.go",
+        "internal/testevidence/evidence.go"
+      ],
+      "input": "Run a models lane one named test at a time. End one child after its test starts and before Go emits a terminal event. Let the rest of the lane finish.",
+      "expected": "At the end of each unsuccessful step, report its package, selected test and cause once. Distinguish an assertion failure from an interrupted execution. Carry the same identity into the existing lane summary and measurement record when present. Keep the existing package verdict and continue the remaining tests.",
+      "actual": "The retained models lane at f46760944029 names two MOSS checkpoint failures in its final summary. Its ten memory-limit interruptions appear there only as unfinished packages, including five indistinguishable internal/inference entries. TestFlashNextWindowRowsAreTheSingleTokenSteps is identifiable earlier in the log. On cd86e1a8b, testSteps already knows the selector, but run stores the bare error, RequireComplete reports only the first unfinished entry, and laneWatch records a named failure only on a Go fail event."
+    },
+    {
+      "id": "SQA-427",
+      "severity": "P2",
+      "files": [
+        "docs/plan.json"
+      ],
+      "input": "Judge moss-fusion/neighbors with the prior unfused kernels at the same seed, dimensions and weights. They already produce the reference latents for text to image and depth control.",
+      "expected": "Keep bit-for-bit agreement and make the existing fusion check distinguish the unfused path. Use the warm pass measurement and the later fusion budget to establish elapsed savings beyond the observed timing variation. If only the combined change has a measurable saving, judge it at that existing speed check.",
+      "actual": "At cd86e1a8b the neighbors step selects only TestTheMOSSPassFusesWithoutChangingABit. The unfused baseline satisfies that check. The same selector passed twice with the preceding copies change undone, causing two landing refusals. Master added a graph check to copies alone. The later fusion speed check cannot distinguish the neighbors change when that step is judged."
+    },
+    {
+      "id": "SQA-428",
+      "severity": "P3",
+      "files": [
+        "docs/plan.json"
+      ],
+      "input": "Read the ordering of the existing MOSS speed steps after fusion and checkpoint repair at cd86e1a8b. The campaign measures all six warm workflow sections at 1024x576.",
+      "expected": "Use the plan's existing moss-merge-time/do and moss-depth-card/do measurements to order eligible work by recoverable whole-workflow seconds, allowing for implementation and verification cost. Count each executed merge once and distinguish fresh depth processing from reuse.",
+      "actual": "The three per-pass rows precede both setup rows because their rationale counts setup in one section. Three sections actually merge adapters in 3.44, 5.62 and 6.20 s. Their one-second targets would save 12.26 s. Bringing the approximately 8 s depth path to about 1 s would save roughly 7 s more. For scale, even eliminating the entire profiled 8.8 ms of host-to-device copies on each of 324 passes would save only 2.85 s on that component. These are estimated opportunities, with implementation cost unmeasured."
     }
   ],
   "master_lead_triage": {
@@ -400,7 +433,7 @@
       }
 }
   },
-  "next_finding_number": 426,
+  "next_finding_number": 429,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

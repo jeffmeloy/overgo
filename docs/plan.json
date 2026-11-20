@@ -3,6 +3,24 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "moss-checkpoint-regression",
+      "title": "MOSS's sampling and generation checkpoints hold to the pinned upstream source again: the departure at prediction.0 first logged at f46760944 is traced to its commit and cured",
+      "steps": [
+        {
+          "id": "do",
+          "title": "MOSS's sampling and generation checkpoints hold to the pinned upstream source again: the departure at prediction.0 first logged at f46760944 is traced to its commit and cured",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^(TestMOSSSamplingCheckpoint|TestMOSSGenerationCheckpoint)$'",
+          "files": [
+            "internal/latentimage",
+            "internal/cuda",
+            "internal/tensor",
+            "kernels"
+          ],
+          "rationale": "Note: The owner's review of 2026-11-19, point 1, checked against .overgo-runtime/lanes.log: the slow run at f46760944 logged at 13:57 that TestMOSSSamplingCheckpoint (line 12857) and TestMOSSGenerationCheckpoint (line 12885) fail at prediction.0 of full-english, 129,881 of 524,288 values outside the frozen comparison, the largest 0.047; both passed in every earlier run that reached them (lines 373, 2750, 3184, 5882, each in 5m53s; the failing run took 9 s). The test loads MOSS-Image-SFT, whose weights are BF16, so the departure is in the BF16 path the pinned upstream source fixes. Seven commits between touch the code it runs: 97714132e (moss-attention: the BF16 attention kernel it samples through, and the likeliest, since the run's time fell with it), 5dafd6d23, b11230b4b, 5da20f97b, a8a03e840, a3c83f774, 1ab50872c. The row traces the departure to its commit by running the test at each candidate, and cures it: where the change departs from the upstream source, the code goes back to its arithmetic; where the comparison froze an arithmetic the workflow's own source does not hold, the reference and its bound are restated on that source's evidence.\n\nNote: Traced 2026-11-19 by running TestMOSSSamplingCheckpoint at each end of moss-attention in fresh worktrees: at 328befb0c, its parent, it passes (370 s); at 97714132e it fails as the slow run logged, prediction.0 of full-english, 129,881 values outside the frozen comparison, the largest 0.046875. moss-attention's faster BF16 attention (attention_registers_bf16_f32, scores held in registers) is the departure; moss-attention landed on its picture's agreement, a looser bound than the checkpoint's frozen comparison, and no slow run reached the checkpoint between its landing and f46760944. The cure starts from that kernel's arithmetic against the upstream attention's."
+        }
+      ]
+    },
+    {
       "id": "moss-fusion",
       "title": "The elementwise kernels and conversions between a MOSS pass's multiplies and attention fuse, reading and writing each activation once",
       "steps": [
@@ -42,20 +60,36 @@
       ]
     },
     {
-      "id": "moss-checkpoint-regression",
-      "title": "MOSS's sampling and generation checkpoints hold to the pinned upstream source again: the departure at prediction.0 first logged at f46760944 is traced to its commit and cured",
+      "id": "moss-merge-time",
+      "title": "An adapter section's merges take at most a second in all: each adapter's tensors read once a sampling, one working buffer across its merges, and the file's int8 rows taken from the card where a program holds them",
       "steps": [
         {
           "id": "do",
-          "title": "MOSS's sampling and generation checkpoints hold to the pinned upstream source again: the departure at prediction.0 first logged at f46760944 is traced to its commit and cured",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^(TestMOSSSamplingCheckpoint|TestMOSSGenerationCheckpoint)$'",
+          "title": "An adapter section's merges take at most a second in all: each adapter's tensors read once a sampling, one working buffer across its merges, and the file's int8 rows taken from the card where a program holds them",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^TestAdapterSectionsMergeInASecond$'",
           "files": [
             "internal/latentimage",
             "internal/cuda",
-            "internal/tensor",
-            "kernels"
+            "internal/graphruntime"
           ],
-          "rationale": "Note: The owner's review of 2026-11-19, point 1, checked against .overgo-runtime/lanes.log: the slow run at f46760944 logged at 13:57 that TestMOSSSamplingCheckpoint (line 12857) and TestMOSSGenerationCheckpoint (line 12885) fail at prediction.0 of full-english, 129,881 of 524,288 values outside the frozen comparison, the largest 0.047; both passed in every earlier run that reached them (lines 373, 2750, 3184, 5882, each in 5m53s; the failing run took 9 s). The test loads MOSS-Image-SFT, whose weights are BF16, so the departure is in the BF16 path the pinned upstream source fixes. Seven commits between touch the code it runs: 97714132e (moss-attention: the BF16 attention kernel it samples through, and the likeliest, since the run's time fell with it), 5dafd6d23, b11230b4b, 5da20f97b, a8a03e840, a3c83f774, 1ab50872c. The row traces the departure to its commit by running the test at each candidate, and cures it: where the change departs from the upstream source, the code goes back to its arithmetic; where the comparison froze an arithmetic the workflow's own source does not hold, the reference and its bound are restated on that source's evidence.\n\nNote: Traced 2026-11-19 by running TestMOSSSamplingCheckpoint at each end of moss-attention in fresh worktrees: at 328befb0c, its parent, it passes (370 s); at 97714132e it fails as the slow run logged, prediction.0 of full-english, 129,881 values outside the frozen comparison, the largest 0.046875. moss-attention's faster BF16 attention (attention_registers_bf16_f32, scores held in registers) is the departure; moss-attention landed on its picture's agreement, a looser bound than the checkpoint's frozen comparison, and no slow run reached the checkpoint between its landing and f46760944. The cure starts from that kernel's arithmetic against the upstream attention's."
+          "rationale": "Note: Read 2026-11-19 at 15ecde8d3 (the workflow warm, temporary timing around bindMerged): each adapter section binds 252 merged weights, taking 3.44 s in depth control (1.20 s preparing on the host), 5.62 s in text to image Turbo (2.96 s) and 6.20 s in depth control Turbo (3.44 s); image to image Turbo reuses text to image Turbo's. On the host each weight's merge reads its int8 rows from the file (4.75 GB a section) and opens, reads and rounds to BF16 each adapter's tensors for it, a fused qkv's up three times (8-steps-dmd2 holds F32, moss_image_sft F16); on the card it uploads those rows, allocates and frees its working memory and waits for the stream, once a weight. ComfyUI's depth control section takes 1.1 s more than its text to image (10.14 against 9.07 s), its merge included. The cure reads each adapter tensor once a sampling, keeps one working buffer across a sampling's merges and waits once, and takes the file's int8 rows from the card where a program holds them; its check reads each adapter section's merges at most a second in all, and the merged rows still ComfyUI's (holdLoRAMerge).\n\nNote: Rows run in order of workflow seconds saved per unit of work (the owner's review of 2026-11-19, point 2), read from the rows' own figures: the merges take 15.3 s (3.44 + 5.62 + 6.20 s, this row's note), so a bar of about 3 s saves about 12 s; the depth map's 8 s to about 1 s saves about 7 s; the int8 epilogue and quantizer, 26.8 ms a pass (15.5 + 11.3), save at most 8.7 s over the workflow's 324 passes; attention, 26.6 ms to about 10 ms, about 5.4 s; the step copies, 5.4 to 8.8 ms a pass, at most 2.9 s. This row and moss-depth-card need no new kernel and do not wait on ComfyUI's pass profile (moss-fusion/budget), so they come before the per-pass rows. moss-fusion/neighbors, built and checked in a scratch tree (a pass 162 to about 144 ms, about 5.8 s), lands first among the speed rows, and moss-fusion's budget and do steps then follow moss-depth-card."
+        }
+      ]
+    },
+    {
+      "id": "moss-depth-card",
+      "title": "A depth control's map from a picture costs about a second fresh and nothing for a picture and settings already mapped: Depth Anything and the picture encoder held across requests and a map and its control reused as ComfyUI's node cache reuses them, the estimate ported to the card only if it remains the cost",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A depth control's map from a picture costs about a second fresh and nothing for a picture and settings already mapped: Depth Anything and the picture encoder held across requests and a map and its control reused as ComfyUI's node cache reuses them, the estimate ported to the card only if it remains the cost",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^TestADepthMapCostsASecondOnce$'",
+          "files": [
+            "internal/vitencoder",
+            "internal/latentimage",
+            "internal/cuda"
+          ],
+          "rationale": "Note: Read 2026-11-19 at 15ecde8d3 (temporary ledger stages, and Nsight Systems over the warm Turbo sections): depth control Turbo's sampling takes 16.3 s against ComfyUI's whole section's 2.2 s, of which its 8 passes are 1.64 s on the card and its merge 6.05 s; about 8 s more pass with the card idle before the passes, in controlLatent: the request's depth control comes from a picture, so sectionDepth loads Depth Anything V2 Small from its checkpoint (vitencoder.LoadDepthAnything) and estimates the depth on the host in float64 (DepthMap), and encodeUnit builds a picture encoder (a context, its program and the VAE's weights) for the map, each request. The depth control section's request carries the recorded map and skips the estimate. ComfyUI's preprocessor runs the model on the card and keeps it loaded. The cure estimates on the card with the model held across requests, its map the host estimate's at the agreement the map's 8 bits keep, and holds the picture encoder beside the generator; its check reads depth control Turbo's sampling at most its passes and merge plus 0.5 s.\n\nNote: The owner's review of 2026-11-19 re-scopes this row, checked against the recordings: ComfyUI's depth control Turbo runs (pass-1 and pass-2) list as cached the depth preprocessor (366:41, DepthAnythingV2Preprocessor), MOSSImageControl (366:46) and both prompt encodes (366:45, 366:220), so its 2.2 s holds neither the estimate nor the map's encoding; its depth control runs do not list 612:438 (DepthAnythingV2Preprocessor) as cached, and that section took 1.07 s more than text to image (10.14 against 9.07 s), a fresh estimate, its encoding and the merge together. The workflow timing asked overgo the reverse: depth control from the recorded map, depth control Turbo from the picture. The 8 s was also never split between loading Depth Anything (sectionDepth loads it each call), the float64 estimate on the host, and building the picture encoder (encodeUnit builds and closes one each call). The row first splits that time, then holds what is rebuilt across requests, reuses a map, and its control's latent, for the same picture and settings as ComfyUI's node cache reuses a node's output, and ports the estimate to the card only if the estimate itself remains the cost; its check times depth control from its picture, a fresh map at most about a second, and depth control Turbo after it on the same picture, its map and control taken as they were."
         }
       ]
     },
@@ -108,40 +142,6 @@
             "kernels"
           ],
           "rationale": "Note: Filed from the owner's review of 2026-11-19, point 2 (attention, the int8 products' scale epilogue and the per-step copies have no row), with moss-fusion's re-budget at 1024 x 576 (Nsight Systems, a depth control pass, 15ecde8d3 and its fusions in development): the int8 products read 53.5 ms of cuBLASLt kernels a pass beside 15.5 ms of epilogue (scale_int8_product_bf16_f32, a separate kernel writing and rereading the int32 product) and 11.3 ms of activation quantization, where comfy_kitchen runs a CUTLASS int8 product with its dequantization in its epilogue (cutlass_gemm_int8.cu); attention reads 26.6 ms (attention_registers_bf16_f32, 44 launches); and each step hands the latent and the prediction to the host and back (SQA-421), 5.4 to 8.8 ms a pass of host-to-device copies. These rows pay on every one of the workflow's 324 passes, so they run before the rows that pay in one section (moss-merge-time, moss-depth-card). Each row's bar is its part's in the pass budget (moss-fusion/budget), read against ComfyUI's same part."
-        }
-      ]
-    },
-    {
-      "id": "moss-merge-time",
-      "title": "An adapter section's merges take at most a second in all: each adapter's tensors read once a sampling, one working buffer across its merges, and the file's int8 rows taken from the card where a program holds them",
-      "steps": [
-        {
-          "id": "do",
-          "title": "An adapter section's merges take at most a second in all: each adapter's tensors read once a sampling, one working buffer across its merges, and the file's int8 rows taken from the card where a program holds them",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^TestAdapterSectionsMergeInASecond$'",
-          "files": [
-            "internal/latentimage",
-            "internal/cuda",
-            "internal/graphruntime"
-          ],
-          "rationale": "Note: Read 2026-11-19 at 15ecde8d3 (the workflow warm, temporary timing around bindMerged): each adapter section binds 252 merged weights, taking 3.44 s in depth control (1.20 s preparing on the host), 5.62 s in text to image Turbo (2.96 s) and 6.20 s in depth control Turbo (3.44 s); image to image Turbo reuses text to image Turbo's. On the host each weight's merge reads its int8 rows from the file (4.75 GB a section) and opens, reads and rounds to BF16 each adapter's tensors for it, a fused qkv's up three times (8-steps-dmd2 holds F32, moss_image_sft F16); on the card it uploads those rows, allocates and frees its working memory and waits for the stream, once a weight. ComfyUI's depth control section takes 1.1 s more than its text to image (10.14 against 9.07 s), its merge included. The cure reads each adapter tensor once a sampling, keeps one working buffer across a sampling's merges and waits once, and takes the file's int8 rows from the card where a program holds them; its check reads each adapter section's merges at most a second in all, and the merged rows still ComfyUI's (holdLoRAMerge)."
-        }
-      ]
-    },
-    {
-      "id": "moss-depth-card",
-      "title": "A depth control's map from a picture costs about a second fresh and nothing for a picture and settings already mapped: Depth Anything and the picture encoder held across requests and a map and its control reused as ComfyUI's node cache reuses them, the estimate ported to the card only if it remains the cost",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A depth control's map from a picture costs about a second fresh and nothing for a picture and settings already mapped: Depth Anything and the picture encoder held across requests and a map and its control reused as ComfyUI's node cache reuses them, the estimate ported to the card only if it remains the cost",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^TestADepthMapCostsASecondOnce$'",
-          "files": [
-            "internal/vitencoder",
-            "internal/latentimage",
-            "internal/cuda"
-          ],
-          "rationale": "Note: Read 2026-11-19 at 15ecde8d3 (temporary ledger stages, and Nsight Systems over the warm Turbo sections): depth control Turbo's sampling takes 16.3 s against ComfyUI's whole section's 2.2 s, of which its 8 passes are 1.64 s on the card and its merge 6.05 s; about 8 s more pass with the card idle before the passes, in controlLatent: the request's depth control comes from a picture, so sectionDepth loads Depth Anything V2 Small from its checkpoint (vitencoder.LoadDepthAnything) and estimates the depth on the host in float64 (DepthMap), and encodeUnit builds a picture encoder (a context, its program and the VAE's weights) for the map, each request. The depth control section's request carries the recorded map and skips the estimate. ComfyUI's preprocessor runs the model on the card and keeps it loaded. The cure estimates on the card with the model held across requests, its map the host estimate's at the agreement the map's 8 bits keep, and holds the picture encoder beside the generator; its check reads depth control Turbo's sampling at most its passes and merge plus 0.5 s.\n\nNote: The owner's review of 2026-11-19 re-scopes this row, checked against the recordings: ComfyUI's depth control Turbo runs (pass-1 and pass-2) list as cached the depth preprocessor (366:41, DepthAnythingV2Preprocessor), MOSSImageControl (366:46) and both prompt encodes (366:45, 366:220), so its 2.2 s holds neither the estimate nor the map's encoding; its depth control runs do not list 612:438 (DepthAnythingV2Preprocessor) as cached, and that section took 1.07 s more than text to image (10.14 against 9.07 s), a fresh estimate, its encoding and the merge together. The workflow timing asked overgo the reverse: depth control from the recorded map, depth control Turbo from the picture. The 8 s was also never split between loading Depth Anything (sectionDepth loads it each call), the float64 estimate on the host, and building the picture encoder (encodeUnit builds and closes one each call). The row first splits that time, then holds what is rebuilt across requests, reuses a map, and its control's latent, for the same picture and settings as ComfyUI's node cache reuses a node's output, and ports the estimate to the card only if the estimate itself remains the cost; its check times depth control from its picture, a fresh map at most about a second, and depth control Turbo after it on the same picture, its map and control taken as they were."
         }
       ]
     },

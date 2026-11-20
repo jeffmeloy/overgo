@@ -70,8 +70,10 @@ func bindMerged(ctx context.Context, session *graphruntime.ResidentSession, prog
 			identity.WriteString(fmt.Sprintf("+%s@%g", adapters[pair.adapter].content, strengths[pair.adapter]))
 		}
 		name := projection.input.Name
+		// The weight it merges into is read where a program the session holds bound it from the same file, else from it.
+		held, _ := session.Held(sourcePath, name, projection.input)
 		if err := session.BindMerged(ctx, program, identity.String(), name, projection.input, func() (executor.Int8ConvRotMerge, error) {
-			return convRotMerge(source, name, pairs)
+			return convRotMerge(source, name, pairs, held)
 		}); err != nil {
 			return fmt.Errorf("%s: %s: %w", label, name, err)
 		}

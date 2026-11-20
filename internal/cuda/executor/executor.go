@@ -49,6 +49,10 @@ type executorResources struct {
 	q8Input   q8InputState
 	arena     driver.DevicePtr
 	arenaSize uint64
+	// mergeWork is the working memory adapter merges share (MergeInt8ConvRot), grown to the largest and kept until the
+	// executor closes, where each merge had allocated, waited for and freed its own (moss-merge-time).
+	mergeWork      driver.DevicePtr
+	mergeWorkBytes uint64
 	// promptArena is a one-shot run's arena, a prompt's read's, which no captured graph names and a long read gives
 	// back (ReleasePromptMemory).
 	promptArena     driver.DevicePtr
@@ -3397,6 +3401,10 @@ func (e *Executor) closeResources(state *device.State) error {
 		}
 		e.resources.arena = 0
 		e.resources.arenaSize = 0
+	}
+	if e.resources.mergeWork != 0 {
+		errs = append(errs, state.Driver.MemFree(e.resources.mergeWork))
+		e.resources.mergeWork, e.resources.mergeWorkBytes = 0, 0
 	}
 	if err := e.resources.releasePromptArena(state); err != nil {
 		errs = append(errs, err)

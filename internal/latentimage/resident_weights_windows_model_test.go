@@ -19,7 +19,8 @@ import (
 // next (moss-resident): on the MOSS Ultra workflow's files, a session's first sampling copies the transformer's weights
 // to the card, a second request's copies under a tenth of that, and a request naming an adapter merges it into the int8
 // projections it patches (mergedProjection, moss-int8-adapters), which the next request naming the same file keeps,
-// copying under a quarter; a file replaced under its name is merged again (TestAKeptMergeFollowsItsAdaptersContent).
+// copying under a quarter, the merge reading the weights it merges into on the card and copying its pairs alone; a
+// file replaced under its name is merged again (TestAKeptMergeFollowsItsAdaptersContent).
 // Each request had copied the transformer's 9.5 GB again, about 33 s at 2368 x 1344 (moss-speed/do).
 func TestASecondMOSSRequestCopiesNoWeights(t *testing.T) {
 	cudatest.Require(t)
@@ -64,6 +65,12 @@ func TestASecondMOSSRequestCopiesNoWeights(t *testing.T) {
 	if withAdapter.copied < second.copied+adapterBytes/4 || again.copied*4 >= withAdapter.copied {
 		t.Errorf("requests naming an adapter file of %d bytes copied %d and then %d bytes; want its merge into the projections it patches made once and kept",
 			adapterBytes, withAdapter.copied, again.copied)
+	}
+	// The merge reads the weights it merges into where the session's earlier program holds them, and copies its
+	// adapter's pairs alone (moss-merge-time): it had read 4.75 GB of int8 rows from the file and copied them again.
+	if withAdapter.copied > 2*adapterBytes {
+		t.Errorf("a request merging an adapter file of %d bytes after a request without it copied %d bytes; want its pairs alone, the weights it merges into read on the card",
+			adapterBytes, withAdapter.copied)
 	}
 }
 

@@ -231,6 +231,19 @@ func (s *ResidentSession) BindMerged(
 	})
 }
 
+// Held is where the session holds an immutable input of source and name in node's type and shape, as an earlier program
+// bound it: a merge reads the weight it merges into there rather than from its file (moss-merge-time).
+func (s *ResidentSession) Held(source, name string, node *tensor.Tensor) (driver.DevicePtr, bool) {
+	if s == nil || node == nil {
+		return 0, false
+	}
+	index, found := s.byBinding[residentBinding{source: source, name: name, type_: node.Type, shape: node.Shape}]
+	if !found {
+		return 0, false
+	}
+	return s.allocations[index].pointer, true
+}
+
 // residentFill writes an input's bytes where it is placed on the card, on the worker's turn.
 type residentFill func(state *device.State, placed driver.DevicePtr) error
 

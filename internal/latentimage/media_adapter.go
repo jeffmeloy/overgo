@@ -63,6 +63,8 @@ type mediaAdapter struct {
 	// each time the adapter is: a merge kept on the card is kept under it (bindMerged), so a file replaced under its
 	// name is merged again (moss-merge-time/identity, SQA-406).
 	content string
+	// bf16 holds each tensor a merge has read from the file, in BF16, so the request reads it once (pairPayload).
+	bf16 map[string][]byte
 	// lowRank holds each projection's pair, by the graph's projection name (layers.0.proj.q).
 	lowRank map[string]lowRankPatch
 	// diffs holds each weight's or bias's full difference, by the graph's weight name (layers.0.norm1.weight), as the

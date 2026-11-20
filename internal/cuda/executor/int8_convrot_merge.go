@@ -15,8 +15,10 @@ import (
 // CUDA dequantize decodes it, each pair's product added in BF16 as comfy/weight_adapter/lora.py adds it, and the sum
 // quantized again as comfy_kitchen's quantize_int8_convrot_weight does with a stochastic rounding.
 type Int8ConvRotMerge struct {
-	// Stored is the weight as dtype.I8ConvRot holds it: Rows rows of Inner int8 values, then their F32 scales.
+	// Stored is the weight as dtype.I8ConvRot holds it: Rows rows of Inner int8 values, then their F32 scales; or, where
+	// Held is set, empty, Held being the weight so held on the card already, where a program bound it from its file.
 	Stored      []byte
+	Held        driver.DevicePtr
 	Rows, Inner uint32
 	// Pairs are the adapters' pairs over the weight's rows, in the order ComfyUI adds them.
 	Pairs []Int8ConvRotPair
@@ -40,13 +42,19 @@ type Int8ConvRotPair struct {
 // decoded to BF16 values in F32 (dequantize_int8_convrot_rows_f32), each pair's product is formed by cuBLAS as torch.mm
 // forms a BF16 product (GEMMEx over BF16 operands into BF16, accumulated in F32, the operands in torch's order),
 // widened, multiplied by the factor and rounded to BF16, and added to the weight and rounded to BF16, and the sum is
-// quantized to the output with the stochastic rounding (quantize_int8_convrot_rows_stochastic_f32). Its working
-// memory is the card's for the merge alone.
+// quantized to the output with the stochastic rounding (quantize_int8_convrot_rows_stochastic_f32). A weight held on
+// the card is read where it lies, and the merges share one working memory, grown to the largest and kept, with no wait
+// of their own: each had uploaded its weight from the file and allocated, waited for and freed its own, 252 merges a
+// section in 3.4 to 6.2 s (moss-merge-time).
 func (e *Executor) MergeInt8ConvRot(state *device.State, merge Int8ConvRotMerge) (err error) {
 	rows, inner := uint64(merge.Rows), uint64(merge.Inner)
 	elements := rows * inner
+	stored := uint64(len(merge.Stored))
+	if merge.Held != 0 {
+		stored = 0
+	}
 	if rows == 0 || inner%int8ConvRotGroup != 0 || inner > int8ConvRotMaxInner || elements > 1<<31 ||
-		uint64(len(merge.Stored)) != elements+4*rows || merge.Output == 0 {
+		(merge.Held == 0) == (len(merge.Stored) == 0) || merge.Held == 0 && stored != elements+4*rows || merge.Output == 0 {
 		return fmt.Errorf("int8 ConvRot merge of %d x %d over %d stored bytes is not a weight the merge takes", rows, inner, len(merge.Stored))
 	}
 	rank := uint64(0)
@@ -62,21 +70,20 @@ func (e *Executor) MergeInt8ConvRot(state *device.State, merge Int8ConvRotMerge)
 	}
 	// The working memory, each part aligned: the stored weight, the weight in F32, a product in BF16 and in F32, and a
 	// pair's operands.
-	sizes := []uint64{uint64(len(merge.Stored)), 4 * elements, 2 * elements, 4 * elements, 2 * rows * rank, 2 * inner * rank}
+	sizes := []uint64{stored, 4 * elements, 2 * elements, 4 * elements, 2 * rows * rank, 2 * inner * rank}
 	offsets := make([]uint64, len(sizes)+1)
 	for index, size := range sizes {
 		offsets[index+1] = offsets[index] + (size+bf16LinearAlignment-1)/bf16LinearAlignment*bf16LinearAlignment
 	}
-	work, err := state.Driver.MemAlloc(offsets[len(sizes)])
+	work, err := e.mergeWork(state, offsets[len(sizes)])
 	if err != nil {
 		return err
 	}
-	defer func() {
-		err = errors.Join(err, state.Driver.StreamSynchronize(state.Stream), state.Driver.MemFree(work))
-	}()
 	at := func(index int) driver.DevicePtr { return work + driver.DevicePtr(offsets[index]) }
 	weight, merged, product, widened, up, down := at(0), at(1), at(2), at(3), at(4), at(5)
-	if err := state.Driver.MemcpyHtoD(weight, merge.Stored); err != nil {
+	if merge.Held != 0 {
+		weight = merge.Held
+	} else if err := state.Driver.MemcpyHtoD(weight, merge.Stored); err != nil {
 		return err
 	}
 	functions, rowsArgument, innerArgument := resources.functions, merge.Rows, merge.Inner
@@ -116,4 +123,25 @@ func (e *Executor) MergeInt8ConvRot(state *device.State, merge Int8ConvRotMerge)
 	firstRow, seed := merge.FirstRow, merge.Seed
 	return launchGridABI(state, functions[kernelQuantizeInt8ConvrotRowsStochasticF32], kernel.Grid1D(int(rows)), kernel.DefaultBlock1D(),
 		&merged, &output, &outputScales, &innerArgument, &rowsArgument, &firstRow, &seed)
+}
+
+// mergeWork is the merges' working memory of at least bytes, grown where a merge needs more: the stream is waited for
+// before the smaller is freed, the one wait a merge may cause. The stream is a blocking one, so a merge's synchronous
+// uploads into it follow the last merge's launches on it.
+func (e *Executor) mergeWork(state *device.State, bytes uint64) (driver.DevicePtr, error) {
+	if e.resources.mergeWorkBytes >= bytes {
+		return e.resources.mergeWork, nil
+	}
+	if e.resources.mergeWork != 0 {
+		if err := errors.Join(state.Driver.StreamSynchronize(state.Stream), state.Driver.MemFree(e.resources.mergeWork)); err != nil {
+			return 0, err
+		}
+		e.resources.mergeWork, e.resources.mergeWorkBytes = 0, 0
+	}
+	work, err := state.Driver.MemAlloc(bytes)
+	if err != nil {
+		return 0, err
+	}
+	e.resources.mergeWork, e.resources.mergeWorkBytes = work, bytes
+	return work, nil
 }

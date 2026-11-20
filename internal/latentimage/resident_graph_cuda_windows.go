@@ -41,8 +41,10 @@ func compileResidentWeights(
 
 // bindMerged binds each projection a compiled program reads with adapters' pairs merged into its int8 weight
 // (mergedProjection) as the merge on the card makes it from the transformer's file at sourcePath (convRotMerge), each
-// adapter at its strength. It is held under the transformer's path, each merged adapter's file and strength, and the
-// weight's name, so a later sampling with those adapters at those strengths takes it as it is.
+// adapter at its strength. It is held under the transformer's path, each merged adapter's content and strength, and
+// the weight's name, so a later sampling with those adapters at those strengths takes it as it is, and one whose
+// adapter file was replaced under its name merges it again (moss-merge-time/identity): held under the adapter's path,
+// it answered a replaced file with the earlier file's merge (SQA-406's fault in the merge's place).
 func bindMerged(ctx context.Context, session *graphruntime.ResidentSession, program *graphruntime.ResidentProgram, label, sourcePath string,
 	merged []mergedProjection, adapters []*mediaAdapter, strengths []float32) (err error) {
 	if len(merged) == 0 {
@@ -65,7 +67,7 @@ func bindMerged(ctx context.Context, session *graphruntime.ResidentSession, prog
 				return fmt.Errorf("%s: %s merges adapter %d of %d", label, projection.input.Name, pair.adapter, len(adapters))
 			}
 			pairs[index] = adapterPair{adapter: adapters[pair.adapter], patch: pair.patch, strength: strengths[pair.adapter]}
-			identity.WriteString(fmt.Sprintf("+%s@%g", adapters[pair.adapter].path, strengths[pair.adapter]))
+			identity.WriteString(fmt.Sprintf("+%s@%g", adapters[pair.adapter].content, strengths[pair.adapter]))
 		}
 		name := projection.input.Name
 		if err := session.BindMerged(ctx, program, identity.String(), name, projection.input, func() (executor.Int8ConvRotMerge, error) {

@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	"overgo/internal/artifact"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor"
 )
@@ -58,6 +59,10 @@ func (a AppliedAdapter) strength() float32 {
 // mediaAdapter is an adapter file's patches by the graph weight each changes.
 type mediaAdapter struct {
 	path string
+	// content is the file's identity by its bytes, as a request's reading names it (capabilityruntime.Contents), read
+	// each time the adapter is: a merge kept on the card is kept under it (bindMerged), so a file replaced under its
+	// name is merged again (moss-merge-time/identity, SQA-406).
+	content string
 	// lowRank holds each projection's pair, by the graph's projection name (layers.0.proj.q).
 	lowRank map[string]lowRankPatch
 	// diffs holds each weight's or bias's full difference, by the graph's weight name (layers.0.norm1.weight), as the
@@ -100,7 +105,11 @@ func readMediaAdapter(path string) (*mediaAdapter, error) {
 		return nil, err
 	}
 	defer source.Close()
-	adapter := &mediaAdapter{path: path, lowRank: map[string]lowRankPatch{}, diffs: map[string]string{}, replaced: map[string]replacement{}}
+	content, err := fileContent(path)
+	if err != nil {
+		return nil, err
+	}
+	adapter := &mediaAdapter{path: path, content: content, lowRank: map[string]lowRankPatch{}, diffs: map[string]string{}, replaced: map[string]replacement{}}
 	downs, ups, alphas := map[string]string{}, map[string]string{}, map[string]float32{}
 	for name, value := range source.Tensors {
 		base := strings.TrimPrefix(name, adapterPrefix)
@@ -234,6 +243,17 @@ func adapterPath(modelRoot, name string) (string, error) {
 		return "", fmt.Errorf("latent image: adapter %q is no file name", name)
 	}
 	return filepath.Join(modelRoot, "adapters", name+".safetensors"), nil
+}
+
+// fileContent is a file's identity by its bytes, as the store names a file (artifact.Identify).
+func fileContent(path string) (_ string, err error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer func() { err = errors.Join(err, file.Close()) }()
+	id, _, err := artifact.Identify(artifact.KindFile, file)
+	return id.String(), err
 }
 
 // modelAdapter is the adapter a request names among its model's (adapterPath).

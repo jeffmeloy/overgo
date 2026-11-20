@@ -167,12 +167,11 @@
         "internal/latentimage/golden_floor_windows_model_test.go",
         "internal/latentimage/image_to_image_windows_model_test.go",
         "internal/latentimage/depth_control_windows_model_test.go",
-        "internal/latentimage/int8_projections_windows_model_test.go",
         "internal/latentimage/int8_merge_windows_model_test.go"
       ],
-      "input": "Compare a recorded 1024x576 PNG with the same pixels plus one column. Give the mirrored-input check a short latent or a NaN while its baseline passes. For the BF16 and int8 comparisons, score two otherwise matching draws that each contain one +Inf against a finite, nonzero reference latent.",
-      "expected": "Check PNG dimensions and require nonempty, equal-length, finite latent vectors before computing dB. Keep +Inf for an exact match with nonzero signal. Use small in-memory cases for malformed inputs. Keep reseeded or mirrored draws in holdGoldenFloors, which checks their scores. Each precision comparison needs one recorded-input draw per case per mode and keeps its product or merge captures.",
-      "actual": "Source at 15ecde8d3. The 8x8 means drop the extra column. A short latent scores -Inf and a NaN propagates. All three negative-control checks accept either. One infinite element yields -Inf against a finite reference, so both precision checks pass -Inf >= -Inf. On valid inputs readGoldenCases also renders a changed input for every BF16 and int8 draw. Unused controls account for 12 of 24 draws in holdInt8Sections and 6 of 12 in holdMergedSections. The counts follow from source. Elapsed savings are unmeasured."
+      "input": "Compare a recorded 1024x576 PNG with identical pixels plus one column. Give a mirrored-input check a short latent or a NaN while its baseline passes. In holdMergedSections, give each precision mode a latent with one +Inf against a finite, nonzero reference. Also trace a valid run of the three adapter cases.",
+      "expected": "Compare PNG dimensions and require nonempty, equal-length, finite latent vectors before scoring. Keep +Inf for an exact match with nonzero signal. Exercise malformed inputs in memory. Keep changed-input draws in the floor checks that use them. Each adapter comparison needs one recorded-input draw per precision mode and the existing merge captures.",
+      "actual": "Source at 9b40546f8. The 8x8 means discard the extra column. A short control scores -Inf and a NaN propagates. All three negative-control checks accept either. With an infinite element in each draw, holdMergedSections accepts -Inf >= -Inf. Its three cases each draw the original and changed input in BF16 and merged int8. Six of those twelve draws are changed inputs whose scores the comparison never reads. Their cost in seconds is unmeasured."
     },
     {
       "id": "SQA-411",
@@ -334,6 +333,19 @@
       "input": "Give MOSS image-to-image a valid 1x2 source PNG, a 1024x576 canvas, a fixed seed and no depth control. Compare a full-denoise first sigma of 1 with the Turbo recording's first sigma of approximately 0.90027.",
       "expected": "Reject both requests with the existing empty-centre-crop error before sampling. Have the full-denoise shortcut use the crop geometry check owned by media.ScaleLikeComfyUI, without resampling pixels or opening the VAE. Valid full-denoise requests should still start from their noise.",
       "actual": "Source counterexample at c50d72687. For this canvas the centre crop rounds its top margin to one source row and removes one row from each end, leaving height zero. Partial denoise calls ScaleLikeComfyUI and rejects it. At sigma 1, startLatent only decodes the PNG and returns a noise latent, so the generator starts sampling the same invalid crop. Before c50d72687 both paths rejected it. The landing's retained check covers malformed PNG bytes and a square picture. This crop was not run."
+    },
+    {
+      "id": "SQA-433",
+      "severity": "P2",
+      "files": [
+        "internal/cuda/executor/moss_norm.go",
+        "internal/cuda/executor/moss_rotary.go",
+        "internal/cuda/executor/fusion_rewrites.go",
+        "internal/cuda/executor/moss_norm_windows_test.go"
+      ],
+      "input": "Compile two rotary outputs from the same weighted, BF16-rounded native-mean RMS norm. Use the 128 x 3 x 12 head shape from TestAQueryNormAndItsRotationFoldIntoOneKernel. Give each rotation its own slice and multiply nodes and its own cosine and sine inputs. Keep only the two rotated tensors as graph outputs.",
+      "expected": "Compute the shared normalized heads once and keep them available to both rotations. Fuse the norm into a rotation only when that rotation is its sole remaining reader. Both outputs should match the graph that also retains the norm, bit for bit.",
+      "actual": "Source counterexample at 9b40546f8. applyMOSSRotaryRewrite replaces both rotation chains and marks their original readers skipped. applyMOSSNormRotaryRewrite takes those skipped readers as proof of exclusive use. The first rotation absorbs the norm and marks its output skipped. The second rotation still names that output as its input. compileDependencies drops the skipped operand and the executor emits no launch to produce it. The retained check covers one rotation with and without an explicit norm output. No failing GPU run was observed."
     }
   ],
   "master_lead_triage": {
@@ -469,7 +481,7 @@
       }
 }
   },
-  "next_finding_number": 433,
+  "next_finding_number": 434,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

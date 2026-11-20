@@ -7,17 +7,6 @@
       "title": "An adapter section's merges take at most a second in all: each adapter's tensors read once a sampling, one working buffer across its merges, and the file's int8 rows taken from the card where a program holds them",
       "steps": [
         {
-          "id": "identity",
-          "title": "A kept adapter merge is keyed by its adapters' content, not their paths: a request whose adapter file changed under its name is merged again, and one whose adapter is unchanged merges nothing",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^TestAKeptMergeFollowsItsAdaptersContent$'",
-          "files": [
-            "internal/latentimage",
-            "internal/graphruntime"
-          ],
-          "needs_card": true,
-          "rationale": "The owner's review of 2026-11-20, point 1, checked against .overgo-runtime/lanes.log and the source: the slow run at d0eaf0f9a failed TestASecondMOSSRequestCopiesNoWeights at 00:22 (line 20254): a second request naming moss_image_sft copied 46,020,612 bytes, where the test wants the adapter's 285,329,336 bytes read again each request (SQA-406: a request is answered by the adapter file as it stands). It passed at f46760944 (line 13027); moss-int8-adapters (15ecde8d3) merges the adapter into the int8 weights on the card and keeps the merged weight (bindMerged) under the transformer's path, each adapter's path and its strength, not the adapter's content, so an adapter replaced under its name would be answered with the earlier file's merge, SQA-406's fault in the merge's place. The test's expectation also states the unmerged design (the adapter's tensors bound each request). This step keys each kept merge by its adapters' content (the identity the request's reading already makes of each file, capabilityruntime.Contents) and restates the test: a second request whose adapter is the same file content merges nothing again (what it copies is the adapter's unmerged parts alone), and one whose adapter file changed under the same name is merged again from the new file. It lands before this row's do step builds on the merge."
-        },
-        {
           "id": "do",
           "title": "An adapter section's merges take at most a second in all: each adapter's tensors read once a sampling, one working buffer across its merges, and the file's int8 rows taken from the card where a program holds them",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^TestAdapterSectionsMergeInASecond$'",

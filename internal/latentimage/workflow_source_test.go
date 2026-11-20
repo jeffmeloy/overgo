@@ -35,12 +35,15 @@ type workflowRunTime struct {
 }
 
 // workflowTiming is one timing of the workflow as its record keeps it: the commit it timed, the paths the tree held
-// changed from it, when, and its two runs.
+// changed from it, whether it ran the commit's code alone (committed: every changed path under docs/, which builds
+// nothing), when, and its two runs. A clock step requires committed, so a timing beside changed code stays in the
+// record and satisfies none (clock-committed, SQA-441).
 type workflowTiming struct {
-	Commit  string            `json:"commit"`
-	Changed []string          `json:"changed"`
-	At      string            `json:"at"`
-	Runs    []workflowRunTime `json:"runs"`
+	Commit    string            `json:"commit"`
+	Changed   []string          `json:"changed"`
+	Committed bool              `json:"committed"`
+	At        string            `json:"at"`
+	Runs      []workflowRunTime `json:"runs"`
 }
 
 // workflowSource is the code a timing of the workflow runs, read as the timing starts, beside the test binary built
@@ -49,6 +52,12 @@ type workflowTiming struct {
 type workflowSource struct {
 	commit  string
 	changed []string
+}
+
+// committed says the source is its commit's code alone: each changed path lies under docs/ (the plan, the findings
+// register, the records), which a session edits beside a run and which builds nothing.
+func (s workflowSource) committed() bool {
+	return !slices.ContainsFunc(s.changed, func(path string) bool { return !strings.HasPrefix(path, "docs/") })
 }
 
 // readWorkflowSource reads the source of the checkout at repository, the record's path, relative to it, left out of
@@ -78,9 +87,10 @@ func readWorkflowSource(repository, record string) (workflowSource, error) {
 }
 
 // appendWorkflowTiming appends timing to the record at path in repository, one JSON line, under source, the commit and
-// changed paths read as the timing started; a checkout whose commit has moved since appends nothing and is refused,
-// naming both: another landing advanced it while the workflow ran, and its timing had been recorded under the later
-// commit, whose code it did not run, where that commit's clock check accepted it (SQA-441).
+// changed paths read as the timing started, and whether they were its commit's code alone; a checkout whose commit has
+// moved since appends nothing and is refused, naming both: another landing advanced it while the workflow ran, and its
+// timing had been recorded under the later commit, whose code it did not run, where that commit's clock check
+// accepted it (SQA-441).
 func appendWorkflowTiming(repository, path string, source workflowSource, timing workflowTiming) error {
 	now, err := readWorkflowSource(repository, path)
 	if err != nil {
@@ -90,7 +100,7 @@ func appendWorkflowTiming(repository, path string, source workflowSource, timing
 		return fmt.Errorf("the checkout moved from %s to %s while the workflow ran; its timing is of %s's code, and none is appended",
 			source.commit, now.commit, source.commit)
 	}
-	timing.Commit, timing.Changed = source.commit, source.changed
+	timing.Commit, timing.Changed, timing.Committed = source.commit, source.changed, source.committed()
 	line, err := json.Marshal(timing)
 	if err != nil {
 		return err
@@ -103,13 +113,10 @@ func appendWorkflowTiming(repository, path string, source workflowSource, timing
 	return errors.Join(err, record.Close())
 }
 
-// TestAWorkflowTimingRefusesASourceThatMovedWhileItRan holds a timing of the workflow to the code it ran (clock-identity,
-// SQA-441): over a scratch repository, a timing appends the commit and the changed paths read as it started, though a
-// path changes before it appends, and a timing whose checkout took another commit while it ran appends nothing and is
-// refused, naming both commits. The record had read the commit and the changed paths after both runs, so a landing
-// during a run credited its timing to the later commit, whose clock check accepted it.
-func TestAWorkflowTimingRefusesASourceThatMovedWhileItRan(t *testing.T) {
-	t.Parallel()
+// scratchRepository is a git repository in a test's directory holding files, its paths and contents, committed once,
+// and a function that runs git in it and gives its output.
+func scratchRepository(t *testing.T, files map[string]string) (string, func(arguments ...string) string) {
+	t.Helper()
 	root := t.TempDir()
 	git := func(arguments ...string) string {
 		t.Helper()
@@ -120,21 +127,39 @@ func TestAWorkflowTimingRefusesASourceThatMovedWhileItRan(t *testing.T) {
 		}
 		return strings.TrimSpace(string(output))
 	}
-	const record = "docs/record.jsonl"
 	git("init", "-q")
-	testutil.WriteTextFile(t, root, "code.go", "package code\n", 0o600)
-	testutil.WriteTextFile(t, root, "notes.md", "notes\n", 0o600)
-	testutil.WriteTextFile(t, root, record, "", 0o600)
+	for path, content := range files {
+		testutil.WriteTextFile(t, root, path, content, 0o600)
+	}
 	git("add", "-A")
 	git("commit", "-q", "-m", "first")
+	return root, git
+}
+
+// lastWorkflowTiming is the last timing the record at path in root holds.
+func lastWorkflowTiming(t *testing.T, root, path string) workflowTiming {
+	t.Helper()
+	lines := strings.Split(strings.TrimSpace(string(testcheck.Must(os.ReadFile(filepath.Join(root, path)))(t))), "\n")
+	var timing workflowTiming
+	testcheck.NoError(t, json.Unmarshal([]byte(lines[len(lines)-1]), &timing))
+	return timing
+}
+
+// TestAWorkflowTimingRefusesASourceThatMovedWhileItRan holds a timing of the workflow to the code it ran (clock-identity,
+// SQA-441): over a scratch repository, a timing appends the commit and the changed paths read as it started, though a
+// path changes before it appends, and a timing whose checkout took another commit while it ran appends nothing and is
+// refused, naming both commits. The record had read the commit and the changed paths after both runs, so a landing
+// during a run credited its timing to the later commit, whose clock check accepted it.
+func TestAWorkflowTimingRefusesASourceThatMovedWhileItRan(t *testing.T) {
+	t.Parallel()
+	const record = "docs/record.jsonl"
+	root, git := scratchRepository(t, map[string]string{"code.go": "package code\n", "notes.md": "notes\n", record: ""})
 	first := git("rev-parse", "HEAD")
 	testutil.WriteTextFile(t, root, "code.go", "package code // as the binary was built\n", 0o600)
 	source := testcheck.Must(readWorkflowSource(root, record))(t)
 	testutil.WriteTextFile(t, root, "notes.md", "notes changed while the workflow ran\n", 0o600)
 	testcheck.NoError(t, appendWorkflowTiming(root, record, source, workflowTiming{At: "first"}))
-	var appended workflowTiming
-	testcheck.NoError(t, json.Unmarshal(testcheck.Must(os.ReadFile(filepath.Join(root, record)))(t), &appended))
-	if appended.Commit != first || !slices.Equal(appended.Changed, []string{"code.go"}) {
+	if appended := lastWorkflowTiming(t, root, record); appended.Commit != first || !slices.Equal(appended.Changed, []string{"code.go"}) {
 		t.Errorf("a timing appended commit %s with %v changed; want %s with code.go, as it started", appended.Commit, appended.Changed, first)
 	}
 	git("commit", "-q", "-a", "-m", "second")
@@ -146,5 +171,27 @@ func TestAWorkflowTimingRefusesASourceThatMovedWhileItRan(t *testing.T) {
 	}
 	if after := testcheck.Must(os.ReadFile(filepath.Join(root, record)))(t); !slices.Equal(after, written) {
 		t.Error("a refused timing changed the record")
+	}
+}
+
+// TestAWorkflowTimingSaysWhetherItRanItsCommitsCode holds the record to telling a timing of its commit's code from one
+// beside changed code (clock-committed, SQA-441): over a scratch repository, a timing whose tree holds only a changed
+// path under docs/ (the register a session edits beside a run) ran its commit's code, and one whose tree holds changed
+// code did not, though both name the commit, so a clock check that requires it accepts the first alone. The record
+// had named a timing beside changed code by its commit alone, the change among its changed paths, and the clock checks
+// read the commit.
+func TestAWorkflowTimingSaysWhetherItRanItsCommitsCode(t *testing.T) {
+	t.Parallel()
+	const record = "docs/verification/record.jsonl"
+	root, _ := scratchRepository(t, map[string]string{"code.go": "package code\n", "docs/register.json": "{}\n", record: ""})
+	for _, beside := range []struct {
+		path      string
+		committed bool
+	}{{"docs/register.json", true}, {"code.go", false}} {
+		testutil.WriteTextFile(t, root, beside.path, "changed beside the run\n", 0o600)
+		testcheck.NoError(t, appendWorkflowTiming(root, record, testcheck.Must(readWorkflowSource(root, record))(t), workflowTiming{At: beside.path}))
+		if timing := lastWorkflowTiming(t, root, record); timing.Committed != beside.committed || !slices.Contains(timing.Changed, beside.path) {
+			t.Errorf("a timing beside a changed %s says it ran its commit's code %t, %v changed; want %t", beside.path, timing.Committed, timing.Changed, beside.committed)
+		}
 	}
 }

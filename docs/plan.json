@@ -19,6 +19,23 @@
       ]
     },
     {
+      "id": "moss-situ-prologue",
+      "title": "The int8 feed-down's SiTU is computed as comfy_kitchen's quantizer computes it, in F32 and unrounded, and the block's feed-down product is held to ComfyUI's bit for bit",
+      "steps": [
+        {
+          "id": "do",
+          "title": "The int8 feed-down's SiTU is computed as comfy_kitchen's quantizer computes it, in F32 and unrounded, and the block's feed-down product is held to ComfyUI's bit for bit",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^TestAMOSSBlockIsHeldToComfyUIs$'",
+          "files": [
+            "kernels",
+            "internal/cuda",
+            "internal/latentimage"
+          ],
+          "rationale": "Note: Found by moss-comfy-block's capture (fixtures/comfy/moss-ultra/block.json, TestAMOSSBlockIsHeldToComfyUIs): of block 20's four int8 projections, qkv, o and the feed's up and gate are ComfyUI's products bit for bit through overgo's merge of the DMD2 and SFT adapters, and the feed's down parts at 160,204 of its 64 x 3072 entries, relative L2 0.0093. ComfyUI's int8 path folds the SiTU into comfy_kitchen's quantizer (comfy.ops.linear_input_act with input_act \"situ\", int8_linear's fused route, quantize_int8_rowwise_convrot64), which computes it in F32 (int8_linear.cu load_input_act at v0.2.40: hidden_cap = 25 * stable_tanh(hidden / 25), gate_cap = 4 * stable_tanh(gate / 4), gate_cap / (1 + expf(-gate)) * hidden_cap, stable_tanh(x) = copysign(-t / (t + 2), x) with t = expm1f(-2|x|), built with --use_fast_math) and rotates it unrounded; overgo's prologue (quantize_int8_convrot_situ_columns_f32, moss_situ_value) rounds each of the eager chain's steps to BF16 as MOSS's module does with BF16 weights. The row computes the int8 feed-down's SiTU as comfy_kitchen computes it, the fast-math arithmetic matched (the division by 25, expf, the reciprocal), in the prologue and in the unfused chain the graph builds for an int8 feed-down, so the fusion still changes no bit against its chain (matchesUnfused, TestEachMOSSFusionMatchesItsChainWhereTheyCouldPart) while a BF16 feed-down keeps the eager chain; the block check then holds the feed-down bit for bit, its tolerance (comfyBlockSiTUProductRelativeL2) removed, and the block's update tolerance narrows to what it then reads."
+        }
+      ]
+    },
+    {
       "id": "moss-int8-epilogue",
       "title": "A MOSS pass's int8 products, their activation quantization and epilogue included, take at most their part of the pass budget, the product's scales applied in the product as comfy_kitchen's CUTLASS product applies them",
       "steps": [
@@ -36,7 +53,7 @@
         {
           "id": "clock",
           "title": "The workflow is timed whole at moss-int8-epilogue's commit, like for like and the card's turn held, and the timing appended to the record (moss-workflow-clock)",
-          "verify": "git log --format=%s -n 200 | grep -qF 'moss-int8-epilogue/do:' \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF \"\\\"commit\\\":\\\"$(git rev-parse HEAD)\\\"\"",
+          "verify": "git log --format=%s -n 200 | grep -qF 'moss-int8-epilogue/do:' \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF \"\\\"commit\\\":\\\"$(git rev-parse HEAD)\\\"\" \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF '\"committed\":true'",
           "files": [
             "docs/verification"
           ],
@@ -63,7 +80,7 @@
         {
           "id": "clock",
           "title": "The workflow is timed whole at moss-attention-pass's commit, like for like and the card's turn held, and the timing appended to the record (moss-workflow-clock)",
-          "verify": "git log --format=%s -n 200 | grep -qF 'moss-attention-pass/do:' \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF \"\\\"commit\\\":\\\"$(git rev-parse HEAD)\\\"\"",
+          "verify": "git log --format=%s -n 200 | grep -qF 'moss-attention-pass/do:' \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF \"\\\"commit\\\":\\\"$(git rev-parse HEAD)\\\"\" \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF '\"committed\":true'",
           "files": [
             "docs/verification"
           ],
@@ -91,7 +108,7 @@
         {
           "id": "clock",
           "title": "The workflow is timed whole at moss-step-copies's commit, like for like and the card's turn held, and the timing appended to the record (moss-workflow-clock)",
-          "verify": "git log --format=%s -n 200 | grep -qF 'moss-step-copies/do:' \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF \"\\\"commit\\\":\\\"$(git rev-parse HEAD)\\\"\"",
+          "verify": "git log --format=%s -n 200 | grep -qF 'moss-step-copies/do:' \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF \"\\\"commit\\\":\\\"$(git rev-parse HEAD)\\\"\" \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF '\"committed\":true'",
           "files": [
             "docs/verification"
           ],

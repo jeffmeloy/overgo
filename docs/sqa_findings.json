@@ -323,88 +323,43 @@
       "actual": "Source at 140c7975e. preparedFirst calls EnhanceRequest before the session director seeks the stored answer. Every retry opens the 9B chat, generates a positive and a negative prompt (a third generation if the positive needs a retry), closes it, clears Enhance and passes the rewritten request to the director. An enhancer-open failure on the retry therefore prevents delivery of the completed picture even when all identities still match. The recording establishes the prompt pair. Retry cost and failure are source-derived, with no timed or failed retry observed."
     },
     {
-      "id": "SQA-436",
-      "severity": "P2",
-      "files": [
-        "internal/cuda/executor/int8_prologue.go",
-        "kernels/cuda/ops_f32_tail.cuh",
-        "internal/cuda/executor/executor.go",
-        "internal/cuda/executor/int8_prologue_windows_test.go"
-      ],
-      "input": "Use the 128-channel int8 query or key graph from TestAnInt8ProductNormsAndRotatesTheHeadsItAloneGives. Supply its cosine table as a contiguous F32 device input with natural four-byte alignment but without sixteen-byte alignment. Keep the rotated result as the sole output and compare with the same graph retaining the projected heads.",
-      "expected": "Both graphs accept the same valid F32 tables and return identical rotated heads. Use scalar loads for any table whose alignment is unknown, or guard the vector loads locally. The caller should not need to copy the table.",
-      "actual": "Source at 9acbc157a. ExecuteCompiled passes the bound device address through. The separate norm-and-rotate kernel reads scalar floats. The fused int8 epilogue casts both table pointers to float4, and the committed PTX issues ld.global.v4.f32 for each. No alignment check covers these tables, so the fused graph issues a 16-byte load at an address that does not meet its alignment requirement. The retained bit comparison supplies host tables that the executor stages at aligned offsets. The device-view case was not run."
-    },
-    {
-      "id": "SQA-439",
-      "severity": "P2",
-      "files": [
-        "internal/latentimage/int8_merge.go",
-        "internal/latentimage/generator_rotary_windows.go",
-        "internal/latentimage/resident_graph_cuda_windows.go",
-        "internal/safetensors/source.go",
-        "internal/latentimage/merge_order_windows_model_test.go"
-      ],
-      "input": "Start a fresh MOSS Ultra generator and draw image-to-image Turbo with the recorded DMD2 and SFT adapters, no merges cached. Leave the generator resident after decode. Count adapter catalog reads during joint-projection merging and the BF16 pair payloads still reachable afterward.",
-      "expected": "Read each adapter catalog once for the merge and retain shared pair tensors only while the sampling needs them. End the sampling with its temporary host buffers released while keeping the reusable device weights. Preserve adapter content identity, order, strengths and merged bits.",
-      "actual": "Source and installed file headers at 19c8144b0. DMD2 contributes 504 distinct joint-projection tensors (567 MiB in BF16) and SFT 336 (252 MiB). Each first bf16Tensor lookup calls OpenFile, which reopens the adapter and parses its complete header. That is 840 opens for two catalogs during a cold merge. All 819 MiB remain reachable through g.rotary.adapters after decode. configureRotary discards these maps when the next request is configured. The transfer check counts device uploads. Host working set and seconds saved were not measured."
-    },
-    {
-      "id": "SQA-440",
-      "severity": "P2",
-      "files": [
-        "internal/latentimage/media_adapter.go",
-        "internal/latentimage/rotary_refinement.go",
-        "internal/latentimage/rotary_joint.go",
-        "internal/latentimage/media_adapter_test.go"
-      ],
-      "input": "Give MOSS Ultra a single adapter containing a nonzero F32 matrix named diffusion_model.layers.0.proj.o.diff, shaped 3072 by 3072 to match the first block's output projection. Use strength 1. Inspect that projection's compiled inputs and compare with strength 0.",
-      "expected": "Apply an accepted full weight difference at the requested strength. If a projection cannot apply that patch, reject it before sampling and identify the affected weight. Preserve working norm and bias differences.",
-      "actual": "Source counterexample at 19c8144b0. readMediaAdapter accepts the tensor as a difference for layers.0.proj.o.weight. rotaryGraph.projection reads only replacements and low-rank pairs for that int8 matrix. With neither present, both strengths compile the same unmodified product. The ordinary linear path also reads no matrix difference. The adapter reader's retained check covers a norm difference and a bias difference. The three shipped Ultra adapters have no matrix difference in their headers. No draw with this input was run."
-    },
-    {
       "id": "SQA-441",
       "severity": "P2",
       "files": [
         "internal/latentimage/workflow_time_windows_model_test.go",
+        "internal/latentimage/workflow_source_test.go",
         "docs/plan.json"
       ],
-      "input": "Start the two-pass MOSS workflow clock from clean commit A. After the test binary starts, let a normal landing advance the same checkout to clean commit B with a changed denoiser. Leave B checked out until the clock appends its result. Read that result with the next MOSS clock step's verifier after its do step has landed.",
-      "expected": "Attribute both passes to the code that ran. The clock verifier for B must decline a timing produced by A. Bind the source identity at build or launch from a pinned revision and carry it through the existing timing recorder. A timing with uncertain source identity cannot establish a committed speed gain.",
-      "actual": "Source counterexample at af97c08e6. TestTheUltraWorkflowIsTimedInItsOrder executes all twelve sections before appendWorkflowTiming reads HEAD and tracked changes. It records B with an empty changed list for timings produced by A. The four remaining MOSS clock verifiers accept that line because its commit equals the checkout's HEAD. Their decisions about the next speed change can therefore use a measurement of different code. Neither retained timing was shown to be misattributed."
+      "input": "After a MOSS speed step lands at A, compile and run its workflow clock with a local change to the tracked denoiser in generator_rotary_windows.go. Leave HEAD at A. Restore the source before checking the appended result. Compare with a timing from A whose only local edit was the findings register.",
+      "expected": "Only a timing from the committed executable inputs can satisfy A's clock step. Keep a development measurement distinguishable from a committed one. An edit confined to the findings register should not invalidate a run. The timing recorder and the existing clock verifier own this distinction.",
+      "actual": "Source at e0e6bf694. The recorder now rejects a commit change during the run. In this input it correctly records A and lists the edited denoiser in changed. The three remaining clock verifiers check only the historical do step and the last line's commit. All accept the dirty-code timing as A's. The retained source test explicitly accepts a timing with code.go changed and checks its label. The latest retained whole timing has an empty changed list. No incorrect speed credit was observed."
+    },
+    {
+      "id": "SQA-442",
+      "severity": "P2",
+      "files": [
+        "internal/latentimage/merge_order_windows_model_test.go"
+      ],
+      "input": "Select both MOSS adapter-transfer tests in a fresh models lane on the installed Ultra workflow. Count the draws and retain both bounds: the cold Turbo sections' base-weight transfer limit and the warm sections' adapter-pair transfer limit.",
+      "expected": "Twelve draws suffice to check both bounds. Use the first six sections already drawn by the two-pass sampleWorkflow call to check the cold bound, then keep the second pass for warm reuse. Report which section and bound failed. Keep the distinct numerical and full-workflow timing checks.",
+      "actual": "Observed in the models lane at 4586266fe8a8: TestTheTurboSectionsMergeAsComfyUIPatches took 1m29s, then TestTheTurboSectionsMergeFromHeldWeightsInTheWorkflowsOrder took 1m9s. Both passed. Source at e0e6bf694: the first calls sampleWorkflow(2) and the second starts over with sampleWorkflow(1). Both use the same six requests, pass-2 inputs, shortened step counts and transfer counter. The lane draws eighteen pictures and loads a second generator to evaluate a bound available on the first six draws. The 69 seconds are the recorded duration of the duplicate run. Net time saved by sharing its samples has not been measured."
     }
   ],
   "master_lead_triage": {
     "at": "2026-11-20",
     "head": "cbdf003cc5e0d974e86a56e8f99bb49b6bdc97a8",
     "findings": {
+  "SQA-442": {
+        "action": "deferred",
+        "rows": [],
+        "note": "Answered by the lead on 2026-11-20 at e0e6bf694: valid from source (TestTheTurboSectionsMergeFromHeldWeightsInTheWorkflowsOrder draws the six sections again for a bound TestTheTurboSectionsMergeAsComfyUIPatches's first run already draws, 69 s of a models lane); a lane's time, not the workflow's, so deferred to the next change of either test, which folds the cold bound into the two-run check and retires the one-run test."
+      },
   "SQA-441": {
-        "action": "implemented",
-        "rows": [
-          "clock-identity/do"
-        ],
-        "note": "Answered by the lead on 2026-11-20 at f3117025d: valid from source (appendWorkflowTiming reads HEAD and the tree's changed paths after both runs, so a landing during the run is credited with the earlier code's timing, and the remaining clock checks accept it); filed as clock-identity/do ahead of the next clock step, the source read as the timing starts and again before it appends. moss-merge-compute/clock was timed with HEAD read before and after its run, no other session landing. Implemented 2026-11-20 by clock-identity/do (47bb3f027): the source read as the timing starts, and a timing whose commit moved while it ran refused; moss-merge-compute/clock's timing at 47bb3f027 is the first under it, for the review's recheck."
-      },
-  "SQA-440": {
-        "action": "implemented",
-        "rows": [
-          "moss-merge-compute/do"
-        ],
-        "note": "Answered by the lead on 2026-11-20 at 140f4c175: valid from source (readMediaAdapter keeps a matrix difference for an int8 projection, which rotaryGraph.projection reads neither as a replacement nor as a pair, so the patch is dropped); the workflow's three adapters hold none, so it changes no picture of the workflow; filed with moss-merge-compute/do, which reworks how a section's adapters are read and merged, a projection that cannot take its patch refused before sampling. Implemented 2026-11-20 by moss-merge-compute/do (f3117025d), a full difference of a matrix refused as the adapter is read, for the review's recheck."
-      },
-  "SQA-439": {
-        "action": "implemented",
-        "rows": [
-          "moss-merge-compute/do"
-        ],
-        "note": "Answered by the lead on 2026-11-20 at 140f4c175: valid from source (bf16Tensor opens the adapter file and parses its header for each tensor, 840 opens for text to image Turbo's two adapters, and keeps 819 MiB of rounded tensors reachable after the picture); part of the 3.68 and 5.10 s moss-merge-order's clock found beyond the Turbo sections' passes, so filed with moss-merge-compute/do, whose split reads its share. Implemented 2026-11-20 by moss-merge-compute/do (f3117025d): each adapter file opened once while the sampling merges and closed as it ends, its pairs kept on the card and none on the host, for the review's recheck."
-      },
-  "SQA-436": {
         "action": "filed",
         "rows": [
-          "fusion-edges/do"
+          "clock-committed/do"
         ],
-        "note": "Answered by the lead on 2026-11-20 at 6395092b4: valid from source (scale_int8_product_norm_rotate_bf16_f32 reads the cosine and sine tables as float4 with no alignment check, where moss_norm_rotate_bf16_round_f32 reads them as floats); the workflow's tables are concatenations the executor allocates and aligns (rotaryGraph.rotaryInput), so it faults only for a graph binding a table at an address not 16-byte aligned; filed with moss-int8-epilogue/do, then moved on 2026-11-20 at 1493bc156 to fusion-edges/do (the owner's review: a fused kernel held to its unfused chain at the condition that tells them apart), whose device views aligned to 4 bytes show it before the kernel reads a table it cannot prove aligned a float at a time."
+        "note": "Answered by the lead on 2026-11-20 at f3117025d: valid from source (appendWorkflowTiming reads HEAD and the tree's changed paths after both runs, so a landing during the run is credited with the earlier code's timing, and the remaining clock checks accept it); filed as clock-identity/do ahead of the next clock step, the source read as the timing starts and again before it appends. moss-merge-compute/clock was timed with HEAD read before and after its run, no other session landing. Implemented 2026-11-20 by clock-identity/do (47bb3f027): the source read as the timing starts, and a timing whose commit moved while it ran refused; moss-merge-compute/clock's timing at 47bb3f027 is the first under it. Reopened by the review at e0e6bf694 and answered by the lead on 2026-11-20: valid from source (a timing run with tracked code changed is recorded as its commit's, the edit in its changed paths, and the clock checks read only the commit); filed as clock-committed/do ahead of moss-int8-epilogue/clock, the record stating whether the timing ran its commit's code alone and the remaining clock checks requiring it. Both timings moss-merge-compute/clock recorded list no changed code (docs/plan.json and docs/sqa_findings.json at f3117025d, none at 47bb3f027)."
       },
   "SQA-431": {
         "action": "deferred",
@@ -536,7 +491,7 @@
       }
 }
   },
-  "next_finding_number": 442,
+  "next_finding_number": 443,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

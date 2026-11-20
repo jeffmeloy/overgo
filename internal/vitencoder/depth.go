@@ -275,6 +275,12 @@ func (m *DepthModel) Depth(pixels []float32, height, width int) ([]float32, erro
 // the resolution, bicubically (OpenCV, 8-bit) where that enlarges it and by area where it shrinks it. It returns the
 // map's levels and its height and width.
 func (m *DepthModel) DepthMap(unit []float32, height, width, resolution int) ([]uint8, int, int, error) {
+	return m.depthMap(unit, height, width, resolution, m.Depth)
+}
+
+// depthMap is DepthMap with the model's depth of its normalized input given by depth, the host's (Depth) or the
+// card's (DepthCard).
+func (m *DepthModel) depthMap(unit []float32, height, width, resolution int, depth func(pixels []float32, height, width int) ([]float32, error)) ([]uint8, int, int, error) {
 	if height <= 0 || width <= 0 || resolution <= 0 || len(unit) != height*width*channels {
 		return nil, 0, 0, fmt.Errorf("vitencoder: %d values are not a %d x %d RGB picture", len(unit), width, height)
 	}
@@ -294,11 +300,11 @@ func (m *DepthModel) DepthMap(unit []float32, height, width, resolution int) ([]
 			pixels[c*area+position] = float32((resized[position*channels+c] - m.spec.Mean[c]) / m.spec.Std[c])
 		}
 	}
-	depth, err := m.Depth(pixels, inputHeight, inputWidth)
+	estimate, err := depth(pixels, inputHeight, inputWidth)
 	if err != nil {
 		return nil, 0, 0, err
 	}
-	full := onePlane(depth, inputHeight, inputWidth).resized(height, width).values
+	full := onePlane(estimate, inputHeight, inputWidth).resized(height, width).values
 	lowest, highest := full[0], full[0]
 	for _, value := range full {
 		lowest, highest = min(lowest, value), max(highest, value)

@@ -3,23 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "moss-depth-card",
-      "title": "A depth control's map from a picture costs about a second fresh and nothing for a picture and settings already mapped: Depth Anything and the picture encoder held across requests and a map and its control reused as ComfyUI's node cache reuses them, the estimate ported to the card only if it remains the cost",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A depth control's map from a picture costs about a second fresh and nothing for a picture and settings already mapped: Depth Anything and the picture encoder held across requests and a map and its control reused as ComfyUI's node cache reuses them, the estimate ported to the card only if it remains the cost",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^TestADepthMapCostsASecondOnce$'",
-          "files": [
-            "internal/vitencoder",
-            "internal/latentimage",
-            "internal/cuda"
-          ],
-          "rationale": "Note: Read 2026-11-19 at 15ecde8d3 (temporary ledger stages, and Nsight Systems over the warm Turbo sections): depth control Turbo's sampling takes 16.3 s against ComfyUI's whole section's 2.2 s, of which its 8 passes are 1.64 s on the card and its merge 6.05 s; about 8 s more pass with the card idle before the passes, in controlLatent: the request's depth control comes from a picture, so sectionDepth loads Depth Anything V2 Small from its checkpoint (vitencoder.LoadDepthAnything) and estimates the depth on the host in float64 (DepthMap), and encodeUnit builds a picture encoder (a context, its program and the VAE's weights) for the map, each request. The depth control section's request carries the recorded map and skips the estimate. ComfyUI's preprocessor runs the model on the card and keeps it loaded. The cure estimates on the card with the model held across requests, its map the host estimate's at the agreement the map's 8 bits keep, and holds the picture encoder beside the generator; its check reads depth control Turbo's sampling at most its passes and merge plus 0.5 s.\n\nNote: The owner's review of 2026-11-19 re-scopes this row, checked against the recordings: ComfyUI's depth control Turbo runs (pass-1 and pass-2) list as cached the depth preprocessor (366:41, DepthAnythingV2Preprocessor), MOSSImageControl (366:46) and both prompt encodes (366:45, 366:220), so its 2.2 s holds neither the estimate nor the map's encoding; its depth control runs do not list 612:438 (DepthAnythingV2Preprocessor) as cached, and that section took 1.07 s more than text to image (10.14 against 9.07 s), a fresh estimate, its encoding and the merge together. The workflow timing asked overgo the reverse: depth control from the recorded map, depth control Turbo from the picture. The 8 s was also never split between loading Depth Anything (sectionDepth loads it each call), the float64 estimate on the host, and building the picture encoder (encodeUnit builds and closes one each call). The row first splits that time, then holds what is rebuilt across requests, reuses a map, and its control's latent, for the same picture and settings as ComfyUI's node cache reuses a node's output, and ports the estimate to the card only if the estimate itself remains the cost; its check times depth control from its picture, a fresh map at most about a second, and depth control Turbo after it on the same picture, its map and control taken as they were.\n\nNote: The owner's review of 2026-11-20, point 2: a speed check gives the same verdict whatever runs beside it, and moss-source-skip's probe read one encode at 46 s, 2m18s and 13.7 s beside the cycle's models lane. So this row's check counts what its cure removes where a count can say it (launches a pass, bytes copied, files read, models loaded, programs built, merges made, stream waits), the count read from the executor's or the session's own statistics, as moss-fusion/neighbors counts launches and moss-source-skip finds no encoder built; a time, where the row reports one, is read with the card's turn held alone (tmp/moss-fusion/hold_card.go) and is the row's information, not its verdict. The budget's bars (moss-fusion/budget) say how far each part has to go; the counts say the cure is in."
-        }
-      ]
-    },
-    {
       "id": "moss-elementwise",
       "title": "The elementwise kernels and conversions between a MOSS pass's multiplies and attention fuse, reading and writing each activation once",
       "steps": [

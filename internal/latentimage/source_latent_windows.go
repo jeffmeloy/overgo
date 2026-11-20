@@ -11,11 +11,9 @@ import (
 	"image"
 	"image/color"
 	"image/png"
-	"path/filepath"
 
 	"overgo/internal/artifact"
 	"overgo/internal/media"
-	"overgo/internal/vitencoder"
 )
 
 // startLatent is where a rotary request's sampling starts (moss-ultra-sections/img2img): the noise as drawn where the
@@ -37,7 +35,7 @@ func (g *Generator) startLatent(ctx context.Context, noise []float32) ([]float32
 		}
 	} else if g.request.Image != "" {
 		var err error
-		if latent, err = sourceLatent(ctx, g.modelDir, g.request.Image, g.request.Width, g.request.Height); err != nil {
+		if latent, err = g.sections().sourceLatent(ctx, g.request.Image); err != nil {
 			return nil, err
 		}
 		if len(latent) != len(noise) {
@@ -58,12 +56,12 @@ func (g *Generator) startLatent(ctx context.Context, noise []float32) ([]float32
 // ImageScale scales it at lanczos with a centre crop, its levels over 255 in float32 as ComfyUI holds the scaled
 // picture, and encoded (encodeUnit). A picture other than a PNG is refused: the scaling is ComfyUI's to the byte for a
 // PNG.
-func sourceLatent(ctx context.Context, root, encoded string, width, height int) ([]float32, error) {
+func (s *pictureSections) sourceLatent(ctx context.Context, encoded string) ([]float32, error) {
 	picture, err := requestPNG(encoded, "picture")
 	if err != nil {
 		return nil, err
 	}
-	levels, err := media.ScaleLikeComfyUI(picture, width, height)
+	levels, err := media.ScaleLikeComfyUI(picture, s.width, s.height)
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +69,7 @@ func sourceLatent(ctx context.Context, root, encoded string, width, height int) 
 	for index, level := range levels {
 		unit[index] = float32(level) / media.UnitLevels
 	}
-	return encodeUnit(ctx, root, unit, width, height)
+	return s.encodeUnit(ctx, unit)
 }
 
 // depthDirectory and depthCheckpoint are the folder of a MOSS Ultra root that holds the Depth Anything V2 Small
@@ -84,9 +82,10 @@ const depthResolution = 512
 
 // sectionDepth is the depth map of a picture as the MOSS Ultra workflow's depth sections make it: the picture scaled
 // to the canvas as ComfyUI's ImageScale scales it at lanczos with a centre crop (612:514), its depth estimated by the
-// root's Depth Anything V2 Small at the detect resolution (612:438), a grey map at the estimate's size, white for near.
-func sectionDepth(root string, picture image.Image, width, height int) (*image.Gray, error) {
-	levels, err := media.ScaleLikeComfyUI(picture, width, height)
+// root's Depth Anything V2 Small at the detect resolution (612:438) on the card, a grey map at the estimate's size,
+// white for near.
+func (s *pictureSections) sectionDepth(ctx context.Context, picture image.Image) (*image.Gray, error) {
+	levels, err := media.ScaleLikeComfyUI(picture, s.width, s.height)
 	if err != nil {
 		return nil, err
 	}
@@ -94,11 +93,11 @@ func sectionDepth(root string, picture image.Image, width, height int) (*image.G
 	for index, level := range levels {
 		unit[index] = float32(level) / media.UnitLevels
 	}
-	estimator, err := vitencoder.LoadDepthAnything(filepath.Join(root, depthDirectory, depthCheckpoint))
+	estimator, err := s.depthCard()
 	if err != nil {
 		return nil, err
 	}
-	depth, mapHeight, mapWidth, err := estimator.DepthMap(unit, height, width, depthResolution)
+	depth, mapHeight, mapWidth, err := estimator.DepthMap(ctx, unit, s.height, s.width, depthResolution)
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +107,7 @@ func sectionDepth(root string, picture image.Image, width, height int) (*image.G
 }
 
 // controlDepth is the depth map a request's control samples by: its map, or the section's depth of its picture.
-func controlDepth(root string, control DepthControl, width, height int) (image.Image, error) {
+func (s *pictureSections) controlDepth(ctx context.Context, control DepthControl) (image.Image, error) {
 	if control.Picture == "" {
 		return requestPNG(control.Map, "depth map")
 	}
@@ -116,14 +115,14 @@ func controlDepth(root string, control DepthControl, width, height int) (image.I
 	if err != nil {
 		return nil, err
 	}
-	return sectionDepth(root, picture, width, height)
+	return s.sectionDepth(ctx, picture)
 }
 
 // DepthPreview is the depth map a request's depth control samples by as the MOSS Ultra workflow previews it
 // (PreviewImage 667): the map (controlDepth) scaled to the request's canvas as ComfyUI's ImageScale scales it at
 // bilinear without a crop (612:439), written as ComfyUI writes a picture, 255 times each level truncated to 8 bits. The
 // request is taken as its run takes it, its preset and canvas filling its size.
-func DepthPreview(root string, request Request) (EncodedImage, error) {
+func DepthPreview(root string, request Request) (_ EncodedImage, err error) {
 	filled, err := request.withPreset(root)
 	if err != nil {
 		return EncodedImage{}, err
@@ -137,7 +136,10 @@ func DepthPreview(root string, request Request) (EncodedImage, error) {
 	if filled.Width <= 0 || filled.Height <= 0 {
 		return EncodedImage{}, fmt.Errorf("latent image: a depth preview needs the request's size, not %d x %d", filled.Width, filled.Height)
 	}
-	depth, err := controlDepth(root, *filled.Control, filled.Width, filled.Height)
+	sections := newPictureSections(root, filled.Width, filled.Height)
+	ctx := context.Background()
+	defer func() { err = errors.Join(err, sections.close(ctx)) }()
+	depth, err := sections.controlDepth(ctx, *filled.Control)
 	if err != nil {
 		return EncodedImage{}, err
 	}
@@ -167,8 +169,8 @@ func DepthPreview(root string, request Request) (EncodedImage, error) {
 // MOSSImageControl makes it: the map (controlDepth), its levels over 255 scaled to the canvas as ComfyUI's ImageScale
 // scales it at bilinear without a crop, encoded (encodeUnit), after a colour map's latent of zeros, and the whole times
 // the control's strength in float32.
-func controlLatent(ctx context.Context, root string, control DepthControl, width, height int) ([]float32, error) {
-	depth, err := controlDepth(root, control, width, height)
+func (s *pictureSections) controlLatent(ctx context.Context, control DepthControl) ([]float32, error) {
+	depth, err := s.controlDepth(ctx, control)
 	if err != nil {
 		return nil, err
 	}
@@ -180,11 +182,11 @@ func controlLatent(ctx context.Context, root string, control DepthControl, width
 			unit = append(unit, float32(pixel.R)/media.UnitLevels, float32(pixel.G)/media.UnitLevels, float32(pixel.B)/media.UnitLevels)
 		}
 	}
-	scaled, err := media.BilinearLikeComfyUI(unit, bounds.Dy(), bounds.Dx(), media.RGBChannels, height, width)
+	scaled, err := media.BilinearLikeComfyUI(unit, bounds.Dy(), bounds.Dx(), media.RGBChannels, s.height, s.width)
 	if err != nil {
 		return nil, err
 	}
-	latent, err := encodeUnit(ctx, root, scaled, width, height)
+	latent, err := s.encodeUnit(ctx, scaled)
 	if err != nil {
 		return nil, err
 	}
@@ -257,16 +259,15 @@ func requestPNG(encoded, which string) (image.Image, error) {
 // ComfyUI's VAE encodes it: read in the signed unit range (2x - 1), encoded by the model's VAE to its patched,
 // normalized latent, a token's channels together, and laid out as the denoiser reads a latent, each channel's tokens
 // after another's.
-func encodeUnit(ctx context.Context, root string, unit []float32, width, height int) (_ []float32, err error) {
+func (s *pictureSections) encodeUnit(ctx context.Context, unit []float32) ([]float32, error) {
 	pixels := make([]float32, len(unit))
 	for index, value := range unit {
 		pixels[index] = value*2 - 1
 	}
-	encoder, err := NewPictureEncoder(ctx, root, height, width)
+	encoder, err := s.pictureEncoder(ctx)
 	if err != nil {
 		return nil, err
 	}
-	defer func() { err = errors.Join(err, encoder.Close(context.WithoutCancel(ctx))) }()
 	rows, gridHeight, gridWidth, err := encoder.Encode(ctx, pixels)
 	if err != nil {
 		return nil, err

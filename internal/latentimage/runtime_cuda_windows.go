@@ -170,6 +170,8 @@ type Generator struct {
 	rotary    *rotaryGeneration
 	observe   func(string, []float32) error
 	embed     []float32
+	// pictures are what the session's requests read their pictures with, held across them (pictureSections).
+	pictures *pictureSections
 	// negative is the negative prompt's programs, whose conditioning prepare makes for a guided denoiser (Guide).
 	negative   *promptPrograms
 	schedule   FlowSchedule
@@ -629,16 +631,21 @@ func (g *Generator) decode(ctx context.Context, session *Generator) (EncodedImag
 }
 
 func (g *Generator) Close(ctx context.Context) error {
-	if g != nil && g.rotary != nil {
-		return g.closeRotary(ctx)
-	}
-	if g == nil || g.pipeline == nil {
+	if g == nil {
 		return nil
+	}
+	pictures := g.pictures.close(context.WithoutCancel(ctx))
+	g.pictures = nil
+	if g.rotary != nil {
+		return errors.Join(pictures, g.closeRotary(ctx))
+	}
+	if g.pipeline == nil {
+		return pictures
 	}
 	err := g.pipeline.Close(context.WithoutCancel(ctx))
 	g.pipeline = nil
 	g.embed = nil
-	return err
+	return errors.Join(pictures, err)
 }
 
 // PeakDeviceBytes is the most the session's device allocations have held.

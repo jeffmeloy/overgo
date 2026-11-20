@@ -56,19 +56,20 @@ func TestTheDepthPreviewAgreesWithComfyUIs(t *testing.T) {
 			}
 		}
 	}
-	// Measured 2026-11-17: 585540 of 589824 levels equal, none more than one apart.
+	// Measured 2026-11-17 on the host: 585540 of 589824 levels equal; 2026-11-20 on the card (moss-depth-card): 585549;
+	// none more than one apart.
 	if share := float64(equal) / float64(width*height); largest > 1 || share < leastEqualDepthShare {
 		t.Errorf("the preview agrees with ComfyUI's at %d of %d pixels (%.4f), %d levels apart at most; want %.2f of them equal and none more than one apart",
 			equal, width*height, share, largest, leastEqualDepthShare)
 	}
 }
 
-// depthPreviewTime is the longest a depth preview of a 1024 x 576 picture takes on the host, its checkpoint loaded with
-// it (moss-speed/attention): its estimate took 59 s with its encoder's attention on one thread, and 10.3 s with that
+// depthPreviewTime is the longest a depth preview of a 1024 x 576 picture takes, its checkpoint loaded with it
+// (moss-speed/attention): the host's estimate took 59 s with its encoder's attention on one thread, and 10.3 s with that
 // attention's rows split across the host's workers beside a run of the cycle's lanes sharing the host, which this
-// bound, twice that, holds on a busy host and the one thread fails.
+// bound, twice that, held on a busy host and the one thread failed; the estimate is the card's (moss-depth-card).
 const depthPreviewTime = 20 * time.Second
 
 // leastEqualDepthShare is the share of a depth preview's levels that equal ComfyUI's at least: measured 0.9927, the
-// rest one level apart where the host's float sums round otherwise than the card's.
+// rest one level apart where overgo's float sums round otherwise than ComfyUI's.
 const leastEqualDepthShare = 0.99

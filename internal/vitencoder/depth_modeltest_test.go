@@ -12,7 +12,10 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
+	"overgo/internal/cuda/device"
+	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/dataroot"
 	"overgo/internal/media"
 	"overgo/internal/testcheck"
@@ -37,6 +40,29 @@ const (
 // comfyui_controlnet_aux's DepthAnythingV2Preprocessor runs it, then scaled to the canvas as ComfyUI's ImageScale scales
 // it and kept as PreviewImage keeps a picture, gives every pixel of ComfyUI's preview within one 8-bit level.
 func TestDepthMapIsWithinOneLevelOfTheRecordedOne(t *testing.T) {
+	model := testcheck.Must(LoadDepthAnything(filepath.Join(testutil.ModelArtifactDir(t, "depth-anything-v2-small"), "depth_anything_v2_vits.pth")))(t)
+	holdDepthMapToTheRecording(t, model.DepthMap)
+}
+
+// TestTheCardsDepthMapIsWithinOneLevelOfTheRecordedOne holds the depth model on the card (DepthCard, moss-depth-card)
+// to ComfyUI's depth map as the host's is held: every pixel of ComfyUI's preview within one 8-bit level. The host's
+// estimate took 7.8 s at the workflow's size, on about 24 cores.
+func TestTheCardsDepthMapIsWithinOneLevelOfTheRecordedOne(t *testing.T) {
+	cudatest.Require(t)
+	model := testcheck.Must(LoadDepthAnything(filepath.Join(testutil.ModelArtifactDir(t, "depth-anything-v2-small"), "depth_anything_v2_vits.pth")))(t)
+	card := testcheck.Must(model.OpenCard(device.DefaultOrdinal()))(t)
+	t.Cleanup(func() { testcheck.NoError(t, card.Close()) })
+	holdDepthMapToTheRecording(t, func(unit []float32, height, width, resolution int) ([]uint8, int, int, error) {
+		began := time.Now()
+		defer func() { t.Logf("the card's map took %v", time.Since(began).Round(time.Millisecond)) }()
+		return card.DepthMap(t.Context(), unit, height, width, resolution)
+	})
+}
+
+// holdDepthMapToTheRecording reads the section's picture as ComfyUI holds it on the canvas, maps it with depthMap, and
+// holds the map, scaled to the canvas as ComfyUI's ImageScale scales it, within one 8-bit level of ComfyUI's preview.
+func holdDepthMapToTheRecording(t *testing.T, depthMap func(unit []float32, height, width, resolution int) ([]uint8, int, int, error)) {
+	t.Helper()
 	repo := testutil.RepoRoot(t)
 	references := filepath.Join(testcheck.Must(dataroot.Resolve(repo))(t).References(), "comfy", "moss-ultra")
 	var recording struct {
@@ -77,9 +103,8 @@ func TestDepthMapIsWithinOneLevelOfTheRecordedOne(t *testing.T) {
 	for index, level := range levels {
 		unit[index] = float32(level) / media.UnitLevels
 	}
-	model := testcheck.Must(LoadDepthAnything(filepath.Join(testutil.ModelArtifactDir(t, "depth-anything-v2-small"), "depth_anything_v2_vits.pth")))(t)
 	detected, mapHeight, mapWidth := func() ([]uint8, int, int) {
-		detected, mapHeight, mapWidth, err := model.DepthMap(unit, depthHeight, depthWidth, depthResolution)
+		detected, mapHeight, mapWidth, err := depthMap(unit, depthHeight, depthWidth, depthResolution)
 		testcheck.NoError(t, err)
 		return detected, mapHeight, mapWidth
 	}()

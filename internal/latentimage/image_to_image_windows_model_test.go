@@ -68,7 +68,9 @@ func TestImageToImageMeetsItsSectionFloor(t *testing.T) {
 		}
 	}
 
-	encoded := testcheck.Must(sourceLatent(ctx, root, section.Image, section.Width, section.Height))(t)
+	sections := newPictureSections(root, section.Width, section.Height)
+	defer func() { testcheck.NoError(t, sections.close(context.WithoutCancel(ctx))) }()
+	encoded := testcheck.Must(sections.sourceLatent(ctx, section.Image))(t)
 	cosine, relative := latentAgreement(encoded, latent(imageToImageEncode))
 	t.Logf("the encoded picture: cosine %.6f, relative L2 %.5f of ComfyUI's", cosine, relative)
 	if !(cosine >= sourceLatentCosine) || !(relative <= sourceLatentRelativeL2) {

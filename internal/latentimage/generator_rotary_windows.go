@@ -321,7 +321,7 @@ func (g *Generator) integrateRotary(ctx context.Context) (*Generator, error) {
 	settings := g.rotarySettings(g.request, g.schedule, g.rotary.guidance)
 	settings.weights, settings.negativeWeights = g.rotary.weights, g.rotary.negativeWeights
 	if control := g.request.Control; control != nil {
-		if settings.control, err = controlLatent(ctx, g.modelDir, *control, g.request.Width, g.request.Height); err != nil {
+		if settings.control, err = g.sections().controlLatent(ctx, *control); err != nil {
 			return nil, err
 		}
 		settings.controlLow, settings.controlHigh = control.window(g.profile.Rotary.Shift)

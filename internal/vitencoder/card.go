@@ -18,39 +18,105 @@ import (
 // decodes and prepares each picture and embeds its patches, as the encoder does, and the card gives the tokens Tokens
 // gives.
 type Card struct {
-	encoder     *Encoder
-	worker      *device.Worker
-	executor    *executor.Executor
-	compiled    *executor.CompiledGraph
-	inputs      *executor.DeviceInputs
-	allocations device.AllocationSet
+	cardDevice
+	encoder  *Encoder
+	compiled *executor.CompiledGraph
+	inputs   *executor.DeviceInputs
 	// embedded is the input rows the host feeds, and tokens the rows after the final norm, the hidden width by the
 	// tokens, as the host lays them token by token.
 	embedded, tokens *tensor.Tensor
 }
 
+// cardDevice is a card's worker, the executor that runs its programs there and the allocations that hold its weights.
+type cardDevice struct {
+	worker      *device.Worker
+	executor    *executor.Executor
+	allocations device.AllocationSet
+}
+
+// openCardDevice opens the device of ordinal with an executor over it.
+func openCardDevice(ordinal int) (cardDevice, error) {
+	worker, err := device.New(ordinal)
+	if err != nil {
+		return cardDevice{}, err
+	}
+	opened := cardDevice{worker: worker, allocations: device.NewAllocationSet(worker)}
+	if opened.executor, err = executor.NewWithWorker(worker); err != nil {
+		return cardDevice{}, errors.Join(err, opened.Close())
+	}
+	return opened, nil
+}
+
+// upload puts each weight a compiled graph reads on the card, held by its allocations, and gives the graph's inputs.
+func (d *cardDevice) upload(ctx context.Context, compiled *executor.CompiledGraph, weights cardWeights) (*executor.DeviceInputs, error) {
+	inputs := compiled.NewDeviceInputs()
+	for node, values := range weights {
+		pointer, err := d.allocations.Upload(ctx, driver.Bytes(values))
+		if err == nil {
+			err = inputs.Set(node, pointer)
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	return inputs, nil
+}
+
+// Close releases the card's weights, its executor and its worker.
+func (d *cardDevice) Close() error {
+	var closing error
+	if d.executor != nil {
+		closing = d.executor.Close()
+	}
+	return errors.Join(closing, d.allocations.Close(context.Background()), d.worker.Close())
+}
+
 // OpenCard puts the encoder's blocks and final norm on the device of ordinal.
 func (e *Encoder) OpenCard(ctx context.Context, ordinal int) (*Card, error) {
-	worker, err := device.New(ordinal)
+	opened, err := openCardDevice(ordinal)
 	if err != nil {
 		return nil, err
 	}
-	card := &Card{encoder: e, worker: worker, allocations: device.NewAllocationSet(worker)}
+	card := &Card{cardDevice: opened, encoder: e}
 	fail := func(cause error) (*Card, error) { return nil, errors.Join(cause, card.Close()) }
-	if card.executor, err = executor.NewWithWorker(worker); err != nil {
+	g := e.geometry
+	b, weights := tensor.NewBuilder(), cardWeights{}
+	card.embedded = b.Input("embedded", dtype.F32, tensor.MustShape(uint64(g.Hidden), uint64(e.tokens)))
+	stream := e.cardBlocks(b, weights, card.embedded, uint64(e.tokens), nil)
+	card.tokens = b.AffineLayerNorm(stream, weights.input(b, "final.weight", e.finalWeight, uint64(g.Hidden)),
+		weights.input(b, "final.bias", e.finalBias, uint64(g.Hidden)), float32(g.Epsilon))
+	if err := b.Err(); err != nil {
+		return fail(fmt.Errorf("vitencoder card: %w", err))
+	}
+	if card.compiled, err = executor.Compile(card.tokens); err != nil {
+		return fail(fmt.Errorf("vitencoder card: %w", err))
+	}
+	if card.inputs, err = card.upload(ctx, card.compiled, weights); err != nil {
 		return fail(err)
 	}
+	return card, nil
+}
+
+// cardWeights are a card graph's weight inputs and the values each is fed, as the checkpoint holds them: a matrix
+// [out, in] row-major is the graph's [in, out].
+type cardWeights map[*tensor.Tensor][]float32
+
+// input is a weight input of the graph b builds, fed values.
+func (w cardWeights) input(b *tensor.Builder, name string, values []float32, shape ...uint64) *tensor.Tensor {
+	node := b.Input(name, dtype.F32, tensor.MustShape(shape...))
+	w[node] = values
+	return node
+}
+
+// cardBlocks builds the encoder's blocks over stream, count tokens of the hidden width, into b, their weights into
+// weights, and gives the stream after the last; after, where given, is called with each block's index and the stream
+// after it, as the host's blocks call theirs (DepthModel reads four of them).
+func (e *Encoder) cardBlocks(b *tensor.Builder, weights cardWeights, stream *tensor.Tensor, count uint64, after func(index int, stream *tensor.Tensor)) *tensor.Tensor {
 	g := e.geometry
-	hidden, count, heads := uint64(g.Hidden), uint64(e.tokens), uint64(g.Heads)
+	hidden, heads := uint64(g.Hidden), uint64(g.Heads)
 	width, epsilon := hidden/heads, float32(g.Epsilon)
-	b := tensor.NewBuilder()
-	card.embedded = b.Input("embedded", dtype.F32, tensor.MustShape(hidden, count))
-	weights := map[*tensor.Tensor][]float32{}
-	// A weight is fed as the checkpoint holds it: a matrix [out, in] row-major is the graph's [in, out].
 	weight := func(name string, values []float32, shape ...uint64) *tensor.Tensor {
-		node := b.Input(name, dtype.F32, tensor.MustShape(shape...))
-		weights[node] = values
-		return node
+		return weights.input(b, name, values, shape...)
 	}
 	linear := func(input *tensor.Tensor, name string, matrix, bias []float32, in, out uint64) *tensor.Tensor {
 		return b.Add(b.MulMat(weight(name+".weight", matrix, in, out), input), weight(name+".bias", bias, out))
@@ -61,7 +127,6 @@ func (e *Encoder) OpenCard(ctx context.Context, ordinal int) (*Card, error) {
 		}
 		return b.Add(stream, branch)
 	}
-	stream := card.embedded
 	for index, l := range e.layers {
 		name := func(part string) string { return fmt.Sprintf("layer%d.%s", index, part) }
 		normed := b.AffineLayerNorm(stream, weight(name("norm1.weight"), l.norm1Weight, hidden), weight(name("norm1.bias"), l.norm1Bias, hidden), epsilon)
@@ -85,25 +150,11 @@ func (e *Encoder) OpenCard(ctx context.Context, ordinal int) (*Card, error) {
 			activated = b.SwiGLU(half(0), half(inner))
 		}
 		stream = residual(stream, linear(activated, name("down"), l.down, l.downBias, inner, hidden), name("scale2"), l.scale2)
-	}
-	card.tokens = b.AffineLayerNorm(stream, weight("final.weight", e.finalWeight, hidden), weight("final.bias", e.finalBias, hidden), epsilon)
-	if err := b.Err(); err != nil {
-		return fail(fmt.Errorf("vitencoder card: %w", err))
-	}
-	if card.compiled, err = executor.Compile(card.tokens); err != nil {
-		return fail(fmt.Errorf("vitencoder card: %w", err))
-	}
-	card.inputs = card.compiled.NewDeviceInputs()
-	for node, values := range weights {
-		pointer, err := card.allocations.Upload(ctx, driver.Bytes(values))
-		if err == nil {
-			err = card.inputs.Set(node, pointer)
-		}
-		if err != nil {
-			return fail(err)
+		if after != nil {
+			after(index, stream)
 		}
 	}
-	return card, nil
+	return stream
 }
 
 // Tokens decodes one PNG or JPEG image and returns every token after the final norm, as the encoder's Tokens does.
@@ -135,12 +186,3 @@ func (c *Card) Embed(ctx context.Context, image []byte) ([]float32, error) {
 
 // Shape is the encoder's: the side of its square input, the side of its patch grid and the width of each token.
 func (c *Card) Shape() (input, grid, hidden int) { return c.encoder.Shape() }
-
-// Close releases the card's weights, its executor and its worker.
-func (c *Card) Close() error {
-	var closing error
-	if c.executor != nil {
-		closing = c.executor.Close()
-	}
-	return errors.Join(closing, c.allocations.Close(context.Background()), c.worker.Close())
-}

@@ -297,40 +297,6 @@
       "actual": "At 140c7975e the live log and measurement record now name the interrupted test. The returned error still loses its name. The parser puts the package before its tests in Unfinished, RequireComplete returns only its first entry, and laneVerdict joins those errors. Two interrupted tests in one package therefore have indistinguishable package names in the final summary. This is a source counterexample. The landing's retained check asserts the log and record and checks the returned error only for non-nil."
     },
     {
-      "id": "SQA-427",
-      "severity": "P2",
-      "files": [
-        "docs/plan.json",
-        "internal/latentimage/fusion_latent_windows_model_test.go"
-      ],
-      "input": "Judge moss-fusion/neighbors with the prior unfused kernels at the same seed, dimensions and weights. They already produce the reference latents for text to image and depth control.",
-      "expected": "Keep bit-for-bit agreement and make the existing fusion check distinguish the unfused path. Use the warm pass measurement and the later fusion budget to establish elapsed savings beyond the observed timing variation. If only the combined change has a measurable saving, judge it at that existing speed check.",
-      "actual": "At 140c7975e moss-fusion/neighbors still selects only TestTheMOSSPassFusesWithoutChangingABit. It compares two final latent hashes captured before fusion. The retained copies landing at e849f2f97 already passes both on the neighbors baseline. Removing the neighbors optimization therefore preserves the required result. The plan's later fusion speed check runs in a different step."
-    },
-    {
-      "id": "SQA-428",
-      "severity": "P3",
-      "files": [
-        "docs/plan.json"
-      ],
-      "input": "With the checkpoint repair and moss-fusion/neighbors complete, leave the card available, no row parked and no explicit dispatch override. Read the next step from the ordering committed at 140c7975e.",
-      "expected": "The rationale of moss-merge-time/do puts it and moss-depth-card/do before moss-fusion/budget and moss-fusion/do. Express that ordering in the existing plan so normal dispatch follows it.",
-      "actual": "Master moved the merge and depth steps ahead of the three per-pass rows. But the budget and do steps still sit inside the earlier moss-fusion item with no dependency on either setup step. ReadyFrontier and dispatchPriority preserve document order among eligible steps. Under these conditions the next selection is moss-fusion/budget, ahead of the merge and depth work whose combined target is about 19 seconds per warm workflow. Shown from the committed plan and dispatcher."
-    },
-    {
-      "id": "SQA-429",
-      "severity": "P2",
-      "files": [
-        "internal/latentimage/source_latent_windows.go",
-        "internal/latentimage/vae_encoder_windows.go",
-        "internal/latentimage/golden_floor_windows_model_test.go",
-        "fixtures/comfy/moss-ultra/recordings/pass-2/image-to-image.json"
-      ],
-      "input": "Use the recorded 1024x576 MOSS Ultra image-to-image request with its valid source PNG, fixed seed, no depth control and denoise 1. The first sigma at sampler 506 is exactly 1. Compare with the Turbo image-to-image recording whose first sigma is about 0.90027.",
-      "expected": "After the existing source-image validation, start the full-noise case from its seeded noise without opening or running the source VAE encoder. Decide from the resolved first sigma. Preserve the request identity, invalid-picture errors, any separate depth control, and the source encoding for partial denoise. Compare seeded latents and pixels in both cases.",
-      "actual": "Source at 140c7975e. startLatent calls sourceLatent whenever an image is supplied. It scales the PNG, loads the encoder weights, creates a device session, compiles and runs the encoder, then closes it. Only afterward does startLatent multiply every finite encoded value by 1 minus the first sigma, exactly zero in the standard recording. One entire source encode contributes nothing to that section. The time attributable to it has not been measured."
-    },
-    {
       "id": "SQA-430",
       "severity": "P2",
       "files": [
@@ -356,6 +322,18 @@
       "input": "Complete a fixed-seed MOSS text-to-image request with Enhance enabled, then repeat it through the same local capability without FreshRun. Use the same store, code, model files, active recipe, source prompt and exclusions. The mode-2 recording supplies a source and its positive and negative outputs.",
       "expected": "Let the existing capability and run-recovery owners recover the admitted request's completed preparation or picture before opening the enhancer. An identical completed retry should open zero chats and return the same pixels. Bind reuse to the enhancer model, tokenizer, template, sampling settings and code as well as the picture inputs and current authority. Preserve explicit fresh execution.",
       "actual": "Source at 140c7975e. preparedFirst calls EnhanceRequest before the session director seeks the stored answer. Every retry opens the 9B chat, generates a positive and a negative prompt (a third generation if the positive needs a retry), closes it, clears Enhance and passes the rewritten request to the director. An enhancer-open failure on the retry therefore prevents delivery of the completed picture even when all identities still match. The recording establishes the prompt pair. Retry cost and failure are source-derived, with no timed or failed retry observed."
+    },
+    {
+      "id": "SQA-432",
+      "severity": "P2",
+      "files": [
+        "internal/latentimage/source_latent_windows.go",
+        "internal/media/comfy_scale.go",
+        "internal/latentimage/source_skip_windows_test.go"
+      ],
+      "input": "Give MOSS image-to-image a valid 1x2 source PNG, a 1024x576 canvas, a fixed seed and no depth control. Compare a full-denoise first sigma of 1 with the Turbo recording's first sigma of approximately 0.90027.",
+      "expected": "Reject both requests with the existing empty-centre-crop error before sampling. Have the full-denoise shortcut use the crop geometry check owned by media.ScaleLikeComfyUI, without resampling pixels or opening the VAE. Valid full-denoise requests should still start from their noise.",
+      "actual": "Source counterexample at c50d72687. For this canvas the centre crop rounds its top margin to one source row and removes one row from each end, leaving height zero. Partial denoise calls ScaleLikeComfyUI and rejects it. At sigma 1, startLatent only decodes the PNG and returns a noise latent, so the generator starts sampling the same invalid crop. Before c50d72687 both paths rejected it. The landing's retained check covers malformed PNG bytes and a square picture. This crop was not run."
     }
   ],
   "master_lead_triage": {
@@ -373,27 +351,6 @@
           "moss-step-copies/do"
         ],
         "note": "Answered by the lead on 2026-11-20 at 160028dcb: valid from source (each branch's control slice is staged and uploaded every pass, 2.4 MB, zeros included); a per-pass host copy, so filed with moss-step-copies, whose step keeps the sampling's per-pass data on the card."
-      },
-  "SQA-429": {
-        "action": "implemented",
-        "rows": [
-          "moss-source-skip/do"
-        ],
-        "note": "Answered by the lead on 2026-11-20 at 160028dcb: valid from source (startLatent encodes the source picture and multiplies it by one minus a first sigma of exactly 1 in the image to image section). One encode a workflow run, likely about a second, so filed as its own small row after the per-pass rows, its time measured first, removing work with a branch. Implemented 2026-11-20 by moss-source-skip/do (c50d72687), for the review's recheck."
-      },
-  "SQA-428": {
-        "action": "filed",
-        "rows": [
-          "moss-elementwise/do"
-        ],
-        "note": "Answered by the lead on 2026-11-20 at 160028dcb: valid for the do step (it sat inside moss-fusion ahead of moss-merge-time and moss-depth-card, with nothing in the plan to put it after them); moss-fusion/do moved to its own row, moss-elementwise, after them. moss-fusion/budget stays ahead of them by the owner's review of 2026-11-20: it measures and builds nothing, and says how large the int8 path's work is before any per-pass row is sized."
-      },
-  "SQA-427": {
-        "action": "filed",
-        "rows": [
-          "moss-fusion/neighbors"
-        ],
-        "note": "Answered by the lead on 2026-11-20 at 160028dcb: valid (neighbors' check, TestTheMOSSPassFusesWithoutChangingABit, holds latents its base draws too, the check copies was refused twice for). TestAMOSSBlocksElementwiseChainsLaunchOnce counts the compiled launches of a MOSS block's norm, gated sum and norm-rotation chains (6, 2 and 3 at the base against 2, 1 and 1) with names the base has; it joins neighbors' check through a plan-only carrier landed before neighbors' first attempt."
       },
   "SQA-426": {
         "action": "deferred",
@@ -512,7 +469,7 @@
       }
 }
   },
-  "next_finding_number": 432,
+  "next_finding_number": 433,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

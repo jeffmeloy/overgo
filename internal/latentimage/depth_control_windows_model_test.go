@@ -91,14 +91,11 @@ func TestDepthControlMeetsItsSectionFloor(t *testing.T) {
 }
 
 // depthControlSection is the depth section's request as its recording asks it, at 1024 x 576 from the recorder's
-// picture, and the depth map it reads, a PNG of overgo's Depth Anything V2 map at the section's resolution.
+// picture, and the depth map it reads, a PNG of overgo's Depth Anything V2 map at the section's resolution, made on the
+// host before the request.
 func depthControlSection(t *testing.T, recording comfySection) (Request, []byte) {
 	t.Helper()
-	sampler, control, estimator := recording.inputs(depthControlSampler), recording.inputs(depthControlNode), recording.inputs(depthControlEstimator)
-	if recording.Set["513.image"] != "overgo-recorder-input.png" || recording.Set["690.megapixels"] != 0.5625 || sampler["sampler_name"] != "er_sde" ||
-		sampler["scheduler"] != sampling.ScheduleBongTangent || len(recording.Texts["607"]) != 1 || len(recording.Texts["608"]) != 1 {
-		t.Fatalf("the recording set %v over a sampler of %v with prompts %v; want the section at 1024 x 576 from the recorder's picture", recording.Set, sampler, recording.Texts)
-	}
+	request := depthControlRequest(t, recording)
 	const width, height = 1024, 576
 	picture := testcheck.Must(png.Decode(bytes.NewReader(ultraPictureBytes(t))))(t)
 	levels := testcheck.Must(media.ScaleLikeComfyUI(picture, width, height))(t)
@@ -107,12 +104,28 @@ func depthControlSection(t *testing.T, recording comfySection) (Request, []byte)
 		unit[index] = float32(level) / media.UnitLevels
 	}
 	estimate := testcheck.Must(vitencoder.LoadDepthAnything(filepath.Join(testutil.ModelArtifactDir(t, "depth-anything-v2-small"), "depth_anything_v2_vits.pth")))(t)
-	depth, mapHeight, mapWidth, err := estimate.DepthMap(unit, height, width, int(estimator["resolution"].(float64)))
+	depth, mapHeight, mapWidth, err := estimate.DepthMap(unit, height, width, depthResolution)
 	testcheck.NoError(t, err)
 	gray := image.NewGray(image.Rect(0, 0, mapWidth, mapHeight))
 	copy(gray.Pix, depth)
 	var depthPNG bytes.Buffer
 	testcheck.NoError(t, png.Encode(&depthPNG, gray))
+	request.Control.Map, request.Control.Picture = base64.StdEncoding.EncodeToString(depthPNG.Bytes()), ""
+	return request, depthPNG.Bytes()
+}
+
+// depthControlRequest is the depth section's request as ComfyUI's run asked it, at 1024 x 576 from the recorder's
+// picture, its depth map estimated as the request is drawn (612:438 at depthResolution).
+func depthControlRequest(t *testing.T, recording comfySection) Request {
+	t.Helper()
+	sampler, control, estimator := recording.inputs(depthControlSampler), recording.inputs(depthControlNode), recording.inputs(depthControlEstimator)
+	if recording.Set["513.image"] != "overgo-recorder-input.png" || recording.Set["690.megapixels"] != 0.5625 || sampler["sampler_name"] != "er_sde" ||
+		sampler["scheduler"] != sampling.ScheduleBongTangent || len(recording.Texts["607"]) != 1 || len(recording.Texts["608"]) != 1 ||
+		estimator["resolution"] != float64(depthResolution) {
+		t.Fatalf("the recording set %v over a sampler of %v and an estimate of %v with prompts %v; want the section at 1024 x 576 from the recorder's picture",
+			recording.Set, sampler, estimator, recording.Texts)
+	}
+	const width, height = 1024, 576
 	guidance := float32(sampler["cfg"].(float64))
 	strength := float32(control["strength"].(float64))
 	end := control["end_percent"].(float64)
@@ -120,5 +133,6 @@ func depthControlSection(t *testing.T, recording comfySection) (Request, []byte)
 	return Request{Prompt: recording.Texts["607"][0], NegativePrompt: recording.Texts["608"][0], GuidanceScale: &guidance, Width: width, Height: height,
 		Steps: int(sampler["steps"].(float64)), Seed: int64(sampler["seed"].(float64)), Adapter: "moss-control", SkipBlocks: &none,
 		Schedule: &sampling.Schedule{Sampler: sampling.SamplerERSDE, Name: sampling.ScheduleBongTangent},
-		Control:  &DepthControl{Map: base64.StdEncoding.EncodeToString(depthPNG.Bytes()), Strength: &strength, Start: control["start_percent"].(float64), End: &end}}, depthPNG.Bytes()
+		Control: &DepthControl{Picture: base64.StdEncoding.EncodeToString(ultraPictureBytes(t)), Strength: &strength,
+			Start: control["start_percent"].(float64), End: &end}}
 }

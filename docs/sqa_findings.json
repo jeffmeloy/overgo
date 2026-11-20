@@ -156,9 +156,9 @@
         "internal/latentimage/picture_sections_windows.go",
         "internal/vitencoder/depth.go"
       ],
-      "input": "In a held MOSS depth-control session at 1024x576, draw from a picture using a valid estimator. Between requests replace its checkpoint at the same path with a zero-byte file, then repeat with a cache miss. Separately, install a missing named adapter between Contents and modelAdapter, remove it after the draw and repeat. For a present moss_image_sft, trace its hashes on a cache miss.",
-      "expected": "Reject missing required weights before replay or loading. Use the admitted file's content ID for its resident binding: keep the depth model for identical bytes, reload a changed checkpoint and propagate its loader error. Keep the VAE resident and allow a supplied depth map without an estimator. Reuse the adapter's admitted ID in its ordered, strength-sensitive merge. A direct generator must still identify its inputs.",
-      "actual": "Source at cbdf003cc. Contents hashes the empty replacement into the new run key, but pictureSections.depthCard returns its existing estimator whenever s.depth is set. The warm draw uses the old weights under the replacement's identity. A cold draw reaches LoadDepthAnything and rejects the empty archive. For an absent file Contents instead hashes 'absent', so an adapter installed after naming can produce a result replayable after removal. For a present adapter, Contents passes only the combined digest and readMediaAdapter hashes the file again, one extra 285,329,336-byte host read for the recorded moss_image_sft."
+      "input": "Serve a MOSS request naming a missing adapter. Install it after Contents names the inputs and before modelAdapter opens it, then remove it and repeat the request. On separate cache misses with stable files, trace a named moss_image_sft adapter and a depth control whose map is estimated from a picture.",
+      "expected": "Refuse a missing required file before replay or model work. Bind the adapter merge and depth estimator to the file identities already read and held for this request. Preserve adapter order and strength, direct-generator file identification, and depth controls supplied as maps.",
+      "actual": "Source at 6395092b4. Contents encodes a missing adapter as 'absent'. If installed before modelAdapter opens it, its result can be stored under the absent identity and replayed after removal. For present files, Contents hands the executor only a combined digest. readMediaAdapter hashes the recorded 285,329,336-byte adapter again on binding, and pictureSections.depthCard hashes the roughly 99 MB checkpoint again on each served picture-derived map that reaches it, even with the estimator resident. These are additional host reads. Their wall time is unmeasured."
     },
     {
       "id": "SQA-410",
@@ -169,9 +169,9 @@
         "internal/latentimage/depth_control_windows_model_test.go",
         "internal/latentimage/int8_merge_windows_model_test.go"
       ],
-      "input": "Compare a recorded 1024x576 PNG with identical pixels plus one column. Give a mirrored-input check a short latent or a NaN while its baseline passes. In holdMergedSections, give each precision mode a latent with one +Inf against a finite, nonzero reference. Also trace a valid run of the three adapter cases.",
-      "expected": "Compare PNG dimensions and require nonempty, equal-length, finite latent vectors before scoring. Keep +Inf for an exact match with nonzero signal. Exercise malformed inputs in memory. Keep changed-input draws in the floor checks that use them. Each adapter comparison needs one recorded-input draw per precision mode and the existing merge captures.",
-      "actual": "Source at 9b40546f8. The 8x8 means discard the extra column. A short control scores -Inf and a NaN propagates. All three negative-control checks accept either. With an infinite element in each draw, holdMergedSections accepts -Inf >= -Inf. Its three cases each draw the original and changed input in BF16 and merged int8. Six of those twelve draws are changed inputs whose scores the comparison never reads. Their cost in seconds is unmeasured."
+      "input": "Compare a 1024x576 PNG with the same pixels plus one column. Give a changed-input control a short latent or NaN with a passing baseline, or give both adapter precision modes a latent with one +Inf against a finite nonzero reference. In the six-case golden run, put the first baseline below its floor and let a later case fail while loading its recording. Trace the three valid adapter cases in both modes.",
+      "expected": "Check PNG dimensions and finite, nonempty, equal-length latent inputs before scoring. Preserve +Inf for an exact match with nonzero signal. Check each available floor as its case runs so later errors cannot hide earlier failures. In the floor tests, score each changed latent before closing its generator and omit the unused picture decode. The adapter comparison needs one recorded-input draw per case and precision plus its existing merge captures.",
+      "actual": "Source at 6395092b4. The 8x8 means drop the extra column. A short or NaN control passes all three negative-control checks, and holdMergedSections accepts -Inf >= -Inf. holdGoldenFloors checks floors only after readGoldenCases returns all six cases. A later fatal recording error suppresses the first failing floor entirely. holdMergedSections requests twelve full draws and ignores all six changed-input scores. The normal six golden and two Turbo controls also decode eight pictures whose pixels are discarded. The retained lanes at d0eaf0f9a and 28390a169 timed the whole adapter test at 8m52s and 9m43s. Time attributable to the unused draws was not measured."
     },
     {
       "id": "SQA-411",
@@ -323,91 +323,29 @@
       "actual": "Source at 140c7975e. preparedFirst calls EnhanceRequest before the session director seeks the stored answer. Every retry opens the 9B chat, generates a positive and a negative prompt (a third generation if the positive needs a retry), closes it, clears Enhance and passes the rewritten request to the director. An enhancer-open failure on the retry therefore prevents delivery of the completed picture even when all identities still match. The recording establishes the prompt pair. Retry cost and failure are source-derived, with no timed or failed retry observed."
     },
     {
-      "id": "SQA-432",
+      "id": "SQA-436",
       "severity": "P2",
       "files": [
-        "internal/latentimage/source_latent_windows.go",
-        "internal/media/comfy_scale.go",
-        "internal/latentimage/source_skip_windows_test.go"
+        "internal/cuda/executor/int8_prologue.go",
+        "kernels/cuda/ops_f32_tail.cuh",
+        "internal/cuda/executor/executor.go",
+        "internal/cuda/executor/int8_prologue_windows_test.go"
       ],
-      "input": "Give MOSS image-to-image a valid 1x2 source PNG, a 1024x576 canvas, a fixed seed and no depth control. Compare a full-denoise first sigma of 1 with the Turbo recording's first sigma of approximately 0.90027.",
-      "expected": "Reject both requests with the existing empty-centre-crop error before sampling. Have the full-denoise shortcut use the crop geometry check owned by media.ScaleLikeComfyUI, without resampling pixels or opening the VAE. Valid full-denoise requests should still start from their noise.",
-      "actual": "Source counterexample at c50d72687. For this canvas the centre crop rounds its top margin to one source row and removes one row from each end, leaving height zero. Partial denoise calls ScaleLikeComfyUI and rejects it. At sigma 1, startLatent only decodes the PNG and returns a noise latent, so the generator starts sampling the same invalid crop. Before c50d72687 both paths rejected it. The landing's retained check covers malformed PNG bytes and a square picture. This crop was not run."
-    },
-    {
-      "id": "SQA-433",
-      "severity": "P2",
-      "files": [
-        "internal/cuda/executor/moss_norm.go",
-        "internal/cuda/executor/moss_rotary.go",
-        "internal/cuda/executor/fusion_rewrites.go",
-        "internal/cuda/executor/moss_norm_windows_test.go"
-      ],
-      "input": "Compile two rotary outputs from the same weighted, BF16-rounded native-mean RMS norm. Use the 128 x 3 x 12 head shape from TestAQueryNormAndItsRotationFoldIntoOneKernel. Give each rotation its own slice and multiply nodes and its own cosine and sine inputs. Keep only the two rotated tensors as graph outputs.",
-      "expected": "Compute the shared normalized heads once and keep them available to both rotations. Fuse the norm into a rotation only when that rotation is its sole remaining reader. Both outputs should match the graph that also retains the norm, bit for bit.",
-      "actual": "Source counterexample at 9b40546f8. applyMOSSRotaryRewrite replaces both rotation chains and marks their original readers skipped. applyMOSSNormRotaryRewrite takes those skipped readers as proof of exclusive use. The first rotation absorbs the norm and marks its output skipped. The second rotation still names that output as its input. compileDependencies drops the skipped operand and the executor emits no launch to produce it. The retained check covers one rotation with and without an explicit norm output. No failing GPU run was observed."
-    },
-    {
-      "id": "SQA-434",
-      "severity": "P2",
-      "files": [
-        "internal/latentimage/runtime_cuda_windows.go",
-        "internal/latentimage/picture_sections_windows.go",
-        "internal/latentimage/vae_encoder_windows.go",
-        "internal/vitencoder/card.go",
-        "internal/capabilityruntime/measured.go",
-        "internal/server/generation_store_workspace.go"
-      ],
-      "input": "Serve a 1024x576 MOSS depth control from a picture through the generation workspace on an otherwise idle GPU. Use a cache miss and compare the serving observation's peak_device_bytes with concurrent device allocations across the rotary, picture-encoder and depth workers during that draw.",
-      "expected": "Record the peak bytes held at the same time by the generator's workers. Exclude earlier jobs and unrelated sessions in the server. Keep replay's peak absent.",
-      "actual": "Source at cbdf003cc. Generator.PeakDeviceBytes reads only g.rotary.runtime. Its worker reports its own driver allocation ledger. The picture encoder and depth model have separate workers that remain allocated through sampling and decoding. measure marks the single-worker reading as measured and the generation workspace publishes it. The retained depth-control check measured 1.25 GiB still held by the picture sections in isolation. That figure is not a measured difference between serving peaks."
-    },
-    {
-      "id": "SQA-435",
-      "severity": "P2",
-      "files": [
-        "internal/latentimage/picture_sections_windows.go",
-        "internal/latentimage/vae_encoder_windows.go",
-        "internal/latentimage/vae_encoder.go",
-        "internal/latentimage/vae_program.go",
-        "internal/latentimage/resident_graph_cuda_windows.go"
-      ],
-      "input": "Complete a MOSS picture-derived depth control at 1024x576, then keep its generator open for the next request at the same size. Trace the Go slices reachable through the resident picture encoder after its first successful upload.",
-      "expected": "Keep the bound GPU program, its input and output nodes, geometry and the batch statistics used by normalizedLatent. Release the host weight slices used only to construct and bind the encode graph. A second picture should use the same GPU weights and produce the same latent.",
-      "actual": "Source at cbdf003cc. NewPictureEncoder uploads graph.feeds through compileResidentStatic, then retains both graph.feeds[].data and encoder.CodecProgram.Operations in the generator's picture sections until close. Subsequent Encode calls use the bound program, dimensions and normalization values. Neither operation weights nor feed payloads are read again. The retained check records 131.3 MiB of static GPU weights for this encoder. Distinct host bytes retained were not measured."
+      "input": "Use the 128-channel int8 query or key graph from TestAnInt8ProductNormsAndRotatesTheHeadsItAloneGives. Supply its cosine table as a contiguous F32 device input with natural four-byte alignment but without sixteen-byte alignment. Keep the rotated result as the sole output and compare with the same graph retaining the projected heads.",
+      "expected": "Both graphs accept the same valid F32 tables and return identical rotated heads. Use scalar loads for any table whose alignment is unknown, or guard the vector loads locally. The caller should not need to copy the table.",
+      "actual": "Source at 9acbc157a. ExecuteCompiled passes the bound device address through. The separate norm-and-rotate kernel reads scalar floats. The fused int8 epilogue casts both table pointers to float4, and the committed PTX issues ld.global.v4.f32 for each. No alignment check covers these tables, so the fused graph issues a 16-byte load at an address that does not meet its alignment requirement. The retained bit comparison supplies host tables that the executor stages at aligned offsets. The device-view case was not run."
     }
   ],
   "master_lead_triage": {
     "at": "2026-11-20",
     "head": "cbdf003cc5e0d974e86a56e8f99bb49b6bdc97a8",
     "findings": {
-  "SQA-435": {
+  "SQA-436": {
         "action": "filed",
         "rows": [
-          "picture-sections/do"
+          "moss-int8-epilogue/do"
         ],
-        "note": "Answered by the lead on 2026-11-20 at cbdf003cc: valid from source (PictureEncoder keeps its graph, whose feeds hold the VAE encoder's weights as host slices, and its encoder's operations after compileResidentStatic has put them on the card, and the held sections keep the encoder for the session); filed as picture-sections/do, the encoder keeping its bound program, geometry and statistics alone."
-      },
-  "SQA-434": {
-        "action": "filed",
-        "rows": [
-          "picture-sections/do"
-        ],
-        "note": "Answered by the lead on 2026-11-20 at cbdf003cc: valid from source (Generator.PeakDeviceBytes reads the rotary session's worker alone, and the picture encoder and the depth model hold their own workers through the sampling since moss-depth-card); filed as picture-sections/do, the peak read across the generator's workers."
-      },
-  "SQA-433": {
-        "action": "implemented",
-        "rows": [
-          "moss-elementwise/do"
-        ],
-        "note": "Answered by the lead on 2026-11-20 at cbdf003cc: valid, reproduced (a head norm two rotary embeddings read compiled to 2 launches, the second rotation reading heads no launch computed); taken in moss-elementwise/do, whose int8 epilogue builds on the norm and rotation fold, where the fold asks that the embedding's own three reads be the heads' only ones (TestANormTwoRotationsReadIsComputedForBoth, 3 launches). Implemented by moss-elementwise/do (9acbc157a)."
-      },
-  "SQA-432": {
-        "action": "filed",
-        "rows": [
-          "picture-sections/do"
-        ],
-        "note": "Answered by the lead on 2026-11-20 at cbdf003cc: valid from source (since moss-source-skip a picture at sigma 1 is decoded but not scaled, so a crop that leaves no rows starts sampling where a partial denoise refuses it); filed as picture-sections/do, the crop's geometry checked as media.ScaleLikeComfyUI checks it without resampling."
+        "note": "Answered by the lead on 2026-11-20 at 6395092b4: valid from source (scale_int8_product_norm_rotate_bf16_f32 reads the cosine and sine tables as float4 with no alignment check, where moss_norm_rotate_bf16_round_f32 reads them as floats); the workflow's tables are concatenations the executor allocates and aligns (rotaryGraph.rotaryInput), so it faults only for a graph binding a table at an address not 16-byte aligned; filed with moss-int8-epilogue/do, which reworks the int8 epilogues, the kernel reading a table it cannot prove aligned a float at a time."
       },
   "SQA-431": {
         "action": "deferred",
@@ -539,7 +477,7 @@
       }
 }
   },
-  "next_finding_number": 436,
+  "next_finding_number": 437,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

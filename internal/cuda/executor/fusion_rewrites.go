@@ -176,6 +176,11 @@ var graphRewriteCatalog = [...]graphRewrite{
 	{name: "bf16-argmax", apply: applyBF16ArgmaxRewrite},
 	{name: "moss-situ", apply: applyMOSSSituRewrite},
 	{name: "moss-rotary", apply: applyMOSSRotaryRewrite},
+	{name: "moss-norm", apply: applyMOSSNormRewrite},
+	{name: "moss-norm-rotary", apply: applyMOSSNormRotaryRewrite},
+	{name: "gated-add", apply: applyGatedAddRewrite},
+	{name: "int8-prologue", apply: applyInt8PrologueRewrite},
+	{name: "int8-gated-add", apply: applyInt8GatedAddRewrite},
 	// Last, so a rounding another rewrite reads keeps to it.
 	{name: "rounded-elementwise", apply: applyRoundedElementwiseRewrite},
 }

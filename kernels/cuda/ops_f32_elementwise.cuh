@@ -434,6 +434,37 @@ extern "C" __global__ void scale_int8_product_bf16_f32(
         bf16_rounded(__fmul_rn(__fmul_rn(__int2float_rn(product.w), factor), weight.w)));
 }
 
+// scale_int8_product_gated_add_bf16_f32: the epilogue of an int8 ConvRot product whose entries a gated residual sum
+// reads alone (gated_add_bf16_round_f32): each entry scaled as scale_int8_product_bf16_f32 scales it, then the residual
+// plus the entry times its row's gate rounded to BF16, rounded to BF16, written over the product. rows is a multiple of
+// four, so each thread sums four rows of one column; quads = rows * columns / 4.
+extern "C" __global__ void scale_int8_product_gated_add_bf16_f32(
+        float * output,
+        const float * row_scale,
+        const float * column_scale,
+        const float * residual,
+        const float * gate,
+        unsigned int rows,
+        unsigned int quads) {
+    const unsigned int quad = blockIdx.x * blockDim.x + threadIdx.x;
+    if (quad >= quads) {
+        return;
+    }
+    const unsigned int element = quad * FP8_QUAD_WIDTH;
+    const unsigned int column = element / rows;
+    const unsigned int row = element - column * rows;
+    const float factor = column_scale[column];
+    const float4 weight = *reinterpret_cast<const float4 *>(row_scale + row);
+    const float4 gates = *reinterpret_cast<const float4 *>(gate + row);
+    const float4 stream = reinterpret_cast<const float4 *>(residual)[quad];
+    const int4 product = reinterpret_cast<const int4 *>(output)[quad];
+    reinterpret_cast<float4 *>(output)[quad] = make_float4(
+        bf16_rounded(stream.x + bf16_rounded(bf16_rounded(__fmul_rn(__fmul_rn(__int2float_rn(product.x), factor), weight.x)) * gates.x)),
+        bf16_rounded(stream.y + bf16_rounded(bf16_rounded(__fmul_rn(__fmul_rn(__int2float_rn(product.y), factor), weight.y)) * gates.y)),
+        bf16_rounded(stream.z + bf16_rounded(bf16_rounded(__fmul_rn(__fmul_rn(__int2float_rn(product.z), factor), weight.z)) * gates.z)),
+        bf16_rounded(stream.w + bf16_rounded(bf16_rounded(__fmul_rn(__fmul_rn(__int2float_rn(product.w), factor), weight.w)) * gates.w)));
+}
+
 // elementwise_store is what an elementwise kernel stores of value: value, or, for the <name>_bf16_round entry a BF16
 // rounding of its output folds into, its nearest BF16.
 template <bool ROUND>
@@ -467,6 +498,22 @@ extern "C" __global__ void add_bf16_round_f32(
         float * output,
         unsigned int count) {
     add_elementwise<true>(input_a, input_b, output, count);
+}
+
+// gated_add_bf16_round_f32: a gated residual sum as MOSS's denoiser adds a block's projection to its stream (latentimage
+// rotaryGraph.joint): each value the residual's plus the update's times its channel's gate rounded to BF16, rounded to
+// BF16, over rows of width values and a gate of width, reading each value once.
+extern "C" __global__ void gated_add_bf16_round_f32(
+        const float * residual,
+        const float * update,
+        const float * gate,
+        float * output,
+        unsigned int width,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < count) {
+        output[index] = bf16_rounded(residual[index] + bf16_rounded(update[index] * gate[index % width]));
+    }
 }
 
 template <bool ROUND>

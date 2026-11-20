@@ -80,7 +80,7 @@
         },
         {
           "path": "kernels/cuda/ops_f32_activations.cuh",
-          "sha256": "a3622f6fa309c873400ae556e57bf78b14f162fc0326b79eb215bcf4b7398fe1"
+          "sha256": "4fd14008ab476836f9889fd85a57e5deffaac9a4b78795ac3ab60d262032dc39"
         },
         {
           "path": "kernels/cuda/ops_f32_attention.cuh",
@@ -96,7 +96,7 @@
         },
         {
           "path": "kernels/cuda/ops_f32_elementwise.cuh",
-          "sha256": "b47ee127cd0af2d49f2215f0512f8cdc07b238803c87bd05865f43dbc637ddb1"
+          "sha256": "932d40d931953d666b1c413db0714d9fd4f0ae888ff9eb6cf593d9deac66b11b"
         },
         {
           "path": "kernels/cuda/ops_f32_experts.cuh",
@@ -132,7 +132,7 @@
         },
         {
           "path": "kernels/cuda/ops_f32_tail.cuh",
-          "sha256": "a23a3a694a1706326d391e31beb73288ff63bd0720837bdaa23da125b59ece27"
+          "sha256": "f0a3c8c69a4bfa67dfbcd4e45a4ca85f3f4b99b9165c2715b14b8c74dbbf5712"
         },
         {
           "path": "kernels/cuda/ops_f32_unary.cuh",
@@ -152,7 +152,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "ff76988dbe89e24a06dc041499f601c52b894a586d77382080b83df88639bb77",
+      "assetSha256": "49b6808fc961c4f488fc74a4fdf23f280f21ce968457ad6db86a093b9a634366",
       "functions": [
         "activated_gate_f32",
         "activated_gate_q8_0_f32",
@@ -220,6 +220,7 @@
         "fp8_to_f16",
         "fp8_to_f32",
         "fwht_f32",
+        "gated_add_bf16_round_f32",
         "gated_delta_chunk_f32",
         "gated_delta_conv_f32",
         "gated_delta_conv_prompt_f32",
@@ -301,6 +302,7 @@
         "moe_router_dot_f32",
         "moe_router_logits_f32",
         "moe_scatter_rows_f32",
+        "moss_norm_rotate_bf16_round_f32",
         "moss_rotate_bf16_round_f32",
         "moss_rotate_f32",
         "moss_row_affine_f32",
@@ -354,7 +356,9 @@
         "pixel_shuffle_2d_f32",
         "quantize_fp8_columns_f32",
         "quantize_int8_convrot_columns_f32",
+        "quantize_int8_convrot_norm_columns_f32",
         "quantize_int8_convrot_rows_stochastic_f32",
+        "quantize_int8_convrot_situ_columns_f32",
         "quantize_q8_0_input_f32",
         "reduce_gqa_heads_f32",
         "relu_backward_f32",
@@ -364,6 +368,7 @@
         "rms_norm_backward_f32",
         "rms_norm_f32",
         "rms_norm_input_backward_f32",
+        "rms_norm_mean_affine_bf16_round_f32",
         "rms_norm_mean_bf16_round_f32",
         "rms_norm_mean_f32",
         "rms_norm_weight_backward_f32",
@@ -386,6 +391,7 @@
         "scale_f32",
         "scale_fp8_product_f32",
         "scale_int8_product_bf16_f32",
+        "scale_int8_product_gated_add_bf16_f32",
         "scaled_activation_f32",
         "scaled_activation_q8_0_f32",
         "short_conv_backward_f32",
@@ -516,6 +522,7 @@
           ],
           "functions": [
             "activated_gate_q8_0_f32",
+            "gated_add_bf16_round_f32",
             "moss_row_affine_f32",
             "mul_mat_bf16_add_f32",
             "rms_norm_weight_backward_f32",
@@ -1620,6 +1627,25 @@
             ".u64",
             ".u64",
             ".u64",
+            ".u64",
+            ".u32",
+            ".f32",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32"
+          ],
+          "functions": [
+            "moss_norm_rotate_bf16_round_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
             ".u32",
             ".u32",
             ".u32",
@@ -1686,6 +1712,23 @@
             ".u64",
             ".u64",
             ".u64",
+            ".u64",
+            ".u32",
+            ".f32",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32"
+          ],
+          "functions": [
+            "quantize_int8_convrot_norm_columns_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
             ".u32",
             ".u32",
             ".u64",
@@ -1693,6 +1736,22 @@
           ],
           "functions": [
             "quantize_int8_convrot_rows_stochastic_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".f32",
+            ".f32",
+            ".f32",
+            ".f32",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32"
+          ],
+          "functions": [
+            "quantize_int8_convrot_situ_columns_f32"
           ]
         },
         {
@@ -1709,6 +1768,22 @@
           "functions": [
             "rms_norm_backward_f32",
             "weighted_rms_norm_add_q8_0_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".f32"
+          ],
+          "functions": [
+            "rms_norm_mean_affine_bf16_round_f32"
           ]
         },
         {
@@ -1883,6 +1958,20 @@
             "scale_bf16_round_f32",
             "scale_f32",
             "signed_sqrt_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32"
+          ],
+          "functions": [
+            "scale_int8_product_gated_add_bf16_f32"
           ]
         },
         {

@@ -375,11 +375,11 @@
         "note": "Answered by the lead on 2026-11-20 at 160028dcb: valid from source (each branch's control slice is staged and uploaded every pass, 2.4 MB, zeros included); a per-pass host copy, so filed with moss-step-copies, whose step keeps the sampling's per-pass data on the card."
       },
   "SQA-429": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "moss-source-skip/do"
         ],
-        "note": "Answered by the lead on 2026-11-20 at 160028dcb: valid from source (startLatent encodes the source picture and multiplies it by one minus a first sigma of exactly 1 in the image to image section). One encode a workflow run, likely about a second, so filed as its own small row after the per-pass rows, its time measured first, removing work with a branch."
+        "note": "Answered by the lead on 2026-11-20 at 160028dcb: valid from source (startLatent encodes the source picture and multiplies it by one minus a first sigma of exactly 1 in the image to image section). One encode a workflow run, likely about a second, so filed as its own small row after the per-pass rows, its time measured first, removing work with a branch. Implemented 2026-11-20 by moss-source-skip/do (c50d72687), for the review's recheck."
       },
   "SQA-428": {
         "action": "filed",

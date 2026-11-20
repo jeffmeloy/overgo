@@ -73,6 +73,7 @@ const (
 	kernelFp8ToF16
 	kernelFp8ToF32
 	kernelFwhtF32
+	kernelGatedAddBf16RoundF32
 	kernelGatedDeltaChunkF32
 	kernelGatedDeltaConvF32
 	kernelGatedDeltaConvPromptF32
@@ -154,6 +155,7 @@ const (
 	kernelMoeRouterDotF32
 	kernelMoeRouterLogitsF32
 	kernelMoeScatterRowsF32
+	kernelMossNormRotateBf16RoundF32
 	kernelMossRotateBf16RoundF32
 	kernelMossRotateF32
 	kernelMossRowAffineF32
@@ -207,7 +209,9 @@ const (
 	kernelPixelShuffle2dF32
 	kernelQuantizeFp8ColumnsF32
 	kernelQuantizeInt8ConvrotColumnsF32
+	kernelQuantizeInt8ConvrotNormColumnsF32
 	kernelQuantizeInt8ConvrotRowsStochasticF32
+	kernelQuantizeInt8ConvrotSituColumnsF32
 	kernelQuantizeQ80InputF32
 	kernelReduceGqaHeadsF32
 	kernelReluBackwardF32
@@ -217,6 +221,7 @@ const (
 	kernelRmsNormBackwardF32
 	kernelRmsNormF32
 	kernelRmsNormInputBackwardF32
+	kernelRmsNormMeanAffineBf16RoundF32
 	kernelRmsNormMeanBf16RoundF32
 	kernelRmsNormMeanF32
 	kernelRmsNormWeightBackwardF32
@@ -239,6 +244,7 @@ const (
 	kernelScaleF32
 	kernelScaleFp8ProductF32
 	kernelScaleInt8ProductBf16F32
+	kernelScaleInt8ProductGatedAddBf16F32
 	kernelScaledActivationF32
 	kernelScaledActivationQ80F32
 	kernelShortConvBackwardF32
@@ -569,6 +575,7 @@ var kernelFunctionNames = [...]string{
 	"fp8_to_f16",
 	"fp8_to_f32",
 	"fwht_f32",
+	"gated_add_bf16_round_f32",
 	"gated_delta_chunk_f32",
 	"gated_delta_conv_f32",
 	"gated_delta_conv_prompt_f32",
@@ -650,6 +657,7 @@ var kernelFunctionNames = [...]string{
 	"moe_router_dot_f32",
 	"moe_router_logits_f32",
 	"moe_scatter_rows_f32",
+	"moss_norm_rotate_bf16_round_f32",
 	"moss_rotate_bf16_round_f32",
 	"moss_rotate_f32",
 	"moss_row_affine_f32",
@@ -703,7 +711,9 @@ var kernelFunctionNames = [...]string{
 	"pixel_shuffle_2d_f32",
 	"quantize_fp8_columns_f32",
 	"quantize_int8_convrot_columns_f32",
+	"quantize_int8_convrot_norm_columns_f32",
 	"quantize_int8_convrot_rows_stochastic_f32",
+	"quantize_int8_convrot_situ_columns_f32",
 	"quantize_q8_0_input_f32",
 	"reduce_gqa_heads_f32",
 	"relu_backward_f32",
@@ -713,6 +723,7 @@ var kernelFunctionNames = [...]string{
 	"rms_norm_backward_f32",
 	"rms_norm_f32",
 	"rms_norm_input_backward_f32",
+	"rms_norm_mean_affine_bf16_round_f32",
 	"rms_norm_mean_bf16_round_f32",
 	"rms_norm_mean_f32",
 	"rms_norm_weight_backward_f32",
@@ -735,6 +746,7 @@ var kernelFunctionNames = [...]string{
 	"scale_f32",
 	"scale_fp8_product_f32",
 	"scale_int8_product_bf16_f32",
+	"scale_int8_product_gated_add_bf16_f32",
 	"scaled_activation_f32",
 	"scaled_activation_q8_0_f32",
 	"short_conv_backward_f32",
@@ -1064,6 +1076,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	5,
 	5,
 	4,
+	6,
 	19,
 	11,
 	11,
@@ -1145,6 +1158,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	7,
 	7,
 	5,
+	12,
 	7,
 	7,
 	6,
@@ -1198,7 +1212,9 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	7,
 	5,
 	5,
+	10,
 	7,
+	9,
 	3,
 	6,
 	4,
@@ -1208,6 +1224,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	8,
 	5,
 	7,
+	9,
 	5,
 	5,
 	6,
@@ -1230,6 +1247,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	4,
 	5,
 	5,
+	7,
 	5,
 	6,
 	12,
@@ -1560,6 +1578,7 @@ var kernelFunctionArgumentWidths = [...][]uint16{
 	{8, 8, 8, 4, 4},
 	{8, 8, 8, 4, 4},
 	{8, 8, 4, 4},
+	{8, 8, 8, 8, 4, 4},
 	{8, 8, 8, 8, 8, 8, 8, 8, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
 	{8, 8, 8, 8, 4, 4, 4, 4, 4, 4, 4},
 	{8, 8, 8, 8, 4, 4, 4, 4, 4, 4, 4},
@@ -1641,6 +1660,7 @@ var kernelFunctionArgumentWidths = [...][]uint16{
 	{8, 8, 8, 8, 4, 4, 4},
 	{8, 8, 8, 8, 4, 4, 4},
 	{8, 8, 8, 4, 4},
+	{8, 8, 8, 8, 4, 4, 8, 8, 8, 4, 4, 4},
 	{8, 8, 8, 8, 4, 4, 4},
 	{8, 8, 8, 4, 4, 4, 4},
 	{8, 8, 8, 8, 4, 4},
@@ -1694,7 +1714,9 @@ var kernelFunctionArgumentWidths = [...][]uint16{
 	{8, 8, 4, 4, 4, 4, 4},
 	{8, 8, 8, 4, 4},
 	{8, 8, 8, 4, 4},
+	{8, 8, 8, 8, 4, 4, 8, 8, 4, 4},
 	{8, 8, 8, 4, 4, 8, 8},
+	{8, 4, 4, 4, 4, 8, 8, 4, 4},
 	{8, 8, 4},
 	{8, 8, 4, 4, 4, 4},
 	{8, 8, 8, 4},
@@ -1704,6 +1726,7 @@ var kernelFunctionArgumentWidths = [...][]uint16{
 	{8, 8, 8, 8, 8, 4, 4, 4},
 	{8, 8, 4, 4, 4},
 	{8, 8, 8, 8, 4, 4, 4},
+	{8, 8, 8, 8, 8, 4, 4, 4, 4},
 	{8, 8, 4, 4, 4},
 	{8, 8, 4, 4, 4},
 	{8, 8, 8, 8, 4, 4},
@@ -1726,6 +1749,7 @@ var kernelFunctionArgumentWidths = [...][]uint16{
 	{8, 8, 4, 4},
 	{8, 8, 8, 4, 4},
 	{8, 8, 8, 4, 4},
+	{8, 8, 8, 8, 8, 4, 4},
 	{8, 8, 4, 4, 4},
 	{8, 8, 8, 4, 4, 4},
 	{8, 8, 8, 8, 8, 8, 8, 8, 4, 4, 4, 4},
@@ -1993,6 +2017,12 @@ var kernelFunctionArgumentWidths = [...][]uint16{
 const kernelModuleCount = 4
 
 var kernelFunctionModules = [...]uint8{
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
 	0,
 	0,
 	0,

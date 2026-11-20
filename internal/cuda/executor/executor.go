@@ -944,6 +944,11 @@ const (
 	compiledFusionRoundedElementwise
 	compiledFusionMOSSSitu
 	compiledFusionMOSSRotary
+	compiledFusionMOSSNorm
+	compiledFusionGatedAdd
+	compiledFusionInt8Prologue
+	compiledFusionInt8GatedAdd
+	compiledFusionMOSSNormRotary
 )
 
 type compiledFusion struct {
@@ -964,7 +969,14 @@ type compiledFusion struct {
 	// rounded is the elementwise product a BF16 rounding folds into (applyRoundedElementwiseRewrite).
 	rounded *tensor.Tensor
 	// situ is the bounds of a rounded SITU activation folded into one kernel (applyMOSSSituRewrite).
-	situ             mossSituFusion
+	situ mossSituFusion
+	// norm is a rounded native-mean RMS norm and the rounded per-channel steps folded after it (applyMOSSNormRewrite).
+	norm mossNormFusion
+	// prologue is the fused norm or SITU activation an int8 ConvRot product computes as it quantizes its activation
+	// (applyInt8PrologueRewrite).
+	prologue *compiledFusion
+	// product is the int8 ConvRot product a gated residual sum runs as its own (applyInt8GatedAddRewrite).
+	product          *tensor.Tensor
 	bf16ProjAdd      bf16ProjAddFusion
 	bf16Attention    bf16AttentionFusion
 	streamSum        streamSumFusion
@@ -2274,6 +2286,16 @@ func launchCompiledFusion(
 		return "q8_gated_add", launchQ8GatedAdd(state, functions, q8Input, node, pointers)
 	case compiledFusionMOSSRotary:
 		return "moss_rotate", launchMOSSRotary(state, functions, node, pointers)
+	case compiledFusionMOSSNormRotary:
+		return "moss_norm_rotate", launchMOSSNormRotary(state, functions, node, fusion.norm, pointers)
+	case compiledFusionMOSSNorm:
+		return "moss_norm", launchMOSSNorm(state, functions, node, fusion.norm, pointers)
+	case compiledFusionInt8GatedAdd:
+		return "int8_gated_add", launchInt8GatedAdd(state, functions, blas, fusion, pointers)
+	case compiledFusionInt8Prologue:
+		return "int8_prologue", launchInt8Prologue(state, functions, blas, node, fusion, pointers)
+	case compiledFusionGatedAdd:
+		return "gated_add", launchGatedAdd(state, functions, node, pointers)
 	case compiledFusionMOSSSitu:
 		return "moss_situ", launchMOSSSitu(state, functions, node, fusion.situ, pointers)
 	case compiledFusionRoundedElementwise:

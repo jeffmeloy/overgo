@@ -115,7 +115,7 @@ func launchLinearLayout(
 				return errors.New("int8 ConvRot mul_mat shape is unsupported")
 			}
 			scale := left + driver.DevicePtr(uint64(inner)*uint64(leftRows))
-			return launchInt8ConvRotMulMat(state, functions, blas, rightNode, left, scale, right, output, inner, leftRows, rightRows)
+			return launchInt8ConvRotMulMat(state, functions, blas, rightNode, left, scale, output, int8ConvRotColumns(state, functions, right, inner, rightRows), int8ConvRotScale(state, functions), inner, leftRows, rightRows)
 		}
 		if leftNode.Type == dtype.F16 || leftNode.Type == dtype.BF16 {
 			// A span the decode kernel serves keeps it: cuBLAS's smallest GEMM took 14.3 us for a 2,560 x 128 BF16 weight

@@ -321,6 +321,40 @@ extern "C" __global__ void silu_native_f32(
     }
 }
 
+// rms_norm_mean_inverse is the factor a native-mean RMS norm multiplies a row of width values by, the block's threads
+// together: the row's sum of squares, four adjacent values a lane where the row is wide enough, the vectorized
+// reduction's order, times the separately rounded ratio of rows to elements, plus epsilon, to the reciprocal root.
+__device__ __forceinline__ float rms_norm_mean_inverse(
+        const float * row_values,
+        unsigned int width,
+        unsigned int rows,
+        float epsilon) {
+    float sum_squares = 0.0f;
+    if (width >= 128u && width % 4u == 0u) {
+        // Four adjacent values per lane preserve the vectorized reduction order.
+        float sums[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+        if (threadIdx.x < 32u) {
+            for (unsigned int column = threadIdx.x * 4u; column < width; column += 128u) {
+                for (unsigned int part = 0; part < 4u; ++part) {
+                    const float value = row_values[column + part];
+                    sums[part] += __fmul_rn(value, value);
+                }
+            }
+            sum_squares = ((sums[0] + sums[1]) + sums[2]) + sums[3];
+        }
+    } else {
+        for (unsigned int column = threadIdx.x; column < width; column += blockDim.x) {
+            const float value = row_values[column];
+            sum_squares += value * value;
+        }
+    }
+    __shared__ float partial[256];
+    sum_squares = block_sum_f32(sum_squares, partial);
+    // Native mean projects the sum with a separately rounded element-count ratio.
+    const float factor = __fdiv_rn((float) rows, (float) ((unsigned long long) rows * width));
+    return rsqrtf(__fadd_rn(__fmul_rn(sum_squares, factor), epsilon));
+}
+
 template <bool ROUND>
 __device__ __forceinline__ void rms_norm_mean_elementwise(
         const float * input,
@@ -333,33 +367,139 @@ __device__ __forceinline__ void rms_norm_mean_elementwise(
         return;
     }
     const unsigned int offset = row * width;
-    float sum_squares = 0.0f;
-    if (width >= 128u && width % 4u == 0u) {
-        // Four adjacent values per lane preserve the vectorized reduction order.
-        float sums[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-        if (threadIdx.x < 32u) {
-            for (unsigned int column = threadIdx.x * 4u; column < width; column += 128u) {
-                for (unsigned int part = 0; part < 4u; ++part) {
-                    const float value = input[offset + column + part];
-                    sums[part] += __fmul_rn(value, value);
-                }
-            }
-            sum_squares = ((sums[0] + sums[1]) + sums[2]) + sums[3];
-        }
-    } else {
-        for (unsigned int column = threadIdx.x; column < width; column += blockDim.x) {
-            const float value = input[offset + column];
-            sum_squares += value * value;
-        }
-    }
-    __shared__ float partial[256];
-    sum_squares = block_sum_f32(sum_squares, partial);
-    // Native mean projects the sum with a separately rounded element-count ratio.
-    const float factor = __fdiv_rn((float) rows, (float) ((unsigned long long) rows * width));
-    const float inverse = rsqrtf(__fadd_rn(__fmul_rn(sum_squares, factor), epsilon));
+    const float inverse = rms_norm_mean_inverse(input + offset, width, rows, epsilon);
     for (unsigned int column = threadIdx.x; column < width; column += blockDim.x) {
         output[offset + column] = elementwise_store<ROUND>(input[offset + column] * inverse);
     }
+}
+
+// RMS_NORM_STEPS is how many per-channel steps rms_norm_mean_affine_bf16_round_f32 applies at most, and each step's kind
+// is RMS_NORM_STEP_BITS bits of its kinds, the first step's lowest: none, a multiply or an add by a vector of width.
+constexpr unsigned int RMS_NORM_STEPS = 3;
+constexpr unsigned int RMS_NORM_STEP_BITS = 2;
+constexpr unsigned int RMS_NORM_STEP_MASK = 3;
+constexpr unsigned int RMS_NORM_STEP_MULTIPLY = 1;
+constexpr unsigned int RMS_NORM_STEP_ADD = 2;
+
+// rms_norm_mean_affine_value is a row's value at column normalized by inverse and rounded to BF16, then taken through
+// the steps kinds packs, each multiplying or adding the step's vector at column and rounding to BF16, in order.
+__device__ __forceinline__ float rms_norm_mean_affine_value(
+        float value,
+        float inverse,
+        const float * step0,
+        const float * step1,
+        const float * step2,
+        unsigned int kinds,
+        unsigned int column) {
+    const float * steps[RMS_NORM_STEPS] = {step0, step1, step2};
+    float result = bf16_rounded(value * inverse);
+    for (unsigned int step = 0; step < RMS_NORM_STEPS; ++step) {
+        const unsigned int kind = (kinds >> (step * RMS_NORM_STEP_BITS)) & RMS_NORM_STEP_MASK;
+        if (kind == RMS_NORM_STEP_MULTIPLY) {
+            result = bf16_rounded(result * steps[step][column]);
+        } else if (kind == RMS_NORM_STEP_ADD) {
+            result = bf16_rounded(result + steps[step][column]);
+        }
+    }
+    return result;
+}
+
+// rms_norm_mean_affine_bf16_round_f32: a native-mean RMS norm rounded to BF16 (rms_norm_mean_bf16_round_f32), then up to
+// RMS_NORM_STEPS steps each multiplying or adding a per-channel vector of width and rounding to BF16, in order
+// (rms_norm_mean_affine_value), one row of width values a block, as MOSS's denoiser normalizes, weights and modulates
+// (latentimage rotaryGraph.norm and modulate): each value reads its row once and is written once.
+extern "C" __global__ void rms_norm_mean_affine_bf16_round_f32(
+        const float * input,
+        float * output,
+        const float * step0,
+        const float * step1,
+        const float * step2,
+        unsigned int kinds,
+        unsigned int width,
+        unsigned int rows,
+        float epsilon) {
+    const unsigned int row = blockIdx.x;
+    if (row >= rows) {
+        return;
+    }
+    const unsigned int offset = row * width;
+    const float inverse = rms_norm_mean_inverse(input + offset, width, rows, epsilon);
+    for (unsigned int column = threadIdx.x; column < width; column += blockDim.x) {
+        output[offset + column] = rms_norm_mean_affine_value(input[offset + column], inverse, step0, step1, step2, kinds, column);
+    }
+}
+
+// MOSS_ROTATE_MAX_WIDTH is the widest head moss_norm_rotate_bf16_round_f32 holds in shared memory, twice MOSS's 128.
+constexpr unsigned int MOSS_ROTATE_MAX_WIDTH = 256;
+
+// moss_norm_rotate_bf16_round_f32: MOSS's q or k heads normalized and stepped (rms_norm_mean_affine_value over each
+// head's width channels, the norm's rows heads * tokens) and rotated (moss_rotate_value) in one kernel, as the denoiser
+// normalizes, weights and rotates them (latentimage rotaryGraph.norm and rotate): one block a head's row, its stepped
+// values held in shared memory for the rotation's half-turn and never stored. The heads are [width, heads, tokens] and
+// the tables [width, 1, tokens], read for every head.
+extern "C" __global__ void moss_norm_rotate_bf16_round_f32(
+        const float * input,
+        const float * step0,
+        const float * step1,
+        const float * step2,
+        unsigned int kinds,
+        float epsilon,
+        const float * cosine,
+        const float * sine,
+        float * output,
+        unsigned int width,
+        unsigned int heads,
+        unsigned int tokens) {
+    __shared__ float values[MOSS_ROTATE_MAX_WIDTH];
+    const unsigned int row = blockIdx.x;
+    const unsigned int rows = heads * tokens;
+    if (row >= rows || width > MOSS_ROTATE_MAX_WIDTH || width % 2u != 0u) {
+        return;
+    }
+    const unsigned int offset = row * width;
+    const float inverse = rms_norm_mean_inverse(input + offset, width, rows, epsilon);
+    for (unsigned int channel = threadIdx.x; channel < width; channel += blockDim.x) {
+        values[channel] = rms_norm_mean_affine_value(input[offset + channel], inverse, step0, step1, step2, kinds, channel);
+    }
+    __syncthreads();
+    const unsigned int token = row / heads;
+    const unsigned int half = width / 2u;
+    for (unsigned int channel = threadIdx.x; channel < width; channel += blockDim.x) {
+        const float turned = channel < half ? -values[channel + half] : values[channel - half];
+        const unsigned int table = token * width + channel;
+        output[offset + channel] = moss_rotate_value(values[channel], turned, cosine[table], sine[table]);
+    }
+}
+
+// quantize_int8_convrot_norm_columns_f32: the activation side of an int8 ConvRot product whose activation is a native-mean
+// RMS norm of input and the steps after it (rms_norm_mean_affine_bf16_round_f32), computed here and never stored: one
+// block per token column of inner values, the norm's rows the columns, normalized and stepped as the affine norm does,
+// then rotated and quantized as quantize_int8_convrot_columns_f32 does (int8_convrot_rotate, int8_convrot_quantize).
+extern "C" __global__ void quantize_int8_convrot_norm_columns_f32(
+        const float * input,
+        const float * step0,
+        const float * step1,
+        const float * step2,
+        unsigned int kinds,
+        float epsilon,
+        signed char * output,
+        float * scale,
+        unsigned int inner,
+        unsigned int columns) {
+    __shared__ float values[INT8_CONVROT_MAX_INNER];
+    __shared__ float warp_amax[CUDA_WARP_WIDTH];
+    const unsigned int column = blockIdx.x;
+    if (column >= columns || inner > INT8_CONVROT_MAX_INNER || inner % INT8_CONVROT_GROUP != 0) {
+        return;
+    }
+    const float * source = input + (size_t) column * inner;
+    const float inverse = rms_norm_mean_inverse(source, inner, columns, epsilon);
+    for (unsigned int index = threadIdx.x; index < inner; index += blockDim.x) {
+        values[index] = rms_norm_mean_affine_value(source[index], inverse, step0, step1, step2, kinds, index);
+    }
+    __syncthreads();
+    int8_convrot_rotate(values, inner);
+    int8_convrot_quantize<false>(values, warp_amax, output + (size_t) column * inner, scale + column, inner, 0, 0);
 }
 
 extern "C" __global__ void rms_norm_mean_f32(

@@ -242,12 +242,57 @@ extern "C" __global__ void moss_situ_f32(
     output[index] = (4.0f * tanhf(gate / 4.0f) * sigmoid) * (25.0f * tanhf(hidden / 25.0f));
 }
 
-// moss_situ_bf16_round_f32 is MOSS's SITU activation as the denoiser composes it (rotaryGraph.situ), each operation's
-// F32 result rounded to BF16 as bf16_round_f32 rounds it: bounded(gate) times sigmoid(gate), times bounded(up), where
-// bounded scales by its bound's inverse, takes the tanh and scales by the bound, the products in that order. The
-// output's rows of width values are read from gate and up rows stride values apart: stride is width where each is
-// contiguous, and twice it where both are the halves of one gate-and-up product, read where the product holds them, as
-// ComfyUI's MOSS reads them as views of it. The training kernel moss_situ_f32 divides by the bounds and rounds nothing.
+// moss_situ_value is MOSS's SITU activation of a gate and an up value as the denoiser composes it (rotaryGraph.situ),
+// each operation's F32 result rounded to BF16 as bf16_round_f32 rounds it: bounded(gate) times sigmoid(gate), times
+// bounded(up), where bounded scales by its bound's inverse, takes the tanh and scales by the bound, the products in that
+// order.
+__device__ __forceinline__ float moss_situ_value(
+        float gate,
+        float up,
+        float gate_inverse,
+        float gate_bound,
+        float hidden_inverse,
+        float hidden_bound) {
+    const float bounded_gate = bf16_rounded(bf16_rounded(tanhf(bf16_rounded(gate * gate_inverse))) * gate_bound);
+    const float bounded_hidden = bf16_rounded(bf16_rounded(tanhf(bf16_rounded(up * hidden_inverse))) * hidden_bound);
+    const float sigmoid = bf16_rounded(1.0f / (1.0f + expf(-gate)));
+    return bf16_rounded(bf16_rounded(bounded_gate * sigmoid) * bounded_hidden);
+}
+
+// quantize_int8_convrot_situ_columns_f32: the activation side of an int8 ConvRot product whose activation is the SITU
+// activation (moss_situ_value) of one gate-and-up product's halves, computed here and never stored: one block per token
+// column of inner values, each the activation of the value at its place in the column's second half of the product and
+// the first's, then rotated and quantized as quantize_int8_convrot_columns_f32 does (int8_convrot_rotate,
+// int8_convrot_quantize).
+extern "C" __global__ void quantize_int8_convrot_situ_columns_f32(
+        const float * product,
+        float gate_inverse,
+        float gate_bound,
+        float hidden_inverse,
+        float hidden_bound,
+        signed char * output,
+        float * scale,
+        unsigned int inner,
+        unsigned int columns) {
+    __shared__ float values[INT8_CONVROT_MAX_INNER];
+    __shared__ float warp_amax[CUDA_WARP_WIDTH];
+    const unsigned int column = blockIdx.x;
+    if (column >= columns || inner > INT8_CONVROT_MAX_INNER || inner % INT8_CONVROT_GROUP != 0) {
+        return;
+    }
+    const float * source = product + (size_t) column * 2 * inner;
+    for (unsigned int index = threadIdx.x; index < inner; index += blockDim.x) {
+        values[index] = moss_situ_value(source[inner + index], source[index], gate_inverse, gate_bound, hidden_inverse, hidden_bound);
+    }
+    __syncthreads();
+    int8_convrot_rotate(values, inner);
+    int8_convrot_quantize<false>(values, warp_amax, output + (size_t) column * inner, scale + column, inner, 0, 0);
+}
+
+// moss_situ_bf16_round_f32 is MOSS's SITU activation (moss_situ_value) over rows of width values read from gate and up
+// rows stride values apart: stride is width where each is contiguous, and twice it where both are the halves of one
+// gate-and-up product, read where the product holds them, as ComfyUI's MOSS reads them as views of it. The training
+// kernel moss_situ_f32 divides by the bounds and rounds nothing.
 extern "C" __global__ void moss_situ_bf16_round_f32(
         const float * gate,
         const float * up,
@@ -262,18 +307,19 @@ extern "C" __global__ void moss_situ_bf16_round_f32(
     const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
     if (index < count) {
         const size_t source = (size_t) (index / width) * stride + index % width;
-        const float value = gate[source];
-        const float bounded_gate = bf16_rounded(bf16_rounded(tanhf(bf16_rounded(value * gate_inverse))) * gate_bound);
-        const float bounded_hidden = bf16_rounded(bf16_rounded(tanhf(bf16_rounded(up[source] * hidden_inverse))) * hidden_bound);
-        const float sigmoid = bf16_rounded(1.0f / (1.0f + expf(-value)));
-        output[index] = bf16_rounded(bf16_rounded(bounded_gate * sigmoid) * bounded_hidden);
+        output[index] = moss_situ_value(gate[source], up[source], gate_inverse, gate_bound, hidden_inverse, hidden_bound);
     }
 }
 
-// moss_rotate_bf16_round_f32 is MOSS's rotary embedding as the denoiser composes it (rotaryGraph.rotate), each product
-// and the sum rounded to BF16 as bf16_round_f32 rounds it: the heads times the cosine, plus the half-turned heads (each
-// head's second half negated, then its first half) times the sine. The heads are [width, heads, tokens] and the tables
-// [width, 1, tokens], read for every head.
+// moss_rotate_value is a channel's rotary embedding as the denoiser composes it (rotaryGraph.rotate), each product and
+// the sum rounded to BF16 as bf16_round_f32 rounds it: the value times the cosine, plus the half-turned value (the
+// head's other half at its place, negated where the channel lies in the first half) times the sine.
+__device__ __forceinline__ float moss_rotate_value(float value, float turned, float cosine, float sine) {
+    return bf16_rounded(bf16_rounded(value * cosine) + bf16_rounded(turned * sine));
+}
+
+// moss_rotate_bf16_round_f32 is MOSS's rotary embedding (moss_rotate_value) over heads [width, heads, tokens] and
+// tables [width, 1, tokens], read for every head.
 extern "C" __global__ void moss_rotate_bf16_round_f32(
         const float * input,
         const float * cosine,
@@ -291,7 +337,7 @@ extern "C" __global__ void moss_rotate_bf16_round_f32(
     const unsigned int half = width / 2u;
     const float turned = channel < half ? -input[index + half] : input[index - half];
     const unsigned int table = token * width + channel;
-    output[index] = bf16_rounded(bf16_rounded(input[index] * cosine[table]) + bf16_rounded(turned * sine[table]));
+    output[index] = moss_rotate_value(input[index], turned, cosine[table], sine[table]);
 }
 
 // moss_situ_backward_f32: VJP of moss_situ_f32 into its fused input.

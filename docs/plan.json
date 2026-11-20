@@ -7,16 +7,6 @@
       "title": "The elementwise kernels and conversions between a MOSS pass's multiplies and attention fuse, reading and writing each activation once",
       "steps": [
         {
-          "id": "neighbors",
-          "title": "A MOSS pass normalizes, weights and modulates each row in one kernel, adds each gated residual in one, and its int8 products compute the norms and activation they read and write the gated sums that read them, its final latent the one it drew before, bit for bit",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/cuda/executor ./internal/latentimage -count=1 -timeout=0 -run '^(TestAMOSSBlocksElementwiseChainsLaunchOnce|TestTheMOSSPassFusesWithoutChangingABit)$'",
-          "files": [
-            "internal/cuda",
-            "kernels"
-          ],
-          "rationale": "After the copies step a depth control pass at 1024 x 576 reads 162 ms of kernels, 45 ms of them elementwise: four native-mean RMS norms a block, each followed by its weight's rounded multiply, the two block norms by their modulation's rounded multiply by scale + 1 and rounded add of the shift; two gated residual sums a block, each a rounded multiply by the gate and a rounded add; the SITU activation over the gate-and-up product; and the int8 products' activation quantizers reading the norms' and the activation's stored results. Each reads and writes a whole activation. The step folds each norm and the rounded per-channel steps after it into one kernel that reads its row once (rms_norm_mean_affine_bf16_round_f32, its reduction the native-mean norm's own, shared as rms_norm_mean_inverse); each gated sum into one (gated_add_bf16_round_f32); a norm or SITU activation that int8 products alone read into the products' quantization, computed there and never stored (quantize_int8_convrot_norm_columns_f32, quantize_int8_convrot_situ_columns_f32), as comfy_kitchen quantizes an activation with its input activation applied; and an int8 product that a gated sum alone reads into the sum, its epilogue writing the sum (scale_int8_product_gated_add_bf16_f32). Each value is computed by the device function its unfused kernel uses, rounded where the graph rounds it. Measured in development: each fused chain changes no bit against the chain unfused (the executor's tests), and the final latents of the copies step's check stay bit for bit. Its check is the copies step's (TestTheMOSSPassFusesWithoutChangingABit)."
-        },
-        {
           "id": "budget",
           "title": "ComfyUI's MOSS pass at the workflow's size is split, kernel by kernel, into overgo's parts, and the parts' bars, set from it, add up to at most the pass at which overgo matches ComfyUI's whole workflow",
           "verify": "go test ./internal/latentimage -count=1 -run '^TestThePassBudgetReachesComfyUI$'",

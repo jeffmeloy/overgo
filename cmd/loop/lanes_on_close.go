@@ -195,9 +195,15 @@ func lanesRecords(state string) (due, began lanesDue, err error) {
 }
 
 // runLanesAt moves checkout to the commit due with the data roots (moveWithRoots) and runs the lanes there with run,
-// saying when they began and how they ended; only a checkout that cannot be moved fails it.
+// saying when they began and how they ended; only a checkout that cannot be moved fails it. A run that yielded to a
+// newer commit due between packages, as its record beside the commit due says, is said to have yielded, its passed
+// packages kept, rather than to have failed (lanes-first/yield).
 func runLanesAt(root, checkout string, due lanesDue, output io.Writer, run func(checkout string) error) error {
 	if err := moveWithRoots(root, checkout, due.Commit); err != nil {
+		return err
+	}
+	yieldedRecord := filepath.Join(root, processlock.StateDirectory, plan.LanesYieldedFile)
+	if err := os.Remove(yieldedRecord); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
 	began := time.Now()
@@ -205,6 +211,10 @@ func runLanesAt(root, checkout string, due lanesDue, output io.Writer, run func(
 	verdict := "passed"
 	if err := run(checkout); err != nil {
 		verdict = "did not pass: " + err.Error()
+		var yielded plan.LanesYielded
+		if jsonfile.Decode(yieldedRecord, &yielded) == nil && yielded.Commit == due.Commit {
+			verdict = fmt.Sprintf("yielded to %.12s, a newer commit due, as a lane turned to another package, its passed packages kept", yielded.To)
+		}
 	}
 	fmt.Fprintf(output, "loop: %s the lanes at %.12s %s after %s\n", time.Now().Format(time.DateTime), due.Commit, verdict, time.Since(began).Round(time.Second))
 	return nil

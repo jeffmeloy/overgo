@@ -305,7 +305,10 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 					return err
 				}
 			}
-			return executeRun(ctx, output, *root, storeRoot, store, Plan{Suites: suites, LanesKept: kept, HoldsCard: landing.HoldLaneTurn, TakesTurns: landing.HoldTestTurnEach}, scope)
+			lanes := Plan{Suites: suites, LanesKept: kept, HoldsCard: landing.HoldLaneTurn, TakesTurns: landing.HoldTestTurnEach}
+			// A run a runner starts yields to a newer commit due between packages (lanes-first/yield).
+			lanes.Yields = lanesYield(ctx, *root)
+			return executeRun(ctx, output, *root, storeRoot, store, lanes, scope)
 		}
 	}
 	registered, err := registeredCells(ctx, store)

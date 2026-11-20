@@ -89,13 +89,13 @@ func oneTest(arguments []string, name string) []string {
 // The lane's packages that passed, by their place among its packages, are what a close's next run reads each one's
 // reach from (lanes-package-pass).
 func laneVerdict(steps []laneStep, verdicts []error) (passedPackages []int, err error) {
-	var failed, declared []error
+	var failed, declared, halted []error
 	packages := 0
 	for _, step := range steps {
 		packages = max(packages, step.pkg+1)
 	}
 	for pkg := range packages {
-		passed, broke, excluded := false, []error(nil), []error(nil)
+		passed, broke, excluded, yielded := false, []error(nil), []error(nil), []error(nil)
 		for index, step := range steps {
 			switch verdict := verdicts[index]; {
 			case step.pkg != pkg:
@@ -103,6 +103,8 @@ func laneVerdict(steps []laneStep, verdicts []error) (passedPackages []int, err 
 				passed = true
 			case errors.Is(verdict, errInapplicable):
 				excluded = append(excluded, verdict)
+			case errors.Is(verdict, errYielded):
+				yielded = append(yielded, verdict)
 			default:
 				broke = append(broke, verdict)
 			}
@@ -110,6 +112,9 @@ func laneVerdict(steps []laneStep, verdicts []error) (passedPackages []int, err 
 		switch {
 		case len(broke) > 0:
 			failed = append(failed, broke...)
+		case len(yielded) > 0:
+			// A package the run yielded before it finished neither passed nor failed (lanes-first/yield).
+			halted = append(halted, yielded[0])
 		case !passed:
 			declared = append(declared, excluded...)
 		default:
@@ -119,8 +124,15 @@ func laneVerdict(steps []laneStep, verdicts []error) (passedPackages []int, err 
 	if len(failed) > 0 {
 		return passedPackages, errors.Join(failed...)
 	}
+	if len(halted) > 0 {
+		return passedPackages, halted[0]
+	}
 	return passedPackages, errors.Join(declared...)
 }
+
+// errYielded is the verdict of a step a run of the lanes did not run because it yielded to a newer commit due
+// (lanes-first/yield): its package neither passes nor fails, and the lane is not passed.
+var errYielded = errors.New("yielded to the newer commit due")
 
 // errNotRun is the verdict of a lane's step before it runs, which a step that never ran keeps: it lends its package no
 // pass.

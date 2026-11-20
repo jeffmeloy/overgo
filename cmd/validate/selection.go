@@ -98,6 +98,10 @@ type Plan struct {
 	// commit between them (landing.HoldTestTurnEach); validate's own run sets it and no test does, so a test's lanes take
 	// no turn of the machine and do not wait out the packages of the cycle's lanes a closing commit runs (lanes-on-close).
 	TakesTurns func(purpose string, outer func(work func() error) error, steps []func() error) error `json:"-"`
+	// Yields says, as a lane's run turns to another package, whether a newer commit than the run's is due and which
+	// (lanes-first/yield): the run then runs nothing further, its packages that passed kept. Only a run a runner starts
+	// is given one (plan.LanesDueEnvironment); a run without it runs to its end.
+	Yields func() (string, bool) `json:"-"`
 }
 
 // measuredModelsFile lists the models a full run measures again, by the names -model takes: one per runtime path,

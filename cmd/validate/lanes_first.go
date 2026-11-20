@@ -2,11 +2,15 @@ package main
 
 import (
 	"context"
+	"os"
 	"path"
+	"path/filepath"
 	"slices"
 	"strings"
 
+	"overgo/internal/clioptions"
 	"overgo/internal/gitauthority"
+	"overgo/internal/jsonfile"
 	"overgo/internal/plan"
 )
 
@@ -114,4 +118,35 @@ func (f lanesFirst) rank(pkg, name string) int {
 		return len(f.checks)
 	}
 	return len(f.checks) + 1
+}
+
+// yieldTo is the Yields of a run a runner starts (lanes-first/yield): the commit the due file at due names, where it
+// is another than the run's own, which the runner names due as a newer close lands; the run's record of yielding is
+// written beside the file first (plan.LanesYielded), and a run that cannot write it does not yield.
+func yieldTo(ctx context.Context, root, due string) func() (string, bool) {
+	head, headErr := gitauthority.Query(ctx, root, "rev-parse", "HEAD")
+	own := strings.TrimSpace(string(head))
+	return func() (string, bool) {
+		var named struct {
+			Commit string `json:"commit"`
+		}
+		if headErr != nil || own == "" || jsonfile.Decode(due, &named) != nil || named.Commit == "" || named.Commit == own {
+			return "", false
+		}
+		record := plan.LanesYielded{Commit: own, To: named.Commit}
+		if jsonfile.Write(filepath.Join(filepath.Dir(due), plan.LanesYieldedFile), record, clioptions.PrivateFileMode) != nil {
+			return "", false
+		}
+		return named.Commit, true
+	}
+}
+
+// lanesYield is the Yields of the run a runner started, which names its due file in plan.LanesDueEnvironment
+// (yieldTo); a run no runner started runs to its end.
+func lanesYield(ctx context.Context, root string) func() (string, bool) {
+	due := os.Getenv(plan.LanesDueEnvironment)
+	if due == "" {
+		return nil
+	}
+	return yieldTo(ctx, root, due)
 }

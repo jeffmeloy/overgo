@@ -79,3 +79,18 @@ func writeKept[T any](root, file string, record map[string]T) error {
 	}
 	return jsonfile.Write(filepath.Join(root, processlock.StateDirectory, file), record, runRecordMode)
 }
+
+// LanesDueEnvironment names, for a run of the lanes a runner starts, the file that keeps the commit due next (the
+// runner's lanes_due.json): between packages the run yields to a newer commit named there (lanes-first/yield), and
+// writes LanesYieldedFile beside it, which the runner reads to say the run yielded rather than failed.
+const LanesDueEnvironment = "OVERGO_LANES_DUE"
+
+// LanesYieldedFile is the record a run of the lanes that yielded writes beside the commit due: the commit it ran at
+// and the newer commit it yielded to.
+const LanesYieldedFile = "lanes_yielded.json"
+
+// LanesYielded is a run of the lanes that yielded: the commit it ran at, and the commit due it yielded to.
+type LanesYielded struct {
+	Commit string `json:"commit"`
+	To     string `json:"to"`
+}

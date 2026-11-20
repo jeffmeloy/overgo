@@ -178,7 +178,12 @@ func run(args []string) error {
 	*repoPath = resolved
 	if *lanesDueRun {
 		return runLanesDue(loopWorktree, os.Stdout, func(checkout string) error {
-			return validateTo(os.Stdout, checkout, *repoPath, nil, "-run", "-lanes", "-reached")
+			// The run yields between packages to a newer commit due (lanes-first/yield).
+			due, err := filepath.Abs(filepath.Join(loopWorktree, processlock.StateDirectory, lanesDueFile))
+			if err != nil {
+				return err
+			}
+			return validateTo(os.Stdout, checkout, *repoPath, []string{plan.LanesDueEnvironment + "=" + due}, "-run", "-lanes", "-reached")
 		}, startLanesRunner)
 	}
 	switch {

@@ -234,7 +234,14 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 			failed = append(failed, fmt.Sprintf("%s: %v", subject, err))
 		}
 	}
+	// yielded is the newer commit due the run yielded to as a lane turned to another package (Plan.Yields,
+	// lanes-first/yield): no step after runs, and a lane after runs none.
+	var yielded string
 	for _, suite := range suites {
+		if yielded != "" {
+			fmt.Fprintf(output, "validate -run: cycle lane %s does not run: the run yielded to %.12s\n", suite.Lane, yielded)
+			continue
+		}
 		fmt.Fprintf(output, "validate -run cycle lane %s\n", suite.Lane)
 		// A lane runs in the test turn, a lane of several packages one test at a time (testSteps, landing.HoldTestTurnEach),
 		// and on the card in the card's turn for each, taken before the test turn, so a commit's tests and its lanes
@@ -248,9 +255,22 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 			steps = testSteps(ctx, root, suite.Each, suite.Environment, suite.First)
 		}
 		runs, verdicts := make([]func() error, len(steps)), make([]error, len(steps))
+		last := -1
 		for index, step := range steps {
 			verdicts[index] = errNotRun(step)
 			runs[index] = func() error {
+				// As the run turns to another package it yields to a newer commit due, its packages so far kept.
+				if yielded == "" && plan.Yields != nil && step.pkg != last {
+					if to, yield := plan.Yields(); yield {
+						yielded = to
+						fmt.Fprintf(output, "validate -run: cycle lane %s yields to %.12s, a newer commit due, as it turns to another package\n", suite.Lane, to)
+					}
+				}
+				if yielded != "" {
+					verdicts[index] = fmt.Errorf("%w %.12s", errYielded, yielded)
+					return nil
+				}
+				last = step.pkg
 				report, err := acquire(ctx, output, root, "go", step.arguments, suite.Environment...)
 				reports = append(reports, report)
 				verdicts[index] = err

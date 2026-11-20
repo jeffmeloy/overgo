@@ -30,20 +30,17 @@
       ]
     },
     {
-      "id": "lanes-first",
-      "title": "A lanes run takes first what its commit says matters, read by the tool from the commit: the tests its landed rows' checks name, then the checkpoint tests of the packages its files are in, a failure among them logged as it happens, so the first failure of the model a commit changes is minutes after the commit, where moss-attention's checkpoint failures came 13 hours after it",
+      "id": "flash-next-bound",
+      "title": "A tree that grows the page file, as Flash-Next's open does by design, is bound by the commit the machine can reach with its page file grown, read as it starts whatever runs beside it, so TestFlashNextHomesEveryExpert, ended at the 99.6 GiB commit limit as it started in every run since 11-18 (its tree peaks at 115.3 GiB), passes or fails on its own assertion",
       "steps": [
         {
-          "id": "yield",
-          "title": "A run of the lanes under way at an older commit yields, at its next package's end, to a newer commit due, its passed packages kept, so the newer commit's first tests begin within a package of its close",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestALanesRunYieldsAtAPackageToANewerClose$'",
+          "id": "do",
+          "title": "A tree that grows the page file, as Flash-Next's open does by design, is bound by the commit the machine can reach with its page file grown, read as it starts whatever runs beside it, so TestFlashNextHomesEveryExpert, ended at the 99.6 GiB commit limit as it started in every run since 11-18 (its tree peaks at 115.3 GiB), passes or fails on its own assertion",
+          "verify": "go test ./internal/processcontrol -count=1 -run '^TestABoundAdmitsAPageFileGrownAsWindowsGrowsIt$'",
           "files": [
-            "cmd/validate",
-            "cmd/loop",
-            "internal/landing",
-            "internal/plan"
+            "internal/processcontrol"
           ],
-          "rationale": "The second half of the owner's review of 2026-11-20, point 1: lanes-first/do orders a run by what its commits say, but a run under way at an older commit runs to its end before the runner starts the newer commit's (runLanesDue): moss-attention/do waited 11 hours behind the run at 328befb0c. runLanesDue's design kept a run going past a close because a run each close ended would never end; ending only at a package boundary does end, since each package that passed keeps its pass (lanes-package-pass) and the next run reaches only what changed since. So a run checks, as a package of a lane run package by package ends, whether a newer commit than its own is due (lanes_due.json); if one is, it runs no further package, keeps the packages that passed, says it yielded and to which commit, and the runner starts the trunk's runner for the commit due, which takes that commit's first tests first. Its check counts, on a run of two packages with a newer commit named due after the first: the second package not run, the first's pass kept, and the run said yielded, not failed."
+          "rationale": "Note: Read when the lanes watch caught it, 2026-11-20 at line 24630 of .overgo-runtime/lanes.log (the run at 28390a169): TestFlashNextHomesEveryExpert ended without its result after 1m41s, its largest process at 115.3 GiB, the tree at its memory limit of 99.6 GiB, the machine's commit limit as it started (processcontrol jobBound, verdict-steady). The runs before verdict-steady ended it the same way, about a minute and a half in with no result kept (11-18 22:41, 11-19 04:01 and 15:01; only the run at 11-18 15:24 ran it 12 minutes), under the bound before it, the commit free at its start: its failures went unsaid until lanes-ended logged them. A fault in the bound, not noise: the test exists to open Flash-Next as flash-next-load made it open, its commit reserved with an ordinary commit that Windows grows the page file for (flash_next_homes_model_test.go, 5ca40e5e2), so its tree commits past the limit as it started by design, and a bound at that limit ends it every time. verdict-steady's reasoning held that the commit limit admits Flash-Next's 87.3 GiB of weights; the open's tree peaks at 115.3. The row bounds a tree by the commit the machine can reach, its page file grown as Windows grows it, read as the tree starts and the same whatever runs beside it, a runaway still ended there (check-memory), so the test passes in the lanes or fails on its own assertion; its check holds a child that commits past the limit as it started, within what the page file can grow to, to finishing.\n\nNote: The same run ended TestFlashNextRoundIsReadyAtOpen (115.6 GiB) and TestFlashNextWindowRowsAreTheSingleTokenSteps (115.4 GiB) at the same 99.6 GiB bound minutes later: every internal/inference test that opens Flash-Next's round commits past the limit as it started, so the row's check is read on each of them in the lanes after it lands."
         }
       ]
     },

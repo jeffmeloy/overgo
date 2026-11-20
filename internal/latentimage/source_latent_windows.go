@@ -21,13 +21,21 @@ import (
 // startLatent is where a rotary request's sampling starts (moss-ultra-sections/img2img): the noise as drawn where the
 // request samples its whole schedule from noise alone, as before; otherwise as ComfyUI's flow models start a sampling
 // (model_sampling CONST.noise_scaling), σ₀ times the noise plus 1 − σ₀ times the latent of the request's picture, or
-// none, each product rounded to float32 before the sum.
+// none, each product rounded to float32 before the sum. A picture a schedule starts at σ₀ of 1 weighs nothing, so it is
+// read, and refused as a picture would be, but not encoded (SQA-429): the image to image section's recording starts at
+// 1, and its source encode built the VAE's encoder for a latent multiplied by zero, the start the noise either way.
 func (g *Generator) startLatent(ctx context.Context, noise []float32) ([]float32, error) {
 	if g.request.Image == "" && !g.request.cutsSchedule() {
 		return noise, nil
 	}
+	sigma := float32(g.schedule.Sigmas[0])
+	rest := 1 - sigma
 	var latent []float32
-	if g.request.Image != "" {
+	if g.request.Image != "" && rest == 0 {
+		if _, err := requestPNG(g.request.Image, "picture"); err != nil {
+			return nil, err
+		}
+	} else if g.request.Image != "" {
 		var err error
 		if latent, err = sourceLatent(ctx, g.modelDir, g.request.Image, g.request.Width, g.request.Height); err != nil {
 			return nil, err
@@ -36,8 +44,6 @@ func (g *Generator) startLatent(ctx context.Context, noise []float32) ([]float32
 			return nil, fmt.Errorf("rotary image: the picture's latent holds %d values; the noise %d", len(latent), len(noise))
 		}
 	}
-	sigma := float32(g.schedule.Sigmas[0])
-	rest := 1 - sigma
 	start := make([]float32, len(noise))
 	for index, value := range noise {
 		start[index] = float32(sigma * value)

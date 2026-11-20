@@ -134,21 +134,6 @@
       ]
     },
     {
-      "id": "moss-source-skip",
-      "title": "An image to image section at full denoise starts from its seeded noise without encoding its source picture, which its first sigma of 1 multiplies by zero, the time it saves measured first",
-      "steps": [
-        {
-          "id": "do",
-          "title": "An image to image section at full denoise starts from its seeded noise without encoding its source picture, which its first sigma of 1 multiplies by zero, the time it saves measured first",
-          "verify": "go test ./internal/latentimage -count=1 -run 'AFullDenoiseEncodesNoSource'",
-          "files": [
-            "internal/latentimage"
-          ],
-          "rationale": "Note: SQA-429, checked against the source at 140c7975e: startLatent calls sourceLatent whenever a request gives a picture, which scales the PNG, loads the VAE encoder's weights, builds a device session, compiles and runs the encoder and closes it, and only then multiplies every encoded value by one minus the first sigma, which is exactly zero in the image to image section's recording (sampler 506, denoise 1); the Turbo section's first sigma is about 0.90, so it needs its encoding. One whole source encode a workflow run contributes nothing. Its time is unmeasured, the encoder's build likely about a second at 1024 x 576, so the row sits after the per-pass rows and before the encoder and prompt rows, by the seconds the owner's review of 2026-11-20 orders findings by, and removes work with a small branch: the row first times the encode in the image to image section, then starts a full-denoise request from its seeded noise once its source picture is admitted, deciding by the resolved first sigma, the request's identity, an invalid picture's refusal, any depth control and the encoding at partial denoise kept; its check reads no encoder built for the full-denoise section and the same seeded latent as before, and the Turbo section's latent unchanged."
-        }
-      ]
-    },
-    {
       "id": "moss-encoder-own",
       "title": "MOSS's conditioning is ComfyUI's own: the text model's ConvRot weights decoded as ComfyUI's card decodes them, its states held to ComfyUI's at the agreement read, and the encoder's share of text to image's latent agreement placed",
       "steps": [

@@ -47,6 +47,7 @@ var stageRules = []struct{ name, phrase string }{
 	{"legacy-forms", "new sort.Slice"},
 	{"legacy-forms", "new sync.Once"},
 	{"count", "production syntax nodes, and the consolidation"},
+	{"kernel-family", "a kernel family over its lines"},
 }
 
 // pinsRefusal and shrinkRefusal are what the rules stage refuses a change with

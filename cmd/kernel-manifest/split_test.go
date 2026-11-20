@@ -9,13 +9,11 @@ import (
 	"overgo/internal/testcheck"
 )
 
-// familyLines is the most lines a family header of the ops_f32 module may hold, so each one reads as a review.
-const familyLines = 2000
-
 // TestOpsF32IsSplitByFamily holds kernels/cuda/ops_f32.cu to what its compiler flags need it for: its declarations and
 // its includes, no kernel or device code of its own, the kernels lying in family headers, ops_f32_*.cuh, that it
-// includes once each and no other source includes, none longer than familyLines. The module's PTX, which the kernel
-// manifest pins, is the same bytes the one file compiled to.
+// includes once each and no other source includes. The module's PTX, which the kernel manifest pins, is the same bytes
+// the one file compiled to. How long a family header may be is the landing's rules stage's to hold (rules-family), in a
+// commit attempt's first seconds.
 func TestOpsF32IsSplitByFamily(t *testing.T) {
 	t.Parallel()
 	directory := filepath.Join("..", "..", "kernels", "cuda")
@@ -37,9 +35,6 @@ func TestOpsF32IsSplitByFamily(t *testing.T) {
 		name := filepath.Base(path)
 		if included[name] != 1 {
 			t.Errorf("ops_f32.cu includes %s %d times, want once", name, included[name])
-		}
-		if lines := strings.Count(string(testcheck.Must(os.ReadFile(path))(t)), "\n"); lines > familyLines {
-			t.Errorf("%s holds %d lines, over %d; split its family", name, lines, familyLines)
 		}
 	}
 	for _, path := range testcheck.Must(filepath.Glob(filepath.Join(directory, "*.cu*")))(t) {

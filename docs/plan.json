@@ -4,12 +4,12 @@
   "items": [
     {
       "id": "moss-merge-time",
-      "title": "An adapter section's merges take at most a second in all: each adapter's tensors read once a sampling, one working buffer across its merges, and the file's int8 rows taken from the card where a program holds them",
+      "title": "An adapter section's merges read the weights they merge into where the session holds them on the card, each adapter tensor once a sampling, and one working memory, copying the adapter's pairs alone",
       "steps": [
         {
           "id": "do",
-          "title": "An adapter section's merges take at most a second in all: each adapter's tensors read once a sampling, one working buffer across its merges, and the file's int8 rows taken from the card where a program holds them",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^TestAdapterSectionsMergeInASecond$'",
+          "title": "An adapter section's merges read the weights they merge into where the session holds them on the card, each adapter tensor once a sampling, and one working memory, copying the adapter's pairs alone",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^TestASecondMOSSRequestCopiesNoWeights$'",
           "files": [
             "internal/latentimage",
             "internal/cuda",

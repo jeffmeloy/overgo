@@ -64,10 +64,10 @@ func TestARunawayChildIsEndedAtItsBound(t *testing.T) {
 	}
 }
 
-// TestABoundIsVerdictIndependentOfNeighbours holds a tree's bound to the machine's commit limit, whatever the processes
-// beside it hold (verdict-steady): bounded by the commit free as it started, the cycle's lanes at 1ab50872c ended at
-// 20.7 GiB on 2026-11-19 while a model server another lane had started held the rest. A neighbour committing a GiB moves
-// the commit free and leaves the bound where it was.
+// TestABoundIsVerdictIndependentOfNeighbours holds a tree's bound to the machine's commit limit or twice its memory,
+// whatever the processes beside it hold (verdict-steady): bounded by the commit free as it started, the cycle's lanes at
+// 1ab50872c ended at 20.7 GiB on 2026-11-19 while a model server another lane had started held the rest. A neighbour
+// committing a GiB moves the commit free and leaves the bound where it was.
 func TestABoundIsVerdictIndependentOfNeighbours(t *testing.T) {
 	_, limit, err := MachineCommit()
 	testcheck.NoError(t, err)
@@ -76,11 +76,27 @@ func TestABoundIsVerdictIndependentOfNeighbours(t *testing.T) {
 	freeBeside, limitBeside, err := MachineCommit()
 	testcheck.NoError(t, err)
 	beside := testcheck.Must(boundOf(nil))(t)
-	if before.limit != limit || beside.limit != limitBeside {
-		t.Fatalf("a bound read %d bytes, then %d with a GiB committed beside it (%d free); want the machine's commit limit, %d then %d",
+	if before.limit != beside.limit || before.limit < limit || limitBeside != limit {
+		t.Fatalf("a bound read %d bytes, then %d with a GiB committed beside it (%d free, the limit %d then %d); want it the same, at least the machine's commit limit",
 			before.limit, beside.limit, freeBeside, limit, limitBeside)
 	}
 	_ = neighbour[0]
+}
+
+// TestABoundAdmitsAPageFileGrownAsWindowsGrowsIt holds a tree's bound to admitting what Flash-Next's open commits by
+// design and to ending a runaway well before it starves the machine (flash-next-bound): every internal/inference test
+// that opens Flash-Next's round reserves its commit with an ordinary commit, which Windows grows the page file for
+// (flash-next-load), and its tree peaked at 115.6 GiB, ended in every lanes run since 2026-11-18 at the commit limit as
+// it started, 99.6 GiB on a machine of 96 GiB at rest; a runaway check took 279 GB on 2026-11-15 (check-memory).
+func TestABoundAdmitsAPageFileGrownAsWindowsGrowsIt(t *testing.T) {
+	const flashNextTree, runaway = 1156 << 30 / 10, 279_000_000_000
+	bound := testcheck.Must(boundOf(nil))(t)
+	_, limit, err := MachineCommit()
+	testcheck.NoError(t, err)
+	if bound.limit < flashNextTree || bound.limit >= runaway || bound.limit < limit {
+		t.Fatalf("a tree is bound at %.1f GiB beside a commit limit of %.1f GiB; want room for Flash-Next's %.1f GiB tree and under the runaway's %.1f GiB",
+			float64(bound.limit)/(1<<30), float64(limit)/(1<<30), float64(flashNextTree)/(1<<30), float64(runaway)/(1<<30))
+	}
 }
 
 // TestAStartCanceledAsItIsBoundMakesNoChild holds Start to its context up to the child's creation (SQA-424): a swap

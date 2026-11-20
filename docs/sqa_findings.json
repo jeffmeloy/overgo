@@ -334,6 +334,32 @@
       "input": "Use the 128-channel int8 query or key graph from TestAnInt8ProductNormsAndRotatesTheHeadsItAloneGives. Supply its cosine table as a contiguous F32 device input with natural four-byte alignment but without sixteen-byte alignment. Keep the rotated result as the sole output and compare with the same graph retaining the projected heads.",
       "expected": "Both graphs accept the same valid F32 tables and return identical rotated heads. Use scalar loads for any table whose alignment is unknown, or guard the vector loads locally. The caller should not need to copy the table.",
       "actual": "Source at 9acbc157a. ExecuteCompiled passes the bound device address through. The separate norm-and-rotate kernel reads scalar floats. The fused int8 epilogue casts both table pointers to float4, and the committed PTX issues ld.global.v4.f32 for each. No alignment check covers these tables, so the fused graph issues a 16-byte load at an address that does not meet its alignment requirement. The retained bit comparison supplies host tables that the executor stages at aligned offsets. The device-view case was not run."
+    },
+    {
+      "id": "SQA-437",
+      "severity": "P2",
+      "files": [
+        "cmd/loop/lanes_on_close.go",
+        "cmd/validate/lanes_first.go",
+        "cmd/validate/run.go",
+        "cmd/validate/test_steps.go",
+        "cmd/validate/lanes_yield_test.go"
+      ],
+      "input": "In a runner-started models lane, let a checkpoint assertion fail in the first package. Name a newer commit due before the second package starts. Read the old commit's final line in lanes.log. Compare with the same handoff when the first package passed.",
+      "expected": "Keep the checkpoint failure visible in the runner's final verdict for the old commit and identify the commit taking over. A clean handoff should report only that the run yielded. Keep credit for completed passing packages in both cases.",
+      "actual": "Source at e0f0917a5. laneVerdict gives the assertion failure precedence over the skipped steps, but yieldTo has already written the handoff marker. runLanesAt replaces every nonzero result with a yield-only summary when the marker names this commit. The failed checkpoint remains in the detailed log. The retained yield check uses a passing first package and does not exercise the runner's mixed verdict. No mixed run was observed."
+    },
+    {
+      "id": "SQA-438",
+      "severity": "P2",
+      "files": [
+        "cmd/validate/run.go",
+        "internal/landing/lanes.go",
+        "cmd/validate/lanes_yield_test.go"
+      ],
+      "input": "Run the models lane with one test in package A followed by three tests in package B. A passes and a newer commit becomes due before B. Count GPU and test-turn acquisitions after the callback for B's first test has recorded the yield.",
+      "expected": "Finish the handoff without acquiring either turn again. Keep A's pass, leave B incomplete, and let the runner start the newer commit. The existing turn owner can stop iterating once the run yields.",
+      "actual": "Source at e0f0917a5. executeMeasured builds a callback for every selected test. A yielded callback returns nil without launching its test. HoldTestTurnEach still wraps each remaining callback in HoldLaneTurn and TakeTurn. In this input B's last two tests take two more GPU turns and two more test turns to do no work. A waiting job can delay the newer commit at each acquisition. The retained yield check supplies neither turn wrapper. Handoff delay was not measured."
     }
   ],
   "master_lead_triage": {
@@ -477,7 +503,7 @@
       }
 }
   },
-  "next_finding_number": 437,
+  "next_finding_number": 439,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

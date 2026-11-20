@@ -30,21 +30,6 @@
       ]
     },
     {
-      "id": "flash-next-bound",
-      "title": "A tree that grows the page file, as Flash-Next's open does by design, is bound by the commit the machine can reach with its page file grown, read as it starts whatever runs beside it, so TestFlashNextHomesEveryExpert, ended at the 99.6 GiB commit limit as it started in every run since 11-18 (its tree peaks at 115.3 GiB), passes or fails on its own assertion",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A tree that grows the page file, as Flash-Next's open does by design, is bound by the commit the machine can reach with its page file grown, read as it starts whatever runs beside it, so TestFlashNextHomesEveryExpert, ended at the 99.6 GiB commit limit as it started in every run since 11-18 (its tree peaks at 115.3 GiB), passes or fails on its own assertion",
-          "verify": "go test ./internal/processcontrol -count=1 -run '^TestABoundAdmitsAPageFileGrownAsWindowsGrowsIt$'",
-          "files": [
-            "internal/processcontrol"
-          ],
-          "rationale": "Note: Read when the lanes watch caught it, 2026-11-20 at line 24630 of .overgo-runtime/lanes.log (the run at 28390a169): TestFlashNextHomesEveryExpert ended without its result after 1m41s, its largest process at 115.3 GiB, the tree at its memory limit of 99.6 GiB, the machine's commit limit as it started (processcontrol jobBound, verdict-steady). The runs before verdict-steady ended it the same way, about a minute and a half in with no result kept (11-18 22:41, 11-19 04:01 and 15:01; only the run at 11-18 15:24 ran it 12 minutes), under the bound before it, the commit free at its start: its failures went unsaid until lanes-ended logged them. A fault in the bound, not noise: the test exists to open Flash-Next as flash-next-load made it open, its commit reserved with an ordinary commit that Windows grows the page file for (flash_next_homes_model_test.go, 5ca40e5e2), so its tree commits past the limit as it started by design, and a bound at that limit ends it every time. verdict-steady's reasoning held that the commit limit admits Flash-Next's 87.3 GiB of weights; the open's tree peaks at 115.3. The row bounds a tree by the commit the machine can reach, its page file grown as Windows grows it, read as the tree starts and the same whatever runs beside it, a runaway still ended there (check-memory), so the test passes in the lanes or fails on its own assertion; its check holds a child that commits past the limit as it started, within what the page file can grow to, to finishing.\n\nNote: The same run ended TestFlashNextRoundIsReadyAtOpen (115.6 GiB) and TestFlashNextWindowRowsAreTheSingleTokenSteps (115.4 GiB) at the same 99.6 GiB bound minutes later: every internal/inference test that opens Flash-Next's round commits past the limit as it started, so the row's check is read on each of them in the lanes after it lands."
-        }
-      ]
-    },
-    {
       "id": "fusion-edges",
       "title": "Each MOSS fusion is held to its unfused chain, bit for bit through matchesUnfused, at the conditions that can tell them apart: an intermediate a second reader shares, inputs fed as device views aligned to 4 bytes and not 16, and shapes at the kernel's edges; what fails is fixed, SQA-436 first",
       "steps": [

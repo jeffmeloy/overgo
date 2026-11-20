@@ -25,3 +25,15 @@ func MachineCommit() (left, limit uint64, err error) {
 	}
 	return status.commit, status.commitLimit, nil
 }
+
+var procGetPhysicallyInstalledSystemMemory = kernel32.NewProc("GetPhysicallyInstalledSystemMemory")
+
+// machineMemory is the memory installed in the machine, in bytes (GetPhysicallyInstalledSystemMemory), which a job's
+// bound reads beside its commit limit (boundOf).
+func machineMemory() (uint64, error) {
+	var kilobytes uint64
+	if ok, _, err := procGetPhysicallyInstalledSystemMemory.Call(uintptr(unsafe.Pointer(&kilobytes))); ok == 0 {
+		return 0, fmt.Errorf("GetPhysicallyInstalledSystemMemory: %w", err)
+	}
+	return kilobytes << 10, nil
+}

@@ -3,22 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "fusion-edges",
-      "title": "Each MOSS fusion is held to its unfused chain, bit for bit through matchesUnfused, at the conditions that can tell them apart: an intermediate a second reader shares, inputs fed as device views aligned to 4 bytes and not 16, and shapes at the kernel's edges; what fails is fixed, SQA-436 first",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Each MOSS fusion is held to its unfused chain, bit for bit through matchesUnfused, at the conditions that can tell them apart: an intermediate a second reader shares, inputs fed as device views aligned to 4 bytes and not 16, and shapes at the kernel's edges; what fails is fixed, SQA-436 first",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test ./internal/cuda/executor -count=1 -timeout=0 -run '^TestEachMOSSFusionMatchesItsChainWhereTheyCouldPart$'",
-          "files": [
-            "internal/cuda",
-            "kernels"
-          ],
-          "rationale": "Note: The owner's review of 2026-11-20, point 2, checked against the findings and the executor's tests: valid. SQA-433 (a head norm two rotations read, folded into one and left unstored for the other), SQA-436 (scale_int8_product_norm_rotate_bf16_f32 reading its tables as float4, wrong for a device input bound at an address aligned to 4 bytes and not 16) and SQA-432 (a full-denoise start that skipped the crop check a partial one runs) were found by review: each fused kernel's test fed the one condition the denoiser makes (one reader, host feeds the executor stages aligned, a valid picture), which cannot tell the fused kernel from its chain where they part. The executor already compares a fused graph with the same graph left unfused, bit for bit, by keeping an intermediate as an output (matchesUnfused, executor_windows_stream_sum_test.go). The row runs each MOSS fusion (the affine norm, the gated add, the norm and rotation, the SiTU, the int8 prologues, the int8 gated add and norm and rotation epilogues, the rounded elementwise) through matchesUnfused at the conditions that can tell it from its chain: an intermediate a second reader shares, each input fed as a device view at an offset aligned to 4 bytes and not 16, and shapes at the kernel's edges (a head width other than the warp kernel's, rows not a multiple of four); a switch for one rewrite only where keeping an output cannot isolate it. What fails is fixed in the row, SQA-436 first. A path that skips work refuses what the full path refuses at the same inputs, held where such a shortcut stands (SQA-432 already cured by picture-sections)."
-        }
-      ]
-    },
-    {
       "id": "moss-comfy-block",
       "title": "One MOSS joint block at the workflow's 1024 x 576 is captured from ComfyUI with the workflow's int8 file, its adapters merged as ComfyUI merges them: its input, modulation and rotary tables, each output of a kernel the pass rows port (the activation quantizer's int8 rows and scales, the int8 product's scaled output, the attention's output, the sampler step's) and the block's output; overgo's block is held to it at a tolerance declared before it is read, and each ported kernel to its capture bit for bit",
       "steps": [

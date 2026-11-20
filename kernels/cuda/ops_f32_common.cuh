@@ -74,6 +74,16 @@ __device__ __forceinline__ float4 load_f32x4(const float * source) {
     return *reinterpret_cast<const float4 *>(source);
 }
 
+// load_f32x4_any reads four consecutive values of a device input as one vector where they start 16-byte aligned and
+// one at a time where they do not: an input may be bound as a view of another tensor, aligned to 4 bytes alone, which
+// a vector read faults on (fusion-edges, SQA-436).
+__device__ __forceinline__ float4 load_f32x4_any(const float * source) {
+    if ((reinterpret_cast<size_t>(source) & (sizeof(float4) - 1)) == 0) {
+        return load_f32x4(source);
+    }
+    return make_float4(source[0], source[1], source[2], source[3]);
+}
+
 // warp_sum_down adds a value across a warp's lanes by halving shuffles, and lane 0 holds the sum.
 __device__ __forceinline__ float warp_sum_down(float value) {
     for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset /= 2) {

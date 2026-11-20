@@ -17,6 +17,19 @@ import (
 	"overgo/internal/testcheck"
 )
 
+// int8WeightBytes is an int8 ConvRot weight of out rows of inner patterned values, seeded, its F32 row scales after its
+// rows.
+func int8WeightBytes(seed, inner, out int) []byte {
+	bytes := make([]byte, out*inner+out*4)
+	for entry := range out * inner {
+		bytes[entry] = byte(int8((entry*61+17*seed)%255 - 127))
+	}
+	for row := range out {
+		binary.LittleEndian.PutUint32(bytes[out*inner+row*4:], math.Float32bits(float32(1+(row+seed)%7)/1024))
+	}
+	return bytes
+}
+
 // int8Fixture puts count int8 ConvRot weights of out rows of inner values on a fixture worker, each weight's F32 row
 // scales after its rows, and gives an executor on that worker whose launches census counts by kernel, cleared before
 // each graph run reads it (ranKernels).
@@ -25,15 +38,7 @@ func int8Fixture(t *testing.T, count int, inner, out int) ([]driver.DevicePtr, *
 	worker := newFixtureWorker(t)
 	weights := make([]driver.DevicePtr, count)
 	for index := range weights {
-		seed := index + 1
-		bytes := make([]byte, out*inner+out*4)
-		for entry := range out * inner {
-			bytes[entry] = byte(int8((entry*61+17*seed)%255 - 127))
-		}
-		for row := range out {
-			binary.LittleEndian.PutUint32(bytes[out*inner+row*4:], math.Float32bits(float32(1+(row+seed)%7)/1024))
-		}
-		weights[index] = copyFixtureDeviceBytes(t, worker, bytes)
+		weights[index] = copyFixtureDeviceBytes(t, worker, int8WeightBytes(index+1, inner, out))
 	}
 	cuda := newFixtureExecutorWithWorker(t, worker)
 	census := map[uint64]int{}

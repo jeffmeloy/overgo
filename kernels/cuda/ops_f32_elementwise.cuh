@@ -455,8 +455,8 @@ extern "C" __global__ void scale_int8_product_gated_add_bf16_f32(
     const unsigned int row = element - column * rows;
     const float factor = column_scale[column];
     const float4 weight = *reinterpret_cast<const float4 *>(row_scale + row);
-    const float4 gates = *reinterpret_cast<const float4 *>(gate + row);
-    const float4 stream = reinterpret_cast<const float4 *>(residual)[quad];
+    const float4 gates = load_f32x4_any(gate + row);
+    const float4 stream = load_f32x4_any(residual + (size_t) quad * FP8_QUAD_WIDTH);
     const int4 product = reinterpret_cast<const int4 *>(output)[quad];
     reinterpret_cast<float4 *>(output)[quad] = make_float4(
         bf16_rounded(stream.x + bf16_rounded(bf16_rounded(__fmul_rn(__fmul_rn(__int2float_rn(product.x), factor), weight.x)) * gates.x)),

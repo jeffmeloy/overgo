@@ -530,8 +530,8 @@ extern "C" __global__ void scale_int8_product_norm_rotate_bf16_f32(
     for (unsigned int part = 0; part < MOSS_HEAD_LANE; ++part) {
         values[part] = rms_norm_mean_affine_value(values[part], inverse, step0, step1, step2, kinds, channel + part);
     }
-    const float4 cosines = *reinterpret_cast<const float4 *>(cosine + token * width + channel);
-    const float4 sines = *reinterpret_cast<const float4 *>(sine + token * width + channel);
+    const float4 cosines = load_f32x4_any(cosine + token * width + channel);
+    const float4 sines = load_f32x4_any(sine + token * width + channel);
     const float turn = lane < CUDA_WARP_WIDTH / 2u ? -1.0f : 1.0f;
     float turned[MOSS_HEAD_LANE];
     for (unsigned int part = 0; part < MOSS_HEAD_LANE; ++part) {

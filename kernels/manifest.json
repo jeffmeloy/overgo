@@ -92,11 +92,11 @@
         },
         {
           "path": "kernels/cuda/ops_f32_common.cuh",
-          "sha256": "221b5257d563f925d043bdf446fa36fb73bedfc55328b08ac77946fef0e7d02b"
+          "sha256": "24d1ef5e92ebdf65a3fec204bff2f1367c0ae591567e5d84c6bdc2adedb219a1"
         },
         {
           "path": "kernels/cuda/ops_f32_elementwise.cuh",
-          "sha256": "932d40d931953d666b1c413db0714d9fd4f0ae888ff9eb6cf593d9deac66b11b"
+          "sha256": "ceb29be3e08047947477db6af0ac612c4e6e4d74c72ab7b220f14f45484aaee9"
         },
         {
           "path": "kernels/cuda/ops_f32_experts.cuh",
@@ -132,7 +132,7 @@
         },
         {
           "path": "kernels/cuda/ops_f32_tail.cuh",
-          "sha256": "614a6a30b143b552208aec64129e6c8f1d040185e00f30f4c1d5115114f60cfc"
+          "sha256": "fcf2f5e2cac0f6b5a6a8a60b111c97f5d4fd95c45eeff6ab1fa5642c40a8b8ee"
         },
         {
           "path": "kernels/cuda/ops_f32_unary.cuh",
@@ -152,7 +152,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "313dc8f49cf3467599b9c362764854043da5867170c53b2940264f8128730961",
+      "assetSha256": "919659342238a299c6d431790f4f25de95dc72f0e58ebc9310a90d750d4cbf3f",
       "functions": [
         "activated_gate_f32",
         "activated_gate_q8_0_f32",

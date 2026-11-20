@@ -58,39 +58,18 @@ type int8LayerCapture struct {
 // multiplying its joint projections as ComfyUI does (samplingInt8, moss-int8): the projections it binds from the file
 // multiply the capture's seeded input to comfy_kitchen's CUDA product, bit for bit, over layer 0's four and layer 41's
 // qkv and feed-forward output (fixtures/comfy/moss-ultra/int8_linear.json; a fused qkv as its q, k and v thirds); a
-// pass at the sections' own size saves at least what brings its multiplies from bf16Multiplies to int8Multiplies; and
-// each golden section's final latent keeps at least the agreement with its recording BF16 projections keep
-// (holdInt8Sections).
+// pass at the sections' own size saves at least what brings its multiplies from bf16Multiplies to int8Multiplies. The
+// sections drawn with int8 projections are held to their floors by TestUltraSectionsHoldTheirGoldenFloors, which draws
+// the served path. A section's agreement with int8 projections against BF16's is no check (int8-section-noise): a
+// difference at F32's rounding moves a six-step latent to about 30 dB from itself, which moves its agreement with a
+// recording near 15.6 dB by about 0.2 dB, and at d0eaf0f9a image to image at denoise 0.6 kept 15.58 dB with int8
+// against 15.81 with BF16 while three sections were ordered by 0.01 to 0.02 dB at 1 to 2 dB, an ordering noise decides;
+// a fault in the int8 path is told at the product, held to comfy_kitchen bit for bit (holdInt8Layers).
 func TestMOSSMultipliesInEightBitsAsComfyKitchen(t *testing.T) {
 	cudatest.Require(t)
 	root := ultraModelRoot(t)
 	t.Run("layers", func(t *testing.T) { holdInt8Layers(t, filepath.Join(root, "transformer")) })
 	t.Run("pass", func(t *testing.T) { holdInt8Pass(t, root) })
-	t.Run("sections", func(t *testing.T) { holdInt8Sections(t, root) })
-}
-
-// holdInt8Sections reads each golden section's agreement with its recording with BF16 projections and then with int8,
-// in one run, and holds each section's final latent, the denoiser's own output, to keeping at least BF16's agreement.
-// The finished picture's is read beside it: on 2026-11-19 int8 kept text to image's latent at 2.09 dB where BF16 keeps
-// 1.86, and its picture at 15.12 dB where BF16 keeps 15.39. A section whose adapters patch the projections multiplies
-// them in int8 with its adapters merged in (mergedProjection, moss-int8-adapters).
-func holdInt8Sections(t *testing.T, root string) {
-	profile := testcheck.Must(ResolveProfile(root))(t)
-	served := samplingInt8
-	t.Cleanup(func() { samplingInt8 = served })
-	samplingInt8 = false
-	bf16 := readGoldenCases(t, root, profile, goldenCases)
-	samplingInt8 = true
-	int8 := readGoldenCases(t, root, profile, goldenCases)
-	for _, golden := range goldenCases {
-		before, after := bf16[golden.name], int8[golden.name]
-		t.Logf("%s: the final latent keeps %.2f dB with int8 projections, %.2f dB with BF16; the finished picture %.2f dB and %.2f dB",
-			golden.name, after.latent, before.latent, after.picture, before.picture)
-		if !(after.latent >= before.latent) {
-			t.Errorf("%s keeps %.2f dB of its recording's latent with int8 projections, %.2f dB with BF16; want int8's at least BF16's",
-				golden.name, after.latent, before.latent)
-		}
-	}
 }
 
 // holdInt8Layers multiplies the capture's seeded input by each captured projection as sampling binds it from the

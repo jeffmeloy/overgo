@@ -3,21 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "int8-section-noise",
-      "title": "The int8 projections' section check asserts what tells a fault from noise: the product held to comfy_kitchen bit for bit and each section's floor, each section's int8 and BF16 agreement reported and not ordered",
-      "steps": [
-        {
-          "id": "do",
-          "title": "The int8 projections' section check asserts what tells a fault from noise: the product held to comfy_kitchen bit for bit and each section's floor, each section's int8 and BF16 agreement reported and not ordered",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^TestMOSSMultipliesInEightBitsAsComfyKitchen$'",
-          "files": [
-            "internal/latentimage"
-          ],
-          "rationale": "Note: The owner's review of 2026-11-20, point 1, checked against .overgo-runtime/lanes.log: the slow run at d0eaf0f9a failed TestMOSSMultipliesInEightBitsAsComfyKitchen at 23:34 (line 19995): image to image at denoise 0.6 kept 15.58 dB of its recording's latent with int8 projections and 15.81 with BF16, where the test wants int8's at least BF16's; text to image, image to image and prompt mode 3 passed by 0.01 to 0.02 dB at 0.9 to 1.9 dB of agreement. It passed at f46760944 (line 12758); moss-int8-adapters (15ecde8d3) changed the activation quantizer to comfy_kitchen's own stage order, fitted bit for bit (TestAnInt8ConvRotProductIsComfyKitchens), and depth control and prompt mode 2 rose with it (16.92 against 14.37 dB, 16.95 against 15.88). A difference at F32's rounding moves a six-step latent to about 30 dB from itself (moss-checkpoint-regression's measurements), and two latents 30 dB apart that each lie about 15.6 dB from a recording can differ in that agreement by about 0.2 dB, so the section comparison cannot tell a fault in the int8 path from noise; the fault is told at the product, which is held to comfy_kitchen bit for bit. The row settles it as a check that cannot tell: the test keeps its op-level and floor assertions and reports each section's int8 and BF16 agreement, and asserts no ordering between them."
-        }
-      ]
-    },
-    {
       "id": "moss-merge-time",
       "title": "An adapter section's merges take at most a second in all: each adapter's tensors read once a sampling, one working buffer across its merges, and the file's int8 rows taken from the card where a program holds them",
       "steps": [

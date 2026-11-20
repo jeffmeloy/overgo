@@ -245,7 +245,7 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 		var reports []testevidence.GoTestReport
 		steps := []laneStep{{arguments: suite.Arguments}}
 		if len(suite.Each) > 0 {
-			steps = testSteps(ctx, root, suite.Each, suite.Environment)
+			steps = testSteps(ctx, root, suite.Each, suite.Environment, suite.First)
 		}
 		runs, verdicts := make([]func() error, len(steps)), make([]error, len(steps))
 		for index, step := range steps {

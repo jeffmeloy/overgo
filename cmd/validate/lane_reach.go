@@ -44,7 +44,25 @@ func reachedSuites(ctx context.Context, output io.Writer, root, kept string) ([]
 			fmt.Fprintf(output, "validate -run: cycle lane %s is reached by nothing changed since its pass at %.12s\n", all.Name, runs[all.Name].Passed.Commit)
 		}
 	}
-	return suitesOf(lanes), nil
+	suites := suitesOf(lanes)
+	// Each lane takes first what the commits since its pass say matters (lanes-first); a lane with no pass kept, or
+	// whose commits cannot be read, runs in its own order.
+	for index, suite := range suites {
+		base := runs[suite.Lane].Passed.Commit
+		if base == "" {
+			continue
+		}
+		first, err := readLanesFirst(ctx, root, base, "HEAD")
+		if err != nil {
+			fmt.Fprintf(output, "validate -run: cycle lane %s runs in its own order: %v\n", suite.Lane, err)
+			continue
+		}
+		suites[index].First = first
+		if len(first.checks) > 0 {
+			fmt.Fprintf(output, "validate -run: cycle lane %s takes first the %d tests its landed rows' checks name\n", suite.Lane, len(first.checks))
+		}
+	}
+	return suites, nil
 }
 
 // reachedLanes are the cycle's lanes at root a close runs: each cut to what the paths changed since its last pass reach

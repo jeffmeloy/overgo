@@ -28,20 +28,32 @@ type laneStep struct {
 // package's arguments with -run naming one test, as go test -list lists them with the lane's flags, tags and
 // environment, so the card and the test turn pass to a waiting commit or probe between tests; in the run at
 // c79cfc121 one package held them 1 h 26 min. A package that cannot be listed, or lists no test, runs whole, its run
-// saying what failed.
-func testSteps(ctx context.Context, root string, packages [][]string, environment []string) []laneStep {
+// saying what failed. The steps run in the order first gives (lanes-first): the tests the landed rows' checks name,
+// then the changed packages' checkpoint tests, then the rest as listed.
+func testSteps(ctx context.Context, root string, packages [][]string, environment []string, first lanesFirst) []laneStep {
 	var steps []laneStep
+	var ranks []int
 	for pkg, arguments := range packages {
 		names, err := listedTests(ctx, root, arguments, environment)
 		if err != nil || len(names) == 0 {
-			steps = append(steps, laneStep{arguments: arguments, pkg: pkg})
+			steps, ranks = append(steps, laneStep{arguments: arguments, pkg: pkg}), append(ranks, len(first.checks)+1)
 			continue
 		}
 		for _, name := range names {
 			steps = append(steps, laneStep{arguments: oneTest(arguments, name), pkg: pkg})
+			ranks = append(ranks, first.rank(arguments[len(arguments)-1], name))
 		}
 	}
-	return steps
+	order := make([]int, len(steps))
+	for index := range order {
+		order[index] = index
+	}
+	slices.SortStableFunc(order, func(a, b int) int { return ranks[a] - ranks[b] })
+	ordered := make([]laneStep, len(steps))
+	for place, index := range order {
+		ordered[place] = steps[index]
+	}
+	return ordered
 }
 
 // listedTests are the tests, examples and fuzz targets go test lists for a package step, its arguments the go command's

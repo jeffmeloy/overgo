@@ -170,6 +170,8 @@ type SelectedSuite struct {
 	// Each are the arguments that run each of the lane's packages alone, which run one by one in the test turn so a
 	// commit's tests take the machine between them (landing.CycleLane.Each); none where the lane runs whole.
 	Each [][]string `json:"each,omitzero"`
+	// First is what a run of the lane takes first, read from the commits since its last pass (lanes-first).
+	First lanesFirst `json:"-"`
 }
 
 // cycleSuites lists the improvement cycle's lanes, which run every cycle, each

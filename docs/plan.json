@@ -30,6 +30,40 @@
       ]
     },
     {
+      "id": "lanes-first",
+      "title": "A lanes run takes first what its commit says matters, read by the tool from the commit: the tests its landed rows' checks name, then the checkpoint tests of the packages its files are in, a failure among them logged as it happens, so the first failure of the model a commit changes is minutes after the commit, where moss-attention's checkpoint failures came 13 hours after it",
+      "steps": [
+        {
+          "id": "yield",
+          "title": "A run of the lanes under way at an older commit yields, at its next package's end, to a newer commit due, its passed packages kept, so the newer commit's first tests begin within a package of its close",
+          "verify": "go test ./cmd/validate -count=1 -run '^TestALanesRunYieldsAtAPackageToANewerClose$'",
+          "files": [
+            "cmd/validate",
+            "cmd/loop",
+            "internal/landing",
+            "internal/plan"
+          ],
+          "rationale": "The second half of the owner's review of 2026-11-20, point 1: lanes-first/do orders a run by what its commits say, but a run under way at an older commit runs to its end before the runner starts the newer commit's (runLanesDue): moss-attention/do waited 11 hours behind the run at 328befb0c. runLanesDue's design kept a run going past a close because a run each close ended would never end; ending only at a package boundary does end, since each package that passed keeps its pass (lanes-package-pass) and the next run reaches only what changed since. So a run checks, as a package of a lane run package by package ends, whether a newer commit than its own is due (lanes_due.json); if one is, it runs no further package, keeps the packages that passed, says it yielded and to which commit, and the runner starts the trunk's runner for the commit due, which takes that commit's first tests first. Its check counts, on a run of two packages with a newer commit named due after the first: the second package not run, the first's pass kept, and the run said yielded, not failed."
+        }
+      ]
+    },
+    {
+      "id": "fusion-edges",
+      "title": "Each MOSS fusion is held to its unfused chain, bit for bit through matchesUnfused, at the conditions that can tell them apart: an intermediate a second reader shares, inputs fed as device views aligned to 4 bytes and not 16, and shapes at the kernel's edges; what fails is fixed, SQA-436 first",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Each MOSS fusion is held to its unfused chain, bit for bit through matchesUnfused, at the conditions that can tell them apart: an intermediate a second reader shares, inputs fed as device views aligned to 4 bytes and not 16, and shapes at the kernel's edges; what fails is fixed, SQA-436 first",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test ./internal/cuda/executor -count=1 -timeout=0 -run '^TestEachMOSSFusionMatchesItsChainWhereTheyCouldPart$'",
+          "files": [
+            "internal/cuda",
+            "kernels"
+          ],
+          "rationale": "Note: The owner's review of 2026-11-20, point 2, checked against the findings and the executor's tests: valid. SQA-433 (a head norm two rotations read, folded into one and left unstored for the other), SQA-436 (scale_int8_product_norm_rotate_bf16_f32 reading its tables as float4, wrong for a device input bound at an address aligned to 4 bytes and not 16) and SQA-432 (a full-denoise start that skipped the crop check a partial one runs) were found by review: each fused kernel's test fed the one condition the denoiser makes (one reader, host feeds the executor stages aligned, a valid picture), which cannot tell the fused kernel from its chain where they part. The executor already compares a fused graph with the same graph left unfused, bit for bit, by keeping an intermediate as an output (matchesUnfused, executor_windows_stream_sum_test.go). The row runs each MOSS fusion (the affine norm, the gated add, the norm and rotation, the SiTU, the int8 prologues, the int8 gated add and norm and rotation epilogues, the rounded elementwise) through matchesUnfused at the conditions that can tell it from its chain: an intermediate a second reader shares, each input fed as a device view at an offset aligned to 4 bytes and not 16, and shapes at the kernel's edges (a head width other than the warp kernel's, rows not a multiple of four); a switch for one rewrite only where keeping an output cannot isolate it. What fails is fixed in the row, SQA-436 first. A path that skips work refuses what the full path refuses at the same inputs, held where such a shortcut stands (SQA-432 already cured by picture-sections)."
+        }
+      ]
+    },
+    {
       "id": "moss-comfy-block",
       "title": "One MOSS joint block at the workflow's 1024 x 576 is captured from ComfyUI with the workflow's int8 file, its adapters merged as ComfyUI merges them: its input, modulation and rotary tables, each output of a kernel the pass rows port (the activation quantizer's int8 rows and scales, the int8 product's scaled output, the attention's output, the sampler step's) and the block's output; overgo's block is held to it at a tolerance declared before it is read, and each ported kernel to its capture bit for bit",
       "steps": [

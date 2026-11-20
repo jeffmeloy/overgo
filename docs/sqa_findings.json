@@ -343,9 +343,9 @@
   "SQA-436": {
         "action": "filed",
         "rows": [
-          "moss-int8-epilogue/do"
+          "fusion-edges/do"
         ],
-        "note": "Answered by the lead on 2026-11-20 at 6395092b4: valid from source (scale_int8_product_norm_rotate_bf16_f32 reads the cosine and sine tables as float4 with no alignment check, where moss_norm_rotate_bf16_round_f32 reads them as floats); the workflow's tables are concatenations the executor allocates and aligns (rotaryGraph.rotaryInput), so it faults only for a graph binding a table at an address not 16-byte aligned; filed with moss-int8-epilogue/do, which reworks the int8 epilogues, the kernel reading a table it cannot prove aligned a float at a time."
+        "note": "Answered by the lead on 2026-11-20 at 6395092b4: valid from source (scale_int8_product_norm_rotate_bf16_f32 reads the cosine and sine tables as float4 with no alignment check, where moss_norm_rotate_bf16_round_f32 reads them as floats); the workflow's tables are concatenations the executor allocates and aligns (rotaryGraph.rotaryInput), so it faults only for a graph binding a table at an address not 16-byte aligned; filed with moss-int8-epilogue/do, then moved on 2026-11-20 at 1493bc156 to fusion-edges/do (the owner's review: a fused kernel held to its unfused chain at the condition that tells them apart), whose device views aligned to 4 bytes show it before the kernel reads a table it cannot prove aligned a float at a time."
       },
   "SQA-431": {
         "action": "deferred",

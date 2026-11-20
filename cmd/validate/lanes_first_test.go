@@ -1,0 +1,62 @@
+package main
+
+import (
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
+	"testing"
+
+	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
+)
+
+// TestALanesRunTakesFirstWhatItsCommitChanges holds a run of the lanes to taking first what the commits it runs say
+// matters, read from them by the tool (lanes-first):
+//   - over moss-attention/do (97714132e), which landed at 00:46 on 2026-11-19 and whose model's checkpoints failed at
+//     13:57, two hours into a run that reached them in its own order, internal/latentimage's checkpoint tests rank
+//     before its other tests, its files among those the commit changed
+//   - over moss-elementwise/do (9acbc157a), the tests its check named, in the packages its check ran, rank first, in
+//     the check's order
+//   - a lane's steps run in that order: a package of three tests runs the one a landed check names, then its
+//     checkpoint, then the rest
+func TestALanesRunTakesFirstWhatItsCommitChanges(t *testing.T) {
+	t.Parallel()
+	repo := testutil.RepoRoot(t)
+	attention := testcheck.Must(readLanesFirst(t.Context(), repo, "97714132e^", "97714132e"))(t)
+	const latentimage = "./internal/latentimage"
+	for _, checkpoint := range []string{"TestMOSSSamplingCheckpoint", "TestMOSSGenerationCheckpoint"} {
+		if rank, other := attention.rank(latentimage, checkpoint), attention.rank(latentimage, "TestDepthControlMeetsItsSectionFloor"); rank >= other {
+			t.Errorf("over moss-attention/do, %s ranks %d and a test no check names %d; want the changed package's checkpoints first", checkpoint, rank, other)
+		}
+	}
+	elementwise := testcheck.Must(readLanesFirst(t.Context(), repo, "9acbc157a^", "9acbc157a"))(t)
+	checked := []string{"TestAMOSSBlocksQueryAndKeyProductsNormAndRotateInTheirEpilogue", "TestANormTwoRotationsReadIsComputedForBoth", "TestTheMOSSPassFusesWithoutChangingABit"}
+	var named []string
+	for _, check := range elementwise.checks {
+		named = append(named, check.name)
+		if !slices.Equal(check.packages, []string{"./internal/cuda/executor", latentimage}) {
+			t.Errorf("moss-elementwise/do's check runs %s in %v; want the packages its check named", check.name, check.packages)
+		}
+	}
+	if !slices.Equal(named, checked) {
+		t.Fatalf("over moss-elementwise/do the landed checks name %v; want %v", named, checked)
+	}
+	if first, checkpoint := elementwise.rank("./internal/cuda/executor", checked[0]), elementwise.rank("./internal/cuda/executor", "TestAnInt8ConvRotProductIsComfyKitchens"); first != 0 || checkpoint <= first {
+		t.Errorf("over moss-elementwise/do its check's first test ranks %d and another %d; want it first", first, checkpoint)
+	}
+
+	root := t.TempDir()
+	testcheck.NoError(t, os.WriteFile(filepath.Join(root, "go.mod"), []byte("module fixture\n\ngo 1.26\n"), 0o644))
+	testcheck.NoError(t, os.MkdirAll(filepath.Join(root, "p"), 0o755))
+	testcheck.NoError(t, os.WriteFile(filepath.Join(root, "p", "p_test.go"), []byte(
+		"package p\n\nimport \"testing\"\n\nfunc TestAlpha(t *testing.T) {}\n\nfunc TestBetaCheckpoint(t *testing.T) {}\n\nfunc TestGamma(t *testing.T) {}\n"), 0o644))
+	first := lanesFirst{checks: []checkedTest{{name: "TestGamma", packages: []string{"./p"}}}, packages: map[string]bool{"./p": true}}
+	var order []string
+	for _, step := range testSteps(t.Context(), root, [][]string{{"test", "-count=1", "./p"}}, nil, first) {
+		order = append(order, strings.Trim(step.arguments[slices.Index(step.arguments, "-run")+1], "^$"))
+	}
+	if !slices.Equal(order, []string{"TestGamma", "TestBetaCheckpoint", "TestAlpha"}) {
+		t.Errorf("a package of three tests runs them as %v; want the one a landed check names, then its checkpoint, then the rest", order)
+	}
+}

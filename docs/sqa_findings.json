@@ -379,11 +379,11 @@
     "head": "cbdf003cc5e0d974e86a56e8f99bb49b6bdc97a8",
     "findings": {
   "SQA-441": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "clock-identity/do"
         ],
-        "note": "Answered by the lead on 2026-11-20 at f3117025d: valid from source (appendWorkflowTiming reads HEAD and the tree's changed paths after both runs, so a landing during the run is credited with the earlier code's timing, and the remaining clock checks accept it); filed as clock-identity/do ahead of the next clock step, the source read as the timing starts and again before it appends. moss-merge-compute/clock was timed with HEAD read before and after its run, no other session landing."
+        "note": "Answered by the lead on 2026-11-20 at f3117025d: valid from source (appendWorkflowTiming reads HEAD and the tree's changed paths after both runs, so a landing during the run is credited with the earlier code's timing, and the remaining clock checks accept it); filed as clock-identity/do ahead of the next clock step, the source read as the timing starts and again before it appends. moss-merge-compute/clock was timed with HEAD read before and after its run, no other session landing. Implemented 2026-11-20 by clock-identity/do (47bb3f027): the source read as the timing starts, and a timing whose commit moved while it ran refused; moss-merge-compute/clock's timing at 47bb3f027 is the first under it, for the review's recheck."
       },
   "SQA-440": {
         "action": "implemented",

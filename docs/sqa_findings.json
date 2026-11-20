@@ -362,6 +362,44 @@
     "at": "2026-11-19",
     "head": "4955a095c553224984c02256c64f64c77f6f6966",
     "findings": {
+  "SQA-431": {
+        "action": "deferred",
+        "rows": [],
+        "note": "Answered by the lead on 2026-11-20 at 160028dcb: valid from source (preparedFirst opens the enhancer chat before the director seeks a stored answer, so a repeated mode-2 request generates its prompts again). The workflow runs each section once, so it saves nothing of the workflow's time, and it adds a stored identity for the enhancer's model, template and sampling; deferred by the owner's order of findings by seconds saved (the review of 2026-11-20)."
+      },
+  "SQA-430": {
+        "action": "filed",
+        "rows": [
+          "moss-step-copies/do"
+        ],
+        "note": "Answered by the lead on 2026-11-20 at 160028dcb: valid from source (each branch's control slice is staged and uploaded every pass, 2.4 MB, zeros included); a per-pass host copy, so filed with moss-step-copies, whose step keeps the sampling's per-pass data on the card."
+      },
+  "SQA-429": {
+        "action": "filed",
+        "rows": [
+          "moss-source-skip/do"
+        ],
+        "note": "Answered by the lead on 2026-11-20 at 160028dcb: valid from source (startLatent encodes the source picture and multiplies it by one minus a first sigma of exactly 1 in the image to image section). One encode a workflow run, likely about a second, so filed as its own small row after the per-pass rows, its time measured first, removing work with a branch."
+      },
+  "SQA-428": {
+        "action": "filed",
+        "rows": [
+          "moss-elementwise/do"
+        ],
+        "note": "Answered by the lead on 2026-11-20 at 160028dcb: valid for the do step (it sat inside moss-fusion ahead of moss-merge-time and moss-depth-card, with nothing in the plan to put it after them); moss-fusion/do moved to its own row, moss-elementwise, after them. moss-fusion/budget stays ahead of them by the owner's review of 2026-11-20: it measures and builds nothing, and says how large the int8 path's work is before any per-pass row is sized."
+      },
+  "SQA-427": {
+        "action": "filed",
+        "rows": [
+          "moss-fusion/neighbors"
+        ],
+        "note": "Answered by the lead on 2026-11-20 at 160028dcb: valid (neighbors' check, TestTheMOSSPassFusesWithoutChangingABit, holds latents its base draws too, the check copies was refused twice for). TestAMOSSBlocksElementwiseChainsLaunchOnce counts the compiled launches of a MOSS block's norm, gated sum and norm-rotation chains (6, 2 and 3 at the base against 2, 1 and 1) with names the base has; it joins neighbors' check through a plan-only carrier landed before neighbors' first attempt."
+      },
+  "SQA-426": {
+        "action": "deferred",
+        "rows": [],
+        "note": "Answered by the lead on 2026-11-20 at 160028dcb: valid from source (RequireComplete returns the first Unfinished entry, the package, so two interrupted tests of one package read alike in the run's final summary). Since lanes-ended (140c7975e) the live log and the measurement record name each interrupted test, its cause and its tree's peak as it ends, so no failure goes unread; the summary's wording saves no workflow time, and it waits with the rows the campaign set aside."
+      },
   "SQA-425": {
         "action": "implemented",
         "rows": [

@@ -132,7 +132,7 @@
         },
         {
           "path": "kernels/cuda/ops_f32_tail.cuh",
-          "sha256": "f0a3c8c69a4bfa67dfbcd4e45a4ca85f3f4b99b9165c2715b14b8c74dbbf5712"
+          "sha256": "614a6a30b143b552208aec64129e6c8f1d040185e00f30f4c1d5115114f60cfc"
         },
         {
           "path": "kernels/cuda/ops_f32_unary.cuh",
@@ -152,7 +152,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "49b6808fc961c4f488fc74a4fdf23f280f21ce968457ad6db86a093b9a634366",
+      "assetSha256": "313dc8f49cf3467599b9c362764854043da5867170c53b2940264f8128730961",
       "functions": [
         "activated_gate_f32",
         "activated_gate_q8_0_f32",
@@ -392,6 +392,7 @@
         "scale_fp8_product_f32",
         "scale_int8_product_bf16_f32",
         "scale_int8_product_gated_add_bf16_f32",
+        "scale_int8_product_norm_rotate_bf16_f32",
         "scaled_activation_f32",
         "scaled_activation_q8_0_f32",
         "short_conv_backward_f32",
@@ -1972,6 +1973,26 @@
           ],
           "functions": [
             "scale_int8_product_gated_add_bf16_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".f32",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32"
+          ],
+          "functions": [
+            "scale_int8_product_norm_rotate_bf16_f32"
           ]
         },
         {

@@ -321,6 +321,14 @@ extern "C" __global__ void silu_native_f32(
     }
 }
 
+// rms_norm_mean_scale is the factor a native-mean RMS norm multiplies a row of width values by, from the row's sum of
+// squares: the native mean projects the sum with a separately rounded element-count ratio, plus epsilon, to the
+// reciprocal root.
+__device__ __forceinline__ float rms_norm_mean_scale(float sum_squares, unsigned int width, unsigned int rows, float epsilon) {
+    const float factor = __fdiv_rn((float) rows, (float) ((unsigned long long) rows * width));
+    return rsqrtf(__fadd_rn(__fmul_rn(sum_squares, factor), epsilon));
+}
+
 // rms_norm_mean_inverse is the factor a native-mean RMS norm multiplies a row of width values by, the block's threads
 // together: the row's sum of squares, four adjacent values a lane where the row is wide enough, the vectorized
 // reduction's order, times the separately rounded ratio of rows to elements, plus epsilon, to the reciprocal root.
@@ -349,10 +357,7 @@ __device__ __forceinline__ float rms_norm_mean_inverse(
         }
     }
     __shared__ float partial[256];
-    sum_squares = block_sum_f32(sum_squares, partial);
-    // Native mean projects the sum with a separately rounded element-count ratio.
-    const float factor = __fdiv_rn((float) rows, (float) ((unsigned long long) rows * width));
-    return rsqrtf(__fadd_rn(__fmul_rn(sum_squares, factor), epsilon));
+    return rms_norm_mean_scale(block_sum_f32(sum_squares, partial), width, rows, epsilon);
 }
 
 template <bool ROUND>
@@ -469,6 +474,74 @@ extern "C" __global__ void moss_norm_rotate_bf16_round_f32(
         const unsigned int table = token * width + channel;
         output[offset + channel] = moss_rotate_value(values[channel], turned, cosine[table], sine[table]);
     }
+}
+
+// MOSS_HEAD_WIDTH is the head scale_int8_product_norm_rotate_bf16_f32 holds, MOSS's, a warp's lanes MOSS_HEAD_LANE
+// adjacent channels each, and MOSS_HEAD_ROWS how many heads' rows a block of it takes, a warp a row.
+constexpr unsigned int MOSS_HEAD_LANE = 4;
+constexpr unsigned int MOSS_HEAD_WIDTH = CUDA_WARP_WIDTH * MOSS_HEAD_LANE;
+constexpr unsigned int MOSS_HEAD_ROWS = 4;
+
+// scale_int8_product_norm_rotate_bf16_f32: the epilogue of an int8 ConvRot product whose heads MOSS normalizes, steps and
+// rotates alone (moss_norm_rotate_bf16_round_f32), as the denoiser's q and k projections are, written over the product:
+// one warp a head's row of MOSS_HEAD_WIDTH, each lane MOSS_HEAD_LANE adjacent entries scaled as
+// scale_int8_product_bf16_f32 scales them, the row normalized and stepped as moss_norm_rotate_bf16_round_f32 does it
+// and rotated, the half-turn read from the lane half a warp away. The norm's sum is rms_norm_mean_inverse's over a
+// block whose first warp holds the row: each lane's squares summed in order, then the lanes' tree from the halves 16
+// apart down. cuBLASLt's int32 product is a token's heads together, [width * heads][tokens], so a head's row is width
+// entries of its token's column; the tables are [width, 1, tokens], read for every head.
+extern "C" __global__ void scale_int8_product_norm_rotate_bf16_f32(
+        float * output,
+        const float * row_scale,
+        const float * column_scale,
+        const float * step0,
+        const float * step1,
+        const float * step2,
+        unsigned int kinds,
+        float epsilon,
+        const float * cosine,
+        const float * sine,
+        unsigned int width,
+        unsigned int heads,
+        unsigned int tokens) {
+    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+    const unsigned int row = blockIdx.x * MOSS_HEAD_ROWS + threadIdx.x / CUDA_WARP_WIDTH;
+    const unsigned int rows = heads * tokens;
+    if (row >= rows || width != MOSS_HEAD_WIDTH) {
+        return;
+    }
+    const unsigned int token = row / heads;
+    const unsigned int channel = lane * MOSS_HEAD_LANE;
+    const unsigned int entry = row * width + channel;
+    const float factor = column_scale[token];
+    const int4 product = *reinterpret_cast<const int4 *>(reinterpret_cast<const int *>(output) + entry);
+    const float4 weight = *reinterpret_cast<const float4 *>(row_scale + (row - token * heads) * width + channel);
+    float values[MOSS_HEAD_LANE] = {
+        bf16_rounded(__fmul_rn(__fmul_rn(__int2float_rn(product.x), factor), weight.x)),
+        bf16_rounded(__fmul_rn(__fmul_rn(__int2float_rn(product.y), factor), weight.y)),
+        bf16_rounded(__fmul_rn(__fmul_rn(__int2float_rn(product.z), factor), weight.z)),
+        bf16_rounded(__fmul_rn(__fmul_rn(__int2float_rn(product.w), factor), weight.w))};
+    float sum = ((__fmul_rn(values[0], values[0]) + __fmul_rn(values[1], values[1])) + __fmul_rn(values[2], values[2])) +
+        __fmul_rn(values[3], values[3]);
+    for (unsigned int stride = CUDA_WARP_WIDTH / 2u; stride > 0; stride /= 2u) {
+        sum += __shfl_down_sync(0xffffffffu, sum, stride);
+    }
+    const float inverse = rms_norm_mean_scale(__shfl_sync(0xffffffffu, sum, 0), width, rows, epsilon);
+    for (unsigned int part = 0; part < MOSS_HEAD_LANE; ++part) {
+        values[part] = rms_norm_mean_affine_value(values[part], inverse, step0, step1, step2, kinds, channel + part);
+    }
+    const float4 cosines = *reinterpret_cast<const float4 *>(cosine + token * width + channel);
+    const float4 sines = *reinterpret_cast<const float4 *>(sine + token * width + channel);
+    const float turn = lane < CUDA_WARP_WIDTH / 2u ? -1.0f : 1.0f;
+    float turned[MOSS_HEAD_LANE];
+    for (unsigned int part = 0; part < MOSS_HEAD_LANE; ++part) {
+        turned[part] = turn * __shfl_xor_sync(0xffffffffu, values[part], CUDA_WARP_WIDTH / 2u);
+    }
+    *reinterpret_cast<float4 *>(output + entry) = make_float4(
+        moss_rotate_value(values[0], turned[0], cosines.x, sines.x),
+        moss_rotate_value(values[1], turned[1], cosines.y, sines.y),
+        moss_rotate_value(values[2], turned[2], cosines.z, sines.z),
+        moss_rotate_value(values[3], turned[3], cosines.w, sines.w));
 }
 
 // quantize_int8_convrot_norm_columns_f32: the activation side of an int8 ConvRot product whose activation is a native-mean

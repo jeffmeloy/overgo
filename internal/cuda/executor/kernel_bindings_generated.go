@@ -245,6 +245,7 @@ const (
 	kernelScaleFp8ProductF32
 	kernelScaleInt8ProductBf16F32
 	kernelScaleInt8ProductGatedAddBf16F32
+	kernelScaleInt8ProductNormRotateBf16F32
 	kernelScaledActivationF32
 	kernelScaledActivationQ80F32
 	kernelShortConvBackwardF32
@@ -747,6 +748,7 @@ var kernelFunctionNames = [...]string{
 	"scale_fp8_product_f32",
 	"scale_int8_product_bf16_f32",
 	"scale_int8_product_gated_add_bf16_f32",
+	"scale_int8_product_norm_rotate_bf16_f32",
 	"scaled_activation_f32",
 	"scaled_activation_q8_0_f32",
 	"short_conv_backward_f32",
@@ -1248,6 +1250,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	5,
 	5,
 	7,
+	13,
 	5,
 	6,
 	12,
@@ -1750,6 +1753,7 @@ var kernelFunctionArgumentWidths = [...][]uint16{
 	{8, 8, 8, 4, 4},
 	{8, 8, 8, 4, 4},
 	{8, 8, 8, 8, 8, 4, 4},
+	{8, 8, 8, 8, 8, 8, 4, 4, 8, 8, 4, 4, 4},
 	{8, 8, 4, 4, 4},
 	{8, 8, 8, 4, 4, 4},
 	{8, 8, 8, 8, 8, 8, 8, 8, 4, 4, 4, 4},
@@ -2017,6 +2021,7 @@ var kernelFunctionArgumentWidths = [...][]uint16{
 const kernelModuleCount = 4
 
 var kernelFunctionModules = [...]uint8{
+	0,
 	0,
 	0,
 	0,

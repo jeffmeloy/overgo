@@ -172,6 +172,10 @@ func launchGatedAdd(state *device.State, functions functionSet, node *tensor.Ten
 // mossRotateMaxWidth mirrors MOSS_ROTATE_MAX_WIDTH: the widest head moss_norm_rotate_bf16_round_f32 holds.
 const mossRotateMaxWidth = 256
 
+// mossRotaryHeadReads is how many of a MOSS rotary embedding's nodes read its heads (applyMOSSRotaryRewrite): the
+// product by the cosine and the two halves' slices.
+const mossRotaryHeadReads = 3
+
 // applyMOSSNormRotaryRewrite folds a MOSS rotary embedding (applyMOSSRotaryRewrite) whose heads are a folded norm and
 // its steps (applyMOSSNormRewrite) that the embedding alone reads, as the denoiser's q and k norms are, into one kernel
 // that normalizes, steps and rotates each head's row (moss_norm_rotate_bf16_round_f32), the heads never stored.
@@ -188,7 +192,9 @@ func applyMOSSNormRotaryRewrite(context *rewriteContext) {
 		if norm == nil || norm.kind != compiledFusionMOSSNorm || retained || heads.Shape.Dims[mossRotaryWidthAxis] > mossRotateMaxWidth {
 			continue
 		}
-		absorbed := true
+		// The embedding's own chain reads its heads mossRotaryHeadReads times: a second embedding of the same heads reads
+		// them too, and needs them stored (SQA-433).
+		absorbed := context.uses[heads] == mossRotaryHeadReads
 		for _, reader := range context.consumers[heads] {
 			if _, skipped := compiled.skipped[reader]; !skipped {
 				absorbed = false

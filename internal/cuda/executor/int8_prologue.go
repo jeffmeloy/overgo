@@ -142,3 +142,78 @@ func launchInt8GatedAdd(state *device.State, functions functionSet, blas *blasSt
 	return launchInt8ConvRotMulMat(state, functions, blas, rightNode, left, left+driver.DevicePtr(uint64(inner)*uint64(leftRows)),
 		pointers.output(), quantize, epilogue, inner, leftRows, rightRows)
 }
+
+// mossHeadWidth and mossHeadRows mirror MOSS_HEAD_WIDTH and MOSS_HEAD_ROWS: the head scale_int8_product_norm_rotate_bf16_f32
+// holds, a warp's, and the heads' rows a block of it takes, a warp a row.
+const mossHeadWidth, mossHeadRows = 128, 4
+
+// applyInt8NormRotaryRewrite folds an int8 ConvRot product whose heads a MOSS norm and rotation alone read
+// (applyMOSSNormRotaryRewrite), as a MOSS block's q and k projections are, into the rotation: the rotation's node runs
+// the product, its activation quantized plainly or by the product's prologue (applyInt8PrologueRewrite), and the
+// product's epilogue scales, normalizes, steps and rotates each head before it writes it
+// (scale_int8_product_norm_rotate_bf16_f32), so the product's heads are never stored to be read back.
+func applyInt8NormRotaryRewrite(context *rewriteContext) {
+	compiled := context.compiled
+	for _, node := range context.order {
+		rotary := compiled.fusions[node]
+		if rotary == nil || rotary.kind != compiledFusionMOSSNormRotary {
+			continue
+		}
+		heads := rotary.operands[mossRotaryHeads]
+		if heads.Op != tensor.OpReshape || len(heads.Inputs) != 1 || context.uses[heads] != 1 {
+			continue
+		}
+		product := heads.Inputs[0]
+		_, headsRetained := context.outputSet[heads]
+		_, retained := context.outputSet[product]
+		_, skipped := compiled.skipped[product]
+		folded := compiled.fusions[product]
+		if headsRetained || retained || skipped || context.uses[product] != 1 || !int8ConvRotMulMat(product) ||
+			folded != nil && folded.kind != compiledFusionInt8Prologue || node.Shape.Dims[mossRotaryWidthAxis] != mossHeadWidth ||
+			product.Shape.Dims[0] != mossHeadWidth*node.Shape.Dims[mossRotaryHeadAxis] {
+			continue
+		}
+		operands := []*tensor.Tensor{product.Inputs[0], product.Inputs[1]}
+		var prologue *compiledFusion
+		if folded != nil {
+			operands, prologue = folded.operands, folded.prologue
+		}
+		// The rotation's operands after its heads: the norm's steps, then the cosine and sine tables.
+		compiled.setFusion(node, &compiledFusion{
+			kind: compiledFusionInt8NormRotary, operands: append(operands, rotary.operands[1:]...), product: product, prologue: prologue, norm: rotary.norm,
+		})
+		delete(compiled.fusions, product)
+		skip(compiled, []*tensor.Tensor{product, heads})
+	}
+}
+
+// launchInt8NormRotary runs a folded int8 ConvRot product into the MOSS norm and rotation that read its heads
+// (applyInt8NormRotaryRewrite), its epilogue normalizing, stepping and rotating each head.
+func launchInt8NormRotary(state *device.State, functions functionSet, blas *blasState, node *tensor.Tensor, fusion *compiledFusion, pointers launchPointerFrame) error {
+	leftNode, rightNode := fusion.product.Inputs[0], fusion.product.Inputs[1]
+	inner, leftRows, rightRows := uint32(leftNode.Shape.Dims[0]), uint32(leftNode.Shape.Dims[1]), uint32(rightNode.Shape.Dims[1])
+	width, heads, tokens := uint32(node.Shape.Dims[mossRotaryWidthAxis]), uint32(node.Shape.Dims[mossRotaryHeadAxis]), uint32(node.Shape.Dims[mossRotaryTokenAxis])
+	// The fusion's slots are its node's and then its operands' (compileFusion): the norm's steps, the cosine and the sine
+	// last.
+	left, count, norm := pointers.input(0), fusion.operandCount-1, fusion.norm
+	cosine, sine := pointers.input(count-2), pointers.input(count-1)
+	var steps [rmsNormSteps]driver.DevicePtr
+	for step := range norm.steps {
+		steps[step] = pointers.input(count - 2 - norm.steps + step)
+	}
+	quantize := int8ConvRotColumns(state, functions, pointers.input(1), inner, rightRows)
+	if fusion.prologue != nil {
+		var err error
+		if quantize, err = int8PrologueQuantizer(state, functions, fusion.prologue, pointers, 1, inner, rightRows); err != nil {
+			return err
+		}
+	}
+	epilogue := func(output, weightScale, columnScale driver.DevicePtr, _, _ uint32) error {
+		rows := heads * tokens
+		return launchGridABI(state, functions[kernelScaleInt8ProductNormRotateBf16F32],
+			kernel.Grid1D(int((rows+mossHeadRows-1)/mossHeadRows)), kernel.Grid1D(mossHeadRows*kernel.WarpThreads()),
+			&output, &weightScale, &columnScale, &steps[0], &steps[1], &steps[2], &norm.kinds, &norm.epsilon, &cosine, &sine, &width, &heads, &tokens)
+	}
+	return launchInt8ConvRotMulMat(state, functions, blas, rightNode, left, left+driver.DevicePtr(uint64(inner)*uint64(leftRows)),
+		pointers.output(), quantize, epilogue, inner, leftRows, rightRows)
+}

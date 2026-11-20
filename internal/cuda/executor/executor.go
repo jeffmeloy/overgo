@@ -953,6 +953,7 @@ const (
 	compiledFusionInt8Prologue
 	compiledFusionInt8GatedAdd
 	compiledFusionMOSSNormRotary
+	compiledFusionInt8NormRotary
 )
 
 type compiledFusion struct {
@@ -979,7 +980,8 @@ type compiledFusion struct {
 	// prologue is the fused norm or SITU activation an int8 ConvRot product computes as it quantizes its activation
 	// (applyInt8PrologueRewrite).
 	prologue *compiledFusion
-	// product is the int8 ConvRot product a gated residual sum runs as its own (applyInt8GatedAddRewrite).
+	// product is the int8 ConvRot product a gated residual sum, or a MOSS norm and rotation, runs as its own
+	// (applyInt8GatedAddRewrite, applyInt8NormRotaryRewrite).
 	product          *tensor.Tensor
 	bf16ProjAdd      bf16ProjAddFusion
 	bf16Attention    bf16AttentionFusion
@@ -2296,6 +2298,8 @@ func launchCompiledFusion(
 		return "moss_norm", launchMOSSNorm(state, functions, node, fusion.norm, pointers)
 	case compiledFusionInt8GatedAdd:
 		return "int8_gated_add", launchInt8GatedAdd(state, functions, blas, fusion, pointers)
+	case compiledFusionInt8NormRotary:
+		return "int8_norm_rotate", launchInt8NormRotary(state, functions, blas, node, fusion, pointers)
 	case compiledFusionInt8Prologue:
 		return "int8_prologue", launchInt8Prologue(state, functions, blas, node, fusion, pointers)
 	case compiledFusionGatedAdd:

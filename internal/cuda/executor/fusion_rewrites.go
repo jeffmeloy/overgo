@@ -181,6 +181,7 @@ var graphRewriteCatalog = [...]graphRewrite{
 	{name: "gated-add", apply: applyGatedAddRewrite},
 	{name: "int8-prologue", apply: applyInt8PrologueRewrite},
 	{name: "int8-gated-add", apply: applyInt8GatedAddRewrite},
+	{name: "int8-norm-rotary", apply: applyInt8NormRotaryRewrite},
 	// Last, so a rounding another rewrite reads keeps to it.
 	{name: "rounded-elementwise", apply: applyRoundedElementwiseRewrite},
 }

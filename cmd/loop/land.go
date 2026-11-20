@@ -108,8 +108,9 @@ const landedAs = " landed as "
 // tool runs one repository tool, echoing its standard output -- a tool's
 // verdict -- to echo and its standard error -- its progress -- to said as it
 // comes, and returns a failed run's refusal: the final error the tool wrote to
-// its error file, or the tail of its standard error when it wrote none, as a
-// build that never ran it.
+// its error file, or, when it wrote none, as a build that never ran it or a
+// tree its bound ended, how it ended and the tail of its standard error
+// (endedWithout).
 func (w *execRowWorld) tool(echo, said io.Writer, arguments ...string) (string, error) {
 	errorFile := filepath.Join(os.TempDir(), fmt.Sprintf("overgo-loop-%d.error", os.Getpid()))
 	_ = os.Remove(errorFile)
@@ -130,11 +131,23 @@ func (w *execRowWorld) tool(echo, said io.Writer, arguments ...string) (string, 
 	if err == nil {
 		return "", nil
 	}
-	final, readErr := os.ReadFile(errorFile)
-	if readErr != nil {
-		final = []byte(progress.Tail())
+	final, _ := os.ReadFile(errorFile)
+	if refusal := strings.TrimSpace(string(final)); refusal != "" {
+		return refusal, err
 	}
-	return cmp.Or(strings.TrimSpace(string(final)), err.Error()), err
+	return endedWithout(filepath.Base(arguments[0]), err, progress.Tail()), err
+}
+
+// endedWithout is the refusal of a tool that ended without writing one (verdict-steady): its first line, the one a
+// landing's record keeps (landing.Classify), says how the run ended, the bound that stopped its tree or the status it
+// ended with, and the last line the tool wrote, and its last output follows. The commit attempt for
+// lanes-package-pass/do at 09:31 on 2026-11-19 ended in its test stage with no error file, and its record kept the
+// first line of its output alone, a note on files left outside the commit, the run's error dropped.
+func endedWithout(tool string, err error, tail string) string {
+	tail = strings.TrimSpace(tail)
+	last := tail[strings.LastIndexByte(tail, '\n')+1:]
+	return fmt.Sprintf("%s ended without its refusal (%s); it last wrote: %s\n%s",
+		tool, strings.ReplaceAll(err.Error(), "\n", "; "), cmp.Or(strings.TrimSpace(last), "nothing"), tail)
 }
 
 // checkerCheckout is the worktree under the repository's process state the checker is built in, beside the replay's.

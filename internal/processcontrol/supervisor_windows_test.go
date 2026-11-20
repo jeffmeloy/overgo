@@ -43,15 +43,20 @@ func TestWindowsContainmentPrecedesExecution(t *testing.T) {
 }
 
 // TestASupervisedStartCostsWhatAPlainOneDoes holds a contained start to about the cost of the child it starts: run in
-// turn with a plain exec of the same command, so the two share the machine's load, a supervised start takes less than
-// twice a plain one at the median. A start that walked every thread on the machine to resume its child took three
-// times as long here (48.8 ms against 15 ms, BenchmarkSupervisedStart).
+// turn with a plain exec of the same command, given a console of its own as a supervised child is (configureSysProc),
+// so the two share the machine's load and differ by the containment alone, a supervised start takes less than twice a
+// plain one at the median. A start that walked every thread on the machine to resume its child took three times as
+// long here (48.8 ms against 15 ms, BenchmarkSupervisedStart). The console is the child's own cost: a plain start with
+// one took 22.8 ms against 10.4 ms with the test's, and a supervised one 21.1 ms (2026-11-19), so a plain start sharing
+// the test's console held a supervised one at its bar, failing as often as not.
 func TestASupervisedStartCostsWhatAPlainOneDoes(t *testing.T) {
 	command := Command{Path: "cmd", Args: []string{"/c", "exit 0"}}
 	var plain, supervised []time.Duration
 	for range 15 {
 		began := time.Now()
-		testcheck.NoError(t, exec.Command(command.Path, command.Args...).Run())
+		run := exec.Command(command.Path, command.Args...)
+		run.SysProcAttr = &syscall.SysProcAttr{CreationFlags: createNoWindow}
+		testcheck.NoError(t, run.Run())
 		plain = append(plain, time.Since(began))
 		began = time.Now()
 		testcheck.Must(Run(t.Context(), command))(t)

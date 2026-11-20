@@ -150,11 +150,15 @@
         "internal/capabilityruntime/measured.go",
         "internal/mediacapability/image_cuda_windows.go",
         "internal/latentimage/media_adapter.go",
-        "internal/latentimage/source_latent_windows.go"
+        "internal/latentimage/source_latent_windows.go",
+        "internal/latentimage/rotary_sampling_windows.go",
+        "internal/latentimage/resident_graph_cuda_windows.go",
+        "internal/graphruntime/resident.go",
+        "cmd/evaluate/render.go"
       ],
-      "input": "On a cache miss submit a fixed-seed MOSS request with a named, missing adapter. Install valid adapter weights after Contents checks the path but before modelAdapter opens it. After the request completes, remove the adapter and repeat. The same sequence applies to a required depth estimator for control.picture.",
-      "expected": "Reject missing required picture weights before lookup or model loading. Only a run bound to the content actually read may be reused. Keep the existing content-based replay and Windows read holds for present files, and allow requests that supply a depth map without an estimator.",
-      "actual": "Source at 5e82b8710. Contents hashes the literal 'absent' and continues on ErrNotExist without holding a file. The executor can then open the newly installed weights and publish their output under that absence key. When the file is missing again, the director returns the stored image before reopening it. Same-size replacements of files present at binding are fixed."
+      "input": "(1) On a fixed-seed MOSS cache miss, install a missing named adapter after Contents checks its path and before modelAdapter opens it. Remove it after the run and repeat. A required depth estimator has the same gap. (2) Between two same-size draws in a held MOSS Turbo render session, replace a LoRA at the same path with compatible weights that change a patched int8 projection. Keep the strength and tensor shapes. Compare the second draw with a cold draw using those replacement bytes and the same request.",
+      "expected": "Reject missing required weights before replay or loading. Keep the Windows read hold for present files and allow a supplied depth map without an estimator. Use the admitted adapter content identity for resident merge reuse. A changed adapter must produce the same merged bytes as a cold bind with its new weights. Identical bytes at the same strength should reuse the existing merge.",
+      "actual": "Source at 15ecde8d3. Contents records 'absent' without a hold, so a run can use weights installed later and replay under the absence key. For a replacement between draws, Contents names the new bytes, but bindMerged keys the GPU merge by paths and strengths. runRotarySampling binds before releasing the previous program. ResidentSession.bind finds the old pointer and skips convRotMerge. The retained ComfyUI captures verify six cold projection merges; the warm replacement is a source counterexample."
     },
     {
       "id": "SQA-410",
@@ -162,11 +166,13 @@
       "files": [
         "internal/latentimage/golden_floor_windows_model_test.go",
         "internal/latentimage/image_to_image_windows_model_test.go",
-        "internal/latentimage/depth_control_windows_model_test.go"
+        "internal/latentimage/depth_control_windows_model_test.go",
+        "internal/latentimage/int8_projections_windows_model_test.go",
+        "internal/latentimage/int8_merge_windows_model_test.go"
       ],
-      "input": "Compare a recorded 1024x576 PNG to the same pixels with one extra column (1025x576). Separately, give the mirrored-input latent comparison a short vector or a NaN element while the unchanged baseline passes.",
-      "expected": "Check exact PNG dimensions in pictureDecibels and require nonempty, equal-length, finite latents in decibelsOverSquares before scoring. All three callers should use the same below-floor check for changed inputs. Exercise the malformed cases with small in-memory inputs. Preserve the recorded floors and +Inf for an exact match with nonzero signal.",
-      "actual": "Source at c79cfc121. squareColourMeans drops partial 8x8 tiles, so a 1025th column can leave the means identical. decibelsOverSquares returns -Inf for a length mismatch and propagates NaN. The golden-section, image-to-image and depth checks each reject only score >= floor, giving both invalid results credit as negative controls."
+      "input": "Compare a recorded 1024x576 PNG with the same pixels plus one column. Give the mirrored-input check a short latent or a NaN while its baseline passes. For the BF16 and int8 comparisons, score two otherwise matching draws that each contain one +Inf against a finite, nonzero reference latent.",
+      "expected": "Check PNG dimensions and require nonempty, equal-length, finite latent vectors before computing dB. Keep +Inf for an exact match with nonzero signal. Use small in-memory cases for malformed inputs. Keep reseeded or mirrored draws in holdGoldenFloors, which checks their scores. Each precision comparison needs one recorded-input draw per case per mode and keeps its product or merge captures.",
+      "actual": "Source at 15ecde8d3. The 8x8 means drop the extra column. A short latent scores -Inf and a NaN propagates. All three negative-control checks accept either. One infinite element yields -Inf against a finite reference, so both precision checks pass -Inf >= -Inf. On valid inputs readGoldenCases also renders a changed input for every BF16 and int8 draw. Unused controls account for 12 of 24 draws in holdInt8Sections and 6 of 12 in holdMergedSections. The counts follow from source. Elapsed savings are unmeasured."
     },
     {
       "id": "SQA-411",
@@ -275,6 +281,20 @@
       "input": "Request a cold model swap to a valid split GGUF, then cancel while servableNeed is reading the shard headers. The child binary and store are valid. The same ordering is deterministic in the existing processcontrol fixture if Command.bounded cancels the context before returning a valid bound.",
       "expected": "If cancellation is already visible when sizing finishes, return context.Canceled with no child created. Have processcontrol.Start check cancellation before setup and again after acquiring its resource lock, immediately before process creation. Keep the existing readiness and cleanup path for a child already started and allow a later live request to launch normally.",
       "actual": "Source counterexample at f46760944. ServerLauncher finishes sizing and calls Start with the canceled context. Start checks only that the context exists, obtains the bound and calls run.Start. It returns a process handle. In the swap path Ready sees cancellation and Supervisor.load calls Stop on the newly created server. The retained served-need run verifies successful startup and memory limits. This cancellation case was traced in source."
+    },
+    {
+      "id": "SQA-425",
+      "severity": "P2",
+      "files": [
+        "internal/mediacapability/image_cuda_windows.go",
+        "internal/latentimage/runtime_cuda_windows.go",
+        "internal/latentimage/source_latent_windows.go",
+        "internal/capabilityruntime/runtime.go",
+        "internal/mediacapability/prepared_first_windows_test.go"
+      ],
+      "input": "Use recipe run with an active MOSS image recipe, a readable installed adapter, prompt 'a fox', width 1024, height 576, steps -1 and a source image naming a valid file artifact ID. Try once with the PNG in the store and once with its ID missing.",
+      "expected": "Return the existing invalid sampling policy error in both cases, before hashing adapter weights or reading picture bytes. Use latentimage.ValidateRequest at image admission once preset or canvas dimensions are known. Preserve enhancer mode admission, strict decoding, and the content identities of valid requests.",
+      "actual": "Source at 15ecde8d3. Reading runs Contents(pictureFiles) first and hashes the whole adapter. preparedFirst then calls ReadPictures before the director validates steps. A stored PNG is read and base64-encoded for a request that must fail. With the PNG absent, its lookup error masks the invalid sampling policy. The existing stored-picture fixture exercises this path with valid steps."
     }
   ],
   "master_lead_triage": {
@@ -386,7 +406,7 @@
       }
 }
   },
-  "next_finding_number": 425,
+  "next_finding_number": 426,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

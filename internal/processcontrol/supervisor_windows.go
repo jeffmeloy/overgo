@@ -256,9 +256,6 @@ func (t processTree) peakProcessBytes() uint64 {
 	return uint64(t.extendedLimits().PeakProcessMemoryUsed)
 }
 
-// peakJobBytes is the most memory the job's processes have committed together, a command's need (jobBound).
-func (t processTree) peakJobBytes() uint64 { return uint64(t.extendedLimits().PeakJobMemoryUsed) }
-
 // extendedLimits reads the job's extended limits and counters; zero when the job cannot be read.
 func (t processTree) extendedLimits() jobExtendedLimits {
 	limits := jobExtendedLimits{}

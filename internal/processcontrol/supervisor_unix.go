@@ -67,9 +67,6 @@ func (t processTree) close() error { return nil }
 // peakProcessBytes is zero: the job counter that holds a tree's peak is Windows'.
 func (t processTree) peakProcessBytes() uint64 { return 0 }
 
-// peakJobBytes is zero: the job counter that holds a tree's commit is Windows'.
-func (t processTree) peakJobBytes() uint64 { return 0 }
-
 // ProcessAlive reports whether the process still runs: signal 0 performs
 // the existence and permission checks without delivering anything.
 func ProcessAlive(pid int) bool {

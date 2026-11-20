@@ -13,7 +13,6 @@ import (
 	"strings"
 
 	"overgo/internal/clioptions"
-	"overgo/internal/gguf"
 	"overgo/internal/processcontrol"
 )
 
@@ -21,23 +20,6 @@ import (
 // error text and the log lines just before it, while the whole stream stays
 // on the launcher's own stderr.
 const childOutputTailBytes = 2048
-
-// servableNeed is the commit a model server states it needs to serve a GGUF servable (served-need): the bytes of the
-// model's files, every shard of a split, which it reads; none for a servable that is no GGUF it can read, whose server
-// keeps the commit free at its start as its bound. Bound at that alone, 77.0 GiB of this machine's 99.6 GiB at rest, the
-// server of Qwen3.8-Flash-Next, whose weights are 93.7 GB, was refused before it served (2026-11-19).
-func servableNeed(location string) uint64 {
-	file, err := gguf.Open(location)
-	if err != nil {
-		return 0
-	}
-	defer file.Close()
-	var need uint64
-	for _, shard := range file.Shards() {
-		need += shard.Size
-	}
-	return need
-}
 
 // ServerLauncher launches the overgo server binary as the child for a
 // servable: one child at a time over the shared store, listening on a
@@ -123,7 +105,6 @@ func (l ServerLauncher) launch(ctx context.Context, servable Servable) (*serverP
 		Dir:    l.Dir,
 		Stdout: announced,
 		Stderr: announced,
-		Need:   servableNeed(servable.Location),
 	})
 	if err != nil {
 		return nil, err

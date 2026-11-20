@@ -7,6 +7,38 @@
       "title": "The elementwise kernels and conversions between a MOSS pass's multiplies and attention fuse, reading and writing each activation once",
       "steps": [
         {
+          "id": "copies",
+          "title": "A MOSS pass rounds no value that is already BF16 and copies neither half of its gate-and-up product, its final latent the one it drew before, bit for bit",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^TestTheMOSSPassFusesWithoutChangingABit$'",
+          "files": [
+            "internal/latentimage",
+            "internal/cuda",
+            "kernels"
+          ],
+          "rationale": "The re-budget (this row's note of 2026-11-19) places 401 bf16_round_f32 launches in a pass at 1024 x 576 (19.1 ms) and 92 group_slice_f32 launches (13.6 ms). Of the roundings, the rotary graph asks 252 of the six int8 products a block makes (rotaryGraph.projection), whose epilogue (scale_int8_product_bf16_f32) already rounds each entry to BF16, and 42 of each block's input, the previous block's rounded sum, each a kernel reading and writing the whole activation for no change of a bit; of the slices, 84 are the two halves of each block's gate-and-up product, copied for SiTU (rotaryGraph.part), which ComfyUI's MOSS reads as views of the product (chunk). The step drops those roundings from the graph, and the SiTU rewrite (applyMOSSSituRewrite) claims the two slices of one product and reads both halves where the product holds them, through a row stride, as the training kernel moss_situ_f32 reads them. A rounding an attention or a rotation rewrite reads stays (bf16-attention reads q, k and v as roundings). Its check draws two steps of text to image and of depth control at the workflow's size to the final latents overgo drew before any fusion, bit for bit (TestTheMOSSPassFusesWithoutChangingABit); the pass's kernel time is read beside it."
+        },
+        {
+          "id": "neighbors",
+          "title": "A MOSS pass normalizes, weights and modulates each row in one kernel, adds each gated residual in one, and its int8 products compute the norms and activation they read and write the gated sums that read them, its final latent the one it drew before, bit for bit",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^TestTheMOSSPassFusesWithoutChangingABit$'",
+          "files": [
+            "internal/cuda",
+            "kernels"
+          ],
+          "rationale": "After the copies step a depth control pass at 1024 x 576 reads 162 ms of kernels, 45 ms of them elementwise: four native-mean RMS norms a block, each followed by its weight's rounded multiply, the two block norms by their modulation's rounded multiply by scale + 1 and rounded add of the shift; two gated residual sums a block, each a rounded multiply by the gate and a rounded add; the SITU activation over the gate-and-up product; and the int8 products' activation quantizers reading the norms' and the activation's stored results. Each reads and writes a whole activation. The step folds each norm and the rounded per-channel steps after it into one kernel that reads its row once (rms_norm_mean_affine_bf16_round_f32, its reduction the native-mean norm's own, shared as rms_norm_mean_inverse); each gated sum into one (gated_add_bf16_round_f32); a norm or SITU activation that int8 products alone read into the products' quantization, computed there and never stored (quantize_int8_convrot_norm_columns_f32, quantize_int8_convrot_situ_columns_f32), as comfy_kitchen quantizes an activation with its input activation applied; and an int8 product that a gated sum alone reads into the sum, its epilogue writing the sum (scale_int8_product_gated_add_bf16_f32). Each value is computed by the device function its unfused kernel uses, rounded where the graph rounds it. Measured in development: each fused chain changes no bit against the chain unfused (the executor's tests), and the final latents of the copies step's check stay bit for bit. Its check is the copies step's (TestTheMOSSPassFusesWithoutChangingABit)."
+        },
+        {
+          "id": "budget",
+          "title": "ComfyUI's MOSS pass at the workflow's size is split, kernel by kernel, into overgo's parts, and the parts' bars, set from it, add up to at most the pass at which overgo matches ComfyUI's whole workflow",
+          "verify": "go test ./internal/latentimage -count=1 -run '^TestThePassBudgetReachesComfyUI$'",
+          "files": [
+            "internal/latentimage",
+            "fixtures/comfy/moss-ultra"
+          ],
+          "needs_card": true,
+          "rationale": "The owner's reviews of 2026-11-19 (a per-pass budget; ComfyUI's pass is 75 ms), checked against the pass-2 recordings' progress stamps (tmp/moss-fusion/stamps.go): a guided step of the 50-step sections takes 150.6 to 153.4 ms, two passes of about 75 ms, and a Turbo step, one pass, 72.3 to 73.6 ms, so ComfyUI's batching of the two prompts gains it nothing. Its 324 passes take 24.5 s of the workflow's 34.4; the other 9.9 s lies outside sampling, 1.4 to 2.5 s a section, where overgo's request to picture spends about 0.4 s. With the adapter merges at a second and a fresh depth map at a second, overgo matches ComfyUI's whole workflow at a pass of about 86 ms ((34.4 - 6 x 0.4 - 3 - 1) / 324). overgo's pass at 1024 x 576 reads 196 ms of kernels before moss-fusion (int8 products 53.5, their quantization 11.3 and epilogue 15.5, attention 26.6, elementwise 78, host copies 8.8), and the parts have no measured counterpart in ComfyUI's pass: the split the review gives (its int8 products about 50 ms, attention about 10, the rest about 25) is an estimate. The step profiles ComfyUI's own pass on the card (Nsight Systems over the Moss install's server while it runs text to image), splits its kernels into overgo's parts, and records them with each part's bar beside it (fixtures/comfy/moss-ultra/pass_budget.json), its check holding the bars to add up to at most the pass at which overgo matches ComfyUI's workflow, so it is known before more is built whether the rows reach ComfyUI's time; this row's do step reads its bar from the budget's elementwise part, and the rows of the other parts (moss-int8-epilogue, moss-attention-pass, moss-step-copies) theirs."
+        },
+        {
           "id": "do",
           "title": "The elementwise kernels and conversions between a MOSS pass's multiplies and attention fuse, reading and writing each activation once",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^TestMOSSElementwiseWorkIsFused$'",
@@ -16,7 +48,128 @@
             "internal/tensor",
             "kernels"
           ],
-          "rationale": "Note: moss-speed/do measured 0.6 s of a MOSS pass at 2368 x 1344 in elementwise kernels and the precision conversions between them (f32_to_bf16 and bf16_to_f32 alone 7.4 s of the profiled run, broadcast multiplies, RMS norms, adds, slices, the rotary rotation and SiTU), about a fifth of the pass, each a kernel that reads and writes the whole activation. ComfyUI's pass is 0.555 s in all.\n\nThe cure: the chains of elementwise kernels between the matrix multiplies and the attention fuse into kernels that read and write each activation once, the BF16 rounding the graph asks kept where it asks it, shown by the same picture at the same seed against overgo's own before the change.\n\nCheck: a MOSS pass's kernels outside its matrix multiplies and attention take at most 0.2 s at 2368 x 1344, and its final latent at the same request and seed agrees with the unfused one at the agreement BF16 arithmetic keeps.\n\nNote: The path to ComfyUI's speed, part by part (the owner's review of 2026-11-18): a MOSS pass at 2368 x 1344 takes 2.65 s (moss-speed/do) and ComfyUI's 0.555 s (its guided step 1.11 s, two passes). Of overgo's pass, attention takes 1.2 s, the matrix multiplies 0.76 s (BF16, near the card's BF16 peak), and the elementwise kernels and precision conversions 0.6 s; each request also copies the weights again, 33 s. The matrix multiplies alone exceed ComfyUI's whole pass, so no one row closes the gap: ComfyUI runs the workflow's int8 ConvRot file through comfy_kitchen's int8 matrix multiplies (overgo reads the same file and decodes it to BF16, comfyquant) and its own attention backend (comfy kitchen attention). The rows that close it, each owning its share: moss-attention (1.2 s), moss-int8 (0.76 s), moss-fusion (0.6 s), moss-resident (33 s a request). A finished row is read against its share, not against the gap; the gap closes when a pass reads 0.555 s.\n\nA speed change is shown to draw the same picture: its final latent and picture at the same request and seed against overgo's own before the change, at an agreement BF16-equivalent arithmetic keeps (measured, not chosen after), beside the golden floors, which sit 3 dB under readings as low as 1.5 dB and let the 8-bit attention's 1.85 dB loss of picture agreement pass (text to image, 15.11 to 13.26 dB). A change that takes up the workflow's own arithmetic (comfy_kitchen's int8) is shown by its agreement with the recording rising.\n\nNote: The owner's review of 2026-11-19, point 2: the shares in this row's notes (attention 1.2 s, multiplies 0.76 s, elementwise 0.6 s of a 2.65 s pass) date from moss-speed/do, before moss-attention (a pass 2.714 s to 1.918 s) and moss-int8 (2.086 s to 1.72 s with int8 projections, 0.366 s saved, so its path still spends about 0.39 s, its quantization, its product and its epilogue unplaced). Before this row is designed, a pass at 2368 x 1344 is profiled again (Nsight Systems, per kernel) at the head after moss-int8, placing attention, the int8 path's three kernels and the cuBLASLt product, the BF16 multiplies the adapter sections keep, and the elementwise kernels and conversions, and this row's bar is set from that share; its order against moss-int8-adapters is moss-workflow-time's.\n\nNote: SQA-421 and SQA-422 (the review, source at 65255b6d1), speed items whose savings are unmeasured: each executed step of runRotarySampling hands the latent and the prediction to the host for ER-SDE and uploads its result, the terminal step 18.2 MiB for a result already on the card (SQA-421); and the denoiser program holds textGraph.refine, whose inputs are fixed for a branch, so a 50-step request refines the same prompt 50 times (SQA-422). The re-budget profile this row opens with places both (the transfers as copies, the refiner's kernels in each pass), and each becomes a step of this row or its own where its share on the workflow's time earns it.\n\nServes: every MOSS section, and the path to ComfyUI's speed (moss-speed/do's budget)."
+          "rationale": "Note: moss-speed/do measured 0.6 s of a MOSS pass at 2368 x 1344 in elementwise kernels and the precision conversions between them (f32_to_bf16 and bf16_to_f32 alone 7.4 s of the profiled run, broadcast multiplies, RMS norms, adds, slices, the rotary rotation and SiTU), about a fifth of the pass, each a kernel that reads and writes the whole activation. ComfyUI's pass is 0.555 s in all.\n\nThe cure: the chains of elementwise kernels between the matrix multiplies and the attention fuse into kernels that read and write each activation once, the BF16 rounding the graph asks kept where it asks it, shown by the same picture at the same seed against overgo's own before the change.\n\nCheck: a MOSS pass's kernels outside its matrix multiplies and attention take at most 0.2 s at 2368 x 1344, and its final latent at the same request and seed agrees with the unfused one at the agreement BF16 arithmetic keeps.\n\nNote: The path to ComfyUI's speed, part by part (the owner's review of 2026-11-18): a MOSS pass at 2368 x 1344 takes 2.65 s (moss-speed/do) and ComfyUI's 0.555 s (its guided step 1.11 s, two passes). Of overgo's pass, attention takes 1.2 s, the matrix multiplies 0.76 s (BF16, near the card's BF16 peak), and the elementwise kernels and precision conversions 0.6 s; each request also copies the weights again, 33 s. The matrix multiplies alone exceed ComfyUI's whole pass, so no one row closes the gap: ComfyUI runs the workflow's int8 ConvRot file through comfy_kitchen's int8 matrix multiplies (overgo reads the same file and decodes it to BF16, comfyquant) and its own attention backend (comfy kitchen attention). The rows that close it, each owning its share: moss-attention (1.2 s), moss-int8 (0.76 s), moss-fusion (0.6 s), moss-resident (33 s a request). A finished row is read against its share, not against the gap; the gap closes when a pass reads 0.555 s.\n\nA speed change is shown to draw the same picture: its final latent and picture at the same request and seed against overgo's own before the change, at an agreement BF16-equivalent arithmetic keeps (measured, not chosen after), beside the golden floors, which sit 3 dB under readings as low as 1.5 dB and let the 8-bit attention's 1.85 dB loss of picture agreement pass (text to image, 15.11 to 13.26 dB). A change that takes up the workflow's own arithmetic (comfy_kitchen's int8) is shown by its agreement with the recording rising.\n\nNote: The owner's review of 2026-11-19, point 2: the shares in this row's notes (attention 1.2 s, multiplies 0.76 s, elementwise 0.6 s of a 2.65 s pass) date from moss-speed/do, before moss-attention (a pass 2.714 s to 1.918 s) and moss-int8 (2.086 s to 1.72 s with int8 projections, 0.366 s saved, so its path still spends about 0.39 s, its quantization, its product and its epilogue unplaced). Before this row is designed, a pass at 2368 x 1344 is profiled again (Nsight Systems, per kernel) at the head after moss-int8, placing attention, the int8 path's three kernels and the cuBLASLt product, the BF16 multiplies the adapter sections keep, and the elementwise kernels and conversions, and this row's bar is set from that share; its order against moss-int8-adapters is moss-workflow-time's.\n\nNote: SQA-421 and SQA-422 (the review, source at 65255b6d1), speed items whose savings are unmeasured: each executed step of runRotarySampling hands the latent and the prediction to the host for ER-SDE and uploads its result, the terminal step 18.2 MiB for a result already on the card (SQA-421); and the denoiser program holds textGraph.refine, whose inputs are fixed for a branch, so a 50-step request refines the same prompt 50 times (SQA-422). The re-budget profile this row opens with places both (the transfers as copies, the refiner's kernels in each pass), and each becomes a step of this row or its own where its share on the workflow's time earns it.\n\nNote: The re-budget this row opens with, read at 15ecde8d3 after moss-int8-adapters (2026-11-19), at the workflow's own size, 1024 x 576, which the campaign's number is measured at, rather than 2368 x 1344. The workflow's six sections warm took 91.06 s on overgo against ComfyUI's pass-2 34.41 s (113.9 s before the adapters merged): text to image 20.8 s (ComfyUI 9.1), image to image 19.7 (9.0), depth control 23.6 (10.1), text to image Turbo 7.9 (2.0), image to image Turbo 2.5 (2.1), depth control Turbo 16.7 (2.2). Nsight Systems over the depth control section's 100 passes (int8 projections, adapters merged) reads 196 ms of kernels a pass, the pass bound by them: the int8 path 80 ms (cuBLASLt's int8 products 53.5, the epilogue scale_int8_product_bf16_f32 15.5, the activation quantizer 11.3), attention 26.6 ms, the elementwise kernels and conversions 78 ms (bf16_round_f32 19.1 over 401 launches, 252 of them after an int8 product whose epilogue already rounds to BF16; group_slice_f32 13.6; moss_situ_bf16_round_f32 10.5; broadcast_multiply_bf16_round_f32 9.9; rms_norm_mean_bf16_round_f32 9.8; add_bf16_round_f32 5.1; f32_to_bf16 3.7; moss_rotate_bf16_round_f32 3.1; broadcast_add_bf16_round_f32 2.5), and host-to-device copies 8.8 ms a pass. ComfyUI's pass is about 90 ms (text to image's 9.07 s over its 100). The elementwise share, 40% of a pass, is about 25 s over the workflow's 324 passes, the largest share left; this row's bar is set from it: the elementwise kernels and conversions of a pass at 1024 x 576 take at most a third of their 78 ms. Outside the passes, the adapter merges take 15.3 s (depth control 3.4 s, text to image Turbo 5.6, depth control Turbo 6.2; 1.2 to 3.4 s of each on the host) and depth control Turbo's depth estimation about 8 s on the host (vitencoder's Depth Anything loaded and run in float64 each request); each is its own row, ordered after this one by what it saves.\n\nServes: every MOSS section, and the path to ComfyUI's speed (moss-speed/do's budget)."
+        }
+      ]
+    },
+    {
+      "id": "moss-checkpoint-regression",
+      "title": "MOSS's sampling and generation checkpoints hold to the pinned upstream source again: the departure at prediction.0 first logged at f46760944 is traced to its commit and cured",
+      "steps": [
+        {
+          "id": "do",
+          "title": "MOSS's sampling and generation checkpoints hold to the pinned upstream source again: the departure at prediction.0 first logged at f46760944 is traced to its commit and cured",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^(TestMOSSSamplingCheckpoint|TestMOSSGenerationCheckpoint)$'",
+          "files": [
+            "internal/latentimage",
+            "internal/cuda",
+            "internal/tensor",
+            "kernels"
+          ],
+          "rationale": "Note: The owner's review of 2026-11-19, point 1, checked against .overgo-runtime/lanes.log: the slow run at f46760944 logged at 13:57 that TestMOSSSamplingCheckpoint (line 12857) and TestMOSSGenerationCheckpoint (line 12885) fail at prediction.0 of full-english, 129,881 of 524,288 values outside the frozen comparison, the largest 0.047; both passed in every earlier run that reached them (lines 373, 2750, 3184, 5882, each in 5m53s; the failing run took 9 s). The test loads MOSS-Image-SFT, whose weights are BF16, so the departure is in the BF16 path the pinned upstream source fixes. Seven commits between touch the code it runs: 97714132e (moss-attention: the BF16 attention kernel it samples through, and the likeliest, since the run's time fell with it), 5dafd6d23, b11230b4b, 5da20f97b, a8a03e840, a3c83f774, 1ab50872c. The row traces the departure to its commit by running the test at each candidate, and cures it: where the change departs from the upstream source, the code goes back to its arithmetic; where the comparison froze an arithmetic the workflow's own source does not hold, the reference and its bound are restated on that source's evidence.\n\nNote: Traced 2026-11-19 by running TestMOSSSamplingCheckpoint at each end of moss-attention in fresh worktrees: at 328befb0c, its parent, it passes (370 s); at 97714132e it fails as the slow run logged, prediction.0 of full-english, 129,881 values outside the frozen comparison, the largest 0.046875. moss-attention's faster BF16 attention (attention_registers_bf16_f32, scores held in registers) is the departure; moss-attention landed on its picture's agreement, a looser bound than the checkpoint's frozen comparison, and no slow run reached the checkpoint between its landing and f46760944. The cure starts from that kernel's arithmetic against the upstream attention's."
+        }
+      ]
+    },
+    {
+      "id": "moss-int8-epilogue",
+      "title": "A MOSS pass's int8 products, their activation quantization and epilogue included, take at most their part of the pass budget, the product's scales applied in the product as comfy_kitchen's CUTLASS product applies them",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A MOSS pass's int8 products, their activation quantization and epilogue included, take at most their part of the pass budget, the product's scales applied in the product as comfy_kitchen's CUTLASS product applies them",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^TestMOSSInt8ProductsMeetTheirBudget$'",
+          "files": [
+            "internal/cuda",
+            "kernels",
+            "internal/latentimage"
+          ],
+          "rationale": "Note: Filed from the owner's review of 2026-11-19, point 2 (attention, the int8 products' scale epilogue and the per-step copies have no row), with moss-fusion's re-budget at 1024 x 576 (Nsight Systems, a depth control pass, 15ecde8d3 and its fusions in development): the int8 products read 53.5 ms of cuBLASLt kernels a pass beside 15.5 ms of epilogue (scale_int8_product_bf16_f32, a separate kernel writing and rereading the int32 product) and 11.3 ms of activation quantization, where comfy_kitchen runs a CUTLASS int8 product with its dequantization in its epilogue (cutlass_gemm_int8.cu); attention reads 26.6 ms (attention_registers_bf16_f32, 44 launches); and each step hands the latent and the prediction to the host and back (SQA-421), 5.4 to 8.8 ms a pass of host-to-device copies. These rows pay on every one of the workflow's 324 passes, so they run before the rows that pay in one section (moss-merge-time, moss-depth-card). Each row's bar is its part's in the pass budget (moss-fusion/budget), read against ComfyUI's same part."
+        }
+      ]
+    },
+    {
+      "id": "moss-attention-pass",
+      "title": "A MOSS pass's attention takes at most its part of the pass budget, read against ComfyUI's attention at the workflow's size",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A MOSS pass's attention takes at most its part of the pass budget, read against ComfyUI's attention at the workflow's size",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^TestMOSSAttentionMeetsItsBudget$'",
+          "files": [
+            "internal/cuda",
+            "kernels",
+            "internal/latentimage"
+          ],
+          "rationale": "Note: Filed from the owner's review of 2026-11-19, point 2 (attention, the int8 products' scale epilogue and the per-step copies have no row), with moss-fusion's re-budget at 1024 x 576 (Nsight Systems, a depth control pass, 15ecde8d3 and its fusions in development): the int8 products read 53.5 ms of cuBLASLt kernels a pass beside 15.5 ms of epilogue (scale_int8_product_bf16_f32, a separate kernel writing and rereading the int32 product) and 11.3 ms of activation quantization, where comfy_kitchen runs a CUTLASS int8 product with its dequantization in its epilogue (cutlass_gemm_int8.cu); attention reads 26.6 ms (attention_registers_bf16_f32, 44 launches); and each step hands the latent and the prediction to the host and back (SQA-421), 5.4 to 8.8 ms a pass of host-to-device copies. These rows pay on every one of the workflow's 324 passes, so they run before the rows that pay in one section (moss-merge-time, moss-depth-card). Each row's bar is its part's in the pass budget (moss-fusion/budget), read against ComfyUI's same part."
+        }
+      ]
+    },
+    {
+      "id": "moss-step-copies",
+      "title": "A MOSS step keeps its latent and prediction on the card, its ER-SDE step taken there, so a pass copies nothing to the host and back",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A MOSS step keeps its latent and prediction on the card, its ER-SDE step taken there, so a pass copies nothing to the host and back",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^TestMOSSStepsCopyNothingToTheHost$'",
+          "files": [
+            "internal/latentimage",
+            "internal/sampling",
+            "internal/cuda",
+            "kernels"
+          ],
+          "rationale": "Note: Filed from the owner's review of 2026-11-19, point 2 (attention, the int8 products' scale epilogue and the per-step copies have no row), with moss-fusion's re-budget at 1024 x 576 (Nsight Systems, a depth control pass, 15ecde8d3 and its fusions in development): the int8 products read 53.5 ms of cuBLASLt kernels a pass beside 15.5 ms of epilogue (scale_int8_product_bf16_f32, a separate kernel writing and rereading the int32 product) and 11.3 ms of activation quantization, where comfy_kitchen runs a CUTLASS int8 product with its dequantization in its epilogue (cutlass_gemm_int8.cu); attention reads 26.6 ms (attention_registers_bf16_f32, 44 launches); and each step hands the latent and the prediction to the host and back (SQA-421), 5.4 to 8.8 ms a pass of host-to-device copies. These rows pay on every one of the workflow's 324 passes, so they run before the rows that pay in one section (moss-merge-time, moss-depth-card). Each row's bar is its part's in the pass budget (moss-fusion/budget), read against ComfyUI's same part."
+        }
+      ]
+    },
+    {
+      "id": "moss-merge-time",
+      "title": "An adapter section's merges take at most a second in all: each adapter's tensors read once a sampling, one working buffer across its merges, and the file's int8 rows taken from the card where a program holds them",
+      "steps": [
+        {
+          "id": "do",
+          "title": "An adapter section's merges take at most a second in all: each adapter's tensors read once a sampling, one working buffer across its merges, and the file's int8 rows taken from the card where a program holds them",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^TestAdapterSectionsMergeInASecond$'",
+          "files": [
+            "internal/latentimage",
+            "internal/cuda",
+            "internal/graphruntime"
+          ],
+          "rationale": "Note: Read 2026-11-19 at 15ecde8d3 (the workflow warm, temporary timing around bindMerged): each adapter section binds 252 merged weights, taking 3.44 s in depth control (1.20 s preparing on the host), 5.62 s in text to image Turbo (2.96 s) and 6.20 s in depth control Turbo (3.44 s); image to image Turbo reuses text to image Turbo's. On the host each weight's merge reads its int8 rows from the file (4.75 GB a section) and opens, reads and rounds to BF16 each adapter's tensors for it, a fused qkv's up three times (8-steps-dmd2 holds F32, moss_image_sft F16); on the card it uploads those rows, allocates and frees its working memory and waits for the stream, once a weight. ComfyUI's depth control section takes 1.1 s more than its text to image (10.14 against 9.07 s), its merge included. The cure reads each adapter tensor once a sampling, keeps one working buffer across a sampling's merges and waits once, and takes the file's int8 rows from the card where a program holds them; its check reads each adapter section's merges at most a second in all, and the merged rows still ComfyUI's (holdLoRAMerge)."
+        }
+      ]
+    },
+    {
+      "id": "moss-depth-card",
+      "title": "A depth control's map from a picture costs about a second fresh and nothing for a picture and settings already mapped: Depth Anything and the picture encoder held across requests and a map and its control reused as ComfyUI's node cache reuses them, the estimate ported to the card only if it remains the cost",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A depth control's map from a picture costs about a second fresh and nothing for a picture and settings already mapped: Depth Anything and the picture encoder held across requests and a map and its control reused as ComfyUI's node cache reuses them, the estimate ported to the card only if it remains the cost",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^TestADepthMapCostsASecondOnce$'",
+          "files": [
+            "internal/vitencoder",
+            "internal/latentimage",
+            "internal/cuda"
+          ],
+          "rationale": "Note: Read 2026-11-19 at 15ecde8d3 (temporary ledger stages, and Nsight Systems over the warm Turbo sections): depth control Turbo's sampling takes 16.3 s against ComfyUI's whole section's 2.2 s, of which its 8 passes are 1.64 s on the card and its merge 6.05 s; about 8 s more pass with the card idle before the passes, in controlLatent: the request's depth control comes from a picture, so sectionDepth loads Depth Anything V2 Small from its checkpoint (vitencoder.LoadDepthAnything) and estimates the depth on the host in float64 (DepthMap), and encodeUnit builds a picture encoder (a context, its program and the VAE's weights) for the map, each request. The depth control section's request carries the recorded map and skips the estimate. ComfyUI's preprocessor runs the model on the card and keeps it loaded. The cure estimates on the card with the model held across requests, its map the host estimate's at the agreement the map's 8 bits keep, and holds the picture encoder beside the generator; its check reads depth control Turbo's sampling at most its passes and merge plus 0.5 s.\n\nNote: The owner's review of 2026-11-19 re-scopes this row, checked against the recordings: ComfyUI's depth control Turbo runs (pass-1 and pass-2) list as cached the depth preprocessor (366:41, DepthAnythingV2Preprocessor), MOSSImageControl (366:46) and both prompt encodes (366:45, 366:220), so its 2.2 s holds neither the estimate nor the map's encoding; its depth control runs do not list 612:438 (DepthAnythingV2Preprocessor) as cached, and that section took 1.07 s more than text to image (10.14 against 9.07 s), a fresh estimate, its encoding and the merge together. The workflow timing asked overgo the reverse: depth control from the recorded map, depth control Turbo from the picture. The 8 s was also never split between loading Depth Anything (sectionDepth loads it each call), the float64 estimate on the host, and building the picture encoder (encodeUnit builds and closes one each call). The row first splits that time, then holds what is rebuilt across requests, reuses a map, and its control's latent, for the same picture and settings as ComfyUI's node cache reuses a node's output, and ports the estimate to the card only if the estimate itself remains the cost; its check times depth control from its picture, a fresh map at most about a second, and depth control Turbo after it on the same picture, its map and control taken as they were."
+        }
+      ]
+    },
+    {
+      "id": "moss-encoder-own",
+      "title": "MOSS's conditioning is ComfyUI's own: the text model's ConvRot weights decoded as ComfyUI's card decodes them, its states held to ComfyUI's at the agreement read, and the encoder's share of text to image's latent agreement placed",
+      "steps": [
+        {
+          "id": "do",
+          "title": "MOSS's conditioning is ComfyUI's own: the text model's ConvRot weights decoded as ComfyUI's card decodes them, its states held to ComfyUI's at the agreement read, and the encoder's share of text to image's latent agreement placed",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^TestTheUltraEncoderConditionsAsComfyUIDoes$'",
+          "files": [
+            "internal/comfyquant",
+            "internal/latentimage",
+            "fixtures/comfy/moss-ultra"
+          ],
+          "rationale": "Note: The owner's review of 2026-11-19 (the text model is read as BF16 where ComfyUI multiplies it in int8), checked against the Moss install's source: ComfyUI builds a quantized text encoder's operations with mixed_precision_ops(quant_config, dtype, full_precision_mm=True) (comfy/sd1_clip.py, line 114), which MOSS's MOSSImageTEModel and Qwen35ClipModel take, so each of its linears dequantizes its int8 ConvRot weight on the card and multiplies in BF16 (comfy/ops.py linear_input_act and the mixed-precision forward skip the int8 product while _full_precision_mm holds), for the conditioning and for generate alike, which runs the same transformer and operations. overgo reading the text model as the BF16 weights it decodes to is ComfyUI's arithmetic in kind, not a departure from it. Two parts are not ComfyUI's own: overgo decodes the weights exactly in float64 (comfyquant.DecodeRow), where ComfyUI's card decodes them in float32 one radix-4 stage at a time over strides 1, 4, 16 and 64 (comfy_kitchen dequantize_int8_convrot_groups64_kernel, matched bit for bit in moss-int8-adapters), apart in a few elements of each weight by a BF16 step; and its states are held to ComfyUI's only to a token cosine of 0.99 and a relative L2 of 0.05 (TestTheUltraEncoderConditionsAsComfyUIDoes), while how much of text to image's 2.09 dB of latent agreement the encoder accounts for is unmeasured. The row decodes as ComfyUI's card decodes, reads how far overgo's states lie from ComfyUI's and holds them there, and draws text to image with ComfyUI's own conditioning beside overgo's to place the encoder's share of the latent's agreement, so moss-real-prompt sets its floors from conditioning that is ComfyUI's."
         }
       ]
     },

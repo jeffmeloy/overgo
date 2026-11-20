@@ -9,7 +9,7 @@
         {
           "id": "copies",
           "title": "A MOSS pass rounds no value that is already BF16 and copies neither half of its gate-and-up product, its final latent the one it drew before, bit for bit",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^TestTheMOSSPassFusesWithoutChangingABit$'",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^(TestAMOSSPassRoundsNoValueTwice|TestTheMOSSPassFusesWithoutChangingABit)$'",
           "files": [
             "internal/latentimage",
             "internal/cuda",

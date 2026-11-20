@@ -270,31 +270,18 @@
       "actual": "Source trace at 65255b6d1. compileRotaryDenoiserProgram includes textGraph.refine before concatenating text and image rows. Its inputs are fixed for this branch and do not include the latent or timestep. runRotarySampling executes that graph on every step, so this request evaluates the same refinement 50 times. The joint image/text blocks still depend on the changing latent. The count follows from the graph and loop. Elapsed savings are unmeasured."
     },
     {
-      "id": "SQA-424",
-      "severity": "P2",
-      "files": [
-        "internal/modelswap/launcher.go",
-        "internal/processcontrol/supervisor.go",
-        "internal/modelswap/supervisor.go",
-        "internal/processcontrol/job_bound_windows_test.go"
-      ],
-      "input": "Request a cold model swap to a valid split GGUF, then cancel while servableNeed is reading the shard headers. The child binary and store are valid. The same ordering is deterministic in the existing processcontrol fixture if Command.bounded cancels the context before returning a valid bound.",
-      "expected": "If cancellation is already visible when sizing finishes, return context.Canceled with no child created. Have processcontrol.Start check cancellation before setup and again after acquiring its resource lock, immediately before process creation. Keep the existing readiness and cleanup path for a child already started and allow a later live request to launch normally.",
-      "actual": "Source counterexample at f46760944. ServerLauncher finishes sizing and calls Start with the canceled context. Start checks only that the context exists, obtains the bound and calls run.Start. It returns a process handle. In the swap path Ready sees cancellation and Supervisor.load calls Stop on the newly created server. The retained served-need run verifies successful startup and memory limits. This cancellation case was traced in source."
-    },
-    {
       "id": "SQA-425",
       "severity": "P2",
       "files": [
         "internal/mediacapability/image_cuda_windows.go",
         "internal/latentimage/runtime_cuda_windows.go",
-        "internal/latentimage/source_latent_windows.go",
+        "internal/latentimage/profile.go",
         "internal/capabilityruntime/runtime.go",
         "internal/mediacapability/prepared_first_windows_test.go"
       ],
-      "input": "Use recipe run with an active MOSS image recipe, a readable installed adapter, prompt 'a fox', width 1024, height 576, steps -1 and a source image naming a valid file artifact ID. Try once with the PNG in the store and once with its ID missing.",
-      "expected": "Return the existing invalid sampling policy error in both cases, before hashing adapter weights or reading picture bytes. Use latentimage.ValidateRequest at image admission once preset or canvas dimensions are known. Preserve enhancer mode admission, strict decoding, and the content identities of valid requests.",
-      "actual": "Source at 15ecde8d3. Reading runs Contents(pictureFiles) first and hashes the whole adapter. preparedFirst then calls ReadPictures before the director validates steps. A stored PNG is read and base64-encoded for a request that must fail. With the PNG absent, its lookup error masks the invalid sampling policy. The existing stored-picture fixture exercises this path with valid steps."
+      "input": "Use an active MOSS image recipe, prompt 'a fox', 8 steps, an undeclared preset and a syntactically valid file ID for a missing source picture. Compare the request with no dimensions to the same request with width 1024 and height 576. Also try the explicit dimensions with a stored PNG and enhance enabled.",
+      "expected": "Both size forms should return the catalog's unknown-preset error before reading the picture or opening the enhancer. Have MOSS admission propagate the preset error its existing resolver already found. Preserve the content identity of admitted requests and fresh execution when only a reusable file identity is unavailable.",
+      "actual": "Source at d0eaf0f9a. With no dimensions, Sized resolves the preset and rejects it. Explicit dimensions bypass that lookup. Beside later returns the catalog error, but Reading retries as FreshRun. preparedFirst then returns the missing-picture error, or reads a stored PNG and invokes the enhancer for a request with an invalid preset. The landing's retained check verifies the original negative-step case with both stored and absent pictures."
     }
   ],
   "master_lead_triage": {
@@ -302,18 +289,11 @@
     "head": "4955a095c553224984c02256c64f64c77f6f6966",
     "findings": {
   "SQA-425": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "request-admission/do"
         ],
-        "note": "Answered by the lead on 2026-11-19 at 9123f122c: valid from source (Reading hashes the files a request names and preparedFirst reads its pictures before the director's latentimage.ValidateRequest, so an invalid request reads them and a missing picture masks its refusal); filed as its own row ahead of the pass-part rows, since it needs no card and runs while the card is held."
-      },
-  "SQA-424": {
-        "action": "implemented",
-        "rows": [
-          "verdict-steady/do"
-        ],
-        "note": "Answered by the lead on 2026-11-19: valid from source. Implemented 2026-11-19 by verdict-steady/do (9123f122c), for the review's recheck: servableNeed, the sizing a canceled swap waited out, went with the stated and recorded needs, and Start returns its context's end and makes no child when the context ends before the child is made, after its resource lock (TestAStartCanceledAsItIsBoundMakesNoChild)."
+        "note": "Answered by the lead on 2026-11-19 at 9123f122c: valid from source (Reading hashes the files a request names and preparedFirst reads its pictures before the director's latentimage.ValidateRequest, so an invalid request reads them and a missing picture masks its refusal); filed as its own row ahead of the pass-part rows, since it needs no card and runs while the card is held. Implemented 2026-11-19 by request-admission/do (d0eaf0f9a), for the review's recheck."
       },
   "SQA-422": {
         "action": "filed",

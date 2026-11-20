@@ -336,32 +336,6 @@
       "actual": "Source at 9acbc157a. ExecuteCompiled passes the bound device address through. The separate norm-and-rotate kernel reads scalar floats. The fused int8 epilogue casts both table pointers to float4, and the committed PTX issues ld.global.v4.f32 for each. No alignment check covers these tables, so the fused graph issues a 16-byte load at an address that does not meet its alignment requirement. The retained bit comparison supplies host tables that the executor stages at aligned offsets. The device-view case was not run."
     },
     {
-      "id": "SQA-437",
-      "severity": "P2",
-      "files": [
-        "cmd/loop/lanes_on_close.go",
-        "cmd/validate/lanes_first.go",
-        "cmd/validate/run.go",
-        "cmd/validate/test_steps.go",
-        "cmd/validate/lanes_yield_test.go"
-      ],
-      "input": "In a runner-started models lane, let a checkpoint assertion fail in the first package. Name a newer commit due before the second package starts. Read the old commit's final line in lanes.log. Compare with the same handoff when the first package passed.",
-      "expected": "Keep the checkpoint failure visible in the runner's final verdict for the old commit and identify the commit taking over. A clean handoff should report only that the run yielded. Keep credit for completed passing packages in both cases.",
-      "actual": "Source at e0f0917a5. laneVerdict gives the assertion failure precedence over the skipped steps, but yieldTo has already written the handoff marker. runLanesAt replaces every nonzero result with a yield-only summary when the marker names this commit. The failed checkpoint remains in the detailed log. The retained yield check uses a passing first package and does not exercise the runner's mixed verdict. No mixed run was observed."
-    },
-    {
-      "id": "SQA-438",
-      "severity": "P2",
-      "files": [
-        "cmd/validate/run.go",
-        "internal/landing/lanes.go",
-        "cmd/validate/lanes_yield_test.go"
-      ],
-      "input": "Run the models lane with one test in package A followed by three tests in package B. A passes and a newer commit becomes due before B. Count GPU and test-turn acquisitions after the callback for B's first test has recorded the yield.",
-      "expected": "Finish the handoff without acquiring either turn again. Keep A's pass, leave B incomplete, and let the runner start the newer commit. The existing turn owner can stop iterating once the run yields.",
-      "actual": "Source at e0f0917a5. executeMeasured builds a callback for every selected test. A yielded callback returns nil without launching its test. HoldTestTurnEach still wraps each remaining callback in HoldLaneTurn and TakeTurn. In this input B's last two tests take two more GPU turns and two more test turns to do no work. A waiting job can delay the newer commit at each acquisition. The retained yield check supplies neither turn wrapper. Handoff delay was not measured."
-    },
-    {
       "id": "SQA-439",
       "severity": "P2",
       "files": [
@@ -387,39 +361,43 @@
       "input": "Give MOSS Ultra a single adapter containing a nonzero F32 matrix named diffusion_model.layers.0.proj.o.diff, shaped 3072 by 3072 to match the first block's output projection. Use strength 1. Inspect that projection's compiled inputs and compare with strength 0.",
       "expected": "Apply an accepted full weight difference at the requested strength. If a projection cannot apply that patch, reject it before sampling and identify the affected weight. Preserve working norm and bias differences.",
       "actual": "Source counterexample at 19c8144b0. readMediaAdapter accepts the tensor as a difference for layers.0.proj.o.weight. rotaryGraph.projection reads only replacements and low-rank pairs for that int8 matrix. With neither present, both strengths compile the same unmodified product. The ordinary linear path also reads no matrix difference. The adapter reader's retained check covers a norm difference and a bias difference. The three shipped Ultra adapters have no matrix difference in their headers. No draw with this input was run."
+    },
+    {
+      "id": "SQA-441",
+      "severity": "P2",
+      "files": [
+        "internal/latentimage/workflow_time_windows_model_test.go",
+        "docs/plan.json"
+      ],
+      "input": "Start the two-pass MOSS workflow clock from clean commit A. After the test binary starts, let a normal landing advance the same checkout to clean commit B with a changed denoiser. Leave B checked out until the clock appends its result. Read that result with the next MOSS clock step's verifier after its do step has landed.",
+      "expected": "Attribute both passes to the code that ran. The clock verifier for B must decline a timing produced by A. Bind the source identity at build or launch from a pinned revision and carry it through the existing timing recorder. A timing with uncertain source identity cannot establish a committed speed gain.",
+      "actual": "Source counterexample at af97c08e6. TestTheUltraWorkflowIsTimedInItsOrder executes all twelve sections before appendWorkflowTiming reads HEAD and tracked changes. It records B with an empty changed list for timings produced by A. The four remaining MOSS clock verifiers accept that line because its commit equals the checkout's HEAD. Their decisions about the next speed change can therefore use a measurement of different code. Neither retained timing was shown to be misattributed."
     }
   ],
   "master_lead_triage": {
     "at": "2026-11-20",
     "head": "cbdf003cc5e0d974e86a56e8f99bb49b6bdc97a8",
     "findings": {
-  "SQA-440": {
+  "SQA-441": {
         "action": "filed",
+        "rows": [
+          "clock-identity/do"
+        ],
+        "note": "Answered by the lead on 2026-11-20 at f3117025d: valid from source (appendWorkflowTiming reads HEAD and the tree's changed paths after both runs, so a landing during the run is credited with the earlier code's timing, and the remaining clock checks accept it); filed as clock-identity/do ahead of the next clock step, the source read as the timing starts and again before it appends. moss-merge-compute/clock was timed with HEAD read before and after its run, no other session landing."
+      },
+  "SQA-440": {
+        "action": "implemented",
         "rows": [
           "moss-merge-compute/do"
         ],
-        "note": "Answered by the lead on 2026-11-20 at 140f4c175: valid from source (readMediaAdapter keeps a matrix difference for an int8 projection, which rotaryGraph.projection reads neither as a replacement nor as a pair, so the patch is dropped); the workflow's three adapters hold none, so it changes no picture of the workflow; filed with moss-merge-compute/do, which reworks how a section's adapters are read and merged, a projection that cannot take its patch refused before sampling."
+        "note": "Answered by the lead on 2026-11-20 at 140f4c175: valid from source (readMediaAdapter keeps a matrix difference for an int8 projection, which rotaryGraph.projection reads neither as a replacement nor as a pair, so the patch is dropped); the workflow's three adapters hold none, so it changes no picture of the workflow; filed with moss-merge-compute/do, which reworks how a section's adapters are read and merged, a projection that cannot take its patch refused before sampling. Implemented 2026-11-20 by moss-merge-compute/do (f3117025d), a full difference of a matrix refused as the adapter is read, for the review's recheck."
       },
   "SQA-439": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "moss-merge-compute/do"
         ],
-        "note": "Answered by the lead on 2026-11-20 at 140f4c175: valid from source (bf16Tensor opens the adapter file and parses its header for each tensor, 840 opens for text to image Turbo's two adapters, and keeps 819 MiB of rounded tensors reachable after the picture); part of the 3.68 and 5.10 s moss-merge-order's clock found beyond the Turbo sections' passes, so filed with moss-merge-compute/do, whose split reads its share."
-      },
-  "SQA-438": {
-        "action": "implemented",
-        "rows": [
-          "lanes-yield-verdict/do"
-        ],
-        "note": "Answered by the lead on 2026-11-20 at 140f4c175: valid from source (a yielded step returns nil without running, and HoldTestTurnEach still takes the card's turn and the test turn for each step after the yield); filed as lanes-yield-verdict/do, the steps after a yield taking no turn. Implemented 2026-11-20 by lanes-yield-verdict/do (af97c08e6), for the review's recheck."
-      },
-  "SQA-437": {
-        "action": "implemented",
-        "rows": [
-          "lanes-yield-verdict/do"
-        ],
-        "note": "Answered by the lead on 2026-11-20 at 140f4c175: valid from source (runLanesAt says yielded alone whenever the yield record names its commit, though laneVerdict failed a package before the yield); the failure stays in the log, where the lanes watch reads it, but the run's verdict hides it; filed as lanes-yield-verdict/do, a run's failures said beside its yield. Implemented 2026-11-20 by lanes-yield-verdict/do (af97c08e6), for the review's recheck."
+        "note": "Answered by the lead on 2026-11-20 at 140f4c175: valid from source (bf16Tensor opens the adapter file and parses its header for each tensor, 840 opens for text to image Turbo's two adapters, and keeps 819 MiB of rounded tensors reachable after the picture); part of the 3.68 and 5.10 s moss-merge-order's clock found beyond the Turbo sections' passes, so filed with moss-merge-compute/do, whose split reads its share. Implemented 2026-11-20 by moss-merge-compute/do (f3117025d): each adapter file opened once while the sampling merges and closed as it ends, its pairs kept on the card and none on the host, for the review's recheck."
       },
   "SQA-436": {
         "action": "filed",
@@ -558,7 +536,7 @@
       }
 }
   },
-  "next_finding_number": 441,
+  "next_finding_number": 442,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

@@ -4,13 +4,8 @@ package latentimage
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"slices"
-	"strings"
 	"testing"
 	"time"
 
@@ -56,43 +51,22 @@ func workflowSections(t *testing.T) []workflowSection {
 // one writes none.
 const workflowRecordVariable = "OVERGO_WORKFLOW_RECORD"
 
-// workflowSectionTime is one section's figures in a run of the workflow: its wall from request to picture, its
-// sampling, its passes, the bytes it placed on the card, and its recording's wall.
-type workflowSectionTime struct {
-	Section      string `json:"section"`
-	Milliseconds int64  `json:"ms"`
-	SamplingMs   int64  `json:"sampling_ms"`
-	Passes       int    `json:"passes"`
-	PlacedBytes  uint64 `json:"placed_bytes"`
-	ComfyMs      int64  `json:"comfy_ms"`
-}
-
-// workflowRunTime is one run of the six sections, the first beside ComfyUI's pass-1 and the second beside its pass-2.
-type workflowRunTime struct {
-	Recorded     string                `json:"recorded"`
-	Milliseconds int64                 `json:"ms"`
-	ComfyMs      int64                 `json:"comfy_ms"`
-	Sections     []workflowSectionTime `json:"sections"`
-}
-
-// workflowTiming is one timing of the workflow as its record keeps it: the commit it timed, the paths the tree held
-// changed from it, when, and its two runs.
-type workflowTiming struct {
-	Commit  string            `json:"commit"`
-	Changed []string          `json:"changed"`
-	At      string            `json:"at"`
-	Runs    []workflowRunTime `json:"runs"`
-}
-
 // TestTheUltraWorkflowIsTimedInItsOrder reads the MOSS Ultra workflow's whole time on overgo against ComfyUI's
 // (moss-workflow-time, moss-workflow-clock): its six sections, each asked as ComfyUI's run asked it, run in the
 // workflow's order from one session as the served image capability keeps one (a session per picture extent, reset for
 // each request), twice, each section's wall from its request to its picture beside its recording's milliseconds, the
 // first run beside ComfyUI's first (pass-1) and the second beside its second (pass-2), and each section's sampling a
 // pass at a time; the test holds the card's turn alone. The campaign's number is the second run's whole against
-// ComfyUI's pass-2, appended with the commit to the record workflowRecordVariable names. Each section draws a picture.
+// ComfyUI's pass-2, appended to the record workflowRecordVariable names with the commit and changed paths read as the
+// timing starts, and refused where the checkout's commit moved while it ran (appendWorkflowTiming). Each section draws
+// a picture.
 func TestTheUltraWorkflowIsTimedInItsOrder(t *testing.T) {
 	cudatest.Require(t)
+	path, repository := os.Getenv(workflowRecordVariable), testutil.RepoRoot(t)
+	var source workflowSource
+	if path != "" {
+		source = testcheck.Must(readWorkflowSource(repository, path))(t)
+	}
 	ctx := t.Context()
 	root := ultraModelRoot(t)
 	ultraDepth(t, root)
@@ -148,32 +122,8 @@ func TestTheUltraWorkflowIsTimedInItsOrder(t *testing.T) {
 		timing.Runs = append(timing.Runs, times)
 		t.Logf("run %d: the workflow's six sections took %v on overgo, ComfyUI's %s %v", run+1, overgo.Round(time.Millisecond), recorded, comfy)
 	}
-	if path := os.Getenv(workflowRecordVariable); path != "" {
-		appendWorkflowTiming(t, path, timing)
+	if path != "" {
+		testcheck.NoError(t, appendWorkflowTiming(repository, path, source, timing))
+		t.Logf("appended the timing of %s to %s", source.commit, path)
 	}
-}
-
-// appendWorkflowTiming appends timing to the record at path in the repository, one JSON line, with the commit the
-// repository holds and the paths its tree holds changed from it.
-func appendWorkflowTiming(t *testing.T, path string, timing workflowTiming) {
-	t.Helper()
-	repo := testutil.RepoRoot(t)
-	git := func(arguments ...string) string {
-		t.Helper()
-		command := exec.Command("git", arguments...)
-		command.Dir = repo
-		return string(testcheck.Must(command.Output())(t))
-	}
-	timing.Commit = strings.TrimSpace(git("rev-parse", "HEAD"))
-	timing.Changed = []string{}
-	for line := range strings.Lines(git("status", "--porcelain", "--untracked-files=no")) {
-		if changed := strings.TrimSpace(line[min(3, len(line)):]); changed != "" && changed != filepath.ToSlash(path) {
-			timing.Changed = append(timing.Changed, changed)
-		}
-	}
-	line := append(testcheck.Must(json.Marshal(timing))(t), '\n')
-	record := testcheck.Must(os.OpenFile(filepath.Join(repo, filepath.FromSlash(path)), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644))(t)
-	_, err := record.Write(line)
-	testcheck.NoError(t, errors.Join(err, record.Close()))
-	t.Logf("appended the timing of %s to %s", timing.Commit, path)
 }

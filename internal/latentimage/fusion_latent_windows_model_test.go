@@ -49,7 +49,13 @@ func TestTheMOSSPassFusesWithoutChangingABit(t *testing.T) {
 		if !held {
 			continue
 		}
-		request := section.request(t, readComfySection(t, "pass-2", section.slug))
+		recording := readComfySection(t, "pass-2", section.slug)
+		request := section.request(t, recording)
+		if section.slug == "depth-control" {
+			// The pass is held, not the estimate: depth control reads the map made before it, as when its hash was drawn,
+			// where the workflow asks it from its picture (moss-workflow-clock).
+			request, _ = depthControlSection(t, recording)
+		}
 		request.Steps = fusionSteps
 		if generator == nil || generator.Reset(ctx, request) != nil {
 			if generator != nil {

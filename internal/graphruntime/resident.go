@@ -79,6 +79,9 @@ type ResidentSession struct {
 	byBinding   map[residentBinding]int
 	allocations []residentAllocation
 	staticBytes uint64
+	// keeper packs the inputs the session keeps itself (Keep), and kept names them by their allocation.
+	keeper *ResidentProgram
+	kept   map[int]bool
 }
 
 // ResidentProgram owns compiled topology and indexed input slots.
@@ -231,17 +234,62 @@ func (s *ResidentSession) BindMerged(
 	})
 }
 
-// Held is where the session holds an immutable input of source and name in node's type and shape, as an earlier program
-// bound it: a merge reads the weight it merges into there rather than from its file (moss-merge-time).
-func (s *ResidentSession) Held(source, name string, node *tensor.Tensor) (driver.DevicePtr, bool) {
-	if s == nil || node == nil {
-		return 0, false
+// Keep holds an immutable input of source and name in node's type and shape in the session itself, beside the programs
+// that bind it, until the session closes, and gives where it is: one a program has bound already is kept where it is,
+// else payload is placed. A merge reads the weight it merges into there, whatever the programs since have bound merged
+// in its place (moss-merge-order): reading it only where a program still held it as its file does, the workflow's
+// Turbo sections read 5.3 GiB of rows from the file again after a section with other adapters.
+func (s *ResidentSession) Keep(ctx context.Context, source, name string, node *tensor.Tensor, payload func() ([]byte, error)) (driver.DevicePtr, error) {
+	if s == nil || s.worker == nil || s.byBinding == nil || node == nil {
+		return 0, errors.New("resident keeping is unavailable")
 	}
-	index, found := s.byBinding[residentBinding{source: source, name: name, type_: node.Type, shape: node.Shape}]
-	if !found {
-		return 0, false
+	if s.keeper == nil {
+		s.keeper, s.kept = &ResidentProgram{}, map[int]bool{}
 	}
-	return s.allocations[index].pointer, true
+	key := residentBinding{source: source, name: name, type_: node.Type, shape: node.Shape}
+	if index, found := s.byBinding[key]; found {
+		if !s.kept[index] {
+			s.kept[index] = true
+			s.allocations[index].refs++
+		}
+		return s.allocations[index].pointer, nil
+	}
+	bytes, err := node.Shape.Bytes(node.Type)
+	if err != nil {
+		return 0, err
+	}
+	data, err := payload()
+	if err != nil {
+		return 0, err
+	}
+	if uint64(len(data)) != bytes {
+		return 0, fmt.Errorf("resident payload = %d bytes, want %d", len(data), bytes)
+	}
+	var pointer driver.DevicePtr
+	var chunk *residentChunk
+	if err := s.worker.Do(ctx, func(state *device.State) error {
+		placed, held, placeErr := s.keeper.place(state, bytes)
+		if placeErr != nil {
+			return placeErr
+		}
+		if copyErr := state.Driver.MemcpyHtoD(placed, data); copyErr != nil {
+			freed, freeErr := held.drop(state)
+			if freed && held == s.keeper.chunk {
+				s.keeper.chunk = nil
+			}
+			return errors.Join(copyErr, freeErr)
+		}
+		pointer, chunk = placed, held
+		return nil
+	}); err != nil {
+		return 0, err
+	}
+	index := len(s.allocations)
+	s.byBinding[key] = index
+	s.kept[index] = true
+	s.allocations = append(s.allocations, residentAllocation{key: key, pointer: pointer, bytes: bytes, refs: 1, chunk: chunk})
+	s.staticBytes += bytes
+	return pointer, nil
 }
 
 // residentFill writes an input's bytes where it is placed on the card, on the worker's turn.
@@ -521,6 +569,7 @@ func (s *ResidentSession) Close(ctx context.Context) error {
 	}
 	s.allocations = nil
 	s.byBinding = nil
+	s.keeper, s.kept = nil, nil
 	s.staticBytes = uint64(tensor.FirstOffset)
 	return errors.Join(errs...)
 }

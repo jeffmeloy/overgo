@@ -7,17 +7,6 @@
       "title": "In the workflow's order each Turbo section merges its adapters from the base int8 rows the session keeps on the card, whatever the section before it merged: text to image Turbo after depth control and depth control Turbo after image to image Turbo each place at most twice their adapters' bytes, where they placed 5.32 and 5.65 GiB and about 12 s of the workflow beyond their passes",
       "steps": [
         {
-          "id": "do",
-          "title": "In the workflow's order each Turbo section merges its adapters from the base int8 rows the session keeps on the card, whatever the section before it merged: text to image Turbo after depth control and depth control Turbo after image to image Turbo each place at most twice their adapters' bytes, where they placed 5.32 and 5.65 GiB and about 12 s of the workflow beyond their passes",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^TestTheTurboSectionsMergeFromHeldWeightsInTheWorkflowsOrder$'",
-          "files": [
-            "internal/latentimage",
-            "internal/graphruntime",
-            "internal/cuda"
-          ],
-          "rationale": "Note: Found by moss-workflow-clock's first timing (6395092b4, docs/verification/moss-workflow-time.jsonl), warm, against ComfyUI's pass-2: the workflow takes 64.7 s against 34.41 s, 30.3 s apart, of which text to image Turbo is 6.04 s (8.01 against 1.96 s) and depth control Turbo 7.11 s (9.31 against 2.21 s). Each places on the card 5.32 and 5.65 GiB in its sampling, which takes 6.82 and 8.01 s for 8 passes where image to image Turbo's 8 take 1.41 s (0.176 s a pass): about 5.4 and 6.6 s beyond their passes, in their merges. moss-merge-time (28390a169) read the int8 rows a merge patches where a program the session holds bound them from the file (ResidentSession.Held), and its check counted a request merging moss_image_sft after a request without it (TestASecondMOSSRequestCopiesNoWeights, at most twice the adapter's bytes); in the workflow's order each Turbo section follows a section with adapters of its own (text to image Turbo after depth control's moss-control, depth control Turbo after image to image Turbo), so the rows its merges read are held merged, not as the file holds them, and are read from the file again. ComfyUI's model patcher keeps the base weights it patches and patches again from them. The row merges each section's adapters from the base int8 rows the session keeps on the card, whatever the section before merged, and its check counts it in the workflow's order: each Turbo section, after the section the workflow runs before it, places on the card at most twice its adapters' bytes. About 12 s of the workflow, the largest share the clock shows, so it runs before the pass rows (moss-int8-epilogue's 6.9 s)."
-        },
-        {
           "id": "clock",
           "title": "The workflow is timed whole at moss-merge-order's commit, like for like and the card's turn held, and the timing appended to the record (moss-workflow-clock)",
           "verify": "git log --format=%s -n 200 | grep -qF 'moss-merge-order/do:' \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF \"\\\"commit\\\":\\\"$(git rev-parse HEAD)\\\"\"",

@@ -78,8 +78,10 @@ func TestASecondMOSSRequestCopiesNoWeights(t *testing.T) {
 // stand (moss-merge-time/identity): over a copy of the MOSS Ultra workflow's model whose moss_image_sft is its own file,
 // a request naming the adapter merges it into the int8 projections it patches, the next request naming it copies under
 // a quarter of that, the merge kept, and a request after the file is replaced under its name, one bit of its last value
-// changed, merges it again. The merge had been kept under the adapter's path, and the replaced file was answered with
-// the earlier file's merge (SQA-406's fault in the merge's place).
+// changed, merges it again, copying the replaced file's pairs, at least half its bytes and over four times the kept
+// request's, the weights it merges into staying on the card (moss-merge-order). The merge had been kept under the
+// adapter's path, and the replaced file was answered with the earlier file's merge (SQA-406's fault in the merge's
+// place).
 func TestAKeptMergeFollowsItsAdaptersContent(t *testing.T) {
 	cudatest.Require(t)
 	ctx := t.Context()
@@ -111,10 +113,10 @@ func TestAKeptMergeFollowsItsAdaptersContent(t *testing.T) {
 	testcheck.Must(file.WriteAt(last, size-4))(t)
 	testcheck.NoError(t, file.Close())
 	replaced := copied()
-	t.Logf("requests naming the adapter copied %d bytes, then %d, then %d after its file was replaced", merged, kept, replaced)
-	if kept*4 >= merged || replaced*4 < merged*3 {
-		t.Errorf("requests naming the adapter copied %d, %d and, its file replaced under its name, %d bytes; want its merge kept, then made again from the replaced file",
-			merged, kept, replaced)
+	t.Logf("requests naming the adapter copied %d bytes, then %d, then %d after its file of %d bytes was replaced", merged, kept, replaced, size)
+	if kept*4 >= merged || replaced*2 < uint64(size) || replaced < 4*kept {
+		t.Errorf("requests naming the adapter copied %d, %d and, its file of %d bytes replaced under its name, %d bytes; want its merge kept, then made again from the replaced file's pairs",
+			merged, kept, size, replaced)
 	}
 }
 

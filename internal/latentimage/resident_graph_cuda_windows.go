@@ -40,8 +40,8 @@ func compileResidentWeights(
 }
 
 // bindMerged binds each projection a compiled program reads with adapters' pairs merged into its int8 weight
-// (mergedProjection) as the merge on the card makes it from the transformer's file at sourcePath (convRotMerge), each
-// adapter at its strength. It is held under the transformer's path, each merged adapter's content and strength, and
+// (mergedProjection) as the merge on the card makes it (convRotMerge), each adapter at its strength, from the int8 weight
+// the session keeps on the card as the transformer's file at sourcePath holds it (ResidentSession.Keep). It is held under the transformer's path, each merged adapter's content and strength, and
 // the weight's name, so a later sampling with those adapters at those strengths takes it as it is, and one whose
 // adapter file was replaced under its name merges it again (moss-merge-time/identity): held under the adapter's path,
 // it answered a replaced file with the earlier file's merge (SQA-406's fault in the merge's place).
@@ -70,9 +70,18 @@ func bindMerged(ctx context.Context, session *graphruntime.ResidentSession, prog
 			identity.WriteString(fmt.Sprintf("+%s@%g", adapters[pair.adapter].content, strengths[pair.adapter]))
 		}
 		name := projection.input.Name
-		// The weight it merges into is read where a program the session holds bound it from the same file, else from it.
-		held, _ := session.Held(sourcePath, name, projection.input)
 		if err := session.BindMerged(ctx, program, identity.String(), name, projection.input, func() (executor.Int8ConvRotMerge, error) {
+			// The weight it merges into is the one the session keeps on the card as the file holds it, bound by an
+			// earlier program or read from the file the first time alone, whatever the programs since bound merged
+			// (moss-merge-order).
+			payload, err := residentPayload(source, projection.input)
+			if err != nil {
+				return executor.Int8ConvRotMerge{}, err
+			}
+			held, err := session.Keep(ctx, sourcePath, name, projection.input, payload)
+			if err != nil {
+				return executor.Int8ConvRotMerge{}, err
+			}
 			return convRotMerge(source, name, pairs, held)
 		}); err != nil {
 			return fmt.Errorf("%s: %s: %w", label, name, err)

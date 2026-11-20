@@ -301,6 +301,20 @@
     "at": "2026-11-19",
     "head": "4955a095c553224984c02256c64f64c77f6f6966",
     "findings": {
+  "SQA-425": {
+        "action": "filed",
+        "rows": [
+          "request-admission/do"
+        ],
+        "note": "Answered by the lead on 2026-11-19 at 9123f122c: valid from source (Reading hashes the files a request names and preparedFirst reads its pictures before the director's latentimage.ValidateRequest, so an invalid request reads them and a missing picture masks its refusal); filed as its own row ahead of the pass-part rows, since it needs no card and runs while the card is held."
+      },
+  "SQA-424": {
+        "action": "implemented",
+        "rows": [
+          "verdict-steady/do"
+        ],
+        "note": "Answered by the lead on 2026-11-19: valid from source. Implemented 2026-11-19 by verdict-steady/do (9123f122c), for the review's recheck: servableNeed, the sizing a canceled swap waited out, went with the stated and recorded needs, and Start returns its context's end and makes no child when the context ends before the child is made, after its resource lock (TestAStartCanceledAsItIsBoundMakesNoChild)."
+      },
   "SQA-422": {
         "action": "filed",
         "rows": [

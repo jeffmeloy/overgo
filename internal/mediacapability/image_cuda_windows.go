@@ -129,7 +129,20 @@ func pictureFiles(path, raw string) ([]string, error) {
 	if strictjson.DecodeBytes([]byte(raw), &request) != nil {
 		return nil, nil
 	}
+	if _, err := admitted(path, request); err != nil {
+		return nil, nil
+	}
 	return request.Beside(path)
+}
+
+// admitted is a latent picture request sized as its session takes it (latentimage Request.Sized), or the refusal its
+// session would give it (latentimage.Admit), before any file it names is read (SQA-425).
+func admitted(path string, request latentimage.Request) (latentimage.Request, error) {
+	sized, err := request.Sized(path)
+	if err != nil {
+		return latentimage.Request{}, err
+	}
+	return sized, latentimage.Admit(sized)
 }
 
 // preparedFirst prepares a latent picture request ahead of its session: a request stating no size is given its
@@ -139,14 +152,15 @@ func pictureFiles(path, raw string) ([]string, error) {
 // prompt and negative written by the model's enhancer chat (latentimage.EnhanceRequest). It is served as the request
 // stating what was given, read and written, and an input needing none of them goes to the session as it is. A request is
 // read as strictly as the session reads it, so one the session would refuse (an unknown or repeated member) reaches the
-// session as it came and is refused there, nothing read and no chat opened for it (SQA-408).
+// session as it came and is refused there, nothing read and no chat opened for it (SQA-408); one it reads that the
+// session would refuse once sized is refused here as the session would refuse it, nothing read (admitted).
 func preparedFirst(next capabilityruntime.Executor) capabilityruntime.Executor {
 	return func(ctx context.Context, store artifact.Repository, path string, selection modelrecipe.CapabilityEvidenceSelection, input string) (any, error) {
 		var request latentimage.Request
 		if err := strictjson.DecodeBytes([]byte(input), &request); err != nil {
 			return next(ctx, store, path, selection, input)
 		}
-		sized, err := request.Sized(path)
+		sized, err := admitted(path, request)
 		if err != nil {
 			return nil, err
 		}

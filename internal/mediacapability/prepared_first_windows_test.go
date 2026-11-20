@@ -5,12 +5,15 @@ package mediacapability
 import (
 	"context"
 	"encoding/base64"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/capabilityruntime"
 	"overgo/internal/latentimage"
 	"overgo/internal/media"
 	"overgo/internal/modelrecipe"
@@ -78,7 +81,7 @@ func TestAStoredPictureReachesItsSessionAsItsBytes(t *testing.T) {
 		return "drawn", nil
 	}
 	run := preparedFirst(session)
-	named := `{"prompt":"a fox","width":1024,"height":576,"image":"` + picture.Descriptor.ID.String() + `","denoise":0.72,"control":{"map":"` + depth.Descriptor.ID.String() + `","start":0.1}}`
+	named := `{"prompt":"a fox","width":1024,"height":576,"image":"` + picture.Descriptor.ID.String() + `","denoise":0.72,"control":{"map":"` + depth.Descriptor.ID.String() + `","start":0.1},"adapter":"moss-control"}`
 	if got := testcheck.Must(run(t.Context(), store, "", modelrecipe.CapabilityEvidenceSelection{}, named))(t); got != "drawn" || len(reached) != 1 {
 		t.Fatalf("the request naming stored pictures gave %v and reached the session %d times", got, len(reached))
 	}
@@ -95,10 +98,11 @@ func TestAStoredPictureReachesItsSessionAsItsBytes(t *testing.T) {
 	}
 	absent := testcheck.Must(artifact.IdentifyBytes(artifact.KindFile, []byte("never stored")))(t)
 	record := testcheck.Must(artifact.IdentifyBytes(artifact.KindEvaluation, []byte("a record")))(t)
-	for _, refused := range []string{`{"prompt":"a fox","image":"` + absent.String() + `"}`, `{"prompt":"a fox","control":{"map":"` + record.String() + `"}}`} {
+	for _, refused := range []string{`{"prompt":"a fox","width":1024,"height":576,"image":"` + absent.String() + `"}`,
+		`{"prompt":"a fox","width":1024,"height":576,"control":{"map":"` + record.String() + `"},"adapter":"moss-control"}`} {
 		before := len(reached)
-		if _, err := run(t.Context(), store, "", modelrecipe.CapabilityEvidenceSelection{}, refused); err == nil || len(reached) != before {
-			t.Errorf("%s was taken (%v) or reached the session", refused, err)
+		if _, err := run(t.Context(), store, "", modelrecipe.CapabilityEvidenceSelection{}, refused); err == nil || len(reached) != before || !strings.Contains(err.Error(), "stored") {
+			t.Errorf("%s was taken (%v) or reached the session; want it refused for its picture", refused, err)
 		}
 	}
 
@@ -137,7 +141,7 @@ func TestAPictureRequestAskingNoEnhancingGoesToItsSessionAsItIs(t *testing.T) {
 		reached = append(reached, input)
 		return "drawn", nil
 	}
-	inputs := []string{`{"prompt":"a fox","width":1024,"height":576}`, `{"prompt":"a fox","enhance":false}`, `not a request`,
+	inputs := []string{`{"prompt":"a fox","width":1024,"height":576}`, `{"prompt":"a fox","width":1024,"height":576,"enhance":false}`, `not a request`,
 		`{"enhance":true,"prompt":"a fox","width":1024,"height":576,"stepps":1}`, `{"enhance":true,"prompt":"a fox","steps":1,"steps":50}`}
 	for _, input := range inputs {
 		if got := testcheck.Must(preparedFirst(session)(t.Context(), nil, "", modelrecipe.CapabilityEvidenceSelection{}, input))(t); got != "drawn" {
@@ -148,5 +152,43 @@ func TestAPictureRequestAskingNoEnhancingGoesToItsSessionAsItIs(t *testing.T) {
 		if reached[index] != input {
 			t.Errorf("the session took %q, want %q as it came", reached[index], input)
 		}
+	}
+}
+
+// TestAnInvalidRequestIsRefusedBeforeItsFilesAreRead holds SQA-425: a MOSS request with steps of -1, naming its adapter
+// and its picture by its stored identity, is refused for its sampling policy, as its session would refuse it, whether
+// the picture is stored or not, before the session and before any file it names is read: no file is named for the
+// adapter's content (pictureFiles), where the same request with its steps admitted names the adapter's. A request
+// asking prompt mode 2 beside a layout is refused as its enhancement refuses it.
+func TestAnInvalidRequestIsRefusedBeforeItsFilesAreRead(t *testing.T) {
+	store := overgodbtest.Open(t, t.TempDir())
+	data := []byte("a picture")
+	stored := artifact.Content{Descriptor: artifact.Descriptor{ID: testcheck.Must(artifact.IdentifyBytes(artifact.KindFile, data))(t), Size: uint64(len(data)), MediaType: "image/png"}, Data: data}
+	testcheck.Must(artifact.Publish(t.Context(), store, artifact.Batch{Key: "fixture/refused-picture", Artifacts: []artifact.Descriptor{stored.Descriptor}, Contents: []artifact.Content{stored}}))(t)
+	absent := testcheck.Must(artifact.IdentifyBytes(artifact.KindFile, []byte("never stored")))(t)
+	reached := 0
+	session := func(context.Context, artifact.Repository, string, modelrecipe.CapabilityEvidenceSelection, string) (any, error) {
+		reached++
+		return "drawn", nil
+	}
+	serve := capabilityruntime.Reading(preparedFirst(session), capabilityruntime.Contents(pictureFiles))
+	root := t.TempDir()
+	request := func(steps int, picture artifact.ID) string {
+		return fmt.Sprintf(`{"prompt":"a fox","width":1024,"height":576,"steps":%d,"adapter":"moss-control","image":%q}`, steps, picture.String())
+	}
+	for _, picture := range []artifact.ID{stored.Descriptor.ID, absent} {
+		if _, err := serve(t.Context(), store, root, modelrecipe.CapabilityEvidenceSelection{}, request(-1, picture)); err == nil || err.Error() != "latent image: invalid sampling policy" || reached != 0 {
+			t.Errorf("a request with steps of -1 and its picture %s was refused with %v, the session reached %d times; want its sampling policy refused before the session", picture, err, reached)
+		}
+		if files := testcheck.Must(pictureFiles(root, request(-1, picture)))(t); len(files) != 0 {
+			t.Errorf("a request with steps of -1 named %v for its content; want none read", files)
+		}
+	}
+	if files := testcheck.Must(pictureFiles(root, request(8, stored.Descriptor.ID)))(t); len(files) != 1 || filepath.Base(files[0]) != "moss-control.safetensors" {
+		t.Errorf("an admitted request named %v for its content; want its adapter", files)
+	}
+	layout := `{"enhance":true,"width":1024,"height":576,"layout":{"high_level_description":"a fox"}}`
+	if _, err := serve(t.Context(), store, root, modelrecipe.CapabilityEvidenceSelection{}, layout); err == nil || reached != 0 || !strings.Contains(err.Error(), "prompt mode 2") {
+		t.Errorf("a request asking prompt mode 2 beside a layout was refused with %v, the session reached %d times; want the enhancement's refusal", err, reached)
 	}
 }

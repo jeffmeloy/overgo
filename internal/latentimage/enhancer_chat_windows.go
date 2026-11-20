@@ -42,12 +42,7 @@ func EnhanceRequest(ctx context.Context, open EnhancerOpener, modelDir string, r
 	if !request.Enhance {
 		return request, nil
 	}
-	if request.Layout != nil {
-		return Request{}, errEnhanceBesideLayout
-	}
-	enhanced := request
-	enhanced.Enhance = false
-	if err := ValidateRequest(enhanced); err != nil {
+	if err := Admit(request); err != nil {
 		return Request{}, err
 	}
 	chat, closeChat, err := open(ctx, filepath.Join(modelDir, enhancerDirectory))

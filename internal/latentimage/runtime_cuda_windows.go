@@ -199,6 +199,20 @@ func admitPicture(ctx context.Context, session *graphruntime.ResidentSession, to
 	})
 }
 
+// Admit refuses a request its picture session would refuse, as it will reach the session: one asking prompt mode 2 as
+// its enhancement leaves it (EnhanceRequest), the rest as they are (ValidateRequest). The image capability admits a
+// request so before it reads a file the request names (SQA-425): a request with steps of -1 read and encoded its stored
+// picture, and hashed its adapter, before its session refused it, and with its picture missing was refused for that.
+func Admit(request Request) error {
+	if request.Enhance {
+		if request.Layout != nil {
+			return errEnhanceBesideLayout
+		}
+		request.Enhance = false
+	}
+	return ValidateRequest(request)
+}
+
 func ValidateRequest(request Request) error {
 	if request.Enhance {
 		if request.Layout != nil {

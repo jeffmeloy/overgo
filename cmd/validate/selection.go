@@ -102,6 +102,9 @@ type Plan struct {
 	// (lanes-first/yield): the run then runs nothing further, its packages that passed kept. Only a run a runner starts
 	// is given one (plan.LanesDueEnvironment); a run without it runs to its end.
 	Yields func() (string, bool) `json:"-"`
+	// Yielded keeps, once the lanes end, that the run yielded to the commit it names and the lanes it failed before
+	// (SQA-437), for the runner to say beside the yield.
+	Yielded func(to string, failures []string) error `json:"-"`
 }
 
 // measuredModelsFile lists the models a full run measures again, by the names -model takes: one per runtime path,

@@ -120,33 +120,45 @@ func (f lanesFirst) rank(pkg, name string) int {
 	return len(f.checks) + 1
 }
 
-// yieldTo is the Yields of a run a runner starts (lanes-first/yield): the commit the due file at due names, where it
-// is another than the run's own, which the runner names due as a newer close lands; the run's record of yielding is
-// written beside the file first (plan.LanesYielded), and a run that cannot write it does not yield.
-func yieldTo(ctx context.Context, root, due string) func() (string, bool) {
-	head, headErr := gitauthority.Query(ctx, root, "rev-parse", "HEAD")
-	own := strings.TrimSpace(string(head))
-	return func() (string, bool) {
-		var named struct {
-			Commit string `json:"commit"`
-		}
-		if headErr != nil || own == "" || jsonfile.Decode(due, &named) != nil || named.Commit == "" || named.Commit == own {
-			return "", false
-		}
-		record := plan.LanesYielded{Commit: own, To: named.Commit}
-		if jsonfile.Write(filepath.Join(filepath.Dir(due), plan.LanesYieldedFile), record, clioptions.PrivateFileMode) != nil {
-			return "", false
-		}
-		return named.Commit, true
-	}
+// runnerYield is the yield of a run a runner starts to the commit its due file names (lanes-first/yield): the run's own
+// commit, the due file, and the reading of the run's own commit.
+type runnerYield struct {
+	own, due string
+	headErr  error
 }
 
-// lanesYield is the Yields of the run a runner started, which names its due file in plan.LanesDueEnvironment
-// (yieldTo); a run no runner started runs to its end.
-func lanesYield(ctx context.Context, root string) func() (string, bool) {
+// yieldTo is the yield of a run at root to the commit the due file at due names.
+func yieldTo(ctx context.Context, root, due string) runnerYield {
+	head, err := gitauthority.Query(ctx, root, "rev-parse", "HEAD")
+	return runnerYield{own: strings.TrimSpace(string(head)), due: due, headErr: err}
+}
+
+// yields is the commit the due file names, where it is another than the run's own, which the runner names due as a
+// newer close lands.
+func (y runnerYield) yields() (string, bool) {
+	var named struct {
+		Commit string `json:"commit"`
+	}
+	if y.headErr != nil || y.own == "" || jsonfile.Decode(y.due, &named) != nil || named.Commit == "" || named.Commit == y.own {
+		return "", false
+	}
+	return named.Commit, true
+}
+
+// yielded writes the run's record of yielding to to beside the due file, with the lanes it failed before
+// (plan.LanesYielded), which the runner reads to say how the run ended.
+func (y runnerYield) yielded(to string, failures []string) error {
+	record := plan.LanesYielded{Commit: y.own, To: to, Failures: failures}
+	return jsonfile.Write(filepath.Join(filepath.Dir(y.due), plan.LanesYieldedFile), record, clioptions.PrivateFileMode)
+}
+
+// lanesYield is the yield of the run a runner started, which names its due file in plan.LanesDueEnvironment
+// (yieldTo); a run no runner started runs to its end, given neither.
+func lanesYield(ctx context.Context, root string) (func() (string, bool), func(string, []string) error) {
 	due := os.Getenv(plan.LanesDueEnvironment)
 	if due == "" {
-		return nil
+		return nil, nil
 	}
-	return yieldTo(ctx, root, due)
+	yield := yieldTo(ctx, root, due)
+	return yield.yields, yield.yielded
 }

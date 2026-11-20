@@ -14,7 +14,7 @@ import (
 // TestALanesRunYieldsAtAPackageToANewerClose holds a run of the lanes a runner starts to yielding, as a lane turns to
 // another package, to a newer commit named due (lanes-first/yield): a lane of two fixture packages whose newer commit
 // is named due once the first has run runs the first and not the second, keeps the first's pass and not the lane's,
-// and ends yielded, not failed; and a runner's yield reads the due file against the run's own commit, writing its
+// and ends yielded, not failed; and a runner's yield reads the due file against the run's own commit, and writes its
 // record beside the file. moss-attention/do landed at 00:46 on 2026-11-19 while a run at an older commit ran on for 11
 // hours.
 func TestALanesRunYieldsAtAPackageToANewerClose(t *testing.T) {
@@ -46,16 +46,17 @@ func TestALanesRunYieldsAtAPackageToANewerClose(t *testing.T) {
 	}
 
 	due := filepath.Join(t.TempDir(), "lanes_due.json")
-	yields := yieldTo(t.Context(), root, due)
+	yield := yieldTo(t.Context(), root, due)
 	testcheck.NoError(t, os.WriteFile(due, []byte(`{"commit":"`+head+`","rows":["fixture"]}`), 0o644))
-	if to, yield := yields(); yield {
+	if to, yields := yield.yields(); yields {
 		t.Errorf("a run yielded to %q, its own commit named due; want it to run on", to)
 	}
 	testcheck.NoError(t, os.WriteFile(due, []byte(`{"commit":"a-newer-close","rows":["fixture"]}`), 0o644))
-	to, yield := yields()
+	to, yields := yield.yields()
+	testcheck.NoError(t, yield.yielded(to, nil))
 	data, readErr := os.ReadFile(filepath.Join(filepath.Dir(due), plan.LanesYieldedFile))
-	if !yield || to != "a-newer-close" || readErr != nil || !strings.Contains(string(data), head) {
+	if !yields || to != "a-newer-close" || readErr != nil || !strings.Contains(string(data), head) {
 		t.Errorf("a run with a newer commit named due yielded %t to %q, its record %q (%v); want it yielded to that commit, its record naming its own %s",
-			yield, to, data, readErr, head)
+			yields, to, data, readErr, head)
 	}
 }

@@ -393,6 +393,34 @@
     "at": "2026-11-20",
     "head": "cbdf003cc5e0d974e86a56e8f99bb49b6bdc97a8",
     "findings": {
+  "SQA-440": {
+        "action": "filed",
+        "rows": [
+          "moss-merge-compute/do"
+        ],
+        "note": "Answered by the lead on 2026-11-20 at 140f4c175: valid from source (readMediaAdapter keeps a matrix difference for an int8 projection, which rotaryGraph.projection reads neither as a replacement nor as a pair, so the patch is dropped); the workflow's three adapters hold none, so it changes no picture of the workflow; filed with moss-merge-compute/do, which reworks how a section's adapters are read and merged, a projection that cannot take its patch refused before sampling."
+      },
+  "SQA-439": {
+        "action": "filed",
+        "rows": [
+          "moss-merge-compute/do"
+        ],
+        "note": "Answered by the lead on 2026-11-20 at 140f4c175: valid from source (bf16Tensor opens the adapter file and parses its header for each tensor, 840 opens for text to image Turbo's two adapters, and keeps 819 MiB of rounded tensors reachable after the picture); part of the 3.68 and 5.10 s moss-merge-order's clock found beyond the Turbo sections' passes, so filed with moss-merge-compute/do, whose split reads its share."
+      },
+  "SQA-438": {
+        "action": "filed",
+        "rows": [
+          "lanes-yield-verdict/do"
+        ],
+        "note": "Answered by the lead on 2026-11-20 at 140f4c175: valid from source (a yielded step returns nil without running, and HoldTestTurnEach still takes the card's turn and the test turn for each step after the yield); filed as lanes-yield-verdict/do, the steps after a yield taking no turn."
+      },
+  "SQA-437": {
+        "action": "filed",
+        "rows": [
+          "lanes-yield-verdict/do"
+        ],
+        "note": "Answered by the lead on 2026-11-20 at 140f4c175: valid from source (runLanesAt says yielded alone whenever the yield record names its commit, though laneVerdict failed a package before the yield); the failure stays in the log, where the lanes watch reads it, but the run's verdict hides it; filed as lanes-yield-verdict/do, a run's failures said beside its yield."
+      },
   "SQA-436": {
         "action": "filed",
         "rows": [

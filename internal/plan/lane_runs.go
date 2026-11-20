@@ -89,8 +89,11 @@ const LanesDueEnvironment = "OVERGO_LANES_DUE"
 // and the newer commit it yielded to.
 const LanesYieldedFile = "lanes_yielded.json"
 
-// LanesYielded is a run of the lanes that yielded: the commit it ran at, and the commit due it yielded to.
+// LanesYielded is a run of the lanes that yielded: the commit it ran at, the commit due it yielded to, and the lanes it
+// failed before it yielded.
 type LanesYielded struct {
 	Commit string `json:"commit"`
 	To     string `json:"to"`
+	// Failures are the lanes that failed before the run yielded, which its verdict says beside the yield (SQA-437).
+	Failures []string `json:"failures,omitempty"`
 }

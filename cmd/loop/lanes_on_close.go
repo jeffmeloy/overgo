@@ -214,6 +214,10 @@ func runLanesAt(root, checkout string, due lanesDue, output io.Writer, run func(
 		var yielded plan.LanesYielded
 		if jsonfile.Decode(yieldedRecord, &yielded) == nil && yielded.Commit == due.Commit {
 			verdict = fmt.Sprintf("yielded to %.12s, a newer commit due, as a lane turned to another package, its passed packages kept", yielded.To)
+			// A run that failed before it yielded did not pass: its failures are said beside the yield (SQA-437).
+			if len(yielded.Failures) > 0 {
+				verdict = "did not pass: " + strings.Join(yielded.Failures, "; ") + "; then " + verdict
+			}
 		}
 	}
 	fmt.Fprintf(output, "loop: %s the lanes at %.12s %s after %s\n", time.Now().Format(time.DateTime), due.Commit, verdict, time.Since(began).Round(time.Second))

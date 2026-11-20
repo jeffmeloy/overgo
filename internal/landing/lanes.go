@@ -376,25 +376,34 @@ var testTurn = func() string { return "overgo-test-turn" }
 // inside outer, which holds what the step needs beside it and is taken first (a lane on the card holds the card's
 // turn): a package that took the test turn and then waited 20 min 47 s for the card held the turn idle, and a commit's
 // tests, which do not use the card, waited the whole of it (lanes-card-order). It runs every step, and answers their
-// errors together; a turn it cannot take ends it.
+// errors together; a turn it cannot take ends it, and so does a step that answers ErrNoMoreSteps, which takes no turn
+// for the steps after it.
 func HoldTestTurnEach(purpose string, outer func(work func() error) error, steps []func() error) error {
 	var failed error
 	for index, step := range steps {
-		var taking error
+		var taking, stopped error
 		failed = errors.Join(failed, outer(func() error {
 			name := testTurn()
 			release, err := processcontrol.TakeTurn(name, fmt.Sprintf("%s, %d of %d", purpose, index+1, len(steps)), os.Stderr)
 			if taking = err; err != nil {
 				return err
 			}
-			return errors.Join(step(), processcontrol.YieldTurn(name, release))
+			ran := step()
+			if errors.Is(ran, ErrNoMoreSteps) {
+				stopped, ran = ran, nil
+			}
+			return errors.Join(ran, processcontrol.YieldTurn(name, release))
 		}))
-		if taking != nil {
+		if taking != nil || stopped != nil {
 			return failed
 		}
 	}
 	return failed
 }
+
+// ErrNoMoreSteps is what a step of HoldTestTurnEach answers when the steps after it are not to run: a run of the lanes
+// that yielded to a newer commit due takes no turn of the card or the machine for steps it will not run (SQA-438).
+var ErrNoMoreSteps = errors.New("no more steps")
 
 // testInTurn runs the commit's tests in the test turn, after any package of a cycle lane that holds it ends, so the
 // commit's tests have the machine's commit to themselves (testTurn).

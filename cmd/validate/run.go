@@ -224,6 +224,8 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 	acquired := 0
 	// acquiredOf counts each model's cells, which say when a trained model has had its one measurement.
 	acquiredOf := map[artifact.ID]int{}
+	// broken are the failures that are no yield, which a run that yielded keeps beside its yield (SQA-437).
+	var broken []string
 	record := func(subject string, err error) {
 		switch {
 		case err == nil:
@@ -232,6 +234,9 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 			inapplicable = append(inapplicable, fmt.Sprintf("%s: %v", subject, err))
 		default:
 			failed = append(failed, fmt.Sprintf("%s: %v", subject, err))
+			if !errors.Is(err, errYielded) {
+				broken = append(broken, fmt.Sprintf("%s: %v", subject, err))
+			}
 		}
 	}
 	// yielded is the newer commit due the run yielded to as a lane turned to another package (Plan.Yields,
@@ -267,8 +272,11 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 					}
 				}
 				if yielded != "" {
-					verdicts[index] = fmt.Errorf("%w %.12s", errYielded, yielded)
-					return nil
+					// This step and the rest are yielded, and no turn is taken for them (SQA-438).
+					for rest := index; rest < len(steps); rest++ {
+						verdicts[rest] = fmt.Errorf("%w %.12s", errYielded, yielded)
+					}
+					return landing.ErrNoMoreSteps
 				}
 				last = step.pkg
 				report, err := acquire(ctx, output, root, "go", step.arguments, suite.Environment...)
@@ -307,6 +315,11 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 		}
 		if kept := keepLaneRun(ctx, plan.LanesKept, root, suite.Lane, err == nil, packages, reports...); kept != nil {
 			fmt.Fprintf(output, "validate -run: the cycle lane %s's end is not kept: %v\n", suite.Lane, kept)
+		}
+	}
+	if yielded != "" && plan.Yielded != nil {
+		if err := plan.Yielded(yielded, broken); err != nil {
+			fmt.Fprintf(output, "validate -run: the run's yield to %.12s is not kept: %v\n", yielded, err)
 		}
 	}
 	if len(failed)+len(inapplicable) > 0 && len(cells) > 0 {
@@ -617,11 +630,15 @@ func requiredPass(report testevidence.GoTestReport, packages []string, selected 
 }
 
 // inNoTurn runs each step inside outer and in no turn of the machine, as a test's lanes run (Plan.TakesTurns), and
-// answers their errors together.
+// answers their errors together; a step that answers landing.ErrNoMoreSteps ends it, as it ends HoldTestTurnEach.
 func inNoTurn(_ string, outer func(work func() error) error, steps []func() error) error {
 	var failed error
 	for _, step := range steps {
-		failed = errors.Join(failed, outer(step))
+		ran := outer(step)
+		if errors.Is(ran, landing.ErrNoMoreSteps) {
+			break
+		}
+		failed = errors.Join(failed, ran)
 	}
 	return failed
 }

@@ -360,6 +360,33 @@
       "input": "Run the models lane with one test in package A followed by three tests in package B. A passes and a newer commit becomes due before B. Count GPU and test-turn acquisitions after the callback for B's first test has recorded the yield.",
       "expected": "Finish the handoff without acquiring either turn again. Keep A's pass, leave B incomplete, and let the runner start the newer commit. The existing turn owner can stop iterating once the run yields.",
       "actual": "Source at e0f0917a5. executeMeasured builds a callback for every selected test. A yielded callback returns nil without launching its test. HoldTestTurnEach still wraps each remaining callback in HoldLaneTurn and TakeTurn. In this input B's last two tests take two more GPU turns and two more test turns to do no work. A waiting job can delay the newer commit at each acquisition. The retained yield check supplies neither turn wrapper. Handoff delay was not measured."
+    },
+    {
+      "id": "SQA-439",
+      "severity": "P2",
+      "files": [
+        "internal/latentimage/int8_merge.go",
+        "internal/latentimage/generator_rotary_windows.go",
+        "internal/latentimage/resident_graph_cuda_windows.go",
+        "internal/safetensors/source.go",
+        "internal/latentimage/merge_order_windows_model_test.go"
+      ],
+      "input": "Start a fresh MOSS Ultra generator and draw image-to-image Turbo with the recorded DMD2 and SFT adapters, no merges cached. Leave the generator resident after decode. Count adapter catalog reads during joint-projection merging and the BF16 pair payloads still reachable afterward.",
+      "expected": "Read each adapter catalog once for the merge and retain shared pair tensors only while the sampling needs them. End the sampling with its temporary host buffers released while keeping the reusable device weights. Preserve adapter content identity, order, strengths and merged bits.",
+      "actual": "Source and installed file headers at 19c8144b0. DMD2 contributes 504 distinct joint-projection tensors (567 MiB in BF16) and SFT 336 (252 MiB). Each first bf16Tensor lookup calls OpenFile, which reopens the adapter and parses its complete header. That is 840 opens for two catalogs during a cold merge. All 819 MiB remain reachable through g.rotary.adapters after decode. configureRotary discards these maps when the next request is configured. The transfer check counts device uploads. Host working set and seconds saved were not measured."
+    },
+    {
+      "id": "SQA-440",
+      "severity": "P2",
+      "files": [
+        "internal/latentimage/media_adapter.go",
+        "internal/latentimage/rotary_refinement.go",
+        "internal/latentimage/rotary_joint.go",
+        "internal/latentimage/media_adapter_test.go"
+      ],
+      "input": "Give MOSS Ultra a single adapter containing a nonzero F32 matrix named diffusion_model.layers.0.proj.o.diff, shaped 3072 by 3072 to match the first block's output projection. Use strength 1. Inspect that projection's compiled inputs and compare with strength 0.",
+      "expected": "Apply an accepted full weight difference at the requested strength. If a projection cannot apply that patch, reject it before sampling and identify the affected weight. Preserve working norm and bias differences.",
+      "actual": "Source counterexample at 19c8144b0. readMediaAdapter accepts the tensor as a difference for layers.0.proj.o.weight. rotaryGraph.projection reads only replacements and low-rank pairs for that int8 matrix. With neither present, both strengths compile the same unmodified product. The ordinary linear path also reads no matrix difference. The adapter reader's retained check covers a norm difference and a bias difference. The three shipped Ultra adapters have no matrix difference in their headers. No draw with this input was run."
     }
   ],
   "master_lead_triage": {
@@ -503,7 +530,7 @@
       }
 }
   },
-  "next_finding_number": 439,
+  "next_finding_number": 441,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

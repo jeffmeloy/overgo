@@ -35,6 +35,21 @@ var comfyLevels = func() (levels [UnitLevels + 1]uint8) {
 	return levels
 }()
 
+// CropLikeComfyUI is the part of a picture of inputWidth by inputHeight that ComfyUI's ImageScale keeps for a canvas
+// of width by height with a centre crop, before it scales it (ScaleLikeComfyUI): the margins off the left and the top,
+// and the width and height left between them, refused where a side is not positive or the crop leaves no picture.
+func CropLikeComfyUI(inputWidth, inputHeight, width, height int) (left, top, croppedWidth, croppedHeight int, err error) {
+	if !checked.PositiveInts(width, height, inputWidth, inputHeight) {
+		return 0, 0, 0, 0, fmt.Errorf("media: scale a %dx%d picture to %dx%d: sides must be positive", inputWidth, inputHeight, width, height)
+	}
+	left, top = centreCrop(inputWidth, inputHeight, width, height)
+	croppedWidth, croppedHeight = inputWidth-2*left, inputHeight-2*top
+	if croppedWidth <= 0 || croppedHeight <= 0 {
+		return 0, 0, 0, 0, errors.New("media: the centre crop leaves no picture")
+	}
+	return left, top, croppedWidth, croppedHeight, nil
+}
+
 // ScaleLikeComfyUI is picture scaled to width by height as ComfyUI's ImageScale scales it at lanczos with a centre
 // crop: its 8-bit RGB levels, a row's pixels after another's. A picture is read as LoadImage converts it to RGB, its
 // alpha dropped; its EXIF orientation is not applied, nor JPEG decoded as Pillow decodes it, so a PNG without one is
@@ -42,13 +57,9 @@ var comfyLevels = func() (levels [UnitLevels + 1]uint8) {
 func ScaleLikeComfyUI(picture image.Image, width, height int) ([]uint8, error) {
 	bounds := picture.Bounds()
 	inputWidth, inputHeight := bounds.Dx(), bounds.Dy()
-	if !checked.PositiveInts(width, height, inputWidth, inputHeight) {
-		return nil, fmt.Errorf("media: scale a %dx%d picture to %dx%d: sides must be positive", inputWidth, inputHeight, width, height)
-	}
-	left, top := centreCrop(inputWidth, inputHeight, width, height)
-	croppedWidth, croppedHeight := inputWidth-2*left, inputHeight-2*top
-	if croppedWidth <= 0 || croppedHeight <= 0 {
-		return nil, errors.New("media: the centre crop leaves no picture")
+	left, top, croppedWidth, croppedHeight, err := CropLikeComfyUI(inputWidth, inputHeight, width, height)
+	if err != nil {
+		return nil, err
 	}
 	levels := make([]uint8, croppedWidth*croppedHeight*RGBChannels)
 	for y := range croppedHeight {

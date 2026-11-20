@@ -3,23 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "picture-sections",
-      "title": "A request's pictures are admitted and held as their sources say: a crop that leaves nothing refused at full denoise as at partial, Depth Anything held by its checkpoint's content and read again for changed bytes, the session's peak device bytes read across the generator's workers, and the picture encoder keeping its bound program alone (SQA-406, SQA-432, SQA-434, SQA-435)",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A request's pictures are admitted and held as their sources say: a crop that leaves nothing refused at full denoise as at partial, Depth Anything held by its checkpoint's content and read again for changed bytes, the session's peak device bytes read across the generator's workers, and the picture encoder keeping its bound program alone (SQA-406, SQA-432, SQA-434, SQA-435)",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^TestThePictureSectionsHoldWhatTheirSourcesSay$'",
-          "files": [
-            "internal/latentimage",
-            "internal/media",
-            "internal/vitencoder"
-          ],
-          "rationale": "Note: The review of moss-depth-card (cbdf003cc) and moss-source-skip (c50d72687), answered by the lead on 2026-11-20, each valid from source: pictureSections.depthCard keeps the depth model it first read whenever one is held, so a checkpoint replaced under its name maps a warm session's pictures with the old weights under the new bytes' identity (SQA-406, reopened); a picture at sigma 1 is decoded but not scaled since moss-source-skip, so a crop that leaves no rows starts sampling where a partial denoise refuses it (SQA-432); Generator.PeakDeviceBytes reads the rotary session's worker alone while the picture encoder and the depth model hold their own workers through the sampling (SQA-434); and PictureEncoder keeps its graph's host weight slices and its encoder's operations after their upload, for the session (SQA-435). None changes the workflow's time, so the row follows moss-elementwise, the fixes small and in the code moss-depth-card wrote. Its check counts where a count can say it: the depth model read again for changed bytes and not for the same ones (models loaded), the crop refused before any encoder is built, the peak read across the workers held, and the encoder's host bytes after its upload."
-        }
-      ]
-    },
-    {
       "id": "moss-int8-epilogue",
       "title": "A MOSS pass's int8 products, their activation quantization and epilogue included, take at most their part of the pass budget, the product's scales applied in the product as comfy_kitchen's CUTLASS product applies them",
       "steps": [

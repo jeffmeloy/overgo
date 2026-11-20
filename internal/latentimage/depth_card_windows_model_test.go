@@ -29,7 +29,7 @@ func TestADepthMapCostsASecondOnce(t *testing.T) {
 	ultraDepth(t, root)
 	const width, height = 1024, 576
 	control := DepthControl{Picture: base64.StdEncoding.EncodeToString(ultraPictureBytes(t))}
-	sections := newPictureSections(root, width, height)
+	sections := newPictureSections(root, width, height, nil)
 	t.Cleanup(func() { testcheck.NoError(t, sections.close(context.WithoutCancel(ctx))) })
 	controlled := func(which string) ([]float32, uint64, uint64) {
 		t.Helper()

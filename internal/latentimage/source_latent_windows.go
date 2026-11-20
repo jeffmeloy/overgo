@@ -20,8 +20,9 @@ import (
 // request samples its whole schedule from noise alone, as before; otherwise as ComfyUI's flow models start a sampling
 // (model_sampling CONST.noise_scaling), σ₀ times the noise plus 1 − σ₀ times the latent of the request's picture, or
 // none, each product rounded to float32 before the sum. A picture a schedule starts at σ₀ of 1 weighs nothing, so it is
-// read, and refused as a picture would be, but not encoded (SQA-429): the image to image section's recording starts at
-// 1, and its source encode built the VAE's encoder for a latent multiplied by zero, the start the noise either way.
+// read, and refused as a picture or its crop would be, but not scaled or encoded (SQA-429, SQA-432): the image to
+// image section's recording starts at 1, and its source encode built the VAE's encoder for a latent multiplied by
+// zero, the start the noise either way.
 func (g *Generator) startLatent(ctx context.Context, noise []float32) ([]float32, error) {
 	if g.request.Image == "" && !g.request.cutsSchedule() {
 		return noise, nil
@@ -30,7 +31,13 @@ func (g *Generator) startLatent(ctx context.Context, noise []float32) ([]float32
 	rest := 1 - sigma
 	var latent []float32
 	if g.request.Image != "" && rest == 0 {
-		if _, err := requestPNG(g.request.Image, "picture"); err != nil {
+		picture, err := requestPNG(g.request.Image, "picture")
+		if err != nil {
+			return nil, err
+		}
+		// Its crop is checked as its scaling would check it, without the scaling (SQA-432).
+		bounds := picture.Bounds()
+		if _, _, _, _, err := media.CropLikeComfyUI(bounds.Dx(), bounds.Dy(), g.request.Width, g.request.Height); err != nil {
 			return nil, err
 		}
 	} else if g.request.Image != "" {
@@ -93,7 +100,7 @@ func (s *pictureSections) sectionDepth(ctx context.Context, picture image.Image)
 	for index, level := range levels {
 		unit[index] = float32(level) / media.UnitLevels
 	}
-	estimator, err := s.depthCard()
+	estimator, err := s.depthCard(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -136,7 +143,7 @@ func DepthPreview(root string, request Request) (_ EncodedImage, err error) {
 	if filled.Width <= 0 || filled.Height <= 0 {
 		return EncodedImage{}, fmt.Errorf("latent image: a depth preview needs the request's size, not %d x %d", filled.Width, filled.Height)
 	}
-	sections := newPictureSections(root, filled.Width, filled.Height)
+	sections := newPictureSections(root, filled.Width, filled.Height, nil)
 	ctx := context.Background()
 	defer func() { err = errors.Join(err, sections.close(ctx)) }()
 	depth, err := sections.controlDepth(ctx, *filled.Control)

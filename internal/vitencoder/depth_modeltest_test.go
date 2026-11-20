@@ -4,6 +4,7 @@ package vitencoder
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -17,6 +18,7 @@ import (
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/dataroot"
+	"overgo/internal/graphruntime"
 	"overgo/internal/media"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -50,8 +52,10 @@ func TestDepthMapIsWithinOneLevelOfTheRecordedOne(t *testing.T) {
 func TestTheCardsDepthMapIsWithinOneLevelOfTheRecordedOne(t *testing.T) {
 	cudatest.Require(t)
 	model := testcheck.Must(LoadDepthAnything(filepath.Join(testutil.ModelArtifactDir(t, "depth-anything-v2-small"), "depth_anything_v2_vits.pth")))(t)
-	card := testcheck.Must(model.OpenCard(device.DefaultOrdinal()))(t)
-	t.Cleanup(func() { testcheck.NoError(t, card.Close()) })
+	session := testcheck.Must(graphruntime.NewResidentSession(device.DefaultOrdinal()))(t)
+	t.Cleanup(func() { testcheck.NoError(t, session.Close(context.Background())) })
+	card := model.OpenCard(session)
+	t.Cleanup(func() { testcheck.NoError(t, card.Close(context.Background())) })
 	holdDepthMapToTheRecording(t, func(unit []float32, height, width, resolution int) ([]uint8, int, int, error) {
 		began := time.Now()
 		defer func() { t.Logf("the card's map took %v", time.Since(began).Round(time.Millisecond)) }()

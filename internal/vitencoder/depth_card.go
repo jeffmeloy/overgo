@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"sync"
 
-	"overgo/internal/cuda/executor"
+	"overgo/internal/graphruntime"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
@@ -16,28 +16,25 @@ import (
 // program compiled the first time the size is asked for and its weights put there with it in F32 (moss-depth-card):
 // the host's estimate took 7.8 s of a depth control's map at 1024 x 576, its attention and the head's convolutions
 // about 90% of 24 cores. The host prepares and embeds the picture and resizes the estimate as the host's DepthMap does;
-// the card gives the depth Depth gives, at F32's rounding.
+// the card gives the depth Depth gives, at F32's rounding. Its programs run in a resident session another holds, so
+// that one device ledger counts what both hold (SQA-434).
 type DepthCard struct {
-	cardDevice
 	model    *DepthModel
+	session  *graphruntime.ResidentSession
 	mu       sync.Mutex
 	programs map[[2]int]*depthProgram
 }
 
 // depthProgram is one input size's program: the embedded rows it reads and the depth it gives.
 type depthProgram struct {
-	compiled        *executor.CompiledGraph
-	inputs          *executor.DeviceInputs
+	resident        *graphruntime.ResidentProgram
 	embedded, depth *tensor.Tensor
 }
 
-// OpenCard puts the model on the device of ordinal.
-func (m *DepthModel) OpenCard(ordinal int) (*DepthCard, error) {
-	opened, err := openCardDevice(ordinal)
-	if err != nil {
-		return nil, err
-	}
-	return &DepthCard{cardDevice: opened, model: m, programs: map[[2]int]*depthProgram{}}, nil
+// OpenCard puts the model in a session another holds: its programs run there, and its Close releases them and leaves
+// the session open.
+func (m *DepthModel) OpenCard(session *graphruntime.ResidentSession) *DepthCard {
+	return &DepthCard{model: m, session: session, programs: map[[2]int]*depthProgram{}}
 }
 
 // DepthMap is the model's DepthMap with its depth read on the card.
@@ -61,15 +58,16 @@ func (c *DepthCard) depth(ctx context.Context, pixels []float32, height, width i
 	rows, columns := height/g.PatchSize, width/g.PatchSize
 	position := dinoPositions(m.encoder.position, m.trained, rows, columns, g.Hidden, m.spec.PositionOffset)
 	embedded := m.encoder.embed(pixels, rows, columns, position)
-	out, err := c.executor.ExecuteCompiled(ctx, program.compiled,
-		map[*tensor.Tensor]reference.Value{program.embedded: {Shape: program.embedded.Shape, Data: embedded}}, program.inputs)
+	out, err := c.session.Execute(ctx, program.resident,
+		map[*tensor.Tensor]reference.Value{program.embedded: {Shape: program.embedded.Shape, Data: embedded}})
 	if err != nil {
 		return nil, fmt.Errorf("vitencoder depth card: %w", err)
 	}
 	return finite(out[program.depth].Data)
 }
 
-// program is the compiled program of an input of height by width, compiled the first time that size is asked for.
+// program is the compiled program of an input of height by width, compiled and its weights bound the first time that
+// size is asked for, under a source of the size's own: the head's interpolation weights are the size's.
 func (c *DepthCard) program(ctx context.Context, height, width int) (*depthProgram, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -80,14 +78,29 @@ func (c *DepthCard) program(ctx context.Context, height, width int) (*depthProgr
 	if err != nil {
 		return nil, err
 	}
-	if program.compiled, err = executor.Compile(program.depth); err != nil {
+	label := fmt.Sprintf("vitencoder depth %dx%d", width, height)
+	if program.resident, err = c.session.Compile(ctx, label, nil, program.depth); err != nil {
 		return nil, fmt.Errorf("vitencoder depth card: %w", err)
 	}
-	if program.inputs, err = c.upload(ctx, program.compiled, weights); err != nil {
-		return nil, err
+	for node, values := range weights {
+		if err := c.session.BindF32(ctx, program.resident, label, node, values); err != nil {
+			return nil, errors.Join(fmt.Errorf("vitencoder depth card: %s: %w", node.Name, err), c.session.Release(context.WithoutCancel(ctx), program.resident))
+		}
 	}
 	c.programs[[2]int{height, width}] = program
 	return program, nil
+}
+
+// Close releases the card's programs and their weights from its session.
+func (c *DepthCard) Close(ctx context.Context) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	programs := make([]*graphruntime.ResidentProgram, 0, len(c.programs))
+	for _, program := range c.programs {
+		programs = append(programs, program.resident)
+	}
+	clear(c.programs)
+	return c.session.Release(context.WithoutCancel(ctx), programs...)
 }
 
 // cardGraph is the graph of the depth of an input of height by width, the embedded rows it reads and the depth it

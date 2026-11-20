@@ -68,7 +68,7 @@ func TestImageToImageMeetsItsSectionFloor(t *testing.T) {
 		}
 	}
 
-	sections := newPictureSections(root, section.Width, section.Height)
+	sections := newPictureSections(root, section.Width, section.Height, nil)
 	defer func() { testcheck.NoError(t, sections.close(context.WithoutCancel(ctx))) }()
 	encoded := testcheck.Must(sections.sourceLatent(ctx, section.Image))(t)
 	cosine, relative := latentAgreement(encoded, latent(imageToImageEncode))

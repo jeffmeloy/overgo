@@ -396,11 +396,11 @@
         "note": "Answered by the lead on 2026-11-20 at cbdf003cc: valid from source (Generator.PeakDeviceBytes reads the rotary session's worker alone, and the picture encoder and the depth model hold their own workers through the sampling since moss-depth-card); filed as picture-sections/do, the peak read across the generator's workers."
       },
   "SQA-433": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "moss-elementwise/do"
         ],
-        "note": "Answered by the lead on 2026-11-20 at cbdf003cc: valid, reproduced (a head norm two rotary embeddings read compiled to 2 launches, the second rotation reading heads no launch computed); taken in moss-elementwise/do, whose int8 epilogue builds on the norm and rotation fold, where the fold asks that the embedding's own three reads be the heads' only ones (TestANormTwoRotationsReadIsComputedForBoth, 3 launches)."
+        "note": "Answered by the lead on 2026-11-20 at cbdf003cc: valid, reproduced (a head norm two rotary embeddings read compiled to 2 launches, the second rotation reading heads no launch computed); taken in moss-elementwise/do, whose int8 epilogue builds on the norm and rotation fold, where the fold asks that the embedding's own three reads be the heads' only ones (TestANormTwoRotationsReadIsComputedForBoth, 3 launches). Implemented by moss-elementwise/do (9acbc157a)."
       },
   "SQA-432": {
         "action": "filed",

@@ -152,11 +152,13 @@
         "internal/capabilityruntime/session_director.go",
         "internal/latentimage/runtime_cuda_windows.go",
         "internal/latentimage/media_adapter.go",
-        "internal/latentimage/source_latent_windows.go"
+        "internal/latentimage/source_latent_windows.go",
+        "internal/latentimage/picture_sections_windows.go",
+        "internal/vitencoder/depth.go"
       ],
-      "input": "On a fixed-seed MOSS cache miss naming moss_image_sft, install the missing adapter after Contents checks its path and before modelAdapter opens it. Remove it after the draw and repeat the request. Separately, start with the adapter present and issue a cache miss for the same model.",
-      "expected": "Picture admission rejects a missing required adapter or depth estimator before replay or model loading. A supplied depth map needs no estimator. For a present adapter, use the content ID already computed from the held file for the resident merge, preserving adapter order and strengths. A direct generator without an admitted ID still identifies the file it opens.",
-      "actual": "Source at 5d7cb490b. Contents hashes the marker 'absent' for a missing file. The first draw can use the newly installed adapter and store its picture under that key. The repeat can return the picture before opening the missing adapter. A control picture has the same gap for its depth estimator. With the adapter present, Contents hashes the entire file but passes only the combined digest. readMediaAdapter calls fileContent to hash the same held bytes again. For the 285,329,336-byte adapter recorded at 8b21aba9d this costs one extra full host read per such bind."
+      "input": "In a held MOSS depth-control session at 1024x576, draw from a picture using a valid estimator. Between requests replace its checkpoint at the same path with a zero-byte file, then repeat with a cache miss. Separately, install a missing named adapter between Contents and modelAdapter, remove it after the draw and repeat. For a present moss_image_sft, trace its hashes on a cache miss.",
+      "expected": "Reject missing required weights before replay or loading. Use the admitted file's content ID for its resident binding: keep the depth model for identical bytes, reload a changed checkpoint and propagate its loader error. Keep the VAE resident and allow a supplied depth map without an estimator. Reuse the adapter's admitted ID in its ordered, strength-sensitive merge. A direct generator must still identify its inputs.",
+      "actual": "Source at cbdf003cc. Contents hashes the empty replacement into the new run key, but pictureSections.depthCard returns its existing estimator whenever s.depth is set. The warm draw uses the old weights under the replacement's identity. A cold draw reaches LoadDepthAnything and rejects the empty archive. For an absent file Contents instead hashes 'absent', so an adapter installed after naming can produce a result replayable after removal. For a present adapter, Contents passes only the combined digest and readMediaAdapter hashes the file again, one extra 285,329,336-byte host read for the recorded moss_image_sft."
     },
     {
       "id": "SQA-410",
@@ -344,12 +346,69 @@
       "input": "Compile two rotary outputs from the same weighted, BF16-rounded native-mean RMS norm. Use the 128 x 3 x 12 head shape from TestAQueryNormAndItsRotationFoldIntoOneKernel. Give each rotation its own slice and multiply nodes and its own cosine and sine inputs. Keep only the two rotated tensors as graph outputs.",
       "expected": "Compute the shared normalized heads once and keep them available to both rotations. Fuse the norm into a rotation only when that rotation is its sole remaining reader. Both outputs should match the graph that also retains the norm, bit for bit.",
       "actual": "Source counterexample at 9b40546f8. applyMOSSRotaryRewrite replaces both rotation chains and marks their original readers skipped. applyMOSSNormRotaryRewrite takes those skipped readers as proof of exclusive use. The first rotation absorbs the norm and marks its output skipped. The second rotation still names that output as its input. compileDependencies drops the skipped operand and the executor emits no launch to produce it. The retained check covers one rotation with and without an explicit norm output. No failing GPU run was observed."
+    },
+    {
+      "id": "SQA-434",
+      "severity": "P2",
+      "files": [
+        "internal/latentimage/runtime_cuda_windows.go",
+        "internal/latentimage/picture_sections_windows.go",
+        "internal/latentimage/vae_encoder_windows.go",
+        "internal/vitencoder/card.go",
+        "internal/capabilityruntime/measured.go",
+        "internal/server/generation_store_workspace.go"
+      ],
+      "input": "Serve a 1024x576 MOSS depth control from a picture through the generation workspace on an otherwise idle GPU. Use a cache miss and compare the serving observation's peak_device_bytes with concurrent device allocations across the rotary, picture-encoder and depth workers during that draw.",
+      "expected": "Record the peak bytes held at the same time by the generator's workers. Exclude earlier jobs and unrelated sessions in the server. Keep replay's peak absent.",
+      "actual": "Source at cbdf003cc. Generator.PeakDeviceBytes reads only g.rotary.runtime. Its worker reports its own driver allocation ledger. The picture encoder and depth model have separate workers that remain allocated through sampling and decoding. measure marks the single-worker reading as measured and the generation workspace publishes it. The retained depth-control check measured 1.25 GiB still held by the picture sections in isolation. That figure is not a measured difference between serving peaks."
+    },
+    {
+      "id": "SQA-435",
+      "severity": "P2",
+      "files": [
+        "internal/latentimage/picture_sections_windows.go",
+        "internal/latentimage/vae_encoder_windows.go",
+        "internal/latentimage/vae_encoder.go",
+        "internal/latentimage/vae_program.go",
+        "internal/latentimage/resident_graph_cuda_windows.go"
+      ],
+      "input": "Complete a MOSS picture-derived depth control at 1024x576, then keep its generator open for the next request at the same size. Trace the Go slices reachable through the resident picture encoder after its first successful upload.",
+      "expected": "Keep the bound GPU program, its input and output nodes, geometry and the batch statistics used by normalizedLatent. Release the host weight slices used only to construct and bind the encode graph. A second picture should use the same GPU weights and produce the same latent.",
+      "actual": "Source at cbdf003cc. NewPictureEncoder uploads graph.feeds through compileResidentStatic, then retains both graph.feeds[].data and encoder.CodecProgram.Operations in the generator's picture sections until close. Subsequent Encode calls use the bound program, dimensions and normalization values. Neither operation weights nor feed payloads are read again. The retained check records 131.3 MiB of static GPU weights for this encoder. Distinct host bytes retained were not measured."
     }
   ],
   "master_lead_triage": {
-    "at": "2026-11-19",
-    "head": "4955a095c553224984c02256c64f64c77f6f6966",
+    "at": "2026-11-20",
+    "head": "cbdf003cc5e0d974e86a56e8f99bb49b6bdc97a8",
     "findings": {
+  "SQA-435": {
+        "action": "filed",
+        "rows": [
+          "picture-sections/do"
+        ],
+        "note": "Answered by the lead on 2026-11-20 at cbdf003cc: valid from source (PictureEncoder keeps its graph, whose feeds hold the VAE encoder's weights as host slices, and its encoder's operations after compileResidentStatic has put them on the card, and the held sections keep the encoder for the session); filed as picture-sections/do, the encoder keeping its bound program, geometry and statistics alone."
+      },
+  "SQA-434": {
+        "action": "filed",
+        "rows": [
+          "picture-sections/do"
+        ],
+        "note": "Answered by the lead on 2026-11-20 at cbdf003cc: valid from source (Generator.PeakDeviceBytes reads the rotary session's worker alone, and the picture encoder and the depth model hold their own workers through the sampling since moss-depth-card); filed as picture-sections/do, the peak read across the generator's workers."
+      },
+  "SQA-433": {
+        "action": "filed",
+        "rows": [
+          "moss-elementwise/do"
+        ],
+        "note": "Answered by the lead on 2026-11-20 at cbdf003cc: valid, reproduced (a head norm two rotary embeddings read compiled to 2 launches, the second rotation reading heads no launch computed); taken in moss-elementwise/do, whose int8 epilogue builds on the norm and rotation fold, where the fold asks that the embedding's own three reads be the heads' only ones (TestANormTwoRotationsReadIsComputedForBoth, 3 launches)."
+      },
+  "SQA-432": {
+        "action": "filed",
+        "rows": [
+          "picture-sections/do"
+        ],
+        "note": "Answered by the lead on 2026-11-20 at cbdf003cc: valid from source (since moss-source-skip a picture at sigma 1 is decoded but not scaled, so a crop that leaves no rows starts sampling where a partial denoise refuses it); filed as picture-sections/do, the crop's geometry checked as media.ScaleLikeComfyUI checks it without resampling."
+      },
   "SQA-431": {
         "action": "deferred",
         "rows": [],
@@ -470,16 +529,17 @@
         "note": "Reopened by the lead's recheck on 2026-11-13: run-from-files/do and recipe-state made the first repair, whose tests pass at f110d30b1, but the review's evidence names three publication owners that still read recipe state at publication and drop a lookup error, so an empty Verification earns the legacy path and a later activation can replace execution-time state. execution-state/do carries the state read at execution to publication. Implemented 2026-11-16 by execution-state/do (f7338b9b0), for the review's recheck."
       },
   "SQA-406": {
-        "action": "implemented",
+        "action": "filed",
         "rows": [
           "adapter-identity/do",
-          "beside-content/do"
+          "beside-content/do",
+          "picture-sections/do"
         ],
-        "note": "Answered by the lead on 2026-11-17 at 496a0f87d: filed as its own row after the owner's workflow rows and small fixes; the adapter's bytes are bound where the image source resolves the request, the replay and session owners kept. The review's extension to the depth estimator a control picture reads is taken in the same step (2026-11-18): the picture director keys a run by the content of every file a request reads beside its model's components, its preset's adapters among them (latentimage Request.Beside). Implemented by adapter-identity/do (fe5d0849f). Reopened by the review at fe5d0849f and answered by the lead on 2026-11-18: both points valid from source (the digest cache trusted path, size and time, and the session reopens a file after its naming), and the binding duplicated capabilityruntime.Reading; filed as beside-content/do, which serves the picture through Reading with Contents over the request's files, reads each whole for every request and holds it, sharing reading alone, until the request is served. Implemented 2026-11-18 by beside-content/do (4d1e4ea3c), for the review's recheck."
+        "note": "Answered by the lead on 2026-11-17 at 496a0f87d: filed as its own row after the owner's workflow rows and small fixes; the adapter's bytes are bound where the image source resolves the request, the replay and session owners kept. The review's extension to the depth estimator a control picture reads is taken in the same step (2026-11-18): the picture director keys a run by the content of every file a request reads beside its model's components, its preset's adapters among them (latentimage Request.Beside). Implemented by adapter-identity/do (fe5d0849f). Reopened by the review at fe5d0849f and answered by the lead on 2026-11-18: both points valid from source (the digest cache trusted path, size and time, and the session reopens a file after its naming), and the binding duplicated capabilityruntime.Reading; filed as beside-content/do, which serves the picture through Reading with Contents over the request's files, reads each whole for every request and holds it, sharing reading alone, until the request is served. Implemented 2026-11-18 by beside-content/do (4d1e4ea3c), for the review's recheck. Reopened by the review at cbdf003cc and answered by the lead on 2026-11-20: valid from source (pictureSections.depthCard keeps the depth model it first read whenever one is held, so a checkpoint replaced under its name maps a warm session's pictures with the old weights under the new bytes' identity); filed as picture-sections/do beside SQA-432, SQA-434 and SQA-435, the sections holding the depth model by its checkpoint's content as merges hold adapters (moss-merge-time/identity)."
       }
 }
   },
-  "next_finding_number": 434,
+  "next_finding_number": 436,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

@@ -124,7 +124,7 @@
       ],
       "input": "Resume a completed ComfyUI prompt after changing the installation, or return two outputs of one node with the same basename in different subfolders. Compare the 2368x1344 own-size run or the 1024x576 six-section workflow. The standard and Turbo depth sections both start from the recorder's input PNG.",
       "expected": "Keep the accepted producer and both outputs across recovery. State the memory instrument and sampling window, including missing samples on resume. Time both depth sections from the same input picture through estimation and decode. Separate setup and depth processing from denoiser pass timing using the existing step measurement.",
-      "actual": "The receipt binds only prompt and request, so retry can credit revision A's output to B. keep overwrites the same node/basename across subfolders. await samples whole-device use starting at retry. ownSizeReading compares process allocations to whole-card use and divides integration including setup by steps. In 1ab50872c, depthControlSection runs DepthMap before the workflow timer starts and supplies Control.Map. Turbo supplies Control.Picture and runs the estimator inside integration. The 113.9 s warm total excludes standard depth estimation. ComfyUI's 10.142 s pass-2 standard-depth recording lists no cache hit for estimator 612:438. The reported 1.88 s per Turbo depth pass divides all integration, including estimation and weight placement, by eight. The omitted time and denoiser-only time are unmeasured."
+      "actual": "The receipt binds only prompt and request, so retry can credit revision A's output to B. keep overwrites the same node/basename across subfolders. await samples whole-device use starting at retry. ownSizeReading compares process allocations to whole-card use and divides integration including setup by steps. At 140c7975e the workflow times standard depth after depthControlSection has already loaded the estimator, computed the map and PNG-encoded it. Turbo supplies the picture and runs estimation inside the timer. The retained 91.06 s warm total at 15ecde8d3 omits standard-depth preprocessing. ComfyUI's 10.142 s standard-depth recording lists no cache hit for estimator 612:438, while its 2.205 s Turbo recording lists estimator 366:41 and control 366:46 as cached. Dividing the full Turbo integration by eight also charges setup to denoiser passes. The omitted time is unmeasured."
     },
     {
       "id": "SQA-401",
@@ -292,19 +292,20 @@
         "cmd/validate/lane_walls.go",
         "internal/testevidence/evidence.go"
       ],
-      "input": "Run a models lane one named test at a time. End one child after its test starts and before Go emits a terminal event. Let the rest of the lane finish.",
-      "expected": "At the end of each unsuccessful step, report its package, selected test and cause once. Distinguish an assertion failure from an interrupted execution. Carry the same identity into the existing lane summary and measurement record when present. Keep the existing package verdict and continue the remaining tests.",
-      "actual": "The retained models lane at f46760944029 names two MOSS checkpoint failures in its final summary. Its ten memory-limit interruptions appear there only as unfinished packages, including five indistinguishable internal/inference entries. TestFlashNextWindowRowsAreTheSingleTokenSteps is identifiable earlier in the log. On cd86e1a8b, testSteps already knows the selector, but run stores the bare error, RequireComplete reports only the first unfinished entry, and laneWatch records a named failure only on a Go fail event."
+      "input": "In a models lane, start two selected tests in the same package in separate processes. End each process after the package and test start events but before either terminal event. Read the final lane summary.",
+      "expected": "The final summary should name both interrupted tests and the cause of each interruption. Use the named unfinished tests already in GoTestReport. Preserve the live output, the measurement record and the existing package verdict.",
+      "actual": "At 140c7975e the live log and measurement record now name the interrupted test. The returned error still loses its name. The parser puts the package before its tests in Unfinished, RequireComplete returns only its first entry, and laneVerdict joins those errors. Two interrupted tests in one package therefore have indistinguishable package names in the final summary. This is a source counterexample. The landing's retained check asserts the log and record and checks the returned error only for non-nil."
     },
     {
       "id": "SQA-427",
       "severity": "P2",
       "files": [
-        "docs/plan.json"
+        "docs/plan.json",
+        "internal/latentimage/fusion_latent_windows_model_test.go"
       ],
       "input": "Judge moss-fusion/neighbors with the prior unfused kernels at the same seed, dimensions and weights. They already produce the reference latents for text to image and depth control.",
       "expected": "Keep bit-for-bit agreement and make the existing fusion check distinguish the unfused path. Use the warm pass measurement and the later fusion budget to establish elapsed savings beyond the observed timing variation. If only the combined change has a measurable saving, judge it at that existing speed check.",
-      "actual": "At cd86e1a8b the neighbors step selects only TestTheMOSSPassFusesWithoutChangingABit. The unfused baseline satisfies that check. The same selector passed twice with the preceding copies change undone, causing two landing refusals. Master added a graph check to copies alone. The later fusion speed check cannot distinguish the neighbors change when that step is judged."
+      "actual": "At 140c7975e moss-fusion/neighbors still selects only TestTheMOSSPassFusesWithoutChangingABit. It compares two final latent hashes captured before fusion. The retained copies landing at e849f2f97 already passes both on the neighbors baseline. Removing the neighbors optimization therefore preserves the required result. The plan's later fusion speed check runs in a different step."
     },
     {
       "id": "SQA-428",
@@ -312,9 +313,49 @@
       "files": [
         "docs/plan.json"
       ],
-      "input": "Read the ordering of the existing MOSS speed steps after fusion and checkpoint repair at cd86e1a8b. The campaign measures all six warm workflow sections at 1024x576.",
-      "expected": "Use the plan's existing moss-merge-time/do and moss-depth-card/do measurements to order eligible work by recoverable whole-workflow seconds, allowing for implementation and verification cost. Count each executed merge once and distinguish fresh depth processing from reuse.",
-      "actual": "The three per-pass rows precede both setup rows because their rationale counts setup in one section. Three sections actually merge adapters in 3.44, 5.62 and 6.20 s. Their one-second targets would save 12.26 s. Bringing the approximately 8 s depth path to about 1 s would save roughly 7 s more. For scale, even eliminating the entire profiled 8.8 ms of host-to-device copies on each of 324 passes would save only 2.85 s on that component. These are estimated opportunities, with implementation cost unmeasured."
+      "input": "With the checkpoint repair and moss-fusion/neighbors complete, leave the card available, no row parked and no explicit dispatch override. Read the next step from the ordering committed at 140c7975e.",
+      "expected": "The rationale of moss-merge-time/do puts it and moss-depth-card/do before moss-fusion/budget and moss-fusion/do. Express that ordering in the existing plan so normal dispatch follows it.",
+      "actual": "Master moved the merge and depth steps ahead of the three per-pass rows. But the budget and do steps still sit inside the earlier moss-fusion item with no dependency on either setup step. ReadyFrontier and dispatchPriority preserve document order among eligible steps. Under these conditions the next selection is moss-fusion/budget, ahead of the merge and depth work whose combined target is about 19 seconds per warm workflow. Shown from the committed plan and dispatcher."
+    },
+    {
+      "id": "SQA-429",
+      "severity": "P2",
+      "files": [
+        "internal/latentimage/source_latent_windows.go",
+        "internal/latentimage/vae_encoder_windows.go",
+        "internal/latentimage/golden_floor_windows_model_test.go",
+        "fixtures/comfy/moss-ultra/recordings/pass-2/image-to-image.json"
+      ],
+      "input": "Use the recorded 1024x576 MOSS Ultra image-to-image request with its valid source PNG, fixed seed, no depth control and denoise 1. The first sigma at sampler 506 is exactly 1. Compare with the Turbo image-to-image recording whose first sigma is about 0.90027.",
+      "expected": "After the existing source-image validation, start the full-noise case from its seeded noise without opening or running the source VAE encoder. Decide from the resolved first sigma. Preserve the request identity, invalid-picture errors, any separate depth control, and the source encoding for partial denoise. Compare seeded latents and pixels in both cases.",
+      "actual": "Source at 140c7975e. startLatent calls sourceLatent whenever an image is supplied. It scales the PNG, loads the encoder weights, creates a device session, compiles and runs the encoder, then closes it. Only afterward does startLatent multiply every finite encoded value by 1 minus the first sigma, exactly zero in the standard recording. One entire source encode contributes nothing to that section. The time attributable to it has not been measured."
+    },
+    {
+      "id": "SQA-430",
+      "severity": "P2",
+      "files": [
+        "internal/latentimage/rotary_sampling_windows.go",
+        "internal/latentimage/source_latent_windows.go",
+        "internal/cuda/executor/executor.go",
+        "fixtures/comfy/moss-ultra/recordings/pass-2/depth-control.json"
+      ],
+      "input": "Use the recorded MOSS depth-control request at 1024x576 with its moss-control adapter and 50 guided steps (100 denoiser passes). The encoded control is fixed for the request. Its sigma window selects that buffer or zeros.",
+      "expected": "Have runRotarySampling keep the active control on the device for both guidance branches and use a device zero buffer when the window is off. Prepare each used value at most once per request and release it with the sampling inputs. Check attributable upload bytes, identical seeded latents at the window boundaries, and correct release on error.",
+      "actual": "Source at 140c7975e. Each branch passes controlAt's host slice to Retain. The CUDA executor copies it into a new host staging buffer and uploads it on every pass, including when the slice holds only zeros. The control has 64 x 36 x 256 float32 values, so 100 passes copy 225 MiB on the CPU and transfer 225 MiB to the GPU for at most two distinct inputs. These are source-derived byte counts. The time attributable to this input is unmeasured."
+    },
+    {
+      "id": "SQA-431",
+      "severity": "P2",
+      "files": [
+        "internal/mediacapability/image_cuda_windows.go",
+        "internal/latentimage/enhancer_chat_windows.go",
+        "internal/latentimage/moss_enhancer_rules.go",
+        "internal/capabilityruntime/session_director.go",
+        "fixtures/comfy/moss-ultra/recordings/mode-2/text-to-image.json"
+      ],
+      "input": "Complete a fixed-seed MOSS text-to-image request with Enhance enabled, then repeat it through the same local capability without FreshRun. Use the same store, code, model files, active recipe, source prompt and exclusions. The mode-2 recording supplies a source and its positive and negative outputs.",
+      "expected": "Let the existing capability and run-recovery owners recover the admitted request's completed preparation or picture before opening the enhancer. An identical completed retry should open zero chats and return the same pixels. Bind reuse to the enhancer model, tokenizer, template, sampling settings and code as well as the picture inputs and current authority. Preserve explicit fresh execution.",
+      "actual": "Source at 140c7975e. preparedFirst calls EnhanceRequest before the session director seeks the stored answer. Every retry opens the 9B chat, generates a positive and a negative prompt (a third generation if the positive needs a retry), closes it, clears Enhance and passes the rewritten request to the director. An enhancer-open failure on the retry therefore prevents delivery of the completed picture even when all identities still match. The recording establishes the prompt pair. Retry cost and failure are source-derived, with no timed or failed retry observed."
     }
   ],
   "master_lead_triage": {
@@ -433,7 +474,7 @@
       }
 }
   },
-  "next_finding_number": 429,
+  "next_finding_number": 432,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

@@ -23,6 +23,7 @@ extern "C" __device__ float __nv_expf(float);
 #include "ops_f32_rows.cuh"
 #include "ops_f32_routing.cuh"
 #include "ops_f32_attention.cuh"
+#include "ops_f32_attention_tensor.cuh"
 #include "ops_f32_sage_attention.cuh"
 #include "ops_f32_quant.cuh"
 #include "ops_f32_experts.cuh"

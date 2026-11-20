@@ -18,11 +18,14 @@ import (
 const fusionSteps = 2
 
 // fusionLatents are the SHA-256 of the final latent's F32 bits, little-endian, of each section the fusions are held on,
-// fusionSteps steps of it asked as the workflow's pass-2 recording asks it, as overgo drew them at 15ecde8d3, before
-// moss-fusion fused a kernel.
+// fusionSteps steps of it asked as the workflow's pass-2 recording asks it: drawn at 15ecde8d3, before moss-fusion fused
+// a kernel, as ddc71d81 (text to image) and 08e52361 (depth control), which moss-fusion/copies (e849f2f97) kept bit
+// for bit, and drawn again when moss-checkpoint-regression made the attention in registers the native kernel's
+// arithmetic, bit for bit, which changed every latent; copies' fusions compute what they fuse exactly, whatever the
+// attention.
 var fusionLatents = map[string]string{
-	"text-to-image": "ddc71d81902dabf7c224b64a0eeac559f90c956d39e642edfb0ca5d991dc161a",
-	"depth-control": "08e5236167844f130e7a274258f8a4f8254120658bf370799ab6fa9c064c3b79",
+	"text-to-image": "4eb4a963d352ba09a29c0e701f308a70037cafd9decf18a9cc52751bd7b31c8a",
+	"depth-control": "8e74944f150b1a7f2382deceafe543c51dcd3a6417f66df7c4f20f318465f39e",
 }
 
 // TestTheMOSSPassFusesWithoutChangingABit holds moss-fusion's fusions to the arithmetic they fuse: a fused pass

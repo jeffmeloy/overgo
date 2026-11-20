@@ -408,18 +408,18 @@
         "note": "Answered by the lead on 2026-11-20 at 140f4c175: valid from source (bf16Tensor opens the adapter file and parses its header for each tensor, 840 opens for text to image Turbo's two adapters, and keeps 819 MiB of rounded tensors reachable after the picture); part of the 3.68 and 5.10 s moss-merge-order's clock found beyond the Turbo sections' passes, so filed with moss-merge-compute/do, whose split reads its share."
       },
   "SQA-438": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "lanes-yield-verdict/do"
         ],
-        "note": "Answered by the lead on 2026-11-20 at 140f4c175: valid from source (a yielded step returns nil without running, and HoldTestTurnEach still takes the card's turn and the test turn for each step after the yield); filed as lanes-yield-verdict/do, the steps after a yield taking no turn."
+        "note": "Answered by the lead on 2026-11-20 at 140f4c175: valid from source (a yielded step returns nil without running, and HoldTestTurnEach still takes the card's turn and the test turn for each step after the yield); filed as lanes-yield-verdict/do, the steps after a yield taking no turn. Implemented 2026-11-20 by lanes-yield-verdict/do (af97c08e6), for the review's recheck."
       },
   "SQA-437": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "lanes-yield-verdict/do"
         ],
-        "note": "Answered by the lead on 2026-11-20 at 140f4c175: valid from source (runLanesAt says yielded alone whenever the yield record names its commit, though laneVerdict failed a package before the yield); the failure stays in the log, where the lanes watch reads it, but the run's verdict hides it; filed as lanes-yield-verdict/do, a run's failures said beside its yield."
+        "note": "Answered by the lead on 2026-11-20 at 140f4c175: valid from source (runLanesAt says yielded alone whenever the yield record names its commit, though laneVerdict failed a package before the yield); the failure stays in the log, where the lanes watch reads it, but the run's verdict hides it; filed as lanes-yield-verdict/do, a run's failures said beside its yield. Implemented 2026-11-20 by lanes-yield-verdict/do (af97c08e6), for the review's recheck."
       },
   "SQA-436": {
         "action": "filed",

@@ -3,6 +3,7 @@
 package latentimage
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -13,6 +14,7 @@ import (
 	"testing"
 
 	"overgo/internal/cuda/device"
+	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/safetensors"
@@ -101,13 +103,41 @@ func holdLoRAMerge(t *testing.T, root string) {
 	defer func() { testcheck.NoError(t, worker.Close()) }()
 	runtime := testcheck.Must(executor.NewWithWorker(worker))(t)
 	defer func() { testcheck.NoError(t, runtime.Close()) }()
+	placed := map[string]driver.DevicePtr{}
+	defer func() {
+		testcheck.NoError(t, worker.Do(context.WithoutCancel(ctx), func(state *device.State) (err error) {
+			for _, pointer := range placed {
+				err = errors.Join(err, state.Driver.MemFree(pointer))
+			}
+			return err
+		}))
+	}()
+	place := func(adapter *mediaAdapter, name string, _, _ uint64) (driver.DevicePtr, error) {
+		if pointer, held := placed[name]; held {
+			return pointer, nil
+		}
+		data, err := adapter.bf16Tensor(name)
+		if err != nil {
+			return 0, err
+		}
+		err = worker.Do(ctx, func(state *device.State) error {
+			pointer, err := state.Driver.MemAlloc(uint64(len(data)))
+			if err != nil {
+				return err
+			}
+			placed[name] = pointer
+			return state.Driver.MemcpyHtoD(pointer, data)
+		})
+		return placed[name], err
+	}
+	defer func() { testcheck.NoError(t, adapter.release()) }()
 	for _, captured := range capture.Weights {
 		t.Run(captured.Weight, func(t *testing.T) {
 			patch, held := adapter.lowRank[strings.TrimSuffix(captured.Weight, ".weight")]
 			if !held {
 				t.Fatalf("%s patches no %s", capture.Adapter, captured.Weight)
 			}
-			merge := testcheck.Must(convRotMerge(source, captured.Weight, []adapterPair{{adapter: adapter, patch: patch, strength: capture.Strength}}))(t)
+			merge := testcheck.Must(convRotMerge(source, captured.Weight, []adapterPair{{adapter: adapter, patch: patch, strength: capture.Strength}}, place, 0))(t)
 			if merge.Seed != captured.Seed || merge.Rows != captured.Rows || merge.Inner != captured.Inner {
 				t.Fatalf("the merge of %d x %d is seeded %d; ComfyUI's %s of %d x %d was seeded %d",
 					merge.Rows, merge.Inner, merge.Seed, captured.Module, captured.Rows, captured.Inner, captured.Seed)

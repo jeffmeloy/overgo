@@ -36,8 +36,10 @@ type rotaryGeneration struct {
 	weights, negativeWeights []float32
 	guidance                 float32
 	// adapters are the adapters the request applies (Request.applied), each read from its file when the request is
-	// configured; none where it names none.
+	// configured, none where it names none, and contents the content each adapter file a request named was last read
+	// with, by its path, under which the session keeps its pairs (bindMerged).
 	adapters []*mediaAdapter
+	contents map[string]string
 }
 
 func loadRotaryGenerator(ctx context.Context, root string, profile Profile, request Request) (_ *Generator, err error) {
@@ -119,11 +121,21 @@ func (g *Generator) configureRotary(ctx context.Context, request Request) error 
 		guidance = *request.GuidanceScale
 	}
 	g.rotary.adapters = nil
+	if g.rotary.contents == nil {
+		g.rotary.contents = map[string]string{}
+	}
 	for _, applied := range request.applied() {
 		adapter, err := modelAdapter(g.modelDir, applied.Name)
 		if err != nil {
 			return err
 		}
+		// A file replaced under its name leaves the pairs the session keeps under its earlier content unasked for.
+		if before, read := g.rotary.contents[adapter.path]; read && before != adapter.content {
+			if err := g.rotary.runtime.Unkeep(ctx, before); err != nil {
+				return err
+			}
+		}
+		g.rotary.contents[adapter.path] = adapter.content
 		g.rotary.adapters = append(g.rotary.adapters, adapter)
 	}
 	if twice := replacedTwice(g.rotary.adapters); twice != "" {
@@ -327,6 +339,10 @@ func (g *Generator) integrateRotary(ctx context.Context) (*Generator, error) {
 		settings.controlLow, settings.controlHigh = control.window(g.profile.Rotary.Shift)
 	}
 	result, err := runRotarySampling(ctx, g.rotary.runtime, &g.rotary.kept, g.modelDir, g.rotary.transformer, g.shape.Height, g.shape.Width, initial, g.rotary.positive, g.rotary.negative, settings, g.observe)
+	// The adapters' files close as the sampling ends, the pairs their merges read kept on the card (SQA-439).
+	for _, adapter := range g.rotary.adapters {
+		err = errors.Join(err, adapter.release())
+	}
 	if err != nil {
 		return nil, err
 	}

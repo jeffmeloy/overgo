@@ -60,11 +60,13 @@ func (a AppliedAdapter) strength() float32 {
 type mediaAdapter struct {
 	path string
 	// content is the file's identity by its bytes, as a request's reading names it (capabilityruntime.Contents), read
-	// each time the adapter is: a merge kept on the card is kept under it (bindMerged), so a file replaced under its
-	// name is merged again (moss-merge-time/identity, SQA-406).
+	// each time the adapter is: a merge and the pairs it reads are kept on the card under it (bindMerged), so a file
+	// replaced under its name is merged again from its own pairs (moss-merge-time/identity, SQA-406).
 	content string
-	// bf16 holds each tensor a merge has read from the file, in BF16, so the request reads it once (pairPayload).
-	bf16 map[string][]byte
+	// source is the file, open while the sampling merges from it, its header read once (bf16Tensor, SQA-439): it had been
+	// opened and its header parsed again for each tensor, 840 times for text to image Turbo's two adapters, 1.8 s of its
+	// sampling. It is closed as the sampling ends (release).
+	source *safetensors.Source
 	// lowRank holds each projection's pair, by the graph's projection name (layers.0.proj.q).
 	lowRank map[string]lowRankPatch
 	// diffs holds each weight's or bias's full difference, by the graph's weight name (layers.0.norm1.weight), as the
@@ -100,7 +102,9 @@ func (patch lowRankPatch) factor(strength float32) float32 {
 }
 
 // readMediaAdapter reads the patches of the adapter file at path, refusing a tensor no format above names, a pair
-// missing a half, and halves whose shapes do not compose.
+// missing a half, halves whose shapes do not compose, and a full difference of a matrix, which no projection applies:
+// the graph adds a difference to a norm's weight or a bias alone (rotaryGraph.patched), and a matrix's had been
+// accepted and left out of its projection, the request drawn as at strength 0 (SQA-440).
 func readMediaAdapter(path string) (*mediaAdapter, error) {
 	source, err := safetensors.OpenFile(path)
 	if err != nil {
@@ -133,6 +137,9 @@ func readMediaAdapter(path string) (*mediaAdapter, error) {
 		case strings.HasSuffix(base, adapterDiffB):
 			adapter.diffs[strings.TrimSuffix(base, adapterDiffB)+".bias"] = name
 		case strings.HasSuffix(base, adapterDiff):
+			if len(value.Shape) != 1 {
+				return nil, fmt.Errorf("media adapter %s: %s is a full difference of a %v matrix, which no projection applies", path, name, value.Shape)
+			}
 			adapter.diffs[strings.TrimSuffix(base, adapterDiff)+".weight"] = name
 		case strings.HasSuffix(base, ".weight") || strings.HasSuffix(base, ".bias"):
 			adapter.replaced[base] = replacement{tensor: name, shape: slices.Clone(value.Shape)}

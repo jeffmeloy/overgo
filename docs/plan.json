@@ -7,18 +7,6 @@
       "title": "A Turbo section's merges cost what ComfyUI's patcher costs: text to image Turbo and depth control Turbo spend 3.68 and 5.10 s beyond their eight passes in merges whose copies moss-merge-order cut, the time split between identifying, reading, rounding, uploading and merging before it is cured, the cure counted in the workflow's order",
       "steps": [
         {
-          "id": "do",
-          "title": "A Turbo section's merges cost what ComfyUI's patcher costs: text to image Turbo and depth control Turbo spend 3.68 and 5.10 s beyond their eight passes in merges whose copies moss-merge-order cut, the time split between identifying, reading, rounding, uploading and merging before it is cured, the cure counted in the workflow's order",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^TestTheTurboSectionsMergeAsComfyUIPatches$'",
-          "files": [
-            "internal/latentimage",
-            "internal/graphruntime",
-            "internal/cuda",
-            "kernels"
-          ],
-          "rationale": "Note: Found by moss-merge-order's clock step (140f4c175, docs/verification/moss-workflow-time.jsonl), warm: with their copies cut to 0.88 and 1.21 GiB, text to image Turbo still samples 5.14 s and depth control Turbo 6.56 s for eight passes that take 0.182 s each in image to image Turbo, about 3.68 and 5.10 s beyond their passes, in their merges (TestTheTurboSectionsMergeFromHeldWeightsInTheWorkflowsOrder counts their bytes, not their time); the whole is 59.6 s against 34.41 s, and ComfyUI's two sections take 1.96 and 2.21 s whole. moss-merge-order foresaw about 12 s and the whole showed 5.1. Each section binds 252 merged projections: per request it identifies each adapter file by its bytes (fileContent, 1.37 GB for text to image Turbo's two), reads each pair's tensors from the files and rounds them to BF16 on the host (pairPayload, bf16Tensor), uploads them, and launches each merge, where ComfyUI's patcher merges the same LoRAs on the card once. The row first splits the remaining time between those parts with the card's turn held (a temporary probe, as moss-depth-card split its 8 s), then cures what remains the cost, and its check counts what the cure removes (files read, bytes hashed, bytes copied, launches) in the workflow's order."
-        },
-        {
           "id": "clock",
           "title": "The workflow is timed whole at moss-merge-compute's commit, like for like and the card's turn held, and the timing appended to the record (moss-workflow-clock)",
           "verify": "git log --format=%s -n 200 | grep -qF 'moss-merge-compute/do:' \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF \"\\\"commit\\\":\\\"$(git rev-parse HEAD)\\\"\"",

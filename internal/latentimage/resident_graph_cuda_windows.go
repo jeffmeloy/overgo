@@ -8,10 +8,12 @@ import (
 	"fmt"
 	"strings"
 
+	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
 	"overgo/internal/graphruntime"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor"
+	"overgo/internal/tensor/dtype"
 )
 
 func compileResidentWeights(
@@ -41,10 +43,14 @@ func compileResidentWeights(
 
 // bindMerged binds each projection a compiled program reads with adapters' pairs merged into its int8 weight
 // (mergedProjection) as the merge on the card makes it (convRotMerge), each adapter at its strength, from the int8 weight
-// the session keeps on the card as the transformer's file at sourcePath holds it (ResidentSession.Keep). It is held under the transformer's path, each merged adapter's content and strength, and
-// the weight's name, so a later sampling with those adapters at those strengths takes it as it is, and one whose
-// adapter file was replaced under its name merges it again (moss-merge-time/identity): held under the adapter's path,
-// it answered a replaced file with the earlier file's merge (SQA-406's fault in the merge's place).
+// the session keeps on the card as the transformer's file at sourcePath holds it (ResidentSession.Keep), and from each
+// adapter's pairs the session keeps on the card under the adapter's content and the tensor's name, read from its file
+// the first time alone, whatever sections since merged other adapters (moss-merge-compute): read, rounded and uploaded
+// again for each request, they had cost text to image Turbo 1.8 s of its sampling. A merge is held under the
+// transformer's path, each merged adapter's content and strength, and the weight's name, so a later sampling with those
+// adapters at those strengths takes it as it is, and one whose adapter file was replaced under its name merges it again
+// (moss-merge-time/identity): held under the adapter's path, it answered a replaced file with the earlier file's merge
+// (SQA-406's fault in the merge's place).
 func bindMerged(ctx context.Context, session *graphruntime.ResidentSession, program *graphruntime.ResidentProgram, label, sourcePath string,
 	merged []mergedProjection, adapters []*mediaAdapter, strengths []float32) (err error) {
 	if len(merged) == 0 {
@@ -55,6 +61,10 @@ func bindMerged(ctx context.Context, session *graphruntime.ResidentSession, prog
 		return fmt.Errorf("%s: open weights: %w", label, err)
 	}
 	defer func() { err = errors.Join(err, source.Close()) }()
+	place := func(adapter *mediaAdapter, name string, rows, columns uint64) (driver.DevicePtr, error) {
+		node := &tensor.Tensor{Name: name, Type: dtype.BF16, Shape: tensor.MustShape(columns, rows)}
+		return session.Keep(ctx, adapter.content, name, node, func() ([]byte, error) { return adapter.bf16Tensor(name) })
+	}
 	for _, projection := range merged {
 		if _, required := program.Graph.InputSlot(projection.input); !required {
 			continue
@@ -82,7 +92,7 @@ func bindMerged(ctx context.Context, session *graphruntime.ResidentSession, prog
 			if err != nil {
 				return executor.Int8ConvRotMerge{}, err
 			}
-			return convRotMerge(source, name, pairs, held)
+			return convRotMerge(source, name, pairs, place, held)
 		}); err != nil {
 			return fmt.Errorf("%s: %s: %w", label, name, err)
 		}

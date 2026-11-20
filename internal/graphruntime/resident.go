@@ -426,39 +426,71 @@ func (s *ResidentSession) Release(ctx context.Context, programs ...*ResidentProg
 				continue
 			}
 			for _, allocationIndex := range program.weights {
-				allocation := &s.allocations[allocationIndex]
-				allocation.refs--
-				if allocation.refs > 0 {
-					continue
-				}
-				if checked.Nonzero(allocation.pointer) {
-					// Graphs captured over this program's weights must
-					// not replay after the range is freed.
-					if s.executor != nil {
-						errs = append(errs, s.executor.DropGraphExecs(state))
-					}
-					_, err := allocation.chunk.drop(state)
-					errs = append(errs, err)
-				}
-				if allocation.bytes <= s.staticBytes {
-					s.staticBytes -= allocation.bytes
-				}
-				delete(s.byBinding, allocation.key)
-				*allocation = residentAllocation{}
+				errs = append(errs, s.unref(state, allocationIndex))
 			}
 			program.Graph = nil
 			program.Inputs = nil
 			program.dynamic = nil
 			program.weights = nil
 		}
-		// A released record is empty and no program names it. Trailing ones leave the
-		// list, so a session that binds and releases each request does not grow with
-		// them, and a live record keeps its index.
-		for count := len(s.allocations); count > 0 && s.allocations[count-1] == (residentAllocation{}); count-- {
-			s.allocations = s.allocations[:count-1]
-		}
+		s.trim()
 		return errors.Join(errs...)
 	})
+}
+
+// Unkeep drops the session's own hold (Keep) on each input it keeps of source, freeing those no program binds: a
+// source whose inputs are no longer asked for, an adapter file replaced under its name, whose pairs had stayed on the
+// card under its earlier content until the session closed (moss-merge-compute).
+func (s *ResidentSession) Unkeep(ctx context.Context, source string) error {
+	if s == nil || s.worker == nil {
+		return errors.New("resident session is unavailable")
+	}
+	return s.worker.Do(ctx, func(state *device.State) error {
+		var errs []error
+		for index := range s.kept {
+			if s.allocations[index].key.source == source {
+				delete(s.kept, index)
+				errs = append(errs, s.unref(state, index))
+			}
+		}
+		s.trim()
+		return errors.Join(errs...)
+	})
+}
+
+// unref drops one reference to an allocation, on the worker's turn (state), freeing it where it was the last.
+func (s *ResidentSession) unref(state *device.State, index int) (err error) {
+	allocation := &s.allocations[index]
+	allocation.refs--
+	if allocation.refs > 0 {
+		return nil
+	}
+	if checked.Nonzero(allocation.pointer) {
+		// Graphs captured over the allocation must not replay after its range is freed.
+		if s.executor != nil {
+			err = s.executor.DropGraphExecs(state)
+		}
+		freed, dropErr := allocation.chunk.drop(state)
+		err = errors.Join(err, dropErr)
+		// The chunk the session packs its next kept input in goes with it, where it was freed.
+		if freed && s.keeper != nil && allocation.chunk == s.keeper.chunk {
+			s.keeper.chunk = nil
+		}
+	}
+	if allocation.bytes <= s.staticBytes {
+		s.staticBytes -= allocation.bytes
+	}
+	delete(s.byBinding, allocation.key)
+	*allocation = residentAllocation{}
+	return err
+}
+
+// trim drops the released records that end the list: a released record is empty and nothing names it, so a session
+// that binds and releases each request does not grow with them, and a live record keeps its index.
+func (s *ResidentSession) trim() {
+	for count := len(s.allocations); count > 0 && s.allocations[count-1] == (residentAllocation{}); count-- {
+		s.allocations = s.allocations[:count-1]
+	}
 }
 
 // ReleaseStageMemory frees the execution memory a finished stage leaves for its

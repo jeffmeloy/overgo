@@ -19,8 +19,8 @@ import (
 // diffusion_model. prefix; a PEFT pair, scaled by 1, with no alpha; a joint block's fused qkv pair, read as the graph's
 // q, k and v, each a third of the up rows, its third's payload those rows, while a text embedder's fused qkv, which the
 // graph reads fused, stays one; the full differences of a norm's weight and a bias; and a weight and bias named
-// plainly, replaced outright at the file's shape. A tensor no format names, a pair missing a half, and a file of no
-// patch are refused.
+// plainly, replaced outright at the file's shape. A tensor no format names, a pair missing a half, a full difference of
+// a matrix, which no projection applies (SQA-440), and a file of no patch are refused.
 func TestAMediaAdapterReadsItsThreeFormats(t *testing.T) {
 	t.Parallel()
 	up := []float32{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}
@@ -91,6 +91,7 @@ func TestAMediaAdapterReadsItsThreeFormats(t *testing.T) {
 	}{
 		"a tensor of no form": {map[string][]float32{"video_embedder.scale": make([]float32, 4)}, map[string][]int{"video_embedder.scale": {2, 2}}, "no patch this reader applies"},
 		"a half pair":         {map[string][]float32{"layers.0.proj.q.lora_A.weight": make([]float32, 4)}, map[string][]int{"layers.0.proj.q.lora_A.weight": {2, 2}}, "no up half"},
+		"a matrix difference": {map[string][]float32{"diffusion_model.layers.0.proj.o.diff": make([]float32, 4)}, map[string][]int{"diffusion_model.layers.0.proj.o.diff": {2, 2}}, "which no projection applies"},
 	} {
 		if _, err := readMediaAdapter(writeAdapter(t, strings.ReplaceAll(name, " ", "-"), refused.tensors, refused.shapes)); err == nil || !strings.Contains(err.Error(), refused.says) {
 			t.Errorf("an adapter with %s read with %v; want a refusal saying %q", name, err, refused.says)

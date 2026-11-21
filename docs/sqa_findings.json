@@ -387,9 +387,9 @@
         "internal/latentimage/workflow_time_windows_model_test.go",
         "internal/latentimage/workflow_source_test.go"
       ],
-      "input": "Build the MOSS model-test binary at commit A. After moving to a clean later commit B with different denoiser code, run A's prebuilt workflow clock from B's package directory with recording enabled. Leave B untouched through the run.",
-      "expected": "A committed clock reading must identify the code in the executable. Build and run each side in its own identified checkout, or refuse committed credit when the executable cannot be tied to that checkout. The caller's uncommitted files should stay in place during a comparison.",
-      "actual": "The clock reads HEAD and changed paths from the process's working directory. With B clean at both reads it writes B and committed=true for A's executable. This is a source counterexample at 8c32dad22. At 19:35 ET on Nov 20 a real MOSS comparison stashed 19 tracked edits to build the base executable, restored them, and ran the base and candidate from the same package directory. That run selected golden-floor checks, so it does not establish that a published clock reading was mislabeled."
+      "input": "Run a clock binary built at A from a clean checkout B with changed denoiser code. Conversely, finish a valid clock reading at the implementation commit A, then land only unrelated provenance documentation and a cmd/validate test before admitting the reading.",
+      "expected": "Bind the result to the executable and workflow inputs that produced it. Credit a valid reading at the implementation commit when only unrelated files have landed since. Preserve its original commit and require a new reading when the measured code, inputs or protocol changed. Build comparisons without disturbing uncommitted work.",
+      "actual": "The clock labels a binary built at A as B if B is clean at both source reads. The Nov 20 comparison stashed 19 edits to build its base and ran golden-floor checks, so no mislabeled timing was observed there. In the other direction, the remaining clock verifiers require the current HEAD even for a valid reading of the implementation commit. The attention clock landing reports 37.427 s warm at 80c195d08 and 37.456 s at 8ee00a27b. Only an unrelated cmd/validate test and two documents changed. The second cold and warm passes took 364.321 s combined. The retained JSON contains only the second reading, so the first reading's eligibility cannot be independently established."
     },
     {
       "id": "SQA-449",
@@ -403,20 +403,6 @@
       "actual": "The saved 240-byte cause ends in the middle of the next audioparity name. At 8c32dad22 Classify clips the text before Worklist reads it. Applying refusedBy to that record yields only TestNativeASRSessionAcceptance and TestSecondASRStreamingAcceptance/6930-75918-0000. Six named failures disappear from the worklist for this refusal, including the offline ASR checks and server/TestStreamingTranscriptionAcceptance. The original gate output and its failing verdict are intact."
     },
     {
-      "id": "SQA-451",
-      "severity": "P2",
-      "files": [
-        "docs/verification/test-data-origins.json",
-        "docs/verification/goldens-kept.json",
-        "fixtures/moss/oracle-contract.json",
-        "cmd/validate/test_data_origins_test.go",
-        "internal/latentimage/refinement_verify_windows.go"
-      ],
-      "input": "Recover full-english, full-chinese-rectangle or full-layout after losing its full_reference.safetensors. Follow the MOSS oracle entry in test-data-origins.json using its retained moss_full_reference.py, the pinned checkpoint and the original case settings.",
-      "expected": "The data-origin check should identify a recoverable copy of each pinned artifact or the matching producer for its case. Compare the retained producer's digest with the case's producer ID before spending GPU time. Keep the existing whole-file identity check.",
-      "actual": "At 64bbd5ff2 the retained script hashes to 1a7dd1e7ab21. The existing English and Chinese tensor headers and oracle contract name producer f5ea6d9279bb. Layout names 50437649e0aa. TestEveryTestsDataNamesItsOrigin accepts the script by filename alone. The script runs the 50-step generation twice and embeds its own SHA-256 in the output before saving it. Even identical tensor values would give a different file, which VerifyMOSSTransformer rejects by digest. The mismatch was observed in the retained headers and script bytes. The failed recovery follows from source. All three original files are present."
-    },
-    {
       "id": "SQA-452",
       "severity": "P2",
       "files": [
@@ -425,26 +411,38 @@
         "internal/latentimage/int8_attention_layers_test.go",
         "internal/latentimage/generator_rotary_windows.go"
       ],
-      "input": "Serve a MOSS depth-control request on the INT8-capable device used for Ultra. In one joint layer, supply the ordered attention list [{\"attention\":\"comfy_kitchen_sol\"},{\"attention\":\"comfy_kitchen_int8\"}] with SOL unavailable. Keep all other checkpoint data valid.",
+      "input": "On the installed INT8-capable MOSS device, serve a depth-control request with one joint layer declaring an unrecognized optional attention method first and comfy_kitchen_int8 second, all other checkpoint data valid.",
       "expected": "Select the first supported method in declaration order. This layer should use the existing INT8 implementation. Keep the unsupported-only error and detect it before preparing the control latent.",
-      "actual": "Source counterexample at 80c195d08. int8AttentionLayers decodes the list but tests only configs[0], so runRotarySampling rejects this checkpoint after integrateRotary has prepared the control latent. The pinned ComfyUI loader at 7cebca522, comfy/ldm/modules/attention.py lines 87-100, continues to the next entry when SOL is unavailable and selects INT8 here. The existing Go test puts the supported method first. All 42 layer records read from the installed Ultra file name INT8 alone. This counterexample was not run."
+      "actual": "Source counterexample at 8fbe03872. The pinned ComfyAttention loader at 7cebca522 (comfy/ldm/modules/attention.py lines 87-100) skips an unknown method and selects the later available INT8 entry. int8AttentionLayers inspects only configs[0], so integration refuses the layer after preparing its control latent. The installed Ultra checkpoint's 42 records all name INT8 alone. SOL is available on this machine, so SOL-first is not an example of this fallback here. The unknown-first case was not run."
+    },
+    {
+      "id": "SQA-453",
+      "severity": "P2",
+      "files": [
+        "docs/plan.json",
+        "cmd/validate/run.go",
+        "cmd/validate/lane_walls.go"
+      ],
+      "input": "Evaluate flash-bound-read/read while a lane under the identified runner has finished an ordinary internal/inference test but has yet to run the Flash-Next cases that hit the memory limit.",
+      "expected": "Use that runner's named Flash-Next results to judge the bound. A pass must come from an affected test. A memory-bound exit must report that test and the limit it reached. An unrelated inference result must leave the read pending.",
+      "actual": "At 8fbe03872 the verifier searches everything after the first runner banner for the package name and 'peak'. The lane emits that pair for each test process. In the retained log TestFeatureDraftCoordinatorRejectsInvalidState produced a passing 0.5 GiB package line immediately before TestFlashNextHomesEveryExpert ended at 115.3 GiB against a 99.6 GiB limit. The latter diagnostic says 'largest process at'. The sequence predates the banner. If it recurs under the identified runner, the existing verifier succeeds on the first line before Flash-Next is judged. This false verdict follows from source and the observed log format. No false landing was observed."
     }
   ],
   "master_lead_triage": {
     "at": "2026-11-20",
     "head": "cbdf003cc5e0d974e86a56e8f99bb49b6bdc97a8",
     "findings": {
+  "SQA-453": {
+        "action": "implemented",
+        "rows": [
+          "flash-bound-read/read"
+        ],
+        "note": "Answered by the lead on 2026-11-21 at 8edb11176: valid from the source and the log's format (the read's verify took the first internal/inference package line after the runner's banner, which the lane writes for each test process, so an ordinary inference test's pass would have read as the bound's verdict). Its verify now reads the result lines of the three tests flash-next-bound bounds, TestFlashNextHomesEveryExpert, TestFlashNextRoundIsReadyAtOpen and TestFlashNextWindowRowsAreTheSingleTokenSteps, each a pass or a failure after the banner, set by plan -setverify with a note, landing with moss-step-copies/clock."
+      },
   "SQA-452": {
         "action": "deferred",
         "rows": [],
         "note": "Answered by the lead on 2026-11-21 at 8ee00a27b: the counterexample's premise does not hold on the card overgo runs MOSS on. ComfyAttention takes the first method it can run, and comfy_kitchen 0.2.40's sol_attn_is_available is true for the CUDA backend on sm_80 and later where its extension carries sol_attn, which the installed build compiles (sage_attention/sol_attn.cu); so on this sm_89 card ComfyUI runs SOL for a layer that lists it first, and int8AttentionLayers refusing that layer, since overgo runs no SOL, is the faithful answer. The installed Ultra file names comfy_kitchen_int8 alone in each of its 42 records. Valid that the refusal comes after the sampling has prepared its control latent; a refused request's preparation is no workflow time, so deferred to the next change of the file's reading."
-      },
-  "SQA-451": {
-        "action": "filed",
-        "rows": [
-          "oracle-origin/do"
-        ],
-        "note": "Answered by the lead on 2026-11-21 at 80c195d08: valid from the files (moss_full_reference.py writes its own SHA-256 into what it saves as producer_sha256, the copy goldens-kept.json keeps hashes 1a7dd1e7ab21, and fixtures/moss/oracle-contract.json names other producer files, so the kept script cannot make again the bytes VerifyMOSSTransformer holds by digest, while TestEveryTestsDataNamesItsOrigin accepts the golden by its name). All three oracle files are present, so nothing is lost; filed as oracle-origin/do, after the campaign's MOSS rows: a record naming a golden is held to that golden being its data's producer, or declares its bytes kept by digest."
       },
   "SQA-449": {
         "action": "deferred",
@@ -613,7 +611,7 @@
       }
 }
   },
-  "next_finding_number": 453,
+  "next_finding_number": 454,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

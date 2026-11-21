@@ -130,6 +130,11 @@ const (
 	kernelHeadMajorInverseF32
 	kernelIndexedRowScatterAddF32
 	kernelIndexerScoreF32
+	kernelInt8AttentionAnchorF32
+	kernelInt8AttentionBf16F32
+	kernelInt8AttentionQuantizeQkF32
+	kernelInt8AttentionQuantizeVF32
+	kernelInt8AttentionQuantizeVShortF32
 	kernelInt8ConvrotProductBf16F32
 	kernelInt8ConvrotProductGatedAddBf16F32
 	kernelInt8ConvrotProductNormRotateBf16F32
@@ -634,6 +639,11 @@ var kernelFunctionNames = [...]string{
 	"head_major_inverse_f32",
 	"indexed_row_scatter_add_f32",
 	"indexer_score_f32",
+	"int8_attention_anchor_f32",
+	"int8_attention_bf16_f32",
+	"int8_attention_quantize_qk_f32",
+	"int8_attention_quantize_v_f32",
+	"int8_attention_quantize_v_short_f32",
 	"int8_convrot_product_bf16_f32",
 	"int8_convrot_product_gated_add_bf16_f32",
 	"int8_convrot_product_norm_rotate_bf16_f32",
@@ -1138,6 +1148,11 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	5,
 	11,
 	8,
+	23,
+	21,
+	10,
+	10,
+	8,
 	10,
 	15,
 	6,
@@ -1641,6 +1656,11 @@ var kernelFunctionArgumentWidths = [...][]uint16{
 	{8, 8, 4, 4, 4},
 	{8, 8, 8, 4, 4},
 	{8, 8, 8, 8, 4, 4, 4, 4, 4, 4, 4},
+	{8, 8, 4, 4, 4, 4, 4, 4},
+	{8, 8, 8, 8, 8, 8, 8, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
+	{8, 8, 8, 8, 8, 8, 8, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
+	{8, 8, 8, 4, 4, 4, 4, 4, 4, 4},
+	{8, 8, 8, 4, 4, 4, 4, 4, 4, 4},
 	{8, 8, 8, 8, 8, 4, 4, 4},
 	{8, 8, 8, 8, 8, 8, 8, 4, 4, 4},
 	{8, 8, 8, 8, 8, 8, 8, 4, 4, 8, 8, 8, 4, 4, 4},
@@ -2025,6 +2045,11 @@ var kernelFunctionArgumentWidths = [...][]uint16{
 const kernelModuleCount = 4
 
 var kernelFunctionModules = [...]uint8{
+	0,
+	0,
+	0,
+	0,
+	0,
 	0,
 	0,
 	0,

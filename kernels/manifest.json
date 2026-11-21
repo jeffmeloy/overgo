@@ -64,7 +64,7 @@
     },
     {
       "source": "kernels/cuda/ops_f32.cu",
-      "sourceSha256": "5fa8bd4ba6d4f62d4266b9936ef5011fcf44b28c4378ced0588b355498d83e28",
+      "sourceSha256": "fecc4d02774e27a53c82a1bb22c668bfe0dade4f93ec88864ba6dc60d1ef7e43",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/attention_row.cuh",
@@ -101,6 +101,10 @@
         {
           "path": "kernels/cuda/ops_f32_experts.cuh",
           "sha256": "6ba6d5c97b16d28d42d9eab79441b7ea191fb2c5098d0c9009e86c0b40812573"
+        },
+        {
+          "path": "kernels/cuda/ops_f32_int8_attention.cuh",
+          "sha256": "16c2084fbd8859c57d605b8309c3916e1be7f76d5f6e1cc856c49f2744007bfe"
         },
         {
           "path": "kernels/cuda/ops_f32_int8_product.cuh",
@@ -156,7 +160,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "a7a8678774f73cc7b22eff9ccc64e9d8e580c38d768ed3fb5081a8fa91ff511f",
+      "assetSha256": "2a6cc6a21d0b829987436db5df4c5987e1defe703b59543d116ed3a8a03cc67d",
       "functions": [
         "activated_gate_f32",
         "activated_gate_q8_0_f32",
@@ -281,6 +285,11 @@
         "head_major_inverse_f32",
         "indexed_row_scatter_add_f32",
         "indexer_score_f32",
+        "int8_attention_anchor_f32",
+        "int8_attention_bf16_f32",
+        "int8_attention_quantize_qk_f32",
+        "int8_attention_quantize_v_f32",
+        "int8_attention_quantize_v_short_f32",
         "int8_convrot_product_bf16_f32",
         "int8_convrot_product_gated_add_bf16_f32",
         "int8_convrot_product_norm_rotate_bf16_f32",
@@ -1264,6 +1273,7 @@
           ],
           "functions": [
             "group_slice_f32",
+            "int8_attention_anchor_f32",
             "strided_row_copy_f32",
             "vae_spatial_stage_f16"
           ]
@@ -1284,6 +1294,83 @@
           ],
           "functions": [
             "indexer_score_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".f32"
+          ],
+          "functions": [
+            "int8_attention_bf16_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32"
+          ],
+          "functions": [
+            "int8_attention_quantize_qk_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32"
+          ],
+          "functions": [
+            "int8_attention_quantize_v_f32",
+            "int8_attention_quantize_v_short_f32",
+            "vae_temporal_cache_update_f32"
           ]
         },
         {
@@ -2345,23 +2432,6 @@
           ],
           "functions": [
             "vae_spatial_attention_f32"
-          ]
-        },
-        {
-          "parameters": [
-            ".u64",
-            ".u64",
-            ".u64",
-            ".u32",
-            ".u32",
-            ".u32",
-            ".u32",
-            ".u32",
-            ".u32",
-            ".u32"
-          ],
-          "functions": [
-            "vae_temporal_cache_update_f32"
           ]
         },
         {

@@ -101,6 +101,14 @@
     {
       "path": "fixtures/comfy/moss-ultra/block.json",
       "golden": "comfy_moss_block_capture.py"
+    },
+    {
+      "path": "fixtures/comfy/moss-ultra/block-text-to-image.json",
+      "golden": "comfy_moss_block_capture.py"
+    },
+    {
+      "path": "fixtures/comfy/int8-attention/golden.json",
+      "golden": "comfy_int8_attention_golden.py"
     }
   ]
 }

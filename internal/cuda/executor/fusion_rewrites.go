@@ -124,6 +124,9 @@ type bf16AttentionFusion struct {
 	native                     bool
 	// registers takes the kernel that keeps the scores in registers (tensor.AttentionAttributes.ScoresInRegisters).
 	registers bool
+	// int8 takes comfy_kitchen's int8 attention (tensor.AttentionAttributes.Int8), reading the pre-round heads, which its
+	// kernels round to BF16 as they read them.
+	int8 bool
 }
 
 type rewriteContext struct {
@@ -1118,12 +1121,12 @@ func applyBF16AttentionRewrite(context *rewriteContext) {
 		}
 		fusion := bf16AttentionFusion{
 			query: query.Inputs[0], key: key.Inputs[0], value: value.Inputs[0],
-			native: native, registers: attributes.ScoresInRegisters,
+			native: native, registers: attributes.ScoresInRegisters, int8: attributes.Int8,
 		}
 		if attributes.HasKeyBias {
 			fusion = bf16AttentionFusion{
 				query: query.Inputs[0], key: key.Inputs[0], value: value.Inputs[0], keyBias: node.Inputs[3],
-				native: native, registers: attributes.ScoresInRegisters,
+				native: native, registers: attributes.ScoresInRegisters, int8: attributes.Int8,
 			}
 		}
 		operands := []*tensor.Tensor{fusion.query, fusion.key, fusion.value}

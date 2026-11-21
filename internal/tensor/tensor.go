@@ -278,6 +278,13 @@ type AttentionAttributes struct {
 	// native kernel's at that rounding. A speed choice: MOSS's attention took 28.9 ms a layer at 12432 tokens in the
 	// native kernel, 44% of a pass (moss-attention).
 	ScoresInRegisters bool
+	// Int8 computes a non-causal attention over F32 heads of 128 channels as comfy_kitchen's int8_attention does
+	// (v0.2.40, after SageAttention), ComfyUI's attention where comfy_kitchen is installed: each value rounded to BF16,
+	// Q and K rotated by a signed H128 and quantized to INT8 a scale per small group of rows, K first less a sampled
+	// anchor key where that narrows its range, V in INT8 per channel, the probabilities in U8, both products on the
+	// INT8 tensor cores, and the output rounded to BF16. ComfyUI's arithmetic, held to comfy_kitchen's bit for bit
+	// (moss-attention-pass).
+	Int8 bool
 }
 
 type Conv1DAttributes struct {

@@ -5,6 +5,21 @@ import (
 	"testing"
 )
 
+// attentionAgreement reads how near an attention output lies to a reference's: the relative L2 of their difference and
+// the fraction of its entries whose bits are the reference's.
+func attentionAgreement(got, want []float32) (relative, equal float64) {
+	var differenceSquares, wantSquares float64
+	same := 0
+	for index, value := range want {
+		difference := float64(got[index]) - float64(value)
+		differenceSquares, wantSquares = differenceSquares+difference*difference, wantSquares+float64(value)*float64(value)
+		if math.Float32bits(got[index]) == math.Float32bits(value) {
+			same++
+		}
+	}
+	return math.Sqrt(differenceSquares / wantSquares), float64(same) / float64(len(want))
+}
+
 // blockUpdateAgreement reads how near a block's update of its stream, its output got less its input, lies to a
 // reference's, want less the same input, over tokens of width values: the relative L2 of the whole difference, and the
 // lowest cosine of a token's update with the reference's and that token. A token whose update is zero where the

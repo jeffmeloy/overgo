@@ -102,6 +102,9 @@ func configureLargeSharedKernels(lib *driver.Library, functions functionSet) err
 // cp.async kernel consumes pre-rounded BF16 K/V from the shared score
 // allocation).
 func blasBF16AttentionStagingBytes(fusion bf16AttentionFusion) (uint64, bool) {
+	if fusion.int8 {
+		return fusionGeometry(fusion).int8StagingBytes(), true
+	}
 	elements, err := fusion.key.Shape.Elements()
 	if err != nil || elements == 0 || elements > math.MaxUint64/4 {
 		return 0, false
@@ -164,6 +167,12 @@ func launchBF16Attention(
 	}
 	output := pointers.output()
 	scale := attributes.Scale
+	if fusion.int8 {
+		if fusion.keyBias != nil || keyWidth != int8AttentionWidth || keyValueHeads == 0 || queryHeads%keyValueHeads != 0 {
+			return errors.New("int8 attention requires heads of 128 channels in whole groups, with no key bias")
+		}
+		return launchInt8Attention(state, functions, blas, query, key, value, output, fusionGeometry(fusion), scale)
+	}
 	stagingBytes, ok := blasBF16AttentionStagingBytes(fusion)
 	if !ok || blas == nil || blas.scores == 0 || stagingBytes > blas.scoreBytes {
 		return errors.New("fused attention BF16 staging is unavailable")
@@ -600,6 +609,13 @@ func launchAttentionLayout(
 		}
 		if attributes.EightBit {
 			return launchEightBitAttention(state, functions, blas, node, attributes, pointers)
+		}
+		if attributes.Int8 {
+			if !int8AttentionNode(node, attributes) {
+				return errors.New("int8 attention requires heads of 128 channels in whole groups, with no key bias")
+			}
+			return launchInt8Attention(state, functions, blas, pointers.input(0), pointers.input(1), pointers.input(2), output,
+				eightBitGeometryOf(node), attributes.Scale)
 		}
 		count := shapeCount32(node.Shape)
 		queryNode := node.Inputs[0]

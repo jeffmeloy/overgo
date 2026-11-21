@@ -1,6 +1,7 @@
 package latentimage
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"overgo/internal/comfyquant"
@@ -34,9 +35,53 @@ func convRotProjections(source *safetensors.Source, layers int) (map[string]bool
 	return held, nil
 }
 
+// int8AttentionMethod is the attention a ComfyUI file declares for a module (its <module>.comfy_attention.config, read by
+// ComfyAttention in comfy/ldm/modules/attention.py) that ComfyUI runs as comfy_kitchen's int8_attention.
+const int8AttentionMethod = "comfy_kitchen_int8"
+
+// int8AttentionLayers is the joint layers a transformer's file declares comfy_kitchen's int8 attention for: a layer
+// whose layers.N.comfy_attention.config, one JSON record or a list of them, names it first, as ComfyAttention takes the
+// first method it can run. A layer that declares none keeps the BF16 attention, as ComfyUI keeps its default for it; one
+// that declares another method fails, since overgo runs no other.
+func int8AttentionLayers(source *safetensors.Source, layers int) (map[int]bool, error) {
+	declared := map[int]bool{}
+	for layer := range layers {
+		name := fmt.Sprintf("layers.%d.comfy_attention.config", layer)
+		stored, held := source.Tensors[name]
+		if !held {
+			continue
+		}
+		record := make([]byte, stored.Size())
+		if _, err := stored.ReadAt(record, 0); err != nil {
+			return nil, fmt.Errorf("%s: %w", name, err)
+		}
+		var configs []struct {
+			Attention string `json:"attention"`
+		}
+		if err := json.Unmarshal(record, &configs); err != nil {
+			configs = configs[:0]
+			var single struct {
+				Attention string `json:"attention"`
+			}
+			if err := json.Unmarshal(record, &single); err != nil {
+				return nil, fmt.Errorf("%s holds %q, no attention record: %w", name, record, err)
+			}
+			configs = append(configs, single)
+		}
+		if len(configs) == 0 || configs[0].Attention != int8AttentionMethod {
+			return nil, fmt.Errorf("%s declares %q; overgo runs %s alone", name, record, int8AttentionMethod)
+		}
+		declared[layer] = true
+	}
+	return declared, nil
+}
+
 type rotaryJointProgram struct {
 	input, rope, modulation, unit, output *tensor.Tensor
-	weightInputs                          tensor.WeightBindings
+	// attention is the block's attention output, rounded to BF16 as the output projection reads it, which a test reads
+	// beside the block's output.
+	attention    *tensor.Tensor
+	weightInputs tensor.WeightBindings
 	// adapterInputs and strengths are each adapter's tensors and strength input, in the request's order (rotaryOptions).
 	adapterInputs []tensor.WeightBindings
 	strengths     []*tensor.Tensor
@@ -79,6 +124,7 @@ func compileRotaryJointProgram(t TransformerSpec, epsilon float32, tokens, index
 	p.unit = b.Input("unit", dtype.F32, tensor.MustShape(g.width))
 	p.rope = g.rotaryInput("joint_rotary")
 	p.output = g.joint(p.input, p.modulation, p.unit, index)
+	p.attention = g.attended
 	if err := b.Err(); err != nil {
 		return nil, fmt.Errorf("rotary joint: %w", err)
 	}
@@ -113,7 +159,8 @@ func (g *rotaryGraph) joint(input, modulation, unit *tensor.Tensor, index int) *
 	if g.valueScale != nil {
 		v = b.Multiply(v, g.valueScale)
 	}
-	hidden = g.round(b.Add(hidden, g.round(b.Multiply(g.projection(prefix+"proj.o", g.attention(q, k, v), g.width, g.width), attentionGate))))
+	g.attended = g.attention(q, k, v, g.int8Attention[index])
+	hidden = g.round(b.Add(hidden, g.round(b.Multiply(g.projection(prefix+"proj.o", g.attended, g.width, g.width), attentionGate))))
 	y = g.modulate(g.norm(prefix+"norm2", hidden, g.width), feedShift, feedScale, unit)
 	fused := g.projection(prefix+"proj.ffn_up_gate", y, g.width, tensor.PairedExtent*g.intermediate)
 	down := prefix + "proj.ffn_down"

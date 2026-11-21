@@ -304,6 +304,7 @@ type attentionOptions struct {
 	tensorCores           bool
 	eightBit              bool
 	scoresInRegisters     bool
+	int8                  bool
 	queryStart, window    uint32
 }
 
@@ -335,6 +336,8 @@ type AttentionOptions struct {
 	EightBit bool
 	// ScoresInRegisters keeps a BF16 attention's scores in registers (AttentionAttributes.ScoresInRegisters).
 	ScoresInRegisters bool
+	// Int8 computes the attention as comfy_kitchen's int8_attention does (AttentionAttributes.Int8).
+	Int8 bool
 }
 
 // NativeAttentionSoftmaxWidth bounds the native F32 reductions validated through the source prompt limit.
@@ -363,6 +366,7 @@ func (b *Builder) AttentionWithOptions(
 		tensorCores:       options.TensorCores,
 		eightBit:          options.EightBit,
 		scoresInRegisters: options.ScoresInRegisters,
+		int8:              options.Int8,
 	})
 }
 
@@ -539,6 +543,16 @@ func (b *Builder) buildAttention(
 		b.setError(fmt.Errorf("8-bit attention requires F32 heads of %d channels over every key, with no mask but a key bias", EightBitAttentionWidth))
 		return nil
 	}
+	if options.int8 && (query.Type != dtype.F32 || key.Type != dtype.F32 || value.Type != dtype.F32 ||
+		query.Shape.Dims[0] != EightBitAttentionWidth || key.Shape.Dims[0] != EightBitAttentionWidth ||
+		value.Shape.Dims[0] != EightBitAttentionWidth || options.eightBit || options.scoresInRegisters ||
+		options.causal || options.symmetricWindow || options.chunkedWindow || options.queryStart != 0 || options.window != 0 ||
+		options.softcap != 0 || options.maxALiBiBias != 0 || options.bias != nil || options.sinks != nil ||
+		options.blockIDs != nil || options.keyBias != nil || options.naiveF32 || options.memoryEfficientF32 ||
+		options.nativeMath || options.tensorCores || key.Op == OpCacheAppend) {
+		b.setError(fmt.Errorf("int8 attention requires F32 heads of %d channels over every key, with no mask", EightBitAttentionWidth))
+		return nil
+	}
 	var keyValueTokens uint32
 	if key.Op == OpCacheAppend {
 		appendAttributes, ok := key.Attrs.(CacheAppendAttributes)
@@ -579,6 +593,7 @@ func (b *Builder) buildAttention(
 			TensorCores:           options.tensorCores,
 			EightBit:              options.eightBit,
 			ScoresInRegisters:     options.scoresInRegisters,
+			Int8:                  options.int8,
 		},
 	)
 }

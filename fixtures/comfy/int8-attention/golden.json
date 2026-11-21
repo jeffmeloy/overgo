@@ -1,0 +1,313 @@
+{
+ "script": "scripts/python_golden_references/comfy_int8_attention_golden.py",
+ "seed": 20261121,
+ "heads": 24,
+ "width": 128,
+ "torch": "2.14.0+cu130",
+ "device": "NVIDIA GeForce RTX 4090 D",
+ "cases": [
+  {
+   "length": 2314,
+   "offset": false,
+   "cta_k": 128,
+   "scale": 0.08838834764831845,
+   "inputs": {
+    "q": {
+     "sha256": "3e3f821ecaec7ba5bd7fe9266f9e7f09a61b260a90ff891557c261aec7f88188",
+     "dtype": "bf16",
+     "shape": [
+      1,
+      24,
+      2314,
+      128
+     ]
+    },
+    "k": {
+     "sha256": "5b2dfc40de96bd13df87ad8ea161dbb1e433c64fafeeaf2976aa674f81f47480",
+     "dtype": "bf16",
+     "shape": [
+      1,
+      24,
+      2314,
+      128
+     ]
+    },
+    "v": {
+     "sha256": "0855cbee31efad61ae7677c529094074600cd1f9268386689421e2f8b75e7a37",
+     "dtype": "bf16",
+     "shape": [
+      1,
+      24,
+      2314,
+      128
+     ]
+    }
+   },
+   "q_int8": {
+    "sha256": "946b0e97f06032324c21a33a396b211a4603e3040bef1446116f1781895989e5",
+    "dtype": "i8",
+    "shape": [
+     1,
+     24,
+     2314,
+     128
+    ]
+   },
+   "q_scale": {
+    "sha256": "7944c7dc3f16996f88343275612bb6724fcd949e45e8e784ece55e54e9b77c6b",
+    "dtype": "f32",
+    "shape": [
+     1,
+     24,
+     608
+    ]
+   },
+   "k_int8": {
+    "sha256": "04adf5f31f331910d1c568b3ea0fc6b953b1bb07ea55fcf78073beee7a9ce519",
+    "dtype": "i8",
+    "shape": [
+     1,
+     24,
+     2314,
+     128
+    ]
+   },
+   "k_scale": {
+    "sha256": "b3d81869dc73b33f4668342511758e407056964fc82d1648ca35689dc13a3397",
+    "dtype": "f32",
+    "shape": [
+     1,
+     24,
+     76
+    ]
+   },
+   "v_int8": {
+    "sha256": "ca46714cfd83dfb31c202b7c765e6897a73869ecb6044ad48dbb070b06600529",
+    "dtype": "i8",
+    "shape": [
+     3072,
+     2432
+    ]
+   },
+   "v_scale": {
+    "sha256": "a88d848f121e87e8e6ac9a7ec58c048527ebd0377b644941a491bdf12975a079",
+    "dtype": "f32",
+    "shape": [
+     3072
+    ]
+   },
+   "output": {
+    "sha256": "6135bd44cfc83ac53fd39a6f769818e93e7fe7fe7502c9472c42a37a4959b5f8",
+    "dtype": "bf16",
+    "shape": [
+     1,
+     24,
+     2314,
+     128
+    ]
+   }
+  },
+  {
+   "length": 2337,
+   "offset": false,
+   "cta_k": 128,
+   "scale": 0.08838834764831845,
+   "inputs": {
+    "q": {
+     "sha256": "59b574c10cf2c77f2644d28687e2d12352dc1ba767b1ef68e4705b44407287ed",
+     "dtype": "bf16",
+     "shape": [
+      1,
+      24,
+      2337,
+      128
+     ]
+    },
+    "k": {
+     "sha256": "388bcf95f2f64258f7614b42c2b4b1cb3f412a741489469d8c10a97011b0f9de",
+     "dtype": "bf16",
+     "shape": [
+      1,
+      24,
+      2337,
+      128
+     ]
+    },
+    "v": {
+     "sha256": "a328f0245e467bcd1406626197d7db1f1028ed701d062235ffdc219609e3fbbd",
+     "dtype": "bf16",
+     "shape": [
+      1,
+      24,
+      2337,
+      128
+     ]
+    }
+   },
+   "q_int8": {
+    "sha256": "55a93ed333b5487be63c34c867c4b0c8c13865987d9b99f97c8ef68cd82e234f",
+    "dtype": "i8",
+    "shape": [
+     1,
+     24,
+     2337,
+     128
+    ]
+   },
+   "q_scale": {
+    "sha256": "84ab12a2942e0a57b295b05dfc158a7ee1df342c64562f5518fc3b68725b3f7a",
+    "dtype": "f32",
+    "shape": [
+     1,
+     24,
+     608
+    ]
+   },
+   "k_int8": {
+    "sha256": "f20ef4ea6e0281e0c62c38abfe38c410aaf6a94722f248083dc1870e97cf117c",
+    "dtype": "i8",
+    "shape": [
+     1,
+     24,
+     2337,
+     128
+    ]
+   },
+   "k_scale": {
+    "sha256": "ce6f8ab805cec3ff2262a8358135db07b28d77bba0080a1cabc870082a28227e",
+    "dtype": "f32",
+    "shape": [
+     1,
+     24,
+     76
+    ]
+   },
+   "v_int8": {
+    "sha256": "9ce708ae7208fced573ade72ed0f77cc803c02840f37a2e623bb14fedaf4151e",
+    "dtype": "i8",
+    "shape": [
+     3072,
+     2432
+    ]
+   },
+   "v_scale": {
+    "sha256": "a29cc91aa0790497144364607e674e46fb62d8daec075779c03b5d898df200e0",
+    "dtype": "f32",
+    "shape": [
+     3072
+    ]
+   },
+   "output": {
+    "sha256": "6756d21259d378a447004c7eb79e681514d1d3b8e48f7392da70dbb9b5890679",
+    "dtype": "bf16",
+    "shape": [
+     1,
+     24,
+     2337,
+     128
+    ]
+   }
+  },
+  {
+   "length": 2314,
+   "offset": true,
+   "cta_k": 128,
+   "scale": 0.08838834764831845,
+   "inputs": {
+    "q": {
+     "sha256": "3e3f821ecaec7ba5bd7fe9266f9e7f09a61b260a90ff891557c261aec7f88188",
+     "dtype": "bf16",
+     "shape": [
+      1,
+      24,
+      2314,
+      128
+     ]
+    },
+    "k": {
+     "sha256": "23cab1e66e3ad03611f07a2245454c8d32005649562ffbaa06135cb9a1d5e516",
+     "dtype": "bf16",
+     "shape": [
+      1,
+      24,
+      2314,
+      128
+     ]
+    },
+    "v": {
+     "sha256": "0855cbee31efad61ae7677c529094074600cd1f9268386689421e2f8b75e7a37",
+     "dtype": "bf16",
+     "shape": [
+      1,
+      24,
+      2314,
+      128
+     ]
+    }
+   },
+   "q_int8": {
+    "sha256": "946b0e97f06032324c21a33a396b211a4603e3040bef1446116f1781895989e5",
+    "dtype": "i8",
+    "shape": [
+     1,
+     24,
+     2314,
+     128
+    ]
+   },
+   "q_scale": {
+    "sha256": "7944c7dc3f16996f88343275612bb6724fcd949e45e8e784ece55e54e9b77c6b",
+    "dtype": "f32",
+    "shape": [
+     1,
+     24,
+     608
+    ]
+   },
+   "k_int8": {
+    "sha256": "64e19d2ba3410433e52445f80630478667808ef069e4ad4605d8974b602d5256",
+    "dtype": "i8",
+    "shape": [
+     1,
+     24,
+     2314,
+     128
+    ]
+   },
+   "k_scale": {
+    "sha256": "ca29f726c197453acc09b2197ca55879dfc52a028fde1b66403a193c7b03ee18",
+    "dtype": "f32",
+    "shape": [
+     1,
+     24,
+     76
+    ]
+   },
+   "v_int8": {
+    "sha256": "ca46714cfd83dfb31c202b7c765e6897a73869ecb6044ad48dbb070b06600529",
+    "dtype": "i8",
+    "shape": [
+     3072,
+     2432
+    ]
+   },
+   "v_scale": {
+    "sha256": "a88d848f121e87e8e6ac9a7ec58c048527ebd0377b644941a491bdf12975a079",
+    "dtype": "f32",
+    "shape": [
+     3072
+    ]
+   },
+   "output": {
+    "sha256": "313e12bb8807791c605c8afd9489c07ddfd98fe2069f3b85faf0c9d85a9c19c7",
+    "dtype": "bf16",
+    "shape": [
+     1,
+     24,
+     2314,
+     128
+    ]
+   }
+  }
+ ]
+}

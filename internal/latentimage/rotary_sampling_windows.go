@@ -27,20 +27,40 @@ import (
 var samplingScoresInRegisters = true
 
 // samplingInt8 says a rotary sampling multiplies the joint blocks' projections in int8 as comfy_kitchen's int8_linear
-// does where the transformer's file holds them int8 ConvRot (heldInConvRot), as the MOSS Ultra workflow's does
+// does where the transformer's file holds them int8 ConvRot (declaredInt8), as the MOSS Ultra workflow's does
 // (moss-int8): decoded to BF16, they took 0.76 s of a pass at 2368 x 1344 (moss-speed/do), and drew by other arithmetic
 // than ComfyUI's. A test reads the BF16 sampling beside it.
 var samplingInt8 = true
 
-// heldInConvRot is the joint projections a transformer directory's file holds in int8 ConvRot over groups of 256
-// columns (convRotProjections), as the MOSS Ultra workflow's file holds each of its layers' four.
-func heldInConvRot(directory string, layers int) (map[string]bool, error) {
+// samplingInt8Attention says a rotary sampling's joint layers take comfy_kitchen's int8 attention where the
+// transformer's file declares it for them (int8AttentionLayers), as ComfyUI runs them and the MOSS Ultra workflow's file
+// declares for its 42 layers. Off until moss-attention-pass/do turns it on and counts the pass's launches.
+var samplingInt8Attention = false
+
+// declaredInt8 is what a transformer directory's file holds and declares in int8, its file opened once: the joint
+// projections it holds in int8 ConvRot over groups of 256 columns (convRotProjections), as the MOSS Ultra workflow's
+// file holds each of its layers' four, where projections asks for them, and the joint layers it declares
+// comfy_kitchen's int8 attention for (int8AttentionLayers), where attention asks for them.
+func declaredInt8(directory string, layers int, projections, attention bool) (held map[string]bool, declared map[int]bool, err error) {
+	if !projections && !attention {
+		return nil, nil, nil
+	}
 	source, err := safetensors.OpenSource(directory)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer source.Close()
-	return convRotProjections(source, layers)
+	if projections {
+		if held, err = convRotProjections(source, layers); err != nil {
+			return nil, nil, err
+		}
+	}
+	if attention {
+		if declared, err = int8AttentionLayers(source, layers); err != nil {
+			return nil, nil, err
+		}
+	}
+	return held, declared, nil
 }
 
 // runRotarySampling retains latents through guidance and Euler updates.
@@ -57,11 +77,9 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 	if spec.TextHidden <= 0 || len(positive)%spec.TextHidden != 0 || len(negative)%spec.TextHidden != 0 {
 		return nil, errors.New("rotary sampling: conditioning widths differ")
 	}
-	var int8 map[string]bool
-	if samplingInt8 {
-		if int8, err = heldInConvRot(filepath.Join(modelRoot, "transformer"), spec.Layers); err != nil {
-			return nil, err
-		}
+	int8, int8Attention, err := declaredInt8(filepath.Join(modelRoot, "transformer"), spec.Layers, samplingInt8, samplingInt8Attention)
+	if err != nil {
+		return nil, err
 	}
 	var programs, previous []*graphruntime.ResidentProgram
 	if kept != nil {
@@ -89,7 +107,7 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 		if existing, ok := branches[name]; ok {
 			return existing, nil
 		}
-		p, e := compileRotaryDenoiserProgram(spec, mossRefinementEpsilon, height, width, len(conditioning)/spec.TextHidden, skip, dtype.BF16, rotaryOptions{eightBit: settings.eightBit, registers: samplingScoresInRegisters, int8: int8, adapters: settings.adapters}, weights...)
+		p, e := compileRotaryDenoiserProgram(spec, mossRefinementEpsilon, height, width, len(conditioning)/spec.TextHidden, skip, dtype.BF16, rotaryOptions{eightBit: settings.eightBit, registers: samplingScoresInRegisters, int8: int8, int8Attention: int8Attention, adapters: settings.adapters}, weights...)
 		if e != nil {
 			return branch{}, e
 		}

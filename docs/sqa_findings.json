@@ -401,32 +401,24 @@
       "actual": "The saved 240-byte cause ends in the middle of the next audioparity name. At 8c32dad22 Classify clips the text before Worklist reads it. Applying refusedBy to that record yields only TestNativeASRSessionAcceptance and TestSecondASRStreamingAcceptance/6930-75918-0000. Six named failures disappear from the worklist for this refusal, including the offline ASR checks and server/TestStreamingTranscriptionAcceptance. The original gate output and its failing verdict are intact."
     },
     {
-      "id": "SQA-450",
+      "id": "SQA-451",
       "severity": "P2",
       "files": [
-        "internal/audioparity/second_asr_test.go",
-        "internal/speechrecognitiontest/capture.go",
-        "internal/landing/landing.go",
-        "internal/plan/test_passes.go",
-        "cmd/validate/claims.go"
+        "docs/verification/test-data-origins.json",
+        "docs/verification/goldens-kept.json",
+        "fixtures/moss/oracle-contract.json",
+        "cmd/validate/test_data_origins_test.go",
+        "internal/latentimage/refinement_verify_windows.go"
       ],
-      "input": "Read the streaming-ASR compatibility claim after speech-credit/do on a store that credited an all-skipped run. Also consider restoring only one of the two required recording captures while speech-captures remakes the other.",
-      "expected": "Keep missing declared captures nonblocking and run every available case. Credit the two-recording claim only after both fixtures pass. When the saved pass is known to be false, show a verifiable earlier full pass or report that none is known.",
-      "actual": "Observed at a1535af3a: validate -claims still reports audio-cpu-second-asr-mel-streaming passed at 5a0c45c80a8e, the pre-fix landing while both captures were missing. The saved pass names that commit. 90124d518 correctly skips the parent when both are missing, but RecordTestPasses only replaces entries for tests that pass, so the false credit survives. A second case follows from source: with one capture restored, DeclareWhileRemade lets the parent run, the other child skips, and landing.passedTests credits the parent if the available case passes. compatibility.json promises both the 12- and 45-chunk recordings. The partial-restore case was not run."
+      "input": "Recover full-english, full-chinese-rectangle or full-layout after losing its full_reference.safetensors. Follow the MOSS oracle entry in test-data-origins.json using its retained moss_full_reference.py, the pinned checkpoint and the original case settings.",
+      "expected": "The data-origin check should identify a recoverable copy of each pinned artifact or the matching producer for its case. Compare the retained producer's digest with the case's producer ID before spending GPU time. Keep the existing whole-file identity check.",
+      "actual": "At 64bbd5ff2 the retained script hashes to 1a7dd1e7ab21. The existing English and Chinese tensor headers and oracle contract name producer f5ea6d9279bb. Layout names 50437649e0aa. TestEveryTestsDataNamesItsOrigin accepts the script by filename alone. The script runs the 50-step generation twice and embeds its own SHA-256 in the output before saving it. Even identical tensor values would give a different file, which VerifyMOSSTransformer rejects by digest. The mismatch was observed in the retained headers and script bytes. The failed recovery follows from source. All three original files are present."
     }
   ],
   "master_lead_triage": {
     "at": "2026-11-20",
     "head": "cbdf003cc5e0d974e86a56e8f99bb49b6bdc97a8",
     "findings": {
-  "SQA-450": {
-        "action": "filed",
-        "rows": [
-          "speech-credit/do",
-          "speech-claim/do"
-        ],
-        "note": "Answered by the lead on 2026-11-21 at 5ecf679fc: valid from source, and speech-hold's own (each capture case of the second ASR acceptances is a subtest that CaptureFile declares inapplicable alone, so with both captures gone the parent passes and the landing's recorder credits it to the streaming claim). Filed as speech-credit/do (90124d518): an acceptance whose captures are all being remade declares itself whole. Reopened by the review at a1535af3a, valid on both counts (the record keeps the passes credited at 5a0c45c80, since RecordTestPasses replaces only a passing test's entry; and one capture back would let the parent pass on one recording), so filed again as speech-claim/do, ahead of data-origin: the acceptance runs every case it has and declares itself after them where any capture is being remade, and the two saved passes return to the 4586266fe cycle's, begun 17:52:31 on 2026-11-20, the last that checked both recordings."
-      },
   "SQA-449": {
         "action": "deferred",
         "rows": [],
@@ -594,7 +586,7 @@
       }
 }
   },
-  "next_finding_number": 451,
+  "next_finding_number": 452,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

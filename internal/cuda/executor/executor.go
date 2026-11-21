@@ -1547,6 +1547,12 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 			compiled.attentionScoreBytes = max(compiled.attentionScoreBytes, eightBitGeometryOf(node).stagingBytes())
 			continue
 		}
+		// The int8 attention keeps its codes, scales and anchors there too.
+		if attributes, ok := node.Attrs.(tensor.AttentionAttributes); ok && attributes.Int8 {
+			compiled.needBlas = true
+			compiled.attentionScoreBytes = max(compiled.attentionScoreBytes, eightBitGeometryOf(node).int8StagingBytes())
+			continue
+		}
 		// The tensor-core kernel keeps a prompt's scores in registers, so its attention reserves no score staging.
 		if attributes, ok := node.Attrs.(tensor.AttentionAttributes); ok && flashAttention(node, attributes) {
 			continue

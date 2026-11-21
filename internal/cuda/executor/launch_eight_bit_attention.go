@@ -24,9 +24,13 @@ type eightBitGeometry struct {
 	queryHeads, keyValueHeads, queryTokens, keyValueTokens, sequences uint32
 }
 
-// eightBitGeometryOf is an attention node's shape, its inputs [width][heads][tokens][sequences].
+// eightBitGeometryOf is an attention node's shape, read from its queries and keys.
 func eightBitGeometryOf(node *tensor.Tensor) eightBitGeometry {
-	query, key := node.Inputs[0].Shape, node.Inputs[1].Shape
+	return headsGeometry(node.Inputs[0].Shape, node.Inputs[1].Shape)
+}
+
+// headsGeometry is an attention's shape read from its queries and keys, each [width][heads][tokens][sequences].
+func headsGeometry(query, key tensor.Shape) eightBitGeometry {
 	geometry := eightBitGeometry{
 		queryHeads: uint32(query.Dims[1]), keyValueHeads: uint32(key.Dims[1]),
 		queryTokens: uint32(query.Dims[2]), keyValueTokens: uint32(key.Dims[2]), sequences: 1,
@@ -65,11 +69,20 @@ func (geometry eightBitGeometry) stagingParts() [9]uint64 {
 
 // stagingBytes is the staging's whole size, each part aligned to 256 bytes.
 func (geometry eightBitGeometry) stagingBytes() uint64 {
-	total := uint64(0)
-	for _, bytes := range geometry.stagingParts() {
+	parts := geometry.stagingParts()
+	_, total := alignedParts(0, parts[:])
+	return total
+}
+
+// alignedParts lays parts of a staging out from base, each aligned to eightBitAligned bytes: each part's place, and the
+// bytes they take in all.
+func alignedParts(base driver.DevicePtr, parts []uint64) ([]driver.DevicePtr, uint64) {
+	offsets, total := make([]driver.DevicePtr, len(parts)), uint64(0)
+	for index, bytes := range parts {
+		offsets[index] = base + driver.DevicePtr(total)
 		total += (bytes + eightBitAligned - 1) &^ (eightBitAligned - 1)
 	}
-	return total
+	return offsets, total
 }
 
 // launchEightBitAttention launches a graph's 8-bit attention node over the score staging, its key bias the final input
@@ -93,12 +106,7 @@ func launchEightBitAttention(state *device.State, functions functionSet, blas *b
 func launchEightBitAttentionKernels(state *device.State, functions functionSet, query, key, value, keyBias, output, staging driver.DevicePtr,
 	geometry eightBitGeometry, scale float32) error {
 	parts := geometry.stagingParts()
-	var offsets [len(parts)]driver.DevicePtr
-	at := staging
-	for index, bytes := range parts {
-		offsets[index] = at
-		at += driver.DevicePtr((bytes + eightBitAligned - 1) &^ (eightBitAligned - 1))
-	}
+	offsets, _ := alignedParts(staging, parts[:])
 	queryCodes, keyCodes, valueCodes, queryScales, keyScales := offsets[0], offsets[1], offsets[2], offsets[3], offsets[4]
 	valueScales, keyMean, keySums, valueMaxima := offsets[5], offsets[6], offsets[7], offsets[8]
 	queryHeads, keyValueHeads, sequences := geometry.queryHeads, geometry.keyValueHeads, geometry.sequences

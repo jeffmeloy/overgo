@@ -34,6 +34,11 @@ type rotaryGraph struct {
 	eightBit bool
 	// registers keeps the BF16 attention's scores in registers (tensor.AttentionAttributes.ScoresInRegisters).
 	registers bool
+	// int8Attention are the joint layers whose attention is comfy_kitchen's int8 attention (tensor.AttentionAttributes.Int8), as the
+	// transformer's file declares it (int8AttentionLayers); none for a file that declares none.
+	int8Attention map[int]bool
+	// attended is the last joint block's attention output (rotaryJointProgram.attention).
+	attended *tensor.Tensor
 	// int8 are the joint projections' weights the int8 ConvRot file holds so (convRotProjections), held as it stores them
 	// and multiplied as comfy_kitchen's int8_linear does (dtype.I8ConvRot); any other is read as its file holds it.
 	int8 map[string]bool
@@ -61,11 +66,12 @@ type mergedPair struct {
 }
 
 // rotaryOptions are what a rotary program computes beside its weights: its attention in 8 bits, or in BF16 with its
-// scores in registers, its joint projections in int8 as an int8 ConvRot file holds them, and its adapters, in the order
-// a request names them.
+// scores in registers, the joint layers whose attention is comfy_kitchen's int8 attention, its joint projections in int8
+// as an int8 ConvRot file holds them, and its adapters, in the order a request names them.
 type rotaryOptions struct {
 	eightBit, registers bool
 	int8                map[string]bool
+	int8Attention       map[int]bool
 	adapters            []*mediaAdapter
 }
 
@@ -88,7 +94,7 @@ const adapterPlace = "@"
 // use takes the options into the graph, binding each adapter's tensors into its bindings, and gives each adapter's
 // strength input.
 func (g *rotaryGraph) use(options rotaryOptions, bindings []tensor.WeightBindings) []*tensor.Tensor {
-	g.eightBit, g.registers, g.int8 = options.eightBit, options.registers, options.int8
+	g.eightBit, g.registers, g.int8, g.int8Attention = options.eightBit, options.registers, options.int8, options.int8Attention
 	strengths := make([]*tensor.Tensor, len(options.adapters))
 	for index, adapter := range options.adapters {
 		place := ""
@@ -287,13 +293,17 @@ func (g *rotaryGraph) rotate(x *tensor.Tensor) *tensor.Tensor {
 	turned := g.b.Concat(g.b.Scale(c, -tensor.UnitScale), a, tensor.FirstOffset)
 	return g.round(g.b.Add(g.round(g.b.Multiply(x, g.cosine)), g.round(g.b.Multiply(turned, g.sine))))
 }
-func (g *rotaryGraph) attention(q, k, v *tensor.Tensor) *tensor.Tensor {
+
+// attention is the heads' attention, comfy_kitchen's int8 attention where int8 says so and 8 bits are not asked for.
+func (g *rotaryGraph) attention(q, k, v *tensor.Tensor, int8 bool) *tensor.Tensor {
 	if g.eightBit {
 		q, k = g.rotate(q), g.rotate(k)
 	} else {
 		q, k, v = g.round(g.rotate(q)), g.round(g.rotate(k)), g.round(v)
 	}
-	options := tensor.AttentionOptions{Scale: float32(float64(tensor.UnitScale) / math.Sqrt(float64(g.headWidth))), EightBit: g.eightBit, ScoresInRegisters: g.registers && !g.eightBit}
+	int8 = int8 && !g.eightBit
+	options := tensor.AttentionOptions{Scale: float32(float64(tensor.UnitScale) / math.Sqrt(float64(g.headWidth))), EightBit: g.eightBit,
+		ScoresInRegisters: g.registers && !g.eightBit && !int8, Int8: int8}
 	return g.b.Reshape(g.round(g.b.AttentionWithOptions(q, k, v, options)), g.width, g.sequence)
 }
 func (g *rotaryGraph) situ(up, gate *tensor.Tensor) *tensor.Tensor {
@@ -335,7 +345,7 @@ func (g *rotaryGraph) refine(t TransformerSpec, input *tensor.Tensor) (*tensor.T
 		q := g.norm(prefix+"q_norm", b.Reshape(g.part(qkv, tensor.FirstOffset, g.width), g.headWidth, g.heads, g.sequence), g.headWidth)
 		k := g.norm(prefix+"k_norm", b.Reshape(g.part(qkv, g.width, g.width), g.headWidth, g.heads, g.sequence), g.headWidth)
 		v := b.Reshape(g.part(qkv, tensor.PairedExtent*g.width, g.width), g.headWidth, g.heads, g.sequence)
-		hidden = g.round(b.Add(hidden, g.linear(prefix+"proj", g.attention(q, k, v), g.width, g.width, true)))
+		hidden = g.round(b.Add(hidden, g.linear(prefix+"proj", g.attention(q, k, v, false), g.width, g.width, true)))
 		y := g.norm(prefix+"norm2", hidden, g.width)
 		up := g.linear(prefix+"ffn_up", y, g.width, g.intermediate, true)
 		gate := g.linear(prefix+"ffn_gate", y, g.width, g.intermediate, true)

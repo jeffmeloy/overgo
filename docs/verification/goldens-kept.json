@@ -6,6 +6,7 @@
     {"name": "comfy_er_sde_golden.py", "sha256": "6aa1fbdc39e0a44c3fc6af54db8ff341f93f2f9fdb55bfa530fcab9b6e964157"},
     {"name": "comfy_finishing_golden.py", "sha256": "f8df5ad61be3c4d920588a58add790144b5d6361eabc79012306a9bc539c178a"},
     {"name": "comfy_image_scale_golden.py", "sha256": "298b152413ce5aadefb4a3c04c5e570b1d14cb2b989e1fd8c482ca79fd424636"},
+    {"name": "comfy_int8_attention_golden.py", "sha256": "c8d3eee6a3bae591ee3b0c418fb8021d0c9b04ba5fa77f44a9578db6c733ee7f"},
     {"name": "comfy_lora_merge_capture.py", "sha256": "f81975233dac4429df8dae2bae3ea19a4459b790c175df68ac1ec48aed65cfee"},
     {"name": "comfy_lora_merge_fit.py", "sha256": "0704f3a348485fc2f52059595465299352b0bef66af42b7e4b401bc9a0a895fb"},
     {"name": "comfy_lora_merge_golden.py", "sha256": "3080ca0fc26dad99ab41ab15caefc6630b93c87f16455604c74b6bd0cfc63eb5"},
@@ -20,7 +21,6 @@
     {"name": "moss_full_reference.py", "sha256": "1a7dd1e7ab21cf451903a9ecdb56981f6f29a17c7df8ca5e92ac30218a8ed39e"},
     {"name": "moss_int8_linear_golden.py", "sha256": "5534219c8b309649e1180e47efa077b1f26a61c9360a11e773bbfccccca0f3ca"},
     {"name": "moss_upstream_resources.py", "sha256": "d2dda8a9d93cbbdcb1f2d5a47f7bc2d2edd3f0b9f1a09fab419a284c68e405fe"},
-    {"name": "moss_vae_encoder_golden.py", "sha256": "c6bf32fba182318f3cc56c2e9bad028722495e11403dcdbead1441f7fdc1a97d"},
-    {"name": "block-text-to-image-capture.json", "sha256": "74ed0b28eb0c617a19e57922487739f5888e98a100c977b42fe6e37a5a8eea13"}
+    {"name": "moss_vae_encoder_golden.py", "sha256": "c6bf32fba182318f3cc56c2e9bad028722495e11403dcdbead1441f7fdc1a97d"}
   ]
 }

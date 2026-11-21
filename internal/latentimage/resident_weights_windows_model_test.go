@@ -19,8 +19,8 @@ import (
 // next (moss-resident): on the MOSS Ultra workflow's files, a session's first sampling copies the transformer's weights
 // to the card, a second request's copies under a tenth of that, and a request naming an adapter merges it into the int8
 // projections it patches (mergedProjection, moss-int8-adapters), which the next request naming the same file keeps,
-// copying under a quarter, the merge reading the weights it merges into on the card and copying its pairs alone; a
-// file replaced under its name is merged again (TestAKeptMergeFollowsItsAdaptersContent).
+// copying under a quarter, the merge reading the weights it merges into on the card and copying its pairs alone; the
+// file its merge is kept for cannot change while the session holds it (TestAKeptMergeFollowsItsAdaptersContent).
 // Each request had copied the transformer's 9.5 GB again, about 33 s at 2368 x 1344 (moss-speed/do).
 func TestASecondMOSSRequestCopiesNoWeights(t *testing.T) {
 	cudatest.Require(t)
@@ -75,13 +75,13 @@ func TestASecondMOSSRequestCopiesNoWeights(t *testing.T) {
 }
 
 // TestAKeptMergeFollowsItsAdaptersContent holds the merges a MOSS session keeps on the card to the adapter files as they
-// stand (moss-merge-time/identity): over a copy of the MOSS Ultra workflow's model whose moss_image_sft is its own file,
-// a request naming the adapter merges it into the int8 projections it patches, the next request naming it copies under
-// a quarter of that, the merge kept, and a request after the file is replaced under its name, one bit of its last value
-// changed, merges it again, copying the replaced file's pairs, at least half its bytes and over four times the kept
-// request's, the weights it merges into staying on the card (moss-merge-order). The merge had been kept under the
-// adapter's path, and the replaced file was answered with the earlier file's merge (SQA-406's fault in the merge's
-// place).
+// stand (moss-merge-time/identity, adapter-hold): over a copy of the MOSS Ultra workflow's model whose moss_image_sft is
+// its own file, a request naming the adapter merges it into the int8 projections it patches, the next request naming
+// it copies under a quarter of that, the merge kept; while the session lives, a writer cannot change the file under its
+// name, one bit of its last value, so the kept merge answers for the bytes it was made from; and once the session
+// closes the file is the writer's. The merge had been kept under the adapter's path, and a file replaced under its name
+// was answered with the earlier file's merge (SQA-406's fault in the merge's place); the session now holds the file
+// from its first naming to its close (heldfile.Session.Own), and a replaced file is read by the next session.
 func TestAKeptMergeFollowsItsAdaptersContent(t *testing.T) {
 	cudatest.Require(t)
 	ctx := t.Context()
@@ -89,7 +89,12 @@ func TestAKeptMergeFollowsItsAdaptersContent(t *testing.T) {
 	profile := testcheck.Must(ResolveProfile(root))(t)
 	request := Request{Prompt: "a lighthouse at dusk", Width: 1024, Height: 576, Seed: 7, Steps: 2, Adapter: "moss_image_sft"}
 	generator, loaded := testcheck.Must(LoadGenerator(ctx, root, profile, request))(t), true
-	defer closeReporting(t, context.WithoutCancel(ctx), generator)
+	closed := false
+	defer func() {
+		if !closed {
+			closeReporting(t, context.WithoutCancel(ctx), generator)
+		}
+	}()
 	copied := func() uint64 {
 		t.Helper()
 		if !loaded {
@@ -104,19 +109,30 @@ func TestAKeptMergeFollowsItsAdaptersContent(t *testing.T) {
 		return after.HostToDeviceBytes - before.HostToDeviceBytes
 	}
 	merged, kept := copied(), copied()
+	t.Logf("requests naming the adapter copied %d bytes, then %d", merged, kept)
+	if kept*4 >= merged {
+		t.Errorf("requests naming the adapter copied %d and then %d bytes; want its merge kept, under a quarter copied", merged, kept)
+	}
 	adapter := filepath.Join(root, "adapters", "moss_image_sft.safetensors")
-	file := testcheck.Must(os.OpenFile(adapter, os.O_RDWR, 0))(t)
-	size := testcheck.Must(file.Seek(0, io.SeekEnd))(t)
-	last := make([]byte, 1)
-	testcheck.Must(file.ReadAt(last, size-4))(t)
-	last[0] ^= 1
-	testcheck.Must(file.WriteAt(last, size-4))(t)
-	testcheck.NoError(t, file.Close())
-	replaced := copied()
-	t.Logf("requests naming the adapter copied %d bytes, then %d, then %d after its file of %d bytes was replaced", merged, kept, replaced, size)
-	if kept*4 >= merged || replaced*2 < uint64(size) || replaced < 4*kept {
-		t.Errorf("requests naming the adapter copied %d, %d and, its file of %d bytes replaced under its name, %d bytes; want its merge kept, then made again from the replaced file's pairs",
-			merged, kept, size, replaced)
+	change := func() error {
+		file, err := os.OpenFile(adapter, os.O_RDWR, 0)
+		if err != nil {
+			return err
+		}
+		size := testcheck.Must(file.Seek(0, io.SeekEnd))(t)
+		last := make([]byte, 1)
+		testcheck.Must(file.ReadAt(last, size-4))(t)
+		last[0] ^= 1
+		testcheck.Must(file.WriteAt(last, size-4))(t)
+		return file.Close()
+	}
+	if change() == nil {
+		t.Error("the adapter its session keeps a merge for was changed under its name while the session lived; want the writer refused")
+	}
+	closeReporting(t, context.WithoutCancel(ctx), generator)
+	closed = true
+	if err := change(); err != nil {
+		t.Errorf("the adapter stayed held after its session closed: %v; want it the writer's", err)
 	}
 }
 

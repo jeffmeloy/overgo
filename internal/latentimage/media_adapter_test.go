@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"overgo/internal/heldfile"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
@@ -109,13 +108,10 @@ func TestAMediaAdapterReadsItsThreeFormats(t *testing.T) {
 	}
 }
 
-// writeAdapter writes an adapter file of the tensors under a test's directory, which the session's held files let go of
-// when the test ends.
+// writeAdapter writes an adapter file of the tensors under a test's directory.
 func writeAdapter(t *testing.T, name string, tensors map[string][]float32, shapes map[string][]int) string {
 	t.Helper()
-	directory := t.TempDir()
-	t.Cleanup(func() { testcheck.NoError(t, heldfile.Session.Release(directory)) })
-	path := filepath.Join(directory, name+".safetensors")
+	path := filepath.Join(t.TempDir(), name+".safetensors")
 	testcheck.NoError(t, safetensors.Save(path, tensors, shapes, nil))
 	return path
 }

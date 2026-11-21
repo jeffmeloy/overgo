@@ -255,7 +255,8 @@ func adapterPath(modelRoot, name string) (string, error) {
 }
 
 // fileContent is a file's identity by its bytes, as the store names a file (artifact.Identify), held from its first naming
-// until the session lets it go (heldfile.Session, adapter-hold): a later request naming it reads nothing.
+// while the session that owns its model's directory lives (heldfile.Session, adapter-hold): a later request naming it
+// reads nothing. Read with no session owning it, it is hashed and held by no one (held-release).
 func fileContent(path string) (string, error) {
 	id, err := heldfile.Session.Identity(path)
 	return id.String(), err

@@ -173,6 +173,9 @@ type Generator struct {
 	embed     []float32
 	// pictures are what the session's requests read their pictures with, held across them (pictureSections).
 	pictures *pictureSections
+	// held lets go the session's ownership of its model's directory, whose files it reads beside the model (its
+	// adapters, its depth checkpoint) it holds from its load to its close (heldfile.Session.Own, held-release).
+	held func() error
 	// negative is the negative prompt's programs, whose conditioning prepare makes for a guided denoiser (Guide).
 	negative   *promptPrograms
 	schedule   FlowSchedule
@@ -286,7 +289,23 @@ func ValidateRequest(request Request) error {
 	return validatePrompt(request.PromptMode, request.Prompt, request.Width, request.Height)
 }
 
+// LoadGenerator loads a picture session of the model at modelDir for request, which owns the model's directory from its
+// load to its close (heldfile.Session.Own): the files it reads beside the model are held while it lives (held-release).
 func LoadGenerator(ctx context.Context, modelDir string, profile Profile, request Request) (*Generator, error) {
+	release, err := heldfile.Session.Own(modelDir)
+	if err != nil {
+		return nil, err
+	}
+	generator, err := loadGenerator(ctx, modelDir, profile, request)
+	if err != nil {
+		return nil, errors.Join(err, release())
+	}
+	generator.held = release
+	return generator, nil
+}
+
+// loadGenerator is LoadGenerator's load, its model's directory owned.
+func loadGenerator(ctx context.Context, modelDir string, profile Profile, request Request) (*Generator, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -637,8 +656,11 @@ func (g *Generator) Close(ctx context.Context) error {
 	}
 	// The files the session held beside its model (its adapters, its depth checkpoint) go with it, so they may be
 	// replaced and the next session reads them again (adapter-hold).
-	pictures := errors.Join(g.pictures.close(context.WithoutCancel(ctx)), heldfile.Session.Release(g.modelDir))
-	g.pictures = nil
+	pictures := g.pictures.close(context.WithoutCancel(ctx))
+	if g.held != nil {
+		pictures = errors.Join(pictures, g.held())
+	}
+	g.pictures, g.held = nil, nil
 	if g.rotary != nil {
 		return errors.Join(pictures, g.closeRotary(ctx))
 	}

@@ -89,17 +89,21 @@ func PathNaming(name func(ctx context.Context, store artifact.Repository, path s
 
 // Contents names files by their bytes for Reading, through held (heldfile.Set): the files a request's answer reads
 // beside its model's inventory, which files lists from the model's path and the request. One that is absent is named
-// so; one that cannot be read is not named; a request it lists none for is named nothing. Each file named is held from
-// its first naming, sharing reading alone, until its session lets it go (adapter-hold), so it is read as it was named
-// (a picture's adapter switched between its naming and its reading was answered under the earlier adapter's name,
-// SQA-406) and a later request naming it reads nothing; with held nil, each request holds its own until it is served.
+// so; one that cannot be read is not named; a request it lists none for is named nothing. The request owns the files it
+// names until it is served (heldfile.Set.Own), each held from its first naming, sharing reading alone, so it is read as
+// it was named (a picture's adapter switched between its naming and its reading was answered under the earlier
+// adapter's name, SQA-406); a session that owns their directory keeps them held after (adapter-hold), so a later
+// request naming them reads nothing, and a request that ends with no session lets them go (held-release, SQA-454). With
+// held nil, each request names through a set of its own.
 func Contents(held *heldfile.Set, files func(path, raw string) ([]string, error)) Beside {
 	return func(_ context.Context, _ artifact.Repository, path, raw string) (string, func() error, error) {
-		set, release := held, func() error { return nil }
-		// Without a session's set, the files are held until the request is served.
+		set := held
 		if set == nil {
-			request := &heldfile.Set{}
-			set, release = request, func() error { return request.Release("") }
+			set = &heldfile.Set{}
+		}
+		release, err := set.Own("")
+		if err != nil {
+			return "", nil, err
 		}
 		listed, err := files(path, raw)
 		if err != nil || len(listed) == 0 {

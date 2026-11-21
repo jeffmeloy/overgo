@@ -156,9 +156,9 @@
         "internal/latentimage/picture_sections_windows.go",
         "internal/vitencoder/depth.go"
       ],
-      "input": "Serve a MOSS request naming a missing adapter. Install it after Contents names the inputs and before modelAdapter opens it, then remove it and repeat the request. On separate cache misses with stable files, trace a named moss_image_sft adapter and a depth control whose map is estimated from a picture.",
-      "expected": "Refuse a missing required file before replay or model work. Bind the adapter merge and depth estimator to the file identities already read and held for this request. Preserve adapter order and strength, direct-generator file identification, and depth controls supplied as maps.",
-      "actual": "Source at 6395092b4. Contents encodes a missing adapter as 'absent'. If installed before modelAdapter opens it, its result can be stored under the absent identity and replayed after removal. For present files, Contents hands the executor only a combined digest. readMediaAdapter hashes the recorded 285,329,336-byte adapter again on binding, and pictureSections.depthCard hashes the roughly 99 MB checkpoint again on each served picture-derived map that reaches it, even with the estimator resident. These are additional host reads. Their wall time is unmeasured."
+      "input": "With no MOSS session for the model, serve a request naming a missing required adapter. Install it after the request's files are named and before the generator opens it. After the successful draw, close the session, remove the adapter and retry the same request against the stored run.",
+      "expected": "Refuse a missing required adapter before replay or model work. Store an answer only under the identities of the files used to compute it. Preserve the single hash of a present, held adapter or depth checkpoint.",
+      "actual": "Source counterexample at 09ad74436. Contents records 'absent' and continues. An adapter installed before modelAdapter opens it can produce a successful draw under that absent key. After session close and removal, the director can replay that draw under the same key without checking the generator. Present files now share heldfile.Set.Identity between naming and execution, which fixes the duplicate content hashes. No wrong replay was observed."
     },
     {
       "id": "SQA-410",
@@ -245,18 +245,6 @@
       "actual": "Source trace at c79cfc121. planverify.Execute returns ErrVacuous for the skipped test. mutate counts every non-nil verifier error as Refused, so this example reports one of one caught without a failed assertion. A build failure before tests start earns the same credit. The undo checker already distinguishes ErrAssertion. The retained mutation totals do not identify why a mutation was counted as refused."
     },
     {
-      "id": "SQA-421",
-      "severity": "P2",
-      "files": [
-        "internal/latentimage/rotary_sampling_windows.go",
-        "internal/sampling/er_sde.go",
-        "fixtures/comfy/moss-ultra/requests/text-to-image.json"
-      ],
-      "input": "Run the MOSS Ultra text-to-image request at 2368x1344 with its 50-step ER-SDE schedule and observations off. On the last executed step the next sigma is zero and the denoised prediction is already on the GPU.",
-      "expected": "Return the resident prediction directly on the terminal step. Confirm zero latent transfers for that handoff, identical final latent and pixels at the same seed, and correct release on success and cancellation. Keep ER-SDE's order and noise decisions in sampling. Measure the remaining nonterminal transfers separately before moving any solver arithmetic.",
-      "actual": "Source trace at 65255b6d1. runRotarySampling calls stepped even when the next sigma is zero. It downloads the current latent and prediction. ERSDE.Step then returns a host copy of the prediction and hold uploads it. The terminal handoff alone transfers 18.2 MiB (3 x 12,432 x 128 float32 values) for a result already on the device. Earlier executed steps also transfer both inputs and the result, plus noise on drawing steps. The byte count follows from the source. Elapsed savings are unmeasured."
-    },
-    {
       "id": "SQA-422",
       "severity": "P2",
       "files": [
@@ -304,9 +292,9 @@
         "internal/cuda/executor/executor.go",
         "fixtures/comfy/moss-ultra/recordings/pass-2/depth-control.json"
       ],
-      "input": "Use the recorded MOSS depth-control request at 1024x576 with its moss-control adapter and 50 guided steps (100 denoiser passes). The encoded control is fixed for the request. Its sigma window selects that buffer or zeros.",
-      "expected": "Have runRotarySampling keep the active control on the device for both guidance branches and use a device zero buffer when the window is off. Prepare each used value at most once per request and release it with the sampling inputs. Check attributable upload bytes, identical seeded latents at the window boundaries, and correct release on error.",
-      "actual": "At a1535af3a both branches pass controlAt's host slice to Retain on every pass, including zeros. Each upload stages and transfers 64 x 36 x 256 float32 values. The recorded depth request uses control from 0 to 0.5. Across 100 passes the source accounts for 225 MiB of control uploads. Placing each of the two values once would avoid 98 uploads (220.5 MiB) in moss-step-copies/do. The warm workflow record at 5ecf679fc measured 339,271,684 total host-to-device bytes during this section's sampling. The clock counts all uploads together. The time saved by retaining control alone is unmeasured."
+      "input": "Draw the recorded 1024 by 576 MOSS depth-control section with 50 guided ER-SDE steps, control ending at 0.5 and scheduler shift 5. Both guidance branches request the same control at each step.",
+      "expected": "Select the resident control or zero buffer before constructing a host value. Allocate and upload zeros on the first use of that device slot only. Keep the same sigma boundary and seeded output.",
+      "actual": "At 09ad74436 the repeated uploads are fixed. controlAt still makes a 64 x 36 x 256 float32 zero slice before checking the resident slot on every out-of-window pass. In the retained pass-2 sigma list, 28 of the 50 step inputs fall below 5/6. Two branches make 56 zero slices, and only the first feeds controlUpload. The other 55 request 123.75 MiB of cumulative host allocation per draw. This follows from source and recorded inputs. Its wall time and peak memory have not been measured."
     },
     {
       "id": "SQA-431",
@@ -423,9 +411,25 @@
         "cmd/validate/run.go",
         "cmd/validate/lane_walls.go"
       ],
-      "input": "Evaluate flash-bound-read/read while a lane under the identified runner has finished an ordinary internal/inference test but has yet to run the Flash-Next cases that hit the memory limit.",
-      "expected": "Use that runner's named Flash-Next results to judge the bound. A pass must come from an affected test. A memory-bound exit must report that test and the limit it reached. An unrelated inference result must leave the read pending.",
-      "actual": "At 8fbe03872 the verifier searches everything after the first runner banner for the package name and 'peak'. The lane emits that pair for each test process. In the retained log TestFeatureDraftCoordinatorRejectsInvalidState produced a passing 0.5 GiB package line immediately before TestFlashNextHomesEveryExpert ended at 115.3 GiB against a 99.6 GiB limit. The latter diagnostic says 'largest process at'. The sequence predates the banner. If it recurs under the identified runner, the existing verifier succeeds on the first line before Flash-Next is judged. This false verdict follows from source and the observed log format. No false landing was observed."
+      "input": "Judge flash-bound-read/read after the lanes log contains multiple runner banners. Two of its three Flash-Next test verdicts follow the first banner and the third follows a different runner's banner.",
+      "expected": "Read all three named terminal verdicts with their package results from the same identified run and runner build. A partial run stays pending. A passing test shorter than a minute must still be attributable to its own package result.",
+      "actual": "At 09ad74436 the verifier checks the three names, fixing acceptance of an unrelated test. It searches from the first runner banner to the end for each name independently, so verdicts from two incomplete runs satisfy it. The retained log contains separate banners for 34beb39bc86c and e48129e3c1c7. Conversely, laneWatch omits named pass lines below one minute, and run.go prints the package peak without the test name. A short successful case can therefore be missed. These are source counterexamples. No mixed-run acceptance or missed Flash-Next pass was observed."
+    },
+    {
+      "id": "SQA-454",
+      "severity": "P2",
+      "files": [
+        "internal/mediacapability/image_cuda_windows.go",
+        "internal/capabilityruntime/runtime.go",
+        "internal/capabilityruntime/session_director.go",
+        "internal/heldfile/held.go",
+        "internal/heldfile/open_windows.go",
+        "internal/latentimage/runtime_cuda_windows.go",
+        "internal/mediacapability/held_files_windows_test.go"
+      ],
+      "input": "In a fresh Windows serving process with no session for this model, send a valid MOSS request naming an installed adapter and a source picture whose valid file ID is absent from the store. After refusal, try to replace the adapter. A stored-answer hit before any session is leased leaves the same hold.",
+      "expected": "Release request-owned handles when preparation fails or a stored answer returns without leasing a session. Keep the adapter locked and its digest reusable for the lifetime of a session that actually owns it. A writer must be able to replace it once no request or session owns it.",
+      "actual": "Source counterexample at 09ad74436. Reading names the adapter through the process-wide heldfile.Session before preparedFirst reads the picture. Contents supplies a no-op release. The missing picture returns before the director runs, and a stored answer returns from the director before lease. Neither path creates the generator whose Close releases the model directory. The adapter stays open with FILE_SHARE_READ and Windows refuses replacement. TestAServedPictureReusesItsHeldFiles calls the naming helper for the identical retry and releases its test set explicitly. It never exercises either sessionless exit. The sharing violation on the production path was not run."
     }
   ],
   "master_lead_triage": {
@@ -437,7 +441,14 @@
         "rows": [
           "flash-bound-read/read"
         ],
-        "note": "Answered by the lead on 2026-11-21 at 8edb11176: valid from the source and the log's format (the read's verify took the first internal/inference package line after the runner's banner, which the lane writes for each test process, so an ordinary inference test's pass would have read as the bound's verdict). Its verify now reads the result lines of the three tests flash-next-bound bounds, TestFlashNextHomesEveryExpert, TestFlashNextRoundIsReadyAtOpen and TestFlashNextWindowRowsAreTheSingleTokenSteps, each a pass or a failure after the banner, set by plan -setverify with a note, landing with moss-step-copies/clock."
+        "note": "Reopened by the review at 09ad74436 and answered by the lead on 2026-11-21: valid from the source. The verify read each of the three tests from the first runner banner to the log's end, apart, so halves of two runs read as one, and a test passing in under a minute writes no line naming it (lane_walls.go reportedTestWall), so the read would have waited without end. Its verify now reads the three in one run, between a runner's banner and the next, each test's verdict the first internal/inference pass or fail line after its own run line, the line naming it or the line its test process ends on (the models lane runs each test alone, testSteps), checked over three logs written for it in tmp/flash-bound-read; set by plan -setverify with a note, landing with flash-bound-read/read. (First answered at 8edb11176: the verify had taken the first internal/inference package line after the banner, an ordinary test's pass.)"
+      },
+  "SQA-454": {
+        "action": "filed",
+        "rows": [
+          "held-release/do"
+        ],
+        "note": "Answered by the lead on 2026-11-21 at 09ad74436: valid from the source. adapter-hold (d590ecfa2) names a MOSS picture request's files through the process's held set, which a picture session's close lets go under its model; a request refused before preparation and one answered from the store before a session is leased create no session, so their files stay held, and a writer cannot replace the adapter, until a session under the model opens and closes or the process ends. Filed as held-release, after moss-first-run: no answer is wrong meanwhile, and a session's close lets the files go."
       },
   "SQA-452": {
         "action": "deferred",
@@ -511,13 +522,6 @@
           "moss-fusion/do"
         ],
         "note": "Answered by the lead on 2026-11-19 at 5da20f97b: valid from source (the denoiser program holds textGraph.refine over a branch's fixed inputs, run every step); a speed item whose saving is unmeasured, so filed with moss-fusion, whose re-budget profile of a pass places the refiner's kernels, and made a step where its share on the workflow's time earns it."
-      },
-  "SQA-421": {
-        "action": "filed",
-        "rows": [
-          "moss-fusion/do"
-        ],
-        "note": "Answered by the lead on 2026-11-19 at 5da20f97b: valid from source (each executed step hands the latent and prediction to the host for ER-SDE and uploads the result, the terminal step 18.2 MiB for a result on the card); a speed item whose saving is unmeasured, so filed with moss-fusion, whose re-budget profile places the copies, and made a step where its share on the workflow's time earns it."
       },
   "SQA-416": {
         "action": "deferred",
@@ -611,7 +615,7 @@
       }
 }
   },
-  "next_finding_number": 454,
+  "next_finding_number": 455,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

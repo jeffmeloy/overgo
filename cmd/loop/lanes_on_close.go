@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"slices"
 	"strings"
 	"time"
@@ -170,7 +171,7 @@ func runLanesDue(root string, output io.Writer, run func(checkout string) error,
 	due, began, err := lanesRecords(state)
 	if err == nil && due.Commit != began.Commit {
 		if err = jsonfile.Write(filepath.Join(state, lanesBeganFile), due, clioptions.PrivateFileMode); err == nil {
-			err = runLanesAt(root, checkout, due, output, run)
+			err = runLanesAt(root, checkout, due, lanesRunnerBuild(), output, run)
 		}
 	}
 	if err = errors.Join(err, lock.Close()); err != nil {
@@ -194,11 +195,36 @@ func lanesRecords(state string) (due, began lanesDue, err error) {
 	return due, began, err
 }
 
+// lanesRunnerBuild is the build of the runner supervising the lanes, as its first line names it: the commit it was
+// built at, with its tree's changes where the build stamped any, or an unstamped build. A runner built before the lanes'
+// code changed runs that code still, so a run's verdict is its runner's build's (lanes-trunk: the runner built at
+// 28390a169 ran three later commits under the hand-off and bound they had replaced).
+func lanesRunnerBuild() string {
+	revision, modified := "", false
+	if info, ok := debug.ReadBuildInfo(); ok {
+		for _, setting := range info.Settings {
+			switch setting.Key {
+			case "vcs.revision":
+				revision = setting.Value
+			case "vcs.modified":
+				modified = setting.Value == "true"
+			}
+		}
+	}
+	switch {
+	case revision == "":
+		return "an unstamped build"
+	case modified:
+		return fmt.Sprintf("%.12s with its tree's changes", revision)
+	}
+	return fmt.Sprintf("%.12s", revision)
+}
+
 // runLanesAt moves checkout to the commit due with the data roots (moveWithRoots) and runs the lanes there with run,
-// saying when they began and how they ended; only a checkout that cannot be moved fails it. A run that yielded to a
-// newer commit due between packages, as its record beside the commit due says, is said to have yielded, its passed
-// packages kept, rather than to have failed (lanes-first/yield).
-func runLanesAt(root, checkout string, due lanesDue, output io.Writer, run func(checkout string) error) error {
+// saying when they began, under the runner's build (lanesRunnerBuild), and how they ended; only a checkout that cannot
+// be moved fails it. A run that yielded to a newer commit due between packages, as its record beside the commit due
+// says, is said to have yielded, its passed packages kept, rather than to have failed (lanes-first/yield).
+func runLanesAt(root, checkout string, due lanesDue, runner string, output io.Writer, run func(checkout string) error) error {
 	if err := moveWithRoots(root, checkout, due.Commit); err != nil {
 		return err
 	}
@@ -207,7 +233,8 @@ func runLanesAt(root, checkout string, due lanesDue, output io.Writer, run func(
 		return err
 	}
 	began := time.Now()
-	fmt.Fprintf(output, "loop: %s the cycle's lanes run at %.12s, which closed %s\n", began.Format(time.DateTime), due.Commit, strings.Join(due.Rows, ", "))
+	fmt.Fprintf(output, "loop: %s the cycle's lanes run at %.12s, which closed %s, under the runner built at %s\n",
+		began.Format(time.DateTime), due.Commit, strings.Join(due.Rows, ", "), runner)
 	verdict := "passed"
 	if err := run(checkout); err != nil {
 		verdict = "did not pass: " + err.Error()

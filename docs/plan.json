@@ -7,15 +7,6 @@
       "title": "The lanes run under the trunk's runner and bound: each run names the build that supervised it, and the runner built before lanes-runner-current is stopped",
       "steps": [
         {
-          "id": "do",
-          "title": "Each run of the cycle's lanes names the commit its runner was built at, and the lanes runner built at 28390a169 gives way to the trunk's",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestALanesRunNamesTheBuildThatSupervisedIt$'",
-          "files": [
-            "cmd/loop"
-          ],
-          "rationale": "The owner's review of 2026-11-20, point 1, checked against the processes and the source: valid. The lanes runner is .overgo-runtime/lanes-runner-700096390/loop.exe (pid 30968), started 06:25:27 on 2026-11-20, built at 28390a169, before lanes-runner-current (62e8a4d2c, 06:39) taught a runner to hand a later commit to the trunk's build (runLanesDue's 'a later commit is due; the runner built from the trunk runs it') and before flash-next-bound (5ba4dfb1f, 12:40) bound a tree at the machine's commit limit or twice its memory. Its own loop ran 28390a169, 4586266fe and 8c32dad22 itself, each begun within a second of the last, and each landing's runner since found the lanes lock held and ran nothing, so no run has had the trunk's runner or bound: the run at 4586266fe ended at 22:36 'at 99.6 GiB, the machine's commit limit as it started', the old wording. A runner built with the hand-off gives way after each run, so only this one never will. The step makes each run's first line name the commit its runner was built at, and the lead stops the stale runner's tree (the runner, its validate and the test it runs, taskkill /T) once it has been read, so the landing's own start runs the commit due under the trunk's runner; the message says when it was stopped and what run it cut."
-        },
-        {
           "id": "bound",
           "title": "flash-next-bound's bound is read in a lanes run under the trunk's runner, internal/inference's package ending in its verdict",
           "verify": "tail -n +$(grep -n -F 'runner built at' .overgo-runtime/lanes.log | head -n 1 | cut -d: -f1) .overgo-runtime/lanes.log | grep -F 'overgo/internal/inference' | grep -q -F 'peak'",

@@ -419,6 +419,13 @@
     "at": "2026-11-20",
     "head": "cbdf003cc5e0d974e86a56e8f99bb49b6bdc97a8",
     "findings": {
+  "SQA-451": {
+        "action": "filed",
+        "rows": [
+          "oracle-origin/do"
+        ],
+        "note": "Answered by the lead on 2026-11-21 at 80c195d08: valid from the files (moss_full_reference.py writes its own SHA-256 into what it saves as producer_sha256, the copy goldens-kept.json keeps hashes 1a7dd1e7ab21, and fixtures/moss/oracle-contract.json names other producer files, so the kept script cannot make again the bytes VerifyMOSSTransformer holds by digest, while TestEveryTestsDataNamesItsOrigin accepts the golden by its name). All three oracle files are present, so nothing is lost; filed as oracle-origin/do, after the campaign's MOSS rows: a record naming a golden is held to that golden being its data's producer, or declares its bytes kept by digest."
+      },
   "SQA-449": {
         "action": "deferred",
         "rows": [],

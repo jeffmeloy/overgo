@@ -96,7 +96,21 @@
       "obtained": [
         "ModelScope openmoss/MOSS-Image-SFT at 797fa8e678b4f0a766271bf5103e6cd7a2faa999"
       ],
-      "golden": "moss_full_reference.py"
+      "kept": {
+        "folder": "moss-image/goldens-797fa8e678b4f",
+        "files": {
+          "tensor-set:sha256:f55669402c6d12d20d047a461e90fa9e2da3f8bdb7b3d55cc189cc85f84b2160": "primitives/primitives.safetensors",
+          "tensor-set:sha256:78cb6fb6b261f4cb61405bace3a19815f0a535a0ece4a34e4183a905fb8563aa": "tokenizer-layout/tokenizer.safetensors",
+          "tensor-set:sha256:245bdf0160438342440f85bf2430ab3facb7ac918e8effd9a00d798602fe7259": "tokenizer/tokenizer.safetensors",
+          "tensor-set:sha256:909d2b0b5205a147c3c9e23cd271e8b75a76343dbc5a35ec56c41a269711dd2f": "conditioning/conditioning.safetensors",
+          "tensor-set:sha256:f2ce176c186cc19b45c09852b985a01560ef85ee9ac7a4c54af3caac2096899e": "image_stages/image_stages.safetensors",
+          "tensor-set:sha256:2678d42f33c02c72537e4735d45148086b4be5c1d50fded629f34ede6f116d2c": "image_stages_cuda_auto/image_stages.safetensors",
+          "tensor-set:sha256:7ee9662b33ac54b73a14e08e66358c662bff8df8a08edccaae502109f3439cb7": "image_stages_cuda_math/image_stages.safetensors",
+          "tensor-set:sha256:88de812dba7af834b44863064343fd89337c8df6d41368fcafaa861c84cfc97d": "full-english/full_reference.safetensors",
+          "tensor-set:sha256:972464914a558ad9eeeb2c377faff7fbf069ad51f09ef0f8b7bfeb67ac35bb3f": "full-chinese-rectangle/full_reference.safetensors",
+          "tensor-set:sha256:37d02b7270d3f9cc77c0b3ac12e4b505a59b23b22aed392b64afe189ee11fb80": "full-layout/full_reference.safetensors"
+        }
+      }
     },
     {
       "path": "fixtures/comfy/moss-ultra/block.json",

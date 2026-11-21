@@ -10,10 +10,10 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"os"
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/heldfile"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
@@ -87,37 +87,31 @@ func PathNaming(name func(ctx context.Context, store artifact.Repository, path s
 	}
 }
 
-// Contents names files by their bytes, each read whole for every request, for Reading: the files a request's answer
-// reads beside its model's inventory, which files lists from the model's path and the request. One that is absent is
-// named so; one that cannot be read is not named; a request it lists none for is named nothing. Each file named is held
-// open, sharing reading alone, until the request is served (holdFile), so it is read as it was named: a picture's
-// adapter switched between its naming and its reading was answered under the earlier adapter's name (SQA-406).
-func Contents(files func(path, raw string) ([]string, error)) Beside {
+// Contents names files by their bytes for Reading, through held (heldfile.Set): the files a request's answer reads
+// beside its model's inventory, which files lists from the model's path and the request. One that is absent is named
+// so; one that cannot be read is not named; a request it lists none for is named nothing. Each file named is held from
+// its first naming, sharing reading alone, until its session lets it go (adapter-hold), so it is read as it was named
+// (a picture's adapter switched between its naming and its reading was answered under the earlier adapter's name,
+// SQA-406) and a later request naming it reads nothing; with held nil, each request holds its own until it is served.
+func Contents(held *heldfile.Set, files func(path, raw string) ([]string, error)) Beside {
 	return func(_ context.Context, _ artifact.Repository, path, raw string) (string, func() error, error) {
+		set, release := held, func() error { return nil }
+		// Without a session's set, the files are held until the request is served.
+		if set == nil {
+			request := &heldfile.Set{}
+			set, release = request, func() error { return request.Release("") }
+		}
 		listed, err := files(path, raw)
 		if err != nil || len(listed) == 0 {
-			return "", func() error { return nil }, err
-		}
-		var held []*os.File
-		release := func() error {
-			var err error
-			for _, file := range held {
-				err = errors.Join(err, file.Close())
-			}
-			return err
+			return "", release, err
 		}
 		named := sha256.New()
 		for _, file := range listed {
-			opened, err := holdFile(file)
+			id, err := set.Identity(file)
 			if errors.Is(err, fs.ErrNotExist) {
 				fmt.Fprintln(named, "absent")
 				continue
 			}
-			if err != nil {
-				return "", nil, errors.Join(err, release())
-			}
-			held = append(held, opened)
-			id, _, err := artifact.Identify(artifact.KindFile, opened)
 			if err != nil {
 				return "", nil, errors.Join(err, release())
 			}

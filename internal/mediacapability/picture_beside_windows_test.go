@@ -32,7 +32,7 @@ func TestAReplacedAdapterIsReadAgain(t *testing.T) {
 		testcheck.NoError(t, os.WriteFile(file, []byte(bytes), 0o600))
 		testcheck.NoError(t, os.Chtimes(file, installed, installed))
 	}
-	naming := capabilityruntime.Contents(pictureFiles)
+	naming := capabilityruntime.Contents(nil, pictureFiles)
 	name := func(request string) string {
 		t.Helper()
 		named, release, err := naming(t.Context(), nil, model, request)

@@ -9,7 +9,7 @@ import (
 	"slices"
 	"strings"
 
-	"overgo/internal/artifact"
+	"overgo/internal/heldfile"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor"
 )
@@ -254,14 +254,10 @@ func adapterPath(modelRoot, name string) (string, error) {
 	return filepath.Join(modelRoot, "adapters", name+".safetensors"), nil
 }
 
-// fileContent is a file's identity by its bytes, as the store names a file (artifact.Identify).
-func fileContent(path string) (_ string, err error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return "", err
-	}
-	defer func() { err = errors.Join(err, file.Close()) }()
-	id, _, err := artifact.Identify(artifact.KindFile, file)
+// fileContent is a file's identity by its bytes, as the store names a file (artifact.Identify), held from its first naming
+// until the session lets it go (heldfile.Session, adapter-hold): a later request naming it reads nothing.
+func fileContent(path string) (string, error) {
+	id, err := heldfile.Session.Identity(path)
 	return id.String(), err
 }
 

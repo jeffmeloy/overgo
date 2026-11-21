@@ -16,6 +16,7 @@ import (
 	"overgo/internal/checked"
 	"overgo/internal/cuda/device"
 	"overgo/internal/graphruntime"
+	"overgo/internal/heldfile"
 	"overgo/internal/hfbpe"
 	"overgo/internal/media"
 	"overgo/internal/modelrecipe"
@@ -634,7 +635,9 @@ func (g *Generator) Close(ctx context.Context) error {
 	if g == nil {
 		return nil
 	}
-	pictures := g.pictures.close(context.WithoutCancel(ctx))
+	// The files the session held beside its model (its adapters, its depth checkpoint) go with it, so they may be
+	// replaced and the next session reads them again (adapter-hold).
+	pictures := errors.Join(g.pictures.close(context.WithoutCancel(ctx)), heldfile.Session.Release(g.modelDir))
 	g.pictures = nil
 	if g.rotary != nil {
 		return errors.Join(pictures, g.closeRotary(ctx))

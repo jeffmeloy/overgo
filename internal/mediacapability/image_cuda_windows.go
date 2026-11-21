@@ -12,6 +12,7 @@ import (
 	"overgo/internal/checked"
 	"overgo/internal/diffusionimage"
 	"overgo/internal/enhancerchat"
+	"overgo/internal/heldfile"
 	"overgo/internal/latentimage"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/oscillatorimage"
@@ -66,7 +67,7 @@ func imageCapability() Capability {
 		sensenovarecipe.RegisterRuntime,
 	)
 	routed := sessionExecutor(routedDirector, routedErr)
-	latent := capabilityruntime.Reading(preparedFirst(sessionExecutor(pictureSessions())), capabilityruntime.Contents(pictureFiles))
+	latent := capabilityruntime.Reading(preparedFirst(sessionExecutor(pictureSessions())), capabilityruntime.Contents(heldfile.Session, pictureFiles))
 	oscillator := capabilityruntime.JSONScalar[oscillatorimage.Request, *oscillatorimage.Model, latentimage.EncodedImage](
 		"image-gen", oscillatorimage.ValidateRequest,
 		capabilityruntime.IgnoreInput[oscillatorimage.Request](oscillatorimage.Load), oscillatorimage.RegisterRuntime,

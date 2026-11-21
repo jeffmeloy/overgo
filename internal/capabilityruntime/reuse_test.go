@@ -85,7 +85,7 @@ func TestStoredResultIsReusedOnlyUnderItsOwnIdentity(t *testing.T) {
 		if unreadable {
 			return "", nil, errors.New("the file beside the model cannot be read")
 		}
-		return Contents(func(string, string) ([]string, error) { return []string{preprocessor}, nil })(ctx, store, path, raw)
+		return Contents(nil, func(string, string) ([]string, error) { return []string{preprocessor}, nil })(ctx, store, path, raw)
 	})
 	scorer := JSONScalar[scoreRequest, *strings.Builder, int](
 		"scalar", func(scoreRequest) error { return nil },

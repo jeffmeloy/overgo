@@ -171,7 +171,7 @@ func TestAnInvalidRequestIsRefusedBeforeItsFilesAreRead(t *testing.T) {
 		reached++
 		return "drawn", nil
 	}
-	serve := capabilityruntime.Reading(preparedFirst(session), capabilityruntime.Contents(pictureFiles))
+	serve := capabilityruntime.Reading(preparedFirst(session), capabilityruntime.Contents(nil, pictureFiles))
 	root := t.TempDir()
 	request := func(steps int, picture artifact.ID) string {
 		return fmt.Sprintf(`{"prompt":"a fox","width":1024,"height":576,"steps":%d,"adapter":"moss-control","image":%q}`, steps, picture.String())

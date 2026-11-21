@@ -1,6 +1,6 @@
 //go:build windows
 
-package capabilityruntime
+package heldfile
 
 import (
 	"io/fs"
@@ -8,9 +8,9 @@ import (
 	"syscall"
 )
 
-// holdFile opens path for reading, sharing reading alone: until it is closed no process writes, replaces or removes
+// open opens path for reading, sharing reading alone: until it is closed no process writes, replaces or removes
 // the file, which the system refuses, and every process may still read it.
-func holdFile(path string) (*os.File, error) {
+func open(path string) (*os.File, error) {
 	name, err := syscall.UTF16PtrFromString(path)
 	if err != nil {
 		return nil, &fs.PathError{Op: "open", Path: path, Err: err}

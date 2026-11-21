@@ -7,8 +7,8 @@ package device
 type LaunchTrace struct {
 	// Probe: record only; the caller must not issue device work.
 	Probe bool
-	// Census, where set, counts each kernel's launches by its function id instead of logging their configuration.
-	Census map[uint64]int
+	// Census, where set, counts each kernel's launches by its name instead of logging their configuration.
+	Census map[string]int
 	data   []byte
 }
 

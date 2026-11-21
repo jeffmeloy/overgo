@@ -5,6 +5,7 @@ package executor
 import (
 	"context"
 	"encoding/binary"
+	"maps"
 	"math"
 	"slices"
 	"testing"
@@ -33,7 +34,7 @@ func int8WeightBytes(seed, inner, out int) []byte {
 // int8Fixture puts count int8 ConvRot weights of out rows of inner values on a fixture worker, each weight's F32 row
 // scales after its rows, and gives an executor on that worker whose launches census counts by kernel, cleared before
 // each graph run reads it (ranKernels).
-func int8Fixture(t *testing.T, count int, inner, out int) ([]driver.DevicePtr, *Executor, map[uint64]int) {
+func int8Fixture(t *testing.T, count int, inner, out int) ([]driver.DevicePtr, *Executor, map[string]int) {
 	t.Helper()
 	worker := newFixtureWorker(t)
 	weights := make([]driver.DevicePtr, count)
@@ -41,7 +42,7 @@ func int8Fixture(t *testing.T, count int, inner, out int) ([]driver.DevicePtr, *
 		weights[index] = copyFixtureDeviceBytes(t, worker, int8WeightBytes(index+1, inner, out))
 	}
 	cuda := newFixtureExecutorWithWorker(t, worker)
-	census := map[uint64]int{}
+	census := map[string]int{}
 	testcheck.NoError(t, cuda.worker.Do(t.Context(), func(state *device.State) error {
 		state.Trace = &device.LaunchTrace{Census: census}
 		return nil
@@ -57,18 +58,12 @@ func int8Fixture(t *testing.T, count int, inner, out int) ([]driver.DevicePtr, *
 
 // ranKernels runs outputs of a graph on the fixture's executor from feeds and its int8 weights, and gives each output's
 // values and the kernels the run launched.
-func ranKernels(t *testing.T, cuda *Executor, census map[uint64]int, outputs []*tensor.Tensor, feeds map[*tensor.Tensor]reference.Value,
+func ranKernels(t *testing.T, cuda *Executor, census map[string]int, outputs []*tensor.Tensor, feeds map[*tensor.Tensor]reference.Value,
 	weights map[*tensor.Tensor]driver.DevicePtr) (map[*tensor.Tensor]reference.Value, []string) {
 	t.Helper()
 	clear(census)
 	got := testcheck.Must(cuda.executeWithDeviceFeeds(context.WithoutCancel(t.Context()), outputs, feeds, weights))(t)
-	var ran []string
-	for id, count := range census {
-		if count > 0 && id < uint64(len(kernelFunctionNames)) {
-			ran = append(ran, kernelFunctionNames[id])
-		}
-	}
-	return got, ran
+	return got, slices.Collect(maps.Keys(census))
 }
 
 // TestAnInt8ProductComputesItsNormedOrActivatedInput holds the int8 ConvRot products a MOSS block makes of a norm with

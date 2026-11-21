@@ -6,7 +6,6 @@ import (
 	"context"
 	"math"
 	"math/rand/v2"
-	"slices"
 	"testing"
 
 	"overgo/internal/cuda/device"
@@ -27,7 +26,7 @@ import (
 // kernel's per 128-key panel to 135 dB on them and to 82 dB on random heads.
 func TestAttentionInRegistersAgreesWithTheNativeKernel(t *testing.T) {
 	cuda := newFixtureExecutor(t)
-	census := map[uint64]int{}
+	census := map[string]int{}
 	testcheck.NoError(t, cuda.worker.Do(t.Context(), func(state *device.State) error {
 		state.Trace = &device.LaunchTrace{Census: census}
 		return nil
@@ -79,7 +78,7 @@ func TestAttentionInRegistersAgreesWithTheNativeKernel(t *testing.T) {
 				if registers {
 					kernel = "attention_registers_bf16_f32"
 				}
-				if at := slices.Index(kernelFunctionNames[:], kernel); at < 0 || census[uint64(at)] == 0 {
+				if census[kernel] == 0 {
 					t.Fatalf("%s did not run: %v", kernel, census)
 				}
 				return got[attention].Data, kernel

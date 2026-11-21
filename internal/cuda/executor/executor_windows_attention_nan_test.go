@@ -103,7 +103,7 @@ var nanAttentionCases = []nanAttentionCase{
 // The census holds each case to the kernel it names, so a route that moves cannot leave a kernel untested.
 func TestAttentionWritesEveryRowOnNaN(t *testing.T) {
 	cuda := newFixtureExecutor(t)
-	census := map[uint64]int{}
+	census := map[string]int{}
 	if err := cuda.worker.Do(t.Context(), func(state *device.State) error {
 		state.Trace = &device.LaunchTrace{Census: census}
 		return nil
@@ -128,8 +128,7 @@ func TestAttentionWritesEveryRowOnNaN(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			at := slices.Index(kernelFunctionNames[:], c.kernel)
-			if at < 0 || census[uint64(at)] == 0 {
+			if census[c.kernel] == 0 {
 				t.Fatalf("%s did not run: %v", c.kernel, census)
 			}
 			for row := range c.queryTokens * c.queryHeads {

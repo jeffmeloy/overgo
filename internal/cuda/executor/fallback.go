@@ -112,7 +112,7 @@ func launchGridSharedABI(
 		pointers[index] = value.UnsafePointer()
 	}
 	if trace := state.Trace; trace != nil && trace.Census != nil {
-		trace.Census[uint64(function.id)]++
+		trace.Census[kernelFunctionNames[function.id]]++
 		if trace.Probe {
 			return nil
 		}

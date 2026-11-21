@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
+	"maps"
 	"math"
 	"os"
 	"path/filepath"
@@ -115,7 +116,7 @@ func runInt8ConvRotProduct(t *testing.T, storage []byte, input []float32, in, ou
 	worker := newFixtureWorker(t)
 	pointer := copyFixtureDeviceBytes(t, worker, storage)
 	cuda := newFixtureExecutorWithWorker(t, worker)
-	census := map[uint64]int{}
+	census := map[string]int{}
 	testcheck.NoError(t, cuda.worker.Do(t.Context(), func(state *device.State) error {
 		state.Trace = &device.LaunchTrace{Census: census}
 		return nil
@@ -131,13 +132,7 @@ func runInt8ConvRotProduct(t *testing.T, storage []byte, input []float32, in, ou
 		map[*tensor.Tensor]reference.Value{right: {Shape: right.Shape, Data: input}},
 		map[*tensor.Tensor]driver.DevicePtr{left: pointer},
 	))(t)
-	var ran []string
-	for id, count := range census {
-		if count > 0 && id < uint64(len(kernelFunctionNames)) {
-			ran = append(ran, kernelFunctionNames[id])
-		}
-	}
-	return got[product].Data, ran
+	return got[product].Data, slices.Collect(maps.Keys(census))
 }
 
 // notBF16 says an F32 value is no BF16 value, its low 16 bits set (SQA-420): bf16Digest would digest its rounding.

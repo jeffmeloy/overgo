@@ -3,24 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "lanes-trunk",
-      "title": "The lanes run under the trunk's runner and bound: each run names the build that supervised it, and the runner built before lanes-runner-current is stopped",
-      "steps": [
-        {
-          "id": "bound",
-          "title": "flash-next-bound's bound is read in a lanes run under the trunk's runner, internal/inference's package ending in its verdict",
-          "verify": "tail -n +$(grep -n -F 'runner built at' .overgo-runtime/lanes.log | head -n 1 | cut -d: -f1) .overgo-runtime/lanes.log | grep -F 'overgo/internal/inference' | grep -q -F 'peak'",
-          "files": [
-            "docs/plan.json"
-          ],
-          "rationale": "The owner's review of 2026-11-20, point 1: flash-next-bound (5ba4dfb1f) landed with no lanes run under its bound, since the stale runner supervised every run after it. Once lanes-trunk/do lands and the trunk's runner reaches internal/inference, whose Flash-Next opens grow the page file by design, the package's verdict line is read: passed, or failed in flash-next-bound's wording with its need and the commit free. The step lands with no code; its message states the run, its runner's build and the package's verdict and peak, and a failure in the old wording is a finding.",
-          "depends_on": [
-            "lanes-trunk/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "store-roots",
       "title": "The store refuses a location outside the repository and the data roots, and lists the locations it holds outside them",
       "steps": [
@@ -94,6 +76,21 @@
           ],
           "needs_card": true,
           "rationale": "The owner's review of 2026-11-20 (the campaign's number): after this row's do lands, the MOSS Ultra workflow is timed whole again at its commit, like for like with ComfyUI's runs and the card's turn held by the test: OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data OVERGO_WORKFLOW_RECORD=docs/verification/moss-workflow-time.jsonl go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^TestTheUltraWorkflowIsTimedInItsOrder$' (moss-workflow-clock), which appends the timing to the record, and the record is landed with no code changed. The step's check reads that the row's do has landed and that the record's last timing is of the commit the step lands on; its message states the whole against the last timing's and against what the row predicted, and a saving the whole does not show is a finding before the next row starts."
+        }
+      ]
+    },
+    {
+      "id": "flash-bound-read",
+      "title": "flash-next-bound's bound is read in a lanes run under the trunk's runner, internal/inference's package ending in its verdict",
+      "steps": [
+        {
+          "id": "read",
+          "title": "flash-next-bound's bound is read in a lanes run under the trunk's runner, internal/inference's package ending in its verdict",
+          "verify": "tail -n +$(grep -n -F 'runner built at' .overgo-runtime/lanes.log | head -n 1 | cut -d: -f1) .overgo-runtime/lanes.log | grep -F 'overgo/internal/inference' | grep -q -F 'peak'",
+          "files": [
+            "docs/plan.json"
+          ],
+          "rationale": "The owner's review of 2026-11-20, point 1: flash-next-bound (5ba4dfb1f) landed with no lanes run under its bound, since the runner built at 28390a169 supervised every run after it. lanes-trunk/do (a81209624) stopped that runner and made each run name its runner's build; the trunk's runner took the lanes at 03:13 on 2026-11-21. Once a run that names its runner reaches internal/inference, whose Flash-Next opens grow the page file by design, the package's verdict line is read: passed, or failed in flash-next-bound's wording with its need and the commit free. The step lands with no code; its message states the run, its runner's build and the package's verdict and peak, and a failure in the old wording is a finding. Filed apart from lanes-trunk and after moss-attention-pass (it was lanes-trunk/bound): a ready step whose evidence is hours of lanes away would otherwise be the first dispatched and hold the work behind it."
         }
       ]
     },

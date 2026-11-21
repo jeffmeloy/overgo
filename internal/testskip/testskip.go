@@ -17,6 +17,10 @@ const (
 	// KindInapplicable -- another lane, an opt-in not given -- is a declared
 	// exclusion in every run, earning no credit.
 	KindInapplicable = "inapplicable"
+	// KindRemade -- a test whose data is gone while a named row re-creates it -- is
+	// a declared exclusion earning no credit, which a lane that refuses skips
+	// reads as declared.
+	KindRemade = "remade"
 	// StoreAcceptanceEnv opts into the producer-store census and guard checks.
 	StoreAcceptanceEnv = "OVERGO_STORE_ACCEPTANCE"
 )
@@ -29,6 +33,9 @@ const (
 	ShortIntegration = "integration excluded by -short"
 	// Inapplicable is the message prefix of a declared exclusion.
 	Inapplicable = "integration inapplicable here"
+	// DataRemade is the message prefix of a test declared while its data is
+	// re-created.
+	DataRemade = "integration data being remade"
 )
 
 // Short skips an integration test under -short; the guard is the call's own,
@@ -54,4 +61,12 @@ func StoreAcceptance(t testing.TB) {
 		t.Helper()
 		NotApplicable(t, "store-lineage acceptance runs when "+StoreAcceptanceEnv+" is set")
 	}
+}
+
+// Remade skips a test whose data is gone while row re-creates it, naming the
+// row: a declared exclusion of its own kind (KindRemade).
+func Remade(t testing.TB, row, reason string) {
+	t.Helper()
+	t.Attr(Key, KindRemade)
+	t.Skip(DataRemade + " by " + row + ": " + reason)
 }

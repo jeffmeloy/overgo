@@ -49,26 +49,28 @@ func capturesRemade(ctx context.Context, source artifact.Reader, ids []artifact.
 	return rows, nil
 }
 
-// DeclareWhileRemade declares a test inapplicable whole where every capture file it reads, source records as ids, is
-// gone while a row remakes it (remadeCaptures), before its cases run: a test whose cases each declared only themselves
-// would pass as a parent that checked nothing, which a landing credits to its claim (speech-credit, SQA-450).
+// DeclareWhileRemade declares a test whole while its data is remade (testskip.Remade) where every capture file it
+// reads, source records as ids, is gone while a row remakes it (remadeCaptures), before its cases run: a test whose
+// cases each declared only themselves would pass as a parent that checked nothing, which a landing credits to its claim
+// (speech-credit, SQA-450).
 func DeclareWhileRemade(t testing.TB, source artifact.Reader, ids []artifact.ID) {
 	t.Helper()
 	row, err := capturesRemade(t.Context(), source, ids, remadeCaptures)
 	testcheck.NoError(t, err)
 	if row != "" {
-		testskip.NotApplicable(t, fmt.Sprintf("every capture it reads has no bytes left while %s remakes them into the data root", row))
+		testskip.Remade(t, row, "every capture it reads has no bytes left")
 	}
 }
 
 // CaptureFile is where the speech capture file source records as id lies. A capture whose bytes are gone while a row
-// remakes them (remadeCaptures) declares the test inapplicable, naming the row, so commits are not held on speech
-// meanwhile (speech-hold); any other capture with no location left fails the test.
+// remakes them (remadeCaptures) declares the test while its data is remade (testskip.Remade), naming the row, so
+// commits are not held on speech meanwhile (speech-hold) and the lanes read it as declared (speech-journey); any other
+// capture with no location left fails the test.
 func CaptureFile(t testing.TB, source artifact.Reader, id artifact.ID) string {
 	t.Helper()
 	path, row, err := capturePath(t.Context(), source, id, remadeCaptures)
 	if row != "" {
-		testskip.NotApplicable(t, fmt.Sprintf("the capture %s has no bytes left while %s remakes it into the data root", id, row))
+		testskip.Remade(t, row, fmt.Sprintf("the capture %s has no bytes left", id))
 	}
 	testcheck.NoError(t, err)
 	return path

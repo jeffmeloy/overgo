@@ -93,7 +93,9 @@ func ReadLegRecords(directory string) ([]LegRecord, error) {
 
 // LaneVerdict judges a lane run by its typed test report: a failed or
 // unfinished test refuses it with each one's retained output, a named test
-// that skipped proves nothing, a run with no passing test proves nothing,
+// that skipped proves nothing, except one declared while its data is
+// re-created (testskip.KindRemade), read as declared and credited nothing,
+// a run with no passing test proves nothing,
 // and each required leg needs a record from a test that passed: its own
 // package's evidence complete and the test not skipped, so a same-named
 // test of another package never lends it an outcome.
@@ -103,7 +105,8 @@ func LaneVerdict(report testevidence.GoTestReport, records []LegRecord, required
 	}
 	skipped := slices.Concat(report.Skipped, report.ClassifiedSkipped)
 	for _, test := range skipped {
-		if _, name, _ := strings.Cut(test, ": "); !strings.Contains(name, "/") {
+		// A test declared while its data is re-created is read as declared: it proves nothing and is credited nothing.
+		if _, name, _ := strings.Cut(test, ": "); !strings.Contains(name, "/") && !slices.Contains(report.Remade, test) {
 			return fmt.Errorf("webui lane: %s was skipped, so it proves nothing", test)
 		}
 	}

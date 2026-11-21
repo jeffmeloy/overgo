@@ -32,9 +32,11 @@ type GoTestReport struct {
 	PassedPackages    int
 	NoTestPackages    int
 	ClassifiedSkipped []string
-	Skipped           []string
-	Failed            []string
-	Unfinished        []string
+	// Remade names, among ClassifiedSkipped, the tests declared while their data is re-created (testskip.KindRemade).
+	Remade     []string
+	Skipped    []string
+	Failed     []string
+	Unfinished []string
 	// Contended names, once each, the packages whose failures carried the
 	// typed refusal of a physical resource claim: their tests claim the
 	// device exclusively and cannot under a holder's lease.
@@ -133,6 +135,7 @@ func readGoTestJSON(reader io.Reader, short, allowAuxiliary bool, diagnosticByte
 	scanner := bufio.NewScanner(reader)
 	seen := false
 	classified := map[string]bool{}
+	remade := map[string]bool{}
 	typed := map[string]bool{}
 	contended := map[string]bool{}
 	results := map[string]*testResult{}
@@ -224,8 +227,11 @@ func readGoTestJSON(reader io.Reader, short, allowAuxiliary bool, diagnosticByte
 		// read by its skip message.
 		if event.Action == "attr" && event.Key == testskip.Key {
 			typed[key] = true
-			classified[key] = short && event.Value == testskip.KindShort || event.Value == testskip.KindInapplicable
-		} else if !typed[key] && (short && strings.Contains(event.Output, testskip.ShortIntegration) || strings.Contains(event.Output, testskip.Inapplicable)) {
+			remade[key] = event.Value == testskip.KindRemade
+			classified[key] = short && event.Value == testskip.KindShort || event.Value == testskip.KindInapplicable || remade[key]
+		} else if !typed[key] && (short && strings.Contains(event.Output, testskip.ShortIntegration) || strings.Contains(event.Output, testskip.Inapplicable) ||
+			strings.Contains(event.Output, testskip.DataRemade)) {
+			remade[key] = remade[key] || strings.Contains(event.Output, testskip.DataRemade)
 			classified[key] = true
 		}
 		if strings.Contains(event.Output, processcontrol.ErrResourceBusy.Error()) {
@@ -239,6 +245,9 @@ func readGoTestJSON(reader io.Reader, short, allowAuxiliary bool, diagnosticByte
 		case event.Action == "skip" && event.Test != "" && classified[key]:
 			results[key].excluded = true
 			report.ClassifiedSkipped = append(report.ClassifiedSkipped, event.Package+": "+event.Test)
+			if remade[key] {
+				report.Remade = append(report.Remade, event.Package+": "+event.Test)
+			}
 		case event.Action == "skip" && event.Test != "":
 			report.Skipped = append(report.Skipped, event.Package+": "+event.Test)
 		case event.Action == "skip" && event.Test == "":

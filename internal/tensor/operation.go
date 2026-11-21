@@ -169,6 +169,7 @@ var operationDescriptors = [...]OperationDescriptor{
 	{OpCopyIndexed, "copy_indexed", OperationState, allExecutionBackends, CUDAProgramRecurrentSelection},
 	{OpCellAttention, "cell_attention", OperationLayout, allExecutionBackends, CUDAProgramAttentionLayout},
 	{OpCacheStore, "cache_store", OperationLayout, allExecutionBackends, CUDAProgramAttentionLayout},
+	{OpMOSSSituHalves, "moss_situ_halves", OperationElementwise, allExecutionBackends, CUDAProgramMathVision},
 }
 
 // DescribeOperation: typed operation lookup.

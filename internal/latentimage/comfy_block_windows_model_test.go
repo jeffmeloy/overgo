@@ -40,16 +40,6 @@ const (
 	comfyBlockTokenCosine      = 0.99
 )
 
-// The feed's down projection is held to ComfyUI's product at a tolerance while its SiTU is still overgo's
-// (moss-situ-prologue): ComfyUI's int8 path folds the SiTU into comfy_kitchen's quantizer, which computes it in F32
-// (int8_linear.cu load_input_act: 4 * stable_tanh(gate / 4) / (1 + expf(-gate)) * 25 * stable_tanh(hidden / 25),
-// under --use_fast_math) and rotates it unrounded, where overgo's prologue rounds each of the chain's steps to BF16 as
-// MOSS's eager module does (moss_situ_value), 2^-8 of a value, which moves some entries of a row by one int8 step.
-// Declared before its first comparison, after the first run found the product parting at 160,204 of its 196,608
-// entries: the product lies within 2% of ComfyUI's in relative L2. Halves taken in the wrong order, a bound misread or
-// the weight merged wrong lie far outside it.
-const comfyBlockSiTUProductRelativeL2 = 0.02
-
 // comfyCaptured is one tensor scripts/python_golden_references/comfy_moss_block_capture.py captured: its bytes'
 // SHA-256, by which the references name them, their kind (bf16, f32 or i8) and its shape.
 type comfyCaptured struct {
@@ -191,23 +181,7 @@ func TestAMOSSBlockIsHeldToComfyUIs(t *testing.T) {
 			p.input: {Shape: p.input.Shape, Data: input}, p.rope: {Shape: p.rope.Shape, Data: rope}, p.unit: {Shape: p.unit.Shape, Data: unit},
 			p.modulation: {Shape: p.modulation.Shape, Data: comfyValues(t, references, capture.Tensors["modulation"])},
 		}, p.strengths)))(t)[p.output].Data
-		var differenceSquares, wantSquares float64
-		lowest, lowestToken := 1.0, 0
-		for token := range tokens {
-			var dot, gotSquares, referenceSquares float64
-			for column := token * spec.Hidden; column < (token+1)*spec.Hidden; column++ {
-				g, r := float64(got[column]-input[column]), float64(want[column]-input[column])
-				dot += g * r
-				gotSquares += g * g
-				referenceSquares += r * r
-				differenceSquares += (g - r) * (g - r)
-			}
-			wantSquares += referenceSquares
-			if cosine := dot / math.Sqrt(gotSquares*referenceSquares); !(cosine >= lowest) {
-				lowest, lowestToken = cosine, token
-			}
-		}
-		relative := math.Sqrt(differenceSquares / wantSquares)
+		relative, lowest, lowestToken := blockUpdateAgreement(input, got, want, spec.Hidden)
 		t.Logf("block %d's update of %d tokens: relative L2 %.5f of ComfyUI's, lowest token cosine %.6f (token %d)", capture.Layer, tokens, relative, lowest, lowestToken)
 		if !(relative <= comfyBlockUpdateRelativeL2) || !(lowest >= comfyBlockTokenCosine) {
 			t.Errorf("block %d's update lies at relative L2 %.5f of ComfyUI's and token %d's at cosine %.6f; want at most %g and at least %g",
@@ -240,8 +214,7 @@ func TestAMOSSBlockIsHeldToComfyUIs(t *testing.T) {
 				if captured.InputAct == nil || *captured.InputAct != "situ" {
 					t.Fatalf("ComfyUI's feed down took input activation %v; want its SiTU", captured.InputAct)
 				}
-				up, gate := g.part(x, tensor.FirstOffset, intermediate), g.part(x, intermediate, intermediate)
-				outputs = []*tensor.Tensor{g.projection(prefix+"ffn_down", g.situ(up, gate), intermediate, width)}
+				outputs = []*tensor.Tensor{g.projection(prefix+"ffn_down", g.feedActivation(prefix+"ffn_down", x), intermediate, width)}
 			}
 			testcheck.NoError(t, g.b.Err())
 			program := compile(fmt.Sprintf("comfy projection %d", captured.Order), weights, *g.merged, bindings, outputs...)
@@ -271,10 +244,7 @@ func TestAMOSSBlockIsHeldToComfyUIs(t *testing.T) {
 			}
 			relative := math.Sqrt(differenceSquares / wantSquares)
 			t.Logf("projection %d parts from ComfyUI's product at %d of its %d x %d entries, at relative L2 %.3g", captured.Order, parted, rows, captured.OutFeatures, relative)
-			switch {
-			case captured.InputAct != nil && !(relative <= comfyBlockSiTUProductRelativeL2):
-				t.Errorf("projection %d, its SiTU still overgo's, lies at relative L2 %.3g of ComfyUI's product; want at most %g", captured.Order, relative, comfyBlockSiTUProductRelativeL2)
-			case captured.InputAct == nil && parted != 0:
+			if parted != 0 {
 				t.Errorf("projection %d parts from ComfyUI's product at %d of its %d x %d entries, first at %d (%g against %g)", captured.Order, parted, rows,
 					captured.OutFeatures, first, firstGot, want[first])
 			}

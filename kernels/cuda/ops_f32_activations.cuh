@@ -259,17 +259,48 @@ __device__ __forceinline__ float moss_situ_value(
     return bf16_rounded(bf16_rounded(bounded_gate * sigmoid) * bounded_hidden);
 }
 
-// quantize_int8_convrot_situ_columns_f32: the activation side of an int8 ConvRot product whose activation is the SITU
-// activation (moss_situ_value) of one gate-and-up product's halves, computed here and never stored: one block per token
-// column of inner values, each the activation of the value at its place in the column's second half of the product and
-// the first's, then rotated and quantized as quantize_int8_convrot_columns_f32 does (int8_convrot_rotate,
-// int8_convrot_quantize).
+// comfy_kitchen_tanh is comfy_kitchen's stable_tanh (backends/cuda/ops/int8_linear.cu at v0.2.40), written as it writes
+// it: the tanh by expm1f, which keeps its relative precision near zero where -use_fast_math makes tanhf tanh.approx.
+__device__ __forceinline__ float comfy_kitchen_tanh(float x) {
+    const float t = expm1f(-2.0f * fabsf(x));
+    return copysignf(-t / (t + 2.0f), x);
+}
+
+// moss_situ_halves_value is MOSS's SiTU of a hidden value and its gate as comfy_kitchen's int8 quantizer computes it
+// (int8_linear.cu load_input_act, input_act situ, built as this module is with -use_fast_math): in F32 and unrounded,
+// the bounds dividing as written, the gate's cap over one plus its negated exponential, times the hidden value's cap.
+// ComfyUI's int8 linear takes it with its product (comfy.ops.linear_input_act), where MOSS's module over BF16 weights
+// rounds each step (moss_situ_value).
+__device__ __forceinline__ float moss_situ_halves_value(float hidden, float gate) {
+    const float gate_cap = 4.0f * comfy_kitchen_tanh(gate / 4.0f);
+    const float hidden_cap = 25.0f * comfy_kitchen_tanh(hidden / 25.0f);
+    return gate_cap / (1.0f + expf(-gate)) * hidden_cap;
+}
+
+// moss_situ_halves_f32 is MOSS's SiTU of a gate-and-up product's halves (moss_situ_halves_value, tensor
+// Builder.MOSSSituHalves) over count values: rows of width outputs, each row of input its width hidden values and then
+// its width gates. One thread a value.
+extern "C" __global__ void moss_situ_halves_f32(
+        const float * input,
+        float * output,
+        unsigned int width,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) {
+        return;
+    }
+    const float * row = input + (size_t) (index / width) * 2 * width;
+    const unsigned int column = index % width;
+    output[index] = moss_situ_halves_value(row[column], row[width + column]);
+}
+
+// quantize_int8_convrot_situ_columns_f32: the activation side of an int8 ConvRot product whose activation is MOSS's SiTU
+// of one gate-and-up product's halves (moss_situ_halves_value), computed here and never stored, as comfy_kitchen's
+// quantize_int8_rowwise_convrot64 computes it with its input activation: one block per token column of inner values,
+// each the activation of the value at its place in the column's first half of the product and the second's, then
+// rotated and quantized as quantize_int8_convrot_columns_f32 does (int8_convrot_rotate, int8_convrot_quantize).
 extern "C" __global__ void quantize_int8_convrot_situ_columns_f32(
         const float * product,
-        float gate_inverse,
-        float gate_bound,
-        float hidden_inverse,
-        float hidden_bound,
         signed char * output,
         float * scale,
         unsigned int inner,
@@ -282,7 +313,7 @@ extern "C" __global__ void quantize_int8_convrot_situ_columns_f32(
     }
     const float * source = product + (size_t) column * 2 * inner;
     for (unsigned int index = threadIdx.x; index < inner; index += blockDim.x) {
-        values[index] = moss_situ_value(source[inner + index], source[index], gate_inverse, gate_bound, hidden_inverse, hidden_bound);
+        values[index] = moss_situ_halves_value(source[index], source[inner + index]);
     }
     __syncthreads();
     int8_convrot_rotate(values, inner);

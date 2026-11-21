@@ -22,10 +22,13 @@ const fusionSteps = 2
 // a kernel, as ddc71d81 (text to image) and 08e52361 (depth control), which moss-fusion/copies (e849f2f97) kept bit
 // for bit, and drawn again when moss-checkpoint-regression made the attention in registers the native kernel's
 // arithmetic, bit for bit, which changed every latent; copies' fusions compute what they fuse exactly, whatever the
-// attention.
+// attention. Drawn again when moss-situ-prologue made an int8 feed-down's SiTU comfy_kitchen's (tensor
+// Builder.MOSSSituHalves, ComfyUI's product bit for bit in TestAMOSSBlockIsHeldToComfyUIs), which changed every latent;
+// its fold into the int8 quantizer changes no bit against its own chain
+// (TestEachMOSSFusionMatchesItsChainWhereTheyCouldPart).
 var fusionLatents = map[string]string{
-	"text-to-image": "4eb4a963d352ba09a29c0e701f308a70037cafd9decf18a9cc52751bd7b31c8a",
-	"depth-control": "8e74944f150b1a7f2382deceafe543c51dcd3a6417f66df7c4f20f318465f39e",
+	"text-to-image": "f632548513762905a6438851735e3196593137d5c81c79bbf4574e3b3b0f240e",
+	"depth-control": "c119dc0a11e52f364e8ae809a65a41184ca1fbf6d2134cde0c3c251ca0846245",
 }
 
 // TestTheMOSSPassFusesWithoutChangingABit holds moss-fusion's fusions to the arithmetic they fuse: a fused pass

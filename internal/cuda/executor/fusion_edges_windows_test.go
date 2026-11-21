@@ -155,11 +155,8 @@ func mossFusionCases() []fusionEdgeCase {
 			const inner = 256
 			out, tokens := pick(edge, 64, 40), pick(edge, 24, 5)
 			modulated, _ := g.modulated(g.input("stream", 2.3, 0.1, inner, tokens), inner)
-			fused := g.input("fused", 2.9, -0.2, 2*inner, tokens)
-			half := func(offset uint64) *tensor.Tensor {
-				return g.Reshape(g.GroupSlice(fused, offset, inner, tensor.SingletonExtent, inner), inner, tokens)
-			}
-			situ, _ := g.situ(half(inner), half(0))
+			// The feed-down's SiTU, as an int8 feed-down reads it (latentimage rotaryGraph.feedActivation).
+			situ := g.MOSSSituHalves(g.input("fused", 2.9, -0.2, 2*inner, tokens))
 			return fusionChain{outputs: []*tensor.Tensor{
 				g.MulMat(g.int8("int8_a", inner, out), modulated), g.MulMat(g.int8("int8_b", inner, out), modulated), g.MulMat(g.int8("int8_c", inner, out), situ),
 			}, kept: []*tensor.Tensor{modulated, situ}}

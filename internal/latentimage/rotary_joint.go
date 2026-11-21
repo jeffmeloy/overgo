@@ -116,6 +116,6 @@ func (g *rotaryGraph) joint(input, modulation, unit *tensor.Tensor, index int) *
 	hidden = g.round(b.Add(hidden, g.round(b.Multiply(g.projection(prefix+"proj.o", g.attention(q, k, v), g.width, g.width), attentionGate))))
 	y = g.modulate(g.norm(prefix+"norm2", hidden, g.width), feedShift, feedScale, unit)
 	fused := g.projection(prefix+"proj.ffn_up_gate", y, g.width, tensor.PairedExtent*g.intermediate)
-	up, gate := g.part(fused, tensor.FirstOffset, g.intermediate), g.part(fused, g.intermediate, g.intermediate)
-	return g.round(b.Add(hidden, g.round(b.Multiply(g.projection(prefix+"proj.ffn_down", g.situ(up, gate), g.intermediate, g.width), feedGate))))
+	down := prefix + "proj.ffn_down"
+	return g.round(b.Add(hidden, g.round(b.Multiply(g.projection(down, g.feedActivation(down, fused), g.intermediate, g.width), feedGate))))
 }

@@ -22,7 +22,7 @@ func (emptyAttributes) validFor(op Op) bool {
 		OpSigmoid, OpSoftplus, OpSSMConv, OpSSMScan, OpTranspose2D, OpGELU,
 		OpReLUSquared, OpGroupedMulMat, OpTanh, OpExp, OpWKV6, OpSumRows,
 		OpWKV7, OpFWHT, OpGatherLast, OpReLU, OpDivide, OpBF16Round, OpGELUErf,
-		OpAtan, OpGatedDeltaGates, OpCacheStore:
+		OpAtan, OpGatedDeltaGates, OpCacheStore, OpMOSSSituHalves:
 		return true
 	default:
 		return false

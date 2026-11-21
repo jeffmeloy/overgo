@@ -9,17 +9,23 @@ import (
 	"overgo/internal/tensor"
 )
 
-// applyInt8PrologueRewrite folds a MOSS norm and its steps (applyMOSSNormRewrite), or a SITU activation over one
-// gate-and-up product's halves (applyMOSSSituRewrite), whose result int8 ConvRot products alone read, into the
-// quantization each product begins with, as comfy_kitchen quantizes an int8 product's activation with its input
-// activation applied: the result is computed in the quantizer and never stored (quantize_int8_convrot_norm_columns_f32,
-// quantize_int8_convrot_situ_columns_f32), each product taking the result's operands beside its weight, and the
-// products that read one result quantize it once, as they read one activation once.
+// applyInt8PrologueRewrite folds a MOSS norm and its steps (applyMOSSNormRewrite), or a MOSS SiTU of a gate-and-up
+// product's halves as comfy_kitchen computes it (tensor.OpMOSSSituHalves), whose result int8 ConvRot products alone
+// read, into the quantization each product begins with, as comfy_kitchen quantizes an int8 product's activation with
+// its input activation applied: the result is computed in the quantizer and never stored
+// (quantize_int8_convrot_norm_columns_f32, quantize_int8_convrot_situ_columns_f32), each product taking the result's
+// operands beside its weight, and the products that read one result quantize it once, as they read one activation
+// once. The SiTU the quantizer computes is the operation's own (moss_situ_halves_value), so the fold changes no bit;
+// MOSS's rounded chain (applyMOSSSituRewrite) is a BF16 module's and stays apart, as ComfyUI's int8 linear never
+// reads it.
 func applyInt8PrologueRewrite(context *rewriteContext) {
 	compiled := context.compiled
 	for _, head := range context.order {
 		source := compiled.fusions[head]
-		if source == nil || !(source.kind == compiledFusionMOSSNorm || source.kind == compiledFusionMOSSSitu && source.situ.halves != 0) {
+		if source == nil && head.Op == tensor.OpMOSSSituHalves && len(head.Inputs) == 1 {
+			source = &compiledFusion{kind: compiledFusionMOSSSituHalves, operands: []*tensor.Tensor{head.Inputs[0]}}
+		}
+		if source == nil || !(source.kind == compiledFusionMOSSNorm || source.kind == compiledFusionMOSSSituHalves) {
 			continue
 		}
 		readers := context.consumers[head]
@@ -96,14 +102,14 @@ func int8PrologueQuantizer(state *device.State, functions functionSet, source *c
 			return launchGridABI(state, functions[kernelQuantizeInt8ConvrotNormColumnsF32], grid, block,
 				&input, &steps[0], &steps[1], &steps[2], &norm.kinds, &norm.epsilon, &activation, &columnScale, &inner, &rows)
 		}, nil
-	case compiledFusionMOSSSitu:
-		product, situ := pointers.input(first), source.situ
+	case compiledFusionMOSSSituHalves:
+		product := pointers.input(first)
 		return func(activation, columnScale driver.DevicePtr) error {
 			return launchGridABI(state, functions[kernelQuantizeInt8ConvrotSituColumnsF32], grid, block,
-				&product, &situ.gateInverse, &situ.gateBound, &situ.hiddenInverse, &situ.hiddenBound, &activation, &columnScale, &inner, &rows)
+				&product, &activation, &columnScale, &inner, &rows)
 		}, nil
 	}
-	return nil, errors.New("int8 ConvRot prologue is no fused norm or SITU activation")
+	return nil, errors.New("int8 ConvRot prologue is no fused norm or SiTU of a product's halves")
 }
 
 // launchInt8Prologue multiplies an int8 ConvRot weight by an activation its quantization computes from the folded

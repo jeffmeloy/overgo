@@ -47,6 +47,29 @@ func (b *Builder) BF16RoundNative(input *Tensor) *Tensor {
 	return b.unary(OpBF16Round, input, NativeBF16Attributes{})
 }
 
+// MOSSSituHalves is MOSS's SiTU of a gate-and-up product's halves as comfy_kitchen's int8 ConvRot quantizer computes
+// it (int8_linear's input_act "situ", int8_linear.cu load_input_act at v0.2.40): each row of input holds its hidden
+// values and then as many gates, and the result, half the row, is 4 tanh(gate / 4) sigmoid(gate) times
+// 25 tanh(hidden / 25) in F32, unrounded. ComfyUI's int8 linear takes it with its product; MOSS's module, over BF16
+// weights, rounds each step to BF16, which a graph composes from Tanh, Sigmoid and its roundings.
+func (b *Builder) MOSSSituHalves(input *Tensor) *Tensor {
+	if b.err != nil {
+		return nil
+	}
+	if input == nil || input.Type != dtype.F32 || input.Shape.Dims[0] == 0 || input.Shape.Dims[0]%PairedExtent != 0 {
+		b.setError(errors.New("MOSS SiTU halves read F32 rows of an even, nonzero width"))
+		return nil
+	}
+	dimensions := input.Shape.Slice()
+	dimensions[0] /= PairedExtent
+	shape, err := NewShape(dimensions...)
+	if err != nil {
+		b.setError(err)
+		return nil
+	}
+	return b.add("", dtype.F32, shape, OpMOSSSituHalves, []*Tensor{input}, nil)
+}
+
 // SignedSqrt maps x to sign(x)*sqrt(max(abs(x),minimum)), preserving zero.
 func (b *Builder) SignedSqrt(input *Tensor, minimum float32) *Tensor {
 	if minimum <= 0 || math.IsNaN(float64(minimum)) || math.IsInf(float64(minimum), 0) {

@@ -108,6 +108,9 @@ const (
 	OpCellAttention
 	// OpCacheStore holds a cache's F32 rows at the cache's type (Builder.StoreCache).
 	OpCacheStore
+	// OpMOSSSituHalves is MOSS's SiTU of a gate-and-up product's halves as comfy_kitchen's int8 quantizer computes it
+	// (Builder.MOSSSituHalves).
+	OpMOSSSituHalves
 )
 
 // GatedDeltaConvAttributes declares a gated-delta layer's state width, its key and value heads, the epsilon of its

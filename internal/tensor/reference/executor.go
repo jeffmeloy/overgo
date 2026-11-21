@@ -134,6 +134,19 @@ func mapValues(shape tensor.Shape, input Value, transform func(float32) float32)
 	return Value{Shape: shape, Data: output}
 }
 
+// mossSituHalves is MOSS's SiTU of each row's halves (tensor.Builder.MOSSSituHalves), each value computed in float64 and
+// rounded to F32.
+func mossSituHalves(shape tensor.Shape, input Value) Value {
+	width := int(shape.Dims[0])
+	output := make([]float32, len(input.Data)/tensor.PairedExtent)
+	for index := range output {
+		row, column := index/width, index%width
+		hidden, gate := float64(input.Data[row*2*width+column]), float64(input.Data[row*2*width+width+column])
+		output[index] = float32(4 * math.Tanh(gate/4) / (1 + math.Exp(-gate)) * 25 * math.Tanh(hidden/25))
+	}
+	return Value{Shape: shape, Data: output}
+}
+
 func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 	switch node.Op {
 	case tensor.OpAdd:
@@ -158,6 +171,8 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 		return Value{Shape: node.Shape, Data: output}, nil
 	case tensor.OpBF16Round, tensor.OpCacheStore:
 		return mapValues(node.Shape, inputs[0], dtype.RoundBF16), nil
+	case tensor.OpMOSSSituHalves:
+		return mossSituHalves(node.Shape, inputs[0]), nil
 	case tensor.OpSignedSqrt:
 		minimum := float64(node.Attrs.(tensor.SignedSqrtAttributes).Minimum)
 		return mapValues(node.Shape, inputs[0], func(x float32) float32 {

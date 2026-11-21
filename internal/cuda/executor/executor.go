@@ -954,6 +954,9 @@ const (
 	compiledFusionInt8GatedAdd
 	compiledFusionMOSSNormRotary
 	compiledFusionInt8NormRotary
+	// compiledFusionMOSSSituHalves is a MOSS SiTU of a product's halves (tensor.OpMOSSSituHalves) as an int8 product's
+	// prologue computes it (applyInt8PrologueRewrite), its one operand the product.
+	compiledFusionMOSSSituHalves
 )
 
 type compiledFusion struct {

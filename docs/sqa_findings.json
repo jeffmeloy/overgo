@@ -330,9 +330,9 @@
         "internal/latentimage/workflow_source_test.go",
         "docs/plan.json"
       ],
-      "input": "After a MOSS speed step lands at A, compile and run its workflow clock with a local change to the tracked denoiser in generator_rotary_windows.go. Leave HEAD at A. Restore the source before checking the appended result. Compare with a timing from A whose only local edit was the findings register.",
-      "expected": "Only a timing from the committed executable inputs can satisfy A's clock step. Keep a development measurement distinguishable from a committed one. An edit confined to the findings register should not invalidate a run. The timing recorder and the existing clock verifier own this distinction.",
-      "actual": "Source at e0e6bf694. The recorder now rejects a commit change during the run. In this input it correctly records A and lists the edited denoiser in changed. The three remaining clock verifiers check only the historical do step and the last line's commit. All accept the dirty-code timing as A's. The retained source test explicitly accepts a timing with code.go changed and checks its label. The latest retained whole timing has an empty changed list. No incorrect speed credit was observed."
+      "input": "From committed A, leave the tracked tree clean and add an untracked internal/latentimage/local_perf_windows.go in the normal package whose init sets runtime.GOMAXPROCS(1). Run the Windows MOSS workflow clock with recording enabled. Compare with A alone and with A plus only a findings-register edit.",
+      "expected": "The timing that compiled the local Go file must be identifiable as a development run and ineligible for a committed clock step. Keep the clean-code and report-only cases eligible. The recorder can use the repository's existing Git status handling that includes untracked paths.",
+      "actual": "Source at a15182b1b. Tracked code edits now set committed=false and a moving HEAD rejects the run. readWorkflowSource still requests --untracked-files=no. Go includes the new Windows source in the test binary, but the recorder sees an empty changed list and writes committed=true for A. All five pending clock verifiers accept that line once their do step has landed. The retained source check changes two already tracked files. No retained workflow time was shown to have this error."
     },
     {
       "id": "SQA-442",
@@ -343,23 +343,40 @@
       "input": "Select both MOSS adapter-transfer tests in a fresh models lane on the installed Ultra workflow. Count the draws and retain both bounds: the cold Turbo sections' base-weight transfer limit and the warm sections' adapter-pair transfer limit.",
       "expected": "Twelve draws suffice to check both bounds. Use the first six sections already drawn by the two-pass sampleWorkflow call to check the cold bound, then keep the second pass for warm reuse. Report which section and bound failed. Keep the distinct numerical and full-workflow timing checks.",
       "actual": "Observed in the models lane at 4586266fe8a8: TestTheTurboSectionsMergeAsComfyUIPatches took 1m29s, then TestTheTurboSectionsMergeFromHeldWeightsInTheWorkflowsOrder took 1m9s. Both passed. Source at e0e6bf694: the first calls sampleWorkflow(2) and the second starts over with sampleWorkflow(1). Both use the same six requests, pass-2 inputs, shortened step counts and transfer counter. The lane draws eighteen pictures and loads a second generator to evaluate a bound available on the first six draws. The 69 seconds are the recorded duration of the duplicate run. Net time saved by sharing its samples has not been measured."
+    },
+    {
+      "id": "SQA-443",
+      "severity": "P2",
+      "files": [
+        "internal/latentimage/comfy_block_windows_model_test.go"
+      ],
+      "input": "In the block comparison, take the retained ComfyUI block 20 output and substitute the block input for token 0's 3,072 output values. Leave the other 2,313 output rows equal to the reference. This represents one token skipping its residual update. Keep the projection inputs and results unchanged.",
+      "expected": "TestAMOSSBlockIsHeldToComfyUIs must fail the per-token check and identify token 0. A zero update cannot meet the 0.99 cosine floor against this nonzero reference update. Reject an undefined cosine at the token where it occurs and keep the independent whole-block L2 bound.",
+      "actual": "Source and arithmetic on both SHA-256-verified BF16 reference tensors at a15182b1b. All 2,314 reference updates have nonzero energy. With token 0 skipped, its cosine is 0/0. The minimum becomes NaN, then token 1's finite cosine replaces it. The remaining cosines pass. Whole-block relative L2 is 0.01126047, below 0.05, so the block verdict also passes. The current moss-situ-prologue/do verifier uses this test. This is a counterexample to the comparison, not an observed model output."
     }
   ],
   "master_lead_triage": {
     "at": "2026-11-20",
     "head": "cbdf003cc5e0d974e86a56e8f99bb49b6bdc97a8",
     "findings": {
+  "SQA-443": {
+        "action": "filed",
+        "rows": [
+          "moss-situ-prologue/do"
+        ],
+        "note": "Answered by the lead on 2026-11-20 at a15182b1b: valid from source (a token whose update is zero has the cosine 0/0, a NaN that !(cosine >= lowest) takes and the next token's finite cosine replaces, so a skipped residual passes the per-token bound); cured in moss-situ-prologue/do, whose check is this test: the comparison is one function (blockUpdateAgreement) that holds a zero update against a nonzero one at cosine 0 where it lies, and TestABlockWhoseTokenSkipsItsUpdateFailsAtThatToken holds it to the review's counterexample card-free, failing with the old scan."
+      },
   "SQA-442": {
         "action": "deferred",
         "rows": [],
         "note": "Answered by the lead on 2026-11-20 at e0e6bf694: valid from source (TestTheTurboSectionsMergeFromHeldWeightsInTheWorkflowsOrder draws the six sections again for a bound TestTheTurboSectionsMergeAsComfyUIPatches's first run already draws, 69 s of a models lane); a lane's time, not the workflow's, so deferred to the next change of either test, which folds the cold bound into the two-run check and retires the one-run test."
       },
   "SQA-441": {
-        "action": "implemented",
+        "action": "filed",
         "rows": [
-          "clock-committed/do"
+          "moss-situ-prologue/do"
         ],
-        "note": "Answered by the lead on 2026-11-20 at f3117025d: valid from source (appendWorkflowTiming reads HEAD and the tree's changed paths after both runs, so a landing during the run is credited with the earlier code's timing, and the remaining clock checks accept it); filed as clock-identity/do ahead of the next clock step, the source read as the timing starts and again before it appends. moss-merge-compute/clock was timed with HEAD read before and after its run, no other session landing. Implemented 2026-11-20 by clock-identity/do (47bb3f027): the source read as the timing starts, and a timing whose commit moved while it ran refused; moss-merge-compute/clock's timing at 47bb3f027 is the first under it. Reopened by the review at e0e6bf694 and answered by the lead on 2026-11-20: valid from source (a timing run with tracked code changed is recorded as its commit's, the edit in its changed paths, and the clock checks read only the commit); filed as clock-committed/do ahead of moss-int8-epilogue/clock, the record stating whether the timing ran its commit's code alone and the remaining clock checks requiring it. Both timings moss-merge-compute/clock recorded list no changed code (docs/plan.json and docs/sqa_findings.json at f3117025d, none at 47bb3f027). Implemented 2026-11-20 by clock-committed/do (e96cc0273): the record says whether a timing ran its commit's code alone, and the three remaining clock checks require it, for the review's recheck."
+        "note": "Answered by the lead on 2026-11-20 at f3117025d: valid from source (appendWorkflowTiming reads HEAD and the tree's changed paths after both runs, so a landing during the run is credited with the earlier code's timing, and the remaining clock checks accept it); filed as clock-identity/do ahead of the next clock step, the source read as the timing starts and again before it appends. moss-merge-compute/clock was timed with HEAD read before and after its run, no other session landing. Implemented 2026-11-20 by clock-identity/do (47bb3f027): the source read as the timing starts, and a timing whose commit moved while it ran refused; moss-merge-compute/clock's timing at 47bb3f027 is the first under it. Reopened by the review at e0e6bf694 and answered by the lead on 2026-11-20: valid from source (a timing run with tracked code changed is recorded as its commit's, the edit in its changed paths, and the clock checks read only the commit); filed as clock-committed/do ahead of moss-int8-epilogue/clock, the record stating whether the timing ran its commit's code alone and the remaining clock checks requiring it. Both timings moss-merge-compute/clock recorded list no changed code (docs/plan.json and docs/sqa_findings.json at f3117025d, none at 47bb3f027). Implemented 2026-11-20 by clock-committed/do (e96cc0273): the record says whether a timing ran its commit's code alone, and the three remaining clock checks require it. Reopened by the review at a15182b1b and answered by the lead on 2026-11-20: valid from source (readWorkflowSource asked git for no untracked files, so an untracked source file the test binary compiles left the timing committed); cured in moss-situ-prologue/do ahead of the next clock step, the source read with untracked paths (--untracked-files=all, tmp/ ignored by the repository), TestAWorkflowTimingSaysWhetherItRanItsCommitsCode holding an untracked local_perf.go to a timing not committed, each case undone before the next."
       },
   "SQA-431": {
         "action": "deferred",
@@ -491,7 +508,7 @@
       }
 }
   },
-  "next_finding_number": 443,
+  "next_finding_number": 444,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

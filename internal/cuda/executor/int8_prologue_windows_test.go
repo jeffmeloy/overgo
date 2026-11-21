@@ -72,12 +72,13 @@ func ranKernels(t *testing.T, cuda *Executor, census map[uint64]int, outputs []*
 }
 
 // TestAnInt8ProductComputesItsNormedOrActivatedInput holds the int8 ConvRot products a MOSS block makes of a norm with
-// its steps (two products of one, as q and k read one modulated norm) and of a SITU activation over one product's
-// halves to quantizing that input as they compute it (applyInt8PrologueRewrite), never storing it, and to changing no
-// bit against the same products of the input stored, which a graph that also keeps the input as an output does.
+// its steps (two products of one, as q and k read one modulated norm) and of MOSS's SiTU of one product's halves as
+// comfy_kitchen's quantizer computes it (tensor.Builder.MOSSSituHalves, as an int8 feed-down reads it) to quantizing
+// that input as they compute it (applyInt8PrologueRewrite), never storing it, and to changing no bit against the same
+// products of the input stored, which a graph that also keeps the input as an output does.
 func TestAnInt8ProductComputesItsNormedOrActivatedInput(t *testing.T) {
 	// Serial: device fixtures share the one card.
-	const inner, out, tokens, epsilon, gateBound, hiddenBound = 256, 64, 24, 1e-6, 4, 25
+	const inner, out, tokens, epsilon = 256, 64, 24, 1e-6
 	weights, cuda, census := int8Fixture(t, 3, inner, out)
 	run := func(keep bool) ([][]float32, []string) {
 		b := tensor.NewBuilder()
@@ -88,14 +89,7 @@ func TestAnInt8ProductComputesItsNormedOrActivatedInput(t *testing.T) {
 		shift := b.Input("shift", dtype.F32, tensor.MustShape(inner))
 		fused := b.Input("fused", dtype.F32, tensor.MustShape(2*inner, tokens))
 		modulated := round(b.Add(round(b.Multiply(round(b.Multiply(round(b.RMSNormNativeMean(stream, epsilon)), weight)), scale)), shift))
-		half := func(offset uint64) *tensor.Tensor {
-			return b.Reshape(b.GroupSlice(fused, offset, inner, tensor.SingletonExtent, inner), inner, tokens)
-		}
-		up, gate := half(0), half(inner)
-		bounded := func(x *tensor.Tensor, bound float32) *tensor.Tensor {
-			return round(b.Scale(round(b.Tanh(round(b.Scale(x, tensor.UnitScale/bound)))), bound))
-		}
-		situ := round(b.Multiply(round(b.Multiply(bounded(gate, gateBound), round(b.Sigmoid(gate)))), bounded(up, hiddenBound)))
+		situ := b.MOSSSituHalves(fused)
 		left := [3]*tensor.Tensor{}
 		for index := range left {
 			left[index] = b.Input("int8_weight_"+string(rune('a'+index)), dtype.I8ConvRot, tensor.MustShape(inner, out))
@@ -119,7 +113,7 @@ func TestAnInt8ProductComputesItsNormedOrActivatedInput(t *testing.T) {
 			t.Fatalf("%s did not run where the products alone read their inputs: %v", kernel, ran)
 		}
 	}
-	for _, kernel := range []string{"quantize_int8_convrot_columns_f32", "rms_norm_mean_affine_bf16_round_f32", "moss_situ_bf16_round_f32"} {
+	for _, kernel := range []string{"quantize_int8_convrot_columns_f32", "rms_norm_mean_affine_bf16_round_f32", "moss_situ_halves_f32"} {
 		if slices.Contains(ran, kernel) {
 			t.Fatalf("%s ran where the products alone read their inputs: %v", kernel, ran)
 		}
@@ -133,14 +127,33 @@ func TestAnInt8ProductComputesItsNormedOrActivatedInput(t *testing.T) {
 	}
 }
 
+// TestTheSiTUOfAProductsHalvesIsItsReference holds the SiTU of a product's halves as comfy_kitchen's int8 quantizer
+// computes it (moss_situ_halves_f32, tensor.Builder.MOSSSituHalves) to its reference in float64 within F32 projection
+// accuracy, over values whose tanh and sigmoid saturate and values near zero, where stable_tanh keeps its precision.
+func TestTheSiTUOfAProductsHalvesIsItsReference(t *testing.T) {
+	// Serial: device fixtures share the one card.
+	const width, rows = 96, 7
+	b := tensor.NewBuilder()
+	fused := b.Input("fused", dtype.F32, tensor.MustShape(2*width, rows))
+	situ := b.MOSSSituHalves(fused)
+	testcheck.NoError(t, b.Err())
+	values := patternedValue(fused.Shape, 3, 9.7, -0.4)
+	for index := range values.Data {
+		if index%5 == 0 {
+			values.Data[index] *= 1e-4
+		}
+	}
+	checkCUDAGraph(t, map[*tensor.Tensor]reference.Value{fused: values}, graphOutputCheck{output: situ, tolerance: accuracyProjection})
+}
+
 // TestAGatedSumRunsTheInt8ProductItReads holds a gated residual sum of an int8 ConvRot product, as a MOSS block adds its
-// output projection (its activation stored) and its down projection (its activation a SITU over one product's halves)
-// to its stream, to running the product itself and writing the sum from the product's epilogue
-// (applyInt8GatedAddRewrite), never storing the product, and to changing no bit against the same sums of the products
-// stored, which a graph that also keeps the products as outputs does.
+// output projection (its activation stored) and its down projection (its activation MOSS's SiTU of one product's
+// halves, as an int8 feed-down reads it) to its stream, to running the product itself and writing the sum from the
+// product's epilogue (applyInt8GatedAddRewrite), never storing the product, and to changing no bit against the same
+// sums of the products stored, which a graph that also keeps the products as outputs does.
 func TestAGatedSumRunsTheInt8ProductItReads(t *testing.T) {
 	// Serial: device fixtures share the one card.
-	const inner, tokens, gateBound, hiddenBound = 256, 24, 4, 25
+	const inner, tokens = 256, 24
 	weights, cuda, census := int8Fixture(t, 2, inner, inner)
 	run := func(keep bool) ([][]float32, []string) {
 		b := tensor.NewBuilder()
@@ -149,14 +162,7 @@ func TestAGatedSumRunsTheInt8ProductItReads(t *testing.T) {
 		attended := b.Input("attended", dtype.F32, tensor.MustShape(inner, tokens))
 		fused := b.Input("fused", dtype.F32, tensor.MustShape(2*inner, tokens))
 		gates := b.Input("gates", dtype.F32, tensor.MustShape(2*inner))
-		half := func(offset uint64) *tensor.Tensor {
-			return b.Reshape(b.GroupSlice(fused, offset, inner, tensor.SingletonExtent, inner), inner, tokens)
-		}
-		up, gate := half(0), half(inner)
-		bounded := func(x *tensor.Tensor, bound float32) *tensor.Tensor {
-			return round(b.Scale(round(b.Tanh(round(b.Scale(x, tensor.UnitScale/bound)))), bound))
-		}
-		situ := round(b.Multiply(round(b.Multiply(bounded(gate, gateBound), round(b.Sigmoid(gate)))), bounded(up, hiddenBound)))
+		situ := b.MOSSSituHalves(fused)
 		output := b.Input("output_weight", dtype.I8ConvRot, tensor.MustShape(inner, inner))
 		down := b.Input("down_weight", dtype.I8ConvRot, tensor.MustShape(inner, inner))
 		products := []*tensor.Tensor{b.MulMat(output, attended), b.MulMat(down, situ)}

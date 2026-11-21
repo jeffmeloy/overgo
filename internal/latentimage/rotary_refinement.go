@@ -170,10 +170,7 @@ func (g *rotaryGraph) round(x *tensor.Tensor) *tensor.Tensor {
 // of it, which had been a kernel reading and writing the product for no change of a bit (moss-fusion/copies).
 func (g *rotaryGraph) projection(name string, x *tensor.Tensor, in, out uint64) *tensor.Tensor {
 	weight := name + ".weight"
-	if !g.int8[weight] || slices.ContainsFunc(g.adapters, func(applied graphAdapter) bool {
-		_, replaced := applied.adapter.replaced[weight]
-		return replaced
-	}) {
+	if !g.int8Projection(name) {
 		return g.linear(name, x, in, out, false)
 	}
 	var pairs []mergedPair
@@ -188,6 +185,27 @@ func (g *rotaryGraph) projection(name string, x *tensor.Tensor, in, out uint64) 
 	input := g.b.Input(weight, dtype.I8ConvRot, tensor.MustShape(in, out))
 	*g.merged = append(*g.merged, mergedProjection{input: input, pairs: pairs})
 	return g.b.MulMat(input, x)
+}
+
+// int8Projection says the projection of name multiplies in int8 (projection): the graph's int8 weights name it and no
+// adapter replaces it.
+func (g *rotaryGraph) int8Projection(name string) bool {
+	weight := name + ".weight"
+	return g.int8[weight] && !slices.ContainsFunc(g.adapters, func(applied graphAdapter) bool {
+		_, replaced := applied.adapter.replaced[weight]
+		return replaced
+	})
+}
+
+// feedActivation is the SiTU a block's feed-down of name reads of its up-and-gate product fused: where the feed-down
+// multiplies in int8 (int8Projection), as comfy_kitchen's int8 quantizer computes it (Builder.MOSSSituHalves), since
+// ComfyUI's int8 linear takes it with its product (comfy.ops.linear_input_act); else MOSS's module's chain, each step
+// rounded to BF16 (situ), as ComfyUI's module runs it over BF16 weights (moss-situ-prologue).
+func (g *rotaryGraph) feedActivation(name string, fused *tensor.Tensor) *tensor.Tensor {
+	if g.int8Projection(name) {
+		return g.b.MOSSSituHalves(fused)
+	}
+	return g.situ(g.part(fused, tensor.FirstOffset, g.intermediate), g.part(fused, g.intermediate, g.intermediate))
 }
 
 func (g *rotaryGraph) linear(name string, x *tensor.Tensor, in, out uint64, bias bool) *tensor.Tensor {

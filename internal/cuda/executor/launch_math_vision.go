@@ -100,6 +100,10 @@ func launchMathVision(
 		count := shapeCount32(node.Shape)
 		input := pointers.input(0)
 		return launch1DABI(state, functions[kernelBf16RoundF32], count, &input, &output, &count)
+	case tensor.OpMOSSSituHalves:
+		count, width := shapeCount32(node.Shape), uint32(node.Shape.Dims[0])
+		input := pointers.input(0)
+		return launch1DABI(state, functions[kernelMossSituHalvesF32], count, &input, &output, &width, &count)
 	case tensor.OpSignedSqrt:
 		count := shapeCount32(node.Shape)
 		input := pointers.input(0)

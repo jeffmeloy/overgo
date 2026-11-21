@@ -48,7 +48,8 @@ type workflowTiming struct {
 
 // workflowSource is the code a timing of the workflow runs, read as the timing starts, beside the test binary built
 // from the tree just before: the commit the repository's checkout holds, and the paths its tree holds changed from it
-// but the record's own (SQA-441).
+// but the record's own, untracked paths among them, since an untracked source file builds into the binary as a tracked
+// one does (SQA-441).
 type workflowSource struct {
 	commit  string
 	changed []string
@@ -73,7 +74,7 @@ func readWorkflowSource(repository, record string) (workflowSource, error) {
 	if err != nil {
 		return workflowSource{}, err
 	}
-	status, err := git("status", "--porcelain", "--untracked-files=no")
+	status, err := git("status", "--porcelain", "--untracked-files=all")
 	if err != nil {
 		return workflowSource{}, err
 	}
@@ -183,15 +184,22 @@ func TestAWorkflowTimingRefusesASourceThatMovedWhileItRan(t *testing.T) {
 func TestAWorkflowTimingSaysWhetherItRanItsCommitsCode(t *testing.T) {
 	t.Parallel()
 	const record = "docs/verification/record.jsonl"
-	root, _ := scratchRepository(t, map[string]string{"code.go": "package code\n", "docs/register.json": "{}\n", record: ""})
+	root, git := scratchRepository(t, map[string]string{"code.go": "package code\n", "docs/register.json": "{}\n", record: ""})
 	for _, beside := range []struct {
-		path      string
-		committed bool
-	}{{"docs/register.json", true}, {"code.go", false}} {
-		testutil.WriteTextFile(t, root, beside.path, "changed beside the run\n", 0o600)
+		path               string
+		committed, tracked bool
+	}{{"docs/register.json", true, true}, {"code.go", false, true}, {"local_perf.go", false, false}} {
+		testutil.WriteTextFile(t, root, beside.path, "package code // changed beside the run\n", 0o600)
 		testcheck.NoError(t, appendWorkflowTiming(root, record, testcheck.Must(readWorkflowSource(root, record))(t), workflowTiming{At: beside.path}))
 		if timing := lastWorkflowTiming(t, root, record); timing.Committed != beside.committed || !slices.Contains(timing.Changed, beside.path) {
-			t.Errorf("a timing beside a changed %s says it ran its commit's code %t, %v changed; want %t", beside.path, timing.Committed, timing.Changed, beside.committed)
+			t.Errorf("a timing beside a changed %s (tracked %t) says it ran its commit's code %t, %v changed; want %t",
+				beside.path, beside.tracked, timing.Committed, timing.Changed, beside.committed)
+		}
+		// Each case alone: the tree goes back to the commit's code, the record excepted.
+		if beside.tracked {
+			git("checkout", "--", beside.path)
+		} else {
+			testcheck.NoError(t, os.Remove(filepath.Join(root, beside.path)))
 		}
 	}
 }

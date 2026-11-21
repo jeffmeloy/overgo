@@ -80,7 +80,7 @@
         },
         {
           "path": "kernels/cuda/ops_f32_activations.cuh",
-          "sha256": "4fd14008ab476836f9889fd85a57e5deffaac9a4b78795ac3ab60d262032dc39"
+          "sha256": "98f54feb9d0f89c1914ed85803d142d587ec8008eacc4bee0f562e2f54552cae"
         },
         {
           "path": "kernels/cuda/ops_f32_attention.cuh",
@@ -152,7 +152,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "919659342238a299c6d431790f4f25de95dc72f0e58ebc9310a90d750d4cbf3f",
+      "assetSha256": "1e390eb23a96ffa10dd70bfa0e9b82ca1751ab33bfb1ec8d622b83517e33ddc8",
       "functions": [
         "activated_gate_f32",
         "activated_gate_q8_0_f32",
@@ -309,6 +309,7 @@
         "moss_situ_backward_f32",
         "moss_situ_bf16_round_f32",
         "moss_situ_f32",
+        "moss_situ_halves_f32",
         "mul_mat_bf16_add_f32",
         "mul_mat_bf16_append_f32",
         "mul_mat_bf16_argmax_partials_f32",
@@ -506,6 +507,7 @@
             "mul_mat_q8_0_input_argmax_partials_f32",
             "quantize_fp8_columns_f32",
             "quantize_int8_convrot_columns_f32",
+            "quantize_int8_convrot_situ_columns_f32",
             "scale_fp8_product_f32",
             "scale_int8_product_bf16_f32",
             "softmax_backward_f32",
@@ -561,6 +563,7 @@
             "fwht_f32",
             "moe_expert_dequant_f16",
             "moss_situ_f32",
+            "moss_situ_halves_f32",
             "softmax_f32",
             "sum_rows_f32"
           ]
@@ -1737,22 +1740,6 @@
           ],
           "functions": [
             "quantize_int8_convrot_rows_stochastic_f32"
-          ]
-        },
-        {
-          "parameters": [
-            ".u64",
-            ".f32",
-            ".f32",
-            ".f32",
-            ".f32",
-            ".u64",
-            ".u64",
-            ".u32",
-            ".u32"
-          ],
-          "functions": [
-            "quantize_int8_convrot_situ_columns_f32"
           ]
         },
         {

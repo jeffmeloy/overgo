@@ -3,25 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "adapter-hold",
-      "title": "A session identifies each adapter file by its bytes once, holding the file open so no one can write, replace or delete it while it holds it, and a request pays nothing more for its identity",
-      "steps": [
-        {
-          "id": "clock",
-          "title": "The workflow is timed whole at adapter-hold's commit, like for like and the card's turn held, and the timing appended to the record (moss-workflow-clock)",
-          "verify": "git log --format=%s -n 200 | grep -qF 'adapter-hold/do:' \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF \"\\\"commit\\\":\\\"$(git rev-parse HEAD)\\\"\" \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF '\"committed\":true'",
-          "files": [
-            "docs/verification"
-          ],
-          "needs_card": true,
-          "rationale": "Note: After adapter-hold's do lands, the MOSS Ultra workflow is timed whole again at its commit (TestTheUltraWorkflowIsTimedInItsOrder with OVERGO_WORKFLOW_RECORD), and the record landed with no code changed; the message states the whole against the last timing's and against the 2.34 s of identity the row removes from the warm run.",
-          "depends_on": [
-            "adapter-hold/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "flash-bound-read",
       "title": "flash-next-bound's bound is read in a lanes run under the trunk's runner, internal/inference's package ending in its verdict",
       "steps": [

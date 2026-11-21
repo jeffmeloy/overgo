@@ -326,11 +326,13 @@
       "id": "SQA-442",
       "severity": "P2",
       "files": [
-        "internal/latentimage/merge_order_windows_model_test.go"
+        "internal/latentimage/merge_order_windows_model_test.go",
+        "internal/latentimage/int8_budget_windows_model_test.go",
+        "internal/latentimage/attention_budget_windows_model_test.go"
       ],
-      "input": "Select both MOSS adapter-transfer tests in a fresh models lane on the installed Ultra workflow. Count the draws and retain both bounds: the cold Turbo sections' base-weight transfer limit and the warm sections' adapter-pair transfer limit.",
-      "expected": "Twelve draws suffice to check both bounds. Use the first six sections already drawn by the two-pass sampleWorkflow call to check the cold bound, then keep the second pass for warm reuse. Report which section and bound failed. Keep the distinct numerical and full-workflow timing checks.",
-      "actual": "Observed in the models lane at 4586266fe8a8: TestTheTurboSectionsMergeAsComfyUIPatches took 1m29s, then TestTheTurboSectionsMergeFromHeldWeightsInTheWorkflowsOrder took 1m9s. Both passed. Source at e0e6bf694: the first calls sampleWorkflow(2) and the second starts over with sampleWorkflow(1). Both use the same six requests, pass-2 inputs, shortened step counts and transfer counter. The lane draws eighteen pictures and loads a second generator to evaluate a bound available on the first six draws. The 69 seconds are the recorded duration of the duplicate run. Net time saved by sharing its samples has not been measured."
+      "input": "Select both MOSS adapter-transfer tests, or select both INT8 kernel-count tests on the installed Ultra workflow in a fresh models lane.",
+      "expected": "For adapter transfers, check the cold bound on the first six draws and the warm bound on the second six in sampleWorkflow(2). For INT8, one two-step text-to-image sample supplies both sets of kernel counts. Keep the distinct product, attention and unexpected-kernel assertions, their diagnostics, the separate arithmetic comparisons and the full workflow clock.",
+      "actual": "At 4586266fe8a8 the adapter tests took 1m29s and 1m09s. sampleWorkflow(2) and sampleWorkflow(1) draw 18 pictures for bounds available in 12. At 80c195d08 TestMOSSInt8ProductsMeetTheirBudget and TestMOSSAttentionMeetsItsBudget each call textToImageCensus, which loads a generator, prepares the same prompt, integrates two steps and closes it. When both are selected they take two independent samples to read the same launch counts. This second duplication follows from source. The earlier product test alone took 1m10s in the retained 05:59 lane run. The saving from sharing the sample has not been timed."
     },
     {
       "id": "SQA-444",
@@ -413,12 +415,30 @@
       "input": "Recover full-english, full-chinese-rectangle or full-layout after losing its full_reference.safetensors. Follow the MOSS oracle entry in test-data-origins.json using its retained moss_full_reference.py, the pinned checkpoint and the original case settings.",
       "expected": "The data-origin check should identify a recoverable copy of each pinned artifact or the matching producer for its case. Compare the retained producer's digest with the case's producer ID before spending GPU time. Keep the existing whole-file identity check.",
       "actual": "At 64bbd5ff2 the retained script hashes to 1a7dd1e7ab21. The existing English and Chinese tensor headers and oracle contract name producer f5ea6d9279bb. Layout names 50437649e0aa. TestEveryTestsDataNamesItsOrigin accepts the script by filename alone. The script runs the 50-step generation twice and embeds its own SHA-256 in the output before saving it. Even identical tensor values would give a different file, which VerifyMOSSTransformer rejects by digest. The mismatch was observed in the retained headers and script bytes. The failed recovery follows from source. All three original files are present."
+    },
+    {
+      "id": "SQA-452",
+      "severity": "P2",
+      "files": [
+        "internal/latentimage/rotary_joint.go",
+        "internal/latentimage/rotary_sampling_windows.go",
+        "internal/latentimage/int8_attention_layers_test.go",
+        "internal/latentimage/generator_rotary_windows.go"
+      ],
+      "input": "Serve a MOSS depth-control request on the INT8-capable device used for Ultra. In one joint layer, supply the ordered attention list [{\"attention\":\"comfy_kitchen_sol\"},{\"attention\":\"comfy_kitchen_int8\"}] with SOL unavailable. Keep all other checkpoint data valid.",
+      "expected": "Select the first supported method in declaration order. This layer should use the existing INT8 implementation. Keep the unsupported-only error and detect it before preparing the control latent.",
+      "actual": "Source counterexample at 80c195d08. int8AttentionLayers decodes the list but tests only configs[0], so runRotarySampling rejects this checkpoint after integrateRotary has prepared the control latent. The pinned ComfyUI loader at 7cebca522, comfy/ldm/modules/attention.py lines 87-100, continues to the next entry when SOL is unavailable and selects INT8 here. The existing Go test puts the supported method first. All 42 layer records read from the installed Ultra file name INT8 alone. This counterexample was not run."
     }
   ],
   "master_lead_triage": {
     "at": "2026-11-20",
     "head": "cbdf003cc5e0d974e86a56e8f99bb49b6bdc97a8",
     "findings": {
+  "SQA-452": {
+        "action": "deferred",
+        "rows": [],
+        "note": "Answered by the lead on 2026-11-21 at 8ee00a27b: the counterexample's premise does not hold on the card overgo runs MOSS on. ComfyAttention takes the first method it can run, and comfy_kitchen 0.2.40's sol_attn_is_available is true for the CUDA backend on sm_80 and later where its extension carries sol_attn, which the installed build compiles (sage_attention/sol_attn.cu); so on this sm_89 card ComfyUI runs SOL for a layer that lists it first, and int8AttentionLayers refusing that layer, since overgo runs no SOL, is the faithful answer. The installed Ultra file names comfy_kitchen_int8 alone in each of its 42 records. Valid that the refusal comes after the sampling has prepared its control latent; a refused request's preparation is no workflow time, so deferred to the next change of the file's reading."
+      },
   "SQA-451": {
         "action": "filed",
         "rows": [
@@ -593,7 +613,7 @@
       }
 }
   },
-  "next_finding_number": 452,
+  "next_finding_number": 453,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

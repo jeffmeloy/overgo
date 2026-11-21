@@ -3,22 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "moss-attention-pass",
-      "title": "A MOSS pass's attention takes at most its part of the pass budget, read against ComfyUI's attention at the workflow's size",
-      "steps": [
-        {
-          "id": "clock",
-          "title": "The workflow is timed whole at moss-attention-pass's commit, like for like and the card's turn held, and the timing appended to the record (moss-workflow-clock)",
-          "verify": "git log --format=%s -n 200 | grep -qF 'moss-attention-pass/do:' \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF \"\\\"commit\\\":\\\"$(git rev-parse HEAD)\\\"\" \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF '\"committed\":true'",
-          "files": [
-            "docs/verification"
-          ],
-          "needs_card": true,
-          "rationale": "The owner's review of 2026-11-20 (the campaign's number): after this row's do lands, the MOSS Ultra workflow is timed whole again at its commit, like for like with ComfyUI's runs and the card's turn held by the test: OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data OVERGO_WORKFLOW_RECORD=docs/verification/moss-workflow-time.jsonl go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^TestTheUltraWorkflowIsTimedInItsOrder$' (moss-workflow-clock), which appends the timing to the record, and the record is landed with no code changed. The step's check reads that the row's do has landed and that the record's last timing is of the commit the step lands on; its message states the whole against the last timing's and against what the row predicted, and a saving the whole does not show is a finding before the next row starts."
-        }
-      ]
-    },
-    {
       "id": "flash-bound-read",
       "title": "flash-next-bound's bound is read in a lanes run under the trunk's runner, internal/inference's package ending in its verdict",
       "steps": [

@@ -21,6 +21,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/safetensors"
 	"overgo/internal/speechrecognition"
+	"overgo/internal/speechrecognitiontest"
 	"overgo/internal/strictjson"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
@@ -156,11 +157,7 @@ func (f *transducerFixture) inputs(t *testing.T, capture transducerCapture) ([]f
 	if err != nil {
 		t.Fatal(err)
 	}
-	path, err := artifact.AvailablePath(t.Context(), f.store, tensorID, artifact.LocationFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	oracle, err := safetensors.OpenSource(filepath.Dir(path))
+	oracle, err := safetensors.OpenSource(filepath.Dir(speechrecognitiontest.CaptureFile(t, f.store, tensorID)))
 	if err != nil {
 		t.Fatal(err)
 	}

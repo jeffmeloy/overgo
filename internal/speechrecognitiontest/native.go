@@ -103,9 +103,7 @@ func PublishNative(t *testing.T, destination artifact.Repository) NativeFixture 
 		}
 		tensorID, err := artifact.ParseID("file:sha256:" + capture.TensorsSHA256)
 		testcheck.NoError(t, err)
-		path, err := artifact.AvailablePath(t.Context(), source, tensorID, artifact.LocationFile)
-		testcheck.NoError(t, err)
-		oracle, err := safetensors.OpenSource(filepath.Dir(path))
+		oracle, err := safetensors.OpenSource(filepath.Dir(CaptureFile(t, source, tensorID)))
 		testcheck.NoError(t, err)
 		digests, err := oracle.ShardDigests()
 		if err != nil || len(digests) != 1 || hex.EncodeToString(digests[0].Digest[:]) != capture.TensorsSHA256 {

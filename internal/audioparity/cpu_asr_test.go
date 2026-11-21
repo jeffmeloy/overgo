@@ -23,6 +23,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/safetensors"
 	"overgo/internal/speechrecognition"
+	"overgo/internal/speechrecognitiontest"
 	"overgo/internal/strictjson"
 	"overgo/internal/testutil"
 )
@@ -78,10 +79,7 @@ func testASRReference(t *testing.T, device bool) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tensorPath, err := artifact.AvailablePath(t.Context(), store, tensorID, artifact.LocationFile)
-	if err != nil {
-		t.Fatal(err)
-	}
+	tensorPath := speechrecognitiontest.CaptureFile(t, store, tensorID)
 	oracle, err := safetensors.OpenSource(filepath.Dir(tensorPath))
 	if err != nil {
 		t.Fatal(err)

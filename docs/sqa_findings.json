@@ -323,18 +323,6 @@
       "actual": "Source at 140c7975e. preparedFirst calls EnhanceRequest before the session director seeks the stored answer. Every retry opens the 9B chat, generates a positive and a negative prompt (a third generation if the positive needs a retry), closes it, clears Enhance and passes the rewritten request to the director. An enhancer-open failure on the retry therefore prevents delivery of the completed picture even when all identities still match. The recording establishes the prompt pair. Retry cost and failure are source-derived, with no timed or failed retry observed."
     },
     {
-      "id": "SQA-441",
-      "severity": "P2",
-      "files": [
-        "internal/latentimage/workflow_time_windows_model_test.go",
-        "internal/latentimage/workflow_source_test.go",
-        "docs/plan.json"
-      ],
-      "input": "From committed A, leave the tracked tree clean and add an untracked internal/latentimage/local_perf_windows.go in the normal package whose init sets runtime.GOMAXPROCS(1). Run the Windows MOSS workflow clock with recording enabled. Compare with A alone and with A plus only a findings-register edit.",
-      "expected": "The timing that compiled the local Go file must be identifiable as a development run and ineligible for a committed clock step. Keep the clean-code and report-only cases eligible. The recorder can use the repository's existing Git status handling that includes untracked paths.",
-      "actual": "Source at a15182b1b. Tracked code edits now set committed=false and a moving HEAD rejects the run. readWorkflowSource still requests --untracked-files=no. Go includes the new Windows source in the test binary, but the recorder sees an empty changed list and writes committed=true for A. All five pending clock verifiers accept that line once their do step has landed. The retained source check changes two already tracked files. No retained workflow time was shown to have this error."
-    },
-    {
       "id": "SQA-442",
       "severity": "P2",
       "files": [
@@ -345,38 +333,109 @@
       "actual": "Observed in the models lane at 4586266fe8a8: TestTheTurboSectionsMergeAsComfyUIPatches took 1m29s, then TestTheTurboSectionsMergeFromHeldWeightsInTheWorkflowsOrder took 1m9s. Both passed. Source at e0e6bf694: the first calls sampleWorkflow(2) and the second starts over with sampleWorkflow(1). Both use the same six requests, pass-2 inputs, shortened step counts and transfer counter. The lane draws eighteen pictures and loads a second generator to evaluate a bound available on the first six draws. The 69 seconds are the recorded duration of the duplicate run. Net time saved by sharing its samples has not been measured."
     },
     {
-      "id": "SQA-443",
+      "id": "SQA-444",
       "severity": "P2",
       "files": [
-        "internal/latentimage/comfy_block_windows_model_test.go"
+        "internal/latentvideo/denoiser.go",
+        "internal/latentvideo/denoiser_session.go"
       ],
-      "input": "In the block comparison, take the retained ComfyUI block 20 output and substitute the block input for token 0's 3,072 output values. Leave the other 2,313 output rows equal to the reference. This represents one token skipping its residual update. Keep the projection inputs and results unchanged.",
-      "expected": "TestAMOSSBlockIsHeldToComfyUIs must fail the per-token check and identify token 0. A zero update cannot meet the 0.99 cosine floor against this nonzero reference update. Reject an undefined cosine at the token where it occurs and keep the independent whole-block L2 bound.",
-      "actual": "Source and arithmetic on both SHA-256-verified BF16 reference tensors at a15182b1b. All 2,314 reference updates have nonzero energy. With token 0 skipped, its cosine is 0/0. The minimum becomes NaN, then token 1's finite cosine replaces it. The remaining cosines pass. Whole-block relative L2 is 0.01126047, below 0.05, so the block verdict also passes. The current moss-situ-prologue/do verifier uses this test. This is a counterexample to the comparison, not an observed model output."
+      "input": "Generate a Wan clip with the default profile (81 frames, 832x480, 50 steps, guidance 6), with both guidance branches active on every step.",
+      "expected": "Upload the latent patches and the two timestep-conditioning arrays once per active step. Both guidance branches can read those same device inputs. Keep their projected contexts and predictions distinct for guidance, UniPC and tracing. On the next Wan timing run, use the existing transfer counters and time spent in the denoiser to check the saving.",
+      "actual": "Wan uploads the same three arrays twice per guided step. DenoiseWithBackend computes them once, then calls ForwardHead for each branch. The CUDA session supplies all three as host feeds on both calls and reads back each branch head for the host sampler. The second patch upload alone is 16 x 21 x 60 x 104 float32 values per step, or 419,328,000 redundant bytes per default clip. This byte count follows from source at a15182b1b. Transfer time has not been isolated."
+    },
+    {
+      "id": "SQA-445",
+      "severity": "P2",
+      "files": [
+        "internal/landing/landing.go",
+        "internal/landing/wholetree.go"
+      ],
+      "input": "Land a MOSS workflow timing record beside its plan and findings changes, as at 4586266fe. Also compare the two host stages of a15182b1b on the same MOSS landing.",
+      "expected": "Run the timing row's verifier and the checks that read the changed records. For a full gate, run a given host suite once for the same candidate, inputs and build settings. Keep the separate whole-tree checks and repeat a suite when an input it uses changes.",
+      "actual": "The timing-only landing took 8m55s, including 3m18.866s of invariants and 4m54.364s of tests. The regular test stage ran 10 packages, led by internal/landing at 142s. The fast path accepts only the plan and findings paths. On a15182b1b the gate selected the ordinary landing suite in both invariants and go test ./... and recorded TestALandingRefusesWhatDispatchWouldPass executing for 30s and 27s. The candidate checkout is reused. The records do not identify each Go cache miss or establish a one-minute budget."
+    },
+    {
+      "id": "SQA-446",
+      "severity": "P2",
+      "files": [
+        "internal/plan/dispatch.go",
+        "internal/landing/landing.go",
+        "cmd/loop/main.go"
+      ],
+      "input": "Dispatch an eligible MOSS step to a worker. While it runs, add an independent ready row that ranks ahead of it. Leave the assigned step, prerequisites, lane, scope and stop state unchanged. Land the original assignment.",
+      "expected": "Honor the step actually assigned through the existing dispatch owner while it is still eligible. Recheck its current terms, dependencies, lane and stops. An unrelated priority change should govern the next assignment.",
+      "actual": "Landing.row passes the captured candidate plan to AdmitLanding. For a worker, admits clears the requested reference and selects the first ready step again. A different first row therefore refuses the assigned step before its change is judged. The retained log records three refusals of moss-comfy-block/do naming clock-committed/do, adapter-hold/do and moss-first-run/do. The first-row rule follows from source at 8c32dad22. The log alone does not establish what changed the ranking on every attempt."
+    },
+    {
+      "id": "SQA-447",
+      "severity": "P2",
+      "files": [
+        "internal/latentimage/comfy_block_windows_model_test.go",
+        "internal/latentimage/rotary_refinement.go",
+        "internal/landing/undo.go"
+      ],
+      "input": "Check the MOSS block-20 feed-down on the Turbo capture with the exact projection comparison from 8c32dad22 and the production code from its parent a15182b1b.",
+      "expected": "Apply the same exact comparison to the base and candidate through an execution or output format both support. The base should fail on the differing projection values and the candidate should pass. The existing isolated base checkout can supply the old implementation when the new test cannot compile with it.",
+      "actual": "The retained comparison reports 160,204 of 196,608 entries differed before the change and zero afterward. The landing nevertheless records Undo-Evidence: none. Its verifier directly calls rotaryGraph.feedActivation, which the parent does not define, so the restored build cannot reach that numerical assertion. The paired measurements show the change mattered. They do not demonstrate the gate ran the new assertion on the base."
+    },
+    {
+      "id": "SQA-448",
+      "severity": "P2",
+      "files": [
+        "internal/latentimage/workflow_time_windows_model_test.go",
+        "internal/latentimage/workflow_source_test.go"
+      ],
+      "input": "Build the MOSS model-test binary at commit A. After moving to a clean later commit B with different denoiser code, run A's prebuilt workflow clock from B's package directory with recording enabled. Leave B untouched through the run.",
+      "expected": "A committed clock reading must identify the code in the executable. Build and run each side in its own identified checkout, or refuse committed credit when the executable cannot be tied to that checkout. The caller's uncommitted files should stay in place during a comparison.",
+      "actual": "The clock reads HEAD and changed paths from the process's working directory. With B clean at both reads it writes B and committed=true for A's executable. This is a source counterexample at 8c32dad22. At 19:35 ET on Nov 20 a real MOSS comparison stashed 19 tracked edits to build the base executable, restored them, and ran the base and candidate from the same package directory. That run selected golden-floor checks, so it does not establish that a published clock reading was mislabeled."
+    },
+    {
+      "id": "SQA-449",
+      "severity": "P2",
+      "files": [
+        "internal/landing/refusal.go",
+        "cmd/loop/status.go"
+      ],
+      "input": "Read the status worklist after the Nov 20 refusal of moss-int8-epilogue/census. Compare that refusal with its gate output. The failed-tests line names eight tests and subtests in capabilityruntime, audioparity and server, plus three package failures.",
+      "expected": "The existing refusal worklist should attribute this landing once to each of the eight named tests and subtests. Preserve the complete failing names when classifying the gate result, with the short diagnostic kept separately from the counts. Older truncated records can establish only the names they actually retained.",
+      "actual": "The saved 240-byte cause ends in the middle of the next audioparity name. At 8c32dad22 Classify clips the text before Worklist reads it. Applying refusedBy to that record yields only TestNativeASRSessionAcceptance and TestSecondASRStreamingAcceptance/6930-75918-0000. Six named failures disappear from the worklist for this refusal, including the offline ASR checks and server/TestStreamingTranscriptionAcceptance. The original gate output and its failing verdict are intact."
     }
   ],
   "master_lead_triage": {
     "at": "2026-11-20",
     "head": "cbdf003cc5e0d974e86a56e8f99bb49b6bdc97a8",
     "findings": {
-  "SQA-443": {
+  "SQA-448": {
+        "action": "deferred",
+        "rows": [],
+        "note": "Answered by the lead on 2026-11-20 at 8c32dad22: valid from source (readWorkflowSource reads HEAD and the changed paths from the process's directory, so an executable built at A and run in a clean checkout of B records B, committed). A clock step runs go test, which builds the binary from the tree the clock then reads, so the path the clock steps take records its own code; the gap is an executable built elsewhere run with OVERGO_WORKFLOW_RECORD set, which no step does. Deferred to the next change of the clock, which ties a reading to the source its binary was built from; until then the lead runs the clock only through go test, and the probe binaries a row builds (tmp/<row>/) never record."
+      },
+  "SQA-447": {
         "action": "filed",
         "rows": [
-          "moss-situ-prologue/do"
+          "moss-int8-epilogue/census"
         ],
-        "note": "Answered by the lead on 2026-11-20 at a15182b1b: valid from source (a token whose update is zero has the cosine 0/0, a NaN that !(cosine >= lowest) takes and the next token's finite cosine replaces, so a skipped residual passes the per-token bound); cured in moss-situ-prologue/do, whose check is this test: the comparison is one function (blockUpdateAgreement) that holds a zero update against a nonzero one at cosine 0 where it lies, and TestABlockWhoseTokenSkipsItsUpdateFailsAtThatToken holds it to the review's counterexample card-free, failing with the old scan."
+        "note": "Answered by the lead on 2026-11-20 at 8c32dad22: valid (moss-situ-prologue's check called rotaryGraph.feedActivation, which its base lacks, so the gate's undo ran nothing). The lead's practice changes first: a check that needs a harness its base lacks lands the harness in its own step before the work, so the work's check compiles at its base and fails there on its assertions. moss-int8-epilogue/census lands the launch census by kernel name before do, whose TestMOSSInt8ProductsMeetTheirBudget reads it. The gate's own cure (an isolated base checkout running the old implementation where the new check cannot compile) waits with the gate's rows the campaign set aside."
+      },
+  "SQA-446": {
+        "action": "deferred",
+        "rows": [],
+        "note": "Answered by the lead on 2026-11-20 at 8c32dad22: valid from source and from the lead's own landings (three refusals of moss-comfy-block/do and two of the clock and adapter rows, each naming a step filed or ready ahead of the assigned one). The lead files a row that must follow the dispatched one by plan -add -from with depends_on on every step, after the dispatched landing, which avoids the refusal; dispatch honoring the assigned step is the landing's change, outside this campaign's workflow time, and waits with the gate's rows the campaign set aside."
+      },
+  "SQA-445": {
+        "action": "deferred",
+        "rows": [],
+        "note": "Answered by the lead on 2026-11-20 at 8c32dad22: valid as reported (a timing-only landing ran the landing suite in both invariants and go test, 8m55s); a landing's time, not the workflow's, so deferred with SQA-442 to the gate's rows the campaign set aside."
+      },
+  "SQA-444": {
+        "action": "deferred",
+        "rows": [],
+        "note": "Answered by the lead on 2026-11-20 at 8c32dad22: valid from source (DenoiseWithBackend computes a step's patch tokens and conditionings once and ForwardHead feeds all three from the host on each guidance branch, then reads each branch's head back); the owner's review of 2026-11-20, point 2, names the same pattern, the per-pass copies moss-step-copies removes for MOSS. Video is not this campaign's, so deferred to video's next campaign, whose first timing by section measures it, beside the parked finding evidence:sha256:73c52061; moss-step-copies' note now writes its cure as a piece DenoiserCUDASession can take up, so the cure is reused there, not written again."
       },
   "SQA-442": {
         "action": "deferred",
         "rows": [],
         "note": "Answered by the lead on 2026-11-20 at e0e6bf694: valid from source (TestTheTurboSectionsMergeFromHeldWeightsInTheWorkflowsOrder draws the six sections again for a bound TestTheTurboSectionsMergeAsComfyUIPatches's first run already draws, 69 s of a models lane); a lane's time, not the workflow's, so deferred to the next change of either test, which folds the cold bound into the two-run check and retires the one-run test."
-      },
-  "SQA-441": {
-        "action": "filed",
-        "rows": [
-          "moss-situ-prologue/do"
-        ],
-        "note": "Answered by the lead on 2026-11-20 at f3117025d: valid from source (appendWorkflowTiming reads HEAD and the tree's changed paths after both runs, so a landing during the run is credited with the earlier code's timing, and the remaining clock checks accept it); filed as clock-identity/do ahead of the next clock step, the source read as the timing starts and again before it appends. moss-merge-compute/clock was timed with HEAD read before and after its run, no other session landing. Implemented 2026-11-20 by clock-identity/do (47bb3f027): the source read as the timing starts, and a timing whose commit moved while it ran refused; moss-merge-compute/clock's timing at 47bb3f027 is the first under it. Reopened by the review at e0e6bf694 and answered by the lead on 2026-11-20: valid from source (a timing run with tracked code changed is recorded as its commit's, the edit in its changed paths, and the clock checks read only the commit); filed as clock-committed/do ahead of moss-int8-epilogue/clock, the record stating whether the timing ran its commit's code alone and the remaining clock checks requiring it. Both timings moss-merge-compute/clock recorded list no changed code (docs/plan.json and docs/sqa_findings.json at f3117025d, none at 47bb3f027). Implemented 2026-11-20 by clock-committed/do (e96cc0273): the record says whether a timing ran its commit's code alone, and the three remaining clock checks require it. Reopened by the review at a15182b1b and answered by the lead on 2026-11-20: valid from source (readWorkflowSource asked git for no untracked files, so an untracked source file the test binary compiles left the timing committed); cured in moss-situ-prologue/do ahead of the next clock step, the source read with untracked paths (--untracked-files=all, tmp/ ignored by the repository), TestAWorkflowTimingSaysWhetherItRanItsCommitsCode holding an untracked local_perf.go to a timing not committed, each case undone before the next."
       },
   "SQA-431": {
         "action": "deferred",
@@ -508,7 +567,7 @@
       }
 }
   },
-  "next_finding_number": 444,
+  "next_finding_number": 450,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

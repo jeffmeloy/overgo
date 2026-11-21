@@ -13,6 +13,7 @@
 	// .globl	rope_native_bf16_f32
 // _ZZ28attention_native_softmax_f32E7partial has been demoted
 // _ZZ19rms_norm_native_f32E7partial has been demoted
+// _ZZ35decode_int8_convrot_rows_exact_bf16E4sums has been demoted
 .global .align 4 .b8 __cudart_i2opi_f[24] = {65, 144, 67, 60, 153, 149, 98, 219, 192, 221, 52, 245, 209, 87, 39, 252, 41, 21, 68, 78, 110, 131, 249, 162};
 
 .visible .entry rope_native_bf16_f32(
@@ -2584,6 +2585,181 @@ $L__BB6_5:
 	st.global.f32 	[%rd2], %f15;
 
 $L__BB6_6:
+	ret;
+
+}
+	// .globl	decode_int8_convrot_rows_exact_bf16
+.visible .entry decode_int8_convrot_rows_exact_bf16(
+	.param .u64 decode_int8_convrot_rows_exact_bf16_param_0,
+	.param .u64 decode_int8_convrot_rows_exact_bf16_param_1,
+	.param .u64 decode_int8_convrot_rows_exact_bf16_param_2,
+	.param .u32 decode_int8_convrot_rows_exact_bf16_param_3,
+	.param .u32 decode_int8_convrot_rows_exact_bf16_param_4,
+	.param .u32 decode_int8_convrot_rows_exact_bf16_param_5
+)
+{
+	.reg .pred 	%p<13>;
+	.reg .b16 	%rs<5>;
+	.reg .f32 	%f<3>;
+	.reg .b32 	%r<76>;
+	.reg .f64 	%fd<9>;
+	.reg .b64 	%rd<20>;
+	// demoted variable
+	.shared .align 4 .b8 _ZZ35decode_int8_convrot_rows_exact_bf16E4sums[4096];
+
+	ld.param.u64 	%rd5, [decode_int8_convrot_rows_exact_bf16_param_0];
+	ld.param.u64 	%rd6, [decode_int8_convrot_rows_exact_bf16_param_1];
+	ld.param.u64 	%rd7, [decode_int8_convrot_rows_exact_bf16_param_2];
+	ld.param.u32 	%r19, [decode_int8_convrot_rows_exact_bf16_param_3];
+	ld.param.u32 	%r20, [decode_int8_convrot_rows_exact_bf16_param_4];
+	ld.param.u32 	%r21, [decode_int8_convrot_rows_exact_bf16_param_5];
+	add.s32 	%r22, %r21, -1;
+	setp.gt.u32 	%p1, %r22, 1023;
+	@%p1 bra 	$L__BB7_16;
+
+	rem.u32 	%r23, %r19, %r21;
+	setp.ne.s32 	%p2, %r23, 0;
+	@%p2 bra 	$L__BB7_16;
+
+	div.u32 	%r24, %r19, %r21;
+	mov.u32 	%r25, %ctaid.x;
+	div.u32 	%r1, %r25, %r24;
+	mul.lo.s32 	%r26, %r1, %r24;
+	sub.s32 	%r2, %r25, %r26;
+	setp.ge.u32 	%p3, %r1, %r20;
+	@%p3 bra 	$L__BB7_16;
+
+	cvt.u64.u32 	%rd1, %r1;
+	mul.wide.u32 	%rd8, %r1, %r19;
+	mul.lo.s32 	%r27, %r2, %r21;
+	cvt.u64.u32 	%rd9, %r27;
+	add.s64 	%rd2, %rd8, %rd9;
+	mov.u32 	%r75, %tid.x;
+	setp.ge.u32 	%p4, %r75, %r21;
+	@%p4 bra 	$L__BB7_6;
+
+	mov.u32 	%r4, %ntid.x;
+	cvta.to.global.u64 	%rd3, %rd5;
+	mov.u32 	%r71, %r75;
+
+$L__BB7_5:
+	cvt.u64.u32 	%rd10, %r71;
+	add.s64 	%rd11, %rd2, %rd10;
+	add.s64 	%rd12, %rd3, %rd11;
+	ld.global.s8 	%r28, [%rd12];
+	shl.b32 	%r29, %r71, 2;
+	mov.u32 	%r30, _ZZ35decode_int8_convrot_rows_exact_bf16E4sums;
+	add.s32 	%r31, %r30, %r29;
+	st.shared.u32 	[%r31], %r28;
+	add.s32 	%r71, %r71, %r4;
+	setp.lt.u32 	%p5, %r71, %r21;
+	@%p5 bra 	$L__BB7_5;
+
+$L__BB7_6:
+	bar.sync 	0;
+	setp.lt.u32 	%p6, %r21, 2;
+	mov.f64 	%fd8, 0d3FF0000000000000;
+	@%p6 bra 	$L__BB7_13;
+
+	shr.u32 	%r7, %r21, 2;
+	mov.u32 	%r72, 1;
+	mov.u32 	%r8, %ntid.x;
+	mov.u32 	%r73, %r72;
+
+$L__BB7_8:
+	shl.b32 	%r73, %r73, 1;
+	setp.lt.u32 	%p7, %r75, %r7;
+	@%p7 bra 	$L__BB7_9;
+	bra.uni 	$L__BB7_11;
+
+$L__BB7_9:
+	shl.b32 	%r12, %r72, 2;
+	mov.u32 	%r74, %r75;
+
+$L__BB7_10:
+	div.u32 	%r34, %r74, %r72;
+	mul.lo.s32 	%r35, %r34, %r72;
+	sub.s32 	%r36, %r74, %r35;
+	mad.lo.s32 	%r37, %r12, %r34, %r36;
+	shl.b32 	%r38, %r37, 2;
+	mov.u32 	%r39, _ZZ35decode_int8_convrot_rows_exact_bf16E4sums;
+	add.s32 	%r40, %r39, %r38;
+	add.s32 	%r42, %r40, %r12;
+	add.s32 	%r43, %r42, %r12;
+	add.s32 	%r44, %r43, %r12;
+	ld.shared.u32 	%r45, [%r42];
+	ld.shared.u32 	%r46, [%r40];
+	add.s32 	%r47, %r45, %r46;
+	ld.shared.u32 	%r48, [%r43];
+	add.s32 	%r49, %r47, %r48;
+	ld.shared.u32 	%r50, [%r44];
+	sub.s32 	%r51, %r49, %r50;
+	st.shared.u32 	[%r40], %r51;
+	sub.s32 	%r52, %r47, %r48;
+	add.s32 	%r53, %r52, %r50;
+	st.shared.u32 	[%r42], %r53;
+	sub.s32 	%r54, %r46, %r45;
+	add.s32 	%r55, %r54, %r48;
+	add.s32 	%r56, %r55, %r50;
+	st.shared.u32 	[%r43], %r56;
+	sub.s32 	%r57, %r45, %r46;
+	add.s32 	%r58, %r57, %r48;
+	add.s32 	%r59, %r58, %r50;
+	st.shared.u32 	[%r44], %r59;
+	add.s32 	%r74, %r74, %r8;
+	setp.lt.u32 	%p8, %r74, %r7;
+	@%p8 bra 	$L__BB7_10;
+
+$L__BB7_11:
+	shl.b32 	%r72, %r72, 2;
+	bar.sync 	0;
+	setp.lt.u32 	%p9, %r72, %r21;
+	@%p9 bra 	$L__BB7_8;
+
+	cvt.rn.f64.u32 	%fd8, %r73;
+
+$L__BB7_13:
+	@%p4 bra 	$L__BB7_16;
+
+	cvta.to.global.u64 	%rd13, %rd6;
+	shl.b64 	%rd14, %rd1, 2;
+	add.s64 	%rd15, %rd13, %rd14;
+	ld.global.f32 	%f1, [%rd15];
+	mov.u32 	%r16, %ntid.x;
+	cvta.to.global.u64 	%rd4, %rd7;
+	cvt.f64.f32 	%fd3, %f1;
+	mov.u32 	%r61, _ZZ35decode_int8_convrot_rows_exact_bf16E4sums;
+
+$L__BB7_15:
+	shl.b32 	%r60, %r75, 2;
+	add.s32 	%r62, %r61, %r60;
+	ld.shared.u32 	%r63, [%r62];
+	cvt.rn.f64.s32 	%fd5, %r63;
+	mul.rn.f64 	%fd6, %fd3, %fd5;
+	div.rn.f64 	%fd7, %fd6, %fd8;
+	cvt.rn.f32.f64 	%f2, %fd7;
+	mov.b32 	%r64, %f2;
+	and.b32  	%r65, %r64, 2147483647;
+	setp.gt.u32 	%p11, %r65, 2139095040;
+	shr.u32 	%r66, %r64, 16;
+	cvt.u16.u32 	%rs1, %r66;
+	or.b16  	%rs2, %rs1, 64;
+	and.b32  	%r67, %r66, 1;
+	add.s32 	%r68, %r64, %r67;
+	add.s32 	%r69, %r68, 32767;
+	shr.u32 	%r70, %r69, 16;
+	cvt.u16.u32 	%rs3, %r70;
+	selp.b16 	%rs4, %rs2, %rs3, %p11;
+	cvt.u64.u32 	%rd16, %r75;
+	add.s64 	%rd17, %rd2, %rd16;
+	shl.b64 	%rd18, %rd17, 1;
+	add.s64 	%rd19, %rd4, %rd18;
+	st.global.u16 	[%rd19], %rs4;
+	add.s32 	%r75, %r75, %r16;
+	setp.lt.u32 	%p12, %r75, %r21;
+	@%p12 bra 	$L__BB7_15;
+
+$L__BB7_16:
 	ret;
 
 }

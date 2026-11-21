@@ -74,7 +74,7 @@ func TestTheUltraEncoderConditionsAsComfyUIDoes(t *testing.T) {
 	roots := testcheck.Must(dataroot.Resolve(repo))(t)
 	root := ultraModelRoot(t)
 	conditioner := testcheck.Must(loadModelConditioner(root, textTemplate{MaxTokens: mossConditioningTokens, EnableThinking: true}))(t)
-	t.Cleanup(func() { testcheck.NoError(t, conditioner.source.Close()) })
+	t.Cleanup(func() { testcheck.NoError(t, conditioner.close()) })
 	texts := make([]textInput, len(golden.Cases))
 	embeddings := make([][]float32, len(golden.Cases))
 	for index, recorded := range golden.Cases {

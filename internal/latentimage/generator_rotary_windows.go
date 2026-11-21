@@ -60,7 +60,7 @@ func loadRotaryGenerator(ctx context.Context, root string, profile Profile, requ
 	}
 	defer func() {
 		if err != nil {
-			err = errors.Join(err, conditioner.source.Close())
+			err = errors.Join(err, conditioner.close())
 		}
 	}()
 	if int(conditioner.catalog.Spec.EmbeddingLength) != spec.TextHidden {
@@ -422,5 +422,5 @@ func (g *Generator) closeRotary(ctx context.Context) error {
 	if state.latent != nil {
 		err = state.latent.outputs.Release(context.WithoutCancel(ctx))
 	}
-	return errors.Join(err, state.runtime.Close(context.WithoutCancel(ctx)), state.conditioner.source.Close())
+	return errors.Join(err, state.runtime.Close(context.WithoutCancel(ctx)), state.conditioner.close())
 }

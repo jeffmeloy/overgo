@@ -234,6 +234,35 @@ func (s *ResidentSession) BindMerged(
 	})
 }
 
+// BindDecoded binds one immutable BF16 program input as an int8 ConvRot weight decodes to on the card
+// (executor.DecodeInt8ConvRot, its output where the input is placed), bit for bit as the host decodes it, or reuses the
+// input of that source and name the session holds, the stored weight read only where it holds none.
+func (s *ResidentSession) BindDecoded(
+	ctx context.Context,
+	program *ResidentProgram,
+	source string,
+	name string,
+	node *tensor.Tensor,
+	decode func() (executor.Int8ConvRotDecode, error),
+) error {
+	if node == nil || node.Type != dtype.BF16 {
+		return errors.New("a decoded resident input is a BF16 weight")
+	}
+	return s.bind(ctx, program, source, name, node, func(bytes uint64) (residentFill, error) {
+		decoded, err := decode()
+		if err != nil {
+			return nil, err
+		}
+		if want := 2 * uint64(decoded.Rows) * uint64(decoded.Inner); want != bytes {
+			return nil, fmt.Errorf("a decoded resident input of %d x %d BF16 values is %d bytes, its input %d", decoded.Rows, decoded.Inner, want, bytes)
+		}
+		return func(state *device.State, placed driver.DevicePtr) error {
+			decoded.Output = placed
+			return s.executor.DecodeInt8ConvRot(state, decoded)
+		}, nil
+	})
+}
+
 // Keep holds an immutable input of source and name in node's type and shape in the session itself, beside the programs
 // that bind it, until the session closes, and gives where it is: one a program has bound already is kept where it is,
 // else payload is placed. A merge reads the weight it merges into there, whatever the programs since have bound merged

@@ -44,7 +44,7 @@ func NewCaptionConditioner(root string, profile Profile) (_ *CaptionConditioner,
 	}
 	session, err := graphruntime.NewResidentSession(tensor.FirstOffset)
 	if err != nil {
-		return nil, errors.Join(err, conditioner.source.Close())
+		return nil, errors.Join(err, conditioner.close())
 	}
 	return &CaptionConditioner{session: session, conditioner: conditioner, spec: spec, root: root}, nil
 }
@@ -99,5 +99,5 @@ func (c *CaptionConditioner) Close(ctx context.Context) error {
 	}
 	session := c.session
 	c.session = nil
-	return errors.Join(session.Close(context.WithoutCancel(ctx)), c.conditioner.source.Close())
+	return errors.Join(session.Close(context.WithoutCancel(ctx)), c.conditioner.close())
 }

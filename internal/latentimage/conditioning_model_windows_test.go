@@ -70,7 +70,7 @@ func testConditioningModelGolden(t *testing.T, fixture, digest string, cases []s
 			for _, label := range names {
 				outputs = append(outputs, p.boundaries[label])
 			}
-			program := testcheck.Must(p.resident(t.Context(), session, catalog, root, nil, outputs...))(t)
+			program := testcheck.Must(p.resident(t.Context(), session, catalog, root, nil, nil, outputs...))(t)
 			defer session.Release(context.Background(), program)
 			p.feeds[p.input] = reference.Value{Shape: p.input.Shape, Data: hidden}
 			var previous map[*tensor.Tensor]reference.Value

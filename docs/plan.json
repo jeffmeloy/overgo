@@ -7,21 +7,6 @@
       "title": "The workflow's first run from a session's start is held to ComfyUI's first run, timed with the machine held quiet",
       "steps": [
         {
-          "id": "do",
-          "title": "The first run's largest parts, as the quiet clock splits them, are cured and the cure counted",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^TestTheUltraEncoderDecodesItsWeightsOnTheCard$'",
-          "files": [
-            "internal/latentimage",
-            "internal/graphruntime",
-            "internal/cuda",
-            "kernels"
-          ],
-          "rationale": "Note: The check is set from moss-first-run/quiet's split (plan -setverify), counting what the cure removes (bytes read, programs built, files read twice), as the speed rows count theirs; the bar is ComfyUI's pass-1, 40.18 s whole and 13.55 s for its first section, read by the clock step after, not by this check.\n\nNote: files set to internal/latentimage, internal/graphruntime, internal/cuda, kernels: The decode's kernel lives in kernels/cuda/ops_native.cu, beside its manifest entry and the generated bindings, which the step's files must name: built without fast math, as the ER-SDE step is.\n\nNote: Set from moss-first-run/quiet's split (2026-11-21, 93888b740's code, the card's turn held before the timing): the first run took 91.04 s against ComfyUI's pass-1 40.18 s, and text to image's preparation, the encoder placing its weights block by block for the first prompt, 51.0 s of it at 57.0 s of processor time; the process's profile put 41 s of that in comfyquant's row decode, one core, every ConvRot weight decoded to BF16 on the host and copied at twice its stored bytes. The cure decodes the encoder's 201 ConvRot weights the catalog reads as BF16 with nothing else done to them on the card, from their int8 rows and scales, by overgo's own exact decode (decode_int8_convrot_rows_exact_bf16: H4's Kronecker power in integer sums, the scale in F64, rounded to F32 and to BF16 to nearest even, as comfyquant.DecodeRow), so the conditioning is the host decode's bit for bit; decoding as ComfyUI's card does (comfy_kitchen's F32 stages) moves it, which moss-encoder-own takes up. The check counts what the cure removes: at 93888b740 the text to image preparation copied 12.99 GiB to the card against the 14.79 GiB its encoder's weights take in BF16, and with the card's decode 6.56 GiB, the conditioning hashing 4b342873 both ways; its bar is three fifths of the BF16 bytes. TestTheCardDecodesConvRotAsTheHost holds the kernel to comfyquant.DecodeRow over groups of 64, 256 and 1024, the int8 extremes and edge scales (zero, infinite, NaN, subnormal products).",
-          "depends_on": [
-            "moss-first-run/quiet"
-          ]
-        },
-        {
           "id": "clock",
           "title": "The workflow is timed whole at moss-first-run's commit, the machine held quiet, and the timing appended to the record (moss-workflow-clock)",
           "verify": "git log --format=%s -n 200 | grep -qF 'moss-first-run/do:' \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF \"\\\"commit\\\":\\\"$(git rev-parse HEAD)\\\"\" \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF '\"committed\":true'",

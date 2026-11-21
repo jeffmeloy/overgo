@@ -312,6 +312,7 @@ const (
 	kernelXieluF32
 	kernelAttentionNativePackF32
 	kernelAttentionNativeSoftmaxF32
+	kernelDecodeInt8ConvrotRowsExactBf16
 	kernelErSdeStepF32
 	kernelExpNativeF32
 	kernelRmsNormNativeF32
@@ -822,6 +823,7 @@ var kernelFunctionNames = [...]string{
 	"xielu_f32",
 	"attention_native_pack_f32",
 	"attention_native_softmax_f32",
+	"decode_int8_convrot_rows_exact_bf16",
 	"er_sde_step_f32",
 	"exp_native_f32",
 	"rms_norm_native_f32",
@@ -1331,6 +1333,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	7,
 	18,
 	5,
+	6,
 	15,
 	3,
 	8,
@@ -1841,6 +1844,7 @@ var kernelFunctionArgumentWidths = [...][]uint16{
 	{8, 8, 4, 4, 4, 4, 4},
 	{8, 8, 8, 8, 8, 8, 8, 8, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
 	{8, 4, 4, 4, 4},
+	{8, 8, 8, 4, 4, 4},
 	{8, 8, 8, 8, 8, 8, 4, 4, 8, 8, 8, 8, 8, 8, 8},
 	{8, 8, 4},
 	{8, 8, 4, 4, 4, 4, 4, 4},
@@ -2352,6 +2356,7 @@ var kernelFunctionModules = [...]uint8{
 	0,
 	0,
 	0,
+	1,
 	1,
 	1,
 	1,

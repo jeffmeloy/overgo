@@ -9,8 +9,10 @@ import (
 	"io"
 	"maps"
 	"os"
+	"overgo/internal/comfyquant"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
+	"overgo/internal/gguf"
 	"overgo/internal/graphruntime"
 	"overgo/internal/hfbpe"
 	"overgo/internal/hfgguf"
@@ -28,6 +30,11 @@ type modelConditioner struct {
 	root      string
 	tokenizer *hfbpe.Tokenizer
 	template  textTemplate
+	// stored is the encoder file's tensors as the file stores them, beside source's decoded view, where it holds int8
+	// ConvRot weights (a ComfyUI encoder file), and decoded the catalog's weights each of those decodes to, by name: the
+	// card decodes them from their int8 rows (convRot, moss-first-run).
+	stored  *safetensors.Source
+	decoded map[string]string
 }
 
 func loadModelConditioner(root string, template textTemplate) (_ *modelConditioner, err error) {
@@ -58,7 +65,57 @@ func loadModelConditioner(root string, template textTemplate) (_ *modelCondition
 		return nil, fmt.Errorf("model conditioning template differs from profile")
 	}
 	template.ChatTemplate = string(text)
-	return &modelConditioner{source: source, catalog: catalog, root: root, tokenizer: tok, template: template}, nil
+	conditioner := &modelConditioner{source: source, catalog: catalog, root: root, tokenizer: tok, template: template}
+	if err := conditioner.openStored(); err != nil {
+		return nil, err
+	}
+	return conditioner, nil
+}
+
+// openStored opens the encoder file's tensors as the file stores them where it holds int8 ConvRot weights, and names
+// each catalog weight the catalog reads as the BF16 one of them decodes to, with nothing else done to it: no transform
+// and no other storage. A file holding none opens nothing.
+func (c *modelConditioner) openStored() error {
+	stored, err := safetensors.OpenSource(filepath.Join(c.root, "text_encoder"))
+	if err != nil {
+		return err
+	}
+	view := comfyLanguageView(stored)
+	decoded := map[string]string{}
+	for _, binding := range c.catalog.Bindings() {
+		if len(binding.Transforms) != 0 || binding.TargetStorage != gguf.DTypeBF16.String() {
+			continue
+		}
+		if _, quantized, err := comfyquant.Find(view, binding.Source); err != nil {
+			return errors.Join(err, stored.Close())
+		} else if quantized {
+			decoded[binding.Target] = binding.Source
+		}
+	}
+	if len(decoded) == 0 {
+		return stored.Close()
+	}
+	c.stored, c.decoded = view, decoded
+	return nil
+}
+
+// convRot is the int8 ConvRot weight the encoder's file holds for the catalog's weight named, where the catalog reads
+// that weight as the BF16 it decodes to (openStored), and whether it does.
+func (c *modelConditioner) convRot(name string) (comfyquant.Weight, bool, error) {
+	source, decoded := c.decoded[name]
+	if !decoded {
+		return comfyquant.Weight{}, false, nil
+	}
+	return comfyquant.Find(c.stored, source)
+}
+
+// close closes the encoder's files, both views of them.
+func (c *modelConditioner) close() error {
+	err := c.source.Close()
+	if c.stored != nil {
+		err = errors.Join(err, c.stored.Close())
+	}
+	return err
 }
 
 func (c *modelConditioner) input(prompt string) (textInput, []float32, error) {
@@ -110,7 +167,7 @@ func (c *modelConditioner) encodeHolding(ctx context.Context, session *graphrunt
 			outputs = append(outputs, p.boundaries[name])
 		}
 	}
-	program, err := p.resident(ctx, session, c.catalog, c.root, nil, outputs...)
+	program, err := p.resident(ctx, session, c.catalog, c.root, c.convRot, nil, outputs...)
 	if err != nil {
 		return nil, err
 	}
@@ -210,7 +267,7 @@ func (c *modelConditioner) encodeBlock(ctx context.Context, session *graphruntim
 		}
 		dynamic, pointers = []*tensor.Tensor{p.input}, []driver.DevicePtr{previous.Pointer}
 	}
-	program, err := p.resident(ctx, session, c.catalog, c.root, dynamic, p.output)
+	program, err := p.resident(ctx, session, c.catalog, c.root, c.convRot, dynamic, p.output)
 	if err != nil {
 		return err
 	}
@@ -226,7 +283,12 @@ func (c *modelConditioner) encodeBlock(ctx context.Context, session *graphruntim
 	return err
 }
 
-func (p *modelEncoderProgram) resident(ctx context.Context, session *graphruntime.ResidentSession, catalog hfgguf.LanguageCatalog, sourceIdentity string, dynamic []*tensor.Tensor, outputs ...*tensor.Tensor) (_ *graphruntime.ResidentProgram, err error) {
+// resident compiles the program and binds its weights from the catalog, under sourceIdentity: each one convRot names
+// (modelConditioner.convRot) decoded on the card from the int8 ConvRot rows its file holds, bit for bit as the host
+// decodes it, half the bytes copied (graphruntime.ResidentSession.BindDecoded, moss-first-run), the rest read from the
+// catalog. The MOSS Ultra encoder's weights had been decoded on the host, one core, as the first prompt's blocks were
+// placed: 41 s of its 51 s of preparation.
+func (p *modelEncoderProgram) resident(ctx context.Context, session *graphruntime.ResidentSession, catalog hfgguf.LanguageCatalog, sourceIdentity string, convRot func(name string) (comfyquant.Weight, bool, error), dynamic []*tensor.Tensor, outputs ...*tensor.Tensor) (_ *graphruntime.ResidentProgram, err error) {
 	if len(outputs) == 0 {
 		outputs = []*tensor.Tensor{p.output}
 	}
@@ -243,13 +305,28 @@ func (p *modelEncoderProgram) resident(ctx context.Context, session *graphruntim
 		if _, required := program.Graph.InputSlot(node); !required {
 			continue
 		}
-		if err = session.Bind(ctx, program, sourceIdentity, node.Name, node, func() ([]byte, error) {
-			payload, err := catalog.Payload(node.Name)
-			if err != nil {
+		weight, quantized := comfyquant.Weight{}, false
+		if convRot != nil {
+			if weight, quantized, err = convRot(node.Name); err != nil {
 				return nil, err
 			}
-			return io.ReadAll(payload.Data)
-		}); err != nil {
+		}
+		if quantized {
+			err = session.BindDecoded(ctx, program, sourceIdentity, node.Name, node, func() (executor.Int8ConvRotDecode, error) {
+				stored, err := weight.Stored()
+				shape := weight.Shape()
+				return executor.Int8ConvRotDecode{Stored: stored, Rows: uint32(shape[0]), Inner: uint32(shape[1]), Group: uint32(weight.Group())}, err
+			})
+		} else {
+			err = session.Bind(ctx, program, sourceIdentity, node.Name, node, func() ([]byte, error) {
+				payload, err := catalog.Payload(node.Name)
+				if err != nil {
+					return nil, err
+				}
+				return io.ReadAll(payload.Data)
+			})
+		}
+		if err != nil {
 			return nil, err
 		}
 	}

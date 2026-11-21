@@ -68,11 +68,12 @@ func TestACaptureWhoseBytesAreGoneIsDeclaredWhileItIsRemade(t *testing.T) {
 	}
 }
 
-// TestAnAcceptanceWhoseCapturesAreAllBeingRemadeIsDeclaredWhole holds an acceptance's whole declaration (SQA-450): where
-// every capture it reads is gone while a row remakes it, the acceptance is declared inapplicable before its cases run,
-// so it cannot pass as a parent whose cases each declared themselves; where any capture is in place it runs, its cases
-// saying the rest; a capture no row names, its bytes gone, fails it; and an acceptance reading none runs.
-func TestAnAcceptanceWhoseCapturesAreAllBeingRemadeIsDeclaredWhole(t *testing.T) {
+// TestAnAcceptanceMissingACaptureIsCreditedNothing holds an acceptance's declaration after its cases (speech-claim,
+// SQA-450): where every capture it reads is being remade, or any one of them, the declaration names the row, so the
+// acceptance is credited nothing while its cases with their captures still ran; where every capture is in place it is
+// credited as its cases say; a capture no row names, its bytes gone, fails it; and an acceptance reading none is
+// credited as its cases say.
+func TestAnAcceptanceMissingACaptureIsCreditedNothing(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	present := filepath.Join(root, "tensors.safetensors")
@@ -89,16 +90,19 @@ func TestAnAcceptanceWhoseCapturesAreAllBeingRemadeIsDeclaredWhole(t *testing.T)
 		kept: {{Artifact: kept, Kind: artifact.LocationFile, Value: present}},
 	}}
 	remade := map[string]string{first.String(): "the remaking row", second.String(): "the remaking row", kept.String(): "the remaking row"}
-	if row, err := capturesRemade(t.Context(), reader, []artifact.ID{first, second}, remade); row != "the remaking row" || err != nil {
-		t.Errorf("an acceptance whose captures are all being remade gives row %q and %v; want the row, declaring it whole", row, err)
+	if row, err := captureRemade(t.Context(), reader, []artifact.ID{first, second}, remade); row != "the remaking row" || err != nil {
+		t.Errorf("an acceptance whose captures are all being remade gives row %q and %v; want the row, crediting it nothing", row, err)
 	}
-	if row, err := capturesRemade(t.Context(), reader, []artifact.ID{first, kept}, remade); row != "" || err != nil {
-		t.Errorf("an acceptance with a capture in place gives row %q and %v; want it to run", row, err)
+	if row, err := captureRemade(t.Context(), reader, []artifact.ID{kept, first}, remade); row != "the remaking row" || err != nil {
+		t.Errorf("an acceptance with one capture in place and one being remade gives row %q and %v; want the row, crediting it nothing", row, err)
 	}
-	if row, err := capturesRemade(t.Context(), reader, []artifact.ID{first, stray}, remade); row != "" || err == nil {
+	if row, err := captureRemade(t.Context(), reader, []artifact.ID{kept}, remade); row != "" || err != nil {
+		t.Errorf("an acceptance whose captures are all in place gives row %q and %v; want it credited as its cases say", row, err)
+	}
+	if row, err := captureRemade(t.Context(), reader, []artifact.ID{first, stray}, remade); row != "" || err == nil {
 		t.Errorf("an acceptance reading a capture no row names, its bytes gone, gives row %q and %v; want an error", row, err)
 	}
-	if row, err := capturesRemade(t.Context(), reader, nil, remade); row != "" || err != nil {
-		t.Errorf("an acceptance reading no capture gives row %q and %v; want it to run", row, err)
+	if row, err := captureRemade(t.Context(), reader, nil, remade); row != "" || err != nil {
+		t.Errorf("an acceptance reading no capture gives row %q and %v; want it credited as its cases say", row, err)
 	}
 }

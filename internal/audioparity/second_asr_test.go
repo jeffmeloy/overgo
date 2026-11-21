@@ -130,15 +130,15 @@ func loadTransducerFixture(t *testing.T) *transducerFixture {
 	return f
 }
 
-// declareWhileRemade declares the acceptance inapplicable whole where every capture's tensors are gone while a row
-// remakes them (speechrecognitiontest.DeclareWhileRemade), so it passes only where a case ran.
-func (f *transducerFixture) declareWhileRemade(t *testing.T) {
+// declareAnyRemade declares the acceptance, after its cases ran, where any capture's tensors are gone while a row
+// remakes them (speechrecognitiontest.DeclareAnyRemade), so it is credited only where every recording was checked.
+func (f *transducerFixture) declareAnyRemade(t *testing.T) {
 	t.Helper()
 	ids := make([]artifact.ID, 0, len(f.captures))
 	for _, id := range f.captures {
 		ids = append(ids, testcheck.Must(artifact.ParseID("file:sha256:"+f.capture(t, id).TensorsSHA256))(t))
 	}
-	speechrecognitiontest.DeclareWhileRemade(t, f.store, ids)
+	speechrecognitiontest.DeclareAnyRemade(t, f.store, ids)
 }
 
 func (f *transducerFixture) capture(t *testing.T, id artifact.ID) transducerCapture {
@@ -312,7 +312,6 @@ func testSecondASROffline(t *testing.T, device bool) {
 			t.Fatal(err)
 		}
 	}
-	f.declareWhileRemade(t)
 	for _, id := range f.captures {
 		capture := f.capture(t, id)
 		t.Run(capture.Fixture, func(t *testing.T) {
@@ -335,6 +334,7 @@ func testSecondASROffline(t *testing.T, device bool) {
 			t.Logf("%d source samples; %d encoder boundaries; %d exact emissions and frame advances; all recurrent states and joint logits compared", capture.Samples, seen, len(tokens))
 		})
 	}
+	f.declareAnyRemade(t)
 }
 
 func requireTransducerResult(t *testing.T, f *transducerFixture, oracle *safetensors.Source, capture transducerCapture, mode string, tokens, durations []int) {
@@ -364,7 +364,6 @@ func TestSecondASRStreamingAcceptance(t *testing.T) {
 		t.Skip(testskip.ShortIntegration + ": exact second-ASR acceptance requires cache-aware streaming traces")
 	}
 	f := loadTransducerFixture(t)
-	f.declareWhileRemade(t)
 	for _, id := range f.captures {
 		capture := f.capture(t, id)
 		t.Run(capture.Fixture, func(t *testing.T) {
@@ -402,4 +401,5 @@ func TestSecondASRStreamingAcceptance(t *testing.T) {
 			t.Logf("%d source samples; %d chunks; %d encoder boundaries; %d exact emissions/advances; cache rollover, finalization and cancellation checked", capture.Samples, chunks, seen, len(tokens))
 		})
 	}
+	f.declareAnyRemade(t)
 }

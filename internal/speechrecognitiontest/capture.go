@@ -34,31 +34,33 @@ func capturePath(ctx context.Context, source artifact.Reader, id artifact.ID, re
 	return path, "", err
 }
 
-// capturesRemade is the row remaking every capture file source records as ids, where each one is a capture remade
-// names with no recorded location left (capturePath); none where any is in place or there are none, so a test reads
-// those it has and its cases say the rest.
-func capturesRemade(ctx context.Context, source artifact.Reader, ids []artifact.ID, remade map[string]string) (string, error) {
-	rows := ""
+// captureRemade is the row remaking a capture file source records as one of ids, where it is a capture remade names
+// with no recorded location left (capturePath); none where every capture is in place or there are none. A capture no
+// row names whose bytes are gone is an error.
+func captureRemade(ctx context.Context, source artifact.Reader, ids []artifact.ID, remade map[string]string) (string, error) {
+	found := ""
 	for _, id := range ids {
 		_, row, err := capturePath(ctx, source, id, remade)
-		if err != nil || row == "" {
+		if err != nil {
 			return "", err
 		}
-		rows = row
+		if row != "" {
+			found = row
+		}
 	}
-	return rows, nil
+	return found, nil
 }
 
-// DeclareWhileRemade declares a test whole while its data is remade (testskip.Remade) where every capture file it
-// reads, source records as ids, is gone while a row remakes it (remadeCaptures), before its cases run: a test whose
-// cases each declared only themselves would pass as a parent that checked nothing, which a landing credits to its claim
-// (speech-credit, SQA-450).
-func DeclareWhileRemade(t testing.TB, source artifact.Reader, ids []artifact.ID) {
+// DeclareAnyRemade declares a test while its data is remade (testskip.Remade), after its cases ran, where any capture
+// file it reads, source records as ids, is gone while a row remakes it (remadeCaptures): its cases with their captures
+// ran and a failure among them still fails it, but it is credited nothing, so a claim on all its recordings is not
+// credited by some (speech-claim, SQA-450).
+func DeclareAnyRemade(t testing.TB, source artifact.Reader, ids []artifact.ID) {
 	t.Helper()
-	row, err := capturesRemade(t.Context(), source, ids, remadeCaptures)
+	row, err := captureRemade(t.Context(), source, ids, remadeCaptures)
 	testcheck.NoError(t, err)
 	if row != "" {
-		testskip.Remade(t, row, "every capture it reads has no bytes left")
+		testskip.Remade(t, row, "a capture it reads has no bytes left, so its cases with theirs ran and it is credited nothing")
 	}
 }
 

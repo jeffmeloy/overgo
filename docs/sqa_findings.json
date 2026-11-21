@@ -306,7 +306,7 @@
       ],
       "input": "Use the recorded MOSS depth-control request at 1024x576 with its moss-control adapter and 50 guided steps (100 denoiser passes). The encoded control is fixed for the request. Its sigma window selects that buffer or zeros.",
       "expected": "Have runRotarySampling keep the active control on the device for both guidance branches and use a device zero buffer when the window is off. Prepare each used value at most once per request and release it with the sampling inputs. Check attributable upload bytes, identical seeded latents at the window boundaries, and correct release on error.",
-      "actual": "Source at 140c7975e. Each branch passes controlAt's host slice to Retain. The CUDA executor copies it into a new host staging buffer and uploads it on every pass, including when the slice holds only zeros. The control has 64 x 36 x 256 float32 values, so 100 passes copy 225 MiB on the CPU and transfer 225 MiB to the GPU for at most two distinct inputs. These are source-derived byte counts. The time attributable to this input is unmeasured."
+      "actual": "At a1535af3a both branches pass controlAt's host slice to Retain on every pass, including zeros. Each upload stages and transfers 64 x 36 x 256 float32 values. The recorded depth request uses control from 0 to 0.5. Across 100 passes the source accounts for 225 MiB of control uploads. Placing each of the two values once would avoid 98 uploads (220.5 MiB) in moss-step-copies/do. The warm workflow record at 5ecf679fc measured 339,271,684 total host-to-device bytes during this section's sampling. The clock counts all uploads together. The time saved by retaining control alone is unmeasured."
     },
     {
       "id": "SQA-431",
@@ -410,9 +410,9 @@
         "internal/plan/test_passes.go",
         "cmd/validate/claims.go"
       ],
-      "input": "Land a change while both streaming-ASR capture files are absent and explicitly deferred to speech-captures. Read the compatibility claim audio-cpu-second-asr-mel-streaming after the landing.",
-      "expected": "The landing can proceed. Credit the streaming claim only when its required capture cases exercised the streaming checks. A run that skips both cases must preserve the last genuine pass, or report that none is known.",
-      "actual": "Observed at 5ecf679fccbc: validate -claims reports TestSecondASRStreamingAcceptance passed at that commit, matching test_passes.json. The speech-hold landing documents both streaming capture cases being declared inapplicable. In second_asr_test.go each case calls inputs before RecognizeChunk or any streaming assertion. CaptureFile skips only the child, so both children can skip and Go still reports their parent as passed. The landing recorder passedTests drops all child events and credits that parent. The existing speech-captures row restores the inputs but does not correct how an all-skipped run is recorded."
+      "input": "Read the streaming-ASR compatibility claim after speech-credit/do on a store that credited an all-skipped run. Also consider restoring only one of the two required recording captures while speech-captures remakes the other.",
+      "expected": "Keep missing declared captures nonblocking and run every available case. Credit the two-recording claim only after both fixtures pass. When the saved pass is known to be false, show a verifiable earlier full pass or report that none is known.",
+      "actual": "Observed at a1535af3a: validate -claims still reports audio-cpu-second-asr-mel-streaming passed at 5a0c45c80a8e, the pre-fix landing while both captures were missing. The saved pass names that commit. 90124d518 correctly skips the parent when both are missing, but RecordTestPasses only replaces entries for tests that pass, so the false credit survives. A second case follows from source: with one capture restored, DeclareWhileRemade lets the parent run, the other child skips, and landing.passedTests credits the parent if the available case passes. compatibility.json promises both the 12- and 45-chunk recordings. The partial-restore case was not run."
     }
   ],
   "master_lead_triage": {
@@ -422,9 +422,10 @@
   "SQA-450": {
         "action": "filed",
         "rows": [
-          "speech-credit/do"
+          "speech-credit/do",
+          "speech-claim/do"
         ],
-        "note": "Answered by the lead on 2026-11-21 at 5ecf679fc: valid from source, and speech-hold's own (each capture case of the second ASR acceptances is a subtest that CaptureFile declares inapplicable alone, so with both captures gone the parent passes and the landing's recorder credits it to the streaming claim). Filed as speech-credit/do, ahead of lanes-trunk: an acceptance whose captures are all being remade declares itself inapplicable whole, so the claim keeps its last genuine pass."
+        "note": "Answered by the lead on 2026-11-21 at 5ecf679fc: valid from source, and speech-hold's own (each capture case of the second ASR acceptances is a subtest that CaptureFile declares inapplicable alone, so with both captures gone the parent passes and the landing's recorder credits it to the streaming claim). Filed as speech-credit/do (90124d518): an acceptance whose captures are all being remade declares itself whole. Reopened by the review at a1535af3a, valid on both counts (the record keeps the passes credited at 5a0c45c80, since RecordTestPasses replaces only a passing test's entry; and one capture back would let the parent pass on one recording), so filed again as speech-claim/do, ahead of data-origin: the acceptance runs every case it has and declares itself after them where any capture is being remade, and the two saved passes return to the 4586266fe cycle's, begun 17:52:31 on 2026-11-20, the last that checked both recordings."
       },
   "SQA-449": {
         "action": "deferred",

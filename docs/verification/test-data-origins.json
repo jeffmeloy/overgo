@@ -1,0 +1,106 @@
+{
+  "records": [
+    {
+      "path": "internal/audioparity/testdata/ami_alignment.json",
+      "obtained": [
+        "the AMI meeting corpus's Hugging Face parquet export, ihm/test-00000-of-00004.parquet, sha256 d95920dccc6924c15215239461bf5d1152fe07c9c61add073bd12da26dd602e0",
+        "https://groups.inf.ed.ac.uk/ami/AMICorpusAnnotations/ami_public_manual_1.6.2.zip"
+      ]
+    },
+    {
+      "path": "internal/audioparity/testdata/encoder_capture.json",
+      "obtained": [
+        "https://huggingface.co/ibm-granite/granite-speech-5.0-470m-turboctc at 7e74c6438b7cfb5090cb6a131538f5e8515a7de3",
+        "https://huggingface.co/datasets/openslr/librispeech_asr at 71cacbfb7e2354c4226d01e70d77d5fca3d04ba1"
+      ],
+      "remade_by": "speech-captures"
+    },
+    {
+      "path": "internal/audioparity/testdata/frontend_boundaries.json",
+      "obtained": [
+        "https://huggingface.co/ibm-granite/granite-speech-5.0-470m-turboctc at 7e74c6438b7cfb5090cb6a131538f5e8515a7de3",
+        "https://huggingface.co/datasets/openslr/librispeech_asr at 71cacbfb7e2354c4226d01e70d77d5fca3d04ba1"
+      ],
+      "remade_by": "speech-captures"
+    },
+    {
+      "path": "internal/audioparity/testdata/granite_speech_5_election.json",
+      "obtained": [
+        "https://huggingface.co/ibm-granite/granite-speech-5.0-470m-turboctc at 7e74c6438b7cfb5090cb6a131538f5e8515a7de3",
+        "https://huggingface.co/datasets/openslr/librispeech_asr at 71cacbfb7e2354c4226d01e70d77d5fca3d04ba1"
+      ],
+      "remade_by": "speech-captures"
+    },
+    {
+      "path": "internal/audioparity/testdata/registered_models.json",
+      "obtained": [
+        "https://huggingface.co/ibm-granite/granite-speech-5.0-470m-turboctc at 7e74c6438b7cfb5090cb6a131538f5e8515a7de3",
+        "https://huggingface.co/nvidia/nemotron-3.5-asr-streaming-0.6b at 1c8deaecc64b91f034d73e08dd8b64625eb3395d",
+        "https://huggingface.co/FireRedTeam/FireRedVAD at 7990aaccc6b7aec1e527743bd30201f2c4a03b8c"
+      ]
+    },
+    {
+      "path": "internal/audioparity/testdata/segmented_reference.json",
+      "obtained": [
+        "https://huggingface.co/ibm-granite/granite-speech-5.0-470m-turboctc at 7e74c6438b7cfb5090cb6a131538f5e8515a7de3"
+      ],
+      "remade_by": "speech-captures"
+    },
+    {
+      "path": "internal/audioparity/testdata/transducer_captures.json",
+      "obtained": [
+        "https://huggingface.co/nvidia/nemotron-3.5-asr-streaming-0.6b at 1c8deaecc64b91f034d73e08dd8b64625eb3395d"
+      ],
+      "remade_by": "speech-captures"
+    },
+    {
+      "path": "internal/evaluation/testdata/ifeval_parameters.json",
+      "obtained": [
+        "https://huggingface.co/datasets/wis-k/instruction-following-eval"
+      ],
+      "recorded": "the parameter profile and the reference it names are this record's own bytes, exported once from the store (565ad09b7) and published from it"
+    },
+    {
+      "path": "cmd/validate/testdata/accepted_census.json",
+      "recreated": {
+        "tool": "cmd/validate",
+        "commit": "23c42db832131eaf9f0b9ba0d2236f089ca6a063"
+      }
+    },
+    {
+      "path": "cmd/validate/testdata/capability_census_v1.json",
+      "recreated": {
+        "tool": "cmd/validate",
+        "commit": "5d55e6108519e7abf35776892b0043cad030027f"
+      }
+    },
+    {
+      "path": "cmd/validate/testdata/media_census.json",
+      "recreated": {
+        "tool": "cmd/validate",
+        "commit": "c6158cfacf56010fa4d5ed97c3149bae48017bca"
+      }
+    },
+    {
+      "path": "cmd/validate/testdata/media_pending.json",
+      "recorded": "a declaration of pending media cells, its owners and reasons written in the repository (a3a102f9c); the models it names are identities in the store, not bytes a test reads"
+    },
+    {
+      "path": "fixtures/adaptive_text_structured_snapshot.json",
+      "obtained": [
+        "the adaptive_new checkout at 214950b3b0316bcdcab38a3b95127a927c0ab5be"
+      ]
+    },
+    {
+      "path": "fixtures/moss/oracle-contract.json",
+      "obtained": [
+        "ModelScope openmoss/MOSS-Image-SFT at 797fa8e678b4f0a766271bf5103e6cd7a2faa999"
+      ],
+      "golden": "moss_full_reference.py"
+    },
+    {
+      "path": "fixtures/comfy/moss-ultra/block.json",
+      "golden": "comfy_moss_block_capture.py"
+    }
+  ]
+}

@@ -14,11 +14,6 @@ import (
 const (
 	// dataF8E4M3 is CUDA_R_8F_E4M3: OCP E4M3FN bytes.
 	dataF8E4M3 = DataType(28)
-	// dataI8 and dataI32 are CUDA_R_8I and CUDA_R_32I, and computeI32 is CUBLAS_COMPUTE_32I: an int8 product accumulates
-	// exactly in int32, its scale an int32.
-	dataI8     = DataType(3)
-	dataI32    = DataType(10)
-	computeI32 = ComputeType(72)
 	// ltDescTransA and ltDescTransB: CUBLASLT_MATMUL_DESC_TRANSA/B, int32.
 	ltDescTransA = uintptr(3)
 	ltDescTransB = uintptr(4)
@@ -111,25 +106,15 @@ func (l *Library) PlanBF16Bias(handle LtHandle, m, n, k, workspaceLimit uint64) 
 	return l.planMatmul(handle, m, n, k, workspaceLimit, DataBF16, DataBF16, true)
 }
 
-// PlanInt8 selects an int8 product on the int8 tensor cores, accumulated exactly into int32 output, which callers
-// scale.
-func (l *Library) PlanInt8(handle LtHandle, m, n, k, workspaceLimit uint64) (*MatmulPlan, error) {
-	return l.planMatmul(handle, m, n, k, workspaceLimit, dataI8, dataI32, false)
-}
-
 func (l *Library) planMatmul(handle LtHandle, m, n, k, workspaceLimit uint64, inputType, outputType DataType, bias bool) (built *MatmulPlan, err error) {
-	plan := &MatmulPlan{integer: inputType == dataI8}
+	plan := &MatmulPlan{}
 	defer func() {
 		if err != nil {
 			err = errors.Join(err, l.DestroyMatmulPlan(plan))
 			built = nil
 		}
 	}()
-	compute, scale := ComputeF32, DataF32
-	if plan.integer {
-		compute, scale = computeI32, dataI32
-	}
-	status, _, _ := l.lt.descCreate.Call(uintptr(unsafe.Pointer(&plan.desc)), uintptr(compute), uintptr(scale))
+	status, _, _ := l.lt.descCreate.Call(uintptr(unsafe.Pointer(&plan.desc)), uintptr(ComputeF32), uintptr(DataF32))
 	if err := result("cublasLtMatmulDescCreate", status); err != nil {
 		return nil, err
 	}
@@ -216,14 +201,9 @@ func (l *Library) Matmul(
 		}
 	}
 	alpha, beta := gemmProductScale, gemmAccumulatorScale
-	scales := [2]unsafe.Pointer{unsafe.Pointer(&alpha), unsafe.Pointer(&beta)}
-	integerAlpha, integerBeta := int32(gemmProductScale), int32(gemmAccumulatorScale)
-	if plan.integer {
-		scales = [2]unsafe.Pointer{unsafe.Pointer(&integerAlpha), unsafe.Pointer(&integerBeta)}
-	}
 	status, _, _ := l.lt.matmul.Call(
-		uintptr(handle), plan.desc, uintptr(scales[0]),
-		uintptr(a), plan.a, uintptr(b), plan.b, uintptr(scales[1]),
+		uintptr(handle), plan.desc, uintptr(unsafe.Pointer(&alpha)),
+		uintptr(a), plan.a, uintptr(b), plan.b, uintptr(unsafe.Pointer(&beta)),
 		uintptr(d), plan.d, uintptr(d), plan.d,
 		uintptr(unsafe.Pointer(&plan.algo)), uintptr(workspace), uintptr(workspaceBytes), uintptr(stream),
 	)

@@ -83,7 +83,7 @@ func TestAnInt8ConvRotProductIsComfyKitchens(t *testing.T) {
 				binary.LittleEndian.PutUint32(storage[out*in+row*4:], math.Float32bits(float32(1+row%7)/1024))
 			}
 			product, ran := runInt8ConvRotProduct(t, storage, input, uint64(in), uint64(out), uint64(rows))
-			for _, kernel := range []string{"quantize_int8_convrot_columns_f32", "scale_int8_product_bf16_f32"} {
+			for _, kernel := range []string{"quantize_int8_convrot_columns_f32", "int8_convrot_product_bf16_f32"} {
 				if !slices.Contains(ran, kernel) {
 					t.Fatalf("%s did not run: %v", kernel, ran)
 				}

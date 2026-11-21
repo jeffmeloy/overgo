@@ -166,8 +166,6 @@ const (
 	traceTagBF16Matmul   = uint64(5) << 32
 	// Spatial convolution occupies the next external-library trace ABI tag.
 	traceTagSpatialConvolution = uint64(6) << 32
-	// The int8 ConvRot product occupies the next.
-	traceTagInt8Matmul = uint64(7) << 32
 )
 
 func validateKernelArgumentCount(function boundKernel, count int) error {

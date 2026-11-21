@@ -176,8 +176,8 @@ func TestAGatedSumRunsTheInt8ProductItReads(t *testing.T) {
 		return [][]float32{got[hidden].Data, got[sum].Data}, ran
 	}
 	summed, ran := run(false)
-	if !slices.Contains(ran, "scale_int8_product_gated_add_bf16_f32") || slices.Contains(ran, "gated_add_bf16_round_f32") ||
-		slices.Contains(ran, "scale_int8_product_bf16_f32") {
+	if !slices.Contains(ran, "int8_convrot_product_gated_add_bf16_f32") || slices.Contains(ran, "gated_add_bf16_round_f32") ||
+		slices.Contains(ran, "int8_convrot_product_bf16_f32") {
 		t.Fatalf("the gated sums of int8 products did not each run its product's epilogue as the sum: %v", ran)
 	}
 	stored, ran := run(true)
@@ -232,8 +232,8 @@ func TestAnInt8ProductNormsAndRotatesTheHeadsItAloneGives(t *testing.T) {
 		return [][]float32{got[rotated[0]].Data, got[rotated[1]].Data}, ran
 	}
 	rotated, ran := run(false)
-	if !slices.Contains(ran, "scale_int8_product_norm_rotate_bf16_f32") || slices.Contains(ran, "moss_norm_rotate_bf16_round_f32") ||
-		slices.Contains(ran, "scale_int8_product_bf16_f32") {
+	if !slices.Contains(ran, "int8_convrot_product_norm_rotate_bf16_f32") || slices.Contains(ran, "moss_norm_rotate_bf16_round_f32") ||
+		slices.Contains(ran, "int8_convrot_product_bf16_f32") {
 		t.Fatalf("the q and k chains did not each run its product's epilogue as its norm and rotation: %v", ran)
 	}
 	stored, ran := run(true)

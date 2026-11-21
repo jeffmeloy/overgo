@@ -11,7 +11,7 @@ import (
 
 // TestAMOSSPassRoundsNoValueTwice holds moss-fusion/copies: a MOSS denoiser rounds no value that is already BF16, so
 // no rounding in it reads a rounding, or an int8 product, whose epilogue rounds each entry to BF16
-// (scale_int8_product_bf16_f32), except the rotated query and key an attention reads as roundings, which its rewrite
+// (int8_convrot_product_bf16_f32), except the rotated query and key an attention reads as roundings, which its rewrite
 // (bf16-attention) takes into the attention's kernel. The rotary graph asked one rounding of each int8 product a block
 // makes and one of each block's input, the last block's rounded sum: at the workflow's size, 401 bf16_round_f32
 // launches took 19.1 ms of a depth control pass's 196 ms of kernels.

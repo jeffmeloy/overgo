@@ -114,8 +114,8 @@ func launchLinearLayout(
 			if !int8ConvRotMulMat(node) {
 				return errors.New("int8 ConvRot mul_mat shape is unsupported")
 			}
-			scale := left + driver.DevicePtr(uint64(inner)*uint64(leftRows))
-			return launchInt8ConvRotMulMat(state, functions, blas, rightNode, left, scale, output, int8ConvRotColumns(state, functions, right, inner, rightRows), int8ConvRotScale(state, functions), inner, leftRows, rightRows)
+			return launchInt8ConvRotMulMat(blas, rightNode, left, output, int8ConvRotColumns(state, functions, right, inner, rightRows),
+				int8ConvRotScaled(state, functions, left, output, inner, leftRows, rightRows), inner, rightRows)
 		}
 		if leftNode.Type == dtype.F16 || leftNode.Type == dtype.BF16 {
 			// A span the decode kernel serves keeps it: cuBLAS's smallest GEMM took 14.3 us for a 2,560 x 128 BF16 weight
@@ -584,21 +584,19 @@ const fp8TensorCoreAlignment = uint64(16)
 // four output rows per thread.
 const fp8QuadWidth = uint64(4)
 
-// matmulProduct is the arithmetic a native tensor-core product runs: FP8 into F32, BF16 with its bias epilogue into
-// BF16, or int8 exactly into int32.
+// matmulProduct is the arithmetic a native tensor-core product runs: FP8 into F32, or BF16 with its bias epilogue into
+// BF16.
 type matmulProduct uint8
 
 const (
 	matmulFP8 matmulProduct = iota
 	matmulBF16Bias
-	matmulInt8
 )
 
 // matmulPlanners builds each product's cuBLASLt plan.
 var matmulPlanners = [...]func(*cublas.Library, cublas.LtHandle, uint64, uint64, uint64, uint64) (*cublas.MatmulPlan, error){
 	matmulFP8:      (*cublas.Library).PlanFP8,
 	matmulBF16Bias: (*cublas.Library).PlanBF16Bias,
-	matmulInt8:     (*cublas.Library).PlanInt8,
 }
 
 // matmulWeightShape keys native tensor-core products by geometry and arithmetic.
@@ -620,9 +618,9 @@ func fp8TensorCoreMulMat(node *tensor.Tensor) bool {
 		inner%fp8TensorCoreAlignment == 0 && leftRows*f32ScalarBytes%fp8TensorCoreAlignment == 0
 }
 
-// byteActivationStagingBytes: the cuBLASLt workspace, then an activation of
-// a byte a value (the FP8 product's e4m3, the int8 ConvRot product's int8)
-// and its per-column F32 scales.
+// byteActivationStagingBytes: the FP8 product's cuBLASLt workspace, then an
+// activation of a byte a value (the FP8 product's e4m3, the int8 ConvRot
+// product's int8) and its per-column F32 scales.
 func byteActivationStagingBytes(inner, rightRows uint64) uint64 {
 	return ltGemmWorkspaceBytes + inner*rightRows + rightRows*f32ScalarBytes
 }

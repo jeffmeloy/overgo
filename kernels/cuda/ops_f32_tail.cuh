@@ -386,6 +386,37 @@ constexpr unsigned int RMS_NORM_STEP_MASK = 3;
 constexpr unsigned int RMS_NORM_STEP_MULTIPLY = 1;
 constexpr unsigned int RMS_NORM_STEP_ADD = 2;
 
+// rms_norm_mean_step_values reads the steps' vectors at column into stepped, each step kinds packs as none left unread.
+__device__ __forceinline__ void rms_norm_mean_step_values(
+        const float * step0,
+        const float * step1,
+        const float * step2,
+        unsigned int kinds,
+        unsigned int column,
+        float (&stepped)[RMS_NORM_STEPS]) {
+    const float * steps[RMS_NORM_STEPS] = {step0, step1, step2};
+    for (unsigned int step = 0; step < RMS_NORM_STEPS; ++step) {
+        const unsigned int kind = (kinds >> (step * RMS_NORM_STEP_BITS)) & RMS_NORM_STEP_MASK;
+        stepped[step] = kind == RMS_NORM_STEP_MULTIPLY || kind == RMS_NORM_STEP_ADD ? steps[step][column] : 0.0f;
+    }
+}
+
+// rms_norm_mean_stepped is a value normalized by inverse and rounded to BF16, then taken through the steps kinds packs,
+// each multiplying or adding its vector's value at the value's column, read into stepped (rms_norm_mean_step_values),
+// and rounding to BF16, in order.
+__device__ __forceinline__ float rms_norm_mean_stepped(float value, float inverse, const float (&stepped)[RMS_NORM_STEPS], unsigned int kinds) {
+    float result = bf16_rounded(value * inverse);
+    for (unsigned int step = 0; step < RMS_NORM_STEPS; ++step) {
+        const unsigned int kind = (kinds >> (step * RMS_NORM_STEP_BITS)) & RMS_NORM_STEP_MASK;
+        if (kind == RMS_NORM_STEP_MULTIPLY) {
+            result = bf16_rounded(result * stepped[step]);
+        } else if (kind == RMS_NORM_STEP_ADD) {
+            result = bf16_rounded(result + stepped[step]);
+        }
+    }
+    return result;
+}
+
 // rms_norm_mean_affine_value is a row's value at column normalized by inverse and rounded to BF16, then taken through
 // the steps kinds packs, each multiplying or adding the step's vector at column and rounding to BF16, in order.
 __device__ __forceinline__ float rms_norm_mean_affine_value(
@@ -396,17 +427,9 @@ __device__ __forceinline__ float rms_norm_mean_affine_value(
         const float * step2,
         unsigned int kinds,
         unsigned int column) {
-    const float * steps[RMS_NORM_STEPS] = {step0, step1, step2};
-    float result = bf16_rounded(value * inverse);
-    for (unsigned int step = 0; step < RMS_NORM_STEPS; ++step) {
-        const unsigned int kind = (kinds >> (step * RMS_NORM_STEP_BITS)) & RMS_NORM_STEP_MASK;
-        if (kind == RMS_NORM_STEP_MULTIPLY) {
-            result = bf16_rounded(result * steps[step][column]);
-        } else if (kind == RMS_NORM_STEP_ADD) {
-            result = bf16_rounded(result + steps[step][column]);
-        }
-    }
-    return result;
+    float stepped[RMS_NORM_STEPS];
+    rms_norm_mean_step_values(step0, step1, step2, kinds, column, stepped);
+    return rms_norm_mean_stepped(value, inverse, stepped, kinds);
 }
 
 // rms_norm_mean_affine_bf16_round_f32: a native-mean RMS norm rounded to BF16 (rms_norm_mean_bf16_round_f32), then up to
@@ -474,105 +497,6 @@ extern "C" __global__ void moss_norm_rotate_bf16_round_f32(
         const unsigned int table = token * width + channel;
         output[offset + channel] = moss_rotate_value(values[channel], turned, cosine[table], sine[table]);
     }
-}
-
-// MOSS_HEAD_WIDTH is the head scale_int8_product_norm_rotate_bf16_f32 holds, MOSS's, a warp's lanes MOSS_HEAD_LANE
-// adjacent channels each, and MOSS_HEAD_ROWS how many heads' rows a block of it takes, a warp a row.
-constexpr unsigned int MOSS_HEAD_LANE = 4;
-constexpr unsigned int MOSS_HEAD_WIDTH = CUDA_WARP_WIDTH * MOSS_HEAD_LANE;
-constexpr unsigned int MOSS_HEAD_ROWS = 4;
-
-// scale_int8_product_norm_rotate_bf16_f32: the epilogue of an int8 ConvRot product whose heads MOSS normalizes, steps and
-// rotates alone (moss_norm_rotate_bf16_round_f32), as the denoiser's q and k projections are, written over the product:
-// one warp a head's row of MOSS_HEAD_WIDTH, each lane MOSS_HEAD_LANE adjacent entries scaled as
-// scale_int8_product_bf16_f32 scales them, the row normalized and stepped as moss_norm_rotate_bf16_round_f32 does it
-// and rotated, the half-turn read from the lane half a warp away. The norm's sum is rms_norm_mean_inverse's over a
-// block whose first warp holds the row: each lane's squares summed in order, then the lanes' tree from the halves 16
-// apart down. cuBLASLt's int32 product is a token's heads together, [width * heads][tokens], so a head's row is width
-// entries of its token's column; the tables are [width, 1, tokens], read for every head.
-extern "C" __global__ void scale_int8_product_norm_rotate_bf16_f32(
-        float * output,
-        const float * row_scale,
-        const float * column_scale,
-        const float * step0,
-        const float * step1,
-        const float * step2,
-        unsigned int kinds,
-        float epsilon,
-        const float * cosine,
-        const float * sine,
-        unsigned int width,
-        unsigned int heads,
-        unsigned int tokens) {
-    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
-    const unsigned int row = blockIdx.x * MOSS_HEAD_ROWS + threadIdx.x / CUDA_WARP_WIDTH;
-    const unsigned int rows = heads * tokens;
-    if (row >= rows || width != MOSS_HEAD_WIDTH) {
-        return;
-    }
-    const unsigned int token = row / heads;
-    const unsigned int channel = lane * MOSS_HEAD_LANE;
-    const unsigned int entry = row * width + channel;
-    const float factor = column_scale[token];
-    const int4 product = *reinterpret_cast<const int4 *>(reinterpret_cast<const int *>(output) + entry);
-    const float4 weight = *reinterpret_cast<const float4 *>(row_scale + (row - token * heads) * width + channel);
-    float values[MOSS_HEAD_LANE] = {
-        bf16_rounded(__fmul_rn(__fmul_rn(__int2float_rn(product.x), factor), weight.x)),
-        bf16_rounded(__fmul_rn(__fmul_rn(__int2float_rn(product.y), factor), weight.y)),
-        bf16_rounded(__fmul_rn(__fmul_rn(__int2float_rn(product.z), factor), weight.z)),
-        bf16_rounded(__fmul_rn(__fmul_rn(__int2float_rn(product.w), factor), weight.w))};
-    float sum = ((__fmul_rn(values[0], values[0]) + __fmul_rn(values[1], values[1])) + __fmul_rn(values[2], values[2])) +
-        __fmul_rn(values[3], values[3]);
-    for (unsigned int stride = CUDA_WARP_WIDTH / 2u; stride > 0; stride /= 2u) {
-        sum += __shfl_down_sync(0xffffffffu, sum, stride);
-    }
-    const float inverse = rms_norm_mean_scale(__shfl_sync(0xffffffffu, sum, 0), width, rows, epsilon);
-    for (unsigned int part = 0; part < MOSS_HEAD_LANE; ++part) {
-        values[part] = rms_norm_mean_affine_value(values[part], inverse, step0, step1, step2, kinds, channel + part);
-    }
-    const float4 cosines = load_f32x4_any(cosine + token * width + channel);
-    const float4 sines = load_f32x4_any(sine + token * width + channel);
-    const float turn = lane < CUDA_WARP_WIDTH / 2u ? -1.0f : 1.0f;
-    float turned[MOSS_HEAD_LANE];
-    for (unsigned int part = 0; part < MOSS_HEAD_LANE; ++part) {
-        turned[part] = turn * __shfl_xor_sync(0xffffffffu, values[part], CUDA_WARP_WIDTH / 2u);
-    }
-    *reinterpret_cast<float4 *>(output + entry) = make_float4(
-        moss_rotate_value(values[0], turned[0], cosines.x, sines.x),
-        moss_rotate_value(values[1], turned[1], cosines.y, sines.y),
-        moss_rotate_value(values[2], turned[2], cosines.z, sines.z),
-        moss_rotate_value(values[3], turned[3], cosines.w, sines.w));
-}
-
-// quantize_int8_convrot_norm_columns_f32: the activation side of an int8 ConvRot product whose activation is a native-mean
-// RMS norm of input and the steps after it (rms_norm_mean_affine_bf16_round_f32), computed here and never stored: one
-// block per token column of inner values, the norm's rows the columns, normalized and stepped as the affine norm does,
-// then rotated and quantized as quantize_int8_convrot_columns_f32 does (int8_convrot_rotate, int8_convrot_quantize).
-extern "C" __global__ void quantize_int8_convrot_norm_columns_f32(
-        const float * input,
-        const float * step0,
-        const float * step1,
-        const float * step2,
-        unsigned int kinds,
-        float epsilon,
-        signed char * output,
-        float * scale,
-        unsigned int inner,
-        unsigned int columns) {
-    __shared__ float values[INT8_CONVROT_MAX_INNER];
-    __shared__ float warp_amax[CUDA_WARP_WIDTH];
-    const unsigned int column = blockIdx.x;
-    if (column >= columns || inner > INT8_CONVROT_MAX_INNER || inner % INT8_CONVROT_GROUP != 0) {
-        return;
-    }
-    const float * source = input + (size_t) column * inner;
-    const float inverse = rms_norm_mean_inverse(source, inner, columns, epsilon);
-    for (unsigned int index = threadIdx.x; index < inner; index += blockDim.x) {
-        values[index] = rms_norm_mean_affine_value(source[index], inverse, step0, step1, step2, kinds, index);
-    }
-    __syncthreads();
-    int8_convrot_rotate(values, inner);
-    int8_convrot_quantize<false>(values, warp_amax, output + (size_t) column * inner, scale + column, inner, 0, 0);
 }
 
 extern "C" __global__ void rms_norm_mean_f32(

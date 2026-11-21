@@ -166,7 +166,7 @@ func (g *rotaryGraph) round(x *tensor.Tensor) *tensor.Tensor {
 // int8 weights name it, its weight is held as the file holds it and multiplied as comfy_kitchen's int8_linear
 // multiplies it (dtype.I8ConvRot, moss-int8), with the pairs of the adapters that patch it merged in as ComfyUI merges
 // them (mergedProjection); where an adapter replaces it, or the file holds it otherwise, it is read as linear holds it.
-// The int8 product's epilogue rounds each entry to BF16 (scale_int8_product_bf16_f32), so the graph asks no rounding
+// The int8 product's epilogue rounds each entry to BF16 (int8_convrot_product_bf16_f32), so the graph asks no rounding
 // of it, which had been a kernel reading and writing the product for no change of a bit (moss-fusion/copies).
 func (g *rotaryGraph) projection(name string, x *tensor.Tensor, in, out uint64) *tensor.Tensor {
 	weight := name + ".weight"

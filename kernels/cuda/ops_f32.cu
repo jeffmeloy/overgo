@@ -29,3 +29,4 @@ extern "C" __device__ float __nv_expf(float);
 #include "ops_f32_experts.cuh"
 #include "ops_f32_vae.cuh"
 #include "ops_f32_tail.cuh"
+#include "ops_f32_int8_product.cuh"

@@ -130,6 +130,9 @@ const (
 	kernelHeadMajorInverseF32
 	kernelIndexedRowScatterAddF32
 	kernelIndexerScoreF32
+	kernelInt8ConvrotProductBf16F32
+	kernelInt8ConvrotProductGatedAddBf16F32
+	kernelInt8ConvrotProductNormRotateBf16F32
 	kernelL2NormBackwardF32
 	kernelL2NormF32
 	kernelLayerNormF32
@@ -244,9 +247,6 @@ const (
 	kernelScaleBf16RoundF32
 	kernelScaleF32
 	kernelScaleFp8ProductF32
-	kernelScaleInt8ProductBf16F32
-	kernelScaleInt8ProductGatedAddBf16F32
-	kernelScaleInt8ProductNormRotateBf16F32
 	kernelScaledActivationF32
 	kernelScaledActivationQ80F32
 	kernelShortConvBackwardF32
@@ -634,6 +634,9 @@ var kernelFunctionNames = [...]string{
 	"head_major_inverse_f32",
 	"indexed_row_scatter_add_f32",
 	"indexer_score_f32",
+	"int8_convrot_product_bf16_f32",
+	"int8_convrot_product_gated_add_bf16_f32",
+	"int8_convrot_product_norm_rotate_bf16_f32",
 	"l2_norm_backward_f32",
 	"l2_norm_f32",
 	"layer_norm_f32",
@@ -748,9 +751,6 @@ var kernelFunctionNames = [...]string{
 	"scale_bf16_round_f32",
 	"scale_f32",
 	"scale_fp8_product_f32",
-	"scale_int8_product_bf16_f32",
-	"scale_int8_product_gated_add_bf16_f32",
-	"scale_int8_product_norm_rotate_bf16_f32",
 	"scaled_activation_f32",
 	"scaled_activation_q8_0_f32",
 	"short_conv_backward_f32",
@@ -1137,6 +1137,9 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	5,
 	5,
 	11,
+	8,
+	10,
+	15,
 	6,
 	5,
 	5,
@@ -1251,9 +1254,6 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	4,
 	4,
 	5,
-	5,
-	7,
-	13,
 	5,
 	6,
 	12,
@@ -1641,6 +1641,9 @@ var kernelFunctionArgumentWidths = [...][]uint16{
 	{8, 8, 4, 4, 4},
 	{8, 8, 8, 4, 4},
 	{8, 8, 8, 8, 4, 4, 4, 4, 4, 4, 4},
+	{8, 8, 8, 8, 8, 4, 4, 4},
+	{8, 8, 8, 8, 8, 8, 8, 4, 4, 4},
+	{8, 8, 8, 8, 8, 8, 8, 4, 4, 8, 8, 8, 4, 4, 4},
 	{8, 8, 8, 4, 4, 4},
 	{8, 8, 4, 4, 4},
 	{8, 8, 4, 4, 4},
@@ -1755,9 +1758,6 @@ var kernelFunctionArgumentWidths = [...][]uint16{
 	{8, 8, 4, 4},
 	{8, 8, 4, 4},
 	{8, 8, 8, 4, 4},
-	{8, 8, 8, 4, 4},
-	{8, 8, 8, 8, 8, 4, 4},
-	{8, 8, 8, 8, 8, 8, 4, 4, 8, 8, 4, 4, 4},
 	{8, 8, 4, 4, 4},
 	{8, 8, 8, 4, 4, 4},
 	{8, 8, 8, 8, 8, 8, 8, 8, 4, 4, 4, 4},

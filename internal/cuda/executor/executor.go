@@ -2302,7 +2302,7 @@ func launchCompiledFusion(
 	case compiledFusionInt8GatedAdd:
 		return "int8_gated_add", launchInt8GatedAdd(state, functions, blas, fusion, pointers)
 	case compiledFusionInt8NormRotary:
-		return "int8_norm_rotate", launchInt8NormRotary(state, functions, blas, node, fusion, pointers)
+		return "int8_norm_rotate", launchInt8NormRotary(state, functions, blas, fusion, pointers)
 	case compiledFusionInt8Prologue:
 		return "int8_prologue", launchInt8Prologue(state, functions, blas, node, fusion, pointers)
 	case compiledFusionGatedAdd:

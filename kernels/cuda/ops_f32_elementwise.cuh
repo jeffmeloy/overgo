@@ -326,31 +326,6 @@ __device__ __forceinline__ void int8_convrot_quantize(
     }
 }
 
-// quantize_int8_convrot_columns_f32: the activation side of the int8 ConvRot tensor-core product, as comfy_kitchen's
-// CUDA int8_linear forms it (moss-int8, its product matched bit for bit): one block per token column of `inner` F32
-// values, inner a multiple of INT8_CONVROT_GROUP and at most INT8_CONVROT_MAX_INNER, rotated (int8_convrot_rotate) and
-// quantized to the nearest (int8_convrot_quantize) with its scale stored per column.
-extern "C" __global__ void quantize_int8_convrot_columns_f32(
-        const float * input,
-        signed char * output,
-        float * scale,
-        unsigned int inner,
-        unsigned int columns) {
-    __shared__ float values[INT8_CONVROT_MAX_INNER];
-    __shared__ float warp_amax[CUDA_WARP_WIDTH];
-    const unsigned int column = blockIdx.x;
-    if (column >= columns || inner > INT8_CONVROT_MAX_INNER || inner % INT8_CONVROT_GROUP != 0) {
-        return;
-    }
-    const float * source = input + (size_t) column * inner;
-    for (unsigned int index = threadIdx.x; index < inner; index += blockDim.x) {
-        values[index] = source[index];
-    }
-    __syncthreads();
-    int8_convrot_rotate(values, inner);
-    int8_convrot_quantize<false>(values, warp_amax, output + (size_t) column * inner, scale + column, inner, 0, 0);
-}
-
 // quantize_int8_convrot_rows_stochastic_f32: an int8 ConvRot weight made of `rows` rows of `inner` F32 values, each a
 // BF16 value, as comfy_kitchen's quantize_int8_convrot_weight makes one with a stochastic rounding seeded by seed (the
 // requantize ComfyUI runs after merging a LoRA into the weight): one block per row, rotated (int8_convrot_rotate) and
@@ -404,65 +379,6 @@ extern "C" __global__ void dequantize_int8_convrot_rows_f32(
     for (unsigned int index = threadIdx.x; index < inner; index += blockDim.x) {
         destination[index] = bf16_rounded(values[index]);
     }
-}
-
-// scale_int8_product_bf16_f32: the epilogue of the int8 ConvRot tensor-core product, as comfy_kitchen's int8_linear
-// scales it: cuBLASLt's exact int32 product lands column-major [columns][rows] in the F32 output it is written back
-// over; entry (row, column) is its product times its activation column's scale and then its weight row's, each product
-// rounded to F32, rounded to BF16. rows is a multiple of four, so each thread scales four rows of one column;
-// quads = rows * columns / 4.
-extern "C" __global__ void scale_int8_product_bf16_f32(
-        float * output,
-        const float * row_scale,
-        const float * column_scale,
-        unsigned int rows,
-        unsigned int quads) {
-    const unsigned int quad = blockIdx.x * blockDim.x + threadIdx.x;
-    if (quad >= quads) {
-        return;
-    }
-    const unsigned int element = quad * FP8_QUAD_WIDTH;
-    const unsigned int column = element / rows;
-    const unsigned int row = element - column * rows;
-    const float factor = column_scale[column];
-    const float4 weight = *reinterpret_cast<const float4 *>(row_scale + row);
-    const int4 product = reinterpret_cast<const int4 *>(output)[quad];
-    reinterpret_cast<float4 *>(output)[quad] = make_float4(
-        bf16_rounded(__fmul_rn(__fmul_rn(__int2float_rn(product.x), factor), weight.x)),
-        bf16_rounded(__fmul_rn(__fmul_rn(__int2float_rn(product.y), factor), weight.y)),
-        bf16_rounded(__fmul_rn(__fmul_rn(__int2float_rn(product.z), factor), weight.z)),
-        bf16_rounded(__fmul_rn(__fmul_rn(__int2float_rn(product.w), factor), weight.w)));
-}
-
-// scale_int8_product_gated_add_bf16_f32: the epilogue of an int8 ConvRot product whose entries a gated residual sum
-// reads alone (gated_add_bf16_round_f32): each entry scaled as scale_int8_product_bf16_f32 scales it, then the residual
-// plus the entry times its row's gate rounded to BF16, rounded to BF16, written over the product. rows is a multiple of
-// four, so each thread sums four rows of one column; quads = rows * columns / 4.
-extern "C" __global__ void scale_int8_product_gated_add_bf16_f32(
-        float * output,
-        const float * row_scale,
-        const float * column_scale,
-        const float * residual,
-        const float * gate,
-        unsigned int rows,
-        unsigned int quads) {
-    const unsigned int quad = blockIdx.x * blockDim.x + threadIdx.x;
-    if (quad >= quads) {
-        return;
-    }
-    const unsigned int element = quad * FP8_QUAD_WIDTH;
-    const unsigned int column = element / rows;
-    const unsigned int row = element - column * rows;
-    const float factor = column_scale[column];
-    const float4 weight = *reinterpret_cast<const float4 *>(row_scale + row);
-    const float4 gates = load_f32x4_any(gate + row);
-    const float4 stream = load_f32x4_any(residual + (size_t) quad * FP8_QUAD_WIDTH);
-    const int4 product = reinterpret_cast<const int4 *>(output)[quad];
-    reinterpret_cast<float4 *>(output)[quad] = make_float4(
-        bf16_rounded(stream.x + bf16_rounded(bf16_rounded(__fmul_rn(__fmul_rn(__int2float_rn(product.x), factor), weight.x)) * gates.x)),
-        bf16_rounded(stream.y + bf16_rounded(bf16_rounded(__fmul_rn(__fmul_rn(__int2float_rn(product.y), factor), weight.y)) * gates.y)),
-        bf16_rounded(stream.z + bf16_rounded(bf16_rounded(__fmul_rn(__fmul_rn(__int2float_rn(product.z), factor), weight.z)) * gates.z)),
-        bf16_rounded(stream.w + bf16_rounded(bf16_rounded(__fmul_rn(__fmul_rn(__int2float_rn(product.w), factor), weight.w)) * gates.w)));
 }
 
 // elementwise_store is what an elementwise kernel stores of value: value, or, for the <name>_bf16_round entry a BF16

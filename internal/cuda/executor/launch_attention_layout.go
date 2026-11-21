@@ -78,6 +78,13 @@ func configureLargeSharedKernels(lib *driver.Library, functions functionSet) err
 	if err := lib.FuncSetMaxDynamicShared(functions[kernelSparseAttentionMmaF32].function, sparseAttentionMMASharedBytes); err != nil {
 		return err
 	}
+	for _, product := range []kernelFunctionID{
+		kernelInt8ConvrotProductBf16F32, kernelInt8ConvrotProductGatedAddBf16F32, kernelInt8ConvrotProductNormRotateBf16F32,
+	} {
+		if err := lib.FuncSetMaxDynamicShared(functions[product].function, int8ProductSharedBytes); err != nil {
+			return err
+		}
+	}
 	// A cell prompt attention's layout grows with its head: 88,864 bytes for a 512-wide one.
 	for index, geometry := range tensor.CellAttentionGeometries {
 		bytes := strataCellPromptSharedBytes(int64(geometry[0]))

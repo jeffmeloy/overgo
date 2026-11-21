@@ -294,32 +294,6 @@ extern "C" __global__ void moss_situ_halves_f32(
     output[index] = moss_situ_halves_value(row[column], row[width + column]);
 }
 
-// quantize_int8_convrot_situ_columns_f32: the activation side of an int8 ConvRot product whose activation is MOSS's SiTU
-// of one gate-and-up product's halves (moss_situ_halves_value), computed here and never stored, as comfy_kitchen's
-// quantize_int8_rowwise_convrot64 computes it with its input activation: one block per token column of inner values,
-// each the activation of the value at its place in the column's first half of the product and the second's, then
-// rotated and quantized as quantize_int8_convrot_columns_f32 does (int8_convrot_rotate, int8_convrot_quantize).
-extern "C" __global__ void quantize_int8_convrot_situ_columns_f32(
-        const float * product,
-        signed char * output,
-        float * scale,
-        unsigned int inner,
-        unsigned int columns) {
-    __shared__ float values[INT8_CONVROT_MAX_INNER];
-    __shared__ float warp_amax[CUDA_WARP_WIDTH];
-    const unsigned int column = blockIdx.x;
-    if (column >= columns || inner > INT8_CONVROT_MAX_INNER || inner % INT8_CONVROT_GROUP != 0) {
-        return;
-    }
-    const float * source = product + (size_t) column * 2 * inner;
-    for (unsigned int index = threadIdx.x; index < inner; index += blockDim.x) {
-        values[index] = moss_situ_halves_value(source[index], source[inner + index]);
-    }
-    __syncthreads();
-    int8_convrot_rotate(values, inner);
-    int8_convrot_quantize<false>(values, warp_amax, output + (size_t) column * inner, scale + column, inner, 0, 0);
-}
-
 // moss_situ_bf16_round_f32 is MOSS's SITU activation (moss_situ_value) over rows of width values read from gate and up
 // rows stride values apart: stride is width where each is contiguous, and twice it where both are the halves of one
 // gate-and-up product, read where the product holds them, as ComfyUI's MOSS reads them as views of it. The training

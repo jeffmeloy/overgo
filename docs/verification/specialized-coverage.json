@@ -191,7 +191,7 @@
     "internal/audioparity/cpu_asr_test.go": "2c712cf40b1dac77e0d27c781195c2d479b3d0878c5469c5f49c8fd300960a96",
     "internal/audioparity/recognizer_reference_test.go": "75348c247ba06895e903d53e29d9a2f09f980eac7defcd49aeddf6d673300514",
     "internal/audioparity/resident_windows_test.go": "cc3938ffd3d6da457a811214e0dc96f2fea1c9663b645e7b9cb74d4f72bf77bb",
-    "internal/audioparity/second_asr_test.go": "56aa9719f0a3c56fb332d13ed34d8765d4f72c706ce786cb964a7517c2ef5b01",
+    "internal/audioparity/second_asr_test.go": "a334186a47357dbc387a0bd402ea6908cf8b071ce3d1ac55f1dd0800c4131618",
     "internal/seq2seq/oracle_golden_test.go": "f5f1cd86999a59713a1f003bbc4575b98a370d439c0ab6c453dcf1d8ba7df5b5",
     "internal/seq2seq/real_text_model_test.go": "b2868c3f7120caf79db9c7dc89ec04f24cc99731fcf79bbeeace51439c515290",
     "internal/seriesforecast/forward_golden_test.go": "278509ad4e68a869902c86f5c5dcdd8196da27d6c15699878709bde7af8a90a8",

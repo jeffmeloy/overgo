@@ -23,6 +23,7 @@ import (
 	"overgo/internal/speechrecognition"
 	"overgo/internal/speechrecognitiontest"
 	"overgo/internal/strictjson"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
@@ -127,6 +128,17 @@ func loadTransducerFixture(t *testing.T) *transducerFixture {
 		t.Fatal(err)
 	}
 	return f
+}
+
+// declareWhileRemade declares the acceptance inapplicable whole where every capture's tensors are gone while a row
+// remakes them (speechrecognitiontest.DeclareWhileRemade), so it passes only where a case ran.
+func (f *transducerFixture) declareWhileRemade(t *testing.T) {
+	t.Helper()
+	ids := make([]artifact.ID, 0, len(f.captures))
+	for _, id := range f.captures {
+		ids = append(ids, testcheck.Must(artifact.ParseID("file:sha256:"+f.capture(t, id).TensorsSHA256))(t))
+	}
+	speechrecognitiontest.DeclareWhileRemade(t, f.store, ids)
 }
 
 func (f *transducerFixture) capture(t *testing.T, id artifact.ID) transducerCapture {
@@ -300,6 +312,7 @@ func testSecondASROffline(t *testing.T, device bool) {
 			t.Fatal(err)
 		}
 	}
+	f.declareWhileRemade(t)
 	for _, id := range f.captures {
 		capture := f.capture(t, id)
 		t.Run(capture.Fixture, func(t *testing.T) {
@@ -351,6 +364,7 @@ func TestSecondASRStreamingAcceptance(t *testing.T) {
 		t.Skip(testskip.ShortIntegration + ": exact second-ASR acceptance requires cache-aware streaming traces")
 	}
 	f := loadTransducerFixture(t)
+	f.declareWhileRemade(t)
 	for _, id := range f.captures {
 		capture := f.capture(t, id)
 		t.Run(capture.Fixture, func(t *testing.T) {

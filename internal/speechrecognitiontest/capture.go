@@ -34,6 +34,33 @@ func capturePath(ctx context.Context, source artifact.Reader, id artifact.ID, re
 	return path, "", err
 }
 
+// capturesRemade is the row remaking every capture file source records as ids, where each one is a capture remade
+// names with no recorded location left (capturePath); none where any is in place or there are none, so a test reads
+// those it has and its cases say the rest.
+func capturesRemade(ctx context.Context, source artifact.Reader, ids []artifact.ID, remade map[string]string) (string, error) {
+	rows := ""
+	for _, id := range ids {
+		_, row, err := capturePath(ctx, source, id, remade)
+		if err != nil || row == "" {
+			return "", err
+		}
+		rows = row
+	}
+	return rows, nil
+}
+
+// DeclareWhileRemade declares a test inapplicable whole where every capture file it reads, source records as ids, is
+// gone while a row remakes it (remadeCaptures), before its cases run: a test whose cases each declared only themselves
+// would pass as a parent that checked nothing, which a landing credits to its claim (speech-credit, SQA-450).
+func DeclareWhileRemade(t testing.TB, source artifact.Reader, ids []artifact.ID) {
+	t.Helper()
+	row, err := capturesRemade(t.Context(), source, ids, remadeCaptures)
+	testcheck.NoError(t, err)
+	if row != "" {
+		testskip.NotApplicable(t, fmt.Sprintf("every capture it reads has no bytes left while %s remakes them into the data root", row))
+	}
+}
+
 // CaptureFile is where the speech capture file source records as id lies. A capture whose bytes are gone while a row
 // remakes them (remadeCaptures) declares the test inapplicable, naming the row, so commits are not held on speech
 // meanwhile (speech-hold); any other capture with no location left fails the test.

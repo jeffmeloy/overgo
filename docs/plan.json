@@ -3,22 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "speech-credit",
-      "title": "A speech acceptance whose capture cases are all being remade is declared inapplicable whole, so no claim credits a pass that checked nothing",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A speech acceptance whose capture cases are all being remade is declared inapplicable whole, so no claim credits a pass that checked nothing",
-          "verify": "go test ./internal/speechrecognitiontest -count=1 -run '^TestAnAcceptanceWhoseCapturesAreAllBeingRemadeIsDeclaredWhole$'",
-          "files": [
-            "internal/audioparity",
-            "internal/speechrecognitiontest"
-          ],
-          "rationale": "SQA-450, checked against the source at 5ecf679fc: valid, and speech-hold's own. TestSecondASRStreamingAcceptance and TestSecondASROfflineAcceptance run each capture as a subtest whose CaptureFile declares only that subtest inapplicable, so with both captures gone every case skips, Go reports the parent passed, the landing's recorder (passedTests, which reads parents) credits it in test_passes.json, and validate -claims credits audio-cpu-second-asr-mel-streaming at a commit where no streaming check ran. The acceptance asks, before its cases run, whether every capture it reads is one speech-captures remakes with its bytes gone, and then declares itself inapplicable whole, so the claim keeps its last genuine pass; a case whose capture is there still runs and is credited. The recorder's reading of parents stays as it is: a parent that skips is not credited."
-        }
-      ]
-    },
-    {
       "id": "lanes-trunk",
       "title": "The lanes run under the trunk's runner and bound: each run names the build that supervised it, and the runner built before lanes-runner-current is stopped",
       "steps": [

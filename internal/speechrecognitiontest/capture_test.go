@@ -67,3 +67,38 @@ func TestACaptureWhoseBytesAreGoneIsDeclaredWhileItIsRemade(t *testing.T) {
 		}
 	}
 }
+
+// TestAnAcceptanceWhoseCapturesAreAllBeingRemadeIsDeclaredWhole holds an acceptance's whole declaration (SQA-450): where
+// every capture it reads is gone while a row remakes it, the acceptance is declared inapplicable before its cases run,
+// so it cannot pass as a parent whose cases each declared themselves; where any capture is in place it runs, its cases
+// saying the rest; a capture no row names, its bytes gone, fails it; and an acceptance reading none runs.
+func TestAnAcceptanceWhoseCapturesAreAllBeingRemadeIsDeclaredWhole(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	present := filepath.Join(root, "tensors.safetensors")
+	testcheck.NoError(t, os.WriteFile(present, []byte("captured"), 0o600))
+	id := func(digit string) artifact.ID {
+		return testcheck.Must(artifact.ParseID("file:sha256:" + strings.Repeat(digit, 64)))(t)
+	}
+	first, second, kept, stray := id("a"), id("b"), id("c"), id("d")
+	gone := func(id artifact.ID) []artifact.Location {
+		return []artifact.Location{{Artifact: id, Kind: artifact.LocationFile, Value: filepath.Join(root, "removed", id.String()[12:20])}}
+	}
+	reader := locationReader{locations: map[artifact.ID][]artifact.Location{
+		first: gone(first), second: gone(second), stray: gone(stray),
+		kept: {{Artifact: kept, Kind: artifact.LocationFile, Value: present}},
+	}}
+	remade := map[string]string{first.String(): "the remaking row", second.String(): "the remaking row", kept.String(): "the remaking row"}
+	if row, err := capturesRemade(t.Context(), reader, []artifact.ID{first, second}, remade); row != "the remaking row" || err != nil {
+		t.Errorf("an acceptance whose captures are all being remade gives row %q and %v; want the row, declaring it whole", row, err)
+	}
+	if row, err := capturesRemade(t.Context(), reader, []artifact.ID{first, kept}, remade); row != "" || err != nil {
+		t.Errorf("an acceptance with a capture in place gives row %q and %v; want it to run", row, err)
+	}
+	if row, err := capturesRemade(t.Context(), reader, []artifact.ID{first, stray}, remade); row != "" || err == nil {
+		t.Errorf("an acceptance reading a capture no row names, its bytes gone, gives row %q and %v; want an error", row, err)
+	}
+	if row, err := capturesRemade(t.Context(), reader, nil, remade); row != "" || err != nil {
+		t.Errorf("an acceptance reading no capture gives row %q and %v; want it to run", row, err)
+	}
+}

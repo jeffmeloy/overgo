@@ -16,14 +16,28 @@ import (
 )
 
 // workflowSectionTime is one section's figures in a run of the workflow: its wall from request to picture, its
-// sampling, its passes, the bytes it placed on the card, and its recording's wall.
+// sampling, its passes, the bytes it placed on the card, its recording's wall, the process's processor time and the
+// bytes it read from files over the section, and its parts (moss-first-run/quiet).
 type workflowSectionTime struct {
-	Section      string `json:"section"`
+	Section      string         `json:"section"`
+	Milliseconds int64          `json:"ms"`
+	SamplingMs   int64          `json:"sampling_ms"`
+	Passes       int            `json:"passes"`
+	PlacedBytes  uint64         `json:"placed_bytes"`
+	ComfyMs      int64          `json:"comfy_ms"`
+	CPUMs        int64          `json:"cpu_ms,omitzero"`
+	ReadBytes    uint64         `json:"read_bytes,omitzero"`
+	Parts        []workflowPart `json:"parts,omitempty"`
+}
+
+// workflowPart is one part of a section's wall, in its order (the session's load or reset, the prompt's preparation,
+// the sampling, the decode): its wall, the process's processor time over it, and the bytes the process read from files
+// over it, so a first run's time is split where it goes, each file read and each program built in the part that did it.
+type workflowPart struct {
+	Part         string `json:"part"`
 	Milliseconds int64  `json:"ms"`
-	SamplingMs   int64  `json:"sampling_ms"`
-	Passes       int    `json:"passes"`
-	PlacedBytes  uint64 `json:"placed_bytes"`
-	ComfyMs      int64  `json:"comfy_ms"`
+	CPUMs        int64  `json:"cpu_ms"`
+	ReadBytes    uint64 `json:"read_bytes"`
 }
 
 // workflowRunTime is one run of the six sections, the first beside ComfyUI's pass-1 and the second beside its pass-2.

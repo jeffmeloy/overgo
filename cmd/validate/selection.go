@@ -94,6 +94,12 @@ type Plan struct {
 	// lane's tests ride the run's place and a render beside it gives the card up once for the lane, where each test
 	// had waited out a picture; validate's own run sets it and no test does, so a run without it holds nothing.
 	HoldsCard func(purpose string, work func() error) error `json:"-"`
+	// SharesMachine runs a lane's step on the quiet machine's shared side for the purpose it names, taken before the
+	// card's turn as a commit's checks take it (shareQuietMachine), its commands marked held (stepEnvironment), so a
+	// workload a lane's test starts takes no side of its own: a timing of the workflow holding the machine alone waited
+	// for the card the audio lane held, while the two evaluate commands its test had started waited for the timing
+	// (moss-first-run/quiet, 2026-11-21). validate's own run sets it and no test does, so a run without it holds nothing.
+	SharesMachine func(purpose string, work func() error) error `json:"-"`
 	// TakesTurns runs a lane's packages in the machine's test turn, each inside outer, giving the turn to a waiting
 	// commit between them (landing.HoldTestTurnEach); validate's own run sets it and no test does, so a test's lanes take
 	// no turn of the machine and do not wait out the packages of the cycle's lanes a closing commit runs (lanes-on-close).

@@ -260,6 +260,7 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 			steps = testSteps(ctx, root, suite.Each, suite.Environment, suite.First)
 		}
 		runs, verdicts := make([]func() error, len(steps)), make([]error, len(steps))
+		environment := stepEnvironment(plan, suite.Environment)
 		last := -1
 		for index, step := range steps {
 			verdicts[index] = errNotRun(step)
@@ -279,7 +280,7 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 					return landing.ErrNoMoreSteps
 				}
 				last = step.pkg
-				report, err := acquire(ctx, output, root, "go", step.arguments, suite.Environment...)
+				report, err := acquire(ctx, output, root, "go", step.arguments, environment...)
 				reports = append(reports, report)
 				verdicts[index] = err
 				return nil
@@ -288,6 +289,14 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 		outer := func(work func() error) error { return work() }
 		if plan.HoldsCard != nil && landing.OnCard(suite.Environment) {
 			outer = func(work func() error) error { return plan.HoldsCard("the cycle lane "+suite.Lane, work) }
+		}
+		// The quiet machine's shared side comes before the card's turn, as a commit's checks take it, so a timing that
+		// holds the machine alone and then takes the card never waits for a step that waits for it (Plan.SharesMachine).
+		if plan.SharesMachine != nil {
+			card := outer
+			outer = func(work func() error) error {
+				return plan.SharesMachine("the cycle lane "+suite.Lane, func() error { return card(work) })
+			}
 		}
 		each := plan.TakesTurns
 		if each == nil {
@@ -492,6 +501,22 @@ func measureCell(ctx context.Context, output io.Writer, storeRoot string, store 
 	recorded, asideErr := scorecard.SetAsideContended(context.WithoutCancel(ctx), writable, []artifact.ID{attempt}, reading.Competing)
 	fmt.Fprintf(output, "validate -run: set aside %d serving attempt(s) measured beside %s\n", recorded, strings.Join(reading.Competing, ", "))
 	return true, errors.Join(err, asideErr, writable.Close())
+}
+
+// shareQuietMachine runs work on the quiet machine's shared side for purpose, as overgo's workloads run
+// (quietmachine.Workload): a cycle lane's step (Plan.SharesMachine).
+func shareQuietMachine(purpose string, work func() error) error {
+	return quietmachine.Workload(purpose, os.Stderr, work)()
+}
+
+// stepEnvironment is the environment a lane's step runs its command under beyond this process's own: the lane's, and,
+// where the plan's steps share the quiet machine (Plan.SharesMachine), the mark that their holder has it for them, so a
+// workload or a timing the step's test starts takes no side and never waits for the step that started it.
+func stepEnvironment(plan Plan, environment []string) []string {
+	if plan.SharesMachine == nil {
+		return environment
+	}
+	return append(slices.Clone(environment), quietmachine.HeldEnvironment+"=1")
 }
 
 // cellEnvironment is the environment a cell's command runs under beyond this

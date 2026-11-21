@@ -305,7 +305,7 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 					return err
 				}
 			}
-			lanes := Plan{Suites: suites, LanesKept: kept, HoldsCard: landing.HoldLaneTurn, TakesTurns: landing.HoldTestTurnEach}
+			lanes := Plan{Suites: suites, LanesKept: kept, HoldsCard: landing.HoldLaneTurn, SharesMachine: shareQuietMachine, TakesTurns: landing.HoldTestTurnEach}
 			// A run a runner starts yields to a newer commit due between packages (lanes-first/yield).
 			lanes.Yields, lanes.Yielded = lanesYield(ctx, *root)
 			return executeRun(ctx, output, *root, storeRoot, store, lanes, scope)
@@ -367,7 +367,7 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 		return executeRun(ctx, output, *root, storeRoot, store, plan.OnlyTrained(), scopeCells)
 	}
 	if *execute {
-		plan.LanesKept, plan.HoldsCard, plan.TakesTurns = trunkCheckout(ctx, *root), landing.HoldLaneTurn, landing.HoldTestTurnEach
+		plan.LanesKept, plan.HoldsCard, plan.SharesMachine, plan.TakesTurns = trunkCheckout(ctx, *root), landing.HoldLaneTurn, shareQuietMachine, landing.HoldTestTurnEach
 		return executeRun(ctx, output, *root, storeRoot, store, plan, scope)
 	}
 	return clioptions.WritePrettyJSON(output, plan)

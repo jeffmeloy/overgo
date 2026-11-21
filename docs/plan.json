@@ -3,25 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "moss-first-run",
-      "title": "The workflow's first run from a session's start is held to ComfyUI's first run, timed with the machine held quiet",
-      "steps": [
-        {
-          "id": "clock",
-          "title": "The workflow is timed whole at moss-first-run's commit, the machine held quiet, and the timing appended to the record (moss-workflow-clock)",
-          "verify": "git log --format=%s -n 200 | grep -qF 'moss-first-run/do:' \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF \"\\\"commit\\\":\\\"$(git rev-parse HEAD)\\\"\" \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF '\"committed\":true'",
-          "files": [
-            "docs/verification"
-          ],
-          "needs_card": true,
-          "rationale": "Note: The message states the first run against ComfyUI's pass-1 (40.18 s) and the warm run against pass-2 (34.41 s).",
-          "depends_on": [
-            "moss-first-run/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "flash-bound-read",
       "title": "flash-next-bound's bound is read in a lanes run under the trunk's runner, internal/inference's package ending in its verdict",
       "steps": [
@@ -113,6 +94,27 @@
             "fixtures/comfy"
           ],
           "rationale": "Note: The owner's note of 2026-11-17: text to image and prompt mode 3 were recorded on the workflow's empty prompt and an empty builder, so their floors (golden-floor: 1.55 dB on latents, 15.11 dB on pictures for text to image; 0.88 and 16.50 for mode 3) show only that overgo's draw is closer to ComfyUI's than another seed's is, the chaotic sensitivity an empty prompt has (overgo against its own 8-bit attention: 2.38 dB). Both sections are recorded again with a real prompt, and mode 3 with the builder's fields and regions filled (comfy-reference -record with -set on the prompt node and the builder's inputs), twice each as pass-1 and pass-2 were, and their floors are set from those recordings by the golden-floor method (the first reading less 3 dB, beside a reseeded control). Image to image at denoise 1 starts from the noise alone, the same run as text to image, so its case goes.\n\nNote: 2026-11-17, SQA-410 folded in (the owner's note): the floors' comparison scores pictures and latents it should refuse. squareColourMeans drops a picture's partial 8-pixel squares and pictureDecibels checks only that the two lists of means are as long, so a picture a column wider agrees at +Inf dB; decibelsOverSquares answers -Inf on lists of different lengths and NaN from a NaN sample; and each negative control (the reseeded and mirrored draws) is held only to scoring under its floor, so an invalid comparison passes it. The comparison refuses two pictures of different sizes, latents of different lengths, and any non-finite number, before it scores them, and a control counts only as a valid comparison scoring under the floor (golden_floor, image_to_image and depth_control model tests).\n\nNote: 2026-11-18, from moss-eight-step: text to image Turbo is recorded with the real prompt too and held here. On the workflow's empty prompt its final latent kept -1.54 dB of ComfyUI's and a reseeded draw -2.19 dB, so no floor 3 dB below the first reading keeps the control under it; its picture kept 9.89 dB. Its request reads sampler 331, prompts 27 and 325, sharpening 336, loader 341 and the picture 147 (text-to-image-turbo), the positive prompt node to set being the one 27 previews.\n\nNote: SQA-388 (the review's update at 39d27cd16): ownSizeReading in the golden-floor test reports overgo's step as a whole sampling divided by its steps, the request's setup within it (33.4 s of setup, 5.30 s a guided step at 6fdcde850), beside ComfyUI's step read between its progress events, and sets the process's allocations (13.6 GiB) beside ComfyUI's whole-card use (23.4 GiB). This row sets those floors again, so its readings take the step as TestWhereAMossStepsTimeGoes reads it and the card's use by one instrument on both sides.\n\nServes: done = each section and prompt mode agrees with its ComfyUI recording, on prompts that say something.\n\nCheck: TestUltraSectionsHoldTheirGoldenFloors, on the card, with ComfyUI's recordings.\n\nBatch: device lane."
+        }
+      ]
+    },
+    {
+      "id": "moss-served-repeat",
+      "title": "A repeated served MOSS picture returns its completed draw before reading its source picture again",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A repeated served MOSS picture returns its completed draw before reading its source picture again",
+          "verify": "go test ./internal/mediacapability -count=1 -run '^TestServedMOSSPictureReusesItsCompletedDraw$'",
+          "files": [
+            "internal/mediacapability",
+            "internal/latentimage",
+            "internal/capabilityruntime"
+          ],
+          "rationale": "Send the same admitted, fixed-seed MOSS request twice through the picture capability with a store, a stored source PNG and a held adapter in a live session. At ff603b49b preparedFirst reads and base64-encodes the PNG before the session director looks for a completed draw. TestAServedPictureReusesItsHeldFiles exercises naming alone on the identical repeat and counts only files opened by heldfile.Set. Extend its fixture through the production entry and existing run lookup. On the second call require the same recorded run and pixel bytes, zero source-PNG payload reads, zero additional opens or bytes hashed for the held adapter, and zero draw or weight-placement work. Count the first read and draw so a disconnected counter fails. A changed seed must draw again using the held adapter. FreshRun must execute. Preserve active selection, admission, content identity, refusal of missing inputs and invalidation when a dependency changes. Count reads of the returned result separately. Use the existing residency check for transfers during a real warm draw. This check concerns ordinary MOSS pictures with enhancement off.",
+          "depends_on": [
+            "moss-first-run/clock",
+            "moss-real-prompt/do"
+          ]
         }
       ]
     },

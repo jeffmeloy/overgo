@@ -40,6 +40,9 @@ type rotaryJointProgram struct {
 	// adapterInputs and strengths are each adapter's tensors and strength input, in the request's order (rotaryOptions).
 	adapterInputs []tensor.WeightBindings
 	strengths     []*tensor.Tensor
+	// merged are the projections the block reads with their adapters' pairs merged into their int8 weights, bound as
+	// the merge makes them (bindMerged), as the denoiser's are; none where its adapters patch no int8 projection.
+	merged []mergedProjection
 }
 
 // Joint modulation positions follow the pinned _Block.forward unbind order.
@@ -79,6 +82,7 @@ func compileRotaryJointProgram(t TransformerSpec, epsilon float32, tokens, index
 	if err := b.Err(); err != nil {
 		return nil, fmt.Errorf("rotary joint: %w", err)
 	}
+	p.merged = *g.merged
 	return p, nil
 }
 

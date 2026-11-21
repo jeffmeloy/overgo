@@ -7,18 +7,6 @@
       "title": "The store refuses a location outside the repository and the data roots, and lists the locations it holds outside them",
       "steps": [
         {
-          "id": "list",
-          "title": "The store lists the locations it holds outside the repository and the data roots: each artifact whose live copies lie only outside, and each with none left",
-          "verify": "go test ./internal/overgodb -count=1 -run '^TestTheStoreListsTheLocationsItHoldsOutsideItsRoots$'",
-          "files": [
-            "internal/overgodb",
-            "internal/artifact",
-            "internal/dataroot",
-            "cmd/overgodb-query"
-          ],
-          "rationale": "The owner's review of 2026-11-20, point 2: everything a test depends on is in the repository or the data root, and the locations the store holds now are listed before anything else is removed. Read at once by a probe of the store's location facet (tmp/store-roots/outside-locations-2026-11-20.txt): the audio reference store, overgo_data/overgodb-store, records 8,837 locations over 5,776 artifacts; 172 artifacts have live copies only outside C:\\Users\\jeffm\\overgo and C:\\Users\\jeffm\\overgo_data (171 under C:\\Users\\jeffm\\adaptive_new: 91 in models, 44 in docs, 36 in checkpoints; 1 under C:\\Users\\jeffm\\eval\\datasets), which removing those folders would lose as the speech captures were lost; 1,145 have no live location and no content in the store (records of files at old checkouts' paths and temporary folders, the three speech captures among them). The step makes the listing the store's own (a query the repository keeps, each artifact with its live and dead locations and whether the store holds its content), its output kept in the data root."
-        },
-        {
           "id": "do",
           "title": "The store refuses to record a location outside the repository and the data roots",
           "verify": "go test ./internal/overgodb -count=1 -run '^TestAStoreRefusesALocationOutsideItsRoots$'",

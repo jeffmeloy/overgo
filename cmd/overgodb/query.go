@@ -58,12 +58,16 @@ func query(flags *flag.FlagSet, args []string, output io.Writer) error {
 	contentDump := flags.Bool("content", false, "print the raw committed content bytes of the artifact named by -id")
 	verdicts := flags.Bool("verdicts", false, "list held-out verdicts, oldest first, with each one's base and trained scores: every one the store holds, or with -to-sequence those it held when its journal stood there")
 	maxBytes := flags.Uint64("max-bytes", 0, "with -verdicts: refuse a listing whose verdict documents exceed this many bytes (0 for no bound)")
+	outside := flags.Bool("outside", false, "list the artifacts recorded at a local location outside the repository and the data roots with no live copy inside them: each live only outside, and each with no copy left")
 	if handled, err := commanddoc.OvergodbQuery.Command.ParseForHelp(flags, args, output); err != nil || handled {
 		return err
 	}
 	var emptyResultBound int
 	if flags.NArg() != emptyResultBound || strings.TrimSpace(*repository) == "" || *limit <= emptyResultBound {
 		return fmt.Errorf("usage: %s -repo <path> [filters]", flags.Name())
+	}
+	if *outside {
+		return writeOutside(output, *repository)
 	}
 	if *servable {
 		return writeServable(output, *repository, *limit)

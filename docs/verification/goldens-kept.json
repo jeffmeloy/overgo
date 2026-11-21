@@ -1,0 +1,26 @@
+{
+  "campaign": "MOSS in overgo does what the MOSS Ultra workflow does in ComfyUI, each section held to ComfyUI's recording",
+  "kept": "golden-scripts/2026-11-21",
+  "goldens": [
+    {"name": "comfy_enhancer_greedy_golden.py", "sha256": "da0e10b8adf96e8a45091c9c03a35766edc3916ade4d1edbf2f439be6ee63634"},
+    {"name": "comfy_er_sde_golden.py", "sha256": "6aa1fbdc39e0a44c3fc6af54db8ff341f93f2f9fdb55bfa530fcab9b6e964157"},
+    {"name": "comfy_finishing_golden.py", "sha256": "f8df5ad61be3c4d920588a58add790144b5d6361eabc79012306a9bc539c178a"},
+    {"name": "comfy_image_scale_golden.py", "sha256": "298b152413ce5aadefb4a3c04c5e570b1d14cb2b989e1fd8c482ca79fd424636"},
+    {"name": "comfy_lora_merge_capture.py", "sha256": "f81975233dac4429df8dae2bae3ea19a4459b790c175df68ac1ec48aed65cfee"},
+    {"name": "comfy_lora_merge_fit.py", "sha256": "0704f3a348485fc2f52059595465299352b0bef66af42b7e4b401bc9a0a895fb"},
+    {"name": "comfy_lora_merge_golden.py", "sha256": "3080ca0fc26dad99ab41ab15caefc6630b93c87f16455604c74b6bd0cfc63eb5"},
+    {"name": "comfy_mode_three_golden.py", "sha256": "3775ba2680bef3546db84842573499d5189b7b2abac58f84138d287b14d3d15d"},
+    {"name": "comfy_moss_block_capture.py", "sha256": "a630f035768f086abd1c70e9b3a8c0845c5040df57a3d755d0b36b40c018498f"},
+    {"name": "comfy_moss_encoder_golden.py", "sha256": "376e3c04dc3e6913b928a3c4ddc5f2e135ef9de18ace5827d0d9c0e67e078c62"},
+    {"name": "comfy_prompt_strings_golden.py", "sha256": "475fec2b04493b157d972aff9fc56b5dfad219a7be19a506724cc194a8f2aa50"},
+    {"name": "comfy_requantize_fit.py", "sha256": "2277fea5b0aa32fa8efadafc69491c8cac8b603120ee1a0b1e2e809afdab9d56"},
+    {"name": "comfy_requantize_probe.py", "sha256": "e1695a0bd53cf5b94e484489688557869aca2e675b7fdfec909e7353adad4adc"},
+    {"name": "comfy_schedules_golden.py", "sha256": "f0c76aa0ccc84fc7cd78119e2c6e5ae2854c47f6833b93069b65cfef0bc507dd"},
+    {"name": "moss_adapter_gradients.py", "sha256": "84670e6f730cd61e0ad178b37170e57a7d58d1b7eae9ed92a7d5553512c96172"},
+    {"name": "moss_full_reference.py", "sha256": "1a7dd1e7ab21cf451903a9ecdb56981f6f29a17c7df8ca5e92ac30218a8ed39e"},
+    {"name": "moss_int8_linear_golden.py", "sha256": "5534219c8b309649e1180e47efa077b1f26a61c9360a11e773bbfccccca0f3ca"},
+    {"name": "moss_upstream_resources.py", "sha256": "d2dda8a9d93cbbdcb1f2d5a47f7bc2d2edd3f0b9f1a09fab419a284c68e405fe"},
+    {"name": "moss_vae_encoder_golden.py", "sha256": "c6bf32fba182318f3cc56c2e9bad028722495e11403dcdbead1441f7fdc1a97d"},
+    {"name": "block-text-to-image-capture.json", "sha256": "74ed0b28eb0c617a19e57922487739f5888e98a100c977b42fe6e37a5a8eea13"}
+  ]
+}

@@ -30,23 +30,6 @@
       ]
     },
     {
-      "id": "golden-keep",
-      "title": "A golden a row still needs before parity cannot be lost to a cleanup: the golden scripts and capture manifests open rows and tests name are kept in the data root, their digests in the repository",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A golden a row still needs before parity cannot be lost to a cleanup: the golden scripts and capture manifests open rows and tests name are kept in the data root, their digests in the repository",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestEveryGoldenStillNeededIsKept$'",
-          "files": [
-            "cmd/validate",
-            "docs/verification",
-            "internal/dataroot"
-          ],
-          "rationale": "The owner's review of 2026-11-20, point 2 as restated: golden code goes away after parity, but a golden still needed before parity cannot be lost to a cleanup. scripts/python_golden_references holds 68 scripts (19 of them ComfyUI's and MOSS's, which the MOSS rows' captures and recordings run) and git ignores it, so a clean checkout, a git clean or a removed folder loses them, as the removed overgo_audiocpp checkout lost the speech captures' only bytes. On 2026-11-21 the lead copied all 68 into the data root, overgo_data/references/golden-scripts/2026-11-21 with their SHA256SUMS, so none waits on this row to survive. The row makes that a rule: a record in the repository names each golden script and capture manifest an open row or a test needs (the block capture's comfy_moss_block_capture.py, the recorder's, the text to image capture's manifest among them), its digest and its kept place under the data root; the check refuses one missing there or differing from its digest, and a row whose parity is reached removes its entries, so golden code past parity may go. The scripts stay where the standing rule keeps Python, ignored by git; the data root holds what the repository's record names."
-        }
-      ]
-    },
-    {
       "id": "lanes-trunk",
       "title": "The lanes run under the trunk's runner and bound: each run names the build that supervised it, and the runner built before lanes-runner-current is stopped",
       "steps": [

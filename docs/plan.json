@@ -3,18 +3,18 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "moss-int8-epilogue",
-      "title": "A MOSS pass's int8 products, their activation quantization and epilogue included, take at most their part of the pass budget, the product's scales applied in the product as comfy_kitchen's CUTLASS product applies them",
+      "id": "speech-credit",
+      "title": "A speech acceptance whose capture cases are all being remade is declared inapplicable whole, so no claim credits a pass that checked nothing",
       "steps": [
         {
-          "id": "clock",
-          "title": "The workflow is timed whole at moss-int8-epilogue's commit, like for like and the card's turn held, and the timing appended to the record (moss-workflow-clock)",
-          "verify": "git log --format=%s -n 200 | grep -qF 'moss-int8-epilogue/do:' \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF \"\\\"commit\\\":\\\"$(git rev-parse HEAD)\\\"\" \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF '\"committed\":true'",
+          "id": "do",
+          "title": "A speech acceptance whose capture cases are all being remade is declared inapplicable whole, so no claim credits a pass that checked nothing",
+          "verify": "go test ./internal/speechrecognitiontest -count=1 -run '^TestAnAcceptanceWhoseCapturesAreAllBeingRemadeIsDeclaredWhole$'",
           "files": [
-            "docs/verification"
+            "internal/audioparity",
+            "internal/speechrecognitiontest"
           ],
-          "needs_card": true,
-          "rationale": "The owner's review of 2026-11-20 (the campaign's number): after this row's do lands, the MOSS Ultra workflow is timed whole again at its commit, like for like with ComfyUI's runs and the card's turn held by the test: OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data OVERGO_WORKFLOW_RECORD=docs/verification/moss-workflow-time.jsonl go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^TestTheUltraWorkflowIsTimedInItsOrder$' (moss-workflow-clock), which appends the timing to the record, and the record is landed with no code changed. The step's check reads that the row's do has landed and that the record's last timing is of the commit the step lands on; its message states the whole against the last timing's and against what the row predicted, and a saving the whole does not show is a finding before the next row starts."
+          "rationale": "SQA-450, checked against the source at 5ecf679fc: valid, and speech-hold's own. TestSecondASRStreamingAcceptance and TestSecondASROfflineAcceptance run each capture as a subtest whose CaptureFile declares only that subtest inapplicable, so with both captures gone every case skips, Go reports the parent passed, the landing's recorder (passedTests, which reads parents) credits it in test_passes.json, and validate -claims credits audio-cpu-second-asr-mel-streaming at a commit where no streaming check ran. The acceptance asks, before its cases run, whether every capture it reads is one speech-captures remakes with its bytes gone, and then declares itself inapplicable whole, so the claim keeps its last genuine pass; a case whose capture is there still runs and is credited. The recorder's reading of parents stays as it is: a parent that skips is not credited."
         }
       ]
     },

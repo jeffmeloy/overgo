@@ -399,12 +399,38 @@
       "input": "Read the status worklist after the Nov 20 refusal of moss-int8-epilogue/census. Compare that refusal with its gate output. The failed-tests line names eight tests and subtests in capabilityruntime, audioparity and server, plus three package failures.",
       "expected": "The existing refusal worklist should attribute this landing once to each of the eight named tests and subtests. Preserve the complete failing names when classifying the gate result, with the short diagnostic kept separately from the counts. Older truncated records can establish only the names they actually retained.",
       "actual": "The saved 240-byte cause ends in the middle of the next audioparity name. At 8c32dad22 Classify clips the text before Worklist reads it. Applying refusedBy to that record yields only TestNativeASRSessionAcceptance and TestSecondASRStreamingAcceptance/6930-75918-0000. Six named failures disappear from the worklist for this refusal, including the offline ASR checks and server/TestStreamingTranscriptionAcceptance. The original gate output and its failing verdict are intact."
+    },
+    {
+      "id": "SQA-450",
+      "severity": "P2",
+      "files": [
+        "internal/audioparity/second_asr_test.go",
+        "internal/speechrecognitiontest/capture.go",
+        "internal/landing/landing.go",
+        "internal/plan/test_passes.go",
+        "cmd/validate/claims.go"
+      ],
+      "input": "Land a change while both streaming-ASR capture files are absent and explicitly deferred to speech-captures. Read the compatibility claim audio-cpu-second-asr-mel-streaming after the landing.",
+      "expected": "The landing can proceed. Credit the streaming claim only when its required capture cases exercised the streaming checks. A run that skips both cases must preserve the last genuine pass, or report that none is known.",
+      "actual": "Observed at 5ecf679fccbc: validate -claims reports TestSecondASRStreamingAcceptance passed at that commit, matching test_passes.json. The speech-hold landing documents both streaming capture cases being declared inapplicable. In second_asr_test.go each case calls inputs before RecognizeChunk or any streaming assertion. CaptureFile skips only the child, so both children can skip and Go still reports their parent as passed. The landing recorder passedTests drops all child events and credits that parent. The existing speech-captures row restores the inputs but does not correct how an all-skipped run is recorded."
     }
   ],
   "master_lead_triage": {
     "at": "2026-11-20",
     "head": "cbdf003cc5e0d974e86a56e8f99bb49b6bdc97a8",
     "findings": {
+  "SQA-450": {
+        "action": "filed",
+        "rows": [
+          "speech-credit/do"
+        ],
+        "note": "Answered by the lead on 2026-11-21 at 5ecf679fc: valid from source, and speech-hold's own (each capture case of the second ASR acceptances is a subtest that CaptureFile declares inapplicable alone, so with both captures gone the parent passes and the landing's recorder credits it to the streaming claim). Filed as speech-credit/do, ahead of lanes-trunk: an acceptance whose captures are all being remade declares itself inapplicable whole, so the claim keeps its last genuine pass."
+      },
+  "SQA-449": {
+        "action": "deferred",
+        "rows": [],
+        "note": "Answered by the lead on 2026-11-21 at 5ecf679fc: valid as reported (the refusal record keeps 240 bytes of the gate's cause, so the worklist reads two of eight failed names from moss-int8-epilogue/census's refusal; the gate's own output keeps them all). A landing's bookkeeping, not the workflow's time, so deferred with SQA-445 and SQA-446 to the gate's rows the campaign set aside."
+      },
   "SQA-448": {
         "action": "deferred",
         "rows": [],
@@ -567,7 +593,7 @@
       }
 }
   },
-  "next_finding_number": 450,
+  "next_finding_number": 451,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

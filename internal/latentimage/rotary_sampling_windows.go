@@ -34,8 +34,10 @@ var samplingInt8 = true
 
 // samplingInt8Attention says a rotary sampling's joint layers take comfy_kitchen's int8 attention where the
 // transformer's file declares it for them (int8AttentionLayers), as ComfyUI runs them and the MOSS Ultra workflow's file
-// declares for its 42 layers. Off until moss-attention-pass/do turns it on and counts the pass's launches.
-var samplingInt8Attention = false
+// declares for its 42 layers (moss-attention-pass): the BF16 attention in registers and its copies of K and V took 29.75
+// ms of a text to image pass at 1024 x 576, the int8 attention 17.69 ms against ComfyUI's 11.53, and each section's
+// final latent lies nearer its recording. A test reads the BF16 attention beside it.
+var samplingInt8Attention = true
 
 // declaredInt8 is what a transformer directory's file holds and declares in int8, its file opened once: the joint
 // projections it holds in int8 ConvRot over groups of 256 columns (convRotProjections), as the MOSS Ultra workflow's

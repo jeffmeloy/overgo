@@ -14,7 +14,7 @@ import (
 	"overgo/internal/testcheck"
 )
 
-// int8BudgetSteps are the steps TestMOSSInt8ProductsMeetTheirBudget draws, the fewest MOSS's schedule draws.
+// int8BudgetSteps are the steps textToImageCensus draws, the fewest MOSS's schedule draws.
 const int8BudgetSteps = 2
 
 // int8BlockLaunches are the launches of each int8 kernel a MOSS joint block makes, the block counted by its attention
@@ -31,15 +31,12 @@ var int8BlockLaunches = map[string]int{
 	"quantize_int8_convrot_situ_columns_f32":    1,
 }
 
-// TestMOSSInt8ProductsMeetTheirBudget holds a MOSS pass's int8 products to comfy_kitchen's form of them
-// (moss-int8-epilogue): each product is one launch of a kernel that applies its scales in its epilogue, as
-// comfy_kitchen's CUTLASS product applies them, and writes what the pass reads of it (int8_convrot_product_bf16_f32 and
-// its gated sum and head norm), with each activation quantized once beside it. Counted by the executor's launch census
-// over a text to image run of int8BudgetSteps steps at the workflow's size: every block makes int8BlockLaunches and no
-// int8 kernel launches beside them. Before, cuBLASLt's int8 product wrote an int32 product that a separate kernel
-// read back to scale (scale_int8_product_bf16_f32 and its gated sum and head norm), 16.8 ms of a pass's 114.6 ms of
-// kernels, and the products and their epilogues took 66.5 ms against ComfyUI's 45.1.
-func TestMOSSInt8ProductsMeetTheirBudget(t *testing.T) {
+// textToImageCensus counts each kernel's launches, by the executor's launch census, over the MOSS Ultra workflow's text
+// to image section run for int8BudgetSteps steps at the workflow's size, and gives the transformer it ran and the joint
+// blocks it ran, each counted by its attention output's quantization (quantize_int8_convrot_columns_f32), which a block
+// makes once.
+func textToImageCensus(t *testing.T) (map[string]int, TransformerSpec, int) {
+	t.Helper()
 	cudatest.Require(t)
 	ctx := t.Context()
 	root := ultraModelRoot(t)
@@ -67,17 +64,32 @@ func TestMOSSInt8ProductsMeetTheirBudget(t *testing.T) {
 	}))
 	testcheck.NoError(t, err)
 	// A guided step runs each block once for each branch, the negative's skipped layers apart.
-	blocks, layers := census["quantize_int8_convrot_columns_f32"], generator.rotary.transformer.Layers
-	if blocks < int8BudgetSteps*layers || blocks > 2*int8BudgetSteps*layers {
-		t.Fatalf("%d steps quantized %d blocks' attention outputs; a step runs %d layers for each of its two branches", int8BudgetSteps, blocks, layers)
+	spec := generator.rotary.transformer
+	blocks := census["quantize_int8_convrot_columns_f32"]
+	if blocks < int8BudgetSteps*spec.Layers || blocks > 2*int8BudgetSteps*spec.Layers {
+		t.Fatalf("%d steps quantized %d blocks' attention outputs; a step runs %d layers for each of its two branches", int8BudgetSteps, blocks, spec.Layers)
 	}
+	return census, spec, blocks
+}
+
+// TestMOSSInt8ProductsMeetTheirBudget holds a MOSS pass's int8 products to comfy_kitchen's form of them
+// (moss-int8-epilogue): each product is one launch of a kernel that applies its scales in its epilogue, as
+// comfy_kitchen's CUTLASS product applies them, and writes what the pass reads of it (int8_convrot_product_bf16_f32 and
+// its gated sum and head norm), with each activation quantized once beside it. Counted over a text to image run
+// (textToImageCensus): every block makes int8BlockLaunches and no int8 kernel launches beside them but the attention's
+// (attentionBlockLaunches). Before, cuBLASLt's int8 product wrote an int32 product that a separate kernel read back to
+// scale (scale_int8_product_bf16_f32 and its gated sum and head norm), 16.8 ms of a pass's 114.6 ms of kernels, and the
+// products and their epilogues took 66.5 ms against ComfyUI's 45.1.
+func TestMOSSInt8ProductsMeetTheirBudget(t *testing.T) {
+	census, _, blocks := textToImageCensus(t)
 	for kernel, launches := range int8BlockLaunches {
 		if census[kernel] != launches*blocks {
 			t.Errorf("%d blocks launched %s %d times; want %d a block", blocks, kernel, census[kernel], launches)
 		}
 	}
 	for _, kernel := range slices.Sorted(maps.Keys(census)) {
-		if _, counted := int8BlockLaunches[kernel]; strings.Contains(kernel, "int8") && !counted {
+		_, counted := int8BlockLaunches[kernel]
+		if _, attention := attentionBlockLaunches[kernel]; strings.Contains(kernel, "int8") && !counted && !attention {
 			t.Errorf("%s launched %d times beside the products that apply their scales in their epilogue", kernel, census[kernel])
 		}
 	}

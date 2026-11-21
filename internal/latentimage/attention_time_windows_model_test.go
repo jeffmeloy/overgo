@@ -22,8 +22,9 @@ const attentionShare = 0.44
 const samePicture = 30.0
 
 // TestMOSSAttentionTakesHalfItsTime holds MOSS's sampling at the sections' own size, 2368 x 1344, with its attention
-// in registers (samplingScoresInRegisters, moss-attention), to saving at least half what the native BF16 kernel's
-// attention took of a pass, and to drawing the same picture as the native kernel at the same request and seed: one
+// in registers (samplingScoresInRegisters, moss-attention; the int8 attention the file declares held off), to saving at
+// least half what the native BF16 kernel's attention took of a pass, and to drawing the same picture as the native
+// kernel at the same request and seed: one
 // generator samples the conditional pass at 2 and 6 steps with each kernel, a pass being the difference over four
 // steps, and the 6-step samplings' final latents and pictures agree to samePicture. Golden floors 3 dB under readings
 // near 1.5 dB would pass a kernel that drew another picture (the owner's review of 2026-11-18).
@@ -38,8 +39,10 @@ func TestMOSSAttentionTakesHalfItsTime(t *testing.T) {
 	request = testcheck.Must(request.Sized(root))(t)
 	one := float32(1)
 	request.GuidanceScale = &one
-	served := samplingScoresInRegisters
-	t.Cleanup(func() { samplingScoresInRegisters = served })
+	served, servedInt8 := samplingScoresInRegisters, samplingInt8Attention
+	t.Cleanup(func() { samplingScoresInRegisters, samplingInt8Attention = served, servedInt8 })
+	// The joint blocks take the BF16 attention this test compares, not the int8 one the file declares for them.
+	samplingInt8Attention = false
 	asking := func(steps int) Request {
 		asked := request
 		asked.Steps = steps

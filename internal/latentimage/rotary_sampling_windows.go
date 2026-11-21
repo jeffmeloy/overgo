@@ -15,6 +15,7 @@ import (
 	"overgo/internal/media"
 	"overgo/internal/safetensors"
 	"overgo/internal/sampling"
+	"overgo/internal/samplingcuda"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
@@ -117,7 +118,12 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 		if e != nil {
 			return branch{}, e
 		}
-		program, e := compileResidentWeights(ctx, runtime, "rotary sampling "+name, filepath.Join(modelRoot, "transformer"), p.weightInputs, []*tensor.Tensor{p.latent}, p.output)
+		// The latent and the control a widened embedder reads are on the card, each pass reading them where they lie.
+		dynamic := []*tensor.Tensor{p.latent}
+		if p.control != nil {
+			dynamic = append(dynamic, p.control)
+		}
+		program, e := compileResidentWeights(ctx, runtime, "rotary sampling "+name, filepath.Join(modelRoot, "transformer"), p.weightInputs, dynamic, p.output)
 		if e != nil {
 			return branch{}, e
 		}
@@ -195,28 +201,51 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 			return nil, e
 		}
 	}
-	b := tensor.NewBuilder()
-	input := b.Input("initial_latent", dtype.F32, shape)
-	uploaded := b.Scale(input, tensor.UnitScale)
-	upload, e := runtime.Compile(ctx, "rotary latent upload", nil, uploaded)
-	if e != nil {
-		return nil, e
-	}
-	programs = append(programs, upload)
-	// hold holds what the host made on the device: the initial latent, a velocity the host guided, a latent the host
-	// stepped.
-	hold := func(data []float32) (*residentLatent, error) {
-		held, e := runtime.Retain(ctx, upload, map[*tensor.Tensor]reference.Value{input: {Shape: shape, Data: data}}, nil)
+	// holder holds values of a shape on the device: copied from the host where data is given, else from the device
+	// pointer from, by the program a copy of each compiles to.
+	holder := func(name string, shape tensor.Shape, onDevice bool) (func(data []float32, from driver.DevicePtr) (*residentLatent, error), error) {
+		b := tensor.NewBuilder()
+		input := b.Input(name, dtype.F32, shape)
+		held := b.Scale(input, tensor.UnitScale)
+		var dynamic []*tensor.Tensor
+		if onDevice {
+			dynamic = []*tensor.Tensor{input}
+		}
+		program, e := runtime.Compile(ctx, "rotary "+name, dynamic, held)
 		if e != nil {
 			return nil, e
 		}
-		value, ok := held.Value(uploaded)
-		if !ok {
-			held.Release(context.WithoutCancel(ctx))
-			return nil, errors.New("rotary sampling: uploaded latent missing")
-		}
-		return &residentLatent{outputs: held, node: uploaded, value: value}, nil
+		programs = append(programs, program)
+		return func(data []float32, from driver.DevicePtr) (*residentLatent, error) {
+			var inputs map[*tensor.Tensor]reference.Value
+			var pointers []driver.DevicePtr
+			if onDevice {
+				pointers = []driver.DevicePtr{from}
+			} else {
+				inputs = map[*tensor.Tensor]reference.Value{input: {Shape: shape, Data: data}}
+			}
+			out, e := runtime.Retain(ctx, program, inputs, pointers)
+			if e != nil {
+				return nil, e
+			}
+			value, ok := out.Value(held)
+			if !ok {
+				out.Release(context.WithoutCancel(ctx))
+				return nil, errors.New("rotary sampling: held value missing")
+			}
+			return &residentLatent{outputs: out, node: held, value: value}, nil
+		}, nil
 	}
+	upload, e := holder("latent upload", shape, false)
+	if e != nil {
+		return nil, e
+	}
+	duplicate, e := holder("latent copy", shape, true)
+	if e != nil {
+		return nil, e
+	}
+	// hold holds what the host made on the device: the initial latent, a velocity the host guided.
+	hold := func(data []float32) (*residentLatent, error) { return upload(data, 0) }
 	current, e := hold(initial)
 	if e != nil {
 		return nil, e
@@ -250,11 +279,33 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 		}
 		return hold(velocity)
 	}
-	// ER-SDE (sampling.ERSDE) takes each step on the host from the step's data prediction, which the update gives at a
-	// delta of −σ, the Euler step to σ = 0, and draws its fresh noise as ComfyUI's er_sde does, from torch's CUDA
-	// generator seeded with the request's seed (moss-ultra-sections/er-sde).
+	// held are the values a sampling holds on the device beside its latent, each released as the sampling ends: ER-SDE's
+	// last prediction, its divided differences and its noise, and the control's.
+	var held []*residentLatent
+	defer func() {
+		for _, value := range held {
+			if value != nil {
+				err = errors.Join(err, value.outputs.Release(context.WithoutCancel(ctx)))
+			}
+		}
+	}()
+	// ER-SDE (sampling.ERSDE) takes each step from the step's data prediction, which the update gives at a delta of −σ,
+	// the Euler step to σ = 0, on the card as the host steps (samplingcuda.ERSDEDevice, moss-step-copies), and draws its
+	// fresh noise there as ComfyUI's er_sde does, from torch's CUDA generator seeded with the request's seed
+	// (moss-ultra-sections/er-sde): the latent, the predictions, their divided differences and the noise stay on the card.
 	var solver *sampling.ERSDE
 	var noise *torchrng.Stream
+	var stepper samplingcuda.ERSDEDevice
+	// lastPrediction is the last prediction, kept for the next step; firsts hold the divided differences, the step's written
+	// to firsts[written] and the last's read from the other; fresh holds the step's noise.
+	var lastPrediction, fresh *residentLatent
+	var firsts [tensor.PairedExtent]*residentLatent
+	written := 0
+	elements, e := shape.Elements()
+	if e != nil {
+		return nil, e
+	}
+	count := int(elements)
 	if settings.sampler == sampling.SamplerERSDE {
 		sigmas := make([]float32, len(settings.schedule.Sigmas))
 		for i, sigma := range settings.schedule.Sigmas {
@@ -264,30 +315,71 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 			return nil, e
 		}
 		noise = torchrng.NewStream(settings.seed)
-		defer func() { err = errors.Join(err, runtime.Do(context.WithoutCancel(ctx), noise.Close)) }()
+		defer func() {
+			err = errors.Join(err, runtime.Do(context.WithoutCancel(ctx), func(state *device.State) error {
+				return errors.Join(noise.Close(state), stepper.Close(state))
+			}))
+		}()
+		defer func() { held = append(held, lastPrediction, fresh, firsts[0], firsts[1]) }()
 	}
-	// stepped is ER-SDE's step from the current latent and the step's data prediction, held on the device.
-	stepped := func(index int, prediction *residentLatent) (*residentLatent, error) {
-		x, e := current.outputs.CopyToHost(ctx, current.node)
-		if e != nil {
-			return nil, e
+	// forget lets the last prediction go, as a skipped step makes the solver's order start again.
+	forget := func() error {
+		if lastPrediction == nil {
+			return nil
 		}
-		denoised, e := prediction.outputs.CopyToHost(ctx, prediction.node)
-		if e != nil {
-			return nil, e
+		released := lastPrediction
+		lastPrediction = nil
+		return released.outputs.Release(context.WithoutCancel(ctx))
+	}
+	// buffer is a device value of the latent's shape the step writes into, made once from the current latent.
+	buffer := func(value **residentLatent) error {
+		if *value != nil {
+			return nil
 		}
-		var fresh []float32
-		if solver.Draws(index) {
-			fresh = make([]float32, len(x.Data))
-			if e := runtime.Do(ctx, func(state *device.State) error { return noise.FillHost(state, fresh) }); e != nil {
-				return nil, e
+		made, e := duplicate(nil, current.value.Pointer)
+		*value = made
+		return e
+	}
+	// stepped is ER-SDE's step from the current latent and the step's data prediction, which it keeps as the last
+	// prediction or, for a step to 0, gives as the next latent.
+	stepped := func(prediction *residentLatent) (*residentLatent, error) {
+		plan, e := solver.Plan()
+		if e != nil {
+			return nil, errors.Join(e, prediction.outputs.Release(context.WithoutCancel(ctx)))
+		}
+		if plan.ToZero {
+			return prediction, forget()
+		}
+		next, e := duplicate(nil, current.value.Pointer)
+		if e == nil {
+			e = errors.Join(buffer(&fresh), buffer(&firsts[0]), buffer(&firsts[1]))
+		}
+		if e != nil {
+			if next != nil {
+				e = errors.Join(e, next.outputs.Release(context.WithoutCancel(ctx)))
 			}
+			return nil, errors.Join(e, prediction.outputs.Release(context.WithoutCancel(ctx)))
 		}
-		next, e := solver.Step(x.Data, denoised.Data, fresh)
+		var last driver.DevicePtr
+		if lastPrediction != nil {
+			last = lastPrediction.value.Pointer
+		}
+		e = runtime.Do(ctx, func(state *device.State) error {
+			if e := noise.FillDevice(state, fresh.value.Pointer, count); e != nil {
+				return e
+			}
+			return stepper.Step(state, plan, next.value.Pointer, prediction.value.Pointer, fresh.value.Pointer, last,
+				firsts[written].value.Pointer, firsts[1-written].value.Pointer, count)
+		})
+		if plan.Order >= 2 {
+			written = 1 - written
+		}
+		e = errors.Join(e, forget())
+		lastPrediction = prediction
 		if e != nil {
-			return nil, e
+			return nil, errors.Join(e, next.outputs.Release(context.WithoutCancel(ctx)))
 		}
-		return hold(next)
+		return next, nil
 	}
 	defer func() {
 		if current != nil {
@@ -299,18 +391,34 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 			return nil, e
 		}
 	}
-	// controlAt is what a widened embedder reads at a step of sigma: the control within its window, zeros outside it and
-	// where the request has none, as ComfyUI's MOSS feeds its concat latent (concat_cond).
-	var zeros []float32
-	controlAt := func(node *tensor.Tensor, sigma float64) []float32 {
-		if settings.control != nil && sigma >= settings.controlLow && sigma <= settings.controlHigh {
-			return settings.control
+	// controlAt is what a widened embedder reads at a step of sigma, on the device: the control within its window, zeros
+	// outside it and where the request has none, as ComfyUI's MOSS feeds its concat latent (concat_cond), each copied to
+	// the card once a sampling.
+	var controls [tensor.PairedExtent]*residentLatent
+	var controlUpload func(data []float32, from driver.DevicePtr) (*residentLatent, error)
+	defer func() { held = append(held, controls[0], controls[1]) }()
+	controlAt := func(node *tensor.Tensor, sigma float64) (driver.DevicePtr, error) {
+		at, data := 0, settings.control
+		if settings.control == nil || sigma < settings.controlLow || sigma > settings.controlHigh {
+			elements, e := node.Shape.Elements()
+			if e != nil {
+				return 0, e
+			}
+			at, data = 1, make([]float32, elements)
 		}
-		if zeros == nil {
-			elements, _ := node.Shape.Elements()
-			zeros = make([]float32, elements)
+		if controls[at] == nil {
+			if controlUpload == nil {
+				var e error
+				if controlUpload, e = holder("control upload", node.Shape, false); e != nil {
+					return 0, e
+				}
+			}
+			var e error
+			if controls[at], e = controlUpload(data, 0); e != nil {
+				return 0, e
+			}
 		}
-		return zeros
+		return controls[at].value.Pointer, nil
 	}
 	forwardIndex := 0
 	sampler, e := settings.schedule.sampler()
@@ -326,7 +434,7 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 		at := guider.At(index, settings.schedule.Sigmas[index])
 		if at.Zeroed() {
 			if solver != nil {
-				if e := solver.Skip(); e != nil {
+				if e := errors.Join(solver.Skip(), forget()); e != nil {
 					return nil, e
 				}
 			}
@@ -339,12 +447,17 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 		advanceErr := func() error {
 			run := func(v branch) (*residentLatent, error) {
 				inputs := map[*tensor.Tensor]reference.Value{v.plan.embedding: {Shape: v.plan.embedding.Shape, Data: embedding}}
+				pointers := []driver.DevicePtr{current.value.Pointer}
 				if v.plan.control != nil {
-					inputs[v.plan.control] = reference.Value{Shape: v.plan.control.Shape, Data: controlAt(v.plan.control, settings.schedule.Sigmas[index])}
+					control, e := controlAt(v.plan.control, settings.schedule.Sigmas[index])
+					if e != nil {
+						return nil, e
+					}
+					pointers = append(pointers, control)
 				} else if settings.control != nil {
 					return nil, errors.New("rotary sampling: the request's control needs an adapter whose embedder reads one (moss-control)")
 				}
-				out, e := runtime.Retain(ctx, v.program, inputs, []driver.DevicePtr{current.value.Pointer})
+				out, e := runtime.Retain(ctx, v.program, inputs, pointers)
 				if e != nil {
 					return nil, e
 				}
@@ -428,12 +541,7 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 			}
 			following := &residentLatent{outputs: next, node: step.plan.next, value: value}
 			if solver != nil {
-				prediction := following
-				following, e = stepped(index, prediction)
-				if e = errors.Join(e, prediction.outputs.Release(context.WithoutCancel(ctx))); e != nil {
-					if following != nil {
-						following.outputs.Release(context.WithoutCancel(ctx))
-					}
+				if following, e = stepped(following); e != nil {
 					return e
 				}
 			}

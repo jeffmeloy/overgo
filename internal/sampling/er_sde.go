@@ -22,13 +22,26 @@ const (
 // divided differences of the earlier predictions over λ weighted by their integrals of 1/φ (the second and third
 // orders, as many as the steps taken allow), and draws fresh noise of scale αt·√(λt² − r²λs²). From σ = 1, where λs is
 // unbounded, r·λs and r/αs both vanish, so the step is the prediction and noise of scale σt. A step to σ = 0 lands on
-// the data prediction and draws nothing.
+// the data prediction and draws nothing. Plan gives each step's arithmetic, which samplingcuda.ERSDEDevice applies on
+// the card, held bit for bit to HostERSDE, the same arithmetic on the host, beside the tests.
 type ERSDE struct {
 	sigmas []float64
 	stages int
-	// previous is the last step's data prediction, and difference its first divided difference over λ.
-	previous, difference []float32
-	taken                int
+	// held says the last step's data prediction is kept for the next, and differenced that its first divided difference
+	// over λ is.
+	held, differenced bool
+	taken             int
+}
+
+// ERSDEPlan is one ER-SDE step's arithmetic over each element, in F64 and rounded to F32 where it rounds: the next latent
+// is Keep·x + Data·denoised + Noise·noise; from the second order the first divided difference, (denoised − previous) /
+// Divisor rounded, is kept for the next step and FirstWeight times it added, rounded; at the third, SecondWeight·(first
+// − difference)/Span, rounded, is added too. A step ToZero lands on the data prediction and draws nothing.
+type ERSDEPlan struct {
+	ToZero                                   bool
+	Keep, Data, Noise                        float64
+	Order                                    int
+	Divisor, FirstWeight, SecondWeight, Span float64
 }
 
 // NewERSDE is the solver over a flow schedule's sigmas (ValidateFlowSigmas), to stages orders.
@@ -49,9 +62,6 @@ func NewERSDE(sigmas []float32, stages int) (*ERSDE, error) {
 // Steps is how many steps the solver takes.
 func (s *ERSDE) Steps() int { return len(s.sigmas) - 1 }
 
-// Draws is whether step draws fresh noise: every step but one to σ = 0.
-func (s *ERSDE) Draws(step int) bool { return step >= 0 && step < s.Steps() && s.sigmas[step+1] > 0 }
-
 // erSDEScale is the noise scale function φ.
 func erSDEScale(x float64) float64 { return x * (math.Exp(math.Pow(x, erSDEExponent)) + erSDEOffset) }
 
@@ -65,22 +75,24 @@ func (s *ERSDE) Skip() error {
 		return fmt.Errorf("sampling: ER-SDE has taken its %d steps", s.Steps())
 	}
 	s.taken++
-	s.previous, s.difference = nil, nil
+	s.held, s.differenced = false, false
 	return nil
 }
 
-// Step takes the solver's next step from latent x, its data prediction denoised and fresh noise (nil where Draws is
-// false), giving the next latent. Steps are taken in order, each once.
-func (s *ERSDE) Step(x, denoised, noise []float32) ([]float32, error) {
+// Plan is the solver's next step's arithmetic, which the caller then applies to the step's latent, its data
+// prediction and, but for a step to 0, fresh noise; the step's prediction is kept for the next, and its first divided
+// difference where the plan's order reaches the second. Steps are planned in order, each once.
+func (s *ERSDE) Plan() (ERSDEPlan, error) {
 	step := s.taken
-	if step >= s.Steps() || len(denoised) != len(x) || s.Draws(step) != (noise != nil) || noise != nil && len(noise) != len(x) {
-		return nil, fmt.Errorf("sampling: ER-SDE step %d of %d needs a latent, its prediction and, but for a step to 0, noise of its size", step, s.Steps())
+	if step >= s.Steps() {
+		return ERSDEPlan{}, fmt.Errorf("sampling: ER-SDE has taken its %d steps", s.Steps())
 	}
 	s.taken++
-	defer func() { s.previous = denoised }()
+	held := s.held
+	s.held = true
 	sigmaS, sigmaT := s.sigmas[step], s.sigmas[step+1]
 	if sigmaT == 0 {
-		return append([]float32(nil), denoised...), nil
+		return ERSDEPlan{ToZero: true}, nil
 	}
 	lambdaS, lambdaT, alphaT := lambda(sigmaS), lambda(sigmaT), 1-sigmaT
 	keep, ratio, noiseScale := 0.0, 0.0, lambdaT
@@ -89,13 +101,10 @@ func (s *ERSDE) Step(x, denoised, noise []float32) ([]float32, error) {
 		keep = ratio * alphaT / (1 - sigmaS)
 		noiseScale = math.Sqrt(math.Max(lambdaT*lambdaT-ratio*ratio*lambdaS*lambdaS, 0))
 	}
-	next := make([]float32, len(x))
-	for i := range x {
-		next[i] = float32(keep*float64(x[i]) + alphaT*(1-ratio)*float64(denoised[i]) + alphaT*noiseScale*float64(noise[i]))
-	}
-	if s.stages < 2 || s.previous == nil || sigmaS >= 1 {
-		s.difference = nil
-		return next, nil
+	plan := ERSDEPlan{Keep: keep, Data: alphaT * (1 - ratio), Noise: alphaT * noiseScale, Order: 1}
+	if s.stages < 2 || !held || sigmaS >= 1 {
+		s.differenced = false
+		return plan, nil
 	}
 	// The integrals over [λt, λs] of 1/φ and of (λ − λs)/φ, each a left sum over erSDEPoints even widths.
 	width := (lambdaS - lambdaT) / erSDEPoints
@@ -106,20 +115,13 @@ func (s *ERSDE) Step(x, denoised, noise []float32) ([]float32, error) {
 		linear += (at - lambdaS) * width / erSDEScale(at)
 	}
 	scaleT := erSDEScale(lambdaT)
-	lambdaBefore := lambda(s.sigmas[step-1])
-	first := make([]float32, len(x))
-	firstWeight := alphaT * (lambdaT - lambdaS + flat*scaleT)
-	for i := range first {
-		first[i] = float32((float64(denoised[i]) - float64(s.previous[i])) / (lambdaS - lambdaBefore))
-		next[i] += float32(firstWeight * float64(first[i]))
+	plan.Order, plan.Divisor = 2, lambdaS-lambda(s.sigmas[step-1])
+	plan.FirstWeight = alphaT * (lambdaT - lambdaS + flat*scaleT)
+	if s.stages >= 3 && s.differenced {
+		plan.Order = 3
+		plan.SecondWeight = alphaT * ((lambdaT-lambdaS)*(lambdaT-lambdaS)/2 + linear*scaleT)
+		plan.Span = (lambdaS - lambda(s.sigmas[step-2])) / 2
 	}
-	if s.stages >= 3 && s.difference != nil {
-		secondWeight := alphaT * ((lambdaT-lambdaS)*(lambdaT-lambdaS)/2 + linear*scaleT)
-		span := (lambdaS - lambda(s.sigmas[step-2])) / 2
-		for i := range next {
-			next[i] += float32(secondWeight * (float64(first[i]) - float64(s.difference[i])) / span)
-		}
-	}
-	s.difference = first
-	return next, nil
+	s.differenced = true
+	return plan, nil
 }

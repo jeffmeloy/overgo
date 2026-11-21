@@ -3,39 +3,9 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "flash-bound-read",
-      "title": "flash-next-bound's bound is read in a lanes run under the trunk's runner, internal/inference's package ending in its verdict",
-      "steps": [
-        {
-          "id": "read",
-          "title": "flash-next-bound's bound is read in a lanes run under the trunk's runner, internal/inference's package ending in its verdict",
-          "verify": "tail -n +$(grep -n -F 'runner built at' .overgo-runtime/lanes.log | head -n 1 | cut -d: -f1) .overgo-runtime/lanes.log | grep -F 'overgo/internal/inference' | grep -q -F 'peak'",
-          "files": [
-            "docs/plan.json"
-          ],
-          "rationale": "The owner's review of 2026-11-20, point 1: flash-next-bound (5ba4dfb1f) landed with no lanes run under its bound, since the runner built at 28390a169 supervised every run after it. lanes-trunk/do (a81209624) stopped that runner and made each run name its runner's build; the trunk's runner took the lanes at 03:13 on 2026-11-21. Once a run that names its runner reaches internal/inference, whose Flash-Next opens grow the page file by design, the package's verdict line is read: passed, or failed in flash-next-bound's wording with its need and the commit free. The step lands with no code; its message states the run, its runner's build and the package's verdict and peak, and a failure in the old wording is a finding. Filed apart from lanes-trunk (it was lanes-trunk/bound) and after moss-attention-pass/clock, on which it depends: dispatch takes a card-free step first while the lanes hold the card, so a ready read whose evidence is hours of lanes away would be dispatched ahead of the card rows and hold them.",
-          "depends_on": [
-            "moss-attention-pass/clock"
-          ]
-        }
-      ]
-    },
-    {
       "id": "moss-step-copies",
       "title": "A MOSS step keeps its latent and prediction on the card, its ER-SDE step taken there, so a pass copies nothing to the host and back",
       "steps": [
-        {
-          "id": "do",
-          "title": "A MOSS step keeps its latent and prediction on the card, its ER-SDE step taken there, so a pass copies nothing to the host and back",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^TestMOSSStepsCopyNothingToTheHost$'",
-          "files": [
-            "internal/latentimage",
-            "internal/sampling",
-            "internal/cuda",
-            "kernels"
-          ],
-          "rationale": "Note: Filed from the owner's review of 2026-11-19, point 2 (attention, the int8 products' scale epilogue and the per-step copies have no row), with moss-fusion's re-budget at 1024 x 576 (Nsight Systems, a depth control pass, 15ecde8d3 and its fusions in development): the int8 products read 53.5 ms of cuBLASLt kernels a pass beside 15.5 ms of epilogue (scale_int8_product_bf16_f32, a separate kernel writing and rereading the int32 product) and 11.3 ms of activation quantization, where comfy_kitchen runs a CUTLASS int8 product with its dequantization in its epilogue (cutlass_gemm_int8.cu); attention reads 26.6 ms (attention_registers_bf16_f32, 44 launches); and each step hands the latent and the prediction to the host and back (SQA-421), 5.4 to 8.8 ms a pass of host-to-device copies. These rows pay on every one of the workflow's 324 passes, so they run before the rows that pay in one section (moss-merge-time, moss-depth-card). Each row's bar is its part's in the pass budget (moss-fusion/budget), read against ComfyUI's same part.\n\nNote: SQA-430, checked against the source at 140c7975e and filed here, being a per-pass host copy: each guidance branch of a depth control sampling passes controlAt's host slice to Retain, and the executor stages and uploads it every pass, zeros included when the control's window is off, 64 x 36 x 256 F32 values (2.4 MB) a pass, 225 MiB over the section's 100 passes for at most two distinct values. This row keeps the control on the card for both branches, a device zero buffer where its window is off, each prepared at most once a request and released with the sampling's inputs, and its check reads the bytes a pass uploads beside the latent and prediction copies, and the seeded latent at the window's edges unchanged.\n\nNote: The pass budget (moss-fusion/budget, fixtures/comfy/moss-ultra/pass_budget.json, measured 2026-11-20): ComfyUI's copies take 6.8 ms over its whole text to image run, about 0.07 ms a pass, its latent kept on the card, against overgo's 8.8 ms a pass. This row's bar is 1 ms a pass.\n\nNote: The owner's review of 2026-11-20, point 2: a speed check gives the same verdict whatever runs beside it, and moss-source-skip's probe read one encode at 46 s, 2m18s and 13.7 s beside the cycle's models lane. So this row's check counts what its cure removes where a count can say it (launches a pass, bytes copied, files read, models loaded, programs built, merges made, stream waits), the count read from the executor's or the session's own statistics, as moss-fusion/neighbors counts launches and moss-source-skip finds no encoder built; a time, where the row reports one, is read with the card's turn held alone (tmp/moss-fusion/hold_card.go) and is the row's information, not its verdict. The budget's bars (moss-fusion/budget) say how far each part has to go; the counts say the cure is in.\n\nNote: The owner's review of 2026-11-20 (one reference for the workflow's path): this row ports ComfyUI's own kernel, so its check holds the kernel to moss-comfy-block's capture of ComfyUI's, bit for bit, and the block's output to ComfyUI's block at the tolerance that row declares, narrowed by this row where its port closes part of the gap; the sections' agreement with their recordings (TestUltraSectionsHoldTheirGoldenFloors, the Turbo floors) is read before and after and stated in its message. A clock step after this row's do times the workflow whole again (moss-workflow-clock).\n\nNote: The owner's review of 2026-11-20, point 2, checked against the code: valid. Video's sampler has the same per-pass copies: internal/latentvideo/denoiser.go patchifies the latent on the host each step, and each branch pass of DenoiserCUDASession.ForwardHead feeds the patch tokens and both conditionings from the host and copies the head back (retained.CopyToHost) to unpatchify it and combine the guidance on the host, its two branches uploading the same three arrays twice a step (SQA-444, 419 MB a default clip by source); its cost is unmeasured. So this row's cure, the latent kept on the card across a sampling with its step and guidance there and only the first latent and last prediction crossing, is written as a piece the video session can take up (the step and the guidance's combine as graph programs a session holds, not as code inside latentimage's sampler), and the message names DenoiserCUDASession as its second user. The video cost is parked as a finding (evidence:sha256:73c52061) beside SQA-444, for video's campaign, whose first timing by section measures it before any change (owner doctrine: a model's campaign opens with its reference steps)."
-        },
         {
           "id": "clock",
           "title": "The workflow is timed whole at moss-step-copies's commit, like for like and the card's turn held, and the timing appended to the record (moss-workflow-clock)",
@@ -76,6 +46,25 @@
           "rationale": "Note: After adapter-hold's do lands, the MOSS Ultra workflow is timed whole again at its commit (TestTheUltraWorkflowIsTimedInItsOrder with OVERGO_WORKFLOW_RECORD), and the record landed with no code changed; the message states the whole against the last timing's and against the 2.34 s of identity the row removes from the warm run.",
           "depends_on": [
             "adapter-hold/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "flash-bound-read",
+      "title": "flash-next-bound's bound is read in a lanes run under the trunk's runner, internal/inference's package ending in its verdict",
+      "steps": [
+        {
+          "id": "read",
+          "title": "flash-next-bound's bound is read in a lanes run under the trunk's runner, internal/inference's package ending in its verdict",
+          "verify": "tail -n +$(grep -n -F 'runner built at' .overgo-runtime/lanes.log | head -n 1 | cut -d: -f1) .overgo-runtime/lanes.log | grep -F 'overgo/internal/inference' | grep -q -F 'peak'",
+          "files": [
+            "docs/plan.json"
+          ],
+          "rationale": "The owner's review of 2026-11-20, point 1: flash-next-bound (5ba4dfb1f) landed with no lanes run under its bound, since the runner built at 28390a169 supervised every run after it. lanes-trunk/do (a81209624) stopped that runner and made each run name its runner's build; the trunk's runner took the lanes at 03:13 on 2026-11-21. Once a run that names its runner reaches internal/inference, whose Flash-Next opens grow the page file by design, the package's verdict line is read: passed, or failed in flash-next-bound's wording with its need and the commit free. The step lands with no code; its message states the run, its runner's build and the package's verdict and peak, and a failure in the old wording is a finding. Filed apart from lanes-trunk (it was lanes-trunk/bound) and after moss-attention-pass/clock, on which it depended: dispatch takes a card-free step first while the lanes hold the card, so a ready read whose evidence is hours of lanes away would be dispatched ahead of the card rows and hold them. Re-filed on 2026-11-21 at 8fbe03872 to depend on moss-step-copies/clock and adapter-hold/clock: once moss-attention-pass/clock landed the read was ready while the lanes held the card, and dispatch gave it ahead of moss-step-copies/do, whose landing it would have refused; the lanes keep their passed packages across a newer commit's yield, so the card rows' landings do not set the read back.",
+          "depends_on": [
+            "moss-step-copies/clock",
+            "adapter-hold/clock"
           ]
         }
       ]

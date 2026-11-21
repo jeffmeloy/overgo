@@ -38,7 +38,7 @@ func TestERSDEDrawsNoiseAsTorchDoes(t *testing.T) {
 	testcheck.NoError(t, jsonfile.Decode("testdata/comfy_er_sde_trajectories.json", &golden))
 	worst := erSDEOff
 	for _, c := range golden.Cases {
-		solver := testcheck.Must(NewERSDE(c.Sigmas, ERSDEStages))(t)
+		solver := testcheck.Must(NewHostERSDE(c.Sigmas, ERSDEStages))(t)
 		x, drawn := c.X0, 0
 		for step := range solver.Steps() {
 			if off := worst(x, c.Trajectory[step]); off > erSDETolerance {
@@ -98,7 +98,7 @@ func TestTheERSDEComparisonRefusesANonfiniteError(t *testing.T) {
 
 // TestERSDETakesItsStepsInOrder holds the solver's bounds: a step with noise where none is drawn, or past the last.
 func TestERSDETakesItsStepsInOrder(t *testing.T) {
-	solver := testcheck.Must(NewERSDE([]float32{1, 0.5, 0}, ERSDEStages))(t)
+	solver := testcheck.Must(NewHostERSDE([]float32{1, 0.5, 0}, ERSDEStages))(t)
 	x := []float32{1, 2}
 	if _, err := solver.Step(x, x, nil); err == nil {
 		t.Error("a drawing step was taken without noise")

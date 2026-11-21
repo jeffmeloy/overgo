@@ -2521,9 +2521,9 @@
     },
     {
       "source": "kernels/cuda/ops_native.cu",
-      "sourceSha256": "32a34f957349446ed78c8941904a5db827e99e8e44b50a10c3a8c40cb53631df",
+      "sourceSha256": "ee6ca2d243fa4c34929ad7bd1b8c8a52c602f00ee9e5e876ff22ca8f3249aa99",
       "asset": "internal/cuda/kernel/ops_native.ptx",
-      "assetSha256": "ad5e65d99fdc41d367e0fb9ce84e49b1d515e0abeadc15822f54e10fefb03883",
+      "assetSha256": "a2c8bb298d184c609fa6cef584304ab7d9a75b0135bc510995d6aa1e7e834eeb",
       "compilerFlags": [
         "-ptx",
         "-arch=compute_89",
@@ -2532,6 +2532,7 @@
       "functions": [
         "attention_native_pack_f32",
         "attention_native_softmax_f32",
+        "er_sde_step_f32",
         "exp_native_f32",
         "rms_norm_native_f32",
         "rope_native_bf16_f32",
@@ -2573,6 +2574,28 @@
           ],
           "functions": [
             "attention_native_softmax_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".f64",
+            ".f64",
+            ".f64",
+            ".f64",
+            ".f64",
+            ".f64",
+            ".f64"
+          ],
+          "functions": [
+            "er_sde_step_f32"
           ]
         },
         {

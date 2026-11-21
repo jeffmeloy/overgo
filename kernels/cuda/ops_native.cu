@@ -184,3 +184,31 @@ extern "C" __global__ void rms_norm_native_f32(
     }
 }
 
+
+// ER-SDE's step on the card (moss-step-copies), sampling.ERSDEPlan applied as sampling.ERSDE.Step applies it on the
+// host, bit for bit: each F64 product, sum and quotient rounded alone (the _rn intrinsics, which nvcc does not contract
+// into a fused multiply-add, as Go does not on amd64), rounded to F32 where the host rounds, and the F32 sums kept with
+// their subnormals. latent holds the step's latent and receives the next; from the second order first receives the
+// first divided difference, and the third reads the last step's from difference.
+extern "C" __global__ void er_sde_step_f32(
+        float * latent, const float * denoised, const float * noise, const float * previous, float * first,
+        const float * difference, unsigned int count, unsigned int order,
+        double keep, double data, double noise_weight, double divisor, double first_weight, double second_weight, double span) {
+    const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i >= count) {
+        return;
+    }
+    const double predicted = (double)denoised[i];
+    float next = __double2float_rn(__dadd_rn(__dadd_rn(__dmul_rn(keep, (double)latent[i]), __dmul_rn(data, predicted)),
+                                             __dmul_rn(noise_weight, (double)noise[i])));
+    if (order >= 2u) {
+        const float divided = __double2float_rn(__ddiv_rn(__dsub_rn(predicted, (double)previous[i]), divisor));
+        next = __fadd_rn(next, __double2float_rn(__dmul_rn(first_weight, (double)divided)));
+        if (order >= 3u) {
+            next = __fadd_rn(next, __double2float_rn(
+                __ddiv_rn(__dmul_rn(second_weight, __dsub_rn((double)divided, (double)difference[i])), span)));
+        }
+        first[i] = divided;
+    }
+    latent[i] = next;
+}

@@ -3,26 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "store-roots",
-      "title": "The store refuses a location outside the repository and the data roots, and lists the locations it holds outside them",
-      "steps": [
-        {
-          "id": "do",
-          "title": "The store refuses to record a location outside the repository and the data roots",
-          "verify": "go test ./internal/overgodb -count=1 -run '^TestAStoreRefusesALocationOutsideItsRoots$'",
-          "files": [
-            "internal/overgodb",
-            "internal/artifact",
-            "internal/dataroot"
-          ],
-          "rationale": "The owner's review of 2026-11-20, point 2: a location outside the repository and the data roots is what let the speech captures' only bytes live in a worktree's untracked tmp. A commit recording such a location is refused with the path and the roots it lies outside; the locations already held stay readable and listed (store-roots/list), and moving the 172 artifacts live only outside into the data root is the owner's to order.",
-          "depends_on": [
-            "store-roots/list"
-          ]
-        }
-      ]
-    },
-    {
       "id": "data-origin",
       "title": "Every test's data names how it is re-created, by a tool the repository keeps from overgo at a commit that passed against its golden, or obtained, from a named source",
       "steps": [

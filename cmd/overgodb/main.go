@@ -25,6 +25,7 @@ var subcommands = map[string]func(flags *flag.FlagSet, args []string) error{
 	"query":    func(flags *flag.FlagSet, args []string) error { return query(flags, args, os.Stdout) },
 	"rebuild":  rebuild,
 	"rehearse": func(flags *flag.FlagSet, args []string) error { return rehearse(flags, args, os.Stdout) },
+	"roots":    func(flags *flag.FlagSet, args []string) error { return writeRoots(flags, args, os.Stdout) },
 	"repair":   repair,
 }
 

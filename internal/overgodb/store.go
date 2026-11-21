@@ -218,6 +218,8 @@ type Store struct {
 	// anchored is the sequence of the checkpoint the state was loaded from, zero when it was
 	// replayed whole, and tail is how many records past it a writer may leave when it closes.
 	anchored, tail uint64
+	// locationRoots are the roots its local locations must lie in (LocationRootsFile), none where it keeps no record.
+	locationRoots []string
 }
 
 // checkpointTail is how many records a writer may leave in the journal past
@@ -317,7 +319,11 @@ func open(ctx context.Context, root string, mode openMode) (*Store, error) {
 			}
 		}
 	}
-	store := &Store{readOnly: readOnly, root: root, blobs: newBlobStore(root), tail: checkpointTail}
+	locationRoots, err := readLocationRoots(root)
+	if err != nil {
+		return nil, err
+	}
+	store := &Store{readOnly: readOnly, root: root, blobs: newBlobStore(root), tail: checkpointTail, locationRoots: locationRoots}
 	if err := store.replayLocked(); err != nil {
 		return nil, err
 	}
@@ -668,6 +674,9 @@ func (s *Store) Commit(ctx context.Context, batch artifact.Batch) (artifact.Comm
 // nothing.
 func (s *Store) CommitAs(ctx context.Context, producer Producer, batch artifact.Batch) (artifact.CommitID, error) {
 	if err := contextError(ctx); err != nil {
+		return artifact.CommitID{}, err
+	}
+	if err := refuseOutsideRoots(s.locationRoots, batch); err != nil {
 		return artifact.CommitID{}, err
 	}
 	batch.Producer = ""

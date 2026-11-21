@@ -2,12 +2,16 @@ package overgodb
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/jsonfile"
 )
 
 // OutsideArtifact is an artifact the store records a local location of outside a set of roots with no live copy inside
@@ -65,6 +69,54 @@ func (s *Store) OutsideLocations(ctx context.Context, roots []string) ([]Outside
 		return strings.Compare(slices.Concat(a.Live, a.Gone)[0], slices.Concat(b.Live, b.Gone)[0])
 	})
 	return listed, nil
+}
+
+// LocationRootsFile is the record in a store's home of the roots its local locations must lie in, the repository and
+// the data roots, written from a checkout's resolved data roots (WriteLocationRoots, overgodb roots). A store that
+// keeps none records a location anywhere, as a test's own store does.
+const LocationRootsFile = "location-roots.json"
+
+// locationRootsRecord is LocationRootsFile's content.
+type locationRootsRecord struct {
+	Roots []string `json:"roots"`
+}
+
+// WriteLocationRoots records roots as the roots the store at root's local locations must lie in.
+func WriteLocationRoots(root string, roots []string) error {
+	if len(roots) == 0 {
+		return errors.New("overgodb: a store's location roots name at least one")
+	}
+	return jsonfile.Write(filepath.Join(root, LocationRootsFile), locationRootsRecord{Roots: roots}, storeFileMode)
+}
+
+// readLocationRoots is the roots the store at root's local locations must lie in, none where it keeps no record.
+func readLocationRoots(root string) ([]string, error) {
+	var record locationRootsRecord
+	if err := jsonfile.Decode(filepath.Join(root, LocationRootsFile), &record); errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	} else if err != nil {
+		return nil, fmt.Errorf("overgodb: location roots: %w", err)
+	}
+	return record.Roots, nil
+}
+
+// refuseOutsideRoots refuses a batch that adds a local file or directory outside roots (store-roots): what a test
+// depends on lies in the repository or the data root, and a capture whose only copy a store named in a removed
+// worktree's tmp was lost with it. A store with no roots refuses nothing; a removal, and a remote location, are any.
+func refuseOutsideRoots(roots []string, batch artifact.Batch) error {
+	if len(roots) == 0 {
+		return nil
+	}
+	for _, event := range batch.Locations {
+		location := event.Location
+		if event.Action != artifact.LocationAdd || location.Kind != artifact.LocationFile && location.Kind != artifact.LocationDirectory {
+			continue
+		}
+		if !withinRoots(roots, location.Value) {
+			return fmt.Errorf("overgodb: %s lies outside the repository and the data roots (%s); keep it inside them", location.Value, strings.Join(roots, ", "))
+		}
+	}
+	return nil
 }
 
 // withinRoots says path lies in one of roots.

@@ -97,6 +97,12 @@ func PathNaming(name func(ctx context.Context, store artifact.Repository, path s
 // held nil, each request names through a set of its own.
 func Contents(held *heldfile.Set, files func(path, raw string) ([]string, error)) Beside {
 	return func(_ context.Context, _ artifact.Repository, path, raw string) (string, func() error, error) {
+		// The files are listed before the request owns any, so a request answered afresh for a listing that failed, to
+		// which Reading gives no release, leaves no owner behind (SQA-454).
+		listed, err := files(path, raw)
+		if err != nil || len(listed) == 0 {
+			return "", func() error { return nil }, err
+		}
 		set := held
 		if set == nil {
 			set = &heldfile.Set{}
@@ -104,10 +110,6 @@ func Contents(held *heldfile.Set, files func(path, raw string) ([]string, error)
 		release, err := set.Own("")
 		if err != nil {
 			return "", nil, err
-		}
-		listed, err := files(path, raw)
-		if err != nil || len(listed) == 0 {
-			return "", release, err
 		}
 		named := sha256.New()
 		for _, file := range listed {

@@ -409,11 +409,12 @@
       "files": [
         "docs/plan.json",
         "cmd/validate/run.go",
-        "cmd/validate/lane_walls.go"
+        "cmd/validate/lane_walls.go",
+        "internal/inference/flash_next_homes_model_test.go"
       ],
-      "input": "Judge flash-bound-read/read after the lanes log contains multiple runner banners. Two of its three Flash-Next test verdicts follow the first banner and the third follows a different runner's banner.",
-      "expected": "Read all three named terminal verdicts with their package results from the same identified run and runner build. A partial run stays pending. A passing test shorter than a minute must still be attributable to its own package result.",
-      "actual": "At 09ad74436 the verifier checks the three names, fixing acceptance of an unrelated test. It searches from the first runner banner to the end for each name independently, so verdicts from two incomplete runs satisfy it. The retained log contains separate banners for 34beb39bc86c and e48129e3c1c7. Conversely, laneWatch omits named pass lines below one minute, and run.go prints the package peak without the test name. A short successful case can therefore be missed. These are source counterexamples. No mixed-run acceptance or missed Flash-Next pass was observed."
+      "input": "Read a single Windows models-lane run where the three Flash-Next tests are selected individually and the required checkpoint is missing. HomesEveryExpert skips on the missing file, and RoundIsReadyAtOpen and WindowRowsAreTheSingleTokenSteps skip when the runner cannot open it.",
+      "expected": "Require a named test pass or an actual bound failure for each target within one runner interval. Keep a skipped case pending even if its Go package passes. Use the test outcome already available to the lane, including quick passes.",
+      "actual": "At 93888b740 laneWatch reports each start but omits skips. Go emits package pass after a lone skipped test. run.go prints that line before requiredPass rejects the missing test evidence. The plan verifier counts the package line as the named memory verdict. Read-only evaluation of the committed verifier accepted the corresponding three-skip log projection. It rejected the retained split and pending examples and the live log. No false landing or skipped Flash-Next run was observed."
     },
     {
       "id": "SQA-454",
@@ -425,11 +426,11 @@
         "internal/heldfile/held.go",
         "internal/heldfile/open_windows.go",
         "internal/latentimage/runtime_cuda_windows.go",
-        "internal/mediacapability/held_files_windows_test.go"
+        "internal/mediacapability/held_release_windows_test.go"
       ],
-      "input": "In a fresh Windows serving process with no session for this model, send a valid MOSS request naming an installed adapter and a source picture whose valid file ID is absent from the store. After refusal, try to replace the adapter. A stored-answer hit before any session is leased leaves the same hold.",
-      "expected": "Release request-owned handles when preparation fails or a stored answer returns without leasing a session. Keep the adapter locked and its digest reusable for the lifetime of a session that actually owns it. A writer must be able to replace it once no request or session owns it.",
-      "actual": "Source counterexample at 09ad74436. Reading names the adapter through the process-wide heldfile.Session before preparedFirst reads the picture. Contents supplies a no-op release. The missing picture returns before the director runs, and a stored answer returns from the director before lease. Neither path creates the generator whose Close releases the model directory. The adapter stays open with FILE_SHARE_READ and Windows refuses replacement. TestAServedPictureReusesItsHeldFiles calls the naming helper for the identical retry and releases its test set explicitly. It never exercises either sessionless exit. The sharing violation on the production path was not run."
+      "input": "On a Windows MOSS server, submit a request with explicit dimensions of 1024 by 576 and an undeclared preset. After it returns, send a valid request naming an installed adapter and a source picture absent from the store. Try to replace the adapter after the second request is refused, with no picture session or other request still active.",
+      "expected": "Listing a request's files must leave no ownership behind on error. The second request must release its last handle on refusal so a writer can replace the adapter. List the files before taking ownership, or release every acquired owner on that exit. Preserve reuse for a live model session.",
+      "actual": "Source counterexample at 93888b740. Contents calls Set.Own(\"\") before pictureFiles. With explicit dimensions, Sized accepts the size and Beside returns the unknown-preset error. Contents returns both the error and the release function, but Reading takes the FreshRun branch without calling release. The leaked owner covers the entire shared set. The later request drops its own owner correctly, yet the adapter remains held with FILE_SHARE_READ. The landing fixes the original isolated refusal and sessionless return. TestARequestWithNoSessionLetsItsHeldFilesGo exercises those exits after successful file listing. The two-request failure was not run."
     }
   ],
   "master_lead_triage": {
@@ -441,14 +442,14 @@
         "rows": [
           "flash-bound-read/read"
         ],
-        "note": "Reopened by the review at 09ad74436 and answered by the lead on 2026-11-21: valid from the source. The verify read each of the three tests from the first runner banner to the log's end, apart, so halves of two runs read as one, and a test passing in under a minute writes no line naming it (lane_walls.go reportedTestWall), so the read would have waited without end. Its verify now reads the three in one run, between a runner's banner and the next, each test's verdict the first internal/inference pass or fail line after its own run line, the line naming it or the line its test process ends on (the models lane runs each test alone, testSteps), checked over three logs written for it in tmp/flash-bound-read; set by plan -setverify with a note, landing with flash-bound-read/read. (First answered at 8edb11176: the verify had taken the first internal/inference package line after the banner, an ordinary test's pass.)"
+        "note": "Updated by the review at 93888b740 and answered by the lead on 2026-11-21: valid from the source. A Flash-Next test that skips writes no line naming it, and its test process ends on the package's pass line, which the verify read as the test's verdict. The read's verify now reads only the lines naming each test, a pass of a minute or more or a failure, the three in one run between a runner's banner and the next; a pass under a minute leaves the read pending, Flash-Next's tests opening 87 GB of weights. Checked over four logs written for it (whole, split by a banner, skipped, pending); set by plan -setverify with a note, carried by held-list/do's landing. (At 09ad74436 it had read each test from the first banner to the log's end, apart; at 8edb11176 the first internal/inference package line after the banner.)"
       },
   "SQA-454": {
         "action": "filed",
         "rows": [
-          "held-release/do"
+          "held-list/do"
         ],
-        "note": "Answered by the lead on 2026-11-21 at 09ad74436: valid from the source. adapter-hold (d590ecfa2) names a MOSS picture request's files through the process's held set, which a picture session's close lets go under its model; a request refused before preparation and one answered from the store before a session is leased create no session, so their files stay held, and a writer cannot replace the adapter, until a session under the model opens and closes or the process ends. Filed as held-release, after moss-first-run: no answer is wrong meanwhile, and a session's close lets the files go."
+        "note": "Updated by the review at 93888b740 and answered by the lead on 2026-11-21: valid, reproduced (TestANamingThatCannotListItsFilesOwnsNothing fails at 93888b740). held-release's Contents owned every file of the process's set for a request before listing its files, and a request whose listing fails is answered afresh by Reading with no release, so the set stayed owned for the process's life. Filed as held-list at the plan's top: the files are listed before any ownership. (First answered at 09ad74436: the set held a request's files with no session to let them go; held-release/do, 93888b740, holds a file only while an owner holds its directory.)"
       },
   "SQA-452": {
         "action": "deferred",

@@ -319,8 +319,8 @@
         "internal/latentimage/attention_budget_windows_model_test.go"
       ],
       "input": "Select both MOSS adapter-transfer tests, or select both INT8 kernel-count tests on the installed Ultra workflow in a fresh models lane.",
-      "expected": "For adapter transfers, check the cold bound on the first six draws and the warm bound on the second six in sampleWorkflow(2). For INT8, one two-step text-to-image sample supplies both sets of kernel counts. Keep the distinct product, attention and unexpected-kernel assertions, their diagnostics, the separate arithmetic comparisons and the full workflow clock.",
-      "actual": "At 4586266fe8a8 the adapter tests took 1m29s and 1m09s. sampleWorkflow(2) and sampleWorkflow(1) draw 18 pictures for bounds available in 12. At 80c195d08 TestMOSSInt8ProductsMeetTheirBudget and TestMOSSAttentionMeetsItsBudget each call textToImageCensus, which loads a generator, prepares the same prompt, integrates two steps and closes it. When both are selected they take two independent samples to read the same launch counts. This second duplication follows from source. The earlier product test alone took 1m10s in the retained 05:59 lane run. The saving from sharing the sample has not been timed."
+      "expected": "Check the cold Turbo adapter-byte bound on the first traversal of sampleWorkflow(2). Keep the low-rank pair bound whenever previously applied adapters recur, including within the first traversal. Read the INT8 product and attention counts from one textToImageCensus, retaining both budgets, unexpected-kernel checks, separate arithmetic comparisons and the full workflow clock.",
+      "actual": "The adapter checks call the same six-section fixture for two traversals and one, producing 18 pictures for bounds available in 12. The product and attention checks separately load the same generator and take the same two-step sample. In the 32cf1a5d0 models run, the two-traversal and one-traversal checks passed in 24.677 s and 16.651 s. The product and attention checks passed in 5.734 s and 9.879 s. These are observed process walls. Sharing the fixtures removes six draws and one two-step sample per affected full run. The elapsed saving has not been measured."
     },
     {
       "id": "SQA-444",
@@ -404,51 +404,23 @@
       "actual": "Source counterexample at 8fbe03872. The pinned ComfyAttention loader at 7cebca522 (comfy/ldm/modules/attention.py lines 87-100) skips an unknown method and selects the later available INT8 entry. int8AttentionLayers inspects only configs[0], so integration refuses the layer after preparing its control latent. The installed Ultra checkpoint's 42 records all name INT8 alone. SOL is available on this machine, so SOL-first is not an example of this fallback here. The unknown-first case was not run."
     },
     {
-      "id": "SQA-453",
+      "id": "SQA-456",
       "severity": "P2",
       "files": [
-        "docs/plan.json",
-        "internal/inference/flash_next_homes_model_test.go",
-        "internal/inference/strata_round_ready_model_test.go",
-        "internal/inference/strata_window_rows_model_test.go",
-        "cmd/validate/lane_walls.go"
+        "cmd/validate/lanes_first.go",
+        "cmd/validate/lane_reach.go",
+        "cmd/validate/test_steps.go",
+        "cmd/validate/lanes_first_test.go"
       ],
-      "input": "In one Windows models-lane run, select the three Flash-Next checks with CUDA available and both checkpoint files present. Give the main checkpoint an invalid GGUF header so opening it returns an error in each check.",
-      "expected": "An installed checkpoint that cannot open should produce a named failure with its cause in each affected check. Keep genuinely missing prerequisites as skips. Use the prerequisite check already present in HomesEveryExpert so flash-bound-read/read can report the failed setup without crediting a memory measurement.",
-      "actual": "Source counterexample at 32cf1a5d0. HomesEveryExpert checks presence, then fails on the open error. RoundIsReadyAtOpen and WindowRowsAreTheSingleTokenSteps call Skipf on every open error. The lane therefore emits only one named failure, and the verifier leaves the read pending. Read-only evaluation confirmed that the verifier rejects this one-failure/two-skip projection and now correctly rejects the retained all-skip log. No faulty checkpoint was run."
-    },
-    {
-      "id": "SQA-455",
-      "severity": "P2",
-      "files": [
-        "internal/latentimage/model_encoder_windows.go",
-        "internal/comfyquant/convrot.go",
-        "internal/cuda/executor/int8_convrot_decode.go",
-        "internal/graphruntime/resident.go"
-      ],
-      "input": "Prepare the first MOSS prompt with a Qwen3.5 encoder whose untransformed layer-0 mlp.gate_proj.weight has 12,288 rows of 4,096 int8 values, one F32 scale per row, and a valid ConvRot group size of 4,096. This is the installed Ultra projection's shape with a different supported group width.",
-      "expected": "Select the device decoder only for groups it supports. For a valid wider group, use the encoder's existing catalog.Payload and resident Bind path. Check eligibility from the declared geometry before reading a stored payload for the device path. The resulting BF16 weight must match the host decode.",
-      "actual": "Source counterexample at 32cf1a5d0, introduced by 16da0bc21. comfyquant.Find accepts this power-of-four group and DecodeRow supports it. openStored selects every untransformed BF16 ConvRot binding for the device. BindDecoded reads 50,380,800 stored bytes and reserves the destination before DecodeInt8ConvRot rejects groups above 1,024. Preparation fails where the parent used the host decoder. The installed Ultra header declares 256 for this weight; the 4,096 case was not run."
+      "input": "Start the models lane with moss-elementwise/do (9acbc157a) after its last whole pass. The row selected three names across cuda/executor and latentimage. The first two tests exist only in executor and TestTheMOSSPassFusesWithoutChangingABit only in latentimage. All three have retained passes in their own packages after the row landed.",
+      "expected": "Rank each actual package and test pair using its own retained pass and the row commit. Keep a missing or stale pass first for that pair, including when two packages declare the same name. A passed pair still runs in its normal position in a whole lane. testSteps already lists each package's tests.",
+      "actual": "At f58916f2a, testsOfCheck attaches both packages to each name and passedSince requires a pass from both. No run can supply the three nonexistent pairs. The landing check supplies a synthetic pass for a test in a package that does not declare it. The 32cf1a5d0 lane passed the MOSS fusion draw in 16.754 s. Its pass was retained before the f58916f2a lane, which still ran that draw ahead of the checkpoint tests and spent 22.558 s on it. This is measured time before later checks, not a whole-lane speedup."
     }
   ],
   "master_lead_triage": {
     "at": "2026-11-20",
     "head": "cbdf003cc5e0d974e86a56e8f99bb49b6bdc97a8",
     "findings": {
-  "SQA-453": {
-        "action": "filed",
-        "rows": [
-          "flash-open-fails/do"
-        ],
-        "note": "Updated by the review at 32cf1a5d0 and answered by the lead on 2026-11-21: valid from the source. TestFlashNextRoundIsReadyAtOpen and TestFlashNextWindowRowsAreTheSingleTokenSteps skip on every error opening Flash-Next, so an installed checkpoint that cannot open leaves the read pending where it should fail with its cause; filed as flash-open-fails. flash-bound-read/read lands on the lanes run at 32cf1a5d0, under the runner built there, in which the three tests passed by their named lines (3m20s, 1m54s and 2m1s, each tree at 115.8 GiB, past the old 99.6 GiB bound), the verify reading named lines alone in one run. (Earlier answers at 93888b740, 09ad74436 and 8edb11176: a skip read through its package's line, halves of two runs read as one, an unrelated test's package line.)"
-      },
-  "SQA-455": {
-        "action": "filed",
-        "rows": [
-          "decode-groups/do"
-        ],
-        "note": "Answered by the lead on 2026-11-21 at 32cf1a5d0: valid from the source, a regression of moss-first-run/do (16da0bc21). openStored sends every untransformed BF16 ConvRot binding to the card's exact decode, which turns groups of 4 to 1024 columns, while comfyquant.Find admits any power of 4: a weight rotated in groups of 4096 has its stored bytes read and its place reserved before the decode refuses it, and preparation fails where the host had served it. The installed Ultra file rotates every language weight in groups of 256, so no draw meets it. Filed as decode-groups: the card takes only the groups it turns, read before any payload."
-      },
   "SQA-452": {
         "action": "deferred",
         "rows": [],
@@ -614,7 +586,7 @@
       }
 }
   },
-  "next_finding_number": 456,
+  "next_finding_number": 457,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

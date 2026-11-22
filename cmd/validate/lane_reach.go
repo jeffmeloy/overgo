@@ -47,16 +47,7 @@ func reachedSuites(ctx context.Context, output io.Writer, root, kept string) ([]
 	suites := suitesOf(lanes)
 	// A test passed since its row named it is not taken first again (lanesFirst.passedSince): a commit that git cannot
 	// read as the other or a descendant of it reads as no pass since.
-	passes, since := plan.ReadTestPasses(kept), map[[2]string]bool{}
-	after := func(earlier, later string) bool {
-		pair := [2]string{earlier, later}
-		if answer, read := since[pair]; read {
-			return answer
-		}
-		_, err := gitauthority.Query(ctx, root, "merge-base", "--is-ancestor", earlier, later)
-		since[pair] = earlier == later || err == nil
-		return since[pair]
-	}
+	passes, after := plan.ReadTestPasses(kept), gitSince(ctx, root)
 	// Each lane takes first what the commits since its pass say matters (lanes-first); a lane with no pass kept, or
 	// whose commits cannot be read, runs in its own order.
 	for index, suite := range suites {

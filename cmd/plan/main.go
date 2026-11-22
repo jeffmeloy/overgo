@@ -22,6 +22,7 @@ import (
 	"overgo/internal/extent"
 	"overgo/internal/plan"
 	"overgo/internal/planverify"
+	"overgo/internal/processlock"
 	"overgo/internal/strictjson"
 	"overgo/internal/webuilane"
 )
@@ -146,6 +147,9 @@ func run(c cli, args []string) error {
 			return errors.New("usage: plan -add -from <document> [-before <id>]")
 		}
 		filed, source, err := filedRows(c.from, os.Stdin)
+		if err == nil {
+			err = checksRefused(filed.Items)
+		}
 		if err != nil {
 			return err
 		}
@@ -165,6 +169,9 @@ func run(c cli, args []string) error {
 	case c.setfiles:
 		return editPlan(role, c, args, "files set to "+strings.Join(strings.Fields(strings.ReplaceAll(c.files, ",", " ")), ", "))
 	case c.addstep:
+		if err := verifyRefusal(c.verifyCmd); err != nil {
+			return err
+		}
 		return editPlan(role, c, args, "step added")
 	case c.note:
 		return editPlan(role, c, args, "reasoning added to")
@@ -175,6 +182,9 @@ func run(c cli, args []string) error {
 	case c.add:
 		if len(args) != 1 || strings.TrimSpace(c.title) == "" {
 			return errors.New("usage: plan -add <item-id> -title <title> [-before <id>] [-vcmd <verify>] [-files <a,b>]")
+		}
+		if err := verifyRefusal(c.verifyCmd); err != nil {
+			return err
 		}
 		return addItem(commandWorktree, args[0], c, role)
 	case c.move:
@@ -198,8 +208,8 @@ func run(c cli, args []string) error {
 		if len(args) != extent.PairedExtent || strings.TrimSpace(c.verifyCmd) == "" {
 			return errors.New("usage: plan -setverify <item-id> <step-id> -vcmd <cmd>")
 		}
-		if browserVerifyOutsideLane(c.verifyCmd) {
-			return errors.New("plan: a browser test is evidence only through cmd/webui-lane (outside it the test skips); name the lane with -run and -leg in the verify")
+		if err := verifyRefusal(c.verifyCmd); err != nil {
+			return err
 		}
 		return setStepVerify(commandWorktree, args[0], args[1], c.verifyCmd, role)
 	case c.status:
@@ -699,6 +709,33 @@ FINDINGS park off-scope work: go run ./cmd/finding -h
 		}
 		fmt.Fprintln(output, "BATCH declarations add required acceptance; full gating and parent completion remain mandatory.")
 	}
+}
+
+// verifyRefusal is why a step may not take command as its check, nil where it may: a browser test named outside the
+// lane runner that makes it run, where it skips; or a check that reads a file under the runtime state directory
+// (processlock.StateDirectory) by hand, which the gate's candidate checkout does not hold and whose lines a read's check
+// read wrongly three times (passes-query, SQA-453): the passes the lanes and the landings keep are asked of the tool
+// that keeps them, validate -passed-since.
+func verifyRefusal(command string) error {
+	switch {
+	case browserVerifyOutsideLane(command):
+		return errors.New("plan: a browser test is evidence only through cmd/webui-lane (outside it the test skips); name the lane with -run and -leg in the verify")
+	case strings.Contains(command, processlock.StateDirectory):
+		return fmt.Errorf("plan: a check reads %s by hand, which the gate's candidate checkout does not hold; ask the tool that keeps the records: go run ./cmd/validate -passed-since <commit> <package>.<Test>...", processlock.StateDirectory)
+	}
+	return nil
+}
+
+// checksRefused is the first refusal (verifyRefusal) of the checks the rows' steps take, nil where each may.
+func checksRefused(items []plan.Item) error {
+	for _, item := range items {
+		for _, step := range item.Steps {
+			if err := verifyRefusal(step.Verify); err != nil {
+				return fmt.Errorf("%s/%s: %w", item.ID, step.ID, err)
+			}
+		}
+	}
+	return nil
 }
 
 // browserVerifyOutsideLane: a verify naming a browser acceptance test without the lane runner that makes it run.

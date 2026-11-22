@@ -1,0 +1,92 @@
+//go:build modeltest && windows
+
+package latentimage
+
+import (
+	"encoding/base64"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"sync"
+	"testing"
+
+	"overgo/internal/strictjson"
+	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
+)
+
+// mossPipelineClass is the pipeline class MOSS's catalog entry is kept under (profiles.json).
+const mossPipelineClass = "MOSSImagePipeline"
+
+// statedSections are the MOSS Ultra workflow's six sections' requests as a page sends them
+// (fixtures/comfy/moss-ultra/section_requests.json, moss-section-requests): each section's preset and what the section
+// sets beside it, its picture named as the recorder gave it.
+type statedSections struct {
+	Picture  string                     `json:"picture"`
+	Sections map[string]json.RawMessage `json:"sections"`
+}
+
+// statedRequest is the section's request as section_requests.json states it, filled by its preset as its session
+// fills it (Request.withPreset), its picture the recorder's.
+func statedRequest(t *testing.T, slug string) Request {
+	t.Helper()
+	var stated statedSections
+	testcheck.NoError(t, strictjson.DecodeBytes(testcheck.Must(os.ReadFile(filepath.Join(testutil.RepoRoot(t), "fixtures", "comfy", "moss-ultra", "section_requests.json")))(t), &stated))
+	raw, held := stated.Sections[slug]
+	if !held {
+		t.Fatalf("section_requests.json states no request for %s", slug)
+	}
+	var request Request
+	testcheck.NoError(t, strictjson.DecodeBytes(raw, &request))
+	picture := base64.StdEncoding.EncodeToString(ultraPictureBytes(t))
+	if request.Image == stated.Picture {
+		request.Image = picture
+	}
+	if request.Control != nil && request.Control.Picture == stated.Picture {
+		control := *request.Control
+		control.Picture = picture
+		request.Control = &control
+	}
+	catalog := Catalog{entry: sync.OnceValues(func() (catalogProfile, error) { return lookupCatalogProfile(mossPipelineClass) })}
+	return testcheck.Must(request.withPreset(catalog))(t)
+}
+
+// TestEachSectionStatesTheRequestItsRecordingAsks holds the six sections' stated requests, which the page sends for
+// each section's preset (TestWebUIBrowserMOSSSectionRequests), to the requests the section tests draw from, as each
+// section's recording asks it (workflowSections): each stated request filled by its preset is its section's, member for
+// member. Nothing had held a page's request for a preset to its section's: the depth control section's own request
+// had named its adapter apart from its loader and gone unsharpened where the workflow sharpens it.
+func TestEachSectionStatesTheRequestItsRecordingAsks(t *testing.T) {
+	for _, section := range workflowSections(t) {
+		derived := testcheck.Must(json.Marshal(section.request(t, readComfySection(t, "pass-1", section.slug))))(t)
+		stated := testcheck.Must(json.Marshal(statedRequest(t, section.slug)))(t)
+		if string(stated) != string(derived) {
+			t.Errorf("%s's stated request, filled by its preset, is\n%s\nwhere its recording asks\n%s", section.slug, abridged(stated), abridged(derived))
+		}
+	}
+}
+
+// abridged is a request's JSON with its pictures' bytes cut to their first characters.
+func abridged(request []byte) string {
+	var fields map[string]any
+	if json.Unmarshal(request, &fields) != nil {
+		return string(request)
+	}
+	cut := func(value any) any {
+		if text, ok := value.(string); ok && len(text) > 24 {
+			return text[:24] + "..."
+		}
+		return value
+	}
+	if image, held := fields["image"]; held {
+		fields["image"] = cut(image)
+	}
+	if control, ok := fields["control"].(map[string]any); ok {
+		control["picture"] = cut(control["picture"])
+	}
+	written, err := json.Marshal(fields)
+	if err != nil {
+		return string(request)
+	}
+	return string(written)
+}

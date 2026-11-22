@@ -140,7 +140,6 @@ var goldenCases = []goldenCase{
 		request: func(t *testing.T, recording comfySection) Request {
 			t.Helper()
 			request, _ := depthControlSection(t, recording)
-			request.Sharpen = textSection(t, recording, depthControlSampler, "607", "608", "609").Sharpen
 			return request
 		},
 		control: func(t *testing.T, request Request) Request {

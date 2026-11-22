@@ -3,24 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "moss-section-requests",
-      "title": "The page's request for each of the six MOSS Ultra sections equals the request its section test draws from, checked without the card",
-      "steps": [
-        {
-          "id": "do",
-          "title": "The page's request for each of the six MOSS Ultra sections equals the request its section test draws from, checked without the card",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserMOSSSectionRequests$' -leg moss-section-requests",
-          "files": [
-            "internal/server",
-            "internal/latentimage",
-            "internal/mediacapability",
-            "fixtures/comfy/moss-ultra"
-          ],
-          "rationale": "The owner's review of 2026-11-22, point 1, checked against the code: valid. TestWebUIBrowserMOSSGeneration serves the page through a stand-in executor (newMOSSGenerationFixture) and checks the request it sends field by field: a schedule and sharpening set part by part, a preset's fills shown (denoise 0.72, steps 8, 2368 x 1344 for ultra-image-to-image-turbo). No test compares the whole request the page sends for a section's preset with the request that section's test draws from (latentimage's golden floor and section preset cases), so the page can send a request no section test holds and every test pass.\n\nThe change: each of the six sections' requests (text to image, image to image and depth control, each and its Turbo) is stated once, where its section test reads it; the leg chooses each section's preset on the page, sets what the section's test sets beside it (its prompt, seed and stored picture), sends it, and the stand-in executor must take a request equal to the section's, member for member, with nothing the section leaves out.\n\nCheck: TestWebUIBrowserMOSSSectionRequests, named afresh so it fails before the change."
-        }
-      ]
-    },
-    {
       "id": "moss-prompts-used",
       "title": "A MOSS run reports the prompt and negative prompt it drew from, and the page shows them and offers them back as the manual prompt",
       "steps": [

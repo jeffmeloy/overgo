@@ -28,6 +28,14 @@ var turboFloors = map[string]goldenFloor{
 func turboSection(t *testing.T, recording comfySection, sampler, positive, negative, sharpen, loader string) Request {
 	t.Helper()
 	request := textSection(t, recording, sampler, positive, negative, sharpen)
+	request.Adapters = loaderAdapters(t, recording, loader)
+	return request
+}
+
+// loaderAdapters are the adapters a section's LoRA loader stacks, each switched on at its strength, in the loader's
+// order.
+func loaderAdapters(t *testing.T, recording comfySection, loader string) *[]AppliedAdapter {
+	t.Helper()
 	slots := recording.inputs(loader)
 	var adapters []AppliedAdapter
 	for slot := 1; ; slot++ {
@@ -43,8 +51,7 @@ func turboSection(t *testing.T, recording comfySection, sampler, positive, negat
 	if len(adapters) == 0 {
 		t.Fatalf("the recording's loader %s switches on no adapter: %v", loader, slots)
 	}
-	request.Adapters = &adapters
-	return request
+	return &adapters
 }
 
 // mirroredPicture is a request whose picture, or depth control's picture, is mirrored: the control of a section drawn

@@ -1,0 +1,11 @@
+{
+  "picture": "overgo-recorder-input.png",
+  "sections": {
+    "text-to-image": {"preset": "ultra-text-to-image", "prompt": "", "width": 1024, "height": 576, "seed": 69420},
+    "image-to-image": {"preset": "ultra-image-to-image", "prompt": "", "width": 1024, "height": 576, "seed": 69420, "image": "overgo-recorder-input.png", "denoise": 1},
+    "depth-control": {"preset": "ultra-depth-control", "prompt": "", "width": 1024, "height": 576, "seed": 69420, "control": {"picture": "overgo-recorder-input.png", "strength": 1}},
+    "text-to-image-turbo": {"preset": "ultra-text-to-image-turbo", "prompt": "", "width": 1024, "height": 576, "seed": 69420},
+    "image-to-image-turbo": {"preset": "ultra-image-to-image-turbo", "prompt": "", "width": 1024, "height": 576, "seed": 69420, "image": "overgo-recorder-input.png"},
+    "depth-control-turbo": {"preset": "ultra-depth-control-turbo", "prompt": "", "width": 1024, "height": 576, "seed": 69420, "control": {"picture": "overgo-recorder-input.png", "strength": 1}}
+  }
+}

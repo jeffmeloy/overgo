@@ -114,6 +114,14 @@ func imageControls(directory string, controls []Control) ([]Control, error) {
 			return c.Name == "negative_prompt" && !guided || c.Name == "guidance_scale" || c.Name == "prompt_mode" || adapterControl(c) || slices.Contains(rotaryControls, c.Name)
 		}), nil
 	}
+	// A rotary model draws from an empty prompt, as the MOSS Ultra workflow's sections are saved and recorded, and a
+	// layout's request (prompt mode 3) gives none: its page asks no prompt, where the page had refused each section's
+	// request as its section's test draws it (moss-section-requests).
+	for index := range controls {
+		if controls[index].Name == "prompt" {
+			controls[index].Required = false
+		}
+	}
 	// A rotary model offers the adapters it holds, applied unmerged at a strength of 1 unless the person states one,
 	// and no adapter control where it holds none.
 	adapters, err := latentimage.AdapterNames(directory)

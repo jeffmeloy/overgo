@@ -29,11 +29,13 @@ const depthControlFloor = depthControlMeasured - 3
 const depthControlMeasured = 14.13
 
 // The depth section's nodes (fixtures/comfy/moss-ultra/requests/depth-control.json): its sampler, its control
-// (MOSSImageControl) and its depth estimator (DepthAnythingV2Preprocessor).
+// (MOSSImageControl), its depth estimator (DepthAnythingV2Preprocessor), its LoRA loader and its sharpening.
 const (
 	depthControlSampler   = "443"
 	depthControlNode      = "612:441"
 	depthControlEstimator = "612:438"
+	depthControlLoader    = "668"
+	depthControlSharpen   = "609"
 )
 
 // TestDepthControlMeetsItsSectionFloor holds MOSS's depth control (moss-ultra-sections/depth-control) to the MOSS Ultra
@@ -115,7 +117,8 @@ func depthControlSection(t *testing.T, recording comfySection) (Request, []byte)
 }
 
 // depthControlRequest is the depth section's request as ComfyUI's run asked it, at 1024 x 576 from the recorder's
-// picture, its depth map estimated as the request is drawn (612:438 at depthResolution).
+// picture, its depth map estimated as the request is drawn (612:438 at depthResolution), its adapters its loader's and
+// its finishing's sharpening.
 func depthControlRequest(t *testing.T, recording comfySection) Request {
 	t.Helper()
 	sampler, control, estimator := recording.inputs(depthControlSampler), recording.inputs(depthControlNode), recording.inputs(depthControlEstimator)
@@ -131,8 +134,9 @@ func depthControlRequest(t *testing.T, recording comfySection) Request {
 	end := control["end_percent"].(float64)
 	none := []int{}
 	return Request{Prompt: recording.Texts["607"][0], NegativePrompt: recording.Texts["608"][0], GuidanceScale: &guidance, Width: width, Height: height,
-		Steps: int(sampler["steps"].(float64)), Seed: int64(sampler["seed"].(float64)), Adapter: "moss-control", SkipBlocks: &none,
+		Steps: int(sampler["steps"].(float64)), Seed: int64(sampler["seed"].(float64)), Adapters: loaderAdapters(t, recording, depthControlLoader), SkipBlocks: &none,
 		Schedule: &sampling.Schedule{Sampler: sampling.SamplerERSDE, Name: sampling.ScheduleBongTangent},
 		Control: &DepthControl{Picture: base64.StdEncoding.EncodeToString(ultraPictureBytes(t)), Strength: &strength,
-			Start: control["start_percent"].(float64), End: &end}}
+			Start: control["start_percent"].(float64), End: &end},
+		Sharpen: textSection(t, recording, depthControlSampler, "607", "608", depthControlSharpen).Sharpen}
 }

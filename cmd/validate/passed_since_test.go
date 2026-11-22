@@ -6,8 +6,45 @@ import (
 	"testing"
 	"time"
 
+	"overgo/internal/landing"
 	"overgo/internal/plan"
 )
+
+// TestOneWholeSlowRunIsReadFromTheLanesRecords holds -lanes-passed-at to the lanes' records (slow-whole): it answers
+// where every lane, and every package of a lane run package by package, last passed at the commit named; a run cut to
+// what changed, which passes its lane at the commit while a package it cut keeps an earlier pass, is refused naming
+// that package, and so is a lane whose pass is of another commit, or that has none kept.
+func TestOneWholeSlowRunIsReadFromTheLanesRecords(t *testing.T) {
+	t.Parallel()
+	ended := time.Date(2026, 11, 22, 9, 0, 0, 0, time.UTC)
+	at := func(commit string) plan.LaneRun { return plan.LaneRun{Commit: commit, Passed: true, Ended: ended} }
+	lanes := []landing.CycleLane{
+		{Name: "audio"},
+		{Name: "models", Each: [][]string{{"test", "./internal/inference"}, {"test", "./cmd/evaluate"}}},
+	}
+	whole := map[string]plan.LaneRecord{
+		"audio":  {Last: at("c1"), Passed: at("c1")},
+		"models": {Last: at("c1"), Passed: at("c1"), Packages: map[string]plan.LaneRun{"./internal/inference": at("c1"), "./cmd/evaluate": at("c1")}},
+	}
+	var output bytes.Buffer
+	if err := lanesPassedAt(&output, whole, lanes, "c1"); err != nil || !strings.Contains(output.String(), "models: passed whole at c1, 2 packages") {
+		t.Fatalf("every lane and package passed at c1: %v\n%s", err, output.String())
+	}
+
+	cut := map[string]plan.LaneRecord{
+		"models": {Last: at("c2"), Passed: at("c2"), Packages: map[string]plan.LaneRun{"./internal/inference": at("c2"), "./cmd/evaluate": at("c1")}},
+		"audio":  {Last: at("c1"), Passed: at("c1")},
+	}
+	output.Reset()
+	err := lanesPassedAt(&output, cut, lanes, "c2")
+	if err == nil || !strings.HasSuffix(err.Error(), ": audio, models ./cmd/evaluate") || !strings.Contains(output.String(), "models ./cmd/evaluate: last passed at c1") {
+		t.Fatalf("a run at c2 cut to what changed, and a lane it reached nowhere, are named: %v\n%s", err, output.String())
+	}
+	output.Reset()
+	if err := lanesPassedAt(&output, map[string]plan.LaneRecord{}, lanes, "c1"); err == nil || !strings.Contains(output.String(), "audio: no pass kept") {
+		t.Fatalf("lanes with no pass kept: %v\n%s", err, output.String())
+	}
+}
 
 // TestATestsPassSinceACommitIsReadFromTheKeptPasses holds -passed-since to the passes kept per test
 // (plan.RecordTestPasses): a test whose last pass is at the commit named or after it answers, one whose last pass is

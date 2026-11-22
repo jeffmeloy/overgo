@@ -112,9 +112,9 @@
         "internal/latentimage/int8_merge_windows_model_test.go",
         "internal/latentimage/image_to_image_windows_model_test.go"
       ],
-      "input": "Put the first golden case below its floor, then make a later recording fail to load. Separately, give both adapter precision modes a latent containing +Inf against a finite nonzero reference.",
-      "expected": "Report a failed floor as soon as its case is scored. Require two valid latent comparisons before judging the adapter merge. Preserve +Inf from an exact match of finite inputs with nonzero signal.",
-      "actual": "holdGoldenFloors checks the results only after readGoldenCases returns every case. A later fatal error hides the earlier failing floor. In holdMergedSections, both non-finite inputs can score -Inf, so the comparison accepts -Inf >= -Inf. Both are source counterexamples."
+      "input": "With all six standard recordings available, omit one floor declaration. Separately, put the first case below its floor and make a later recording fail to load or give that later case a hash-matching PNG of half the expected width. For the adapter check, give both precision modes a latent containing +Inf against a finite nonzero reference.",
+      "expected": "In moss-real-prompt/do, check every case has a floor before loading a generator. Report each failed comparison when scored and close that case's generator on every exit, before the next case. Require two valid latent comparisons for the adapter merge. Preserve +Inf for an exact finite match with nonzero signal.",
+      "actual": "holdGoldenFloors checks its declarations after six baseline draws and six controls. A later fatal error hides an earlier floor failure. A wrong-width PNG also makes pictureDecibels call Fatal before readGoldenCases reaches closeReporting, bypassing release of the generator and its directory hold. In holdMergedSections two invalid latents can pass as -Inf >= -Inf. These are source counterexamples. The passing 32cf1a5d0 models lane took 3m56s for the whole standard floor test, including its separate own-size draw."
     },
     {
       "id": "SQA-412",
@@ -271,12 +271,73 @@
       "input": "Start the models lane with moss-elementwise/do (9acbc157a) after its last whole pass. The row selected three names across cuda/executor and latentimage. The first two tests exist only in executor and TestTheMOSSPassFusesWithoutChangingABit only in latentimage. All three have retained passes in their own packages after the row landed.",
       "expected": "Rank each actual package and test pair using its own retained pass and the row commit. Keep a missing or stale pass first for that pair, including when two packages declare the same name. A passed pair still runs in its normal position in a whole lane. testSteps already lists each package's tests.",
       "actual": "At f58916f2a, testsOfCheck attaches both packages to each name and passedSince requires a pass from both. No run can supply the three nonexistent pairs. The landing check supplies a synthetic pass for a test in a package that does not declare it. The 32cf1a5d0 lane passed the MOSS fusion draw in 16.754 s. Its pass was retained before the f58916f2a lane, which still ran that draw ahead of the checkpoint tests and spent 22.558 s on it. This is measured time before later checks, not a whole-lane speedup."
+    },
+    {
+      "id": "SQA-457",
+      "severity": "P2",
+      "files": [
+        "internal/latentimage/comfy_section_windows_model_test.go",
+        "internal/latentimage/golden_floor_windows_model_test.go",
+        "cmd/comfy-reference/record.go",
+        "fixtures/comfy/moss-ultra/requests/text-to-image.json"
+      ],
+      "input": "For moss-real-prompt/do, record mode 3 at the existing 1024 by 576 canvas with 598.seed set to 7 and 450.high_level_description set to \"red fox\". Leave the section template at its committed seed of 69420 and empty description. Read that recording through the standard golden-floor check.",
+      "expected": "Build the comparison request from the inputs ComfyUI actually received. Apply the recorded node-input changes once in readComfySection before the case reads its sampler or builder. Check the reconstructed seed and description before drawing. Keep the rendered prompt previews and output hashes from that same recording.",
+      "actual": "The recorder updates both the posted request and recording.Set. readComfySection loads Set but inputs reads only the base template. textSection therefore uses seed 69420 and the mode-3 case builds an empty description, comparing a different draw to ComfyUI's output. The retained mode-3 recording illustrates the distinction: its selector is 3 while the template's is 1. The seed and description mismatch follows from source at bb918937d; no changed-input comparison was run."
+    },
+    {
+      "id": "SQA-458",
+      "severity": "P2",
+      "files": [
+        "cmd/loop/lanes_on_close.go",
+        "cmd/validate/main.go",
+        "cmd/validate/lane_reach.go",
+        "cmd/validate/run.go"
+      ],
+      "input": "Start slow-whole/do in a clean checkout. While its models lane runs, start the row-close checks for the same commit, model inputs and machine. Interrupt the row-close process after named tests pass and before the models lane ends. Query those tests with validate -passed-since for that commit.",
+      "expected": "Use the full run for both obligations when their identities match. Keep completed individual passes queryable at their commit after interruption, using the existing pass record and batched writes. A partial run can answer individual test queries. Only a completed full run can satisfy slow-whole/do.",
+      "actual": "Only the row-close runner takes lanes.lock. At bb918937d both validators ran the same 325 package/test selections. Their summed test-process times were 74m37s in the row-close run and 74m29s in the full run. In 234 GPU waits naming only the full run, the row-close run waited 57m30s. It exited after 2h42m22s with only exit status 1. Ten explicit passes (57m19s of test time) still queried at older commits after exit, including both MOSS checkpoints. executeMeasured buffers reports until keepLaneRun at lane end. The full run subsequently published those passes. The measured times describe separate runs and waits; end-to-end savings are unmeasured."
+    },
+    {
+      "id": "SQA-459",
+      "severity": "P2",
+      "files": [
+        "cmd/loop/replay.go",
+        "cmd/loop/replay_windows_model_test.go",
+        "internal/dataroot/dataroot.go",
+        "cmd/loop/improve.go"
+      ],
+      "input": "Run slow-whole/do from a clean linked checkout with valid data roots and no local-models.json. TestLandedStepsReplayForAWorker prepares its child checkout through moveWithRoots. A second case uses a checkout-relative models override with no environment override.",
+      "expected": "Use the caller's effective data roots in the replay checkout and historical checks. dataroot.ResolveEnvironment already binds those roots for validateTo. Preserve explicit overrides and errors for invalid settings. The optional file's absence should require no manual copy, and a relative path should keep identifying the same directory.",
+      "actual": "At bb918937d the full run passed four of five lanes. Its sole named failure was TestLandedStepsReplayForAWorker: after 23.56s it reported that the clean checkout's local-models.json was missing (replay_windows_model_test.go:47). moveWithRoots moves the tree, then requires the ignored file, although dataroot.Resolve accepts its absence. When the file exists, copying its bytes also resolves a relative override against the child directory. That second case follows from source. The checkout contained a copy after the recorded failure."
     }
   ],
   "master_lead_triage": {
-    "at": "2026-11-20",
-    "head": "cbdf003cc5e0d974e86a56e8f99bb49b6bdc97a8",
+    "at": "2026-11-22",
+    "head": "bb918937d1be84a9c9c3cd66834146f01a842463",
     "findings": {
+  "SQA-459": {
+        "action": "deferred",
+        "rows": [],
+        "note": "Answered by the lead on 2026-11-22 at bb918937d: valid, met in slow-whole/do's run (TestLandedStepsReplayForAWorker failed after 23.56 s on the clean checkout's missing local-models.json, moveWithRoots requiring the ignored file dataroot.Resolve does without; with the trunk's copied in, the models lane cut to cmd/loop passed its 82 tests, the replay in 32.6 s). A clean checkout's setup, not the workflow's time, and the runner's own checkout carries the file, so deferred with the lanes' rows the campaign set aside."
+      },
+  "SQA-458": {
+        "action": "deferred",
+        "rows": [],
+        "note": "Answered by the lead on 2026-11-22 at bb918937d: valid as measured by the lead in slow-whole/do (the runner's run at bb918937d, cut by reach but near whole, took the card test by test beside the full run until the lead ended it at 03:08, its passes buffered to its lane's end and lost; the full run published them). A whole run is slow-whole's once, and the runner's run at a commit no newer one replaces is the cycle's own, so sharing one run between them is the lanes' change, deferred with SQA-456 to the lanes' rows the campaign set aside."
+      },
+  "SQA-457": {
+        "action": "filed",
+        "rows": [
+          "moss-real-prompt/do"
+        ],
+        "note": "Answered by the lead on 2026-11-22 at bb918937d: valid from source (readComfySection unmarshals the recording, whose Set holds the node inputs the recorder changed, and then the base request template, and inputs reads the template alone, so a recording that sets the seed or the builder's description is compared with a draw of the template's). It concerns the recordings moss-real-prompt/do makes, so filed with that row, which applies the recorded inputs before a case reads them."
+      },
+  "SQA-456": {
+        "action": "deferred",
+        "rows": [],
+        "note": "Answered by the lead on 2026-11-22 at bb918937d: valid from source (testsOfCheck gives each name every package the check names, so passedSince asks a pass of a pair that does not exist and keeps the test first; 22.558 s of one lane's order measured). A lane's order, not the workflow's time, so deferred with the lanes' rows the campaign set aside."
+      },
   "SQA-449": {
         "action": "deferred",
         "rows": [],
@@ -391,7 +452,7 @@
       }
 }
   },
-  "next_finding_number": 457,
+  "next_finding_number": 460,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

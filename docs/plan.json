@@ -3,26 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "slow-whole",
-      "title": "At the commit the workflow reaches parity at, one whole slow run passes: every lane, every package, run to its end without yielding",
-      "steps": [
-        {
-          "id": "do",
-          "title": "At the commit the workflow reaches parity at, one whole slow run passes: every lane, every package, run to its end without yielding",
-          "verify": "go run ./cmd/validate -lanes-passed-at \"$(git rev-parse HEAD)\"",
-          "files": [
-            "cmd/validate",
-            "internal/plan"
-          ],
-          "needs_card": true,
-          "rationale": "Note: The owner's review of 2026-11-20, point 1, checked against the lanes log and the code: valid. A cycle's run yields at a package boundary to a newer commit that closed a row (lanes-first/yield), and the models lane runs the changed models' tests first (lanesFirst), so internal/inference, cmd/evaluate and internal/evaluation, which failed at the old memory bound, come late in a run and are not reached while rows keep closing: the cycle at 4586266fe, begun at 17:19 on 2026-11-20, runs its models lane's 2,347 tests one at a time with two newer commits already due, so it yields before those packages' turn. No cycle has passed whole since f46760944's failed on 2026-11-19 (d0eaf0f9a and 9b40546f8 ended at the commit-free bound, 28390a169's ran 10 h 54 min at the 99.6 GiB bound, its Flash-Next and evaluation tests ending there), and flash-next-bound's limit (5ba4dfb1f, the commit limit or twice the machine's memory) has no run of those tests behind it. The step runs the slow tests whole at the commit the clock first reads the warm workflow at ComfyUI's 34.41 s (validate -run -lanes, no newer commit named, the card's turn taken package by package), reads each failure as it is logged and settles it, and lands once every lane and every package of the models lane last passed at that commit; its check (validate -lanes-passed-at, built here, reading the trunk's lane records, lane_runs.json) refuses a lane or a package whose last pass is of another commit. It stands last among the speed rows, so nobody has to remember it.",
-          "depends_on": [
-            "moss-first-run/clock"
-          ]
-        }
-      ]
-    },
-    {
       "id": "moss-encoder-own",
       "title": "MOSS's conditioning is ComfyUI's own: the text model's ConvRot weights decoded as ComfyUI's card decodes them, its states held to ComfyUI's at the agreement read, and the encoder's share of text to image's latent agreement placed",
       "steps": [

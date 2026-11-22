@@ -81,22 +81,35 @@ func (c *modelConditioner) openStored() error {
 		return err
 	}
 	view := comfyLanguageView(stored)
-	decoded := map[string]string{}
-	for _, binding := range c.catalog.Bindings() {
-		if len(binding.Transforms) != 0 || binding.TargetStorage != gguf.DTypeBF16.String() {
-			continue
-		}
-		if _, quantized, err := comfyquant.Find(view, binding.Source); err != nil {
-			return errors.Join(err, stored.Close())
-		} else if quantized {
-			decoded[binding.Target] = binding.Source
-		}
-	}
-	if len(decoded) == 0 {
-		return stored.Close()
+	decoded, err := cardDecoded(view, c.catalog.Bindings())
+	if err != nil || len(decoded) == 0 {
+		return errors.Join(err, stored.Close())
 	}
 	c.stored, c.decoded = view, decoded
 	return nil
+}
+
+// cardDecoded names, by its target, each binding the card decodes from its int8 rows, with the source it reads: an
+// untransformed BF16 binding whose source the stored view holds in int8 ConvRot rotated in groups the card's exact
+// decode turns (executor.DecodesInt8ConvRotGroup), each read from the weight's comfy_quant record alone, so no payload
+// is read for one the card cannot decode, which the catalog's host decode reads (decode-groups, SQA-455): comfyquant
+// admits any power of 4, and a weight rotated in groups of 4096 had its 50 MB of rows read and its place reserved before
+// the card's decode refused it, failing the prompt the host decode had served.
+func cardDecoded(stored *safetensors.Source, bindings []hfgguf.TensorBinding) (map[string]string, error) {
+	decoded := map[string]string{}
+	for _, binding := range bindings {
+		if len(binding.Transforms) != 0 || binding.TargetStorage != gguf.DTypeBF16.String() {
+			continue
+		}
+		weight, quantized, err := comfyquant.Find(stored, binding.Source)
+		if err != nil {
+			return nil, err
+		}
+		if quantized && executor.DecodesInt8ConvRotGroup(weight.Group()) {
+			decoded[binding.Target] = binding.Source
+		}
+	}
+	return decoded, nil
 }
 
 // convRot is the int8 ConvRot weight the encoder's file holds for the catalog's weight named, where the catalog reads

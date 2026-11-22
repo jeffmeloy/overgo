@@ -3,22 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "decode-groups",
-      "title": "The encoder's card decode takes only the ConvRot weights whose groups it turns, and every other one is read on the host as before",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A ConvRot weight whose group the card's exact decode does not turn is bound from the catalog, its stored bytes never read for the card",
-          "verify": "go test ./internal/latentimage -count=1 -run '^TestAnEncoderWeightTheCardCannotTurnIsReadOnTheHost$'",
-          "files": [
-            "internal/latentimage",
-            "internal/cuda/executor"
-          ],
-          "rationale": "SQA-455 (P2), filed by the review at 32cf1a5d0 and answered by the lead on 2026-11-21: valid from the source, a regression of moss-first-run/do (16da0bc21). openStored sends every untransformed BF16 ConvRot binding to the card, while the card's exact decode turns groups of 4 to 1024 columns and comfyquant.Find admits any power of 4: a weight rotated in groups of 4096 has its 50 MB of stored bytes read and its place reserved before DecodeInt8ConvRot refuses it, and the prompt's preparation fails where the host decode had served it. The installed Ultra file rotates every language weight in groups of 256, so no draw has met it. The cure selects for the card only the groups its decode turns, read from the weight's declared group before any payload, and leaves every other to the catalog's host path; the check builds such a weight and holds it to the host path, the 256-wide one beside it to the card."
-        }
-      ]
-    },
-    {
       "id": "flash-open-fails",
       "title": "A Flash-Next check whose installed checkpoint cannot open fails with the open's cause, and only a missing checkpoint is skipped",
       "steps": [

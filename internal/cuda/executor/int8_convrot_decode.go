@@ -28,7 +28,7 @@ type Int8ConvRotDecode struct {
 func (e *Executor) DecodeInt8ConvRot(state *device.State, decode Int8ConvRotDecode) error {
 	rows, inner, group := uint64(decode.Rows), uint64(decode.Inner), uint64(decode.Group)
 	elements := rows * inner
-	if rows == 0 || !int8ConvRotDecodedGroup(group) || inner%group != 0 || elements/group > 1<<31-1 ||
+	if rows == 0 || !DecodesInt8ConvRotGroup(group) || inner%group != 0 || elements/group > 1<<31-1 ||
 		uint64(len(decode.Stored)) != elements+4*rows || decode.Output == 0 {
 		return fmt.Errorf("int8 ConvRot decode of %d x %d in groups of %d over %d stored bytes is not a weight the decode takes", rows, inner, group, len(decode.Stored))
 	}
@@ -49,8 +49,9 @@ func (e *Executor) DecodeInt8ConvRot(state *device.State, decode Int8ConvRotDeco
 		&work, &scales, &output, &innerArgument, &rowsArgument, &groupArgument)
 }
 
-// int8ConvRotDecodedGroup says the card's exact decode turns a group of that width: a power of 4 from 4 to 1024.
-func int8ConvRotDecodedGroup(group uint64) bool {
+// DecodesInt8ConvRotGroup says the card's exact decode (DecodeInt8ConvRot) turns a group of that width: a power of 4
+// from 4 to 1024, where comfyquant admits any power of 4.
+func DecodesInt8ConvRotGroup(group uint64) bool {
 	for width := uint64(4); width <= int8ConvRotLargestGroup; width *= 4 {
 		if group == width {
 			return true

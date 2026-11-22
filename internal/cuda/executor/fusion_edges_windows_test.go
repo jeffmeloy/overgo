@@ -249,6 +249,40 @@ type chainRun struct {
 // fusionViewOffset places a device view of an input 4 bytes into its allocation, which the card aligns to 256.
 const fusionViewOffset = 4
 
+// TestEveryFusionKindHasAnEdgeCase refuses, without the card, a fusion kind no edge case folds (fusion-edges-all):
+// each case's chain, compiled as its model builds it, folds what the case is named for as many times as it says, so
+// no part of a chain goes unheld unfolded, and every kind below compiledFusionKinds is folded by some case's chain, as
+// a launch or as the prologue an int8 product computes. A fusion added without a case is refused here in seconds, where
+// the card test would have passed it unheld: of 31 kinds, fusion-edges had held MOSS's alone, and nine of the rest no
+// test named.
+func TestEveryFusionKindHasAnEdgeCase(t *testing.T) {
+	t.Parallel()
+	folded := map[compiledFusionKind]bool{}
+	for _, fusion := range fusionCases() {
+		g := newChainGraph(func(string, dtype.Type, uint64, uint64) driver.DevicePtr { return 0 })
+		chain := fusion.build(g, false)
+		testcheck.NoError(t, g.Err())
+		compiled := testcheck.Must(Compile(chain.outputs...))(t)
+		named := 0
+		for _, frame := range compiled.nodes {
+			for launched := frame.fusion; launched != nil; launched = launched.prologue {
+				folded[launched.kind] = true
+				if fusion.folds(launched) {
+					named++
+				}
+			}
+		}
+		if named != fusion.count {
+			t.Errorf("%s's chain, as its model builds it, folds %d times as it is named, want %d", fusion.name, named, fusion.count)
+		}
+	}
+	for kind := compiledFusionKind(1); kind < compiledFusionKinds; kind++ {
+		if !folded[kind] {
+			t.Errorf("fusion kind %d is folded by no edge case's chain; give it one in fusionCases, built as its model builds it", kind)
+		}
+	}
+}
+
 // TestEachFusionMatchesItsChainWhereTheyCouldPart holds each fusion to its chain launched step by step, bit for bit, as
 // matchesUnfused does, at the conditions that can tell them apart (fusion-edges, fusion-edges-all): as its model builds
 // it, where it folds; with each intermediate the fusion leaves unstored read by a second reader too; with every F32

@@ -957,6 +957,9 @@ const (
 	// compiledFusionMOSSSituHalves is a MOSS SiTU of a product's halves (tensor.OpMOSSSituHalves) as an int8 product's
 	// prologue computes it (applyInt8PrologueRewrite), its one operand the product.
 	compiledFusionMOSSSituHalves
+	// compiledFusionKinds follows the last kind, so every kind lies below it: a kind no edge case folds is refused
+	// without the card (TestEveryFusionKindHasAnEdgeCase).
+	compiledFusionKinds
 )
 
 type compiledFusion struct {

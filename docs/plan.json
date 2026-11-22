@@ -3,21 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "fusion-edges-all",
-      "title": "Every fused kernel any model runs is held to its chain launched step by step where they could part, and a fusion kind with no case is refused in seconds",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Every fused kernel any model runs is held to its chain launched step by step where they could part, and a fusion kind with no case is refused in seconds",
-          "verify": "go test ./internal/cuda/executor -count=1 -run '^TestEveryFusionKindHasAnEdgeCase$'",
-          "files": [
-            "internal/cuda"
-          ],
-          "rationale": "Note: The owner's review of 2026-11-20 (after fusion-edges), point 1, checked against the executor: valid. Of its 31 fusion kinds (compiledFusionKind at 8c32dad22), the nine MOSS's denoiser makes are held to their chains where they could part (TestEachMOSSFusionMatchesItsChainWhereTheyCouldPart: a second reader of an intermediate, every F32 input a device view aligned to 4 bytes and not 16, shapes beyond the kernels' own), which found two int8 epilogues reading their inputs four floats at a time from addresses they did not check. Of the other 21, which serve the text models, Krea and video (the BF16 attention, linear, gate, projection-add and append, the Q8 pair and its peer, the Q8 gated add, the weighted RMS norms and their gate, the activated gate, the GELU tanh, the layer-norm modulate, the stream sum and combine, the scaled activation, the rope append and the BF16 and Q8 argmax stages), twelve are held where at all at the one condition their model makes, and no test names the other nine. The row widens fusion-edges' table to every kind, each chain built as its model builds it, at the same three conditions and the kind's own edges (a cache's last slot, a batch of one, a quantized block's tail), holds each to its chain bit for bit, and fixes what fails in the row; a card-free rule refuses a kind the table has no case for (a sentinel after the last kind, the table's kinds compared with every value below it), so a new fusion cannot land unheld. Filed after the MOSS rows: it serves no section of the workflow, and its faults, where it finds any, wait in other models' paths.\n\nNote: files set to internal/cuda, kernels, internal/latentimage/fusion_latent_windows_model_test.go: The edge table takes every kind, so TestEachMOSSFusionMatchesItsChainWhereTheyCouldPart becomes TestEachFusionMatchesItsChainWhereTheyCouldPart, and fusion_latent_windows_model_test.go's comment names the MOSS test.\n\nNote: files set to internal/cuda: After edges lands the table and the kernel fix, do adds the sentinel after the last fusion kind and the card-free rule over the table."
-        }
-      ]
-    },
-    {
       "id": "moss-section-requests",
       "title": "The page's request for each of the six MOSS Ultra sections equals the request its section test draws from, checked without the card",
       "steps": [

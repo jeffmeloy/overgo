@@ -106,7 +106,7 @@ func TestServedMossCompletesEveryUltraSection(t *testing.T) {
 		if len(picture.Data) == 0 {
 			t.Fatalf("%s drew no picture on SFT", section.name)
 		}
-		latent, finished := decibelsOverSquares(final.Data, recording.latent(t, section.sampler)), pictureDecibels(t, picture.Data, recording.picture(t, section.finished))
+		latent, finished := decibelsOverSquares(t, final.Data, recording.latent(t, section.sampler)), pictureDecibels(t, picture.Data, recording.picture(t, section.finished))
 		band.latentLow, band.latentHigh = min(band.latentLow, latent), max(band.latentHigh, latent)
 		band.pictureLow, band.pictureHigh = min(band.pictureLow, finished), max(band.pictureHigh, finished)
 		t.Logf("%s on SFT: the final latent keeps %.2f dB of the golden's, the finished picture %.2f dB over %d-pixel squares", section.name, latent, finished, pictureSquare)

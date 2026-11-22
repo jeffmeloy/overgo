@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/binary"
 	"math"
-	"slices"
 	"testing"
 
 	cudatest "overgo/internal/cuda/testutil"
@@ -14,23 +13,25 @@ import (
 )
 
 // ultraConditioningSHA256 is the SHA-256 of the MOSS Ultra workflow's text to image conditioning, its prompt's hidden
-// rows and then its negative prompt's as little-endian F32 bits, as overgo encoded it at 93888b740, where the host
-// decoded each of the encoder's int8 ConvRot weights (comfyquant.DecodeRow).
-const ultraConditioningSHA256 = "4b3428732aca2b4b344a6608ba05ec44994a1a7dead88b9d961a54d1415163a8"
+// rows and then its negative prompt's as little-endian F32 bits, as overgo encodes it since ce8b3ccfb in ComfyUI's
+// arithmetic, in F32 over weights decoded into F32 (moss-encoder-own), which TestTheUltraEncoderConditionsAsComfyUIDoes
+// holds within 1e-4 of ComfyUI's. At 93888b740, in Transformers' BF16 arithmetic over weights the host decoded
+// (comfyquant.DecodeRow), it hashed 4b342873; the card's decode is held to the host's float32 stages bit for bit
+// (executor's TestTheCardDecodesConvRotAsTheHost).
+const ultraConditioningSHA256 = "a4770c327e0bdd05ebe71fdd93e7d3d5cdcdcabd03ed6fcd7b077707403bea33"
 
 // TestTheUltraEncoderDecodesItsWeightsOnTheCard holds the MOSS Ultra encoder's preparation to its weights' int8 ConvRot
 // rows (moss-first-run/do): a session's first preparation of the workflow's text to image request, which places the
 // encoder's weights block by block, copies to the card under three fifths of the BF16 bytes those weights decode to,
-// its ConvRot weights decoded there from their int8 rows and scales, and its conditioning is the host decode's, bit
-// for bit (ultraConditioningSHA256). The host had decoded them on one core and copied each at twice its stored bytes:
+// its ConvRot weights decoded there from their int8 rows and scales, and its conditioning is the one pinned, bit for
+// bit (ultraConditioningSHA256). The host had decoded them on one core and copied each at twice its stored bytes:
 // 51 s of the workflow's first run went to that preparation, 41 s of it to the decode (moss-first-run/quiet's split).
 func TestTheUltraEncoderDecodesItsWeightsOnTheCard(t *testing.T) {
 	cudatest.Require(t)
 	ctx := t.Context()
 	root := ultraModelRoot(t)
 	profile := testcheck.Must(ResolveProfile(root))(t)
-	at := slices.IndexFunc(goldenCases, func(golden goldenCase) bool { return golden.name == "text to image" })
-	request := goldenCases[at].request(t, readComfySection(t, "pass-1", "text-to-image"))
+	request := workflowTextToImage(t, readComfySection(t, "pass-1", "text-to-image"))
 	generator := testcheck.Must(LoadGenerator(ctx, root, profile, request))(t)
 	defer closeReporting(t, context.WithoutCancel(ctx), generator)
 	before := testcheck.Must(generator.rotary.runtime.Stats(ctx))(t).Execution.HostToDeviceBytes

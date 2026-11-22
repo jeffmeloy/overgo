@@ -110,8 +110,9 @@ func TestTheUltraRecordingsAgreeAndParseStrictly(t *testing.T) {
 	if titles := ultra.titles(); len(titles) != 6 {
 		t.Fatalf("the workflow has sections %v; want its six", titles)
 	}
-	for _, section := range ultra.titles() {
-		first, second := read("pass-1", section), read("pass-2", section)
+	// agree holds two recordings of one section and its inputs to one request, one install and the same output bytes.
+	agree := func(section string, first, second recorded) {
+		t.Helper()
 		if !maps.EqualFunc(first.Sigmas, second.Sigmas, slices.Equal) {
 			t.Errorf("%s: the two recordings sampled by %v and %v; want the same sigmas", section, first.Sigmas, second.Sigmas)
 		}
@@ -141,6 +142,15 @@ func TestTheUltraRecordingsAgreeAndParseStrictly(t *testing.T) {
 			}
 		}
 	}
+	for _, section := range ultra.titles() {
+		agree(section, read("pass-1", section), read("pass-2", section))
+	}
+	// Text to image and its Turbo section on a real prompt, and prompt mode 3 with the builder filled, each recorded
+	// twice (moss-real-prompt).
+	for _, section := range []string{"TEXT TO IMAGE", "TEXT TO IMAGE TURBO"} {
+		agree(section+" on the real prompt", read("real-1", section), read("real-2", section))
+	}
+	agree("prompt mode 3 with the builder filled", read("builder-1", "TEXT TO IMAGE"), read("builder-2", "TEXT TO IMAGE"))
 	speed := read("own-size", "TEXT TO IMAGE")
 	if len(speed.Set) != 0 {
 		t.Errorf("the speed recording set %v; want the workflow's own size, nothing set", speed.Set)
@@ -162,6 +172,8 @@ const promptMode = "483.value"
 
 // recordingFiles are the recordings the test reads, each named whole, as every fixture is by its reader.
 var recordingFiles = []string{
+	"fixtures/comfy/moss-ultra/recordings/builder-1/text-to-image.json",
+	"fixtures/comfy/moss-ultra/recordings/builder-2/text-to-image.json",
 	"fixtures/comfy/moss-ultra/recordings/mode-2/text-to-image.json",
 	"fixtures/comfy/moss-ultra/recordings/mode-3/text-to-image.json",
 	"fixtures/comfy/moss-ultra/recordings/own-size/text-to-image.json",
@@ -177,6 +189,10 @@ var recordingFiles = []string{
 	"fixtures/comfy/moss-ultra/recordings/pass-2/image-to-image.json",
 	"fixtures/comfy/moss-ultra/recordings/pass-2/text-to-image-turbo.json",
 	"fixtures/comfy/moss-ultra/recordings/pass-2/text-to-image.json",
+	"fixtures/comfy/moss-ultra/recordings/real-1/text-to-image-turbo.json",
+	"fixtures/comfy/moss-ultra/recordings/real-1/text-to-image.json",
+	"fixtures/comfy/moss-ultra/recordings/real-2/text-to-image-turbo.json",
+	"fixtures/comfy/moss-ultra/recordings/real-2/text-to-image.json",
 }
 
 // sortedCommits are a recording's commits as folder=commit lines, sorted.

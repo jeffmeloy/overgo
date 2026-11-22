@@ -76,7 +76,7 @@ func TestMOSSAttentionTakesHalfItsTime(t *testing.T) {
 	native := (nativeSix.wall - sample(2, false).wall) / 4
 	registersSix := sample(6, true)
 	registers := (registersSix.wall - sample(2, true).wall) / 4
-	latentAgreement, pictureAgreement := decibelsOverSquares(registersSix.latent, nativeSix.latent), pictureDecibels(t, registersSix.picture, nativeSix.picture)
+	latentAgreement, pictureAgreement := decibelsOverSquares(t, registersSix.latent, nativeSix.latent), pictureDecibels(t, registersSix.picture, nativeSix.picture)
 	t.Logf("a conditional pass at %dx%d: %v with the native attention, %v with it in registers; the same seed's latent agrees to %.2f dB, its picture to %.2f dB",
 		request.Width, request.Height, native.Round(time.Millisecond), registers.Round(time.Millisecond), latentAgreement, pictureAgreement)
 	if saved := native - registers; float64(saved) < attentionShare/2*float64(native) {

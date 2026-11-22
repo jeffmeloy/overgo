@@ -1,0 +1,403 @@
+{
+  "workflow_sha256": "60bf094f438d07deda059b85eefc305fe519b289e7cfe62abfe12792526a0e4a",
+  "section": "TEXT TO IMAGE",
+  "request_sha256": "1e5c8d8cf6fb3165a15c840cbcfb449d061aa81f9b537b1b348919ae272485f5",
+  "set": {
+    "459.value": "A red fox sitting in fresh snow at the edge of a birch forest at dawn, soft golden light on its fur, its breath visible in the cold air",
+    "670.megapixels": 0.5625
+  },
+  "comfyui_version": "0.42.0",
+  "commits": {
+    ".": "7cebca52227c63b4180ceed448cbd7ad22903b6d",
+    "custom_nodes/ComfyUI-KJNodes": "ab72eda7ffad6280422d71ab7d54d3fb87c0ba18",
+    "custom_nodes/ComfyUI-Manager": "4c50a2bc8b9e684d8a85930567957470b952bebe",
+    "custom_nodes/RES4LYF": "6780724de0ddb98e7454d54bb80387836a911ece",
+    "custom_nodes/comfyui_controlnet_aux": "a587a4c1594524c1d2de5cd1a86cd868ff448e1c",
+    "custom_nodes/rgthree-comfy": "bc48c6aaeca87bedbc14245d89f9bc6be37a630e"
+  },
+  "models": [
+    {
+      "node": "1",
+      "input": "unet_name",
+      "folder": "diffusion_models",
+      "name": "moss_image_base_int8_convrot.safetensors",
+      "sha256": "f601c1e1161915fb3fea003da0c1782e374dd960fbb3978bc0e4e3fa1f2d8e6f"
+    },
+    {
+      "node": "2",
+      "input": "clip_name",
+      "folder": "text_encoders",
+      "name": "Qwen3.5-9B-abliterated_int8_convrot.safetensors",
+      "sha256": "e7ba909fd9d9e2557eb566e00ffb34226706f3e7425dc3f187246382edc282f6"
+    },
+    {
+      "node": "3",
+      "input": "vae_name",
+      "folder": "vae",
+      "name": "flux2-vae_small.safetensors",
+      "sha256": "d8d52ba036475f5fb07c8b435e176d3d97ebfa82f0d1a1c317f9cc1e25bd013b"
+    }
+  ],
+  "prompt_id": "212b7aae-d02c-4a8d-af53-7b5f0d895350",
+  "milliseconds": 13007,
+  "peak_card_bytes": 22674716749,
+  "sigmas": {
+    "598": [
+      1,
+      0.9972407817840576,
+      0.9943000674247742,
+      0.9911596775054932,
+      0.9877990484237671,
+      0.9841945767402649,
+      0.9803193211555481,
+      0.976142406463623,
+      0.9716281890869141,
+      0.9667351841926575,
+      0.9614152908325195,
+      0.9556121230125427,
+      0.9492592215538025,
+      0.942278265953064,
+      0.9345757365226746,
+      0.9260401129722595,
+      0.9165371060371399,
+      0.9059043526649475,
+      0.8939446806907654,
+      0.8804175853729248,
+      0.865028977394104,
+      0.8474193215370178,
+      0.8271505236625671,
+      0.8036947846412659,
+      0.7764295935630798,
+      0.7446503639221191,
+      0.7076191902160645,
+      0.6646791696548462,
+      0.6154629588127136,
+      0.5601956248283386,
+      0.5,
+      0.43925926089286804,
+      0.3812241852283478,
+      0.3279404640197754,
+      0.2804907560348511,
+      0.2390919178724289,
+      0.20338986814022064,
+      0.17275124788284302,
+      0.14646469056606293,
+      0.12385084480047226,
+      0.10430954396724701,
+      0.08733189105987549,
+      0.07249562442302704,
+      0.0594540573656559,
+      0.047923654317855835,
+      0.037672534584999084,
+      0.02851058356463909,
+      0.020281312987208366,
+      0.012855276465415955,
+      0.006124838255345821,
+      0
+    ]
+  },
+  "progress": {
+    "598": [
+      {
+        "value": 1,
+        "max": 50,
+        "us": 5167620
+      },
+      {
+        "value": 2,
+        "max": 50,
+        "us": 5294085
+      },
+      {
+        "value": 3,
+        "max": 50,
+        "us": 5425331
+      },
+      {
+        "value": 4,
+        "max": 50,
+        "us": 5568066
+      },
+      {
+        "value": 5,
+        "max": 50,
+        "us": 5716492
+      },
+      {
+        "value": 6,
+        "max": 50,
+        "us": 5862526
+      },
+      {
+        "value": 7,
+        "max": 50,
+        "us": 6009505
+      },
+      {
+        "value": 8,
+        "max": 50,
+        "us": 6152438
+      },
+      {
+        "value": 9,
+        "max": 50,
+        "us": 6301455
+      },
+      {
+        "value": 10,
+        "max": 50,
+        "us": 6454995
+      },
+      {
+        "value": 11,
+        "max": 50,
+        "us": 6598989
+      },
+      {
+        "value": 12,
+        "max": 50,
+        "us": 6744269
+      },
+      {
+        "value": 13,
+        "max": 50,
+        "us": 6893187
+      },
+      {
+        "value": 14,
+        "max": 50,
+        "us": 7041761
+      },
+      {
+        "value": 15,
+        "max": 50,
+        "us": 7185061
+      },
+      {
+        "value": 16,
+        "max": 50,
+        "us": 7333595
+      },
+      {
+        "value": 17,
+        "max": 50,
+        "us": 7483864
+      },
+      {
+        "value": 18,
+        "max": 50,
+        "us": 7627238
+      },
+      {
+        "value": 19,
+        "max": 50,
+        "us": 7778442
+      },
+      {
+        "value": 20,
+        "max": 50,
+        "us": 7928490
+      },
+      {
+        "value": 21,
+        "max": 50,
+        "us": 8073487
+      },
+      {
+        "value": 22,
+        "max": 50,
+        "us": 8217671
+      },
+      {
+        "value": 23,
+        "max": 50,
+        "us": 8364183
+      },
+      {
+        "value": 24,
+        "max": 50,
+        "us": 8513067
+      },
+      {
+        "value": 25,
+        "max": 50,
+        "us": 8667698
+      },
+      {
+        "value": 26,
+        "max": 50,
+        "us": 8808914
+      },
+      {
+        "value": 27,
+        "max": 50,
+        "us": 8955237
+      },
+      {
+        "value": 28,
+        "max": 50,
+        "us": 9106936
+      },
+      {
+        "value": 29,
+        "max": 50,
+        "us": 9266544
+      },
+      {
+        "value": 30,
+        "max": 50,
+        "us": 9402408
+      },
+      {
+        "value": 31,
+        "max": 50,
+        "us": 9553380
+      },
+      {
+        "value": 32,
+        "max": 50,
+        "us": 9697137
+      },
+      {
+        "value": 33,
+        "max": 50,
+        "us": 9845021
+      },
+      {
+        "value": 34,
+        "max": 50,
+        "us": 9988845
+      },
+      {
+        "value": 35,
+        "max": 50,
+        "us": 10140460
+      },
+      {
+        "value": 36,
+        "max": 50,
+        "us": 10284383
+      },
+      {
+        "value": 37,
+        "max": 50,
+        "us": 10437781
+      },
+      {
+        "value": 38,
+        "max": 50,
+        "us": 10584140
+      },
+      {
+        "value": 39,
+        "max": 50,
+        "us": 10735909
+      },
+      {
+        "value": 40,
+        "max": 50,
+        "us": 10878783
+      },
+      {
+        "value": 41,
+        "max": 50,
+        "us": 11046940
+      },
+      {
+        "value": 42,
+        "max": 50,
+        "us": 11175367
+      },
+      {
+        "value": 43,
+        "max": 50,
+        "us": 11323531
+      },
+      {
+        "value": 44,
+        "max": 50,
+        "us": 11469940
+      },
+      {
+        "value": 45,
+        "max": 50,
+        "us": 11621604
+      },
+      {
+        "value": 46,
+        "max": 50,
+        "us": 11765527
+      },
+      {
+        "value": 47,
+        "max": 50,
+        "us": 11912114
+      },
+      {
+        "value": 48,
+        "max": 50,
+        "us": 12071802
+      },
+      {
+        "value": 49,
+        "max": 50,
+        "us": 12219081
+      },
+      {
+        "value": 50,
+        "max": 50,
+        "us": 12360656
+      }
+    ]
+  },
+  "files": [
+    {
+      "node": "449",
+      "kind": "images",
+      "type": "output",
+      "name": "449-original_00023_.png",
+      "sha256": "1ee1657d537cfc8ac7ade6898337b25f886c622e084d9898ffd931e103094a3e",
+      "bytes": 676400
+    },
+    {
+      "node": "482",
+      "kind": "images",
+      "type": "output",
+      "name": "482-sharpened_00023_.png",
+      "sha256": "84159a64fc164c0fba71bac9b06f69c706c74319d27e5369f00f8a2f6eb241dd",
+      "bytes": 1078735
+    },
+    {
+      "node": "709",
+      "kind": "a_images",
+      "type": "temp",
+      "name": "709-rgthree.compare._temp_mvdkb_00001_.png",
+      "sha256": "37c9b428244330b8eea9f8cd598637e3fa569846f4ad020184ce776dbe9db3bd",
+      "bytes": 1096431
+    },
+    {
+      "node": "709",
+      "kind": "b_images",
+      "type": "temp",
+      "name": "709-rgthree.compare._temp_mvdkb_00002_.png",
+      "sha256": "ab9f668d7a7a01ce29afad61311ab2c27d7dad3d6ec8b87034c4be36c74e3b34",
+      "bytes": 1598286
+    },
+    {
+      "node": "overgo-latent-598",
+      "kind": "latents",
+      "type": "output",
+      "name": "overgo-latent-598-text-to-image_00012_.latent",
+      "sha256": "076fba79e18b0a1dfecb7dead1b08b137d419f2d11d73c122e3b8a2bbcf701b8",
+      "bytes": 1215976
+    }
+  ],
+  "texts": {
+    "436": [
+      "A red fox sitting in fresh snow at the edge of a birch forest at dawn, soft golden light on its fur, its breath visible in the cold air"
+    ],
+    "592": [
+      "unwanted rendering artifacts, unintended distortion, accidental duplicate subjects, inconsistent perspective, unrequested text overlays, unwanted watermarks"
+    ]
+  }
+}

@@ -1,0 +1,179 @@
+{
+  "workflow_sha256": "60bf094f438d07deda059b85eefc305fe519b289e7cfe62abfe12792526a0e4a",
+  "section": "TEXT TO IMAGE TURBO",
+  "request_sha256": "cd4f7edd0b9640e6be6b356ea5ade3616bae033a168ef7088d160de0d4cd5a95",
+  "set": {
+    "104.value": "A red fox sitting in fresh snow at the edge of a birch forest at dawn, soft golden light on its fur, its breath visible in the cold air",
+    "675.megapixels": 0.5625
+  },
+  "comfyui_version": "0.42.0",
+  "commits": {
+    ".": "7cebca52227c63b4180ceed448cbd7ad22903b6d",
+    "custom_nodes/ComfyUI-KJNodes": "ab72eda7ffad6280422d71ab7d54d3fb87c0ba18",
+    "custom_nodes/ComfyUI-Manager": "4c50a2bc8b9e684d8a85930567957470b952bebe",
+    "custom_nodes/RES4LYF": "6780724de0ddb98e7454d54bb80387836a911ece",
+    "custom_nodes/comfyui_controlnet_aux": "a587a4c1594524c1d2de5cd1a86cd868ff448e1c",
+    "custom_nodes/rgthree-comfy": "bc48c6aaeca87bedbc14245d89f9bc6be37a630e"
+  },
+  "models": [
+    {
+      "node": "1",
+      "input": "unet_name",
+      "folder": "diffusion_models",
+      "name": "moss_image_base_int8_convrot.safetensors",
+      "sha256": "f601c1e1161915fb3fea003da0c1782e374dd960fbb3978bc0e4e3fa1f2d8e6f"
+    },
+    {
+      "node": "2",
+      "input": "clip_name",
+      "folder": "text_encoders",
+      "name": "Qwen3.5-9B-abliterated_int8_convrot.safetensors",
+      "sha256": "e7ba909fd9d9e2557eb566e00ffb34226706f3e7425dc3f187246382edc282f6"
+    },
+    {
+      "node": "3",
+      "input": "vae_name",
+      "folder": "vae",
+      "name": "flux2-vae_small.safetensors",
+      "sha256": "d8d52ba036475f5fb07c8b435e176d3d97ebfa82f0d1a1c317f9cc1e25bd013b"
+    },
+    {
+      "node": "341",
+      "input": "lora_1.lora",
+      "folder": "loras",
+      "name": "8-steps-dmd2-lora.safetensors",
+      "sha256": "7683fe1fb51f73f5d690f24dd6b7f46f31ab9a9873729a854ac5c9a420ffe6f2"
+    },
+    {
+      "node": "341",
+      "input": "lora_2.lora",
+      "folder": "loras",
+      "name": "moss_image_sft.safetensors",
+      "sha256": "6b443a4597694769b527a43d5aed7f0c8265d59a9eceab164ab29eb4bb3af7bf"
+    }
+  ],
+  "prompt_id": "fe97c656-72ef-4b42-a4bc-bad540d5d388",
+  "milliseconds": 2379,
+  "peak_card_bytes": 42147463457,
+  "sigmas": {
+    "331": [
+      1,
+      0.9713438749313354,
+      0.9294229745864868,
+      0.8628878593444824,
+      0.7442997097969055,
+      0.5,
+      0.21312162280082703,
+      0.06964603066444397,
+      0
+    ]
+  },
+  "progress": {
+    "331": [
+      {
+        "value": 1,
+        "max": 8,
+        "us": 1585488
+      },
+      {
+        "value": 3,
+        "max": 8,
+        "us": 1700867
+      },
+      {
+        "value": 5,
+        "max": 8,
+        "us": 1849905
+      },
+      {
+        "value": 7,
+        "max": 8,
+        "us": 2014731
+      },
+      {
+        "value": 8,
+        "max": 8,
+        "us": 2085249
+      }
+    ]
+  },
+  "files": [
+    {
+      "node": "147",
+      "kind": "images",
+      "type": "output",
+      "name": "147-sharpened_00024_.png",
+      "sha256": "733d02f4824a46f2ec99f1c0876784e00f465847b0633c6d48d46cadcbfd71b2",
+      "bytes": 1044933
+    },
+    {
+      "node": "324",
+      "kind": "a_images",
+      "type": "temp",
+      "name": "324-rgthree.compare._temp_mbtpt_00001_.png",
+      "sha256": "081e4b7379a810fc891344a79229c5fa5f71857a6d2cba2111f51060fabfc8c4",
+      "bytes": 1089620
+    },
+    {
+      "node": "324",
+      "kind": "b_images",
+      "type": "temp",
+      "name": "324-rgthree.compare._temp_mbtpt_00002_.png",
+      "sha256": "8e8f91b636238c4ebf241feac0b257c4da1d0fbacc0cf125ed482631802d4ca9",
+      "bytes": 1509672
+    },
+    {
+      "node": "86",
+      "kind": "images",
+      "type": "output",
+      "name": "86-original_00024_.png",
+      "sha256": "b1a8a9b341b9d90dba7288893ae6852a00d17fa487556d5a48362d68eb322020",
+      "bytes": 688890
+    },
+    {
+      "node": "overgo-latent-331",
+      "kind": "latents",
+      "type": "output",
+      "name": "overgo-latent-331-text-to-image-turbo_00007_.latent",
+      "sha256": "ba70522c167656c375bdbac6c74bb504348ef7a7ed17b659b8de3ad0fa283a25",
+      "bytes": 1216432
+    }
+  ],
+  "texts": {
+    "27": [
+      "A red fox sitting in fresh snow at the edge of a birch forest at dawn, soft golden light on its fur, its breath visible in the cold air"
+    ],
+    "325": [
+      "unwanted rendering artifacts, unintended distortion, accidental duplicate subjects, inconsistent perspective, unrequested text overlays, unwanted watermarks"
+    ]
+  },
+  "cached": [
+    "1",
+    "104",
+    "105",
+    "154",
+    "2",
+    "27",
+    "3",
+    "325",
+    "337:326:103",
+    "337:326:108",
+    "337:326:118",
+    "337:326:14",
+    "337:326:156",
+    "337:326:173",
+    "337:326:99",
+    "337:327:17",
+    "337:327:171",
+    "337:327:172",
+    "337:327:231",
+    "337:328",
+    "337:329",
+    "337:330",
+    "337:677:678",
+    "337:677:679",
+    "675",
+    "676",
+    "92"
+  ]
+}

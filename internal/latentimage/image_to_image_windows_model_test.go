@@ -86,7 +86,7 @@ func TestImageToImageMeetsItsSectionFloor(t *testing.T) {
 		testcheck.Must(generator.integrate(ctx, session))(t)
 		final := testcheck.Must(generator.rotary.latent.outputs.CopyToHost(ctx, generator.rotary.latent.node))(t)
 		testcheck.Must(generator.decode(ctx, session))(t)
-		return decibelsOverSquares(final.Data, want)
+		return decibelsOverSquares(t, final.Data, want)
 	}
 	agreement := sampled(section)
 	control := section
@@ -135,13 +135,19 @@ func latentAgreement(got, want []float32) (cosine, relative float64) {
 }
 
 // decibelsOverSquares is how far got agrees with want in dB: want's sum of squares over the sum of the differences'.
-func decibelsOverSquares(got, want []float32) float64 {
+func decibelsOverSquares(t testing.TB, got, want []float32) float64 {
+	t.Helper()
+	// Two latents of different lengths, or a value that is not finite, are refused before they are scored (SQA-410): a
+	// length apart had scored -Inf and a NaN sample NaN, each of which a control held only under its floor passed.
 	if len(got) != len(want) || len(want) == 0 {
-		return math.Inf(-1)
+		t.Fatalf("the latents hold %d and %d values; want one length", len(got), len(want))
 	}
 	var signal, noise float64
 	for index, value := range got {
 		w := float64(want[index])
+		if math.IsNaN(float64(value)) || math.IsInf(float64(value), 0) || math.IsNaN(w) || math.IsInf(w, 0) {
+			t.Fatalf("the latents hold %g and %g at %d; want finite values", value, w, index)
+		}
 		signal += w * w
 		noise += (float64(value) - w) * (float64(value) - w)
 	}

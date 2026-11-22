@@ -4,6 +4,7 @@ package latentimage
 
 import (
 	"context"
+	"encoding/base64"
 	"os"
 	"slices"
 	"syscall"
@@ -25,9 +26,33 @@ type workflowSection struct {
 	request func(t *testing.T, recording comfySection) Request
 }
 
+// workflowTextToImage is the text to image section as the workflow saves it, on its empty prompt, recorded at 1024 x
+// 576 (pass-1, pass-2): its prompts as its preview nodes show them, its sampler and its sharpening (textSection). The
+// golden floor holds the section on a real prompt instead (moss-real-prompt).
+func workflowTextToImage(t *testing.T, recording comfySection) Request {
+	t.Helper()
+	if recording.Set["670.megapixels"] != 0.5625 {
+		t.Fatalf("the recording set %v; want the canvas at 1024 x 576", recording.Set)
+	}
+	return textSection(t, recording, "598", "436", "592", "599")
+}
+
+// workflowImageToImage is the image to image section as the workflow saves it, at its denoise of 1 from the recorder's
+// picture at 1024 x 576 (pass-1, pass-2): it starts from the noise alone, at sigma 1, the same run as text to image.
+func workflowImageToImage(t *testing.T, recording comfySection) Request {
+	t.Helper()
+	if recording.Set["428.image"] != "overgo-recorder-input.png" || recording.Set["680.megapixels"] != 0.5625 {
+		t.Fatalf("the recording set %v; want the recorder's picture at 1024 x 576", recording.Set)
+	}
+	request := textSection(t, recording, "506", "585", "586", "603")
+	request.Image, request.Denoise = base64.StdEncoding.EncodeToString(ultraPictureBytes(t)), recording.inputs("506")["denoise"].(float64)
+	return request
+}
+
 // workflowSections are the MOSS Ultra workflow's six sections in its own order, its groups' order in workflow.json, each
-// asked as ComfyUI's run asked it (moss-workflow-clock): as the golden and Turbo floors ask them (goldenCases,
-// turboCases), text to image Turbo through its LoRA loader 341, and depth control from its picture, its map estimated
+// asked as ComfyUI's run asked it (moss-workflow-clock): text to image and image to image as the workflow saves them
+// (workflowTextToImage, workflowImageToImage), the Turbo sections drawn from a picture as the Turbo floors ask them
+// (turboCases), text to image Turbo through its LoRA loader 341, and depth control from its picture, its map estimated
 // as the request is drawn, as ComfyUI's depth control run estimated it (612:438 not cached).
 func workflowSections(t *testing.T) []workflowSection {
 	t.Helper()
@@ -39,8 +64,8 @@ func workflowSections(t *testing.T) []workflowSection {
 		return cases[at].request
 	}
 	return []workflowSection{
-		{"text-to-image", named(goldenCases, "text to image")},
-		{"image-to-image", named(goldenCases, "image to image")},
+		{"text-to-image", workflowTextToImage},
+		{"image-to-image", workflowImageToImage},
 		{"depth-control", depthControlRequest},
 		{"text-to-image-turbo", func(t *testing.T, recording comfySection) Request {
 			return turboSection(t, recording, "331", "27", "325", "336", "341")

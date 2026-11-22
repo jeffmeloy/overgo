@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"overgo/internal/dataroot"
@@ -51,6 +52,15 @@ func readComfySection(t *testing.T, run, slug string) comfySection {
 	var section comfySection
 	testcheck.NoError(t, json.Unmarshal(testcheck.Must(os.ReadFile(filepath.Join(repo, "fixtures", "comfy", "moss-ultra", "recordings", run, slug+".json")))(t), &section))
 	testcheck.NoError(t, json.Unmarshal(testcheck.Must(os.ReadFile(filepath.Join(repo, "fixtures", "comfy", "moss-ultra", "requests", slug+".json")))(t), &section.request))
+	// The inputs the recorder set over the request are the ones ComfyUI ran (SQA-457): a case reading the request's own
+	// had read the template's seed and an empty builder where the recording set others.
+	for at, value := range section.Set {
+		node, input, named := strings.Cut(at, ".")
+		if _, held := section.request[node].Inputs[input]; !named || !held {
+			t.Fatalf("the recording sets %s, which names no input of the section's request", at)
+		}
+		section.request[node].Inputs[input] = value
+	}
 	section.folder = filepath.Join(testcheck.Must(dataroot.Resolve(repo))(t).References(), "comfy", "moss-ultra", run, slug)
 	return section
 }

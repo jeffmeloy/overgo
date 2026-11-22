@@ -1,0 +1,413 @@
+{
+  "workflow_sha256": "60bf094f438d07deda059b85eefc305fe519b289e7cfe62abfe12792526a0e4a",
+  "section": "TEXT TO IMAGE",
+  "request_sha256": "8445e10a15341ed5e07cec3daa9d6ab36db2b3e2bd94bdfaaa0beeb44427b763",
+  "set": {
+    "450.aesthetics": "cinematic",
+    "450.background": "a cobbled street, wet after rain",
+    "450.elements_data": "[{\"x\":0.1,\"y\":0.2,\"w\":0.35,\"h\":0.4,\"type\":\"obj\",\"text\":\"\",\"desc\":\"a café table\",\"palette\":[\"#aabbcc\"]},{\"x\":0.6,\"y\":0.05,\"w\":0.25,\"h\":0.1,\"type\":\"text\",\"text\":\"OPEN\",\"desc\":\"a neon sign\",\"palette\":[]},{\"x\":0.9,\"y\":0.9,\"w\":-0.3,\"h\":-0.2,\"type\":\"obj\",\"text\":\"ignored\",\"desc\":\"a \\\"lamp\\\" {lit}\",\"palette\":[\"#ffffff\",\"#000000\"]}]",
+    "450.high_level_description": "A quiet café at dusk",
+    "450.lighting": "warm streetlights",
+    "450.medium": "photograph",
+    "450.style": "photo",
+    "450.style.photo": "35mm, f/1.8",
+    "450.style_palette_data": "[\"#ff8800\",\"\",\"#112233\"]",
+    "483.value": 3,
+    "670.megapixels": 0.5625,
+    "707:702:435.character_boxes": "1"
+  },
+  "comfyui_version": "0.42.0",
+  "commits": {
+    ".": "7cebca52227c63b4180ceed448cbd7ad22903b6d",
+    "custom_nodes/ComfyUI-KJNodes": "ab72eda7ffad6280422d71ab7d54d3fb87c0ba18",
+    "custom_nodes/ComfyUI-Manager": "4c50a2bc8b9e684d8a85930567957470b952bebe",
+    "custom_nodes/RES4LYF": "6780724de0ddb98e7454d54bb80387836a911ece",
+    "custom_nodes/comfyui_controlnet_aux": "a587a4c1594524c1d2de5cd1a86cd868ff448e1c",
+    "custom_nodes/rgthree-comfy": "bc48c6aaeca87bedbc14245d89f9bc6be37a630e"
+  },
+  "models": [
+    {
+      "node": "1",
+      "input": "unet_name",
+      "folder": "diffusion_models",
+      "name": "moss_image_base_int8_convrot.safetensors",
+      "sha256": "f601c1e1161915fb3fea003da0c1782e374dd960fbb3978bc0e4e3fa1f2d8e6f"
+    },
+    {
+      "node": "2",
+      "input": "clip_name",
+      "folder": "text_encoders",
+      "name": "Qwen3.5-9B-abliterated_int8_convrot.safetensors",
+      "sha256": "e7ba909fd9d9e2557eb566e00ffb34226706f3e7425dc3f187246382edc282f6"
+    },
+    {
+      "node": "3",
+      "input": "vae_name",
+      "folder": "vae",
+      "name": "flux2-vae_small.safetensors",
+      "sha256": "d8d52ba036475f5fb07c8b435e176d3d97ebfa82f0d1a1c317f9cc1e25bd013b"
+    }
+  ],
+  "prompt_id": "23032a00-9b29-45e5-b2ec-d8972d14dc21",
+  "milliseconds": 10836,
+  "peak_card_bytes": 22866207405,
+  "sigmas": {
+    "598": [
+      1,
+      0.9972407817840576,
+      0.9943000674247742,
+      0.9911596775054932,
+      0.9877990484237671,
+      0.9841945767402649,
+      0.9803193211555481,
+      0.976142406463623,
+      0.9716281890869141,
+      0.9667351841926575,
+      0.9614152908325195,
+      0.9556121230125427,
+      0.9492592215538025,
+      0.942278265953064,
+      0.9345757365226746,
+      0.9260401129722595,
+      0.9165371060371399,
+      0.9059043526649475,
+      0.8939446806907654,
+      0.8804175853729248,
+      0.865028977394104,
+      0.8474193215370178,
+      0.8271505236625671,
+      0.8036947846412659,
+      0.7764295935630798,
+      0.7446503639221191,
+      0.7076191902160645,
+      0.6646791696548462,
+      0.6154629588127136,
+      0.5601956248283386,
+      0.5,
+      0.43925926089286804,
+      0.3812241852283478,
+      0.3279404640197754,
+      0.2804907560348511,
+      0.2390919178724289,
+      0.20338986814022064,
+      0.17275124788284302,
+      0.14646469056606293,
+      0.12385084480047226,
+      0.10430954396724701,
+      0.08733189105987549,
+      0.07249562442302704,
+      0.0594540573656559,
+      0.047923654317855835,
+      0.037672534584999084,
+      0.02851058356463909,
+      0.020281312987208366,
+      0.012855276465415955,
+      0.006124838255345821,
+      0
+    ]
+  },
+  "progress": {
+    "598": [
+      {
+        "value": 1,
+        "max": 50,
+        "us": 2762743
+      },
+      {
+        "value": 2,
+        "max": 50,
+        "us": 2884902
+      },
+      {
+        "value": 3,
+        "max": 50,
+        "us": 3032958
+      },
+      {
+        "value": 4,
+        "max": 50,
+        "us": 3185847
+      },
+      {
+        "value": 5,
+        "max": 50,
+        "us": 3358851
+      },
+      {
+        "value": 6,
+        "max": 50,
+        "us": 3512906
+      },
+      {
+        "value": 7,
+        "max": 50,
+        "us": 3668499
+      },
+      {
+        "value": 8,
+        "max": 50,
+        "us": 3829439
+      },
+      {
+        "value": 9,
+        "max": 50,
+        "us": 3989323
+      },
+      {
+        "value": 10,
+        "max": 50,
+        "us": 4147136
+      },
+      {
+        "value": 11,
+        "max": 50,
+        "us": 4289647
+      },
+      {
+        "value": 12,
+        "max": 50,
+        "us": 4451647
+      },
+      {
+        "value": 13,
+        "max": 50,
+        "us": 4605628
+      },
+      {
+        "value": 14,
+        "max": 50,
+        "us": 4760485
+      },
+      {
+        "value": 15,
+        "max": 50,
+        "us": 4918378
+      },
+      {
+        "value": 16,
+        "max": 50,
+        "us": 5075685
+      },
+      {
+        "value": 17,
+        "max": 50,
+        "us": 5232214
+      },
+      {
+        "value": 18,
+        "max": 50,
+        "us": 5406129
+      },
+      {
+        "value": 19,
+        "max": 50,
+        "us": 5546784
+      },
+      {
+        "value": 20,
+        "max": 50,
+        "us": 5703978
+      },
+      {
+        "value": 21,
+        "max": 50,
+        "us": 5877838
+      },
+      {
+        "value": 22,
+        "max": 50,
+        "us": 6038594
+      },
+      {
+        "value": 23,
+        "max": 50,
+        "us": 6192671
+      },
+      {
+        "value": 24,
+        "max": 50,
+        "us": 6333964
+      },
+      {
+        "value": 25,
+        "max": 50,
+        "us": 6493643
+      },
+      {
+        "value": 26,
+        "max": 50,
+        "us": 6648660
+      },
+      {
+        "value": 27,
+        "max": 50,
+        "us": 6807297
+      },
+      {
+        "value": 28,
+        "max": 50,
+        "us": 6965430
+      },
+      {
+        "value": 29,
+        "max": 50,
+        "us": 7121824
+      },
+      {
+        "value": 30,
+        "max": 50,
+        "us": 7278788
+      },
+      {
+        "value": 31,
+        "max": 50,
+        "us": 7461572
+      },
+      {
+        "value": 32,
+        "max": 50,
+        "us": 7600708
+      },
+      {
+        "value": 33,
+        "max": 50,
+        "us": 7773418
+      },
+      {
+        "value": 34,
+        "max": 50,
+        "us": 7920594
+      },
+      {
+        "value": 35,
+        "max": 50,
+        "us": 8081716
+      },
+      {
+        "value": 36,
+        "max": 50,
+        "us": 8237248
+      },
+      {
+        "value": 37,
+        "max": 50,
+        "us": 8409578
+      },
+      {
+        "value": 38,
+        "max": 50,
+        "us": 8569895
+      },
+      {
+        "value": 39,
+        "max": 50,
+        "us": 8711894
+      },
+      {
+        "value": 40,
+        "max": 50,
+        "us": 8869952
+      },
+      {
+        "value": 41,
+        "max": 50,
+        "us": 9039263
+      },
+      {
+        "value": 42,
+        "max": 50,
+        "us": 9194308
+      },
+      {
+        "value": 43,
+        "max": 50,
+        "us": 9341483
+      },
+      {
+        "value": 44,
+        "max": 50,
+        "us": 9498534
+      },
+      {
+        "value": 45,
+        "max": 50,
+        "us": 9655827
+      },
+      {
+        "value": 46,
+        "max": 50,
+        "us": 9821228
+      },
+      {
+        "value": 47,
+        "max": 50,
+        "us": 9974474
+      },
+      {
+        "value": 48,
+        "max": 50,
+        "us": 10131735
+      },
+      {
+        "value": 49,
+        "max": 50,
+        "us": 10289171
+      },
+      {
+        "value": 50,
+        "max": 50,
+        "us": 10449357
+      }
+    ]
+  },
+  "files": [
+    {
+      "node": "449",
+      "kind": "images",
+      "type": "output",
+      "name": "449-original_00029_.png",
+      "sha256": "dff43e557fac19646f8481729405ea3eef3ad9fda9e4034dbf9674f7530b72d9",
+      "bytes": 838458
+    },
+    {
+      "node": "482",
+      "kind": "images",
+      "type": "output",
+      "name": "482-sharpened_00029_.png",
+      "sha256": "efa11b5ca17709f937a05ef7c590fbae500163ba2382b62c907660fe6c16ff11",
+      "bytes": 1194161
+    },
+    {
+      "node": "709",
+      "kind": "a_images",
+      "type": "temp",
+      "name": "709-rgthree.compare._temp_zivbv_00001_.png",
+      "sha256": "805c09eb55df303226e8c88a8cc1646fea854a6c534de7aeab4ac08662714632",
+      "bytes": 1281083
+    },
+    {
+      "node": "709",
+      "kind": "b_images",
+      "type": "temp",
+      "name": "709-rgthree.compare._temp_zivbv_00002_.png",
+      "sha256": "e93164b2a6d3fec3b5818cf29f6b4bdea20e0e80878c74c35dd99fff66f188b7",
+      "bytes": 1763006
+    },
+    {
+      "node": "overgo-latent-598",
+      "kind": "latents",
+      "type": "output",
+      "name": "overgo-latent-598-text-to-image_00016_.latent",
+      "sha256": "5624031a44736bc34cc988342d6176a24d68c85d8d6dba58d41e571f22050920",
+      "bytes": 1216552
+    }
+  ],
+  "texts": {
+    "436": [
+      "{\"summary\":{\"caption\":\"Scene: A quiet café at dusk\\nBackground: a cobbled street, wet after rain\\nAesthetics: cinematic\\nLighting: warm streetlights\\nCamera: 35mm, f/1.8\\nMedium: photograph\\nArt style: \\nPalette: ['#FF8800', '#112233']\"},\"items\":[{\"label\":\"character\",\"caption\":\"a café table\",\"palette\":[\"#AABBCC\"],\"bbox\":[-173,-410,58,-52]},{\"label\":\"text\",\"caption\":\"a neon sign\",\"text\":\"OPEN\",\"bbox\":[-260,102,-201,359]},{\"label\":\"object\",\"caption\":\"a \\\"lamp\\\" {lit}\",\"palette\":[\"#FFFFFF\",\"#000000\"],\"bbox\":[115,102,230,409]}],\"bbox_coord_space\":\"abs_centralized\",\"bbox_format\":\"yxyx\"}"
+    ],
+    "592": [
+      "unwanted rendering artifacts, unintended distortion, accidental duplicate subjects, inconsistent perspective, unrequested text overlays, unwanted watermarks"
+    ]
+  }
+}

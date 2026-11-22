@@ -72,7 +72,7 @@ func TestDepthControlMeetsItsSectionFloor(t *testing.T) {
 		testcheck.Must(generator.integrate(ctx, session))(t)
 		final := testcheck.Must(generator.rotary.latent.outputs.CopyToHost(ctx, generator.rotary.latent.node))(t)
 		testcheck.Must(generator.decode(ctx, session))(t)
-		return decibelsOverSquares(final.Data, want)
+		return decibelsOverSquares(t, final.Data, want)
 	}
 	agreement := sampled(section)
 	other := section

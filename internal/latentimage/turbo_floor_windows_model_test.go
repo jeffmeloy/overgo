@@ -14,9 +14,11 @@ import (
 
 // turboFloors are the Turbo sections' floors (moss-eight-step), each its first measured run's agreement with ComfyUI's
 // (2026-11-18) less goldenFloorMargin, as goldenFloors are set; their changed inputs kept -1.23 and -2.06 dB. Text to
-// image Turbo is held once recorded on a real prompt (moss-real-prompt): on the workflow's empty prompt its latent kept
-// -1.54 dB and a reseeded draw -2.19, too near for a floor 3 dB down to hold the input's part.
+// image Turbo is held on the real prompt (moss-real-prompt, 2026-11-22): its latent keeps 9.02 dB and a reseeded draw
+// -2.02, where on the workflow's empty prompt its latent kept -1.54 dB and a reseeded draw -2.19, too near for a floor
+// 3 dB down to hold the input's part.
 var turboFloors = map[string]goldenFloor{
+	"text to image Turbo":  {latent: 9.02 - goldenFloorMargin, picture: 26.83 - goldenFloorMargin},
 	"image to image Turbo": {latent: 7.17 - goldenFloorMargin, picture: 20.70 - goldenFloorMargin},
 	"depth control Turbo":  {latent: 1.93 - goldenFloorMargin, picture: 13.44 - goldenFloorMargin},
 }
@@ -63,10 +65,18 @@ func mirroredPicture(t *testing.T, request Request) Request {
 // turboCases are the MOSS Ultra workflow's Turbo sections drawn from a picture, each 8 steps at guidance 1 through the
 // adapters its LoRA loader stacks (DMD2 and the SFT adapter, moss-control before them for depth), recorded at 1024 x
 // 576: image to image at denoise 0.72 from the recorder's picture, and depth control of the recorder's picture, its map
-// made as the section makes it (sectionDepth) over the first half of the sampling, skipping no block. Text to image
-// Turbo (its sampler 331, prompts 27 and 325, sharpening 336, loader 341, picture 147) waits for a real prompt's
-// recording (turboFloors).
+// made as the section makes it (sectionDepth) over the first half of the sampling, skipping no block; and text to image
+// Turbo on the real prompt (moss-real-prompt), its sampler 331, prompts 27 and 325, sharpening 336, loader 341 and
+// picture 147, drawn from noise and so held against other noise.
 var turboCases = []goldenCase{
+	{name: "text to image Turbo", run: "real-1", slug: "text-to-image-turbo", sampler: "331", finished: "147", control: reseeded,
+		request: func(t *testing.T, recording comfySection) Request {
+			t.Helper()
+			if recording.Set["675.megapixels"] != 0.5625 || recording.Set["104.value"] != realPrompt || len(recording.Texts["27"]) != 1 || recording.Texts["27"][0] != realPrompt {
+				t.Fatalf("the recording set %v and used the prompt %v; want the canvas at 1024 x 576 and the real prompt", recording.Set, recording.Texts["27"])
+			}
+			return turboSection(t, recording, "331", "27", "325", "336", "341")
+		}},
 	{name: "image to image Turbo", run: "pass-1", slug: "image-to-image-turbo", sampler: "198", finished: "344", control: mirroredPicture,
 		request: func(t *testing.T, recording comfySection) Request {
 			t.Helper()
@@ -93,10 +103,10 @@ var turboCases = []goldenCase{
 }
 
 // TestTheTurboSectionsHoldTheirGoldenFloors holds overgo's MOSS on the MOSS Ultra workflow's own files to the
-// workflow's recordings of its Turbo sections drawn from a picture (moss-eight-step), as
+// workflow's recordings of its Turbo sections (moss-eight-step, moss-real-prompt), as
 // TestUltraSectionsHoldTheirGoldenFloors holds its sections of 50 steps: each, asked as its recording asks it, keeps its
-// final latent and finished picture above their floors of agreement with ComfyUI's, and with its picture mirrored keeps
-// its latent below.
+// final latent and finished picture above their floors of agreement with ComfyUI's, and with its picture mirrored, or
+// drawn from other noise where it is drawn from noise alone, keeps its latent below.
 func TestTheTurboSectionsHoldTheirGoldenFloors(t *testing.T) {
 	cudatest.Require(t)
 	root := ultraModelRoot(t)

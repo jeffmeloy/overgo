@@ -350,8 +350,15 @@ func (workspace *storeGenerationWorkspace) ExecuteWorkflow(ctx context.Context, 
 	if recorded {
 		inputs = append(inputs, request.Descriptor.ID)
 	}
-	// What the output was drawn from, where it says so, is an output of the run beside it, which the page shows.
+	// What the output was drawn from, where it says so, is an output of the run beside it, which the page shows; so is
+	// the picture it was before its finishing sharpened it, the run's first output (moss-sharpened-pair).
 	published := []artifact.Content{content}
+	if before, sharpened := beforeFinishing(capabilityruntime.Unwrap(output)); sharpened && err == nil {
+		var first artifact.Content
+		if first, err = workspace.catalog.OutputContent(before); err == nil {
+			published = append([]artifact.Content{first}, published...)
+		}
+	}
 	if used, drawn, usedErr := promptsUsedContent(capabilityruntime.Unwrap(output)); usedErr != nil {
 		err = usedErr
 	} else if drawn {
@@ -545,4 +552,14 @@ func promptsUsedContent(output any) (artifact.Content, bool, error) {
 	}
 	content, err := artifact.JSONContent(promptsUsedContract, promptsUsed{Prompt: prompt, NegativePrompt: negative})
 	return content, err == nil, err
+}
+
+// beforeFinishing is the picture output was before its finishing sharpened it, as its capability publishes a picture,
+// where it says so (a MOSS picture, latentimage EncodedImage.BeforeFinishing), and false where it was not sharpened.
+func beforeFinishing(output any) (any, bool) {
+	finished, says := output.(interface{ BeforeFinishing() (any, bool) })
+	if !says {
+		return nil, false
+	}
+	return finished.BeforeFinishing()
 }

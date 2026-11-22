@@ -392,8 +392,14 @@ func (g *Generator) decodeRotary(ctx context.Context) (result EncodedImage, err 
 	if err = ctx.Err(); err != nil {
 		return result, err
 	}
-	// The picture is sharpened as it is finished, after the decoded pixels a parity observes.
+	// The picture is sharpened as it is finished, after the decoded pixels a parity observes; the picture drawn is kept
+	// beside it, as the MOSS Ultra workflow saves each section's picture and its sharpened picture and compares them
+	// (moss-sharpened-pair).
+	var drawn EncodedImage
 	if g.request.Sharpen != nil {
+		if drawn, err = encodeUnitPNG(pixels, p.OutH, p.OutW); err != nil {
+			return result, err
+		}
 		if pixels, err = media.Sharpen(pixels, p.OutH, p.OutW, *g.request.Sharpen); err != nil {
 			return result, err
 		}
@@ -402,6 +408,7 @@ func (g *Generator) decodeRotary(ctx context.Context) (result EncodedImage, err 
 	if err != nil {
 		return result, err
 	}
+	result.Drawn = drawn.Data
 	sampler := "flow Euler"
 	if g.request.Schedule != nil && g.request.Schedule.Sampler == sampling.SamplerERSDE {
 		sampler = "ER-SDE"

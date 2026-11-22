@@ -179,11 +179,24 @@ func newStandInPictures(t *testing.T, opened func(artifact.Repository) latentima
 					if sources[request.Image] == pictures.sourceB {
 						shade += 0.1
 					}
-					pixels := make([]float32, 3*request.Width*request.Height)
-					for index := range pixels {
-						pixels[index] = shade
+					picture := func(shade float32) (latentimage.EncodedImage, error) {
+						pixels := make([]float32, 3*request.Width*request.Height)
+						for index := range pixels {
+							pixels[index] = shade
+						}
+						return latentimage.EncodePlanarPNG(pixels, request.Height, request.Width)
 					}
-					return latentimage.EncodePlanarPNG(pixels, request.Height, request.Width)
+					// A sharpened picture is its own, and comes with the picture it drew, as MOSS's does (EncodedImage.Drawn).
+					if request.Sharpen == nil {
+						return picture(shade)
+					}
+					drawn, err := picture(shade)
+					if err != nil {
+						return latentimage.EncodedImage{}, err
+					}
+					finished, err := picture(shade + 0.05)
+					finished.Drawn = drawn.Data
+					return finished, err
 				},
 				latentimage.PNGContent)
 		}))(t)
@@ -274,5 +287,27 @@ func TestServedMOSSPictureReusesItsCompletedDraw(t *testing.T) {
 	}
 	if repeat.Input.Descriptor.ID != first.Input.Descriptor.ID {
 		t.Errorf("the repeat recorded its request as %s; want the first call's, %s", repeat.Input.Descriptor.ID, first.Input.Descriptor.ID)
+	}
+}
+
+// TestASharpenedServedPictureComesWithThePictureItDrew holds moss-sharpened-pair: a sharpened picture served through
+// the picture capability (pictureExecutor, standInPictures) comes with the picture it drew before its sharpening, as
+// the MOSS Ultra workflow saves both, and so does the same request its stored run answers, which holds the sharpened
+// picture alone: the picture drawn is stored as the one the sharpened picture was derived from (keptDrawn). An
+// unsharpened request's picture comes with none.
+func TestASharpenedServedPictureComesWithThePictureItDrew(t *testing.T) {
+	pictures := newStandInPictures(t, enhancerOpener)
+	const sharpened = `{"prompt":"a lighthouse","seed":3,"width":256,"height":144,"sharpen":{"radius":1,"sigma":0.6,"alpha":0.7}}`
+	first, drawn := pictures.served(t.Context(), sharpened)
+	if len(drawn.Drawn) == 0 || bytes.Equal(drawn.Drawn, drawn.Data) {
+		t.Fatalf("the sharpened picture came with %d bytes as the picture it drew; want the picture before its sharpening", len(drawn.Drawn))
+	}
+	replayed, again := pictures.served(t.Context(), sharpened)
+	if replayed.Run != first.Run || pictures.work.draws != 1 || !bytes.Equal(again.Drawn, drawn.Drawn) || !bytes.Equal(again.Data, drawn.Data) {
+		t.Errorf("the stored run's answer (run %s, the first %s, %d draws) came with %d bytes as the picture drawn; want the first's, %d bytes, drawn once",
+			replayed.Run, first.Run, pictures.work.draws, len(again.Drawn), len(drawn.Drawn))
+	}
+	if _, plain := pictures.served(t.Context(), `{"prompt":"a lighthouse","seed":3,"width":256,"height":144}`); len(plain.Drawn) != 0 {
+		t.Error("an unsharpened picture came with a picture drawn before it")
 	}
 }

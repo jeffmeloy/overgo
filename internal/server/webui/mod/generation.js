@@ -77,9 +77,10 @@
       shownText("Negative prompt used", used.negative_prompt, "Use as the negative prompt", "negative prompt"));
   }
 
-  // shown: a completed run's outputs, its pictures beside an A/B compare of its newest picture (B) against the picture
-  // its request started from, else the picture drawn before it (A), and what its picture was drawn from where the run
-  // says (promptsUsed); a non-picture output stands as its link.
+  // shown: a completed run's outputs, its pictures beside an A/B compare: a sharpened run's picture as drawn (A) and
+  // sharpened (B), as each MOSS Ultra section's comparer shows them (moss-sharpened-pair), else its picture (B) against
+  // the picture its request started from or the picture drawn before it (A); and what its picture was drawn from where
+  // the run says (promptsUsed); a non-picture output stands as its link.
   async function shown(host, completed, overgo) {
     const { el, contentURL, fmt } = overgo;
     let outputs = completed.outputs || [];
@@ -96,12 +97,15 @@
     const started = [input.image, input.control && input.control.picture].filter(Boolean);
     const before = pictures.find((picture) => !outputs.includes(picture.id) && !started.includes(picture.id));
     for (const id of started) remember(id, "started from · " + fmt.shortID(id));
-    for (const id of [...outputs].reverse()) remember(id, "run " + fmt.shortID(completed.run || id) + " · " + fmt.shortID(id));
-    const a = started[0] || (before && before.id);
+    // A sharpened run's outputs are its picture as drawn, then sharpened (moss-sharpened-pair).
+    const paired = outputs.length === 2;
+    const roles = paired ? ["drawn · ", "sharpened · "] : ["", ""];
+    for (const [index, id] of [...outputs.entries()].reverse()) remember(id, roles[index] + "run " + fmt.shortID(completed.run || id) + " · " + fmt.shortID(id));
+    const a = paired ? outputs[0] : started[0] || (before && before.id);
     host.replaceChildren(
       el("div", { class: "workbench-outputs" }, ...outputs.map((id) => el("img", { src: contentURL(id), alt: "Generated picture", class: "workbench-output" }))),
       ...(used ? [promptsUsed(host, used, overgo)] : []),
-      ...(a && outputs.length ? [abCompare(overgo, a, outputs[0])] : []));
+      ...(a && outputs.length ? [abCompare(overgo, a, outputs[outputs.length - 1])] : []));
   }
 
   window.overgo.workflowWorkspace({ id: "generation", scope: "generation", preview: depthPreview, renderEvidence: shown });

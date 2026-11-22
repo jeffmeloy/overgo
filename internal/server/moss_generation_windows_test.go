@@ -42,6 +42,9 @@ type mossGenerationFixture struct {
 	// drawn, where set, is the prompt and negative prompt the stand-in reports each picture drawn from, as the picture
 	// capability reports them (moss-prompts-used); unset, a picture reports none.
 	drawn func(latentimage.Request) (prompt, negative string)
+	// before, where set, is the picture the stand-in says each picture was before its finishing sharpened it, as MOSS's
+	// picture says (moss-sharpened-pair); unset, a picture was not sharpened.
+	before []byte
 	// previewed are the inputs the capability's preview was asked, as they came.
 	previewed []string
 }
@@ -86,10 +89,13 @@ func newMOSSGenerationFixture(t *testing.T, onRequest func(context.Context, arti
 			input, err := inputContract.ContentBytes([]byte(raw))
 			picture := image
 			fixture.mu.Lock()
-			drawn := fixture.drawn
+			drawn, before := fixture.drawn, fixture.before
 			fixture.mu.Unlock()
 			if drawn != nil {
 				picture.Prompt, picture.NegativePrompt = drawn(executed)
+			}
+			if before != nil {
+				picture.Drawn = before
 			}
 			return capabilityruntime.Measured{Output: picture, Input: input}, err
 		},

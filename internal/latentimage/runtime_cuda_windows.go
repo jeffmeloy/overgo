@@ -124,6 +124,13 @@ func (r Request) Drawn(catalog Catalog) (prompt, negative string, err error) {
 	return filled.prompt(), filled.NegativePrompt, nil
 }
 
+// Sharpened says the request's picture is sharpened as it is finished, its preset filled from catalog as its session
+// fills it, so it comes with the picture it drew (EncodedImage.Drawn, moss-sharpened-pair).
+func (r Request) Sharpened(catalog Catalog) (bool, error) {
+	filled, err := r.withPreset(catalog)
+	return err == nil && filled.Sharpen != nil, err
+}
+
 // prompt is what the request's text encoder reads: its prompt, or the layout prompt its layout makes on its canvas.
 func (r Request) prompt() string {
 	if r.Layout == nil {

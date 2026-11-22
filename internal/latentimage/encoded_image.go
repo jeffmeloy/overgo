@@ -23,6 +23,19 @@ type EncodedImage struct {
 	// its bytes holds none.
 	Prompt         string `json:"prompt,omitzero"`
 	NegativePrompt string `json:"negative_prompt,omitzero"`
+	// Drawn is the picture as it was drawn, before its finishing's sharpening, as PNG bytes of the same extent, where it
+	// was sharpened: the MOSS Ultra workflow saves both and compares them (moss-sharpened-pair). A picture its stored run
+	// answers holds it where its capability finds it (the sharpened picture derived from it).
+	Drawn []byte `json:"drawn,omitempty"`
+}
+
+// BeforeFinishing is the picture as it was drawn before its finishing sharpened it, an EncodedImage, and whether it was
+// sharpened, so a page shows the two side by side.
+func (image EncodedImage) BeforeFinishing() (any, bool) {
+	if len(image.Drawn) == 0 {
+		return nil, false
+	}
+	return EncodedImage{Data: image.Drawn, MediaType: image.MediaType, Channels: image.Channels, Height: image.Height, Width: image.Width}, true
 }
 
 // RanPreset is the preset the picture was drawn at (media.PresetOf).

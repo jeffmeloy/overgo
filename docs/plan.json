@@ -3,34 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "moss-sharpened-pair",
-      "title": "A sharpened MOSS run returns its drawn picture and its sharpened picture, compared on the page as the workflow compares them",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A sharpened MOSS picture returns the picture it drew beside the sharpened one, the drawn one bit for bit the same request's unsharpened picture",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test ./internal/latentimage -count=1 -run '^TestASharpenedPictureReturnsThePictureItDrew$'",
-          "files": [
-            "internal/latentimage",
-            "internal/mediacapability",
-            "internal/capabilityruntime",
-            "internal/server"
-          ],
-          "needs_card": true,
-          "rationale": "The owner's review of 2026-11-22, point 4, checked against the code and the workflow: valid. Each of the workflow's six sections saves its decoded picture and its ImageSharpen's picture (twelve SaveImage nodes: text to image 449 and 482, its Turbo 86 and 147, image to image 512 and 604, its Turbo 214 and 344, depth control 445 and 610, its Turbo 50 and 364), and its Image Comparer shows them against each other (709, 324, 605, 345) or, in the depth sections, each against the section's source (611 and 669, 365 and 423). overgo sharpens the decoded pixels in place as it finishes the picture (generator_rotary_windows.go, media.Sharpen) and returns the sharpened picture alone. The page's A/B compare (generation.js abCompare) cites nodes 611 and 669 as comparing a section's picture against the one it started from, which only the depth sections do.\n\nThe change: a run with sharpening returns both pictures, the drawn one first, each recorded as an output of the run.\n\nCheck: TestASharpenedPictureReturnsThePictureItDrew on the compact MOSS fixture, a short card test."
-        },
-        {
-          "id": "page",
-          "title": "The page compares a sharpened run's drawn and sharpened pictures with its A/B slider, as each section's comparer does",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserMOSSSharpenedPair$' -leg moss-sharpened-pair",
-          "files": [
-            "internal/server"
-          ],
-          "rationale": "The page half of moss-sharpened-pair: a run returning both pictures opens the existing A/B compare with the drawn picture as A and the sharpened as B, and abCompare's comment states the workflow's comparers as they are."
-        }
-      ]
-    },
-    {
       "id": "moss-workflow-surface",
       "title": "Every node by which the MOSS Ultra workflow saves, previews, compares or shows something has its counterpart in a run's result or on the page, and one without is refused without the card",
       "steps": [
@@ -43,6 +15,65 @@
             "fixtures/comfy/moss-ultra"
           ],
           "rationale": "How the review's points 2 and 4 went unseen: the sections were held to ComfyUI's pictures, and what the workflow shows beside them was read from a few of its nodes (abCompare cites the depth section's comparers for every section), so its twelve PreviewAny prompt displays and its six saves of the unsharpened picture had no counterpart and no check said so. The workflow's sections hold 12 SaveImage, 2 PreviewImage, 12 PreviewAny and 10 Image Comparer (rgthree) nodes.\n\nThe change: a table names, for each such node of each section's request (fixtures/comfy/moss-ultra/requests), the result field or page element that does what it does, or why it has none (an intermediate preview); the check reads the requests and refuses a node of those classes the table does not name, and a named counterpart the page or result does not hold. Filed last of the review's rows: it holds what they add."
+        }
+      ]
+    },
+    {
+      "id": "file-identity-rule",
+      "title": "One rule says when a file's identity may be taken without reading it: a size-and-time memo is a claim its next read proves byte for byte, and the video encoder's 11 GB checkpoint is proven so",
+      "steps": [
+        {
+          "id": "do",
+          "title": "One rule says when a file's identity may be taken without reading it: a size-and-time memo is a claim its next read proves byte for byte, and the video encoder's 11 GB checkpoint is proven so",
+          "verify": "go test ./internal/latentvideo -count=1 -run '^TestAClaimedCheckpointIsProvenByItsRead$'",
+          "files": [
+            "internal/discovery",
+            "internal/pytorchzip",
+            "internal/latentvideo",
+            "internal/heldfile"
+          ],
+          "rationale": "The owner's review of 2026-11-22 (second), point 2, checked against the code: valid. adapter-hold names a file beside a model by its bytes, read once a process through the handle that holds it (heldfile.Set.Identity), and declined to name it by size and modification time: integrity before speed. discovery.Memo names a file by size and modification time across processes (memo.go lookup), and its Claim says whoever reads the bytes next must prove the claim, a claim they do not carry failing that read. The video text encoder's checkpoint is admitted so: latentvideo admitCheckpoint passes discovery.FileIdentity over a memo to pytorchzip.Admit, which returns the remembered identity without reading the file when known() answers, and the encoder then reads its tensors by offset; nothing proves the 11 GB, so a checkpoint replaced under the same size and time would be named as the one it replaced. The two rules disagree, and the memo's own is not kept.\n\nThe rule the row states, at heldfile and discovery.Memo alike: a file's identity is its bytes. A memo of size and time may name it before it is read only as a claim, and the read that next takes every byte (the encoder's load) hashes them as it reads and fails where they are not the claim's; a file no read takes whole is hashed once a process through its held handle. The video encoder's admission carries the claim to its load, which proves it.\n\nCheck: TestAClaimedCheckpointIsProvenByItsRead, card-free on a small checkpoint: a claim whose file was replaced under its size and time fails the load that reads it; a true claim loads with no second read."
+        }
+      ]
+    },
+    {
+      "id": "video-held-files",
+      "title": "Video names the files it reads beside its model as pictures do, once a process through the held files, so a replaced file is refused while in use",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Video names the files it reads beside its model as pictures do, once a process through the held files, so a replaced file is refused while in use",
+          "verify": "go test ./internal/latentvideo -count=1 -run '^TestAServedClipReusesItsHeldFiles$'",
+          "files": [
+            "internal/latentvideo",
+            "internal/mediacapability",
+            "internal/heldfile",
+            "internal/repoanalysis"
+          ],
+          "rationale": "The owner's review of 2026-11-22 (second), point 1, checked against the code: valid. Pictures name what they read beside their model one way (heldfile.Set: hashed once through a handle held while a session or request owns it, so it cannot be replaced while in use). Video names its four another way each: the text encoder checkpoint by a size-and-time memo and an archive map (promptEncoders.archives, file-identity-rule); the finish runtime's libraries, 792 MB, hashed once a process and not held (finish_windows.go runtimeIdentity); the tokenizer's two files hashed on every request (prompt_encoder.go, TextConditioningSpec.content); FFmpeg hashed for every clip (mp4.go, NewMP4Encoder).\n\nThe change: each goes through heldfile.Set as pictures' adapters do, owned by the video session or the request, so each is read once a process and held while in use, and the three other mechanisms are removed. A rule refuses a new one: artifact.IdentifyFile on a file a served path reads beside its model is reached only through heldfile.Set (internal/repoanalysis), so a capability added later names its files the same way.\n\nCheck: TestAServedClipReusesItsHeldFiles, card-free with a stand-in session as TestAServedPictureReusesItsHeldFiles: the tokenizer and FFmpeg opened and hashed once across two clips, none written or renamed onto while held, and let go after."
+        }
+      ]
+    },
+    {
+      "id": "served-parts",
+      "title": "Every served path's request is split into its parts, each with its wall, processor time and bytes read, as the MOSS workflow's clock reads them, so time outside the model shows on each",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Every served path's request is split into its parts, each with its wall, processor time and bytes read, as the MOSS workflow's clock reads them, so time outside the model shows on each",
+          "verify": "go test ./internal/mediacapability -count=1 -run '^TestEachServedPathSplitsItsRequestIntoParts$'",
+          "files": [
+            "internal/processmeasure",
+            "internal/capabilityruntime",
+            "internal/mediacapability",
+            "internal/latentvideo",
+            "internal/speechsynth",
+            "internal/speechrecognition",
+            "internal/inference",
+            "internal/latentimage",
+            "cmd/recipe"
+          ],
+          "rationale": "The owner's review of 2026-11-22 (second), point 3, checked against the code: partly valid. The parts ledger exists for every served path (processmeasure.Stages): the session director marks the request read, the stored answer sought, the named inputs read, the session leased and the run recorded, the workflow runtime marks each stage by its module, video marks its own (prompt rows, denoising, decoding, the clip written) and chat its load's (cmd/recipe inference_measure). But a part records its wall and the device's peak alone, speech marks none of its own, and only the MOSS workflow's clock reads a request's parts beside each one's processor time and bytes read (latentimage TestTheUltraWorkflowIsTimedInItsOrder, readProcessUse, written into that test), which is how adapter-hold's per-request hashing was found.\n\nThe change: a part records its processor time and the bytes the process read inside it (processmeasure.Part), so every ledger carries what the MOSS clock computed by hand; speech marks its parts as video does; and the recipe command's measure reports every served task's parts, not chat's load alone. The MOSS clock reads the ledger in place of its own counters.\n\nCheck: TestEachServedPathSplitsItsRequestIntoParts serves a picture, a clip, speech and a chat turn through their capabilities with stand-in sessions under a ledger: each request's parts name its load or lease, its stages and its recording, each with wall, processor time and bytes read, their walls inside the request's."
         }
       ]
     },

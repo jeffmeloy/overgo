@@ -66,7 +66,72 @@ func pictureExecutor[Model any](director *capabilityruntime.ModelSessionDirector
 	if err == nil {
 		director.ReadsOnMiss(readPictures)
 	}
-	return reportedDrawn(capabilityruntime.Reading(preparedFirst(sessionExecutor(director, err), opened), capabilityruntime.Contents(held, pictureFiles)))
+	return keptDrawn(reportedDrawn(capabilityruntime.Reading(preparedFirst(sessionExecutor(director, err), opened), capabilityruntime.Contents(held, pictureFiles))))
+}
+
+// keptDrawn has each sharpened picture next serves come with the picture as it was drawn, before its finishing
+// sharpened it, as the MOSS Ultra workflow saves both and compares them (moss-sharpened-pair): a picture drawn holds it
+// (latentimage EncodedImage.Drawn), which is stored beside the sharpened picture as the one it was derived from, and a
+// picture its stored run answers, which holds the sharpened picture alone, is given the picture it was derived from.
+func keptDrawn(next capabilityruntime.Executor) capabilityruntime.Executor {
+	return func(ctx context.Context, store artifact.Repository, path string, selection modelrecipe.CapabilityEvidenceSelection, input string) (any, error) {
+		output, err := next(ctx, store, path, selection, input)
+		measured, enveloped := output.(capabilityruntime.Measured)
+		if err != nil || !enveloped || store == nil {
+			return output, err
+		}
+		picture, drawn := measured.Output.(latentimage.EncodedImage)
+		if !drawn {
+			return output, nil
+		}
+		finished, err := latentimage.PNGContent(picture)
+		if err != nil {
+			return nil, err
+		}
+		if before, sharpened := picture.BeforeFinishing(); sharpened {
+			first, err := latentimage.PNGContent(before.(latentimage.EncodedImage))
+			if err != nil {
+				return nil, err
+			}
+			if _, err := artifact.Publish(ctx, store, artifact.Batch{Key: "picture-drawn/" + finished.Descriptor.ID.String(),
+				Artifacts: []artifact.Descriptor{first.Descriptor, finished.Descriptor}, Contents: []artifact.Content{first, finished},
+				Lineage: []artifact.Lineage{{Child: finished.Descriptor.ID, Parent: first.Descriptor.ID, Relation: artifact.RelationDerivedFrom}}}); err != nil {
+				return nil, err
+			}
+			return output, nil
+		}
+		// A picture its stored run answers is looked up only where its request sharpens it.
+		var request latentimage.Request
+		if err := strictjson.DecodeBytes(measured.Input.Data, &request); err != nil {
+			return nil, err
+		}
+		catalog, err := pictureCatalog(ctx, store, path, selection)
+		if err != nil {
+			return nil, err
+		}
+		if sharpened, err := request.Sharpened(catalog); err != nil || !sharpened {
+			return output, err
+		}
+		parents, err := store.Parents(ctx, finished.Descriptor.ID)
+		if err != nil {
+			return nil, err
+		}
+		for _, edge := range parents {
+			if edge.Relation != artifact.RelationDerivedFrom {
+				continue
+			}
+			content, held, err := artifact.ReadContent(ctx, store, edge.Parent)
+			if err != nil {
+				return nil, err
+			}
+			if held && content.Descriptor.MediaType == picture.MediaType {
+				picture.Drawn = content.Data
+				measured.Output = picture
+				return measured, nil
+			}
+		}
+		return output, nil
+	}
 }
 
 // reportedDrawn has each picture next serves report the prompt and the negative prompt it was drawn from, as the MOSS

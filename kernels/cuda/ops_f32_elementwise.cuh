@@ -381,6 +381,39 @@ extern "C" __global__ void dequantize_int8_convrot_rows_f32(
     }
 }
 
+// decode_int8_convrot_groups_f32: an int8 ConvRot weight's `rows` rows of `inner` int8 values and their F32 scales
+// decoded into F32 as comfy_kitchen's CUDA dequantize decodes them into a float32 input's dtype, which ComfyUI's text
+// encoders run in (moss-encoder-own): one block for each INT8_CONVROT_GROUP-wide group of a row, so a row of any width
+// is decoded, each value its int8 times its row's scale in F32, the group turned by the radix-4 stages
+// (int8_convrot_rotate), and stored unrounded.
+extern "C" __global__ void decode_int8_convrot_groups_f32(
+        const signed char * input,
+        const float * scale,
+        float * output,
+        unsigned int inner,
+        unsigned int rows) {
+    __shared__ float values[INT8_CONVROT_GROUP];
+    if (inner % INT8_CONVROT_GROUP != 0) {
+        return;
+    }
+    const unsigned int groups = inner / INT8_CONVROT_GROUP;
+    const unsigned int row = blockIdx.x / groups, first = (blockIdx.x % groups) * INT8_CONVROT_GROUP;
+    if (row >= rows) {
+        return;
+    }
+    const signed char * source = input + (size_t) row * inner + first;
+    const float row_scale = scale[row];
+    for (unsigned int index = threadIdx.x; index < INT8_CONVROT_GROUP; index += blockDim.x) {
+        values[index] = __fmul_rn(__int2float_rn(source[index]), row_scale);
+    }
+    __syncthreads();
+    int8_convrot_rotate(values, INT8_CONVROT_GROUP);
+    float * destination = output + (size_t) row * inner + first;
+    for (unsigned int index = threadIdx.x; index < INT8_CONVROT_GROUP; index += blockDim.x) {
+        destination[index] = values[index];
+    }
+}
+
 // elementwise_store is what an elementwise kernel stores of value: value, or, for the <name>_bf16_round entry a BF16
 // rounding of its output folds into, its nearest BF16.
 template <bool ROUND>

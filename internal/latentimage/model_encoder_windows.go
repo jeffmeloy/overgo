@@ -19,6 +19,7 @@ import (
 	"overgo/internal/hfrepo"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor"
+	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
 	"path/filepath"
 	"slices"
@@ -47,9 +48,14 @@ func loadModelConditioner(root string, template textTemplate) (_ *modelCondition
 			err = errors.Join(err, source.Close())
 		}
 	}()
-	// A ComfyUI encoder file is read as the Hugging Face language model it holds (comfyLanguageView).
+	// A ComfyUI encoder file is read as the Hugging Face language model it holds (comfyLanguageView), its states computed
+	// as ComfyUI computes a text encoder's (hfgguf.LanguageHiddenComfyUI).
+	output := hfgguf.LanguageHidden
+	if comfyEncoderFile(source.Tensors) {
+		output = hfgguf.LanguageHiddenComfyUI
+	}
 	source.Tensors = comfyLanguageView(source.Tensors)
-	catalog, err := hfgguf.InspectLanguageModel(source, hfgguf.LanguageHidden)
+	catalog, err := hfgguf.InspectLanguageModel(source, output)
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +96,7 @@ func (c *modelConditioner) openStored() error {
 }
 
 // cardDecoded names, by its target, each binding the card decodes from its int8 rows, with the source it reads: an
-// untransformed BF16 binding whose source the stored view holds in int8 ConvRot rotated in groups the card's exact
+// untransformed BF16 binding whose source the stored view holds in int8 ConvRot rotated in groups the card's
 // decode turns (executor.DecodesInt8ConvRotGroup), each read from the weight's comfy_quant record alone, so no payload
 // is read for one the card cannot decode, which the catalog's host decode reads (decode-groups, SQA-455): comfyquant
 // admits any power of 4, and a weight rotated in groups of 4096 had its 50 MB of rows read and its place reserved before
@@ -297,10 +303,11 @@ func (c *modelConditioner) encodeBlock(ctx context.Context, session *graphruntim
 }
 
 // resident compiles the program and binds its weights from the catalog, under sourceIdentity: each one convRot names
-// (modelConditioner.convRot) decoded on the card from the int8 ConvRot rows its file holds, bit for bit as the host
-// decodes it, half the bytes copied (graphruntime.ResidentSession.BindDecoded, moss-first-run), the rest read from the
-// catalog. The MOSS Ultra encoder's weights had been decoded on the host, one core, as the first prompt's blocks were
-// placed: 41 s of its 51 s of preparation.
+// (modelConditioner.convRot) decoded on the card from the int8 ConvRot rows its file holds into F32, bit for bit as the
+// host's float32 stages decode it (graphruntime.ResidentSession.BindDecoded, moss-first-run), the rest read from the
+// catalog, a BF16 one widened where the program reads it in F32 (ComfyUI's arithmetic, compileModelEncoder). The MOSS
+// Ultra encoder's weights had been decoded on the host, one core, as the first prompt's blocks were placed: 41 s of its
+// 51 s of preparation.
 func (p *modelEncoderProgram) resident(ctx context.Context, session *graphruntime.ResidentSession, catalog hfgguf.LanguageCatalog, sourceIdentity string, convRot func(name string) (comfyquant.Weight, bool, error), dynamic []*tensor.Tensor, outputs ...*tensor.Tensor) (_ *graphruntime.ResidentProgram, err error) {
 	if len(outputs) == 0 {
 		outputs = []*tensor.Tensor{p.output}
@@ -336,7 +343,11 @@ func (p *modelEncoderProgram) resident(ctx context.Context, session *graphruntim
 				if err != nil {
 					return nil, err
 				}
-				return io.ReadAll(payload.Data)
+				data, err := io.ReadAll(payload.Data)
+				if err != nil || payload.Type != gguf.DTypeBF16 || node.Type != dtype.F32 {
+					return data, err
+				}
+				return widenBF16(data), nil
 			})
 		}
 		if err != nil {

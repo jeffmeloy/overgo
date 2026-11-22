@@ -2,9 +2,11 @@ package hfgguf
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"io"
+	"math"
 	"overgo/internal/hfrepo"
 	"overgo/internal/model"
 	"overgo/internal/safetensors"
@@ -13,20 +15,73 @@ import (
 	"testing"
 )
 
-func TestLanguageCatalogNativeArithmetic(t *testing.T) {
-	native := func() *hfrepo.Repository {
-		repository := baseLanguageFixture(t)
-		repository.Config["dtype"] = json.RawMessage(`"bfloat16"`)
-		for name, item := range repository.Tensors.Tensors {
-			if !strings.HasPrefix(name, "language_model.") {
+// nativeLanguageFixture is the base language fixture declared and stored in BF16, each language tensor's values data's
+// where it names one and zeros else.
+func nativeLanguageFixture(t *testing.T, data map[string][]byte) *hfrepo.Repository {
+	t.Helper()
+	repository := baseLanguageFixture(t)
+	repository.Config["dtype"] = json.RawMessage(`"bfloat16"`)
+	for name, item := range repository.Tensors.Tensors {
+		if !strings.HasPrefix(name, "language_model.") {
+			continue
+		}
+		values, held := data[name]
+		if !held {
+			values = make([]byte, item.Elements()*2)
+		}
+		value := testcheck.Must(safetensors.NewTensor(name, "BF16", item.Shape, bytes.NewReader(values), 0, int64(len(values))))(t)
+		repository.Tensors.Tensors[name] = value
+	}
+	return repository
+}
+
+// TestALanguageCatalogConditionsAsComfyUIDoes holds the ComfyUI hidden-state catalog (LanguageHiddenComfyUI,
+// moss-encoder-own) to ComfyUI's text encoder arithmetic: a native BF16 base model's catalog states it
+// (model.ArithmeticComfyUIF32), each zero-centered norm reads 1+w rounded to BF16, as ComfyUI's RMSNorm.scale adds 1 in
+// the weight's dtype, where the Transformers catalog reads it in F32, the gated-delta group norm stays raw, and a model
+// with no native BF16 conditioning is refused one.
+func TestALanguageCatalogConditionsAsComfyUIDoes(t *testing.T) {
+	const norm = "language_model.norm.weight"
+	item := baseLanguageFixture(t).Tensors.Tensors[norm]
+	weight := make([]byte, item.Elements()*2)
+	for index := 0; index+2 <= len(weight); index += 2 {
+		weight[index], weight[index+1] = 0x83, 0x3a // BF16 0.0010004, whose 1+w lies between two BF16 values
+	}
+	readNorm := func(output LanguageOutput) (LanguageCatalog, float32) {
+		catalog := testcheck.Must(InspectLanguageModel(nativeLanguageFixture(t, map[string][]byte{norm: weight}), output))(t)
+		for _, binding := range catalog.Bindings() {
+			if binding.Source != norm {
 				continue
 			}
-			data := make([]byte, item.Elements()*2)
-			value := testcheck.Must(safetensors.NewTensor(name, "BF16", item.Shape, bytes.NewReader(data), 0, int64(len(data))))(t)
-			repository.Tensors.Tensors[name] = value
+			payload := testcheck.Must(catalog.Payload(binding.Target))(t)
+			data := testcheck.Must(io.ReadAll(payload.Data))(t)
+			return catalog, math.Float32frombits(binary.LittleEndian.Uint32(data))
 		}
-		return repository
+		t.Fatalf("the catalog binds no %s", norm)
+		return catalog, 0
 	}
+	comfy, comfyScale := readNorm(LanguageHiddenComfyUI)
+	_, transformersScale := readNorm(LanguageHidden)
+	if comfy.Spec.Arithmetic != model.ArithmeticComfyUIF32 || comfy.Output != LanguageHiddenComfyUI {
+		t.Fatalf("the ComfyUI catalog states %q for %q", comfy.Spec.Arithmetic, comfy.Output)
+	}
+	if comfyScale != 1 || transformersScale <= 1 || transformersScale >= 1.0078125 {
+		t.Fatalf("the final norm reads %v under ComfyUI's arithmetic and %v under Transformers'; want 1, 1+w rounded to BF16, and 1+w", comfyScale, transformersScale)
+	}
+	for _, binding := range comfy.Bindings() {
+		zeroCentered := strings.HasSuffix(binding.Source, "norm.weight") && !strings.HasSuffix(binding.Source, ".linear_attn.norm.weight")
+		if want := zeroCentered; (len(binding.Transforms) == 1 && binding.Transforms[0].Operation == transformAddOneBF16) != want || !want && len(binding.Transforms) != 0 {
+			t.Fatalf("%s transforms by %v under ComfyUI's arithmetic", binding.Source, binding.Transforms)
+		}
+	}
+	plain := baseLanguageFixture(t)
+	if _, err := InspectLanguageModel(plain, LanguageHiddenComfyUI); err == nil {
+		t.Fatal("a ComfyUI catalog of a model with no native BF16 conditioning was given")
+	}
+}
+
+func TestLanguageCatalogNativeArithmetic(t *testing.T) {
+	native := func() *hfrepo.Repository { return nativeLanguageFixture(t, nil) }
 	for _, mode := range []string{"native", "default", "mixed-storage", "mixed-declaration"} {
 		t.Run(mode, func(t *testing.T) {
 			repository := native()

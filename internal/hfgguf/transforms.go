@@ -16,6 +16,7 @@ type TensorTransform struct {
 
 const (
 	transformAddOne      = "add-one-f32"
+	transformAddOneBF16  = "add-one-bf16-f32"
 	transformNegateExp   = "negative-exp-f32"
 	transformHeadRows    = "grouped-to-cyclic-head-rows"
 	transformHeadColumns = "grouped-to-cyclic-head-columns"
@@ -23,6 +24,8 @@ const (
 
 func (t TensorTransform) apply(data []byte, elementSize uint64) error {
 	switch t.Operation {
+	case transformAddOneBF16:
+		return addOneBF16F32(data, elementSize)
 	case transformAddOne:
 		return addOneF32(data, elementSize)
 	case transformNegateExp:

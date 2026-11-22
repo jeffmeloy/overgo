@@ -20,17 +20,21 @@ const (
 	comfyDraft          = "mtp."
 )
 
+// comfyEncoderFile says the source names its tensors as a checkpoint for generation does, as a ComfyUI text encoder
+// file names them.
+func comfyEncoderFile(source *safetensors.Source) bool {
+	for name := range source.Tensors {
+		if strings.HasPrefix(name, comfyLanguagePrefix) {
+			return true
+		}
+	}
+	return false
+}
+
 // comfyLanguageView is the language model of a checkpoint for generation as a base model's tensors, the source returned
 // as it is where it names its tensors as a base model does. The view takes the source's files over (Retensored).
 func comfyLanguageView(source *safetensors.Source) *safetensors.Source {
-	generation := false
-	for name := range source.Tensors {
-		if strings.HasPrefix(name, comfyLanguagePrefix) {
-			generation = true
-			break
-		}
-	}
-	if !generation {
+	if !comfyEncoderFile(source) {
 		return source
 	}
 	tensors := map[string]safetensors.Tensor{}

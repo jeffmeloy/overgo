@@ -8,13 +8,10 @@ import (
 	"overgo/internal/cuda/kernel"
 )
 
-// int8ConvRotLargestGroup is the widest column group the card's exact decode turns at once, 4^5.
-const int8ConvRotLargestGroup = uint64(1024)
-
-// Int8ConvRotDecode is an int8 ConvRot weight decoded on the card to the BF16 weight overgo's host decodes it to
-// (comfyquant.DecodeRow), bit for bit: Stored is the weight as dtype.I8ConvRot holds it, Rows rows of Inner int8 values
-// and then their F32 scales (comfyquant.Weight.Stored), Group the width of the column groups its rows are rotated in,
-// and Output where its Rows rows of Inner BF16 values go.
+// Int8ConvRotDecode is an int8 ConvRot weight decoded on the card into F32 as comfy_kitchen's CUDA dequantize decodes
+// it into a float32 input's dtype, by its float32 stages, bit for bit: Stored is the weight as dtype.I8ConvRot holds
+// it, Rows rows of Inner int8 values and then their F32 scales (comfyquant.Weight.Stored), Group the width of the column
+// groups its rows are rotated in, and Output where its Rows rows of Inner F32 values go.
 type Int8ConvRotDecode struct {
 	Stored             []byte
 	Rows, Inner, Group uint32
@@ -22,9 +19,10 @@ type Int8ConvRotDecode struct {
 }
 
 // DecodeInt8ConvRot decodes the weight on the card, on the worker's turn (state): its int8 rows and scales are copied
-// to the working memory the merges share (mergeWork) and decoded into the output (decode_int8_convrot_rows_exact_bf16),
-// a block for each group of a row. The MOSS Ultra encoder's ConvRot weights had been decoded on the host, one core, 41 s
-// of the workflow's first prompt, and copied to the card at twice the bytes (moss-first-run).
+// to the working memory the merges share (mergeWork) and decoded into the output (decode_int8_convrot_groups_f32), a
+// block for each group of a row. The MOSS Ultra encoder's ConvRot weights had been decoded on the host, one core, 41 s
+// of the workflow's first prompt, and copied to the card at twice the bytes (moss-first-run); ComfyUI's text encoders
+// read them in F32, which the BF16 decode they had then parted from by 0.165% an element (moss-encoder-own).
 func (e *Executor) DecodeInt8ConvRot(state *device.State, decode Int8ConvRotDecode) error {
 	rows, inner, group := uint64(decode.Rows), uint64(decode.Inner), uint64(decode.Group)
 	elements := rows * inner
@@ -44,18 +42,13 @@ func (e *Executor) DecodeInt8ConvRot(state *device.State, decode Int8ConvRotDeco
 		return err
 	}
 	scales, output := work+driver.DevicePtr(elements), decode.Output
-	innerArgument, rowsArgument, groupArgument := decode.Inner, decode.Rows, decode.Group
-	return launchGridABI(state, resources.functions[kernelDecodeInt8ConvrotRowsExactBf16], kernel.Grid1D(int(elements/group)), kernel.DefaultBlock1D(),
-		&work, &scales, &output, &innerArgument, &rowsArgument, &groupArgument)
+	innerArgument, rowsArgument := decode.Inner, decode.Rows
+	return launchGridABI(state, resources.functions[kernelDecodeInt8ConvrotGroupsF32], kernel.Grid1D(int(elements/group)), kernel.DefaultBlock1D(),
+		&work, &scales, &output, &innerArgument, &rowsArgument)
 }
 
-// DecodesInt8ConvRotGroup says the card's exact decode (DecodeInt8ConvRot) turns a group of that width: a power of 4
-// from 4 to 1024, where comfyquant admits any power of 4.
+// DecodesInt8ConvRotGroup says the card's decode (DecodeInt8ConvRot) turns a group of that width: 256, the group
+// comfy_kitchen's CUDA dequantize turns by these stages beside 64, where comfyquant admits any power of 4.
 func DecodesInt8ConvRotGroup(group uint64) bool {
-	for width := uint64(4); width <= int8ConvRotLargestGroup; width *= 4 {
-		if group == width {
-			return true
-		}
-	}
-	return false
+	return group == int8ConvRotGroup
 }

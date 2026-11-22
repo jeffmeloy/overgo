@@ -13,6 +13,7 @@ import (
 	"overgo/internal/hfrepo"
 	"overgo/internal/model"
 	"overgo/internal/safetensors"
+	"overgo/internal/tensor/dtype"
 )
 
 var qwen35LayerNames = map[string]string{
@@ -390,6 +391,33 @@ func addOneF32(data []byte, elementSize uint64) error {
 		binary.LittleEndian.PutUint32(data[index:], math.Float32bits(value+1))
 	}
 	return nil
+}
+
+// addOneBF16F32: zero-centered norm weights shift to 1+w rounded to BF16, nearest even, on a promoted F32 payload, as
+// ComfyUI's RMSNorm.scale adds 1 to a BF16 weight in its own dtype (comfy/text_encoders/llama.py): 1+w in F32 parted
+// the MOSS Ultra encoder's first norm from ComfyUI's by 0.2% (moss-encoder-own).
+func addOneBF16F32(data []byte, elementSize uint64) error {
+	if err := addOneF32(data, elementSize); err != nil {
+		return err
+	}
+	for index := 0; index+4 <= len(data); index += 4 {
+		value := math.Float32frombits(binary.LittleEndian.Uint32(data[index:]))
+		binary.LittleEndian.PutUint32(data[index:], math.Float32bits(dtype.BF16ToFloat32(dtype.Float32ToBF16(value))))
+	}
+	return nil
+}
+
+// comfyUINormScales is transforms with each zero-centered norm's shift to 1+w rounded to BF16 (addOneBF16F32).
+func comfyUINormScales(transforms tensorValueMapper) tensorValueMapper {
+	return func(name string) []TensorTransform {
+		listed := transforms(name)
+		for index := range listed {
+			if listed[index].Operation == transformAddOne {
+				listed[index].Operation = transformAddOneBF16
+			}
+		}
+		return listed
+	}
 }
 
 // negateExpF32: decay base -exp(A_log) on a promoted F32 payload.

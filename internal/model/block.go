@@ -813,8 +813,8 @@ func buildGatedProjectionMixCached(
 	if err := requireTensorPair(pastKey, pastValue, "gated-delta attention cache must contain both key and value"); err != nil {
 		return DenseBlockResult{}, err
 	}
-	if spec.Arithmetic == ArithmeticTransformersBF16 && (pastKey != nil || indices != nil) {
-		return DenseBlockResult{}, errors.New("native BF16 conditioning requires uncached full attention")
+	if spec.Arithmetic.native() && (pastKey != nil || indices != nil) {
+		return DenseBlockResult{}, errors.New("native conditioning requires uncached full attention")
 	}
 
 	tokens := uint64(len(positions))
@@ -872,11 +872,11 @@ func buildGatedProjectionMixCached(
 	if indices != nil {
 		attention = builder.SparseAttentionWithOffset(query, cacheKey, cacheValue, indices, attentionScale, true, queryStart)
 	} else {
-		// A transformers-BF16 conditioning (MOSS's Qwen3.5 prompt encoder) takes the native attention arithmetic, never the
-		// tensor-core prompt attention a served profile admits.
+		// A native conditioning (MOSS's Qwen3.5 prompt encoder) never takes the tensor-core prompt attention a served profile
+		// admits: a transformers-BF16 one takes the native attention arithmetic, a ComfyUI one the F32 attention.
 		native := spec.Arithmetic == ArithmeticTransformersBF16
 		attention = builder.AttentionWithOptions(query, cacheKey, cacheValue, tensor.AttentionOptions{Scale: attentionScale, Causal: true, QueryStart: queryStart,
-			TensorCores: spec.Profile().Runtime.PromptTensorCores && !native, NativeMath: native})
+			TensorCores: spec.Profile().Runtime.PromptTensorCores && !spec.Arithmetic.native(), NativeMath: native})
 	}
 	attention = spec.Arithmetic.round(builder, attention)
 
@@ -987,12 +987,12 @@ func buildGatedDeltaMixCached(
 	// A decode step's or a verify span's separate-projection layer prepares its query, key, value, gate and beta in two
 	// operations (GatedDeltaConv, GatedDeltaGates) whose bits are the composed operations': Flash-Next's decode ran the
 	// composed preparation as 17 kernels a layer.
-	fused := spec.Arithmetic != ArithmeticTransformersBF16 && deltaPolicy != gatedDeltaInterleavedProjections && sequences == tensor.SingletonExtent &&
+	fused := !spec.Arithmetic.native() && deltaPolicy != gatedDeltaInterleavedProjections && sequences == tensor.SingletonExtent &&
 		tensor.GatedDeltaFused(stateWidth, uint64(spec.SSMConvKernel), tokens, weights.SSMConv1D.Type, weights.SSMAlpha.Type, weights.SSMBeta.Type)
 	// Tokens no checkpoint divides (a prompt's) prepare their query, key and value in one operation too
 	// (GatedDeltaPromptConv), with the composed operations' bits: a Flash-Next 16K read ran the composed preparation's
 	// six kernels for about 450 ms.
-	promptConv := spec.Arithmetic != ArithmeticTransformersBF16 && !fused && sequences == tensor.SingletonExtent && !spanCheckpoints(checkpointTokens, tokens) &&
+	promptConv := !spec.Arithmetic.native() && !fused && sequences == tensor.SingletonExtent && !spanCheckpoints(checkpointTokens, tokens) &&
 		tensor.GatedDeltaConvFits(stateWidth, uint64(spec.SSMConvKernel), weights.SSMConv1D.Type)
 	var beta, alpha, gate *tensor.Tensor
 	switch {
@@ -1024,7 +1024,7 @@ func buildGatedDeltaMixCached(
 	}
 	if !fused {
 		decay, step := weights.SSMA, builder.Add(alpha, weights.SSMTimeStep)
-		if spec.Arithmetic == ArithmeticTransformersBF16 {
+		if spec.Arithmetic.native() {
 			decay = builder.Scale(builder.ExpNative(decay), -1)
 			step = builder.SoftplusNative(step)
 		} else {
@@ -1114,7 +1114,7 @@ func buildGatedDeltaMixCached(
 			return builder.FlatSlice(input, first*width*heads, width, heads, count, sequences)
 		}
 		var packed *tensor.Tensor
-		if spec.Arithmetic == ArithmeticTransformersBF16 {
+		if spec.Arithmetic.native() {
 			packed = builder.GatedDeltaNetChunked(slice(query), slice(key), slice(value), slice(gate), slice(beta), state, true)
 		} else if deltaPolicy == gatedDeltaInterleavedProjections {
 			packed = builder.GatedDeltaNetRepeatInterleave(slice(query), slice(key), slice(value), slice(gate), slice(beta), state)
@@ -1152,10 +1152,13 @@ func buildGatedDeltaMixCached(
 	} else {
 		z = spec.Arithmetic.silu(builder, z)
 	}
-	if spec.Arithmetic == ArithmeticTransformersBF16 {
+	switch spec.Arithmetic {
+	case ArithmeticTransformersBF16:
 		attention = builder.BF16Round(attention)
 		attention = builder.BF16Round(builder.Multiply(builder.BF16Round(builder.RMSNormNative(attention, spec.RMSNormEpsilon)), weights.SSMNorm))
-	} else {
+	case ArithmeticComfyUIF32:
+		attention = builder.Multiply(builder.RMSNormNative(attention, spec.RMSNormEpsilon), weights.SSMNorm)
+	default:
 		attention = builder.WeightedRMSNorm(attention, weights.SSMNorm, spec.RMSNormEpsilon)
 	}
 	attention = spec.Arithmetic.round(builder, builder.Multiply(attention, z))
@@ -1220,9 +1223,12 @@ func buildRoutedSwiGLUFeedForwardMix(
 		gate := spec.Arithmetic.project(builder, weights.FeedForwardGate, normalized)
 		up := spec.Arithmetic.project(builder, weights.FeedForwardUp, normalized)
 		var mixed *tensor.Tensor
-		if spec.Arithmetic == ArithmeticTransformersBF16 {
+		switch spec.Arithmetic {
+		case ArithmeticTransformersBF16:
 			mixed = builder.BF16Round(builder.Multiply(builder.BF16Round(builder.SiLUNative(gate)), up))
-		} else {
+		case ArithmeticComfyUIF32:
+			mixed = builder.Multiply(builder.SiLUNative(gate), up)
+		default:
 			mixed = builder.SwiGLU(gate, up)
 		}
 		feedForward = spec.Arithmetic.project(builder, weights.FeedForwardDown, mixed)

@@ -1,6 +1,7 @@
 package latentimage
 
 import (
+	"encoding/binary"
 	"fmt"
 	"overgo/internal/gguf"
 	"overgo/internal/hfgguf"
@@ -20,8 +21,9 @@ type modelEncoderProgram struct {
 }
 
 func compileModelEncoder(catalog hfgguf.LanguageCatalog, tokens, first, end int) (*modelEncoderProgram, error) {
-	if catalog.Output != hfgguf.LanguageHidden || catalog.Spec.Arithmetic != model.ArithmeticTransformersBF16 {
-		return nil, fmt.Errorf("model encoder requires a native BF16 hidden-state catalog")
+	comfy := catalog.Output == hfgguf.LanguageHiddenComfyUI && catalog.Spec.Arithmetic == model.ArithmeticComfyUIF32
+	if !comfy && (catalog.Output != hfgguf.LanguageHidden || catalog.Spec.Arithmetic != model.ArithmeticTransformersBF16) {
+		return nil, fmt.Errorf("model encoder requires a native hidden-state catalog")
 	}
 	plan, err := model.CompileModelPlanWithProfile(catalog.Spec, catalog.Weights, catalog.Spec.Profile())
 	if err != nil {
@@ -36,10 +38,14 @@ func compileModelEncoder(catalog hfgguf.LanguageCatalog, tokens, first, end int)
 		if info == nil || info.Name == "" {
 			return nil, nil
 		}
+		// ComfyUI's arithmetic reads every weight in F32: its text encoders cast each to the F32 input, and decode each
+		// ConvRot one into it (resident).
 		storage := dtype.F32
 		switch info.Type {
 		case gguf.DTypeBF16:
-			storage = dtype.BF16
+			if !comfy {
+				storage = dtype.BF16
+			}
 		case gguf.DTypeF32:
 		default:
 			return nil, fmt.Errorf("model encoder weight %s has unsupported storage %v", info.Name, info.Type)
@@ -100,4 +106,13 @@ func compileModelEncoder(catalog hfgguf.LanguageCatalog, tokens, first, end int)
 	}
 	p.output = current
 	return p, b.Err()
+}
+
+// widenBF16 is BF16 values' little-endian bytes as the F32 values they are.
+func widenBF16(data []byte) []byte {
+	widened := make([]byte, 2*len(data))
+	for index := 0; index+2 <= len(data); index += 2 {
+		binary.LittleEndian.PutUint32(widened[2*index:], uint32(binary.LittleEndian.Uint16(data[index:]))<<16)
+	}
+	return widened
 }

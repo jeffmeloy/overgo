@@ -78,13 +78,13 @@ func executeCompiledLayer(options blockDispatchOptions) (DenseBlockResult, error
 	if plan.Layer != context.Layer || plan.Recurrent != context.Recurrent {
 		return DenseBlockResult{}, errors.New("compiled layer plan differs from dispatch context")
 	}
-	if options.Spec.Arithmetic == ArithmeticTransformersBF16 {
+	if options.Spec.Arithmetic.native() {
 		if context.CurrentPositions != nil || context.MultiPositions != nil || context.Sequences != tensor.SingletonExtent || len(context.Positions) == 0 {
-			return DenseBlockResult{}, errors.New("native BF16 conditioning requires one unpadded prompt with static text positions")
+			return DenseBlockResult{}, errors.New("native conditioning requires one unpadded prompt with static text positions")
 		}
 		for i, position := range context.Positions {
 			if position != uint32(i) {
-				return DenseBlockResult{}, errors.New("native BF16 conditioning requires contiguous positions starting at zero")
+				return DenseBlockResult{}, errors.New("native conditioning requires contiguous positions starting at zero")
 			}
 		}
 	}

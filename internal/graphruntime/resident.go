@@ -234,8 +234,8 @@ func (s *ResidentSession) BindMerged(
 	})
 }
 
-// BindDecoded binds one immutable BF16 program input as an int8 ConvRot weight decodes to on the card
-// (executor.DecodeInt8ConvRot, its output where the input is placed), bit for bit as the host decodes it, or reuses the
+// BindDecoded binds one immutable F32 program input as an int8 ConvRot weight decodes to on the card
+// (executor.DecodeInt8ConvRot, its output where the input is placed), by comfy_kitchen's float32 stages, or reuses the
 // input of that source and name the session holds, the stored weight read only where it holds none.
 func (s *ResidentSession) BindDecoded(
 	ctx context.Context,
@@ -245,16 +245,16 @@ func (s *ResidentSession) BindDecoded(
 	node *tensor.Tensor,
 	decode func() (executor.Int8ConvRotDecode, error),
 ) error {
-	if node == nil || node.Type != dtype.BF16 {
-		return errors.New("a decoded resident input is a BF16 weight")
+	if node == nil || node.Type != dtype.F32 {
+		return errors.New("a decoded resident input is an F32 weight")
 	}
 	return s.bind(ctx, program, source, name, node, func(bytes uint64) (residentFill, error) {
 		decoded, err := decode()
 		if err != nil {
 			return nil, err
 		}
-		if want := 2 * uint64(decoded.Rows) * uint64(decoded.Inner); want != bytes {
-			return nil, fmt.Errorf("a decoded resident input of %d x %d BF16 values is %d bytes, its input %d", decoded.Rows, decoded.Inner, want, bytes)
+		if want := 4 * uint64(decoded.Rows) * uint64(decoded.Inner); want != bytes {
+			return nil, fmt.Errorf("a decoded resident input of %d x %d F32 values is %d bytes, its input %d", decoded.Rows, decoded.Inner, want, bytes)
 		}
 		return func(state *device.State, placed driver.DevicePtr) error {
 			decoded.Output = placed

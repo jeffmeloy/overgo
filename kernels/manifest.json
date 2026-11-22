@@ -96,7 +96,7 @@
         },
         {
           "path": "kernels/cuda/ops_f32_elementwise.cuh",
-          "sha256": "e1b142345436f2daa18104f9b4674e69e8dac10a3a37cf8c691ffb36d61aaa9b"
+          "sha256": "ccffbd69ba508aab8bea40fe0bb8f57d783391298f159024d4f2698475775508"
         },
         {
           "path": "kernels/cuda/ops_f32_experts.cuh",
@@ -160,7 +160,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "2a6cc6a21d0b829987436db5df4c5987e1defe703b59543d116ed3a8a03cc67d",
+      "assetSha256": "ec0b0f08ca43d177c89fbbfc7332650d35542eb81fc320975debdbbe52d61544",
       "functions": [
         "activated_gate_f32",
         "activated_gate_q8_0_f32",
@@ -209,6 +209,7 @@
         "copy_f32",
         "copy_token_offset_bf16_cache_f32",
         "copy_token_offset_f32",
+        "decode_int8_convrot_groups_f32",
         "depthwise_causal_conv_f32",
         "dequant_rows_iq4_nl_f16",
         "dequant_rows_iq4_xs_f16",
@@ -479,6 +480,7 @@
             "activated_gate_f32",
             "copy_token_offset_bf16_cache_f32",
             "copy_token_offset_f32",
+            "decode_int8_convrot_groups_f32",
             "dequantize_int8_convrot_rows_f32",
             "embedding_gather_rows_f32",
             "fp8_to_f16",
@@ -2521,9 +2523,9 @@
     },
     {
       "source": "kernels/cuda/ops_native.cu",
-      "sourceSha256": "4dac50b50ef73fdbf4ba225f8d35a156bd097a3d78337787a949c0479583fbcd",
+      "sourceSha256": "ee6ca2d243fa4c34929ad7bd1b8c8a52c602f00ee9e5e876ff22ca8f3249aa99",
       "asset": "internal/cuda/kernel/ops_native.ptx",
-      "assetSha256": "e00c17f195bad5b0d697d3a5a8ea63d15f830d95c48577ae728ae7f222fa7b27",
+      "assetSha256": "a2c8bb298d184c609fa6cef584304ab7d9a75b0135bc510995d6aa1e7e834eeb",
       "compilerFlags": [
         "-ptx",
         "-arch=compute_89",
@@ -2532,7 +2534,6 @@
       "functions": [
         "attention_native_pack_f32",
         "attention_native_softmax_f32",
-        "decode_int8_convrot_rows_exact_bf16",
         "er_sde_step_f32",
         "exp_native_f32",
         "rms_norm_native_f32",
@@ -2575,19 +2576,6 @@
           ],
           "functions": [
             "attention_native_softmax_f32"
-          ]
-        },
-        {
-          "parameters": [
-            ".u64",
-            ".u64",
-            ".u64",
-            ".u32",
-            ".u32",
-            ".u32"
-          ],
-          "functions": [
-            "decode_int8_convrot_rows_exact_bf16"
           ]
         },
         {

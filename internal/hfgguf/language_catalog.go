@@ -18,7 +18,16 @@ const (
 	LanguageTokens LanguageOutput = "tokens"
 	// LanguageHidden excludes prediction-only weights from the hidden-state consumer.
 	LanguageHidden LanguageOutput = "hidden-states"
+	// LanguageHiddenComfyUI is LanguageHidden computed as ComfyUI computes a text encoder's states
+	// (model.ArithmeticComfyUIF32), each zero-centered norm's scale rounded to BF16 as its RMSNorm gives it
+	// (comfyUINormScales): a native BF16 Qwen 3.5 base model's alone.
+	LanguageHiddenComfyUI LanguageOutput = "hidden-states-comfyui"
 )
+
+// hidden says the output is a hidden-state consumer's, which reads no prediction-only weight.
+func (o LanguageOutput) hidden() bool {
+	return o == LanguageHidden || o == LanguageHiddenComfyUI
+}
 
 // LanguageCatalog holds shape-checked metadata without loading tensor payloads.
 type LanguageCatalog struct {
@@ -80,7 +89,7 @@ func InspectLanguageModel(repository *hfrepo.Repository, output LanguageOutput) 
 	if repository == nil || repository.Tensors == nil {
 		return LanguageCatalog{}, errors.New("HF/GGUF adapter: nil repository")
 	}
-	if output != LanguageTokens && output != LanguageHidden {
+	if output != LanguageTokens && !output.hidden() {
 		return LanguageCatalog{}, fmt.Errorf("HF/GGUF adapter: unknown language output %q", output)
 	}
 	var items []gguf.Metadata
@@ -89,9 +98,12 @@ func InspectLanguageModel(repository *hfrepo.Repository, output LanguageOutput) 
 	switch repository.Identity.ModelType {
 	case "llama", "qwen2":
 		items, err = denseMetadata(repository, repository.Identity.ModelType)
+		if err == nil && output == LanguageHiddenComfyUI {
+			err = fmt.Errorf("HF/GGUF adapter: %s holds no ComfyUI conditioning", repository.Identity.ModelType)
+		}
 		if err == nil {
 			mappings, err = collectTensorMappings(repository.Tensors, func(name string) (string, bool, error) {
-				if output == LanguageHidden && (name == "lm_head.weight" || name == "lm_head.bias") {
+				if output.hidden() && (name == "lm_head.weight" || name == "lm_head.bias") {
 					return "", false, nil
 				}
 				return denseTensorName(name)
@@ -103,10 +115,17 @@ func InspectLanguageModel(repository *hfrepo.Repository, output LanguageOutput) 
 		if err == nil {
 			var native bool
 			native, err = qwen35NativeConditioning(repository, output)
+			if err == nil && output == LanguageHiddenComfyUI && !native {
+				err = errors.New("HF/GGUF adapter: ComfyUI conditioning requires a native BF16 Qwen 3.5 base model")
+			}
 			if err == nil {
 				mappings, err = qwen35MappingsForOutput(repository, blocks, output, native)
+				arithmetic := model.ArithmeticTransformersBF16
+				if output == LanguageHiddenComfyUI {
+					arithmetic = model.ArithmeticComfyUIF32
+				}
 				if native {
-					items = append(items, metadata("general.source_arithmetic", gguf.ValueTypeString, string(model.ArithmeticTransformersBF16)))
+					items = append(items, metadata("general.source_arithmetic", gguf.ValueTypeString, string(arithmetic)))
 				}
 			}
 		}
@@ -132,7 +151,7 @@ func InspectLanguageModel(repository *hfrepo.Repository, output LanguageOutput) 
 	if err != nil {
 		return LanguageCatalog{}, err
 	}
-	if output == LanguageHidden && (weights.Output != nil || spec.NextNPredictLayers != 0) {
+	if output.hidden() && (weights.Output != nil || spec.NextNPredictLayers != 0) {
 		return LanguageCatalog{}, errors.New("HF/GGUF adapter: hidden-state catalog contains prediction topology")
 	}
 	return LanguageCatalog{Output: output, Spec: spec, Weights: weights, mappings: mappings}, nil
@@ -161,8 +180,12 @@ func qwen35MappingsForOutput(repository *hfrepo.Repository, blocks uint32, outpu
 		return nil, err
 	}
 	base := qwen35BaseModel(repository)
+	transforms := qwen35TensorTransforms(dims, native)
+	if output == LanguageHiddenComfyUI {
+		transforms = comfyUINormScales(transforms)
+	}
 	return collectTensorMappings(repository.Tensors, func(name string) (string, bool, error) {
-		if output == LanguageHidden && (strings.HasPrefix(name, "mtp.") || name == "lm_head.weight") {
+		if output.hidden() && (strings.HasPrefix(name, "mtp.") || name == "lm_head.weight") {
 			if base {
 				return "", false, fmt.Errorf("HF/GGUF adapter: base model has prediction tensor %q", name)
 			}
@@ -175,11 +198,11 @@ func qwen35MappingsForOutput(repository *hfrepo.Repository, blocks uint32, outpu
 			name = "model." + name
 		}
 		return qwen35TensorName(name, blocks)
-	}, qwen35TensorShape, qwen35TensorTransforms(dims, native))
+	}, qwen35TensorShape, transforms)
 }
 
 func qwen35NativeConditioning(repository *hfrepo.Repository, output LanguageOutput) (bool, error) {
-	if output != LanguageHidden || !qwen35BaseModel(repository) {
+	if !output.hidden() || !qwen35BaseModel(repository) {
 		return false, nil
 	}
 	storage, present, err := optional[string](repository.Config, "dtype")

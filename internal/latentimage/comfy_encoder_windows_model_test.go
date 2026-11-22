@@ -21,15 +21,17 @@ import (
 	"overgo/internal/testutil"
 )
 
-// ComfyUI conditions with the Ultra encoder in bfloat16: each weight decoded to bfloat16 before its matmul (its text
-// encoders run full_precision_mm), and every operation's output rounded to bfloat16, a step of 2^-8 of the value, over
-// 32 layers. overgo decodes the same bfloat16 weights and carries its activations in F32, so the two differ by
-// ComfyUI's rounding, carried through the layers. Declared before the first run: each token's state lies within
-// cosine 0.99 of ComfyUI's, and each prompt's states within 5% of ComfyUI's in relative L2. A weight decoded without
-// its rotation, a layer read under the wrong name or states taken before the final norm lie far outside both.
+// ComfyUI conditions with the Ultra encoder in float32 (sd1_clip asks the transformer for torch.float32): each ConvRot
+// weight decoded into float32 by comfy_kitchen's stages, each zero-centered norm's scale 1 added in BF16, and no
+// operation rounded to BF16. overgo computes it so (model.ArithmeticComfyUIF32), the two then differing by the order
+// their float32 sums take: read on 2026-11-22, the six prompts' states at 0.0000012 to 0.000038 of ComfyUI's in
+// relative L2, each token's at cosine 0.999999984 or nearer (moss-encoder-own). Held there: each token's state within
+// cosine 0.999999 of ComfyUI's, each prompt's within 1e-4 in relative L2. Transformers' BF16 arithmetic, which overgo
+// had computed, lay at 0.013 to 0.021, and a weight decoded without its rotation, a layer read under the wrong name or
+// states taken before the final norm lie far outside both.
 const (
-	ultraEncoderTokenCosine = 0.99
-	ultraEncoderRelativeL2  = 0.05
+	ultraEncoderTokenCosine = 0.999999
+	ultraEncoderRelativeL2  = 1e-4
 )
 
 // TestTheUltraEncoderConditionsAsComfyUIDoes holds the MOSS Ultra workflow's text encoder (moss-ultra-import/encoder)
@@ -122,7 +124,7 @@ func TestTheUltraEncoderConditionsAsComfyUIDoes(t *testing.T) {
 			}
 		}
 		relative := math.Sqrt(differenceSquares / wantSquares)
-		t.Logf("%q: %d tokens, lowest token cosine %.6f (token %d), relative L2 %.5f", recorded.Prompt, tokens, lowest, lowestToken, relative)
+		t.Logf("%q: %d tokens, lowest token cosine %.9f (token %d), relative L2 %.7f", recorded.Prompt, tokens, lowest, lowestToken, relative)
 		if !(lowest >= ultraEncoderTokenCosine) || !(relative <= ultraEncoderRelativeL2) {
 			t.Errorf("%q: token %d's state lies at cosine %.6f of ComfyUI's and the prompt's at relative L2 %.5f; want at least %g and at most %g",
 				recorded.Prompt, lowestToken, lowest, relative, ultraEncoderTokenCosine, ultraEncoderRelativeL2)

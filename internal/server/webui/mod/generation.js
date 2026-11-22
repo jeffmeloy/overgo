@@ -57,15 +57,45 @@
       el("div", { class: "row" }, el("span", { class: "tag", text: "A" }), under, el("span", { class: "tag", text: "B" }), over), frame, divide);
   }
 
+  // promptsUsed: what a run's picture was drawn from, as the MOSS Ultra workflow shows it beside each section's picture
+  // ("Prompt used", "Negative prompt used"), each offered back as the manual prompt: the enhancer off and the layout
+  // cleared, so the next run draws the text as written (moss-prompts-used).
+  function promptsUsed(host, used, overgo) {
+    const { el } = overgo;
+    const field = (name) => [...(host.closest(".panel") || document).querySelectorAll("label.control")]
+      .find((label) => label.querySelector("span")?.textContent === name)?.querySelector("input,select,textarea");
+    const set = (input, value) => { if (input) { input.value = value; input.dispatchEvent(new Event("input", { bubbles: true })); } };
+    const manual = () => {
+      set(field("enhance"), "");
+      set(field("prompt mode"), "");
+      const layout = (host.closest(".panel") || document).querySelector('fieldset[data-control="layout"]');
+      if (layout) { layout.value = ""; layout.dispatchEvent(new Event("input", { bubbles: true })); }
+    };
+    const shownText = (title, text, label, name) => {
+      const offer = el("button", { class: "btn alt", type: "button", text: label });
+      offer.addEventListener("click", () => { manual(); set(field(name), text); });
+      return el("div", { class: "prompt-used" }, el("div", { class: "section-title", text: title }), el("pre", { class: "mono", text: text || "(none)" }), offer);
+    };
+    return el("section", { class: "prompts-used", "aria-label": "prompts used" },
+      shownText("Prompt used", used.prompt, "Use as the prompt", "prompt"),
+      shownText("Negative prompt used", used.negative_prompt, "Use as the negative prompt", "negative prompt"));
+  }
+
   // shown: a completed run's outputs, its pictures beside an A/B compare of its newest picture (B) against the picture
-  // its request started from, else the picture drawn before it (A); a non-picture output stands as its link.
-  function shown(host, completed, overgo) {
+  // its request started from, else the picture drawn before it (A), and what its picture was drawn from where the run
+  // says (promptsUsed); a non-picture output stands as its link.
+  async function shown(host, completed, overgo) {
     const { el, contentURL, fmt } = overgo;
-    const outputs = completed.outputs || [];
+    let outputs = completed.outputs || [];
     if (completed.task !== "image-gen") {
       host.replaceChildren(...outputs.map((id) => overgo.artifactLink(id)));
       return;
     }
+    // A run's outputs are its pictures and, where it says what they were drawn from, that document.
+    const fetched = await Promise.all(outputs.map(async (id) => ({ id, blob: await overgo.api.blob(contentURL(id)) })));
+    const drawnFrom = fetched.find((output) => output.blob.type.includes("json"));
+    const used = drawnFrom ? JSON.parse(await drawnFrom.blob.text()) : null;
+    outputs = fetched.filter((output) => output !== drawnFrom).map((output) => output.id);
     const input = (request && request().input) || {};
     const started = [input.image, input.control && input.control.picture].filter(Boolean);
     const before = pictures.find((picture) => !outputs.includes(picture.id) && !started.includes(picture.id));
@@ -74,6 +104,7 @@
     const a = started[0] || (before && before.id);
     host.replaceChildren(
       el("div", { class: "workbench-outputs" }, ...outputs.map((id) => el("img", { src: contentURL(id), alt: "Generated picture", class: "workbench-output" }))),
+      ...(used ? [promptsUsed(host, used, overgo)] : []),
       ...(a && outputs.length ? [abCompare(overgo, a, outputs[0])] : []));
   }
 

@@ -39,6 +39,9 @@ type mossGenerationFixture struct {
 	root      string
 	mu        sync.Mutex
 	inputs    []latentimage.Request
+	// drawn, where set, is the prompt and negative prompt the stand-in reports each picture drawn from, as the picture
+	// capability reports them (moss-prompts-used); unset, a picture reports none.
+	drawn func(latentimage.Request) (prompt, negative string)
 	// previewed are the inputs the capability's preview was asked, as they came.
 	previewed []string
 }
@@ -81,7 +84,14 @@ func newMOSSGenerationFixture(t *testing.T, onRequest func(context.Context, arti
 				return nil, ctx.Err()
 			}
 			input, err := inputContract.ContentBytes([]byte(raw))
-			return capabilityruntime.Measured{Output: image, Input: input}, err
+			picture := image
+			fixture.mu.Lock()
+			drawn := fixture.drawn
+			fixture.mu.Unlock()
+			if drawn != nil {
+				picture.Prompt, picture.NegativePrompt = drawn(executed)
+			}
+			return capabilityruntime.Measured{Output: picture, Input: input}, err
 		},
 		Preview: func(_ context.Context, _ artifact.Repository, path string, _ modelrecipe.CapabilityEvidenceSelection, raw string) (any, error) {
 			if path != root {

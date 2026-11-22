@@ -28,6 +28,12 @@ type EncodedImage struct {
 // RanPreset is the preset the picture was drawn at (media.PresetOf).
 func (image EncodedImage) RanPreset() media.Preset { return image.Preset }
 
+// DrawnFrom is the prompt and the negative prompt the picture was drawn from, both empty where its capability reports
+// none, as a page shows them beside the picture (moss-prompts-used).
+func (image EncodedImage) DrawnFrom() (prompt, negative string) {
+	return image.Prompt, image.NegativePrompt
+}
+
 var encodedPNGContract = artifact.DocumentContract{
 	Kind: artifact.KindOutput, MediaType: media.PNGMediaType, Schema: "overgo.encoded-image.png.v1",
 }

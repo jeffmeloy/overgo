@@ -3,21 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "moss-prompts-used",
-      "title": "A MOSS run reports the prompt and negative prompt it drew from, and the page shows them and offers them back as the manual prompt",
-      "steps": [
-        {
-          "id": "page",
-          "title": "The page shows a MOSS run's prompt and negative prompt used and offers each back as the manual prompt",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserMOSSPromptsUsed$' -leg moss-prompts-used",
-          "files": [
-            "internal/server"
-          ],
-          "rationale": "The page half of moss-prompts-used: a completed run shows \"Prompt used\" and \"Negative prompt used\" as the workflow's PreviewAny nodes do, and a control sets the manual prompt and negative from them, so an enhanced or built prompt can be edited and drawn again in mode 1."
-        }
-      ]
-    },
-    {
       "id": "moss-prompt-mode",
       "title": "MOSS's page offers one prompt mode, manual, enhanced or builder, showing only that mode's fields, declared by the control list so the page stays generated",
       "steps": [

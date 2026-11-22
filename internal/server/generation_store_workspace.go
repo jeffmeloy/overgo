@@ -348,7 +348,21 @@ func (workspace *storeGenerationWorkspace) ExecuteWorkflow(ctx context.Context, 
 	if recorded {
 		inputs = append(inputs, request.Descriptor.ID)
 	}
-	run, err := runrecord.NewRun(recipeID, runrecord.OutcomeSucceeded, inputs, []artifact.ID{content.Descriptor.ID}, "")
+	// What the output was drawn from, where it says so, is an output of the run beside it, which the page shows.
+	published := []artifact.Content{content}
+	if used, drawn, usedErr := promptsUsedContent(capabilityruntime.Unwrap(output)); usedErr != nil {
+		err = usedErr
+	} else if drawn {
+		published = append(published, used)
+	}
+	outputs := make([]artifact.ID, len(published))
+	for index, output := range published {
+		outputs[index] = output.Descriptor.ID
+	}
+	var run runrecord.Run
+	if err == nil {
+		run, err = runrecord.NewRun(recipeID, runrecord.OutcomeSucceeded, inputs, outputs, "")
+	}
 	var batch artifact.Batch
 	if err == nil {
 		batch, err = run.Batch(generationRunKeyPrefix + run.ID.String())
@@ -357,7 +371,7 @@ func (workspace *storeGenerationWorkspace) ExecuteWorkflow(ctx context.Context, 
 		if recorded {
 			batch.Contents = append(batch.Contents, request)
 		}
-		batch.Contents = append(batch.Contents, content)
+		batch.Contents = append(batch.Contents, published...)
 		_, err = artifact.Publish(ctx, workspace.store, batch)
 	}
 	if err != nil {
@@ -369,7 +383,7 @@ func (workspace *storeGenerationWorkspace) ExecuteWorkflow(ctx context.Context, 
 	}
 	workspace.observe(ctx, capability.Model, recipeID, run.ID, task, started, end-begin, measured, nil)
 	reporter.Publishing()
-	return operation.Completion{Run: run.ID, Outputs: []artifact.ID{content.Descriptor.ID}}, nil
+	return operation.Completion{Run: run.ID, Outputs: outputs}, nil
 }
 
 // generationPreview is what a preview shows of a run's input: a stored picture (a MOSS depth section's map) and its
@@ -501,4 +515,32 @@ func (workspace *storeGenerationWorkspace) executionPath(ctx context.Context, mo
 		return "", fmt.Errorf("generation workspace: model %s has no bytes on disk", model)
 	}
 	return filepath.Dir(location), nil
+}
+
+// promptsUsedContract is the document of what a picture was drawn from, its prompt and negative prompt, published
+// beside it as an output of its run (moss-prompts-used).
+var promptsUsedContract = artifact.DocumentContract{Kind: artifact.KindOutput, MediaType: "application/json", Schema: "overgo.prompts-used.v1"}
+
+// promptsUsed is what a picture was drawn from, as the MOSS Ultra workflow shows it beside each section's picture
+// ("Prompt used", "Negative prompt used").
+type promptsUsed struct {
+	Prompt         string `json:"prompt"`
+	NegativePrompt string `json:"negative_prompt"`
+}
+
+// promptsUsedContent is the document of the prompt and negative prompt output was drawn from, where it says so (a MOSS
+// picture, latentimage EncodedImage.DrawnFrom), and false where it says nothing.
+func promptsUsedContent(output any) (artifact.Content, bool, error) {
+	drawn, says := output.(interface {
+		DrawnFrom() (prompt, negative string)
+	})
+	if !says {
+		return artifact.Content{}, false, nil
+	}
+	prompt, negative := drawn.DrawnFrom()
+	if prompt == "" && negative == "" {
+		return artifact.Content{}, false, nil
+	}
+	content, err := artifact.JSONContent(promptsUsedContract, promptsUsed{Prompt: prompt, NegativePrompt: negative})
+	return content, err == nil, err
 }

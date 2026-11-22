@@ -45,6 +45,18 @@ func reachedSuites(ctx context.Context, output io.Writer, root, kept string) ([]
 		}
 	}
 	suites := suitesOf(lanes)
+	// A test passed since its row named it is not taken first again (lanesFirst.passedSince): a commit that git cannot
+	// read as the other or a descendant of it reads as no pass since.
+	passes, since := plan.ReadTestPasses(kept), map[[2]string]bool{}
+	after := func(earlier, later string) bool {
+		pair := [2]string{earlier, later}
+		if answer, read := since[pair]; read {
+			return answer
+		}
+		_, err := gitauthority.Query(ctx, root, "merge-base", "--is-ancestor", earlier, later)
+		since[pair] = earlier == later || err == nil
+		return since[pair]
+	}
 	// Each lane takes first what the commits since its pass say matters (lanes-first); a lane with no pass kept, or
 	// whose commits cannot be read, runs in its own order.
 	for index, suite := range suites {
@@ -57,9 +69,11 @@ func reachedSuites(ctx context.Context, output io.Writer, root, kept string) ([]
 			fmt.Fprintf(output, "validate -run: cycle lane %s runs in its own order: %v\n", suite.Lane, err)
 			continue
 		}
+		left := first.passedSince(passes, after)
 		suites[index].First = first
-		if len(first.checks) > 0 {
-			fmt.Fprintf(output, "validate -run: cycle lane %s takes first the %d tests its landed rows' checks name\n", suite.Lane, len(first.checks))
+		if len(first.checks)+left > 0 {
+			fmt.Fprintf(output, "validate -run: cycle lane %s takes first the %d tests its landed rows' checks name, %d others passed since their row named them\n",
+				suite.Lane, len(first.checks), left)
 		}
 	}
 	return suites, nil

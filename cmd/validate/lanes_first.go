@@ -24,10 +24,11 @@ type lanesFirst struct {
 	packages map[string]bool
 }
 
-// checkedTest is a test a landed row's check names, and the packages its check runs.
+// checkedTest is a test a landed row's check names, the packages its check runs, and the commit that landed the row.
 type checkedTest struct {
 	name     string
 	packages []string
+	commit   string
 }
 
 // readLanesFirst reads what a run of a lane at head takes first from the commits after base: each commit's
@@ -65,7 +66,10 @@ func readLanesFirst(ctx context.Context, root, base, head string) (lanesFirst, e
 			for _, open := range document.Items {
 				for _, held := range open.Steps {
 					if open.ID == item && held.ID == step {
-						first.checks = append(first.checks, testsOfCheck(held.Verify)...)
+						for _, check := range testsOfCheck(held.Verify) {
+							check.commit = commit
+							first.checks = append(first.checks, check)
+						}
 					}
 				}
 			}
@@ -79,6 +83,31 @@ func readLanesFirst(ctx context.Context, root, base, head string) (lanesFirst, e
 		first.packages["./"+path.Dir(file)] = true
 	}
 	return first, nil
+}
+
+// passedSince leaves out of the first list each test with a pass kept (plan.ReadTestPasses, by plan.PassedTest) in
+// every package its check runs at the commit that landed the row naming it or at one after it (since: the later
+// commit is the earlier or descends from it), and says how many it left out: such a test runs in its package's own
+// order. The first list is read from the commits after the lane's last whole pass, so a lane that has not passed whole
+// repeated the same tests first at every close: the models lane, unpassed whole since 2026-11-16, took 89 tests first
+// at each run, two hours and more, though the run before had kept passes of them, and commits were held for it to reach
+// internal/inference (lanes-first-kept, the owner's review of 2026-11-21). A test whose check names no package keeps
+// its place.
+func (f *lanesFirst) passedSince(passes map[string]plan.TestPass, since func(earlier, later string) bool) int {
+	kept := f.checks[:0]
+	for _, check := range f.checks {
+		passed := len(check.packages) > 0 && check.commit != ""
+		for _, pkg := range check.packages {
+			pass, held := passes[plan.PassedTest(modulePrefix+strings.TrimPrefix(pkg, "./"), check.name)]
+			passed = passed && held && since(check.commit, pass.Commit)
+		}
+		if !passed {
+			kept = append(kept, check)
+		}
+	}
+	left := len(f.checks) - len(kept)
+	f.checks = kept
+	return left
 }
 
 // testsOfCheck are the tests a go test check names with -run, a pattern ^(A|B)$ or ^A$, each with the packages the

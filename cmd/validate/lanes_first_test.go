@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"overgo/internal/gitauthority"
+	"overgo/internal/plan"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
@@ -58,5 +60,47 @@ func TestALanesRunTakesFirstWhatItsCommitChanges(t *testing.T) {
 	}
 	if !slices.Equal(order, []string{"TestGamma", "TestBetaCheckpoint", "TestAlpha"}) {
 		t.Errorf("a package of three tests runs them as %v; want the one a landed check names, then its checkpoint, then the rest", order)
+	}
+}
+
+// TestAFirstListedTestPassedSinceItsRowIsNotTakenFirst holds a run of the lanes to repeating less (lanes-first-kept):
+// over moss-elementwise/do (9acbc157a), whose check named three tests in two packages, each test carries the commit
+// that landed its row; one with a pass kept in both packages at a commit since that one runs in its package's own
+// order, while one passed in a single package, and one passed only at a commit before the row's, stay first, in the
+// check's order. The models lane, unpassed whole since 2026-11-16, had taken 89 tests first at every close, two hours
+// and more, though the run before had kept passes of them (the owner's review of 2026-11-21).
+func TestAFirstListedTestPassedSinceItsRowIsNotTakenFirst(t *testing.T) {
+	t.Parallel()
+	repo := testutil.RepoRoot(t)
+	first := testcheck.Must(readLanesFirst(t.Context(), repo, "9acbc157a^", "9acbc157a"))(t)
+	landed := strings.TrimSpace(string(testcheck.Must(gitauthority.Query(t.Context(), repo, "rev-parse", "9acbc157a"))(t)))
+	if len(first.checks) != 3 {
+		t.Fatalf("moss-elementwise/do's check names %d tests; want 3", len(first.checks))
+	}
+	for _, check := range first.checks {
+		if check.commit != landed {
+			t.Errorf("%s is read as named at %q; want the commit that landed its row, %s", check.name, check.commit, landed)
+		}
+	}
+	const executor, latentimage = "overgo/internal/cuda/executor", "overgo/internal/latentimage"
+	names := []string{first.checks[0].name, first.checks[1].name, first.checks[2].name}
+	passes := map[string]plan.TestPass{
+		plan.PassedTest(executor, names[0]): {Commit: "later"}, plan.PassedTest(latentimage, names[0]): {Commit: "later"},
+		plan.PassedTest(executor, names[1]): {Commit: "later"},
+		plan.PassedTest(executor, names[2]): {Commit: "earlier"}, plan.PassedTest(latentimage, names[2]): {Commit: "earlier"},
+	}
+	since := func(earlier, later string) bool { return earlier == landed && later == "later" }
+	if left := first.passedSince(passes, since); left != 1 {
+		t.Errorf("the first list left out %d tests; want the one passed since in both its packages", left)
+	}
+	var kept []string
+	for _, check := range first.checks {
+		kept = append(kept, check.name)
+	}
+	if !slices.Equal(kept, names[1:]) {
+		t.Errorf("the first list keeps %v; want %v, the test passed since its row named it left to its package's order", kept, names[1:])
+	}
+	if rank := first.rank("./internal/cuda/executor", names[0]); rank < len(first.checks) {
+		t.Errorf("%s ranks %d; want it among its package's other tests", names[0], rank)
 	}
 }

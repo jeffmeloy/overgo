@@ -958,7 +958,8 @@ func (l *landing) verify(ctx context.Context) error {
 	// Each check runs as its step was accepted with it (SQA-378): a test of its name elsewhere earns nothing, and a moved
 	// test is a check changed in the plan, recorded as one.
 	for _, verifier := range l.verifiers {
-		if strings.TrimSpace(verifier) == "" {
+		// A check passed on the change already (JudgeCheck, after plan -verify ran it) is not run again.
+		if _, ran := l.passedWalls[verifier]; ran || strings.TrimSpace(verifier) == "" {
 			continue
 		}
 		// The check shows its progress in the landing's log as it runs, as each stage does.

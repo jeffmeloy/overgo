@@ -20,6 +20,7 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/commanddoc"
 	"overgo/internal/extent"
+	"overgo/internal/landing"
 	"overgo/internal/plan"
 	"overgo/internal/planverify"
 	"overgo/internal/processlock"
@@ -757,11 +758,19 @@ func runVerify(it plan.Item, st plan.Step) error {
 		}
 	}
 	fmt.Fprintf(os.Stderr, "plan verify %s/%s: %s\n", it.ID, st.ID, st.Verify)
+	started := time.Now()
 	class, err := planverify.Execute(context.Background(), commandWorktree, st.Verify, nil)
 	if err != nil {
 		return fmt.Errorf("verify %s/%s: %w -- run the named oracle against its real prerequisite or record a recorded stop", it.ID, st.ID, err)
 	}
 	fmt.Fprintf(os.Stderr, "plan verify %s/%s: PASS verdict=%s\n", it.ID, st.ID, class)
+	// The check is judged as the commit attempt judges it, by the attempt's own code (verify-as-gate): its tests listed,
+	// and run with the change's production Go restored.
+	passed := map[string]time.Duration{st.Verify: time.Since(started)}
+	if err := landing.JudgeCheck(context.Background(), commandWorktree, it.ID+"/"+st.ID, passed, os.Stderr); err != nil {
+		return fmt.Errorf("verify %s/%s: the check passes on the change, and the commit attempt would refuse it: %w", it.ID, st.ID, err)
+	}
+	fmt.Fprintf(os.Stderr, "plan verify %s/%s: judged as the commit attempt judges it\n", it.ID, st.ID)
 	return nil
 }
 

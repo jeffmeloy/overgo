@@ -30,23 +30,6 @@
       ]
     },
     {
-      "id": "verify-as-gate",
-      "title": "Checking a step judges its check as the commit attempt does, so a check the attempt would refuse fails before an attempt starts",
-      "steps": [
-        {
-          "id": "do",
-          "title": "plan -verify lists the check's tests and runs it with the change's production Go restored, by the gate's own code, beside its run on the change",
-          "verify": "go test ./cmd/plan ./internal/landing -count=1 -run '^TestCheckingAStepJudgesItsCheckAsTheAttemptDoes$'",
-          "files": [
-            "cmd/plan",
-            "internal/landing",
-            "internal/planverify"
-          ],
-          "rationale": "The owner's review of 2026-11-21 (second), point 2, checked against the code and the record: valid. plan -verify runs a step's check once, in the working folder (cmd/plan/main.go runVerify, planverify.Execute); the commit attempt also lists the tests its go test runs (internal/landing/form.go, form) and runs it with the change's production Go restored (undo.go, undo), refusing a check that holds no test it runs or that passes without the change. Of the 150 refusals with a cause in .overgo-runtime/landing_refusals.json, 12 are the undo's (passes with the change's production Go restored: moss-first-run/quiet's on 2026-11-21 among them, moss-fusion/copies twice) and 6 the listing's (holds no test it runs), counted by tmp/speech-captures/refusal_count.go; the review counted 14 and 6. Each was found only by an attempt, minutes to an hour of gate in. The step exports the gate's form and undo judgment over a working tree and has plan -verify run it after the check passes on the change, saying no evidence where the check does not build at the base, as the attempt says it, so Check it and the attempt judge a check by the same code."
-        }
-      ]
-    },
-    {
       "id": "slow-whole",
       "title": "At the commit the workflow reaches parity at, one whole slow run passes: every lane, every package, run to its end without yielding",
       "steps": [

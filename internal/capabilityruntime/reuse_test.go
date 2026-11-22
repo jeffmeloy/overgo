@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
@@ -81,11 +82,13 @@ func TestStoredResultIsReusedOnlyUnderItsOwnIdentity(t *testing.T) {
 				return request.Value * gain, nil
 			})
 		},
-	), func(ctx context.Context, store artifact.Repository, path, raw string) (string, func() error, error) {
+	), func(ctx context.Context, store artifact.Repository, path string, execution modelrecipe.CapabilityEvidenceSelection, raw string) (string, func() error, error) {
 		if unreadable {
 			return "", nil, errors.New("the file beside the model cannot be read")
 		}
-		return Contents(nil, func(string, string) ([]string, error) { return []string{preprocessor}, nil })(ctx, store, path, raw)
+		return Contents(nil, func(context.Context, artifact.Repository, string, modelrecipe.CapabilityEvidenceSelection, string) ([]string, error) {
+			return []string{preprocessor}, nil
+		})(ctx, store, path, execution, raw)
 	})
 	scorer := JSONScalar[scoreRequest, *strings.Builder, int](
 		"scalar", func(scoreRequest) error { return nil },

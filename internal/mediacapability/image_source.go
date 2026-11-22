@@ -111,7 +111,9 @@ func raeImageSource(path string, collection rae.Collection) (Source, error) {
 var raeImage = capabilityruntime.Reading(capabilityruntime.JSONScalar[rae.Request, *rae.Generator, latentimage.EncodedImage](
 	"image-gen", rae.ValidateRequest,
 	capabilityruntime.IgnoreInput[rae.Request](rae.Load), rae.RegisterRuntime,
-), capabilityruntime.Contents(nil, func(path, _ string) ([]string, error) { return rae.ProcessorFiles(path), nil }))
+), capabilityruntime.Contents(nil, func(_ context.Context, _ artifact.Repository, path string, _ modelrecipe.CapabilityEvidenceSelection, _ string) ([]string, error) {
+	return rae.ProcessorFiles(path), nil
+}))
 
 // latentImageComponentBindings slots the latent-image stages onto the
 // diffusers-layout component groups: prepare on the text encoder,

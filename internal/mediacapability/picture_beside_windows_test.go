@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"overgo/internal/capabilityruntime"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/testcheck"
 )
 
@@ -35,7 +36,7 @@ func TestAReplacedAdapterIsReadAgain(t *testing.T) {
 	naming := capabilityruntime.Contents(nil, pictureFiles)
 	name := func(request string) string {
 		t.Helper()
-		named, release, err := naming(t.Context(), nil, model, request)
+		named, release, err := naming(t.Context(), nil, model, modelrecipe.CapabilityEvidenceSelection{}, request)
 		testcheck.NoError(t, err)
 		testcheck.NoError(t, release())
 		return named
@@ -53,7 +54,7 @@ func TestAReplacedAdapterIsReadAgain(t *testing.T) {
 		t.Fatalf("the adapter's first bytes again are named %q; want the first run's %q, which the store replays", again, first)
 	}
 
-	_, release, err := naming(t.Context(), nil, model, named)
+	_, release, err := naming(t.Context(), nil, model, modelrecipe.CapabilityEvidenceSelection{}, named)
 	testcheck.NoError(t, err)
 	if os.WriteFile(adapter, []byte("weights switched while read"), 0o600) == nil {
 		t.Error("the adapter was written between its naming and the request's end; want it held as named")
@@ -84,7 +85,7 @@ func TestAReplacedAdapterIsReadAgain(t *testing.T) {
 	if bare := name(`{"prompt":"a lighthouse at dusk","width":64,"height":64,"seed":7}`); bare != "" {
 		t.Fatalf("a request naming no adapter is named %q; want nothing, so it is kept as before", bare)
 	}
-	if _, _, err := naming(t.Context(), nil, model, `{"prompt":"a lighthouse","width":64,"height":64,"adapter":"..\\turbo"}`); err == nil {
+	if _, _, err := naming(t.Context(), nil, model, modelrecipe.CapabilityEvidenceSelection{}, `{"prompt":"a lighthouse","width":64,"height":64,"adapter":"..\\turbo"}`); err == nil {
 		t.Fatal("a request naming an adapter outside the model's adapters was named; want it run afresh, named nothing")
 	}
 }

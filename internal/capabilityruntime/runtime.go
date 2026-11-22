@@ -54,7 +54,7 @@ type besideContextKey struct{}
 // Beside names, for Reading, what a request's answer reads beside its model's inventory, from the model's path and the
 // request: a text encoder, a tokenizer, an image processor, a picture's adapters. It gives what it held for the naming
 // back by release once the request is served; a naming it cannot make holds nothing.
-type Beside func(ctx context.Context, store artifact.Repository, path, raw string) (named string, release func() error, err error)
+type Beside func(ctx context.Context, store artifact.Repository, path string, execution modelrecipe.CapabilityEvidenceSelection, raw string) (named string, release func() error, err error)
 
 // Reading returns an executor whose answers are kept under what its model
 // reads beside its inventory as well, as beside names it. A model's identity
@@ -66,7 +66,7 @@ type Beside func(ctx context.Context, store artifact.Repository, path, raw strin
 func Reading(execute Executor, beside Beside) Executor {
 	return func(ctx context.Context, store artifact.Repository, path string, execution modelrecipe.CapabilityEvidenceSelection, raw string) (any, error) {
 		naming := processmeasure.Stage(ctx, "files beside the model named")
-		named, release, err := beside(ctx, store, path, raw)
+		named, release, err := beside(ctx, store, path, execution, raw)
 		naming()
 		if err != nil {
 			return execute(FreshRun(ctx), store, path, execution, raw)
@@ -81,7 +81,7 @@ func Reading(execute Executor, beside Beside) Executor {
 
 // PathNaming is a Beside that names from the model's path alone, as name does, and holds nothing.
 func PathNaming(name func(ctx context.Context, store artifact.Repository, path string) (string, error)) Beside {
-	return func(ctx context.Context, store artifact.Repository, path, _ string) (string, func() error, error) {
+	return func(ctx context.Context, store artifact.Repository, path string, _ modelrecipe.CapabilityEvidenceSelection, _ string) (string, func() error, error) {
 		named, err := name(ctx, store, path)
 		return named, func() error { return nil }, err
 	}
@@ -95,11 +95,11 @@ func PathNaming(name func(ctx context.Context, store artifact.Repository, path s
 // adapter's name, SQA-406); a session that owns their directory keeps them held after (adapter-hold), so a later
 // request naming them reads nothing, and a request that ends with no session lets them go (held-release, SQA-454). With
 // held nil, each request names through a set of its own.
-func Contents(held *heldfile.Set, files func(path, raw string) ([]string, error)) Beside {
-	return func(_ context.Context, _ artifact.Repository, path, raw string) (string, func() error, error) {
+func Contents(held *heldfile.Set, files func(ctx context.Context, store artifact.Repository, path string, execution modelrecipe.CapabilityEvidenceSelection, raw string) ([]string, error)) Beside {
+	return func(ctx context.Context, store artifact.Repository, path string, execution modelrecipe.CapabilityEvidenceSelection, raw string) (string, func() error, error) {
 		// The files are listed before the request owns any, so a request answered afresh for a listing that failed, to
 		// which Reading gives no release, leaves no owner behind (SQA-454).
-		listed, err := files(path, raw)
+		listed, err := files(ctx, store, path, execution, raw)
 		if err != nil || len(listed) == 0 {
 			return "", func() error { return nil }, err
 		}

@@ -3,27 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "moss-served-repeat",
-      "title": "A repeated served MOSS picture returns its completed draw before reading its source picture again",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A repeated served MOSS picture returns its completed draw before reading its source picture again",
-          "verify": "go test ./internal/mediacapability -count=1 -run '^TestServedMOSSPictureReusesItsCompletedDraw$'",
-          "files": [
-            "internal/mediacapability",
-            "internal/latentimage",
-            "internal/capabilityruntime"
-          ],
-          "rationale": "Send the same admitted, fixed-seed MOSS request twice through the picture capability with a store, a stored source PNG and a held adapter in a live session. At ff603b49b preparedFirst reads and base64-encodes the PNG before the session director looks for a completed draw. TestAServedPictureReusesItsHeldFiles exercises naming alone on the identical repeat and counts only files opened by heldfile.Set. Extend its fixture through the production entry and existing run lookup. On the second call require the same recorded run and pixel bytes, zero source-PNG payload reads, zero additional opens or bytes hashed for the held adapter, and zero draw or weight-placement work. Count the first read and draw so a disconnected counter fails. A changed seed must draw again using the held adapter. FreshRun must execute. Preserve active selection, admission, content identity, refusal of missing inputs and invalidation when a dependency changes. Count reads of the returned result separately. Use the existing residency check for transfers during a real warm draw. This check concerns ordinary MOSS pictures with enhancement off.\n\nNote: Use the ultra-image-to-image-turbo preset with its canvas size omitted from the request and its source PNG named by artifact ID. On master at 32cf1a5d0, pictureFiles sizes the request and lists its dependencies, then preparedFirst sizes it again. Each of those three calls resolves the preset by reading model_index.json outside heldfile.Set. Count those model-index opens at the file boundary and require zero on the identical repeat while its selected model and profile are valid. Use the selected profile to resolve the preset. In the same fixture, changing only the source PNG to a different valid artifact at the same seed must read the new source and produce a distinct run. Use the existing picture capability entry for every call.",
-          "depends_on": [
-            "moss-first-run/clock",
-            "moss-real-prompt/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "fusion-edges-all",
       "title": "Every fused kernel any model runs is held to its chain launched step by step where they could part, and a fusion kind with no case is refused in seconds",
       "steps": [

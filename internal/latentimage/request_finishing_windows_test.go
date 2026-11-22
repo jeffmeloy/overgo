@@ -15,11 +15,11 @@ import (
 // rotary profile alone and held to its bounds.
 func TestARequestsCanvasAndSharpeningFinishItsPicture(t *testing.T) {
 	canvas := &media.Canvas{Aspect: "16:9", Megapixels: 0.5625, Multiple: 32}
-	sized := testcheck.Must(Request{Prompt: "a lighthouse", Canvas: canvas}.withPreset(""))(t)
+	sized := testcheck.Must(Request{Prompt: "a lighthouse", Canvas: canvas}.withPreset(CatalogIn("")))(t)
 	if sized.Width != 1024 || sized.Height != 576 || sized.Canvas != nil {
 		t.Errorf("the canvas sized %d×%d (canvas left %v), want the recordings' 1024×576", sized.Width, sized.Height, sized.Canvas)
 	}
-	if _, err := (Request{Prompt: "a lighthouse", Width: 512, Height: 512, Canvas: canvas}).withPreset(""); err == nil {
+	if _, err := (Request{Prompt: "a lighthouse", Width: 512, Height: 512, Canvas: canvas}).withPreset(CatalogIn("")); err == nil {
 		t.Error("a canvas beside a width and height was taken")
 	}
 	sharpen := &media.Sharpening{Radius: 1, Sigma: 0.6, Alpha: 0.7}

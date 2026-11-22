@@ -267,7 +267,7 @@ func ownSizeReading(t *testing.T, root string, profile Profile) {
 	// 33.4 s of setup into 5.30 s a step).
 	sampled := func(steps int) time.Duration {
 		t.Helper()
-		asked := testcheck.Must(request.Sized(root))(t)
+		asked := testcheck.Must(request.Sized(CatalogIn(root)))(t)
 		asked.Steps = steps
 		testcheck.NoError(t, generator.Reset(ctx, asked))
 		session := testcheck.Must(generator.prepare(ctx, asked))(t)

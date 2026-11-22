@@ -73,7 +73,7 @@ func TestTheUltraSectionPresetsHoldTheRecordedSettings(t *testing.T) {
 				skips = true
 			}
 		}
-		filled := testcheck.Must(Request{Preset: preset}.withPreset(directory))(t)
+		filled := testcheck.Must(Request{Preset: preset}.withPreset(CatalogIn(directory)))(t)
 		size := testcheck.Must(func() ([2]int, error) {
 			width, height, err := canvas.Size()
 			return [2]int{width, height}, err
@@ -104,14 +104,14 @@ func TestTheUltraSectionPresetsHoldTheRecordedSettings(t *testing.T) {
 		// adapter, and the preset fills the control's window as the section's MOSSImageControl runs it.
 		depth := Request{Prompt: "a fox", Width: 1024, Height: 576, Preset: preset, Control: &DepthControl{Map: "a depth map"}}
 		testcheck.NoError(t, ValidateRequest(depth))
-		drawn := testcheck.Must(depth.withPreset(directory))(t).Control
+		drawn := testcheck.Must(depth.withPreset(CatalogIn(directory)))(t).Control
 		if drawn.strength() != *recorded.Strength || drawn.Start != recorded.Start || drawn.end() != *recorded.End {
 			t.Errorf("%s runs its depth control at %g from %g to %g; want %s's MOSSImageControl, %g from %g to %g",
 				preset, drawn.strength(), drawn.Start, drawn.end(), section.slug, *recorded.Strength, recorded.Start, *recorded.End)
 		}
 	}
 	whole := 1.0
-	stated := testcheck.Must(Request{Preset: "ultra-depth-control", Control: &DepthControl{Map: "a depth map", End: &whole}}.withPreset(directory))(t)
+	stated := testcheck.Must(Request{Preset: "ultra-depth-control", Control: &DepthControl{Map: "a depth map", End: &whole}}.withPreset(CatalogIn(directory)))(t)
 	if stated.Control.end() != whole {
 		t.Errorf("a depth control stating its end under the depth preset ends at %g; want its own %g", stated.Control.end(), whole)
 	}
@@ -119,7 +119,7 @@ func TestTheUltraSectionPresetsHoldTheRecordedSettings(t *testing.T) {
 		t.Error("a depth request naming neither a preset nor an adapter was admitted; want it refused for its control adapter")
 	}
 	own := float32(2)
-	mine := testcheck.Must(Request{Preset: "ultra-text-to-image", Steps: 20, GuidanceScale: &own, Width: 1024, Height: 576, NegativePrompt: "blur"}.withPreset(directory))(t)
+	mine := testcheck.Must(Request{Preset: "ultra-text-to-image", Steps: 20, GuidanceScale: &own, Width: 1024, Height: 576, NegativePrompt: "blur"}.withPreset(CatalogIn(directory)))(t)
 	if mine.Steps != 20 || *mine.GuidanceScale != own || mine.Width != 1024 || mine.Height != 576 || mine.NegativePrompt != "blur" || mine.Schedule == nil {
 		t.Errorf("a request's own settings under the preset came back as %+v; want its own steps, guidance, size and negative, the preset's schedule", mine)
 	}

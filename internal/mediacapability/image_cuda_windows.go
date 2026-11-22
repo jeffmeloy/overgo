@@ -54,6 +54,40 @@ func pictureSessions() (*pictureDirector, error) {
 	)
 }
 
+// pictureExecutor serves latent picture requests through director (err its construction's): each sized by its
+// selected profile's preset and admitted before anything it names is read (preparedFirst), its answer kept under the
+// files it reads beside its model, named through held (pictureFiles), and sought in the store by the request as it
+// names its pictures, by their stored identity, which are read only where no answer is stored (readPictures,
+// ReadsOnMiss): a repeated picture had read and encoded its source picture before its answer was sought
+// (moss-served-repeat). Model is the session's model, a latentimage Generator where it serves.
+func pictureExecutor[Model any](director *capabilityruntime.ModelSessionDirector[latentimage.Request, Model, latentimage.EncodedImage], err error, held *heldfile.Set) capabilityruntime.Executor {
+	if err == nil {
+		director.ReadsOnMiss(readPictures)
+	}
+	return capabilityruntime.Reading(preparedFirst(sessionExecutor(director, err)), capabilityruntime.Contents(held, pictureFiles))
+}
+
+// readPictures reads the pictures a request names by their stored identity into the bytes its session takes
+// (latentimage Request.ReadPictures).
+func readPictures(ctx context.Context, store artifact.Repository, request latentimage.Request) (latentimage.Request, error) {
+	return request.ReadPictures(ctx, store)
+}
+
+// pictureCatalog is the catalog a picture request's preset is read from: the selected profile's, which the store holds
+// beside its recipe (latentimage.CatalogOf), so serving a request reads no model_index.json (moss-served-repeat); or,
+// for a selection naming no profile, the model directory's (latentimage.CatalogIn).
+func pictureCatalog(ctx context.Context, store artifact.Repository, path string, selection modelrecipe.CapabilityEvidenceSelection) (latentimage.Catalog, error) {
+	profileID, named := selection.Program.Definition().PrimaryDependency(recipe.DependencyProfile)
+	if !named || store == nil {
+		return latentimage.CatalogIn(path), nil
+	}
+	profile, err := latentimage.ReadProfile(ctx, store, profileID)
+	if err != nil {
+		return latentimage.Catalog{}, err
+	}
+	return latentimage.CatalogOf(profile), nil
+}
+
 func imageCapability() Capability {
 	routedDirector, routedErr := capabilityruntime.NewModelSessionDirector[sensenovarecipe.GenerationRequest, *sensenovarecipe.Generator, latentimage.EncodedImage](
 		"image-gen", imageDevice, imageSessionCapacity,
@@ -67,7 +101,8 @@ func imageCapability() Capability {
 		sensenovarecipe.RegisterRuntime,
 	)
 	routed := sessionExecutor(routedDirector, routedErr)
-	latent := capabilityruntime.Reading(preparedFirst(sessionExecutor(pictureSessions())), capabilityruntime.Contents(heldfile.Session, pictureFiles))
+	pictures, picturesErr := pictureSessions()
+	latent := pictureExecutor(pictures, picturesErr, heldfile.Session)
 	oscillator := capabilityruntime.JSONScalar[oscillatorimage.Request, *oscillatorimage.Model, latentimage.EncodedImage](
 		"image-gen", oscillatorimage.ValidateRequest,
 		capabilityruntime.IgnoreInput[oscillatorimage.Request](oscillatorimage.Load), oscillatorimage.RegisterRuntime,
@@ -124,22 +159,28 @@ func enhancerOpener(store artifact.Repository) latentimage.EnhancerOpener {
 // pictureFiles are the files a latent picture request reads beside its model's components, which its answer is kept
 // under as well (capabilityruntime.Reading): the adapters it or its preset names and the depth estimator a control
 // picture is read by (latentimage Request.Beside). A file replaced under its name gave the earlier file's picture again
-// (SQA-406). A request that cannot be read names none, and the session refuses it.
-func pictureFiles(path, raw string) ([]string, error) {
+// (SQA-406). Its preset is read from the selected profile (pictureCatalog). A request that cannot be read names none,
+// and the session refuses it.
+func pictureFiles(ctx context.Context, store artifact.Repository, path string, selection modelrecipe.CapabilityEvidenceSelection, raw string) ([]string, error) {
 	var request latentimage.Request
 	if strictjson.DecodeBytes([]byte(raw), &request) != nil {
 		return nil, nil
 	}
-	if _, err := admitted(path, request); err != nil {
+	catalog, err := pictureCatalog(ctx, store, path, selection)
+	if err != nil {
 		return nil, nil
 	}
-	return request.Beside(path)
+	if _, err := admitted(catalog, request); err != nil {
+		return nil, nil
+	}
+	return request.Beside(path, catalog)
 }
 
-// admitted is a latent picture request sized as its session takes it (latentimage Request.Sized), or the refusal its
-// session would give it (latentimage.Admit), before any file it names is read (SQA-425).
-func admitted(path string, request latentimage.Request) (latentimage.Request, error) {
-	sized, err := request.Sized(path)
+// admitted is a latent picture request sized as its session takes it, its preset read from catalog (latentimage
+// Request.Sized), or the refusal its session would give it (latentimage.Admit), before any file it names is read
+// (SQA-425).
+func admitted(catalog latentimage.Catalog, request latentimage.Request) (latentimage.Request, error) {
+	sized, err := request.Sized(catalog)
 	if err != nil {
 		return latentimage.Request{}, err
 	}
@@ -147,25 +188,26 @@ func admitted(path string, request latentimage.Request) (latentimage.Request, er
 }
 
 // preparedFirst prepares a latent picture request ahead of its session: a request stating no size is given its
-// canvas's or its preset's (latentimage Request.Sized), since the session is chosen and checked by its size before its
-// model loads (SQA-409); the pictures it names by their stored identity, as a page attaches them, are read into the
-// bytes the session takes (Request.ReadPictures); and a request asking the MOSS Ultra workflow's prompt mode 2 has its
-// prompt and negative written by the model's enhancer chat (latentimage.EnhanceRequest). It is served as the request
-// stating what was given, read and written, and an input needing none of them goes to the session as it is. A request is
-// read as strictly as the session reads it, so one the session would refuse (an unknown or repeated member) reaches the
-// session as it came and is refused there, nothing read and no chat opened for it (SQA-408); one it reads that the
-// session would refuse once sized is refused here as the session would refuse it, nothing read (admitted).
+// canvas's or its preset's, the preset read from the selected profile (latentimage Request.Sized, pictureCatalog),
+// since the session is chosen and checked by its size before its model loads (SQA-409); and a request asking the MOSS
+// Ultra workflow's prompt mode 2 has its prompt and negative written by the model's enhancer chat
+// (latentimage.EnhanceRequest). It is served as the request stating what was given and written, and an input needing
+// neither goes to the session as it is. The pictures it names by their stored identity, as a page attaches them, go on
+// so named: the session's director seeks its stored answer by them and reads them only where it holds none
+// (pictureExecutor). A request is read as strictly as the session reads it, so one the session would refuse (an
+// unknown or repeated member) reaches the session as it came and is refused there, no chat opened for it (SQA-408); one
+// it reads that the session would refuse once sized is refused here as the session would refuse it (admitted).
 func preparedFirst(next capabilityruntime.Executor) capabilityruntime.Executor {
 	return func(ctx context.Context, store artifact.Repository, path string, selection modelrecipe.CapabilityEvidenceSelection, input string) (any, error) {
 		var request latentimage.Request
 		if err := strictjson.DecodeBytes([]byte(input), &request); err != nil {
 			return next(ctx, store, path, selection, input)
 		}
-		sized, err := admitted(path, request)
+		catalog, err := pictureCatalog(ctx, store, path, selection)
 		if err != nil {
 			return nil, err
 		}
-		prepared, err := sized.ReadPictures(ctx, store)
+		prepared, err := admitted(catalog, request)
 		if err != nil {
 			return nil, err
 		}
@@ -173,7 +215,7 @@ func preparedFirst(next capabilityruntime.Executor) capabilityruntime.Executor {
 			if prepared, err = latentimage.EnhanceRequest(ctx, enhancerOpener(store), path, prepared); err != nil {
 				return nil, err
 			}
-		} else if prepared.Image == request.Image && prepared.Control == request.Control && prepared.Width == request.Width && prepared.Canvas == request.Canvas {
+		} else if prepared.Width == request.Width && prepared.Canvas == request.Canvas {
 			return next(ctx, store, path, selection, input)
 		}
 		written, err := json.Marshal(prepared)

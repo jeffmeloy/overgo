@@ -58,6 +58,9 @@ type ModelSessionDirector[Input, Model, Output any] struct {
 	reset    func(context.Context, Model, Input) error
 	bind     func(*workflowruntime.Runtime, artifact.ID, Model) error
 	inputs   func(Input, artifact.Content, recipe.Definition) (map[recipe.PortName]workflowruntime.Value, error)
+	// read reads what a request names into the input its session takes, only where the store holds no answer to the
+	// request as it names it (ReadsOnMiss).
+	read func(context.Context, artifact.Repository, Input) (Input, error)
 
 	mu      sync.Mutex
 	tick    uint64
@@ -475,6 +478,16 @@ func (c *ModelSessionDirector[Input, Model, Output]) Executor() Executor {
 	return c.execute
 }
 
+// ReadsOnMiss has the director seek a request's stored answer by the request as it names what it reads, and read
+// those, by read, only where the store holds none, before its session takes the request; the run then records the
+// request as it named them. A served MOSS picture named its source by its stored identity, which names its bytes, and
+// its bytes were read and written into the request before its answer was sought, so a repeat read them again
+// (moss-served-repeat). It returns the director.
+func (c *ModelSessionDirector[Input, Model, Output]) ReadsOnMiss(read func(context.Context, artifact.Repository, Input) (Input, error)) *ModelSessionDirector[Input, Model, Output] {
+	c.read = read
+	return c
+}
+
 func (c *ModelSessionDirector[Input, Model, Output]) execute(
 	ctx context.Context,
 	store artifact.Repository,
@@ -552,6 +565,22 @@ func (c *ModelSessionDirector[Input, Model, Output]) serve(
 	sought()
 	if err != nil || held {
 		return Measured{Output: output, Run: result.Run.ID, Input: content}, err
+	}
+	// What the request names is read only now that no stored answer holds it (ReadsOnMiss); the run keeps content, the
+	// request as it named it.
+	if c.read != nil {
+		reading := processmeasure.Stage(ctx, "named inputs read")
+		input, err = c.read(ctx, store, input)
+		if err == nil {
+			err = c.validate(input)
+		}
+		if err == nil {
+			inputs, err = c.inputs(input, content, definition)
+		}
+		reading()
+		if err != nil {
+			return zero, err
+		}
 	}
 	keyed := processmeasure.Stage(ctx, "session identified")
 	policy, err := c.policy(input)

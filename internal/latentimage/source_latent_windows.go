@@ -130,7 +130,7 @@ func (s *pictureSections) controlDepth(ctx context.Context, control DepthControl
 // bilinear without a crop (612:439), written as ComfyUI writes a picture, 255 times each level truncated to 8 bits. The
 // request is taken as its run takes it, its preset and canvas filling its size.
 func DepthPreview(root string, request Request) (_ EncodedImage, err error) {
-	filled, err := request.withPreset(root)
+	filled, err := request.withPreset(CatalogIn(root))
 	if err != nil {
 		return EncodedImage{}, err
 	}

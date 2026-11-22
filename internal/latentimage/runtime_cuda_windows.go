@@ -116,11 +116,12 @@ func (r Request) prompt() string {
 func (r Request) cutsSchedule() bool { return r.Denoise != 0 && r.Denoise <= denoiseWhole }
 
 // Beside are the files a request's picture reads from its model's folder at root beyond the model's components, with
-// what its preset fills (withPreset), in the order it reads them: the adapters it applies (adapterPath) and, for a depth
-// control drawn from a picture, the depth estimator (sectionDepth). The model's inventory holds neither, so a run is
-// keyed by their bytes beside the request (SQA-406). An adapter's name that is no file name is refused.
-func (r Request) Beside(root string) ([]string, error) {
-	filled, err := r.withPreset(root)
+// what its preset fills from catalog (withPreset), in the order it reads them: the adapters it applies (adapterPath)
+// and, for a depth control drawn from a picture, the depth estimator (sectionDepth). The model's inventory holds
+// neither, so a run is keyed by their bytes beside the request (SQA-406). An adapter's name that is no file name is
+// refused.
+func (r Request) Beside(root string, catalog Catalog) ([]string, error) {
+	filled, err := r.withPreset(catalog)
 	if err != nil {
 		return nil, err
 	}
@@ -309,7 +310,7 @@ func loadGenerator(ctx context.Context, modelDir string, profile Profile, reques
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	request, err := request.withPreset(modelDir)
+	request, err := request.withPreset(CatalogIn(modelDir))
 	if err != nil {
 		return nil, err
 	}
@@ -498,7 +499,7 @@ func (g *Generator) Reset(ctx context.Context, request Request) error {
 	if g == nil {
 		return errors.New("latent image: resident session is unavailable")
 	}
-	request, err := request.withPreset(g.modelDir)
+	request, err := request.withPreset(CatalogIn(g.modelDir))
 	if err != nil {
 		return err
 	}
@@ -557,7 +558,7 @@ func (g *Generator) prepare(ctx context.Context, request Request) (*Generator, e
 	if g == nil {
 		return nil, errors.New("latent image: generation session is unavailable")
 	}
-	request, err := request.withPreset(g.modelDir)
+	request, err := request.withPreset(CatalogIn(g.modelDir))
 	if err != nil {
 		return nil, err
 	}
@@ -724,7 +725,7 @@ func PresetSettings(directory string) (map[string]json.RawMessage, error) {
 	}
 	settings := make(map[string]json.RawMessage, len(names))
 	for _, name := range names {
-		filled, err := Request{Preset: name}.withPreset(directory)
+		filled, err := Request{Preset: name}.withPreset(CatalogIn(directory))
 		if err != nil {
 			return nil, err
 		}
@@ -743,12 +744,13 @@ func PresetSettings(directory string) (map[string]json.RawMessage, error) {
 // Sized is the request with the size its canvas, or its preset's, gives it where it states no width and height (a MOSS
 // Ultra section's 16:9 at 3 megapixels), the rest as it came, its preset still named for what it fills besides; a
 // request that states its size, or names neither canvas, is as it came. A session is chosen and checked by its size
-// before its model loads (ValidateRequest, SessionKey), so a size the preset gives is given before (SQA-409).
-func (r Request) Sized(directory string) (Request, error) {
+// before its model loads (ValidateRequest, SessionKey), so a size the preset gives is given before (SQA-409). The
+// preset is read from catalog.
+func (r Request) Sized(catalog Catalog) (Request, error) {
 	if r.Width != 0 || r.Height != 0 || r.Canvas == nil && r.Preset == "" {
 		return r, nil
 	}
-	filled, err := r.withPreset(directory)
+	filled, err := r.withPreset(catalog)
 	if err != nil {
 		return Request{}, err
 	}
@@ -759,9 +761,9 @@ func (r Request) Sized(directory string) (Request, error) {
 // withPreset fills what a request leaves unset from the preset it names in its model's catalog, and clears the name,
 // so a request naming a preset and one stating its values are one request. A request naming none is the authors'
 // recipe, its profile's.
-func (r Request) withPreset(directory string) (Request, error) {
+func (r Request) withPreset(catalog Catalog) (Request, error) {
 	if r.Preset != "" {
-		preset, err := presetOf(directory, r.Preset)
+		preset, err := presetOf(catalog, r.Preset)
 		if err != nil {
 			return Request{}, err
 		}
@@ -794,12 +796,12 @@ func (r Request) withPreset(directory string) (Request, error) {
 	// A distilled model honours a negative prompt given it by its normalized attention guidance, where the request
 	// states no guidance of its own (catalogProfile.NegativeGuidance).
 	if r.NegativePrompt != "" && r.Guidance == (sampling.Guidance{}) {
-		catalog, err := catalogOf(directory)
+		entry, err := catalog.entry()
 		if err != nil {
 			return Request{}, err
 		}
-		if catalog.NegativeGuidance != nil {
-			r.Guidance = sampling.Guidance{Attention: *catalog.NegativeGuidance}
+		if entry.NegativeGuidance != nil {
+			r.Guidance = sampling.Guidance{Attention: *entry.NegativeGuidance}
 		}
 	}
 	return r, nil

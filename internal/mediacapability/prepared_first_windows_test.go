@@ -62,10 +62,11 @@ func TestAPresetOnlyRequestTakesItsPresetsSize(t *testing.T) {
 
 // TestAStoredPictureReachesItsSessionAsItsBytes holds the pictures a page attaches to a MOSS request
 // (moss-ultra-compare/stored-pictures): a request naming its picture and its depth map by their stored identity reaches
-// the picture session with each one's bytes in base64 and the rest as it asked; one giving its picture as its bytes
-// reaches it as it came; one naming a picture the store does not hold, or a stored record that is no file, is refused
-// before the session; and a rotary page offers the picture as a slot of image media beside the denoise and the enhance,
-// where a flow profile's page offers none of them.
+// the picture session's director so named, which seeks its stored answer by them (moss-served-repeat), and is read where
+// none is stored (readPictures) into each one's bytes in base64 and the rest as it asked; one giving its picture as its
+// bytes reaches it as it came; one naming a picture the store does not hold, or a stored record that is no file, is
+// refused before its session; and a rotary page offers the picture as a slot of image media beside the denoise and the
+// enhance, where a flow profile's page offers none of them.
 func TestAStoredPictureReachesItsSessionAsItsBytes(t *testing.T) {
 	store := overgodbtest.Open(t, t.TempDir())
 	stored := func(data []byte) artifact.Content {
@@ -75,21 +76,29 @@ func TestAStoredPictureReachesItsSessionAsItsBytes(t *testing.T) {
 	picture, depth := stored([]byte("a picture")), stored([]byte("a depth map"))
 	testcheck.Must(artifact.Publish(t.Context(), store, artifact.Batch{Key: "fixture/stored-pictures",
 		Artifacts: []artifact.Descriptor{picture.Descriptor, depth.Descriptor}, Contents: []artifact.Content{picture, depth}}))(t)
+	// The session reads what its request names as the picture director reads it where no answer is stored.
 	var reached []string
-	session := func(_ context.Context, _ artifact.Repository, _ string, _ modelrecipe.CapabilityEvidenceSelection, input string) (any, error) {
+	session := func(ctx context.Context, store artifact.Repository, _ string, _ modelrecipe.CapabilityEvidenceSelection, input string) (any, error) {
 		reached = append(reached, input)
-		return "drawn", nil
+		var request latentimage.Request
+		if err := strictjson.DecodeBytes([]byte(input), &request); err != nil {
+			return nil, err
+		}
+		read, err := readPictures(ctx, store, request)
+		if err != nil {
+			return nil, err
+		}
+		return read, nil
 	}
 	run := preparedFirst(session)
 	named := `{"prompt":"a fox","width":1024,"height":576,"image":"` + picture.Descriptor.ID.String() + `","denoise":0.72,"control":{"map":"` + depth.Descriptor.ID.String() + `","start":0.1},"adapter":"moss-control"}`
-	if got := testcheck.Must(run(t.Context(), store, "", modelrecipe.CapabilityEvidenceSelection{}, named))(t); got != "drawn" || len(reached) != 1 {
-		t.Fatalf("the request naming stored pictures gave %v and reached the session %d times", got, len(reached))
+	taken, ok := testcheck.Must(run(t.Context(), store, "", modelrecipe.CapabilityEvidenceSelection{}, named))(t).(latentimage.Request)
+	if !ok || len(reached) != 1 || reached[0] != named {
+		t.Fatalf("the request naming stored pictures reached the session %d times, as %v; want once, as it named them", len(reached), reached)
 	}
-	var taken latentimage.Request
-	testcheck.NoError(t, strictjson.DecodeBytes([]byte(reached[0]), &taken))
 	if taken.Image != base64.StdEncoding.EncodeToString(picture.Data) || taken.Control == nil || taken.Control.Map != base64.StdEncoding.EncodeToString(depth.Data) ||
 		taken.Control.Start != 0.1 || taken.Prompt != "a fox" || taken.Width != 1024 || taken.Denoise != 0.72 {
-		t.Errorf("the session took %s; want the stored picture's and map's bytes and the rest as asked", reached[0])
+		t.Errorf("the session read %+v; want the stored picture's and map's bytes and the rest as asked", taken)
 	}
 	bytes := `{"prompt":"a fox","width":1024,"height":576,"image":"` + base64.StdEncoding.EncodeToString(picture.Data) + `"}`
 	testcheck.Must(run(t.Context(), store, "", modelrecipe.CapabilityEvidenceSelection{}, bytes))(t)
@@ -100,9 +109,8 @@ func TestAStoredPictureReachesItsSessionAsItsBytes(t *testing.T) {
 	record := testcheck.Must(artifact.IdentifyBytes(artifact.KindEvaluation, []byte("a record")))(t)
 	for _, refused := range []string{`{"prompt":"a fox","width":1024,"height":576,"image":"` + absent.String() + `"}`,
 		`{"prompt":"a fox","width":1024,"height":576,"control":{"map":"` + record.String() + `"},"adapter":"moss-control"}`} {
-		before := len(reached)
-		if _, err := run(t.Context(), store, "", modelrecipe.CapabilityEvidenceSelection{}, refused); err == nil || len(reached) != before || !strings.Contains(err.Error(), "stored") {
-			t.Errorf("%s was taken (%v) or reached the session; want it refused for its picture", refused, err)
+		if _, err := run(t.Context(), store, "", modelrecipe.CapabilityEvidenceSelection{}, refused); err == nil || !strings.Contains(err.Error(), "stored") {
+			t.Errorf("%s was taken (%v); want it refused for its picture", refused, err)
 		}
 	}
 
@@ -180,11 +188,11 @@ func TestAnInvalidRequestIsRefusedBeforeItsFilesAreRead(t *testing.T) {
 		if _, err := serve(t.Context(), store, root, modelrecipe.CapabilityEvidenceSelection{}, request(-1, picture)); err == nil || err.Error() != "latent image: invalid sampling policy" || reached != 0 {
 			t.Errorf("a request with steps of -1 and its picture %s was refused with %v, the session reached %d times; want its sampling policy refused before the session", picture, err, reached)
 		}
-		if files := testcheck.Must(pictureFiles(root, request(-1, picture)))(t); len(files) != 0 {
+		if files := testcheck.Must(pictureFiles(t.Context(), nil, root, modelrecipe.CapabilityEvidenceSelection{}, request(-1, picture)))(t); len(files) != 0 {
 			t.Errorf("a request with steps of -1 named %v for its content; want none read", files)
 		}
 	}
-	if files := testcheck.Must(pictureFiles(root, request(8, stored.Descriptor.ID)))(t); len(files) != 1 || filepath.Base(files[0]) != "moss-control.safetensors" {
+	if files := testcheck.Must(pictureFiles(t.Context(), nil, root, modelrecipe.CapabilityEvidenceSelection{}, request(8, stored.Descriptor.ID)))(t); len(files) != 1 || filepath.Base(files[0]) != "moss-control.safetensors" {
 		t.Errorf("an admitted request named %v for its content; want its adapter", files)
 	}
 	layout := `{"enhance":true,"width":1024,"height":576,"layout":{"high_level_description":"a fox"}}`

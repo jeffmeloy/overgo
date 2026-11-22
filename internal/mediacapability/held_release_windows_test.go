@@ -11,8 +11,10 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/capabilityruntime"
 	"overgo/internal/heldfile"
+	"overgo/internal/latentimage"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodbtest"
+	"overgo/internal/strictjson"
 	"overgo/internal/testcheck"
 )
 
@@ -20,7 +22,8 @@ import (
 // it named (held-release, SQA-454): served as the image capability serves a latent picture request, its files named
 // through the process's held files (capabilityruntime.Reading over preparedFirst, capabilityruntime.Contents over
 // heldfile.Session and pictureFiles), a request refused before its session (its depth control's picture a stored file
-// the store does not hold) and a request answered with no session leased each leave the adapter and the depth
+// the store does not hold, refused where its director reads it, readPictures) and a request answered with no session
+// leased each leave the adapter and the depth
 // estimator to a writer, who replaces each after either. adapter-hold had held them in the process's set until a
 // session under the model closed, which neither request opens, so a writer could not replace the adapter while the
 // process ran; and a test reading a model's adapter with no session left it held, so its directory could not be
@@ -34,7 +37,15 @@ func TestARequestWithNoSessionLetsItsHeldFilesGo(t *testing.T) {
 	}
 	store := overgodbtest.Open(t, t.TempDir())
 	absent := testcheck.Must(artifact.IdentifyBytes(artifact.KindFile, []byte("a picture the store does not hold")))(t)
-	answered := func(context.Context, artifact.Repository, string, modelrecipe.CapabilityEvidenceSelection, string) (any, error) {
+	// The director reads what a request names before it leases a session where no answer is stored.
+	answered := func(ctx context.Context, store artifact.Repository, _ string, _ modelrecipe.CapabilityEvidenceSelection, input string) (any, error) {
+		var request latentimage.Request
+		if err := strictjson.DecodeBytes([]byte(input), &request); err != nil {
+			return nil, err
+		}
+		if _, err := readPictures(ctx, store, request); err != nil {
+			return nil, err
+		}
 		return "an answer the store kept", nil
 	}
 	serve := capabilityruntime.Reading(preparedFirst(answered), capabilityruntime.Contents(heldfile.Session, pictureFiles))

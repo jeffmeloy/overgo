@@ -36,7 +36,7 @@ func TestWhereAMossStepsTimeGoes(t *testing.T) {
 	recording := readComfySection(t, "own-size", "text-to-image")
 	request := textSection(t, recording, "598", "436", "592", "599")
 	request.Width, request.Height, request.Canvas = 0, 0, &media.Canvas{Aspect: "16:9", Megapixels: 3, Multiple: 32}
-	request = testcheck.Must(request.Sized(root))(t)
+	request = testcheck.Must(request.Sized(CatalogIn(root)))(t)
 	asking := func(steps int, guidance *float32) Request {
 		asked := request
 		asked.Steps = steps

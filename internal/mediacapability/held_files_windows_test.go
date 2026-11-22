@@ -83,7 +83,7 @@ func TestAServedPictureReusesItsHeldFiles(t *testing.T) {
 	}
 	name := func(raw string) string {
 		t.Helper()
-		named, release, err := naming(t.Context(), nil, model, raw)
+		named, release, err := naming(t.Context(), nil, model, modelrecipe.CapabilityEvidenceSelection{}, raw)
 		testcheck.NoError(t, err)
 		testcheck.NoError(t, release())
 		return named

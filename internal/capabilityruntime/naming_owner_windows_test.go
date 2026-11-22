@@ -27,7 +27,7 @@ func TestANamingThatCannotListItsFilesOwnsNothing(t *testing.T) {
 	testutil.WriteTextFile(t, root, "adapters/a.safetensors", "the adapter's weights", 0o600)
 	adapter := filepath.Join(root, "adapters", "a.safetensors")
 	set := &heldfile.Set{}
-	unlisted := Contents(set, func(string, string) ([]string, error) {
+	unlisted := Contents(set, func(context.Context, artifact.Repository, string, modelrecipe.CapabilityEvidenceSelection, string) ([]string, error) {
 		return nil, errors.New(`latent image: the model has no preset "unknown"`)
 	})
 	fresh := func(context.Context, artifact.Repository, string, modelrecipe.CapabilityEvidenceSelection, string) (any, error) {

@@ -146,6 +146,8 @@ func (f *fakeComfyUI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				"35":                    {"text": []any{"the final prompt"}},
 				"overgo-sigma-text-598": {"text": []any{"[\n    1.0,\n    0.6123046875,\n    0.0\n]"}},
 				"707:703:431:flag":      {"animated": []any{false}},
+				"707:702:434": {"dims": []any{1024, 576}, "input_bboxes": []any{map[string]any{"x": 102, "y": 115, "width": 358, "height": 230,
+					"metadata": map[string]any{"type": "obj", "desc": "a café table"}}}},
 			},
 		}})
 	case r.URL.Path == "/view" && served[r.URL.Query().Get("filename")] != "":
@@ -221,7 +223,7 @@ func (f *fakeComfyUI) socket(w http.ResponseWriter, r *http.Request) {
 // (comfy-recorder/client, comfy-recorder/record-rest), run as the command with its flags parsed afresh: it posts ComfyUI's
 // own request for the section with the inputs given over it, a latent saver after the node named and the sigma nodes
 // beside the sampler, waits on the history, reads the card's memory while it waits, and keeps each file the run wrote
-// by its SHA-256, each text, the sampler's sigmas, each step as the websocket told it (a preview passed over, a ping
+// by its SHA-256 (an output of objects that name no file, as Create Bounding Boxes' boxes, fetching nothing), each text, the sampler's sigmas, each step as the websocket told it (a preview passed over, a ping
 // answered, another prompt's step left out), each model file by the SHA-256 the recipe pins, the run's time as
 // ComfyUI stamps it, and the commit of the install and of each custom-node pack it holds as a checkout. A run that
 // fails in ComfyUI is refused with what ComfyUI said. A recording interrupted after ComfyUI accepted its prompt resumes

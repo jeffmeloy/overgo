@@ -207,8 +207,11 @@ func (r recorder) record(ctx context.Context, title string) (recording, error) {
 				continue
 			}
 			var files []struct{ Filename, Subfolder, Type string }
-			if json.Unmarshal(raw, &files) != nil {
-				continue // an output that is neither files nor text (a flag, a count) names nothing to keep
+			if json.Unmarshal(raw, &files) != nil || slices.ContainsFunc(files, func(file struct{ Filename, Subfolder, Type string }) bool { return file.Filename == "" }) {
+				// An output that is neither files nor text (a flag, a count, or Create Bounding Boxes' boxes, objects that
+				// name no file) names nothing to keep: a filled builder's boxes were asked of /view by no name, which
+				// refused the recording (moss-real-prompt).
+				continue
 			}
 			for _, file := range files {
 				written, err := r.keep(ctx, folder, node, kind, file.Filename, file.Subfolder, file.Type)

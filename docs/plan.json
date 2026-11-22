@@ -7,18 +7,6 @@
       "title": "A MOSS run reports the prompt and negative prompt it drew from, and the page shows them and offers them back as the manual prompt",
       "steps": [
         {
-          "id": "report",
-          "title": "A served MOSS picture reports the prompt and negative prompt it drew from, in each prompt mode and from its stored run alike",
-          "verify": "go test ./internal/mediacapability -count=1 -run '^TestAServedPictureReportsThePromptsItDrewFrom$'",
-          "files": [
-            "internal/latentimage",
-            "internal/mediacapability",
-            "internal/capabilityruntime",
-            "internal/server"
-          ],
-          "rationale": "The owner's review of 2026-11-22, point 2, checked against the code and the workflow: valid. Each of the workflow's six sections shows two PreviewAny nodes titled \"Prompt used\" and \"Negative prompt used\" (fixtures/comfy/moss-ultra/workflow.json). In overgo, prompt mode 2's enhancer rewrites the prompt and negative ahead of the session (latentimage.EnhanceRequest, enhancer_chat_windows.go; mediacapability preparedFirst), which the run records as its request, and prompt mode 3 builds its prompt from the layout inside the draw (moss_mode_three.go, layoutPrompt), recorded nowhere; a served picture's result (latentimage.EncodedImage) carries its data, size and preset, and no prompt.\n\nThe change: a picture's result carries the prompt and negative prompt its conditioning was drawn from, the given ones in mode 1, the enhancer's in mode 2 and the built layout prompt in mode 3, and a stored answer replayed reports the same.\n\nCheck: TestAServedPictureReportsThePromptsItDrewFrom serves a request in each mode through the picture capability's serving with a stand-in session and enhancer (as TestServedMOSSPictureReusesItsCompletedDraw does), and again from its stored run."
-        },
-        {
           "id": "page",
           "title": "The page shows a MOSS run's prompt and negative prompt used and offers each back as the manual prompt",
           "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserMOSSPromptsUsed$' -leg moss-prompts-used",

@@ -38,7 +38,7 @@ func TestAPresetOnlyRequestTakesItsPresetsSize(t *testing.T) {
 	}
 	run := func(input string) latentimage.Request {
 		t.Helper()
-		testcheck.Must(preparedFirst(session)(t.Context(), nil, directory, modelrecipe.CapabilityEvidenceSelection{}, input))(t)
+		testcheck.Must(preparedFirst(session, enhancerOpener)(t.Context(), nil, directory, modelrecipe.CapabilityEvidenceSelection{}, input))(t)
 		var taken latentimage.Request
 		testcheck.NoError(t, strictjson.DecodeBytes([]byte(reached[len(reached)-1]), &taken))
 		return taken
@@ -90,7 +90,7 @@ func TestAStoredPictureReachesItsSessionAsItsBytes(t *testing.T) {
 		}
 		return read, nil
 	}
-	run := preparedFirst(session)
+	run := preparedFirst(session, enhancerOpener)
 	named := `{"prompt":"a fox","width":1024,"height":576,"image":"` + picture.Descriptor.ID.String() + `","denoise":0.72,"control":{"map":"` + depth.Descriptor.ID.String() + `","start":0.1},"adapter":"moss-control"}`
 	taken, ok := testcheck.Must(run(t.Context(), store, "", modelrecipe.CapabilityEvidenceSelection{}, named))(t).(latentimage.Request)
 	if !ok || len(reached) != 1 || reached[0] != named {
@@ -152,7 +152,7 @@ func TestAPictureRequestAskingNoEnhancingGoesToItsSessionAsItIs(t *testing.T) {
 	inputs := []string{`{"prompt":"a fox","width":1024,"height":576}`, `{"prompt":"a fox","width":1024,"height":576,"enhance":false}`, `not a request`,
 		`{"enhance":true,"prompt":"a fox","width":1024,"height":576,"stepps":1}`, `{"enhance":true,"prompt":"a fox","steps":1,"steps":50}`}
 	for _, input := range inputs {
-		if got := testcheck.Must(preparedFirst(session)(t.Context(), nil, "", modelrecipe.CapabilityEvidenceSelection{}, input))(t); got != "drawn" {
+		if got := testcheck.Must(preparedFirst(session, enhancerOpener)(t.Context(), nil, "", modelrecipe.CapabilityEvidenceSelection{}, input))(t); got != "drawn" {
 			t.Errorf("%s gave %v, want the session's answer", input, got)
 		}
 	}
@@ -179,7 +179,7 @@ func TestAnInvalidRequestIsRefusedBeforeItsFilesAreRead(t *testing.T) {
 		reached++
 		return "drawn", nil
 	}
-	serve := capabilityruntime.Reading(preparedFirst(session), capabilityruntime.Contents(nil, pictureFiles))
+	serve := capabilityruntime.Reading(preparedFirst(session, enhancerOpener), capabilityruntime.Contents(nil, pictureFiles))
 	root := t.TempDir()
 	request := func(steps int, picture artifact.ID) string {
 		return fmt.Sprintf(`{"prompt":"a fox","width":1024,"height":576,"steps":%d,"adapter":"moss-control","image":%q}`, steps, picture.String())

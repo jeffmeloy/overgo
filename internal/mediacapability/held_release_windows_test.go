@@ -48,7 +48,7 @@ func TestARequestWithNoSessionLetsItsHeldFilesGo(t *testing.T) {
 		}
 		return "an answer the store kept", nil
 	}
-	serve := capabilityruntime.Reading(preparedFirst(answered), capabilityruntime.Contents(heldfile.Session, pictureFiles))
+	serve := capabilityruntime.Reading(preparedFirst(answered, enhancerOpener), capabilityruntime.Contents(heldfile.Session, pictureFiles))
 	request := func(picture string) string {
 		return `{"prompt":"a fox","width":1024,"height":576,"seed":7,"adapter":"moss-control","control":{"picture":"` + picture + `"}}`
 	}

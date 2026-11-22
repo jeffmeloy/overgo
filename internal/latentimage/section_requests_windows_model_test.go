@@ -47,7 +47,7 @@ func statedRequest(t *testing.T, slug string) Request {
 		control.Picture = picture
 		request.Control = &control
 	}
-	catalog := Catalog{entry: sync.OnceValues(func() (catalogProfile, error) { return lookupCatalogProfile(mossPipelineClass) })}
+	catalog := mossCatalog()
 	return testcheck.Must(request.withPreset(catalog))(t)
 }
 
@@ -89,4 +89,28 @@ func abridged(request []byte) string {
 		return string(request)
 	}
 	return string(written)
+}
+
+// TestEachDrawnPromptIsTheWorkflowsPromptUsed holds what a picture reports it was drawn from (Request.Drawn,
+// moss-prompts-used) to what the MOSS Ultra workflow shows beside the same section ("Prompt used" 436, "Negative
+// prompt used" 592), for text to image in each prompt mode as ComfyUI recorded it: the real prompt (real-1), the
+// enhancer's text (mode-2) and the layout its builder's fields make (builder-1), where the request gives no prompt.
+func TestEachDrawnPromptIsTheWorkflowsPromptUsed(t *testing.T) {
+	catalog := mossCatalog()
+	for _, golden := range goldenCases {
+		if golden.slug != "text-to-image" {
+			continue
+		}
+		recording := readComfySection(t, golden.run, golden.slug)
+		prompt, negative, err := golden.request(t, recording).Drawn(catalog)
+		testcheck.NoError(t, err)
+		if prompt != recording.Texts["436"][0] || negative != recording.Texts["592"][0] {
+			t.Errorf("%s reports it was drawn from %q and %q; the workflow showed %q and %q", golden.name, prompt, negative, recording.Texts["436"][0], recording.Texts["592"][0])
+		}
+	}
+}
+
+// mossCatalog is MOSS's catalog entry, read by its pipeline class as a selected profile names it.
+func mossCatalog() Catalog {
+	return Catalog{entry: sync.OnceValues(func() (catalogProfile, error) { return lookupCatalogProfile(mossPipelineClass) })}
 }

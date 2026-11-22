@@ -76,7 +76,7 @@ func TestAServedPictureReusesItsHeldFiles(t *testing.T) {
 		return "drawn", nil
 	}
 	naming := capabilityruntime.Contents(held, pictureFiles)
-	serve := capabilityruntime.Reading(preparedFirst(session), naming)
+	serve := capabilityruntime.Reading(preparedFirst(session, enhancerOpener), naming)
 	request := func(seed int) string {
 		return `{"prompt":"a fox","width":1024,"height":576,"seed":` + string(rune('0'+seed)) +
 			`,"adapter":"moss-control","control":{"picture":"a picture"}}`

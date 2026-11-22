@@ -18,6 +18,11 @@ type EncodedImage struct {
 	Maximum   float32 `json:"maximum"`
 	// Preset is what the generation that drew the picture ran; a picture decoded from its bytes holds none.
 	Preset media.Preset `json:"preset,omitzero"`
+	// Prompt and NegativePrompt are what the picture's conditioning was drawn from, as the MOSS Ultra workflow shows them
+	// ("Prompt used", "Negative prompt used"), where its capability reports them (Request.Drawn); a picture decoded from
+	// its bytes holds none.
+	Prompt         string `json:"prompt,omitzero"`
+	NegativePrompt string `json:"negative_prompt,omitzero"`
 }
 
 // RanPreset is the preset the picture was drawn at (media.PresetOf).

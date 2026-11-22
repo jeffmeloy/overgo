@@ -59,12 +59,45 @@ func pictureSessions() (*pictureDirector, error) {
 // files it reads beside its model, named through held (pictureFiles), and sought in the store by the request as it
 // names its pictures, by their stored identity, which are read only where no answer is stored (readPictures,
 // ReadsOnMiss): a repeated picture had read and encoded its source picture before its answer was sought
-// (moss-served-repeat). Model is the session's model, a latentimage Generator where it serves.
-func pictureExecutor[Model any](director *capabilityruntime.ModelSessionDirector[latentimage.Request, Model, latentimage.EncodedImage], err error, held *heldfile.Set) capabilityruntime.Executor {
+// (moss-served-repeat). Prompt mode 2's enhancer chat is opened through opened (enhancerOpener where it serves). Each
+// picture reports the prompt and negative prompt it was drawn from (reportedDrawn). Model is the session's model, a
+// latentimage Generator where it serves.
+func pictureExecutor[Model any](director *capabilityruntime.ModelSessionDirector[latentimage.Request, Model, latentimage.EncodedImage], err error, held *heldfile.Set, opened func(artifact.Repository) latentimage.EnhancerOpener) capabilityruntime.Executor {
 	if err == nil {
 		director.ReadsOnMiss(readPictures)
 	}
-	return capabilityruntime.Reading(preparedFirst(sessionExecutor(director, err)), capabilityruntime.Contents(held, pictureFiles))
+	return reportedDrawn(capabilityruntime.Reading(preparedFirst(sessionExecutor(director, err), opened), capabilityruntime.Contents(held, pictureFiles)))
+}
+
+// reportedDrawn has each picture next serves report the prompt and the negative prompt it was drawn from, as the MOSS
+// Ultra workflow shows them beside each section's picture ("Prompt used", "Negative prompt used"): read from the request
+// its run records (capabilityruntime Measured.Input), which is the enhancer's in prompt mode 2, its preset filled
+// (latentimage Request.Drawn), so a picture drawn and one its stored run answers report the same (moss-prompts-used).
+func reportedDrawn(next capabilityruntime.Executor) capabilityruntime.Executor {
+	return func(ctx context.Context, store artifact.Repository, path string, selection modelrecipe.CapabilityEvidenceSelection, input string) (any, error) {
+		output, err := next(ctx, store, path, selection, input)
+		measured, enveloped := output.(capabilityruntime.Measured)
+		if err != nil || !enveloped {
+			return output, err
+		}
+		picture, drawn := measured.Output.(latentimage.EncodedImage)
+		if !drawn {
+			return output, nil
+		}
+		var request latentimage.Request
+		if err := strictjson.DecodeBytes(measured.Input.Data, &request); err != nil {
+			return nil, err
+		}
+		catalog, err := pictureCatalog(ctx, store, path, selection)
+		if err != nil {
+			return nil, err
+		}
+		if picture.Prompt, picture.NegativePrompt, err = request.Drawn(catalog); err != nil {
+			return nil, err
+		}
+		measured.Output = picture
+		return measured, nil
+	}
 }
 
 // readPictures reads the pictures a request names by their stored identity into the bytes its session takes
@@ -102,7 +135,7 @@ func imageCapability() Capability {
 	)
 	routed := sessionExecutor(routedDirector, routedErr)
 	pictures, picturesErr := pictureSessions()
-	latent := pictureExecutor(pictures, picturesErr, heldfile.Session)
+	latent := pictureExecutor(pictures, picturesErr, heldfile.Session, enhancerOpener)
 	oscillator := capabilityruntime.JSONScalar[oscillatorimage.Request, *oscillatorimage.Model, latentimage.EncodedImage](
 		"image-gen", oscillatorimage.ValidateRequest,
 		capabilityruntime.IgnoreInput[oscillatorimage.Request](oscillatorimage.Load), oscillatorimage.RegisterRuntime,
@@ -190,14 +223,14 @@ func admitted(catalog latentimage.Catalog, request latentimage.Request) (latenti
 // preparedFirst prepares a latent picture request ahead of its session: a request stating no size is given its
 // canvas's or its preset's, the preset read from the selected profile (latentimage Request.Sized, pictureCatalog),
 // since the session is chosen and checked by its size before its model loads (SQA-409); and a request asking the MOSS
-// Ultra workflow's prompt mode 2 has its prompt and negative written by the model's enhancer chat
-// (latentimage.EnhanceRequest). It is served as the request stating what was given and written, and an input needing
+// Ultra workflow's prompt mode 2 has its prompt and negative written by the model's enhancer chat, opened through
+// opened (latentimage.EnhanceRequest). It is served as the request stating what was given and written, and an input needing
 // neither goes to the session as it is. The pictures it names by their stored identity, as a page attaches them, go on
 // so named: the session's director seeks its stored answer by them and reads them only where it holds none
 // (pictureExecutor). A request is read as strictly as the session reads it, so one the session would refuse (an
 // unknown or repeated member) reaches the session as it came and is refused there, no chat opened for it (SQA-408); one
 // it reads that the session would refuse once sized is refused here as the session would refuse it (admitted).
-func preparedFirst(next capabilityruntime.Executor) capabilityruntime.Executor {
+func preparedFirst(next capabilityruntime.Executor, opened func(artifact.Repository) latentimage.EnhancerOpener) capabilityruntime.Executor {
 	return func(ctx context.Context, store artifact.Repository, path string, selection modelrecipe.CapabilityEvidenceSelection, input string) (any, error) {
 		var request latentimage.Request
 		if err := strictjson.DecodeBytes([]byte(input), &request); err != nil {
@@ -212,7 +245,7 @@ func preparedFirst(next capabilityruntime.Executor) capabilityruntime.Executor {
 			return nil, err
 		}
 		if request.Enhance {
-			if prepared, err = latentimage.EnhanceRequest(ctx, enhancerOpener(store), path, prepared); err != nil {
+			if prepared, err = latentimage.EnhanceRequest(ctx, opened(store), path, prepared); err != nil {
 				return nil, err
 			}
 		} else if prepared.Width == request.Width && prepared.Canvas == request.Canvas {

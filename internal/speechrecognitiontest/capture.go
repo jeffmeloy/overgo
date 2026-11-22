@@ -11,14 +11,10 @@ import (
 )
 
 // remadeCaptures are the speech captures whose bytes are gone, by their files' ids, and the row that remakes them into
-// the data root: the audio reference store recorded the CPU ASR reference's tensors (asr-reference) and the
-// transducer's two (transducer-reference-sdpa and its row1) only in a removed checkout's untracked tmp, so the eleven
-// tests that read them failed every commit (speech-hold, the owner's review of 2026-11-20). speech-captures empties it.
-var remadeCaptures = map[string]string{
-	"file:sha256:fd71c122163677bd53aca47f2c90baf859a6b430f02fd8f0616701731158e363": "speech-captures",
-	"file:sha256:f6fcb10383f93fa7146f8723e2109510880ae948f3a7e65f9ab27ca02355a1ee": "speech-captures",
-	"file:sha256:4802e430d644b0a3ee458ef9b3fba5bf2aff36af31dcacde05f9fea5eefd2ec6": "speech-captures",
-}
+// the data root, which declares the tests that read them while it works (speech-hold). It held the CPU ASR reference's
+// tensors and the transducer's two, recorded only in a removed checkout's untracked tmp, until speech-captures remade
+// them from overgo's own speech path at 4586266fe (cmd/speech-capture), where the eleven tests had passed against them.
+var remadeCaptures = map[string]string{}
 
 // capturePath is where the capture file source records as id lies, or, where none of its recorded locations exists
 // and remade names it, the row remaking it. A capture with no location left that remade does not name, and a source

@@ -13,7 +13,10 @@
         "https://huggingface.co/ibm-granite/granite-speech-5.0-470m-turboctc at 7e74c6438b7cfb5090cb6a131538f5e8515a7de3",
         "https://huggingface.co/datasets/openslr/librispeech_asr at 71cacbfb7e2354c4226d01e70d77d5fca3d04ba1"
       ],
-      "remade_by": "speech-captures"
+      "recreated": {
+        "tool": "cmd/speech-capture",
+        "commit": "4586266fe8a80b0b0fe8c80c1f5880c49a39c3c0"
+      }
     },
     {
       "path": "internal/audioparity/testdata/frontend_boundaries.json",
@@ -21,7 +24,7 @@
         "https://huggingface.co/ibm-granite/granite-speech-5.0-470m-turboctc at 7e74c6438b7cfb5090cb6a131538f5e8515a7de3",
         "https://huggingface.co/datasets/openslr/librispeech_asr at 71cacbfb7e2354c4226d01e70d77d5fca3d04ba1"
       ],
-      "remade_by": "speech-captures"
+      "recorded": "the reference software's frontend boundaries (the removed overgo_audiocpp checkout's), kept as it was made: its tensors are this record's own bytes, base64, which TestFrontendIntermediateParity reads"
     },
     {
       "path": "internal/audioparity/testdata/granite_speech_5_election.json",
@@ -29,7 +32,7 @@
         "https://huggingface.co/ibm-granite/granite-speech-5.0-470m-turboctc at 7e74c6438b7cfb5090cb6a131538f5e8515a7de3",
         "https://huggingface.co/datasets/openslr/librispeech_asr at 71cacbfb7e2354c4226d01e70d77d5fca3d04ba1"
       ],
-      "remade_by": "speech-captures"
+      "recorded": "the reference software's election of four transcripts and its model, corpus and runtime bindings (the removed overgo_audiocpp checkout's), kept as it was made: its tests read the record's own bytes, which hold no tensors"
     },
     {
       "path": "internal/audioparity/testdata/registered_models.json",
@@ -44,14 +47,17 @@
       "obtained": [
         "https://huggingface.co/ibm-granite/granite-speech-5.0-470m-turboctc at 7e74c6438b7cfb5090cb6a131538f5e8515a7de3"
       ],
-      "remade_by": "speech-captures"
+      "recorded": "the reference software's record of the segmented transcription (the removed overgo_audiocpp checkout's), kept as it was made: its test reads the record's own spans, piece hashes and text, and none of the tensors it names"
     },
     {
       "path": "internal/audioparity/testdata/transducer_captures.json",
       "obtained": [
         "https://huggingface.co/nvidia/nemotron-3.5-asr-streaming-0.6b at 1c8deaecc64b91f034d73e08dd8b64625eb3395d"
       ],
-      "remade_by": "speech-captures"
+      "recreated": {
+        "tool": "cmd/speech-capture",
+        "commit": "4586266fe8a80b0b0fe8c80c1f5880c49a39c3c0"
+      }
     },
     {
       "path": "internal/evaluation/testdata/ifeval_parameters.json",

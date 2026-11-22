@@ -277,31 +277,52 @@ func gitOutput(ctx context.Context, root string, args ...string) ([]byte, error)
 }
 
 func verifyFile(root, relative string, id artifact.ID, wantBytes uint64) error {
-	absoluteRoot, err := pathidentity.Canonical(root)
+	got, size, err := identifyContained(root, relative, id.Kind())
 	if err != nil {
-		return err
-	}
-	absolute, err := pathidentity.Canonical(filepath.Join(absoluteRoot, filepath.FromSlash(relative)))
-	if err != nil {
-		return err
-	}
-	contained, err := pathidentity.Contains(absoluteRoot, absolute)
-	if err != nil || !contained {
-		return fmt.Errorf("audio parity: file %q escapes its root", relative)
-	}
-	file, err := os.Open(absolute)
-	if err != nil {
-		return err
-	}
-	got, size, hashErr := artifact.Identify(id.Kind(), file)
-	closeErr := file.Close()
-	if err := errors.Join(hashErr, closeErr); err != nil {
 		return err
 	}
 	if got != id || size != wantBytes {
 		return fmt.Errorf("audio parity: file %q differs from election", relative)
 	}
 	return nil
+}
+
+// verifyDigest refuses the file relative under root unless its SHA-256 is digest.
+func verifyDigest(root, relative, digest string) error {
+	got, _, err := identifyContained(root, relative, artifact.KindFile)
+	if err != nil {
+		return err
+	}
+	if got.DigestHex() != digest {
+		return fmt.Errorf("audio parity: file %q differs from its capture", relative)
+	}
+	return nil
+}
+
+// identifyContained is the identity of kind and the size of the file relative under root, refusing one that escapes
+// root.
+func identifyContained(root, relative string, kind artifact.Kind) (artifact.ID, uint64, error) {
+	absoluteRoot, err := pathidentity.Canonical(root)
+	if err != nil {
+		return artifact.ID{}, 0, err
+	}
+	absolute, err := pathidentity.Canonical(filepath.Join(absoluteRoot, filepath.FromSlash(relative)))
+	if err != nil {
+		return artifact.ID{}, 0, err
+	}
+	contained, err := pathidentity.Contains(absoluteRoot, absolute)
+	if err != nil || !contained {
+		return artifact.ID{}, 0, fmt.Errorf("audio parity: file %q escapes its root", relative)
+	}
+	file, err := os.Open(absolute)
+	if err != nil {
+		return artifact.ID{}, 0, err
+	}
+	got, size, hashErr := artifact.Identify(kind, file)
+	if err := errors.Join(hashErr, file.Close()); err != nil {
+		return artifact.ID{}, 0, err
+	}
+	return got, size, nil
 }
 
 func canonicalizeElection(election *Election) error {

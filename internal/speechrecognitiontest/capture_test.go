@@ -68,6 +68,16 @@ func TestACaptureWhoseBytesAreGoneIsDeclaredWhileItIsRemade(t *testing.T) {
 	}
 }
 
+// TestNoSpeechCaptureWaitsToBeRemade holds speech-captures to its end: every capture remadeCaptures named is remade
+// from overgo's own speech path by cmd/speech-capture into the data root, and the acceptances read the remade one, so
+// no capture is left waiting and none of the eleven speech tests is declared while its data is remade.
+func TestNoSpeechCaptureWaitsToBeRemade(t *testing.T) {
+	t.Parallel()
+	for id, row := range remadeCaptures {
+		t.Errorf("the capture %s still waits for %s to remake it", id, row)
+	}
+}
+
 // TestAnAcceptanceMissingACaptureIsCreditedNothing holds an acceptance's declaration after its cases (speech-claim,
 // SQA-450): where every capture it reads is being remade, or any one of them, the declaration names the row, so the
 // acceptance is credited nothing while its cases with their captures still ran; where every capture is in place it is

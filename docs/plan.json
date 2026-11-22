@@ -3,33 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "speech-captures",
-      "title": "The ASR and transducer captures are remade into the data root by means the repository keeps, and the eleven ASR tests read them again",
-      "steps": [
-        {
-          "id": "do",
-          "title": "The ASR and transducer captures are remade into the data root by means the repository keeps, and the eleven ASR tests read them again",
-          "verify": "go test ./internal/speechrecognitiontest -count=1 -run '^TestNoSpeechCaptureWaitsToBeRemade$'",
-          "files": [
-            "internal/audioparity",
-            "internal/capabilityruntime",
-            "internal/server",
-            "internal/speechrecognitiontest",
-            "cmd/speech-capture",
-            "compatibility.json",
-            "docs/COMPATIBILITY.md",
-            "docs/verification"
-          ],
-          "needs_card": true,
-          "rationale": "The owner's review of 2026-11-20, point 2: recordings stay after parity, the reference software may go, and the captures are remade into the data root by means the repository keeps. The three lost captures (asr-reference and transducer-reference-sdpa with its row1; speech-hold) were made by reference software in the removed overgo_audiocpp checkout, and no means of making them is in the repository: the golden scripts live in the gitignored scripts/python_golden_references, so that folder keeps nothing either. The row writes the capture as a command the repository keeps, which fetches the reference from its official publisher into the data root and records the captures there, each capture's typed record and its tensors as the store records them now; the eleven tests read the new captures (testdata/transducer_captures.json and the CPU reference's) and pass, and speech-hold's declaration is empty. Ranked after the MOSS pass rows: speech-hold keeps commits flowing meanwhile, and the captures serve no section of the workflow.\n\nNote: The owner's review of 2026-11-20, point 2 as restated: the speech tests passed against these captures at 17:55 on 2026-11-20 at 4586266fe, and no speech code has changed since, so overgo's own output there is at proven parity. The captures are re-created from overgo, not from Python and Torch: a tool the repository keeps runs overgo's speech path at that commit (or at a later one whose speech code is the same, the identity said) over the captures' inputs, writes their tensors into the data root and records them with that origin (data-origin); the capture record, which now requires a Python and Torch runtime as its producer, admits overgo at a named commit. The eleven tests then read them, and speech-hold's declaration empties.\n\nNote: data-origin (2026-11-21) declares five speech records re-made by this row, whose captures were made by reference software that is gone and which no tool the repository keeps makes again: encoder_capture.json, frontend_boundaries.json, granite_speech_5_election.json, segmented_reference.json and transducer_captures.json. The row's tool re-creates each of their captures from overgo at a commit that passed against it (4586266fe for the speech acceptances), and each record's origin in docs/verification/test-data-origins.json then names the tool and that commit in place of this row.\n\nNote: files set to internal/audioparity, internal/capabilityruntime, internal/server, internal/speechrecognitiontest, cmd/speech-capture, compatibility.json, docs/COMPATIBILITY.md, docs/verification: Remaking the transducer captures gives them new evidence ids, which compatibility.json's offline and streaming claims cite as their evidence (and docs/COMPATIBILITY.md is generated from it), and each remade record's origin in docs/verification/test-data-origins.json names the tool and the commit in place of this row, so the step writes those too.",
-          "depends_on": [
-            "speech-hold/do",
-            "store-roots/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "slow-whole",
       "title": "At the commit the workflow reaches parity at, one whole slow run passes: every lane, every package, run to its end without yielding",
       "steps": [

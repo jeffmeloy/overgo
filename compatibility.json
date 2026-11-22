@@ -68,7 +68,7 @@
    "evidence_tier": "pinned-oracle",
    "source_commit": "1c8deaecc64b91f034d73e08dd8b64625eb3395d",
    "artifact_identity": "model:sha256:e61f34926cd36a73ee0814b0a01ee4e515d983c204676df0e9bc0652a571869d",
-   "summary": "Two pinned LibriSpeech clean/test recordings execute a declared CPU recurrent transducer using shared acoustic blocks, spatial tensor convolution and artifact-declared Metaspace decoding. Actual PCM, frontend, every encoder boundary, recurrent hidden/cell/prediction state and joint logits match finite native Transformers 5.16.1 CPU SDPA captures under reduction-scaled float32 bounds; emissions, frame advances and decoded text match exactly. Four Granite reference recordings and four registered audio artifacts remain verified. Native transcript errors are preserved. No full-corpus quality, improvement, HTTP/session, transducer training or GPU claim; Metaspace encoding remains explicitly unsupported.",
+   "summary": "Two pinned LibriSpeech clean/test recordings execute a declared CPU recurrent transducer using shared acoustic blocks, spatial tensor convolution and artifact-declared Metaspace decoding. Actual PCM, frontend, every encoder boundary, recurrent hidden/cell/prediction state and joint logits match finite captures under reduction-scaled float32 bounds, and emissions, frame advances and decoded text match exactly: the captures are overgo's own at 4586266fe (cmd/speech-capture), where these checks had passed against native Transformers 5.16.1 CPU SDPA captures since lost. Four Granite reference recordings and four registered audio artifacts remain verified. Native transcript errors are preserved. No full-corpus quality, improvement, HTTP/session, transducer training or GPU claim; Metaspace encoding remains explicitly unsupported.",
    "evidence": [
     {
      "path": "internal/speechrecognition/transducer.go",
@@ -82,7 +82,7 @@
     },
     {
      "path": "internal/audioparity/testdata/transducer_captures.json",
-     "contains": "f393b56580fe6e1606f58873436ed77989d68751427ce58a879e1ec03185a4be",
+     "contains": "8919a2320af200d14f298e431206b2f3b51de896145b00018884b30e46c2fdf4",
      "role": "source"
     }
    ]
@@ -106,7 +106,7 @@
     },
     {
      "path": "internal/audioparity/testdata/transducer_captures.json",
-     "contains": "5e1ab62c4bc9806ef8c8d8455f58374c42fd2d013aade735ed5e880eded8da21",
+     "contains": "5d19beee0f4afbace3010abe8e62d7cb22ca0bdd15c439d0006571267805fd6f",
      "role": "source"
     }
    ]
@@ -1197,7 +1197,7 @@
     },
     {
      "path": "internal/audioparity/testdata/transducer_captures.json",
-     "contains": "5e1ab62c4bc9806ef8c8d8455f58374c42fd2d013aade735ed5e880eded8da21",
+     "contains": "5d19beee0f4afbace3010abe8e62d7cb22ca0bdd15c439d0006571267805fd6f",
      "role": "source"
     }
    ]
@@ -1221,7 +1221,7 @@
     },
     {
      "path": "internal/audioparity/testdata/transducer_captures.json",
-     "contains": "5e1ab62c4bc9806ef8c8d8455f58374c42fd2d013aade735ed5e880eded8da21",
+     "contains": "5d19beee0f4afbace3010abe8e62d7cb22ca0bdd15c439d0006571267805fd6f",
      "role": "source"
     }
    ]
@@ -1245,7 +1245,7 @@
     },
     {
      "path": "internal/audioparity/testdata/transducer_captures.json",
-     "contains": "5e1ab62c4bc9806ef8c8d8455f58374c42fd2d013aade735ed5e880eded8da21",
+     "contains": "5d19beee0f4afbace3010abe8e62d7cb22ca0bdd15c439d0006571267805fd6f",
      "role": "source"
     }
    ]

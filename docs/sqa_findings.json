@@ -66,35 +66,6 @@
   "actual": "The remaining motion instrument is not bound: writeMotion passes filepath.Base(encoderPath) to measureMotion; ClipMotion stores that Encoder string and clip/source content digests, with no encoder/checkpoint or FFmpeg/sampling identity. ClipMotion.validate requires only a nonempty encoder name, and bindObservations compares clip.Content alone before keeping the motion set. Changing an instrument while the clip bytes and encoder basename stay the same therefore leaves the old motion admissible and its actual producing instrument indistinguishable. Shown from source at ba0405e63d92653b84f617d8c332d5546529e444; no SQA execution."
 },
     {
-      "id": "SQA-356",
-      "severity": "P2",
-      "files": [
-        "cmd/loop/main.go",
-        "cmd/loop/startup.go",
-        "internal/loop/driver.go",
-        "internal/landing/costs.go",
-        "cmd/loop/costs.go",
-        "internal/landing/costs_test.go",
-        "cmd/loop/costs_test.go",
-        "cmd/loop/startup_test.go"
-      ],
-      "input": "A worker attempt interrupted between RunWorker recording its start and keepRunning writing the marker, or between removing the marker and the deferred end write; and a record from before 6da610a60, whose marker and attempt took separate time.Now values.",
-      "expected": "The interrupted attempt is reported with bounded known effort or an explicit unknown duration, downtime never counted as worker wall, and start, exit, restart and landing accounting share one lifecycle identity.",
-      "actual": "The start stays without a marker, noteUncleanEnd cannot close it, and landing.cost charges the elapsed time to now through the downtime; an old record cannot be matched by Step and Started. Two active-start stores remain. Worker-Wall-Seconds drops the unknown interrupted wall and printCosts presents the rest as worker wall with no qualification. Read from source."
-    },
-    {
-      "id": "SQA-371",
-      "severity": "P2",
-      "files": [
-        "internal/inference/chat_tool_grammar.go",
-        "internal/inference/chat_parse.go",
-        "internal/inference/chat_tool_value_test.go"
-      ],
-      "input": "A tool call whose parameter value is exactly <, << or </param, followed by its closing </parameter>.",
-      "expected": "The grammar admits the value and the parser returns it unchanged; a complete closing tag still ends the value.",
-      "actual": "parameterLessThan makes every < consume a following character that diverges from </parameter>, so a value ending in a proper prefix of the tag consumes the real closing tag as another less-than rule and fails at its final >. The fixture's comment promises << but its map holds only longer text. Read from source."
-    },
-    {
       "id": "SQA-372",
       "severity": "P2",
       "files": [
@@ -106,87 +77,44 @@
         "cmd/loop/leftovers.go"
       ],
       "input": "On a case-insensitive Windows checkout, a task with Files [scripts] and Tests [scripts/held_test.go] whose worker calls edit_file or delete_file on scripts/HELD_test.go.",
-      "expected": "Both tools refuse the other spelling of the held file before mutating it, its bytes and presence kept.",
-      "actual": "The held-test wrapper compares cleaned path strings with slices.Contains, so scripts/HELD_test.go misses the held name, stays under the allowed scripts directory and is admitted; os.WriteFile or os.Remove then rewrites or deletes the held test. Read from source."
+      "expected": "The worker's edit and delete tools must recognize the held test through either spelling and preserve its contents.",
+      "actual": "On a case-insensitive checkout, replay.go compares cleaned names with case-sensitive slices.Contains. The held test can therefore be edited or removed through the permitted directory. Source counterexample."
     },
     {
       "id": "SQA-388",
       "severity": "P2",
       "files": [
         "cmd/comfy-reference/record.go",
-        "cmd/comfy-reference/record_test.go",
-        "internal/latentimage/golden_floor_windows_model_test.go",
-        "internal/cuda/driver/driver_windows.go",
-        "internal/latentimage/step_time_windows_model_test.go",
-        "internal/latentimage/workflow_time_windows_model_test.go",
-        "internal/latentimage/depth_control_windows_model_test.go",
-        "internal/latentimage/turbo_floor_windows_model_test.go"
+        "cmd/comfy-reference/record_test.go"
       ],
-      "input": "Resume a completed ComfyUI prompt after changing the installation, or return two outputs of one node with the same basename in different subfolders. Compare the 2368x1344 own-size run or the 1024x576 six-section workflow. The standard and Turbo depth sections both start from the recorder's input PNG.",
-      "expected": "Keep the accepted producer and both outputs across recovery. State the memory instrument and sampling window, including missing samples on resume. Time both depth sections from the same input picture through estimation and decode. Separate setup and depth processing from denoiser pass timing using the existing step measurement.",
-      "actual": "The receipt binds only prompt and request, so retry can credit revision A's output to B. keep overwrites the same node/basename across subfolders. await samples whole-device use starting at retry. ownSizeReading compares process allocations to whole-card use and divides integration including setup by steps. At 140c7975e the workflow times standard depth after depthControlSection has already loaded the estimator, computed the map and PNG-encoded it. Turbo supplies the picture and runs estimation inside the timer. The retained 91.06 s warm total at 15ecde8d3 omits standard-depth preprocessing. ComfyUI's 10.142 s standard-depth recording lists no cache hit for estimator 612:438, while its 2.205 s Turbo recording lists estimator 366:41 and control 366:46 as cached. Dividing the full Turbo integration by eight also charges setup to denoiser passes. The omitted time is unmeasured."
-    },
-    {
-      "id": "SQA-401",
-      "severity": "P2",
-      "files": [
-        "internal/landing/undo.go",
-        "internal/landing/form.go",
-        "internal/runrecord/verify_command.go",
-        "internal/landing/undo_test.go",
-        "internal/gosource/graph.go",
-        "internal/gosource/build.go",
-        "cmd/loop/trigger.go"
-      ],
-      "input": "(1) A root package embedding value.txt, checked by go test . -run TestValue, with only value.txt changed. (2) A production file built with -tags=fixturelane embedding value.txt, checked by go test -tags=fixturelane ./p, with only value.txt changed.",
-      "expected": "The embedded asset enters the undo run's restoration set, so the unchanged test runs against the restored input and fails on its assertion.",
-      "actual": "(1) path.Dir(value.txt) is \".\" and the ancestor loop stops before adding it, so the asset is not restored and undoable says no production Go changed. (2) Production calls go list without the verifier's flags, so the tag-gated embed is not listed and the asset-only change skips the undo. Read from source."
+      "input": "Resume an accepted ComfyUI prompt after its model or installation changes, or keep two outputs from one node with the same basename in different subfolders.",
+      "expected": "Bind resumed output to its original producer, retain both files distinctly, and identify a peak sampled only after resume as a partial measurement.",
+      "actual": "record.go reads the current models and commits, then resumes on request hash and prompt ID alone. A completed older result can acquire the new producer metadata. await starts memory sampling at retry. keep fetches by subfolder but writes by node and basename, so the second output overwrites the first. These cases follow from source."
     },
     {
       "id": "SQA-406",
       "severity": "P2",
       "files": [
-        "internal/mediacapability/image_cuda_windows.go",
         "internal/capabilityruntime/runtime.go",
-        "internal/capabilityruntime/measured.go",
-        "internal/capabilityruntime/session_director.go",
-        "internal/latentimage/runtime_cuda_windows.go",
+        "internal/mediacapability/image_cuda_windows.go",
         "internal/latentimage/media_adapter.go",
-        "internal/latentimage/source_latent_windows.go",
-        "internal/latentimage/picture_sections_windows.go",
-        "internal/vitencoder/depth.go"
+        "internal/capabilityruntime/session_director.go"
       ],
-      "input": "With no MOSS session for the model, serve a request naming a missing required adapter. Install it after the request's files are named and before the generator opens it. After the successful draw, close the session, remove the adapter and retry the same request against the stored run.",
+      "input": "Name a MOSS request while its required adapter is missing. Install the adapter before the draw opens it, then close the session, remove it and retry the same request.",
       "expected": "Refuse a missing required adapter before replay or model work. Store an answer only under the identities of the files used to compute it. Preserve the single hash of a present, held adapter or depth checkpoint.",
-      "actual": "Source counterexample at 09ad74436. Contents records 'absent' and continues. An adapter installed before modelAdapter opens it can produce a successful draw under that absent key. After session close and removal, the director can replay that draw under the same key without checking the generator. Present files now share heldfile.Set.Identity between naming and execution, which fixes the duplicate content hashes. No wrong replay was observed."
+      "actual": "Contents records an absent dependency and continues. The draw can succeed under that key with the newly installed adapter. After removal the director can replay the result under the absent key. Source counterexample. Present adapters share a held identity across naming and execution."
     },
     {
       "id": "SQA-410",
       "severity": "P2",
       "files": [
         "internal/latentimage/golden_floor_windows_model_test.go",
-        "internal/latentimage/image_to_image_windows_model_test.go",
-        "internal/latentimage/depth_control_windows_model_test.go",
-        "internal/latentimage/int8_merge_windows_model_test.go"
+        "internal/latentimage/int8_merge_windows_model_test.go",
+        "internal/latentimage/image_to_image_windows_model_test.go"
       ],
-      "input": "Compare a 1024x576 PNG with the same pixels plus one column. Give a changed-input control a short latent or NaN with a passing baseline, or give both adapter precision modes a latent with one +Inf against a finite nonzero reference. In the six-case golden run, put the first baseline below its floor and let a later case fail while loading its recording. Trace the three valid adapter cases in both modes.",
-      "expected": "Check PNG dimensions and finite, nonempty, equal-length latent inputs before scoring. Preserve +Inf for an exact match with nonzero signal. Check each available floor as its case runs so later errors cannot hide earlier failures. In the floor tests, score each changed latent before closing its generator and omit the unused picture decode. The adapter comparison needs one recorded-input draw per case and precision plus its existing merge captures.",
-      "actual": "Source at 6395092b4. The 8x8 means drop the extra column. A short or NaN control passes all three negative-control checks, and holdMergedSections accepts -Inf >= -Inf. holdGoldenFloors checks floors only after readGoldenCases returns all six cases. A later fatal recording error suppresses the first failing floor entirely. holdMergedSections requests twelve full draws and ignores all six changed-input scores. The normal six golden and two Turbo controls also decode eight pictures whose pixels are discarded. The retained lanes at d0eaf0f9a and 28390a169 timed the whole adapter test at 8m52s and 9m43s. Time attributable to the unused draws was not measured."
-    },
-    {
-      "id": "SQA-411",
-      "severity": "P2",
-      "files": [
-        "cmd/overgodb/rehearse.go",
-        "internal/overgodb/clone.go",
-        "internal/objectstore/store.go",
-        "internal/server/server_admin.go",
-        "internal/server/slot_state_test.go",
-        "internal/overgodb/clone_test.go"
-      ],
-      "input": "Save a named prompt state on slot 0 with one supported model and max_concurrent=1. Make a rehearsal clone into a different directory. Serve the same model and recipe on that clone and POST /slots/0?action=restore with the saved filename and an idle slot.",
-      "expected": "Restore the saved state from the rehearsal's published object while preserving the source store, its alias, and its locations. Clone the immutable data without redundant full copies where the storage owner guarantees sharing is safe.",
-      "actual": "CloneStore links blobs/ but byte-copies objects/ and the database records with the original absolute locations. restoreSlot resolves the copied alias. objectstore.Open requires a published location equal to the clone's own object path, so it returns 'object store: object location is not published' and the route returns HTTP 500 despite the copied bytes. The clone fixture covers blob sharing and source survival; the slot fixture restores in its original directory. Source at 12f172302, no SQA execution."
+      "input": "Put the first golden case below its floor, then make a later recording fail to load. Separately, give both adapter precision modes a latent containing +Inf against a finite nonzero reference.",
+      "expected": "Report a failed floor as soon as its case is scored. Require two valid latent comparisons before judging the adapter merge. Preserve +Inf from an exact match of finite inputs with nonzero signal.",
+      "actual": "holdGoldenFloors checks the results only after readGoldenCases returns every case. A later fatal error hides the earlier failing floor. In holdMergedSections, both non-finite inputs can score -Inf, so the comparison accepts -Inf >= -Inf. Both are source counterexamples."
     },
     {
       "id": "SQA-412",
@@ -199,22 +127,9 @@
         "internal/latentvideo/prompt_rows_content_test.go",
         "internal/capabilityruntime/measured.go"
       ],
-      "input": "Complete a fixed-seed Wan prompt-to-video request with a writable store. Stop the server, install a different compatible umT5 checkpoint at the same path with the same byte count and modification time, then restart against the same store. Repeat the request with the same tokenizer, recipe and denoiser.",
-      "expected": "Verify that the current checkpoint matches the persisted identity before reusing the clip. The text-pipeline admission should reuse a proven unchanged checkpoint across restarts and compute again when its bytes change.",
-      "actual": "Source at 5e82b8710. TextPipelineIdentity loads the store memo. admitCheckpoint accepts its old digest on size and time alone. TestTextPipelineNamesItsCheckpointThroughTheStore explicitly expects the old name after a same-stat replacement even though a fresh digest differs. Reading passes that name to measuredRun, so the previous clip can replay before the new encoder runs. The replay consequence was traced from source."
-    },
-    {
-      "id": "SQA-414",
-      "severity": "P2",
-      "files": [
-        "internal/mediacapability/video_form.go",
-        "internal/mediacapability/video_form_test.go",
-        "internal/latentvideo/edit_form.go",
-        "internal/capabilityruntime/session_director.go"
-      ],
-      "input": "Use recipe run with an active LiveEdit model, a valid prompt and a stored source_artifact clip. In the otherwise valid clip-form JSON, give seed twice, first 7 then 8. An unknown field on the same form is also accepted.",
-      "expected": "Strictly decode each request once at resolveEditForm. Reject duplicate and unknown fields before clip resolution. Send both forms through the director's typed ExecuteInput path, preserving validation, authority checks and existing replay identities. TestClipFormRunRetainsItsRequest can check both forms and the refusals with its existing fixture.",
-      "actual": "Source at c79cfc121. resolveEditForm uses json.Unmarshal. A clip with duplicate seeds resolves and is recorded as an ordinary seed-8 request. A full request instead goes to next as raw text, so decodeJSONInput decodes its pixel and conditioning arrays again. The two-callback fixture requires that text handoff. Preserve the compact clip record and InputContent's digest for oversized full requests when removing it."
+      "input": "Complete and store a Wan clip. Restart with the same recipe, prompt and tokenizer after replacing the umT5 checkpoint with different compatible bytes at the same path, size and modification time.",
+      "expected": "A restart may reuse a stored clip only after establishing the current encoder's content identity.",
+      "actual": "TextPipelineIdentity accepts the memoized checkpoint digest on size and time. TestTextPipelineNamesItsCheckpointThroughTheStore expects the old identity after this replacement. The director can replay the old clip before loading the new encoder. Replay follows from source."
     },
     {
       "id": "SQA-415",
@@ -241,8 +156,8 @@
         "internal/landing/undo.go"
       ],
       "input": "In the existing mutantFixture, select a Go test that skips when Above(11) is false and otherwise passes. Above(v) returns v > 10. The baseline passes and reversing > to <= makes the only selected test skip.",
-      "expected": "Use the existing planverify verdict for Go tests. Count a failed test assertion as caught, a passing check as survived, and a skipped test or failed build as inconclusive. Exclude inconclusive attempts from the measured catch rate. The existing strong and weak fixture cases retain their verdicts.",
-      "actual": "Source trace at c79cfc121. planverify.Execute returns ErrVacuous for the skipped test. mutate counts every non-nil verifier error as Refused, so this example reports one of one caught without a failed assertion. A build failure before tests start earns the same credit. The undo checker already distinguishes ErrAssertion. The retained mutation totals do not identify why a mutation was counted as refused."
+      "expected": "Count failed Go assertions as caught and passing checks as survived. Report skips and builds that fail before any assertion as inconclusive, outside the catch-rate denominator.",
+      "actual": "mutate increments Refused for every verifier error. A mutant that makes the only test skip earns a catch through ErrVacuous. A failed build earns the same credit. Source counterexamples."
     },
     {
       "id": "SQA-422",
@@ -253,8 +168,8 @@
         "internal/latentimage/rotary_sampling_windows.go"
       ],
       "input": "Serve one 50-step MOSS text-to-image request with guidance 1, no skipped steps or adapters, and a fixed prompt such as 'red fox under pine trees' repeated 64 times.",
-      "expected": "Run the existing text refiner once for this prompt branch and pass its resident output to each denoiser call. Keep reuse within the request and preserve branch-specific conditioning, rotary positions and adapter settings. Verify one refinement across 50 steps, identical seeded latents and pixels, and compare sampling time and peak device memory on the same request.",
-      "actual": "Source trace at 65255b6d1. compileRotaryDenoiserProgram includes textGraph.refine before concatenating text and image rows. Its inputs are fixed for this branch and do not include the latent or timestep. runRotarySampling executes that graph on every step, so this request evaluates the same refinement 50 times. The joint image/text blocks still depend on the changing latent. The count follows from the graph and loop. Elapsed savings are unmeasured."
+      "expected": "Reuse the fixed branch's refined text on the device for the request. Preserve rotary positions, adapter settings and joint-block arithmetic. Check one refinement and identical seeded output across 50 steps.",
+      "actual": "compileRotaryDenoiserProgram includes textGraph.refine in the per-pass graph. Its prompt and weights are fixed, while only the later joint blocks consume the changing latent. The 50-step input therefore evaluates the same refinement 50 times. The count is source-derived. Time and peak-memory effects are unmeasured."
     },
     {
       "id": "SQA-425",
@@ -271,30 +186,15 @@
       "actual": "Source at d0eaf0f9a. With no dimensions, Sized resolves the preset and rejects it. Explicit dimensions bypass that lookup. Beside later returns the catalog error, but Reading retries as FreshRun. preparedFirst then returns the missing-picture error, or reads a stored PNG and invokes the enhancer for a request with an invalid preset. The landing's retained check verifies the original negative-step case with both stored and absent pictures."
     },
     {
-      "id": "SQA-426",
-      "severity": "P2",
-      "files": [
-        "cmd/validate/run.go",
-        "cmd/validate/test_steps.go",
-        "cmd/validate/lane_walls.go",
-        "internal/testevidence/evidence.go"
-      ],
-      "input": "In a models lane, start two selected tests in the same package in separate processes. End each process after the package and test start events but before either terminal event. Read the final lane summary.",
-      "expected": "The final summary should name both interrupted tests and the cause of each interruption. Use the named unfinished tests already in GoTestReport. Preserve the live output, the measurement record and the existing package verdict.",
-      "actual": "At 140c7975e the live log and measurement record now name the interrupted test. The returned error still loses its name. The parser puts the package before its tests in Unfinished, RequireComplete returns only its first entry, and laneVerdict joins those errors. Two interrupted tests in one package therefore have indistinguishable package names in the final summary. This is a source counterexample. The landing's retained check asserts the log and record and checks the returned error only for non-nil."
-    },
-    {
       "id": "SQA-430",
       "severity": "P2",
       "files": [
         "internal/latentimage/rotary_sampling_windows.go",
-        "internal/latentimage/source_latent_windows.go",
-        "internal/cuda/executor/executor.go",
         "fixtures/comfy/moss-ultra/recordings/pass-2/depth-control.json"
       ],
       "input": "Draw the recorded 1024 by 576 MOSS depth-control section with 50 guided ER-SDE steps, control ending at 0.5 and scheduler shift 5. Both guidance branches request the same control at each step.",
       "expected": "Select the resident control or zero buffer before constructing a host value. Allocate and upload zeros on the first use of that device slot only. Keep the same sigma boundary and seeded output.",
-      "actual": "At 09ad74436 the repeated uploads are fixed. controlAt still makes a 64 x 36 x 256 float32 zero slice before checking the resident slot on every out-of-window pass. In the retained pass-2 sigma list, 28 of the 50 step inputs fall below 5/6. Two branches make 56 zero slices, and only the first feeds controlUpload. The other 55 request 123.75 MiB of cumulative host allocation per draw. This follows from source and recorded inputs. Its wall time and peak memory have not been measured."
+      "actual": "controlAt creates a 64 x 36 x 256 float32 zero buffer before checking the resident slot. In the pass-2 recording 28 steps fall outside the window. Two branches create 56 buffers and only the first is uploaded. The other 55 account for 123.75 MiB of cumulative host allocation per draw, calculated from source and recorded sigmas. Wall time and peak memory are unmeasured."
     },
     {
       "id": "SQA-431",
@@ -307,8 +207,8 @@
         "fixtures/comfy/moss-ultra/recordings/mode-2/text-to-image.json"
       ],
       "input": "Complete a fixed-seed MOSS text-to-image request with Enhance enabled, then repeat it through the same local capability without FreshRun. Use the same store, code, model files, active recipe, source prompt and exclusions. The mode-2 recording supplies a source and its positive and negative outputs.",
-      "expected": "Let the existing capability and run-recovery owners recover the admitted request's completed preparation or picture before opening the enhancer. An identical completed retry should open zero chats and return the same pixels. Bind reuse to the enhancer model, tokenizer, template, sampling settings and code as well as the picture inputs and current authority. Preserve explicit fresh execution.",
-      "actual": "Source at 140c7975e. preparedFirst calls EnhanceRequest before the session director seeks the stored answer. Every retry opens the 9B chat, generates a positive and a negative prompt (a third generation if the positive needs a retry), closes it, clears Enhance and passes the rewritten request to the director. An enhancer-open failure on the retry therefore prevents delivery of the completed picture even when all identities still match. The recording establishes the prompt pair. Retry cost and failure are source-derived, with no timed or failed retry observed."
+      "expected": "Recover the completed ordinary request before reopening the enhancer. Bind reuse to the enhancer model, tokenizer, template, sampling settings, code, picture inputs and current authority. FreshRun must still execute.",
+      "actual": "preparedFirst calls EnhanceRequest before the session director looks for a completed run. A retry opens the 9B chat and generates both prompts again, with another generation if the positive prompt needs a retry. A failed enhancer open prevents delivery of the stored picture. This follows from source. The retry was not timed."
     },
     {
       "id": "SQA-442",
@@ -316,22 +216,14 @@
       "files": [
         "internal/latentimage/merge_order_windows_model_test.go",
         "internal/latentimage/int8_budget_windows_model_test.go",
-        "internal/latentimage/attention_budget_windows_model_test.go"
+        "internal/latentimage/attention_budget_windows_model_test.go",
+        "internal/latentimage/golden_floor_windows_model_test.go",
+        "internal/latentimage/int8_merge_windows_model_test.go",
+        "internal/latentimage/turbo_floor_windows_model_test.go"
       ],
-      "input": "Select both MOSS adapter-transfer tests, or select both INT8 kernel-count tests on the installed Ultra workflow in a fresh models lane.",
-      "expected": "Check the cold Turbo adapter-byte bound on the first traversal of sampleWorkflow(2). Keep the low-rank pair bound whenever previously applied adapters recur, including within the first traversal. Read the INT8 product and attention counts from one textToImageCensus, retaining both budgets, unexpected-kernel checks, separate arithmetic comparisons and the full workflow clock.",
-      "actual": "The adapter checks call the same six-section fixture for two traversals and one, producing 18 pictures for bounds available in 12. The product and attention checks separately load the same generator and take the same two-step sample. In the 32cf1a5d0 models run, the two-traversal and one-traversal checks passed in 24.677 s and 16.651 s. The product and attention checks passed in 5.734 s and 9.879 s. These are observed process walls. Sharing the fixtures removes six draws and one two-step sample per affected full run. The elapsed saving has not been measured."
-    },
-    {
-      "id": "SQA-444",
-      "severity": "P2",
-      "files": [
-        "internal/latentvideo/denoiser.go",
-        "internal/latentvideo/denoiser_session.go"
-      ],
-      "input": "Generate a Wan clip with the default profile (81 frames, 832x480, 50 steps, guidance 6), with both guidance branches active on every step.",
-      "expected": "Upload the latent patches and the two timestep-conditioning arrays once per active step. Both guidance branches can read those same device inputs. Keep their projected contexts and predictions distinct for guidance, UniPC and tracing. On the next Wan timing run, use the existing transfer counters and time spent in the denoiser to check the saving.",
-      "actual": "Wan uploads the same three arrays twice per guided step. DenoiseWithBackend computes them once, then calls ForwardHead for each branch. The CUDA session supplies all three as host feeds on both calls and reads back each branch head for the host sampler. The second patch upload alone is 16 x 21 x 60 x 104 float32 values per step, or 419,328,000 redundant bytes per default clip. This byte count follows from source at a15182b1b. Transfer time has not been isolated."
+      "input": "Run the MOSS adapter-transfer, INT8 kernel-budget, golden-floor and adapter-precision checks on the installed Ultra model.",
+      "expected": "Take cold and recurring-adapter bounds on the existing two traversals, including adapters reused within the first. Share one two-step census across both kernel budgets. For the adapter comparison draw each baseline once per precision. Keep the separate merge capture, both budget assertions and unexpected-kernel checks. Floor controls still need their changed latents. Decode only pictures a check consumes, and keep the full workflow clock.",
+      "actual": "The transfer tests draw 18 pictures for bounds available in 12. The two kernel budgets sample the same two steps twice. In the 32cf1a5d0 models run the two-traversal and one-traversal checks took 24.677 s and 16.651 s, and the product and attention checks took 5.734 s and 9.879 s. Separately, holdMergedSections calls readGoldenCases for three cases at two precisions and discards all six changed-input scores. The six standard and two Turbo floor controls also decode eight unused pictures. The counts follow from source. The reported times are process walls. Elapsed savings are unmeasured."
     },
     {
       "id": "SQA-445",
@@ -341,8 +233,8 @@
         "internal/landing/wholetree.go"
       ],
       "input": "Land a MOSS workflow timing record beside its plan and findings changes, as at 4586266fe. Also compare the two host stages of a15182b1b on the same MOSS landing.",
-      "expected": "Run the timing row's verifier and the checks that read the changed records. For a full gate, run a given host suite once for the same candidate, inputs and build settings. Keep the separate whole-tree checks and repeat a suite when an input it uses changes.",
-      "actual": "The timing-only landing took 8m55s, including 3m18.866s of invariants and 4m54.364s of tests. The regular test stage ran 10 packages, led by internal/landing at 142s. The fast path accepts only the plan and findings paths. On a15182b1b the gate selected the ordinary landing suite in both invariants and go test ./... and recorded TestALandingRefusesWhatDispatchWouldPass executing for 30s and 27s. The candidate checkout is reused. The records do not identify each Go cache miss or establish a one-minute budget."
+      "expected": "Run the timing record's verifier and checks that consume the changed records. For identical inputs and build settings, execute each host suite once. Preserve the distinct whole-tree checks.",
+      "actual": "Timing-only landing 4586266fe took 8m55s, including 3m18.866s for invariants and 4m54.364s for tests. The fast path admits only the plan and findings. At a15182b1b the ordinary landing test TestALandingRefusesWhatDispatchWouldPass ran for 30s in invariants and 27s in the main test stage. The records do not identify individual cache misses."
     },
     {
       "id": "SQA-446",
@@ -354,30 +246,7 @@
       ],
       "input": "Dispatch an eligible MOSS step to a worker. While it runs, add an independent ready row that ranks ahead of it. Leave the assigned step, prerequisites, lane, scope and stop state unchanged. Land the original assignment.",
       "expected": "Honor the step actually assigned through the existing dispatch owner while it is still eligible. Recheck its current terms, dependencies, lane and stops. An unrelated priority change should govern the next assignment.",
-      "actual": "Landing.row passes the captured candidate plan to AdmitLanding. For a worker, admits clears the requested reference and selects the first ready step again. A different first row therefore refuses the assigned step before its change is judged. The retained log records three refusals of moss-comfy-block/do naming clock-committed/do, adapter-hold/do and moss-first-run/do. The first-row rule follows from source at 8c32dad22. The log alone does not establish what changed the ranking on every attempt."
-    },
-    {
-      "id": "SQA-447",
-      "severity": "P2",
-      "files": [
-        "internal/latentimage/comfy_block_windows_model_test.go",
-        "internal/latentimage/rotary_refinement.go",
-        "internal/landing/undo.go"
-      ],
-      "input": "Check the MOSS block-20 feed-down on the Turbo capture with the exact projection comparison from 8c32dad22 and the production code from its parent a15182b1b.",
-      "expected": "Apply the same exact comparison to the base and candidate through an execution or output format both support. The base should fail on the differing projection values and the candidate should pass. The existing isolated base checkout can supply the old implementation when the new test cannot compile with it.",
-      "actual": "The retained comparison reports 160,204 of 196,608 entries differed before the change and zero afterward. The landing nevertheless records Undo-Evidence: none. Its verifier directly calls rotaryGraph.feedActivation, which the parent does not define, so the restored build cannot reach that numerical assertion. The paired measurements show the change mattered. They do not demonstrate the gate ran the new assertion on the base."
-    },
-    {
-      "id": "SQA-448",
-      "severity": "P2",
-      "files": [
-        "internal/latentimage/workflow_time_windows_model_test.go",
-        "internal/latentimage/workflow_source_test.go"
-      ],
-      "input": "Run a clock binary built at A from a clean checkout B with changed denoiser code. Conversely, finish a valid clock reading at the implementation commit A, then land only unrelated provenance documentation and a cmd/validate test before admitting the reading.",
-      "expected": "Bind the result to the executable and workflow inputs that produced it. Credit a valid reading at the implementation commit when only unrelated files have landed since. Preserve its original commit and require a new reading when the measured code, inputs or protocol changed. Build comparisons without disturbing uncommitted work.",
-      "actual": "The clock labels a binary built at A as B if B is clean at both source reads. The Nov 20 comparison stashed 19 edits to build its base and ran golden-floor checks, so no mislabeled timing was observed there. In the other direction, the remaining clock verifiers require the current HEAD even for a valid reading of the implementation commit. The attention clock landing reports 37.427 s warm at 80c195d08 and 37.456 s at 8ee00a27b. Only an unrelated cmd/validate test and two documents changed. The second cold and warm passes took 364.321 s combined. The retained JSON contains only the second reading, so the first reading's eligibility cannot be independently established."
+      "actual": "AdmitLanding selects the first ready step again for a worker. An unrelated row moving ahead refuses a still-eligible assignment. Three logged refusals of moss-comfy-block/do named clock-committed/do, adapter-hold/do and moss-first-run/do. The selection rule follows from source. The log alone cannot establish each ranking change."
     },
     {
       "id": "SQA-449",
@@ -386,22 +255,9 @@
         "internal/landing/refusal.go",
         "cmd/loop/status.go"
       ],
-      "input": "Read the status worklist after the Nov 20 refusal of moss-int8-epilogue/census. Compare that refusal with its gate output. The failed-tests line names eight tests and subtests in capabilityruntime, audioparity and server, plus three package failures.",
+      "input": "Read the refusal worklist for moss-int8-epilogue/census on Nov 20. Its gate output names eight failing tests and subtests across capabilityruntime, audioparity and server.",
       "expected": "The existing refusal worklist should attribute this landing once to each of the eight named tests and subtests. Preserve the complete failing names when classifying the gate result, with the short diagnostic kept separately from the counts. Older truncated records can establish only the names they actually retained.",
-      "actual": "The saved 240-byte cause ends in the middle of the next audioparity name. At 8c32dad22 Classify clips the text before Worklist reads it. Applying refusedBy to that record yields only TestNativeASRSessionAcceptance and TestSecondASRStreamingAcceptance/6930-75918-0000. Six named failures disappear from the worklist for this refusal, including the offline ASR checks and server/TestStreamingTranscriptionAcceptance. The original gate output and its failing verdict are intact."
-    },
-    {
-      "id": "SQA-452",
-      "severity": "P2",
-      "files": [
-        "internal/latentimage/rotary_joint.go",
-        "internal/latentimage/rotary_sampling_windows.go",
-        "internal/latentimage/int8_attention_layers_test.go",
-        "internal/latentimage/generator_rotary_windows.go"
-      ],
-      "input": "On the installed INT8-capable MOSS device, serve a depth-control request with one joint layer declaring an unrecognized optional attention method first and comfy_kitchen_int8 second, all other checkpoint data valid.",
-      "expected": "Select the first supported method in declaration order. This layer should use the existing INT8 implementation. Keep the unsupported-only error and detect it before preparing the control latent.",
-      "actual": "Source counterexample at 8fbe03872. The pinned ComfyAttention loader at 7cebca522 (comfy/ldm/modules/attention.py lines 87-100) skips an unknown method and selects the later available INT8 entry. int8AttentionLayers inspects only configs[0], so integration refuses the layer after preparing its control latent. The installed Ultra checkpoint's 42 records all name INT8 alone. SOL is available on this machine, so SOL-first is not an example of this fallback here. The unknown-first case was not run."
+      "actual": "Classify clips the cause to 240 bytes before refusedBy extracts names. The retained cause ends mid-name. Only TestNativeASRSessionAcceptance and TestSecondASRStreamingAcceptance/6930-75918-0000 reach the worklist. The full gate output retains all eight."
     },
     {
       "id": "SQA-456",
@@ -421,27 +277,10 @@
     "at": "2026-11-20",
     "head": "cbdf003cc5e0d974e86a56e8f99bb49b6bdc97a8",
     "findings": {
-  "SQA-452": {
-        "action": "deferred",
-        "rows": [],
-        "note": "Answered by the lead on 2026-11-21 at 8ee00a27b: the counterexample's premise does not hold on the card overgo runs MOSS on. ComfyAttention takes the first method it can run, and comfy_kitchen 0.2.40's sol_attn_is_available is true for the CUDA backend on sm_80 and later where its extension carries sol_attn, which the installed build compiles (sage_attention/sol_attn.cu); so on this sm_89 card ComfyUI runs SOL for a layer that lists it first, and int8AttentionLayers refusing that layer, since overgo runs no SOL, is the faithful answer. The installed Ultra file names comfy_kitchen_int8 alone in each of its 42 records. Valid that the refusal comes after the sampling has prepared its control latent; a refused request's preparation is no workflow time, so deferred to the next change of the file's reading."
-      },
   "SQA-449": {
         "action": "deferred",
         "rows": [],
         "note": "Answered by the lead on 2026-11-21 at 5ecf679fc: valid as reported (the refusal record keeps 240 bytes of the gate's cause, so the worklist reads two of eight failed names from moss-int8-epilogue/census's refusal; the gate's own output keeps them all). A landing's bookkeeping, not the workflow's time, so deferred with SQA-445 and SQA-446 to the gate's rows the campaign set aside."
-      },
-  "SQA-448": {
-        "action": "deferred",
-        "rows": [],
-        "note": "Answered by the lead on 2026-11-20 at 8c32dad22: valid from source (readWorkflowSource reads HEAD and the changed paths from the process's directory, so an executable built at A and run in a clean checkout of B records B, committed). A clock step runs go test, which builds the binary from the tree the clock then reads, so the path the clock steps take records its own code; the gap is an executable built elsewhere run with OVERGO_WORKFLOW_RECORD set, which no step does. Deferred to the next change of the clock, which ties a reading to the source its binary was built from; until then the lead runs the clock only through go test, and the probe binaries a row builds (tmp/<row>/) never record."
-      },
-  "SQA-447": {
-        "action": "filed",
-        "rows": [
-          "moss-int8-epilogue/census"
-        ],
-        "note": "Answered by the lead on 2026-11-20 at 8c32dad22: valid (moss-situ-prologue's check called rotaryGraph.feedActivation, which its base lacks, so the gate's undo ran nothing). The lead's practice changes first: a check that needs a harness its base lacks lands the harness in its own step before the work, so the work's check compiles at its base and fails there on its assertions. moss-int8-epilogue/census lands the launch census by kernel name before do, whose TestMOSSInt8ProductsMeetTheirBudget reads it. The gate's own cure (an isolated base checkout running the old implementation where the new check cannot compile) waits with the gate's rows the campaign set aside."
       },
   "SQA-446": {
         "action": "deferred",
@@ -452,11 +291,6 @@
         "action": "deferred",
         "rows": [],
         "note": "Answered by the lead on 2026-11-20 at 8c32dad22: valid as reported (a timing-only landing ran the landing suite in both invariants and go test, 8m55s); a landing's time, not the workflow's, so deferred with SQA-442 to the gate's rows the campaign set aside."
-      },
-  "SQA-444": {
-        "action": "deferred",
-        "rows": [],
-        "note": "Answered by the lead on 2026-11-20 at 8c32dad22: valid from source (DenoiseWithBackend computes a step's patch tokens and conditionings once and ForwardHead feeds all three from the host on each guidance branch, then reads each branch's head back); the owner's review of 2026-11-20, point 2, names the same pattern, the per-pass copies moss-step-copies removes for MOSS. Video is not this campaign's, so deferred to video's next campaign, whose first timing by section measures it, beside the parked finding evidence:sha256:73c52061; moss-step-copies' note now writes its cure as a piece DenoiserCUDASession can take up, so the cure is reused there, not written again."
       },
   "SQA-442": {
         "action": "deferred",
@@ -474,11 +308,6 @@
           "moss-step-copies/do"
         ],
         "note": "Answered by the lead on 2026-11-20 at 160028dcb: valid from source (each branch's control slice is staged and uploaded every pass, 2.4 MB, zeros included); a per-pass host copy, so filed with moss-step-copies, whose step keeps the sampling's per-pass data on the card."
-      },
-  "SQA-426": {
-        "action": "deferred",
-        "rows": [],
-        "note": "Answered by the lead on 2026-11-20 at 160028dcb: valid from source (RequireComplete returns the first Unfinished entry, the package, so two interrupted tests of one package read alike in the run's final summary). Since lanes-ended (140c7975e) the live log and the measurement record name each interrupted test, its cause and its tree's peak as it ends, so no failure goes unread; the summary's wording saves no workflow time, and it waits with the rows the campaign set aside."
       },
   "SQA-425": {
         "action": "implemented",
@@ -506,20 +335,10 @@
         ],
         "note": "Answered by the lead on 2026-11-19: valid from source (a data path walks up to a closure package's directory, and the repository's fixtures/ is under none, so it reaches no lane); filed after lanes-verdict, ahead of the speed rows, since the MOSS goldens read fixtures/moss. Implemented 2026-11-19 by lanes-fixtures/do (c71a1e230), for the review's recheck."
       },
-  "SQA-414": {
-        "action": "deferred",
-        "rows": [],
-        "note": "Answered by the lead on 2026-11-19: LiveEdit's clip form, outside the MOSS Ultra workflow campaign the owner scoped the plan to and on no MOSS path; it waits with the rows the campaign set aside."
-      },
   "SQA-412": {
         "action": "deferred",
         "rows": [],
         "note": "Answered by the lead on 2026-11-19: valid from source, the class of SQA-406 (a digest trusted on path, size and time); Wan's text pipeline is outside the MOSS Ultra workflow campaign, so it waits with the rows the campaign set aside, and its cure is SQA-406's, capabilityruntime.Contents reading each file whole for every request."
-      },
-  "SQA-411": {
-        "action": "deferred",
-        "rows": [],
-        "note": "Answered by the lead on 2026-11-17: a rehearsal clone's slot restore, outside the MOSS Ultra workflow campaign the owner scoped the plan to and on no working model's path (a clone rehearses a store migration), so it waits with the other rows the campaign set aside; the source store's restore is unaffected."
       },
   "SQA-410": {
         "action": "filed",
@@ -549,24 +368,10 @@
         ],
         "note": "Answered by the lead on 2026-11-13: carried by the recorder's open step, whose files it names. comfy-recorder/record-rest landed (0c24aca5b) and the review's update stands at 39d27cd16; answered again on 2026-11-19: the step time is read apart from a request's setup by TestWhereAMossStepsTimeGoes (moss-speed/do), and moss-resident/do takes the setup's weight copy from every request after a session's first, but ownSizeReading in the golden-floor test still divides a whole sampling by its steps and sets process allocations beside ComfyUI's whole-card use, so it goes with moss-real-prompt/do, which sets those floors again. The recorder's receipt and same-basename outputs wait until a recording is taken again."
       },
-  "SQA-356": {
-        "action": "deferred",
-        "rows": [],
-        "note": "Answered by the lead on 2026-11-13: carried by the local worker's demonstration step, which reads the worker's cost. That row was retired with the rows outside the MOSS Ultra workflow campaign (749c9615a, the owner's notes of 2026-11-17), so the finding waits with them."
-      },
-  "SQA-371": {
-        "action": "deferred",
-        "rows": [],
-        "note": "Answered by the lead on 2026-11-13: carried by the local worker's demonstration step, on the worker's path. That row was retired with the rows outside the MOSS Ultra workflow campaign (749c9615a), so the finding waits with them."
-      },
   "SQA-372": {
         "action": "deferred",
         "rows": [],
         "note": "Answered by the lead on 2026-11-13: carried by the local worker's demonstration step; a held check altered through another spelling is the check class. That row was retired with the rows outside the MOSS Ultra workflow campaign (749c9615a), so the finding waits with them."
-      },
-  "SQA-401": {
-        "action": "deferred",
-        "note": "Checked 2026-11-13 at 8ab8f2e44: the module root holds no Go file, so no package there can embed a file below it, and the one build-tagged file with a go:embed directive is a test (internal/dataset/speech_source_acceptance_model_test.go), which the undo does not restore as production. Neither shape the finding names occurs today; it is taken up when one does, or with the verifier's build-context work it names."
       },
   "SQA-283": {
         "action": "implemented",

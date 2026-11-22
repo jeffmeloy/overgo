@@ -34,17 +34,9 @@ func TestTransducerCapturePublication(t *testing.T) {
 	sourceID := testcheck.Must(artifact.IdentifyBytes(artifact.KindFile, source))(t)
 	sourcePath, reportPath := filepath.Join(dir, "source.py"), filepath.Join(dir, "capture.json")
 	testcheck.NoError(t, os.WriteFile(sourcePath, source, 0o600))
-	var capture transducerCapture
-	testcheck.NoError(t, json.Unmarshal([]byte(`{"version":1,"fixture":"synthetic","reference":"text","samples":1,"sample_rate":16000,"first_chunk_frames":1,"following_chunk_frames":1,"dataset":{"path":"clean/test/fixture.parquet"},"runtime":{"python":"fixture","torch":"fixture","transformers":"fixture","librosa":"fixture","tokenizers":"fixture","threads":1,"device":"cpu","attention":"sdpa"},"captures":{"offline":{"chunks":[{"frames":1}],"steps":[0],"wall_ns":1,"text":"text"},"streaming":{"chunks":[{"frames":1}],"steps":[0],"wall_ns":1,"text":"text"}}}`), &capture))
-	capture.Model = election.Model.ID
-	capture.Revision, capture.License = election.ModelSource.Commit, election.License.SPDX
-	capture.CaptureSHA256, capture.AudioSHA256, capture.Dataset.SHA256 = sourceID.DigestHex(), sourceID.DigestHex(), sourceID.DigestHex()
+	capture := syntheticTransducerCapture(t, election, sourceID.DigestHex())
+	capture.CaptureSHA256 = sourceID.DigestHex()
 	capture.TensorsSHA256, capture.TensorCount = tensorID.DigestHex(), 1
-	capture.Files = make(map[string]string)
-	for _, component := range election.Model.Components {
-		capture.Files[component.Name] = component.Artifact.DigestHex()
-	}
-	capture.Runtime.Sources = map[string]string{"reference.py": sourceID.DigestHex()}
 	writeReport := func(c transducerCapture) {
 		testutil.WriteJSON(t, reportPath, c)
 	}
@@ -91,4 +83,22 @@ func TestTransducerCapturePublication(t *testing.T) {
 	if _, err := PublishTransducerCapture(t.Context(), nil, reportPath, sourcePath, tensorPath); err == nil {
 		t.Fatal("nil repository admitted")
 	}
+}
+
+// syntheticTransducerCapture is a complete transducer capture the reference software made of election's model, every
+// digest it names but its tensors' and its capture source's being digest. It stands for a record, not for any
+// recording's numbers.
+func syntheticTransducerCapture(t *testing.T, election Election, digest string) transducerCapture {
+	t.Helper()
+	var capture transducerCapture
+	testcheck.NoError(t, json.Unmarshal([]byte(`{"version":1,"fixture":"synthetic","reference":"text","samples":1,"sample_rate":16000,"first_chunk_frames":1,"following_chunk_frames":1,"dataset":{"path":"clean/test/fixture.parquet"},"runtime":{"python":"fixture","torch":"fixture","transformers":"fixture","librosa":"fixture","tokenizers":"fixture","threads":1,"device":"cpu","attention":"sdpa"},"captures":{"offline":{"chunks":[{"frames":1}],"steps":[0],"wall_ns":1,"text":"text"},"streaming":{"chunks":[{"frames":1}],"steps":[0],"wall_ns":1,"text":"text"}}}`), &capture))
+	capture.Model = election.Model.ID
+	capture.Revision, capture.License = election.ModelSource.Commit, election.License.SPDX
+	capture.AudioSHA256, capture.Dataset.SHA256 = digest, digest
+	capture.Files = make(map[string]string)
+	for _, component := range election.Model.Components {
+		capture.Files[component.Name] = component.Artifact.DigestHex()
+	}
+	capture.Runtime.Sources = map[string]string{"reference.py": digest}
+	return capture
 }

@@ -25,12 +25,15 @@ const fusionSteps = 2
 // attention. Drawn again when moss-situ-prologue made an int8 feed-down's SiTU comfy_kitchen's (tensor
 // Builder.MOSSSituHalves, ComfyUI's product bit for bit in TestAMOSSBlockIsHeldToComfyUIs), which changed every latent;
 // its fold into the int8 quantizer changes no bit against its own chain
-// (TestEachMOSSFusionMatchesItsChainWhereTheyCouldPart). Drawn again when moss-attention-pass gave the joint blocks
+// (TestEachFusionMatchesItsChainWhereTheyCouldPart). Drawn again when moss-attention-pass gave the joint blocks
 // comfy_kitchen's int8 attention (ComfyUI's, bit for bit in TestTheInt8AttentionIsComfyKitchens, which also holds its
-// read of the heads before their rounds to the same bits), which changed every latent.
+// read of the heads before their rounds to the same bits), which changed every latent. Drawn again when
+// moss-encoder-own computed the conditioning in float32 as ComfyUI computes it (ce8b3ccfb), which changed every latent;
+// each fusion is held to its chain bit for bit (TestEachFusionMatchesItsChainWhereTheyCouldPart), so the fused pass's
+// latent is the unfused one's.
 var fusionLatents = map[string]string{
-	"text-to-image": "2b8a228b9485a22807fe7ffae9e20bdaf280cddb22564ed2aecb21394ed440e1",
-	"depth-control": "0e9f612d3dc854369f8c4ccc6148a2de12f79713392e90499912c078d65cfb86",
+	"text-to-image": "17b573b8a1d8c1d8726a69ab591ecc7c2363cbbdd875bd36ccc1ddd31efd2b49",
+	"depth-control": "717cb77efab19d5e11211a57e95a9d11283cf3b2d4cc744530811a8916503e32",
 }
 
 // TestTheMOSSPassFusesWithoutChangingABit holds moss-fusion's fusions to the arithmetic they fuse: a fused pass

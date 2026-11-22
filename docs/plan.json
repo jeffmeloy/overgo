@@ -9,12 +9,125 @@
         {
           "id": "do",
           "title": "Every fused kernel any model runs is held to its chain launched step by step where they could part, and a fusion kind with no case is refused in seconds",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test ./internal/cuda/executor -count=1 -timeout=0 -run '^TestEachFusionMatchesItsChainWhereTheyCouldPart$'",
+          "verify": "go test ./internal/cuda/executor -count=1 -run '^TestEveryFusionKindHasAnEdgeCase$'",
           "files": [
-            "internal/cuda",
-            "kernels"
+            "internal/cuda"
           ],
-          "rationale": "Note: The owner's review of 2026-11-20 (after fusion-edges), point 1, checked against the executor: valid. Of its 31 fusion kinds (compiledFusionKind at 8c32dad22), the nine MOSS's denoiser makes are held to their chains where they could part (TestEachMOSSFusionMatchesItsChainWhereTheyCouldPart: a second reader of an intermediate, every F32 input a device view aligned to 4 bytes and not 16, shapes beyond the kernels' own), which found two int8 epilogues reading their inputs four floats at a time from addresses they did not check. Of the other 21, which serve the text models, Krea and video (the BF16 attention, linear, gate, projection-add and append, the Q8 pair and its peer, the Q8 gated add, the weighted RMS norms and their gate, the activated gate, the GELU tanh, the layer-norm modulate, the stream sum and combine, the scaled activation, the rope append and the BF16 and Q8 argmax stages), twelve are held where at all at the one condition their model makes, and no test names the other nine. The row widens fusion-edges' table to every kind, each chain built as its model builds it, at the same three conditions and the kind's own edges (a cache's last slot, a batch of one, a quantized block's tail), holds each to its chain bit for bit, and fixes what fails in the row; a card-free rule refuses a kind the table has no case for (a sentinel after the last kind, the table's kinds compared with every value below it), so a new fusion cannot land unheld. Filed after the MOSS rows: it serves no section of the workflow, and its faults, where it finds any, wait in other models' paths."
+          "rationale": "Note: The owner's review of 2026-11-20 (after fusion-edges), point 1, checked against the executor: valid. Of its 31 fusion kinds (compiledFusionKind at 8c32dad22), the nine MOSS's denoiser makes are held to their chains where they could part (TestEachMOSSFusionMatchesItsChainWhereTheyCouldPart: a second reader of an intermediate, every F32 input a device view aligned to 4 bytes and not 16, shapes beyond the kernels' own), which found two int8 epilogues reading their inputs four floats at a time from addresses they did not check. Of the other 21, which serve the text models, Krea and video (the BF16 attention, linear, gate, projection-add and append, the Q8 pair and its peer, the Q8 gated add, the weighted RMS norms and their gate, the activated gate, the GELU tanh, the layer-norm modulate, the stream sum and combine, the scaled activation, the rope append and the BF16 and Q8 argmax stages), twelve are held where at all at the one condition their model makes, and no test names the other nine. The row widens fusion-edges' table to every kind, each chain built as its model builds it, at the same three conditions and the kind's own edges (a cache's last slot, a batch of one, a quantized block's tail), holds each to its chain bit for bit, and fixes what fails in the row; a card-free rule refuses a kind the table has no case for (a sentinel after the last kind, the table's kinds compared with every value below it), so a new fusion cannot land unheld. Filed after the MOSS rows: it serves no section of the workflow, and its faults, where it finds any, wait in other models' paths.\n\nNote: files set to internal/cuda, kernels, internal/latentimage/fusion_latent_windows_model_test.go: The edge table takes every kind, so TestEachMOSSFusionMatchesItsChainWhereTheyCouldPart becomes TestEachFusionMatchesItsChainWhereTheyCouldPart, and fusion_latent_windows_model_test.go's comment names the MOSS test.\n\nNote: files set to internal/cuda: After edges lands the table and the kernel fix, do adds the sentinel after the last fusion kind and the card-free rule over the table."
+        }
+      ]
+    },
+    {
+      "id": "moss-section-requests",
+      "title": "The page's request for each of the six MOSS Ultra sections equals the request its section test draws from, checked without the card",
+      "steps": [
+        {
+          "id": "do",
+          "title": "The page's request for each of the six MOSS Ultra sections equals the request its section test draws from, checked without the card",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserMOSSSectionRequests$' -leg moss-section-requests",
+          "files": [
+            "internal/server",
+            "internal/latentimage",
+            "internal/mediacapability",
+            "fixtures/comfy/moss-ultra"
+          ],
+          "rationale": "The owner's review of 2026-11-22, point 1, checked against the code: valid. TestWebUIBrowserMOSSGeneration serves the page through a stand-in executor (newMOSSGenerationFixture) and checks the request it sends field by field: a schedule and sharpening set part by part, a preset's fills shown (denoise 0.72, steps 8, 2368 x 1344 for ultra-image-to-image-turbo). No test compares the whole request the page sends for a section's preset with the request that section's test draws from (latentimage's golden floor and section preset cases), so the page can send a request no section test holds and every test pass.\n\nThe change: each of the six sections' requests (text to image, image to image and depth control, each and its Turbo) is stated once, where its section test reads it; the leg chooses each section's preset on the page, sets what the section's test sets beside it (its prompt, seed and stored picture), sends it, and the stand-in executor must take a request equal to the section's, member for member, with nothing the section leaves out.\n\nCheck: TestWebUIBrowserMOSSSectionRequests, named afresh so it fails before the change."
+        }
+      ]
+    },
+    {
+      "id": "moss-prompts-used",
+      "title": "A MOSS run reports the prompt and negative prompt it drew from, and the page shows them and offers them back as the manual prompt",
+      "steps": [
+        {
+          "id": "report",
+          "title": "A served MOSS picture reports the prompt and negative prompt it drew from, in each prompt mode and from its stored run alike",
+          "verify": "go test ./internal/mediacapability -count=1 -run '^TestAServedPictureReportsThePromptsItDrewFrom$'",
+          "files": [
+            "internal/latentimage",
+            "internal/mediacapability",
+            "internal/capabilityruntime",
+            "internal/server"
+          ],
+          "rationale": "The owner's review of 2026-11-22, point 2, checked against the code and the workflow: valid. Each of the workflow's six sections shows two PreviewAny nodes titled \"Prompt used\" and \"Negative prompt used\" (fixtures/comfy/moss-ultra/workflow.json). In overgo, prompt mode 2's enhancer rewrites the prompt and negative ahead of the session (latentimage.EnhanceRequest, enhancer_chat_windows.go; mediacapability preparedFirst), which the run records as its request, and prompt mode 3 builds its prompt from the layout inside the draw (moss_mode_three.go, layoutPrompt), recorded nowhere; a served picture's result (latentimage.EncodedImage) carries its data, size and preset, and no prompt.\n\nThe change: a picture's result carries the prompt and negative prompt its conditioning was drawn from, the given ones in mode 1, the enhancer's in mode 2 and the built layout prompt in mode 3, and a stored answer replayed reports the same.\n\nCheck: TestAServedPictureReportsThePromptsItDrewFrom serves a request in each mode through the picture capability's serving with a stand-in session and enhancer (as TestServedMOSSPictureReusesItsCompletedDraw does), and again from its stored run."
+        },
+        {
+          "id": "page",
+          "title": "The page shows a MOSS run's prompt and negative prompt used and offers each back as the manual prompt",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserMOSSPromptsUsed$' -leg moss-prompts-used",
+          "files": [
+            "internal/server"
+          ],
+          "rationale": "The page half of moss-prompts-used: a completed run shows \"Prompt used\" and \"Negative prompt used\" as the workflow's PreviewAny nodes do, and a control sets the manual prompt and negative from them, so an enhanced or built prompt can be edited and drawn again in mode 1."
+        }
+      ]
+    },
+    {
+      "id": "moss-prompt-mode",
+      "title": "MOSS's page offers one prompt mode, manual, enhanced or builder, showing only that mode's fields, declared by the control list so the page stays generated",
+      "steps": [
+        {
+          "id": "controls",
+          "title": "The MOSS control list declares one prompt mode choice of manual, enhanced and builder, and the fields each shows",
+          "verify": "go test ./internal/mediacapability -count=1 -run '^TestMOSSOffersOnePromptModeShowingItsFields$'",
+          "files": [
+            "internal/mediacapability",
+            "internal/latentimage"
+          ],
+          "rationale": "The owner's review of 2026-11-22, point 3, checked against the code: valid. The workflow chooses one prompt mode (manual, enhanced by its chat, or built from the Ideogram builder's layout). A rotary model's page offers three controls for it side by side (mediacapability imageControls, rotaryControls): prompt_mode, whose choices text and layout select a validation and rewrite nothing (latentimage PromptMode), enhance, a boolean, and layout, an object; a Control declares no field that shows another only for one choice, so the page cannot show one mode's fields alone.\n\nThe change: the control list offers one mode choice and declares, for each choice, the fields it shows (the prompt and negative for manual and enhanced, the layout for the builder), and a request is taken as the chosen mode sets it.\n\nCheck: TestMOSSOffersOnePromptModeShowingItsFields, card-free."
+        },
+        {
+          "id": "page",
+          "title": "Choosing a MOSS prompt mode shows only its fields, as the control list declares them",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserMOSSPromptMode$' -leg moss-prompt-mode",
+          "files": [
+            "internal/server"
+          ],
+          "rationale": "The page half of moss-prompt-mode: the page reads which fields each mode shows from the control list (it generates its controls, and names no MOSS field itself), and each mode's request reaches the session as that mode's."
+        }
+      ]
+    },
+    {
+      "id": "moss-sharpened-pair",
+      "title": "A sharpened MOSS run returns its drawn picture and its sharpened picture, compared on the page as the workflow compares them",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A sharpened MOSS picture returns the picture it drew beside the sharpened one, the drawn one bit for bit the same request's unsharpened picture",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test ./internal/latentimage -count=1 -run '^TestASharpenedPictureReturnsThePictureItDrew$'",
+          "files": [
+            "internal/latentimage",
+            "internal/mediacapability",
+            "internal/capabilityruntime",
+            "internal/server"
+          ],
+          "needs_card": true,
+          "rationale": "The owner's review of 2026-11-22, point 4, checked against the code and the workflow: valid. Each of the workflow's six sections saves its decoded picture and its ImageSharpen's picture (twelve SaveImage nodes: text to image 449 and 482, its Turbo 86 and 147, image to image 512 and 604, its Turbo 214 and 344, depth control 445 and 610, its Turbo 50 and 364), and its Image Comparer shows them against each other (709, 324, 605, 345) or, in the depth sections, each against the section's source (611 and 669, 365 and 423). overgo sharpens the decoded pixels in place as it finishes the picture (generator_rotary_windows.go, media.Sharpen) and returns the sharpened picture alone. The page's A/B compare (generation.js abCompare) cites nodes 611 and 669 as comparing a section's picture against the one it started from, which only the depth sections do.\n\nThe change: a run with sharpening returns both pictures, the drawn one first, each recorded as an output of the run.\n\nCheck: TestASharpenedPictureReturnsThePictureItDrew on the compact MOSS fixture, a short card test."
+        },
+        {
+          "id": "page",
+          "title": "The page compares a sharpened run's drawn and sharpened pictures with its A/B slider, as each section's comparer does",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserMOSSSharpenedPair$' -leg moss-sharpened-pair",
+          "files": [
+            "internal/server"
+          ],
+          "rationale": "The page half of moss-sharpened-pair: a run returning both pictures opens the existing A/B compare with the drawn picture as A and the sharpened as B, and abCompare's comment states the workflow's comparers as they are."
+        }
+      ]
+    },
+    {
+      "id": "moss-workflow-surface",
+      "title": "Every node by which the MOSS Ultra workflow saves, previews, compares or shows something has its counterpart in a run's result or on the page, and one without is refused without the card",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Every node by which the MOSS Ultra workflow saves, previews, compares or shows something has its counterpart in a run's result or on the page, and one without is refused without the card",
+          "verify": "go test ./internal/server -count=1 -run '^TestEveryMOSSWorkflowOutputHasACounterpart$'",
+          "files": [
+            "internal/server",
+            "fixtures/comfy/moss-ultra"
+          ],
+          "rationale": "How the review's points 2 and 4 went unseen: the sections were held to ComfyUI's pictures, and what the workflow shows beside them was read from a few of its nodes (abCompare cites the depth section's comparers for every section), so its twelve PreviewAny prompt displays and its six saves of the unsharpened picture had no counterpart and no check said so. The workflow's sections hold 12 SaveImage, 2 PreviewImage, 12 PreviewAny and 10 Image Comparer (rgthree) nodes.\n\nThe change: a table names, for each such node of each section's request (fixtures/comfy/moss-ultra/requests), the result field or page element that does what it does, or why it has none (an intermediate preview); the check reads the requests and refuses a node of those classes the table does not name, and a named counterpart the page or result does not hold. Filed last of the review's rows: it holds what they add."
         }
       ]
     },

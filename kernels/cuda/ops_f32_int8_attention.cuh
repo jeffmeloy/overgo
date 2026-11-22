@@ -194,9 +194,13 @@ __device__ __forceinline__ float bf16_value(float value) {
     return __bfloat162float(__float2bfloat16_rn(value));
 }
 
-// load4: VectorLoader4's load of four channels, each rounded to BF16.
+// load4: VectorLoader4's load of four channels, each rounded to BF16, as one vector where they start 16-byte aligned
+// and one at a time where they do not: a head may be bound as a view of another tensor, aligned to 4 bytes alone,
+// which a vector read faults on (fusion-edges-all).
 __forceinline__ __device__ void load4(const float * ptr, float * out) {
-    const float4 raw = __ldg(reinterpret_cast<const float4 *>(ptr));
+    const float4 raw = (reinterpret_cast<size_t>(ptr) & (sizeof(float4) - 1)) == 0
+        ? __ldg(reinterpret_cast<const float4 *>(ptr))
+        : make_float4(__ldg(ptr), __ldg(ptr + 1), __ldg(ptr + 2), __ldg(ptr + 3));
     out[0] = bf16_value(raw.x);
     out[1] = bf16_value(raw.y);
     out[2] = bf16_value(raw.z);
@@ -391,9 +395,10 @@ __device__ __forceinline__ int inv_perm16(int w) {
     return (w & 1) | (((w >> 3) & 1) << 1) | (((w >> 1) & 1) << 2) | (((w >> 2) & 1) << 3);
 }
 
+// load_tile reads eight channels of V, each four as one vector where they start 16-byte aligned (load_f32x4_any).
 __device__ __forceinline__ void load_tile(const float * ptr, float * out_vals) {
-    const float4 v0 = *reinterpret_cast<const float4 *>(ptr);
-    const float4 v1 = *reinterpret_cast<const float4 *>(ptr + 4);
+    const float4 v0 = load_f32x4_any(ptr);
+    const float4 v1 = load_f32x4_any(ptr + 4);
     out_vals[0] = bf16_value(v0.x);
     out_vals[1] = bf16_value(v0.y);
     out_vals[2] = bf16_value(v0.z);

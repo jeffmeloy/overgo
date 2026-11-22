@@ -70,11 +70,12 @@
       "severity": "P2",
       "files": [
         "cmd/comfy-reference/record.go",
-        "cmd/comfy-reference/record_test.go"
+        "cmd/comfy-reference/record_test.go",
+        "cmd/comfy-reference/recordings_modeltest_test.go"
       ],
-      "input": "Resume an accepted ComfyUI prompt after its model or installation changes, or keep two outputs from one node with the same basename in different subfolders.",
-      "expected": "Bind resumed output to its original producer, retain both files distinctly, and identify a peak sampled only after resume as a partial measurement.",
-      "actual": "record.go reads the current models and commits, then resumes on request hash and prompt ID alone. A completed older result can acquire the new producer metadata. await starts memory sampling at retry. keep fetches by subfolder but writes by node and basename, so the second output overwrites the first. These cases follow from source."
+      "input": "Resume a previously accepted ComfyUI prompt after its model or installation changes, or keep two files from one output node with the same basename in different subfolders. For the paired-recording check, supply the same complete real-1 recording and its files in both run directories.",
+      "expected": "Bind resumed output to its original producer, identify memory sampling that began on retry, and retain each output file distinctly. Credit a repeated measurement only when two distinct prompt executions produced matching results for the same request.",
+      "actual": "record reads the current models and commits, then resumes on request hash and prompt ID alone. await starts measuring memory at retry. keep writes by node and basename, so the second file overwrites the first. The paired-recording check requires a nonempty prompt ID in each run but never compares the IDs. One complete capture supplied twice therefore passes as two runs. These are source counterexamples. The three pairs added at 89cf0f0e3 have distinct prompt IDs and matching saved-output hashes."
     },
     {
       "id": "SQA-406",
@@ -94,15 +95,13 @@
       "severity": "P2",
       "files": [
         "internal/latentimage/golden_floor_windows_model_test.go",
+        "internal/latentimage/turbo_floor_windows_model_test.go",
         "internal/latentimage/int8_merge_windows_model_test.go",
-        "internal/latentimage/image_to_image_windows_model_test.go",
-        "internal/latentimage/comfy_section_windows_model_test.go",
-        "cmd/comfy-reference/record.go",
-        "fixtures/comfy/moss-ultra/requests/text-to-image.json"
+        "internal/latentimage/image_to_image_windows_model_test.go"
       ],
-      "input": "Use a mode-3 recording with 598.seed set to 7 and 450.high_level_description set to \"red fox\" over the standard template. Separately, omit a floor from the six standard cases, put an early case below its floor before a later recording fails or supplies a half-width PNG, or give both adapter precision modes a latent containing +Inf against a finite nonzero reference.",
-      "expected": "For moss-real-prompt/do, apply the recorded node overrides before building the request and check all floor declarations before loading a generator. Report a failed comparison as it is scored and release each generator on every exit. Compare adapter precision modes only after both scores are valid. An exact finite match with nonzero signal may score +Inf.",
-      "actual": "readComfySection loads recording.Set, but inputs reads the base template. The comparison uses seed 69420 and an empty description. holdGoldenFloors checks declarations and scores after six draws and six controls, so a later fatal error can hide an earlier failure. A wrong-width PNG exits before closeReporting releases the generator. holdMergedSections accepts two invalid scores because -Inf >= -Inf. These cases follow from source. The retained passing 32cf1a5d0 models lane took 3m56s for the full standard floor test including its own-size draw."
+      "input": "Omit one standard floor while all five recordings are readable. Separately, put the first draw below its floor and give a later recording a hash-matching PNG of the wrong width. For the precision comparison, use a correctly shaped all-zero reference with a nonzero latent from each precision mode.",
+      "expected": "Check floor declarations before loading a generator. Report each failed comparison when scored and release that case's generator even on a fatal error. Reject a reference with zero signal before comparing dB. Keep exact agreement at +Inf for a nonzero reference. Score controls from their final latents and keep the baseline picture checks.",
+      "actual": "At 89cf0f0e3 holdGoldenFloors calls readGoldenCases before checking any floor. A missing declaration costs five baseline draws and five controls. A later size error exits before the earlier failure is reported or the current generator is closed. Each control also decodes and encodes a PNG that is discarded: five in the standard check, three in Turbo, and eight across the two precision modes of the adapter check. These are source counts. With zero reference signal and nonzero error, decibelsOverSquares returns -Inf for both modes and holdMergedSections accepts their equality."
     },
     {
       "id": "SQA-415",
@@ -139,11 +138,13 @@
         "internal/latentimage/runtime_cuda_windows.go",
         "internal/latentimage/profile.go",
         "internal/capabilityruntime/runtime.go",
-        "internal/mediacapability/prepared_first_windows_test.go"
+        "internal/mediacapability/prepared_first_windows_test.go",
+        "internal/latentimage/source_latent_windows.go",
+        "internal/latentimage/enhancer_chat_windows.go"
       ],
-      "input": "Use an active MOSS image recipe, prompt 'a fox', 8 steps, an undeclared preset and a syntactically valid file ID for a missing source picture. Compare the request with no dimensions to the same request with width 1024 and height 576. Also try the explicit dimensions with a stored PNG and enhance enabled.",
-      "expected": "Both size forms should return the catalog's unknown-preset error before reading the picture or opening the enhancer. Have MOSS admission propagate the preset error its existing resolver already found. Preserve the content identity of admitted requests and fresh execution when only a reusable file identity is unavailable.",
-      "actual": "Source at d0eaf0f9a. With no dimensions, Sized resolves the preset and rejects it. Explicit dimensions bypass that lookup. Beside later returns the catalog error, but Reading retries as FreshRun. preparedFirst then returns the missing-picture error, or reads a stored PNG and invokes the enhancer for a request with an invalid preset. The landing's retained check verifies the original negative-step case with both stored and absent pictures."
+      "input": "Serve an active MOSS recipe with prompt 'a fox', 8 steps, an undeclared preset and a missing source-file ID. Compare omitted dimensions with explicit 1024 by 576. Also send a fresh request with those dimensions, no preset, enhancement on, the enhancer installed and the same missing source.",
+      "expected": "Report an unknown preset with either size form before reading the picture or starting the enhancer. For the otherwise valid enhanced request, reject the missing source before opening the chat. Keep ordinary completed-picture replay free of source payload reads.",
+      "actual": "At 47dc7e325 Sized checks the preset only when sizing needs it. With explicit dimensions, Beside finds the catalog error but Reading treats it as a reason to execute fresh, so ReadPictures reports the missing picture instead. With enhancement on, preparedFirst runs EnhanceRequest before ReadsOnMiss can reject the absent source. A successful enhancement generates both positive and negative prompts, with a possible third chat call for a short positive. The negative-step check still passes at admission. These are source counterexamples."
     },
     {
       "id": "SQA-430",
@@ -155,32 +156,43 @@
       "input": "Draw the recorded 1024 by 576 MOSS depth-control section with 50 guided ER-SDE steps, control ending at 0.5 and scheduler shift 5. Both guidance branches request the same control at each step.",
       "expected": "Select the resident control or zero buffer before constructing a host value. Allocate and upload zeros on the first use of that device slot only. Keep the same sigma boundary and seeded output.",
       "actual": "controlAt creates a 64 x 36 x 256 float32 zero buffer before checking the resident slot. In the pass-2 recording 28 steps fall outside the window. Two branches create 56 buffers and only the first is uploaded. The other 55 account for 123.75 MiB of cumulative host allocation per draw, calculated from source and recorded sigmas. Wall time and peak memory are unmeasured."
+    },
+    {
+      "id": "SQA-460",
+      "severity": "P2",
+      "files": [
+        "internal/latentimage/workflow_time_windows_model_test.go",
+        "internal/latentimage/workflow_source_test.go"
+      ],
+      "input": "Run the MOSS workflow clock on Windows with OVERGO_WORKFLOW_RECORD set to the absolute path of the repository timing record. The documented input is repository-relative.",
+      "expected": "The workflow clock should reject an absolute destination before requesting the quiet machine or drawing any section. A valid relative destination should still append one complete timing after the existing commit check.",
+      "actual": "The timing attempt reported in d28ab1e84 completed six sections cold (46.738 s) and warm (34.430 s), then saved nothing. The operator repeated all twelve draws to get the record. At 89cf0f0e3 readWorkflowSource accepts the absolute string, and appendWorkflowTiming first opens the joined path after both runs. The failed attempt spent 81.168 s in measured sections, excluding setup and waiting."
+    },
+    {
+      "id": "SQA-461",
+      "severity": "P2",
+      "files": [
+        "internal/mediacapability/image_cuda_windows.go",
+        "internal/latentimage/runtime_cuda_windows.go",
+        "internal/latentimage/profile.go",
+        "internal/capabilityruntime/session_director.go",
+        "internal/mediacapability/served_repeat_windows_test.go"
+      ],
+      "input": "Repeat a completed fixed-seed MOSS picture at 1024 by 576 with an active stored profile, no preset, canvas, negative prompt or adapter. Separately, change only the seed of a resident ultra-image-to-image-turbo request with the selected profile and valid model files.",
+      "expected": "The first repeat needs no preset or negative-guidance lookup. For the preset request, resolve the effective preset from its selected profile once for naming and execution. Preserve verification of the model files on a genuine load, adapter content identity, and the existing directory fallback where no profile is supplied.",
+      "actual": "At 47dc7e325 pictureFiles and preparedFirst each call pictureCatalog and ReadProfile before the stored-answer lookup. The plain repeat therefore reads and parses the same profile payload twice although neither path uses a catalog entry. For a changed seed, Sized retains the preset name. Generator.Reset and prepare each resolve it again through a fresh CatalogIn and open model_index.json. The served-repeat check counts adapter opens and source reads, and its stand-in replaces both real generator operations. Counts follow from source. Wall time is unmeasured."
     }
   ],
   "master_lead_triage": {
     "at": "2026-11-22",
     "head": "bb918937d1be84a9c9c3cd66834146f01a842463",
     "findings": {
-  "SQA-425": {
-        "action": "implemented",
-        "rows": [
-          "request-admission/do"
-        ],
-        "note": "Answered by the lead on 2026-11-19 at 9123f122c: valid from source (Reading hashes the files a request names and preparedFirst reads its pictures before the director's latentimage.ValidateRequest, so an invalid request reads them and a missing picture masks its refusal); filed as its own row ahead of the pass-part rows, since it needs no card and runs while the card is held. Implemented 2026-11-19 by request-admission/do (d0eaf0f9a), for the review's recheck."
-      },
   "SQA-415": {
         "action": "implemented",
         "rows": [
           "lanes-fixtures/do"
         ],
         "note": "Answered by the lead on 2026-11-19: valid from source (a data path walks up to a closure package's directory, and the repository's fixtures/ is under none, so it reaches no lane); filed after lanes-verdict, ahead of the speed rows, since the MOSS goldens read fixtures/moss. Implemented 2026-11-19 by lanes-fixtures/do (c71a1e230), for the review's recheck."
-      },
-  "SQA-410": {
-        "action": "filed",
-        "rows": [
-          "moss-real-prompt/do"
-        ],
-        "note": "Answered by the lead on 2026-11-17, at the owner's note: folded into moss-real-prompt/do, whose floors are set again; the comparison refuses pictures of different sizes, latents of different lengths and non-finite numbers before it scores them, and a control counts only as a valid comparison under its floor."
       },
   "SQA-346": {
         "action": "implemented",
@@ -196,13 +208,6 @@
         ],
         "note": "Answered by the lead on 2026-11-13: filed after preset-readings, whose admissions it bears on; a held-out quality claim. Implemented 2026-11-16 by preset-evidence/statistic (9ed242b6c), for the review's recheck."
       },
-  "SQA-388": {
-        "action": "filed",
-        "rows": [
-          "moss-real-prompt/do"
-        ],
-        "note": "Answered by the lead on 2026-11-13: carried by the recorder's open step, whose files it names. comfy-recorder/record-rest landed (0c24aca5b) and the review's update stands at 39d27cd16; answered again on 2026-11-19: the step time is read apart from a request's setup by TestWhereAMossStepsTimeGoes (moss-speed/do), and moss-resident/do takes the setup's weight copy from every request after a session's first, but ownSizeReading in the golden-floor test still divides a whole sampling by its steps and sets process allocations beside ComfyUI's whole-card use, so it goes with moss-real-prompt/do, which sets those floors again. The recorder's receipt and same-basename outputs wait until a recording is taken again."
-      },
   "SQA-283": {
         "action": "implemented",
         "rows": [
@@ -212,7 +217,7 @@
       }
 }
   },
-  "next_finding_number": 460,
+  "next_finding_number": 462,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

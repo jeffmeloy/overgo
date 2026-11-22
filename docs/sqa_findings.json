@@ -180,18 +180,19 @@
       ],
       "input": "Repeat a completed fixed-seed MOSS picture at 1024 by 576 with an active stored profile, no preset, canvas, negative prompt or adapter. Separately, change only the seed of a resident ultra-image-to-image-turbo request with the selected profile and valid model files.",
       "expected": "The first repeat needs no preset or negative-guidance lookup. For the preset request, resolve the effective preset from its selected profile once for naming and execution. Preserve verification of the model files on a genuine load, adapter content identity, and the existing directory fallback where no profile is supplied.",
-      "actual": "At 47dc7e325 pictureFiles and preparedFirst each call pictureCatalog and ReadProfile before the stored-answer lookup. The plain repeat therefore reads and parses the same profile payload twice although neither path uses a catalog entry. For a changed seed, Sized retains the preset name. Generator.Reset and prepare each resolve it again through a fresh CatalogIn and open model_index.json. The served-repeat check counts adapter opens and source reads, and its stand-in replaces both real generator operations. Counts follow from source. Wall time is unmeasured."
+      "actual": "At 2e62ba15d pictureFiles and preparedFirst each read and parse the selected profile before the stored-answer lookup. reportedDrawn does it a third time after the hit. None of the three callers needs a catalog entry for the plain repeat. On a new seed, Sized retains the preset name and the real Generator.Reset and prepare each reopen model_index.json through a fresh CatalogIn. The served-repeat check counts adapter opens and source reads and stands in for both generator calls. Source counts, elapsed time unmeasured."
     },
     {
       "id": "SQA-462",
       "severity": "P2",
       "files": [
         "internal/server/webui/workflow.js",
-        "internal/server/webui_browser_moss_generation_windows_test.go"
+        "internal/server/webui_browser_moss_generation_windows_test.go",
+        "internal/server/webui_browser_moss_section_requests_windows_test.go"
       ],
       "input": "On a fresh MOSS form at 1024 by 1024, select ultra-image-to-image-turbo and clear it. Set both dimensions to 512, select the same preset again, then clear it without editing its dimensions. Submit a valid manual text-to-image request.",
-      "expected": "The preset temporarily supplies 2368 by 1344. Clearing it the second time restores the user's latest manual size, 512 by 512. The shared presetSettings handler owns this behavior for moss-section-requests/do.",
-      "actual": "At 9a1a7e9f5 presetSettings saves each field only on its first selection and keeps the saved value after release. Clearing the preset a second time restores 1024 by 1024, so controlValues submits four times the requested pixels. The existing browser check covers the first restoration. Source trace; elapsed time and memory are unmeasured."
+      "expected": "The preset temporarily supplies 2368 by 1344. Clearing it the second time restores the user's latest manual size, 512 by 512. The shared presetSettings handler owns this for the composer and Workbench.",
+      "actual": "presetSettings keeps the first saved size after release. Clearing the preset a second time restores 1024 by 1024, so controlValues submits four times the requested pixels. The browser check from moss-section-requests/do writes width and height after every preset choice, masking this error. Source trace at 2e62ba15d. Time and memory unmeasured."
     },
     {
       "id": "SQA-463",
@@ -204,6 +205,33 @@
       "input": "Submit ultra-depth-control with stored picture A as control.picture and the image field empty. While that draw runs, replace A in the form with a different stored picture B. Let the original run complete.",
       "expected": "The Workbench labels A as the source and compares it with that run's output. The same rule applies when following a run after reload. If its source cannot be recovered, leave the source unidentified. The generation result view owns this under moss-workflow-surface/do.",
       "actual": "At 9a1a7e9f5 submission sends A and leaves the fields editable. On completion shown reads controlValues through the live preview callback, labels B as the source and selects B in the A/B comparison beside A's output. The existing browser check leaves the source unchanged during the run. Source trace."
+    },
+    {
+      "id": "SQA-464",
+      "severity": "P2",
+      "files": [
+        "cmd/recipe/main.go",
+        "internal/mediacapability/image_cuda_windows.go",
+        "internal/capabilityruntime/session_director.go",
+        "internal/mediacapability/prompts_used_windows_test.go"
+      ],
+      "input": "Use recipe run -input-file on an active MOSS model with its Ultra adapters installed. Request ultra-image-to-image-turbo at 1024 by 576, seed 7, with the pass-1 image-to-image recording's 605-rgthree.compare._temp_ginpa_00002_.png supplied inline as image. Repeat the same request.",
+      "expected": "The picture capability returns the PNG and the effective prompts on the first draw and on replay. Keep the existing compact input identity for large requests. The resolved prompt and negative belong with the draw result.",
+      "actual": "The retained PNG is 1,492,431 bytes, or 1,989,908 base64 characters. Above 1 MiB InputContent stores a digest document as Measured.Input. After the director completes the draw, reportedDrawn strictly decodes that document as a latentimage.Request and rejects request_sha256. The caller gets an error instead of the picture. A hit returns the same digest and fails again. File size observed, behavior traced on 2e62ba15d."
+    },
+    {
+      "id": "SQA-465",
+      "severity": "P2",
+      "files": [
+        "internal/mediacapability/image_cuda_windows.go",
+        "internal/latentimage/enhancer_chat_windows.go",
+        "internal/latentimage/moss_enhancer_rules.go",
+        "internal/capabilityruntime/session_director.go",
+        "internal/mediacapability/prompts_used_windows_test.go"
+      ],
+      "input": "Complete a served ultra-text-to-image request with prompt 'a fox', enhance=true, seed 7 and dimensions 256 by 144. Submit the identical request again without forcing a fresh run, with the same recipe, enhancer files, sampling settings and stored result.",
+      "expected": "The picture capability reuses the completed result and its effective prompts for that original request before opening the enhancer. Reuse must bind the original idea, exclusions and enhancer identity. A changed binding or a forced fresh run must still execute as required.",
+      "actual": "At 2e62ba15d preparedFirst calls EnhanceRequest before the director looks for a completed draw. Each successful repeat opens the 9B chat and generates a positive and a negative, with one extra generation if the first positive is short. Only the rewritten request reaches the lookup. The served-prompt check repeats manual and builder inputs but sends the enhanced idea once. Counts follow from source. Elapsed time is unmeasured."
     }
   ],
   "master_lead_triage": {
@@ -240,7 +268,7 @@
       }
 }
   },
-  "next_finding_number": 464,
+  "next_finding_number": 466,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

@@ -49,11 +49,11 @@ func TestARequestsLayoutBecomesItsPrompt(t *testing.T) {
 // EnhanceRequest returns a request asking no enhancing as it is and refuses the two modes together, and a request the
 // session would refuse once enhanced, before opening a chat.
 func TestARequestAskingModeTwoIsEnhancedFirst(t *testing.T) {
-	asking := Request{Enhance: true, Prompt: "a fox", Width: 1024, Height: 576}
+	asking := Request{PromptMode: promptEnhanced, Prompt: "a fox", Width: 1024, Height: 576}
 	if err := ValidateRequest(asking); !errors.Is(err, errNotEnhanced) {
 		t.Errorf("a request still asking mode 2 was validated with %v, want it refused as not yet enhanced", err)
 	}
-	both := Request{Enhance: true, Width: 1024, Height: 576, Layout: &LayoutDraft{Style: draftStylePhoto}}
+	both := Request{PromptMode: promptEnhanced, Width: 1024, Height: 576, Layout: &LayoutDraft{Style: draftStylePhoto}}
 	if err := ValidateRequest(both); !errors.Is(err, errEnhanceBesideLayout) {
 		t.Errorf("modes 2 and 3 together were validated with %v, want them refused", err)
 	}
@@ -75,7 +75,7 @@ func TestARequestAskingModeTwoIsEnhancedFirst(t *testing.T) {
 	invalid := asking
 	invalid.Steps = -1
 	enhanced := invalid
-	enhanced.Enhance = false
+	enhanced.PromptMode = promptText
 	if _, err := EnhanceRequest(t.Context(), open, "", invalid); opened || err == nil || err.Error() != ValidateRequest(enhanced).Error() {
 		t.Errorf("enhancing a request of -1 steps opened the chat (%t) and gave %v; want the session's refusal, %v, and no chat", opened, err, ValidateRequest(enhanced))
 	}

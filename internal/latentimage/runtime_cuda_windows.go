@@ -88,14 +88,18 @@ type Request struct {
 	// fields and regions, which make MOSS's layout prompt on the canvas the request draws (LayoutDraft.prompt) in place
 	// of a prompt of its own.
 	Layout *LayoutDraft `json:"layout,omitempty" controls:"fields"`
-	// Enhance asks the MOSS Ultra workflow's prompt mode 2 of a rotary request: its prompt a source idea and its negative
-	// the exclusions, of which the model's enhancer chat writes the prompt and negative it is drawn by (EnhanceRequest),
-	// before the picture session takes it.
-	Enhance bool `json:"enhance,omitzero"`
 }
+
+// Enhanced says the request asks the MOSS Ultra workflow's prompt mode 2 of a rotary request (PromptMode enhanced): its
+// prompt a source idea and its negative the exclusions, of which the model's enhancer chat writes the prompt and
+// negative it is drawn by (EnhanceRequest), before the picture session takes it.
+func (r Request) Enhanced() bool { return r.PromptMode == promptEnhanced }
 
 // errEnhanceBesideLayout refuses prompt modes 2 and 3 asked together, as the workflow's one prompt mode takes either.
 var errEnhanceBesideLayout = errors.New("latent image: prompt mode 2 enhances a prompt, and a layout is mode 3's; ask the one or the other")
+
+// errBuilderWithoutLayout refuses the builder's prompt mode (prompt mode 3) with no layout to make its prompt.
+var errBuilderWithoutLayout = errors.New("latent image: prompt mode builder makes its prompt from a layout; give its layout")
 
 // errNotEnhanced refuses a request still asking prompt mode 2 where a picture session takes it: its enhancer chat
 // writes it first (EnhanceRequest).
@@ -110,7 +114,7 @@ const denoiseWhole = 0.9999
 // used"). A request asking prompt mode 2 is drawn from what its enhancer writes (EnhanceRequest), so it is read once
 // written (moss-prompts-used).
 func (r Request) Drawn(catalog Catalog) (prompt, negative string, err error) {
-	if r.Enhance {
+	if r.Enhanced() {
 		return "", "", errNotEnhanced
 	}
 	filled, err := r.withPreset(catalog)
@@ -227,21 +231,28 @@ func admitPicture(ctx context.Context, session *graphruntime.ResidentSession, to
 // request so before it reads a file the request names (SQA-425): a request with steps of -1 read and encoded its stored
 // picture, and hashed its adapter, before its session refused it, and with its picture missing was refused for that.
 func Admit(request Request) error {
-	if request.Enhance {
+	if request.Enhanced() {
 		if request.Layout != nil {
 			return errEnhanceBesideLayout
 		}
-		request.Enhance = false
+		request.PromptMode = promptText
 	}
 	return ValidateRequest(request)
 }
 
 func ValidateRequest(request Request) error {
-	if request.Enhance {
+	if request.Enhanced() {
 		if request.Layout != nil {
 			return errEnhanceBesideLayout
 		}
 		return errNotEnhanced
+	}
+	// The builder's mode gives its prompt by its layout alone, and a layout gives the prompt of no other mode.
+	if request.PromptMode == promptBuilder && request.Layout == nil {
+		return errBuilderWithoutLayout
+	}
+	if request.Layout != nil && request.PromptMode != "" && request.PromptMode != promptBuilder {
+		return fmt.Errorf("latent image: a layout gives the builder's prompt (prompt mode builder), not prompt mode %s", request.PromptMode)
 	}
 	if request.Layout != nil {
 		if request.Prompt != "" {

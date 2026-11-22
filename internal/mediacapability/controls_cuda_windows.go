@@ -50,10 +50,10 @@ func adapterControl(c Control) bool {
 }
 
 // rotaryControls are the controls only a rotary profile takes, of the MOSS Ultra workflow's sections: a request's
-// picture to sample from, which a page attaches, and its denoise (moss-ultra-sections/img2img), prompt mode 2's
-// enhancing by the enhancer a MOSS Ultra root holds (moss-ultra-sections/prompt-modes), its sampler and scheduler, its
-// canvas, its sharpening, its depth control and prompt mode 3's layout.
-var rotaryControls = []string{"image", "denoise", "enhance", "schedule", "canvas", "sharpen", "control", "layout"}
+// picture to sample from, which a page attaches, and its denoise (moss-ultra-sections/img2img), its sampler and
+// scheduler, its canvas, its sharpening, its depth control and prompt mode 3's layout. The prompt mode that asks mode 2's
+// enhancing or mode 3's builder is the request's prompt_mode, which a flow profile's page offers none of.
+var rotaryControls = []string{"image", "denoise", "schedule", "canvas", "sharpen", "control", "layout"}
 
 // part is the field of an object control, or of a list control's object item, that the name names; nil where none.
 func part(control *Control, name string) *Control {

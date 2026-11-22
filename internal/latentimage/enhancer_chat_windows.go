@@ -32,14 +32,14 @@ func PythonSpace(r rune) bool { return pythonSpace(r) }
 // picture links the language runtime a chat needs (simplediffusion-peak).
 type EnhancerOpener func(ctx context.Context, directory string) (chat func(ctx context.Context, system, request string, maxTokens int) (string, error), close func() error, err error)
 
-// EnhanceRequest is a request that asks prompt mode 2 (its Enhance) as the request stating what mode 2 writes: its
+// EnhanceRequest is a request that asks prompt mode 2 (its PromptMode enhanced) as the request stating what mode 2 writes: its
 // prompt the source idea and its negative the exclusions the model's enhancer chat writes a positive and a negative of
 // (enhance), the chat opened by open from the model's enhancer folder and closed before the picture is drawn. A request
 // that asks no enhancing is returned as it is. A request the picture session would refuse once enhanced is refused
 // before the chat opens, as the session refuses it: a request of -1 steps had the 9B chat opened and asked, its refusal
 // coming after, or masked where the chat would not open (SQA-413).
 func EnhanceRequest(ctx context.Context, open EnhancerOpener, modelDir string, request Request) (_ Request, err error) {
-	if !request.Enhance {
+	if !request.Enhanced() {
 		return request, nil
 	}
 	if err := Admit(request); err != nil {
@@ -54,6 +54,6 @@ func EnhanceRequest(ctx context.Context, open EnhancerOpener, modelDir string, r
 	if err != nil {
 		return Request{}, err
 	}
-	request.Prompt, request.NegativePrompt, request.Enhance = positive, negative, false
+	request.Prompt, request.NegativePrompt, request.PromptMode = positive, negative, promptText
 	return request, nil
 }

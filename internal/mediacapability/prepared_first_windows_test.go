@@ -66,7 +66,7 @@ func TestAPresetOnlyRequestTakesItsPresetsSize(t *testing.T) {
 // none is stored (readPictures) into each one's bytes in base64 and the rest as it asked; one giving its picture as its
 // bytes reaches it as it came; one naming a picture the store does not hold, or a stored record that is no file, is
 // refused before its session; and a rotary page offers the picture as a slot of image media beside the denoise and the
-// enhance, where a flow profile's page offers none of them.
+// prompt mode, where a flow profile's page offers none of them.
 func TestAStoredPictureReachesItsSessionAsItsBytes(t *testing.T) {
 	store := overgodbtest.Open(t, t.TempDir())
 	stored := func(data []byte) artifact.Content {
@@ -123,7 +123,7 @@ func TestAStoredPictureReachesItsSessionAsItsBytes(t *testing.T) {
 	if slot < 0 || controls[slot].Type != ControlArtifact || controls[slot].Media != "image" || controls[slot].Label != "picture" || controls[slot].Required || controls[slot].Advanced {
 		t.Errorf("MOSS's page offers its picture as %+v; want an optional slot of image media beside the prompt", controls)
 	}
-	for _, name := range []string{"denoise", "enhance"} {
+	for _, name := range []string{"denoise", "prompt_mode"} {
 		if !slices.ContainsFunc(controls, func(c Control) bool { return c.Name == name }) {
 			t.Errorf("MOSS's page offers no %s", name)
 		}
@@ -149,8 +149,8 @@ func TestAPictureRequestAskingNoEnhancingGoesToItsSessionAsItIs(t *testing.T) {
 		reached = append(reached, input)
 		return "drawn", nil
 	}
-	inputs := []string{`{"prompt":"a fox","width":1024,"height":576}`, `{"prompt":"a fox","width":1024,"height":576,"enhance":false}`, `not a request`,
-		`{"enhance":true,"prompt":"a fox","width":1024,"height":576,"stepps":1}`, `{"enhance":true,"prompt":"a fox","steps":1,"steps":50}`}
+	inputs := []string{`{"prompt":"a fox","width":1024,"height":576}`, `{"prompt":"a fox","width":1024,"height":576,"prompt_mode":"text"}`, `not a request`,
+		`{"prompt_mode":"enhanced","prompt":"a fox","width":1024,"height":576,"stepps":1}`, `{"prompt_mode":"enhanced","prompt":"a fox","steps":1,"steps":50}`}
 	for _, input := range inputs {
 		if got := testcheck.Must(preparedFirst(session, enhancerOpener)(t.Context(), nil, "", modelrecipe.CapabilityEvidenceSelection{}, input))(t); got != "drawn" {
 			t.Errorf("%s gave %v, want the session's answer", input, got)
@@ -195,7 +195,7 @@ func TestAnInvalidRequestIsRefusedBeforeItsFilesAreRead(t *testing.T) {
 	if files := testcheck.Must(pictureFiles(t.Context(), nil, root, modelrecipe.CapabilityEvidenceSelection{}, request(8, stored.Descriptor.ID)))(t); len(files) != 1 || filepath.Base(files[0]) != "moss-control.safetensors" {
 		t.Errorf("an admitted request named %v for its content; want its adapter", files)
 	}
-	layout := `{"enhance":true,"width":1024,"height":576,"layout":{"high_level_description":"a fox"}}`
+	layout := `{"prompt_mode":"enhanced","width":1024,"height":576,"layout":{"high_level_description":"a fox"}}`
 	if _, err := serve(t.Context(), store, root, modelrecipe.CapabilityEvidenceSelection{}, layout); err == nil || reached != 0 || !strings.Contains(err.Error(), "prompt mode 2") {
 		t.Errorf("a request asking prompt mode 2 beside a layout was refused with %v, the session reached %d times; want the enhancement's refusal", err, reached)
 	}

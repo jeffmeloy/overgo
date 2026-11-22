@@ -187,7 +187,7 @@ func TestMOSSImageGenerationContract(t *testing.T) {
 		t.Fatal("activation not offered", listed, err)
 	}
 	controls := listed[0].Controls
-	if len(controls) != 17 {
+	if len(controls) != 16 {
 		t.Fatal("unsupported controls offered", controls)
 	}
 	for _, c := range controls {

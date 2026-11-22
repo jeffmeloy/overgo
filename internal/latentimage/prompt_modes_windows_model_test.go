@@ -70,7 +70,7 @@ func TestPromptModesTwoAndThreeEqualTheRecordedStrings(t *testing.T) {
 	testcheck.Must(modelrecipe.PublishArchitectureProfileCatalog(ctx, store))(t)
 	root := ultraModelRoot(t)
 	ultraEnhancer(t, root)
-	enhanced := testcheck.Must(EnhanceRequest(ctx, enhancerOpener(store), root, Request{Enhance: true, Prompt: source, NegativePrompt: exclusions, Width: 1024, Height: 576}))(t)
+	enhanced := testcheck.Must(EnhanceRequest(ctx, enhancerOpener(store), root, Request{PromptMode: promptEnhanced, Prompt: source, NegativePrompt: exclusions, Width: 1024, Height: 576}))(t)
 	testcheck.NoError(t, ValidateRequest(enhanced))
 	if enhanced.Prompt == "" || enhanced.NegativePrompt == "" || enhancedNegative(enhanced.NegativePrompt, source, exclusions, data.NegativeBackup) != enhanced.NegativePrompt {
 		t.Errorf("the enhancer wrote %q and %q; want a prompt and a negative the cleaning leaves as it is", enhanced.Prompt, enhanced.NegativePrompt)

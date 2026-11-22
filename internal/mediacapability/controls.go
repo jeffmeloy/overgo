@@ -58,7 +58,14 @@ type Control struct {
 	// Settings are what each of a preset control's choices fills in a request that sets nothing, each a JSON object of
 	// the request's fields (latentimage.PresetSettings), so a page choosing one shows what it fills.
 	Settings map[string]json.RawMessage
+	// Shows are, for each of a choice control's choices, the controls it shows (the field's type's Shows): a control one
+	// choice names is shown, and sent, only while a choice naming it is chosen, so a page offers the chosen mode's fields
+	// alone (a MOSS prompt mode, moss-prompt-mode); none where every choice shows every control.
+	Shows map[string][]string
 }
+
+// ChoiceShows reports the controls each of the control's choices shows, none where its choices hide nothing.
+func (control Control) ChoiceShows() map[string][]string { return control.Shows }
 
 // ChoiceSettings reports what each of the control's choices fills, none where its choices fill nothing.
 func (control Control) ChoiceSettings() map[string]json.RawMessage { return control.Settings }
@@ -314,6 +321,9 @@ func describe(request reflect.Type) ([]Control, string) {
 		}
 		if fill, named := reflect.Zero(field.Type).Interface().(interface{ Default() string }); named {
 			control.Default = fill.Default()
+		}
+		if shows, named := reflect.Zero(field.Type).Interface().(interface{ Shows() map[string][]string }); named {
+			control.Shows = shows.Shows()
 		}
 		if help, named := reflect.Zero(field.Type).Interface().(interface{ Help() string }); named {
 			control.Help = help.Help()

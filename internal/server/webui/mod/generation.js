@@ -58,19 +58,15 @@
   }
 
   // promptsUsed: what a run's picture was drawn from, as the MOSS Ultra workflow shows it beside each section's picture
-  // ("Prompt used", "Negative prompt used"), each offered back as the manual prompt: the enhancer off and the layout
-  // cleared, so the next run draws the text as written (moss-prompts-used).
+  // ("Prompt used", "Negative prompt used"), each offered back as the manual prompt: the prompt mode text, which shows
+  // and sends the prompt as written and no layout (choiceShows), so the next run draws the text as written
+  // (moss-prompts-used, moss-prompt-mode).
   function promptsUsed(host, used, overgo) {
     const { el } = overgo;
     const field = (name) => [...(host.closest(".panel") || document).querySelectorAll("label.control")]
       .find((label) => label.querySelector("span")?.textContent === name)?.querySelector("input,select,textarea");
     const set = (input, value) => { if (input) { input.value = value; input.dispatchEvent(new Event("input", { bubbles: true })); } };
-    const manual = () => {
-      set(field("enhance"), "");
-      set(field("prompt mode"), "");
-      const layout = (host.closest(".panel") || document).querySelector('fieldset[data-control="layout"]');
-      if (layout) { layout.value = ""; layout.dispatchEvent(new Event("input", { bubbles: true })); }
-    };
+    const manual = () => set(field("prompt mode"), "text");
     const shownText = (title, text, label, name) => {
       const offer = el("button", { class: "btn alt", type: "button", text: label });
       offer.addEventListener("click", () => { manual(); set(field(name), text); });

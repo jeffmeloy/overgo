@@ -150,8 +150,19 @@ func TestTheWorkbenchOffersTheUltraPresets(t *testing.T) {
   }
   return true;
 })()`)
-	// The three prompt modes: the prompt, the enhancer and the layout.
-	check(`(() => { const enhance=bench.field('enhance'); return !!bench.field('prompt') && [...enhance.options].some(option=>option.value==='true') && !!bench.group('layout'); })()`)
+	// The prompt modes, one choice: the prompt as written or checked as layout JSON, the enhancer's and the builder's,
+	// each showing its own fields alone, and no enhance beside it (moss-prompt-mode).
+	check(`(() => {
+  const mode=bench.field('prompt mode');
+  const shown=(name)=>{const label=[...bench.panel.querySelectorAll('label.control')].find(label=>label.querySelector('span').textContent===name); return !!label && !label.hidden;};
+  const choose=(value)=>{mode.value=value;mode.dispatchEvent(new Event('change',{bubbles:true}));};
+  if (!['text','layout','enhanced','builder'].every(choice=>[...mode.options].some(option=>option.value===choice))) throw new Error('the prompt mode offers '+[...mode.options].map(option=>option.value));
+  if ([...bench.panel.querySelectorAll('label.control span')].some(span=>span.textContent==='enhance')) throw new Error('the page offers enhance beside the prompt mode');
+  choose('enhanced');
+  if (!shown('prompt') || !bench.group('layout').hidden) throw new Error('the enhanced mode does not show its idea alone');
+  choose('builder');
+  return !shown('prompt') && !bench.group('layout').hidden && shown('negative prompt');
+})()`)
 	// A drag across the layout's canvas, shaped as the picture, adds a region of its shares.
 	check(`(() => {
   bench.choose('ultra-text-to-image');
@@ -169,6 +180,7 @@ func TestTheWorkbenchOffersTheUltraPresets(t *testing.T) {
 	// The depth control's picture is previewed as its run reads it.
 	check(`(() => {
   bench.choose('ultra-depth-control');
+  const mode=bench.field('prompt mode');mode.value='text';mode.dispatchEvent(new Event('change',{bubbles:true}));
   bench.field('prompt').value='a fox';
   bench.group('regions').value='';
   [...bench.group('control').querySelectorAll('label.control')].find(label=>label.querySelector('span').textContent==='picture').querySelector('input').value='` + picture.Descriptor.ID.String() + `';

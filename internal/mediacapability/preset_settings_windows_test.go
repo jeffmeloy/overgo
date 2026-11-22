@@ -41,7 +41,7 @@ func TestAPresetChoiceCarriesItsSettings(t *testing.T) {
 		return fields
 	}
 	for name := range preset.Settings {
-		for _, unset := range []string{"prompt", "seed", "preset", "image", "enhance", "control", "layout"} {
+		for _, unset := range []string{"prompt", "seed", "preset", "image", "prompt_mode", "control", "layout"} {
 			if _, named := settings(name)[unset]; named {
 				t.Errorf("%s's settings name %s, which it does not fill: %s", name, unset, preset.Settings[name])
 			}

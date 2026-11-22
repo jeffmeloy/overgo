@@ -16,7 +16,7 @@ import (
 // TestWebUIBrowserMOSSPromptsUsed holds moss-prompts-used/page: a MOSS run on the generation page shows the prompt and
 // the negative prompt its picture was drawn from, as the MOSS Ultra workflow shows them beside each section's picture
 // ("Prompt used", "Negative prompt used"), from the document its run publishes beside the picture, and offers each back
-// as the manual prompt: the enhancer off and the layout cleared, the text in the prompt or negative prompt, so the next
+// as the manual prompt: the prompt mode text, which sends no layout, the text in the prompt or negative prompt, so the next
 // run draws it as written. A run's picture is still shown and compared as before. The page had shown a run's pictures
 // alone, and the prompts an enhancer wrote or a layout made were nowhere on it.
 func TestWebUIBrowserMOSSPromptsUsed(t *testing.T) {
@@ -66,13 +66,13 @@ func TestWebUIBrowserMOSSPromptsUsed(t *testing.T) {
   if (bench.panel.querySelectorAll('.workbench-output').length!==1) throw new Error('the run shows its document as a picture');
   bench.button('Use as the prompt').click();
   bench.button('Use as the negative prompt').click();
-  return bench.field('prompt').value===` + string(testcheck.Must(json.Marshal(written))(t)) + ` && bench.field('negative prompt').value===` + string(testcheck.Must(json.Marshal(excluded))(t)) + ` && bench.field('enhance').value==='';
+  return bench.field('prompt').value===` + string(testcheck.Must(json.Marshal(written))(t)) + ` && bench.field('negative prompt').value===` + string(testcheck.Must(json.Marshal(excluded))(t)) + ` && bench.field('prompt mode').value==='text';
 })()`)
 	// The prompt offered back is drawn as written: the next run's request is it.
 	check(`(() => { bench.panel.querySelectorAll('.workbench-output').forEach(shown=>shown.remove()); bench.button('Run').click(); return true; })()`)
 	settle(`!!bench.panel.querySelector('.workbench-output') && !bench.button('Run').disabled`)
 	inputs := fixture.requests()
-	if last := inputs[len(inputs)-1]; last.Prompt != written || last.NegativePrompt != excluded || last.Enhance || last.Layout != nil {
+	if last := inputs[len(inputs)-1]; last.Prompt != written || last.NegativePrompt != excluded || last.Enhanced() || last.Layout != nil {
 		t.Errorf("the run after the prompt was used asked %+v; want the prompt and negative used, as written", last)
 	}
 	check(`window.overgo.errors.length===0`)

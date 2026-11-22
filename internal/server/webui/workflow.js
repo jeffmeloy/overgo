@@ -144,6 +144,7 @@
       if (control.help) target.appendChild(el('details', { class: 'control-help' }, el('summary', { text: 'About ' + controlLabel(control) }), el('p', { class: 'note', text: control.help })));
     }
     if (nested) return fields;
+    choiceShows(fields);
     presetSettings(fields);
     const chips = presetChips(fields);
     if (chips) host.appendChild(chips);
@@ -206,6 +207,30 @@
   function setPart(field, value) {
     const text = partText(value);
     field.input.value = field.control.choices?.length && text && !field.control.choices.includes(text) ? "" : text;
+  }
+
+  // choiceShows: a choice control that declares the controls each of its choices shows (a MOSS prompt mode: the prompt
+  // and negative as written or enhanced, the layout for the builder) shows the chosen one's alone, its declared default
+  // where none is chosen; a control hidden so is not sent (controlValues), so the request is the chosen mode's
+  // (moss-prompt-mode).
+  function choiceShows(fields) {
+    for (const [, field] of fields) {
+      const shows = field.control.shows;
+      if (!shows) continue;
+      const governed = new Set(Object.values(shows).flat());
+      const apply = () => {
+        const shown = shows[field.input.value];
+        for (const name of governed) {
+          const other = fields.get(name);
+          if (!other) continue;
+          other.hidden = !!shown && !shown.includes(name);
+          (other.input.closest("label.control") || other.input).hidden = other.hidden;
+        }
+      };
+      field.input.addEventListener("change", apply);
+      field.input.addEventListener("input", apply);
+      apply();
+    }
   }
 
   // presetSettings: choosing a preset sets each control it fills to its value (a MOSS Ultra section's steps, schedule,
@@ -432,6 +457,8 @@
     const missing = new Set();
     let refused = "", refusal = "";
     for (const [name, field] of fields) {
+      // A control the chosen mode hides is not the request's (choiceShows).
+      if (field.hidden) continue;
       const value = field.input.value;
       if (value === "") { if (field.control.required) missing.add(name); continue; }
       if (field.control.type === "integer" && !Number.isSafeInteger(Number(value))) {

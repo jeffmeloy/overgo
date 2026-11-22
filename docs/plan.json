@@ -3,31 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "moss-prompt-mode",
-      "title": "MOSS's page offers one prompt mode, manual, enhanced or builder, showing only that mode's fields, declared by the control list so the page stays generated",
-      "steps": [
-        {
-          "id": "controls",
-          "title": "The MOSS control list declares one prompt mode choice of manual, enhanced and builder, and the fields each shows",
-          "verify": "go test ./internal/mediacapability -count=1 -run '^TestMOSSOffersOnePromptModeShowingItsFields$'",
-          "files": [
-            "internal/mediacapability",
-            "internal/latentimage"
-          ],
-          "rationale": "The owner's review of 2026-11-22, point 3, checked against the code: valid. The workflow chooses one prompt mode (manual, enhanced by its chat, or built from the Ideogram builder's layout). A rotary model's page offers three controls for it side by side (mediacapability imageControls, rotaryControls): prompt_mode, whose choices text and layout select a validation and rewrite nothing (latentimage PromptMode), enhance, a boolean, and layout, an object; a Control declares no field that shows another only for one choice, so the page cannot show one mode's fields alone.\n\nThe change: the control list offers one mode choice and declares, for each choice, the fields it shows (the prompt and negative for manual and enhanced, the layout for the builder), and a request is taken as the chosen mode sets it.\n\nCheck: TestMOSSOffersOnePromptModeShowingItsFields, card-free."
-        },
-        {
-          "id": "page",
-          "title": "Choosing a MOSS prompt mode shows only its fields, as the control list declares them",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserMOSSPromptMode$' -leg moss-prompt-mode",
-          "files": [
-            "internal/server"
-          ],
-          "rationale": "The page half of moss-prompt-mode: the page reads which fields each mode shows from the control list (it generates its controls, and names no MOSS field itself), and each mode's request reaches the session as that mode's."
-        }
-      ]
-    },
-    {
       "id": "moss-sharpened-pair",
       "title": "A sharpened MOSS run returns its drawn picture and its sharpened picture, compared on the page as the workflow compares them",
       "steps": [

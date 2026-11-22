@@ -59,7 +59,7 @@ func TestAServedPictureReportsThePromptsItDrewFrom(t *testing.T) {
 		t.Errorf("prompt mode 1 with no negative reported %q and %q; want the prompt and the workflow's backup negative", backed.Prompt, backed.NegativePrompt)
 	}
 
-	idea := `{"prompt":"a fox","enhance":true,` + sized + `}`
+	idea := `{"prompt":"a fox","prompt_mode":"enhanced",` + sized + `}`
 	enhanced, picture := pictures.served(t.Context(), idea)
 	var request latentimage.Request
 	testcheck.NoError(t, strictjson.DecodeBytes(enhanced.Input.Data, &request))

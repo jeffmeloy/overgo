@@ -244,7 +244,7 @@ func preparedFirst(next capabilityruntime.Executor, opened func(artifact.Reposit
 		if err != nil {
 			return nil, err
 		}
-		if request.Enhance {
+		if request.Enhanced() {
 			if prepared, err = latentimage.EnhanceRequest(ctx, opened(store), path, prepared); err != nil {
 				return nil, err
 			}

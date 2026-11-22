@@ -81,6 +81,9 @@ type workflowControl struct {
 	// Settings are what each of the control's choices fills in a request that sets nothing (a preset's steps,
 	// schedule and size), each an object of the request's fields, which a page sets its controls to on the choice.
 	Settings map[string]json.RawMessage `json:"settings,omitempty"`
+	// Shows are, for each of a choice control's choices, the controls it shows: a control a choice names is shown and
+	// sent only while a choice naming it is chosen (a MOSS prompt mode's fields, moss-prompt-mode).
+	Shows map[string][]string `json:"shows,omitempty"`
 }
 
 func audioFormatMessage(audio *speechrecognition.InputRequirements) string {

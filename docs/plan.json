@@ -3,22 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "moss-encoder-own",
-      "title": "MOSS's conditioning is ComfyUI's own: the text model's ConvRot weights decoded as ComfyUI's card decodes them, its states held to ComfyUI's at the agreement read, and the encoder's share of text to image's latent agreement placed",
-      "steps": [
-        {
-          "id": "clock",
-          "title": "The workflow is timed whole at moss-encoder-own's commit, the machine held quiet, and the timing appended to the record (moss-workflow-clock)",
-          "verify": "git log --format=%s -n 200 | grep -qF 'moss-encoder-own/do:' \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF \"\\\"commit\\\":\\\"$(git rev-parse HEAD)\\\"\" \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF '\"committed\":true'",
-          "files": [
-            "docs/verification"
-          ],
-          "needs_card": true,
-          "rationale": "The step's ComfyUI arithmetic reads the MOSS Ultra encoder's weights in F32 and multiplies them exactly in F32, where Transformers' BF16 arithmetic multiplied BF16 on the tensor cores: the six golden prompts' agreement test took 4.80 s against 4.65 s at the commit before (moss-encoder-own/do), about 25 ms a prompt. The clock reads what that costs the workflow, the first run against ComfyUI's pass-1 (40.18 s) and the warm run against pass-2 (34.41 s)."
-        }
-      ]
-    },
-    {
       "id": "moss-real-prompt",
       "title": "Text to image and prompt mode 3 are held to ComfyUI on a real prompt and a filled builder, their floors set from recordings of them, and image to image at denoise 1, the same run as text to image, goes",
       "steps": [

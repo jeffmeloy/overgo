@@ -3,21 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "flash-open-fails",
-      "title": "A Flash-Next check whose installed checkpoint cannot open fails with the open's cause, and only a missing checkpoint is skipped",
-      "steps": [
-        {
-          "id": "do",
-          "title": "TestFlashNextRoundIsReadyAtOpen and TestFlashNextWindowRowsAreTheSingleTokenSteps skip on a missing checkpoint alone, as TestFlashNextHomesEveryExpert does, and fail when an installed one does not open",
-          "verify": "go test ./internal/inference -count=1 -run '^TestAFlashNextCheckpointThatCannotOpenFailsItsCheck$'",
-          "files": [
-            "internal/inference"
-          ],
-          "rationale": "SQA-453 (P2), updated by the review at 32cf1a5d0 and answered by the lead on 2026-11-21: valid from the source. TestFlashNextRoundIsReadyAtOpen and TestFlashNextWindowRowsAreTheSingleTokenSteps call Skipf on every error opening Flash-Next, so an installed checkpoint that does not open reads as a missing prerequisite, writes no line naming the test, and leaves a read of their verdicts pending where it should fail with its cause; TestFlashNextHomesEveryExpert checks the files' presence and then fails on the open. flash-bound-read/read landed on a run where all three passed (32cf1a5d0's lanes, each tree at 115.8 GiB). The cure gives the two the presence check HomesEveryExpert takes, skips only on a missing file, and fails on an open error; the check holds the shared prerequisite to failing on a file that is present and cannot open."
-        }
-      ]
-    },
-    {
       "id": "speech-captures",
       "title": "The ASR and transducer captures are remade into the data root by means the repository keeps, and the eleven ASR tests read them again",
       "steps": [

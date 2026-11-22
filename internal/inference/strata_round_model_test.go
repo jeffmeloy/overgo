@@ -4,7 +4,6 @@ package inference
 
 import (
 	"errors"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -36,14 +35,8 @@ func TestFlashNextDecodeRoundIsStratas(t *testing.T) {
 	cudatest.Require(t)
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	testcheck.NoError(t, err)
-	model := roots.ResolveModelPath(strataRoundModel)
-	if _, err := os.Stat(model); err != nil {
-		t.Skipf("the round's check needs %s: %v", model, err)
-	}
-	draftFile := roots.ResolveModelPath(strataDraftModel)
-	if _, err := os.Stat(draftFile); err != nil {
-		t.Skipf("the round's check needs %s: %v", draftFile, err)
-	}
+	model, draftFile := roots.ResolveModelPath(strataRoundModel), roots.ResolveModelPath(strataDraftModel)
+	requireFlashNext(t, model, draftFile)
 	// The experts stay where the load placed them and the PCIe share is none, so plain decoding and the windows compute
 	// each expert in the same place (a host expert on the CPU, a card expert on the card): Strata's PCIe share takes a
 	// share of each window's misses, which a window's size moves.

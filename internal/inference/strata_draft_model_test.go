@@ -27,11 +27,7 @@ func TestStrataDraftPackIsStratas(t *testing.T) {
 	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	rt := filepath.Join(roots.References(), "strata", "mtp", "rt")
 	path := roots.ResolveModelPath(strataDraftModel)
-	for _, need := range []string{path, filepath.Join(rt, "dense.txt")} {
-		if _, err := os.Stat(need); err != nil {
-			t.Skipf("the pack's check needs %s: %v", need, err)
-		}
-	}
+	requireFlashNext(t, path, filepath.Join(rt, "dense.txt"))
 	file := testcheck.Must(gguf.Open(path))(t)
 	t.Cleanup(func() { file.Close() })
 	dense, tensors, err := strataDraftDense(file)

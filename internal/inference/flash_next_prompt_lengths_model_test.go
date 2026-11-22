@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"math/rand/v2"
-	"os"
 	"sort"
 	"strings"
 	"testing"
@@ -31,11 +30,7 @@ func TestFlashNextAnswersEveryPromptLength(t *testing.T) {
 	cudatest.Require(t)
 	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	model, draft := roots.ResolveModelPath(strataRoundModel), roots.ResolveModelPath(strataDraftModel)
-	for _, path := range []string{model, draft} {
-		if _, err := os.Stat(path); err != nil {
-			t.Skipf("the prompt lengths need %s: %v", path, err)
-		}
-	}
+	requireFlashNext(t, model, draft)
 	for open := range 3 {
 		runner, err := openFixtureRunnerWithResidency(model, OpenOptions{Draft: draft, StrataRound: true}, recipe.ResidencyHybridNative)
 		if err != nil {

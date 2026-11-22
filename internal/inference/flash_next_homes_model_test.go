@@ -4,7 +4,6 @@ package inference
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	cudatest "overgo/internal/cuda/testutil"
@@ -22,11 +21,7 @@ func TestFlashNextHomesEveryExpert(t *testing.T) {
 	cudatest.Require(t)
 	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	model, draft := roots.ResolveModelPath(strataRoundModel), roots.ResolveModelPath(strataDraftModel)
-	for _, path := range []string{model, draft} {
-		if _, err := os.Stat(path); err != nil {
-			t.Skipf("the homing needs %s: %v", path, err)
-		}
-	}
+	requireFlashNext(t, model, draft)
 	runner := testcheck.Must(openFixtureRunnerWithResidency(model, OpenOptions{Draft: draft, StrataRound: true}, recipe.ResidencyHybridNative))(t)
 	t.Cleanup(func() {
 		if err := runner.Close(); err != nil {

@@ -27,10 +27,8 @@ func TestFlashNextWindowRowsAreTheSingleTokenSteps(t *testing.T) {
 	cudatest.Require(t)
 	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	model, draft := roots.ResolveModelPath(strataRoundModel), roots.ResolveModelPath(strataDraftModel)
-	runner, err := openFixtureRunnerWithResidency(model, OpenOptions{HoldExperts: true, Draft: draft, StrataRound: true}, recipe.ResidencyHybridNative)
-	if err != nil {
-		t.Skipf("the windows' check needs %s and %s: %v", model, draft, err)
-	}
+	requireFlashNext(t, model, draft)
+	runner := testcheck.Must(openFixtureRunnerWithResidency(model, OpenOptions{HoldExperts: true, Draft: draft, StrataRound: true}, recipe.ResidencyHybridNative))(t)
 	t.Cleanup(func() {
 		if err := runner.Close(); err != nil {
 			t.Error(err)

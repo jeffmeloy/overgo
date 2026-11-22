@@ -9,7 +9,7 @@
         {
           "id": "read",
           "title": "flash-next-bound's bound is read in a lanes run under the trunk's runner, internal/inference's package ending in its verdict",
-          "verify": "awk -v pkg=overgo/internal/inference 'function whole() { return (\"TestFlashNextHomesEveryExpert\" in verdict) \u0026\u0026 (\"TestFlashNextRoundIsReadyAtOpen\" in verdict) \u0026\u0026 (\"TestFlashNextWindowRowsAreTheSingleTokenSteps\" in verdict) } index($0, \"runner built at\") \u003e 0 { if (whole()) found = 1; split(\"\", verdict); run = 1; next } run \u0026\u0026 (index($0, \"pass\\t\" pkg \"\\t\") == 1 || index($0, \"fail\\t\" pkg \"\\t\") == 1) { split($0, field, \"\\t\"); verdict[field[3]] = 1 } END { if (whole()) found = 1; exit !found }' .overgo-runtime/lanes.log",
+          "verify": "awk -v pkg=overgo/internal/inference 'function whole() { return (\"TestFlashNextHomesEveryExpert\" in verdict) \u0026\u0026 (\"TestFlashNextRoundIsReadyAtOpen\" in verdict) \u0026\u0026 (\"TestFlashNextWindowRowsAreTheSingleTokenSteps\" in verdict) } index($0, \"runner built at\") \u003e 0 { if (whole()) found = 1; split(\"\", verdict); run = 1; next } run \u0026\u0026 (index($0, \"pass\\t\" pkg \"\\t\") == 1 || index($0, \"fail\\t\" pkg \"\\t\") == 1) { split($0, field, \"\\t\"); verdict[field[3]] = 1 } END { if (whole()) found = 1; exit !found }' \"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")/.overgo-runtime/lanes.log\"",
           "files": [
             "docs/plan.json"
           ],
@@ -17,6 +17,37 @@
           "depends_on": [
             "moss-first-run/clock"
           ]
+        }
+      ]
+    },
+    {
+      "id": "decode-groups",
+      "title": "The encoder's card decode takes only the ConvRot weights whose groups it turns, and every other one is read on the host as before",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A ConvRot weight whose group the card's exact decode does not turn is bound from the catalog, its stored bytes never read for the card",
+          "verify": "go test ./internal/latentimage -count=1 -run '^TestAnEncoderWeightTheCardCannotTurnIsReadOnTheHost$'",
+          "files": [
+            "internal/latentimage",
+            "internal/cuda/executor"
+          ],
+          "rationale": "SQA-455 (P2), filed by the review at 32cf1a5d0 and answered by the lead on 2026-11-21: valid from the source, a regression of moss-first-run/do (16da0bc21). openStored sends every untransformed BF16 ConvRot binding to the card, while the card's exact decode turns groups of 4 to 1024 columns and comfyquant.Find admits any power of 4: a weight rotated in groups of 4096 has its 50 MB of stored bytes read and its place reserved before DecodeInt8ConvRot refuses it, and the prompt's preparation fails where the host decode had served it. The installed Ultra file rotates every language weight in groups of 256, so no draw has met it. The cure selects for the card only the groups its decode turns, read from the weight's declared group before any payload, and leaves every other to the catalog's host path; the check builds such a weight and holds it to the host path, the 256-wide one beside it to the card."
+        }
+      ]
+    },
+    {
+      "id": "flash-open-fails",
+      "title": "A Flash-Next check whose installed checkpoint cannot open fails with the open's cause, and only a missing checkpoint is skipped",
+      "steps": [
+        {
+          "id": "do",
+          "title": "TestFlashNextRoundIsReadyAtOpen and TestFlashNextWindowRowsAreTheSingleTokenSteps skip on a missing checkpoint alone, as TestFlashNextHomesEveryExpert does, and fail when an installed one does not open",
+          "verify": "go test ./internal/inference -count=1 -run '^TestAFlashNextCheckpointThatCannotOpenFailsItsCheck$'",
+          "files": [
+            "internal/inference"
+          ],
+          "rationale": "SQA-453 (P2), updated by the review at 32cf1a5d0 and answered by the lead on 2026-11-21: valid from the source. TestFlashNextRoundIsReadyAtOpen and TestFlashNextWindowRowsAreTheSingleTokenSteps call Skipf on every error opening Flash-Next, so an installed checkpoint that does not open reads as a missing prerequisite, writes no line naming the test, and leaves a read of their verdicts pending where it should fail with its cause; TestFlashNextHomesEveryExpert checks the files' presence and then fails on the open. flash-bound-read/read landed on a run where all three passed (32cf1a5d0's lanes, each tree at 115.8 GiB). The cure gives the two the presence check HomesEveryExpert takes, skips only on a missing file, and fails on an open error; the check holds the shared prerequisite to failing on a file that is present and cannot open."
         }
       ]
     },
@@ -77,7 +108,7 @@
             "internal/latentimage",
             "fixtures/comfy/moss-ultra"
           ],
-          "rationale": "Note: The owner's review of 2026-11-19 (the text model is read as BF16 where ComfyUI multiplies it in int8), checked against the Moss install's source: ComfyUI builds a quantized text encoder's operations with mixed_precision_ops(quant_config, dtype, full_precision_mm=True) (comfy/sd1_clip.py, line 114), which MOSS's MOSSImageTEModel and Qwen35ClipModel take, so each of its linears dequantizes its int8 ConvRot weight on the card and multiplies in BF16 (comfy/ops.py linear_input_act and the mixed-precision forward skip the int8 product while _full_precision_mm holds), for the conditioning and for generate alike, which runs the same transformer and operations. overgo reading the text model as the BF16 weights it decodes to is ComfyUI's arithmetic in kind, not a departure from it. Two parts are not ComfyUI's own: overgo decodes the weights exactly in float64 (comfyquant.DecodeRow), where ComfyUI's card decodes them in float32 one radix-4 stage at a time over strides 1, 4, 16 and 64 (comfy_kitchen dequantize_int8_convrot_groups64_kernel, matched bit for bit in moss-int8-adapters), apart in a few elements of each weight by a BF16 step; and its states are held to ComfyUI's only to a token cosine of 0.99 and a relative L2 of 0.05 (TestTheUltraEncoderConditionsAsComfyUIDoes), while how much of text to image's 2.09 dB of latent agreement the encoder accounts for is unmeasured. The row decodes as ComfyUI's card decodes, reads how far overgo's states lie from ComfyUI's and holds them there, and draws text to image with ComfyUI's own conditioning beside overgo's to place the encoder's share of the latent's agreement, so moss-real-prompt sets its floors from conditioning that is ComfyUI's."
+          "rationale": "Note: The owner's review of 2026-11-19 (the text model is read as BF16 where ComfyUI multiplies it in int8), checked against the Moss install's source: ComfyUI builds a quantized text encoder's operations with mixed_precision_ops(quant_config, dtype, full_precision_mm=True) (comfy/sd1_clip.py, line 114), which MOSS's MOSSImageTEModel and Qwen35ClipModel take, so each of its linears dequantizes its int8 ConvRot weight on the card and multiplies in BF16 (comfy/ops.py linear_input_act and the mixed-precision forward skip the int8 product while _full_precision_mm holds), for the conditioning and for generate alike, which runs the same transformer and operations. overgo reading the text model as the BF16 weights it decodes to is ComfyUI's arithmetic in kind, not a departure from it. Two parts are not ComfyUI's own: overgo decodes the weights exactly in float64 (comfyquant.DecodeRow), where ComfyUI's card decodes them in float32 one radix-4 stage at a time over strides 1, 4, 16 and 64 (comfy_kitchen dequantize_int8_convrot_groups64_kernel, matched bit for bit in moss-int8-adapters), apart in a few elements of each weight by a BF16 step; and its states are held to ComfyUI's only to a token cosine of 0.99 and a relative L2 of 0.05 (TestTheUltraEncoderConditionsAsComfyUIDoes), while how much of text to image's 2.09 dB of latent agreement the encoder accounts for is unmeasured. The row decodes as ComfyUI's card decodes, reads how far overgo's states lie from ComfyUI's and holds them there, and draws text to image with ComfyUI's own conditioning beside overgo's to place the encoder's share of the latent's agreement, so moss-real-prompt sets its floors from conditioning that is ComfyUI's.\n\nNote: Measured on 2026-11-21 at 92e55ec06, a probe in a scratch worktree (tmp/moss-encoder-own/comfy_decode_agreement.txt): the encoder's ConvRot weights decoded on the card as comfy_kitchen's dequantize decodes them (dequantize_int8_convrot_rows_f32's arithmetic, a block for each 256-wide group, as the encoder's 12288-wide projections need), through moss-first-run/do's binding, moved the six golden prompts' states from a relative L2 of 0.0132 to 0.0211 of ComfyUI's (overgo's exact decode) to 0.0140 to 0.0377, the café prompt's lowest token cosine to 0.985, under the 0.99 bar. The decode is not what parts overgo's states from ComfyUI's; the row places the parting in the encoder's other arithmetic (its BF16 products' accumulation, its attention and recurrent blocks) by the states block by block before it chooses the decode."
         }
       ]
     },
@@ -110,7 +141,7 @@
             "internal/latentimage",
             "internal/capabilityruntime"
           ],
-          "rationale": "Send the same admitted, fixed-seed MOSS request twice through the picture capability with a store, a stored source PNG and a held adapter in a live session. At ff603b49b preparedFirst reads and base64-encodes the PNG before the session director looks for a completed draw. TestAServedPictureReusesItsHeldFiles exercises naming alone on the identical repeat and counts only files opened by heldfile.Set. Extend its fixture through the production entry and existing run lookup. On the second call require the same recorded run and pixel bytes, zero source-PNG payload reads, zero additional opens or bytes hashed for the held adapter, and zero draw or weight-placement work. Count the first read and draw so a disconnected counter fails. A changed seed must draw again using the held adapter. FreshRun must execute. Preserve active selection, admission, content identity, refusal of missing inputs and invalidation when a dependency changes. Count reads of the returned result separately. Use the existing residency check for transfers during a real warm draw. This check concerns ordinary MOSS pictures with enhancement off.",
+          "rationale": "Send the same admitted, fixed-seed MOSS request twice through the picture capability with a store, a stored source PNG and a held adapter in a live session. At ff603b49b preparedFirst reads and base64-encodes the PNG before the session director looks for a completed draw. TestAServedPictureReusesItsHeldFiles exercises naming alone on the identical repeat and counts only files opened by heldfile.Set. Extend its fixture through the production entry and existing run lookup. On the second call require the same recorded run and pixel bytes, zero source-PNG payload reads, zero additional opens or bytes hashed for the held adapter, and zero draw or weight-placement work. Count the first read and draw so a disconnected counter fails. A changed seed must draw again using the held adapter. FreshRun must execute. Preserve active selection, admission, content identity, refusal of missing inputs and invalidation when a dependency changes. Count reads of the returned result separately. Use the existing residency check for transfers during a real warm draw. This check concerns ordinary MOSS pictures with enhancement off.\n\nNote: Use the ultra-image-to-image-turbo preset with its canvas size omitted from the request and its source PNG named by artifact ID. On master at 32cf1a5d0, pictureFiles sizes the request and lists its dependencies, then preparedFirst sizes it again. Each of those three calls resolves the preset by reading model_index.json outside heldfile.Set. Count those model-index opens at the file boundary and require zero on the identical repeat while its selected model and profile are valid. Use the selected profile to resolve the preset. In the same fixture, changing only the source PNG to a different valid artifact at the same seed must read the new source and produce a distinct run. Use the existing picture capability entry for every call.",
           "depends_on": [
             "moss-first-run/clock",
             "moss-real-prompt/do"

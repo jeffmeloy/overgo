@@ -22,15 +22,6 @@
       "title": "Every node by which the MOSS Ultra workflow saves, previews, compares or shows something has its counterpart in a run's result or on the page, and one without is refused without the card",
       "steps": [
         {
-          "id": "preset-size",
-          "title": "Clearing a MOSS preset gives back the size the form held when it was chosen, however often a preset is chosen and cleared",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserMOSSPresetGivesBackTheSizeSetByHand$' -leg moss-preset-size",
-          "files": [
-            "internal/server"
-          ],
-          "rationale": "SQA-462 (P2), checked against presetSettings in internal/server/webui/workflow.js at 47b3587c9: valid. A preset's chosen size replaces the width and height the form held, which are saved once, at the first choice, and restored on release; a size typed by hand between two choices of a preset is never saved, so clearing the preset the second time restores the first size, and controlValues sends a picture of four times the pixels asked (1024 by 1024 for 512 by 512). The browser check from moss-section-requests/do writes width and height after every preset choice, which hides it. The change: the size the form held is saved at each choice of a preset and restored at its release. Check: TestWebUIBrowserMOSSPresetGivesBackTheSizeSetByHand chooses and clears a preset, sets 512 by 512 by hand, chooses and clears it again, and the request carries 512 by 512, in the composer and the Workbench."
-        },
-        {
           "id": "source",
           "title": "A depth section's comparison offers the picture its run started from, not the form's picture when the run completes",
           "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserMOSSComparesTheSourceItsRunStartedFrom$' -leg moss-run-source",

@@ -243,14 +243,17 @@
     if (!settings) return;
     let filled = {};
     const before = new Map();
+    // presetFilled: the field still holds what the last preset filled, not what a person set.
+    const presetFilled = (name, field) => Object.hasOwn(filled, name) && field.input.value === partText(filled[name]);
     preset.input.addEventListener("change", () => {
       const chosen = settings[preset.input.value] || {};
       for (const [name, field] of fields) {
         if (name === "preset") continue;
         if (Object.hasOwn(chosen, name)) {
-          if (!before.has(name)) before.set(name, field.input.value);
+          // What a person set is kept at each choice of a preset, so its release gives back the latest (SQA-462).
+          if (!presetFilled(name, field)) before.set(name, field.input.value);
           setPart(field, chosen[name]);
-        } else if (Object.hasOwn(filled, name) && field.input.value === partText(filled[name])) field.input.value = before.get(name) ?? "";
+        } else if (presetFilled(name, field)) field.input.value = before.get(name) ?? "";
       }
       filled = chosen;
     });

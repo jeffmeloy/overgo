@@ -3,25 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "png-level",
-      "title": "A MOSS picture's PNGs are deflated at level 4, as ComfyUI's SaveImage writes them, their pixels unchanged, and the clock reads the decode part as the card's decode and the finishing",
-      "steps": [
-        {
-          "id": "clock",
-          "title": "The workflow is timed whole after png-level, the machine held quiet, and the timing appended to the record (moss-workflow-clock)",
-          "verify": "git log --format=%s -n 200 | grep -qF 'png-level/do:' \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF \"\\\"commit\\\":\\\"$(git rev-parse HEAD)\\\"\" \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF '\"committed\":true'",
-          "files": [
-            "docs/verification"
-          ],
-          "needs_card": true,
-          "rationale": "The owner's review of 2026-11-23, point 1: the remaining gap cured where it is, then timed. TestTheUltraWorkflowIsTimedInItsOrder at png-level/do's commit, OVERGO_WORKFLOW_RECORD=docs/verification/moss-workflow-time.jsonl, the tree unchanged and the machine held quiet, its timing appended to the record and landed alone; the record reads the decode part as the card's decode and the finishing. Check: the record's last line names HEAD's commit and was committed code.",
-          "depends_on": [
-            "png-level/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "recorded-request",
       "title": "A MOSS run followed again after a reload reads its recorded picture request by its schema, beside any prompt enhancement the run also kept",
       "steps": [

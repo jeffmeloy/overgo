@@ -3,25 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "decoder-resident",
-      "title": "MOSS's decoder is compiled once a session for a picture's size, as Krea's resident pipeline keeps its VAE, and the workflow is timed after it",
-      "steps": [
-        {
-          "id": "clock",
-          "title": "The workflow is timed whole after decoder-resident, the machine held quiet, and the timing appended to the record (moss-workflow-clock)",
-          "verify": "git log --format=%s -n 200 | grep -qF 'decoder-resident/do:' \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF \"\\\"commit\\\":\\\"$(git rev-parse HEAD)\\\"\" \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF '\"committed\":true'",
-          "files": [
-            "docs/verification"
-          ],
-          "needs_card": true,
-          "rationale": "A cure of the measured gap is timed before more serving fixes (the owner's review of 2026-11-22, third, point 1). TestTheUltraWorkflowIsTimedInItsOrder at decoder-resident/do's commit, OVERGO_WORKFLOW_RECORD=docs/verification/moss-workflow-time.jsonl, the tree unchanged and the machine held quiet, its timing appended and landed alone. Check: the record's last line names HEAD's commit and was committed code.",
-          "depends_on": [
-            "decoder-resident/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "one-png-writer",
       "title": "Every picture model's PNGs are written by the one level-4 writer, the pictures pinned by PNG bytes pinned by their pixels",
       "steps": [

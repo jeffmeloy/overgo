@@ -180,7 +180,7 @@
       ],
       "input": "Repeat a completed fixed-seed MOSS picture at 1024 by 576 with an active stored profile, no preset, canvas, negative prompt or adapter. Separately, change only the seed of a resident ultra-image-to-image-turbo request with the selected profile and valid model files.",
       "expected": "The first repeat needs no preset or negative-guidance lookup. For the preset request, resolve the effective preset from its selected profile once for naming and execution. Preserve verification of the model files on a genuine load, adapter content identity, and the existing directory fallback where no profile is supplied.",
-      "actual": "At 2e62ba15d pictureFiles and preparedFirst each read and parse the selected profile before the stored-answer lookup. reportedDrawn does it a third time after the hit. None of the three callers needs a catalog entry for the plain repeat. On a new seed, Sized retains the preset name and the real Generator.Reset and prepare each reopen model_index.json through a fresh CatalogIn. The served-repeat check counts adapter opens and source reads and stands in for both generator calls. Source counts, elapsed time unmeasured."
+      "actual": "pictureFiles and preparedFirst each read and parse the selected profile before replay. Neither needs a catalog entry for the plain repeat. The third read for prompt reporting was removed in c65437048. With a changed seed, Sized retains the preset name and Generator.Reset and prepare each reopen model_index.json through a fresh CatalogIn. The served-repeat check stands in for both generator calls. Source counts. Elapsed time unmeasured."
     },
     {
       "id": "SQA-462",
@@ -203,41 +203,139 @@
         "internal/server/workbench_windows_test.go"
       ],
       "input": "Submit ultra-depth-control with stored picture A as control.picture and the image field empty. While that draw runs, replace A in the form with a different stored picture B. Let the original run complete.",
-      "expected": "The Workbench labels A as the source and compares it with that run's output. The same rule applies when following a run after reload. If its source cannot be recovered, leave the source unidentified. The generation result view owns this under moss-workflow-surface/do.",
-      "actual": "At 9a1a7e9f5 submission sends A and leaves the fields editable. On completion shown reads controlValues through the live preview callback, labels B as the source and selects B in the A/B comparison beside A's output. The existing browser check leaves the source unchanged during the run. Source trace."
+      "expected": "For the depth section's source comparisons, offer the source A of the completed operation beside its drawn and sharpened outputs. Preserve the drawn/sharpened comparison. A resumed operation should identify a source only if its record supports it. Owner: the generation result view in moss-workflow-surface/do.",
+      "actual": "At c65437048 the sharpened pair opens correctly, but shown reads the still-editable control.picture when completion arrives. On a fresh page it offers B labelled 'started from' and omits A from the choices. Selecting the labelled source compares the wrong picture. submission captured A and only the Run button was disabled. Source trace."
     },
     {
-      "id": "SQA-464",
-      "severity": "P2",
-      "files": [
-        "cmd/recipe/main.go",
-        "internal/mediacapability/image_cuda_windows.go",
-        "internal/capabilityruntime/session_director.go",
-        "internal/mediacapability/prompts_used_windows_test.go"
-      ],
-      "input": "Use recipe run -input-file on an active MOSS model with its Ultra adapters installed. Request ultra-image-to-image-turbo at 1024 by 576, seed 7, with the pass-1 image-to-image recording's 605-rgthree.compare._temp_ginpa_00002_.png supplied inline as image. Repeat the same request.",
-      "expected": "The picture capability returns the PNG and the effective prompts on the first draw and on replay. Keep the existing compact input identity for large requests. The resolved prompt and negative belong with the draw result.",
-      "actual": "The retained PNG is 1,492,431 bytes, or 1,989,908 base64 characters. Above 1 MiB InputContent stores a digest document as Measured.Input. After the director completes the draw, reportedDrawn strictly decodes that document as a latentimage.Request and rejects request_sha256. The caller gets an error instead of the picture. A hit returns the same digest and fails again. File size observed, behavior traced on 2e62ba15d."
-    },
-    {
-      "id": "SQA-465",
+      "id": "SQA-466",
       "severity": "P2",
       "files": [
         "internal/mediacapability/image_cuda_windows.go",
-        "internal/latentimage/enhancer_chat_windows.go",
-        "internal/latentimage/moss_enhancer_rules.go",
         "internal/capabilityruntime/session_director.go",
-        "internal/mediacapability/prompts_used_windows_test.go"
+        "internal/workflowruntime/runtime.go",
+        "internal/server/generation_store_workspace.go",
+        "internal/mediacapability/served_repeat_windows_test.go"
       ],
-      "input": "Complete a served ultra-text-to-image request with prompt 'a fox', enhance=true, seed 7 and dimensions 256 by 144. Submit the identical request again without forcing a fresh run, with the same recipe, enhancer files, sampling settings and stored result.",
-      "expected": "The picture capability reuses the completed result and its effective prompts for that original request before opening the enhancer. Reuse must bind the original idea, exclusions and enhancer identity. A changed binding or a forced fresh run must still execute as required.",
-      "actual": "At 2e62ba15d preparedFirst calls EnhanceRequest before the director looks for a completed draw. Each successful repeat opens the 9B chat and generates a positive and a negative, with one extra generation if the first positive is short. Only the rewritten request reaches the lookup. The served-prompt check repeats manual and builder inputs but sends the enhanced idea once. Counts follow from source. Elapsed time is unmeasured."
+      "input": "Start a fixed-seed sharpened MOSS draw with no previous copy of its pair. Interrupt after the runtime commits the finished PNG and before keptDrawn publishes the drawn PNG and its derived-from edge. Submit the identical request again with the store available.",
+      "expected": "A successful replay returns both pictures. Use the existing result publication or replay admission to recover an incomplete pair before reporting success. A complete pair must still replay without another draw.",
+      "actual": "At c65437048 Replay finds the recipe's sole finished PNG. DecodeContent restores Sharpened but no Drawn bytes. With no drawn parent, keptDrawn returns success; ExecuteWorkflow then records a successful result with the sharpened picture alone plus any prompt document. Further ordinary retries take the same path. Both pictures are promised by moss-sharpened-pair. Source-demonstrated interruption, no fault injected."
+    },
+    {
+      "id": "SQA-467",
+      "severity": "P2",
+      "files": [
+        "internal/latentimage/sharpened_pair_windows_test.go",
+        "internal/latentimage/generator_rotary_windows.go",
+        "internal/latentimage/png_text.go"
+      ],
+      "input": "Consider the existing compact-model sharpening check with its seed 42, radius 1, sigma 0.6 and alpha 0.7. If finishing returns its input pixels unchanged while the generator still records that sharpening was requested, evaluate the check's assertions.",
+      "expected": "The existing two draws should expose unchanged pixels for this fixture. Compare the decoded rasters or remove the MOSS text chunks from both PNGs before comparing. Keep the separate check that the drawn picture matches the plain one.",
+      "actual": "TestASharpenedPictureReturnsThePictureItDrew strips metadata for the drawn-vs-plain equality, then compares finished.Data and unsharpened.Data verbatim for inequality. The finished PNG alone contains the Finishing=sharpened tag. Identical pixels therefore satisfy that assertion and the other assertions still pass. This is a source counterexample to the check at c65437048, not an observed rendering regression."
+    },
+    {
+      "id": "SQA-468",
+      "severity": "P3",
+      "files": [
+        "internal/latentimage/encoded_image.go",
+        "internal/latentimage/png_text.go",
+        "internal/latentimage/generator_rotary_windows.go",
+        "internal/mediacapability/image_cuda_windows.go",
+        "internal/server/generation_store_workspace.go"
+      ],
+      "input": "Serve a completed MOSS Workbench picture with nonempty recorded prompt text twice. Keep its pixels and metadata identical. Compare the calls that produce the final PNG on the fresh draw and on the stored answer.",
+      "expected": "In served-parts/do, retain the already encoded bytes when PNGContent receives the exact metadata it would emit. Preserve the artifact ID and the existing ability to replace or remove changed text.",
+      "actual": "At c65437048 the generator writes the texts once. The workflow output encoder, keptDrawn and the workspace's OutputContent each rebuild the same finished PNG again. On a stored hit the latter two still rebuild it. withPictureTexts allocates a full output buffer even when all chunks already match. That is three redundant full-image rewrites on a fresh page draw and two per repeat, excluding the separate drawn PNG. Source counts, wall time and peak memory unmeasured."
     }
   ],
   "master_lead_triage": {
     "at": "2026-11-22",
-    "head": "bb918937d1be84a9c9c3cd66834146f01a842463",
+    "head": "47b3587c9e56fbd77a864920b99eebf16f30edd1",
     "findings": {
+  "SQA-406": {
+        "action": "filed",
+        "rows": [
+          "served-answers/absent"
+        ],
+        "note": "Reopened by the review (its answer taken out at e73ecc7ff) and answered by the lead on 2026-11-22 at 47b3587c9: valid from source (capabilityruntime.Contents writes an absent file into the naming as \"absent\" and goes on, so an answer drawn once the file is installed is kept, and replayed, under the absent key); filed as served-answers/absent, after moss-workflow-surface."
+      },
+  "SQA-425": {
+        "action": "filed",
+        "rows": [
+          "served-answers/preset"
+        ],
+        "note": "Answered again by the lead on 2026-11-22 at 47b3587c9: the enhancer part went with enhanced-repeat/do (onMiss reads the pictures before it enhances); the preset part stands (Request.Sized reads the preset only for a request stating no size, so with a size an undeclared preset is reported as the missing picture); filed as served-answers/preset."
+      },
+  "SQA-466": {
+        "action": "filed",
+        "rows": [
+          "served-answers/pair"
+        ],
+        "note": "Answered by the lead on 2026-11-22 at 47b3587c9: valid from source (keptDrawn keeps the drawn picture after the run has kept the sharpened one, and a replay with no drawn parent succeeds with one picture); filed as served-answers/pair."
+      },
+  "SQA-461": {
+        "action": "filed",
+        "rows": [
+          "served-answers/profile",
+          "served-parts/do"
+        ],
+        "note": "Answered by the lead on 2026-11-22 at 47b3587c9: valid from source; the served path's two profile reads a request (pictureFiles, preparedFirst) filed as served-answers/profile, the generator's model_index.json reads on a changed seed with served-parts/do, whose ledger reads their time."
+      },
+  "SQA-462": {
+        "action": "filed",
+        "rows": [
+          "moss-workflow-surface/preset-size"
+        ],
+        "note": "Answered by the lead on 2026-11-22 at 47b3587c9: valid from source (presetSettings saves the form's size at a preset's first choice alone, so a size set by hand between two choices is lost at the second release); a finding in the row now dispatched, filed as its step moss-workflow-surface/preset-size."
+      },
+  "SQA-463": {
+        "action": "filed",
+        "rows": [
+          "moss-workflow-surface/source"
+        ],
+        "note": "Answered by the lead on 2026-11-22 at 47b3587c9: valid from source (the page reads the run's source from the live form when the run completes); the review names moss-workflow-surface its owner, filed as its step moss-workflow-surface/source."
+      },
+  "SQA-467": {
+        "action": "filed",
+        "rows": [
+          "card-checks-sound/sharpened"
+        ],
+        "note": "Answered by the lead on 2026-11-22 at 47b3587c9: valid from source, a check that passes without checking (the finished PNG alone carries Finishing=sharpened, so its bytes differ from the unsharpened one's with equal pixels); filed as card-checks-sound/sharpened, after the owner's review rows."
+      },
+  "SQA-410": {
+        "action": "filed",
+        "rows": [
+          "card-checks-sound/floors"
+        ],
+        "note": "Reopened by the review after moss-real-prompt/do (89cf0f0e3) and answered by the lead on 2026-11-22 at 47b3587c9: valid from source (holdGoldenFloors draws every case before it reads the floors; a later case's size error ends the test before an earlier failure is reported; a reference of no signal scores -Inf in both modes and is accepted as equal); filed as card-checks-sound/floors."
+      },
+  "SQA-430": {
+        "action": "filed",
+        "rows": [
+          "moss-pass-repeats/zeros"
+        ],
+        "note": "Reopened by the review (its answer taken out at e73ecc7ff; moss-step-copies/do kept the latent on the card but left controlAt as it was) and answered by the lead on 2026-11-22 at 47b3587c9: valid from source (controlAt allocates the zeros before it asks whether the card holds them); filed as moss-pass-repeats/zeros."
+      },
+  "SQA-422": {
+        "action": "filed",
+        "rows": [
+          "moss-pass-repeats/refine"
+        ],
+        "note": "Reopened by the review (its answer taken out at e73ecc7ff; moss-fusion made no step of it) and answered by the lead on 2026-11-22 at 47b3587c9: valid from source (textGraph.refine reads no timestep and no latent but runs in every pass); its saving is unmeasured, and the workflow's clock reads it once the step lands; filed as moss-pass-repeats/refine."
+      },
+  "SQA-460": {
+        "action": "filed",
+        "rows": [
+          "reference-tools/clock"
+        ],
+        "note": "Answered by the lead on 2026-11-22 at 47b3587c9: valid from source (an absolute record path is accepted at the start and fails only at the append, after both runs); filed as reference-tools/clock."
+      },
+  "SQA-388": {
+        "action": "filed",
+        "rows": [
+          "reference-tools/recorder"
+        ],
+        "note": "Answered again by the lead on 2026-11-22 at 47b3587c9: valid from source at the recorder (resume on request hash and prompt ID alone, memory sampled from a retry, kept files named by node and base name, a pair's prompt IDs never compared); moss-real-prompt/do, where it had been carried, set the floors again but changed none of these; filed as reference-tools/recorder."
+      },
   "SQA-415": {
         "action": "implemented",
         "rows": [
@@ -268,7 +366,7 @@
       }
 }
   },
-  "next_finding_number": 466,
+  "next_finding_number": 469,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

@@ -8,8 +8,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"maps"
 	"math"
+	"os"
 	"path/filepath"
 
 	"overgo/internal/artifact"
@@ -121,9 +123,10 @@ func (r Request) cutsSchedule() bool { return r.Denoise != 0 && r.Denoise <= den
 
 // Beside are the files a request's picture reads from its model's folder at root beyond the model's components, with
 // what its preset fills from catalog (withPreset), in the order it reads them: the adapters it applies (adapterPath)
-// and, for a depth control drawn from a picture, the depth estimator (sectionDepth). The model's inventory holds
-// neither, so a run is keyed by their bytes beside the request (SQA-406). An adapter's name that is no file name is
-// refused.
+// and, for a depth control drawn from a picture, the depth estimator (sectionDepth), and for prompt mode 2 the files of
+// its enhancer's folder, whose chat writes its prompt (enhanced-repeat, SQA-465), none where it holds no folder. The
+// model's inventory holds none of them, so a run is keyed by their bytes beside the request (SQA-406). An adapter's
+// name that is no file name is refused.
 func (r Request) Beside(root string, catalog Catalog) ([]string, error) {
 	filled, err := r.withPreset(catalog)
 	if err != nil {
@@ -139,6 +142,18 @@ func (r Request) Beside(root string, catalog Catalog) ([]string, error) {
 	}
 	if filled.Control != nil && filled.Control.Picture != "" {
 		files = append(files, filepath.Join(root, depthDirectory, depthCheckpoint))
+	}
+	if r.Enhanced() {
+		folder := filepath.Join(root, enhancerDirectory)
+		entries, err := os.ReadDir(folder)
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return nil, err
+		}
+		for _, entry := range entries {
+			if entry.Type().IsRegular() {
+				files = append(files, filepath.Join(folder, entry.Name()))
+			}
+		}
 	}
 	return files, nil
 }

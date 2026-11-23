@@ -31,11 +31,14 @@ type pictureDirector = capabilityruntime.ModelSessionDirector[latentimage.Reques
 
 // pictureSessions makes a director of latent picture sessions. A session is
 // compiled for a picture's extent, and serves any prompt and seed
-// (latentimage Request.SessionKey).
+// (latentimage Request.SessionKey). It takes a request as its session will
+// take it (latentimage.Admit): one asking prompt mode 2 as it will be once its
+// enhancer has written it, which it does only where no answer is stored
+// (pictureExecutor).
 func pictureSessions() (*pictureDirector, error) {
 	return capabilityruntime.NewModelSessionDirector[latentimage.Request, *latentimage.Generator, latentimage.EncodedImage](
 		"image-gen", imageDevice, imageSessionCapacity,
-		latentimage.ValidateRequest,
+		latentimage.Admit,
 		func(ctx context.Context, store artifact.Repository, path string, program recipe.Program, request latentimage.Request) (*latentimage.Generator, error) {
 			profileID, ok := program.Definition().PrimaryDependency(recipe.DependencyProfile)
 			if !ok {
@@ -59,14 +62,15 @@ func pictureSessions() (*pictureDirector, error) {
 // files it reads beside its model, named through held (pictureFiles), and sought in the store by the request as it
 // names its pictures, by their stored identity, which are read only where no answer is stored (readPictures,
 // ReadsOnMiss): a repeated picture had read and encoded its source picture before its answer was sought
-// (moss-served-repeat). Prompt mode 2's enhancer chat is opened through opened (enhancerOpener where it serves). A
-// sharpened picture comes with the picture it drew (keptDrawn). Model is the session's model, a
-// latentimage Generator where it serves.
+// (moss-served-repeat); so is prompt mode 2's enhancement, its chat opened through opened (enhancerOpener where it
+// serves), the request sought by its idea and its enhancer's files (onMiss, enhanced-repeat, SQA-465). A sharpened
+// picture comes with the picture it drew (keptDrawn). Model is the session's model, a latentimage Generator where it
+// serves.
 func pictureExecutor[Model any](director *capabilityruntime.ModelSessionDirector[latentimage.Request, Model, latentimage.EncodedImage], err error, held *heldfile.Set, opened func(artifact.Repository) latentimage.EnhancerOpener) capabilityruntime.Executor {
 	if err == nil {
-		director.ReadsOnMiss(readPictures)
+		director.ReadsOnMiss(onMiss(opened))
 	}
-	return keptDrawn(capabilityruntime.Reading(preparedFirst(sessionExecutor(director, err), opened), capabilityruntime.Contents(held, pictureFiles)))
+	return keptDrawn(capabilityruntime.Reading(preparedFirst(sessionExecutor(director, err)), capabilityruntime.Contents(held, pictureFiles)))
 }
 
 // keptDrawn has each sharpened picture next serves come with the picture as it was drawn, before its finishing
@@ -132,10 +136,18 @@ func keptDrawn(next capabilityruntime.Executor) capabilityruntime.Executor {
 	}
 }
 
-// readPictures reads the pictures a request names by their stored identity into the bytes its session takes
-// (latentimage Request.ReadPictures).
-func readPictures(ctx context.Context, store artifact.Repository, request latentimage.Request) (latentimage.Request, error) {
-	return request.ReadPictures(ctx, store)
+// onMiss is what a picture request's director does where it holds no answer to the request: the pictures it names by
+// their stored identity read into the bytes its session takes (latentimage Request.ReadPictures), and, for prompt mode
+// 2, its prompt and negative written by the model's enhancer chat, opened through opened (latentimage.EnhanceRequest),
+// so a repeat answered by its stored run opens no chat (enhanced-repeat, SQA-465).
+func onMiss(opened func(artifact.Repository) latentimage.EnhancerOpener) func(context.Context, artifact.Repository, string, latentimage.Request) (latentimage.Request, error) {
+	return func(ctx context.Context, store artifact.Repository, path string, request latentimage.Request) (latentimage.Request, error) {
+		read, err := request.ReadPictures(ctx, store)
+		if err != nil {
+			return latentimage.Request{}, err
+		}
+		return latentimage.EnhanceRequest(ctx, opened(store), path, read)
+	}
 }
 
 // pictureCatalog is the catalog a picture request's preset is read from: the selected profile's, which the store holds
@@ -254,15 +266,14 @@ func admitted(catalog latentimage.Catalog, request latentimage.Request) (latenti
 
 // preparedFirst prepares a latent picture request ahead of its session: a request stating no size is given its
 // canvas's or its preset's, the preset read from the selected profile (latentimage Request.Sized, pictureCatalog),
-// since the session is chosen and checked by its size before its model loads (SQA-409); and a request asking the MOSS
-// Ultra workflow's prompt mode 2 has its prompt and negative written by the model's enhancer chat, opened through
-// opened (latentimage.EnhanceRequest). It is served as the request stating what was given and written, and an input needing
-// neither goes to the session as it is. The pictures it names by their stored identity, as a page attaches them, go on
-// so named: the session's director seeks its stored answer by them and reads them only where it holds none
-// (pictureExecutor). A request is read as strictly as the session reads it, so one the session would refuse (an
+// since the session is chosen and checked by its size before its model loads (SQA-409). It is served as the request
+// stating the size it was given, and an input needing none goes to the session as it is. The pictures it names by their
+// stored identity, as a page attaches them, and a prompt mode 2 idea go on so named: the session's director seeks its
+// stored answer by them and reads the pictures, and has the enhancer write the prompt, only where it holds none
+// (pictureExecutor, onMiss). A request is read as strictly as the session reads it, so one the session would refuse (an
 // unknown or repeated member) reaches the session as it came and is refused there, no chat opened for it (SQA-408); one
 // it reads that the session would refuse once sized is refused here as the session would refuse it (admitted).
-func preparedFirst(next capabilityruntime.Executor, opened func(artifact.Repository) latentimage.EnhancerOpener) capabilityruntime.Executor {
+func preparedFirst(next capabilityruntime.Executor) capabilityruntime.Executor {
 	return func(ctx context.Context, store artifact.Repository, path string, selection modelrecipe.CapabilityEvidenceSelection, input string) (any, error) {
 		var request latentimage.Request
 		if err := strictjson.DecodeBytes([]byte(input), &request); err != nil {
@@ -276,11 +287,7 @@ func preparedFirst(next capabilityruntime.Executor, opened func(artifact.Reposit
 		if err != nil {
 			return nil, err
 		}
-		if request.Enhanced() {
-			if prepared, err = latentimage.EnhanceRequest(ctx, opened(store), path, prepared); err != nil {
-				return nil, err
-			}
-		} else if prepared.Width == request.Width && prepared.Canvas == request.Canvas {
+		if prepared.Width == request.Width && prepared.Canvas == request.Canvas {
 			return next(ctx, store, path, selection, input)
 		}
 		written, err := json.Marshal(prepared)

@@ -22,7 +22,7 @@ import (
 // it named (held-release, SQA-454): served as the image capability serves a latent picture request, its files named
 // through the process's held files (capabilityruntime.Reading over preparedFirst, capabilityruntime.Contents over
 // heldfile.Session and pictureFiles), a request refused before its session (its depth control's picture a stored file
-// the store does not hold, refused where its director reads it, readPictures) and a request answered with no session
+// the store does not hold, refused where its director reads it, onMiss) and a request answered with no session
 // leased each leave the adapter and the depth
 // estimator to a writer, who replaces each after either. adapter-hold had held them in the process's set until a
 // session under the model closed, which neither request opens, so a writer could not replace the adapter while the
@@ -43,12 +43,12 @@ func TestARequestWithNoSessionLetsItsHeldFilesGo(t *testing.T) {
 		if err := strictjson.DecodeBytes([]byte(input), &request); err != nil {
 			return nil, err
 		}
-		if _, err := readPictures(ctx, store, request); err != nil {
+		if _, err := onMiss(enhancerOpener)(ctx, store, "", request); err != nil {
 			return nil, err
 		}
 		return "an answer the store kept", nil
 	}
-	serve := capabilityruntime.Reading(preparedFirst(answered, enhancerOpener), capabilityruntime.Contents(heldfile.Session, pictureFiles))
+	serve := capabilityruntime.Reading(preparedFirst(answered), capabilityruntime.Contents(heldfile.Session, pictureFiles))
 	request := func(picture string) string {
 		return `{"prompt":"a fox","width":1024,"height":576,"seed":7,"adapter":"moss-control","control":{"picture":"` + picture + `"}}`
 	}

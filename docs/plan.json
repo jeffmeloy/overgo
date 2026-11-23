@@ -18,23 +18,6 @@
       ]
     },
     {
-      "id": "enhanced-repeat",
-      "title": "A repeated enhanced MOSS picture returns its stored draw before its enhancer chat opens",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A repeated enhanced MOSS picture returns its stored draw before its enhancer chat opens",
-          "verify": "go test ./internal/mediacapability -count=1 -run '^TestARepeatedEnhancedPictureOpensNoChat$'",
-          "files": [
-            "internal/latentimage",
-            "internal/mediacapability",
-            "internal/capabilityruntime"
-          ],
-          "rationale": "SQA-465, checked against the code: valid. preparedFirst writes an enhanced request's prompt and negative through the 9B enhancer chat (EnhanceRequest) before the session's director seeks a stored answer, which it seeks by the rewritten request, so every repeat of the same idea opens and runs the chat, twice or three times, before its picture is answered from the store. moss-served-repeat moved the reading of a request's pictures to the director's miss (ReadsOnMiss); the enhancement is the same kind of work.\n\nThe change: an enhanced request's stored answer is sought by the request as given, its idea and exclusions, with the enhancer's files named beside the model (Contents), and its enhancement runs only on a miss, as its pictures are read; what it wrote travels with the draw's result (draw-result-carries). A changed enhancer or a fresh run enhances again.\n\nCheck: TestARepeatedEnhancedPictureOpensNoChat serves the same enhanced request twice through the serving with stand-in session and enhancer: the second opens no chat and returns the first's picture and prompts; a changed enhancer file, or FreshRun, opens it."
-        }
-      ]
-    },
-    {
       "id": "moss-workflow-surface",
       "title": "Every node by which the MOSS Ultra workflow saves, previews, compares or shows something has its counterpart in a run's result or on the page, and one without is refused without the card",
       "steps": [

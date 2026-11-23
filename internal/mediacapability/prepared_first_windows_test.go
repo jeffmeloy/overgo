@@ -38,7 +38,7 @@ func TestAPresetOnlyRequestTakesItsPresetsSize(t *testing.T) {
 	}
 	run := func(input string) latentimage.Request {
 		t.Helper()
-		testcheck.Must(preparedFirst(session, enhancerOpener)(t.Context(), nil, directory, modelrecipe.CapabilityEvidenceSelection{}, input))(t)
+		testcheck.Must(preparedFirst(session)(t.Context(), nil, directory, modelrecipe.CapabilityEvidenceSelection{}, input))(t)
 		var taken latentimage.Request
 		testcheck.NoError(t, strictjson.DecodeBytes([]byte(reached[len(reached)-1]), &taken))
 		return taken
@@ -63,7 +63,7 @@ func TestAPresetOnlyRequestTakesItsPresetsSize(t *testing.T) {
 // TestAStoredPictureReachesItsSessionAsItsBytes holds the pictures a page attaches to a MOSS request
 // (moss-ultra-compare/stored-pictures): a request naming its picture and its depth map by their stored identity reaches
 // the picture session's director so named, which seeks its stored answer by them (moss-served-repeat), and is read where
-// none is stored (readPictures) into each one's bytes in base64 and the rest as it asked; one giving its picture as its
+// none is stored (onMiss) into each one's bytes in base64 and the rest as it asked; one giving its picture as its
 // bytes reaches it as it came; one naming a picture the store does not hold, or a stored record that is no file, is
 // refused before its session; and a rotary page offers the picture as a slot of image media beside the denoise and the
 // prompt mode, where a flow profile's page offers none of them.
@@ -84,13 +84,13 @@ func TestAStoredPictureReachesItsSessionAsItsBytes(t *testing.T) {
 		if err := strictjson.DecodeBytes([]byte(input), &request); err != nil {
 			return nil, err
 		}
-		read, err := readPictures(ctx, store, request)
+		read, err := onMiss(enhancerOpener)(ctx, store, "", request)
 		if err != nil {
 			return nil, err
 		}
 		return read, nil
 	}
-	run := preparedFirst(session, enhancerOpener)
+	run := preparedFirst(session)
 	named := `{"prompt":"a fox","width":1024,"height":576,"image":"` + picture.Descriptor.ID.String() + `","denoise":0.72,"control":{"map":"` + depth.Descriptor.ID.String() + `","start":0.1},"adapter":"moss-control"}`
 	taken, ok := testcheck.Must(run(t.Context(), store, "", modelrecipe.CapabilityEvidenceSelection{}, named))(t).(latentimage.Request)
 	if !ok || len(reached) != 1 || reached[0] != named {
@@ -152,7 +152,7 @@ func TestAPictureRequestAskingNoEnhancingGoesToItsSessionAsItIs(t *testing.T) {
 	inputs := []string{`{"prompt":"a fox","width":1024,"height":576}`, `{"prompt":"a fox","width":1024,"height":576,"prompt_mode":"text"}`, `not a request`,
 		`{"prompt_mode":"enhanced","prompt":"a fox","width":1024,"height":576,"stepps":1}`, `{"prompt_mode":"enhanced","prompt":"a fox","steps":1,"steps":50}`}
 	for _, input := range inputs {
-		if got := testcheck.Must(preparedFirst(session, enhancerOpener)(t.Context(), nil, "", modelrecipe.CapabilityEvidenceSelection{}, input))(t); got != "drawn" {
+		if got := testcheck.Must(preparedFirst(session)(t.Context(), nil, "", modelrecipe.CapabilityEvidenceSelection{}, input))(t); got != "drawn" {
 			t.Errorf("%s gave %v, want the session's answer", input, got)
 		}
 	}
@@ -179,7 +179,7 @@ func TestAnInvalidRequestIsRefusedBeforeItsFilesAreRead(t *testing.T) {
 		reached++
 		return "drawn", nil
 	}
-	serve := capabilityruntime.Reading(preparedFirst(session, enhancerOpener), capabilityruntime.Contents(nil, pictureFiles))
+	serve := capabilityruntime.Reading(preparedFirst(session), capabilityruntime.Contents(nil, pictureFiles))
 	root := t.TempDir()
 	request := func(steps int, picture artifact.ID) string {
 		return fmt.Sprintf(`{"prompt":"a fox","width":1024,"height":576,"steps":%d,"adapter":"moss-control","image":%q}`, steps, picture.String())

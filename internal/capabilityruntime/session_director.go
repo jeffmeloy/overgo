@@ -60,7 +60,7 @@ type ModelSessionDirector[Input, Model, Output any] struct {
 	inputs   func(Input, artifact.Content, recipe.Definition) (map[recipe.PortName]workflowruntime.Value, error)
 	// read reads what a request names into the input its session takes, only where the store holds no answer to the
 	// request as it names it (ReadsOnMiss).
-	read func(context.Context, artifact.Repository, Input) (Input, error)
+	read func(context.Context, artifact.Repository, string, Input) (Input, error)
 
 	mu      sync.Mutex
 	tick    uint64
@@ -479,11 +479,12 @@ func (c *ModelSessionDirector[Input, Model, Output]) Executor() Executor {
 }
 
 // ReadsOnMiss has the director seek a request's stored answer by the request as it names what it reads, and read
-// those, by read, only where the store holds none, before its session takes the request; the run then records the
-// request as it named them. A served MOSS picture named its source by its stored identity, which names its bytes, and
-// its bytes were read and written into the request before its answer was sought, so a repeat read them again
-// (moss-served-repeat). It returns the director.
-func (c *ModelSessionDirector[Input, Model, Output]) ReadsOnMiss(read func(context.Context, artifact.Repository, Input) (Input, error)) *ModelSessionDirector[Input, Model, Output] {
+// those, by read from the model's path, only where the store holds none, before its session takes the request; the run
+// then records the request as it named them. A served MOSS picture named its source by its stored identity, which names
+// its bytes, and its bytes were read and written into the request before its answer was sought, so a repeat read them
+// again (moss-served-repeat); an enhanced one's prompt was written by its enhancer chat before (enhanced-repeat). It
+// returns the director.
+func (c *ModelSessionDirector[Input, Model, Output]) ReadsOnMiss(read func(context.Context, artifact.Repository, string, Input) (Input, error)) *ModelSessionDirector[Input, Model, Output] {
 	c.read = read
 	return c
 }
@@ -570,7 +571,7 @@ func (c *ModelSessionDirector[Input, Model, Output]) serve(
 	// request as it named it.
 	if c.read != nil {
 		reading := processmeasure.Stage(ctx, "named inputs read")
-		input, err = c.read(ctx, store, input)
+		input, err = c.read(ctx, store, path, input)
 		if err == nil {
 			err = c.validate(input)
 		}

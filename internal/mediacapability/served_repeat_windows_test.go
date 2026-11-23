@@ -142,7 +142,7 @@ func newStandInPictures(t *testing.T, opened func(artifact.Repository) latentima
 		return file, err
 	}}
 	director := testcheck.Must(capabilityruntime.NewModelSessionDirector[latentimage.Request, *repeatSession, latentimage.EncodedImage](
-		"image-gen", imageDevice, imageSessionCapacity, latentimage.ValidateRequest,
+		"image-gen", imageDevice, imageSessionCapacity, latentimage.Admit,
 		func(_ context.Context, _ artifact.Repository, path string, _ recipe.Program, _ latentimage.Request) (*repeatSession, error) {
 			release, err := held.Own(path)
 			if err != nil {

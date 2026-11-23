@@ -6,14 +6,19 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"image"
 	"image/png"
 	"math/rand/v2"
+	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/capabilityruntime"
 	"overgo/internal/latentimage"
 	"overgo/internal/testcheck"
 )
@@ -68,5 +73,46 @@ func TestAServedPictureOfAnySizeReturnsWhatItWasDrawnFrom(t *testing.T) {
 		if _, picture := pictures.served(t.Context(), idea); !strings.Contains(picture.Prompt, "birch forest") || !strings.Contains(picture.NegativePrompt, "blurry edges") {
 			t.Errorf("the enhanced picture %s came with %q and %q; want what its enhancer wrote", served, picture.Prompt, picture.NegativePrompt)
 		}
+	}
+}
+
+// TestARepeatedEnhancedPictureOpensNoChat holds enhanced-repeat (SQA-465): an enhanced MOSS request, its idea and
+// exclusions, served twice through the picture capability's serving (pictureExecutor, standInPictures) opens its
+// enhancer chat once: the repeat is answered by the first's stored run, its picture and the prompts the enhancer wrote,
+// which travel in the picture's bytes; a fresh run opens the chat again. The run records the idea, and its answer is
+// kept under the enhancer folder's files as well, so another enhancer writes again. The chat had been opened and run
+// before the stored answer was sought, which the rewritten request then named.
+func TestARepeatedEnhancedPictureOpensNoChat(t *testing.T) {
+	chats := 0
+	counted := func(store artifact.Repository) latentimage.EnhancerOpener {
+		open := standInEnhancer(store)
+		return func(ctx context.Context, directory string) (func(context.Context, string, string, int) (string, error), func() error, error) {
+			chats++
+			return open(ctx, directory)
+		}
+	}
+	pictures := newStandInPictures(t, counted)
+	enhancer := filepath.Join(pictures.root, "enhancer", "enhancer.gguf")
+	testcheck.NoError(t, os.MkdirAll(filepath.Dir(enhancer), 0o755))
+	testcheck.NoError(t, os.WriteFile(enhancer, []byte("the enhancer's weights"), 0o600))
+	const idea = `{"prompt":"a fox","negative_prompt":"grey sky","prompt_mode":"enhanced","seed":7,"width":256,"height":144}`
+	first, drawn := pictures.served(t.Context(), idea)
+	repeat, again := pictures.served(t.Context(), idea)
+	if chats != 1 || pictures.work.draws != 1 || repeat.Run != first.Run || again.Prompt != drawn.Prompt || again.NegativePrompt != drawn.NegativePrompt ||
+		!strings.Contains(drawn.Prompt, "birch forest") {
+		t.Errorf("the repeat opened %d chats in all, drew %d times, gave run %s (the first %s) and %q; want one chat, one draw, the first's run and its enhancer's prompt",
+			chats, pictures.work.draws, repeat.Run, first.Run, again.Prompt)
+	}
+	var recorded latentimage.Request
+	testcheck.NoError(t, json.Unmarshal(first.Input.Data, &recorded))
+	if !recorded.Enhanced() || recorded.Prompt != "a fox" {
+		t.Errorf("the run recorded %+v; want the idea as given", recorded)
+	}
+	if named := testcheck.Must(pictureFiles(t.Context(), pictures.store, pictures.root, pictures.execution, idea))(t); !slices.Contains(named, enhancer) {
+		t.Errorf("the enhanced request's answer is kept under %v; want its enhancer's file among them", named)
+	}
+	pictures.served(capabilityruntime.FreshRun(t.Context()), idea)
+	if chats != 2 {
+		t.Errorf("a fresh run opened %d chats in all; want its own", chats)
 	}
 }

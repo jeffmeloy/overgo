@@ -11,8 +11,8 @@
         "internal/latentimage/png_text.go"
       ],
       "input": "Consider the compact sharpening check (seed 42, radius 1, sigma 0.6, alpha 0.7). If decodeRotary publishes the drawn PNG as the finished raster after finishedPNGs returns, while marking it sharpened, evaluate both pair checks.",
-      "expected": "Use the two existing draws to check that finishing changes pixels and the drawn picture matches the plain one.",
-      "actual": "The compact generator check compares the two finished PNG byte streams directly. The Finishing=sharpened tag makes them unequal even when the caller publishes identical pixels. The byte comparison added in 4f1c9aaa4 covers finishedPNGs directly and cannot see the caller's choice. Source counterexample to the checks."
+      "expected": "In card-checks-sound/sharpened, compare the decoded pixels from the two existing draws. Require the drawn picture to match the plain one and the finished picture to differ from it. A change in PNG metadata or compression alone must fail the sharpening check.",
+      "actual": "At d0ed24b1f, the compact generator check still compares finished PNG bytes, so the Finishing=sharpened tag passes the inequality even if the caller publishes the drawn pixels twice. The pair encoder check covers finishedPNGs directly. The new PNG level check verifies quantization and compression on synthetic pixels. Neither exercises the generator's choice of which raster to publish. Source counterexample."
     },
     {
       "id": "SQA-410",
@@ -37,6 +37,21 @@
       "input": "Run the Windows MOSS workflow clock with OVERGO_WORKFLOW_RECORD set to the absolute path of the repository timing record.",
       "expected": "Reject the absolute destination before reserving the machine. Keep the existing commit check and append for valid relative paths.",
       "actual": "The attempt documented in d28ab1e84 measured 46.738 s cold and 34.430 s warm before appendWorkflowTiming failed on the destination. All twelve section draws were repeated to save the record."
+    },
+    {
+      "id": "SQA-471",
+      "severity": "P2",
+      "files": [
+        "internal/latentimage/workflow_time_windows_model_test.go",
+        "internal/latentimage/workflow_source_test.go",
+        "internal/processmeasure/stages.go",
+        "internal/latentimage/generator_rotary_windows.go",
+        "internal/latentimage/resident_graph_cuda_windows.go",
+        "docs/verification/moss-workflow-time.jsonl"
+      ],
+      "input": "Read the six-section MOSS timing for d0ed24b1f. Compare the first text-to-image decode with its four subparts, then use the warm decoder figures to decide how much time graph compilation costs.",
+      "expected": "In served-parts/do, use the existing stage ledger for the enclosing interval and its exclusive parts. Their measured walls must fit inside the parent. Report CPU time and bytes read only where measured, retaining genuine zeros. Label compilation and static weight binding as a combined cost unless measured separately.",
+      "actual": "Observed in the retained record: the four parts of the first decode total 426 ms inside 418 ms. All 48 decode subparts across both runs report zero CPU and file reads. The clock measures the parent with time.Now, reads child walls from processmeasure.Stages and serializes unset counters as zero. The six warm stages labeled 'decoder compiled' total 468 ms. In source, compileResidentStatic also binds every static input and can upload weights. The record cannot attribute those 468 ms to compilation alone."
     },
     {
       "id": "SQA-388",
@@ -173,43 +188,21 @@
   ],
   "master_lead_triage": {
     "at": "2026-11-23",
-    "head": "b17937206d22019bb84ec479f0b6903c80e40c4f",
+    "head": "7fbcacc4cbdf0baa7bbafdbce6e34495ab1ec29b",
     "findings": {
+  "SQA-471": {
+        "action": "filed",
+        "rows": [
+          "served-parts/do"
+        ],
+        "note": "Answered by the lead on 2026-11-23 at 7fbcacc4c: valid from the record and source (the decode's own parts read on another clock than their parent's, summing to 426 ms inside 418; unmeasured processor time and bytes read written as zero; the decoder's static binding counted as its compile); it costs the next decision, the decoder's 0.47 s, so it is filed with served-parts/do, noted there, ahead of any cure of that part."
+      },
   "SQA-470": {
         "action": "filed",
         "rows": [
           "recorded-request/do"
         ],
         "note": "Answered by the lead on 2026-11-23 at b17937206: valid from source (recordedInput takes a run's first JSON input, which a composer's prompt enhancement can precede), and a user meets it (a composer run followed after a reload); filed as recorded-request/do, after png-level."
-      },
-  "SQA-466": {
-        "action": "declined",
-        "rows": [],
-        "note": "Reopened by the review after served-answers/pair (0abdf4529); valid from source (keptDrawn redraws an enhanced request from its idea, so onMiss opens the 9B chat again, though the stored picture carries both prompts). Declined by the lead on 2026-11-23 at b17937206 under the owner's rule for reopened findings (a step where a user meets it in normal use or it costs measured time): it needs a process stopped between a run's keeping and its pair's with an enhanced request, and costs one chat in that event. It stays listed; pair-enhanced is retired."
-      },
-  "SQA-425": {
-        "action": "declined",
-        "rows": [],
-        "note": "Reopened by the review after served-answers/preset (706cdf75f); valid from source (admitted holds the request as it came, its control's end 1, while its preset fills 0.5, so a window starting at 0.75 is admitted and its 412 MB of files hashed). Declined by the lead on 2026-11-23 at b17937206 under the owner's rule for reopened findings: a control start set past its preset's end is a slip no normal use makes, its files hashed once a process at most. It stays listed; preset-control-window is retired."
-      },
-  "SQA-469": {
-        "action": "implemented",
-        "rows": [
-          "enhancer-files/do"
-        ],
-        "note": "Answered by the lead on 2026-11-22 at 4f1c9aaa4: valid from source (Request.Beside lists the enhancer folder's every file and Contents keys by their contents in order, not their names, so a renamed config replays and an unrelated file draws again); filed as enhancer-files/do. Implemented 2026-11-23 by enhancer-files/do (e30533414), for the review's recheck."
-      },
-  "SQA-463": {
-        "action": "implemented",
-        "rows": [
-          "run-source-resumed/do"
-        ],
-        "note": "Reopened by the review after moss-workflow-surface/source (038828c6d) and answered by the lead on 2026-11-22 at 4f1c9aaa4: valid from source (a run followed again after a reload has no sent input and offers no source, though its record keeps the request naming it); a reload during a run is normal use. Implemented 2026-11-23 by run-source-resumed/do (b17937206), for the review's recheck."
-      },
-  "SQA-422": {
-        "action": "declined",
-        "rows": [],
-        "note": "Reopened by the review after moss-pass-repeats/refine (45ea4acad); valid on its three points from source (the refined rows go to the host and back each branch, the text program is fed the image's rotary rows besides the text's, and the check would pass were the sampling to refine in every pass regardless of samplingRefinesOnce). Declined by the lead on 2026-11-23 at b17937206 under the owner's rule for reopened findings: the copies are about 0.4 MB and 1.1 MB a branch a sampling, under 2 ms of a section, and the check's soundness meets no user. It stays listed; refine-held is retired."
       },
   "SQA-461": {
         "action": "filed",
@@ -277,7 +270,7 @@
       }
 }
   },
-  "next_finding_number": 471,
+  "next_finding_number": 472,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

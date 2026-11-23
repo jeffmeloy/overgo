@@ -11,8 +11,8 @@ import (
 
 // TestARequestsCanvasAndSharpeningFinishItsPicture holds the MOSS Ultra workflow's finishing on a request
 // (moss-ultra-sections/finishing): a canvas of 16:9 at 0.5625 megapixels in multiples of 32 sizes the picture 1024 × 576
-// as the workflow's recordings were drawn, a canvas beside a width and height is refused, and a sharpening is asked of a
-// rotary profile alone and held to its bounds.
+// as the workflow's recordings were drawn, a canvas beside a width and height is refused, and a sharpening is asked of
+// any profile, reading the pixels alone (sharpen-any-model), and held to its bounds.
 func TestARequestsCanvasAndSharpeningFinishItsPicture(t *testing.T) {
 	canvas := &media.Canvas{Aspect: "16:9", Megapixels: 0.5625, Multiple: 32}
 	sized := testcheck.Must(Request{Prompt: "a lighthouse", Canvas: canvas}.withPreset(CatalogIn("")))(t)
@@ -23,8 +23,8 @@ func TestARequestsCanvasAndSharpeningFinishItsPicture(t *testing.T) {
 		t.Error("a canvas beside a width and height was taken")
 	}
 	sharpen := &media.Sharpening{Radius: 1, Sigma: 0.6, Alpha: 0.7}
-	if !(Request{Sharpen: sharpen}).rotaryOnly() {
-		t.Error("a sharpening was offered to a flow profile")
+	if (Request{Sharpen: sharpen}).rotaryOnly() {
+		t.Error("a sharpening was refused a flow profile")
 	}
 	testcheck.NoError(t, ValidateRequest(Request{Prompt: "a lighthouse", Width: 1024, Height: 576, Sharpen: sharpen}))
 	if ValidateRequest(Request{Prompt: "a lighthouse", Width: 1024, Height: 576, Sharpen: &media.Sharpening{Radius: 0, Sigma: 0.6}}) == nil {

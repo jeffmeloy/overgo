@@ -137,6 +137,10 @@ func TestAStoredPictureReachesItsSessionAsItsBytes(t *testing.T) {
 	if slices.ContainsFunc(controls, func(c Control) bool { return slices.Contains(rotaryControls, c.Name) }) {
 		t.Errorf("a flow profile's page offers a rotary profile's control: %+v", controls)
 	}
+	// A sharpening finishes any profile's pixels (sharpen-any-model).
+	if !slices.ContainsFunc(controls, func(c Control) bool { return c.Name == "sharpen" }) {
+		t.Errorf("a flow profile's page offers no sharpening: %+v", controls)
+	}
 }
 
 // TestAPictureRequestAskingNoEnhancingGoesToItsSessionAsItIs holds the image capability's prompt mode 2 step

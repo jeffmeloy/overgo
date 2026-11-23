@@ -404,7 +404,7 @@ func (g *Generator) decodeRotary(ctx context.Context) (result EncodedImage, err 
 	// (moss-sharpened-pair), each encoded beside the other (pair-encode).
 	var drawn EncodedImage
 	finishing := processmeasure.Stage(ctx, "finished")
-	result, drawn, err = finishedPNGs(pixels, p.OutH, p.OutW, g.request.Sharpen)
+	result, drawn, err = finishedPNGs(pixels, p.OutH, p.OutW, g.request.Sharpen, false)
 	finishing()
 	if err != nil {
 		return result, err

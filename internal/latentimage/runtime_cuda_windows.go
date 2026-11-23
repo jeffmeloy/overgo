@@ -691,7 +691,10 @@ func (g *Generator) decode(ctx context.Context, session *Generator) (EncodedImag
 		return EncodedImage{}, err
 	}
 	g.completed = true
-	image, err := encodePNG(pixels, height, width)
+	// A flow picture is finished as MOSS's is, sharpened where the request asks, the picture drawn beside it
+	// (finishedPNGs, sharpen-any-model).
+	image, drawn, err := finishedPNGs(pixels, height, width, g.request.Sharpen, true)
+	image.Drawn, image.Sharpened = drawn.Data, g.request.Sharpen != nil
 	image.Preset = media.Preset{Width: g.request.Width, Height: g.request.Height, Steps: g.request.Steps, Sampler: "flow Euler",
 		Shift: math.Exp(g.request.DynamicShiftMu)}
 	return image, err
@@ -907,11 +910,11 @@ var errRotaryOnly = errors.New("latent image: selected profile does not support 
 
 // rotaryOnly is whether the request asks what only a rotary profile runs: a negative prompt or guidance over its
 // steps, except normalized attention guidance's (attentionGuided), a guidance scale of its own, layout validation or
-// a layout, a sharpening of its picture, an adapter, a picture or denoise to sample from, a depth control, or the blocks
-// its negative pass skips.
+// a layout, an adapter, a picture or denoise to sample from, a depth control, or the blocks its negative pass skips. A
+// sharpening is every profile's: it reads the decoded pixels alone (finishedPNGs, sharpen-any-model).
 func (r Request) rotaryOnly() bool {
 	return !r.attentionGuided() && (r.NegativePrompt != "" || r.Guidance != (sampling.Guidance{})) ||
-		r.GuidanceScale != nil || r.PromptMode == promptLayout || r.Layout != nil || r.Sharpen != nil || r.Adapter != "" || r.Adapters != nil ||
+		r.GuidanceScale != nil || r.PromptMode == promptLayout || r.Layout != nil || r.Adapter != "" || r.Adapters != nil ||
 		r.AdapterStrength != nil || r.Image != "" || r.Denoise != 0 || r.Control != nil || r.SkipBlocks != nil
 }
 

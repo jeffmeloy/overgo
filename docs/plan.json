@@ -66,22 +66,6 @@
       ]
     },
     {
-      "id": "sharpen-any-model",
-      "title": "Every picture model offers the sharpening finish, which reads the picture's pixels alone",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Every picture model offers the sharpening finish, which reads the picture's pixels alone",
-          "verify": "go test ./internal/latentimage -count=1 -run '^TestAFlowPictureIsSharpenedAsMOSSsIs$'",
-          "files": [
-            "internal/latentimage",
-            "internal/mediacapability"
-          ],
-          "rationale": "The owner's review of 2026-11-23 (second), point 3, checked against the code: valid. Request.rotaryOnly (runtime_cuda_windows.go:912) counts a sharpening among what only a rotary profile runs, so a Krea request asking one is refused (errRotaryOnly), though media.Sharpen reads the decoded pixels alone and finishedPNGs gives the sharpened picture and the drawn one beside it. The change: a sharpening is no rotary-only ask; a flow profile's decode finishes its pixels as MOSS's does, the picture drawn beside the sharpened one, its unsharpened picture's pixels as they were. Check: TestAFlowPictureIsSharpenedAsMOSSsIs admits a flow request with a sharpening and finishes a flow picture's pixels with it: the sharpened picture is the pixels sharpened, and the drawn one the picture the request without sharpening gives."
-        }
-      ]
-    },
-    {
       "id": "recorded-request",
       "title": "A MOSS run followed again after a reload reads its recorded picture request by its schema, beside any prompt enhancement the run also kept",
       "steps": [
@@ -267,6 +251,22 @@
         "single-source"
       ],
       "asked": "2026-11-15",
+      "doctrine": true
+    },
+    {
+      "id": "capacity-record-history",
+      "question": "docs/image_video_capacity.json (acquired 2026-09-13 at ca10b0948, by hand, under gate-preparation tooling) binds its harnesses' sources byte for byte to copies retained in the store: SenseNova's resource test and Un-0's (internal/oscillatorimage/resources_test.go), whose check compares Un-0's picture with a frozen PNG's bytes. A one level-4 PNG writer for every model (one-png-writer, the owner's review of 2026-11-23) changes Un-0's PNG bytes, so Un-0's harness must hold its picture by its pixels, and TestImageVideoCapacityAcceptance then refuses: 'resource source is not a retained harness'. The record cannot be acquired again as it is: its checks run cmd/compatibility, which no longer exists, and overlays under tmp/ that are gone, and every part (protocol, environment, native SenseNova on the card, Un-0, loaders, processing) is bound to the one source commit. cuda-resources needs to move SenseNova's harness the same way.",
+      "options": [
+        "The capacity record becomes history: its acceptance keeps checking the record's own evidence (retained harnesses, receipts, measurements, failed attempts) and names each source changed since its acquisition as no longer described by it, instead of refusing the change; the record stays as a dated measurement",
+        "A new acquisition command re-runs every check of the record at the current commit (SenseNova on a quiet card, Un-0 on the host, the loaders and processing rewritten for today's commands), retains the outputs and writes a new record; the harness step builds it",
+        "Un-0 keeps image/png's default writer and its frozen bytes, so every other model moves to the one writer and two writers remain"
+      ],
+      "recommendation": "The capacity record becomes history: its acceptance keeps checking the record's own evidence (retained harnesses, receipts, measurements, failed attempts) and names each source changed since its acquisition as no longer described by it, instead of refusing the change; the record stays as a dated measurement",
+      "blocks": [
+        "one-png-writer",
+        "cuda-resources"
+      ],
+      "asked": "2026-11-23",
       "doctrine": true
     }
   ]

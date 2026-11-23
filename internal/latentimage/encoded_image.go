@@ -96,16 +96,30 @@ func encodeUnitPNG(pixels []float32, height, width int) (EncodedImage, error) {
 // finishedPNGs is a decoded picture's PNG, sharpened where sharpen asks, and beside it, where it is sharpened, the PNG
 // of the picture as drawn (moss-sharpened-pair). The drawn picture is encoded while the picture is sharpened and its own
 // PNG encoded (pair-encode): each PNG is deflate's work, about 0.2 s of a 1024 x 576 MOSS section, and the two in turn
-// had added that to each of the workflow's six sections, every one of which sharpens.
-func finishedPNGs(pixels []float32, height, width int, sharpen *media.Sharpening) (finished, drawn EncodedImage, err error) {
+// had added that to each of the workflow's six sections, every one of which sharpens. normalized says the pixels are a
+// flow profile's (Krea's), in [-1, 1] and written by its own quantizer (encodePNG), else a rotary profile's (MOSS's),
+// in [0, 1]: the picture as drawn is written as its profile writes it unsharpened, and the sharpening reads its unit
+// form, as ComfyUI's ImageSharpen does (sharpen-any-model).
+func finishedPNGs(pixels []float32, height, width int, sharpen *media.Sharpening, normalized bool) (finished, drawn EncodedImage, err error) {
+	asDrawn := encodeUnitPNG
+	if normalized {
+		asDrawn = encodePNG
+	}
 	if sharpen == nil {
-		finished, err = encodeUnitPNG(pixels, height, width)
+		finished, err = asDrawn(pixels, height, width)
 		return finished, EncodedImage{}, err
 	}
 	var drawnErr error
 	var encoding sync.WaitGroup
-	encoding.Go(func() { drawn, drawnErr = encodeUnitPNG(pixels, height, width) })
-	sharpened, err := media.Sharpen(pixels, height, width, *sharpen)
+	encoding.Go(func() { drawn, drawnErr = asDrawn(pixels, height, width) })
+	unit := pixels
+	if normalized {
+		unit = make([]float32, len(pixels))
+		for index, value := range pixels {
+			unit[index] = (value + 1) / 2
+		}
+	}
+	sharpened, err := media.Sharpen(unit, height, width, *sharpen)
 	if err == nil {
 		finished, err = encodeUnitPNG(sharpened, height, width)
 	}

@@ -99,7 +99,10 @@ func TestObjectControlsAreTakenFieldByField(t *testing.T) {
 	if refusal != "" {
 		t.Fatal(refusal)
 	}
-	if slices.ContainsFunc(flow, func(c workflowControl) bool { return c.Type == workflowControlObject || c.Type == workflowControlList }) {
+	// A flow profile takes one object setting, its picture's sharpening, a finish of the pixels alone (sharpen-any-model).
+	if slices.ContainsFunc(flow, func(c workflowControl) bool {
+		return (c.Type == workflowControlObject || c.Type == workflowControlList) && c.Name != "sharpen"
+	}) {
 		t.Errorf("a flow profile's page declares a setting it does not take: %+v", flow)
 	}
 	for name, declared := range map[string]workflowControl{

@@ -240,8 +240,29 @@
   ],
   "master_lead_triage": {
     "at": "2026-11-22",
-    "head": "47b3587c9e56fbd77a864920b99eebf16f30edd1",
+    "head": "4f1c9aaa420ee386ba52c6f8a77067079d87aa6a",
     "findings": {
+  "SQA-469": {
+        "action": "filed",
+        "rows": [
+          "enhancer-files/do"
+        ],
+        "note": "Answered by the lead on 2026-11-22 at 4f1c9aaa4: valid from source (Request.Beside lists the enhancer folder's every file and Contents keys by their contents in order, not their names, so a renamed config replays and an unrelated file draws again); filed as enhancer-files/do, awaiting pair-encode/clock with the serving fixes."
+      },
+  "SQA-463": {
+        "action": "filed",
+        "rows": [
+          "run-source-resumed/do"
+        ],
+        "note": "Reopened by the review after moss-workflow-surface/source (038828c6d) and answered by the lead on 2026-11-22 at 4f1c9aaa4: valid from source (a run followed again after a reload has no sent input and offers no source, though its record keeps the request naming it); filed as run-source-resumed/do, awaiting pair-encode/clock with the serving fixes."
+      },
+  "SQA-422": {
+        "action": "filed",
+        "rows": [
+          "refine-held/do"
+        ],
+        "note": "Reopened by the review after moss-pass-repeats/refine (45ea4acad) and answered by the lead on 2026-11-22 at 4f1c9aaa4: valid on its three points from source (the refined rows go to the host and back each branch, the text program is fed the image's rotary rows besides the text's, and the check would pass were the sampling to refine in every pass regardless of samplingRefinesOnce); filed as refine-held/do, after the decode cure and before the serving fixes."
+      },
   "SQA-425": {
         "action": "filed",
         "rows": [

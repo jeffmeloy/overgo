@@ -23,20 +23,17 @@
       ]
     },
     {
-      "id": "control-zeros",
-      "title": "A MOSS sampling makes its control's zeros on their first use alone",
+      "id": "refine-held",
+      "title": "A MOSS branch's refined text stays on the card for its passes, refined from the text's rotary rows alone, and its check reads the sampling's own programs",
       "steps": [
         {
           "id": "do",
-          "title": "A MOSS sampling makes its control's zeros on their first use alone",
-          "verify": "go test ./internal/latentimage -count=1 -run '^TestASamplingMakesItsControlZerosOnce$'",
+          "title": "A MOSS branch's refined text stays on the card for its passes, refined from the text's rotary rows alone, and its check reads the sampling's own programs",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^TestThePromptIsRefinedOnceARequest$'",
           "files": [
             "internal/latentimage"
           ],
-          "rationale": "SQA-430 (P2), checked against controlAt in rotary_sampling_windows.go at 47b3587c9: valid. controlAt allocates the control's zeros on the host before it asks whether the card already holds them, so the 28 steps of the depth section's pass-2 recording outside the control window allocate 56 buffers for one upload, 123.75 MiB of host allocation a draw. The change: the slot is chosen first and the zeros made only for its first upload. Check: TestASamplingMakesItsControlZerosOnce runs the control selection over a schedule with steps inside and outside the window and counts one zero buffer made. Placed after refine and its timing (the owner's review of 2026-11-22, third, point 1): it shortens only depth-control's host side, which the next timing reads.",
-          "depends_on": [
-            "moss-pass-repeats/clock"
-          ]
+          "rationale": "SQA-422 (P2), reopened by the review after moss-pass-repeats/refine (45ea4acad), checked against the code: valid on its three points. Each branch copies its refined F32 rows to the host, hashes them and binds them to its pass program again (12 KiB a token each way), where they could stay on the card; the text program is fed every rotary row of the sequence, the 64 x 36 image's 1.125 MiB besides the text's it reads; and TestThePromptIsRefinedOnceARequest would pass were the sampling to refine in every pass regardless of samplingRefinesOnce, since both its draws would then refine per pass and its weight check compiles graphs of its own. The change: the pass program reads the refined rows where the text program left them on the card, a dynamic input held until the sampling ends, and the text program is fed the text's rotary rows alone (rounding is elementwise, so its rows are the pass's bit for bit). Check: TestThePromptIsRefinedOnceARequest holds, besides the two sections' latents bit for bit, that a sampling refining once keeps one text program a branch more than one refining in its passes, that a pass taking its text refined reads it as a dynamic input, and that the text program's rotary input holds the text's rows alone."
         }
       ]
     },
@@ -79,6 +76,44 @@
             "internal/latentimage"
           ],
           "rationale": "SQA-461 (P2), checked against pictureFiles and preparedFirst in image_cuda_windows.go at 47b3587c9: valid on the served path. Reading names a picture request's files through pictureFiles, which reads and parses the selected profile (pictureCatalog), and preparedFirst reads it again to size the request, so every request reads its profile twice before the director seeks its stored answer, and a plain repeat, which names no preset, canvas or adapter, needs neither read. The review's other part, Generator.Reset and prepare each opening model_index.json again on a changed seed, is in the generator, which the served-repeat check stands in for; it goes with served-parts, whose ledger reads that part's time. The change: a request's catalog is read once, where its preset, canvas or adapters ask for it, and passed on to the sizing. Check: TestARepeatedPictureReadsNoProfile serves a plain picture twice and one naming a preset through the served-repeat stand-in, counting the profile's reads: none for the plain repeat, one for the preset request.",
+          "depends_on": [
+            "pair-encode/clock"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "enhancer-files",
+      "title": "An enhanced MOSS answer is kept under the files its enhancer opens, each by name and content, so a missing one is refused and an unrelated one changes nothing",
+      "steps": [
+        {
+          "id": "do",
+          "title": "An enhanced MOSS answer is kept under the files its enhancer opens, each by name and content, so a missing one is refused and an unrelated one changes nothing",
+          "verify": "go test ./internal/mediacapability -count=1 -run '^TestAnEnhancedAnswerIsKeptUnderTheFilesItsEnhancerOpens$'",
+          "files": [
+            "internal/latentimage",
+            "internal/mediacapability",
+            "internal/capabilityruntime"
+          ],
+          "rationale": "SQA-469 (P2), checked against Request.Beside and capabilityruntime.Contents at 4f1c9aaa4: valid. For prompt mode 2, Beside lists every regular file of the enhancer folder (enhanced-repeat/do) and Contents keys the answer by their content identities in order, not their names: renaming enhancer/config.json keeps the order and the bytes, so the stored picture and prompt are given again while a fresh request fails to open the enhancer, and an unrelated file added to the folder changes the key, so the enhancement and the draw are made again. The absent-file refusal (served-answers/absent) is never reached, every listed file still opening. The change: the enhancer's files are the ones its loader opens, named (config, tokenizer, weights), and the naming holds each file's name beside its content, so a missing one is refused before replay and an unrelated one is not named. Check: TestAnEnhancedAnswerIsKeptUnderTheFilesItsEnhancerOpens names an enhanced request over a stand-in enhancer folder: its config renamed, the request is refused naming it; a notes file added, the naming is unchanged.",
+          "depends_on": [
+            "pair-encode/clock"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "run-source-resumed",
+      "title": "A MOSS run followed again after a reload is compared with the source its recorded request names",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A MOSS run followed again after a reload is compared with the source its recorded request names",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserMOSSResumedRunComparesItsRecordedSource$' -leg moss-resumed-source",
+          "files": [
+            "internal/server"
+          ],
+          "rationale": "SQA-463 (P2), reopened by the review after moss-workflow-surface/source (038828c6d), checked against workflow.js at 4f1c9aaa4: valid. A run this page sent is compared with the input it sent, but a run followed again after a reload (liveOperation, follow(live.id)) has no sent input, so its comparison offers no source, though the run's record keeps its request, control.picture among it. The change: a run followed again reads the request its record keeps and offers the pictures it names as the run's source; where the record names none, none is offered. Check: TestWebUIBrowserMOSSResumedRunComparesItsRecordedSource sends a depth section with stored picture A as its control picture, reloads the page while the run draws, and on completion finds the compare's A to be picture A, labelled as the picture the run started from.",
           "depends_on": [
             "pair-encode/clock"
           ]

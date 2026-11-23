@@ -45,6 +45,37 @@ var samplingInt8Attention = true
 // the passes that refine it beside it.
 var samplingRefinesOnce = true
 
+// controlFeed is what a widened embedder reads at a step of sigma: the control within its window, low to high, zeros
+// outside it and where the request has none, as ComfyUI's MOSS feeds its concat latent (concat_cond), each slot copied
+// to the card once a sampling by upload. The zeros are made for their slot's first upload alone: they had been made at
+// every step outside the window, 56 buffers of 2.36 MB for one upload in the depth section's pass-2 recording (SQA-430).
+type controlFeed struct {
+	control   []float32
+	low, high float64
+	upload    func(data []float32) (*residentLatent, error)
+	slots     [tensor.PairedExtent]*residentLatent
+}
+
+// at is the slot the feed reads at sigma, a control of elements values, uploaded on the slot's first use.
+func (f *controlFeed) at(sigma float64, elements uint64) (*residentLatent, error) {
+	slot := 0
+	if f.control == nil || sigma < f.low || sigma > f.high {
+		slot = 1
+	}
+	if f.slots[slot] == nil {
+		data := f.control
+		if slot == 1 {
+			data = make([]float32, elements)
+		}
+		held, err := f.upload(data)
+		if err != nil {
+			return nil, err
+		}
+		f.slots[slot] = held
+	}
+	return f.slots[slot], nil
+}
+
 // declaredInt8 is what a transformer directory's file holds and declares in int8, its file opened once: the joint
 // projections it holds in int8 ConvRot over groups of 256 columns (convRotProjections), as the MOSS Ultra workflow's
 // file holds each of its layers' four, where projections asks for them, and the joint layers it declares
@@ -436,34 +467,26 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 			return nil, e
 		}
 	}
-	// controlAt is what a widened embedder reads at a step of sigma, on the device: the control within its window, zeros
-	// outside it and where the request has none, as ComfyUI's MOSS feeds its concat latent (concat_cond), each copied to
-	// the card once a sampling.
-	var controls [tensor.PairedExtent]*residentLatent
-	var controlUpload func(data []float32, from driver.DevicePtr) (*residentLatent, error)
-	defer func() { held = append(held, controls[0], controls[1]) }()
+	// controlAt is what a widened embedder reads at a step of sigma, on the device (controlFeed).
+	feed := controlFeed{control: settings.control, low: settings.controlLow, high: settings.controlHigh}
+	defer func() { held = append(held, feed.slots[0], feed.slots[1]) }()
 	controlAt := func(node *tensor.Tensor, sigma float64) (driver.DevicePtr, error) {
-		at, data := 0, settings.control
-		if settings.control == nil || sigma < settings.controlLow || sigma > settings.controlHigh {
-			elements, e := node.Shape.Elements()
+		if feed.upload == nil {
+			upload, e := holder("control upload", node.Shape, false)
 			if e != nil {
 				return 0, e
 			}
-			at, data = 1, make([]float32, elements)
+			feed.upload = func(data []float32) (*residentLatent, error) { return upload(data, 0) }
 		}
-		if controls[at] == nil {
-			if controlUpload == nil {
-				var e error
-				if controlUpload, e = holder("control upload", node.Shape, false); e != nil {
-					return 0, e
-				}
-			}
-			var e error
-			if controls[at], e = controlUpload(data, 0); e != nil {
-				return 0, e
-			}
+		elements, e := node.Shape.Elements()
+		if e != nil {
+			return 0, e
 		}
-		return controls[at].value.Pointer, nil
+		slot, e := feed.at(sigma, elements)
+		if e != nil {
+			return 0, e
+		}
+		return slot.value.Pointer, nil
 	}
 	forwardIndex := 0
 	sampler, e := settings.schedule.sampler()

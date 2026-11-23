@@ -22,19 +22,6 @@
       "title": "A served MOSS picture is answered from its stored run only where every file it reads is present, its preset declared and its pair whole",
       "steps": [
         {
-          "id": "preset",
-          "title": "A MOSS request naming a preset its model does not declare is refused as such at any size, before a picture it names is read",
-          "verify": "go test ./internal/mediacapability -count=1 -run '^TestAnUndeclaredPresetIsRefusedAtAnySize$'",
-          "files": [
-            "internal/latentimage",
-            "internal/mediacapability"
-          ],
-          "rationale": "SQA-425 (P2), checked at 47b3587c9: valid in its first part. Request.Sized reads the preset only when the request states no size, so with 1024 by 576 stated, admitted passes an undeclared preset, pictureFiles names nothing, Reading draws afresh, and onMiss reports the missing picture where the preset is at fault. Its second part, the enhancer's chat opened before a missing source is refused, went with enhanced-repeat/do: onMiss reads a request's pictures before it enhances. The change: admitted reads a named preset from the catalog at any size. Check: TestAnUndeclaredPresetIsRefusedAtAnySize sends an undeclared preset with no size and with 1024 by 576, a missing picture named in each, through preparedFirst with a stand-in session: each is refused naming the preset, and the session is never reached.",
-          "depends_on": [
-            "pair-encode/clock"
-          ]
-        },
-        {
           "id": "pair",
           "title": "A stored sharpened MOSS picture whose drawn picture was never kept is drawn again, so a run answers both pictures or draws them",
           "verify": "go test ./internal/mediacapability -count=1 -run '^TestAStoredSharpenedPictureWithoutItsDrawnOneIsDrawnAgain$'",

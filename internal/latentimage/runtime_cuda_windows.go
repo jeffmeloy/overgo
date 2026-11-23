@@ -771,9 +771,15 @@ func PresetSettings(directory string) (map[string]json.RawMessage, error) {
 // Ultra section's 16:9 at 3 megapixels), the rest as it came, its preset still named for what it fills besides; a
 // request that states its size, or names neither canvas, is as it came. A session is chosen and checked by its size
 // before its model loads (ValidateRequest, SessionKey), so a size the preset gives is given before (SQA-409). The
-// preset is read from catalog.
+// preset is read from catalog, at any size, so a preset the model does not declare is refused as such before a picture
+// the request names is read (SQA-425): stating its size, such a request had been refused for its missing picture.
 func (r Request) Sized(catalog Catalog) (Request, error) {
 	if r.Width != 0 || r.Height != 0 || r.Canvas == nil && r.Preset == "" {
+		if r.Preset != "" {
+			if _, err := presetOf(catalog, r.Preset); err != nil {
+				return Request{}, err
+			}
+		}
 		return r, nil
 	}
 	filled, err := r.withPreset(catalog)

@@ -3,26 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "pair-encode",
-      "title": "A sharpened MOSS picture's drawn PNG is encoded beside its sharpened one, each byte for byte as before, and the workflow is timed after it",
-      "steps": [
-        {
-          "id": "clock",
-          "title": "The workflow is timed whole after pair-encode and control-zeros, the machine held quiet, and the timing appended to the record (moss-workflow-clock)",
-          "verify": "git log --format=%s -n 200 | grep -qF 'pair-encode/do:' \u0026\u0026 git log --format=%s -n 200 | grep -qF 'control-zeros/do:' \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF \"\\\"commit\\\":\\\"$(git rev-parse HEAD)\\\"\" \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF '\"committed\":true'",
-          "files": [
-            "docs/verification"
-          ],
-          "needs_card": true,
-          "rationale": "The owner's review of 2026-11-22 (third), point 1: a cure of the measured gap is timed before more serving fixes. TestTheUltraWorkflowIsTimedInItsOrder at the commit landing pair-encode/do and control-zeros/do, OVERGO_WORKFLOW_RECORD=docs/verification/moss-workflow-time.jsonl, the tree unchanged and the machine held quiet, its timing appended to the record and landed alone. Check: the record's last line names HEAD's commit and was committed code.",
-          "depends_on": [
-            "pair-encode/do",
-            "control-zeros/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "refine-held",
       "title": "A MOSS branch's refined text stays on the card for its passes, refined from the text's rotary rows alone, and its check reads the sampling's own programs",
       "steps": [

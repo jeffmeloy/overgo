@@ -61,13 +61,17 @@ type Beside func(ctx context.Context, store artifact.Repository, path string, ex
 // is its inventory's, so a file outside it can change with no identity
 // moving, and the answer it shaped would be given again. What beside cannot
 // name authorizes no reuse: the request is executed, and its answer answers
-// no other (FreshRun). A request beside names nothing for is kept as it
-// would be without it.
+// no other (FreshRun). A file it reads that is absent refuses the request
+// (absentFile). A request beside names nothing for is kept as it would be
+// without it.
 func Reading(execute Executor, beside Beside) Executor {
 	return func(ctx context.Context, store artifact.Repository, path string, execution modelrecipe.CapabilityEvidenceSelection, raw string) (any, error) {
 		naming := processmeasure.Stage(ctx, "files beside the model named")
 		named, release, err := beside(ctx, store, path, execution, raw)
 		naming()
+		if absent := (absentFile{}); errors.As(err, &absent) {
+			return nil, err
+		}
 		if err != nil {
 			return execute(FreshRun(ctx), store, path, execution, raw)
 		}
@@ -87,14 +91,27 @@ func PathNaming(name func(ctx context.Context, store artifact.Repository, path s
 	}
 }
 
+// absentFile is a file a request's answer reads beside its model that is not there: the request is refused, naming it,
+// so no answer is sought or kept for it (SQA-406). An answer had been kept under a naming that wrote "absent" for it, so
+// a draw that found the file installed by the time it opened it was kept, and given again once the file was removed.
+type absentFile struct{ path string }
+
+// Error names the absent file as the request's answer reads it.
+func (absent absentFile) Error() string {
+	return fmt.Sprintf("capability runtime: %s, which the request's answer reads, is absent", absent.path)
+}
+
+// Unwrap is fs.ErrNotExist, so a refusal for an absent file reads as one.
+func (absentFile) Unwrap() error { return fs.ErrNotExist }
+
 // Contents names files by their bytes for Reading, through held (heldfile.Set): the files a request's answer reads
-// beside its model's inventory, which files lists from the model's path and the request. One that is absent is named
-// so; one that cannot be read is not named; a request it lists none for is named nothing. The request owns the files it
-// names until it is served (heldfile.Set.Own), each held from its first naming, sharing reading alone, so it is read as
-// it was named (a picture's adapter switched between its naming and its reading was answered under the earlier
-// adapter's name, SQA-406); a session that owns their directory keeps them held after (adapter-hold), so a later
-// request naming them reads nothing, and a request that ends with no session lets them go (held-release, SQA-454). With
-// held nil, each request names through a set of its own.
+// beside its model's inventory, which files lists from the model's path and the request. One that is absent refuses the
+// request (absentFile); one that cannot be read is not named; a request it lists none for is named nothing. The request
+// owns the files it names until it is served (heldfile.Set.Own), each held from its first naming, sharing reading
+// alone, so it is read as it was named (a picture's adapter switched between its naming and its reading was answered
+// under the earlier adapter's name, SQA-406); a session that owns their directory keeps them held after (adapter-hold),
+// so a later request naming them reads nothing, and a request that ends with no session lets them go (held-release,
+// SQA-454). With held nil, each request names through a set of its own.
 func Contents(held *heldfile.Set, files func(ctx context.Context, store artifact.Repository, path string, execution modelrecipe.CapabilityEvidenceSelection, raw string) ([]string, error)) Beside {
 	return func(ctx context.Context, store artifact.Repository, path string, execution modelrecipe.CapabilityEvidenceSelection, raw string) (string, func() error, error) {
 		// The files are listed before the request owns any, so a request answered afresh for a listing that failed, to
@@ -115,8 +132,7 @@ func Contents(held *heldfile.Set, files func(ctx context.Context, store artifact
 		for _, file := range listed {
 			id, err := set.Identity(file)
 			if errors.Is(err, fs.ErrNotExist) {
-				fmt.Fprintln(named, "absent")
-				continue
+				return "", nil, errors.Join(absentFile{file}, release())
 			}
 			if err != nil {
 				return "", nil, errors.Join(err, release())

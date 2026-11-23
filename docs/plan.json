@@ -22,16 +22,6 @@
       "title": "A served MOSS picture is answered from its stored run only where every file it reads is present, its preset declared and its pair whole",
       "steps": [
         {
-          "id": "absent",
-          "title": "A MOSS request naming a file its answer reads that is absent is refused, naming it, before its stored answer is sought, and no answer is kept under an absent file",
-          "verify": "go test ./internal/capabilityruntime -count=1 -run '^TestAnAbsentFileARequestReadsIsRefused$'",
-          "files": [
-            "internal/capabilityruntime",
-            "internal/mediacapability"
-          ],
-          "rationale": "SQA-406 (P2), checked against capabilityruntime.Contents at 47b3587c9: valid. A file a request's answer reads beside its model (a preset's adapter, the depth estimator) that is absent is written into the naming as \"absent\" and the request goes on, so a draw that finds the file installed by the time it opens it is kept under the absent key, and once the file is removed again the director answers the request from that run. The review's earlier points went with adapter-identity/do and beside-content/do; this one stayed. The change: Contents refuses a listed file that is absent, naming it, and Reading gives that refusal back instead of drawing afresh, which it still does for a naming it cannot make. Check: TestAnAbsentFileARequestReadsIsRefused names a request through Reading and Contents with one listed file absent: it is refused naming the file and the executor is never called; with the file present the request is served under the file's identity."
-        },
-        {
           "id": "preset",
           "title": "A MOSS request naming a preset its model does not declare is refused as such at any size, before a picture it names is read",
           "verify": "go test ./internal/mediacapability -count=1 -run '^TestAnUndeclaredPresetIsRefusedAtAnySize$'",

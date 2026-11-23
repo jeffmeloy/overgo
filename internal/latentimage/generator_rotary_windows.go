@@ -32,6 +32,11 @@ type rotaryGeneration struct {
 	// kept are the programs the last sampling left, whose transformer weights the next sampling binds again on the card
 	// (runRotarySampling); the session's close frees them.
 	kept []*graphruntime.ResidentProgram
+	// decoding is the decoder's program, compiled with its static inputs bound at the session's first decode and kept for
+	// its geometry, which a session never changes (resetRotary), as Krea's resident pipeline keeps its VAE: it had been
+	// compiled and released at every decode, 77 to 79 ms a MOSS Ultra section (decoder-resident). The session's close
+	// frees it.
+	decoding *graphruntime.ResidentProgram
 	// weights are the attention-value weights of the prompt's rows, and negativeWeights the negative prompt's, none
 	// for a prompt that weights nothing.
 	weights, negativeWeights []float32
@@ -363,20 +368,24 @@ func (g *Generator) decodeRotary(ctx context.Context) (result EncodedImage, err 
 		state.latent = nil
 	}()
 	p := state.decoder
-	static := map[*tensor.Tensor][]float32{}
-	for _, feed := range p.feeds {
-		static[feed.node] = feed.data
+	// The decode's parts are named for a ledger that reads them (processmeasure.Stage): the decoder compiled, at a
+	// session's first decode alone (decoding), the picture decoded on the card and copied out, and the picture finished
+	// (png-level).
+	if state.decoding == nil {
+		static := map[*tensor.Tensor][]float32{}
+		for _, feed := range p.feeds {
+			static[feed.node] = feed.data
+		}
+		compiling := processmeasure.Stage(ctx, "decoder compiled")
+		state.decoding, err = compileResidentStatic(ctx, state.runtime, "rotary image decoder", static, []*tensor.Tensor{p.Latent}, p.pixels)
+		compiling()
+		if err != nil {
+			return result, err
+		}
 	}
-	// The decode's parts are named for a ledger that reads them (processmeasure.Stage): the decoder compiled, the picture
-	// decoded on the card and copied out, and the picture finished (png-level).
-	compiling := processmeasure.Stage(ctx, "decoder compiled")
-	program, err := compileResidentStatic(ctx, state.runtime, "rotary image decoder", static, []*tensor.Tensor{p.Latent}, p.pixels)
-	compiling()
-	if err != nil {
-		return result, err
-	}
+	program := state.decoding
 	defer func() {
-		err = errors.Join(err, state.runtime.Release(context.WithoutCancel(ctx), program), state.runtime.ReleaseStageMemory(context.WithoutCancel(ctx)))
+		err = errors.Join(err, state.runtime.ReleaseStageMemory(context.WithoutCancel(ctx)))
 	}()
 	decoding := processmeasure.Stage(ctx, "decoded on the card")
 	output, err := state.runtime.ExecuteDevice(ctx, program, nil, []driver.DevicePtr{state.latent.value.Pointer})

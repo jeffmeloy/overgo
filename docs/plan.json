@@ -7,15 +7,6 @@
       "title": "MOSS's decoder is compiled once a session for a picture's size, as Krea's resident pipeline keeps its VAE, and the workflow is timed after it",
       "steps": [
         {
-          "id": "do",
-          "title": "MOSS's decoder is compiled once a session for a picture's size, as Krea's resident pipeline keeps its VAE",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test ./internal/latentimage -count=1 -run '^TestTheDecoderIsCompiledOnceASession$'",
-          "files": [
-            "internal/latentimage"
-          ],
-          "rationale": "The owner's review of 2026-11-23 (second), point 2, checked against the code and the record: valid. decodeRotary (generator_rotary_windows.go:372) compiles the rotary image decoder with its static inputs bound (compileResidentStatic) and releases it at every decode, 77 to 79 ms a section at png-level/clock (7fbcacc4c), about 0.47 s of the warm run. Krea's pipeline does not repeat it: ResidentImagePipeline compiles its VAE once and keeps it resident across decodes ('compiled graphs remain resident', DecodeHWC runs the kept program), so the cure is MOSS's branch's alone and follows the shared pipeline's way. The change: the rotary decoder's program is kept with the session for its picture's size and compiled again only when the size changes, released with the session. Check: TestTheDecoderIsCompiledOnceASession draws the compact model twice at one size and once at another: the decoder is compiled twice in all, and each picture is the one a fresh session draws, bit for bit."
-        },
-        {
           "id": "clock",
           "title": "The workflow is timed whole after decoder-resident, the machine held quiet, and the timing appended to the record (moss-workflow-clock)",
           "verify": "git log --format=%s -n 200 | grep -qF 'decoder-resident/do:' \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF \"\\\"commit\\\":\\\"$(git rev-parse HEAD)\\\"\" \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF '\"committed\":true'",
@@ -66,6 +57,47 @@
       ]
     },
     {
+      "id": "shared-whole",
+      "title": "One whole slow run passes at the commit that lands the shared image steps, every cycle lane and every package of the models lane run to their end",
+      "steps": [
+        {
+          "id": "lanes",
+          "title": "One whole slow run passes at the commit that lands the shared image steps, every cycle lane and every package of the models lane run to their end",
+          "verify": "go run ./cmd/validate -lanes-passed-at \"$(git rev-parse HEAD)\"",
+          "files": [
+            "docs/plan.json"
+          ],
+          "needs_card": true,
+          "rationale": "The owner's review of 2026-11-23 (third), point 2: the three shared-code steps first (one-png-writer, decoder-resident, sharpen-any-model, the last landed at f74f1e64a), then one whole slow run passing at that commit, then the full measurement run with the scorecard and the README, each model measured once on the code it will keep. A cycle's lanes run yields to a newer commit as a lane turns to another package (lanes-first/yield), so the models lane has not passed whole since slow-whole at bb918937d. The run is made as slow-whole made it: validate -run -lanes in a clean checkout of the commit, no newer commit due, every lane and package to its end, its cuda packages on the card in turn; every other open step waits for the measurement after it, so no landing moves the trunk meanwhile. Check: validate -lanes-passed-at reads the passes at HEAD.",
+          "depends_on": [
+            "decoder-resident/clock",
+            "one-png-writer/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "full-measurement",
+      "title": "The full measurement run measures every model's scorecard row at the slow run's commit, every image model's first output among them, and the README's tables are written from it",
+      "steps": [
+        {
+          "id": "run",
+          "title": "The full measurement run measures every model's scorecard row at the slow run's commit, every image model's first output among them, and the README's tables are written from it",
+          "verify": "s=$(go run ./cmd/validate -scorecard) \u0026\u0026 for m in Krea-2-Turbo SenseNova-U1-8B-MoT-Infographic-V3 SimpleDiffusion-TensorProductAttentionRope Un-0 MOSS-Image-SFT-797fa8e678b4f; do printf '%s\\n' \"$s\" | grep -qE \"^\\| $m \\| image-gen \\| [0-9]\" || exit 1; done \u0026\u0026 go run ./cmd/validate -readme \u0026\u0026 grep -qE '^\\| Un-0 \\| [0-9]' README.md",
+          "files": [
+            "README.md",
+            "docs/plan.json",
+            "docs/sqa_findings.json"
+          ],
+          "needs_card": true,
+          "rationale": "The owner's review of 2026-11-23 (third), point 1, checked against the scorecard and git: valid. The last full measurement run was at fdd4ab1ce on 8 Nov, 498 commits before 42ecbec7e, and its preflight and lanes did not pass, filing no row. validate -scorecard reads MOSS's time to first output as 71.8 s at 1024 x 1024 and 50 steps, and Krea-2-Turbo, SenseNova-U1, SimpleDiffusion and Un-0 none: each one's 'measured attempt recorded no preset, the size and steps it ran, so it is measured again'; the README's speed table holds LiveEdit, MOSS, Self-Forcing and Wan alone. The owner: a complete scorecard update comes before any new campaign, so the next direction is chosen from current numbers for every model. The change: the full measurement run at the slow run's commit (validate -run -preflight, then the cells, started outside the session as the measurement run is), every activated model and task measured, the rows it files carried by this landing, and validate -readme writing the README's served-model and speed tables from its record. Check: each image model's scorecard row has a first-output time, and the README's speed table names Un-0 with one.",
+          "depends_on": [
+            "shared-whole/lanes"
+          ]
+        }
+      ]
+    },
+    {
       "id": "readme-media",
       "title": "The README shows a better SenseNova picture, a better Un-0 picture or a sprite card of it, and a better Wan video",
       "steps": [
@@ -78,7 +110,10 @@
             "assets"
           ],
           "needs_card": true,
-          "rationale": "The owner's request of 2026-11-23. The README shows SenseNova-U1-8B-MoT-Infographic-V3 by a minimal infographic of three rising bars labeled A B C (assets/458e63d1...png, 2048 x 2048, 50 steps, guidance 4.0, shift 3.0, seed 2026), which shows little of what an infographic model draws. The change: a richer infographic prompt drawn at the model card's settings through overgo's own path, its request, commit and time stated as the README states the others, the asset named by its digest; the earlier picture and its file removed where nothing else names it. The picture is the owner's to judge; the check holds that the earlier one is gone and the docs name only files the repository holds."
+          "rationale": "The owner's request of 2026-11-23. The README shows SenseNova-U1-8B-MoT-Infographic-V3 by a minimal infographic of three rising bars labeled A B C (assets/458e63d1...png, 2048 x 2048, 50 steps, guidance 4.0, shift 3.0, seed 2026), which shows little of what an infographic model draws. The change: a richer infographic prompt drawn at the model card's settings through overgo's own path, its request, commit and time stated as the README states the others, the asset named by its digest; the earlier picture and its file removed where nothing else names it. The picture is the owner's to judge; the check holds that the earlier one is gone and the docs name only files the repository holds.",
+          "depends_on": [
+            "full-measurement/run"
+          ]
         },
         {
           "id": "un0",
@@ -89,7 +124,10 @@
             "assets",
             "cmd/export"
           ],
-          "rationale": "The owner's request of 2026-11-23. The README shows Un-0, a 120 kB toy model of 8 x 8 pictures, by one class-1 picture at seed 2026 (assets/1995cda0...png), too small to read at a README's width. The change: a sprite card, Un-0's classes by several seeds drawn on the host and laid out in one sheet scaled by whole pixels so each picture's pixels stay square, or a better single picture where the card reads worse, stated with its request and time; the earlier picture and its file removed where nothing else names it. The picture is the owner's to judge; the check holds that the earlier one is gone and the docs name only files the repository holds."
+          "rationale": "The owner's request of 2026-11-23. The README shows Un-0, a 120 kB toy model of 8 x 8 pictures, by one class-1 picture at seed 2026 (assets/1995cda0...png), too small to read at a README's width. The change: a sprite card, Un-0's classes by several seeds drawn on the host and laid out in one sheet scaled by whole pixels so each picture's pixels stay square, or a better single picture where the card reads worse, stated with its request and time; the earlier picture and its file removed where nothing else names it. The picture is the owner's to judge; the check holds that the earlier one is gone and the docs name only files the repository holds.",
+          "depends_on": [
+            "full-measurement/run"
+          ]
         },
         {
           "id": "wan",
@@ -100,7 +138,10 @@
             "assets"
           ],
           "needs_card": true,
-          "rationale": "The owner's request of 2026-11-23, which takes this one render ahead of the video work the owner held back on 2026-11-22 (video and FFmpeg changes wait until video processing resumes): no video code changes here. The README shows Wan2.1-T2V 1.3B by its model card's example prompt, two cats boxing, 81 frames at 832 x 480 (assets/2e5d3865...gif). The change: a better clip drawn at the model card's settings through overgo's own path, its prompt chosen for motion and detail Wan draws well, its request, commit and time stated, the asset named by its digest; the earlier clip and its file removed where nothing else names it. The clip is the owner's to judge; the check holds that the earlier one is gone and the docs name only files the repository holds."
+          "rationale": "The owner's request of 2026-11-23, which takes this one render ahead of the video work the owner held back on 2026-11-22 (video and FFmpeg changes wait until video processing resumes): no video code changes here. The README shows Wan2.1-T2V 1.3B by its model card's example prompt, two cats boxing, 81 frames at 832 x 480 (assets/2e5d3865...gif). The change: a better clip drawn at the model card's settings through overgo's own path, its prompt chosen for motion and detail Wan draws well, its request, commit and time stated, the asset named by its digest; the earlier clip and its file removed where nothing else names it. The clip is the owner's to judge; the check holds that the earlier one is gone and the docs name only files the repository holds.",
+          "depends_on": [
+            "full-measurement/run"
+          ]
         }
       ]
     },
@@ -118,7 +159,10 @@
             "internal/landing",
             "internal/plan"
           ],
-          "rationale": "The owner's review of 2026-11-23, point 3, checked against cmd/validate/run.go and .overgo-runtime/lanes.log: valid. A cycle's lanes run in one order (model-journey, audio, models, needle-reference, sequences); as a lane turns to another package the run yields to a newer commit due (lanes-first/yield), and every lane after the one yielding does not run. A row closes every 30 to 40 minutes and models takes hours, so each run yields inside models (lanes.log: 635db11e9, aaba3c348, 08a0ad2c7, e30533414, b17937206 each 'yields to ... as it turns to another package'), needle-reference and sequences have not run since 22 Nov 07:15, and the models lane has not passed whole for 28 commits; a run starts each time at the first lane again, so the packages it never reaches are the same ones. The change: a package's pass is kept with the commit it ran at, and holds at a later commit whose changes do not reach it (the lanes' readers by path, CycleLanesReached); a run, after the checks the commit's change names (lanes-first), takes the packages longest without a pass that holds, across lanes, so a yield loses nothing and the next run goes on where it stopped; a lane is whole where every package has a pass that holds at the commit read, and validate says the oldest pass any lane relies on. Check: TestAYieldedLanesRunResumesItsRotation runs stand-in lanes yielding after each package as commits arrive: every package of every lane runs within one rotation, a package a later commit reaches runs again, and the lanes read whole once each has a pass that holds."
+          "rationale": "The owner's review of 2026-11-23, point 3, checked against cmd/validate/run.go and .overgo-runtime/lanes.log: valid. A cycle's lanes run in one order (model-journey, audio, models, needle-reference, sequences); as a lane turns to another package the run yields to a newer commit due (lanes-first/yield), and every lane after the one yielding does not run. A row closes every 30 to 40 minutes and models takes hours, so each run yields inside models (lanes.log: 635db11e9, aaba3c348, 08a0ad2c7, e30533414, b17937206 each 'yields to ... as it turns to another package'), needle-reference and sequences have not run since 22 Nov 07:15, and the models lane has not passed whole for 28 commits; a run starts each time at the first lane again, so the packages it never reaches are the same ones. The change: a package's pass is kept with the commit it ran at, and holds at a later commit whose changes do not reach it (the lanes' readers by path, CycleLanesReached); a run, after the checks the commit's change names (lanes-first), takes the packages longest without a pass that holds, across lanes, so a yield loses nothing and the next run goes on where it stopped; a lane is whole where every package has a pass that holds at the commit read, and validate says the oldest pass any lane relies on. Check: TestAYieldedLanesRunResumesItsRotation runs stand-in lanes yielding after each package as commits arrive: every package of every lane runs within one rotation, a package a later commit reaches runs again, and the lanes read whole once each has a pass that holds.",
+          "depends_on": [
+            "full-measurement/run"
+          ]
         }
       ]
     },
@@ -133,7 +177,10 @@
           "files": [
             "internal/latentimage"
           ],
-          "rationale": "SQA-467 (P2: a check that passes without checking), checked against sharpened_pair_windows_test.go at 47b3587c9: valid. The test strips the pictures' texts before it holds the drawn picture equal to the plain one, but holds the finished picture apart from the unsharpened one by their PNG bytes, and only the finished PNG carries Finishing=sharpened, so a finishing that returned its input's pixels would pass. The change: the inequality compares decoded pixels, the drawn-equals-plain comparison as it is. Check: the test itself, which a finishing that changes no pixel now fails."
+          "rationale": "SQA-467 (P2: a check that passes without checking), checked against sharpened_pair_windows_test.go at 47b3587c9: valid. The test strips the pictures' texts before it holds the drawn picture equal to the plain one, but holds the finished picture apart from the unsharpened one by their PNG bytes, and only the finished PNG carries Finishing=sharpened, so a finishing that returned its input's pixels would pass. The change: the inequality compares decoded pixels, the drawn-equals-plain comparison as it is. Check: the test itself, which a finishing that changes no pixel now fails.",
+          "depends_on": [
+            "full-measurement/run"
+          ]
         },
         {
           "id": "floors",
@@ -142,7 +189,10 @@
           "files": [
             "internal/latentimage"
           ],
-          "rationale": "SQA-410 (P2), checked against golden_floor_windows_model_test.go and decibelsOverSquares at 47b3587c9: valid. holdGoldenFloors draws every case (readGoldenCases) before it asks whether each declares a floor, so a missing declaration costs five baseline draws and five controls; a later case's size error stops the test before an earlier failure is reported or the open generator closed; each control encodes a PNG it throws away; and a reference of all zeros scores -Inf in both precision modes, which holdMergedSections accepts as equal. The change: floors are checked before any draw, a comparison's failure is reported as it is scored and its generator closed by Cleanup, a control keeps its latent alone, and decibelsOverSquares refuses a reference with no signal while agreement with a nonzero one stays +Inf. Check: the floors test itself, with card-free cases for the refusals where they need no draw."
+          "rationale": "SQA-410 (P2), checked against golden_floor_windows_model_test.go and decibelsOverSquares at 47b3587c9: valid. holdGoldenFloors draws every case (readGoldenCases) before it asks whether each declares a floor, so a missing declaration costs five baseline draws and five controls; a later case's size error stops the test before an earlier failure is reported or the open generator closed; each control encodes a PNG it throws away; and a reference of all zeros scores -Inf in both precision modes, which holdMergedSections accepts as equal. The change: floors are checked before any draw, a comparison's failure is reported as it is scored and its generator closed by Cleanup, a control keeps its latent alone, and decibelsOverSquares refuses a reference with no signal while agreement with a nonzero one stays +Inf. Check: the floors test itself, with card-free cases for the refusals where they need no draw.",
+          "depends_on": [
+            "full-measurement/run"
+          ]
         }
       ]
     },
@@ -159,7 +209,8 @@
           ],
           "rationale": "SQA-460 (P2), checked against readWorkflowSource and appendWorkflowTiming at 47b3587c9: valid. An absolute OVERGO_WORKFLOW_RECORD is accepted at the start and joined under the repository only when the timing is appended, after both runs, so the attempt reported in d28ab1e84 drew twelve sections (81 s measured) and saved nothing. The change: the record path is checked, relative and inside the repository, before the quiet machine is asked for. Check: TestTheWorkflowClockRefusesARecordItCannotWrite gives the source check an absolute path and one leaving the repository: each is refused before any draw.",
           "depends_on": [
-            "pair-encode/clock"
+            "pair-encode/clock",
+            "full-measurement/run"
           ]
         },
         {
@@ -171,7 +222,8 @@
           ],
           "rationale": "SQA-388 (P2), checked against cmd/comfy-reference/record.go at 47b3587c9: valid. record resumes a prompt on its request hash and prompt ID alone after reading the current models and commits; await starts sampling memory at a retry; keep names a file by its node and base name, so two files of one name from one node in different subfolders overwrite each other; and the paired-recording check asks each run for a prompt ID but never compares them, so one capture given twice passes as two runs. The three pairs at 89cf0f0e3 have distinct prompt IDs. The change: a resumed output keeps the producer it was recorded under and is refused when the models or commits moved; memory sampling begun on a retry says so; a kept file's name holds its subfolder; and a pair's prompt IDs differ. Check: TestARecordingBindsEachOutputToWhatMadeIt drives record against a stand-in ComfyUI for each case.",
           "depends_on": [
-            "pair-encode/clock"
+            "pair-encode/clock",
+            "full-measurement/run"
           ]
         }
       ]
@@ -197,7 +249,8 @@
           ],
           "rationale": "The owner's review of 2026-11-22 (second), point 3, checked against the code: partly valid. The parts ledger exists for every served path (processmeasure.Stages): the session director marks the request read, the stored answer sought, the named inputs read, the session leased and the run recorded, the workflow runtime marks each stage by its module, video marks its own (prompt rows, denoising, decoding, the clip written) and chat its load's (cmd/recipe inference_measure). But a part records its wall and the device's peak alone, speech marks none of its own, and only the MOSS workflow's clock reads a request's parts beside each one's processor time and bytes read (latentimage TestTheUltraWorkflowIsTimedInItsOrder, readProcessUse, written into that test), which is how adapter-hold's per-request hashing was found.\n\nThe change: a part records its processor time and the bytes the process read inside it (processmeasure.Part), so every ledger carries what the MOSS clock computed by hand; speech marks its parts as video does; and the recipe command's measure reports every served task's parts, not chat's load alone. The MOSS clock reads the ledger in place of its own counters.\n\nCheck: TestEachServedPathSplitsItsRequestIntoParts serves a picture, a clip, speech and a chat turn through their capabilities with stand-in sessions under a ledger: each request's parts name its load or lease, its stages and its recording, each with wall, processor time and bytes read, their walls inside the request's.\n\nNote: SQA-468 (P3) and the generator part of SQA-461 go with this step, as the parts they cost show in its ledger: the finished PNG is rebuilt with its texts by the workflow's output encoder, keptDrawn and the workspace's OutputContent though the generator wrote them once (three full rewrites a fresh draw, two a repeat, withPictureTexts allocating a whole buffer even where every chunk matches), and Generator.Reset and prepare each open model_index.json again on a changed seed. Where the ledger shows them, PNGContent keeps bytes already carrying the texts it would write, the artifact ID unchanged, and the catalog is read once a session.\n\nNote: SQA-471 (P2) goes with this step, checked against the clock's decode split at 7fbcacc4c: valid. The clock reads its parts by time.Now and the decode's own parts from processmeasure.Stages, two clocks, so the first decode's four parts summed to 426 ms inside its 418 ms; the decode's parts record zero processor time and bytes read, unmeasured, as if measured; and \"decoder compiled\" holds compileResidentStatic's binding of every static input as well as the compile. The parts are read on the ledger's one clock, enclosing interval and its exclusive parts, processor time and bytes read written only where measured, and the compile and the static binding named apart or together as what they are, before the decoder's 0.47 s is cured.",
           "depends_on": [
-            "pair-encode/clock"
+            "pair-encode/clock",
+            "full-measurement/run"
           ]
         }
       ]
@@ -217,7 +270,10 @@
             "cmd/validate"
           ],
           "needs_card": true,
-          "rationale": "The evidence: cuda-synthetic/tag moved every untagged CUDA test that reads the data root behind modeltest but one. TestSenseNovaVariableRequestResources runs SenseNova's 8B production generation in an isolated measurement process, and docs/image_video_capacity.json names its retained measurement by the bytes of its file (evidence:sha256:888854b5...), which the store holds; tagged, its bytes changed and TestImageVideoCapacityAcceptance found no evidence under the new identity. A measurement is taken again only on a card to itself, and the readings campaign holds the card until its Wan arms are drawn, so the file stays in the gate, named by the check as measuredInPlace, and this row follows the campaign.\n\nThe change: the test carries //go:build modeltest, it is measured again on a quiet card into the store, the capacity record and its protocol digest (imageVideoCapacitySHA256) name the new identity, and measuredInPlace goes, so internal/sensenovarecipe leaves the cuda lane.\n\nCheck: a whole-tree test with measuredInPlace gone, named afresh so it fails before the change: TestTheGateRunsNoRealModelTest.\n\nRefiled 2026-11-16 from cuda-resources/do, whose step carried no card need, so dispatch gave it while the readings campaign held the card: this step carries -needs-card and waits for a card to itself."
+          "rationale": "The evidence: cuda-synthetic/tag moved every untagged CUDA test that reads the data root behind modeltest but one. TestSenseNovaVariableRequestResources runs SenseNova's 8B production generation in an isolated measurement process, and docs/image_video_capacity.json names its retained measurement by the bytes of its file (evidence:sha256:888854b5...), which the store holds; tagged, its bytes changed and TestImageVideoCapacityAcceptance found no evidence under the new identity. A measurement is taken again only on a card to itself, and the readings campaign holds the card until its Wan arms are drawn, so the file stays in the gate, named by the check as measuredInPlace, and this row follows the campaign.\n\nThe change: the test carries //go:build modeltest, it is measured again on a quiet card into the store, the capacity record and its protocol digest (imageVideoCapacitySHA256) name the new identity, and measuredInPlace goes, so internal/sensenovarecipe leaves the cuda lane.\n\nCheck: a whole-tree test with measuredInPlace gone, named afresh so it fails before the change: TestTheGateRunsNoRealModelTest.\n\nRefiled 2026-11-16 from cuda-resources/do, whose step carried no card need, so dispatch gave it while the readings campaign held the card: this step carries -needs-card and waits for a card to itself.",
+          "depends_on": [
+            "full-measurement/run"
+          ]
         }
       ]
     }

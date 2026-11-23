@@ -2,6 +2,189 @@
   "branch": "master",
   "findings": [
     {
+      "id": "SQA-406",
+      "severity": "P2",
+      "files": [
+        "internal/capabilityruntime/runtime.go",
+        "internal/mediacapability/image_cuda_windows.go",
+        "internal/latentimage/media_adapter.go",
+        "internal/capabilityruntime/session_director.go"
+      ],
+      "input": "Name a MOSS request while its required adapter is absent, install it before the draw opens it, then close the session, remove it and retry.",
+      "expected": "Refuse a missing required adapter before replay or drawing. Keep the existing held-file identity for a present adapter.",
+      "actual": "Contents includes the absent marker in the key. A draw after installation can succeed under that key and replay after removal. Source counterexample."
+    },
+    {
+      "id": "SQA-469",
+      "severity": "P2",
+      "files": [
+        "internal/latentimage/runtime_cuda_windows.go",
+        "internal/capabilityruntime/runtime.go",
+        "internal/hfconvert/qwen35.go",
+        "internal/latentimage/ultra_root_windows_model_test.go",
+        "internal/mediacapability/prompts_used_windows_test.go"
+      ],
+      "input": "Save a successful fixed-seed enhanced MOSS answer using the five files in ultraEnhancer. Stop the server, rename only enhancer/config.json to config.json.bak, restart the same build and store, and repeat the request. Compare with a forced fresh request.",
+      "expected": "Determine the enhancer dependencies from the model loader's named inputs before replay. Require its config.json and reuse a valid answer when only unrelated files change.",
+      "actual": "Request.Beside enumerates all regular files and Contents hashes only their ordered content IDs. This rename preserves their order and bytes, so the stored picture and prompt replay. A fresh open requires config.json and fails. Conversely an added unrelated notes.txt changes the key and repeats enhancement and drawing. The retained repeat check uses a stand-in. Source counterexamples at 038828c6d."
+    },
+    {
+      "id": "SQA-466",
+      "severity": "P2",
+      "files": [
+        "internal/mediacapability/image_cuda_windows.go",
+        "internal/capabilityruntime/session_director.go",
+        "internal/workflowruntime/runtime.go",
+        "internal/server/generation_store_workspace.go",
+        "internal/mediacapability/served_repeat_windows_test.go"
+      ],
+      "input": "Interrupt the first fixed-seed sharpened draw after the runtime commits its finished PNG and before keptDrawn publishes the drawn PNG and its parent edge. Retry the request.",
+      "expected": "Return both pictures on success. Recover the incomplete pair and replay a complete pair without redrawing.",
+      "actual": "Replay finds the finished PNG. DecodeContent restores Sharpened alone, and keptDrawn succeeds with no drawn parent. The workspace records success with one picture on every retry. Source-demonstrated interruption."
+    },
+    {
+      "id": "SQA-410",
+      "severity": "P2",
+      "files": [
+        "internal/latentimage/golden_floor_windows_model_test.go",
+        "internal/latentimage/turbo_floor_windows_model_test.go",
+        "internal/latentimage/int8_merge_windows_model_test.go",
+        "internal/latentimage/image_to_image_windows_model_test.go"
+      ],
+      "input": "Omit a standard floor, put a wrong-width recording after a failed draw, or give both precision comparisons an all-zero reference and a nonzero latent.",
+      "expected": "Validate floors and reference signal before use, report each failed score, and release its generator. Preserve baseline picture checks and exact matches on nonzero signals.",
+      "actual": "holdGoldenFloors draws five baselines and five controls before detecting a missing floor. A later size error hides the earlier failure and skips closing the generator. Controls also encode discarded PNGs (five standard, three Turbo, eight across both adapter precisions). Two -Inf scores on zero signal pass the precision check. Source counts."
+    },
+    {
+      "id": "SQA-467",
+      "severity": "P2",
+      "files": [
+        "internal/latentimage/sharpened_pair_windows_test.go",
+        "internal/latentimage/generator_rotary_windows.go",
+        "internal/latentimage/png_text.go"
+      ],
+      "input": "For the compact sharpening check (seed 42, radius 1, sigma 0.6, alpha 0.7), consider a finisher that returns unchanged pixels but records that sharpening was requested.",
+      "expected": "Use the two existing draws to check that finishing changes pixels and the drawn picture matches the plain one.",
+      "actual": "TestASharpenedPictureReturnsThePictureItDrew strips metadata for drawn-vs-plain equality, then compares the finished and plain PNG bytes directly. The Finishing=sharpened tag alone satisfies the inequality with identical pixels. Source counterexample to the check."
+    },
+    {
+      "id": "SQA-460",
+      "severity": "P2",
+      "files": [
+        "internal/latentimage/workflow_time_windows_model_test.go",
+        "internal/latentimage/workflow_source_test.go"
+      ],
+      "input": "Run the Windows MOSS workflow clock with OVERGO_WORKFLOW_RECORD set to the absolute path of the repository timing record.",
+      "expected": "Reject the absolute destination before reserving the machine. Keep the existing commit check and append for valid relative paths.",
+      "actual": "The attempt documented in d28ab1e84 measured 46.738 s cold and 34.430 s warm before appendWorkflowTiming failed on the destination. All twelve section draws were repeated to save the record."
+    },
+    {
+      "id": "SQA-388",
+      "severity": "P2",
+      "files": [
+        "cmd/comfy-reference/record.go",
+        "cmd/comfy-reference/record_test.go",
+        "cmd/comfy-reference/recordings_modeltest_test.go"
+      ],
+      "input": "Resume a ComfyUI recording after its installation or model changes, keep two outputs with the same node and basename in different subfolders, or give the paired check one real capture twice.",
+      "expected": "Bind a resumed result to its original producer, identify retry-only memory samples, retain both output files and require two distinct prompt executions for a pair.",
+      "actual": "The recorder resumes on request hash and prompt ID, labels with the current producer and starts memory sampling at retry. Its node/basename key overwrites the first output. The paired check accepts one capture twice because it never compares prompt IDs. Source counterexamples."
+    },
+    {
+      "id": "SQA-425",
+      "severity": "P2",
+      "files": [
+        "internal/mediacapability/image_cuda_windows.go",
+        "internal/latentimage/runtime_cuda_windows.go",
+        "internal/latentimage/profile.go",
+        "internal/capabilityruntime/runtime.go",
+        "internal/mediacapability/prepared_first_windows_test.go"
+      ],
+      "input": "Serve a MOSS request with an undeclared preset and a missing source picture. Supply 1024 by 576 explicitly, then compare with omitted dimensions.",
+      "expected": "Reject the unknown preset before reading the picture with either size form. Preserve completed-picture replay without source payload reads.",
+      "actual": "Sized validates the preset only when dimensions are omitted. With explicit dimensions, Reading treats the later catalog error as a cache miss and onMiss reports the missing picture. Source trace at 038828c6d."
+    },
+    {
+      "id": "SQA-415",
+      "severity": "P2",
+      "files": [
+        "internal/landing/lanes.go",
+        "internal/repoanalysis/tracked_documents.go",
+        "cmd/validate/lane_reach.go",
+        "cmd/validate/lane_reach_test.go",
+        "internal/seq2seq/upstream_calls_model_test.go",
+        "internal/latentimage/moss_golden_test.go"
+      ],
+      "input": "After a passing needle-reference run, delete only fixtures/needle_upstream_calls.json and select lanes with -reached. The reader still names the old path. The same case applies to the models lane when only fixtures/moss/checkpoint.json is deleted.",
+      "expected": "CycleLanesReached selects the reader of the removed fixture, so the Needle or MOSS check reports the missing input. Use the existing reader lookup for deleted paths, or run the lane when its readers are unknown. Keep the current package selection for edits to existing fixtures.",
+      "actual": "Source trace at c71a1e230. The Git diff supplies the deleted path. TrackedDocuments lists only files still present, so documentReaders returns no entry. discover treats the missing entry as zero readers and omits the lane. Both checks fail on the missing file if selected. The retained gate verified selection for edits to both fixtures while they were present."
+    },
+    {
+      "id": "SQA-430",
+      "severity": "P2",
+      "files": [
+        "internal/latentimage/rotary_sampling_windows.go",
+        "fixtures/comfy/moss-ultra/recordings/pass-2/depth-control.json"
+      ],
+      "input": "Draw the recorded 1024 by 576 MOSS depth section with 50 guided ER-SDE steps, control ending at 0.5 and shift 5.",
+      "expected": "Select the resident zero buffer before constructing a host value. Preserve the sigma boundary and seeded output.",
+      "actual": "controlAt allocates 64 x 36 x 256 float32 zeros before checking the device slot. The 28 out-of-window steps and two branches allocate 56 buffers and upload one. The other 55 total 123.75 MiB of cumulative host allocation per draw, from source and recorded sigmas. Wall time and peak memory are unmeasured."
+    },
+    {
+      "id": "SQA-422",
+      "severity": "P2",
+      "files": [
+        "internal/latentimage/rotary_denoiser.go",
+        "internal/latentimage/rotary_refinement.go",
+        "internal/latentimage/rotary_sampling_windows.go"
+      ],
+      "input": "Run 50 MOSS text-to-image steps with a fixed prompt, guidance 1, no skipped steps and no adapter.",
+      "expected": "Refine that branch once on the device and preserve its rotary positions and seeded output across all 50 steps.",
+      "actual": "compileRotaryDenoiserProgram puts textGraph.refine inside the per-pass graph. Its inputs stay fixed for all 50 evaluations. Count from source. Wall time and peak memory are unmeasured."
+    },
+    {
+      "id": "SQA-461",
+      "severity": "P2",
+      "files": [
+        "internal/mediacapability/image_cuda_windows.go",
+        "internal/latentimage/runtime_cuda_windows.go",
+        "internal/latentimage/profile.go",
+        "internal/capabilityruntime/session_director.go",
+        "internal/mediacapability/served_repeat_windows_test.go"
+      ],
+      "input": "Repeat a completed fixed-seed 1024 by 576 MOSS picture with a profile and no preset, canvas, negative prompt or adapter. Separately, change only the seed on a resident ultra-image-to-image-turbo request using a profile.",
+      "expected": "Skip catalog lookup when the repeat needs none. Reuse the selected effective preset for naming and execution, preserving real-load verification and the fallback for a missing profile.",
+      "actual": "pictureFiles and preparedFirst each read the profile before replay. With only the seed changed, Generator.Reset and prepare each reopen model_index.json via CatalogIn. The repeat check stands in for those generator calls. Source counts, elapsed time unmeasured."
+    },
+    {
+      "id": "SQA-463",
+      "severity": "P2",
+      "files": [
+        "internal/server/webui/workflow.js",
+        "internal/server/webui/mod/generation.js",
+        "internal/server/generation_store_workspace.go",
+        "internal/server/browse_runs.go",
+        "internal/server/webui_browser_moss_run_source_windows_test.go"
+      ],
+      "input": "Submit a fixed-seed ultra-depth-control request at 1024 by 576 with a stored PNG as control.picture and image empty. Reload the Workbench while its operation is active, then let it finish. The recorded request contains the source ID.",
+      "expected": "The resumed comparison should offer the source recorded for the completed run beside its drawn and sharpened pictures. Omit the source when the retained input cannot identify it.",
+      "actual": "Submission now passes the sent input to follow, fixing in-tab edits. After reload the active-operation path calls follow(live.id) alone. The comparison looks only at the absent sent input, although the run retains the request with control.picture. The source is omitted. Source trace at 038828c6d. The retained browser check covers the in-tab case."
+    },
+    {
+      "id": "SQA-468",
+      "severity": "P3",
+      "files": [
+        "internal/latentimage/encoded_image.go",
+        "internal/latentimage/png_text.go",
+        "internal/latentimage/generator_rotary_windows.go",
+        "internal/mediacapability/image_cuda_windows.go",
+        "internal/server/generation_store_workspace.go"
+      ],
+      "input": "Serve a completed MOSS Workbench picture with nonempty recorded prompt text twice. Keep its pixels and metadata identical. Compare the calls that produce the final PNG on the fresh draw and on the stored answer.",
+      "expected": "In served-parts/do, retain the already encoded bytes when PNGContent receives the exact metadata it would emit. Preserve the artifact ID and the existing ability to replace or remove changed text.",
+      "actual": "At c65437048 the generator writes the texts once. The workflow output encoder, keptDrawn and the workspace's OutputContent each rebuild the same finished PNG again. On a stored hit the latter two still rebuild it. withPictureTexts allocates a full output buffer even when all chunks already match. That is three redundant full-image rewrites on a fresh page draw and two per repeat, excluding the separate drawn PNG. Source counts, wall time and peak memory unmeasured."
+    },
+    {
   "id": "SQA-283",
   "severity": "P2",
   "files": [
@@ -64,188 +247,7 @@
   "input": "A retained ClipMotion observation of unchanged MP4 bytes, then a motion encoder checkpoint or FFmpeg/preprocessing configuration changes under the same encoder basename. The suite is compiled again with that old observation and the same matching clip-content digest.",
   "expected": "Motion readings identify the encoder/checkpoint and decoder/sampling contract that produced them, so changed instruments cannot silently reuse or be credited with an old metric. Keep the repaired OCR re-keying, content checks and whole-set exclusion in the existing media compiler and observation producers; the observation instrument is separate from the answering judge.",
   "actual": "The remaining motion instrument is not bound: writeMotion passes filepath.Base(encoderPath) to measureMotion; ClipMotion stores that Encoder string and clip/source content digests, with no encoder/checkpoint or FFmpeg/sampling identity. ClipMotion.validate requires only a nonempty encoder name, and bindObservations compares clip.Content alone before keeping the motion set. Changing an instrument while the clip bytes and encoder basename stay the same therefore leaves the old motion admissible and its actual producing instrument indistinguishable. Shown from source at ba0405e63d92653b84f617d8c332d5546529e444; no SQA execution."
-},
-    {
-      "id": "SQA-388",
-      "severity": "P2",
-      "files": [
-        "cmd/comfy-reference/record.go",
-        "cmd/comfy-reference/record_test.go",
-        "cmd/comfy-reference/recordings_modeltest_test.go"
-      ],
-      "input": "Resume a previously accepted ComfyUI prompt after its model or installation changes, or keep two files from one output node with the same basename in different subfolders. For the paired-recording check, supply the same complete real-1 recording and its files in both run directories.",
-      "expected": "Bind resumed output to its original producer, identify memory sampling that began on retry, and retain each output file distinctly. Credit a repeated measurement only when two distinct prompt executions produced matching results for the same request.",
-      "actual": "record reads the current models and commits, then resumes on request hash and prompt ID alone. await starts measuring memory at retry. keep writes by node and basename, so the second file overwrites the first. The paired-recording check requires a nonempty prompt ID in each run but never compares the IDs. One complete capture supplied twice therefore passes as two runs. These are source counterexamples. The three pairs added at 89cf0f0e3 have distinct prompt IDs and matching saved-output hashes."
-    },
-    {
-      "id": "SQA-406",
-      "severity": "P2",
-      "files": [
-        "internal/capabilityruntime/runtime.go",
-        "internal/mediacapability/image_cuda_windows.go",
-        "internal/latentimage/media_adapter.go",
-        "internal/capabilityruntime/session_director.go"
-      ],
-      "input": "Name a MOSS request while its required adapter is missing. Install the adapter before the draw opens it, then close the session, remove it and retry the same request.",
-      "expected": "Refuse a missing required adapter before replay or model work. Store an answer only under the identities of the files used to compute it. Preserve the single hash of a present, held adapter or depth checkpoint.",
-      "actual": "Contents records an absent dependency and continues. The draw can succeed under that key with the newly installed adapter. After removal the director can replay the result under the absent key. Source counterexample. Present adapters share a held identity across naming and execution."
-    },
-    {
-      "id": "SQA-410",
-      "severity": "P2",
-      "files": [
-        "internal/latentimage/golden_floor_windows_model_test.go",
-        "internal/latentimage/turbo_floor_windows_model_test.go",
-        "internal/latentimage/int8_merge_windows_model_test.go",
-        "internal/latentimage/image_to_image_windows_model_test.go"
-      ],
-      "input": "Omit one standard floor while all five recordings are readable. Separately, put the first draw below its floor and give a later recording a hash-matching PNG of the wrong width. For the precision comparison, use a correctly shaped all-zero reference with a nonzero latent from each precision mode.",
-      "expected": "Check floor declarations before loading a generator. Report each failed comparison when scored and release that case's generator even on a fatal error. Reject a reference with zero signal before comparing dB. Keep exact agreement at +Inf for a nonzero reference. Score controls from their final latents and keep the baseline picture checks.",
-      "actual": "At 89cf0f0e3 holdGoldenFloors calls readGoldenCases before checking any floor. A missing declaration costs five baseline draws and five controls. A later size error exits before the earlier failure is reported or the current generator is closed. Each control also decodes and encodes a PNG that is discarded: five in the standard check, three in Turbo, and eight across the two precision modes of the adapter check. These are source counts. With zero reference signal and nonzero error, decibelsOverSquares returns -Inf for both modes and holdMergedSections accepts their equality."
-    },
-    {
-      "id": "SQA-415",
-      "severity": "P2",
-      "files": [
-        "internal/landing/lanes.go",
-        "internal/repoanalysis/tracked_documents.go",
-        "cmd/validate/lane_reach.go",
-        "cmd/validate/lane_reach_test.go",
-        "internal/seq2seq/upstream_calls_model_test.go",
-        "internal/latentimage/moss_golden_test.go"
-      ],
-      "input": "After a passing needle-reference run, delete only fixtures/needle_upstream_calls.json and select lanes with -reached. The reader still names the old path. The same case applies to the models lane when only fixtures/moss/checkpoint.json is deleted.",
-      "expected": "CycleLanesReached selects the reader of the removed fixture, so the Needle or MOSS check reports the missing input. Use the existing reader lookup for deleted paths, or run the lane when its readers are unknown. Keep the current package selection for edits to existing fixtures.",
-      "actual": "Source trace at c71a1e230. The Git diff supplies the deleted path. TrackedDocuments lists only files still present, so documentReaders returns no entry. discover treats the missing entry as zero readers and omits the lane. Both checks fail on the missing file if selected. The retained gate verified selection for edits to both fixtures while they were present."
-    },
-    {
-      "id": "SQA-422",
-      "severity": "P2",
-      "files": [
-        "internal/latentimage/rotary_denoiser.go",
-        "internal/latentimage/rotary_refinement.go",
-        "internal/latentimage/rotary_sampling_windows.go"
-      ],
-      "input": "Serve one 50-step MOSS text-to-image request with guidance 1, no skipped steps or adapters, and a fixed prompt such as 'red fox under pine trees' repeated 64 times.",
-      "expected": "Reuse the fixed branch's refined text on the device for the request. Preserve rotary positions, adapter settings and joint-block arithmetic. Check one refinement and identical seeded output across 50 steps.",
-      "actual": "compileRotaryDenoiserProgram includes textGraph.refine in the per-pass graph. Its prompt and weights are fixed, while only the later joint blocks consume the changing latent. The 50-step input therefore evaluates the same refinement 50 times. The count is source-derived. Time and peak-memory effects are unmeasured."
-    },
-    {
-      "id": "SQA-425",
-      "severity": "P2",
-      "files": [
-        "internal/mediacapability/image_cuda_windows.go",
-        "internal/latentimage/runtime_cuda_windows.go",
-        "internal/latentimage/profile.go",
-        "internal/capabilityruntime/runtime.go",
-        "internal/mediacapability/prepared_first_windows_test.go",
-        "internal/latentimage/source_latent_windows.go",
-        "internal/latentimage/enhancer_chat_windows.go"
-      ],
-      "input": "Serve an active MOSS recipe with prompt 'a fox', 8 steps, an undeclared preset and a missing source-file ID. Compare omitted dimensions with explicit 1024 by 576. Also send a fresh request with those dimensions, no preset, enhancement on, the enhancer installed and the same missing source.",
-      "expected": "Report an unknown preset with either size form before reading the picture or starting the enhancer. For the otherwise valid enhanced request, reject the missing source before opening the chat. Keep ordinary completed-picture replay free of source payload reads.",
-      "actual": "At 47dc7e325 Sized checks the preset only when sizing needs it. With explicit dimensions, Beside finds the catalog error but Reading treats it as a reason to execute fresh, so ReadPictures reports the missing picture instead. With enhancement on, preparedFirst runs EnhanceRequest before ReadsOnMiss can reject the absent source. A successful enhancement generates both positive and negative prompts, with a possible third chat call for a short positive. The negative-step check still passes at admission. These are source counterexamples."
-    },
-    {
-      "id": "SQA-430",
-      "severity": "P2",
-      "files": [
-        "internal/latentimage/rotary_sampling_windows.go",
-        "fixtures/comfy/moss-ultra/recordings/pass-2/depth-control.json"
-      ],
-      "input": "Draw the recorded 1024 by 576 MOSS depth-control section with 50 guided ER-SDE steps, control ending at 0.5 and scheduler shift 5. Both guidance branches request the same control at each step.",
-      "expected": "Select the resident control or zero buffer before constructing a host value. Allocate and upload zeros on the first use of that device slot only. Keep the same sigma boundary and seeded output.",
-      "actual": "controlAt creates a 64 x 36 x 256 float32 zero buffer before checking the resident slot. In the pass-2 recording 28 steps fall outside the window. Two branches create 56 buffers and only the first is uploaded. The other 55 account for 123.75 MiB of cumulative host allocation per draw, calculated from source and recorded sigmas. Wall time and peak memory are unmeasured."
-    },
-    {
-      "id": "SQA-460",
-      "severity": "P2",
-      "files": [
-        "internal/latentimage/workflow_time_windows_model_test.go",
-        "internal/latentimage/workflow_source_test.go"
-      ],
-      "input": "Run the MOSS workflow clock on Windows with OVERGO_WORKFLOW_RECORD set to the absolute path of the repository timing record. The documented input is repository-relative.",
-      "expected": "The workflow clock should reject an absolute destination before requesting the quiet machine or drawing any section. A valid relative destination should still append one complete timing after the existing commit check.",
-      "actual": "The timing attempt reported in d28ab1e84 completed six sections cold (46.738 s) and warm (34.430 s), then saved nothing. The operator repeated all twelve draws to get the record. At 89cf0f0e3 readWorkflowSource accepts the absolute string, and appendWorkflowTiming first opens the joined path after both runs. The failed attempt spent 81.168 s in measured sections, excluding setup and waiting."
-    },
-    {
-      "id": "SQA-461",
-      "severity": "P2",
-      "files": [
-        "internal/mediacapability/image_cuda_windows.go",
-        "internal/latentimage/runtime_cuda_windows.go",
-        "internal/latentimage/profile.go",
-        "internal/capabilityruntime/session_director.go",
-        "internal/mediacapability/served_repeat_windows_test.go"
-      ],
-      "input": "Repeat a completed fixed-seed MOSS picture at 1024 by 576 with an active stored profile, no preset, canvas, negative prompt or adapter. Separately, change only the seed of a resident ultra-image-to-image-turbo request with the selected profile and valid model files.",
-      "expected": "The first repeat needs no preset or negative-guidance lookup. For the preset request, resolve the effective preset from its selected profile once for naming and execution. Preserve verification of the model files on a genuine load, adapter content identity, and the existing directory fallback where no profile is supplied.",
-      "actual": "pictureFiles and preparedFirst each read and parse the selected profile before replay. Neither needs a catalog entry for the plain repeat. The third read for prompt reporting was removed in c65437048. With a changed seed, Sized retains the preset name and Generator.Reset and prepare each reopen model_index.json through a fresh CatalogIn. The served-repeat check stands in for both generator calls. Source counts. Elapsed time unmeasured."
-    },
-    {
-      "id": "SQA-462",
-      "severity": "P2",
-      "files": [
-        "internal/server/webui/workflow.js",
-        "internal/server/webui_browser_moss_generation_windows_test.go",
-        "internal/server/webui_browser_moss_section_requests_windows_test.go"
-      ],
-      "input": "On a fresh MOSS form at 1024 by 1024, select ultra-image-to-image-turbo and clear it. Set both dimensions to 512, select the same preset again, then clear it without editing its dimensions. Submit a valid manual text-to-image request.",
-      "expected": "The preset temporarily supplies 2368 by 1344. Clearing it the second time restores the user's latest manual size, 512 by 512. The shared presetSettings handler owns this for the composer and Workbench.",
-      "actual": "presetSettings keeps the first saved size after release. Clearing the preset a second time restores 1024 by 1024, so controlValues submits four times the requested pixels. The browser check from moss-section-requests/do writes width and height after every preset choice, masking this error. Source trace at 2e62ba15d. Time and memory unmeasured."
-    },
-    {
-      "id": "SQA-463",
-      "severity": "P2",
-      "files": [
-        "internal/server/webui/workflow.js",
-        "internal/server/webui/mod/generation.js",
-        "internal/server/workbench_windows_test.go"
-      ],
-      "input": "Submit ultra-depth-control with stored picture A as control.picture and the image field empty. While that draw runs, replace A in the form with a different stored picture B. Let the original run complete.",
-      "expected": "For the depth section's source comparisons, offer the source A of the completed operation beside its drawn and sharpened outputs. Preserve the drawn/sharpened comparison. A resumed operation should identify a source only if its record supports it. Owner: the generation result view in moss-workflow-surface/do.",
-      "actual": "At c65437048 the sharpened pair opens correctly, but shown reads the still-editable control.picture when completion arrives. On a fresh page it offers B labelled 'started from' and omits A from the choices. Selecting the labelled source compares the wrong picture. submission captured A and only the Run button was disabled. Source trace."
-    },
-    {
-      "id": "SQA-466",
-      "severity": "P2",
-      "files": [
-        "internal/mediacapability/image_cuda_windows.go",
-        "internal/capabilityruntime/session_director.go",
-        "internal/workflowruntime/runtime.go",
-        "internal/server/generation_store_workspace.go",
-        "internal/mediacapability/served_repeat_windows_test.go"
-      ],
-      "input": "Start a fixed-seed sharpened MOSS draw with no previous copy of its pair. Interrupt after the runtime commits the finished PNG and before keptDrawn publishes the drawn PNG and its derived-from edge. Submit the identical request again with the store available.",
-      "expected": "A successful replay returns both pictures. Use the existing result publication or replay admission to recover an incomplete pair before reporting success. A complete pair must still replay without another draw.",
-      "actual": "At c65437048 Replay finds the recipe's sole finished PNG. DecodeContent restores Sharpened but no Drawn bytes. With no drawn parent, keptDrawn returns success; ExecuteWorkflow then records a successful result with the sharpened picture alone plus any prompt document. Further ordinary retries take the same path. Both pictures are promised by moss-sharpened-pair. Source-demonstrated interruption, no fault injected."
-    },
-    {
-      "id": "SQA-467",
-      "severity": "P2",
-      "files": [
-        "internal/latentimage/sharpened_pair_windows_test.go",
-        "internal/latentimage/generator_rotary_windows.go",
-        "internal/latentimage/png_text.go"
-      ],
-      "input": "Consider the existing compact-model sharpening check with its seed 42, radius 1, sigma 0.6 and alpha 0.7. If finishing returns its input pixels unchanged while the generator still records that sharpening was requested, evaluate the check's assertions.",
-      "expected": "The existing two draws should expose unchanged pixels for this fixture. Compare the decoded rasters or remove the MOSS text chunks from both PNGs before comparing. Keep the separate check that the drawn picture matches the plain one.",
-      "actual": "TestASharpenedPictureReturnsThePictureItDrew strips metadata for the drawn-vs-plain equality, then compares finished.Data and unsharpened.Data verbatim for inequality. The finished PNG alone contains the Finishing=sharpened tag. Identical pixels therefore satisfy that assertion and the other assertions still pass. This is a source counterexample to the check at c65437048, not an observed rendering regression."
-    },
-    {
-      "id": "SQA-468",
-      "severity": "P3",
-      "files": [
-        "internal/latentimage/encoded_image.go",
-        "internal/latentimage/png_text.go",
-        "internal/latentimage/generator_rotary_windows.go",
-        "internal/mediacapability/image_cuda_windows.go",
-        "internal/server/generation_store_workspace.go"
-      ],
-      "input": "Serve a completed MOSS Workbench picture with nonempty recorded prompt text twice. Keep its pixels and metadata identical. Compare the calls that produce the final PNG on the fresh draw and on the stored answer.",
-      "expected": "In served-parts/do, retain the already encoded bytes when PNGContent receives the exact metadata it would emit. Preserve the artifact ID and the existing ability to replace or remove changed text.",
-      "actual": "At c65437048 the generator writes the texts once. The workflow output encoder, keptDrawn and the workspace's OutputContent each rebuild the same finished PNG again. On a stored hit the latter two still rebuild it. withPictureTexts allocates a full output buffer even when all chunks already match. That is three redundant full-image rewrites on a fresh page draw and two per repeat, excluding the separate drawn PNG. Source counts, wall time and peak memory unmeasured."
-    }
+}
   ],
   "master_lead_triage": {
     "at": "2026-11-22",
@@ -280,20 +282,6 @@
         ],
         "note": "Answered by the lead on 2026-11-22 at 47b3587c9: valid from source; the served path's two profile reads a request (pictureFiles, preparedFirst) filed as served-answers/profile, the generator's model_index.json reads on a changed seed with served-parts/do, whose ledger reads their time."
       },
-  "SQA-462": {
-        "action": "filed",
-        "rows": [
-          "moss-workflow-surface/preset-size"
-        ],
-        "note": "Answered by the lead on 2026-11-22 at 47b3587c9: valid from source (presetSettings saves the form's size at a preset's first choice alone, so a size set by hand between two choices is lost at the second release); a finding in the row now dispatched, filed as its step moss-workflow-surface/preset-size."
-      },
-  "SQA-463": {
-        "action": "filed",
-        "rows": [
-          "moss-workflow-surface/source"
-        ],
-        "note": "Answered by the lead on 2026-11-22 at 47b3587c9: valid from source (the page reads the run's source from the live form when the run completes); the review names moss-workflow-surface its owner, filed as its step moss-workflow-surface/source."
-      },
   "SQA-467": {
         "action": "filed",
         "rows": [
@@ -311,9 +299,9 @@
   "SQA-430": {
         "action": "filed",
         "rows": [
-          "moss-pass-repeats/zeros"
+          "control-zeros/do"
         ],
-        "note": "Reopened by the review (its answer taken out at e73ecc7ff; moss-step-copies/do kept the latent on the card but left controlAt as it was) and answered by the lead on 2026-11-22 at 47b3587c9: valid from source (controlAt allocates the zeros before it asks whether the card holds them); filed as moss-pass-repeats/zeros."
+        "note": "Reopened by the review (its answer taken out at e73ecc7ff; moss-step-copies/do kept the latent on the card but left controlAt as it was) and answered by the lead on 2026-11-22 at 47b3587c9: valid from source (controlAt allocates the zeros before it asks whether the card holds them); filed as control-zeros/do, awaiting refine and its timing (the owner's review of 2026-11-22, third, point 1)."
       },
   "SQA-422": {
         "action": "filed",
@@ -366,7 +354,7 @@
       }
 }
   },
-  "next_finding_number": 469,
+  "next_finding_number": 470,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

@@ -3,22 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "moss-pass-repeats",
-      "title": "A MOSS sampling refines its prompt once a request and makes its control's zeros once, its pictures bit for bit as before",
-      "steps": [
-        {
-          "id": "clock",
-          "title": "The workflow is timed whole at moss-pass-repeats/refine's commit, the machine held quiet, and the timing appended to the record (moss-workflow-clock)",
-          "verify": "git log --format=%s -n 200 | grep -qF 'moss-pass-repeats/refine:' \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF \"\\\"commit\\\":\\\"$(git rev-parse HEAD)\\\"\" \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF '\"committed\":true'",
-          "files": [
-            "docs/verification"
-          ],
-          "needs_card": true,
-          "rationale": "The owner's review of 2026-11-22 (third), point 1: the remaining speed gap is measured against a cure before more serving fixes. At the last timing (ce8b3ccfb, docs/verification/moss-workflow-time.jsonl) the warm run took 34.494 s against ComfyUI's 34.41: text-to-image 9.565 s against 9.066, image-to-image 9.588 against 8.976, depth-control 10.346 against 10.142, each Turbo section under ComfyUI's. refine is the only open step aimed at every full section's pass; from source it saves about 25 to 50 ms a section (two refiner blocks of about 113M parameters read every pass, 100 passes, the timed sections' prompts empty), so the timing says how much of the gap it cures and where the rest sits.\n\nThe step: TestTheUltraWorkflowIsTimedInItsOrder run at moss-pass-repeats/refine's commit with OVERGO_WORKFLOW_RECORD=docs/verification/moss-workflow-time.jsonl (relative: an absolute path is joined to the checkout and keeps nothing, SQA-460), the tree unchanged and the machine held quiet, its timing appended to the record and landed alone. Check: the record's last line names HEAD's commit and was committed code."
-        }
-      ]
-    },
-    {
       "id": "control-zeros",
       "title": "A MOSS sampling makes its control's zeros on their first use alone",
       "steps": [

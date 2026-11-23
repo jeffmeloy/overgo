@@ -108,29 +108,6 @@ var errNotEnhanced = errors.New("latent image: a request asking prompt mode 2 is
 // denoiseWhole is the denoise above which ComfyUI samples the whole schedule (KSampler.set_steps).
 const denoiseWhole = 0.9999
 
-// Drawn is the prompt and the negative prompt the request's picture is drawn from, its preset filled from catalog as its
-// session fills it: its prompt, or the layout prompt its layout makes on its canvas (prompt mode 3), and its negative,
-// or its preset's backup where it gives none, as the MOSS Ultra workflow shows them ("Prompt used", "Negative prompt
-// used"). A request asking prompt mode 2 is drawn from what its enhancer writes (EnhanceRequest), so it is read once
-// written (moss-prompts-used).
-func (r Request) Drawn(catalog Catalog) (prompt, negative string, err error) {
-	if r.Enhanced() {
-		return "", "", errNotEnhanced
-	}
-	filled, err := r.withPreset(catalog)
-	if err != nil {
-		return "", "", err
-	}
-	return filled.prompt(), filled.NegativePrompt, nil
-}
-
-// Sharpened says the request's picture is sharpened as it is finished, its preset filled from catalog as its session
-// fills it, so it comes with the picture it drew (EncodedImage.Drawn, moss-sharpened-pair).
-func (r Request) Sharpened(catalog Catalog) (bool, error) {
-	filled, err := r.withPreset(catalog)
-	return err == nil && filled.Sharpen != nil, err
-}
-
 // prompt is what the request's text encoder reads: its prompt, or the layout prompt its layout makes on its canvas.
 func (r Request) prompt() string {
 	if r.Layout == nil {

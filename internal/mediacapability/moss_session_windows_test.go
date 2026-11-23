@@ -82,8 +82,11 @@ func TestMOSSResidentSession(t *testing.T) {
 	measured := testcheck.Must(serve(t.Context(), first))(t)
 	baseline := check(measured, first)
 	// This exact PNG identifies the composition already compared with the native
-	// float authority; native numerical acceptance remains in latentimage tests.
-	content, err := latentimage.PNGContent(measured.Output.(latentimage.EncodedImage))
+	// float authority; native numerical acceptance remains in latentimage tests. Its pixels are pinned: what it was drawn
+	// from, which its stored bytes carry, is taken out (draw-result-carries).
+	pixels := measured.Output.(latentimage.EncodedImage)
+	pixels.Prompt, pixels.NegativePrompt, pixels.Sharpened = "", "", false
+	content, err := latentimage.PNGContent(pixels)
 	if err != nil || content.Descriptor.ID.DigestHex() != "99062f8a13f008e4c3f14f45e5a2b063e2ce4e910a59f90b3b2bdc48d32fdeda" {
 		t.Fatal("serving changed verified composition", err)
 	}

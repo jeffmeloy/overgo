@@ -19,10 +19,14 @@ type EncodedImage struct {
 	// Preset is what the generation that drew the picture ran; a picture decoded from its bytes holds none.
 	Preset media.Preset `json:"preset,omitzero"`
 	// Prompt and NegativePrompt are what the picture's conditioning was drawn from, as the MOSS Ultra workflow shows them
-	// ("Prompt used", "Negative prompt used"), where its capability reports them (Request.Drawn); a picture decoded from
-	// its bytes holds none.
+	// ("Prompt used", "Negative prompt used"), as its draw sets them; Sharpened says its finishing sharpened it. The
+	// picture stored keeps all three in its own bytes (PNGContent), as ComfyUI writes its prompt into the pictures it
+	// saves, and a picture its stored run answers reads them back (DecodeContent), so they travel with the draw's result
+	// and are never read back from the request its run stored, which a request above a mebibyte is stored as the digest
+	// of (draw-result-carries, SQA-464).
 	Prompt         string `json:"prompt,omitzero"`
 	NegativePrompt string `json:"negative_prompt,omitzero"`
+	Sharpened      bool   `json:"sharpened,omitzero"`
 	// Drawn is the picture as it was drawn, before its finishing's sharpening, as PNG bytes of the same extent, where it
 	// was sharpened: the MOSS Ultra workflow saves both and compares them (moss-sharpened-pair). A picture its stored run
 	// answers holds it where its capability finds it (the sharpened picture derived from it).
@@ -51,12 +55,33 @@ var encodedPNGContract = artifact.DocumentContract{
 	Kind: artifact.KindOutput, MediaType: media.PNGMediaType, Schema: "overgo.encoded-image.png.v1",
 }
 
-// PNGContent validates and publishes the encoded PNG bytes without a JSON copy.
+// PNGContent validates and publishes the encoded PNG bytes without a JSON copy, what the picture was drawn from written
+// into them as text where it says (pictureTexts), so a picture saying nothing keeps its bytes as they are, and a
+// picture published again is the same content.
 func PNGContent(image EncodedImage) (artifact.Content, error) {
 	if !media.ValidRGBRaster(image.MediaType, image.Channels, image.Height, image.Width) {
 		return artifact.Content{}, errors.New("latent image: invalid encoded PNG")
 	}
-	return encodedPNGContract.OwnedContentBytes(image.Data)
+	data, err := withPictureTexts(image.Data, image.pictureTexts())
+	if err != nil {
+		return artifact.Content{}, err
+	}
+	return encodedPNGContract.OwnedContentBytes(data)
+}
+
+// pictureTexts are what the picture was drawn from, as its stored bytes carry them, by keyword: none it does not say.
+func (image EncodedImage) pictureTexts() [][2]string {
+	var texts [][2]string
+	if image.Prompt != "" {
+		texts = append(texts, [2]string{textPromptUsed, image.Prompt})
+	}
+	if image.NegativePrompt != "" {
+		texts = append(texts, [2]string{textNegativeUsed, image.NegativePrompt})
+	}
+	if image.Sharpened {
+		texts = append(texts, [2]string{textFinishing, finishingSharpened})
+	}
+	return texts
 }
 
 func encodePNG(pixels []float32, height, width int) (EncodedImage, error) {

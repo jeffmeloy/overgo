@@ -158,9 +158,9 @@ func newStandInPictures(t *testing.T, opened func(artifact.Repository) latentima
 		func(runtime *workflowruntime.Runtime, modelID artifact.ID, _ *repeatSession) error {
 			return workflowruntime.RegisterContextPipeline(runtime, modelID,
 				modelrecipe.ModuleLatentImagePrepare, func(_ context.Context, request latentimage.Request) (latentimage.Request, error) {
-					// The session takes a source picture as its stored bytes, read where no answer was stored, and reads its
-					// adapters as the picture session reads them.
-					if _, read := sources[request.Image]; request.Image != "" && !read {
+					// The session takes a source picture named by its stored identity as its stored bytes, read where no answer
+					// was stored, and reads its adapters as the picture session reads them.
+					if _, named := artifact.ParseID(request.Image); named == nil {
 						return latentimage.Request{}, fmt.Errorf("the session took the source picture as %.40q, not its stored bytes", request.Image)
 					}
 					for _, adapter := range pictures.adapters {
@@ -187,15 +187,19 @@ func newStandInPictures(t *testing.T, opened func(artifact.Repository) latentima
 						return latentimage.EncodePlanarPNG(pixels, request.Height, request.Width)
 					}
 					// A sharpened picture is its own, and comes with the picture it drew, as MOSS's does (EncodedImage.Drawn).
+					// It reports what it drew from as MOSS's does (EncodedImage.Prompt): the prompt and negative it was given.
 					if request.Sharpen == nil {
-						return picture(shade)
+						finished, err := picture(shade)
+						finished.Prompt, finished.NegativePrompt = request.Prompt, request.NegativePrompt
+						return finished, err
 					}
 					drawn, err := picture(shade)
 					if err != nil {
 						return latentimage.EncodedImage{}, err
 					}
 					finished, err := picture(shade + 0.05)
-					finished.Drawn = drawn.Data
+					finished.Drawn, finished.Sharpened = drawn.Data, true
+					finished.Prompt, finished.NegativePrompt = request.Prompt, request.NegativePrompt
 					return finished, err
 				},
 				latentimage.PNGContent)

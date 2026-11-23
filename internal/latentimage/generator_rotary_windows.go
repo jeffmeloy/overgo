@@ -409,6 +409,13 @@ func (g *Generator) decodeRotary(ctx context.Context) (result EncodedImage, err 
 		return result, err
 	}
 	result.Drawn = drawn.Data
+	// What the picture was drawn from travels with it (EncodedImage.Prompt, draw-result-carries): the prompt its text
+	// encoder read, its layout's where it gives one, and its negative, its preset's filled.
+	result.Prompt, result.NegativePrompt, result.Sharpened = g.request.prompt(), g.request.NegativePrompt, g.request.Sharpen != nil
+	// Its bytes are those its store keeps (PNGContent), what it was drawn from written into them.
+	if result.Data, err = withPictureTexts(result.Data, result.pictureTexts()); err != nil {
+		return result, err
+	}
 	sampler := "flow Euler"
 	if g.request.Schedule != nil && g.request.Schedule.Sampler == sampling.SamplerERSDE {
 		sampler = "ER-SDE"

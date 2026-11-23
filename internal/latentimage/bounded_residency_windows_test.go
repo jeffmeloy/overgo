@@ -70,7 +70,9 @@ func TestMOSSBoundedResidency(t *testing.T) {
 	g := load(base)
 	bothNew := prepare(g, base)
 	native := finish(g)
-	id, err := artifact.IdentifyBytes(artifact.KindOutput, native)
+	// The pixels are pinned: what a picture was drawn from, written into its bytes, is taken out (draw-result-carries).
+	pixels := testcheck.Must(withPictureTexts(native, nil))(t)
+	id, err := artifact.IdentifyBytes(artifact.KindOutput, pixels)
 	if err != nil || id.DigestHex() != "99062f8a13f008e4c3f14f45e5a2b063e2ce4e910a59f90b3b2bdc48d32fdeda" {
 		t.Fatal("native compact image differs", id, err)
 	}

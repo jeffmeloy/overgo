@@ -20,9 +20,12 @@ func (image *EncodedImage) DecodeContent(content artifact.Content) error {
 	if err != nil {
 		return err
 	}
+	// What the picture was drawn from travels in its bytes (PNGContent), so a stored answer gives it back.
+	texts := readPictureTexts(content.Data)
 	*image = EncodedImage{
 		Data: content.Data, MediaType: media.PNGMediaType,
 		Channels: media.RGBChannels, Height: config.Height, Width: config.Width,
+		Prompt: texts[textPromptUsed], NegativePrompt: texts[textNegativeUsed], Sharpened: texts[textFinishing] == finishingSharpened,
 	}
 	return nil
 }

@@ -59,14 +59,14 @@ func pictureSessions() (*pictureDirector, error) {
 // files it reads beside its model, named through held (pictureFiles), and sought in the store by the request as it
 // names its pictures, by their stored identity, which are read only where no answer is stored (readPictures,
 // ReadsOnMiss): a repeated picture had read and encoded its source picture before its answer was sought
-// (moss-served-repeat). Prompt mode 2's enhancer chat is opened through opened (enhancerOpener where it serves). Each
-// picture reports the prompt and negative prompt it was drawn from (reportedDrawn). Model is the session's model, a
+// (moss-served-repeat). Prompt mode 2's enhancer chat is opened through opened (enhancerOpener where it serves). A
+// sharpened picture comes with the picture it drew (keptDrawn). Model is the session's model, a
 // latentimage Generator where it serves.
 func pictureExecutor[Model any](director *capabilityruntime.ModelSessionDirector[latentimage.Request, Model, latentimage.EncodedImage], err error, held *heldfile.Set, opened func(artifact.Repository) latentimage.EnhancerOpener) capabilityruntime.Executor {
 	if err == nil {
 		director.ReadsOnMiss(readPictures)
 	}
-	return keptDrawn(reportedDrawn(capabilityruntime.Reading(preparedFirst(sessionExecutor(director, err), opened), capabilityruntime.Contents(held, pictureFiles))))
+	return keptDrawn(capabilityruntime.Reading(preparedFirst(sessionExecutor(director, err), opened), capabilityruntime.Contents(held, pictureFiles)))
 }
 
 // keptDrawn has each sharpened picture next serves come with the picture as it was drawn, before its finishing
@@ -88,6 +88,11 @@ func keptDrawn(next capabilityruntime.Executor) capabilityruntime.Executor {
 		if err != nil {
 			return nil, err
 		}
+		// The picture is returned as its bytes are stored, what it was drawn from written into them (PNGContent), so a
+		// picture drawn and the same picture its stored run answers are one.
+		picture.Data = finished.Data
+		measured.Output = picture
+		output = measured
 		if before, sharpened := picture.BeforeFinishing(); sharpened {
 			first, err := latentimage.PNGContent(before.(latentimage.EncodedImage))
 			if err != nil {
@@ -100,17 +105,10 @@ func keptDrawn(next capabilityruntime.Executor) capabilityruntime.Executor {
 			}
 			return output, nil
 		}
-		// A picture its stored run answers is looked up only where its request sharpens it.
-		var request latentimage.Request
-		if err := strictjson.DecodeBytes(measured.Input.Data, &request); err != nil {
-			return nil, err
-		}
-		catalog, err := pictureCatalog(ctx, store, path, selection)
-		if err != nil {
-			return nil, err
-		}
-		if sharpened, err := request.Sharpened(catalog); err != nil || !sharpened {
-			return output, err
+		// A picture its stored run answers says it was sharpened by its own bytes (latentimage EncodedImage.Sharpened); its
+		// request, which a request above a mebibyte is stored as the digest of, is never read back (SQA-464).
+		if !picture.Sharpened {
+			return output, nil
 		}
 		parents, err := store.Parents(ctx, finished.Descriptor.ID)
 		if err != nil {
@@ -131,37 +129,6 @@ func keptDrawn(next capabilityruntime.Executor) capabilityruntime.Executor {
 			}
 		}
 		return output, nil
-	}
-}
-
-// reportedDrawn has each picture next serves report the prompt and the negative prompt it was drawn from, as the MOSS
-// Ultra workflow shows them beside each section's picture ("Prompt used", "Negative prompt used"): read from the request
-// its run records (capabilityruntime Measured.Input), which is the enhancer's in prompt mode 2, its preset filled
-// (latentimage Request.Drawn), so a picture drawn and one its stored run answers report the same (moss-prompts-used).
-func reportedDrawn(next capabilityruntime.Executor) capabilityruntime.Executor {
-	return func(ctx context.Context, store artifact.Repository, path string, selection modelrecipe.CapabilityEvidenceSelection, input string) (any, error) {
-		output, err := next(ctx, store, path, selection, input)
-		measured, enveloped := output.(capabilityruntime.Measured)
-		if err != nil || !enveloped {
-			return output, err
-		}
-		picture, drawn := measured.Output.(latentimage.EncodedImage)
-		if !drawn {
-			return output, nil
-		}
-		var request latentimage.Request
-		if err := strictjson.DecodeBytes(measured.Input.Data, &request); err != nil {
-			return nil, err
-		}
-		catalog, err := pictureCatalog(ctx, store, path, selection)
-		if err != nil {
-			return nil, err
-		}
-		if picture.Prompt, picture.NegativePrompt, err = request.Drawn(catalog); err != nil {
-			return nil, err
-		}
-		measured.Output = picture
-		return measured, nil
 	}
 }
 

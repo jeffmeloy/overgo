@@ -36,7 +36,8 @@ func TestASharpenedPictureReturnsThePictureItDrew(t *testing.T) {
 	if len(unsharpened.Drawn) != 0 {
 		t.Error("an unsharpened picture came with a picture drawn before it")
 	}
-	if !bytes.Equal(finished.Drawn, unsharpened.Data) {
+	// The unsharpened picture's bytes carry what it was drawn from (draw-result-carries); its pixels are compared.
+	if !bytes.Equal(finished.Drawn, testcheck.Must(withPictureTexts(unsharpened.Data, nil))(t)) {
 		t.Errorf("the sharpened picture came with %d bytes as the picture it drew; want the same request's unsharpened picture, %d bytes", len(finished.Drawn), len(unsharpened.Data))
 	}
 	if bytes.Equal(finished.Data, unsharpened.Data) {

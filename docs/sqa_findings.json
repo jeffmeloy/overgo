@@ -2,19 +2,6 @@
   "branch": "master",
   "findings": [
     {
-      "id": "SQA-406",
-      "severity": "P2",
-      "files": [
-        "internal/capabilityruntime/runtime.go",
-        "internal/mediacapability/image_cuda_windows.go",
-        "internal/latentimage/media_adapter.go",
-        "internal/capabilityruntime/session_director.go"
-      ],
-      "input": "Name a MOSS request while its required adapter is absent, install it before the draw opens it, then close the session, remove it and retry.",
-      "expected": "Refuse a missing required adapter before replay or drawing. Keep the existing held-file identity for a present adapter.",
-      "actual": "Contents includes the absent marker in the key. A draw after installation can succeed under that key and replay after removal. Source counterexample."
-    },
-    {
       "id": "SQA-469",
       "severity": "P2",
       "files": [
@@ -26,7 +13,7 @@
       ],
       "input": "Save a successful fixed-seed enhanced MOSS answer using the five files in ultraEnhancer. Stop the server, rename only enhancer/config.json to config.json.bak, restart the same build and store, and repeat the request. Compare with a forced fresh request.",
       "expected": "Determine the enhancer dependencies from the model loader's named inputs before replay. Require its config.json and reuse a valid answer when only unrelated files change.",
-      "actual": "Request.Beside enumerates all regular files and Contents hashes only their ordered content IDs. This rename preserves their order and bytes, so the stored picture and prompt replay. A fresh open requires config.json and fails. Conversely an added unrelated notes.txt changes the key and repeats enhancement and drawing. The retained repeat check uses a stand-in. Source counterexamples at 038828c6d."
+      "actual": "Request.Beside enumerates all regular files and Contents hashes only their ordered content IDs. This rename preserves their order and bytes, so the stored picture and prompt replay. A fresh open requires config.json and fails. Conversely an added unrelated notes.txt changes the key and repeats enhancement and drawing. Every listed file still opens after the rename, so the missing-file refusal in 57f7e72e8 is never reached. Source counterexamples. The retained repeat check uses a stand-in."
     },
     {
       "id": "SQA-466",
@@ -136,11 +123,13 @@
       "files": [
         "internal/latentimage/rotary_denoiser.go",
         "internal/latentimage/rotary_refinement.go",
-        "internal/latentimage/rotary_sampling_windows.go"
+        "internal/latentimage/rotary_sampling_windows.go",
+        "internal/graphruntime/resident.go",
+        "internal/latentimage/refine_once_windows_model_test.go"
       ],
-      "input": "Run 50 MOSS text-to-image steps with a fixed prompt, guidance 1, no skipped steps and no adapter.",
-      "expected": "Refine that branch once on the device and preserve its rotary positions and seeded output across all 50 steps.",
-      "actual": "compileRotaryDenoiserProgram puts textGraph.refine inside the per-pass graph. Its inputs stay fixed for all 50 evaluations. Count from source. Wall time and peak memory are unmeasured."
+      "input": "Run the recorded 1024 by 576 MOSS depth section on a new session, with intermediate observations off. Follow one branch's text from refinement to its first denoising pass.",
+      "expected": "Keep the refined rows on the device until the branch finishes. Reuse the rotary positions or supply only the text portion to the refiner. In the existing two-section check, verify the actual sampling path refines once per branch and preserves the reference latent bits.",
+      "actual": "45ea4acad removes per-pass refinement. Each branch still copies the refined F32 rows to the CPU, hashes them, and uploads them on a binding miss (12 KiB per token each way on a miss). It also feeds the refiner all rotary positions. The 64 x 36 image positions alone add 1.125 MiB per branch although textRows uses only the text positions. Counts from source and the pinned 3072-wide, 24-head model. Transfer time is unmeasured. The retained 192 s check matched latent bits. Forcing refinedText false at the production call would still pass: both draws then use per-pass refinement and the weight check compiles its own graphs."
     },
     {
       "id": "SQA-461",
@@ -253,13 +242,6 @@
     "at": "2026-11-22",
     "head": "47b3587c9e56fbd77a864920b99eebf16f30edd1",
     "findings": {
-  "SQA-406": {
-        "action": "filed",
-        "rows": [
-          "served-answers/absent"
-        ],
-        "note": "Reopened by the review (its answer taken out at e73ecc7ff) and answered by the lead on 2026-11-22 at 47b3587c9: valid from source (capabilityruntime.Contents writes an absent file into the naming as \"absent\" and goes on, so an answer drawn once the file is installed is kept, and replayed, under the absent key); filed as served-answers/absent, after moss-workflow-surface."
-      },
   "SQA-425": {
         "action": "filed",
         "rows": [
@@ -302,13 +284,6 @@
           "control-zeros/do"
         ],
         "note": "Reopened by the review (its answer taken out at e73ecc7ff; moss-step-copies/do kept the latent on the card but left controlAt as it was) and answered by the lead on 2026-11-22 at 47b3587c9: valid from source (controlAt allocates the zeros before it asks whether the card holds them); filed as control-zeros/do, awaiting refine and its timing (the owner's review of 2026-11-22, third, point 1)."
-      },
-  "SQA-422": {
-        "action": "filed",
-        "rows": [
-          "moss-pass-repeats/refine"
-        ],
-        "note": "Reopened by the review (its answer taken out at e73ecc7ff; moss-fusion made no step of it) and answered by the lead on 2026-11-22 at 47b3587c9: valid from source (textGraph.refine reads no timestep and no latent but runs in every pass); its saving is unmeasured, and the workflow's clock reads it once the step lands; filed as moss-pass-repeats/refine."
       },
   "SQA-460": {
         "action": "filed",

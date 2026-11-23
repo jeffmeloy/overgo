@@ -3,6 +3,26 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "pair-encode",
+      "title": "A sharpened MOSS picture's drawn PNG is encoded beside its sharpened one, each byte for byte as before, and the workflow is timed after it",
+      "steps": [
+        {
+          "id": "clock",
+          "title": "The workflow is timed whole after pair-encode and control-zeros, the machine held quiet, and the timing appended to the record (moss-workflow-clock)",
+          "verify": "git log --format=%s -n 200 | grep -qF 'pair-encode/do:' \u0026\u0026 git log --format=%s -n 200 | grep -qF 'control-zeros/do:' \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF \"\\\"commit\\\":\\\"$(git rev-parse HEAD)\\\"\" \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF '\"committed\":true'",
+          "files": [
+            "docs/verification"
+          ],
+          "needs_card": true,
+          "rationale": "The owner's review of 2026-11-22 (third), point 1: a cure of the measured gap is timed before more serving fixes. TestTheUltraWorkflowIsTimedInItsOrder at the commit landing pair-encode/do and control-zeros/do, OVERGO_WORKFLOW_RECORD=docs/verification/moss-workflow-time.jsonl, the tree unchanged and the machine held quiet, its timing appended to the record and landed alone. Check: the record's last line names HEAD's commit and was committed code.",
+          "depends_on": [
+            "pair-encode/do",
+            "control-zeros/do"
+          ]
+        }
+      ]
+    },
+    {
       "id": "control-zeros",
       "title": "A MOSS sampling makes its control's zeros on their first use alone",
       "steps": [
@@ -34,7 +54,7 @@
           ],
           "rationale": "SQA-425 (P2), checked at 47b3587c9: valid in its first part. Request.Sized reads the preset only when the request states no size, so with 1024 by 576 stated, admitted passes an undeclared preset, pictureFiles names nothing, Reading draws afresh, and onMiss reports the missing picture where the preset is at fault. Its second part, the enhancer's chat opened before a missing source is refused, went with enhanced-repeat/do: onMiss reads a request's pictures before it enhances. The change: admitted reads a named preset from the catalog at any size. Check: TestAnUndeclaredPresetIsRefusedAtAnySize sends an undeclared preset with no size and with 1024 by 576, a missing picture named in each, through preparedFirst with a stand-in session: each is refused naming the preset, and the session is never reached.",
           "depends_on": [
-            "moss-pass-repeats/clock"
+            "pair-encode/clock"
           ]
         },
         {
@@ -47,7 +67,7 @@
           ],
           "rationale": "SQA-466 (P2), checked against keptDrawn at 47b3587c9: valid. keptDrawn publishes the drawn PNG and its derived-from edge after the run has kept the sharpened one, so a process stopped between the two leaves a stored answer with no drawn parent, and every repeat finds it and returns the sharpened picture alone, as a success. The change: a replayed sharpened picture whose drawn one the store does not hold is no answer, and the request is drawn afresh and both kept. Check: TestAStoredSharpenedPictureWithoutItsDrawnOneIsDrawnAgain keeps a sharpened answer with no drawn parent through the served-repeat stand-in: its repeat draws again and returns both pictures, and a whole pair is replayed with no draw.",
           "depends_on": [
-            "moss-pass-repeats/clock"
+            "pair-encode/clock"
           ]
         },
         {
@@ -60,7 +80,7 @@
           ],
           "rationale": "SQA-461 (P2), checked against pictureFiles and preparedFirst in image_cuda_windows.go at 47b3587c9: valid on the served path. Reading names a picture request's files through pictureFiles, which reads and parses the selected profile (pictureCatalog), and preparedFirst reads it again to size the request, so every request reads its profile twice before the director seeks its stored answer, and a plain repeat, which names no preset, canvas or adapter, needs neither read. The review's other part, Generator.Reset and prepare each opening model_index.json again on a changed seed, is in the generator, which the served-repeat check stands in for; it goes with served-parts, whose ledger reads that part's time. The change: a request's catalog is read once, where its preset, canvas or adapters ask for it, and passed on to the sizing. Check: TestARepeatedPictureReadsNoProfile serves a plain picture twice and one naming a preset through the served-repeat stand-in, counting the profile's reads: none for the plain repeat, one for the preset request.",
           "depends_on": [
-            "moss-pass-repeats/clock"
+            "pair-encode/clock"
           ]
         }
       ]
@@ -102,7 +122,7 @@
           ],
           "rationale": "SQA-460 (P2), checked against readWorkflowSource and appendWorkflowTiming at 47b3587c9: valid. An absolute OVERGO_WORKFLOW_RECORD is accepted at the start and joined under the repository only when the timing is appended, after both runs, so the attempt reported in d28ab1e84 drew twelve sections (81 s measured) and saved nothing. The change: the record path is checked, relative and inside the repository, before the quiet machine is asked for. Check: TestTheWorkflowClockRefusesARecordItCannotWrite gives the source check an absolute path and one leaving the repository: each is refused before any draw.",
           "depends_on": [
-            "moss-pass-repeats/clock"
+            "pair-encode/clock"
           ]
         },
         {
@@ -114,7 +134,7 @@
           ],
           "rationale": "SQA-388 (P2), checked against cmd/comfy-reference/record.go at 47b3587c9: valid. record resumes a prompt on its request hash and prompt ID alone after reading the current models and commits; await starts sampling memory at a retry; keep names a file by its node and base name, so two files of one name from one node in different subfolders overwrite each other; and the paired-recording check asks each run for a prompt ID but never compares them, so one capture given twice passes as two runs. The three pairs at 89cf0f0e3 have distinct prompt IDs. The change: a resumed output keeps the producer it was recorded under and is refused when the models or commits moved; memory sampling begun on a retry says so; a kept file's name holds its subfolder; and a pair's prompt IDs differ. Check: TestARecordingBindsEachOutputToWhatMadeIt drives record against a stand-in ComfyUI for each case.",
           "depends_on": [
-            "moss-pass-repeats/clock"
+            "pair-encode/clock"
           ]
         }
       ]
@@ -140,7 +160,7 @@
           ],
           "rationale": "The owner's review of 2026-11-22 (second), point 3, checked against the code: partly valid. The parts ledger exists for every served path (processmeasure.Stages): the session director marks the request read, the stored answer sought, the named inputs read, the session leased and the run recorded, the workflow runtime marks each stage by its module, video marks its own (prompt rows, denoising, decoding, the clip written) and chat its load's (cmd/recipe inference_measure). But a part records its wall and the device's peak alone, speech marks none of its own, and only the MOSS workflow's clock reads a request's parts beside each one's processor time and bytes read (latentimage TestTheUltraWorkflowIsTimedInItsOrder, readProcessUse, written into that test), which is how adapter-hold's per-request hashing was found.\n\nThe change: a part records its processor time and the bytes the process read inside it (processmeasure.Part), so every ledger carries what the MOSS clock computed by hand; speech marks its parts as video does; and the recipe command's measure reports every served task's parts, not chat's load alone. The MOSS clock reads the ledger in place of its own counters.\n\nCheck: TestEachServedPathSplitsItsRequestIntoParts serves a picture, a clip, speech and a chat turn through their capabilities with stand-in sessions under a ledger: each request's parts name its load or lease, its stages and its recording, each with wall, processor time and bytes read, their walls inside the request's.\n\nNote: SQA-468 (P3) and the generator part of SQA-461 go with this step, as the parts they cost show in its ledger: the finished PNG is rebuilt with its texts by the workflow's output encoder, keptDrawn and the workspace's OutputContent though the generator wrote them once (three full rewrites a fresh draw, two a repeat, withPictureTexts allocating a whole buffer even where every chunk matches), and Generator.Reset and prepare each open model_index.json again on a changed seed. Where the ledger shows them, PNGContent keeps bytes already carrying the texts it would write, the artifact ID unchanged, and the catalog is read once a session.",
           "depends_on": [
-            "moss-pass-repeats/clock"
+            "pair-encode/clock"
           ]
         }
       ]

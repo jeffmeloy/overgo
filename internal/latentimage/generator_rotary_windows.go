@@ -394,18 +394,9 @@ func (g *Generator) decodeRotary(ctx context.Context) (result EncodedImage, err 
 	}
 	// The picture is sharpened as it is finished, after the decoded pixels a parity observes; the picture drawn is kept
 	// beside it, as the MOSS Ultra workflow saves each section's picture and its sharpened picture and compares them
-	// (moss-sharpened-pair).
+	// (moss-sharpened-pair), each encoded beside the other (pair-encode).
 	var drawn EncodedImage
-	if g.request.Sharpen != nil {
-		if drawn, err = encodeUnitPNG(pixels, p.OutH, p.OutW); err != nil {
-			return result, err
-		}
-		if pixels, err = media.Sharpen(pixels, p.OutH, p.OutW, *g.request.Sharpen); err != nil {
-			return result, err
-		}
-	}
-	result, err = encodeUnitPNG(pixels, p.OutH, p.OutW)
-	if err != nil {
+	if result, drawn, err = finishedPNGs(pixels, p.OutH, p.OutW, g.request.Sharpen); err != nil {
 		return result, err
 	}
 	result.Drawn = drawn.Data

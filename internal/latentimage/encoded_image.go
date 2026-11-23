@@ -2,6 +2,7 @@ package latentimage
 
 import (
 	"errors"
+	"sync"
 
 	"overgo/internal/artifact"
 	"overgo/internal/media"
@@ -90,6 +91,26 @@ func encodePNG(pixels []float32, height, width int) (EncodedImage, error) {
 
 func encodeUnitPNG(pixels []float32, height, width int) (EncodedImage, error) {
 	return encodeRGB(pixels, height, width, false, true)
+}
+
+// finishedPNGs is a decoded picture's PNG, sharpened where sharpen asks, and beside it, where it is sharpened, the PNG
+// of the picture as drawn (moss-sharpened-pair). The drawn picture is encoded while the picture is sharpened and its own
+// PNG encoded (pair-encode): each PNG is deflate's work, about 0.2 s of a 1024 x 576 MOSS section, and the two in turn
+// had added that to each of the workflow's six sections, every one of which sharpens.
+func finishedPNGs(pixels []float32, height, width int, sharpen *media.Sharpening) (finished, drawn EncodedImage, err error) {
+	if sharpen == nil {
+		finished, err = encodeUnitPNG(pixels, height, width)
+		return finished, EncodedImage{}, err
+	}
+	var drawnErr error
+	var encoding sync.WaitGroup
+	encoding.Go(func() { drawn, drawnErr = encodeUnitPNG(pixels, height, width) })
+	sharpened, err := media.Sharpen(pixels, height, width, *sharpen)
+	if err == nil {
+		finished, err = encodeUnitPNG(sharpened, height, width)
+	}
+	encoding.Wait()
+	return finished, drawn, errors.Join(err, drawnErr)
 }
 
 // EncodePlanarPNG publishes normalized CHW RGB without an HWC copy.

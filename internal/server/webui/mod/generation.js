@@ -75,11 +75,24 @@
       shownText("Negative prompt used", used.negative_prompt, "Use as the negative prompt", "negative prompt"));
   }
 
+  // recordedInput: the request a completed run's record keeps, its first JSON input; none where the run has no record.
+  // A request kept as its digest (one above a mebibyte) names no picture, so no source is offered for it.
+  async function recordedInput(completed, overgo) {
+    if (!completed.run) return {};
+    const run = await overgo.api.get("/runs?id=" + encodeURIComponent(completed.run));
+    for (const id of run.inputs || []) {
+      const blob = await overgo.api.blob(overgo.contentURL(id));
+      if (blob.type.includes("json")) return JSON.parse(await blob.text());
+    }
+    return {};
+  }
+
   // shown: a completed run's outputs, its pictures beside an A/B compare: a sharpened run's picture as drawn (A) and
   // sharpened (B), as each MOSS Ultra section's comparer shows them (moss-sharpened-pair), else its picture (B) against
   // the picture its request started from or the picture drawn before it (A); and what its picture was drawn from where
   // the run says (promptsUsed); a non-picture output stands as its link. The pictures a request started from are the
-  // ones sent, not the form's as the run ends, and a run this page did not send names none (SQA-463).
+  // ones sent, not the form's as the run ends, and for a run this page did not send (followed again after a reload)
+  // the ones its recorded request names (recordedInput, SQA-463).
   async function shown(host, completed, overgo, sent) {
     const { el, contentURL, fmt } = overgo;
     let outputs = completed.outputs || [];
@@ -92,7 +105,7 @@
     const drawnFrom = fetched.find((output) => output.blob.type.includes("json"));
     const used = drawnFrom ? JSON.parse(await drawnFrom.blob.text()) : null;
     outputs = fetched.filter((output) => output !== drawnFrom).map((output) => output.id);
-    const input = sent || {};
+    const input = sent || await recordedInput(completed, overgo);
     const started = [input.image, input.control && input.control.picture].filter(Boolean);
     const before = pictures.find((picture) => !outputs.includes(picture.id) && !started.includes(picture.id));
     for (const id of started) remember(id, "started from · " + fmt.shortID(id));

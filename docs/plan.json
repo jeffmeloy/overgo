@@ -18,24 +18,6 @@
       ]
     },
     {
-      "id": "run-source-resumed",
-      "title": "A MOSS run followed again after a reload is compared with the source its recorded request names",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A MOSS run followed again after a reload is compared with the source its recorded request names",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserMOSSResumedRunComparesItsRecordedSource$' -leg moss-resumed-source",
-          "files": [
-            "internal/server"
-          ],
-          "rationale": "SQA-463 (P2), reopened by the review after moss-workflow-surface/source (038828c6d), checked against workflow.js at 4f1c9aaa4: valid. A run this page sent is compared with the input it sent, but a run followed again after a reload (liveOperation, follow(live.id)) has no sent input, so its comparison offers no source, though the run's record keeps its request, control.picture among it. The change: a run followed again reads the request its record keeps and offers the pictures it names as the run's source; where the record names none, none is offered. Check: TestWebUIBrowserMOSSResumedRunComparesItsRecordedSource sends a depth section with stored picture A as its control picture, reloads the page while the run draws, and on completion finds the compare's A to be picture A, labelled as the picture the run started from.",
-          "depends_on": [
-            "pair-encode/clock"
-          ]
-        }
-      ]
-    },
-    {
       "id": "pair-enhanced",
       "title": "An enhanced MOSS picture whose pair was not kept is drawn again from the prompts its stored picture carries, its chat not opened again",
       "steps": [

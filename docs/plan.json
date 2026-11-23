@@ -22,19 +22,6 @@
       "title": "A served MOSS picture is answered from its stored run only where every file it reads is present, its preset declared and its pair whole",
       "steps": [
         {
-          "id": "pair",
-          "title": "A stored sharpened MOSS picture whose drawn picture was never kept is drawn again, so a run answers both pictures or draws them",
-          "verify": "go test ./internal/mediacapability -count=1 -run '^TestAStoredSharpenedPictureWithoutItsDrawnOneIsDrawnAgain$'",
-          "files": [
-            "internal/mediacapability",
-            "internal/capabilityruntime"
-          ],
-          "rationale": "SQA-466 (P2), checked against keptDrawn at 47b3587c9: valid. keptDrawn publishes the drawn PNG and its derived-from edge after the run has kept the sharpened one, so a process stopped between the two leaves a stored answer with no drawn parent, and every repeat finds it and returns the sharpened picture alone, as a success. The change: a replayed sharpened picture whose drawn one the store does not hold is no answer, and the request is drawn afresh and both kept. Check: TestAStoredSharpenedPictureWithoutItsDrawnOneIsDrawnAgain keeps a sharpened answer with no drawn parent through the served-repeat stand-in: its repeat draws again and returns both pictures, and a whole pair is replayed with no draw.",
-          "depends_on": [
-            "pair-encode/clock"
-          ]
-        },
-        {
           "id": "profile",
           "title": "A MOSS request reads its selected profile once, where its preset, canvas or adapters ask for it, and a plain repeat reads none",
           "verify": "go test ./internal/mediacapability -count=1 -run '^TestARepeatedPictureReadsNoProfile$'",

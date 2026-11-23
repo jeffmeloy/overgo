@@ -78,7 +78,8 @@ func pictureExecutor[Model any](director *capabilityruntime.ModelSessionDirector
 // (latentimage EncodedImage.Drawn), which is stored beside the sharpened picture as the one it was derived from, and a
 // picture its stored run answers, which holds the sharpened picture alone, is given the picture it was derived from.
 func keptDrawn(next capabilityruntime.Executor) capabilityruntime.Executor {
-	return func(ctx context.Context, store artifact.Repository, path string, selection modelrecipe.CapabilityEvidenceSelection, input string) (any, error) {
+	var keep func(ctx context.Context, store artifact.Repository, path string, selection modelrecipe.CapabilityEvidenceSelection, input string, redraw bool) (any, error)
+	keep = func(ctx context.Context, store artifact.Repository, path string, selection modelrecipe.CapabilityEvidenceSelection, input string, redraw bool) (any, error) {
 		output, err := next(ctx, store, path, selection, input)
 		measured, enveloped := output.(capabilityruntime.Measured)
 		if err != nil || !enveloped || store == nil {
@@ -132,7 +133,16 @@ func keptDrawn(next capabilityruntime.Executor) capabilityruntime.Executor {
 				return measured, nil
 			}
 		}
-		return output, nil
+		// A stored sharpened picture whose drawn picture the store does not hold, its keeping stopped between the run's and
+		// the pair's (SQA-466), is no answer: the request is drawn afresh, once, and both are kept. The picture drawn again is
+		// the stored one's bytes, so its pair answers the stored run too.
+		if !redraw {
+			return output, nil
+		}
+		return keep(capabilityruntime.FreshRun(ctx), store, path, selection, input, false)
+	}
+	return func(ctx context.Context, store artifact.Repository, path string, selection modelrecipe.CapabilityEvidenceSelection, input string) (any, error) {
+		return keep(ctx, store, path, selection, input, true)
 	}
 }
 

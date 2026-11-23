@@ -3,49 +3,54 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "refine-held",
-      "title": "A MOSS branch's refined text stays on the card for its passes, refined from the text's rotary rows alone, and its check reads the sampling's own programs",
+      "id": "png-level",
+      "title": "A MOSS picture's PNGs are deflated at level 4, as ComfyUI's SaveImage writes them, their pixels unchanged, and the clock reads the decode part as the card's decode and the finishing",
       "steps": [
         {
-          "id": "do",
-          "title": "A MOSS branch's refined text stays on the card for its passes, refined from the text's rotary rows alone, and its check reads the sampling's own programs",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^TestThePromptIsRefinedOnceARequest$'",
+          "id": "clock",
+          "title": "The workflow is timed whole after png-level, the machine held quiet, and the timing appended to the record (moss-workflow-clock)",
+          "verify": "git log --format=%s -n 200 | grep -qF 'png-level/do:' \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF \"\\\"commit\\\":\\\"$(git rev-parse HEAD)\\\"\" \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF '\"committed\":true'",
           "files": [
-            "internal/latentimage"
+            "docs/verification"
           ],
-          "rationale": "SQA-422 (P2), reopened by the review after moss-pass-repeats/refine (45ea4acad), checked against the code: valid on its three points. Each branch copies its refined F32 rows to the host, hashes them and binds them to its pass program again (12 KiB a token each way), where they could stay on the card; the text program is fed every rotary row of the sequence, the 64 x 36 image's 1.125 MiB besides the text's it reads; and TestThePromptIsRefinedOnceARequest would pass were the sampling to refine in every pass regardless of samplingRefinesOnce, since both its draws would then refine per pass and its weight check compiles graphs of its own. The change: the pass program reads the refined rows where the text program left them on the card, a dynamic input held until the sampling ends, and the text program is fed the text's rotary rows alone (rounding is elementwise, so its rows are the pass's bit for bit). Check: TestThePromptIsRefinedOnceARequest holds, besides the two sections' latents bit for bit, that a sampling refining once keeps one text program a branch more than one refining in its passes, that a pass taking its text refined reads it as a dynamic input, and that the text program's rotary input holds the text's rows alone."
+          "needs_card": true,
+          "rationale": "The owner's review of 2026-11-23, point 1: the remaining gap cured where it is, then timed. TestTheUltraWorkflowIsTimedInItsOrder at png-level/do's commit, OVERGO_WORKFLOW_RECORD=docs/verification/moss-workflow-time.jsonl, the tree unchanged and the machine held quiet, its timing appended to the record and landed alone; the record reads the decode part as the card's decode and the finishing. Check: the record's last line names HEAD's commit and was committed code.",
+          "depends_on": [
+            "png-level/do"
+          ]
         }
       ]
     },
     {
-      "id": "pair-enhanced",
-      "title": "An enhanced MOSS picture whose pair was not kept is drawn again from the prompts its stored picture carries, its chat not opened again",
+      "id": "recorded-request",
+      "title": "A MOSS run followed again after a reload reads its recorded picture request by its schema, beside any prompt enhancement the run also kept",
       "steps": [
         {
           "id": "do",
-          "title": "An enhanced MOSS picture whose pair was not kept is drawn again from the prompts its stored picture carries, its chat not opened again",
-          "verify": "go test ./internal/mediacapability -count=1 -run '^TestAnInterruptedEnhancedPairIsRedrawnWithoutItsChat$'",
+          "title": "A MOSS run followed again after a reload reads its recorded picture request by its schema, beside any prompt enhancement the run also kept",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserMOSSResumedRunReadsItsRequestBesideItsEnhancement$' -leg moss-resumed-request",
           "files": [
-            "internal/mediacapability",
-            "internal/latentimage"
+            "internal/server"
           ],
-          "rationale": "SQA-466 (P2), reopened by the review after served-answers/pair (0abdf4529), checked against keptDrawn and onMiss at 08a0ad2c7: valid. keptDrawn draws a stored sharpened picture whose pair was not kept again under FreshRun with the request as given; for prompt mode 2 that request is the idea, so onMiss has the 9B enhancer write the prompt and negative again, two or three generations, though the stored picture carries both (DecodeContent). The change: the redraw carries the prompts the stored picture was drawn from, and onMiss takes them in place of the enhancer's, the request's identity as given, so its answer is kept under the request and the next repeat draws nothing. Check: TestAnInterruptedEnhancedPairIsRedrawnWithoutItsChat serves an enhanced sharpened request through the stand-in serving with its pair's keeping refused once; the repeat draws once, opens no chat, draws from the first's prompts and comes with both pictures, and the next draws nothing."
+          "rationale": "SQA-470 (P2), checked against generation.js recordedInput at b17937206: valid, and a user meets it: a rewritten prompt accepted in the composer is kept as a run's input beside its picture request, the run's inputs are listed by identity, and recordedInput takes the first JSON one, so where the enhancement's identity sorts first a run followed again after a reload offers no source. The change: the page takes the recorded input whose stored schema is the picture request's, as the server names it. Check: TestWebUIBrowserMOSSResumedRunReadsItsRequestBesideItsEnhancement follows again, after a reload, a depth run whose record keeps a prompt enhancement sorting before its request, and finds its control picture offered as its source."
         }
       ]
     },
     {
-      "id": "preset-control-window",
-      "title": "A MOSS request's control window is admitted as its preset fills it, before any file it names is read",
+      "id": "lanes-rotation",
+      "title": "A lanes run that yields to a newer commit keeps its place: the next takes first the packages longest without a pass that still holds, so every lane runs whole within one rotation while commits arrive",
       "steps": [
         {
           "id": "do",
-          "title": "A MOSS request's control window is admitted as its preset fills it, before any file it names is read",
-          "verify": "go test ./internal/mediacapability -count=1 -run '^TestAPresetsControlWindowIsAdmittedBeforeFilesAreRead$'",
+          "title": "A lanes run that yields to a newer commit keeps its place: the next takes first the packages longest without a pass that still holds, so every lane runs whole within one rotation while commits arrive",
+          "verify": "go test ./cmd/validate -count=1 -run '^TestAYieldedLanesRunResumesItsRotation$'",
           "files": [
-            "internal/mediacapability",
-            "internal/latentimage"
+            "cmd/validate",
+            "cmd/loop",
+            "internal/landing",
+            "internal/plan"
           ],
-          "rationale": "SQA-425 (P2), reopened by the review after served-answers/preset (706cdf75f), checked against admitted and Request.withSection at 08a0ad2c7: valid. admitted holds a request to latentimage.Admit as it came, its control's end unset and so 1, while the preset it names fills the end (ultra-depth-control's 0.5), so a control starting at 0.75 is admitted, Contents hashes the preset's adapter and the depth checkpoint (412 MB), ReadPictures reports a missing picture, and the window is refused only in the session, if at all; an end of 0.5 given in the request is refused at once. The change: admitted holds the request as its preset fills it to the session's refusals, the request served as it came. Check: TestAPresetsControlWindowIsAdmittedBeforeFilesAreRead sends ultra-depth-control with a control starting at 0.75 and a missing picture through preparedFirst with a stand-in session: it is refused for its control window, and pictureFiles names nothing for it."
+          "rationale": "The owner's review of 2026-11-23, point 3, checked against cmd/validate/run.go and .overgo-runtime/lanes.log: valid. A cycle's lanes run in one order (model-journey, audio, models, needle-reference, sequences); as a lane turns to another package the run yields to a newer commit due (lanes-first/yield), and every lane after the one yielding does not run. A row closes every 30 to 40 minutes and models takes hours, so each run yields inside models (lanes.log: 635db11e9, aaba3c348, 08a0ad2c7, e30533414, b17937206 each 'yields to ... as it turns to another package'), needle-reference and sequences have not run since 22 Nov 07:15, and the models lane has not passed whole for 28 commits; a run starts each time at the first lane again, so the packages it never reaches are the same ones. The change: a package's pass is kept with the commit it ran at, and holds at a later commit whose changes do not reach it (the lanes' readers by path, CycleLanesReached); a run, after the checks the commit's change names (lanes-first), takes the packages longest without a pass that holds, across lanes, so a yield loses nothing and the next run goes on where it stopped; a lane is whole where every package has a pass that holds at the commit read, and validate says the oldest pass any lane relies on. Check: TestAYieldedLanesRunResumesItsRotation runs stand-in lanes yielding after each package as commits arrive: every package of every lane runs within one rotation, a package a later commit reaches runs again, and the lanes read whole once each has a pass that holds."
         }
       ]
     },

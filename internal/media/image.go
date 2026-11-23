@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"image"
-	"image/color"
 	"image/png"
 	"math"
 
@@ -32,33 +31,6 @@ func AffineRGB(values []float32, scale, bias [RGBChannels]float32) []float32 {
 	return output
 }
 
-type normalizedRGBImage struct {
-	pixels                     []float32
-	width, height              int
-	pixelStride, channelStride int
-	quantize                   func(float32) uint8
-}
-
-// ColorModel returns the standard RGBA color model.
-func (i normalizedRGBImage) ColorModel() color.Model { return color.RGBAModel }
-
-// Bounds returns the image pixel rectangle.
-func (i normalizedRGBImage) Bounds() image.Rectangle { return image.Rect(0, 0, i.width, i.height) }
-
-// At returns the normalized pixel at the requested coordinate.
-func (i normalizedRGBImage) At(x, y int) color.Color {
-	if x < 0 || x >= i.width || y < 0 || y >= i.height {
-		return color.RGBA{}
-	}
-	offset := (y*i.width + x) * i.pixelStride
-	return color.RGBA{
-		R: i.quantize(i.pixels[offset]),
-		G: i.quantize(i.pixels[offset+i.channelStride]),
-		B: i.quantize(i.pixels[offset+(RGBChannels-1)*i.channelStride]),
-		A: ^uint8(0),
-	}
-}
-
 func normalizedPixel8(value float32) uint8 {
 	magnitude := float64(^uint8(0))
 	scaled := (float64(value) + 1) * magnitude / 2
@@ -68,19 +40,33 @@ func normalizedPixel8(value float32) uint8 {
 // EncodeNormalizedRGBPNG encodes normalized [-1,1] RGB pixels without a
 // layout conversion. planar selects CHW; false selects HWC.
 func EncodeNormalizedRGBPNG(pixels []float32, height, width int, planar bool) ([]byte, float32, float32, error) {
-	return encodeRGBPNG(pixels, height, width, planar, normalizedPixel8)
+	return encodeRGBPNG(pixels, height, width, planar, normalizedPixel8, defaultRGBPNG)
 }
 
 // EncodeUnitRGBPNG encodes finite HWC unit RGB with NumPy F32 ties-to-even rounding.
-// Values outside the unit interval are clamped before conversion.
+// Values outside the unit interval are clamped before conversion. It is MOSS's picture, deflated at the level ComfyUI's
+// SaveImage saves it at (writeRGBPNG, png-level).
 func EncodeUnitRGBPNG(pixels []float32, height, width int) ([]byte, float32, float32, error) {
 	return encodeRGBPNG(pixels, height, width, false, func(value float32) uint8 {
 		scaled := float32(min(max(value, 0), 1) * float32(^uint8(0)))
 		return uint8(math.RoundToEven(float64(scaled)))
-	})
+	}, writeRGBPNG)
 }
 
-func encodeRGBPNG(pixels []float32, height, width int, planar bool, quantize func(float32) uint8) ([]byte, float32, float32, error) {
+// defaultRGBPNG is an 8-bit RGB PNG of rows as image/png writes an opaque picture at its default level, the bytes the
+// pictures of every model but MOSS's are pinned by.
+func defaultRGBPNG(rows []byte, width, height int) ([]byte, error) {
+	canvas := image.NewRGBA(image.Rect(0, 0, width, height))
+	for index := range width * height {
+		copy(canvas.Pix[index*4:index*4+RGBChannels], rows[index*RGBChannels:(index+1)*RGBChannels])
+		canvas.Pix[index*4+RGBChannels] = ^uint8(0)
+	}
+	var encoded bytes.Buffer
+	err := (&png.Encoder{CompressionLevel: png.DefaultCompression}).Encode(&encoded, canvas)
+	return encoded.Bytes(), err
+}
+
+func encodeRGBPNG(pixels []float32, height, width int, planar bool, quantize func(float32) uint8, write func(rows []byte, width, height int) ([]byte, error)) ([]byte, float32, float32, error) {
 	if height <= 0 || width <= 0 || len(pixels) != height*width*RGBChannels {
 		return nil, 0, 0, errors.New("media: invalid normalized RGB output")
 	}
@@ -95,17 +81,14 @@ func encodeRGBPNG(pixels []float32, height, width int, planar bool, quantize fun
 	if planar {
 		pixelStride, channelStride = 1, width*height
 	}
-	source := normalizedRGBImage{
-		pixels: pixels, width: width, height: height,
-		pixelStride: pixelStride, channelStride: channelStride,
-		quantize: quantize,
+	rows := make([]byte, height*width*RGBChannels)
+	for index := range height * width {
+		for channel := range RGBChannels {
+			rows[index*RGBChannels+channel] = quantize(pixels[index*pixelStride+channel*channelStride])
+		}
 	}
-	var encoded bytes.Buffer
-	encoder := png.Encoder{CompressionLevel: png.DefaultCompression}
-	if err := encoder.Encode(&encoded, source); err != nil {
-		return nil, 0, 0, err
-	}
-	return encoded.Bytes(), minimum, maximum, nil
+	encoded, err := write(rows, width, height)
+	return encoded, minimum, maximum, err
 }
 
 // EncodePlanarRGB8Into converts finite planar RGB values to interleaved bytes

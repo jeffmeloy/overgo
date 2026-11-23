@@ -33,6 +33,7 @@ type workflowSectionTime struct {
 // workflowPart is one part of a section's wall, in its order (the session's load or reset, the prompt's preparation,
 // the sampling, the decode): its wall, the process's processor time over it, and the bytes the process read from files
 // over it, so a first run's time is split where it goes, each file read and each program built in the part that did it.
+// A part named "decode: " and a stage lies within the decode part (png-level), its wall alone read.
 type workflowPart struct {
 	Part         string `json:"part"`
 	Milliseconds int64  `json:"ms"`

@@ -14,6 +14,7 @@ import (
 
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/landing"
+	"overgo/internal/processmeasure"
 	"overgo/internal/quietmachine"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -173,8 +174,14 @@ func TestTheUltraWorkflowIsTimedInItsOrder(t *testing.T) {
 				sampled := time.Since(sampling)
 				copied := testcheck.Must(generator.rotary.runtime.Stats(ctx))(t).Execution.HostToDeviceBytes - before
 				part("sampling")
-				picture := testcheck.Must(generator.decode(ctx, session))(t)
+				// The decode part is read as its own parts besides (png-level): "decode: decoder compiled", "decode: decoded
+				// on the card" and "decode: finished", each a wall within the decode part's, not beside it.
+				staged, stages := processmeasure.WithStages(ctx)
+				picture := testcheck.Must(generator.decode(staged, session))(t)
 				part("decode")
+				for _, within := range testcheck.Must(stages.Parts())(t) {
+					parts = append(parts, workflowPart{Part: "decode: " + within.Name, Milliseconds: within.Wall.Milliseconds()})
+				}
 				wall, spent := time.Since(start), readProcessUse(t)
 				if len(picture.Data) == 0 {
 					t.Fatalf("run %d: %s drew no picture", run+1, section.slug)

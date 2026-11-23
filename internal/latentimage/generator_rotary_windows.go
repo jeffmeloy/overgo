@@ -12,6 +12,7 @@ import (
 	"overgo/internal/cuda/driver"
 	"overgo/internal/graphruntime"
 	"overgo/internal/media"
+	"overgo/internal/processmeasure"
 	"overgo/internal/sampling"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
@@ -366,14 +367,20 @@ func (g *Generator) decodeRotary(ctx context.Context) (result EncodedImage, err 
 	for _, feed := range p.feeds {
 		static[feed.node] = feed.data
 	}
+	// The decode's parts are named for a ledger that reads them (processmeasure.Stage): the decoder compiled, the picture
+	// decoded on the card and copied out, and the picture finished (png-level).
+	compiling := processmeasure.Stage(ctx, "decoder compiled")
 	program, err := compileResidentStatic(ctx, state.runtime, "rotary image decoder", static, []*tensor.Tensor{p.Latent}, p.pixels)
+	compiling()
 	if err != nil {
 		return result, err
 	}
 	defer func() {
 		err = errors.Join(err, state.runtime.Release(context.WithoutCancel(ctx), program), state.runtime.ReleaseStageMemory(context.WithoutCancel(ctx)))
 	}()
+	decoding := processmeasure.Stage(ctx, "decoded on the card")
 	output, err := state.runtime.ExecuteDevice(ctx, program, nil, []driver.DevicePtr{state.latent.value.Pointer})
+	decoding()
 	if err != nil {
 		return result, err
 	}
@@ -396,7 +403,10 @@ func (g *Generator) decodeRotary(ctx context.Context) (result EncodedImage, err 
 	// beside it, as the MOSS Ultra workflow saves each section's picture and its sharpened picture and compares them
 	// (moss-sharpened-pair), each encoded beside the other (pair-encode).
 	var drawn EncodedImage
-	if result, drawn, err = finishedPNGs(pixels, p.OutH, p.OutW, g.request.Sharpen); err != nil {
+	finishing := processmeasure.Stage(ctx, "finished")
+	result, drawn, err = finishedPNGs(pixels, p.OutH, p.OutW, g.request.Sharpen)
+	finishing()
+	if err != nil {
 		return result, err
 	}
 	result.Drawn = drawn.Data

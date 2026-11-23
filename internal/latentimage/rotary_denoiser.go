@@ -23,6 +23,9 @@ const rotaryTimestepBase = 10000
 
 type rotaryDenoiserProgram struct {
 	latent, context, embedding, rope, unit *tensor.Tensor
+	// refined is the text rows as the text refiner gives them, an input where the program takes them refined
+	// (rotaryOptions.refinedText); none where it refines them itself.
+	refined *tensor.Tensor
 	// valueScale and valueData scale each row's attention value in the joint blocks, the image rows by one and the text
 	// rows by a weighted prompt's weights (weightedSpans); none for a program that weights nothing.
 	valueScale   *tensor.Tensor
@@ -99,11 +102,13 @@ func compileRotaryDenoiserProgram(t TransformerSpec, epsilon float32, height, wi
 	}
 	video := g.linear("video_embedder", g.round(b.Transpose2D(latent)), in, g.width, true)
 	p.boundaries["video"] = video
-	textGraph := *g
-	textGraph.sequence = uint64(text)
-	textGraph.sine = b.FlatSlice(g.sine, uint64(image)*g.headWidth, g.headWidth, tensor.SingletonExtent, uint64(text))
-	textGraph.cosine = b.FlatSlice(g.cosine, uint64(image)*g.headWidth, g.headWidth, tensor.SingletonExtent, uint64(text))
-	refined, _ := textGraph.refine(t, p.context)
+	var refined *tensor.Tensor
+	if options.refinedText {
+		p.refined = b.Input("refined_text", dtype.F32, tensor.MustShape(g.width, uint64(text)))
+		refined = p.refined
+	} else {
+		refined = g.textRows(t, p.context, uint64(image), uint64(text))
+	}
 	p.boundaries["text_refinement"] = refined
 	hidden := b.Concat(video, refined, tensor.SingletonExtent)
 	// The joint blocks read the image rows, then the text rows: a weighted prompt scales the values of its rows there, the

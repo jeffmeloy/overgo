@@ -7,16 +7,6 @@
       "title": "A MOSS sampling refines its prompt once a request and makes its control's zeros once, its pictures bit for bit as before",
       "steps": [
         {
-          "id": "refine",
-          "title": "MOSS refines a request's prompt once a branch, not at every pass, its latent bit for bit the per-pass program's",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^TestThePromptIsRefinedOnceARequest$'",
-          "files": [
-            "internal/latentimage",
-            "internal/cuda"
-          ],
-          "rationale": "SQA-422 (P2), checked against compileRotaryDenoiserProgram at 47b3587c9: valid. textGraph.refine reads the branch's prompt and the text's rotary rows alone, no timestep and no latent, yet sits in the per-pass graph, so a 50-step guided request refines each of its two prompts 50 times. The saving is unmeasured; the workflow's clock (TestTheUltraWorkflowIsTimedInItsOrder) reads it after the change. The change: the refinement runs once a branch a request and the pass reads its rows from the card. Check: TestThePromptIsRefinedOnceARequest draws a few steps of text-to-image, counts one refinement a branch, and holds the latent bit for bit to the program that refines in its pass, which the test builds from the same graph."
-        },
-        {
           "id": "clock",
           "title": "The workflow is timed whole at moss-pass-repeats/refine's commit, the machine held quiet, and the timing appended to the record (moss-workflow-clock)",
           "verify": "git log --format=%s -n 200 | grep -qF 'moss-pass-repeats/refine:' \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF \"\\\"commit\\\":\\\"$(git rev-parse HEAD)\\\"\" \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF '\"committed\":true'",

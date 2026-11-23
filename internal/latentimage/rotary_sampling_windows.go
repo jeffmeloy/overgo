@@ -40,6 +40,11 @@ var samplingInt8 = true
 // final latent lies nearer its recording. A test reads the BF16 attention beside it.
 var samplingInt8Attention = true
 
+// samplingRefinesOnce says a rotary sampling refines each branch's text once, by its text program
+// (rotaryTextProgram), and binds the rows to the branch's passes, which had each refined them (SQA-422). A test reads
+// the passes that refine it beside it.
+var samplingRefinesOnce = true
+
 // declaredInt8 is what a transformer directory's file holds and declares in int8, its file opened once: the joint
 // projections it holds in int8 ConvRot over groups of 256 columns (convRotProjections), as the MOSS Ultra workflow's
 // file holds each of its layers' four, where projections asks for them, and the joint layers it declares
@@ -110,7 +115,9 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 		if existing, ok := branches[name]; ok {
 			return existing, nil
 		}
-		p, e := compileRotaryDenoiserProgram(spec, mossRefinementEpsilon, height, width, len(conditioning)/spec.TextHidden, skip, dtype.BF16, rotaryOptions{eightBit: settings.eightBit, registers: samplingScoresInRegisters, int8: int8, int8Attention: int8Attention, adapters: settings.adapters}, weights...)
+		options := rotaryOptions{eightBit: settings.eightBit, registers: samplingScoresInRegisters, int8: int8, int8Attention: int8Attention, adapters: settings.adapters, refinedText: samplingRefinesOnce}
+		text := len(conditioning) / spec.TextHidden
+		p, e := compileRotaryDenoiserProgram(spec, mossRefinementEpsilon, height, width, text, skip, dtype.BF16, options, weights...)
 		if e != nil {
 			return branch{}, e
 		}
@@ -131,6 +138,22 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 		if e := bindMerged(ctx, runtime, program, "rotary sampling "+name, filepath.Join(modelRoot, "transformer"), p.merged, settings.adapters, settings.strengths); e != nil {
 			return branch{}, e
 		}
+		// The branch's text program is compiled beside its passes, before the last sampling's programs go, so the refiner's
+		// weights a session holds are bound as they were.
+		var refiner *rotaryTextProgram
+		var refining *graphruntime.ResidentProgram
+		if p.refined != nil {
+			if refiner, e = compileRotaryTextProgram(spec, mossRefinementEpsilon, height, width, text, dtype.BF16, options); e != nil {
+				return branch{}, e
+			}
+			if refining, e = compileResidentWeights(ctx, runtime, "rotary text "+name, filepath.Join(modelRoot, "transformer"), refiner.weightInputs, nil, refiner.output); e != nil {
+				return branch{}, e
+			}
+			programs = append(programs, refining)
+			if e := bindMerged(ctx, runtime, refining, "rotary text "+name, filepath.Join(modelRoot, "transformer"), refiner.merged, settings.adapters, settings.strengths); e != nil {
+				return branch{}, e
+			}
+		}
 		// The last sampling's programs go once this one holds the transformer's weights, before its adapters are read.
 		if len(previous) > 0 {
 			released := previous
@@ -144,8 +167,30 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 				return branch{}, e
 			}
 			feeds[p.strengths[index]] = reference.Value{Shape: p.strengths[index].Shape, Data: []float32{settings.strengths[index]}}
+			if refining != nil {
+				if e := bindAdapterInputs(ctx, runtime, refining, "rotary text "+name, adapter, refiner.adapterInputs[index]); e != nil {
+					return branch{}, e
+				}
+			}
 		}
-		for _, node := range append([]*tensor.Tensor{p.context, p.rope, p.unit, p.valueScale}, p.strengths...) {
+		// The branch's text is refined once, over its conditioning and the text's rotary rows, and each pass reads the rows.
+		if refining != nil {
+			inputs := map[*tensor.Tensor]reference.Value{refiner.context: {Shape: refiner.context.Shape, Data: conditioning}, refiner.rope: feeds[p.rope]}
+			for index, strength := range refiner.strengths {
+				inputs[strength] = feeds[p.strengths[index]]
+			}
+			out, e := runtime.Retain(ctx, refining, inputs, nil)
+			if e != nil {
+				return branch{}, e
+			}
+			rows, e := out.CopyToHost(ctx, refiner.output)
+			out.Release(context.WithoutCancel(ctx))
+			if e != nil {
+				return branch{}, e
+			}
+			feeds[p.refined] = reference.Value{Shape: p.refined.Shape, Data: rows.Data}
+		}
+		for _, node := range append([]*tensor.Tensor{p.context, p.rope, p.unit, p.valueScale, p.refined}, p.strengths...) {
 			if node == nil {
 				continue
 			}

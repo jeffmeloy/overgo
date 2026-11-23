@@ -73,6 +73,9 @@ type rotaryOptions struct {
 	int8                map[string]bool
 	int8Attention       map[int]bool
 	adapters            []*mediaAdapter
+	// refinedText takes the text rows refined, an input a sampling binds once a branch (rotaryTextProgram), in place of
+	// the text refiner in every pass, which reads no timestep and no latent (SQA-422).
+	refinedText bool
 }
 
 // graphAdapter is one adapter a rotary graph applies: its patches, its tensors' inputs, bound from its file, the scalar
@@ -331,6 +334,62 @@ func compileRotaryRefinementProgram(t TransformerSpec, epsilon float32, tokens i
 	p.Fused, p.RefinementOutputs = g.refine(t, p.InEncoder)
 	if e := b.Err(); e != nil {
 		return nil, fmt.Errorf("rotary refinement: %w", e)
+	}
+	return p, nil
+}
+
+// textRows is the denoiser's text rows, context refined over the text's rotary rows, which follow image's in the graph's
+// sequence: the one construction the denoiser's pass and a sampling's text program (rotaryTextProgram) both make.
+func (g *rotaryGraph) textRows(t TransformerSpec, context *tensor.Tensor, image, text uint64) *tensor.Tensor {
+	b := g.b
+	textGraph := *g
+	textGraph.sequence = text
+	textGraph.sine = b.FlatSlice(g.sine, image*g.headWidth, g.headWidth, tensor.SingletonExtent, text)
+	textGraph.cosine = b.FlatSlice(g.cosine, image*g.headWidth, g.headWidth, tensor.SingletonExtent, text)
+	refined, _ := textGraph.refine(t, context)
+	return refined
+}
+
+// rotaryTextProgram is a branch's text refined once, as the denoiser's pass refines it, for a sampling whose passes take
+// it refined (rotaryOptions.refinedText): MOSS's text refiner reads the prompt and the text's rotary rows alone, no
+// timestep and no latent, and had run in each of a 50-step guided request's 100 passes (SQA-422). Its graph is the
+// denoiser's up to the refinement, its adapters patching the refiner's weights as the pass patched them, so its rows are
+// the pass's bit for bit.
+type rotaryTextProgram struct {
+	context, rope, output *tensor.Tensor
+	weightInputs          tensor.WeightBindings
+	adapterInputs         []tensor.WeightBindings
+	strengths             []*tensor.Tensor
+	merged                []mergedProjection
+}
+
+// compileRotaryTextProgram compiles the text refinement of a denoiser for height by width patches and text rows of
+// conditioning, under options as the denoiser takes them.
+func compileRotaryTextProgram(t TransformerSpec, epsilon float32, height, width, text int, storage dtype.Type, options rotaryOptions) (*rotaryTextProgram, error) {
+	if !checked.PositiveInts(height, width, text, t.TextHidden, t.RefinerTextBlocks) {
+		return nil, errors.New("rotary text: invalid geometry")
+	}
+	image, ok := checked.MulInt(height, width)
+	if !ok {
+		return nil, errors.New("rotary text: spatial size overflows")
+	}
+	total, ok := checked.AddInt(image, text)
+	if !ok {
+		return nil, errors.New("rotary text: sequence size overflows")
+	}
+	p := &rotaryTextProgram{}
+	g, err := newRotaryGraph(t, epsilon, total, storage, &p.weightInputs)
+	if err != nil {
+		return nil, err
+	}
+	p.adapterInputs = make([]tensor.WeightBindings, len(options.adapters))
+	p.strengths = g.use(options, p.adapterInputs)
+	p.context = g.b.Input("context", dtype.F32, tensor.MustShape(uint64(t.TextHidden), uint64(text)))
+	p.rope = g.rotaryInput("rotary")
+	p.output = g.textRows(t, p.context, uint64(image), uint64(text))
+	p.merged = *g.merged
+	if err := g.b.Err(); err != nil {
+		return nil, fmt.Errorf("rotary text: %w", err)
 	}
 	return p, nil
 }

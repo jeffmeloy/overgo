@@ -4,7 +4,6 @@ package server
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"image"
 	"image/color"
@@ -16,9 +15,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/latentimage"
 	"overgo/internal/media"
-	"overgo/internal/modelrecipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
@@ -31,16 +28,8 @@ import (
 func TestWebUIBrowserMOSSResumedRunComparesItsRecordedSource(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the resumed source leg uses Chromium through cmd/webui-lane")
-	started, release := make(chan struct{}), make(chan struct{})
-	fixture := newMOSSGenerationFixture(t, func(ctx context.Context, _ artifact.Repository, _ modelrecipe.CapabilityEvidenceSelection, _ latentimage.Request) error {
-		close(started)
-		select {
-		case <-release:
-			return nil
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-	})
+	hold, started, release := heldSession()
+	fixture := newMOSSGenerationFixture(t, hold)
 	testcheck.NoError(t, os.MkdirAll(filepath.Join(fixture.root, "adapters"), 0o755))
 	for _, name := range []string{"8-steps-dmd2-lora", "moss_image_sft", "moss-control"} {
 		testcheck.NoError(t, os.WriteFile(filepath.Join(fixture.root, "adapters", name+".safetensors"), nil, 0o600))

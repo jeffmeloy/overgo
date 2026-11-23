@@ -75,12 +75,20 @@
       shownText("Negative prompt used", used.negative_prompt, "Use as the negative prompt", "negative prompt"));
   }
 
-  // recordedInput: the request a completed run's record keeps, its first JSON input; none where the run has no record.
+  // promptEnhancementSchema is the stored schema of a prompt enhancement record, the server's (prompt_enhance.go).
+  const promptEnhancementSchema = "overgo/prompt-enhancement/v1";
+
+  // recordedInput: the request a completed run's record keeps, its first JSON input that is no prompt enhancement; none
+  // where the run has no record.
   // A request kept as its digest (one above a mebibyte) names no picture, so no source is offered for it.
   async function recordedInput(completed, overgo) {
     if (!completed.run) return {};
     const run = await overgo.api.get("/runs?id=" + encodeURIComponent(completed.run));
+    // A prompt enhancement the page accepted is a source the run cites beside its request, told apart by its stored
+    // schema (prompt_enhance.go promptEnhancementSchema), whichever sorts first (SQA-470).
+    const schemas = run.input_schemas || {};
     for (const id of run.inputs || []) {
+      if (schemas[id] === promptEnhancementSchema) continue;
       const blob = await overgo.api.blob(overgo.contentURL(id));
       if (blob.type.includes("json")) return JSON.parse(await blob.text());
     }

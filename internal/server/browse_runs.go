@@ -55,6 +55,8 @@ type browseRunDetail struct {
 	Phases      []runrecord.PhaseMetric `json:"phases,omitempty"`
 	Parents     []artifact.Lineage      `json:"parents"`
 	Children    []artifact.Lineage      `json:"children"`
+	// InputSchemas is each input's stored schema, by its identity, where it has one.
+	InputSchemas map[string]string `json:"input_schemas,omitempty"`
 }
 
 // browseRuns lists run artifacts from the retained OvergoDB view.
@@ -174,6 +176,23 @@ func loadRunDetail(ctx context.Context, store *overgodb.Store, id artifact.ID) (
 	}
 	if run.Environment.Valid() {
 		detail.Environment = &run.Environment
+	}
+	// Each input is named by its stored schema where it has one, so a reader tells a run's request from the sources it
+	// cites beside it, a prompt enhancement among them (recorded-request, SQA-470).
+	for _, input := range run.Inputs {
+		descriptor, reader, held, err := store.OpenContent(ctx, input)
+		if closer, ok := reader.(io.Closer); ok {
+			closer.Close()
+		}
+		if err != nil {
+			return browseRunDetail{}, false, err
+		}
+		if held && descriptor.Schema != "" {
+			if detail.InputSchemas == nil {
+				detail.InputSchemas = map[string]string{}
+			}
+			detail.InputSchemas[input.String()] = descriptor.Schema
+		}
 	}
 	return detail, true, nil
 }

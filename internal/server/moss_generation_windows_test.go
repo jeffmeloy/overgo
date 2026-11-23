@@ -55,6 +55,21 @@ func (fixture *mossGenerationFixture) requests() []latentimage.Request {
 	return append([]latentimage.Request(nil), fixture.inputs...)
 }
 
+// heldSession is a stand-in session's request hook (newMOSSGenerationFixture) that holds the run it is given until
+// release is closed, started closed as the run reaches it, so a page is driven while the run draws.
+func heldSession() (hold func(context.Context, artifact.Repository, modelrecipe.CapabilityEvidenceSelection, latentimage.Request) error, started, release chan struct{}) {
+	started, release = make(chan struct{}), make(chan struct{})
+	return func(ctx context.Context, _ artifact.Repository, _ modelrecipe.CapabilityEvidenceSelection, _ latentimage.Request) error {
+		close(started)
+		select {
+		case <-release:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}, started, release
+}
+
 func newMOSSGenerationFixture(t *testing.T, onRequest func(context.Context, artifact.Repository, modelrecipe.CapabilityEvidenceSelection, latentimage.Request) error) *mossGenerationFixture {
 	t.Helper()
 	root := testutil.ExtractTarGzip(t, testutil.FixturePath(t, "moss", "generator-compact.tar.gz"), "150c4263057d72476ef4399a442c2b7dbadcb955670232fc2ea869c71f07c5db")

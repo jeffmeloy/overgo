@@ -66,21 +66,6 @@
       ]
     },
     {
-      "id": "recorded-request",
-      "title": "A MOSS run followed again after a reload reads its recorded picture request by its schema, beside any prompt enhancement the run also kept",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A MOSS run followed again after a reload reads its recorded picture request by its schema, beside any prompt enhancement the run also kept",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserMOSSResumedRunReadsItsRequestBesideItsEnhancement$' -leg moss-resumed-request",
-          "files": [
-            "internal/server"
-          ],
-          "rationale": "SQA-470 (P2), checked against generation.js recordedInput at b17937206: valid, and a user meets it: a rewritten prompt accepted in the composer is kept as a run's input beside its picture request, the run's inputs are listed by identity, and recordedInput takes the first JSON one, so where the enhancement's identity sorts first a run followed again after a reload offers no source. The change: the page takes the recorded input whose stored schema is the picture request's, as the server names it. Check: TestWebUIBrowserMOSSResumedRunReadsItsRequestBesideItsEnhancement follows again, after a reload, a depth run whose record keeps a prompt enhancement sorting before its request, and finds its control picture offered as its source."
-        }
-      ]
-    },
-    {
       "id": "readme-media",
       "title": "The README shows a better SenseNova picture, a better Un-0 picture or a sprite card of it, and a better Wan video",
       "steps": [

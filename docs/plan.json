@@ -3,6 +3,85 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "decoder-resident",
+      "title": "MOSS's decoder is compiled once a session for a picture's size, as Krea's resident pipeline keeps its VAE, and the workflow is timed after it",
+      "steps": [
+        {
+          "id": "do",
+          "title": "MOSS's decoder is compiled once a session for a picture's size, as Krea's resident pipeline keeps its VAE",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test ./internal/latentimage -count=1 -run '^TestTheDecoderIsCompiledOnceASession$'",
+          "files": [
+            "internal/latentimage"
+          ],
+          "rationale": "The owner's review of 2026-11-23 (second), point 2, checked against the code and the record: valid. decodeRotary (generator_rotary_windows.go:372) compiles the rotary image decoder with its static inputs bound (compileResidentStatic) and releases it at every decode, 77 to 79 ms a section at png-level/clock (7fbcacc4c), about 0.47 s of the warm run. Krea's pipeline does not repeat it: ResidentImagePipeline compiles its VAE once and keeps it resident across decodes ('compiled graphs remain resident', DecodeHWC runs the kept program), so the cure is MOSS's branch's alone and follows the shared pipeline's way. The change: the rotary decoder's program is kept with the session for its picture's size and compiled again only when the size changes, released with the session. Check: TestTheDecoderIsCompiledOnceASession draws the compact model twice at one size and once at another: the decoder is compiled twice in all, and each picture is the one a fresh session draws, bit for bit."
+        },
+        {
+          "id": "clock",
+          "title": "The workflow is timed whole after decoder-resident, the machine held quiet, and the timing appended to the record (moss-workflow-clock)",
+          "verify": "git log --format=%s -n 200 | grep -qF 'decoder-resident/do:' \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF \"\\\"commit\\\":\\\"$(git rev-parse HEAD)\\\"\" \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF '\"committed\":true'",
+          "files": [
+            "docs/verification"
+          ],
+          "needs_card": true,
+          "rationale": "A cure of the measured gap is timed before more serving fixes (the owner's review of 2026-11-22, third, point 1). TestTheUltraWorkflowIsTimedInItsOrder at decoder-resident/do's commit, OVERGO_WORKFLOW_RECORD=docs/verification/moss-workflow-time.jsonl, the tree unchanged and the machine held quiet, its timing appended and landed alone. Check: the record's last line names HEAD's commit and was committed code.",
+          "depends_on": [
+            "decoder-resident/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "one-png-writer",
+      "title": "Every picture model's PNGs are written by the one level-4 writer, the pictures pinned by PNG bytes pinned by their pixels",
+      "steps": [
+        {
+          "id": "harness",
+          "title": "A harness the capacity record names can be measured again into the store, its source and readings retained and the record naming them",
+          "verify": "go test ./cmd/validate -count=1 -run '^TestACapacityHarnessIsMeasuredAgain$'",
+          "files": [
+            "cmd/validate",
+            "internal/oscillatorimage",
+            "docs/image_video_capacity.json"
+          ],
+          "rationale": "Found landing one-png-writer/do (refused at rules, then TestImageVideoCapacityAcceptance): the one writer changes Un-0's PNG bytes, so its resource harness (internal/oscillatorimage/resources_test.go) must hold its frozen picture by its pixels, and docs/image_video_capacity.json binds that harness by its bytes to a copy retained in the store when it was measured (ca10b0948, 2026-09-13), with its readings: a harness changed is accepted only beside a new retained copy and readings, which no command makes. cuda-resources needs the same for SenseNova's harness. The change: cmd/validate measures a named harness of the capacity record again on the quiet machine, retains its source and its MEDIA_CAPACITY readings in the store, and rewrites the record's entry and its protocol digest (imageVideoCapacitySHA256). Check: TestACapacityHarnessIsMeasuredAgain measures a stand-in harness again into a test store, and the record's acceptance takes the new identity and refuses the old one. one-png-writer/do then lands from tmp/one-png-writer/one-writer.patch with Un-0's harness measured again."
+        },
+        {
+          "id": "do",
+          "title": "Every picture model's PNGs are written by the one level-4 writer, the pictures pinned by PNG bytes pinned by their pixels",
+          "verify": "go test ./internal/media ./internal/oscillatorimage -count=1 -run '^(TestAPictureIsWrittenAtComfyUIsLevel|TestFrozenUn0Modalities|TestArtifactThreadCountAndShapeResources)$'",
+          "files": [
+            "internal/media",
+            "internal/oscillatorimage",
+            "internal/diffusionimage",
+            "internal/testutil",
+            "internal/latentimage",
+            "internal/rae",
+            "internal/sensenovarecipe",
+            "docs/verification/image-video-coverage.json",
+            "docs/image_video_capacity.json",
+            "cmd/validate"
+          ],
+          "rationale": "The owner's review of 2026-11-23 (second), point 1, checked against the code and a run: valid. png-level/do wrote MOSS's pictures at level 4 (writeRGBPNG) and kept defaultRGBPNG (internal/media/image.go:57) for every other model's (EncodeNormalizedRGBPNG: Un-0, RAE, SenseNova, Krea, the diffusion and video reconstructions), because their pictures are pinned by PNG bytes. With one writer for all, the card-free checks that fail are Un-0's two, TestFrozenUn0Modalities (its runs' output identities) and TestArtifactThreadCountAndShapeResources (its picture's bytes against assets/a8bc7f12...png); the card checks of the other models are run by the step. The change: those pictures are pinned by their pixels (testutil.CanonicalPNG, or the decoded pixels against the frozen asset's), EncodeNormalizedRGBPNG writes through writeRGBPNG, and defaultRGBPNG goes. Check: the three tests, TestAPictureIsWrittenAtComfyUIsLevel holding every encoder to deflate's fast levels and its pixels, Un-0's two holding its frozen pictures by their pixels.\n\nNote: files set to internal/media, internal/oscillatorimage, internal/diffusionimage, internal/testutil, internal/latentimage, internal/rae, internal/sensenovarecipe: SimpleDiffusion's frozen generation (diffusionimage frozen_generation_cuda_windows_test.go) pins its picture by PNG bytes and its output identity as Un-0's do; both are pinned by their pixels with the one writer.\n\nNote: files set to internal/media, internal/oscillatorimage, internal/diffusionimage, internal/testutil, internal/latentimage, internal/rae, internal/sensenovarecipe, docs/verification/image-video-coverage.json, docs/image_video_capacity.json, cmd/validate: The frozen tests' bytes are pinned by the image-video coverage and capacity records, and the coverage record by cmd/validate's acceptance test; the tests now hold the same recorded output identities as the canonical PNG's digest of the pixels, so the records' digests move with them."
+        }
+      ]
+    },
+    {
+      "id": "sharpen-any-model",
+      "title": "Every picture model offers the sharpening finish, which reads the picture's pixels alone",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Every picture model offers the sharpening finish, which reads the picture's pixels alone",
+          "verify": "go test ./internal/latentimage -count=1 -run '^TestAFlowPictureIsSharpenedAsMOSSsIs$'",
+          "files": [
+            "internal/latentimage",
+            "internal/mediacapability"
+          ],
+          "rationale": "The owner's review of 2026-11-23 (second), point 3, checked against the code: valid. Request.rotaryOnly (runtime_cuda_windows.go:912) counts a sharpening among what only a rotary profile runs, so a Krea request asking one is refused (errRotaryOnly), though media.Sharpen reads the decoded pixels alone and finishedPNGs gives the sharpened picture and the drawn one beside it. The change: a sharpening is no rotary-only ask; a flow profile's decode finishes its pixels as MOSS's does, the picture drawn beside the sharpened one, its unsharpened picture's pixels as they were. Check: TestAFlowPictureIsSharpenedAsMOSSsIs admits a flow request with a sharpening and finishes a flow picture's pixels with it: the sharpened picture is the pixels sharpened, and the drawn one the picture the request without sharpening gives."
+        }
+      ]
+    },
+    {
       "id": "recorded-request",
       "title": "A MOSS run followed again after a reload reads its recorded picture request by its schema, beside any prompt enhancement the run also kept",
       "steps": [

@@ -1,6 +1,25 @@
 {
+  "advisory_notice": "All findings, rankings and assessments in this register are recommendations. Master decides whether, when and how to act on them. The plan governs dispatch.",
+  "priority_assessment": [
+    "Master has picked the right MOSS checks. The latest warm run finished in 34.311 s against ComfyUI's 34.412 s, but all three full-step sections still trailed. The first run took 49.371 s against 40.176 s. I would judge further changes by the sections they improve and the pixels they produce.",
+    "Within the MOSS work, I would move lanes-rotation ahead of the Workbench reload fix (SQA-470) and include SQA-415. The plan records 28 commits without a complete models-lane pass. If deleting a fixture leaves its reader's earlier pass valid, rotation can carry a false pass forward. Rotation can be checked on the host while the GPU is busy with the requested README renders.",
+    "For MOSS GPU work, I would take card-checks-sound/floors (SQA-410) first. The adapter comparison makes 16 draws. Eight changed-input draws account for 248 denoiser passes and supply no score used by its verdict. The standard and Turbo floor checks already use changed inputs to test sensitivity. I would keep those controls and both precision baselines, then check sharpening on the two existing draws (SQA-467). Before the next timing run, SQA-460 addresses the twelve draws lost to an invalid destination. Master has assigned the decode timing discrepancy (SQA-471) to served-parts/do."
+  ],
   "branch": "master",
   "findings": [
+    {
+      "id": "SQA-410",
+      "severity": "P2",
+      "files": [
+        "internal/latentimage/golden_floor_windows_model_test.go",
+        "internal/latentimage/turbo_floor_windows_model_test.go",
+        "internal/latentimage/int8_merge_windows_model_test.go",
+        "internal/latentimage/image_to_image_windows_model_test.go"
+      ],
+      "input": "Run the adapter sections check on the four pinned MOSS sections in BF16 and merged int8. For the floor checks, omit a standard threshold, put a wrong-width recording after a failed draw, or supply an all-zero reference with nonzero latents in both precision modes.",
+      "expected": "In card-checks-sound/floors, keep all eight adapter baselines, the bit-exact merge check and the changed-input controls used by the standard and Turbo floors. The adapter comparison needs only its baselines. Validate thresholds and reference signal before drawing, report each failed score and release its generator. Exact matches on nonzero signal remain valid.",
+      "actual": "At c87add70e, holdMergedSections calls readGoldenCases for four sections in each of two precision modes. Each call draws a baseline and a changed input per section. Only the baseline latent scores decide the comparison. The eight extra controls are decoded, their PNGs discarded and their scores only logged. The pinned requests imply 248 extra denoiser passes: (100 + 8 + 8 + 8) per mode. This is a source count. Wall-time savings are unmeasured. In the separate floor checks, a missing standard threshold is reported after ten draws, a later size error hides an earlier failure and skips generator cleanup, and the five standard and three Turbo control pictures are decoded and discarded. The adapter verdict also accepts two negative-infinity scores on a zero reference."
+    },
     {
       "id": "SQA-467",
       "severity": "P2",
@@ -13,19 +32,6 @@
       "input": "Consider the compact sharpening check (seed 42, radius 1, sigma 0.6, alpha 0.7). If decodeRotary publishes the drawn PNG as the finished raster after finishedPNGs returns, while marking it sharpened, evaluate both pair checks.",
       "expected": "In card-checks-sound/sharpened, compare the decoded pixels from the two existing draws. Require the drawn picture to match the plain one and the finished picture to differ from it. A change in PNG metadata or compression alone must fail the sharpening check.",
       "actual": "At d0ed24b1f, the compact generator check still compares finished PNG bytes, so the Finishing=sharpened tag passes the inequality even if the caller publishes the drawn pixels twice. The pair encoder check covers finishedPNGs directly. The new PNG level check verifies quantization and compression on synthetic pixels. Neither exercises the generator's choice of which raster to publish. Source counterexample."
-    },
-    {
-      "id": "SQA-410",
-      "severity": "P2",
-      "files": [
-        "internal/latentimage/golden_floor_windows_model_test.go",
-        "internal/latentimage/turbo_floor_windows_model_test.go",
-        "internal/latentimage/int8_merge_windows_model_test.go",
-        "internal/latentimage/image_to_image_windows_model_test.go"
-      ],
-      "input": "Omit a standard floor, put a wrong-width recording after a failed draw, or give both precision comparisons an all-zero reference and a nonzero latent.",
-      "expected": "Validate floors and reference signal before use, report each failed score, and release its generator. Preserve baseline picture checks and exact matches on nonzero signals.",
-      "actual": "holdGoldenFloors draws five baselines and five controls before detecting a missing floor. A later size error hides the earlier failure and skips closing the generator. Controls also encode discarded PNGs (five standard, three Turbo, eight across both adapter precisions). Two -Inf scores on zero signal pass the precision check. Source counts."
     },
     {
       "id": "SQA-460",

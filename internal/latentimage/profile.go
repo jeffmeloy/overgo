@@ -258,8 +258,8 @@ func NegativeGuided(directory string) (bool, error) {
 
 // Catalog is the catalog entry a request's preset and negative guidance are read from (Request.withPreset), resolved
 // once it is first asked for: the model directory's, by the pipeline class its model_index.json names (CatalogIn), or a
-// selected profile's, by the class the profile names (CatalogOf), which reads no file. A served picture's preset had
-// been read from model_index.json up to six times before its stored answer was sought (moss-served-repeat).
+// selected profile's, by the class the profile names, the profile read when asked (CatalogRead). A served picture's
+// preset had been read from model_index.json up to six times before its stored answer was sought (moss-served-repeat).
 type Catalog struct {
 	entry func() (catalogProfile, error)
 }
@@ -269,9 +269,16 @@ func CatalogIn(directory string) Catalog {
 	return Catalog{entry: sync.OnceValues(func() (catalogProfile, error) { return catalogOf(directory) })}
 }
 
-// CatalogOf is the catalog entry of the pipeline class profile names.
-func CatalogOf(profile Profile) Catalog {
-	return Catalog{entry: sync.OnceValues(func() (catalogProfile, error) { return lookupCatalogProfile(profile.Classes.Pipeline) })}
+// CatalogRead is the catalog entry of the pipeline class of the profile read gives, read once it is asked for: a
+// request naming no preset, canvas or negative asks none, so its profile is never read (SQA-461).
+func CatalogRead(read func() (Profile, error)) Catalog {
+	return Catalog{entry: sync.OnceValues(func() (catalogProfile, error) {
+		profile, err := read()
+		if err != nil {
+			return catalogProfile{}, err
+		}
+		return lookupCatalogProfile(profile.Classes.Pipeline)
+	})}
 }
 
 // presetOf is the preset catalog's entry names.

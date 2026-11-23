@@ -18,25 +18,6 @@
       ]
     },
     {
-      "id": "served-answers",
-      "title": "A served MOSS picture is answered from its stored run only where every file it reads is present, its preset declared and its pair whole",
-      "steps": [
-        {
-          "id": "profile",
-          "title": "A MOSS request reads its selected profile once, where its preset, canvas or adapters ask for it, and a plain repeat reads none",
-          "verify": "go test ./internal/mediacapability -count=1 -run '^TestARepeatedPictureReadsNoProfile$'",
-          "files": [
-            "internal/mediacapability",
-            "internal/latentimage"
-          ],
-          "rationale": "SQA-461 (P2), checked against pictureFiles and preparedFirst in image_cuda_windows.go at 47b3587c9: valid on the served path. Reading names a picture request's files through pictureFiles, which reads and parses the selected profile (pictureCatalog), and preparedFirst reads it again to size the request, so every request reads its profile twice before the director seeks its stored answer, and a plain repeat, which names no preset, canvas or adapter, needs neither read. The review's other part, Generator.Reset and prepare each opening model_index.json again on a changed seed, is in the generator, which the served-repeat check stands in for; it goes with served-parts, whose ledger reads that part's time. The change: a request's catalog is read once, where its preset, canvas or adapters ask for it, and passed on to the sizing. Check: TestARepeatedPictureReadsNoProfile serves a plain picture twice and one naming a preset through the served-repeat stand-in, counting the profile's reads: none for the plain repeat, one for the preset request.",
-          "depends_on": [
-            "pair-encode/clock"
-          ]
-        }
-      ]
-    },
-    {
       "id": "enhancer-files",
       "title": "An enhanced MOSS answer is kept under the files its enhancer opens, each by name and content, so a missing one is refused and an unrelated one changes nothing",
       "steps": [

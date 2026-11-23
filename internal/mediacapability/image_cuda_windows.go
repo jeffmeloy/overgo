@@ -70,7 +70,7 @@ func pictureExecutor[Model any](director *capabilityruntime.ModelSessionDirector
 	if err == nil {
 		director.ReadsOnMiss(onMiss(opened))
 	}
-	return keptDrawn(capabilityruntime.Reading(preparedFirst(sessionExecutor(director, err)), capabilityruntime.Contents(held, pictureFiles)))
+	return keptDrawn(catalogOnce(capabilityruntime.Reading(preparedFirst(sessionExecutor(director, err)), capabilityruntime.Contents(held, pictureFiles))))
 }
 
 // keptDrawn has each sharpened picture next serves come with the picture as it was drawn, before its finishing
@@ -161,18 +161,30 @@ func onMiss(opened func(artifact.Repository) latentimage.EnhancerOpener) func(co
 }
 
 // pictureCatalog is the catalog a picture request's preset is read from: the selected profile's, which the store holds
-// beside its recipe (latentimage.CatalogOf), so serving a request reads no model_index.json (moss-served-repeat); or,
-// for a selection naming no profile, the model directory's (latentimage.CatalogIn).
-func pictureCatalog(ctx context.Context, store artifact.Repository, path string, selection modelrecipe.CapabilityEvidenceSelection) (latentimage.Catalog, error) {
+// beside its recipe (latentimage.CatalogRead), so serving a request reads no model_index.json (moss-served-repeat); or,
+// for a selection naming no profile, the model directory's (latentimage.CatalogIn). Either is read only when asked, and
+// a request served through catalogOnce has the one its serving read.
+func pictureCatalog(ctx context.Context, store artifact.Repository, path string, selection modelrecipe.CapabilityEvidenceSelection) latentimage.Catalog {
+	if catalog, held := ctx.Value(pictureCatalogKey{}).(latentimage.Catalog); held {
+		return catalog
+	}
 	profileID, named := selection.Program.Definition().PrimaryDependency(recipe.DependencyProfile)
 	if !named || store == nil {
-		return latentimage.CatalogIn(path), nil
+		return latentimage.CatalogIn(path)
 	}
-	profile, err := latentimage.ReadProfile(ctx, store, profileID)
-	if err != nil {
-		return latentimage.Catalog{}, err
+	return latentimage.CatalogRead(func() (latentimage.Profile, error) { return latentimage.ReadProfile(ctx, store, profileID) })
+}
+
+// pictureCatalogKey carries a request's picture catalog through its serving.
+type pictureCatalogKey struct{}
+
+// catalogOnce has a picture request's naming (pictureFiles) and its sizing (preparedFirst) read one catalog, so a
+// request naming a preset reads its profile once and one naming none reads it never: each had read and parsed the
+// selected profile before the stored answer was sought, a plain repeat asking neither for anything (SQA-461).
+func catalogOnce(next capabilityruntime.Executor) capabilityruntime.Executor {
+	return func(ctx context.Context, store artifact.Repository, path string, selection modelrecipe.CapabilityEvidenceSelection, input string) (any, error) {
+		return next(context.WithValue(ctx, pictureCatalogKey{}, pictureCatalog(ctx, store, path, selection)), store, path, selection, input)
 	}
-	return latentimage.CatalogOf(profile), nil
 }
 
 func imageCapability() Capability {
@@ -253,10 +265,7 @@ func pictureFiles(ctx context.Context, store artifact.Repository, path string, s
 	if strictjson.DecodeBytes([]byte(raw), &request) != nil {
 		return nil, nil
 	}
-	catalog, err := pictureCatalog(ctx, store, path, selection)
-	if err != nil {
-		return nil, nil
-	}
+	catalog := pictureCatalog(ctx, store, path, selection)
 	if _, err := admitted(catalog, request); err != nil {
 		return nil, nil
 	}
@@ -289,11 +298,7 @@ func preparedFirst(next capabilityruntime.Executor) capabilityruntime.Executor {
 		if err := strictjson.DecodeBytes([]byte(input), &request); err != nil {
 			return next(ctx, store, path, selection, input)
 		}
-		catalog, err := pictureCatalog(ctx, store, path, selection)
-		if err != nil {
-			return nil, err
-		}
-		prepared, err := admitted(catalog, request)
+		prepared, err := admitted(pictureCatalog(ctx, store, path, selection), request)
 		if err != nil {
 			return nil, err
 		}

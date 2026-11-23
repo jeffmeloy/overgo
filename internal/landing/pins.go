@@ -23,9 +23,11 @@ import (
 type bytePin struct{ digest, record string }
 
 // bytePins indexes the records that pin current bytes, each by its own field:
-// a coverage document's inputs, the harness the capacity bundle was measured
-// with, and the document digests validate's acceptance tests pass as literal
-// arguments. Every other recorded digest is history.
+// a coverage document's inputs and the document digests validate's acceptance
+// tests pass as literal arguments. Every other recorded digest is history, the
+// sources the capacity bundle was measured with among them: that bundle is a
+// dated measurement, whose acceptance names each source changed since it
+// (capacity-record-history).
 func bytePins(repo string) (map[string][]bytePin, error) {
 	pins := map[string][]bytePin{}
 	coverage, err := filepath.Glob(filepath.Join(repo, "docs", "verification", "*-coverage.json"))
@@ -40,16 +42,6 @@ func bytePins(repo string) (map[string][]bytePin, error) {
 		for input, digest := range document.Inputs {
 			pins[input] = append(pins[input], bytePin{digest, relativeRecord(repo, path)})
 		}
-	}
-	capacity := filepath.Join(repo, "docs", "image_video_capacity.json")
-	var bundle struct {
-		SourceFiles map[string]struct{ SHA256 string } `json:"source_files"`
-	}
-	if err := decodeRecord(capacity, &bundle); err != nil && !os.IsNotExist(err) {
-		return nil, err
-	}
-	for source, file := range bundle.SourceFiles {
-		pins[source] = append(pins[source], bytePin{file.SHA256, relativeRecord(repo, capacity)})
 	}
 	tests, err := filepath.Glob(filepath.Join(repo, "cmd", "validate", "*_test.go"))
 	if err != nil {

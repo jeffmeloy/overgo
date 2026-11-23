@@ -9,6 +9,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -188,21 +189,16 @@ func TestImageVideoCapacityAcceptance(t *testing.T) {
 	if len(bundle.Harnesses) == 0 {
 		t.Fatal("missing resource harnesses")
 	}
+	sources := map[string]string{}
 	for path, source := range bundle.SourceFiles {
 		// A harness retained before the samples moved to the checkout's assets names their old folder: its source is
-		// pinned at the retained harness with the move alone applied, and every other byte stays its own.
+		// the retained harness with the move alone applied, and every other byte stays its own.
 		retained := read(source.Evidence)
 		moved := bytes.ReplaceAll(retained, []byte("docs/media_samples/"), []byte(mediaSamplesDir+"/"))
 		if bundle.Harnesses[fmt.Sprintf("%x", sha256.Sum256(retained))] != source.Evidence || fmt.Sprintf("%x", sha256.Sum256(moved)) != source.SHA256 {
 			t.Fatal("resource source is not a retained harness", path)
 		}
-		if strings.HasPrefix(path, "tmp/") {
-			continue // Overlay sources live in the evidence store, outside the checkout.
-		}
-		current, err := os.ReadFile(filepath.Join(root, path))
-		if err != nil || !bytes.Equal(bytes.ReplaceAll(current, []byte("\r\n"), []byte("\n")), moved) {
-			t.Fatal("resource harness changed since acquisition", path, err)
-		}
+		sources[path] = source.SHA256
 	}
 	var acquisition struct {
 		Source string            `json:"source_base"`
@@ -211,11 +207,10 @@ func TestImageVideoCapacityAcceptance(t *testing.T) {
 	if err := json.Unmarshal(read(bundle.Acquisition), &acquisition); err != nil || acquisition.Source != bundle.Source || len(acquisition.Files) == 0 {
 		t.Fatal("missing native acquisition identity", err)
 	}
-	for path, digest := range acquisition.Files {
-		current, err := os.ReadFile(filepath.Join(root, path))
-		if err != nil || fmt.Sprintf("%x", sha256.Sum256(bytes.ReplaceAll(current, []byte("\r\n"), []byte("\n")))) != digest {
-			t.Fatal("native acquisition input changed", path, err)
-		}
+	// The record is a dated measurement: a source changed since it was taken is named as one it no longer describes, and
+	// the record's own evidence above and below is still checked (capacity-record-history).
+	for _, path := range append(capacityHistory(root, sources), capacityHistory(root, acquisition.Files)...) {
+		t.Logf("%s has changed since the capacity record was measured at %s, which no longer describes it", path, bundle.Source)
 	}
 	for _, id := range bundle.Failed {
 		report, err := testevidence.GoTestJSONReport(string(read(id)))
@@ -320,6 +315,48 @@ func TestImageVideoCapacityAcceptance(t *testing.T) {
 	}
 	if len(bundle.Processing) != len([]string{"first", "repeat"}) {
 		t.Fatal("missing report/export repeat")
+	}
+}
+
+// capacityHistory names, sorted, each of sources (a path under root, and the SHA-256 of its bytes with CRLF line ends
+// normalized when the capacity record was measured) whose bytes have changed since or that is gone: the record no longer
+// describes it (capacity-record-history). An overlay under tmp/ lives in the evidence store, outside the checkout, and
+// is not read.
+func capacityHistory(root string, sources map[string]string) []string {
+	var changed []string
+	for path, digest := range sources {
+		if strings.HasPrefix(path, "tmp/") {
+			continue
+		}
+		current, err := os.ReadFile(filepath.Join(root, path))
+		if err != nil || fmt.Sprintf("%x", sha256.Sum256(bytes.ReplaceAll(current, []byte("\r\n"), []byte("\n")))) != digest {
+			changed = append(changed, path)
+		}
+	}
+	slices.Sort(changed)
+	return changed
+}
+
+// TestACapacitySourceChangedIsNamedAsHistory holds capacity-record-history: a source the capacity record was measured
+// with that has changed since, or is gone, is named as one the record no longer describes, and one unchanged (CRLF line
+// ends normalized) or an overlay under tmp/ is not. The acceptance had refused any change to those sources, and the
+// record cannot be measured again (its checks ran cmd/compatibility and overlays now gone), so no harness it names could
+// change: Un-0's resource harness could not hold its picture by its pixels for one PNG writer (one-png-writer).
+func TestACapacitySourceChangedIsNamedAsHistory(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	digest := func(text string) string { return fmt.Sprintf("%x", sha256.Sum256([]byte(text))) }
+	for path, text := range map[string]string{"kept_test.go": "package kept\r\n", "changed_test.go": "package changed // edited\n"} {
+		testcheck.NoError(t, os.WriteFile(filepath.Join(root, path), []byte(text), 0o600))
+	}
+	named := capacityHistory(root, map[string]string{
+		"kept_test.go":                digest("package kept\n"),
+		"changed_test.go":             digest("package changed\n"),
+		"gone_test.go":                digest("package gone\n"),
+		"tmp/overlay/overlay_test.go": digest("package overlay\n"),
+	})
+	if !slices.Equal(named, []string{"changed_test.go", "gone_test.go"}) {
+		t.Fatalf("named %q as no longer described; want the changed source and the gone one", named)
 	}
 }
 

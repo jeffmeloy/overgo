@@ -1,12 +1,29 @@
 {
-  "advisory_notice": "All findings, rankings and assessments in this register are recommendations. Master decides whether, when and how to act on them. The plan governs dispatch.",
+  "advisory_notice": "SQA recommendations for master. Master decides which findings to accept, defer or decline, in what order, and how to address them. The ranking and assessment explain SQA's judgment. Only docs/plan.json directs work.",
   "priority_assessment": [
-    "Master has picked the right MOSS checks. The latest warm run finished in 34.311 s against ComfyUI's 34.412 s, but all three full-step sections still trailed. The first run took 49.371 s against 40.176 s. I would judge further changes by the sections they improve and the pixels they produce.",
-    "Within the MOSS work, I would move lanes-rotation ahead of the Workbench reload fix (SQA-470) and include SQA-415. The plan records 28 commits without a complete models-lane pass. If deleting a fixture leaves its reader's earlier pass valid, rotation can carry a false pass forward. Rotation can be checked on the host while the GPU is busy with the requested README renders.",
-    "For MOSS GPU work, I would take card-checks-sound/floors (SQA-410) first. The adapter comparison makes 16 draws. Eight changed-input draws account for 248 denoiser passes and supply no score used by its verdict. The standard and Turbo floor checks already use changed inputs to test sensitivity. I would keep those controls and both precision baselines, then check sharpening on the two existing draws (SQA-467). Before the next timing run, SQA-460 addresses the twelve draws lost to an invalid destination. Master has assigned the decode timing discrepancy (SQA-471) to served-parts/do."
+    "After the shared PNG writer lands, I would use one measurement run for shared-whole/lanes and full-measurement/run. Its lane phase can establish the whole pass and its cells can supply the scorecard on the same revision. SQA-474 comes first: separate invocations repeat uncached checks, yet the completion check accepts older timings. The 5 h 28 min run at 0776b4a53 passed the lanes it selected. The whole-pass query still finds six of 33 model packages with only earlier passes.",
+    "The latest MOSS run (1bae67d52) took 33.629 s warm against ComfyUI's 34.412 s, and 46.429 s on the first run against 40.176 s. I would use served-parts/do (SQA-471) to locate that 6.253 s first-run gap. SQA-473 identifies 92.5 MiB copied during load and at least 103.9 MiB of host weights kept after the decoder binds. Their cost in seconds is unknown, so I would keep the planned measurement ahead of this change.",
+    "Among the MOSS check fixes, I rank SQA-410 first. Eight adapter-control draws cost 248 denoiser passes and contribute no score to the verdict. SQA-467 comes next because the two draws already made can verify the finished pixels. Both fit existing plan steps."
   ],
   "branch": "master",
   "findings": [
+    {
+      "id": "SQA-474",
+      "severity": "P2",
+      "files": [
+        "docs/plan.json",
+        "cmd/loop/improve.go",
+        "internal/landing/lanes.go",
+        "cmd/validate/main.go",
+        "cmd/validate/scorecard.go",
+        "cmd/validate/readme.go",
+        "internal/plan/measurement_run.go",
+        "cmd/loop/run_record_test.go"
+      ],
+      "input": "At revision A, finish a separate whole run for shared-whole/lanes, then start the normal measurement cycle with the same code, store, models and references. For the completion check, let the cycle stop before cells or publication. The live store already has numeric times for all five image models and a prior published scorecard at B has a numeric Un-0 speed row.",
+      "expected": "Use the full lane phase of one measurement run to satisfy shared-whole/lanes. At full-measurement/run, check the requested revision, completed phases and that run's published scorecard before accepting its required image timings and README. Preserve valid cell credit and the checks on external model and reference inputs.",
+      "actual": "Source at 0776b4a53. After a standalone whole pass, measurePhases invokes all five lanes again. The four Go test lanes use -count=1 because their external inputs can change. If the cycle stops before cells, the verifier still reads five numbers from the live store and matches Un-0 in a README rendered independently from the latest published record. Neither check reads the cycle's commit or phases. The Nov 8 run at fdd4ab1ce ended after preflight and lanes. The Nov 14 scorecard names eb197def6 and lacks an Un-0 time. The duplicate invocation and false pass follow from source under the stated inputs. Neither was observed."
+    },
     {
       "id": "SQA-410",
       "severity": "P2",
@@ -60,6 +77,21 @@
       "actual": "Observed in the retained record: the four parts of the first decode total 426 ms inside 418 ms. All 48 decode subparts across both runs report zero CPU and file reads. The clock measures the parent with time.Now, reads child walls from processmeasure.Stages and serializes unset counters as zero. The six warm stages labeled 'decoder compiled' total 468 ms. In source, compileResidentStatic also binds every static input and can upload weights. The record cannot attribute those 468 ms to compilation alone."
     },
     {
+      "id": "SQA-473",
+      "severity": "P2",
+      "files": [
+        "internal/latentimage/generator_rotary_windows.go",
+        "internal/latentimage/vae_program.go",
+        "internal/latentimage/vae_spatial.go",
+        "internal/graphruntime/resident.go",
+        "internal/latentimage/decoder_resident_windows_test.go",
+        "internal/modelrecipe/moss_ultra_import.json"
+      ],
+      "input": "Load the pinned MOSS Ultra decoder (flux2-vae_small.safetensors), draw once, then keep the generator open for another request of the same size. Inspect the host weights during graph construction and after all static inputs have bound successfully.",
+      "expected": "In the existing VAE graph builder, reuse the original weights when the temporal kernel has a single tap. In the rotary generator, release its host feeds once the resident decoder owns all static inputs. Keep the feeds on a failed bind, preserve extraction for multi-tap kernels and keep the fresh-versus-resident pixel comparison.",
+      "actual": "Source trace at 0776b4a53 with tensor shapes from the pinned checkpoint header. Of 33 decoder 3-by-3 weight tensors, 30 go through sliceLastTemporalTap with temporal extent 1. It allocates and copies 96,999,552 bytes of identical F32 data during load. The three upsamplers already use their input slices directly. After the first successful bind, VAEProgram.feeds still holds all 33 payloads (108,943,488 bytes before biases or other weights). Later decodes use state.decoding and never read those feeds. These are separate construction and retention counts, with no measured wall-time or process-memory delta."
+    },
+    {
       "id": "SQA-388",
       "severity": "P2",
       "files": [
@@ -87,18 +119,18 @@
       "actual": "Source trace at c71a1e230. The Git diff supplies the deleted path. TrackedDocuments lists only files still present, so documentReaders returns no entry. discover treats the missing entry as zero readers and omits the lane. Both checks fail on the missing file if selected. The retained gate verified selection for edits to both fixtures while they were present."
     },
     {
-      "id": "SQA-470",
-      "severity": "P2",
+      "id": "SQA-472",
+      "severity": "P3",
       "files": [
-        "internal/server/webui/mod/generation.js",
-        "internal/server/webui/mod/chat.js",
-        "internal/server/generation_store_workspace.go",
-        "internal/runrecord/record.go",
-        "internal/server/webui_browser_moss_resumed_source_windows_test.go"
+        "internal/latentimage/runtime_cuda_windows.go",
+        "internal/latentimage/encoded_image.go",
+        "internal/media/finishing.go",
+        "internal/media/image.go",
+        "internal/latentimage/flow_sharpen_windows_test.go"
       ],
-      "input": "Accept a rewritten prompt in the composer and use it unchanged for a MOSS picture with a stored source in control.picture. Open the generation Workbench while that run is active. Use a run whose prompt-enhancement file ID sorts before its recorded image request ID.",
-      "expected": "When the run completes, offer the source picture named by its recorded image request. Select the request by its stored schema, which already distinguishes it from the prompt enhancement.",
-      "actual": "Source trace at b17937206. The composer submits the enhancement as a source. The workspace records both JSON inputs and canonicalIDs sorts them by ID. On reconnect, recordedInput returns the first JSON file. With the enhancement first, shown reads no control.picture and omits the source. The retained browser check covers a run with the request as its only input."
+      "input": "At the Krea flow decoder's finish, take a 64 by 48 normalized RGB raster with a channel value of 0. Ask for radius 1, sigma 0.6 and alpha 0. Compare that channel in the decoded drawn and finished PNGs.",
+      "expected": "With one-png-writer/do, preserve the existing plain Krea raster. A zero-strength finish should publish the same channel values as the drawn picture. Its finishing metadata may differ.",
+      "actual": "Source counterexample at 0776b4a53. Alpha 0 is admitted and gives an identity kernel. The drawn encoder truncates 127.5 to 127. The finished encoder rounds the same intensity to 128. The two pictures differ before compression. TestAFlowPictureIsSharpenedAsMOSSsIs checks only nonzero strength and computes each expectation with its own encoder."
     },
     {
       "id": "SQA-468",
@@ -196,19 +228,27 @@
     "at": "2026-11-23",
     "head": "7fbcacc4cbdf0baa7bbafdbce6e34495ab1ec29b",
     "findings": {
+  "SQA-474": {
+        "action": "filed",
+        "rows": [
+          "shared-whole/lanes",
+          "full-measurement/run"
+        ],
+        "note": "Answered by the lead on 2026-11-23 at 0776b4a53: valid from source (measurePhases runs validate -run -lanes whole before the cells, so a separate whole run before it repeats every lane; the run step's check reads the store and README, not the run's commit or phases). One measurement at the one-png-writer commit serves both steps, noted on each: validate -run -preflight, -run -lanes, -run -cells -reached and -scorecard -publish in sequence with no landing between; shared-whole/lanes lands on its lanes pass (-lanes-passed-at that commit), full-measurement/run on its cells and publication. The check's binding to the run's commit is not added: the four image rows it reads can be filled only by attempts that record their preset, which no attempt in the store does (the scorecard says each is measured again), so only this run fills them."
+      },
+  "SQA-473": {
+        "action": "filed",
+        "rows": [
+          "served-parts/do"
+        ],
+        "note": "Answered by the lead on 2026-11-23 at 0776b4a53: valid from source (sliceLastTemporalTap copies a kernel whose temporal extent is 1 whole, 97.0 MB at load; VAEProgram.feeds keeps 108.9 MB of host weights after the resident decoder binds them). No wall is measured, so it is filed with served-parts/do, noted there: the first-run gap's parts measured there decide its step, as the finding itself ranks it."
+      },
   "SQA-471": {
         "action": "filed",
         "rows": [
           "served-parts/do"
         ],
         "note": "Answered by the lead on 2026-11-23 at 7fbcacc4c: valid from the record and source (the decode's own parts read on another clock than their parent's, summing to 426 ms inside 418; unmeasured processor time and bytes read written as zero; the decoder's static binding counted as its compile); it costs the next decision, the decoder's 0.47 s, so it is filed with served-parts/do, noted there, ahead of any cure of that part."
-      },
-  "SQA-470": {
-        "action": "filed",
-        "rows": [
-          "recorded-request/do"
-        ],
-        "note": "Answered by the lead on 2026-11-23 at b17937206: valid from source (recordedInput takes a run's first JSON input, which a composer's prompt enhancement can precede), and a user meets it (a composer run followed after a reload); filed as recorded-request/do, after png-level."
       },
   "SQA-461": {
         "action": "filed",
@@ -276,7 +316,7 @@
       }
 }
   },
-  "next_finding_number": 472,
+  "next_finding_number": 475,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

@@ -37,6 +37,18 @@ func standInEnhancer(artifact.Repository) latentimage.EnhancerOpener {
 	}
 }
 
+// standInEnhancerFolder writes the files an enhancer's chat opens in root's enhancer folder, as the folder serves MOSS's
+// (latentimage enhancerFiles), and gives its weights' path.
+func standInEnhancerFolder(t *testing.T, root string) string {
+	t.Helper()
+	folder := filepath.Join(root, "enhancer")
+	testcheck.NoError(t, os.MkdirAll(folder, 0o755))
+	for name, content := range map[string]string{"config.json": `{"model_type":"qwen3_5"}`, "tokenizer.json": `{"version":"1.0"}`, "model.safetensors": "the enhancer's weights"} {
+		testcheck.NoError(t, os.WriteFile(filepath.Join(folder, name), []byte(content), 0o600))
+	}
+	return filepath.Join(folder, "model.safetensors")
+}
+
 // TestAServedPictureOfAnySizeReturnsWhatItWasDrawnFrom holds draw-result-carries (SQA-464): a sharpened MOSS request
 // carrying its picture inline, above a mebibyte, so its run records the request's digest in place of the request,
 // served through the picture capability's serving (pictureExecutor, standInPictures) returns its picture, the prompt
@@ -45,6 +57,7 @@ func standInEnhancer(artifact.Repository) latentimage.EnhancerOpener {
 // request, so such a request's draw completed and its caller was refused.
 func TestAServedPictureOfAnySizeReturnsWhatItWasDrawnFrom(t *testing.T) {
 	pictures := newStandInPictures(t, standInEnhancer)
+	standInEnhancerFolder(t, pictures.root)
 	noise, random := image.NewNRGBA(image.Rect(0, 0, 640, 640)), rand.New(rand.NewPCG(5, 464))
 	for index := range noise.Pix {
 		noise.Pix[index] = byte(random.Uint32())
@@ -92,9 +105,7 @@ func TestARepeatedEnhancedPictureOpensNoChat(t *testing.T) {
 		}
 	}
 	pictures := newStandInPictures(t, counted)
-	enhancer := filepath.Join(pictures.root, "enhancer", "enhancer.gguf")
-	testcheck.NoError(t, os.MkdirAll(filepath.Dir(enhancer), 0o755))
-	testcheck.NoError(t, os.WriteFile(enhancer, []byte("the enhancer's weights"), 0o600))
+	enhancer := standInEnhancerFolder(t, pictures.root)
 	const idea = `{"prompt":"a fox","negative_prompt":"grey sky","prompt_mode":"enhanced","seed":7,"width":256,"height":144}`
 	first, drawn := pictures.served(t.Context(), idea)
 	repeat, again := pictures.served(t.Context(), idea)

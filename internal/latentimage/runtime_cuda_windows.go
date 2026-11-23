@@ -144,18 +144,38 @@ func (r Request) Beside(root string, catalog Catalog) ([]string, error) {
 		files = append(files, filepath.Join(root, depthDirectory, depthCheckpoint))
 	}
 	if r.Enhanced() {
-		folder := filepath.Join(root, enhancerDirectory)
-		entries, err := os.ReadDir(folder)
-		if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		read, err := enhancerFiles(filepath.Join(root, enhancerDirectory))
+		if err != nil {
 			return nil, err
 		}
-		for _, entry := range entries {
-			if entry.Type().IsRegular() {
-				files = append(files, filepath.Join(folder, entry.Name()))
-			}
-		}
+		files = append(files, read...)
 	}
 	return files, nil
+}
+
+// enhancerFiles are the files the enhancer's chat reads in folder, as overgo reads a Hugging Face folder (hfconvert):
+// its config and tokenizer, named whether there or not, so a missing one refuses the request before its answer is
+// sought (capabilityruntime.Contents); its tokenizer's config, chat template, generation config and special tokens
+// where there; and its weights, as safetensors.OpenSource reads them. A file the reading does not open is not named:
+// every file of the folder had been, by content alone, so a renamed config gave its stored answer again and an
+// unrelated file drew it afresh (SQA-469).
+func enhancerFiles(folder string) ([]string, error) {
+	files := []string{filepath.Join(folder, "config.json"), filepath.Join(folder, "tokenizer.json")}
+	for _, name := range []string{"tokenizer_config.json", "chat_template.jinja", "generation_config.json", "special_tokens_map.json"} {
+		file := filepath.Join(folder, name)
+		_, err := os.Stat(file)
+		if err == nil {
+			files = append(files, file)
+		} else if !errors.Is(err, fs.ErrNotExist) {
+			return nil, err
+		}
+	}
+	// A folder holding no weights names the file its reading would open, so its absence refuses the request too.
+	weights, err := safetensors.SourceFiles(folder)
+	if errors.Is(err, fs.ErrNotExist) || errors.Is(err, safetensors.ErrNoShards) {
+		return append(files, filepath.Join(folder, "model.safetensors")), nil
+	}
+	return append(files, weights...), err
 }
 
 // applied are the adapters the request applies, in its order: its Adapters, or its one Adapter at AdapterStrength.

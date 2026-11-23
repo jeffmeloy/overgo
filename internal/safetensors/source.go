@@ -150,6 +150,22 @@ func OpenSource(directory string) (*Source, error) {
 	return OpenSourceWithLimits(directory, DefaultLimits())
 }
 
+// ErrNoShards is a directory holding no .safetensors file, which OpenSource and SourceFiles refuse.
+var ErrNoShards = errors.New("safetensors: no .safetensors files found")
+
+// SourceFiles are the files OpenSource reads in directory: its shards, and its shard index where it has one, so what
+// is kept under a source's files names those its reading opens and no other (SQA-469).
+func SourceFiles(directory string) ([]string, error) {
+	paths, _, index, err := shardPaths(directory, DefaultLimits())
+	if err != nil {
+		return nil, err
+	}
+	if index != "" {
+		paths = append(paths, filepath.Join(directory, index))
+	}
+	return paths, nil
+}
+
 // OpenSourceWithLimits: open a bounded repository.
 func OpenSourceWithLimits(directory string, limits Limits) (*Source, error) {
 	if err := validateLimits(limits); err != nil {
@@ -434,7 +450,7 @@ func unindexedShardPaths(directory string, limits Limits) ([]string, map[string]
 	}
 	slices.Sort(paths)
 	if len(paths) == 0 {
-		return nil, nil, errors.New("safetensors: no .safetensors files found")
+		return nil, nil, ErrNoShards
 	}
 	if len(paths) > limits.MaxShards {
 		return nil, nil, fmt.Errorf("safetensors: shard count %d exceeds limit %d", len(paths), limits.MaxShards)

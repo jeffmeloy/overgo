@@ -18,26 +18,6 @@
       ]
     },
     {
-      "id": "enhancer-files",
-      "title": "An enhanced MOSS answer is kept under the files its enhancer opens, each by name and content, so a missing one is refused and an unrelated one changes nothing",
-      "steps": [
-        {
-          "id": "do",
-          "title": "An enhanced MOSS answer is kept under the files its enhancer opens, each by name and content, so a missing one is refused and an unrelated one changes nothing",
-          "verify": "go test ./internal/mediacapability -count=1 -run '^TestAnEnhancedAnswerIsKeptUnderTheFilesItsEnhancerOpens$'",
-          "files": [
-            "internal/latentimage",
-            "internal/mediacapability",
-            "internal/capabilityruntime"
-          ],
-          "rationale": "SQA-469 (P2), checked against Request.Beside and capabilityruntime.Contents at 4f1c9aaa4: valid. For prompt mode 2, Beside lists every regular file of the enhancer folder (enhanced-repeat/do) and Contents keys the answer by their content identities in order, not their names: renaming enhancer/config.json keeps the order and the bytes, so the stored picture and prompt are given again while a fresh request fails to open the enhancer, and an unrelated file added to the folder changes the key, so the enhancement and the draw are made again. The absent-file refusal (served-answers/absent) is never reached, every listed file still opening. The change: the enhancer's files are the ones its loader opens, named (config, tokenizer, weights), and the naming holds each file's name beside its content, so a missing one is refused before replay and an unrelated one is not named. Check: TestAnEnhancedAnswerIsKeptUnderTheFilesItsEnhancerOpens names an enhanced request over a stand-in enhancer folder: its config renamed, the request is refused naming it; a notes file added, the naming is unchanged.",
-          "depends_on": [
-            "pair-encode/clock"
-          ]
-        }
-      ]
-    },
-    {
       "id": "run-source-resumed",
       "title": "A MOSS run followed again after a reload is compared with the source its recorded request names",
       "steps": [
@@ -52,6 +32,38 @@
           "depends_on": [
             "pair-encode/clock"
           ]
+        }
+      ]
+    },
+    {
+      "id": "pair-enhanced",
+      "title": "An enhanced MOSS picture whose pair was not kept is drawn again from the prompts its stored picture carries, its chat not opened again",
+      "steps": [
+        {
+          "id": "do",
+          "title": "An enhanced MOSS picture whose pair was not kept is drawn again from the prompts its stored picture carries, its chat not opened again",
+          "verify": "go test ./internal/mediacapability -count=1 -run '^TestAnInterruptedEnhancedPairIsRedrawnWithoutItsChat$'",
+          "files": [
+            "internal/mediacapability",
+            "internal/latentimage"
+          ],
+          "rationale": "SQA-466 (P2), reopened by the review after served-answers/pair (0abdf4529), checked against keptDrawn and onMiss at 08a0ad2c7: valid. keptDrawn draws a stored sharpened picture whose pair was not kept again under FreshRun with the request as given; for prompt mode 2 that request is the idea, so onMiss has the 9B enhancer write the prompt and negative again, two or three generations, though the stored picture carries both (DecodeContent). The change: the redraw carries the prompts the stored picture was drawn from, and onMiss takes them in place of the enhancer's, the request's identity as given, so its answer is kept under the request and the next repeat draws nothing. Check: TestAnInterruptedEnhancedPairIsRedrawnWithoutItsChat serves an enhanced sharpened request through the stand-in serving with its pair's keeping refused once; the repeat draws once, opens no chat, draws from the first's prompts and comes with both pictures, and the next draws nothing."
+        }
+      ]
+    },
+    {
+      "id": "preset-control-window",
+      "title": "A MOSS request's control window is admitted as its preset fills it, before any file it names is read",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A MOSS request's control window is admitted as its preset fills it, before any file it names is read",
+          "verify": "go test ./internal/mediacapability -count=1 -run '^TestAPresetsControlWindowIsAdmittedBeforeFilesAreRead$'",
+          "files": [
+            "internal/mediacapability",
+            "internal/latentimage"
+          ],
+          "rationale": "SQA-425 (P2), reopened by the review after served-answers/preset (706cdf75f), checked against admitted and Request.withSection at 08a0ad2c7: valid. admitted holds a request to latentimage.Admit as it came, its control's end unset and so 1, while the preset it names fills the end (ultra-depth-control's 0.5), so a control starting at 0.75 is admitted, Contents hashes the preset's adapter and the depth checkpoint (412 MB), ReadPictures reports a missing picture, and the window is refused only in the session, if at all; an end of 0.5 given in the request is refused at once. The change: admitted holds the request as its preset fills it to the session's refusals, the request served as it came. Check: TestAPresetsControlWindowIsAdmittedBeforeFilesAreRead sends ultra-depth-control with a control starting at 0.75 and a missing picture through preparedFirst with a stand-in session: it is refused for its control window, and pictureFiles names nothing for it."
         }
       ]
     },

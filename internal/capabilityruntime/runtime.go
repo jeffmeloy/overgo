@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"path/filepath"
 	"time"
 
 	"overgo/internal/artifact"
@@ -91,6 +92,16 @@ func PathNaming(name func(ctx context.Context, store artifact.Repository, path s
 	}
 }
 
+// besideName is how Contents names file beside the model at path: by its path from the model's, where it lies under
+// it, so a naming moves with its model, else by its own. A file is named by its name beside its content, so two files
+// of one content read as each other's are told apart (SQA-469).
+func besideName(path, file string) string {
+	if relative, err := filepath.Rel(path, file); err == nil && filepath.IsLocal(relative) {
+		return filepath.ToSlash(relative)
+	}
+	return filepath.ToSlash(file)
+}
+
 // absentFile is a file a request's answer reads beside its model that is not there: the request is refused, naming it,
 // so no answer is sought or kept for it (SQA-406). An answer had been kept under a naming that wrote "absent" for it, so
 // a draw that found the file installed by the time it opened it was kept, and given again once the file was removed.
@@ -137,7 +148,7 @@ func Contents(held *heldfile.Set, files func(ctx context.Context, store artifact
 			if err != nil {
 				return "", nil, errors.Join(err, release())
 			}
-			fmt.Fprintln(named, id)
+			fmt.Fprintln(named, besideName(path, file), id)
 		}
 		return hex.EncodeToString(named.Sum(nil)), release, nil
 	}

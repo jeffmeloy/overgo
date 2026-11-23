@@ -644,8 +644,9 @@
           // What a running operation reports to be read while it goes (definition.renderLive) stands where its evidence will.
           if (definition.renderLive) definition.renderLive(evidence, current, overgo);
         }
-        // follow: the operation's live state until it ends, then its evidence.
-        async function follow(id) {
+        // follow: the operation's live state until it ends, then its evidence, with the input this page sent it, where it
+        // did (a run followed again after a reload has none here).
+        async function follow(id, sent) {
           operation = id;
           run.disabled = true;
           cancel.disabled = false;
@@ -654,7 +655,7 @@
           try {
             const completed = await overgo.waitOperation(operation, renderOperation);
             overgo.runNotice.ended(overgo.title, completed.state);
-            if (completed && completed.state === "completed" && definition.renderEvidence) await definition.renderEvidence(evidence, completed, overgo);
+            if (completed && completed.state === "completed" && definition.renderEvidence) await definition.renderEvidence(evidence, completed, overgo, sent);
           } catch (err) { status.replaceChildren(overgo.failure(err)); } finally { operation = null; run.disabled = false; cancel.disabled = false; cancel.hidden = true; }
         }
         // submission: the selected capability and its entries, or null after focusing the first missing one.
@@ -691,7 +692,7 @@
             accepted = await api.submit("/" + definition.scope + "/run", { task: capability.task, recipe: capability.recipe, input });
             overgo.rememberedControls.remember(capability.recipe, overgo.rememberedControls.values(fields));
           } catch (err) { status.replaceChildren(overgo.failure(err)); run.disabled = false; return; }
-          await follow(accepted.operation);
+          await follow(accepted.operation, input);
         });
         // A run of this tab's recipes still going (the page was reloaded) is followed again.
         liveOperation((item) => !terminal(item.state) && capabilities.some((capability) => capability.recipe === item.recipe)).then((live) => {

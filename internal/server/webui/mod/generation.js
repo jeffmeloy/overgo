@@ -2,13 +2,11 @@
   "use strict";
   // The generation tab is MOSS's workbench as it is every media model's page: a model's controls and presets, a depth
   // section's preview before its run, and a run's pictures shown and compared.
-  let request = null; // the run's task, recipe and input as the page composes them, once the tab is mounted
 
   // depthPreview: a depth section's map as its run makes it, as the MOSS Ultra workflow's PreviewImage shows it, before
   // any run; offered while the page holds a depth control. The estimate runs once per press, never again on its own.
   function depthPreview(host, composed, overgo) {
     const { el, api } = overgo;
-    request = composed;
     const shown = el("div", { class: "depth-preview" });
     const open = el("button", { class: "btn alt", type: "button", text: "Preview depth map" });
     open.addEventListener("click", async () => {
@@ -80,8 +78,9 @@
   // shown: a completed run's outputs, its pictures beside an A/B compare: a sharpened run's picture as drawn (A) and
   // sharpened (B), as each MOSS Ultra section's comparer shows them (moss-sharpened-pair), else its picture (B) against
   // the picture its request started from or the picture drawn before it (A); and what its picture was drawn from where
-  // the run says (promptsUsed); a non-picture output stands as its link.
-  async function shown(host, completed, overgo) {
+  // the run says (promptsUsed); a non-picture output stands as its link. The pictures a request started from are the
+  // ones sent, not the form's as the run ends, and a run this page did not send names none (SQA-463).
+  async function shown(host, completed, overgo, sent) {
     const { el, contentURL, fmt } = overgo;
     let outputs = completed.outputs || [];
     if (completed.task !== "image-gen") {
@@ -93,7 +92,7 @@
     const drawnFrom = fetched.find((output) => output.blob.type.includes("json"));
     const used = drawnFrom ? JSON.parse(await drawnFrom.blob.text()) : null;
     outputs = fetched.filter((output) => output !== drawnFrom).map((output) => output.id);
-    const input = (request && request().input) || {};
+    const input = sent || {};
     const started = [input.image, input.control && input.control.picture].filter(Boolean);
     const before = pictures.find((picture) => !outputs.includes(picture.id) && !started.includes(picture.id));
     for (const id of started) remember(id, "started from · " + fmt.shortID(id));

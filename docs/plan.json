@@ -18,21 +18,6 @@
       ]
     },
     {
-      "id": "moss-workflow-surface",
-      "title": "Every node by which the MOSS Ultra workflow saves, previews, compares or shows something has its counterpart in a run's result or on the page, and one without is refused without the card",
-      "steps": [
-        {
-          "id": "source",
-          "title": "A depth section's comparison offers the picture its run started from, not the form's picture when the run completes",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserMOSSComparesTheSourceItsRunStartedFrom$' -leg moss-run-source",
-          "files": [
-            "internal/server"
-          ],
-          "rationale": "SQA-463 (P2), checked against generation.js and workflow.js at 47b3587c9: valid; the review names this row its owner. When a depth section's run completes, the page reads the control picture from the form as it is then, not as the run was sent, so a picture changed while the run draws is labelled the run's source and offered in the A/B comparison beside the run's output, and the picture the run started from is not offered. The change: the page keeps the source each run was sent with and compares the run's outputs with that; a run followed after a reload offers a source only where its record names one, and the drawn and sharpened comparison stays. Check: TestWebUIBrowserMOSSComparesTheSourceItsRunStartedFrom sends a depth section with picture A, sets B in the form while it draws, and on completion the comparison offers A labelled as the source, beside the drawn and sharpened pictures."
-        }
-      ]
-    },
-    {
       "id": "served-answers",
       "title": "A served MOSS picture is answered from its stored run only where every file it reads is present, its preset declared and its pair whole",
       "steps": [

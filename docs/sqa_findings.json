@@ -1,52 +1,26 @@
 {
-  "advisory_notice": "SQA recommendations for master. Master decides which findings to accept, defer or decline, in what order, and how to address them. The ranking and assessment explain SQA's judgment. Only docs/plan.json directs work.",
+  "advisory_notice": "All SQA findings, rankings and assessments are recommendations. Master decides whether, when and how to act through docs/plan.json.",
   "priority_assessment": [
-    "The full measurement landed at 01f1fbe63. I would correct the three literal false checks first (SQA-482), so master can finish the already planned contended-credit, user-size and Qwen projection steps under their original names. SQA-481 fits the next step. SQA-474 matters before the next interrupted cycle is resumed. For future measurement work I would remove the verifier's false refusal (SQA-483). The ceiling-file refusal (SQA-484) can wait behind the MOSS checks.",
-    "The latest MOSS run (1bae67d52) took 33.629 s warm against ComfyUI's 34.412 s, and 46.429 s on the first run against 40.176 s. I would use served-parts/do (SQA-471) to locate that 6.253 s first-run gap. SQA-473 identifies 92.5 MiB copied during load and at least 103.9 MiB of host weights kept after the decoder binds. Their cost in seconds is unknown, so I would keep the planned measurement ahead of this change.",
-    "I would give SQA-410 first priority among the MOSS checks. The planned floors check can pass while the adapter comparison still performs 248 unnecessary denoiser passes. SQA-467 can use its two existing draws to verify the finished pixels. The own-size timing capture has all 50 progress events, so SQA-477 can be addressed with the planned reference clock work."
+    "Master has put the seven MOSS page steps first, starting with moss-page/sections. I would keep that order and cover SQA-485 in moss-page/groups. A saved builder request loses its layout on reload. Comparing the submitted request with the original in the existing browser check would catch the fault before a GPU draw.",
+    "After the page work, I would keep lanes-rotation/do ahead of longer GPU checks so packages skipped by a yield get a turn. Within card-checks-sound I would take floors first (SQA-410). The adapter comparison runs eight changed-input draws whose results do not affect its verdict, totaling 248 denoiser passes. That is a source count. The time saved has yet to be measured.",
+    "The last comparable six-section run at 1bae67d52 took 46.429 s cold against ComfyUI's 40.176 s and 33.629 s warm against 34.412 s. I would use served-parts/do (SQA-471) to locate the 6.253 s cold gap before changing decoder memory ownership. With no false checks left in the committed plan, the lead's proposed combined fix for SQA-482 and SQA-483 can follow the page work. I would address SQA-474 before resuming another interrupted measurement cycle."
   ],
   "branch": "master",
   "findings": [
     {
-      "id": "SQA-482",
+      "id": "SQA-485",
       "severity": "P2",
       "files": [
-        "cmd/plan/main.go",
-        "cmd/plan/check_form_test.go",
-        "internal/plan/plan.go",
-        "internal/landing/landing.go",
-        "internal/landing/terms_test.go",
-        "docs/plan.json"
+        "internal/server/webui/workflow.js",
+        "internal/server/webui/mod/chat.js",
+        "internal/latentimage/prompt.go",
+        "internal/latentimage/runtime_cuda_windows.go",
+        "internal/server/webui_browser_moss_prompt_mode_windows_test.go",
+        "internal/server/webui_browser_remembered_test.go"
       ],
-      "input": "File a step with the literal command false because its test will be written with the implementation. Try to land the finished work under the original step ID.",
-      "expected": "File the command that will exercise the promised behavior. It can name a test the change will add. Replace acceptance of the literal false placeholder in the existing filing check, and correct already filed placeholders through the existing plan edit. Keep the original behavioral check binding when the code lands.",
-      "actual": "The filing test explicitly accepts false. The landing uses the committed step's verifier, so false fails for every implementation, even when the working plan now names a passing test. At 7d966c021 master retired measured-names-first/do and landed the same work as measured-names-first/first. The next three committed steps also carry false: contended-credit/do, user-size-inapplicable/do and flash-next-projection/do. The retirement was observed. The three future refusals follow from source if the checks stay as filed."
-    },
-    {
-      "id": "SQA-481",
-      "severity": "P2",
-      "files": [
-        "cmd/validate/run.go",
-        "cmd/validate/cell_credit.go",
-        "cmd/validate/timed_test.go",
-        "internal/scorecard/contended.go"
-      ],
-      "input": "Run a timed serving cell with a writable cycle-credit file and stable inputs. Both the first attempt and its single retry succeed while another build runs on the machine, and validate sets aside both timings. Resume the interrupted cycle on a quiet machine with the same commit, store and cell inputs.",
-      "expected": "Keep the two-attempt limit and the earlier quiet scorecard value. Report that this cell acquired no usable timing and leave it eligible for a quiet measurement on resume. Keep credit for the other cells that finished successfully.",
-      "actual": "Source counterexample at b2de74cef. measureCell excludes each contended serving attempt from the scorecard. On the second exclusion, executeMeasured logs that the earlier times stand and calls settle(nil), which increments the acquired count and writes the cell key. On resume, credit.has succeeds and skips the producer. TestAContendedCellIsMeasuredOnceMoreAfterTheOthers explicitly counts the twice-contended cell as acquired and disables persistent credit. The resume skip follows from the production calls. No such skip was observed in the current run."
-    },
-    {
-      "id": "SQA-474",
-      "severity": "P2",
-      "files": [
-        "cmd/loop/improve.go",
-        "cmd/loop/improve_test.go",
-        "cmd/loop/improve_resume_test.go",
-        "internal/loop/driver.go"
-      ],
-      "input": "Keep a published scorecard at commit C. Start another cycle at C with different obligations and credit for finished cells. Resume it and let a lane fail before this cycle publishes or earns credit for publication.",
-      "expected": "Return the lane error and preserve the current cycle's completed cells for retry. File gaps and run background fill only when the publication belongs to this cycle or was explicitly credited for the same obligations.",
-      "actual": "Source counterexample at 7d966c021. measurePhases returns on the lane failure, but improvement.Measure returns the newest scorecard on a commit match alone. Improve files gaps from the older scorecard and invokes Fill, whose cleanup removes cycle_state.json and cycle_credit.json before the caller gets the error. TestPublishedCycleCutShortIsStillWorthFinishing covers a different-commit case. No same-commit loss was observed."
+      "input": "Run the MOSS builder with a valid layout, reload Generate and submit the restored form without touching prompt mode. Alternatively, open a past builder picture in the gallery and choose Use these settings.",
+      "expected": "Restoring builder mode should show and submit the saved layout and omit the manual prompt, just as selecting builder by hand does. In moss-page/groups, reuse the form's existing choice visibility and structured field setters after restoration. Compare the submitted mode and layout with the original in the existing browser coverage.",
+      "actual": "Source counterexample at 5f5d4db92. Generate initializes visibility in the default text mode. rememberedControls.apply restores field values without refreshing visibility, so controlValues drops the still-hidden layout. Admission rejects the restored builder request with errBuilderWithoutLayout. Gallery reuse also converts a stored layout object to [object Object], which partsValue cannot parse and clears. The prompt-mode check changes the selector by hand. The remembered-settings check restores scalar class and seed. Neither exercises the restored builder request. No browser or model run was performed for this review."
     },
     {
       "id": "SQA-410",
@@ -62,18 +36,17 @@
       "actual": "At c87add70e, holdMergedSections calls readGoldenCases for four sections in each of two precision modes. Each call draws a baseline and a changed input per section. Only the baseline latent scores decide the comparison. The eight extra controls are decoded, their PNGs discarded and their scores only logged. The pinned requests imply 248 extra denoiser passes: (100 + 8 + 8 + 8) per mode. This is a source count. Wall-time savings are unmeasured. In the separate floor checks, a missing standard threshold is reported after ten draws, a later size error hides an earlier failure and skips generator cleanup, and the five standard and three Turbo control pictures are decoded and discarded. The adapter verdict also accepts two negative-infinity scores on a zero reference. At 638e0be1a the step selects only TestUltraSectionsHoldTheirGoldenFloors. Only TestMOSSAdapterSectionsMultiplyAsComfyUI/sections calls holdMergedSections. Leaving all eight adapter controls in place cannot fail the selected check on that account."
     },
     {
-      "id": "SQA-483",
+      "id": "SQA-474",
       "severity": "P2",
       "files": [
-        "internal/runrecord/verify_command.go",
-        "internal/planverify/verify.go",
-        "internal/landing/form.go",
-        "cmd/plan/main.go",
-        "cmd/plan/check_form_test.go"
+        "cmd/loop/improve.go",
+        "cmd/loop/improve_test.go",
+        "cmd/loop/improve_resume_test.go",
+        "internal/loop/driver.go"
       ],
-      "input": "Give the plan the original full-measurement/run check from 5147c611f's parent. It saves the scorecard output in a shell variable and then checks each required model row and the generated README.",
-      "expected": "Remove the shared parser's rejection of an assignment that captures command output and feeds a later assertion. Recognize this form as a composite command. Use the existing shell and its exit status, preserve evidence checks for any Go tests, and grant no cached credit from a partial reading of the command. The check must still fail if a required row is missing.",
-      "actual": "Git Bash accepted the exact recorded command in syntax-only mode. ParseVerify splits at the opening parenthesis, consumes the assignment prefix and reports that the segment runs nothing. The landing refusal and commit 8e62553db record that this stopped full-measurement/run after nine hours of measurement. Commit 5147c611f rewrote the check before the step landed. The filing check now gives the same refusal earlier. The nine hours elapsed before the refusal. The record shows a verifier rewrite and a separate landing."
+      "input": "Keep a published scorecard at commit C. Start another cycle at C with different obligations and credit for finished cells. Resume it and let a lane fail before this cycle publishes or earns credit for publication.",
+      "expected": "Return the lane error and preserve the current cycle's completed cells for retry. File gaps and run background fill only when the publication belongs to this cycle or was explicitly credited for the same obligations.",
+      "actual": "Source counterexample at 7d966c021. measurePhases returns on the lane failure, but improvement.Measure returns the newest scorecard on a commit match alone. Improve files gaps from the older scorecard and invokes Fill, whose cleanup removes cycle_state.json and cycle_credit.json before the caller gets the error. TestPublishedCycleCutShortIsStillWorthFinishing covers a different-commit case. No same-commit loss was observed."
     },
     {
       "id": "SQA-467",
@@ -87,17 +60,6 @@
       "input": "Consider the compact sharpening check (seed 42, radius 1, sigma 0.6, alpha 0.7). If decodeRotary publishes the drawn PNG as the finished raster after finishedPNGs returns, while marking it sharpened, evaluate both pair checks.",
       "expected": "In card-checks-sound/sharpened, compare the decoded pixels from the two existing draws. Require the drawn picture to match the plain one and the finished picture to differ from it. A change in PNG metadata or compression alone must fail the sharpening check.",
       "actual": "At d0ed24b1f, the compact generator check still compares finished PNG bytes, so the Finishing=sharpened tag passes the inequality even if the caller publishes the drawn pixels twice. The pair encoder check covers finishedPNGs directly. The new PNG level check verifies quantization and compression on synthetic pixels. Neither exercises the generator's choice of which raster to publish. Source counterexample."
-    },
-    {
-      "id": "SQA-460",
-      "severity": "P2",
-      "files": [
-        "internal/latentimage/workflow_time_windows_model_test.go",
-        "internal/latentimage/workflow_source_test.go"
-      ],
-      "input": "Run the Windows MOSS workflow clock with OVERGO_WORKFLOW_RECORD set to the absolute path of the repository timing record.",
-      "expected": "Reject the absolute destination before reserving the machine. Keep the existing commit check and append for valid relative paths.",
-      "actual": "The attempt documented in d28ab1e84 measured 46.738 s cold and 34.430 s warm before appendWorkflowTiming failed on the destination. All twelve section draws were repeated to save the record."
     },
     {
       "id": "SQA-471",
@@ -115,6 +77,46 @@
       "actual": "Observed in the retained record: the four parts of the first decode total 426 ms inside 418 ms. All 48 decode subparts across both runs report zero CPU and file reads. The clock measures the parent with time.Now, reads child walls from processmeasure.Stages and serializes unset counters as zero. The six warm stages labeled 'decoder compiled' total 468 ms. In source, compileResidentStatic also binds every static input and can upload weights. The record cannot attribute those 468 ms to compilation alone."
     },
     {
+      "id": "SQA-482",
+      "severity": "P2",
+      "files": [
+        "cmd/plan/main.go",
+        "cmd/plan/check_form_test.go",
+        "internal/plan/plan.go",
+        "internal/landing/landing.go",
+        "internal/landing/terms_test.go",
+        "docs/plan.json"
+      ],
+      "input": "File a step with the literal command false because its test will be written with the implementation. Try to land the finished work under the original step ID.",
+      "expected": "File the command that will exercise the promised behavior. It can name a test the change will add. Replace acceptance of the literal false placeholder in the existing filing check, and correct already filed placeholders through the existing plan edit. Keep the original behavioral check binding when the code lands.",
+      "actual": "The filing check accepts false, and landing uses the committed step's verifier. Every implementation of that step therefore fails the same check. Master retired measured-names-first/do, contended-credit/do and user-size-inapplicable/do and landed the work under new step IDs (7d966c021, a25fa2246 and 7c6bef92f). No open step at 5f5d4db92 carries false. The filing check still accepts it for future steps."
+    },
+    {
+      "id": "SQA-483",
+      "severity": "P2",
+      "files": [
+        "internal/runrecord/verify_command.go",
+        "internal/planverify/verify.go",
+        "internal/landing/form.go",
+        "cmd/plan/main.go",
+        "cmd/plan/check_form_test.go"
+      ],
+      "input": "Give the plan the original full-measurement/run check from 5147c611f's parent. It saves the scorecard output in a shell variable and then checks each required model row and the generated README.",
+      "expected": "Remove the shared parser's rejection of an assignment that captures command output and feeds a later assertion. Recognize this form as a composite command. Use the existing shell and its exit status, preserve evidence checks for any Go tests, and grant no cached credit from a partial reading of the command. The check must still fail if a required row is missing.",
+      "actual": "Git Bash accepted the exact recorded command in syntax-only mode. ParseVerify splits at the opening parenthesis, consumes the assignment prefix and reports that the segment runs nothing. The landing refusal and commit 8e62553db record that this stopped full-measurement/run after nine hours of measurement. Commit 5147c611f rewrote the check before the step landed. The filing check now gives the same refusal earlier. The nine hours elapsed before the refusal. The record shows a verifier rewrite and a separate landing."
+    },
+    {
+      "id": "SQA-460",
+      "severity": "P2",
+      "files": [
+        "internal/latentimage/workflow_time_windows_model_test.go",
+        "internal/latentimage/workflow_source_test.go"
+      ],
+      "input": "Run the Windows MOSS workflow clock with OVERGO_WORKFLOW_RECORD set to the absolute path of the repository timing record.",
+      "expected": "Reject the absolute destination before reserving the machine. Keep the existing commit check and append for valid relative paths.",
+      "actual": "The attempt documented in d28ab1e84 measured 46.738 s cold and 34.430 s warm before appendWorkflowTiming failed on the destination. All twelve section draws were repeated to save the record."
+    },
+    {
       "id": "SQA-473",
       "severity": "P2",
       "files": [
@@ -128,19 +130,6 @@
       "input": "Load the pinned MOSS Ultra decoder (flux2-vae_small.safetensors), draw once, then keep the generator open for another request of the same size. Inspect the host weights during graph construction and after all static inputs have bound successfully.",
       "expected": "In the existing VAE graph builder, reuse the original weights when the temporal kernel has a single tap. In the rotary generator, release its host feeds once the resident decoder owns all static inputs. Keep the feeds on a failed bind, preserve extraction for multi-tap kernels and keep the fresh-versus-resident pixel comparison.",
       "actual": "Source trace at 0776b4a53 with tensor shapes from the pinned checkpoint header. Of 33 decoder 3-by-3 weight tensors, 30 go through sliceLastTemporalTap with temporal extent 1. It allocates and copies 96,999,552 bytes of identical F32 data during load. The three upsamplers already use their input slices directly. After the first successful bind, VAEProgram.feeds still holds all 33 payloads (108,943,488 bytes before biases or other weights). Later decodes use state.decoding and never read those feeds. These are separate construction and retention counts, with no measured wall-time or process-memory delta."
-    },
-    {
-      "id": "SQA-484",
-      "severity": "P2",
-      "files": [
-        "internal/landing/ceilings.go",
-        "internal/landing/ceilings_test.go",
-        "internal/repoanalysis/error_check_test.go",
-        "internal/repoanalysis/idempotent_commit_owner_test.go"
-      ],
-      "input": "Reduce the count of three-line error checks below its limit while another change owns the file that records the limit. Separately, remove one of ten references to ErrNoChange without introducing a handwritten commit or changing the recorded ceiling.",
-      "expected": "Let the improvement land with the other edit intact. Make tightening a numerical ceiling optional when its file has a concurrent edit. In the idempotent-commit check, compare the injected violation with the measured baseline. Keep rejecting a newly handwritten commit and a count above the ceiling.",
-      "actual": "The retained speech-hold/do refusal records 1,907 checks against a ceiling of 1,909. The invariant accepted the decrease, but lowerCeilings refused the landing because the ceiling file had an out-of-scope edit. Its test requires that refusal. A second case follows from source: TestIdempotentCommitHasOneOwner fails for nine references against ten, and its injected case expects the fixed ceiling plus one. Removing the redundant reference alone therefore fails an ownership check."
     },
     {
       "id": "SQA-477",
@@ -402,7 +391,7 @@
       }
     }
   },
-  "next_finding_number": 485,
+  "next_finding_number": 486,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

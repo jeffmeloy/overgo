@@ -681,6 +681,8 @@ func (g *Generator) integrate(ctx context.Context, session *Generator) (*Generat
 		if err := g.pipeline.Advance(ctx, sigmas[step], float64(sampler.Delta(step))); err != nil {
 			return nil, err
 		}
+		// The run's page shows each step as it finishes (moss-page/result).
+		processmeasure.Stepped(ctx, step+1, len(sigmas)-1)
 	}
 	g.integrated = true
 	return g, nil

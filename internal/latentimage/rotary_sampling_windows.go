@@ -13,6 +13,7 @@ import (
 	"overgo/internal/cuda/driver"
 	"overgo/internal/graphruntime"
 	"overgo/internal/media"
+	"overgo/internal/processmeasure"
 	"overgo/internal/safetensors"
 	"overgo/internal/sampling"
 	"overgo/internal/samplingcuda"
@@ -506,6 +507,7 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 					return nil, e
 				}
 			}
+			processmeasure.Stepped(ctx, index+1, len(settings.schedule.Timesteps))
 			continue
 		}
 		embedding, e := (media.SinusoidalProgram{Dimensions: spec.TimestepEmbed, FrequencyBase: rotaryTimestepBase, InputScale: float64(tensor.UnitScale)}).Encode32(time)
@@ -623,6 +625,8 @@ func runRotarySampling(ctx context.Context, runtime *graphruntime.ResidentSessio
 		if advanceErr != nil {
 			return nil, advanceErr
 		}
+		// The run's page shows each step as it finishes (moss-page/result).
+		processmeasure.Stepped(ctx, index+1, len(settings.schedule.Timesteps))
 	}
 	result, current = current, nil
 	return result, nil

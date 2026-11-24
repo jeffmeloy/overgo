@@ -7,16 +7,6 @@
       "title": "MOSS's Generate page leads with the workflow section by name, shows a run's progress and its result beside the form, takes pictures by choice, and shows only the controls the section runs",
       "steps": [
         {
-          "id": "result",
-          "title": "A run's progress and its picture show beside the form on a wide screen, the Run button in view",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserMOSSRunShowsBesideTheForm$' -leg moss-run-beside",
-          "files": [
-            "internal/server/webui",
-            "internal/server"
-          ],
-          "rationale": "The owner's review of 2026-11-24, point 2, checked against the code: valid. The page places a finished run's picture after the whole form, below the fold at 1280 x 800, and internal/server/webui/mod/generation.js shows no step progress (it reads none). The change: on a wide screen the form and the result sit side by side, the result column showing the run's steps as they advance and then its picture, and Run stays in view as the form scrolls. Check: TestWebUIBrowserMOSSRunShowsBesideTheForm at 1280 x 800 reads the progress during a held run, the picture's box inside the viewport when it ends, and Run inside the viewport with the form scrolled."
-        },
-        {
           "id": "pictures",
           "title": "A picture and a depth map are chosen by upload, drop or a thumbnail, never typed",
           "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserMOSSPictureIsChosenNotTyped$' -leg moss-picture-chosen",
@@ -72,6 +62,22 @@
             "internal/server"
           ],
           "rationale": "The owner's review of 2026-11-24, point 7, checked against the code: valid in part. Runs, Library and the chat's model selector show identities (recipe:..., output:...) where a name or date belongs; Artifacts draws an image item whole, its alt text its identity, with no thumbnail grid to scan. The change: each list leads with the model's name, the run's date and what it made, and Artifacts shows pictures as a grid of thumbnails, an identity kept in each item's detail. Check: TestWebUIBrowserListsShowNamesAndThumbnails reads each list's first column and the gallery's thumbnails."
+        }
+      ]
+    },
+    {
+      "id": "un0-pictures",
+      "title": "Un-0 learns pictures: its trainer fits each class's pictures, a checkpoint trained on 8x8 handwritten digits stands beside the bootstrap one, and the README shows what it draws",
+      "steps": [
+        {
+          "id": "objective",
+          "title": "The Un-0 trainer fits each class's pictures: each step draws one picture per class and takes its squared error against a picture of that class from a dataset",
+          "verify": "go test ./internal/oscillatorimage -count=1 -run '^TestUn0LearnsItsClassesPictures$'",
+          "files": [
+            "internal/oscillatorimage",
+            "cmd/train"
+          ],
+          "rationale": "The owner, 2026-11-24: the README's Un-0 card suggests Un-0 is not working. Checked: the port is right (its operators and its four-step generator match the reference within 1e-4 and 1e-3, the un0 goldens), but the checkpoint never learned a picture. Its weights are spread like a fresh start (conv weights with a standard deviation of 0.08 to 0.11, biases within 0.82), and the only objective its trainer has, classTargetLoss (internal/oscillatorimage/trainer.go), pulls every pixel of class c to the flat level 0.1 + 0.2c, which tanh and the 0-255 mapping show as three near-greys, the card's colourless noise. So no draw of it can be a better picture; a trained one can.\n\nThe change: the trainer takes a picture objective beside the class target. Each step draws one picture per class from random phases and takes the squared error against a picture of that class drawn from a dataset (its pixels in [-1, 1] as tanh gives them), so the generator learns each class's mean picture, a legible one at 8 x 8. cmd/train's oscillatorimage route takes the dataset and writes the trained weights beside a config, as a new model directory; the bootstrap Un-0 is kept.\n\nCheck: TestUn0LearnsItsClassesPictures trains a bootstrap model on three synthetic 8 x 8 classes (a ring, a bar, a cross): the loss falls by half or more, and each class's draws are nearer their own class's mean than another's. It does not exist at the base, so the check fails there.\n\nNext, once the owner allows the download of the UCI optdigits data (8 x 8 handwritten digits, about 0.5 MB, from archive.ics.uci.edu): a step that trains Un-0 on the digits 0, 1 and 2, and the README's card of the trained checkpoint, which serves as Un-0 only on the owner's answer (activating a model)."
         }
       ]
     },

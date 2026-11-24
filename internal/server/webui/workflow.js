@@ -572,12 +572,17 @@
         // command: the commands that reproduce this submission outside the page; a changed entry clears them.
         const command = el("button", { class: "btn alt", text: "Show command" });
         const commands = el("div", { class: "workflow-commands", role: "group", "aria-label": "Reproducing commands" });
-        // The task first, then its inputs, then the action that runs them.
+        // The task first, then its inputs, then the action that runs them, which stays in view as the form scrolls; a run's
+        // status, progress and result stand beside the form on a wide screen and below it on a narrow one
+        // (moss-page/result).
         panel.append(
           el("div", { class: "section-title", text: overgo.title }),
-          el("div", { class: "workflow-task" }, el("label", { class: "control" }, el("span", { text: "Task and model" }), capabilitySelect), placement), controls, previewHost, sizeHost,
-          el("div", { class: "row" }, run, cancel, command), commands, status,
-          el("div", { class: "row" }, progress, remaining), trends, metrics, evidence);
+          el("div", { class: "workflow-columns" },
+            el("div", { class: "workflow-form" },
+              el("div", { class: "workflow-task" }, el("label", { class: "control" }, el("span", { text: "Task and model" }), capabilitySelect), placement), controls, previewHost, sizeHost,
+              el("div", { class: "row workflow-actions" }, run, cancel, command), commands),
+            el("section", { class: "workflow-result", "aria-label": "Run" }, status,
+              el("div", { class: "row" }, progress, remaining), trends, metrics, evidence)));
 
         let capabilities;
         try { capabilities = await api.get("/" + definition.scope + "/capabilities"); }
@@ -632,10 +637,11 @@
           const completed = current.progress ? current.progress.completed : 0;
           progress.hidden = !total;
           if (total) { progress.max = total; progress.value = completed; }
-          // The remainder projects the server's elapsed wall over the steps left, as of the last step.
+          // The step reached shows as it is reported, and the remainder projects the server's elapsed wall over the steps
+          // left, as of the last step, where the server has timed one.
           const elapsed = current.progress && current.progress.elapsed_ms;
-          remaining.textContent = total && completed && elapsed && !terminal(current.state) ?
-            "step " + completed + " of " + total + " · about " + fmt.duration((total - completed) * elapsed / completed) + " remaining" : "";
+          remaining.textContent = total && completed && !terminal(current.state) ?
+            "step " + completed + " of " + total + (elapsed ? " · about " + fmt.duration((total - completed) * elapsed / completed) + " remaining" : "") : "";
           const drawn = (current.series || []).filter((series) => definition.trend && definition.trend(series.name) && series.values.length > 1);
           trends.replaceChildren(...drawn.map((series) => el("section", { class: "evidence-block", "data-trend": series.name },
             el("div", { class: "section-title", text: series.name + " · " + series.reports + " steps" }),

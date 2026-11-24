@@ -335,7 +335,13 @@ func (workspace *storeGenerationWorkspace) ExecuteWorkflow(ctx context.Context, 
 		reporter.Text("Loading model")
 		repository = &generationProgressRepository{Store: workspace.store, recipe: recipeID, phases: phases, reporter: reporter}
 	}
-	output, err := execute(ctx, repository, capability.directory, capability.execution, string(raw))
+	// Each sampling step the model finishes is the operation's progress, which the page shows as the run goes
+	// (moss-page/result).
+	stepped := processmeasure.WithSteps(ctx, func(done, total int) {
+		steps := uint64(total)
+		reporter.Progress(uint64(done), &steps)
+	})
+	output, err := execute(stepped, repository, capability.directory, capability.execution, string(raw))
 	end, _ := processmeasure.Counter()
 	measured, _ := output.(capabilityruntime.Measured)
 	var content artifact.Content

@@ -9,7 +9,7 @@
         {
           "id": "lanes",
           "title": "One whole slow run passes at the commit that lands the shared image steps, every cycle lane and every package of the models lane run to their end",
-          "verify": "go run ./cmd/validate -lanes-passed-at \"$(git rev-parse HEAD)\"",
+          "verify": "git merge-base --is-ancestor 3fe41bfa082a9b8cb6fddbae7ca086ce7fa8b333 HEAD \u0026\u0026 go run ./cmd/validate -lanes-passed-at 3fe41bfa082a9b8cb6fddbae7ca086ce7fa8b333",
           "files": [
             "docs/plan.json"
           ],
@@ -40,6 +40,22 @@
           "depends_on": [
             "shared-whole/lanes"
           ]
+        }
+      ]
+    },
+    {
+      "id": "ocr-projection",
+      "title": "Unlimited-OCR's projection proof is grounded by a committed exact suite, so the full run verifies it",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Unlimited-OCR's projection proof is grounded by a committed exact suite, so the full run verifies it",
+          "verify": "false",
+          "files": [
+            "cmd/validate",
+            "docs/verification"
+          ],
+          "rationale": "Note: Found by the full measurement's preflight at 3fe41bfa0 (run from the checkout with measured-list's change): Unlimited-OCR-bf16.gguf's projection-proof cell is refused, \"no committed exact suite or oracle grounds a verification its recipe passed\" (cmd/validate/projection_proof.go projectionRun). groundProjection grounds a projection cell only by docs/verification/fixtures/qwen27/suite.json or the E4B oracle (fixtures/e4b_multimodal_golden.json), each matched to a succeeded verification of the cell's recipe; Unlimited-OCR's recipe passed neither, so its cell has no grounding in the dry run's plan and the scorecard waits on it (\"blocking: the scorecard waits on every projection-proof cell\"). The work: a committed exact projection suite for Unlimited-OCR (its cases and media beside it, as Qwen3.8-27B's), passed by a verification of its active recipe and named in projectionSuites, so the full run re-verifies it. The check is written with the work: the dry run names the suite as the OCR cell's grounding."
         }
       ]
     },

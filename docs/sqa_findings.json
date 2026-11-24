@@ -1,12 +1,28 @@
 {
   "advisory_notice": "SQA recommendations for master. Master decides which findings to accept, defer or decline, in what order, and how to address them. The ranking and assessment explain SQA's judgment. Only docs/plan.json directs work.",
   "priority_assessment": [
-    "After the shared PNG writer lands, I would use one measurement run for shared-whole/lanes and full-measurement/run. Its lane phase can establish the whole pass and its cells can supply the scorecard on the same revision. SQA-474 comes first: separate invocations repeat uncached checks, yet the completion check accepts older timings. The 5 h 28 min run at 0776b4a53 passed the lanes it selected. The whole-pass query still finds six of 33 model packages with only earlier passes.",
+    "I would remove the owner wait in SQA-475 first. The lead reports eight hours lost on a decision it ultimately made itself. The planned doctrine-answer/do repair should be judged by whether the lead can resume work. Master has already adopted one measurement for shared-whole/lanes and full-measurement/run. SQA-474 remains relevant because the completion check can accept earlier timings. SQA-476 ranks lower because it applies only once the plan empties.",
     "The latest MOSS run (1bae67d52) took 33.629 s warm against ComfyUI's 34.412 s, and 46.429 s on the first run against 40.176 s. I would use served-parts/do (SQA-471) to locate that 6.253 s first-run gap. SQA-473 identifies 92.5 MiB copied during load and at least 103.9 MiB of host weights kept after the decoder binds. Their cost in seconds is unknown, so I would keep the planned measurement ahead of this change.",
     "Among the MOSS check fixes, I rank SQA-410 first. Eight adapter-control draws cost 248 denoiser passes and contribute no score to the verdict. SQA-467 comes next because the two draws already made can verify the finished pixels. Both fit existing plan steps."
   ],
   "branch": "master",
   "findings": [
+    {
+      "id": "SQA-475",
+      "severity": "P2",
+      "files": [
+        "internal/plan/plan.go",
+        "internal/plan/dispatch.go",
+        "cmd/loop/status.go",
+        "cmd/loop/main.go",
+        "internal/loop/driver.go",
+        "cmd/loophook/main.go",
+        "internal/plan/decision_dispatch_test.go"
+      ],
+      "input": "The last ready item needs a reversible decision about a standing rule. It has a recommendation, the lead has authority to answer, Doctrine is true and OwnersAct is false. The checkout is clean and the owner has issued no stop.",
+      "expected": "Remove the external-owner wait for decisions the lead can make. For doctrine-answer/do, use the existing lead answer path, then dispatch under the recorded choice. Reserve the owner wait for an act only the owner can take. Check that the lead can continue and that a worker still cannot land a row under an unapproved rule change.",
+      "actual": "At 638e0be1a, waitsForOwner groups Doctrine with OwnersAct. Dispatch returns Waiting with no item. Current turns that into a work-ownership wait, the driver ends the run, and the stop hook permits a clean session to exit. Status independently lists the same question as waiting for the owner. TestADoctrineDecisionIsNeverTakenByRecommendation requires the wait. In the capacity-record-history incident the lead reports eight hours idle in the working plan. The landing at 638e0be1a records that the lead chose the existing recommendation and removed the historical source pin. That incident is resolved. The same dispatch outcome remains reachable on the next such decision."
+    },
     {
       "id": "SQA-474",
       "severity": "P2",
@@ -90,6 +106,21 @@
       "input": "Load the pinned MOSS Ultra decoder (flux2-vae_small.safetensors), draw once, then keep the generator open for another request of the same size. Inspect the host weights during graph construction and after all static inputs have bound successfully.",
       "expected": "In the existing VAE graph builder, reuse the original weights when the temporal kernel has a single tap. In the rotary generator, release its host feeds once the resident decoder owns all static inputs. Keep the feeds on a failed bind, preserve extraction for multi-tap kernels and keep the fresh-versus-resident pixel comparison.",
       "actual": "Source trace at 0776b4a53 with tensor shapes from the pinned checkpoint header. Of 33 decoder 3-by-3 weight tensors, 30 go through sliceLastTemporalTap with temporal extent 1. It allocates and copies 96,999,552 bytes of identical F32 data during load. The three upsamplers already use their input slices directly. After the first successful bind, VAEProgram.feeds still holds all 33 payloads (108,943,488 bytes before biases or other weights). Later decodes use state.decoding and never read those feeds. These are separate construction and retention counts, with no measured wall-time or process-memory delta."
+    },
+    {
+      "id": "SQA-476",
+      "severity": "P2",
+      "files": [
+        "internal/plan/findings_fall_through.go",
+        "internal/plan/dispatch.go",
+        "cmd/loop/improve.go",
+        "cmd/loop/main.go",
+        "internal/loop/driver.go",
+        "internal/loop/dispatch_wait_test.go"
+      ],
+      "input": "The autonomous loop exhausts its plan. A measurement is due and its prerequisites are satisfied. One new P2 recommendation concerns unrelated work. No plan row names it, the lead has not triaged it and no stop is in force.",
+      "expected": "Remove mandatory filing as a prerequisite for the empty-plan measurement. Keep the recommendation visible to the lead and let the existing measurement eligibility check decide whether to run. Preserve explicit stops, budgets, held work and any prerequisite the lead puts in the plan.",
+      "actual": "Source counterexample at 638e0be1a. FindingsToFile returns the unrelated P2 by severity and triage state alone. Dispatch says to file it before measurement. Run returns findings-waiting before consulting CycleWorthRunning. The empty-plan branch of TestARunEndsWaitingNeverCompleteWhileWorkIsHeldOrFindingsAwaitFiling explicitly requires zero measurements and zero worker calls for one P2. This affects automatic continuation after the final row. The scheduled full-measurement/run row remains dispatchable. No missed run was measured."
     },
     {
       "id": "SQA-388",
@@ -228,6 +259,17 @@
     "at": "2026-11-23",
     "head": "7fbcacc4cbdf0baa7bbafdbce6e34495ab1ec29b",
     "findings": {
+  "SQA-475": {
+        "action": "filed",
+        "rows": [
+          "doctrine-answer/do"
+        ],
+        "note": "Answered by the lead on 2026-11-23 at 638e0be1a: valid from source and from the 8 hours the lead sat on capacity-record-history (the owner: 'Why can't you determine the best thing to do?'). Filed as doctrine-answer/do, widened by it: dispatch names an unanswered decision that changes a standing rule as the lead's to answer now, with its command, and the stop hook holds the lead's turn to answering it, a typed turn included; the status report lists only an owner's act as waiting for the owner; a worker still cannot land a row under it."
+      },
+  "SQA-476": {
+        "action": "declined",
+        "note": "Answered by the lead on 2026-11-23 at 638e0be1a: valid from source, declined as a rule kept on purpose: a P2 no row names has not been judged, and a measurement of five to nine hours taken before it may be taken again after the fix it brings; the lead answers each P2 at its next landing (the dispatch line lists them), so the wait lasts one triage. The measurement now scheduled is a plan row (full-measurement/run), which the rule does not hold."
+      },
   "SQA-474": {
         "action": "filed",
         "rows": [
@@ -316,7 +358,7 @@
       }
 }
   },
-  "next_finding_number": 475,
+  "next_finding_number": 477,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

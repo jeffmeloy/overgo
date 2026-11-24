@@ -5,8 +5,6 @@ package sensenovarecipe
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"fmt"
 	"testing"
 	"time"
 
@@ -43,7 +41,7 @@ func TestSenseNovaProductionImageGeneration(t *testing.T) {
 		TimestepShift: oracle.Request.TimestepShift,
 	}
 	result := runProductionImageGeneration(t, request)
-	hash := fmt.Sprintf("%x", sha256.Sum256(result.image.Data))
+	hash := senseNovaPicture(t, result.image.Data)
 	if hash != senseNovaProductionPNG || result.image.Width != request.Width || result.image.Height != request.Height || result.image.Channels != 3 {
 		t.Fatalf("production image=%dx%dx%d sha256=%s", result.image.Width, result.image.Height, result.image.Channels, hash)
 	}

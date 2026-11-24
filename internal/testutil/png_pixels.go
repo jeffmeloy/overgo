@@ -7,6 +7,7 @@ import (
 	"image/png"
 	"testing"
 
+	"overgo/internal/artifact"
 	"overgo/internal/testcheck"
 )
 
@@ -21,4 +22,12 @@ func CanonicalPNG(t testing.TB, encoded []byte) []byte {
 	var written bytes.Buffer
 	testcheck.NoError(t, png.Encode(&written, canvas))
 	return written.Bytes()
+}
+
+// CanonicalDigest is the hex digest an output artifact of encoded's canonical PNG (CanonicalPNG) is identified by: a
+// frozen picture's output identity, recorded when its PNG was the canonical one, held by its pixels whatever level it is
+// now written at (one-png-writer).
+func CanonicalDigest(t testing.TB, encoded []byte) string {
+	t.Helper()
+	return testcheck.Must(artifact.IdentifyBytes(artifact.KindOutput, CanonicalPNG(t, encoded)))(t).DigestHex()
 }

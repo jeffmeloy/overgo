@@ -124,24 +124,26 @@ func TestFrozenUn0Modalities(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if result.Run.Outcome != runrecord.OutcomeSucceeded || len(result.Run.Outputs) != 1 || result.Run.Outputs[0].String() != "output:sha256:"+tc.output {
+				if result.Run.Outcome != runrecord.OutcomeSucceeded || len(result.Run.Outputs) != 1 {
 					t.Fatalf("frozen output/lineage changed: %+v", result.Run)
 				}
 				value, ok := result.Outputs[definition.Outputs[0].Name].Single()
 				if !ok {
 					t.Fatal("missing scalar output")
 				}
-				var data []byte
+				// A picture is held by its pixels, its canonical PNG the frozen one (testutil.CanonicalPNG), whatever level
+				// it is written at (one-png-writer); a clip by its bytes and its run's output identity.
 				switch output := value.Value.(type) {
 				case latentimage.EncodedImage:
-					data = output.Data
+					if testutil.CanonicalDigest(t, output.Data) != tc.output || !bytes.Equal(testutil.CanonicalPNG(t, output.Data), want) {
+						t.Fatal("encoded pixels changed")
+					}
 				case EncodedVideo:
-					data = output.Data
+					if result.Run.Outputs[0].String() != "output:sha256:"+tc.output || !bytes.Equal(output.Data, want) {
+						t.Fatalf("encoded frames or timing changed: %+v", result.Run)
+					}
 				default:
 					t.Fatalf("unexpected output %T", output)
-				}
-				if !bytes.Equal(data, want) {
-					t.Fatal("encoded pixels or timing changed")
 				}
 				// Inspect floats before quantization; equality of encoded bytes alone
 				// cannot rule out a non-finite value concealed by the converter.

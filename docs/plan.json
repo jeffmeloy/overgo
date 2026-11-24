@@ -3,25 +3,18 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "one-png-writer",
-      "title": "Every picture model's PNGs are written by the one level-4 writer, the pictures pinned by PNG bytes pinned by their pixels",
+      "id": "doctrine-answer",
+      "title": "A decision that changes a standing rule is shown as the lead's to answer now, with its command, never as waiting for the owner",
       "steps": [
         {
           "id": "do",
-          "title": "Every picture model's PNGs are written by the one level-4 writer, the pictures pinned by PNG bytes pinned by their pixels",
-          "verify": "go test ./internal/media ./internal/oscillatorimage -count=1 -run '^(TestAPictureIsWrittenAtComfyUIsLevel|TestFrozenUn0Modalities|TestArtifactThreadCountAndShapeResources)$'",
+          "title": "A decision that changes a standing rule is shown as the lead's to answer now, with its command, never as waiting for the owner",
+          "verify": "go test ./internal/plan ./cmd/loop -count=1 -run '^(TestADoctrineDecisionIsNeverTakenByRecommendation|TestTheDriverWritesItsStatus)$'",
           "files": [
-            "internal/media",
-            "internal/oscillatorimage",
-            "internal/diffusionimage",
-            "internal/testutil",
-            "internal/latentimage",
-            "internal/rae",
-            "internal/sensenovarecipe",
-            "docs/verification/image-video-coverage.json",
-            "cmd/validate"
+            "internal/plan",
+            "cmd/loop"
           ],
-          "rationale": "The owner's review of 2026-11-23 (second), point 1, checked against the code and a run: valid. png-level/do wrote MOSS's pictures at level 4 (writeRGBPNG) and kept defaultRGBPNG (internal/media/image.go:57) for every other model's (EncodeNormalizedRGBPNG: Un-0, RAE, SenseNova, Krea, the diffusion and video reconstructions), because their pictures are pinned by PNG bytes. With one writer for all, the card-free checks that fail are Un-0's two, TestFrozenUn0Modalities (its runs' output identities) and TestArtifactThreadCountAndShapeResources (its picture's bytes against assets/a8bc7f12...png); the card checks of the other models are run by the step. The change: those pictures are pinned by their pixels (testutil.CanonicalPNG, or the decoded pixels against the frozen asset's), EncodeNormalizedRGBPNG writes through writeRGBPNG, and defaultRGBPNG goes. Check: the three tests, TestAPictureIsWrittenAtComfyUIsLevel holding every encoder to deflate's fast levels and its pixels, Un-0's two holding its frozen pictures by their pixels.\n\nNote: files set to internal/media, internal/oscillatorimage, internal/diffusionimage, internal/testutil, internal/latentimage, internal/rae, internal/sensenovarecipe: SimpleDiffusion's frozen generation (diffusionimage frozen_generation_cuda_windows_test.go) pins its picture by PNG bytes and its output identity as Un-0's do; both are pinned by their pixels with the one writer.\n\nNote: files set to internal/media, internal/oscillatorimage, internal/diffusionimage, internal/testutil, internal/latentimage, internal/rae, internal/sensenovarecipe, docs/verification/image-video-coverage.json, docs/image_video_capacity.json, cmd/validate: The frozen tests' bytes are pinned by the image-video coverage and capacity records, and the coverage record by cmd/validate's acceptance test; the tests now hold the same recorded output identities as the canonical PNG's digest of the pixels, so the records' digests move with them.\n\nNote: files set to internal/media, internal/oscillatorimage, internal/diffusionimage, internal/testutil, internal/latentimage, internal/rae, internal/sensenovarecipe, docs/verification/image-video-coverage.json, cmd/validate: with the capacity record history (one-png-writer/history) it is no longer edited; the coverage record and validate's literal pin of it move with the frozen tests"
+          "rationale": "Note: The owner on 2026-11-23, after the lead sat 8 hours with the plan stopped on decision capacity-record-history: \"Why can't you determine the best thing to do?\" The owner's standing word (2026-11-13, \"don't wait for answers from me\") is that a decision which changes a standing rule is answered by the lead with `plan -answer`, never listed as waiting on the owner; only an act the owner alone takes (a push, deleting a model or data, a store migration, publishing) waits for them. Dispatch printed the opposite for a doctrine decision: \"it changes a standing rule, so it waits for the owner's answer\" (internal/plan/dispatch.go holds), and the session followed the printed line over the rule. The change: holds() says that no worker takes a doctrine decision at its recommendation and that the lead answers it now, naming the command (go run ./cmd/plan -answer -title \u003coption\u003e \u003cid\u003e); the Doctrine field's comment says the same; an owner's act keeps its wait. Check: TestADoctrineDecisionIsNeverTakenByRecommendation asserts the line names the lead's answer and its command, and no longer says it waits for the owner.\n\nNote: files set to internal/plan, cmd/loop: the status report (cmd/loop status.go) listed a decision that changes a standing rule as waiting for the owner too"
         }
       ]
     },

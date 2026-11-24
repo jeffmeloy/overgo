@@ -1,10 +1,8 @@
 package media
 
 import (
-	"bytes"
 	"errors"
 	"image"
-	"image/png"
 	"math"
 
 	"overgo/internal/hostmath"
@@ -40,33 +38,22 @@ func normalizedPixel8(value float32) uint8 {
 // EncodeNormalizedRGBPNG encodes normalized [-1,1] RGB pixels without a
 // layout conversion. planar selects CHW; false selects HWC.
 func EncodeNormalizedRGBPNG(pixels []float32, height, width int, planar bool) ([]byte, float32, float32, error) {
-	return encodeRGBPNG(pixels, height, width, planar, normalizedPixel8, defaultRGBPNG)
+	return encodeRGBPNG(pixels, height, width, planar, normalizedPixel8)
 }
 
 // EncodeUnitRGBPNG encodes finite HWC unit RGB with NumPy F32 ties-to-even rounding.
-// Values outside the unit interval are clamped before conversion. It is MOSS's picture, deflated at the level ComfyUI's
-// SaveImage saves it at (writeRGBPNG, png-level).
+// Values outside the unit interval are clamped before conversion.
 func EncodeUnitRGBPNG(pixels []float32, height, width int) ([]byte, float32, float32, error) {
 	return encodeRGBPNG(pixels, height, width, false, func(value float32) uint8 {
 		scaled := float32(min(max(value, 0), 1) * float32(^uint8(0)))
 		return uint8(math.RoundToEven(float64(scaled)))
-	}, writeRGBPNG)
+	})
 }
 
-// defaultRGBPNG is an 8-bit RGB PNG of rows as image/png writes an opaque picture at its default level, the bytes the
-// pictures of every model but MOSS's are pinned by.
-func defaultRGBPNG(rows []byte, width, height int) ([]byte, error) {
-	canvas := image.NewRGBA(image.Rect(0, 0, width, height))
-	for index := range width * height {
-		copy(canvas.Pix[index*4:index*4+RGBChannels], rows[index*RGBChannels:(index+1)*RGBChannels])
-		canvas.Pix[index*4+RGBChannels] = ^uint8(0)
-	}
-	var encoded bytes.Buffer
-	err := (&png.Encoder{CompressionLevel: png.DefaultCompression}).Encode(&encoded, canvas)
-	return encoded.Bytes(), err
-}
-
-func encodeRGBPNG(pixels []float32, height, width int, planar bool, quantize func(float32) uint8, write func(rows []byte, width, height int) ([]byte, error)) ([]byte, float32, float32, error) {
+// encodeRGBPNG is every picture model's PNG, written at the level ComfyUI's SaveImage saves at (writeRGBPNG): MOSS's
+// had been alone (png-level), the others' kept at image/png's default level for the bytes their checks pinned, which
+// now pin their pixels (one-png-writer).
+func encodeRGBPNG(pixels []float32, height, width int, planar bool, quantize func(float32) uint8) ([]byte, float32, float32, error) {
 	if height <= 0 || width <= 0 || len(pixels) != height*width*RGBChannels {
 		return nil, 0, 0, errors.New("media: invalid normalized RGB output")
 	}
@@ -87,7 +74,7 @@ func encodeRGBPNG(pixels []float32, height, width int, planar bool, quantize fun
 			rows[index*RGBChannels+channel] = quantize(pixels[index*pixelStride+channel*channelStride])
 		}
 	}
-	encoded, err := write(rows, width, height)
+	encoded, err := writeRGBPNG(rows, width, height)
 	return encoded, minimum, maximum, err
 }
 

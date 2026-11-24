@@ -50,7 +50,9 @@ func TestArtifactThreadCountAndShapeResources(t *testing.T) {
 			t.Fatal(err)
 		}
 		image, err := model.decode(t.Context(), features)
-		if err != nil || !bytes.Equal(image.Data, wantImage) {
+		// The picture is held by its pixels, its canonical PNG the frozen one, whatever level it is written at
+		// (one-png-writer).
+		if err != nil || !bytes.Equal(testutil.CanonicalPNG(t, image.Data), wantImage) {
 			t.Fatalf("thread count %d changed the frozen image: %v", threads, err)
 		}
 		for index, request := range requests {

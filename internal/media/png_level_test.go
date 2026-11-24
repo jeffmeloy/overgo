@@ -10,11 +10,12 @@ import (
 	"overgo/internal/testcheck"
 )
 
-// TestAPictureIsWrittenAtComfyUIsLevel holds png-level/do: a picture encoded from unit pixels, MOSS's, from normalized
-// pixels and from normalized planar pixels decodes back to the bytes each pixel quantizes to; MOSS's stream says
-// deflate's fast levels (2 to 5, of which ComfyUI's SaveImage writes 4), and the others' its default level, the bytes
-// their models' outputs are pinned by (Un-0's frozen pictures among them). image/png's default level 6 had taken about
-// half of each MOSS Ultra section's decode part, 211 to 264 ms a 1024 x 576 picture against 55 to 66 ms at level 4.
+// TestAPictureIsWrittenAtComfyUIsLevel holds png-level/do and one-png-writer/do: a picture encoded from unit pixels,
+// MOSS's, from normalized pixels and from normalized planar pixels, every other picture model's, decodes back to the
+// bytes each pixel quantizes to, and each stream says deflate's fast levels (2 to 5, of which ComfyUI's SaveImage writes
+// 4): one writer for every model. image/png's default level 6 had taken about half of each MOSS Ultra section's decode
+// part, 211 to 264 ms a 1024 x 576 picture against 55 to 66 ms at level 4, and the other models had kept it for the
+// bytes their checks pinned, which now pin their pixels.
 func TestAPictureIsWrittenAtComfyUIsLevel(t *testing.T) {
 	t.Parallel()
 	const height, width = 37, 53
@@ -31,8 +32,8 @@ func TestAPictureIsWrittenAtComfyUIsLevel(t *testing.T) {
 	unitByte := func(value float32) byte {
 		return byte(math.RoundToEven(float64(float32(min(max(value, 0), 1) * 255))))
 	}
-	// The level class each stream declares (RFC 1950 FLEVEL): 1 for deflate's levels 2 to 5, 2 for its default, 6.
-	const fast, standard = 1, 2
+	// The level class each stream declares (RFC 1950 FLEVEL): 1 for deflate's levels 2 to 5.
+	const fast = 1
 	for _, picture := range []struct {
 		name    string
 		encoded func() ([]byte, float32, float32, error)
@@ -43,9 +44,9 @@ func TestAPictureIsWrittenAtComfyUIsLevel(t *testing.T) {
 		{"normalized", func() ([]byte, float32, float32, error) {
 			return EncodeNormalizedRGBPNG(normalized, height, width, false)
 		},
-			func(index int) byte { return normalizedPixel8(normalized[index]) }, standard},
+			func(index int) byte { return normalizedPixel8(normalized[index]) }, fast},
 		{"planar", func() ([]byte, float32, float32, error) { return EncodeNormalizedRGBPNG(planar, height, width, true) },
-			func(index int) byte { return normalizedPixel8(normalized[index]) }, standard},
+			func(index int) byte { return normalizedPixel8(normalized[index]) }, fast},
 	} {
 		encoded, _, _, err := picture.encoded()
 		testcheck.NoError(t, err)

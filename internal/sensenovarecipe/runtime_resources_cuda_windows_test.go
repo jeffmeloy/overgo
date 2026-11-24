@@ -3,9 +3,7 @@
 package sensenovarecipe
 
 import (
-	"crypto/sha256"
 	"encoding/json"
-	"fmt"
 	"runtime"
 	"testing"
 	"time"
@@ -69,7 +67,7 @@ func TestSenseNovaVariableRequestResources(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		digest := fmt.Sprintf("%x", sha256.Sum256(image.Data))
+		digest := senseNovaPicture(t, image.Data)
 		if image.Width != request.Width || image.Height != request.Height || len(image.Data) == 0 {
 			t.Fatal("request geometry changed during generation")
 		}

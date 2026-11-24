@@ -4,6 +4,8 @@ package sensenovarecipe
 
 import (
 	"context"
+	"crypto/sha256"
+	"fmt"
 	"path/filepath"
 	"testing"
 
@@ -20,6 +22,13 @@ import (
 // record names and which stays untagged until it is measured again, builds with them beside the tagged suites.
 
 const senseNovaProductionPNG = "6ef4065018d328c2945e6de0a8b87fe3eb2aec44039b43207398969712446de0"
+
+// senseNovaPicture is the digest a SenseNova picture is pinned by: its pixels', the SHA-256 of its canonical PNG
+// (testutil.CanonicalPNG), which senseNovaProductionPNG names whatever level the picture is written at (one-png-writer).
+func senseNovaPicture(t testing.TB, encoded []byte) string {
+	t.Helper()
+	return fmt.Sprintf("%x", sha256.Sum256(testutil.CanonicalPNG(t, encoded)))
+}
 
 func newProductionGenerationFixture(t testing.TB) (*overgodb.Store, recipe.Program, *Generator) {
 	t.Helper()

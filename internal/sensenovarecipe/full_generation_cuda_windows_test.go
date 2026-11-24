@@ -65,7 +65,7 @@ func TestSenseNovaFullGenerationLeadership(t *testing.T) {
 	request := oracle.Request
 	request.Prompt = prompt
 	result := runProductionImageGeneration(t, request)
-	hash := fmt.Sprintf("%x", sha256.Sum256(result.image.Data))
+	hash := senseNovaPicture(t, result.image.Data)
 	if result.image.Width != request.Width || result.image.Height != request.Height || result.image.Channels != 3 {
 		t.Fatalf("SenseNova full image=%dx%dx%d sha256=%s, want %dx%dx3",
 			result.image.Width, result.image.Height, result.image.Channels, hash, request.Width, request.Height)

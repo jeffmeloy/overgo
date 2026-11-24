@@ -150,15 +150,18 @@ func TestFrozenKreaGeneration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Run.Outcome != runrecord.OutcomeSucceeded || result.Run.Recipe != definition.ID || len(result.Run.Inputs) != 1 || result.Run.Inputs[0] != inputID || len(result.Run.Outputs) != 1 || result.Run.Outputs[0].String() != "output:sha256:"+outputHash {
+	if result.Run.Outcome != runrecord.OutcomeSucceeded || result.Run.Recipe != definition.ID || len(result.Run.Inputs) != 1 || result.Run.Inputs[0] != inputID || len(result.Run.Outputs) != 1 {
 		t.Fatalf("frozen lineage changed: %+v", result.Run)
 	}
 	value, ok := result.Outputs[definition.Outputs[0].Name].Single()
 	if !ok {
 		t.Fatal("missing scalar image")
 	}
+	// The picture is held by its pixels, its canonical PNG the frozen one (testutil.CanonicalPNG), whatever level it is
+	// written at (one-png-writer).
 	image, ok := value.Value.(latentimage.EncodedImage)
-	if !ok || image.Width != request.Width || image.Height != request.Height || !bytes.Equal(image.Data, want) {
+	if !ok || image.Width != request.Width || image.Height != request.Height || testutil.CanonicalDigest(t, image.Data) != outputHash ||
+		!bytes.Equal(testutil.CanonicalPNG(t, image.Data), want) {
 		t.Fatal("frozen pixels or geometry changed")
 	}
 	// An empty test store and new runtime require actual stage execution.

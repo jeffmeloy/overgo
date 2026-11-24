@@ -195,7 +195,7 @@ func TestSenseNovaGenerationLeadership(t *testing.T) {
 		generated.Channels != 3 || len(generated.Data) == 0 {
 		t.Fatalf("SenseNova generated image = %+v", generated)
 	}
-	hash := fmt.Sprintf("%x", sha256.Sum256(generated.Data))
+	hash := senseNovaPicture(t, generated.Data)
 	if hash != senseNovaGenerationTerminalPNG {
 		t.Fatalf("SenseNova terminal PNG sha256=%s, want %s", hash, senseNovaGenerationTerminalPNG)
 	}

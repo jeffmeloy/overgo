@@ -134,7 +134,7 @@ func TestFrozenDiffusionGeneration(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if result.Run.Outcome != runrecord.OutcomeSucceeded || result.Run.Recipe != definition.ID || len(result.Run.Inputs) != 1 || result.Run.Inputs[0] != input.Descriptor.ID || len(result.Run.Outputs) != 1 || result.Run.Outputs[0].String() != "output:sha256:"+tc.output {
+			if result.Run.Outcome != runrecord.OutcomeSucceeded || result.Run.Recipe != definition.ID || len(result.Run.Inputs) != 1 || result.Run.Inputs[0] != input.Descriptor.ID || len(result.Run.Outputs) != 1 {
 				t.Fatalf("frozen lineage changed: %+v", result.Run)
 			}
 			value, ok := result.Outputs[definition.Outputs[0].Name].Single()
@@ -142,7 +142,10 @@ func TestFrozenDiffusionGeneration(t *testing.T) {
 				t.Fatal("missing scalar image")
 			}
 			image, ok := value.Value.(latentimage.EncodedImage)
-			if !ok || image.Width != tc.request.Width || image.Height != tc.request.Height || !bytes.Equal(image.Data, want) {
+			// The picture is held by its pixels, its canonical PNG the frozen one (testutil.CanonicalPNG), whatever level it
+			// is written at (one-png-writer).
+			if !ok || image.Width != tc.request.Width || image.Height != tc.request.Height || testutil.CanonicalDigest(t, image.Data) != tc.output ||
+				!bytes.Equal(testutil.CanonicalPNG(t, image.Data), want) {
 				t.Fatal("frozen image pixels or geometry changed")
 			}
 			// EncodePlanarPNG rejects every non-finite float before quantization.

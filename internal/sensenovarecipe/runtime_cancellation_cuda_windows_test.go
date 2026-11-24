@@ -4,9 +4,7 @@ package sensenovarecipe
 
 import (
 	"context"
-	"crypto/sha256"
 	"errors"
-	"fmt"
 	"testing"
 
 	"overgo/internal/cuda/device"
@@ -28,7 +26,7 @@ func TestSenseNovaCancellationRecovery(t *testing.T) {
 	testcheck.NoError(t, generator.worker.Do(t.Context(), func(state *device.State) error { library = state.Driver; return nil }))
 	checkImage := func(t testing.TB, image latentimage.EncodedImage) {
 		t.Helper()
-		if hash := fmt.Sprintf("%x", sha256.Sum256(image.Data)); hash != senseNovaProductionPNG || image.Width != request.Width || image.Height != request.Height {
+		if hash := senseNovaPicture(t, image.Data); hash != senseNovaProductionPNG || image.Width != request.Width || image.Height != request.Height {
 			t.Fatalf("recovered native PNG differs: %s %dx%d", hash, image.Width, image.Height)
 		}
 	}

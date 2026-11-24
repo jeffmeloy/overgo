@@ -3,26 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "shared-whole",
-      "title": "One whole slow run passes at the commit that lands the shared image steps, every cycle lane and every package of the models lane run to their end",
-      "steps": [
-        {
-          "id": "lanes",
-          "title": "One whole slow run passes at the commit that lands the shared image steps, every cycle lane and every package of the models lane run to their end",
-          "verify": "git merge-base --is-ancestor 3fe41bfa082a9b8cb6fddbae7ca086ce7fa8b333 HEAD \u0026\u0026 go run ./cmd/validate -lanes-passed-at 3fe41bfa082a9b8cb6fddbae7ca086ce7fa8b333",
-          "files": [
-            "docs/plan.json"
-          ],
-          "needs_card": true,
-          "rationale": "The owner's review of 2026-11-23 (third), point 2: the three shared-code steps first (one-png-writer, decoder-resident, sharpen-any-model, the last landed at f74f1e64a), then one whole slow run passing at that commit, then the full measurement run with the scorecard and the README, each model measured once on the code it will keep. A cycle's lanes run yields to a newer commit as a lane turns to another package (lanes-first/yield), so the models lane has not passed whole since slow-whole at bb918937d. The run is made as slow-whole made it: validate -run -lanes in a clean checkout of the commit, no newer commit due, every lane and package to its end, its cuda packages on the card in turn; every other open step waits for the measurement after it, so no landing moves the trunk meanwhile. Check: validate -lanes-passed-at reads the passes at HEAD.\n\nNote: SQA-474 (P2), valid from source: cmd/loop's measurePhases runs validate -run -lanes whole before its cells, so a separate whole run before the measurement repeats every lane, 5 h or more. One measurement at the one-png-writer commit serves shared-whole/lanes and full-measurement/run: validate -run -preflight, validate -run -lanes, validate -run -cells -reached and validate -scorecard -publish, in sequence, with no landing between them; shared-whole/lanes lands on its lanes pass (validate -lanes-passed-at that commit), then full-measurement/run on its cells and publication, with validate -readme.",
-          "depends_on": [
-            "decoder-resident/clock",
-            "one-png-writer/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "full-measurement",
       "title": "The full measurement run measures every model's scorecard row at the slow run's commit, every image model's first output among them, and the README's tables are written from it",
       "steps": [

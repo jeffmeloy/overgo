@@ -1,7 +1,7 @@
 {
   "advisory_notice": "SQA recommendations for master. Master decides which findings to accept, defer or decline, in what order, and how to address them. The ranking and assessment explain SQA's judgment. Only docs/plan.json directs work.",
   "priority_assessment": [
-    "I would keep the whole-lane check and full measurement on one revision that includes the model-list and OCR fixes. SQA-474 remains first because the committed lane check still requires 3fe41bfa0, where preflight refused the retired model name. I rank SQA-479 next because routine cleanup can erase a loose file sharing a completed row's name. Master has scheduled the earlier model-name check (SQA-478) after measurement. That order makes sense now that the list is valid.",
+    "I would keep shared-whole/lanes and full-measurement/run together on one revision that includes the model-list and OCR fixes. SQA-474 stays first because the lane check still requires 3fe41bfa0, where preflight refused a retired model name. SQA-480 is next because changed weights can receive an earlier cell's credit during that measurement. I would preserve the result of unchanged cells and verify replacements before trusting a resumed scorecard. The planned model-name check (SQA-478) can follow measurement now that the list is valid.",
     "The latest MOSS run (1bae67d52) took 33.629 s warm against ComfyUI's 34.412 s, and 46.429 s on the first run against 40.176 s. I would use served-parts/do (SQA-471) to locate that 6.253 s first-run gap. SQA-473 identifies 92.5 MiB copied during load and at least 103.9 MiB of host weights kept after the decoder binds. Their cost in seconds is unknown, so I would keep the planned measurement ahead of this change.",
     "I would give SQA-410 first priority among the MOSS checks. The planned floors check can pass while the adapter comparison still performs 248 unnecessary denoiser passes. SQA-467 can use its two existing draws to verify the finished pixels. The own-size timing capture has all 50 progress events, so SQA-477 can be addressed with the reference clock work without holding up the scheduled measurement."
   ],
@@ -27,17 +27,20 @@
       "actual": "The recorded preflight at 3fe41bfa0 refused the retired Gemma name. The list fix landed at b2b81e385 and the OCR projection-suite fix at fedf6e422. The committed lane verifier still compares every last pass with 3fe41bfa0. Its read-only query found 36 lane and package entries at other revisions or absent. A whole pass at fedf6e422 would still fail the older target. Separately, measurePhases runs all five lanes after a standalone sweep, and the final verifier reads the live scorecard and a README from the latest publication without checking their run or commit. The rejection of a future complete pass and acceptance of stale numbers are source counterexamples."
     },
     {
-      "id": "SQA-479",
+      "id": "SQA-480",
       "severity": "P2",
       "files": [
-        "cmd/loop/land.go",
-        "cmd/loop/leftovers.go",
-        "cmd/loop/leftovers_test.go",
-        "internal/fsatomic/remove_windows.go"
+        "cmd/loop/improve.go",
+        "cmd/validate/main.go",
+        "cmd/validate/bound_records.go",
+        "cmd/validate/cell_credit.go",
+        "cmd/validate/run.go",
+        "cmd/validate/run_digests_test.go",
+        "cmd/validate/cell_credit_test.go"
       ],
-      "input": "Land the last step of a row named sample-run. tmp/sample-run is a closed, untracked regular file containing the only copy of a note. Neither remaining plan names the row, no committed path cites the note, and the store has no registration under it.",
-      "expected": "A confirmed landing may automatically clear the completed row's scratch directory. Leave a loose file with the same name for the existing leftovers listing and explicit deletion command. The directory and regular-file cases should have different outcomes in the existing cleanup check.",
-      "actual": "Source counterexample at 25cd964a7. scratchEntries classifies the uncited entry as finished. clearFinished then matches only its basename to the landed row, discarding the file-versus-directory distinction. removeFinished passes the file to fsatomic.RemoveTree, which renames and removes it on Windows. TestCommitClearsWhatNothingHolds covers a matching directory and loose files with other names. The earlier scratch losses documented in the commit were observed under the previous rule. This remaining case was not run."
+      "input": "Resume a partially completed full measurement on the same commit and store, with credit for a selected inference guard cell. Preflight binds its registered weights. Before the cells phase, overwrite the regular weights file at the same path, leaving the manifest and execution identity intact. For the unchanged-input case, start a normal recorded cycle with no inherited OVERGO_MEASUREMENT_RUN and let it reach background fill.",
+      "expected": "Credit the guard cell only for the bytes that earned its result. If its file can change between phases, verify its content before granting credit or refuse reuse. Reuse a verified, stable binding across planning, preflight, cells and fill. The existing credit and digest checks can exercise both a same-path replacement and the read count for unchanged weights.",
+      "actual": "Source counterexample at 3dbc4ddda. bindCells takes the preflight digest from the run record on a later bind. consumedFiles indexes it by path, compares the old digest with the unchanged manifest and produces the same cell key. executeRun counts the cell as acquired and skips its command. TestARunHashesEachModelFileOnce explicitly expects the old binding after overwriting the file. Conversely, the planning dry run receives no run record, and fill receives only the cell-credit path. With unchanged inputs and a valid bound file, planning, preflight and fill each hash that file in full. These are three source-traced reads. No incorrect scorecard or current wall-time cost was observed."
     },
     {
       "id": "SQA-410",
@@ -262,12 +265,9 @@
     "at": "2026-11-23",
     "head": "7fbcacc4cbdf0baa7bbafdbce6e34495ab1ec29b",
     "findings": {
-  "SQA-479": {
-        "action": "filed",
-        "rows": [
-          "scratch-dirs/do"
-        ],
-        "note": "Answered by the lead on 2026-11-23 at 25cd964a7: valid from source (clearFinished matched a scratch entry to the landed row by base name alone, so a loose file of the row's name went with the commit). Filed and fixed as scratch-dirs/do, at once since the cure is one check: a landed row's folder is a directory of its name."
+  "SQA-480": {
+        "action": "declined",
+        "note": "Answered by the lead on 2026-11-24 at 3dbc4ddda: valid from source in both parts, declined for now. The stale credit needs a model's weights file overwritten at its path between a run's phases, which no session does (models are never written through in place, and a model is replaced by a new directory). The repeated hashing (planning, preflight and fill each read a bound file whole when no run record carries its digest) has no measured cost. Tonight's cells phase runs as its own invocation, so its log will show whether hashing costs measured time; a step is filed then if it does."
       },
   "SQA-478": {
         "action": "filed",
@@ -371,7 +371,7 @@
       }
 }
   },
-  "next_finding_number": 480,
+  "next_finding_number": 481,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

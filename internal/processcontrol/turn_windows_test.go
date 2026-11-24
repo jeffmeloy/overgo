@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"testing"
 
@@ -19,7 +20,9 @@ import (
 const turnProbeEnvironment = "OVERGO_TEST_TURN"
 
 // turnProbe is one process's part: hold the turn and answer its parent's lines, ride its holder's place, or take it.
-type turnProbe struct{ Name, Purpose, Part string }
+// Background, where set, makes the process work no one waits on, yielding to the commit attempts whose turns it begins
+// (OVERGO_BACKGROUND).
+type turnProbe struct{ Name, Purpose, Part, Background string }
 
 // TestTurnProcess is a process of TestOneCardTurnQueuesEveryUser, and passes at once in any other run.
 func TestTurnProcess(t *testing.T) {
@@ -87,7 +90,14 @@ func turnCommand(t *testing.T, probe turnProbe) *exec.Cmd {
 	encoded := testcheck.Must(json.Marshal(probe))(t)
 	// The test's end ends the process.
 	command := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^TestTurnProcess$", "-test.timeout=0")
-	command.Env = append(os.Environ(), turnProbeEnvironment+"="+string(encoded))
+	// A probe is background work only where it says so, whatever the run of this test is.
+	command.Env = append(slices.DeleteFunc(os.Environ(), func(entry string) bool { return strings.HasPrefix(entry, "OVERGO_BACKGROUND=") }),
+		turnProbeEnvironment+"="+string(encoded))
+	if probe.Background != "" {
+		// Background work begun by no holder: the turns the test's own run holds (a gate's test turn) are not its own.
+		command.Env = append(slices.DeleteFunc(command.Env, func(entry string) bool { return strings.HasPrefix(entry, TurnEnvironment+"=") }),
+			"OVERGO_BACKGROUND="+probe.Background)
+	}
 	return command
 }
 
@@ -292,4 +302,50 @@ func TestProgressUpdatesLeaveTheInheritedTurnHeld(t *testing.T) {
 	if got := holder.line(t); got != "given" {
 		t.Fatalf("the holder: %q, want given", got)
 	}
+}
+
+// TestBackgroundTakesNoTurnWhileAnAttemptExists holds turn-priority/do: work no one waits on (OVERGO_BACKGROUND, the
+// prefix of the commit attempts' turns) takes no new turn while a commit attempt holds its turn, saying the attempt it
+// waits for, and takes it once the attempt ends; work someone waits on takes it meanwhile. On 2026-11-24 a lanes run took
+// the test turn for a 21-minute test 50 s after moss-page/names' attempt began, and the attempt's tests waited 17
+// minutes. The turns are first come, so the background had taken the free turn at once.
+func TestBackgroundTakesNoTurnWhileAnAttemptExists(t *testing.T) {
+	t.Parallel()
+	attempts := "overgo-test-attempt:" + t.Name() + ":" + fmt.Sprint(os.Getpid()) + ":"
+	attempt := attempts + "one"
+	work := testTurn(t)
+	t.Cleanup(func() {
+		for _, kind := range []string{turnRecordFile, turnWaitingFile} {
+			if path, err := turnFile(attempt, kind); err == nil {
+				_ = os.Remove(path)
+			}
+		}
+	})
+	holder := startTurnProcess(t, turnProbe{Name: attempt, Purpose: "a commit attempt", Part: "hold"})
+	if got := holder.line(t); got != "taken" {
+		t.Fatalf("the attempt: %q, want taken", got)
+	}
+	background := startTurnProcess(t, turnProbe{Name: work, Purpose: "a slow test", Part: "take", Background: attempts})
+	if waiting := background.line(t); !strings.Contains(waiting, "waits for the turn "+attempt) {
+		t.Fatalf("the background work said %q while the attempt held its turn; want it waiting for the attempt", waiting)
+	}
+	foreground := startTurnProcess(t, turnProbe{Name: work, Purpose: "the attempt's tests", Part: "take"})
+	if got := foreground.line(t); got != "taken" {
+		t.Fatalf("work someone waits on said %q; want the turn taken while the background waits", got)
+	}
+	testcheck.NoError(t, foreground.command.Wait())
+	holder.say(t, "give")
+	if got := holder.line(t); got != "given" {
+		t.Fatalf("the attempt: %q, want given", got)
+	}
+	for {
+		line := background.line(t)
+		if line == "taken" {
+			break
+		}
+		if !strings.Contains(line, "took the turn "+attempt) {
+			t.Fatalf("the background work said %q once the attempt ended; want the attempt's turn passed and its own taken", line)
+		}
+	}
+	testcheck.NoError(t, background.command.Wait())
 }

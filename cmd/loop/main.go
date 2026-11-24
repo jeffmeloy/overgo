@@ -183,7 +183,10 @@ func run(args []string) error {
 			if err != nil {
 				return err
 			}
-			return validateTo(os.Stdout, checkout, *repoPath, []string{plan.LanesDueEnvironment + "=" + due}, "-run", "-lanes", "-reached")
+			// The run is work no one waits on: it and each process it starts take no new turn while a commit attempt
+			// exists (turn-priority).
+			return validateTo(os.Stdout, checkout, *repoPath, []string{plan.LanesDueEnvironment + "=" + due,
+				processcontrol.BackgroundEnvironment + "=" + processcontrol.AttemptTurnPrefix}, "-run", "-lanes", "-reached")
 		}, startLanesRunner)
 	}
 	switch {

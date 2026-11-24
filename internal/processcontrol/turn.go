@@ -25,6 +25,46 @@ const TurnEnvironment = "OVERGO_TURNS_HELD"
 // holder without opening the card (TurnsHeld).
 const CardTurnPrefix = "overgo-card-turn:"
 
+// AttemptTurnPrefix begins the name of the turn each commit attempt holds for its life, one of its own, by which work
+// no one waits on finds an attempt in progress (BackgroundEnvironment).
+const AttemptTurnPrefix = "overgo-commit-attempt:"
+
+// BackgroundEnvironment marks a process doing work no one waits on (the lanes run a landing starts) and each process it
+// starts: its value is the prefix of the turns commit attempts hold (AttemptTurnPrefix), and such a process takes no
+// new turn while one of them is held, so a commit attempt never waits behind a slow test that began after it
+// (turn-priority: moss-page/names' attempt waited 17 minutes behind a 21-minute test that took the turn 50 s after it
+// began). A turn it holds runs to its end.
+const BackgroundEnvironment = "OVERGO_BACKGROUND"
+
+// holdsAnyTurn says this process holds a turn in its own place or rides one its starter holds.
+func holdsAnyTurn() bool {
+	turnMu.Lock()
+	own := len(ownTurns())
+	turnMu.Unlock()
+	return own > 0 || len(heldTurns()) > 0
+}
+
+// yieldToAttempts waits, before work no one waits on takes a turn, until no commit attempt holds a turn under prefix:
+// it takes each attempt's turn as it is given up, saying which attempt it waits for as any waiter does, and gives it
+// straight back; then it looks again, as another attempt may have begun meanwhile. No clock ends the wait.
+func yieldToAttempts(prefix string, output io.Writer) error {
+	for {
+		attempts, err := heldTurnRecords(prefix)
+		if err != nil || len(attempts) == 0 {
+			return err
+		}
+		for _, attempt := range attempts {
+			release, err := TakeTurn(attempt.Name, "work no one waits on, after the commit attempt", output)
+			if err != nil {
+				return err
+			}
+			if err := release(); err != nil {
+				return err
+			}
+		}
+	}
+}
+
 // turnRecord is what a holder writes where a waiter reads it: the turn's name, its process, what it holds the turn for
 // and since when, and, where it counts its work (TurnCount), how far it has come and when it got there.
 type turnRecord struct {
@@ -188,6 +228,15 @@ func takePlace(name, purpose string, output io.Writer) (give func() error, count
 			return nil, nil, err
 		} else if slices.Contains(users, holder) {
 			return nil, nil, nil
+		}
+	}
+	// Work no one waits on starts nothing new while a commit attempt exists (BackgroundEnvironment). Work it has begun
+	// runs on: a process holding a turn, its own or its starter's, takes the next at once, as one that waited for an
+	// attempt while holding the card would hold the card the attempt waits for.
+	if prefix := envsetting.Neutral(BackgroundEnvironment, "marks work no one waits on, which waits for commit attempts and computes nothing otherwise"); prefix != "" &&
+		!strings.HasPrefix(name, prefix) && !holdsAnyTurn() {
+		if err := yieldToAttempts(prefix, output); err != nil {
+			return nil, nil, err
 		}
 	}
 	started := time.Now()

@@ -37,6 +37,7 @@ import (
 	"path"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -186,6 +187,13 @@ func Run(ctx context.Context, options Options) (landed string, err error) {
 	}
 	defer os.RemoveAll(scratch)
 	l := &landing{Options: options, scratch: scratch, details: map[string]string{}}
+	// The attempt holds a turn of its own for its life, by which work no one waits on (the lanes run a landing starts)
+	// finds it and starts nothing new until it ends (turn-priority).
+	attempt, err := processcontrol.TakeTurn(processcontrol.AttemptTurnPrefix+strconv.Itoa(os.Getpid()), "the commit attempt of "+options.Ref, options.Log)
+	if err != nil {
+		return "", err
+	}
+	defer func() { err = errors.Join(err, attempt()) }()
 	// The card's turn the landing holds from its first stage on the card is given back as it ends (holdCard).
 	defer func() {
 		if l.card != nil {

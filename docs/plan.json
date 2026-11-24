@@ -3,24 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "turn-priority",
-      "title": "Where a turn is taken, work no one waits on starts nothing new while a commit attempt exists",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A background holder takes no new test or card turn while a commit attempt exists; it takes the next once the attempt ends",
-          "verify": "go test ./internal/processcontrol -count=1 -run '^TestBackgroundTakesNoTurnWhileAnAttemptExists$'",
-          "files": [
-            "internal/processcontrol",
-            "internal/landing",
-            "cmd/validate",
-            "cmd/loop"
-          ],
-          "rationale": "The owner's review of 2026-11-24 (third), cause 2, checked against the code: valid. A turn is first come (internal/processcontrol/turn.go:55), and the lanes run asks only whether a newer commit is due before each package (cmd/validate/run.go:276), so moss-page/names' attempt, begun 14:53:16, waited about 17 minutes behind a 21m38s cmd/evaluate test that took the test turn at 14:54:06; faults waited 20.8 minutes for the card, result 21.2 and 17.1, groups about 11.\n\nThe change: one rule where turns are taken. A turn is taken by a holder that someone waits on (a commit attempt, a check run by hand) or by background work (the lanes and slow-test runs a landing starts); background work takes no new turn, test or card, while a commit attempt exists, its record kept from the attempt's start, and takes it once the attempt ends; a turn it already holds runs to its end. This replaces attempt-first, filed from the second review for the lanes run alone.\n\nCheck: TestBackgroundTakesNoTurnWhileAnAttemptExists records an attempt, asks the test turn as background work and finds it not taken while the attempt exists, a foreground holder taking it meanwhile, and the background's taken once the attempt ends. It does not exist at the base, so the check fails there."
-        }
-      ]
-    },
-    {
       "id": "idle-wait",
       "title": "A browser wait that cannot come true fails when the page is idle, saying what the page shows, in every run",
       "steps": [

@@ -10,6 +10,8 @@ import (
 // TurnsHeld lists no turn: where turns are not kept, no process holds one.
 func TurnsHeld(string) ([]string, error) { return nil, nil }
 
+func heldTurnRecords(string) ([]turnRecord, error) { return nil, nil }
+
 func recordTurn(string, turnRecord) (func(turnRecord) error, func() error, error) {
 	return nil, nil, errors.New("processcontrol: turns require Windows")
 }

@@ -125,6 +125,16 @@ func turnHolder(name string) (turnRecord, bool, error) {
 // render, a run of the lanes or a landing holds the card, which on 2026-11-14 held it for hours while dispatch gave out
 // a step that waited on it (card-free-dispatch/do). A record its holder no longer has open names no one.
 func TurnsHeld(prefix string) ([]string, error) {
+	records, err := heldTurnRecords(prefix)
+	held := make([]string, len(records))
+	for index, record := range records {
+		held[index] = holderSaid(record, true)
+	}
+	return held, err
+}
+
+// heldTurnRecords are the records of each turn whose name begins with prefix that another process holds now.
+func heldTurnRecords(prefix string) ([]turnRecord, error) {
 	admission, err := resourceAdmissionPath(prefix)
 	if err != nil {
 		return nil, err
@@ -133,7 +143,7 @@ func TurnsHeld(prefix string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	var held []string
+	var held []turnRecord
 	for _, path := range records {
 		var record turnRecord
 		data, err := os.ReadFile(path)
@@ -151,7 +161,7 @@ func TurnsHeld(prefix string) ([]string, error) {
 			return nil, fmt.Errorf("processcontrol: read the turn %q: %w", record.Name, err)
 		}
 		if slices.Contains(users, record.Process) {
-			held = append(held, holderSaid(record, true))
+			held = append(held, record)
 		}
 	}
 	return held, nil

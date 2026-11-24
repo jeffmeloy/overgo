@@ -313,11 +313,15 @@ demonstration picture, "What objects are on the stovetop, and where is the
 green toy?" → "The stovetop holds a metal pot on the left burner", the
 request's 12-token budget, in 9.8 s and 3.5 GiB.
 
-**Un-0, class → picture or clip.** Class 1, seed 2026: an 8 × 8
-[picture](assets/1995cda0e2c6ed9fb394c00c7baa68b208b3d8a6a604923588289d1c5950b556.png)
-in 12 ms and a 12-frame 16 × 16
+**Un-0, class → picture or clip.** A 120 kB toy model of 8 × 8 pictures:
+its three classes (a row each) by seeds 1 to 8 (a column each), each picture
+drawn through `go run ./cmd/recipe run -fresh` on 2026-11-24 at 7c6bef92f and
+scaled 16 times by whole pixels into one card, so each of its pixels stays
+square. A picture takes 36.6 ms and a 12-frame 16 × 16
 [clip](assets/db326dae32fc3850abcf31985b0516513f3a59ca27276de82eccbb66806da36d.gif)
-in 29 ms, on the host.
+65.3 ms on the host, in the full measurement of 2026-11-24.
+
+![Un-0: its three classes by seeds 1 to 8, each 8 × 8 picture scaled 16 times](assets/1a7f4dd35638d70cb0545fdad266d557c4de21e19c6fc995a70ab3a6a4949686.png)
 
 ## Training
 

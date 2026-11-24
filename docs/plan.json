@@ -7,20 +7,6 @@
       "title": "The README shows a better SenseNova picture, a better Un-0 picture or a sprite card of it, and a better Wan video",
       "steps": [
         {
-          "id": "un0",
-          "title": "The README's Un-0 picture is a better one, or a sprite card of its classes and seeds in its place, the earlier picture and its file gone",
-          "verify": "! grep -qF 'assets/1995cda0e2c6ed9fb394c00c7baa68b208b3d8a6a604923588289d1c5950b556.png' README.md \u0026\u0026 go test ./internal/repoanalysis ./internal/commanddoc -count=1",
-          "files": [
-            "README.md",
-            "assets",
-            "cmd/export"
-          ],
-          "rationale": "The owner's request of 2026-11-23. The README shows Un-0, a 120 kB toy model of 8 x 8 pictures, by one class-1 picture at seed 2026 (assets/1995cda0...png), too small to read at a README's width. The change: a sprite card, Un-0's classes by several seeds drawn on the host and laid out in one sheet scaled by whole pixels so each picture's pixels stay square, or a better single picture where the card reads worse, stated with its request and time; the earlier picture and its file removed where nothing else names it. The picture is the owner's to judge; the check holds that the earlier one is gone and the docs name only files the repository holds.",
-          "depends_on": [
-            "full-measurement/run"
-          ]
-        },
-        {
           "id": "wan",
           "title": "The README's Wan2.1-T2V video is a better one, drawn at the model card's settings, the earlier clip and its file gone",
           "verify": "! grep -qF 'assets/2e5d38659a857a3804aa4a6ce1530bad4f48f93add576ed82804c3e1fd224886.gif' README.md \u0026\u0026 go test ./internal/repoanalysis ./internal/commanddoc -count=1",
@@ -33,6 +19,91 @@
           "depends_on": [
             "full-measurement/run"
           ]
+        }
+      ]
+    },
+    {
+      "id": "moss-page",
+      "title": "MOSS's Generate page leads with the workflow section by name, shows a run's progress and its result beside the form, takes pictures by choice, and shows only the controls the section runs",
+      "steps": [
+        {
+          "id": "sections",
+          "title": "The workflow section is the Generate page's first choice, in plain names",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserMOSSSectionIsTheFirstChoice$' -leg moss-section-first",
+          "files": [
+            "internal/server/webui",
+            "internal/server",
+            "internal/mediacapability",
+            "internal/latentimage"
+          ],
+          "rationale": "The owner's review of 2026-11-24, point 1, checked against the code: valid. controlInputs (internal/server/webui/workflow.js) puts every optional advanced control, the preset among them, in one Advanced options disclosure, and a choice control offers its values as written, so the six MOSS Ultra sections appear there as ids (ultra-depth-control-turbo). The change: the section (the preset of a MOSS profile) is the form's first control, outside Advanced options, each offered by a plain name (\"Depth control (Turbo)\"), its value the id. Check: TestWebUIBrowserMOSSSectionIsTheFirstChoice reads the Generate page's first control and its option names."
+        },
+        {
+          "id": "result",
+          "title": "A run's progress and its picture show beside the form on a wide screen, the Run button in view",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserMOSSRunShowsBesideTheForm$' -leg moss-run-beside",
+          "files": [
+            "internal/server/webui",
+            "internal/server"
+          ],
+          "rationale": "The owner's review of 2026-11-24, point 2, checked against the code: valid. The page places a finished run's picture after the whole form, below the fold at 1280 x 800, and internal/server/webui/mod/generation.js shows no step progress (it reads none). The change: on a wide screen the form and the result sit side by side, the result column showing the run's steps as they advance and then its picture, and Run stays in view as the form scrolls. Check: TestWebUIBrowserMOSSRunShowsBesideTheForm at 1280 x 800 reads the progress during a held run, the picture's box inside the viewport when it ends, and Run inside the viewport with the form scrolled."
+        },
+        {
+          "id": "pictures",
+          "title": "A picture and a depth map are chosen by upload, drop or a thumbnail, never typed",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserMOSSPictureIsChosenNotTyped$' -leg moss-picture-chosen",
+          "files": [
+            "internal/server/webui",
+            "internal/server",
+            "internal/mediacapability"
+          ],
+          "rationale": "The owner's review of 2026-11-24, point 3, checked against the code: valid in part. A top-level artifact control gets a strip of recent stored pictures (intakeStrip), but MOSS's picture and depth-map parts are typed text inputs, and no control takes an upload or a drop. The change: each picture part shows its chosen picture's thumbnail and takes a file by upload or drop (stored, then named by its identity) or a recent picture by its thumbnail. Check: TestWebUIBrowserMOSSPictureIsChosenNotTyped drops a file on the control picture and picks a recent one, and finds no free text input for either."
+        },
+        {
+          "id": "groups",
+          "title": "Advanced options are grouped and show only the groups the chosen section runs, and builder mode puts the layout where the prompt was",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserMOSSShowsOnlyTheControlsTheSectionRuns$' -leg moss-section-controls",
+          "files": [
+            "internal/server/webui",
+            "internal/server",
+            "internal/mediacapability",
+            "internal/latentimage"
+          ],
+          "rationale": "The owner's review of 2026-11-24, point 4, checked against the code: valid. Advanced options is one list of every optional control (about 25 for MOSS); choiceShows already shows a control only under the prompt mode it belongs to. The change: the advanced controls are grouped (sampling, schedule, adapters, control, canvas, finishing), each group shown only when the chosen section runs it, as choiceShows does; in builder mode the layout takes the prompt's place. Check: TestWebUIBrowserMOSSShowsOnlyTheControlsTheSectionRuns picks each section and reads the groups shown, and in builder mode finds the layout where the prompt was."
+        },
+        {
+          "id": "faults",
+          "title": "MOSS's controls are named and typed as they are set: one-line aspect, a named scheduler, defaults shown, one Preset, a depth preview only with a depth picture",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserMOSSControlsReadAsTheyAreSet$' -leg moss-control-faults",
+          "files": [
+            "internal/server/webui",
+            "internal/server",
+            "internal/mediacapability",
+            "internal/latentimage",
+            "internal/media"
+          ],
+          "rationale": "The owner's review of 2026-11-24, point 5, checked against the code: valid. A string field renders as a multi-line box (controlInput: text is a textarea), so the canvas's aspect is one; an object's part is labelled by its field name, so the schedule's scheduler reads \"name\"; an unset choice reads \"unset\" where its control declares no default; two controls are labelled Preset; Preview depth map shows whether or not a depth picture is set. The change: a short string is a one-line input, the scheduler is labelled as such, an unset choice reads as the model's default, the two presets are named apart, and the depth preview shows only with a depth picture. Check: TestWebUIBrowserMOSSControlsReadAsTheyAreSet reads each."
+        },
+        {
+          "id": "audit",
+          "title": "The A/B compare's slider is a full-size control, a browser leg holds the compare state under the layout audit, and Runtime names an unrecorded residency",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserMOSSCompareIsAudited$' -leg moss-compare-audit",
+          "files": [
+            "internal/server/webui",
+            "internal/server",
+            "internal/webuilane"
+          ],
+          "rationale": "The owner's review of 2026-11-24, point 6, checked against the code: valid. The A/B compare's divide is a range input (generation.js) the style leaves at its 16 px default height, which LayoutAudit reports as a small control, and no leg captures a finished run's compare, so the audit never read it; mod/runtime.js:172 prints authority.residency unguarded, \"Requested residency undefined\" where the authority records none. The change: the divide is a full-size control, a leg audits the compare state, and the runtime card says no residency was requested where none was recorded. Check: TestWebUIBrowserMOSSCompareIsAudited runs a section to its compare and runs the layout audit on it."
+        },
+        {
+          "id": "names",
+          "title": "Runs, Artifacts, Library and the chat's model selector show names, dates and thumbnails where they showed identities",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserListsShowNamesAndThumbnails$' -leg lists-named",
+          "files": [
+            "internal/server/webui",
+            "internal/server"
+          ],
+          "rationale": "The owner's review of 2026-11-24, point 7, checked against the code: valid in part. Runs, Library and the chat's model selector show identities (recipe:..., output:...) where a name or date belongs; Artifacts draws an image item whole, its alt text its identity, with no thumbnail grid to scan. The change: each list leads with the model's name, the run's date and what it made, and Artifacts shows pictures as a grid of thumbnails, an identity kept in each item's detail. Check: TestWebUIBrowserListsShowNamesAndThumbnails reads each list's first column and the gallery's thumbnails."
         }
       ]
     },

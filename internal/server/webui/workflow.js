@@ -138,7 +138,7 @@
     for (const control of controls || []) {
       const input = controlInput(control);
       fields.set(control.name, { control, input });
-      const slot = control.type === "artifact" ? intakeStrip(control, input) : null;
+      const slot = artifactSlot(control, input);
       const target = !nested && control.advanced && !control.required ? advanced : host;
       target.appendChild(setPartByPart(control) ? input : el("label", { class: "control" }, el("span", { text: controlLabel(control) }), input, slot));
       if (control.help) target.appendChild(el('details', { class: 'control-help' }, el('summary', { text: 'About ' + controlLabel(control) }), el('p', { class: 'note', text: control.help })));
@@ -170,6 +170,7 @@
     // choice, never a free input; a boolean is one too.
     const choices = (control.choices || []).length ? control.choices : (control.type === "boolean" ? ["true", "false"] : null);
     if (picksDataset(control)) return datasetPicker(control);
+    if (choosesPicture(control)) return pictureValue();
     if (choices) {
       return el("select", { class: "text", "aria-label": controlLabel(control) },
         // A field left unset is given the default its control declares where the request is taken in.
@@ -377,6 +378,68 @@
     }
     if (frames && frames.control.bounds.rate) chips.push(...durationPresets.map((seconds) => chip(seconds + " s", () => { frames.input.value = snap(frames, seconds * frames.control.bounds.rate); })));
     return chips.length ? el("div", { class: "preset-chips", role: "group", "aria-label": "Presets" }, ...chips) : null;
+  }
+
+  // choosesPicture says an artifact slot takes a picture (a MOSS picture, its depth map, a question's image), which a
+  // page has chosen, never typed (moss-page/pictures).
+  const choosesPicture = (control) => control.type === "artifact" && control.media === "image";
+
+  // artifactSlot: what stands beside an artifact slot's input, a picture's chooser or the store's recent files of the
+  // slot's kind; nothing beside any other control.
+  function artifactSlot(control, input) {
+    if (control.type !== "artifact") return null;
+    return choosesPicture(control) ? pictureChooser(control, input) : intakeStrip(control, input);
+  }
+
+  // pictureValue: the input a picture slot holds its chosen picture's stored identity in, never shown or typed; any
+  // setting of it, by its chooser, a preset, a remembered entry or an attachment routed to it, says so to the chooser.
+  function pictureValue() {
+    const input = window.overgo.el("input", { type: "hidden" });
+    const native = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
+    Object.defineProperty(input, "value", {
+      get() { return native.get.call(input); },
+      set(id) { native.set.call(input, id); input.dispatchEvent(new Event("picture")); },
+    });
+    return input;
+  }
+
+  // pictureChooser: a picture slot's chooser: the chosen picture's thumbnail, a picture file uploaded or dropped on it,
+  // stored and named by its identity, and the store's recent pictures by their thumbnails (intakeStrip).
+  function pictureChooser(control, input) {
+    const { el, api, contentURL, friendlyError } = window.overgo;
+    const name = controlLabel(control);
+    const shown = el("div", { class: "picture-chosen" });
+    const note = el("span", { class: "note", role: "status" });
+    const file = el("input", { type: "file", accept: "image/*", hidden: true, "aria-label": "Upload the " + name });
+    const choose = (id) => { input.value = id; input.dispatchEvent(new Event("change", { bubbles: true })); };
+    const upload = el("button", { class: "btn alt", type: "button", text: "Upload", "aria-label": "Upload the " + name, onclick: () => file.click() });
+    const clear = el("button", { class: "btn alt", type: "button", text: "Clear", "aria-label": "Clear the " + name, onclick: () => choose("") });
+    const draw = () => {
+      clear.hidden = !input.value;
+      shown.replaceChildren(input.value ? el("img", { src: contentURL(input.value), alt: "The " + name + " chosen", class: "picture-thumb", title: input.value })
+        : el("span", { class: "note", text: "None chosen: upload one, drop one here, or pick a recent one" }));
+    };
+    // store keeps a picture file and chooses it, and relists the recent pictures.
+    const store = async (picked) => {
+      if (!picked || !picked.type.startsWith("image/")) { note.textContent = "Upload or drop a picture file"; return; }
+      note.textContent = "Storing " + picked.name + "…";
+      try {
+        const stored = await api.upload("/artifacts/intake", picked);
+        note.textContent = "";
+        choose(stored.id);
+        input.dispatchEvent(new Event("intake"));
+      } catch (err) { note.textContent = friendlyError(err); }
+    };
+    file.addEventListener("change", () => { store(file.files[0]); file.value = ""; });
+    const chooser = el("div", { class: "picture-chooser" }, shown, el("div", { class: "row" }, upload, clear, note), file, intakeStrip(control, input));
+    // A click on the thumbnail or around it chooses nothing: the label holding the chooser would pass it to Upload.
+    chooser.addEventListener("click", (event) => { if (!event.target.closest("button, input")) event.preventDefault(); });
+    chooser.addEventListener("dragover", (event) => { event.preventDefault(); chooser.classList.add("dropping"); });
+    chooser.addEventListener("dragleave", () => chooser.classList.remove("dropping"));
+    chooser.addEventListener("drop", (event) => { event.preventDefault(); chooser.classList.remove("dropping"); store(event.dataTransfer && event.dataTransfer.files[0]); });
+    input.addEventListener("picture", draw);
+    draw();
+    return chooser;
   }
 
   // intakeStrip: the store's recent stored files of the slot's media kind (attachments the

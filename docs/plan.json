@@ -7,17 +7,6 @@
       "title": "MOSS's Generate page leads with the workflow section by name, shows a run's progress and its result beside the form, takes pictures by choice, and shows only the controls the section runs",
       "steps": [
         {
-          "id": "pictures",
-          "title": "A picture and a depth map are chosen by upload, drop or a thumbnail, never typed",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserMOSSPictureIsChosenNotTyped$' -leg moss-picture-chosen",
-          "files": [
-            "internal/server/webui",
-            "internal/server",
-            "internal/mediacapability"
-          ],
-          "rationale": "The owner's review of 2026-11-24, point 3, checked against the code: valid in part. A top-level artifact control gets a strip of recent stored pictures (intakeStrip), but MOSS's picture and depth-map parts are typed text inputs, and no control takes an upload or a drop. The change: each picture part shows its chosen picture's thumbnail and takes a file by upload or drop (stored, then named by its identity) or a recent picture by its thumbnail. Check: TestWebUIBrowserMOSSPictureIsChosenNotTyped drops a file on the control picture and picks a recent one, and finds no free text input for either."
-        },
-        {
           "id": "groups",
           "title": "Advanced options are grouped and show only the groups the chosen section runs, and builder mode puts the layout where the prompt was",
           "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserMOSSShowsOnlyTheControlsTheSectionRuns$' -leg moss-section-controls",

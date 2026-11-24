@@ -3,26 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "readme-media",
-      "title": "The README shows a better SenseNova picture, a better Un-0 picture or a sprite card of it, and a better Wan video",
-      "steps": [
-        {
-          "id": "wan",
-          "title": "The README's Wan2.1-T2V video is a better one, drawn at the model card's settings, the earlier clip and its file gone",
-          "verify": "! grep -qF 'assets/2e5d38659a857a3804aa4a6ce1530bad4f48f93add576ed82804c3e1fd224886.gif' README.md \u0026\u0026 go test ./internal/repoanalysis ./internal/commanddoc -count=1",
-          "files": [
-            "README.md",
-            "assets"
-          ],
-          "needs_card": true,
-          "rationale": "The owner's request of 2026-11-23, which takes this one render ahead of the video work the owner held back on 2026-11-22 (video and FFmpeg changes wait until video processing resumes): no video code changes here. The README shows Wan2.1-T2V 1.3B by its model card's example prompt, two cats boxing, 81 frames at 832 x 480 (assets/2e5d3865...gif). The change: a better clip drawn at the model card's settings through overgo's own path, its prompt chosen for motion and detail Wan draws well, its request, commit and time stated, the asset named by its digest; the earlier clip and its file removed where nothing else names it. The clip is the owner's to judge; the check holds that the earlier one is gone and the docs name only files the repository holds.",
-          "depends_on": [
-            "full-measurement/run"
-          ]
-        }
-      ]
-    },
-    {
       "id": "moss-page",
       "title": "MOSS's Generate page leads with the workflow section by name, shows a run's progress and its result beside the form, takes pictures by choice, and shows only the controls the section runs",
       "steps": [

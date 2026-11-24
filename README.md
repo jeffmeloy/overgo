@@ -272,21 +272,24 @@ is one picture drawn alone in 8 steps at seed 2026: 0.92 s, 0.6 GiB
 
 ![SimpleDiffusion at its author's settings: sixteen 256 by 256 pixel-art characters in 50 steps](assets/e4efeb2e0744419f7e2102d60f62eeb6a107be5b2e14445e78dd9d19e584c6a1.png)
 
-**Wan2.1-T2V 1.3B, text → video.** At the model card's settings, with its own
-example prompt: "Two anthropomorphic cats in comfy boxing gear and bright gloves
-fight intensely on a spotlighted stage.", 81 frames at 832 × 480, 50 steps,
-guidance 6, shift 8, seed 2026, drawn on 2026-11-11 at d4d4b3708 in 5 min 51 s.
-It is not yet compared with a ComfyUI recording of the same request. The timing
-request the scorecard measures is a small one: "a red fox licking a vanilla ice
-cream cone on a snowy pine forest trail", 21 frames at 32 × 16, 2 steps: 13.0 s,
-3.6 GiB
+**Wan2.1-T2V 1.3B, text → video.** At the model card's settings (its
+`model-card` preset): "A golden retriever runs along a beach at sunset,
+splashing through shallow waves, sea spray glittering in the warm light, the
+camera tracking alongside it.", 81 frames at 832 × 480, 50 steps, guidance 6,
+shift 8, seed 2026, drawn on 2026-11-24 at 7c6bef92f through
+`go run ./cmd/recipe run -fresh` in 6 min 11 s. It is not yet compared with a
+ComfyUI recording of the same request. The timing request the scorecard
+measures is a small one: "a red fox licking a vanilla ice cream cone on a snowy
+pine forest trail", 21 frames at 32 × 16, 2 steps: 6.4 s in the full
+measurement of 2026-11-24
 ([clip](assets/e6e246d2f322356bf07a83e137a2c4341a97eed8dd45b3f188736ba92e248865.gif)).
 
-![Wan2.1-T2V at the model card's settings: two cats in boxing gear fight on a spotlighted stage, 81 frames at 832 by 480](assets/2e5d38659a857a3804aa4a6ce1530bad4f48f93add576ed82804c3e1fd224886.gif)
+![Wan2.1-T2V at the model card's settings: a golden retriever runs through the shallow waves of a beach at sunset, 81 frames at 832 by 480](assets/736dfd8a379b5bf70111bad8ab7ed45dc03ddb0ced6aa92cfaa2adb40da1e536.gif)
 
 **Self-Forcing (Wan2.1-T2V 1.3B, distilled), text → video.** At its
-developers' settings, with Wan's example prompt and seed above, so the two
-clips compare: 81 frames at 832 × 480, 4 steps, chunk-causal flow, guidance 1,
+developers' settings, with Wan's own model-card example prompt, "Two
+anthropomorphic cats in comfy boxing gear and bright gloves fight intensely on
+a spotlighted stage.", and seed 2026: 81 frames at 832 × 480, 4 steps, chunk-causal flow, guidance 1,
 shift 5, seed 2026, drawn on 2026-11-13 at eb197def6 in 36 s. The timing
 request the scorecard measures has the same settings: 30.0 s, 29.1 GiB.
 

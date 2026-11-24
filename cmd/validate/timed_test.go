@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -55,7 +56,9 @@ func TestOnlyTheCellsThatReadTimesTakeTheQuietMachine(t *testing.T) {
 // the third beside other work and fails, the fourth beside other work. The first and the fourth
 // are measured once more, after every other cell and in their order. The second time the first is
 // quiet, and the fourth is beside other work again, which the run says. A cell that failed is not
-// measured again. The run ends with three cells acquired and the one failure named.
+// measured again. The run ends with two cells acquired, the one failure named and the fourth reported as measured
+// beside other work both times: the scorecard keeps its times, and it earns no credit in the cycle's credit file, so a
+// resumed cycle measures it again (contended-credit, SQA-481). The two quiet cells are credited.
 func TestAContendedCellIsMeasuredOnceMoreAfterTheOthers(t *testing.T) {
 	// The same fixture is the isolated producer for the result-file boundary.
 	if result := os.Getenv("OVERGO_TEST_SERVING_RESULT"); result != "" {
@@ -75,11 +78,12 @@ func TestAContendedCellIsMeasuredOnceMoreAfterTheOthers(t *testing.T) {
 		return
 	}
 
-	// Serial: it clears the name of the cycle's credit file in the process environment, so no cell of
-	// this fixture is credited to a measurement run that started the test.
-	t.Setenv(clioptions.CycleCreditEnvironment, "")
+	// Serial: it names a credit file of its own in the process environment, so no cell of this fixture is
+	// credited to a measurement run that started the test, and the credit the run keeps is read below.
+	creditFile := filepath.Join(t.TempDir(), "credit.json")
+	t.Setenv(clioptions.CycleCreditEnvironment, creditFile)
 	cell := func(name string) Selected {
-		return Selected{ModelValidation: ModelValidation{ModelName: name, Kind: recipe.TaskInference, Validation: servingValidation, Location: "C:/models/" + name + ".gguf"}}
+		return Selected{ModelValidation: ModelValidation{Model: testutil.ArtifactID(t, artifact.KindModel, name), Recipe: testutil.ArtifactID(t, artifact.KindRecipe, name), ModelName: name, Kind: recipe.TaskInference, Validation: servingValidation, Location: "C:/models/" + name + ".gguf"}}
 	}
 	plan := Plan{Run: []Selected{cell("busy-once"), cell("quiet"), cell("busy-and-failed"), cell("busy-twice")}}
 	failure, busy := errors.New("the cell's own failure"), []string{"compile.exe"}
@@ -97,9 +101,17 @@ func TestAContendedCellIsMeasuredOnceMoreAfterTheOthers(t *testing.T) {
 		return landing.Reading{Competing: answer.competing}, answer.err
 	}
 	var out bytes.Buffer
-	err := executeMeasured(t.Context(), &out, ".", "C:/stores/selected", nil, plan, scopeCells, measure)
-	if err == nil || !strings.Contains(err.Error(), "re-acquired 3 cell(s); 1 failed") || !strings.Contains(err.Error(), "busy-and-failed") || !strings.Contains(err.Error(), failure.Error()) {
-		t.Fatalf("the run ended %v, want three cells acquired and the failed one named with its failure\n%s", err, out.String())
+	root := testutil.RepoRoot(t)
+	err := executeMeasured(t.Context(), &out, root, "C:/stores/selected", nil, plan, scopeCells, measure)
+	if err == nil || !strings.Contains(err.Error(), "re-acquired 2 cell(s); 1 failed") || !strings.Contains(err.Error(), "busy-and-failed") || !strings.Contains(err.Error(), failure.Error()) ||
+		!strings.Contains(err.Error(), "1 measured beside other work both times") || !strings.Contains(err.Error(), ":\n  busy-twice") {
+		t.Fatalf("the run ended %v, want two cells acquired, the failed one named with its failure and the twice-contended one reported\n%s", err, out.String())
+	}
+	credit := cycleCellCredit(t.Context(), root, "C:/stores/selected")
+	for _, cell := range plan.Run {
+		if want := cell.ModelName == "busy-once" || cell.ModelName == "quiet"; credit.has(cell.ModelValidation) != want {
+			t.Errorf("%s is credited %t to a resumed cycle, want %t: only a cell measured on a quiet machine earns credit", cell.ModelName, !want, want)
+		}
 	}
 	if calls != len(answers) {
 		t.Fatalf("the run measured %d times, want %d: each cell once and the two contended successes once more\n%s", calls, len(answers), out.String())

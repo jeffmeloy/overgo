@@ -1,29 +1,26 @@
 {
   "advisory_notice": "SQA recommendations for master. Master decides which findings to accept, defer or decline, in what order, and how to address them. The ranking and assessment explain SQA's judgment. Only docs/plan.json directs work.",
   "priority_assessment": [
-    "I would keep full-measurement/run first and close it on the cells verdict and the scorecard that run published. All five lanes and 33 model packages passed at 3fe41bfa0 in about seven hours. I would reuse that evidence where the inputs still match and check the later Krea change. SQA-474 remains first because a failed retry can pick an older scorecard at the same commit and erase credit for finished cells. I agree with the lead's proposed order for SQA-481: the current measurement is planned without resume credit, so contended-credit/do can follow it.",
+    "The full measurement landed at 01f1fbe63. I would correct the three literal false checks first (SQA-482), so master can finish the already planned contended-credit, user-size and Qwen projection steps under their original names. SQA-481 fits the next step. SQA-474 matters before the next interrupted cycle is resumed. For future measurement work I would remove the verifier's false refusal (SQA-483). The ceiling-file refusal (SQA-484) can wait behind the MOSS checks.",
     "The latest MOSS run (1bae67d52) took 33.629 s warm against ComfyUI's 34.412 s, and 46.429 s on the first run against 40.176 s. I would use served-parts/do (SQA-471) to locate that 6.253 s first-run gap. SQA-473 identifies 92.5 MiB copied during load and at least 103.9 MiB of host weights kept after the decoder binds. Their cost in seconds is unknown, so I would keep the planned measurement ahead of this change.",
-    "I would give SQA-410 first priority among the MOSS checks. The planned floors check can pass while the adapter comparison still performs 248 unnecessary denoiser passes. SQA-467 can use its two existing draws to verify the finished pixels. The own-size timing capture has all 50 progress events, so SQA-477 can be addressed with the reference clock work without holding up the scheduled measurement."
+    "I would give SQA-410 first priority among the MOSS checks. The planned floors check can pass while the adapter comparison still performs 248 unnecessary denoiser passes. SQA-467 can use its two existing draws to verify the finished pixels. The own-size timing capture has all 50 progress events, so SQA-477 can be addressed with the planned reference clock work."
   ],
   "branch": "master",
   "findings": [
     {
-      "id": "SQA-474",
+      "id": "SQA-482",
       "severity": "P2",
       "files": [
-        "docs/plan.json",
-        "cmd/loop/improve.go",
-        "cmd/loop/improve_test.go",
-        "cmd/loop/run_record_test.go",
-        "internal/loop/driver.go",
-        "cmd/validate/scorecard.go",
-        "cmd/validate/readme.go",
-        "cmd/validate/lane_reach.go",
-        "internal/plan/measurement_run.go"
+        "cmd/plan/main.go",
+        "cmd/plan/check_form_test.go",
+        "internal/plan/plan.go",
+        "internal/landing/landing.go",
+        "internal/landing/terms_test.go",
+        "docs/plan.json"
       ],
-      "input": "For full-measurement/run, let the five image timings and Un-0 README row be available while a required text benchmark fails. For recovery, keep an older scorecard at commit C. A later cycle on C has valid credit for some cells but no publication for its obligations. Resume it and let a lane fail before cells or publication.",
-      "expected": "Publish partial results while keeping the measurement step open until its required cells pass or earn valid credit. Use the publication produced or explicitly credited for those obligations to render the README. When the retry never reached publication, return the lane error, retain its cell credit and leave background fill for a run with a valid publication. Reuse lane and package passes where the measured inputs still match.",
-      "actual": "The retained whole-lane pass was at 3fe41bfa0. That batch ended before cells or publication. Two source counterexamples at b2de74cef remain. The plan verifier reads five live image times and a README from the latest publication, so even a fresh partial scorecard can pass after a text failure. On retry, measurePhases returns at the failed lane. Measure still returns the newest scorecard if its commit matches C. Improve then proposes gaps and calls Fill, which removes cycle_state.json and cycle_credit.json before the caller receives the error. TestPublishedCycleCutShortIsStillWorthFinishing covers an unpublished attempt at a different commit. The same-commit loss was not observed."
+      "input": "File a step with the literal command false because its test will be written with the implementation. Try to land the finished work under the original step ID.",
+      "expected": "File the command that will exercise the promised behavior. It can name a test the change will add. Replace acceptance of the literal false placeholder in the existing filing check, and correct already filed placeholders through the existing plan edit. Keep the original behavioral check binding when the code lands.",
+      "actual": "The filing test explicitly accepts false. The landing uses the committed step's verifier, so false fails for every implementation, even when the working plan now names a passing test. At 7d966c021 master retired measured-names-first/do and landed the same work as measured-names-first/first. The next three committed steps also carry false: contended-credit/do, user-size-inapplicable/do and flash-next-projection/do. The retirement was observed. The three future refusals follow from source if the checks stay as filed."
     },
     {
       "id": "SQA-481",
@@ -39,6 +36,19 @@
       "actual": "Source counterexample at b2de74cef. measureCell excludes each contended serving attempt from the scorecard. On the second exclusion, executeMeasured logs that the earlier times stand and calls settle(nil), which increments the acquired count and writes the cell key. On resume, credit.has succeeds and skips the producer. TestAContendedCellIsMeasuredOnceMoreAfterTheOthers explicitly counts the twice-contended cell as acquired and disables persistent credit. The resume skip follows from the production calls. No such skip was observed in the current run."
     },
     {
+      "id": "SQA-474",
+      "severity": "P2",
+      "files": [
+        "cmd/loop/improve.go",
+        "cmd/loop/improve_test.go",
+        "cmd/loop/improve_resume_test.go",
+        "internal/loop/driver.go"
+      ],
+      "input": "Keep a published scorecard at commit C. Start another cycle at C with different obligations and credit for finished cells. Resume it and let a lane fail before this cycle publishes or earns credit for publication.",
+      "expected": "Return the lane error and preserve the current cycle's completed cells for retry. File gaps and run background fill only when the publication belongs to this cycle or was explicitly credited for the same obligations.",
+      "actual": "Source counterexample at 7d966c021. measurePhases returns on the lane failure, but improvement.Measure returns the newest scorecard on a commit match alone. Improve files gaps from the older scorecard and invokes Fill, whose cleanup removes cycle_state.json and cycle_credit.json before the caller gets the error. TestPublishedCycleCutShortIsStillWorthFinishing covers a different-commit case. No same-commit loss was observed."
+    },
+    {
       "id": "SQA-410",
       "severity": "P2",
       "files": [
@@ -50,6 +60,20 @@
       "input": "Run the adapter sections check on the four pinned MOSS sections in BF16 and merged int8. For the floor checks, omit a standard threshold, put a wrong-width recording after a failed draw, or supply an all-zero reference with nonzero latents in both precision modes.",
       "expected": "In card-checks-sound/floors, keep all eight adapter baselines, the bit-exact merge check and the changed-input controls used by the standard and Turbo floors. The adapter comparison needs only its baselines. Validate thresholds and reference signal before drawing, report each failed score and release its generator. Exact matches on nonzero signal remain valid. Have the check for this step count eight adapter baselines and zero adapter controls through the adapter comparison. The draw count can be checked without another model run.",
       "actual": "At c87add70e, holdMergedSections calls readGoldenCases for four sections in each of two precision modes. Each call draws a baseline and a changed input per section. Only the baseline latent scores decide the comparison. The eight extra controls are decoded, their PNGs discarded and their scores only logged. The pinned requests imply 248 extra denoiser passes: (100 + 8 + 8 + 8) per mode. This is a source count. Wall-time savings are unmeasured. In the separate floor checks, a missing standard threshold is reported after ten draws, a later size error hides an earlier failure and skips generator cleanup, and the five standard and three Turbo control pictures are decoded and discarded. The adapter verdict also accepts two negative-infinity scores on a zero reference. At 638e0be1a the step selects only TestUltraSectionsHoldTheirGoldenFloors. Only TestMOSSAdapterSectionsMultiplyAsComfyUI/sections calls holdMergedSections. Leaving all eight adapter controls in place cannot fail the selected check on that account."
+    },
+    {
+      "id": "SQA-483",
+      "severity": "P2",
+      "files": [
+        "internal/runrecord/verify_command.go",
+        "internal/planverify/verify.go",
+        "internal/landing/form.go",
+        "cmd/plan/main.go",
+        "cmd/plan/check_form_test.go"
+      ],
+      "input": "Give the plan the original full-measurement/run check from 5147c611f's parent. It saves the scorecard output in a shell variable and then checks each required model row and the generated README.",
+      "expected": "Remove the shared parser's rejection of an assignment that captures command output and feeds a later assertion. Recognize this form as a composite command. Use the existing shell and its exit status, preserve evidence checks for any Go tests, and grant no cached credit from a partial reading of the command. The check must still fail if a required row is missing.",
+      "actual": "Git Bash accepted the exact recorded command in syntax-only mode. ParseVerify splits at the opening parenthesis, consumes the assignment prefix and reports that the segment runs nothing. The landing refusal and commit 8e62553db record that this stopped full-measurement/run after nine hours of measurement. Commit 5147c611f rewrote the check before the step landed. The filing check now gives the same refusal earlier. The nine hours elapsed before the refusal. The record shows a verifier rewrite and a separate landing."
     },
     {
       "id": "SQA-467",
@@ -106,6 +130,19 @@
       "actual": "Source trace at 0776b4a53 with tensor shapes from the pinned checkpoint header. Of 33 decoder 3-by-3 weight tensors, 30 go through sliceLastTemporalTap with temporal extent 1. It allocates and copies 96,999,552 bytes of identical F32 data during load. The three upsamplers already use their input slices directly. After the first successful bind, VAEProgram.feeds still holds all 33 payloads (108,943,488 bytes before biases or other weights). Later decodes use state.decoding and never read those feeds. These are separate construction and retention counts, with no measured wall-time or process-memory delta."
     },
     {
+      "id": "SQA-484",
+      "severity": "P2",
+      "files": [
+        "internal/landing/ceilings.go",
+        "internal/landing/ceilings_test.go",
+        "internal/repoanalysis/error_check_test.go",
+        "internal/repoanalysis/idempotent_commit_owner_test.go"
+      ],
+      "input": "Reduce the count of three-line error checks below its limit while another change owns the file that records the limit. Separately, remove one of ten references to ErrNoChange without introducing a handwritten commit or changing the recorded ceiling.",
+      "expected": "Let the improvement land with the other edit intact. Make tightening a numerical ceiling optional when its file has a concurrent edit. In the idempotent-commit check, compare the injected violation with the measured baseline. Keep rejecting a newly handwritten commit and a count above the ceiling.",
+      "actual": "The retained speech-hold/do refusal records 1,907 checks against a ceiling of 1,909. The invariant accepted the decrease, but lowerCeilings refused the landing because the ceiling file had an out-of-scope edit. Its test requires that refusal. A second case follows from source: TestIdempotentCommitHasOneOwner fails for nine references against ten, and its injected case expects the fixed ceiling plus one. Removing the redundant reference alone therefore fails an ownership check."
+    },
+    {
       "id": "SQA-477",
       "severity": "P2",
       "files": [
@@ -120,22 +157,6 @@
       "input": "Read node 598 of the 50-step own-size recording with one interior progress event omitted and both endpoints intact. The recorder accepts gaps in the reported step numbers. Separately, consider the same request with just one progress event and otherwise valid inputs.",
       "expected": "In the existing MOSS recording reader, compute elapsed time per completed step from the first and last timestamps and their step numbers. Have both timing checks use that reading before loading the generator. Reject an unusable span at that point. The retained endpoints suffice to check the arithmetic without a GPU run.",
       "actual": "At 638e0be1a, ownSizeReading and TestWhereAMossStepsTimeGoes divide elapsed time by the number of event intervals. Dropping one interior event from the own-size recording changes their result from 1.113 to 1.136 s/step for identical work and elapsed time. The intact own-size recording has all 50 events. A separate real Turbo capture shows why gaps matter: node 48 records five events from step 1 to 8 in 519006 microseconds. The two formulas give 129.75 and 74.14 ms/step respectively. Neither timing check ran on that Turbo capture. With one event, the own-size reader checks the count after three draws and the step profiler after five. These outcomes follow from source."
-    },
-    {
-      "id": "SQA-478",
-      "severity": "P2",
-      "files": [
-        "cmd/validate/main.go",
-        "cmd/validate/scorecard.go",
-        "cmd/validate/bound_records.go",
-        "cmd/validate/cell_credit.go",
-        "cmd/validate/projection_proof.go",
-        "cmd/loop/improve.go",
-        "docs/verification/measured_models.json"
-      ],
-      "input": "Start full measurement preflight with one unregistered name in measured_models.json, a readable catalog and scorecard, and an otherwise runnable model with declared files. Start with the normal measurement binary and an empty digest cache. For the error-order case, also omit a committed projection suite.",
-      "expected": "Once registered model identities are available, run the existing chosenModels check before binding proofs or hashing model inputs. Return the invalid name immediately. Preserve selection of previously unmeasured cells, training results and the modes that bypass the measured-model list. Valid measurements still need their complete input identity.",
-      "actual": "The preflight at 3fe41bfa0 refused gemma-4-12B-it-fp8-native before any cell ran. At fedf6e422, main still binds all registered cells before calling chosenModels. With the stated inputs, groundProjection reads the suite files and consumedFiles hashes declared model bytes on a cache miss. If a suite is absent, its read error wins and the unknown name is never reported. chosenModels resolves names from catalog identities and scorecard names without those bindings. The refusal was observed. The unnecessary I/O and error ordering follow from source. Their elapsed cost was not measured."
     },
     {
       "id": "SQA-388",
@@ -268,13 +289,6 @@
         ],
         "note": "Answered by the lead on 2026-11-24 at b2de74cef: valid from source (a twice-contended serving cell is settled as acquired and credited, so a resumed cycle skips it with no usable timing taken). It costs a correct scorecard after an interrupted, contended cycle. Tonight's cells run as one invocation with no cycle credit, with no other build on the machine, so it is filed as contended-credit/do after full-measurement/run (depends_on)."
       },
-  "SQA-478": {
-        "action": "filed",
-        "rows": [
-          "measured-names-first/do"
-        ],
-        "note": "Answered by the lead on 2026-11-23 at fedf6e422: valid from source (main binds every registered cell, reading the projection suites and hashing model bytes on a cache miss, before chosenModels reads the measured list; the refusal at 3fe41bfa0 came about 2 minutes into the preflight). measured-list's check, validate's dry run, now refuses an unknown name when the list changes. Filed as measured-names-first/do, after full-measurement/run (depends_on), since it costs minutes only on a refused run."
-      },
   "SQA-477": {
         "action": "filed",
         "rows": [
@@ -370,7 +384,7 @@
       }
 }
   },
-  "next_finding_number": 482,
+  "next_finding_number": 485,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

@@ -220,7 +220,9 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 			len(plan.OperatorOwned), len(plan.RegisteredInactive))
 		return nil
 	}
-	var unbound, failed, inapplicable []string
+	// besideWork are the timed cells measured beside other work both times, which keep the times the scorecard had and
+	// earn no credit, so a resumed cycle measures them again (contended-credit, SQA-481).
+	var unbound, failed, inapplicable, besideWork []string
 	acquired := 0
 	// acquiredOf counts each model's cells, which say when a trained model has had its one measurement.
 	acquiredOf := map[artifact.ID]int{}
@@ -232,6 +234,8 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 			acquired++
 		case errors.Is(err, errInapplicable):
 			inapplicable = append(inapplicable, fmt.Sprintf("%s: %v", subject, err))
+		case errors.Is(err, errMeasuredBesideWork):
+			besideWork = append(besideWork, subject)
 		default:
 			failed = append(failed, fmt.Sprintf("%s: %v", subject, err))
 			if !errors.Is(err, errYielded) {
@@ -390,6 +394,9 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 			contended, err := measureCell(ctx, output, storeRoot, store, measure, acquireCell)
 			if contended && err == nil {
 				fmt.Fprintf(output, "validate -run: %s was measured beside other work both times, and the scorecard keeps the times it had\n", subject)
+				// No usable timing was taken: the cell earns no credit and counts toward no trained model's one
+				// measurement, so a resumed cycle measures it again on a quiet machine (contended-credit, SQA-481).
+				err = errMeasuredBesideWork
 			}
 			settle(err)
 		})
@@ -410,6 +417,9 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 	}
 	if len(unbound) > 0 {
 		problems = append(problems, fmt.Sprintf("%d have no bound command yet:\n  %s", len(unbound), strings.Join(unbound, "\n  ")))
+	}
+	if len(besideWork) > 0 {
+		problems = append(problems, fmt.Sprintf("%d %s:\n  %s", len(besideWork), errMeasuredBesideWork, strings.Join(besideWork, "\n  ")))
 	}
 	if len(problems) > 0 {
 		return fmt.Errorf("validate -run: re-acquired %d cell(s); %s", acquired, strings.Join(problems, "; "))
@@ -546,6 +556,11 @@ func timedValidation(validation string) bool {
 // answered: the tests it selects stated, through testskip.NotApplicable, why
 // they cannot apply where they ran. It is neither a failure nor a pass.
 var errInapplicable = errors.New("declared inapplicable here")
+
+// errMeasuredBesideWork marks a timed cell measured beside other work both times: no usable timing was taken, the
+// scorecard keeps the times it had, and the cell earns no credit, so a resumed cycle measures it again on a quiet
+// machine (contended-credit, SQA-481). It is neither a failure of the cell nor a measurement of it.
+var errMeasuredBesideWork = errors.New("measured beside other work both times, the scorecard keeping the times it had and a resumed cycle measuring them again")
 
 // acquire runs one cell's or lane's command and says why it acquired
 // nothing. A go test command is acquired by the outcomes it requires, never

@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -115,8 +116,10 @@ func TestARowRunsOnlyUnderTheAnswerItWasWrittenFor(t *testing.T) {
 	}
 }
 
-// TestADoctrineDecisionIsNeverTakenByRecommendation: a decision that changes a standing rule holds its rows for the owner,
-// though nothing else is ready, and they cannot land; an unanswered ordinary decision goes on as it does.
+// TestADoctrineDecisionIsNeverTakenByRecommendation: a decision that changes a standing rule holds its rows for the
+// lead's answer, though nothing else is ready, and they cannot land; dispatch names it as the lead's to answer now, with
+// the command, never as waiting for the owner (doctrine-answer: a session read that and sat 8 hours), and an owner's act
+// is not named so; an unanswered ordinary decision goes on as it does.
 func TestADoctrineDecisionIsNeverTakenByRecommendation(t *testing.T) {
 	t.Parallel()
 	document := testcheck.Must(MarkDoctrine(decisionFixture(), "choose"))(t)
@@ -125,8 +128,18 @@ func TestADoctrineDecisionIsNeverTakenByRecommendation(t *testing.T) {
 	}
 	document.Items = document.Items[:1]
 	dispatch, err := selectDispatch(document, "")
-	if err != nil || dispatch.Item != "" || len(dispatch.Decided) != 0 || !strings.Contains(dispatch.Waiting, "waits for the owner's answer") {
-		t.Fatalf("with a doctrine decision unanswered, dispatch = %+v, %v; want the row reported as waiting", dispatch, err)
+	if err != nil || dispatch.Item != "" || len(dispatch.Decided) != 0 || !strings.Contains(dispatch.Waiting, "the lead answers it now (go run ./cmd/plan -answer -title <option> choose)") ||
+		!slices.Equal(dispatch.Answer, []string{"choose"}) {
+		t.Fatalf("with a doctrine decision unanswered, dispatch = %+v, %v; want the row held for the lead's answer, named with its command", dispatch, err)
+	}
+	if strings.Contains(dispatch.Waiting, "owner") {
+		t.Fatalf("dispatch says a doctrine decision waits on the owner: %s", dispatch.Waiting)
+	}
+	act := decisionFixture()
+	act.Items = act.Items[:1]
+	act.Decisions[0].OwnersAct = true
+	if dispatch, err := selectDispatch(act, ""); err != nil || dispatch.Waiting == "" || len(dispatch.Answer) != 0 {
+		t.Fatalf("with an owner's act unanswered, dispatch = %+v, %v; want it waiting, named for no lead's answer", dispatch, err)
 	}
 	if _, err := Advance(document, "first", "do"); err == nil {
 		t.Fatal("a row a doctrine decision holds landed")

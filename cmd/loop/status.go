@@ -23,7 +23,8 @@ const (
 )
 
 // workStatus is the state of the work in a checkout, as the owner asks for it: the dispatched step or why none is,
-// the last commit, the decisions waiting on the owner's answer while the other rows run, and the week's pace.
+// the last commit, the decisions waiting on the owner's answer (an act only the owner takes; one that changes a standing
+// rule is the lead's to answer, doctrine-answer) while the other rows run, and the week's pace.
 type workStatus struct {
 	Read            time.Time    `json:"read"`
 	Dispatched      string       `json:"dispatched"`
@@ -88,7 +89,7 @@ func (standing laneStanding) String() string {
 func statusOf(read time.Time, dispatched, lastCommit string, document plan.Plan, pace landing.Pace) workStatus {
 	status := workStatus{Read: read, Dispatched: dispatched, LastCommit: lastCommit, Week: pace}
 	for _, decision := range document.Decisions {
-		if decision.Answer == "" && (decision.Doctrine || decision.OwnersAct) {
+		if decision.Answer == "" && decision.OwnersAct {
 			status.WaitingForOwner = append(status.WaitingForOwner, decision.ID+": "+decision.Question)
 		}
 	}

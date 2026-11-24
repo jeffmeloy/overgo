@@ -15,7 +15,8 @@ import (
 )
 
 // TestTheDriverWritesItsStatus holds what the owner reads in place of asking for progress: the decisions waiting on
-// the owner's answer, those that change a standing rule or are an act no session takes and are unanswered, and the
+// the owner's answer, those that are an act no session takes and are unanswered (one that changes a standing rule is the
+// lead's to answer, doctrine-answer), and the
 // week's pace from the gate's runs: commits a day, the share of commit attempts refused, a preflight no attempt, and
 // the hours with no run beyond an hour's gap, a run older than the week left out.
 func TestTheDriverWritesItsStatus(t *testing.T) {
@@ -42,7 +43,7 @@ func TestTheDriverWritesItsStatus(t *testing.T) {
 		{ID: "delete", Question: "Delete the duplicate?", OwnersAct: true, Answer: "keep it"},
 	}}
 	status := statusOf(now, "row / do: the work", "abc123 a commit", document, pace)
-	if want := []string{"push: Push the release?", "rule: Change the rule?"}; !slices.Equal(status.WaitingForOwner, want) || status.Week != pace || status.Dispatched != "row / do: the work" {
-		t.Fatalf("the status = %+v; want the two unanswered decisions waiting for the owner, %v, and the pace", status, want)
+	if want := []string{"push: Push the release?"}; !slices.Equal(status.WaitingForOwner, want) || status.Week != pace || status.Dispatched != "row / do: the work" {
+		t.Fatalf("the status = %+v; want the unanswered owner's act waiting for the owner, %v, and the pace", status, want)
 	}
 }

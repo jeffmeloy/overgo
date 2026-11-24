@@ -1,6 +1,32 @@
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+
+	"overgo/internal/plan"
+)
+
+// TestAStopIsHeldToAnsweringARuleDecision holds doctrine-answer: while dispatch names a decision that changes a standing
+// rule, a stop is blocked with the command that answers it, a typed turn's too, since the stop gate's verdict is not
+// read for it; the operator's stop, a committing gate and a dispatch naming none let it pass. On 2026-11-23 a typed turn
+// ended on such a decision and the plan sat 8 hours.
+func TestAStopIsHeldToAnsweringARuleDecision(t *testing.T) {
+	t.Parallel()
+	waiting := plan.Dispatch{Waiting: "first is held by decision choose", Answer: []string{"choose"}}
+	if hold := answerHold(waiting, false, false); !strings.Contains(hold, "go run ./cmd/plan -answer -title <option> choose") || !strings.Contains(hold, "the lead answers now") {
+		t.Fatalf("a stop on an unanswered rule decision is held with %q; want the lead's command to answer it", hold)
+	}
+	for name, hold := range map[string]string{
+		"the operator stopped the plan": answerHold(waiting, true, false),
+		"a gate is committing":          answerHold(waiting, false, true),
+		"no decision is the lead's":     answerHold(plan.Dispatch{Waiting: "first is held by decision push"}, false, false),
+	} {
+		if hold != "" {
+			t.Errorf("%s: the stop is held with %q; want it to pass", name, hold)
+		}
+	}
+}
 
 // notificationPrompt is the opening of a background task's notification, a turn no person typed.
 const notificationPrompt = "<task-notification><status>completed</status>"

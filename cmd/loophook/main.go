@@ -168,6 +168,15 @@ func runStop(hookJSON string) int {
 	// worktree back to the next implementing session; a turn a valve lets end,
 	// or one that leaves work uncommitted, keeps it.
 	rested := (operatorStopped || dispatch.Complete || dispatch.Waiting != "") && !dirtyWork
+	// A decision that changes a standing rule is the lead's to answer now: no turn, a typed one included, ends on it.
+	if hold := answerHold(dispatch, operatorStopped, gateCommitting()); hold != "" {
+		fmt.Fprint(os.Stderr, hold)
+		if err := recordStopBlock(session, "answer: "+dispatch.Line); err != nil {
+			fmt.Fprintf(os.Stderr, "stop: this block could not be kept, so the stop passes: %v\n", err)
+			return 0
+		}
+		return 2
+	}
 	// A session whose role has no row to work is not held to the loop, but it
 	// is still held to the work its own turn left uncommitted: it can write code.
 	if dispatch.Waiting != "" {
@@ -195,6 +204,23 @@ func runStop(hookJSON string) int {
 		return 0
 	}
 	return 2
+}
+
+// answerHold is the block a stop meets while dispatch names a decision that changes a standing rule (Dispatch.Answer):
+// the lead answers it now, at its recommendation unless an owner's rule calls for another option, and goes on; empty
+// when the operator stopped the plan, a gate is committing or no such decision waits. A typed turn is held too: on
+// 2026-11-23 a typed turn ended on "waits for the owner's answer", and the plan sat 8 hours on capacity-record-history,
+// which the lead then answered at its recommendation (doctrine-answer).
+func answerHold(dispatch plan.Dispatch, operatorStopped, gateRunning bool) string {
+	if len(dispatch.Answer) == 0 || operatorStopped || gateRunning {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("overgo loop gate: the plan waits on a decision that changes a standing rule, which the lead answers now: the turn does not end on it.\n")
+	for _, id := range dispatch.Answer {
+		b.WriteString("  * answer " + id + " (go run ./cmd/plan -decisions shows it): go run ./cmd/plan -answer -title <option> " + id + ", then continue with the dispatched row.\n")
+	}
+	return b.String()
 }
 
 // stopBlock is what the Stop gate records when it blocks a session's turn-end: the HEAD and the dirty set it found. The

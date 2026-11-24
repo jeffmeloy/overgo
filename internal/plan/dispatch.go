@@ -32,6 +32,9 @@ type Dispatch struct {
 	// Findings, of an empty plan, are the open P1 and P2 findings no row names, to be filed as rows before the
 	// measurement run (FindingsToFile).
 	Findings []string `json:"findings,omitempty"`
+	// Answer names each unanswered decision that changes a standing rule and holds a waiting row: the lead answers it
+	// now, and a session's turn does not end on it (doctrine-answer).
+	Answer []string `json:"answer,omitempty"`
 }
 
 // Shared Git revision query used by dispatch.
@@ -286,15 +289,18 @@ func selectDispatch(document Plan, reference string) (Dispatch, error) {
 	if reference != "" {
 		return finishDispatch(Dispatch{Waiting: "requested row is not ready"}), nil
 	}
-	var held []string
+	var held, answer []string
 	for _, item := range document.Items {
 		if decision, holding := holdingDecision(document, item.ID); holding {
 			held = append(held, item.ID+" is held by decision "+decision.ID+": "+decision.holds())
+			if decision.Answer == "" && decision.Doctrine && !decision.OwnersAct && !slices.Contains(answer, decision.ID) {
+				answer = append(answer, decision.ID)
+			}
 		}
 	}
 	held = append(held, parkedNote(document)...)
 	if len(held) != 0 {
-		return finishDispatch(Dispatch{Waiting: strings.Join(held, "; ")}), nil
+		return finishDispatch(Dispatch{Waiting: strings.Join(held, "; "), Answer: answer}), nil
 	}
 	if len(document.Items) != 0 {
 		return finishDispatch(Dispatch{Waiting: "remaining rows require prerequisite evidence"}), nil
@@ -404,7 +410,7 @@ func byRecommendation(document Plan) (Plan, bool) {
 	decided := slices.Clone(document.Decisions)
 	taken := false
 	for at := range decided {
-		if decided[at].Answer == "" && !decided[at].waitsForOwner() {
+		if decided[at].Answer == "" && !decided[at].answeredByHand() {
 			decided[at].Answer = decided[at].Recommendation
 			taken = true
 		}
@@ -417,7 +423,7 @@ func byRecommendation(document Plan) (Plan, bool) {
 func decidedFor(document Plan, item string) []string {
 	var taken []string
 	for _, decision := range document.Decisions {
-		if decision.Answer == "" && !decision.waitsForOwner() && slices.Contains(decision.Blocks, item) {
+		if decision.Answer == "" && !decision.answeredByHand() && slices.Contains(decision.Blocks, item) {
 			taken = append(taken, decision.ID+": "+decision.Recommendation)
 		}
 	}
@@ -443,7 +449,7 @@ func awaitingDecision(document Plan) map[string]bool {
 func holdingDecision(document Plan, item string) (Decision, bool) {
 	at := slices.IndexFunc(document.Decisions, func(decision Decision) bool {
 		return slices.Contains(decision.Blocks, item) && decision.Answer != decision.Recommendation &&
-			(decision.Answer != "" || decision.waitsForOwner())
+			(decision.Answer != "" || decision.answeredByHand())
 	})
 	if at < 0 {
 		return Decision{}, false
@@ -466,7 +472,9 @@ func (decision Decision) holds() string {
 	case decision.Answer == "" && decision.OwnersAct:
 		return "its answer is an act only the owner takes, so it waits for the owner's answer while other rows run"
 	case decision.Answer == "":
-		return "it changes a standing rule, so it waits for the owner's answer"
+		// The lead answers it, never the owner (owner 2026-11-13, "don't wait for answers from me"): a session read "waits
+		// for the owner's answer" here and sat 8 hours on capacity-record-history (doctrine-answer).
+		return "it changes a standing rule, so no unattended run takes its recommendation: the lead answers it now (go run ./cmd/plan -answer -title <option> " + decision.ID + "), and its rows go on"
 	}
 	return "answered " + strconv.Quote(decision.Answer) + ", and the row was written for another answer; rewrite or retire it"
 }

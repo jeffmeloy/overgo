@@ -3,22 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "doctrine-answer",
-      "title": "A decision that changes a standing rule is shown as the lead's to answer now, with its command, never as waiting for the owner",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A decision that changes a standing rule is shown as the lead's to answer now, with its command, never as waiting for the owner",
-          "verify": "go test ./internal/plan ./cmd/loop -count=1 -run '^(TestADoctrineDecisionIsNeverTakenByRecommendation|TestTheDriverWritesItsStatus)$'",
-          "files": [
-            "internal/plan",
-            "cmd/loop"
-          ],
-          "rationale": "Note: The owner on 2026-11-23, after the lead sat 8 hours with the plan stopped on decision capacity-record-history: \"Why can't you determine the best thing to do?\" The owner's standing word (2026-11-13, \"don't wait for answers from me\") is that a decision which changes a standing rule is answered by the lead with `plan -answer`, never listed as waiting on the owner; only an act the owner alone takes (a push, deleting a model or data, a store migration, publishing) waits for them. Dispatch printed the opposite for a doctrine decision: \"it changes a standing rule, so it waits for the owner's answer\" (internal/plan/dispatch.go holds), and the session followed the printed line over the rule. The change: holds() says that no worker takes a doctrine decision at its recommendation and that the lead answers it now, naming the command (go run ./cmd/plan -answer -title \u003coption\u003e \u003cid\u003e); the Doctrine field's comment says the same; an owner's act keeps its wait. Check: TestADoctrineDecisionIsNeverTakenByRecommendation asserts the line names the lead's answer and its command, and no longer says it waits for the owner.\n\nNote: files set to internal/plan, cmd/loop: the status report (cmd/loop status.go) listed a decision that changes a standing rule as waiting for the owner too"
-        }
-      ]
-    },
-    {
       "id": "shared-whole",
       "title": "One whole slow run passes at the commit that lands the shared image steps, every cycle lane and every package of the models lane run to their end",
       "steps": [
@@ -169,7 +153,7 @@
           "files": [
             "internal/latentimage"
           ],
-          "rationale": "SQA-460 (P2), checked against readWorkflowSource and appendWorkflowTiming at 47b3587c9: valid. An absolute OVERGO_WORKFLOW_RECORD is accepted at the start and joined under the repository only when the timing is appended, after both runs, so the attempt reported in d28ab1e84 drew twelve sections (81 s measured) and saved nothing. The change: the record path is checked, relative and inside the repository, before the quiet machine is asked for. Check: TestTheWorkflowClockRefusesARecordItCannotWrite gives the source check an absolute path and one leaving the repository: each is refused before any draw.",
+          "rationale": "SQA-460 (P2), checked against readWorkflowSource and appendWorkflowTiming at 47b3587c9: valid. An absolute OVERGO_WORKFLOW_RECORD is accepted at the start and joined under the repository only when the timing is appended, after both runs, so the attempt reported in d28ab1e84 drew twelve sections (81 s measured) and saved nothing. The change: the record path is checked, relative and inside the repository, before the quiet machine is asked for. Check: TestTheWorkflowClockRefusesARecordItCannotWrite gives the source check an absolute path and one leaving the repository: each is refused before any draw.\n\nNote: SQA-477 (P2), valid from source: ownSizeReading and TestWhereAMossStepsTimeGoes divide a recording's elapsed time by its count of progress-event intervals, not by the steps between its first and last event, so a recording with a gap in its step numbers reads slow (1.113 against 1.136 s/step with one interior event dropped; node 48 of a Turbo capture records steps 1 to 8 in five events, 129.75 against 74.14 ms/step). The intact own-size recording has all 50 events, so no reading taken so far is wrong. With this step: the MOSS recording reader computes time per completed step from the first and last timestamps and their step numbers, both timing checks read it before loading the generator, and a span of fewer than two events is refused there.",
           "depends_on": [
             "pair-encode/clock",
             "full-measurement/run"

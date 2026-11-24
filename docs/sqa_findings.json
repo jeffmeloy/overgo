@@ -1,9 +1,9 @@
 {
   "advisory_notice": "SQA recommendations for master. Master decides which findings to accept, defer or decline, in what order, and how to address them. The ranking and assessment explain SQA's judgment. Only docs/plan.json directs work.",
   "priority_assessment": [
-    "I would remove the owner wait in SQA-475 first. The lead reports eight hours lost on a decision it ultimately made itself. The planned doctrine-answer/do repair should be judged by whether the lead can resume work. Master has already adopted one measurement for shared-whole/lanes and full-measurement/run. SQA-474 remains relevant because the completion check can accept earlier timings. SQA-476 ranks lower because it applies only once the plan empties.",
+    "Master's next committed step is the shared PNG writer. I would keep its whole-lane check and the full measurement in one run as planned (SQA-474). The lead has filed SQA-475 after reporting eight hours lost to an owner wait. I would judge that repair by whether the lead can answer and resume the row. The lead chose to keep triage ahead of an automatic five-to-nine-hour measurement.",
     "The latest MOSS run (1bae67d52) took 33.629 s warm against ComfyUI's 34.412 s, and 46.429 s on the first run against 40.176 s. I would use served-parts/do (SQA-471) to locate that 6.253 s first-run gap. SQA-473 identifies 92.5 MiB copied during load and at least 103.9 MiB of host weights kept after the decoder binds. Their cost in seconds is unknown, so I would keep the planned measurement ahead of this change.",
-    "Among the MOSS check fixes, I rank SQA-410 first. Eight adapter-control draws cost 248 denoiser passes and contribute no score to the verdict. SQA-467 comes next because the two draws already made can verify the finished pixels. Both fit existing plan steps."
+    "I would give SQA-410 first priority among the MOSS checks. The planned floors check can pass while the adapter comparison still performs 248 unnecessary denoiser passes. SQA-467 can use its two existing draws to verify the finished pixels. The own-size timing capture has all 50 progress events, so SQA-477 can be addressed with the reference clock work without holding up the scheduled measurement."
   ],
   "branch": "master",
   "findings": [
@@ -50,8 +50,8 @@
         "internal/latentimage/image_to_image_windows_model_test.go"
       ],
       "input": "Run the adapter sections check on the four pinned MOSS sections in BF16 and merged int8. For the floor checks, omit a standard threshold, put a wrong-width recording after a failed draw, or supply an all-zero reference with nonzero latents in both precision modes.",
-      "expected": "In card-checks-sound/floors, keep all eight adapter baselines, the bit-exact merge check and the changed-input controls used by the standard and Turbo floors. The adapter comparison needs only its baselines. Validate thresholds and reference signal before drawing, report each failed score and release its generator. Exact matches on nonzero signal remain valid.",
-      "actual": "At c87add70e, holdMergedSections calls readGoldenCases for four sections in each of two precision modes. Each call draws a baseline and a changed input per section. Only the baseline latent scores decide the comparison. The eight extra controls are decoded, their PNGs discarded and their scores only logged. The pinned requests imply 248 extra denoiser passes: (100 + 8 + 8 + 8) per mode. This is a source count. Wall-time savings are unmeasured. In the separate floor checks, a missing standard threshold is reported after ten draws, a later size error hides an earlier failure and skips generator cleanup, and the five standard and three Turbo control pictures are decoded and discarded. The adapter verdict also accepts two negative-infinity scores on a zero reference."
+      "expected": "In card-checks-sound/floors, keep all eight adapter baselines, the bit-exact merge check and the changed-input controls used by the standard and Turbo floors. The adapter comparison needs only its baselines. Validate thresholds and reference signal before drawing, report each failed score and release its generator. Exact matches on nonzero signal remain valid. Have the check for this step count eight adapter baselines and zero adapter controls through the adapter comparison. The draw count can be checked without another model run.",
+      "actual": "At c87add70e, holdMergedSections calls readGoldenCases for four sections in each of two precision modes. Each call draws a baseline and a changed input per section. Only the baseline latent scores decide the comparison. The eight extra controls are decoded, their PNGs discarded and their scores only logged. The pinned requests imply 248 extra denoiser passes: (100 + 8 + 8 + 8) per mode. This is a source count. Wall-time savings are unmeasured. In the separate floor checks, a missing standard threshold is reported after ten draws, a later size error hides an earlier failure and skips generator cleanup, and the five standard and three Turbo control pictures are decoded and discarded. The adapter verdict also accepts two negative-infinity scores on a zero reference. At 638e0be1a the step selects only TestUltraSectionsHoldTheirGoldenFloors. Only TestMOSSAdapterSectionsMultiplyAsComfyUI/sections calls holdMergedSections. Leaving all eight adapter controls in place cannot fail the selected check on that account."
     },
     {
       "id": "SQA-467",
@@ -108,19 +108,20 @@
       "actual": "Source trace at 0776b4a53 with tensor shapes from the pinned checkpoint header. Of 33 decoder 3-by-3 weight tensors, 30 go through sliceLastTemporalTap with temporal extent 1. It allocates and copies 96,999,552 bytes of identical F32 data during load. The three upsamplers already use their input slices directly. After the first successful bind, VAEProgram.feeds still holds all 33 payloads (108,943,488 bytes before biases or other weights). Later decodes use state.decoding and never read those feeds. These are separate construction and retention counts, with no measured wall-time or process-memory delta."
     },
     {
-      "id": "SQA-476",
+      "id": "SQA-477",
       "severity": "P2",
       "files": [
-        "internal/plan/findings_fall_through.go",
-        "internal/plan/dispatch.go",
-        "cmd/loop/improve.go",
-        "cmd/loop/main.go",
-        "internal/loop/driver.go",
-        "internal/loop/dispatch_wait_test.go"
+        "internal/latentimage/comfy_section_windows_model_test.go",
+        "internal/latentimage/golden_floor_windows_model_test.go",
+        "internal/latentimage/step_time_windows_model_test.go",
+        "cmd/comfy-reference/progress.go",
+        "cmd/comfy-reference/recordings_modeltest_test.go",
+        "fixtures/comfy/moss-ultra/recordings/pass-1/depth-control-turbo.json",
+        "fixtures/comfy/moss-ultra/recordings/own-size/text-to-image.json"
       ],
-      "input": "The autonomous loop exhausts its plan. A measurement is due and its prerequisites are satisfied. One new P2 recommendation concerns unrelated work. No plan row names it, the lead has not triaged it and no stop is in force.",
-      "expected": "Remove mandatory filing as a prerequisite for the empty-plan measurement. Keep the recommendation visible to the lead and let the existing measurement eligibility check decide whether to run. Preserve explicit stops, budgets, held work and any prerequisite the lead puts in the plan.",
-      "actual": "Source counterexample at 638e0be1a. FindingsToFile returns the unrelated P2 by severity and triage state alone. Dispatch says to file it before measurement. Run returns findings-waiting before consulting CycleWorthRunning. The empty-plan branch of TestARunEndsWaitingNeverCompleteWhileWorkIsHeldOrFindingsAwaitFiling explicitly requires zero measurements and zero worker calls for one P2. This affects automatic continuation after the final row. The scheduled full-measurement/run row remains dispatchable. No missed run was measured."
+      "input": "Read node 598 of the 50-step own-size recording with one interior progress event omitted and both endpoints intact. The recorder accepts gaps in the reported step numbers. Separately, consider the same request with just one progress event and otherwise valid inputs.",
+      "expected": "In the existing MOSS recording reader, compute elapsed time per completed step from the first and last timestamps and their step numbers. Have both timing checks use that reading before loading the generator. Reject an unusable span at that point. The retained endpoints suffice to check the arithmetic without a GPU run.",
+      "actual": "At 638e0be1a, ownSizeReading and TestWhereAMossStepsTimeGoes divide elapsed time by the number of event intervals. Dropping one interior event from the own-size recording changes their result from 1.113 to 1.136 s/step for identical work and elapsed time. The intact own-size recording has all 50 events. A separate real Turbo capture shows why gaps matter: node 48 records five events from step 1 to 8 in 519006 microseconds. The two formulas give 129.75 and 74.14 ms/step respectively. Neither timing check ran on that Turbo capture. With one event, the own-size reader checks the count after three draws and the step profiler after five. These outcomes follow from source."
     },
     {
       "id": "SQA-388",
@@ -259,6 +260,13 @@
     "at": "2026-11-23",
     "head": "7fbcacc4cbdf0baa7bbafdbce6e34495ab1ec29b",
     "findings": {
+  "SQA-477": {
+        "action": "filed",
+        "rows": [
+          "reference-tools/clock"
+        ],
+        "note": "Answered by the lead on 2026-11-23 at b096b650c: valid from source (the readers divide elapsed time by event intervals, not by the steps between the first and last event); the intact own-size recording has all 50 events, so no reading so far is wrong, and it costs a wrong reading only on a recording with a gap. Filed with reference-tools/clock, noted there, the reference clock work it belongs to, after the measurement."
+      },
   "SQA-475": {
         "action": "filed",
         "rows": [
@@ -358,7 +366,7 @@
       }
 }
   },
-  "next_finding_number": 477,
+  "next_finding_number": 478,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

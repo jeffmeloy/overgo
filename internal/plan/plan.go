@@ -193,8 +193,8 @@ type Decision struct {
 	Blocks         []string `json:"blocks,omitempty"`
 	Asked          string   `json:"asked"`
 	Answer         string   `json:"answer,omitzero"`
-	// Doctrine marks a decision that changes a standing rule: its rows wait
-	// for the owner's answer, and no recommendation stands in for it.
+	// Doctrine marks a decision that changes a standing rule: no unattended
+	// run takes its recommendation, and its rows wait for the lead's answer.
 	Doctrine bool `json:"doctrine,omitzero"`
 	// OwnersAct marks a decision whose answer is an act only the owner takes: a store migration, deleting a model or
 	// data, activating or publishing a model, or a push. Its rows wait for the owner's answer while the others run, and
@@ -202,9 +202,9 @@ type Decision struct {
 	OwnersAct bool `json:"owners_act,omitzero"`
 }
 
-// waitsForOwner says no recommendation stands in for the decision's answer: it changes a standing rule or is an act
-// only the owner takes.
-func (decision Decision) waitsForOwner() bool { return decision.Doctrine || decision.OwnersAct }
+// answeredByHand says no recommendation stands in for the decision's answer: it changes a standing rule, which the lead
+// answers, or is an act only the owner takes.
+func (decision Decision) answeredByHand() bool { return decision.Doctrine || decision.OwnersAct }
 
 // Load reads the plan from path (Path when empty).
 func Load(path string) (Plan, error) {

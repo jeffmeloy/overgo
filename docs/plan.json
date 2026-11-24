@@ -3,25 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "user-size-inapplicable",
-      "title": "A model that states no size of its own has no cell at the size a person asks for, so the full measurement refuses none for it",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A model that states no size of its own has no cell at the size a person asks for, so the full measurement refuses none for it",
-          "verify": "false",
-          "files": [
-            "cmd/validate",
-            "cmd/recipe"
-          ],
-          "rationale": "Found by the full measurement's cells at b2de74cef: three cells at the size a person asks for failed. Un-0's picture and LiveEdit's clip were refused with 'serving attempt handoff: open ...attempt.json: The system cannot find the file specified', after recipe said 'the verification of ... states no size of its own, so there is no larger request to measure' and wrote no attempt. SimpleDiffusion's was refused with 'diffusionimage: positive steps, height, and width required', its request at that size carrying none. A model with no size of its own has no larger request to measure, so the cell is not one: the selection leaves it out (or the cell is inapplicable, as errInapplicable records), and a cell that runs and writes no attempt still fails. The check is written with the work: the dry run's plan holds no user-size cell for a model whose verification states no size, and a producer that writes no attempt is refused.",
-          "depends_on": [
-            "full-measurement/run"
-          ]
-        }
-      ]
-    },
-    {
       "id": "flash-next-projection",
       "title": "Qwen3.8 Flash Next's projection answers its exact suite as its recipe's verification did",
       "steps": [

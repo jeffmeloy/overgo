@@ -222,7 +222,9 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 	}
 	// besideWork are the timed cells measured beside other work both times, which keep the times the scorecard had and
 	// earn no credit, so a resumed cycle measures them again (contended-credit, SQA-481).
-	var unbound, failed, inapplicable, besideWork []string
+	// unsized are the cells at the size a person asks for whose models state no size of their own: they measure
+	// nothing and fail nothing (user-size-inapplicable).
+	var unbound, failed, inapplicable, besideWork, unsized []string
 	acquired := 0
 	// acquiredOf counts each model's cells, which say when a trained model has had its one measurement.
 	acquiredOf := map[artifact.ID]int{}
@@ -236,6 +238,8 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 			inapplicable = append(inapplicable, fmt.Sprintf("%s: %v", subject, err))
 		case errors.Is(err, errMeasuredBesideWork):
 			besideWork = append(besideWork, subject)
+		case errors.Is(err, errNoLargerRequest):
+			unsized = append(unsized, fmt.Sprintf("%s: %v", subject, err))
 		default:
 			failed = append(failed, fmt.Sprintf("%s: %v", subject, err))
 			if !errors.Is(err, errYielded) {
@@ -421,6 +425,9 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 	if len(besideWork) > 0 {
 		problems = append(problems, fmt.Sprintf("%d %s:\n  %s", len(besideWork), errMeasuredBesideWork, strings.Join(besideWork, "\n  ")))
 	}
+	if len(unsized) > 0 {
+		fmt.Fprintf(output, "validate -run: %d cell(s) at the size a person asks for measured nothing, their models stating no size of their own:\n  %s\n", len(unsized), strings.Join(unsized, "\n  "))
+	}
 	if len(problems) > 0 {
 		return fmt.Errorf("validate -run: re-acquired %d cell(s); %s", acquired, strings.Join(problems, "; "))
 	}
@@ -556,6 +563,11 @@ func timedValidation(validation string) bool {
 // answered: the tests it selects stated, through testskip.NotApplicable, why
 // they cannot apply where they ran. It is neither a failure nor a pass.
 var errInapplicable = errors.New("declared inapplicable here")
+
+// errNoLargerRequest marks a cell at the size a person asks for whose producer said the model states no size of its
+// own, so there is no larger request than its verified one to measure (servingattempt.NoLargerRequest,
+// user-size-inapplicable): the cell measures nothing and fails nothing, and the scorecard keeps no time at that size.
+var errNoLargerRequest = errors.New("no larger request to measure")
 
 // errMeasuredBesideWork marks a timed cell measured beside other work both times: no usable timing was taken, the
 // scorecard keeps the times it had, and the cell earns no credit, so a resumed cycle measures it again on a quiet
@@ -728,6 +740,9 @@ func acquireServing(ctx context.Context, output io.Writer, root, name string, ar
 	readErr := jsonfile.DecodeStrict(path, &attempt)
 	if errors.Is(readErr, os.ErrNotExist) && err != nil {
 		return attempt, err
+	}
+	if reason, said := servingattempt.NoLarger(path); errors.Is(readErr, os.ErrNotExist) && said {
+		return artifact.ID{}, fmt.Errorf("%w: %s", errNoLargerRequest, reason)
 	}
 	if readErr == nil && attempt.Kind() != artifact.KindEvidence {
 		readErr = errors.New("producer named no serving observation")

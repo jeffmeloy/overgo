@@ -76,6 +76,11 @@ func (features sampleFeatures) picture() ([]float32, int, int) {
 	return sheet, height, width
 }
 
+// DrawsRequest says whether the model draws the request (ValidateRequest): one stating no size or steps it refuses, since
+// the model has no size of its own, so a request at the size a person asks for is no larger than its verified one
+// (mediacapability.PersonRequest, user-size-inapplicable).
+func (request Request) DrawsRequest() error { return ValidateRequest(request) }
+
 func ValidateRequest(request Request) error {
 	if request.Steps <= 0 || request.Height <= 0 || request.Width <= 0 {
 		return errors.New("diffusionimage: positive steps, height, and width required")

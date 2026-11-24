@@ -585,8 +585,11 @@ func measureCapability(repository, path string, task recipe.Task, capability med
 			return err
 		}
 		if !smaller {
-			fmt.Fprintf(os.Stderr, "recipe: the verification of %s states no size of its own, so there is no larger request to measure\n", path)
-			return nil
+			reason := fmt.Sprintf("the verification of %s states no size of its own, so there is no larger request to measure", path)
+			fmt.Fprintln(os.Stderr, "recipe: "+reason)
+			// The handoff says so, so the run that asked takes the cell as measuring nothing, not as a lost attempt
+			// (user-size-inapplicable).
+			return servingattempt.NoLargerRequest(reason)
 		}
 		request = sized
 	}

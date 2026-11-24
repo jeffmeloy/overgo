@@ -70,6 +70,11 @@ func TestAContendedCellIsMeasuredOnceMoreAfterTheOthers(t *testing.T) {
 			testcheck.NoError(t, os.WriteFile(path, []byte("{} {}"), clioptions.PrivateFileMode))
 			return
 		}
+		if result == "no-larger" {
+			// As recipe measure says a model states no size of its own: beside the handoff, in place of an attempt.
+			testcheck.NoError(t, os.WriteFile(path+".no-larger", []byte("the verification states no size of its own"), clioptions.PrivateFileMode))
+			return
+		}
 		id := testcheck.Must(artifact.ParseID(result))(t)
 		testcheck.NoError(t, jsonfile.Write(path, id, clioptions.PrivateFileMode))
 		if os.Getenv("OVERGO_TEST_SERVING_FAILED") != "" {
@@ -174,6 +179,14 @@ func TestAContendedCellIsMeasuredOnceMoreAfterTheOthers(t *testing.T) {
 
 	executable := testcheck.Must(os.Executable())(t)
 	id := testutil.ArtifactID(t, artifact.KindEvidence, "child observation")
+	// A producer that says its model states no size of its own hands back no attempt and is taken as measuring
+	// nothing, not as a lost handoff (user-size-inapplicable).
+	t.Run("handoff no-larger", func(t *testing.T) {
+		got, err := acquireServing(t.Context(), io.Discard, ".", executable, []string{"-test.run=^TestAContendedCellIsMeasuredOnceMoreAfterTheOthers$"}, "OVERGO_TEST_SERVING_RESULT=no-larger")
+		if got.Valid() || err == nil || !strings.Contains(err.Error(), "no larger request to measure: the verification states no size of its own") || strings.Contains(err.Error(), "handoff") {
+			t.Fatalf("a producer with no larger request returned %s (%v), want no attempt and its reason", got, err)
+		}
+	})
 	for _, mode := range []string{"missing", "malformed", "success", "failed"} {
 		t.Run("handoff "+mode, func(t *testing.T) {
 			result := mode

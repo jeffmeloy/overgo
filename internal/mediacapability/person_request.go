@@ -3,6 +3,7 @@ package mediacapability
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"slices"
 	"strconv"
 
@@ -34,5 +35,17 @@ func PersonRequest(entry recipe.ModuleID, directory, request string) (sized stri
 		}
 	}
 	data, err := json.Marshal(fields)
-	return string(data), lifted, err
+	if err != nil || !lifted {
+		return string(data), lifted, err
+	}
+	// A size left to a runtime that fills none is no request the model draws: it states no size of its own, and the
+	// verified request is a person's already (SimpleDiffusion's refused "positive steps, height, and width required" in
+	// the full measurement of 2026-11-24, user-size-inapplicable).
+	if drawn, validates := requestTypes[entry].(interface{ DrawsRequest() error }); validates {
+		decoded := reflect.New(reflect.TypeOf(drawn))
+		if json.Unmarshal(data, decoded.Interface()) != nil || decoded.Elem().Interface().(interface{ DrawsRequest() error }).DrawsRequest() != nil {
+			return request, false, nil
+		}
+	}
+	return string(data), true, nil
 }

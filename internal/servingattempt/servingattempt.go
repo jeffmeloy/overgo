@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"overgo/internal/artifact"
@@ -24,6 +25,29 @@ import (
 // OutputEnvironment names an invocation-owned file that recipe measure writes
 // with its exact published serving observation identity, also on failure.
 const OutputEnvironment = "OVERGO_SERVING_ATTEMPT_OUTPUT"
+
+// noLargerSuffix names the file beside OutputEnvironment's in which recipe measure says, in place of an attempt, why
+// there is no larger request to measure at the size a person asks for: the model states no size of its own
+// (user-size-inapplicable). The full measurement of 2026-11-24 refused three such cells, Un-0's picture, LiveEdit's
+// clip and SimpleDiffusion's picture, for the attempt none of them wrote.
+const noLargerSuffix = ".no-larger"
+
+// NoLargerRequest writes, beside the handoff file OutputEnvironment names, why the invocation measured no request at
+// the size a person asks for; with no handoff named it writes nothing.
+func NoLargerRequest(reason string) error {
+	path := os.Getenv(OutputEnvironment)
+	if path == "" {
+		return nil
+	}
+	return os.WriteFile(path+noLargerSuffix, []byte(reason), 0o600)
+}
+
+// NoLarger is the reason an invocation whose handoff file is path gave for measuring no request at the size a person
+// asks for (NoLargerRequest), and whether it gave one.
+func NoLarger(path string) (string, bool) {
+	reason, err := os.ReadFile(path + noLargerSuffix)
+	return string(reason), err == nil
+}
 
 // WholeOutput is one execution of a capability that returns its
 // output whole: the model and recipe it ran, the run it recorded if any,

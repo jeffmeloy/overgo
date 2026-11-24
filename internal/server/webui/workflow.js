@@ -185,8 +185,9 @@
     if (choosesPicture(control)) return pictureValue();
     if (choices) {
       return el("select", { class: "text", "aria-label": controlLabel(control) },
-        // A field left unset is given the default its control declares where the request is taken in.
-        el("option", { value: "", text: control.required ? "select" : control.default ? "default (" + control.default + ")" : "unset", disabled: control.required, selected: true }),
+        // A field left unset is given the default its control declares where the request is taken in, or the model's
+        // own where it declares none (moss-page/faults).
+        el("option", { value: "", text: control.required ? "select" : control.default ? "default (" + control.default + ")" : "model's default", disabled: control.required, selected: true }),
         // A choice the declaration names plainly (a MOSS Ultra section) is offered by that name, its value the choice.
         ...choices.map((choice) => el("option", { value: choice, text: (control.names && control.names[choice]) || choice })));
     }
@@ -523,18 +524,19 @@
     },
   };
 
-  // presetControls: the capability's named presets beside its controls: choosing one fills the fields,
-  // and Save preset keeps the current entries under a name.
+  // presetControls: the settings a person saved for the capability, by name, beside its controls: choosing one fills
+  // the fields, and Save settings keeps the current entries under a name. They are named apart from a model's own preset
+  // control, which the page had shown beside them under the same name (moss-page/faults).
   window.overgo.presetControls = function (recipe, fields) {
     const el = window.overgo.el;
     const remembered = window.overgo.rememberedControls;
-    const choose = el("select", { class: "text w-auto", "aria-label": "preset" });
-    const name = el("input", { class: "text", type: "text", "aria-label": "Preset name", placeholder: "Preset name" });
+    const choose = el("select", { class: "text w-auto", "aria-label": "saved settings" });
+    const name = el("input", { class: "text", type: "text", "aria-label": "Name for these settings", placeholder: "Name for these settings" });
     function list() {
-      choose.replaceChildren(el("option", { value: "", text: "Presets" }), ...Object.keys(remembered.presets(recipe)).sort().map((preset) => el("option", { value: preset, text: preset })));
+      choose.replaceChildren(el("option", { value: "", text: "Saved settings" }), ...Object.keys(remembered.presets(recipe)).sort().map((preset) => el("option", { value: preset, text: preset })));
     }
     choose.addEventListener("change", () => { if (choose.value) remembered.apply(fields, remembered.presets(recipe)[choose.value]); });
-    const save = el("button", { class: "btn alt", type: "button", text: "Save preset", onclick: () => {
+    const save = el("button", { class: "btn alt", type: "button", text: "Save settings", onclick: () => {
       const label = name.value.trim();
       if (!label) { name.focus(); return; }
       remembered.savePreset(recipe, label, remembered.values(fields));

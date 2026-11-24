@@ -81,7 +81,7 @@ func TestFinishingMatchesTheRecordedImage(t *testing.T) {
 	}
 	sized := map[[2]int]bool{}
 	for _, size := range recorded.Sizes {
-		canvas := Canvas{Aspect: strconv.Itoa(size.Ratio[0]) + ":" + strconv.Itoa(size.Ratio[1]), Megapixels: size.Megapixels, Multiple: size.Multiple}
+		canvas := Canvas{Aspect: AspectRatio(strconv.Itoa(size.Ratio[0]) + ":" + strconv.Itoa(size.Ratio[1])), Megapixels: size.Megapixels, Multiple: size.Multiple}
 		width, height, err := canvas.Size()
 		if err != nil || width != size.Width || height != size.Height {
 			t.Errorf("%d:%d at %g megapixels in multiples of %d: %d×%d (%v), ComfyUI's %d×%d", size.Ratio[0], size.Ratio[1], size.Megapixels, size.Multiple, width, height, err, size.Width, size.Height)

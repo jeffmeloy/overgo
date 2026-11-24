@@ -4,7 +4,8 @@
   // section's preview before its run, and a run's pictures shown and compared.
 
   // depthPreview: a depth section's map as its run makes it, as the MOSS Ultra workflow's PreviewImage shows it, before
-  // any run; offered while the page holds a depth control. The estimate runs once per press, never again on its own.
+  // any run; offered while the page shows a depth control whose picture is chosen, the one the map is made from
+  // (moss-page/faults). The estimate runs once per press, never again on its own.
   function depthPreview(host, composed, overgo) {
     const { el, api } = overgo;
     const shown = el("div", { class: "depth-preview" });
@@ -19,8 +20,16 @@
     });
     host.replaceChildren(el("div", { class: "row" }, open), shown);
     const panel = host.parentElement;
-    const offer = () => { host.hidden = !panel.querySelector('fieldset[data-control="control"]'); };
-    new MutationObserver(offer).observe(panel, { childList: true, subtree: true });
+    const picked = (control) => { try { return !!(JSON.parse(control.value || "null") || {}).picture; } catch (_) { return false; } };
+    // Set only when it changes: a set queues a record for the observer below even where the value stays, which would
+    // call offer again without end.
+    const offer = () => {
+      const control = panel.querySelector('fieldset[data-control="control"]');
+      const hide = !control || !!control.closest("[hidden]") || !picked(control);
+      if (host.hidden !== hide) host.hidden = hide;
+    };
+    new MutationObserver(offer).observe(panel, { childList: true, subtree: true, attributes: true, attributeFilter: ["hidden"] });
+    for (const name of ["input", "change"]) panel.addEventListener(name, offer);
     offer();
   }
 

@@ -73,13 +73,13 @@ func TestWebUIBrowserRememberedSettings(t *testing.T) {
 	// A named preset fills the entries again.
 	check(`(() => {
   rememberSet('class', '5');
-  const name = document.querySelector('.composer [aria-label="Preset name"]'); name.value = 'five';
-  rememberButton('Save preset').click();
+  const name = document.querySelector('.composer [aria-label="Name for these settings"]'); name.value = 'five';
+  rememberButton('Save settings').click();
   rememberSet('class', '2');
-  const preset = document.querySelector('.composer select[aria-label="preset"]'); preset.value = 'five'; preset.dispatchEvent(new Event('change', { bubbles: true }));
+  const preset = document.querySelector('.composer select[aria-label="saved settings"]'); preset.value = 'five'; preset.dispatchEvent(new Event('change', { bubbles: true }));
   return true;
 })()`)
-	check(`rememberField('class').value === '5' && [...document.querySelector('.composer select[aria-label="preset"]').options].some(option => option.value === 'five')`)
+	check(`rememberField('class').value === '5' && [...document.querySelector('.composer select[aria-label="saved settings"]').options].some(option => option.value === 'five')`)
 
 	// A past output's record starts a new run from its settings.
 	settle(`!!document.querySelector('.intake-thumb')`)

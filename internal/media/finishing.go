@@ -107,14 +107,23 @@ func Sharpen(pixels []float32, height, width int, s Sharpening) ([]float32, erro
 // Canvas is a picture's size asked as ComfyUI's ResolutionSelector asks it: an aspect ratio ("16:9"), megapixels and
 // the multiple each side is rounded to.
 type Canvas struct {
-	Aspect     string  `json:"aspect"`
-	Megapixels float64 `json:"megapixels"`
-	Multiple   int     `json:"multiple"`
+	Aspect     AspectRatio `json:"aspect"`
+	Megapixels float64     `json:"megapixels"`
+	Multiple   int         `json:"multiple"`
+}
+
+// AspectRatio is a canvas's aspect, a ratio of two whole numbers ("16:9").
+type AspectRatio string
+
+// Choices are the ratios a page offers a canvas's aspect as, wide to tall: a choice, set on one line, where a typed
+// field had been a box of prose (moss-page/faults). A request may state any ratio of two whole numbers.
+func (AspectRatio) Choices() []string {
+	return []string{"21:9", "16:9", "3:2", "4:3", "1:1", "3:4", "2:3", "9:16", "9:21"}
 }
 
 // Size is the canvas's width and height (AspectSize).
 func (c Canvas) Size() (width, height int, err error) {
-	across, down, found := strings.Cut(c.Aspect, ":")
+	across, down, found := strings.Cut(string(c.Aspect), ":")
 	ratioWidth, widthErr := strconv.Atoi(across)
 	ratioHeight, heightErr := strconv.Atoi(down)
 	if !found || widthErr != nil || heightErr != nil {

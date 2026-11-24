@@ -52,7 +52,7 @@ func TestTheUltraSectionPresetsHoldTheRecordedSettings(t *testing.T) {
 			switch in := node.Inputs; node.Class {
 			case "ResolutionSelector":
 				aspect, _, _ := strings.Cut(in["aspect_ratio"].(string), " ")
-				canvas = media.Canvas{Aspect: aspect, Megapixels: in["megapixels"].(float64), Multiple: int(in["multiple"].(float64))}
+				canvas = media.Canvas{Aspect: media.AspectRatio(aspect), Megapixels: in["megapixels"].(float64), Multiple: int(in["multiple"].(float64))}
 			case "ImageSharpen":
 				sharpen = media.Sharpening{Radius: int(in["sharpen_radius"].(float64)), Sigma: in["sigma"].(float64), Alpha: in["alpha"].(float64)}
 			case "Power Lora Loader (rgthree)":

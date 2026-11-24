@@ -174,6 +174,10 @@ func imageControls(directory string, controls []Control) ([]Control, error) {
 					named.Choices = choices
 				}
 			}
+			// The schedule's name is its scheduler's, which a page names it by (moss-page/faults).
+			if named := part(control, "name"); named != nil {
+				named.Label = "scheduler"
+			}
 		}
 	}
 	applyBounds(controls, map[string]Bounds{adapterStrengthControl: {Default: 1}})

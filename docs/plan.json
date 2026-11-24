@@ -7,19 +7,6 @@
       "title": "MOSS's Generate page leads with the workflow section by name, shows a run's progress and its result beside the form, takes pictures by choice, and shows only the controls the section runs",
       "steps": [
         {
-          "id": "faults",
-          "title": "MOSS's controls are named and typed as they are set: one-line aspect, a named scheduler, defaults shown, one Preset, a depth preview only with a depth picture",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserMOSSControlsReadAsTheyAreSet$' -leg moss-control-faults",
-          "files": [
-            "internal/server/webui",
-            "internal/server",
-            "internal/mediacapability",
-            "internal/latentimage",
-            "internal/media"
-          ],
-          "rationale": "The owner's review of 2026-11-24, point 5, checked against the code: valid. A string field renders as a multi-line box (controlInput: text is a textarea), so the canvas's aspect is one; an object's part is labelled by its field name, so the schedule's scheduler reads \"name\"; an unset choice reads \"unset\" where its control declares no default; two controls are labelled Preset; Preview depth map shows whether or not a depth picture is set. The change: a short string is a one-line input, the scheduler is labelled as such, an unset choice reads as the model's default, the two presets are named apart, and the depth preview shows only with a depth picture. Check: TestWebUIBrowserMOSSControlsReadAsTheyAreSet reads each."
-        },
-        {
           "id": "audit",
           "title": "The A/B compare's slider is a full-size control, a browser leg holds the compare state under the layout audit, and Runtime names an unrecorded residency",
           "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserMOSSCompareIsAudited$' -leg moss-compare-audit",
@@ -43,18 +30,18 @@
       ]
     },
     {
-      "id": "un0-pictures",
-      "title": "Un-0 learns pictures: its trainer fits each class's pictures, a checkpoint trained on 8x8 handwritten digits stands beside the bootstrap one, and the README shows what it draws",
+      "id": "overrun-every-check",
+      "title": "A rerun without the change that outlasts twice the check's own time is said for every kind of check, a browser lane's and a pipeline's among them",
       "steps": [
         {
-          "id": "objective",
-          "title": "The Un-0 trainer fits each class's pictures: each step draws one picture per class and takes its squared error against a picture of that class from a dataset",
-          "verify": "go test ./internal/oscillatorimage -count=1 -run '^TestUn0LearnsItsClassesPictures$'",
+          "id": "do",
+          "title": "A check that runs no go test of its own is timed for the overrun notice from its start",
+          "verify": "go test ./internal/planverify -count=1 -run '^TestACheckRunningNoGoTestIsTimedFromItsStart$'",
           "files": [
-            "internal/oscillatorimage",
-            "cmd/train"
+            "internal/planverify",
+            "internal/landing"
           ],
-          "rationale": "The owner, 2026-11-24: the README's Un-0 card suggests Un-0 is not working. Checked: the port is right (its operators and its four-step generator match the reference within 1e-4 and 1e-3, the un0 goldens), but the checkpoint never learned a picture. Its weights are spread like a fresh start (conv weights with a standard deviation of 0.08 to 0.11, biases within 0.82), and the only objective its trainer has, classTargetLoss (internal/oscillatorimage/trainer.go), pulls every pixel of class c to the flat level 0.1 + 0.2c, which tanh and the 0-255 mapping show as three near-greys, the card's colourless noise. So no draw of it can be a better picture; a trained one can.\n\nThe change: the trainer takes a picture objective beside the class target. Each step draws one picture per class from random phases and takes the squared error against a picture of that class drawn from a dataset (its pixels in [-1, 1] as tanh gives them), so the generator learns each class's mean picture, a legible one at 8 x 8. cmd/train's oscillatorimage route takes the dataset and writes the trained weights beside a config, as a new model directory; the bootstrap Un-0 is kept.\n\nCheck: TestUn0LearnsItsClassesPictures trains a bootstrap model on three synthetic 8 x 8 classes (a ring, a bar, a cross): the loss falls by half or more, and each class's draws are nearer their own class's mean than another's. It does not exist at the base, so the check fails there.\n\nNext, once the owner allows the download of the UCI optdigits data (8 x 8 handwritten digits, about 0.5 MB, from archive.ics.uci.edu): a step that trains Un-0 on the digits 0, 1 and 2, and the README's card of the trained checkpoint, which serves as Un-0 only on the owner's answer (activating a model)."
+          "rationale": "The owner's review of 2026-11-24, point 1, checked against the code: valid. The undo run's overrun notice (internal/landing/undo.go overrunClock) starts when began is called, and planverify calls began only on a go test JSON start event (progressLines.show). A check run through cmd/webui-lane prints its own lines, so for a browser check the notice never starts: moss-page/pictures' first attempt hung 32 minutes in its undo run on 2026-11-24, and nothing said so; the same hang went unsaid on 2026-11-22. TestACheckShowsItsProgress asserts the gap: a command running no test binary is said to begin none.\n\nThe change: ExecuteShowing calls began as it starts a check whose parse names no go test of its own (a browser lane, a pipeline over validate), so its overrun is timed from its start, its build included, as its wall with the change was; a go test check keeps its clock from its first test binary's start (undo-overrun/do). TestACheckShowsItsProgress's last case is replaced.\n\nCheck: TestACheckRunningNoGoTestIsTimedFromItsStart runs a command that runs no go test (go version) and finds began called once, as it starts, and a go test check's began still called as each test binary starts. It does not exist at the base, so the check fails there."
         }
       ]
     },
@@ -219,6 +206,22 @@
           "depends_on": [
             "full-measurement/run"
           ]
+        }
+      ]
+    },
+    {
+      "id": "un0-pictures",
+      "title": "Un-0 learns pictures: its trainer fits each class's pictures, a checkpoint trained on 8x8 handwritten digits stands beside the bootstrap one, and the README shows what it draws",
+      "steps": [
+        {
+          "id": "objective",
+          "title": "The Un-0 trainer fits each class's pictures: each step draws one picture per class and takes its squared error against a picture of that class from a dataset",
+          "verify": "go test ./internal/oscillatorimage -count=1 -run '^TestUn0LearnsItsClassesPictures$'",
+          "files": [
+            "internal/oscillatorimage",
+            "cmd/train"
+          ],
+          "rationale": "The owner, 2026-11-24: the README's Un-0 card suggests Un-0 is not working. Checked: the port is right (its operators and its four-step generator match the reference within 1e-4 and 1e-3, the un0 goldens), but the checkpoint never learned a picture. Its weights are spread like a fresh start (conv weights with a standard deviation of 0.08 to 0.11, biases within 0.82), and the only objective its trainer has, classTargetLoss (internal/oscillatorimage/trainer.go), pulls every pixel of class c to the flat level 0.1 + 0.2c, which tanh and the 0-255 mapping show as three near-greys, the card's colourless noise. So no draw of it can be a better picture; a trained one can.\n\nThe change: the trainer takes a picture objective beside the class target. Each step draws one picture per class from random phases and takes the squared error against a picture of that class drawn from a dataset (its pixels in [-1, 1] as tanh gives them), so the generator learns each class's mean picture, a legible one at 8 x 8. cmd/train's oscillatorimage route takes the dataset and writes the trained weights beside a config, as a new model directory; the bootstrap Un-0 is kept.\n\nCheck: TestUn0LearnsItsClassesPictures trains a bootstrap model on three synthetic 8 x 8 classes (a ring, a bar, a cross): the loss falls by half or more, and each class's draws are nearer their own class's mean than another's. It does not exist at the base, so the check fails there.\n\nNext, once the owner allows the download of the UCI optdigits data (8 x 8 handwritten digits, about 0.5 MB, from archive.ics.uci.edu): a step that trains Un-0 on the digits 0, 1 and 2, and the README's card of the trained checkpoint, which serves as Un-0 only on the owner's answer (activating a model)."
         }
       ]
     }

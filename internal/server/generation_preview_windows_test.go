@@ -61,8 +61,8 @@ func TestTheGenerationPagePreviewsWhatARunReads(t *testing.T) {
 }
 
 // TestWebUIBrowserDepthPreview drives the generation page's depth preview (moss-ultra-compare/depth-preview): MOSS's page,
-// which holds a depth control, offers the preview; given a stored picture in the control, the preview shows the picture
-// the workspace stored of the request the page composed.
+// given a stored picture in its depth control, offers the preview (moss-page/faults: only then), and the preview shows
+// the picture the workspace stored of the request the page composed.
 func TestWebUIBrowserDepthPreview(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the depth preview leg uses Chromium through cmd/webui-lane")
@@ -80,12 +80,13 @@ func TestWebUIBrowserDepthPreview(t *testing.T) {
 	settle(`!!document.querySelector('#panel-generation.active fieldset[data-control="control"]')`)
 	check(`(() => {
   const panel=document.querySelector('#panel-generation');
-  const offered=[...panel.querySelectorAll('button')].find(button=>button.textContent==='Preview depth map');
-  if (!offered || offered.closest('[hidden]')) return false;
   const prompt=[...panel.querySelectorAll('label.control')].find(label=>label.querySelector('span').textContent==='prompt').querySelector('textarea');
   prompt.value='a fox';
   const slot=[...panel.querySelectorAll('fieldset[data-control="control"] label.control')].find(label=>label.querySelector('span').textContent==='picture').querySelector('input');
   slot.value='` + picture.String() + `';
+  slot.dispatchEvent(new Event('change',{bubbles:true}));
+  const offered=[...panel.querySelectorAll('button')].find(button=>button.textContent==='Preview depth map');
+  if (!offered || offered.closest('[hidden]')) return false;
   offered.click();
   return true;
 })()`)

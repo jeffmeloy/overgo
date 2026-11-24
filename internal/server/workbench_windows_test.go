@@ -69,7 +69,7 @@ func recordedSections(t *testing.T) map[string]workbenchSection {
 			switch in := node.Inputs; node.Class {
 			case "ResolutionSelector":
 				aspect, _, _ := strings.Cut(in["aspect_ratio"].(string), " ")
-				width, height, err := media.Canvas{Aspect: aspect, Megapixels: in["megapixels"].(float64), Multiple: int(in["multiple"].(float64))}.Size()
+				width, height, err := media.Canvas{Aspect: media.AspectRatio(aspect), Megapixels: in["megapixels"].(float64), Multiple: int(in["multiple"].(float64))}.Size()
 				testcheck.NoError(t, err)
 				settings.Width, settings.Height = text(width), text(height)
 			case "ImageSharpen":

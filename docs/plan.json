@@ -42,6 +42,24 @@
       ]
     },
     {
+      "id": "contended-credit",
+      "title": "A cell whose timings were both set aside as contended earns no credit, so a resumed cycle measures it again on a quiet machine",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A cell whose timings were both set aside as contended earns no credit, so a resumed cycle measures it again on a quiet machine",
+          "verify": "false",
+          "files": [
+            "cmd/validate"
+          ],
+          "rationale": "SQA-481 (P2), valid from source at b2de74cef: measureCell sets aside a serving attempt timed beside another build, and on the second, executeMeasured logs that the earlier times stand and settles the cell as acquired, writing its credit key; a resumed cycle then skips it, though it took no usable timing, and the scorecard keeps the earlier one as if measured again. TestAContendedCellIsMeasuredOnceMoreAfterTheOthers counts the twice-contended cell as acquired. The change: a cell whose attempts were all set aside keeps the two-attempt limit and the earlier quiet value, is reported as measured by none, and writes no credit, so a resume measures it; the other cells keep theirs. The check is written with the work: a twice-contended cell with a credit file is not credited, and a resume runs its producer.",
+          "depends_on": [
+            "full-measurement/run"
+          ]
+        }
+      ]
+    },
+    {
       "id": "readme-media",
       "title": "The README shows a better SenseNova picture, a better Un-0 picture or a sprite card of it, and a better Wan video",
       "steps": [

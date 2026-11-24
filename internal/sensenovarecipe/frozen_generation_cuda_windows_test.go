@@ -20,6 +20,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/dataroot"
 	"overgo/internal/latentimage"
+	"overgo/internal/media"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
@@ -169,6 +170,10 @@ func TestFrozenSenseNovaGeneration(t *testing.T) {
 			if !ok || image.Width != request.Width || image.Height != request.Height || testutil.CanonicalDigest(t, image.Data) != tc.output ||
 				!bytes.Equal(testutil.CanonicalPNG(t, image.Data), want) {
 				t.Fatal("frozen pixels or dimensions changed")
+			}
+			// The served picture records the preset it ran, which the scorecard reads its time with (image-presets).
+			if preset := media.PresetOf(image); !preset.Ran() || preset.Width != request.Width || preset.Height != request.Height || preset.Steps != request.Steps {
+				t.Fatalf("the frozen picture records the preset %+v; want the request's size and steps", preset)
 			}
 			// The shared PNG encoder rejects non-finite floats before quantization.
 			after := library.ExecutionStats()

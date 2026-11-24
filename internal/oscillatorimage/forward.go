@@ -267,5 +267,7 @@ func (m *Model) decode(ctx context.Context, features []float32) (latentimage.Enc
 	if err != nil {
 		return latentimage.EncodedImage{}, err
 	}
-	return latentimage.EncodePlanarPNG(image.Pixels, image.Height, image.Width)
+	encoded, err := latentimage.EncodePlanarPNG(image.Pixels, image.Height, image.Width)
+	encoded.Preset = m.ran(image.Width, image.Height, 0)
+	return encoded, err
 }

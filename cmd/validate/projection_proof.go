@@ -48,8 +48,10 @@ var projectionSuites = []string{
 	"docs/verification/fixtures/gemma-4-12b/suite.json",
 }
 
-// protocolProducer runs the E4B serving producer alone.
-var protocolProducer = []string{"test", "./internal/server", "-run", "^TestE4BHTTPModalities$", "-count=1"}
+// protocolProducer runs the E4B serving producer alone, under the tag its test file builds with: without it no test
+// runs, and the full measurement of 2026-11-24 refused the cell, "overgo/internal/server is absent: no test the run
+// selected passed there" (image-presets).
+var protocolProducer = []string{"test", "-tags", "modeltest", "./internal/server", "-run", "^TestE4BHTTPModalities$", "-count=1"}
 
 // groundProjection gives each projection cell, in place, the committed suite
 // or oracle that grounds a succeeded verification of its recipe, an exact

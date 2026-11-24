@@ -26,7 +26,7 @@ func TestAcceptedImageVideoEvidence(t *testing.T) {
 	var coverage imageVideoCoverage
 	// The digest is written here and not through a constant: the commit checks read a pin only
 	// from a call that names its document and its digest as literals (internal/landing pins).
-	requireAcceptedDocument(t, root, "docs/verification/image-video-coverage.json", "9985aba4b07dc8876a52c9d00dfdb07ac8e636e710b091b28d16f3c9660a031d", &coverage)
+	requireAcceptedDocument(t, root, "docs/verification/image-video-coverage.json", "1f54a335bb5c4c944ad9e32d829485ed596803dab8e989bf196f64e6ef945fd8", &coverage)
 	var protocol imageVideoProtocol
 	testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(root, imageVideoProtocolPath), &protocol))
 	testcheck.NoError(t, checkAcceptedMediaCases(protocol, coverage))

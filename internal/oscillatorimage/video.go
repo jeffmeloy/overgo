@@ -36,6 +36,22 @@ type EncodedVideo struct {
 	ChangedPixels int    `json:"changed_pixels"`
 	// Encoding is the FFmpeg and the arguments that wrote an MP4; a GIF holds none.
 	Encoding media.Encoding `json:"encoding,omitzero"`
+	// Preset is what the clip ran (Model.ran), which its served time is read with (media.PresetOf). It is no part of the
+	// published clip, whose JSON is its identity (artifact.JSONContent): the frozen clips keep theirs.
+	Preset media.Preset `json:"-"`
+}
+
+// RanPreset is the preset the clip ran (media.PresetOf).
+func (video EncodedVideo) RanPreset() media.Preset { return video.Preset }
+
+// unitSampler names Un-0's sampling: its oscillators' phases stepped by explicit Euler, cfg.NumSteps steps of cfg.Dt.
+const unitSampler = "Kuramoto Euler"
+
+// ran is the preset an Un-0 picture or clip of width by height and frames (none for a picture) ran: its oscillators
+// integrated cfg.NumSteps steps, which a served output records so its time says what it is a time of (image-presets:
+// the full measurement of 2026-11-24 found Un-0's first outputs unshown, "its measured attempt recorded no preset").
+func (m *Model) ran(width, height, frames int) media.Preset {
+	return media.Preset{Width: width, Height: height, Frames: frames, Steps: m.Cfg.NumSteps, Sampler: unitSampler}
 }
 
 // RanEncoding is the program that wrote the clip's bytes (media.EncodingOf).
@@ -152,6 +168,7 @@ func (m *Model) decodeVideo(ctx context.Context, features videoFeatures) (Encode
 	return EncodedVideo{
 		Data: encoded.Bytes(), MediaType: "image/gif", Frames: len(features.frames), Channels: m.Cfg.OutChannels,
 		Height: m.Cfg.OutH() * features.scale, Width: m.Cfg.OutW() * features.scale, FPS: videoFPS, ChangedPixels: changed,
+		Preset: m.ran(m.Cfg.OutW()*features.scale, m.Cfg.OutH()*features.scale, len(features.frames)),
 	}, nil
 }
 
@@ -181,6 +198,7 @@ func (m *Model) decodeVideoClip(ctx context.Context, features videoFeatures) (En
 	return EncodedVideo{
 		Data: video.Data, MediaType: video.MediaType, Frames: video.Frames, Channels: video.Channels, Height: video.Height,
 		Width: video.Width, FPS: video.FPS, ChangedPixels: video.ChangedPixels, Encoding: video.Encoding,
+		Preset: m.ran(video.Width, video.Height, video.Frames),
 	}, nil
 }
 

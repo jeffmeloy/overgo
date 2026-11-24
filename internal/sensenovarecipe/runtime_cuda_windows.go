@@ -66,6 +66,14 @@ func (request GenerationRequest) SessionKey() (string, error) {
 	return fmt.Sprintf("%dx%d/%d/%x", request.Width, request.Height, request.Steps, prompt), nil
 }
 
+// ran is the preset a validated request draws: its size, its steps of flow Euler, its guidance scale and its timestep
+// shift, which a served picture records so its time says what it is a time of (image-presets: the full measurement of
+// 2026-11-24 found SenseNova's first output unshown, "its measured attempt recorded no preset").
+func (request GenerationRequest) ran() media.Preset {
+	return media.Preset{Width: request.Width, Height: request.Height, Steps: request.Steps, Guidance: float64(request.CFGScale),
+		Sampler: "flow Euler", Shift: request.TimestepShift}
+}
+
 type generationPlan struct {
 	request GenerationRequest
 	// guidance is how the request's preset varies the guidance over the steps.
@@ -81,6 +89,8 @@ type generationFeatures struct {
 	patches []float32
 	image   routedlm.FlowImagePlan
 	flow    routedlm.FlowPlan
+	// preset is what the request drew (GenerationRequest.ran), which the decoded picture records.
+	preset media.Preset
 }
 
 type Generator struct {
@@ -375,7 +385,7 @@ func (g *Generator) integrate(ctx context.Context, plan *generationPlan) (genera
 		}
 		g.stats.Guidance += time.Since(started)
 	}
-	return generationFeatures{patches: z, image: plan.image, flow: g.flow}, nil
+	return generationFeatures{patches: z, image: plan.image, flow: g.flow, preset: plan.request.ran()}, nil
 }
 
 // SenseNova's time runs from noise at zero to the image at imageTime, so a step's noise level is imageTime less its time.
@@ -418,6 +428,7 @@ func (g *Generator) decode(ctx context.Context, features generationFeatures) (la
 	started := time.Now()
 	image, err := DecodeGeneratedImage(features.patches, features.flow, features.image)
 	g.stats.Decode += time.Since(started)
+	image.Preset = features.preset
 	return image, err
 }
 

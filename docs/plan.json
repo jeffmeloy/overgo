@@ -7,14 +7,34 @@
       "title": "MOSS's Generate page leads with the workflow section by name, shows a run's progress and its result beside the form, takes pictures by choice, and shows only the controls the section runs",
       "steps": [
         {
-          "id": "names",
-          "title": "Runs, Artifacts, Library and the chat's model selector show names, dates and thumbnails where they showed identities",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserListsShowNamesAndThumbnails$' -leg lists-named",
+          "id": "restored",
+          "title": "Remembered and reused settings show and send what choosing them by hand does: a builder's layout, a depth preset's control",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserMOSSRestoredSettingsRunAsChosen$' -leg moss-restored-settings",
           "files": [
             "internal/server/webui",
             "internal/server"
           ],
-          "rationale": "The owner's review of 2026-11-24, point 7, checked against the code: valid in part. Runs, Library and the chat's model selector show identities (recipe:..., output:...) where a name or date belongs; Artifacts draws an image item whole, its alt text its identity, with no thumbnail grid to scan. The change: each list leads with the model's name, the run's date and what it made, and Artifacts shows pictures as a grid of thumbnails, an identity kept in each item's detail. Check: TestWebUIBrowserListsShowNamesAndThumbnails reads each list's first column and the gallery's thumbnails."
+          "rationale": "SQA-485, checked against the code at db04fec59: valid from source. rememberedControls.apply (internal/server/webui/workflow.js) sets each field's input.value and dispatches nothing, so choiceShows' apply does not run: a remembered builder run returns with its layout still hidden, which controlValues leaves out and admission refuses, and a saved depth preset reapplied under text to image leaves its control hidden, so the request drops its picture; a gallery reuse writes a layout object as \"[object Object]\", which partsValue clears. The change: apply sets each part with setPart (objects and lists as JSON) and, once every field is set, runs each choice's shows again, so a restored entry shows and sends what choosing it by hand does. Check: TestWebUIBrowserMOSSRestoredSettingsRunAsChosen saves a depth preset with a control picture, chooses text to image, reapplies the preset and finds the control shown and its picture in the request sent; and a remembered builder run reloaded sends its layout.\n\nNote: files set to internal/server/webui, internal/server: The page's own code and its browser checks."
+        },
+        {
+          "id": "own-run",
+          "title": "A reloaded Generate tab follows the run it submitted, never another tab's",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserMOSSReloadFollowsItsOwnRun$' -leg moss-own-run",
+          "files": [
+            "internal/server/webui",
+            "internal/server"
+          ],
+          "rationale": "SQA-486, checked against the code at db04fec59: valid from source. On reload, workflowWorkspace follows the first live operation whose recipe the tab lists (liveOperation), so with two draws of one recipe running from two tabs, a reloaded tab binds progress, result and Cancel to the first draw, not its own. Not observed. The change: a tab keeps the operation it submitted (sessionStorage, per tab), and on reload follows that one while it lives; with none kept, it follows the only live match, and with several it follows none and lists them to choose from before Cancel is offered. Check: TestWebUIBrowserMOSSReloadFollowsItsOwnRun holds two draws, reloads the tab that submitted the second, and finds its Cancel ending the second while the first runs on.\n\nNote: files set to internal/server/webui, internal/server: The page's own code and its browser checks."
+        },
+        {
+          "id": "last-picture",
+          "title": "A picture chosen while an upload is in flight is the one sent",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserMOSSLastPictureChosenIsSent$' -leg moss-last-picture",
+          "files": [
+            "internal/server/webui",
+            "internal/server"
+          ],
+          "rationale": "SQA-489, checked against the code at db04fec59: valid from source. pictureChooser's store (internal/server/webui/workflow.js, moss-page/pictures) chooses the uploaded picture whenever its upload ends, so a recent picture chosen while an upload was in flight is replaced by the upload, and Run sends the upload. The change: an upload chooses its picture only while it is still the slot's latest choice (a choice made after it began wins); the picture is stored either way and listed among the recent. Check: TestWebUIBrowserMOSSLastPictureChosenIsSent holds an upload's answer, chooses a recent picture meanwhile, releases the upload and finds the recent picture in the request sent.\n\nNote: files set to internal/server/webui, internal/server: The page's own code and its browser checks."
         }
       ]
     },
@@ -31,6 +51,54 @@
             "internal/landing"
           ],
           "rationale": "The owner's review of 2026-11-24, point 1, checked against the code: valid. The undo run's overrun notice (internal/landing/undo.go overrunClock) starts when began is called, and planverify calls began only on a go test JSON start event (progressLines.show). A check run through cmd/webui-lane prints its own lines, so for a browser check the notice never starts: moss-page/pictures' first attempt hung 32 minutes in its undo run on 2026-11-24, and nothing said so; the same hang went unsaid on 2026-11-22. TestACheckShowsItsProgress asserts the gap: a command running no test binary is said to begin none.\n\nThe change: ExecuteShowing calls began as it starts a check whose parse names no go test of its own (a browser lane, a pipeline over validate), so its overrun is timed from its start, its build included, as its wall with the change was; a go test check keeps its clock from its first test binary's start (undo-overrun/do). TestACheckShowsItsProgress's last case is replaced.\n\nCheck: TestACheckRunningNoGoTestIsTimedFromItsStart runs a command that runs no go test (go version) and finds began called once, as it starts, and a go test check's began still called as each test binary starts. It does not exist at the base, so the check fails there."
+        }
+      ]
+    },
+    {
+      "id": "status-turn",
+      "title": "A turn that asks only for a status answer ends with it; a decision that changes a standing rule waits for the next turn that implements",
+      "steps": [
+        {
+          "id": "do",
+          "title": "The stop hook lets a clean, typed status turn end though a doctrine decision waits",
+          "verify": "go test ./cmd/loophook -count=1 -run '^TestAStatusTurnEndsThoughADecisionWaits$'",
+          "files": [
+            "cmd/loophook",
+            "internal/plan"
+          ],
+          "rationale": "SQA-490, checked against the code at db04fec59: valid from source. runStop (cmd/loophook/main.go) calls answerHold before it uses stopDecision's verdict, so a typed turn that asks only for status, with the tree clean and no landing running, is held to answer a doctrine decision first (exit 2). The hold came with doctrine-answer (528f40b3f) after an eight-hour wait on such a decision; the wait it cures is an unattended or implementing turn that ends on the decision, not a status answer. The change: answerHold holds a turn only where stopDecision would hold it for its work (an implementing turn, or one whose tree or landing is unfinished); a clean typed turn ends, the decision staying in Dispatch.Answer for the next. Check: TestAStatusTurnEndsThoughADecisionWaits runs the hook on a clean typed turn with a doctrine decision waiting and finds it let end, and on an implementing turn finds it held. It does not exist at the base, so the check fails there."
+        }
+      ]
+    },
+    {
+      "id": "stop-request-session",
+      "title": "A pause the owner asks for is recorded by the session it was asked of, and another session's prompt in the checkout neither grants nor withdraws it",
+      "steps": [
+        {
+          "id": "do",
+          "title": "The stop request is the asking session's, not the checkout's latest prompt",
+          "verify": "go test ./cmd/loophook ./internal/plan -count=1 -run '^TestAStopRequestIsTheAskingSessions$'",
+          "files": [
+            "cmd/loophook",
+            "internal/plan",
+            "cmd/plan"
+          ],
+          "rationale": "SQA-487, checked against the code at 30691fc67: valid from source. runPrompt (cmd/loophook/main.go) calls NoteStopRequest for every session's prompt before it reads who holds the worktree, and both sessions write or remove the one stop_request file, so a review session's progress question removes the lead's request before RecordStop reads it; and the stop words are tested by containment, so \"don't stop\" reads as a request. The change: the request is kept per session (its session id), only the worktree holder's session records it, and a negated stop word is no request. Check: TestAStopRequestIsTheAskingSessions notes a request in one session, a progress prompt in another, and finds the first's request standing for its RecordStop and \"don't stop\" no request. It does not exist at the base, so the check fails there."
+        }
+      ]
+    },
+    {
+      "id": "ternary-veto",
+      "title": "The review ratchet vetoes what a reader cannot see past, not a nested ternary a line break hides",
+      "steps": [
+        {
+          "id": "do",
+          "title": "The nested-ternary count leaves the landing's veto",
+          "verify": "go test ./internal/webuilane -count=1 -run '^TestTheReviewRatchetCountsNoNestedTernary$'",
+          "files": [
+            "internal/webuilane"
+          ],
+          "rationale": "SQA-488, checked against the code at 30691fc67: valid. The review ratchet (internal/webuilane review_test.go) counts a nested ternary only within one physical line, so a line break after the outer question mark passes the same expression; it refused three landings (moss-sharpened-pair/do, moss-sharpened-pair/page, moss-page/pictures) whose other counts were zero, each cured by reflowing or naming the inner choice. A count a line break defeats is no rule. The change: removing the nested-ternary counter, its ceiling and its fixture expectation; readability stays with review, and the ratchet's other counts stand. Check: TestTheReviewRatchetCountsNoNestedTernary reviews a fixture holding a one-line nested ternary and finds the ratchet's report holds no such count. It does not exist at the base, so the check fails there."
         }
       ]
     },

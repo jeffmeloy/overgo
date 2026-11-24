@@ -58,10 +58,10 @@ func TestWebUIBrowserPlainSummaries(t *testing.T) {
   return headers.slice(0, 3).join(',') === 'Model,Capabilities,Identity' && !/profiles [0-9]+\/[0-9]+|cmd\//.test(note);
 })()`)
 
-	// Runs: how long and what it used and made, the commit last.
+	// Runs: the model it ran, how long and what it used and made, the commit last (moss-page/names).
 	check(`(() => { location.hash = 'runs'; return true; })()`)
 	settle(`!!document.querySelector('#panel-runs.active table.grid td')`)
-	check(`[...document.querySelectorAll('#panel-runs table.grid th')].map(cell => cell.textContent.toLowerCase()).join(',') === 'outcome,recipe,took,slowest phases,inputs and outputs,commit'`)
+	check(`[...document.querySelectorAll('#panel-runs table.grid th')].map(cell => cell.textContent.toLowerCase()).join(',') === 'model,outcome,took,slowest phases,inputs and outputs,commit'`)
 	for _, viewport := range webuilane.ScreenViewports {
 		findings, err := webuilane.CaptureState(ctx, browser, os.Getenv("OVERGO_WEBUI_LANE_SCREENS"), viewport, "plain-runs")
 		if err != nil || len(findings) != 0 {

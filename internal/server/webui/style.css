@@ -353,8 +353,16 @@ input.text:focus, select.text:focus, textarea.text:focus { border-color:var(--ac
 .artifact-links { margin:var(--s3) 0; }
 .artifact-links a { display:inline-flex; align-items:center; min-height:24px; }
 .signed-series { display:block; min-width:0; }
-.artifact-gallery { display:flex; flex-direction:column; gap:var(--s3); margin-top:var(--s3); }
-.artifact { display:grid; grid-template-columns:minmax(96px, 160px) minmax(0, 1fr); column-gap:var(--s4); border-bottom:1px solid var(--line); padding:var(--s4) 0; min-width:0; }
+/* The gallery is a grid of cards to scan: a picture's thumbnail, then what the item is, its size and its identity. */
+.artifact-gallery { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap:var(--s4); margin-top:var(--s3); align-items:start; }
+.artifact { display:flex; flex-direction:column; gap:var(--s1); border:1px solid var(--line); border-radius:var(--radius-s); padding:var(--s3); min-width:0; overflow-wrap:anywhere; }
+.artifact-what { color:var(--ink); font-weight:600; }
+.artifact-thumb-button { display:block; width:100%; padding:0; border:0; background:none; cursor:zoom-in; border-radius:var(--radius-s); }
+.artifact img.artifact-thumb { object-fit:cover; margin-bottom:0; }
+/* A picture pressed shows whole across the gallery's width, pressed again a thumbnail. */
+.artifact.whole { grid-column:1 / -1; }
+.artifact.whole .artifact-thumb-button { cursor:zoom-out; }
+.artifact.whole img.artifact-thumb { aspect-ratio:auto; object-fit:contain; max-height:70vh; }
 .artifact a { display:inline-flex; align-items:center; min-height:24px; }
 .composition-card { border-bottom:1px solid var(--line); padding:var(--s4) 0; margin:var(--s3) 0; min-width:0; }
 .composition-graph { display:grid; grid-template-columns:repeat(8,minmax(80px,auto)); gap:var(--s2); align-items:center; overflow-x:auto; margin:var(--s3) 0; }
@@ -551,10 +559,6 @@ td > a { display:inline-flex; align-items:center; min-height:24px; }
 
 /* The work surface is flat: text, lists and separators. Existing workbench
    components share the same treatment while retaining their capabilities. */
-.artifact > :first-child { grid-row:1 / span 4; }
-.artifact > :not(:first-child) { grid-column:2; overflow-wrap:anywhere; }
-/* An artifact with no payload to show has no media column: its identity leads. */
-.artifact.bare { display:flex; flex-direction:column; }
 .topbar > .btn { flex:none; }
 .ui-icon { display:block; width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; }
 .topbar > .icon-button { width:40px; padding:var(--s2); }

@@ -52,15 +52,16 @@ func TestWebUIBrowserSignalNoise(t *testing.T) {
     && status[0].textContent === 'available' && status[0].classList.contains('ok') && status[1].textContent === 'missing' && status[1].classList.contains('caution');
 })()`)
 
-	// Artifacts: no lead note for a missing payload, no producer line without producers.
+	// Artifacts: no lead note for a missing payload, no producer line without producers; a card leads with what the
+	// item is, its size and identity after it (moss-page/names).
 	check(`(() => { location.hash = 'artifacts'; return true; })()`)
 	settle(`document.querySelectorAll('#panel-artifacts.active article.artifact').length === 2`)
 	check(`(() => {
   const [bare, shown] = document.querySelectorAll('#panel-artifacts article.artifact');
   const identity = bare.querySelector('.mono');
   return bare.classList.contains('bare') && !bare.textContent.includes('unavailable') && identity.textContent === 'model:000df141c3'
-    && identity.getBoundingClientRect().left - bare.getBoundingClientRect().left < 8 && bare.querySelectorAll('.note').length === 1
-    && !shown.classList.contains('bare') && !!shown.querySelector('img') && shown.querySelectorAll('.note').length === 2 && shown.textContent.includes('run:9a8b7c6d5e');
+    && bare.firstElementChild.classList.contains('artifact-what') && bare.querySelectorAll('.note').length === 2
+    && !shown.classList.contains('bare') && !!shown.querySelector('img') && shown.querySelectorAll('.note').length === 3 && shown.textContent.includes('run:9a8b7c6d5e');
 })()`)
 	for _, viewport := range webuilane.ScreenViewports {
 		findings, err := webuilane.CaptureState(ctx, browser, os.Getenv("OVERGO_WEBUI_LANE_SCREENS"), viewport, "signal-noise")

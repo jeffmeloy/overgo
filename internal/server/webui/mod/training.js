@@ -268,18 +268,30 @@
       }, { loading: "Loading the run…" });
 
       function outcomeClass(outcome) { return outcome === "succeeded" ? "ok" : (outcome === "failed" ? "caution" : ""); }
-      const load = overgo.read(host, (signal) => {
+      // A run is named by its recipe's model as the Generate and Train pages name it (a capability's name); the
+      // recipe's identity is its detail (moss-page/names).
+      let names = new Map();
+      // A listing that fails leaves its runs named by their recipes, and says why beside the count.
+      let unnamed = "";
+      const load = overgo.read(host, async (signal) => {
         const query = new URLSearchParams({ limit: String(limit) });
         if (cursor) query.set("cursor", cursor);
-        return overgo.api.get("/runs?" + query, { signal }).catch((err) => {
+        unnamed = "";
+        const capabilities = (scope) => overgo.api.get("/" + scope + "/capabilities", { signal }).catch((err) => {
+          unnamed = "models of " + scope + " runs unnamed: " + overgo.friendlyError(err);
+          return [];
+        });
+        const [data, ...listed] = await Promise.all([overgo.api.get("/runs?" + query, { signal }).catch((err) => {
           if (err.status === 501) throw new Error("Run browsing is not configured on this server.");
           throw err;
-        });
+        }), capabilities("generation"), capabilities("training")]);
+        names = new Map(listed.flat().filter((capability) => capability.name).map((capability) => [capability.recipe, capability.name]));
+        return data;
       }, (data) => {
         nextCursor = data.next || "";
         const first = data.count === 0 ? 0 : start + 1;
         const last = start + data.runs.length;
-        status.textContent = first + "-" + last + " of " + fmt.grouped(data.count) + " runs";
+        status.textContent = first + "-" + last + " of " + fmt.grouped(data.count) + " runs" + (unnamed ? " · " + unnamed : "");
         prev.disabled = prior.length === 0;
         next.disabled = !nextCursor;
         // One page needs no paging: the count says it all; no runs at all says so instead of empty headers.
@@ -290,14 +302,17 @@
           return;
         }
 
-        // A run reads as how it ended, how long it took and what it used and made; its commit is reference.
+        // A run reads as the model it ran, how it ended, how long it took and what it used and made; its recipe and
+        // commit are reference (moss-page/names). The store records no time a run ended, so no date is shown.
         const took = (ms) => ms < 1000 ? ms.toFixed(0) + " ms" : fmt.duration(ms);
-        const table = el("table", { class: "grid" }, overgo.headerRow(["outcome", "recipe", "took", "slowest phases", "inputs and outputs", "commit"]));
+        const table = el("table", { class: "grid" }, overgo.headerRow(["model", "outcome", "took", "slowest phases", "inputs and outputs", "commit"]));
         for (const run of data.runs) {
           const phases = [...(run.phases || [])].sort((a, b) => b.ms - a.ms).slice(0, 3)
             .map((phase) => phase.phase + " " + took(phase.ms)).join(", ");
-          table.appendChild(overgo.tableRow([el("span", { class: "tag " + outcomeClass(run.outcome), text: run.outcome }),
-            el("button", { class: "link-button mono", title: run.recipe, text: fmt.shortID(run.recipe), onclick: () => { chosen = run.id; showDetail(); } }),
+          const named = names.get(run.recipe);
+          table.appendChild(overgo.tableRow([
+            el("button", { class: "link-button" + (named ? "" : " mono"), title: "recipe " + run.recipe, text: named || fmt.shortID(run.recipe), onclick: () => { chosen = run.id; showDetail(); } }),
+            el("span", { class: "tag " + outcomeClass(run.outcome), text: run.outcome }),
             run.measured_ms ? took(run.measured_ms) : "-", el("span", { class: "dim", text: phases || "-" }),
             run.inputs + " in · " + run.outputs + " out", el("span", { class: "note mono", text: (run.code_commit || "").slice(0, 10) || "-" })]));
         }

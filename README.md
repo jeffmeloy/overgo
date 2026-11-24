@@ -125,36 +125,36 @@ setup steps, is `go run ./cmd/validate -scorecard`; beyond these models, 138
 architecture profiles are registered (`go run ./cmd/validate -models -repo <store>`).
 
 <!-- served-model table: go run ./cmd/validate -readme writes it from the newest scorecard record -->
-Read from the record `scorecard-20261114T025256Z`.
+Read from the record `scorecard-20261124T115348Z`.
 
 | Model | Modality | Input → output | Held-out quality | Peak device memory |
 | --- | --- | --- | --- | --- |
-| Qwen3.8 Flash-Next (80B MoE, UD-IQ4_XS) | text, vision-language | text → text; image → text | BBH 0.778 ±0.017 on 577 cases; image questions 0.469 ±0.062 on 64 cases | 46.4 GiB |
-| Qwen3.8-27B (Q6_K) | text, vision-language, video-language | text → text; image or video → text | MMLU-Pro 0.591 ±0.014 on 1,209 cases, 7 named no option (7 ran out of the answer's tokens), 257 of them development evidence; image questions 0.484 ±0.031 on 256 cases | 21.4 GiB |
+| Qwen3.8 Flash-Next (80B MoE, UD-IQ4_XS) | text, vision-language | text → text; image → text | MMLU-Pro 0.686 ±0.013 on 1,209 cases; image questions 0.469 ±0.062 on 64 cases | 46.4 GiB |
+| Qwen3.8-27B (Q6_K) | text, vision-language, video-language | text → text; image or video → text | MMLU-Pro 0.595 ±0.014 on 1,209 cases, 5 named no option (5 ran out of the answer's tokens), 257 of them development evidence; image questions 0.484 ±0.031 on 256 cases | 21.4 GiB |
 | Qwen3.5-9B (Q8_0) | text | text → text | BBH 0.624 ±0.02 on 577 cases | 9.0 GiB |
-| Qwen3.5-4B | text | text → text | BBH 0.572 ±0.021 on 577 cases | 8.4 GiB |
+| Qwen3.5-4B | text | text → text | MMLU-Pro 0.501 ±0.014 on 1,209 cases | 8.4 GiB |
 | gemma-4-12B-it (fp8, its own files) | text | text → text | — | 14.3 GiB |
 | gemma-4-12B-it (bf16, its published files) | text, vision-language | text → text; image → text | — | 22.2 GiB |
-| gemma-4-E4B-it | text, vision-language, audio-language | text → text; audio or image → text | BBH 0.629 ±0.02 on 577 cases; word error rate 0.0191 ±0.005 on 32 cases | 13.9 GiB |
-| Bonsai-27B (Q1_0) | text | text → text | BBH 0.589 ±0.02 on 577 cases | 4.2 GiB |
-| MiniCPM5-1B | text | text → text | BBH 0.445 ±0.021 on 577 cases | 2.0 GiB |
-| Qwen2.5-0.5B (f16) | text | text → text | BBH 0.321 ±0.019 on 577 cases, within its noise of a constant answer | 0.9 GiB |
+| gemma-4-E4B-it | text, vision-language, audio-language | text → text; audio or image → text | MMLU-Pro 0.413 ±0.014 on 1,209 cases; word error rate 0.0191 ±0.005 on 32 cases | 13.9 GiB |
+| Bonsai-27B (Q1_0) | text | text → text | MMLU-Pro 0.393 ±0.014 on 1,209 cases | 4.2 GiB |
+| MiniCPM5-1B | text | text → text | MMLU-Pro 0.285 ±0.013 on 1,209 cases | 2.0 GiB |
+| Qwen2.5-0.5B (f16) | text | text → text | MMLU-Pro 0.182 ±0.011 on 1,209 cases | 0.9 GiB |
 | qwen25-05b-judged-proof (trained from Qwen2.5-0.5B) | text | text → text | BBH 0.326 ±0.02 on 577 cases, within its noise of a constant answer | 1.8 GiB |
 | qwen25-05b-order-25 (trained from Qwen2.5-0.5B) | text | text → text | BBH 0.303 ±0.019 on 577 cases, within its noise of a constant answer | 1.8 GiB |
-| Unlimited-OCR (bf16) | text, vision-language | text → text; image → text, row by row | BBH 0.302 ±0.019 on 577 cases, within its noise of a constant answer | 5.5 GiB |
+| Unlimited-OCR (bf16) | text, vision-language | text → text; image → text, row by row | BBH 0.3 ±0.019 on 577 cases, within its noise of a constant answer | 5.5 GiB |
 | Carbon-500M (f16) | genomic | DNA sequence → DNA sequence | DNA perplexity 910 on 128 cases | 1.0 GiB |
 | Fractale-350M-base | text | text → text, carrying notes between chunks | carried gain (WikiText-2) 5.64 on 37 cases | host |
 | needle | function calling | text → function call | BFCL simple calls 0.255 ±0.022 on 400 cases | host |
 | Hy-Embodied-RxBrain-1.0 | vision-language | image + question → answer | image questions 0.625 ±0.061 on 64 cases, not a measure of what the model is for | 3.5 GiB |
-| Krea-2-Turbo | text-to-image | text → image | questions about the drawn picture 0.94 ±0.012 on 415 cases | 25.0 GiB |
-| SenseNova-U1-8B-MoT-Infographic-V3 | text-to-image | text → image (infographics) | drawn text 1 on 100 cases | 16.8 GiB |
-| SimpleDiffusion-TensorProductAttentionRope | image generation | noise → image, no caption | no held-out measure applies | 0.5 GiB |
-| MOSS-Image-SFT | text-to-image | text → image; [trains adapters](docs/MOSS_IMAGE.md) | questions about the drawn picture 0.908 ±0.013 on 524 cases | 10.4 GiB |
+| Krea-2-Turbo | text-to-image | text → image | questions about the drawn picture 0.94 ±0.012 on 415 cases | 25.2 GiB |
+| SenseNova-U1-8B-MoT-Infographic-V3 | text-to-image | text → image (infographics) | drawn text 1 on 100 cases | 30.5 GiB |
+| SimpleDiffusion-TensorProductAttentionRope | image generation | noise → image, no caption | no held-out measure applies | 0.6 GiB |
+| MOSS-Image-SFT | text-to-image | text → image; [trains adapters](docs/MOSS_IMAGE.md) | questions about the drawn picture 0.922 ±0.012 on 524 cases | 14.0 GiB |
 | Un-0 | image generation, video generation | class → 8×8 picture or 12-frame clip (a 120 kB toy model) | no held-out measure applies | host |
-| Wan2.1-T2V 1.3B | text-to-video | text → video | questions about the caption 0.914 ±0.025 on 128 cases | 18.1 GiB |
+| Wan2.1-T2V 1.3B | text-to-video | text → video | questions about the caption 0.914 ±0.025 on 128 cases | 12.2 GiB |
 | Self-Forcing (Wan2.1-T2V 1.3B, distilled) | text-to-video | text → video | questions about the caption 0.814 ±0.025 on 237 cases | 29.1 GiB |
 | LiveEdit | video editing | video + instruction → video | questions about the edit 0.844 ±0.045 on 64 cases | 12.2 GiB |
-| Wan2.1 VAE | video autoencoder | video frame → frame (reconstruction) | PSNR (dB, 480 × 832) 41.4 on 128 cases | 4.4 GiB |
+| Wan2.1 VAE | video autoencoder | video frame → frame (reconstruction) | PSNR (dB, 480 × 832) 41.4 on 128 cases | 2.8 GiB |
 | ViTXL_n08 | image autoencoder | image → image (reconstruction) | PSNR (dB, 256 × 256) 20.5 on 128 cases | host |
 | webssl-dino300m-full2b-224 | image embedding | image → embedding | scene retrieval 0.458 ±0.023 on 483 cases | host |
 | webssl-dino-to-rae-bridge | image autoencoder | image → image through a fitted bridge | PSNR (dB, 256 × 256) 18.2 on 128 cases | host |
@@ -180,26 +180,32 @@ tokens over decode time on a request again on the loaded model.
 <!-- speed table: go run ./cmd/validate -readme writes it from the newest scorecard record -->
 | Model | pp, about 4,096 tokens | pp, about 16,384 tokens | tg |
 | --- | --- | --- | --- |
-| Bonsai-27B-Q1_0 | 1,969 tok/s, 4,096 tokens in 2.08 s | 1,603 tok/s, 16,384 tokens in 10.22 s | 58 tok/s |
-| Carbon-500M | 59,861 tok/s, 4,096 tokens in 0.07 s | — | 501 tok/s |
-| MiniCPM5-1B | 40,146 tok/s, 4,097 tokens in 0.10 s | 18,570 tok/s, 16,385 tokens in 0.88 s | 351 tok/s |
-| Qwen2.5-0.5B | 64,206 tok/s, 4,096 tokens in 0.06 s | 36,616 tok/s, 16,384 tokens in 0.45 s | 527 tok/s |
-| Qwen3.5-4B | 10,445 tok/s, 4,096 tokens in 0.39 s | 6,139 tok/s, 16,384 tokens in 2.67 s | 99 tok/s |
+| Bonsai-27B-Q1_0 | 1,954 tok/s, 4,096 tokens in 2.10 s | 1,597 tok/s, 16,384 tokens in 10.26 s | 58 tok/s |
+| Carbon-500M | 58,215 tok/s, 4,096 tokens in 0.07 s | — | 504 tok/s |
+| MiniCPM5-1B | 40,282 tok/s, 4,097 tokens in 0.10 s | 18,517 tok/s, 16,385 tokens in 0.88 s | 354 tok/s |
+| Qwen2.5-0.5B | 62,589 tok/s, 4,096 tokens in 0.07 s | 36,533 tok/s, 16,384 tokens in 0.45 s | 528 tok/s |
+| Qwen3.5-4B | 10,426 tok/s, 4,096 tokens in 0.39 s | 6,106 tok/s, 16,384 tokens in 2.68 s | 99 tok/s |
 | Qwen3.5-9B | 5,854 tok/s, 4,096 tokens in 0.70 s | 4,310 tok/s, 16,384 tokens in 3.80 s | 98 tok/s |
-| Qwen3.8 Flash Next | 2,927 tok/s, 4,096 tokens in 1.40 s | 3,476 tok/s, 16,384 tokens in 4.71 s | 170 tok/s |
-| Qwen3.8-27B | 1,927 tok/s, 4,096 tokens in 2.13 s | 1,570 tok/s, 16,384 tokens in 10.43 s | 49 tok/s |
-| Unlimited-OCR-bf16 | 23,288 tok/s, 4,096 tokens in 0.18 s | 18,812 tok/s, 16,385 tokens in 0.87 s | 457 tok/s |
+| Qwen3.8 Flash Next | 2,952 tok/s, 4,096 tokens in 1.39 s | 3,489 tok/s, 16,384 tokens in 4.70 s | 168 tok/s |
+| Qwen3.8-27B | 1,935 tok/s, 4,096 tokens in 2.12 s | 1,578 tok/s, 16,384 tokens in 10.38 s | 50 tok/s |
+| Unlimited-OCR-bf16 | 23,231 tok/s, 4,096 tokens in 0.18 s | 18,884 tok/s, 16,385 tokens in 0.87 s | 461 tok/s |
 | gemma-4-12B-it | 3,110 tok/s, 4,097 tokens in 1.32 s | 2,780 tok/s, 16,385 tokens in 5.89 s | 36 tok/s |
-| gemma-4-E4B-it | 9,032 tok/s, 4,097 tokens in 0.45 s | 7,496 tok/s, 16,385 tokens in 2.19 s | 69 tok/s |
+| gemma-4-12B-it-fp8 | 3,636 tok/s, 4,097 tokens in 1.13 s | 3,180 tok/s, 16,385 tokens in 5.15 s | 49 tok/s |
+| gemma-4-E4B-it | 9,040 tok/s, 4,097 tokens in 0.45 s | 7,496 tok/s, 16,385 tokens in 2.19 s | 69 tok/s |
 | qwen25-05b-judged-proof | 36,198 tok/s, 4,096 tokens in 0.11 s | 25,247 tok/s, 16,384 tokens in 0.65 s | 326 tok/s |
 | qwen25-05b-order-25 | 36,308 tok/s, 4,096 tokens in 0.11 s | 25,258 tok/s, 16,384 tokens in 0.65 s | 331 tok/s |
 
 | Model | time to the whole output | at the size a person asks for | where it went |
 | --- | --- | --- | --- |
-| LiveEdit | 9.2 s (32 x 16, 21 frames, 4 steps, chunk-causal flow) | — | — |
-| MOSS-Image-SFT-797fa8e678b4f | 71.8 s (1024 x 1024, 50 steps, flow Euler, guidance 3, shift 5) | — | — |
+| Krea-2-Turbo | 12.9 s (512 x 512, 4 steps, flow Euler, shift 3.158) | 61.5 s (2048 x 2048, 8 steps, flow Euler, shift 3.158) | picture prompt encoded 10.1 s, picture denoised 48.1 s |
+| LiveEdit | 10.2 s (32 x 16, 21 frames, 4 steps, chunk-causal flow) | — | — |
+| MOSS-Image-SFT-797fa8e678b4f | 65.3 s (1024 x 1024, 50 steps, flow Euler, guidance 3, shift 5) | 58.0 s (1024 x 1024, 50 steps, flow Euler, guidance 3, shift 5) | picture prompt encoded 5.5 s, picture denoised 51.1 s |
 | Self-Forcing | 30.0 s (832 x 480, 81 frames, 4 steps, chunk-causal flow, guidance 1, shift 5) | 30.1 s (832 x 480, 81 frames, 4 steps, chunk-causal flow, guidance 1, shift 5) | model session leased 3.6 s, text encoder run 5.1 s, denoising pass 11.3 s, clip decoded 8.0 s |
-| Wan2.1-T2V-1.3B | 340.5 s (832 x 480, 81 frames, 50 steps, flow UniPC, guidance 6, shift 8) | — | — |
+| SenseNova-U1-8B-MoT-Infographic-V3 | 11.5 s (512 x 512, 4 steps, flow Euler, guidance 4.5, shift 3) | 129.1 s (2048 x 2048, 50 steps, flow Euler, guidance 4.5, shift 3) | model session leased 9.9 s, model.routed-image-integrate 117.9 s |
+| SimpleDiffusion-TensorProductAttentionRope | 0.8 s (256 x 256, 8 steps, Euler) | — | — |
+| Un-0 | 0.0 s (8 x 8, 4 steps, Kuramoto Euler) | — | — |
+| Un-0 | 0.1 s (16 x 16, 12 frames, 4 steps, Kuramoto Euler) | 0.1 s (16 x 16, 8 frames, 4 steps, Kuramoto Euler) | model.oscillator-video-decode 0.0 s, (no part names) 0.0 s |
+| Wan2.1-T2V-1.3B | 6.4 s (32 x 16, 21 frames, 2 steps, flow UniPC, guidance 6, shift 5) | 336.3 s (832 x 480, 81 frames, 50 steps, flow UniPC, guidance 6, shift 5) | clip denoised 320.6 s |
 <!-- end of the speed table -->
 
 Strata, on the same PC and model, processes Flash-Next's 4,096-token prompt at

@@ -3,27 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "full-measurement",
-      "title": "The full measurement run measures every model's scorecard row at the slow run's commit, every image model's first output among them, and the README's tables are written from it",
-      "steps": [
-        {
-          "id": "run",
-          "title": "The full measurement run measures every model's scorecard row at the slow run's commit, every image model's first output among them, and the README's tables are written from it",
-          "verify": "go run ./cmd/validate -scorecard | grep -oE '^\\| (Krea-2-Turbo|SenseNova-U1-8B-MoT-Infographic-V3|SimpleDiffusion-TensorProductAttentionRope|Un-0|MOSS-Image-SFT-797fa8e678b4f) \\| image-gen \\| [0-9]' | sort -u | wc -l | grep -qx 5 \u0026\u0026 go run ./cmd/validate -readme \u0026\u0026 grep -qE '^\\| Un-0 \\| [0-9]' README.md",
-          "files": [
-            "README.md",
-            "docs/plan.json",
-            "docs/sqa_findings.json"
-          ],
-          "needs_card": true,
-          "rationale": "The owner's review of 2026-11-23 (third), point 1, checked against the scorecard and git: valid. The last full measurement run was at fdd4ab1ce on 8 Nov, 498 commits before 42ecbec7e, and its preflight and lanes did not pass, filing no row. validate -scorecard reads MOSS's time to first output as 71.8 s at 1024 x 1024 and 50 steps, and Krea-2-Turbo, SenseNova-U1, SimpleDiffusion and Un-0 none: each one's 'measured attempt recorded no preset, the size and steps it ran, so it is measured again'; the README's speed table holds LiveEdit, MOSS, Self-Forcing and Wan alone. The owner: a complete scorecard update comes before any new campaign, so the next direction is chosen from current numbers for every model. The change: the full measurement run at the slow run's commit (validate -run -preflight, then the cells, started outside the session as the measurement run is), every activated model and task measured, the rows it files carried by this landing, and validate -readme writing the README's served-model and speed tables from its record. Check: each image model's scorecard row has a first-output time, and the README's speed table names Un-0 with one.\n\nNote: SQA-474 (P2), valid from source: cmd/loop's measurePhases runs validate -run -lanes whole before its cells, so a separate whole run before the measurement repeats every lane, 5 h or more. One measurement at the one-png-writer commit serves shared-whole/lanes and full-measurement/run: validate -run -preflight, validate -run -lanes, validate -run -cells -reached and validate -scorecard -publish, in sequence, with no landing between them; shared-whole/lanes lands on its lanes pass (validate -lanes-passed-at that commit), then full-measurement/run on its cells and publication, with validate -readme.",
-          "depends_on": [
-            "shared-whole/lanes"
-          ]
-        }
-      ]
-    },
-    {
       "id": "measured-names-first",
       "title": "A full run refuses a measured model's name no registered model answers to before it binds a proof or reads a model's bytes",
       "steps": [

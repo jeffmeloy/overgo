@@ -68,7 +68,7 @@ type landOutcome struct {
 type rowWorld interface {
 	Gate(reference, messageFile string) (failure string, err error)
 	Landed(reference string) (commit string, err error)
-	Cleared() string
+	Cleared(reference string) string
 }
 
 // landRow runs the sequence and stops at the first phase that does not pass.
@@ -86,7 +86,7 @@ func landRow(world rowWorld, reference, messageFile string) (landOutcome, error)
 	if err != nil {
 		return outcome, err
 	}
-	outcome.Commit, outcome.Outcome, outcome.Cleared = commit, outcomeReady, world.Cleared()
+	outcome.Commit, outcome.Outcome, outcome.Cleared = commit, outcomeReady, world.Cleared(reference)
 	return outcome, nil
 }
 
@@ -243,12 +243,12 @@ func (w *execRowWorld) Landed(reference string) (string, error) {
 
 // Cleared clears, on the real machine, the places a commit clears of what
 // nothing holds (clearFinished). A machine that cannot be read clears nothing.
-func (w *execRowWorld) Cleared() string {
+func (w *execRowWorld) Cleared(reference string) string {
 	machine, err := realMachine("")
 	if err != nil {
 		return "nothing was cleared: " + err.Error()
 	}
-	return clearFinished(machine)
+	return clearFinished(machine, landedRows(reference))
 }
 
 // standardInput names the landing's own input as the message file.

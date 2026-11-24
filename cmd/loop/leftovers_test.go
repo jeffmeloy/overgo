@@ -1565,9 +1565,9 @@ type clearingWorld struct {
 	machine hygiene
 }
 
-func (w *clearingWorld) Cleared() string {
+func (w *clearingWorld) Cleared(reference string) string {
 	w.calls = append(w.calls, clearedCall)
-	return clearFinished(w.machine)
+	return clearFinished(w.machine, landedRows(reference))
 }
 
 // TestCommitClearsWhatNothingHolds builds, under a temporary directory, a machine with what
@@ -1576,9 +1576,10 @@ func (w *clearingWorld) Cleared() string {
 //
 // A commit that git confirms clears every place whose finished entries are deleted, and no other.
 // Those places are the helper copies, the branches, the experiments' outputs, the folders a go
-// command builds in and the scratch folder. From the scratch folder goes everything that nothing
-// holds, which is a loose file, an executable, a Python file, a folder no row was ever named for
-// and the folder of a row that has left both plans. A build folder goes, and so does a helper copy
+// command builds in and the scratch folder. From the scratch folder goes the folder of the row the
+// commit landed, once that row has left both plans; a loose file, an executable, a Python file and
+// a folder no row was ever named for are listed as finished for the deleting command and stay, since
+// a commit must not delete work whose row is not yet filed (scratch-kept). A build folder goes, and so does a helper copy
 // whose commit is on the trunk and that holds nothing, a branch that is wholly in the trunk and
 // checked out nowhere, and an experiment's output that a committed record names and the store
 // registers nothing in. Each removal has its line in the receipt, and the commit's outcome says in
@@ -1686,7 +1687,7 @@ func TestCommitClearsWhatNothingHolds(t *testing.T) {
 	commit := func(t *testing.T, machine hygiene, gate string, unconfirmed error) (landOutcome, []string) {
 		t.Helper()
 		world := &clearingWorld{fakeRowWorld: fakeRowWorld{gate: gate, landedErr: unconfirmed}, machine: machine}
-		outcome, err := landRow(world, "row/do", "message.txt")
+		outcome, err := landRow(world, "landed-row/do", "message.txt")
 		if (err != nil) != (unconfirmed != nil) {
 			t.Fatalf("the row sequence answered %v, want an error only when git does not confirm: %v", err, unconfirmed)
 		}
@@ -1705,9 +1706,12 @@ func TestCommitClearsWhatNothingHolds(t *testing.T) {
 		}
 	}
 	receipt := s.at(removalState + "/" + removalReceipt)
-	finished := []string{"repo/tmp/never-a-row", "repo/tmp/landed-row"}
+	// Of the scratch folder a commit of landed-row clears that row's folder alone: the folder no row was ever named
+	// for and the loose files are finished, listed for the deleting command, and left (scratch-kept).
+	finished := []string{"repo/tmp/landed-row"}
+	unclaimed := []string{"repo/tmp/never-a-row"}
 	for _, name := range loose {
-		finished = append(finished, "repo/tmp/"+name)
+		unclaimed = append(unclaimed, "repo/tmp/"+name)
 	}
 	// finished are the finished entries that are directories and files, the build folder last. The
 	// branch is one more, which git removes.
@@ -1821,10 +1825,20 @@ func TestCommitClearsWhatNothingHolds(t *testing.T) {
 		receipted(t, "left", "removed")
 	})
 
-	t.Run("nothing finished is left, and what a rule keeps is still there", func(t *testing.T) {
+	t.Run("nothing finished is left but the scratch entries no landed row is named for, and what a rule keeps is still there", func(t *testing.T) {
 		found := testcheck.Must(listLeftovers(h, true, deletingPlaces()...))(t)
-		if at := slices.IndexFunc(found, func(listed leftover) bool { return listed.state == stateFinished }); at >= 0 {
+		if at := slices.IndexFunc(found, func(listed leftover) bool {
+			return listed.state == stateFinished && !slices.ContainsFunc(unclaimed, func(slash string) bool { return listed.path == s.at(slash) })
+		}); at >= 0 {
 			t.Errorf("after the commits %s is still listed as finished by the place %s", found[at].path, found[at].place)
+		}
+		for _, slash := range unclaimed {
+			if !slices.ContainsFunc(found, func(listed leftover) bool { return listed.path == s.at(slash) && listed.state == stateFinished }) {
+				t.Errorf("the scratch entry %s no landed row is named for is not listed as finished for the deleting command", slash)
+			}
+			if _, err := os.Lstat(s.at(slash)); err != nil {
+				t.Errorf("a commit deleted the scratch entry %s, which no row it landed is named for: %v", slash, err)
+			}
 		}
 		if !slices.ContainsFunc(found, func(listed leftover) bool {
 			return listed.path == s.at("data/experiments/done/registered") && listed.state == stateHeld

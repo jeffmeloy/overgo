@@ -163,7 +163,7 @@ var leftoverPlaces = []place{
 	{"temporary-build", "temporary:go-build", "the folders a go command builds in", "no go command and no test binary runs, and it does not hold this command's own executable", actionDelete, temporaryBuilds, removeEntry},
 	{"build-cache", "cache:", "the go build cache, which every go command rebuilds what it lacks of", "it holds more than every registered checkout's own build comes to, and no go command and no test binary runs", actionDelete, buildCache, removeEntry},
 	{"bin", "checkout:bin/", "built executables", "no tracked file names it", actionReport, executables, nil},
-	{"tmp", "checkout:tmp/", "short-lived probes, each in the folder named for the plan row that made it", "no row of its name is in the working plan or in the plan of the trunk's commit, and no committed line and no store registration names it; the scratch module's own two files are kept", actionDelete, scratchEntries, removeEntry},
+	{scratchPlace, "checkout:tmp/", "short-lived probes, each in the folder named for the plan row that made it", "no row of its name is in the working plan or in the plan of the trunk's commit, and no committed line and no store registration names it; the scratch module's own two files are kept", actionDelete, scratchEntries, removeEntry},
 	{"build", "checkout:build/", "generated build inputs", "none here: go run ./cmd/buildscrub decides", actionReport, wholeDirectory, nil},
 	{"release", "checkout:dist/", "release bundles", "none: the release command's output", actionReport, wholeDirectory, nil},
 	{"python-place", "checkout:scripts/python_golden_references/", "the scripts that produce golden references", "none: the one place for Python", actionNever, wholeDirectory, nil},
@@ -723,8 +723,9 @@ func (f *facts) trunkPlan() (committed plan.Plan, err error) {
 // store registers a location in it, and while the plan of the trunk's commit
 // holds a row of its name; a plan holds a row in any letter case, since two
 // names that differ only in case are one folder on Windows. Every other entry
-// is finished, a loose file and a folder no row was named for among them: no
-// landing is asked for. A plan, a trunk or registrations that cannot be read,
+// is finished, a loose file and a folder no row was named for among them,
+// which the deleting command removes when it is asked; a commit clears only
+// the folders of the rows it landed (clearFinished). A plan, a trunk or registrations that cannot be read,
 // and a name no committed line could be found to carry, leave unknown what
 // they might have held; so does the walk that measures an entry, when it
 // cannot read it or finds a link in it.
@@ -1397,6 +1398,20 @@ func deletingPlaces() []string {
 	return names
 }
 
+// scratchPlace is the place of the checkout's scratch folder, tmp, in the leftovers table.
+const scratchPlace = "tmp"
+
+// landedRows are the rows a landing's reference names, item/step each, comma-separated.
+func landedRows(reference string) []string {
+	var rows []string
+	for named := range strings.SplitSeq(reference, ",") {
+		if row, _, _ := strings.Cut(strings.TrimSpace(named), "/"); row != "" {
+			rows = append(rows, row)
+		}
+	}
+	return rows
+}
+
 // clearFinished is what a confirmed commit does so that nothing accumulates:
 // the deleting command's own removal, with no token, of every place whose
 // finished entries are deleted. Under the removal lock, taken without
@@ -1404,19 +1419,34 @@ func deletingPlaces() []string {
 // finished entries by that line's remover, a line for each in the receipt.
 // It has no rule of its own for what is finished and no list of its own of
 // what it clears, and it fails nothing: what it did, or why it could not, is
-// the sentence it returns.
-func clearFinished(h hygiene) string {
+// the sentence it returns. From the scratch folder it clears only the folders
+// of the rows it landed, once nothing holds them: an entry no row is named
+// for is listed by -leftovers and left, since a commit must not delete work a
+// row has not yet been filed for (the owner's review of 2026-11-23: a commit
+// deleted tmp/krea-degrid, the readings of a row being filed, scratch-kept).
+func clearFinished(h hygiene, landed []string) string {
 	lock, err := h.removing()
 	if err != nil {
 		return "nothing was cleared: " + err.Error()
 	}
 	defer lock.Close()
 	var said strings.Builder
+	unclaimed := 0
 	for _, line := range leftoverPlaces {
 		if line.remove == nil {
 			continue
 		}
 		found, failure := listLeftovers(h, true, line.name)
+		if line.name == scratchPlace {
+			found = slices.DeleteFunc(found, func(entry leftover) bool {
+				landedHere := slices.ContainsFunc(landed, func(row string) bool { return strings.EqualFold(filepath.Base(entry.path), row) })
+				if entry.state == stateFinished && !landedHere {
+					unclaimed++
+					return true
+				}
+				return false
+			})
+		}
 		if failure == nil {
 			failure = h.removeFinished(line.remove, nil, "removed", found, &said)
 		}
@@ -1424,6 +1454,9 @@ func clearFinished(h hygiene) string {
 	}
 	text := fmt.Sprintf("cleared %d of %d finished entries of %s, a line for each in %s", strings.Count("\n"+said.String(), "\nremoved\t"),
 		strings.Count(said.String(), "\n"), strings.Join(deletingPlaces(), ", "), filepath.Join(h.checkout, processlock.StateDirectory, removalReceipt))
+	if unclaimed > 0 {
+		text += fmt.Sprintf("; %s keeps %d entries no landed row is named for, listed by -leftovers", scratchPlace, unclaimed)
+	}
 	if err != nil {
 		text += "; " + strings.Join(strings.Fields(err.Error()), " ")
 	}

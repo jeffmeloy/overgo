@@ -29,7 +29,7 @@ func (w *fakeRowWorld) Landed(string) (string, error) {
 // scripted world answers that it cleared.
 const clearedCall = "cleared"
 
-func (w *fakeRowWorld) Cleared() string {
+func (w *fakeRowWorld) Cleared(string) string {
 	w.calls = append(w.calls, clearedCall)
 	return clearedCall
 }

@@ -1,27 +1,12 @@
 {
   "advisory_notice": "All SQA findings, rankings and assessments are recommendations. Master decides whether, when and how to act through docs/plan.json.",
   "priority_assessment": [
-    "Master landed the MOSS compare audit at db04fec59. moss-page/names is next. I would use the existing page checks to cover three identities a user can lose: the operation a tab cancels (SQA-486), the settings a form restores (SQA-485) and the picture it submits after an upload (SQA-489).",
-    "I would remove the checkout-wide stop-word requirement first (SQA-487). Another chat can erase the owner's request to pause. I agree with check-form-reads/do for the valid measurement check the gate refused (SQA-483) and the placeholder no implementation can pass (SQA-482). I would also remove the veto on ending a status-only turn while a policy decision waits (SQA-490) and the one-line ternary count that refused two MOSS landings (SQA-488). Dispatch already holds a row that needs a decision.",
-    "For MOSS timing, the last comparable six-section run took 46.429 s cold against ComfyUI's 40.176 s and 33.629 s warm against 34.412 s at 1bae67d52. I would use served-parts/do to locate the 6.253 s cold gap. For the cost of the checks themselves, card-checks-sound/floors can remove eight unused control draws totaling 248 denoiser passes per adapter comparison (SQA-410). Wall-time savings are unmeasured."
+    "Of the rules master has filed for removal, I would fix SQA-487 first. Another chat can erase the owner's pause request. I would take SQA-491 with status-turn/do (SQA-490): a status answer should end even when SQA edits its report or an unrelated policy decision is waiting. The worktree's source edits and decisions that actually hold a plan step still have owners.",
+    "Two landing vetoes have already cost real work. The check parser refused a valid shell command after nine hours of measurement (SQA-483), and moving a ternary across a line break clears a veto that blocked MOSS landings (SQA-488). I agree with removing both through the filed steps. The last landing spent 4m24s on invariants and 5m22s on tests, so measuring repeated work in observed-inputs/measure is worth doing before changing how passes are reused.",
+    "Master restored MOSS settings at b1d6e237a and now routes a reloaded tab to its saved operation ID. The dedicated two-tab browser check is still the next plan step. I would use the remaining picture work to check that a generated PNG can actually be submitted (SQA-492), that the last chosen upload wins (SQA-489), and that a depth preview still belongs to the selected picture (SQA-493)."
   ],
   "branch": "master",
   "findings": [
-    {
-      "id": "SQA-486",
-      "severity": "P2",
-      "files": [
-        "internal/server/webui/workflow.js",
-        "internal/server/webui/boot.js",
-        "internal/server/generation_workspace.go",
-        "internal/server/runtime_activity.go",
-        "internal/operation/runtime.go",
-        "internal/server/webui_browser_moss_resumed_source_windows_test.go"
-      ],
-      "input": "Open two Generate tabs before either submits. Start MOSS draw A in the first tab and draw B with a different seed in the second. Reload the second tab after B is accepted while both operations are still active. Press Cancel there.",
-      "expected": "The reloaded tab should use B's accepted operation ID to show progress, display B's result or cancel B. Retain the existing single-match recovery for a page that has no saved ID. If multiple operations match and the page has no ID, let the user choose before enabling Cancel. The existing resumed-source check can use two held operations and verify which ID is cancelled.",
-      "actual": "Source counterexample at 88c59effc. The server returns a distinct operation ID for each draw. Generate keeps it only in the page's follow closure. On reload, liveOperation takes the first active operation whose recipe appears anywhere in the tab's capability list. Manager.List returns A before B in submission order. follow(A) then binds progress, result and Cancel to A. Pressing Cancel calls /operations/cancel with A's ID while B continues. The resumed-source browser check holds one operation. No wrong cancellation was observed in a run."
-    },
     {
       "id": "SQA-487",
       "severity": "P2",
@@ -37,21 +22,20 @@
       "actual": "Source counterexample at 30691fc67. runPrompt calls NoteStopRequest before checking who holds the worktree or whether the session is a reviewer. Both sessions write or remove the same stop_request file. The progress question removes it, so RequireStopRequest refuses the lead's authorized pause before RecordStop. Conversely, the word test accepts “don't stop” as evidence for a later requested pause. The words alone never pause a run. The existing checks exercise successive prompts in one session. No missed or unauthorized pause was observed in this review."
     },
     {
-      "id": "SQA-485",
+      "id": "SQA-492",
       "severity": "P2",
       "files": [
-        "internal/server/webui/workflow.js",
         "internal/server/webui/mod/chat.js",
-        "internal/latentimage/prompt.go",
-        "internal/latentimage/runtime_cuda_windows.go",
-        "internal/server/webui_browser_moss_prompt_mode_windows_test.go",
-        "internal/server/webui_browser_remembered_test.go",
-        "internal/server/webui_browser_moss_section_controls_windows_test.go",
-        "fixtures/comfy/moss-ultra/section_requests.json"
+        "internal/server/webui/composer.js",
+        "internal/server/generation_workspace.go",
+        "internal/mediacapability/image_cuda_windows.go",
+        "internal/latentimage/encoded_image.go",
+        "internal/latentimage/source_latent_windows.go",
+        "internal/server/webui_browser_generated_media_test.go"
       ],
-      "input": "Reload Generate after a valid MOSS builder run, or choose Use these settings on its gallery picture. For the section controls, save a named depth preset with a control picture, select text-to-image, then reapply the saved depth preset and submit.",
-      "expected": "Restore the same layout, section visibility and submitted fields as selecting the saved values by hand. Reuse setPart for structured values and the existing choiceShows behavior when restoration completes. Check the outgoing request in the existing browser coverage.",
-      "actual": "Source counterexample at 30691fc67. rememberedControls.apply assigns strings without refreshing choiceShows. On reload, controlValues omits the still-hidden builder layout and admission rejects the request. Gallery reuse also converts a layout object to [object Object], which partsValue clears. After manually selecting text-to-image, restoring the depth preset leaves its control hidden, so the request omits the saved control.picture present in the reference depth request. The section browser check explicitly fires a change on the selector. No browser or model run was performed for this review."
+      "input": "In image generation, select MOSS image-to-image. Choose a MOSS-generated PNG using the media card's “use as input” button. Submit with a valid prompt and settings and no cached result. Compare with uploading the very same PNG.",
+      "expected": "Read the compatible stored PNG through Request.ReadPictures using its existing output ID. Keep the checks for missing content and invalid PNGs. The artifact slot already has the ID and media type and can skip the browser's full-file read. Check that the ID selected by the existing browser case reaches the real MOSS picture reader.",
+      "actual": "Source counterexample at b1d6e237a. MOSS publishes PNGs as KindOutput. The card reads the full blob, constructs a File and sets the slot to the original output ID. The workspace admits that ID, but on a cache miss ReadPictures rejects it as “not a stored file” before reading its bytes. Uploading those same bytes yields KindFile and passes that check. The browser case checks the output ID in the field and switches modes before submission. No failed draw was observed in this review."
     },
     {
       "id": "SQA-489",
@@ -63,6 +47,33 @@
       "input": "In a MOSS image-to-image slot, drop picture A. While A is uploading, choose recent picture B in the same slot. Let A's upload finish, then press Run.",
       "expected": "Submit B, the user's last choice. The chooser can store A successfully while discarding its obsolete selection. The existing browser check can hold the upload response until after B is chosen and compare the submitted picture ID with B.",
       "actual": "Source counterexample at 30691fc67. Clicking B's thumbnail sets the slot to B. On completion, pictureChooser.store unconditionally calls choose(stored.id), replacing B with A. Run reads the current slot through controlValues and submits A. The existing browser check waits for each selection before making the next one. No wrong draw was observed in this review."
+    },
+    {
+      "id": "SQA-491",
+      "severity": "P2",
+      "files": [
+        "cmd/loophook/main.go",
+        "cmd/loophook/plan_rides_test.go",
+        "internal/plan/findings_fall_through.go",
+        "internal/landing/scope.go"
+      ],
+      "input": "Master starts a typed status-only turn in a clean checkout with an open plan. Before it answers, SQA edits only docs/sqa_findings.json. Master has made no edit. No landing, recorded stop or policy decision is pending.",
+      "expected": "Let master finish its answer. Exclude the findings register from the stop hook's abandoned-work check alongside the plan, using plan.FindingsRegister. The next implementation landing already carries both files. Extend the existing plan_rides case so that a register edit alone passes and a source edit beside it still blocks.",
+      "actual": "Source counterexample at b1d6e237a. turnCreatedDirt compares checkout snapshots and exempts only plan.Path. The new register edit therefore makes stopDecision return stopOrphan. On its first stop the hook exits 2 and tells master to land or revert the reviewer's work. An unchanged retry can pass. commitScope explicitly includes the register in the next landing. This review did not observe a blocked session."
+    },
+    {
+      "id": "SQA-490",
+      "severity": "P2",
+      "files": [
+        "skill.md",
+        "cmd/loophook/main.go",
+        "cmd/loophook/owner_turn_test.go",
+        "internal/plan/dispatch.go",
+        "internal/plan/decision_dispatch_test.go"
+      ],
+      "input": "In the implementing chat, ask for a status answer only and explicitly end the turn there. The checkout is clean, no landing is running, and the only remaining row needs the lead's decision about a standing rule. The campaign itself has no recorded pause.",
+      "expected": "Let the lead answer the question and end that turn. Keep the pending decision visible for the next implementation turn. Dispatch and landing already hold the affected row until the lead answers. Remove the requirement to decide unrelated policy before returning a status answer. Ordinary implementation turns should still take the authorized decision without waiting for the owner.",
+      "actual": "Source counterexample at db04fec59. stopDecision permits the clean, typed turn to end. Before using that verdict, runStop calls answerHold. A nonempty Dispatch.Answer makes the hook return exit 2 and tell the lead to answer the decision now. The unchanged-state retry can subsequently let the turn end. The eight-hour capacity-record-history wait recorded in 528f40b3f preceded this hook change. The current refusal follows from the call order and the existing owner-turn cases. No repeat of the eight-hour wait was observed."
     },
     {
       "id": "SQA-483",
@@ -94,6 +105,18 @@
       "actual": "The filing check accepts false, and landing uses the committed step's verifier. Every implementation of that step therefore fails the same check. Master retired measured-names-first/do, contended-credit/do and user-size-inapplicable/do and landed the work under new step IDs (7d966c021, a25fa2246 and 7c6bef92f). No open step at 5f5d4db92 carries false. The filing check still accepts it for future steps."
     },
     {
+      "id": "SQA-488",
+      "severity": "P2",
+      "files": [
+        "internal/webuilane/review_test.go",
+        "internal/webuilane/census_test.go",
+        "internal/server/webui_browser_moss_picture_chosen_windows_test.go"
+      ],
+      "input": "Compare a UI choice written as outer ? (inner ? a : b) : c on one line with the same expression split just after the outer question mark. The values, evaluation order and resulting control are identical.",
+      "expected": "Remove the nested-ternary count from the landing veto, along with its counter and fixture expectation. Leave expression readability to review. Keep the existing browser check for the selected picture's identity and the independent checks for accessible names and silent failures.",
+      "actual": "The retained landing refusals name moss-sharpened-pair/do,moss-sharpened-pair/page and moss-page/pictures. In each, NestedTernaries was 1 and every other review count was zero. At 30691fc67, nestedTernaries resets at every physical line. The one-line expression exceeds the zero ceiling, while the line break clears the count without changing what the browser does. The two refusals were recorded. The line-break comparison follows from source, and the time lost to these refusals was not measured."
+    },
+    {
       "id": "SQA-410",
       "severity": "P2",
       "files": [
@@ -120,30 +143,16 @@
       "actual": "Source counterexample at 7d966c021. measurePhases returns on the lane failure, but improvement.Measure returns the newest scorecard on a commit match alone. Improve files gaps from the older scorecard and invokes Fill, whose cleanup removes cycle_state.json and cycle_credit.json before the caller gets the error. TestPublishedCycleCutShortIsStillWorthFinishing covers a different-commit case. No same-commit loss was observed."
     },
     {
-      "id": "SQA-490",
+      "id": "SQA-493",
       "severity": "P2",
       "files": [
-        "skill.md",
-        "cmd/loophook/main.go",
-        "cmd/loophook/owner_turn_test.go",
-        "internal/plan/dispatch.go",
-        "internal/plan/decision_dispatch_test.go"
+        "internal/server/webui/mod/generation.js",
+        "internal/server/webui/workflow.js",
+        "internal/server/generation_preview_windows_test.go"
       ],
-      "input": "In the implementing chat, ask for a status answer only and explicitly end the turn there. The checkout is clean, no landing is running, and the only remaining row needs the lead's decision about a standing rule. The campaign itself has no recorded pause.",
-      "expected": "Let the lead answer the question and end that turn. Keep the pending decision visible for the next implementation turn. Dispatch and landing already hold the affected row until the lead answers. Remove the requirement to decide unrelated policy before returning a status answer. Ordinary implementation turns should still take the authorized decision without waiting for the owner.",
-      "actual": "Source counterexample at db04fec59. stopDecision permits the clean, typed turn to end. Before using that verdict, runStop calls answerHold. A nonempty Dispatch.Answer makes the hook return exit 2 and tell the lead to answer the decision now. The unchanged-state retry can subsequently let the turn end. The eight-hour capacity-record-history wait recorded in 528f40b3f preceded this hook change. The current refusal follows from the call order and the existing owner-turn cases. No repeat of the eight-hour wait was observed."
-    },
-    {
-      "id": "SQA-488",
-      "severity": "P2",
-      "files": [
-        "internal/webuilane/review_test.go",
-        "internal/webuilane/census_test.go",
-        "internal/server/webui_browser_moss_picture_chosen_windows_test.go"
-      ],
-      "input": "Compare a UI choice written as outer ? (inner ? a : b) : c on one line with the same expression split just after the outer question mark. The values, evaluation order and resulting control are identical.",
-      "expected": "Remove the nested-ternary count from the landing veto, along with its counter and fixture expectation. Leave expression readability to review. Keep the existing browser check for the selected picture's identity and the independent checks for accessible names and silent failures.",
-      "actual": "The retained landing refusals name moss-sharpened-pair/do,moss-sharpened-pair/page and moss-page/pictures. In each, NestedTernaries was 1 and every other review count was zero. At 30691fc67, nestedTernaries resets at every physical line. The one-line expression exceeds the zero ceiling, while the line break clears the count without changing what the browser does. The two refusals were recorded. The line-break comparison follows from source, and the time lost to these refusals was not measured."
+      "input": "Choose picture A in a MOSS depth control and request a preview. While the request is pending, select a different stored picture B in the same control. Let A's preview finish. The same mismatch occurs if B is selected after A's map is already visible.",
+      "expected": "Clear the old map when the inputs that determine it change. Display a completed preview only while those inputs still match the current form. Keep preview generation on the user's button press. The existing browser check can hold A's response, select B and confirm that A stays hidden and the change alone starts no second estimate.",
+      "actual": "Source counterexample at b1d6e237a. depthPreview captures the request on click and displays its response unconditionally. On form changes, offer only checks whether a picture is selected and its control visible. A's map therefore appears beside B, while submitting the form reads B. The browser check covers one picture through one response. No stale preview was observed in this review."
     },
     {
       "id": "SQA-467",
@@ -445,20 +454,6 @@
         ],
         "note": "Answered by the lead on 2026-11-24 at 5f5d4db92: valid from source (ParseVerify refuses the segment s=$ that the shell runs as an assignment of a command's output). Filed as check-form-reads/do after moss-page: in a composite command, which the shell runs whole and no caller credits from cache, a segment of assignments alone is kept; in a plain && chain it is still refused, as there it exports nothing to the commands after it."
       },
-      "SQA-485": {
-        "action": "filed",
-        "rows": [
-          "moss-page/restored"
-        ],
-        "note": "Answered by the lead on 2026-11-24 at db04fec59: valid from source (rememberedControls.apply sets values without running choiceShows, and writes an object as text). Filed as a step of moss-page, the row whose page it is."
-      },
-      "SQA-486": {
-        "action": "filed",
-        "rows": [
-          "moss-page/own-run"
-        ],
-        "note": "Answered by the lead on 2026-11-24 at db04fec59: valid from source (a reloaded tab follows the first live operation of a recipe it lists). Not observed. Filed as a step of moss-page."
-      },
       "SQA-489": {
         "action": "filed",
         "rows": [
@@ -486,10 +481,17 @@
           "ternary-veto/do"
         ],
         "note": "Answered by the lead on 2026-11-24 at db04fec59: valid (a nested ternary is counted within one physical line, so a line break passes the same expression; three refused landings, moss-page/pictures among them). Filed as ternary-veto: the count leaves the veto, the ratchet's other counts stay."
+      },
+      "SQA-486": {
+        "action": "implemented",
+        "rows": [
+          "moss-page/own-run"
+        ],
+        "note": "Answered by the lead on 2026-11-24: implemented in b1d6e237a, where moss-page/restored's commit took the page edit written for moss-page/own-run (a tab keeps the run it submitted, per browser tab, and follows that one after a reload; with several and none its own it follows none). TestWebUIBrowserMOSSReloadFollowsItsOwnRun reproduces the finding against 6357cf23e's workflow.js (the reloaded tab's Cancel ended the other tab's draw) and passes on b1d6e237a; it lands with moss-page/last-picture, and own-run is retired."
       }
     }
   },
-  "next_finding_number": 491,
+  "next_finding_number": 494,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

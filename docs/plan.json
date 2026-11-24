@@ -3,32 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "moss-page",
-      "title": "MOSS's Generate page leads with the workflow section by name, shows a run's progress and its result beside the form, takes pictures by choice, and shows only the controls the section runs",
-      "steps": [
-        {
-          "id": "own-run",
-          "title": "A reloaded Generate tab follows the run it submitted, never another tab's",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserMOSSReloadFollowsItsOwnRun$' -leg moss-own-run",
-          "files": [
-            "internal/server/webui",
-            "internal/server"
-          ],
-          "rationale": "SQA-486, checked against the code at db04fec59: valid from source. On reload, workflowWorkspace follows the first live operation whose recipe the tab lists (liveOperation), so with two draws of one recipe running from two tabs, a reloaded tab binds progress, result and Cancel to the first draw, not its own. Not observed. The change: a tab keeps the operation it submitted (sessionStorage, per tab), and on reload follows that one while it lives; with none kept, it follows the only live match, and with several it follows none and lists them to choose from before Cancel is offered. Check: TestWebUIBrowserMOSSReloadFollowsItsOwnRun holds two draws, reloads the tab that submitted the second, and finds its Cancel ending the second while the first runs on.\n\nNote: files set to internal/server/webui, internal/server: The page's own code and its browser checks."
-        },
-        {
-          "id": "last-picture",
-          "title": "A picture chosen while an upload is in flight is the one sent",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserMOSSLastPictureChosenIsSent$' -leg moss-last-picture",
-          "files": [
-            "internal/server/webui",
-            "internal/server"
-          ],
-          "rationale": "SQA-489, checked against the code at db04fec59: valid from source. pictureChooser's store (internal/server/webui/workflow.js, moss-page/pictures) chooses the uploaded picture whenever its upload ends, so a recent picture chosen while an upload was in flight is replaced by the upload, and Run sends the upload. The change: an upload chooses its picture only while it is still the slot's latest choice (a choice made after it began wins); the picture is stored either way and listed among the recent. Check: TestWebUIBrowserMOSSLastPictureChosenIsSent holds an upload's answer, chooses a recent picture meanwhile, releases the upload and finds the recent picture in the request sent.\n\nNote: files set to internal/server/webui, internal/server: The page's own code and its browser checks."
-        }
-      ]
-    },
-    {
       "id": "turn-priority",
       "title": "Where a turn is taken, work no one waits on starts nothing new while a commit attempt exists",
       "steps": [
@@ -327,6 +301,22 @@
           "depends_on": [
             "full-measurement/run"
           ]
+        }
+      ]
+    },
+    {
+      "id": "readme-liveedit",
+      "title": "The README shows what LiveEdit does: a source clip and its edit side by side at the editor's own size, with the instruction, as the other models show theirs",
+      "steps": [
+        {
+          "id": "do",
+          "title": "The README's LiveEdit sample is a source clip and its edit at 832 x 480 side by side, the instruction stated, its time its own run's",
+          "verify": "! grep -qF 'assets/5b1c2046f691ac277efc9b08f4f6fe0f35225e021a82afc8006fedebad127d4b.gif' README.md \u0026\u0026 go test ./internal/repoanalysis ./internal/commanddoc -count=1",
+          "files": [
+            "README.md",
+            "assets"
+          ],
+          "rationale": "The owner's review of 2026-11-24 (fourth), checked against the README and the code: valid. The README's LiveEdit line links a 32 x 16 clip of 21 frames, states no instruction, shows no source clip, and says 9.5 s where the scorecard table says 10.2 s (the line's own run, not the scorecard's). The editor was trained at 832 x 480 (internal/latentvideo/edit_profiles.json source_width and source_height), and EditSourceSize (edit_form.go:103) says that at a quarter of that size it changes texture, not what the instruction asks; readme-media redid SenseNova, Un-0 and Wan and left LiveEdit. The change: a source clip at 832 x 480 (one of the VidGen clips the edit suite reads) edited by an instruction through go run ./cmd/recipe run -fresh, the source and the edit drawn side by side in one GIF, its caption naming the instruction, the seed, the frames and steps and the run's own time and memory, as the other models' samples are; the earlier clip and its file go. Check: the earlier clip is no longer linked, and the README's tests (repoanalysis, commanddoc) pass, among them TestReadmeNamesEveryModelAndItsSamples."
         }
       ]
     },

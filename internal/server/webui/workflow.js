@@ -452,14 +452,18 @@
       shown.replaceChildren(input.value ? el("img", { src: contentURL(input.value), alt: "The " + name + " chosen", class: "picture-thumb", title: input.value })
         : el("span", { class: "note", text: "None chosen: upload one, drop one here, or pick a recent one" }));
     };
-    // store keeps a picture file and chooses it, and relists the recent pictures.
+    // store keeps a picture file and chooses it, unless another was chosen while it was stored, which stays the choice
+    // (SQA-489); either way the recent pictures relist with it.
     const store = async (picked) => {
       if (!picked || !picked.type.startsWith("image/")) { note.textContent = "Upload or drop a picture file"; return; }
       note.textContent = "Storing " + picked.name + "…";
+      const asked = input.value;
       try {
         const stored = await api.upload("/artifacts/intake", picked);
-        note.textContent = "";
-        choose(stored.id);
+        if (input.value === asked) {
+          note.textContent = "";
+          choose(stored.id);
+        } else note.textContent = picked.name + " is stored, and the picture chosen meanwhile stays chosen";
         input.dispatchEvent(new Event("intake"));
       } catch (err) { note.textContent = friendlyError(err); }
     };
@@ -776,6 +780,8 @@
           status.textContent = "running / " + fmt.shortID(operation);
           try {
             const completed = await overgo.waitOperation(operation, renderOperation);
+            // An ended run is no longer the tab's to follow after a reload.
+            if (keptOperation.get(definition.id) === id) keptOperation.set(definition.id, "");
             overgo.runNotice.ended(overgo.title, completed.state);
             if (completed && completed.state === "completed" && definition.renderEvidence) await definition.renderEvidence(evidence, completed, overgo, sent);
           } catch (err) { status.replaceChildren(overgo.failure(err)); } finally { operation = null; run.disabled = false; cancel.disabled = false; cancel.hidden = true; }

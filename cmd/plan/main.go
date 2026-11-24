@@ -24,6 +24,7 @@ import (
 	"overgo/internal/plan"
 	"overgo/internal/planverify"
 	"overgo/internal/processlock"
+	"overgo/internal/runrecord"
 	"overgo/internal/strictjson"
 	"overgo/internal/webuilane"
 )
@@ -716,13 +717,19 @@ FINDINGS park off-scope work: go run ./cmd/finding -h
 // lane runner that makes it run, where it skips; or a check that reads a file under the runtime state directory
 // (processlock.StateDirectory) by hand, which the gate's candidate checkout does not hold and whose lines a read's check
 // read wrongly three times (passes-query, SQA-453): the passes the lanes and the landings keep are asked of the tool
-// that keeps them, validate -passed-since.
+// that keeps them, validate -passed-since; or a check that cannot run as written by the parse the commit's form stage
+// reads it with (runrecord.ParseVerify), so its form fails once, when it is filed, and not at the commit after the work
+// is done (check-form: full-measurement/run's check, s=$(...), was refused at its commit on 2026-11-24, the sixth such
+// refusal). Whether the packages it names hold a test it runs is the commit's to read, in the change that adds them.
 func verifyRefusal(command string) error {
 	switch {
 	case browserVerifyOutsideLane(command):
 		return errors.New("plan: a browser test is evidence only through cmd/webui-lane (outside it the test skips); name the lane with -run and -leg in the verify")
 	case strings.Contains(command, processlock.StateDirectory):
 		return fmt.Errorf("plan: a check reads %s by hand, which the gate's candidate checkout does not hold; ask the tool that keeps the records: go run ./cmd/validate -passed-since <commit> <package>.<Test>...", processlock.StateDirectory)
+	}
+	if _, err := runrecord.ParseVerify(command); strings.TrimSpace(command) != "" && err != nil {
+		return fmt.Errorf("plan: the check cannot run as written, as the commit's form stage reads it: %w", err)
 	}
 	return nil
 }

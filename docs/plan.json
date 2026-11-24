@@ -3,43 +3,9 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "flash-next-projection",
-      "title": "Qwen3.8 Flash Next's projection answers its exact suite as its recipe's verification did",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Qwen3.8 Flash Next's projection answers its exact suite as its recipe's verification did",
-          "verify": "false",
-          "files": [
-            "internal/inference",
-            "internal/projector",
-            "cmd/recipe"
-          ],
-          "rationale": "Found by the full measurement's cells at b2de74cef: Qwen3.8-Flash-Next's projection-proof cell, grounded by Qwen3.8-27B's exact suite (docs/verification/fixtures/qwen27/suite.json) through a succeeded verification of its recipe, now fails it: case image-1-bottom answers ' D' where the suite holds 'D' (one token either way). Its recipe passed the suite before, so a change since moved its first token. The work: find the commit by the suite's own case on the card, cure the cause, and the cell passes in the next full run. The check is written with the work.",
-          "depends_on": [
-            "full-measurement/run"
-          ]
-        }
-      ]
-    },
-    {
       "id": "readme-media",
       "title": "The README shows a better SenseNova picture, a better Un-0 picture or a sprite card of it, and a better Wan video",
       "steps": [
-        {
-          "id": "sensenova",
-          "title": "The README's SenseNova-U1 picture is a better one, drawn at the model card's settings, the earlier picture and its file gone",
-          "verify": "! grep -qF 'assets/458e63d1b4977ee502200a1f1901fc34c6ee0f154f73faadcd6d5260050a18aa.png' README.md \u0026\u0026 go test ./internal/repoanalysis ./internal/commanddoc -count=1",
-          "files": [
-            "README.md",
-            "assets"
-          ],
-          "needs_card": true,
-          "rationale": "The owner's request of 2026-11-23. The README shows SenseNova-U1-8B-MoT-Infographic-V3 by a minimal infographic of three rising bars labeled A B C (assets/458e63d1...png, 2048 x 2048, 50 steps, guidance 4.0, shift 3.0, seed 2026), which shows little of what an infographic model draws. The change: a richer infographic prompt drawn at the model card's settings through overgo's own path, its request, commit and time stated as the README states the others, the asset named by its digest; the earlier picture and its file removed where nothing else names it. The picture is the owner's to judge; the check holds that the earlier one is gone and the docs name only files the repository holds.",
-          "depends_on": [
-            "full-measurement/run"
-          ]
-        },
         {
           "id": "un0",
           "title": "The README's Un-0 picture is a better one, or a sprite card of its classes and seeds in its place, the earlier picture and its file gone",

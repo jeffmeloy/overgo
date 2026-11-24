@@ -238,16 +238,23 @@ sunrise.", 1024 × 1024, 50 steps, guidance 3, seed 42: 95 s, 13.0 GiB.
 ![MOSS-Image-SFT: a small red sailboat on a quiet lake at sunrise](assets/cfab6e10e0551187ce87aec12beab4f438ad063b2b202def0d6e8bf5856903d8.png)
 
 **SenseNova-U1-8B-MoT-Infographic-V3, text → image.** At the model card's
-settings for infographics: "a minimal infographic of three rising bars labeled
-A B C", 2048 × 2048, 50 steps, guidance 4.0, timestep shift 3.0, seed 2026,
-drawn on 2026-11-11 at d4d4b3708 in 2 min 35 s. The timing request the
-scorecard measures is the same prompt at 512 × 512 in 4 steps, guidance 4.5,
-seed 2026: 13.1 s, 15.5 GiB
+settings for infographics: 'An infographic titled "How Solar Power Reaches
+Your Home": four numbered steps left to right, each a flat icon with a short
+label: 1 Sunlight hits the solar panels, 2 Cells turn light into DC
+electricity, 3 An inverter changes DC to AC, 4 Power flows to the home and the
+grid. Below, three key facts in rounded boxes: "Panels last 25+ years", "Zero
+emissions while running", "Excess power goes back to the grid". Clean layout,
+blue and orange palette, white background.', 2048 × 2048, 50 steps, guidance
+4.0, timestep shift 3.0, seed 2026, drawn on 2026-11-24 at 7c6bef92f through
+`go run ./cmd/recipe run -fresh` in 2 min 34 s. The timing request the
+scorecard measures is "a minimal infographic of three rising bars labeled
+A B C" at 512 × 512 in 4 steps, guidance 4.5, seed 2026: 11.5 s in the full
+measurement of 2026-11-24
 ([picture](assets/2ff397c2af4142c28e0de7b09e510422e2bcd6a09731f3659d76055bb8d3e9fd.png)).
 A 1536 × 2720 infographic in 50 steps from the frozen visual-review case:
 [image](assets/5f3a56dff6b7a4a9e96d3d129082fdc349717357ff48d54454ff9535fb0cce68.png).
 
-![SenseNova at the model card's settings: a minimal infographic of three rising bars labeled A B C](assets/458e63d1b4977ee502200a1f1901fc34c6ee0f154f73faadcd6d5260050a18aa.png)
+![SenseNova at the model card's settings: an infographic of how solar power reaches a home, in four steps and three key facts](assets/ac21787ff98492136241698989230c5af3ba2f27b5d63175d3db144cab757b4d.png)
 
 **SimpleDiffusion-TensorProductAttentionRope, noise → image.** At its author's
 settings, as the training script's sample() draws them, sixteen 256 × 256

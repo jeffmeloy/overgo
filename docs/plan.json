@@ -7,17 +7,6 @@
       "title": "MOSS's Generate page leads with the workflow section by name, shows a run's progress and its result beside the form, takes pictures by choice, and shows only the controls the section runs",
       "steps": [
         {
-          "id": "audit",
-          "title": "The A/B compare's slider is a full-size control, a browser leg holds the compare state under the layout audit, and Runtime names an unrecorded residency",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserMOSSCompareIsAudited$' -leg moss-compare-audit",
-          "files": [
-            "internal/server/webui",
-            "internal/server",
-            "internal/webuilane"
-          ],
-          "rationale": "The owner's review of 2026-11-24, point 6, checked against the code: valid. The A/B compare's divide is a range input (generation.js) the style leaves at its 16 px default height, which LayoutAudit reports as a small control, and no leg captures a finished run's compare, so the audit never read it; mod/runtime.js:172 prints authority.residency unguarded, \"Requested residency undefined\" where the authority records none. The change: the divide is a full-size control, a leg audits the compare state, and the runtime card says no residency was requested where none was recorded. Check: TestWebUIBrowserMOSSCompareIsAudited runs a section to its compare and runs the layout audit on it."
-        },
-        {
           "id": "names",
           "title": "Runs, Artifacts, Library and the chat's model selector show names, dates and thumbnails where they showed identities",
           "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserListsShowNamesAndThumbnails$' -leg lists-named",

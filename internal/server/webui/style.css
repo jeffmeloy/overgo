@@ -304,7 +304,8 @@ input.text:focus, select.text:focus, textarea.text:focus { border-color:var(--ac
 .ab-frame { position:relative; max-width:100%; }
 .ab-frame .ab-a { display:block; width:100%; height:auto; }
 .ab-frame .ab-b { position:absolute; inset:0; width:100%; height:100%; object-fit:fill; }
-.ab-divide { width:100%; }
+/* The divide is a finger's control, not the browser's 16 px default slider (moss-page/audit). */
+.ab-divide { width:100%; height:32px; margin:0; accent-color:var(--acc); cursor:ew-resize; }
 .intake-strip { display:flex; flex-wrap:wrap; gap:var(--s1); }
 /* A picture slot is chosen, never typed: the chosen picture's thumbnail, Upload, a file dropped on it, the recent ones. */
 .picture-chooser { display:grid; gap:var(--s2); padding:var(--s2); border:1px dashed var(--line); border-radius:var(--radius-s); min-width:0; }

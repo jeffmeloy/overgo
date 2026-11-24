@@ -343,8 +343,11 @@
     };
   }
 
+  // stat: one labelled figure; a value the page was not given reads "not recorded", where it had read "undefined"
+  // (Runtime's requested residency, moss-page/audit), and carries no unit.
   function stat(label, value, unit) {
-    return el("div", { class: "stat" }, el("div", { class: "k", text: label }), el("div", { class: "v" }, String(value), unit ? el("small", { text: " " + unit }) : null));
+    const recorded = value !== undefined && value !== null;
+    return el("div", { class: "stat" }, el("div", { class: "k", text: label }), el("div", { class: "v" }, recorded ? String(value) : "not recorded", recorded && unit ? el("small", { text: " " + unit }) : null));
   }
 
   // turnTrend: the recent finished turns' decode rate and tokens per forward, oldest first, each line with its

@@ -21,7 +21,9 @@ func TestRealCheckpointPublishesReferencePNG(t *testing.T) {
 	if err != nil {
 		t.Fatalf("UNAVAILABLE: reference image %s: %v", referencePath, err)
 	}
-	if encoded.MediaType != "image/png" || encoded.Channels != 3 || encoded.Height != 64 || encoded.Width != 64 || !bytes.Equal(encoded.Data, reference) {
+	// The picture is held by its pixels, its canonical PNG the reference one (testutil.CanonicalPNG), whatever level it is
+	// written at (one-png-writer).
+	if encoded.MediaType != "image/png" || encoded.Channels != 3 || encoded.Height != 64 || encoded.Width != 64 || !bytes.Equal(testutil.CanonicalPNG(t, encoded.Data), reference) {
 		t.Fatalf("SimpleDiffusion PNG differs: media=%s shape=%dx%dx%d bytes=%d want=%d", encoded.MediaType, encoded.Channels, encoded.Height, encoded.Width, len(encoded.Data), len(reference))
 	}
 	t.Logf("real SimpleDiffusion PNG: seed=7 steps=2 size=64x64 encoded_bytes=%d exact_reference=true range=[%.6f,%.6f]", len(encoded.Data), encoded.Minimum, encoded.Maximum)

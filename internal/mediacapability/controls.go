@@ -62,10 +62,17 @@ type Control struct {
 	// choice names is shown, and sent, only while a choice naming it is chosen, so a page offers the chosen mode's fields
 	// alone (a MOSS prompt mode, moss-prompt-mode); none where every choice shows every control.
 	Shows map[string][]string
+	// Names are the plain names a page offers a choice control's choices by (a MOSS Ultra section's, "Depth control
+	// (Turbo)"), each its value the choice; a choice with none is offered as written (moss-page/sections).
+	Names map[string]string
 }
 
 // ChoiceShows reports the controls each of the control's choices shows, none where its choices hide nothing.
 func (control Control) ChoiceShows() map[string][]string { return control.Shows }
+
+// ChoiceNames reports the plain name a page offers each of the control's choices by, none where it offers them as
+// written.
+func (control Control) ChoiceNames() map[string]string { return control.Names }
 
 // ChoiceSettings reports what each of the control's choices fills, none where its choices fill nothing.
 func (control Control) ChoiceSettings() map[string]json.RawMessage { return control.Settings }
@@ -75,8 +82,9 @@ func (control Control) Nested() (fields, item any) { return control.Fields, cont
 
 // controlRoles are the controls every media page offers under one name each, in the order a page lists them (the
 // owner's direction of 2026-11-16: one set of controls for every model); those from steps on are tuning, behind the
-// page's disclosure on every page alike.
-var controlRoles = []string{"prompt", "class", "source", "negative prompt", "width", "height", "frames", "steps", "guidance", "seed", "preset", "format"}
+// page's disclosure on every page alike. A model whose presets are its workflow's sections offers its preset as the
+// section, the choice its page leads with (moss-page/sections).
+var controlRoles = []string{"section", "prompt", "class", "source", "negative prompt", "width", "height", "frames", "steps", "guidance", "seed", "preset", "format"}
 
 // tuningRoles is where the tuning roles begin in controlRoles.
 var tuningRoles = slices.Index(controlRoles, "steps")
@@ -252,6 +260,9 @@ func videoModel(directory string) string {
 
 // presetControl is the request field that names a recipe of the model's presets.
 const presetControl = "preset"
+
+// sectionRole is the role of a preset control whose presets are the model's workflow's sections (controlRoles).
+const sectionRole = "section"
 
 // offerPresets gives the preset control the declared presets of the named model as its choices, a tuning control
 // beside the authors' recipe, each one under reading only once its verdict admits it (offeredPresets), and removes the

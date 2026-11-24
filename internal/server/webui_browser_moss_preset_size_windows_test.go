@@ -73,7 +73,7 @@ func TestWebUIBrowserMOSSPresetGivesBackTheSizeSetByHand(t *testing.T) {
   window.bench={
     panel,
     field:(name)=>[...panel.querySelectorAll('label.control')].find(label=>label.querySelector('span').textContent===name).querySelector('input,select,textarea'),
-    choose:(name)=>{const preset=bench.field('preset');preset.value=name;preset.dispatchEvent(new Event('change',{bubbles:true}));},
+    choose:(name)=>{const preset=bench.field('section');preset.value=name;preset.dispatchEvent(new Event('change',{bubbles:true}));},
     set:(name,value)=>{const field=bench.field(name);field.value=value;field.dispatchEvent(new Event('input',{bubbles:true}));},
     size:()=>bench.field('width').value+' by '+bench.field('height').value,
     status:()=>bench.panel.querySelector('[aria-label="run status"]'),
@@ -82,7 +82,7 @@ func TestWebUIBrowserMOSSPresetGivesBackTheSizeSetByHand(t *testing.T) {
     refused:()=>!bench.button().disabled && !bench.panel.querySelector('.workbench-output') && bench.status().textContent.trim()!=='',
   };
   panel.querySelector('.advanced-controls').open=true;
-  return [...bench.field('preset').options].some(option=>option.value==='');
+  return [...bench.field('section').options].some(option=>option.value==='');
 })()`)
 	quoted := string(testcheck.Must(json.Marshal(preset))(t))
 	presetSize := strconv.Itoa(size.Width) + " by " + strconv.Itoa(size.Height)

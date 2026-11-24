@@ -215,12 +215,13 @@ func TestMOSSImageGenerationContract(t *testing.T) {
 		if c.Name == "guidance_scale" && (!c.Advanced || c.Bounds == nil || c.Bounds.Default != 3) {
 			t.Fatal("guidance declaration lost", c)
 		}
-		// The page offers its authors' tutorial setting, the MOSS Ultra workflow's six section presets
-		// (moss-ultra-compare/section-presets) and the 8-bit speed tier its readings admit beside their recipe; a guidance
-		// preset reaches it only on a measured gain, which none has shown (common-controls/gain-only).
-		if c.Name == "preset" && (!c.Advanced || !slices.Equal(c.Choices, []string{"comfy-tutorial", "eight-bit-attention", "ultra-depth-control",
-			"ultra-depth-control-turbo", "ultra-image-to-image", "ultra-image-to-image-turbo", "ultra-text-to-image", "ultra-text-to-image-turbo"})) {
-			t.Fatal("MOSS's presets are not offered", c)
+		// The page offers the MOSS Ultra workflow's six section presets (moss-ultra-compare/section-presets) as its section,
+		// first and in the workflow's order, each by its plain name (moss-page/sections), then its authors' tutorial
+		// setting and the 8-bit speed tier its readings admit beside their recipe; a guidance preset reaches it only on a
+		// measured gain, which none has shown (common-controls/gain-only).
+		if c.Name == "preset" && (c.Advanced || c.Role != "section" || c.Names["ultra-depth-control-turbo"] != "Depth control (Turbo)" || !slices.Equal(c.Choices, []string{"ultra-text-to-image",
+			"ultra-image-to-image", "ultra-depth-control", "ultra-text-to-image-turbo", "ultra-image-to-image-turbo", "ultra-depth-control-turbo", "comfy-tutorial", "eight-bit-attention"})) {
+			t.Fatal("MOSS's presets are not offered as its section", c)
 		}
 	}
 	for _, prompt := range []string{"  blue cube\n", "<objects>\nblue cube (0, 0, 16, 16)\n</objects>"} {

@@ -15,9 +15,13 @@ import (
 )
 
 // mossSectionPresets are the MOSS Ultra workflow's section presets MOSS's catalog declares
-// (moss-ultra-compare/section-presets), in the order a page lists them.
-var mossSectionPresets = []string{"ultra-depth-control", "ultra-depth-control-turbo", "ultra-image-to-image", "ultra-image-to-image-turbo",
-	"ultra-text-to-image", "ultra-text-to-image-turbo"}
+// (moss-ultra-compare/section-presets), in the workflow's order, the order a page lists them (moss-page/sections).
+var mossSectionPresets = []string{"ultra-text-to-image", "ultra-image-to-image", "ultra-depth-control", "ultra-text-to-image-turbo",
+	"ultra-image-to-image-turbo", "ultra-depth-control-turbo"}
+
+// mossSectionNames are the plain names a page offers the sections by, in mossSectionPresets' order.
+var mossSectionNames = []string{"Text to image", "Image to image", "Depth control", "Text to image (Turbo)", "Image to image (Turbo)",
+	"Depth control (Turbo)"}
 
 func TestMOSSImageGenerationContract(t *testing.T) {
 	root := testutil.ExtractTarGzip(t, testutil.FixturePath(t, "moss", "generator-compact.tar.gz"), "150c4263057d72476ef4399a442c2b7dbadcb955670232fc2ea869c71f07c5db")
@@ -34,14 +38,25 @@ func TestMOSSImageGenerationContract(t *testing.T) {
 			t.Fatal("missing supported control", name)
 		}
 	}
-	// Of MOSS's presets the page offers its authors' tutorial setting and the MOSS Ultra workflow's six section
-	// presets, which no reading reads, and 8-bit attention, a speed tier its readings admit; no guidance preset read
-	// shows a gain (common-controls/gain-only).
-	if len(held) != 16 || !slices.Equal(held["preset"].Choices, append([]string{"comfy-tutorial", "eight-bit-attention"}, mossSectionPresets...)) || held["guidance_scale"].Type != ControlNumber || len(held["prompt_mode"].Choices) != 4 || held["prompt_mode"].Help == "" {
+	// Of MOSS's presets the page offers the MOSS Ultra workflow's six section presets, first and in the workflow's
+	// order, and its authors' tutorial setting, which no reading reads, and 8-bit attention, a speed tier its readings
+	// admit; no guidance preset read shows a gain (common-controls/gain-only).
+	if len(held) != 16 || !slices.Equal(held["preset"].Choices, append(slices.Clone(mossSectionPresets), "comfy-tutorial", "eight-bit-attention")) || held["guidance_scale"].Type != ControlNumber || len(held["prompt_mode"].Choices) != 4 || held["prompt_mode"].Help == "" {
 		t.Fatal("unsupported controls", held)
 	}
+	// The preset is MOSS's section, the control its page leads with, outside the disclosure, each choice by its plain
+	// name (moss-page/sections).
+	if section := controls[0]; section.Name != "preset" || section.Role != "section" || section.Secondary() || section.Required ||
+		len(section.Names) != len(section.Choices) || section.Names["comfy-tutorial"] != "ComfyUI tutorial settings" {
+		t.Fatal("MOSS's page does not lead with its section", controls[0])
+	}
+	for index, preset := range mossSectionPresets {
+		if held["preset"].Names[preset] != mossSectionNames[index] {
+			t.Errorf("the section %s is offered as %q; want %q", preset, held["preset"].Names[preset], mossSectionNames[index])
+		}
+	}
 	// Tuning sits behind the disclosure as on every page (common-controls/do), and the negative prompt beside the prompt.
-	for _, name := range []string{"steps", "seed", "guidance_scale", "preset"} {
+	for _, name := range []string{"steps", "seed", "guidance_scale"} {
 		if !held[name].Secondary() || held[name].Required {
 			t.Fatal("optional tuning control is not secondary", name)
 		}

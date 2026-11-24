@@ -214,111 +214,110 @@
       "actual": "Source at 25cd964a7. On the plain cold load, the new catalogOf call opens model_index.json for the grid flag. loadRotaryGenerator immediately reads it again in ResolveProfile to compare the on-disk profile ID with the recipe. The validated pipeline already identifies the embedded catalog entry. On the resident preset draw, Reset and prepare each open the index through a fresh CatalogIn. The served-repeat test counts stored profile reads on a cache hit and does not count these file opens on a draw. No wall time was measured."
     },
     {
-  "id": "SQA-283",
-  "severity": "P2",
-  "files": [
-    "internal/servingattempt/servingattempt.go",
-    "internal/trainingworkflow/session_observation.go",
-    "internal/scorecard/scorecard.go",
-    "internal/runrecord/record.go",
-    "internal/modelrecipe/loaded_program.go"
-  ],
-  "input": "A serving or training observation published by servingattempt.Record or trainingworkflow.Observer.finish when (a) the recipe-state read fails and the incoming Verification is empty, or (b) the same recipe is activated again, verified, after the recorded attempt executed it not verified.",
-  "expected": "Publication carries the state the executed recipe and task had at execution. A failed state read is told apart from a historical absent state and earns no verified credit, and a later activation does not replace execution-time state. Legacy bytes, the own-verifying-run exception and partial or cancelled results keep their contract.",
-  "actual": "The two remaining owners still read state at publication and drop the lookup error: servingattempt.Record (servingattempt.go:117-119) and Observer.finish (session_observation.go:271-273). A failed read leaves an empty Verification; scorecard.unverifiedAside rejects only explicit not-verified/broken and accepts that empty value as legacy. A later same-recipe activation is written as the attempt's state in place of its execution-time not-verified state. Shown from source at 8acbf71d17dfd3e1e35313b370f900b21f0fdf10; no SQA execution."
-},
+      "id": "SQA-283",
+      "severity": "P2",
+      "files": [
+        "internal/servingattempt/servingattempt.go",
+        "internal/trainingworkflow/session_observation.go",
+        "internal/scorecard/scorecard.go",
+        "internal/runrecord/record.go",
+        "internal/modelrecipe/loaded_program.go"
+      ],
+      "input": "A serving or training observation published by servingattempt.Record or trainingworkflow.Observer.finish when (a) the recipe-state read fails and the incoming Verification is empty, or (b) the same recipe is activated again, verified, after the recorded attempt executed it not verified.",
+      "expected": "Publication carries the state the executed recipe and task had at execution. A failed state read is told apart from a historical absent state and earns no verified credit, and a later activation does not replace execution-time state. Legacy bytes, the own-verifying-run exception and partial or cancelled results keep their contract.",
+      "actual": "The two remaining owners still read state at publication and drop the lookup error: servingattempt.Record (servingattempt.go:117-119) and Observer.finish (session_observation.go:271-273). A failed read leaves an empty Verification; scorecard.unverifiedAside rejects only explicit not-verified/broken and accepts that empty value as legacy. A later same-recipe activation is written as the attempt's state in place of its execution-time not-verified state. Shown from source at 8acbf71d17dfd3e1e35313b370f900b21f0fdf10; no SQA execution."
+    },
     {
-  "id": "SQA-342",
-  "severity": "P2",
-  "files": [
-    "internal/evaluation/image_retrieval.go",
-    "internal/tensorstats/paired_binary.go",
-    "internal/evaluation/generated_video_matching.go",
-    "cmd/evaluate/motion_windows_model_test.go",
-    "cmd/evaluate/judge_calibration_windows_model_test.go",
-    "internal/evaluation/evidence_index.go",
-    "internal/scorecard/record.go",
-    "internal/scorecard/output_pairing_test.go",
-    "cmd/evaluate/second_judge_windows_model_test.go",
-    "internal/evaluation/soft_answer.go",
-    "cmd/evaluate/video_super_res_judged_windows_model_test.go",
-    "internal/evaluation/preset_admission.go",
-    "cmd/evaluate/preset_reading.go",
-    "internal/evaluation/instruction_acceptance.go",
-    "internal/evaluation/preset_admission_test.go",
-    "cmd/evaluate/preset_reading_test.go",
-    "cmd/evaluate/render.go",
-    "internal/runrecord/record.go",
-    "internal/mediacapability/controls_cuda_windows.go",
-    "internal/mediacapability/preset_readings.go",
-    "internal/mediacapability/preset_readings.json",
-    "internal/mediacapability/preset_readings_windows_test.go",
-    "cmd/evaluate/readings.go",
-    "cmd/evaluate/readings_test.go",
-    "cmd/evaluate/render_resume_test.go",
-    "cmd/evaluate/preset_binding_test.go",
-    "internal/evaluation/media_inputs.go"
-  ],
-  "input": "(3) Gemma accuracy over 32 independent media, each with two uniformly guessed 3-choice questions. (4) Two judges ranked on all-constant finite scores, and on probabilities (.9,.1) against (.45,.45). (6) Two GIF media inputs for their own bound renders, with one judge and scorer, decoded at 16 frames against 1. (7) The embedded SenseNova APG verdict edited to 0 wins, 524 losses, 0 ties, 80 media and tail 0.0001, Admitted left true, with Says changed consistently to 'admitted: a gain beyond chance, 0 wins, 524 losses and 0 ties over 80 media'; its evaluation IDs stay unchanged. (8) A render campaign resumed after an earlier item's request changed while its last item drew the same, or with truncated bookkeeping.",
-  "expected": "(3) The accuracy null matches the actual choice counts and within-media dependence. (4) Ranking uses the aggregation production scores with, and an undefined tau or omitted resamples are said, without a panic. (6) A reading is admitted only from evaluations bound to the same render, decode sampling and question contract, and a control offers a candidate only by the admission for its own model, recipe and request. (7) The record's verdict, counts and tail are derived through AdmitPreset and its bound evaluations, so drift is refused. (8) A completed arm or verdict is reused only for the same bound inputs, evaluator and producer; changed work is refused or redone, and truncated bookkeeping does not count as complete.",
-  "actual": "(3) Correct count minus sum(1/choices) against zero is taken as a fair sign for ExactPairedBinary: a medium is positive with probability 5/9, and uniform guessing passes the 22-positive threshold (nominal tail 0.0250512) with probability 0.0914273, above the 0.05 level. (4) Arithmetic probability means rank (.9,.1) above (.45,.45), the reverse of production softShare's geometric mean; constant scores give a NaN tau, all 2000 resamples are dropped and resampledTau indexes an empty slice. (6) judgedRender compares content, request, producer, runtime and scorer but not MediaInput.Decode or the question contract, readRender never calls verifyRendered, ResolveActiveExecution takes the current activation, and the embedded offering uses recorded no-loss flags (plus a recorded gain for guidance methods) under a published model name/preset key, without runtime recipe/request binding. (7) The native record test checks evaluation-ID syntax, displayed counts and admitted/refused wording, but does not recompute Admitted or Tail through AdmitPreset and the bound evaluations. Gained trusts Tail <= falseGain, so the consistently worded false gain in input 7 passes the record and gain checks and offers APG on SenseNova's page despite its stated 524 losses and zero wins. (8) Arm, suite and verdict skips trust names and file existence and accept truncated bookkeeping, and a new build is validated by re-rendering only the last item. Remaining counterexamples shown from source and arithmetic at 0c24aca5b670940f95c0f8156c13804a9e2fd9ea; no SQA execution."
-},
+      "id": "SQA-342",
+      "severity": "P2",
+      "files": [
+        "internal/evaluation/image_retrieval.go",
+        "internal/tensorstats/paired_binary.go",
+        "internal/evaluation/generated_video_matching.go",
+        "cmd/evaluate/motion_windows_model_test.go",
+        "cmd/evaluate/judge_calibration_windows_model_test.go",
+        "internal/evaluation/evidence_index.go",
+        "internal/scorecard/record.go",
+        "internal/scorecard/output_pairing_test.go",
+        "cmd/evaluate/second_judge_windows_model_test.go",
+        "internal/evaluation/soft_answer.go",
+        "cmd/evaluate/video_super_res_judged_windows_model_test.go",
+        "internal/evaluation/preset_admission.go",
+        "cmd/evaluate/preset_reading.go",
+        "internal/evaluation/instruction_acceptance.go",
+        "internal/evaluation/preset_admission_test.go",
+        "cmd/evaluate/preset_reading_test.go",
+        "cmd/evaluate/render.go",
+        "internal/runrecord/record.go",
+        "internal/mediacapability/controls_cuda_windows.go",
+        "internal/mediacapability/preset_readings.go",
+        "internal/mediacapability/preset_readings.json",
+        "internal/mediacapability/preset_readings_windows_test.go",
+        "cmd/evaluate/readings.go",
+        "cmd/evaluate/readings_test.go",
+        "cmd/evaluate/render_resume_test.go",
+        "cmd/evaluate/preset_binding_test.go",
+        "internal/evaluation/media_inputs.go"
+      ],
+      "input": "(3) Gemma accuracy over 32 independent media, each with two uniformly guessed 3-choice questions. (4) Two judges ranked on all-constant finite scores, and on probabilities (.9,.1) against (.45,.45). (6) Two GIF media inputs for their own bound renders, with one judge and scorer, decoded at 16 frames against 1. (7) The embedded SenseNova APG verdict edited to 0 wins, 524 losses, 0 ties, 80 media and tail 0.0001, Admitted left true, with Says changed consistently to 'admitted: a gain beyond chance, 0 wins, 524 losses and 0 ties over 80 media'; its evaluation IDs stay unchanged. (8) A render campaign resumed after an earlier item's request changed while its last item drew the same, or with truncated bookkeeping.",
+      "expected": "(3) The accuracy null matches the actual choice counts and within-media dependence. (4) Ranking uses the aggregation production scores with, and an undefined tau or omitted resamples are said, without a panic. (6) A reading is admitted only from evaluations bound to the same render, decode sampling and question contract, and a control offers a candidate only by the admission for its own model, recipe and request. (7) The record's verdict, counts and tail are derived through AdmitPreset and its bound evaluations, so drift is refused. (8) A completed arm or verdict is reused only for the same bound inputs, evaluator and producer; changed work is refused or redone, and truncated bookkeeping does not count as complete.",
+      "actual": "(3) Correct count minus sum(1/choices) against zero is taken as a fair sign for ExactPairedBinary: a medium is positive with probability 5/9, and uniform guessing passes the 22-positive threshold (nominal tail 0.0250512) with probability 0.0914273, above the 0.05 level. (4) Arithmetic probability means rank (.9,.1) above (.45,.45), the reverse of production softShare's geometric mean; constant scores give a NaN tau, all 2000 resamples are dropped and resampledTau indexes an empty slice. (6) judgedRender compares content, request, producer, runtime and scorer but not MediaInput.Decode or the question contract, readRender never calls verifyRendered, ResolveActiveExecution takes the current activation, and the embedded offering uses recorded no-loss flags (plus a recorded gain for guidance methods) under a published model name/preset key, without runtime recipe/request binding. (7) The native record test checks evaluation-ID syntax, displayed counts and admitted/refused wording, but does not recompute Admitted or Tail through AdmitPreset and the bound evaluations. Gained trusts Tail <= falseGain, so the consistently worded false gain in input 7 passes the record and gain checks and offers APG on SenseNova's page despite its stated 524 losses and zero wins. (8) Arm, suite and verdict skips trust names and file existence and accept truncated bookkeeping, and a new build is validated by re-rendering only the last item. Remaining counterexamples shown from source and arithmetic at 0c24aca5b670940f95c0f8156c13804a9e2fd9ea; no SQA execution."
+    },
     {
-  "id": "SQA-346",
-  "severity": "P2",
-  "files": [
-    "cmd/evaluate/motion.go",
-    "internal/evaluation/clip_motion.go",
-    "internal/evaluation/observation_binding.go",
-    "internal/evaluation/media_inputs.go",
-    "internal/evaluation/observation_binding_test.go"
-  ],
-  "input": "A retained ClipMotion observation of unchanged MP4 bytes, then a motion encoder checkpoint or FFmpeg/preprocessing configuration changes under the same encoder basename. The suite is compiled again with that old observation and the same matching clip-content digest.",
-  "expected": "Motion readings identify the encoder/checkpoint and decoder/sampling contract that produced them, so changed instruments cannot silently reuse or be credited with an old metric. Keep the repaired OCR re-keying, content checks and whole-set exclusion in the existing media compiler and observation producers; the observation instrument is separate from the answering judge.",
-  "actual": "The remaining motion instrument is not bound: writeMotion passes filepath.Base(encoderPath) to measureMotion; ClipMotion stores that Encoder string and clip/source content digests, with no encoder/checkpoint or FFmpeg/sampling identity. ClipMotion.validate requires only a nonempty encoder name, and bindObservations compares clip.Content alone before keeping the motion set. Changing an instrument while the clip bytes and encoder basename stay the same therefore leaves the old motion admissible and its actual producing instrument indistinguishable. Shown from source at ba0405e63d92653b84f617d8c332d5546529e444; no SQA execution."
-}
+      "id": "SQA-346",
+      "severity": "P2",
+      "files": [
+        "cmd/evaluate/motion.go",
+        "internal/evaluation/clip_motion.go",
+        "internal/evaluation/observation_binding.go",
+        "internal/evaluation/media_inputs.go",
+        "internal/evaluation/observation_binding_test.go"
+      ],
+      "input": "A retained ClipMotion observation of unchanged MP4 bytes, then a motion encoder checkpoint or FFmpeg/preprocessing configuration changes under the same encoder basename. The suite is compiled again with that old observation and the same matching clip-content digest.",
+      "expected": "Motion readings identify the encoder/checkpoint and decoder/sampling contract that produced them, so changed instruments cannot silently reuse or be credited with an old metric. Keep the repaired OCR re-keying, content checks and whole-set exclusion in the existing media compiler and observation producers; the observation instrument is separate from the answering judge.",
+      "actual": "The remaining motion instrument is not bound: writeMotion passes filepath.Base(encoderPath) to measureMotion; ClipMotion stores that Encoder string and clip/source content digests, with no encoder/checkpoint or FFmpeg/sampling identity. ClipMotion.validate requires only a nonempty encoder name, and bindObservations compares clip.Content alone before keeping the motion set. Changing an instrument while the clip bytes and encoder basename stay the same therefore leaves the old motion admissible and its actual producing instrument indistinguishable. Shown from source at ba0405e63d92653b84f617d8c332d5546529e444; no SQA execution."
+    }
   ],
   "master_lead_triage": {
-    "at": "2026-11-23",
-    "head": "7fbcacc4cbdf0baa7bbafdbce6e34495ab1ec29b",
+    "at": "2026-11-24",
+    "head": "5f5d4db92a753cb77473ff88db32e8ff38a02ba5",
     "findings": {
-  "SQA-481": {
-        "action": "filed",
+      "SQA-481": {
+        "action": "implemented",
         "rows": [
-          "contended-credit/do"
+          "contended-credit/settle"
         ],
-        "note": "Answered by the lead on 2026-11-24 at b2de74cef: valid from source (a twice-contended serving cell is settled as acquired and credited, so a resumed cycle skips it with no usable timing taken). It costs a correct scorecard after an interrupted, contended cycle. Tonight's cells run as one invocation with no cycle credit, with no other build on the machine, so it is filed as contended-credit/do after full-measurement/run (depends_on)."
+        "note": "Answered by the lead on 2026-11-24 at 5f5d4db92: implemented at a25fa2246 (contended-credit/settle). executeMeasured no longer settles a cell whose two timings were both set aside as contended: it is listed apart, earns no credit, and a resumed cycle measures it again. TestAContendedCellIsMeasuredOnceMoreAfterTheOthers runs the finding's input with a persistent credit file and finds the twice-contended cell uncredited, the others credited."
       },
-  "SQA-477": {
+      "SQA-477": {
         "action": "filed",
         "rows": [
           "reference-tools/clock"
         ],
         "note": "Answered by the lead on 2026-11-23 at b096b650c: valid from source (the readers divide elapsed time by event intervals, not by the steps between the first and last event); the intact own-size recording has all 50 events, so no reading so far is wrong, and it costs a wrong reading only on a recording with a gap. Filed with reference-tools/clock, noted there, the reference clock work it belongs to, after the measurement."
       },
-  "SQA-474": {
+      "SQA-474": {
         "action": "filed",
         "rows": [
-          "shared-whole/lanes",
-          "full-measurement/run"
+          "own-record/do"
         ],
-        "note": "Answered by the lead on 2026-11-23 at 0776b4a53: valid from source (measurePhases runs validate -run -lanes whole before the cells, so a separate whole run before it repeats every lane; the run step's check reads the store and README, not the run's commit or phases). One measurement at the one-png-writer commit serves both steps, noted on each: validate -run -preflight, -run -lanes, -run -cells -reached and -scorecard -publish in sequence with no landing between; shared-whole/lanes lands on its lanes pass (-lanes-passed-at that commit), full-measurement/run on its cells and publication. The check's binding to the run's commit is not added: the four image rows it reads can be filled only by attempts that record their preset, which no attempt in the store does (the scorecard says each is measured again), so only this run fills them."
+        "note": "Answered by the lead on 2026-11-24 at 5f5d4db92, for the finding as rewritten at a25fa2246: valid from source (improvement.Measure answers with the newest record at the cycle's commit whoever published it, so Improve files an earlier cycle's gaps and Fill removes this cycle's state and credit). Not observed: the unattended cycle has not run since the measurements moved to validate -run phases. Filed as own-record/do after moss-page: Measure answers only with the record this cycle's publication wrote."
       },
-  "SQA-473": {
+      "SQA-473": {
         "action": "filed",
         "rows": [
           "served-parts/do"
         ],
         "note": "Answered by the lead on 2026-11-23 at 0776b4a53: valid from source (sliceLastTemporalTap copies a kernel whose temporal extent is 1 whole, 97.0 MB at load; VAEProgram.feeds keeps 108.9 MB of host weights after the resident decoder binds them). No wall is measured, so it is filed with served-parts/do, noted there: the first-run gap's parts measured there decide its step, as the finding itself ranks it."
       },
-  "SQA-471": {
+      "SQA-471": {
         "action": "filed",
         "rows": [
           "served-parts/do"
         ],
         "note": "Answered by the lead on 2026-11-23 at 7fbcacc4c: valid from the record and source (the decode's own parts read on another clock than their parent's, summing to 426 ms inside 418; unmeasured processor time and bytes read written as zero; the decoder's static binding counted as its compile); it costs the next decision, the decoder's 0.47 s, so it is filed with served-parts/do, noted there, ahead of any cure of that part."
       },
-  "SQA-461": {
+      "SQA-461": {
         "action": "filed",
         "rows": [
           "served-answers/profile",
@@ -326,63 +325,82 @@
         ],
         "note": "Answered by the lead on 2026-11-22 at 47b3587c9: valid from source; the served path's two profile reads a request (pictureFiles, preparedFirst) filed as served-answers/profile, the generator's model_index.json reads on a changed seed with served-parts/do, whose ledger reads their time."
       },
-  "SQA-467": {
+      "SQA-467": {
         "action": "filed",
         "rows": [
           "card-checks-sound/sharpened"
         ],
         "note": "Answered by the lead on 2026-11-22 at 47b3587c9: valid from source, a check that passes without checking (the finished PNG alone carries Finishing=sharpened, so its bytes differ from the unsharpened one's with equal pixels); filed as card-checks-sound/sharpened, after the owner's review rows."
       },
-  "SQA-410": {
+      "SQA-410": {
         "action": "filed",
         "rows": [
           "card-checks-sound/floors"
         ],
         "note": "Reopened by the review after moss-real-prompt/do (89cf0f0e3) and answered by the lead on 2026-11-22 at 47b3587c9: valid from source (holdGoldenFloors draws every case before it reads the floors; a later case's size error ends the test before an earlier failure is reported; a reference of no signal scores -Inf in both modes and is accepted as equal); filed as card-checks-sound/floors."
       },
-  "SQA-460": {
+      "SQA-460": {
         "action": "filed",
         "rows": [
           "reference-tools/clock"
         ],
         "note": "Answered by the lead on 2026-11-22 at 47b3587c9: valid from source (an absolute record path is accepted at the start and fails only at the append, after both runs); filed as reference-tools/clock."
       },
-  "SQA-388": {
+      "SQA-388": {
         "action": "filed",
         "rows": [
           "reference-tools/recorder"
         ],
         "note": "Answered again by the lead on 2026-11-22 at 47b3587c9: valid from source at the recorder (resume on request hash and prompt ID alone, memory sampled from a retry, kept files named by node and base name, a pair's prompt IDs never compared); moss-real-prompt/do, where it had been carried, set the floors again but changed none of these; filed as reference-tools/recorder."
       },
-  "SQA-415": {
+      "SQA-415": {
         "action": "implemented",
         "rows": [
           "lanes-fixtures/do"
         ],
         "note": "Answered by the lead on 2026-11-19: valid from source (a data path walks up to a closure package's directory, and the repository's fixtures/ is under none, so it reaches no lane); filed after lanes-verdict, ahead of the speed rows, since the MOSS goldens read fixtures/moss. Implemented 2026-11-19 by lanes-fixtures/do (c71a1e230), for the review's recheck."
       },
-  "SQA-346": {
+      "SQA-346": {
         "action": "implemented",
         "rows": [
           "observation-binding/do"
         ],
         "note": "Answered by the lead on 2026-11-13: filed, held-out readings credited to media they did not read. Implemented 2026-11-16 by observation-binding/do (d9afe59b3), for the review's recheck."
       },
-  "SQA-342": {
+      "SQA-342": {
         "action": "implemented",
         "rows": [
           "preset-evidence/statistic"
         ],
         "note": "Answered by the lead on 2026-11-13: filed after preset-readings, whose admissions it bears on; a held-out quality claim. Implemented 2026-11-16 by preset-evidence/statistic (9ed242b6c), for the review's recheck."
       },
-  "SQA-283": {
+      "SQA-283": {
         "action": "implemented",
         "rows": [
           "execution-state/do"
         ],
         "note": "Reopened by the lead's recheck on 2026-11-13: run-from-files/do and recipe-state made the first repair, whose tests pass at f110d30b1, but the review's evidence names three publication owners that still read recipe state at publication and drop a lookup error, so an empty Verification earns the legacy path and a later activation can replace execution-time state. execution-state/do carries the state read at execution to publication. Implemented 2026-11-16 by execution-state/do (f7338b9b0), for the review's recheck."
+      },
+      "SQA-482": {
+        "action": "filed",
+        "rows": [
+          "check-form-reads/do"
+        ],
+        "note": "Answered by the lead on 2026-11-24 at 5f5d4db92: valid from source and observed (four steps filed with false, each retired and landed under another step). Filed as check-form-reads/do after moss-page, with SQA-483 as both change the filing check: verifyRefusal refuses a check that is only false and says to name the test the change will add. No open step carries false now (check-form-reads and own-record name the tests they add)."
+      },
+      "SQA-483": {
+        "action": "filed",
+        "rows": [
+          "check-form-reads/do"
+        ],
+        "note": "Answered by the lead on 2026-11-24 at 5f5d4db92: valid from source (ParseVerify refuses the segment s=$ that the shell runs as an assignment of a command's output). Filed as check-form-reads/do after moss-page: in a composite command, which the shell runs whole and no caller credits from cache, a segment of assignments alone is kept; in a plain && chain it is still refused, as there it exports nothing to the commands after it."
+      },
+      "SQA-484": {
+        "action": "declined",
+        "rows": [],
+        "note": "Answered by the lead on 2026-11-24 at 5f5d4db92: valid as described, declined. Both refusals name their one-edit fix (lowerCeilings: lower them there; TestIdempotentCommitHasOneOwner: lower noChangeTests), and lowerCeilings refuses to write over a held change by design (SQA-399). Neither is a served defect nor a check that passes without checking, so by the agreed severity rule it is a P3, and it cost one refusal (speech-hold/do) in the record."
       }
-}
+    }
   },
   "next_finding_number": 485,
   "repository": "C:\\Users\\jeffm\\overgo",

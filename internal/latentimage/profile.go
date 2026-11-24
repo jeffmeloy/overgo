@@ -105,6 +105,10 @@ type catalogProfile struct {
 	// Presets are the model's other recipes beside the authors', each named, which a request may name: no part of a
 	// recipe's profile either.
 	Presets map[string]imagePreset `json:"presets,omitempty"`
+	// Sections are the presets that are the sections of the model's own workflow, in its order (the MOSS Ultra
+	// workflow's six), which a page offers first, as the choice its form leads with (moss-page/sections). No part of a
+	// recipe's profile.
+	Sections []string `json:"sections,omitempty"`
 	// NegativeGuidance is the normalized attention guidance a distilled model honours a negative prompt by (NAG, arXiv
 	// 2505.21179), on only where a request gives a negative prompt and states no guidance of its own, so the negative
 	// prompt works on it as on a guided model, with no preset to pick (common-controls/negative). No part of a recipe's
@@ -209,6 +213,9 @@ func PersonSize(directory string) (int, error) {
 // imagePreset is a named recipe's steps, guidance scale and guidance over the steps, each filling a request that leaves
 // it unset.
 type imagePreset struct {
+	// Name is the plain name a page offers the preset by ("Depth control (Turbo)"), the request naming it by its key;
+	// none where a page shows the key. It fills no request field.
+	Name          string   `json:"name,omitempty"`
 	Steps         int      `json:"steps,omitzero"`
 	GuidanceScale *float32 `json:"guidance_scale,omitempty"`
 	// Guidance is how the guidance varies over the steps (sampling.Guidance), the key Wan's presets use.
@@ -247,10 +254,28 @@ func ModelName(directory string) (string, error) {
 	return catalog.Model, err
 }
 
-// PresetNames are the presets the catalog declares for the model in directory, in order, for a page to offer.
+// PresetNames are the presets the catalog declares for the model in directory, for a page to offer: its workflow's
+// sections in the workflow's order, then the others by key.
 func PresetNames(directory string) ([]string, error) {
 	catalog, err := catalogOf(directory)
-	return slices.Sorted(maps.Keys(catalog.Presets)), err
+	others := slices.DeleteFunc(slices.Sorted(maps.Keys(catalog.Presets)), func(name string) bool { return slices.Contains(catalog.Sections, name) })
+	return append(slices.Clone(catalog.Sections), others...), err
+}
+
+// PresetPlainNames are the plain names the catalog gives the presets of the model in directory, by key, and whether
+// they are its workflow's sections, which a page's form leads with.
+func PresetPlainNames(directory string) (names map[string]string, sectioned bool, err error) {
+	catalog, err := catalogOf(directory)
+	if err != nil {
+		return nil, false, err
+	}
+	names = map[string]string{}
+	for key, preset := range catalog.Presets {
+		if preset.Name != "" {
+			names[key] = preset.Name
+		}
+	}
+	return names, len(catalog.Sections) > 0, nil
 }
 
 // NegativeGuided says the model in directory honours a negative prompt by normalized attention guidance
@@ -317,6 +342,13 @@ var profileCatalog = sync.OnceValues(func() ([]catalogProfile, error) {
 	var catalog []catalogProfile
 	if err := strictjson.DecodeBytes(profileCatalogJSON, &catalog); err != nil {
 		return nil, fmt.Errorf("latent image: decode profile catalog: %w", err)
+	}
+	for _, profile := range catalog {
+		for _, section := range profile.Sections {
+			if _, declared := profile.Presets[section]; !declared {
+				return nil, fmt.Errorf("latent image: %s's section %q is no preset it declares", profile.Pipeline, section)
+			}
+		}
 	}
 	return catalog, nil
 })

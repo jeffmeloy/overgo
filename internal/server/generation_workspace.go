@@ -84,6 +84,9 @@ type workflowControl struct {
 	// Shows are, for each of a choice control's choices, the controls it shows: a control a choice names is shown and
 	// sent only while a choice naming it is chosen (a MOSS prompt mode's fields, moss-prompt-mode).
 	Shows map[string][]string `json:"shows,omitempty"`
+	// Names are the plain names a page offers a choice control's choices by (a MOSS Ultra section's), each its value the
+	// choice; a choice with none is offered as written (moss-page/sections).
+	Names map[string]string `json:"names,omitempty"`
 }
 
 func audioFormatMessage(audio *speechrecognition.InputRequirements) string {
@@ -591,6 +594,11 @@ func validateWorkflowControl(control workflowControl) error {
 	}
 	if control.Audio != nil && (control.Type != workflowControlArtifact || control.Media != "audio" || control.Audio.Format.Validate() != nil || control.Audio.MaximumEncodedBytes == 0 || control.Audio.MaximumSamples == 0) {
 		return fmt.Errorf("workflow workspace: invalid audio input %q", control.Name)
+	}
+	for choice, name := range control.Names {
+		if !slices.Contains(control.Choices, choice) || strings.TrimSpace(name) == "" {
+			return fmt.Errorf("workflow workspace: control %q names its choice %q %q", control.Name, choice, name)
+		}
 	}
 	for choice, settings := range control.Settings {
 		var fields map[string]json.RawMessage

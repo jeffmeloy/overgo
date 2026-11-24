@@ -174,7 +174,8 @@
       return el("select", { class: "text", "aria-label": controlLabel(control) },
         // A field left unset is given the default its control declares where the request is taken in.
         el("option", { value: "", text: control.required ? "select" : control.default ? "default (" + control.default + ")" : "unset", disabled: control.required, selected: true }),
-        ...choices.map((choice) => el("option", { value: choice, text: choice })));
+        // A choice the declaration names plainly (a MOSS Ultra section) is offered by that name, its value the choice.
+        ...choices.map((choice) => el("option", { value: choice, text: (control.names && control.names[choice]) || choice })));
     }
     // A declared bound steps the field by the model's stride. Its default fills a required field and the picture's
     // geometry, which no preset chooses; in a sampling field a request may leave out it is a hint, so a request

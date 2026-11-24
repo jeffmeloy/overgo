@@ -31,47 +31,59 @@
   },
   {
     "default_steps": 50,
+    "sections": ["ultra-text-to-image", "ultra-image-to-image", "ultra-depth-control", "ultra-text-to-image-turbo", "ultra-image-to-image-turbo", "ultra-depth-control-turbo"],
     "presets": {
       "cfg-zero-star": {
+        "name": "CFG-Zero* guidance",
         "guidance": {"zero_steps": 1, "projected": true}
       },
       "comfy-tutorial": {
+        "name": "ComfyUI tutorial settings",
         "steps": 25,
         "guidance_scale": 2.5
       },
       "apg": {
+        "name": "Adaptive projected guidance",
         "guidance": {"adaptive": {"threshold": 40, "momentum": -0.5}}
       },
       "eight-bit-attention": {
+        "name": "8-bit attention",
         "eight_bit_attention": true
       },
       "guidance-interval": {
+        "name": "Guidance interval",
         "guidance": {"interval": {"low": 0.219, "high": 0.844}}
       },
       "ultra-text-to-image": {
+        "name": "Text to image",
         "steps": 50, "guidance_scale": 4, "schedule": {"sampler": "er_sde", "name": "bong_tangent"},
         "canvas": {"aspect": "16:9", "megapixels": 3, "multiple": 32}, "sharpen": {"radius": 1, "sigma": 0.6, "alpha": 0.7}, "backup_negative": true
       },
       "ultra-text-to-image-turbo": {
+        "name": "Text to image (Turbo)",
         "steps": 8, "guidance_scale": 1, "schedule": {"sampler": "er_sde", "name": "bong_tangent"},
         "adapters": [{"name": "8-steps-dmd2-lora", "strength": 1}, {"name": "moss_image_sft", "strength": 1}],
         "canvas": {"aspect": "16:9", "megapixels": 3, "multiple": 32}, "sharpen": {"radius": 1, "sigma": 0.6, "alpha": 0.7}, "backup_negative": true
       },
       "ultra-image-to-image": {
+        "name": "Image to image",
         "steps": 50, "guidance_scale": 4, "schedule": {"sampler": "er_sde", "name": "bong_tangent"},
         "canvas": {"aspect": "16:9", "megapixels": 3, "multiple": 32}, "sharpen": {"radius": 1, "sigma": 0.6, "alpha": 0.7}, "backup_negative": true
       },
       "ultra-image-to-image-turbo": {
+        "name": "Image to image (Turbo)",
         "steps": 8, "guidance_scale": 1, "schedule": {"sampler": "er_sde", "name": "bong_tangent"}, "denoise": 0.72,
         "adapters": [{"name": "8-steps-dmd2-lora", "strength": 1}, {"name": "moss_image_sft", "strength": 1}],
         "canvas": {"aspect": "16:9", "megapixels": 3, "multiple": 32}, "sharpen": {"radius": 1, "sigma": 0.6, "alpha": 0.7}, "backup_negative": true
       },
       "ultra-depth-control": {
+        "name": "Depth control",
         "steps": 50, "guidance_scale": 4, "schedule": {"sampler": "er_sde", "name": "bong_tangent"},
         "adapters": [{"name": "moss-control", "strength": 1}], "skip_blocks": [], "control_end": 0.5,
         "canvas": {"aspect": "16:9", "megapixels": 3, "multiple": 32}, "sharpen": {"radius": 1, "sigma": 0.6, "alpha": 0.7}, "backup_negative": true
       },
       "ultra-depth-control-turbo": {
+        "name": "Depth control (Turbo)",
         "steps": 8, "guidance_scale": 1, "schedule": {"sampler": "er_sde", "name": "bong_tangent"},
         "adapters": [{"name": "moss-control", "strength": 1}, {"name": "8-steps-dmd2-lora", "strength": 1}, {"name": "moss_image_sft", "strength": 1}],
         "skip_blocks": [], "control_end": 0.5,

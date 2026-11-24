@@ -169,7 +169,7 @@ func TestWebUIBrowserMOSSGeneration(t *testing.T) {
 	// Choosing a section's preset shows what it fills (moss-ultra-compare/preset-values), and choosing another returns
 	// what only the first filled to what it held.
 	check(`(() => {
-  const preset=mossField('preset');
+  const preset=mossField('section');
   const choose=(name)=>{preset.value=name;preset.dispatchEvent(new Event('change',{bubbles:true}));};
   choose('ultra-image-to-image-turbo');
   const schedule=document.querySelector('.composer fieldset[data-control="schedule"]').value;

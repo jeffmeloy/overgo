@@ -99,7 +99,7 @@ func TestWebUIBrowserMOSSSectionRequests(t *testing.T) {
     field:(name)=>[...panel.querySelectorAll('label.control')].find(label=>label.querySelector('span').textContent===name).querySelector('input,select,textarea'),
     group:(name)=>panel.querySelector('fieldset[data-control="'+name+'"]'),
     part:(group,name)=>[...bench.group(group).querySelectorAll('label.control')].find(label=>label.querySelector('span').textContent===name).querySelector('input,select,textarea'),
-    choose:(name)=>{const preset=bench.field('preset');preset.value=name;preset.dispatchEvent(new Event('change',{bubbles:true}));},
+    choose:(name)=>{const preset=bench.field('section');preset.value=name;preset.dispatchEvent(new Event('change',{bubbles:true}));},
     status:()=>bench.panel.querySelector('[aria-label="run status"]'),
     button:()=>[...bench.panel.querySelectorAll('button')].find(button=>button.textContent==='Run'),
     run:()=>{bench.panel.querySelectorAll('.workbench-output').forEach(shown=>shown.remove());bench.status().replaceChildren();bench.button().click();},
@@ -152,7 +152,7 @@ func TestWebUIBrowserMOSSSectionRequests(t *testing.T) {
   return true;
 })()`)
 		settle(`bench.ran() || bench.refused()`)
-		check(`bench.ran() || (() => { throw new Error('the run of ' + bench.field('preset').value + ' was refused: ' + bench.status().textContent); })()`)
+		check(`bench.ran() || (() => { throw new Error('the run of ' + bench.field('section').value + ' was refused: ' + bench.status().textContent); })()`)
 		inputs := fixture.requests()
 		if len(inputs) == 0 {
 			t.Fatalf("%s's run reached no session", slug)

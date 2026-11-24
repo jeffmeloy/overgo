@@ -74,6 +74,9 @@ func BindGenerationCatalog[
 		ChoiceSettings() map[string]json.RawMessage
 		// ChoiceShows reports the controls each of a choice control's choices shows, none where they hide nothing.
 		ChoiceShows() map[string][]string
+		// ChoiceNames reports the plain name a page offers each of a choice control's choices by, none where it offers
+		// them as written.
+		ChoiceNames() map[string]string
 	},
 ](
 	catalog map[recipe.Task]Capability,
@@ -94,7 +97,7 @@ func BindGenerationCatalog[
 		for _, control := range declared {
 			name, kind, required, choices := control.Declared()
 			label, media := control.Slot()
-			wire := workflowControl{Name: name, Type: workflowControlType(kind), Required: required, Advanced: control.Secondary(), Choices: choices, Default: control.Defaulted(), With: control.Accompanies(), Label: label, Media: media, Help: control.Guidance(), Role: control.Labelled(), Settings: control.ChoiceSettings(), Shows: control.ChoiceShows()}
+			wire := workflowControl{Name: name, Type: workflowControlType(kind), Required: required, Advanced: control.Secondary(), Choices: choices, Default: control.Defaulted(), With: control.Accompanies(), Label: label, Media: media, Help: control.Guidance(), Role: control.Labelled(), Settings: control.ChoiceSettings(), Shows: control.ChoiceShows(), Names: control.ChoiceNames()}
 			if defaultValue, step, rate, declared := control.Bounded(); declared {
 				wire.Bounds = &workflowControlBounds{Default: defaultValue, Step: step, Rate: rate}
 			}

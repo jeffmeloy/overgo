@@ -89,11 +89,26 @@ func imageControls(directory string, controls []Control) ([]Control, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Each preset the catalog names plainly is offered by that name; a model whose presets are its workflow's sections
+	// offers them as the section, the choice its page leads with, its sections first in the workflow's order.
+	names, sectioned, err := latentimage.PresetPlainNames(directory)
+	if err != nil {
+		return nil, err
+	}
 	for index := range controls {
 		if control := &controls[index]; control.Name == presetControl {
 			control.Settings = make(map[string]json.RawMessage, len(control.Choices))
 			for _, choice := range control.Choices {
 				control.Settings[choice] = settings[choice]
+				if name, named := names[choice]; named {
+					if control.Names == nil {
+						control.Names = map[string]string{}
+					}
+					control.Names[choice] = name
+				}
+			}
+			if sectioned {
+				control.Role = sectionRole
 			}
 		}
 	}

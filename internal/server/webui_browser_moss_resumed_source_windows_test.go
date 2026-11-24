@@ -71,7 +71,7 @@ func TestWebUIBrowserMOSSResumedRunComparesItsRecordedSource(t *testing.T) {
 	settle(`!!document.querySelector('#panel-generation.active fieldset[data-control="control"]')`)
 	check(bench)
 	check(`(() => {
-  const preset=bench.field('preset');
+  const preset=bench.field('section');
   preset.value='ultra-depth-control';
   preset.dispatchEvent(new Event('change',{bubbles:true}));
   bench.set(bench.field('prompt'),'a lighthouse');

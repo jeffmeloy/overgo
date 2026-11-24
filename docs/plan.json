@@ -7,18 +7,6 @@
       "title": "MOSS's Generate page leads with the workflow section by name, shows a run's progress and its result beside the form, takes pictures by choice, and shows only the controls the section runs",
       "steps": [
         {
-          "id": "sections",
-          "title": "The workflow section is the Generate page's first choice, in plain names",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserMOSSSectionIsTheFirstChoice$' -leg moss-section-first",
-          "files": [
-            "internal/server/webui",
-            "internal/server",
-            "internal/mediacapability",
-            "internal/latentimage"
-          ],
-          "rationale": "The owner's review of 2026-11-24, point 1, checked against the code: valid. controlInputs (internal/server/webui/workflow.js) puts every optional advanced control, the preset among them, in one Advanced options disclosure, and a choice control offers its values as written, so the six MOSS Ultra sections appear there as ids (ultra-depth-control-turbo). The change: the section (the preset of a MOSS profile) is the form's first control, outside Advanced options, each offered by a plain name (\"Depth control (Turbo)\"), its value the id. Check: TestWebUIBrowserMOSSSectionIsTheFirstChoice reads the Generate page's first control and its option names."
-        },
-        {
           "id": "result",
           "title": "A run's progress and its picture show beside the form on a wide screen, the Run button in view",
           "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserMOSSRunShowsBesideTheForm$' -leg moss-run-beside",
@@ -84,6 +72,38 @@
             "internal/server"
           ],
           "rationale": "The owner's review of 2026-11-24, point 7, checked against the code: valid in part. Runs, Library and the chat's model selector show identities (recipe:..., output:...) where a name or date belongs; Artifacts draws an image item whole, its alt text its identity, with no thumbnail grid to scan. The change: each list leads with the model's name, the run's date and what it made, and Artifacts shows pictures as a grid of thumbnails, an identity kept in each item's detail. Check: TestWebUIBrowserListsShowNamesAndThumbnails reads each list's first column and the gallery's thumbnails."
+        }
+      ]
+    },
+    {
+      "id": "check-form-reads",
+      "title": "A check is filed as the shell runs it: an assignment of a command's output runs that command, and the literal false, which no work can pass, is refused",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A check is filed as the shell runs it: an assignment of a command's output runs that command, and the literal false, which no work can pass, is refused",
+          "verify": "go test ./cmd/plan ./internal/runrecord -count=1 -run '^(TestACheckNoWorkCanPassIsRefusedWhenFiled|TestAnAssignmentOfACommandsOutputRunsIt)$'",
+          "files": [
+            "cmd/plan",
+            "internal/runrecord"
+          ],
+          "rationale": "SQA-482 and SQA-483, checked against the code at 5f5d4db92: both valid.\n\nSQA-482: verifyRefusal (cmd/plan/main.go) files the literal false, and TestACheckThatCannotRunAsWrittenIsRefusedWhenFiled lists it among the checks a step may take. A step filed with false fails at its commit whatever the work, so measured-names-first/do, contended-credit/do, user-size-inapplicable/do and flash-next-projection/do were each retired and the work landed under another step. The change: verifyRefusal refuses a check that is only false, saying to name the test the change will add (the commit's form stage finds it by go test -list once written).\n\nSQA-483: ParseVerify (internal/runrecord/verify_command.go) splits s=$(go run ./cmd/validate -scorecard) at the parenthesis and refuses the segment s=$ as one that sets an environment and runs nothing, though the shell runs the command it captures. The refusal stands in a plain \u0026\u0026 chain, where an assignment alone exports nothing to the commands after it; in a composite command, which the shell runs whole and which no caller reads for cached credit, a segment of assignments alone is the shell's own form and is kept. The full-measurement/run check written that way was refused at its commit after nine hours of measurement.\n\nCheck: TestACheckNoWorkCanPassIsRefusedWhenFiled files false and is refused; TestAnAssignmentOfACommandsOutputRunsIt parses the original full-measurement/run check as composite, with no error, and still refuses A=1 \u0026\u0026 go test as a plain chain. Neither test exists at the base, so the check fails there."
+        }
+      ]
+    },
+    {
+      "id": "own-record",
+      "title": "A measurement cycle answers with the scorecard it published, so a cycle cut short at a commit another cycle published keeps its cells and files no gaps of the other's",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A measurement cycle answers with the scorecard it published, so a cycle cut short at a commit another cycle published keeps its cells and files no gaps of the other's",
+          "verify": "go test ./cmd/loop -count=1 -run '^TestACycleCutShortAnswersWithNoScorecardItDidNotPublish$'",
+          "files": [
+            "cmd/loop",
+            "internal/loop"
+          ],
+          "rationale": "SQA-474 (as the review wrote it at a25fa2246), checked against the code at 5f5d4db92: valid from source. improvement.Measure (cmd/loop/improve.go) returns the newest scorecard record when its commit is the cycle's, whoever published it; a cycle whose lane fails before it publishes, at a commit an earlier cycle published, so answers with the earlier record. Improve (internal/loop/driver.go) then files that record's gaps and runs Fill, whose deferred removals take cycle_state.json and cycle_credit.json, so the cells this cycle finished are measured again by the next. Not observed: the unattended cycle has not run since the measurements moved to validate -run phases.\n\nThe change: Measure answers with a record only when this cycle's publication ran (the published callback measureScorecard calls); otherwise it returns the lane's error with no record, and the state and credit stay for the resume.\n\nCheck: TestACycleCutShortAnswersWithNoScorecardItDidNotPublish holds a published record at the commit, fails a lane before publication, and finds no record answered, no gaps filed and the credit file kept. It does not exist at the base, so the check fails there."
         }
       ]
     },

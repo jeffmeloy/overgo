@@ -181,7 +181,7 @@
     "docs/image_video_wan.json": "559c811d0a7f10d6ca90c4088805250435d78eb57736a95175e7d86a0c68157a",
     "internal/diffusionimage/frozen_generation_cuda_windows_test.go": "72a2ac71f59d37bb87caa94b14d57f9540b00011eb335febffd785f985165b14",
     "internal/latentvideo/frozen_generation_cuda_windows_test.go": "ab8063dbacb714ffbe46deef83b13912263a3676e26702af1cec514b07f7b63d",
-    "internal/mediacapability/frozen_krea_cuda_windows_test.go": "eb9dded21067ee61960bd56da93c105e0937518c00bf876f3a2a7896a2f14f93",
+    "internal/mediacapability/frozen_krea_cuda_windows_test.go": "b05d92809dcf353ac1816d34519c392fb072b367de7546cc654c07ec55348741",
     "internal/oscillatorimage/frozen_modalities_test.go": "719b816e3d5632fd01df8c9710f4f23614aa76f0be81a826dc4918788e7f1951",
     "internal/sensenovarecipe/frozen_generation_cuda_windows_test.go": "b192d896ea325cadae6ffbfa36b88e45fd475aabb591788bb983ec024566a1ba"
   },

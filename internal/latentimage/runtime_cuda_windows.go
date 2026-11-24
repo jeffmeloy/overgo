@@ -217,12 +217,15 @@ type Generator struct {
 	// adapters, its depth checkpoint) it holds from its load to its close (heldfile.Session.Own, held-release).
 	held func() error
 	// negative is the negative prompt's programs, whose conditioning prepare makes for a guided denoiser (Guide).
-	negative   *promptPrograms
-	schedule   FlowSchedule
-	shape      LatentShape
-	prepared   bool
-	integrated bool
-	completed  bool
+	negative *promptPrograms
+	// qwenImageGrid is the model's catalog entry's declaration that its decoder leaves the Qwen-Image VAE's 2-pixel
+	// grid, which finishedPNGs takes away (krea-degrid).
+	qwenImageGrid bool
+	schedule      FlowSchedule
+	shape         LatentShape
+	prepared      bool
+	integrated    bool
+	completed     bool
 }
 
 // admitPicture refuses a picture whose token activations alone exceed the card.
@@ -366,8 +369,16 @@ func loadGenerator(ctx context.Context, modelDir string, profile Profile, reques
 	if err := profile.validateIdentity(); err != nil {
 		return nil, err
 	}
+	catalog, err := catalogOf(modelDir)
+	if err != nil {
+		return nil, err
+	}
 	if profile.Rotary != nil {
-		return loadRotaryGenerator(ctx, modelDir, profile, request)
+		generator, err := loadRotaryGenerator(ctx, modelDir, profile, request)
+		if err == nil {
+			generator.qwenImageGrid = catalog.QwenImageGrid
+		}
+		return generator, err
 	}
 	if request.rotaryOnly() {
 		return nil, errRotaryOnly
@@ -401,7 +412,7 @@ func loadGenerator(ctx context.Context, modelDir string, profile Profile, reques
 	if err != nil {
 		return nil, err
 	}
-	generator := &Generator{request: request, profile: profile, spec: spec, modelDir: modelDir, tokenizer: tokenizer, shape: shape}
+	generator := &Generator{request: request, profile: profile, spec: spec, modelDir: modelDir, tokenizer: tokenizer, shape: shape, qwenImageGrid: catalog.QwenImageGrid}
 	prompt, err := generator.compilePrompt(request, gridH, gridW)
 	if err != nil {
 		return nil, err
@@ -693,7 +704,7 @@ func (g *Generator) decode(ctx context.Context, session *Generator) (EncodedImag
 	g.completed = true
 	// A flow picture is finished as MOSS's is, sharpened where the request asks, the picture drawn beside it
 	// (finishedPNGs, sharpen-any-model).
-	image, drawn, err := finishedPNGs(pixels, height, width, g.request.Sharpen, true)
+	image, drawn, err := finishedPNGs(pixels, height, width, g.request.Sharpen, true, g.qwenImageGrid)
 	image.Drawn, image.Sharpened = drawn.Data, g.request.Sharpen != nil
 	image.Preset = media.Preset{Width: g.request.Width, Height: g.request.Height, Steps: g.request.Steps, Sampler: "flow Euler",
 		Shift: math.Exp(g.request.DynamicShiftMu)}

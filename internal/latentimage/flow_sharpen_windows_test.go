@@ -29,7 +29,7 @@ func TestAFlowPictureIsSharpenedAsMOSSsIs(t *testing.T) {
 		pixels[index] = float32(0.9 * math.Sin(float64(index)/6.1) * math.Cos(float64(index)/83))
 		unit[index] = (pixels[index] + 1) / 2
 	}
-	finished, drawn, err := finishedPNGs(pixels, height, width, &sharpening, true)
+	finished, drawn, err := finishedPNGs(pixels, height, width, &sharpening, true, false)
 	testcheck.NoError(t, err)
 	plain := testcheck.Must(encodePNG(pixels, height, width))(t)
 	if !bytes.Equal(drawn.Data, plain.Data) {
@@ -39,7 +39,7 @@ func TestAFlowPictureIsSharpenedAsMOSSsIs(t *testing.T) {
 	if want := testcheck.Must(encodeUnitPNG(sharpened, height, width))(t); !bytes.Equal(finished.Data, want.Data) || bytes.Equal(finished.Data, plain.Data) {
 		t.Error("the sharpened flow picture is not its unit pixels sharpened")
 	}
-	unsharpened, none, err := finishedPNGs(pixels, height, width, nil, true)
+	unsharpened, none, err := finishedPNGs(pixels, height, width, nil, true, false)
 	testcheck.NoError(t, err)
 	if !bytes.Equal(unsharpened.Data, plain.Data) || none.Data != nil {
 		t.Error("a flow picture finished with no sharpening is not its picture alone")

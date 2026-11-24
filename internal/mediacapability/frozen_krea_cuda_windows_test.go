@@ -3,10 +3,10 @@
 package mediacapability
 
 import (
-	"bytes"
 	"cmp"
 	"context"
 	"encoding/json"
+	"math"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -157,12 +157,32 @@ func TestFrozenKreaGeneration(t *testing.T) {
 	if !ok {
 		t.Fatal("missing scalar image")
 	}
-	// The picture is held by its pixels, its canonical PNG the frozen one (testutil.CanonicalPNG), whatever level it is
-	// written at (one-png-writer).
+	// The picture is held to the frozen one, written before Krea's decoder grid was finished away (krea-degrid): each
+	// value within the finish's 2-level limit and a rounding of the frozen picture's, its 1-pixel texture within 1% of
+	// it, and its grid gone in flat areas, which the decoder's unrounded output lets the finish take.
 	image, ok := value.Value.(latentimage.EncodedImage)
-	if !ok || image.Width != request.Width || image.Height != request.Height || testutil.CanonicalDigest(t, image.Data) != outputHash ||
-		!bytes.Equal(testutil.CanonicalPNG(t, image.Data), want) {
-		t.Fatal("frozen pixels or geometry changed")
+	if !ok || image.Width != request.Width || image.Height != request.Height {
+		t.Fatal("frozen geometry changed")
+	}
+	frozenPixels, servedPixels := testutil.PNGRGB(t, want), testutil.PNGRGB(t, image.Data)
+	if len(frozenPixels) != len(servedPixels) {
+		t.Fatal("frozen pixels changed")
+	}
+	for index := range frozenPixels {
+		if moved := int(servedPixels[index]) - int(frozenPixels[index]); moved > 3 || moved < -3 {
+			t.Fatalf("a frozen value moved %d levels; want 3 at most, the grid finish's limit and a rounding", moved)
+		}
+	}
+	frozenPlane, servedPlane := testutil.PNGLuminance(t, want), testutil.PNGLuminance(t, image.Data)
+	frozenColumns, frozenRows := testutil.PixelGrid(frozenPlane, true)
+	servedColumns, servedRows := testutil.PixelGrid(servedPlane, true)
+	t.Logf("Krea's frozen picture, flat-block grid: frozen %.3f and %.3f levels, served %.3f and %.3f", frozenColumns, frozenRows, servedColumns, servedRows)
+	// Measured with the finish on the decoder's unrounded output: 0.196 and 0.168 levels frozen, -0.014 and -0.052 served.
+	if math.Abs(servedColumns) > 0.06 || math.Abs(servedRows) > 0.06 {
+		t.Errorf("the served picture keeps a grid of %.3f and %.3f levels in its flat blocks; want under 0.06", servedColumns, servedRows)
+	}
+	if loss := 1 - testutil.PixelSteps(servedPlane)/testutil.PixelSteps(frozenPlane); math.Abs(loss) > 0.01 {
+		t.Errorf("the served picture's 1-pixel texture is %.2f%% from the frozen one's; want within 1%%", 100*loss)
 	}
 	// An empty test store and new runtime require actual stage execution.
 	// The shared PNG encoder rejects non-finite floats before quantization.

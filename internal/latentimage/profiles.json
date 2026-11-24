@@ -20,6 +20,7 @@
       "suffix": "\u003c|im_end|\u003e\n\u003c|im_start|\u003eassistant\n",
       "suffix_tokens": 5
     },
+    "qwen_image_grid": true,
     "scheduler": "FlowMatchEulerDiscreteScheduler",
     "text_encoder": "qwen3_vl",
     "text_encoder_module": "Qwen3VLModel",

@@ -1,28 +1,12 @@
 {
   "advisory_notice": "SQA recommendations for master. Master decides which findings to accept, defer or decline, in what order, and how to address them. The ranking and assessment explain SQA's judgment. Only docs/plan.json directs work.",
   "priority_assessment": [
-    "Master's next committed step is the shared PNG writer. I would keep its whole-lane check and the full measurement in one run as planned (SQA-474). The lead has filed SQA-475 after reporting eight hours lost to an owner wait. I would judge that repair by whether the lead can answer and resume the row. The lead chose to keep triage ahead of an automatic five-to-nine-hour measurement.",
+    "I would keep shared-whole/lanes and full-measurement/run first, on one revision that includes both preflight fixes. The shared PNG writer has landed. The lane check still targets 3fe41bfa0, where a retired model name stopped preflight. Master fixed the list at b2b81e385 and reused the existing OCR suite at fedf6e422. SQA-474 ranks first because even a complete pass on the corrected code cannot satisfy the older target. SQA-478 would make a future bad model list fail before hashing model files.",
     "The latest MOSS run (1bae67d52) took 33.629 s warm against ComfyUI's 34.412 s, and 46.429 s on the first run against 40.176 s. I would use served-parts/do (SQA-471) to locate that 6.253 s first-run gap. SQA-473 identifies 92.5 MiB copied during load and at least 103.9 MiB of host weights kept after the decoder binds. Their cost in seconds is unknown, so I would keep the planned measurement ahead of this change.",
     "I would give SQA-410 first priority among the MOSS checks. The planned floors check can pass while the adapter comparison still performs 248 unnecessary denoiser passes. SQA-467 can use its two existing draws to verify the finished pixels. The own-size timing capture has all 50 progress events, so SQA-477 can be addressed with the reference clock work without holding up the scheduled measurement."
   ],
   "branch": "master",
   "findings": [
-    {
-      "id": "SQA-475",
-      "severity": "P2",
-      "files": [
-        "internal/plan/plan.go",
-        "internal/plan/dispatch.go",
-        "cmd/loop/status.go",
-        "cmd/loop/main.go",
-        "internal/loop/driver.go",
-        "cmd/loophook/main.go",
-        "internal/plan/decision_dispatch_test.go"
-      ],
-      "input": "The last ready item needs a reversible decision about a standing rule. It has a recommendation, the lead has authority to answer, Doctrine is true and OwnersAct is false. The checkout is clean and the owner has issued no stop.",
-      "expected": "Remove the external-owner wait for decisions the lead can make. For doctrine-answer/do, use the existing lead answer path, then dispatch under the recorded choice. Reserve the owner wait for an act only the owner can take. Check that the lead can continue and that a worker still cannot land a row under an unapproved rule change.",
-      "actual": "At 638e0be1a, waitsForOwner groups Doctrine with OwnersAct. Dispatch returns Waiting with no item. Current turns that into a work-ownership wait, the driver ends the run, and the stop hook permits a clean session to exit. Status independently lists the same question as waiting for the owner. TestADoctrineDecisionIsNeverTakenByRecommendation requires the wait. In the capacity-record-history incident the lead reports eight hours idle in the working plan. The landing at 638e0be1a records that the lead chose the existing recommendation and removed the historical source pin. That incident is resolved. The same dispatch outcome remains reachable on the next such decision."
-    },
     {
       "id": "SQA-474",
       "severity": "P2",
@@ -34,11 +18,13 @@
         "cmd/validate/scorecard.go",
         "cmd/validate/readme.go",
         "internal/plan/measurement_run.go",
-        "cmd/loop/run_record_test.go"
+        "cmd/loop/run_record_test.go",
+        "cmd/validate/passed_since.go",
+        "internal/plan/lane_runs.go"
       ],
-      "input": "At revision A, finish a separate whole run for shared-whole/lanes, then start the normal measurement cycle with the same code, store, models and references. For the completion check, let the cycle stop before cells or publication. The live store already has numeric times for all five image models and a prior published scorecard at B has a numeric Un-0 speed row.",
-      "expected": "Use the full lane phase of one measurement run to satisfy shared-whole/lanes. At full-measurement/run, check the requested revision, completed phases and that run's published scorecard before accepting its required image timings and README. Preserve valid cell credit and the checks on external model and reference inputs.",
-      "actual": "Source at 0776b4a53. After a standalone whole pass, measurePhases invokes all five lanes again. The four Go test lanes use -count=1 because their external inputs can change. If the cycle stops before cells, the verifier still reads five numbers from the live store and matches Un-0 in a README rendered independently from the latest published record. Neither check reads the cycle's commit or phases. The Nov 8 run at fdd4ab1ce ended after preflight and lanes. The Nov 14 scorecard names eb197def6 and lacks an Un-0 time. The duplicate invocation and false pass follow from source under the stated inputs. Neither was observed."
+      "input": "At fedf6e422, complete every lane and package at a revision containing both preflight fixes, then measure and publish there. shared-whole/lanes still asks for 3fe41bfa0. Conversely, stop the target cycle before publication when five numeric image times already exist in the store and an earlier published README has an Un-0 speed row.",
+      "expected": "Use one revision that admits the full measurement for shared-whole/lanes and full-measurement/run. Check the completed whole-lane phase, cells and published scorecard for that same run. Keep valid cell and package credit under its existing input checks. A completed lane phase should satisfy both steps without a second standalone sweep.",
+      "actual": "The recorded preflight at 3fe41bfa0 refused the retired Gemma name. The list fix landed at b2b81e385 and the OCR projection-suite fix at fedf6e422. The committed lane verifier still compares every last pass with 3fe41bfa0. Its read-only query found 36 lane and package entries at other revisions or absent. A whole pass at fedf6e422 would still fail the older target. Separately, measurePhases runs all five lanes after a standalone sweep, and the final verifier reads the live scorecard and a README from the latest publication without checking their run or commit. The rejection of a future complete pass and acceptance of stale numbers are source counterexamples."
     },
     {
       "id": "SQA-410",
@@ -124,6 +110,22 @@
       "actual": "At 638e0be1a, ownSizeReading and TestWhereAMossStepsTimeGoes divide elapsed time by the number of event intervals. Dropping one interior event from the own-size recording changes their result from 1.113 to 1.136 s/step for identical work and elapsed time. The intact own-size recording has all 50 events. A separate real Turbo capture shows why gaps matter: node 48 records five events from step 1 to 8 in 519006 microseconds. The two formulas give 129.75 and 74.14 ms/step respectively. Neither timing check ran on that Turbo capture. With one event, the own-size reader checks the count after three draws and the step profiler after five. These outcomes follow from source."
     },
     {
+      "id": "SQA-478",
+      "severity": "P2",
+      "files": [
+        "cmd/validate/main.go",
+        "cmd/validate/scorecard.go",
+        "cmd/validate/bound_records.go",
+        "cmd/validate/cell_credit.go",
+        "cmd/validate/projection_proof.go",
+        "cmd/loop/improve.go",
+        "docs/verification/measured_models.json"
+      ],
+      "input": "Start full measurement preflight with one unregistered name in measured_models.json, a readable catalog and scorecard, and an otherwise runnable model with declared files. Start with the normal measurement binary and an empty digest cache. For the error-order case, also omit a committed projection suite.",
+      "expected": "Once registered model identities are available, run the existing chosenModels check before binding proofs or hashing model inputs. Return the invalid name immediately. Preserve selection of previously unmeasured cells, training results and the modes that bypass the measured-model list. Valid measurements still need their complete input identity.",
+      "actual": "The preflight at 3fe41bfa0 refused gemma-4-12B-it-fp8-native before any cell ran. At fedf6e422, main still binds all registered cells before calling chosenModels. With the stated inputs, groundProjection reads the suite files and consumedFiles hashes declared model bytes on a cache miss. If a suite is absent, its read error wins and the unknown name is never reported. chosenModels resolves names from catalog identities and scorecard names without those bindings. The refusal was observed. The unnecessary I/O and error ordering follow from source. Their elapsed cost was not measured."
+    },
+    {
       "id": "SQA-388",
       "severity": "P2",
       "files": [
@@ -149,20 +151,6 @@
       "input": "After a passing needle-reference run, delete only fixtures/needle_upstream_calls.json and select lanes with -reached. The reader still names the old path. The same case applies to the models lane when only fixtures/moss/checkpoint.json is deleted.",
       "expected": "CycleLanesReached selects the reader of the removed fixture, so the Needle or MOSS check reports the missing input. Use the existing reader lookup for deleted paths, or run the lane when its readers are unknown. Keep the current package selection for edits to existing fixtures.",
       "actual": "Source trace at c71a1e230. The Git diff supplies the deleted path. TrackedDocuments lists only files still present, so documentReaders returns no entry. discover treats the missing entry as zero readers and omits the lane. Both checks fail on the missing file if selected. The retained gate verified selection for edits to both fixtures while they were present."
-    },
-    {
-      "id": "SQA-472",
-      "severity": "P3",
-      "files": [
-        "internal/latentimage/runtime_cuda_windows.go",
-        "internal/latentimage/encoded_image.go",
-        "internal/media/finishing.go",
-        "internal/media/image.go",
-        "internal/latentimage/flow_sharpen_windows_test.go"
-      ],
-      "input": "At the Krea flow decoder's finish, take a 64 by 48 normalized RGB raster with a channel value of 0. Ask for radius 1, sigma 0.6 and alpha 0. Compare that channel in the decoded drawn and finished PNGs.",
-      "expected": "With one-png-writer/do, preserve the existing plain Krea raster. A zero-strength finish should publish the same channel values as the drawn picture. Its finishing metadata may differ.",
-      "actual": "Source counterexample at 0776b4a53. Alpha 0 is admitted and gives an identity kernel. The drawn encoder truncates 127.5 to 127. The finished encoder rounds the same intensity to 128. The two pictures differ before compression. TestAFlowPictureIsSharpenedAsMOSSsIs checks only nonzero strength and computes each expectation with its own encoder."
     },
     {
       "id": "SQA-468",
@@ -260,23 +248,19 @@
     "at": "2026-11-23",
     "head": "7fbcacc4cbdf0baa7bbafdbce6e34495ab1ec29b",
     "findings": {
+  "SQA-478": {
+        "action": "filed",
+        "rows": [
+          "measured-names-first/do"
+        ],
+        "note": "Answered by the lead on 2026-11-23 at fedf6e422: valid from source (main binds every registered cell, reading the projection suites and hashing model bytes on a cache miss, before chosenModels reads the measured list; the refusal at 3fe41bfa0 came about 2 minutes into the preflight). measured-list's check, validate's dry run, now refuses an unknown name when the list changes. Filed as measured-names-first/do, after full-measurement/run (depends_on), since it costs minutes only on a refused run."
+      },
   "SQA-477": {
         "action": "filed",
         "rows": [
           "reference-tools/clock"
         ],
         "note": "Answered by the lead on 2026-11-23 at b096b650c: valid from source (the readers divide elapsed time by event intervals, not by the steps between the first and last event); the intact own-size recording has all 50 events, so no reading so far is wrong, and it costs a wrong reading only on a recording with a gap. Filed with reference-tools/clock, noted there, the reference clock work it belongs to, after the measurement."
-      },
-  "SQA-475": {
-        "action": "filed",
-        "rows": [
-          "doctrine-answer/do"
-        ],
-        "note": "Answered by the lead on 2026-11-23 at 638e0be1a: valid from source and from the 8 hours the lead sat on capacity-record-history (the owner: 'Why can't you determine the best thing to do?'). Filed as doctrine-answer/do, widened by it: dispatch names an unanswered decision that changes a standing rule as the lead's to answer now, with its command, and the stop hook holds the lead's turn to answering it, a typed turn included; the status report lists only an owner's act as waiting for the owner; a worker still cannot land a row under it."
-      },
-  "SQA-476": {
-        "action": "declined",
-        "note": "Answered by the lead on 2026-11-23 at 638e0be1a: valid from source, declined as a rule kept on purpose: a P2 no row names has not been judged, and a measurement of five to nine hours taken before it may be taken again after the fix it brings; the lead answers each P2 at its next landing (the dispatch line lists them), so the wait lasts one triage. The measurement now scheduled is a plan row (full-measurement/run), which the rule does not hold."
       },
   "SQA-474": {
         "action": "filed",
@@ -366,7 +350,7 @@
       }
 }
   },
-  "next_finding_number": 478,
+  "next_finding_number": 479,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

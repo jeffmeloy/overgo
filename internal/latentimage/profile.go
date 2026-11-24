@@ -110,6 +110,10 @@ type catalogProfile struct {
 	// prompt works on it as on a guided model, with no preset to pick (common-controls/negative). No part of a recipe's
 	// profile: a request without a negative prompt draws as the authors' recipe does.
 	NegativeGuidance *sampling.NormalizedAttention `json:"negative_guidance,omitempty"`
+	// QwenImageGrid says the model's decoder is one that leaves the Qwen-Image VAE's 2-pixel grid, which the picture's
+	// finish takes away before the picture drawn and the one sharpened are written (media.RemoveQwenImageGrid,
+	// finishedPNGs, krea-degrid); absent, it leaves none. No part of a recipe's profile, so stating it moves no recipe.
+	QwenImageGrid bool `json:"qwen_image_grid,omitzero"`
 }
 
 type schedulerProfile struct {

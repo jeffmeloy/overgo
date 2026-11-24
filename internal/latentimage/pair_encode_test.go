@@ -22,7 +22,7 @@ func TestASharpenedPairIsEncodedTogether(t *testing.T) {
 		pixels[index] = float32(0.5 + 0.45*math.Sin(float64(index)/7.3)*math.Cos(float64(index)/131))
 	}
 	sharpening := media.Sharpening{Radius: 1, Sigma: 0.6, Alpha: 0.7}
-	finished, drawn, err := finishedPNGs(pixels, height, width, &sharpening, false)
+	finished, drawn, err := finishedPNGs(pixels, height, width, &sharpening, false, false)
 	testcheck.NoError(t, err)
 	alone := testcheck.Must(encodeUnitPNG(pixels, height, width))(t)
 	sharpened := testcheck.Must(media.Sharpen(pixels, height, width, sharpening))(t)
@@ -33,7 +33,7 @@ func TestASharpenedPairIsEncodedTogether(t *testing.T) {
 	if !bytes.Equal(finished.Data, sharpenedAlone.Data) || bytes.Equal(finished.Data, alone.Data) {
 		t.Errorf("the sharpened picture's PNG encoded beside the drawn one is not the PNG it encodes alone")
 	}
-	plain, none, err := finishedPNGs(pixels, height, width, nil, false)
+	plain, none, err := finishedPNGs(pixels, height, width, nil, false, false)
 	testcheck.NoError(t, err)
 	if !bytes.Equal(plain.Data, alone.Data) || none.Data != nil {
 		t.Errorf("a picture finished with no sharpening gave %d bytes and a drawn PNG of %d; want its PNG alone", len(plain.Data), len(none.Data))

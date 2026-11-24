@@ -99,8 +99,24 @@ func encodeUnitPNG(pixels []float32, height, width int) (EncodedImage, error) {
 // had added that to each of the workflow's six sections, every one of which sharpens. normalized says the pixels are a
 // flow profile's (Krea's), in [-1, 1] and written by its own quantizer (encodePNG), else a rotary profile's (MOSS's),
 // in [0, 1]: the picture as drawn is written as its profile writes it unsharpened, and the sharpening reads its unit
-// form, as ComfyUI's ImageSharpen does (sharpen-any-model).
-func finishedPNGs(pixels []float32, height, width int, sharpen *media.Sharpening, normalized bool) (finished, drawn EncodedImage, err error) {
+// form, as ComfyUI's ImageSharpen does (sharpen-any-model). qwenImageGrid says the model's catalog entry declares its
+// decoder's 2-pixel grid (catalogProfile.QwenImageGrid): the grid is taken from the picture's unit form before the
+// picture drawn and the one sharpened are written, both then by the unit quantizer, so a sharpening of no strength
+// writes the drawn picture's values (krea-degrid, SQA-472).
+func finishedPNGs(pixels []float32, height, width int, sharpen *media.Sharpening, normalized, qwenImageGrid bool) (finished, drawn EncodedImage, err error) {
+	if qwenImageGrid {
+		unit := pixels
+		if normalized {
+			unit = make([]float32, len(pixels))
+			for index, value := range pixels {
+				unit[index] = (value + 1) / 2
+			}
+		}
+		if pixels, err = media.RemoveQwenImageGrid(unit, height, width); err != nil {
+			return EncodedImage{}, EncodedImage{}, err
+		}
+		normalized = false
+	}
 	asDrawn := encodeUnitPNG
 	if normalized {
 		asDrawn = encodePNG

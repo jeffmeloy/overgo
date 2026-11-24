@@ -314,6 +314,8 @@ input.text:focus, select.text:focus, textarea.text:focus { border-color:var(--ac
 .preset-chips { display:flex; flex-wrap:wrap; gap:var(--s1); grid-column:1 / -1; }
 /* The tuning behind the disclosure takes the form's whole width, so a setting set part by part there has room. */
 .control-grid > .advanced-controls { grid-column:1 / -1; }
+/* A group of tuning behind the disclosure (a MOSS request's sampling) stands apart, its controls packed as the form's. */
+.advanced-group { margin:var(--s2) 0; }
 /* Saved presets read as one row across the form: the list, a name for the next one, and its save. */
 .presets { grid-column:1 / -1; flex-wrap:nowrap; }
 .presets .text { width:auto; flex:0 1 16rem; min-width:0; }

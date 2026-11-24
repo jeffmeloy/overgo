@@ -95,6 +95,11 @@ func imageControls(directory string, controls []Control) ([]Control, error) {
 	if err != nil {
 		return nil, err
 	}
+	// A section shows the fields it runs that another does not, and hides those it does not run (moss-page/groups).
+	shows, err := latentimage.SectionShows(directory)
+	if err != nil {
+		return nil, err
+	}
 	for index := range controls {
 		if control := &controls[index]; control.Name == presetControl {
 			control.Settings = make(map[string]json.RawMessage, len(control.Choices))
@@ -109,6 +114,12 @@ func imageControls(directory string, controls []Control) ([]Control, error) {
 			}
 			if sectioned {
 				control.Role = sectionRole
+				control.Shows = map[string][]string{}
+				for _, choice := range control.Choices {
+					if fields, section := shows[choice]; section {
+						control.Shows[choice] = fields
+					}
+				}
 			}
 		}
 	}

@@ -46,7 +46,7 @@ func TestWebUIBrowserMOSSSharpenedPair(t *testing.T) {
   const panel=document.querySelector('#panel-generation');
   window.bench={
     panel,
-    field:(name)=>[...panel.querySelectorAll('label.control')].find(label=>label.querySelector('span').textContent===name).querySelector('input,select,textarea'),
+    field:(name)=>[...panel.querySelectorAll('label.control')].find(label=>label.querySelector('span').textContent===name && !label.closest('fieldset[data-control]')).querySelector('input,select,textarea'),
     button:()=>[...panel.querySelectorAll('button')].find(button=>button.textContent==='Run'),
   };
   const set=(field,value)=>{field.value=value;field.dispatchEvent(new Event('input',{bubbles:true}));};

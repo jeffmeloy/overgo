@@ -36,13 +36,13 @@ const activationBytes = 4
 
 type Request struct {
 	Prompt            string     `json:"prompt" role:"prompt"`
-	PromptMode        PromptMode `json:"prompt_mode,omitempty"`
+	PromptMode        PromptMode `json:"prompt_mode,omitempty" group:"prompt"`
 	NegativePrompt    string     `json:"negative_prompt,omitempty" role:"negative prompt"`
-	GuidanceScale     *float32   `json:"guidance_scale,omitempty" role:"guidance"`
+	GuidanceScale     *float32   `json:"guidance_scale,omitempty" role:"guidance" group:"sampling"`
 	Width             int        `json:"width" role:"width"`
 	Height            int        `json:"height" role:"height"`
-	Steps             int        `json:"steps,omitzero" role:"steps"`
-	Seed              int64      `json:"seed" role:"seed"`
+	Steps             int        `json:"steps,omitzero" role:"steps" group:"sampling"`
+	Seed              int64      `json:"seed" role:"seed" group:"sampling"`
 	DynamicShiftMu    float64    `json:"mu,omitzero"`
 	NumTrainTimesteps int        `json:"num_train_timesteps,omitzero"`
 	// Guidance is how the guidance varies over the steps (sampling.Guider.At), which a rotary profile alone runs.
@@ -54,7 +54,7 @@ type Request struct {
 	EightBitAttention bool `json:"-"`
 	// Schedule is the sigmas a rotary profile (MOSS) samples by in place of its own: a scheduler by name (bong_tangent,
 	// beta57) or a list of the request's own, as ComfyUI's KSampler takes them.
-	Schedule *sampling.Schedule `json:"schedule,omitempty" controls:"fields"`
+	Schedule *sampling.Schedule `json:"schedule,omitempty" controls:"fields" group:"sampling"`
 	// Canvas sizes the picture from an aspect ratio and megapixels, as ComfyUI's ResolutionSelector does, in place of a
 	// width and height the request then leaves unset.
 	Canvas *media.Canvas `json:"canvas,omitempty" controls:"fields"`
@@ -79,7 +79,7 @@ type Request struct {
 	// drawn for int(steps / denoise) steps and its last steps + 1 sigmas kept (cutSchedule), and the sampling starts
 	// from σ₀ times the noise plus 1 − σ₀ times the picture's latent, or none. 0 where the request states none, 1 in
 	// effect, and above 0.9999 the whole schedule, as ComfyUI rounds it.
-	Denoise float64 `json:"denoise,omitzero"`
+	Denoise float64 `json:"denoise,omitzero" group:"starting picture"`
 	// Control is a depth map a rotary request samples by, through the control adapter it names (DepthControl).
 	Control *DepthControl `json:"control,omitempty" controls:"fields" label:"depth control"`
 	// SkipBlocks are the blocks a rotary profile's negative pass skips, as ComfyUI's SkipLayerGuidanceDiTSimple names

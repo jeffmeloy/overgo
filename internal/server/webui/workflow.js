@@ -134,21 +134,33 @@
     const el = window.overgo.el;
     const fields = new Map();
     const advanced = el("details", { class: "advanced-controls" }, el("summary", { text: "Advanced options" }));
+    // A group of tuning behind the disclosure (a MOSS request's sampling) is a part of it of its own, made where its
+    // first control stands (moss-page/groups).
+    const groups = new Map();
+    const groupOf = (name) => {
+      if (!groups.has(name)) {
+        const grid = el("div", { class: "control-grid" });
+        advanced.appendChild(el("fieldset", { class: "control-group advanced-group", "data-group": name }, el("legend", { text: name }), grid));
+        groups.set(name, grid);
+      }
+      return groups.get(name);
+    };
     host.replaceChildren();
     for (const control of controls || []) {
       const input = controlInput(control);
       fields.set(control.name, { control, input });
       const slot = artifactSlot(control, input);
-      const target = !nested && control.advanced && !control.required ? advanced : host;
+      let target = host;
+      if (!nested && control.advanced && !control.required) target = control.group ? groupOf(control.group) : advanced;
       target.appendChild(setPartByPart(control) ? input : el("label", { class: "control" }, el("span", { text: controlLabel(control) }), input, slot));
       if (control.help) target.appendChild(el('details', { class: 'control-help' }, el('summary', { text: 'About ' + controlLabel(control) }), el('p', { class: 'note', text: control.help })));
     }
     if (nested) return fields;
-    choiceShows(fields);
-    presetSettings(fields);
     const chips = presetChips(fields);
     if (chips) host.appendChild(chips);
     if (advanced.children.length > 1) host.appendChild(advanced);
+    choiceShows(fields, host);
+    presetSettings(fields);
     // A canvas of boxes takes the picture's shape, its width and height as set or as declared, as they change.
     const width = fields.get("width"), height = fields.get("height");
     const canvases = [...host.querySelectorAll(".box-canvas")];
@@ -214,8 +226,9 @@
   // choiceShows: a choice control that declares the controls each of its choices shows (a MOSS prompt mode: the prompt
   // and negative as written or enhanced, the layout for the builder) shows the chosen one's alone, its declared default
   // where none is chosen; a control hidden so is not sent (controlValues), so the request is the chosen mode's
-  // (moss-prompt-mode).
-  function choiceShows(fields) {
+  // (moss-prompt-mode). A MOSS section shows the fields it runs that another does not alike (moss-page/groups), and a
+  // group of tuning shows while a control in it does.
+  function choiceShows(fields, host) {
     for (const [, field] of fields) {
       const shows = field.control.shows;
       if (!shows) continue;
@@ -226,12 +239,29 @@
           const other = fields.get(name);
           if (!other) continue;
           other.hidden = !!shown && !shown.includes(name);
-          (other.input.closest("label.control") || other.input).hidden = other.hidden;
+          controlElement(other).hidden = other.hidden;
+        }
+        if (shown) takePlaces(shown.map((name) => fields.get(name)).filter(Boolean), [...governed].map((name) => fields.get(name)).filter((other) => other && other.hidden));
+        for (const group of host.querySelectorAll(".advanced-group")) {
+          group.hidden = ![...group.querySelector(".control-grid").children].some((part) => !part.hidden && !part.matches(".control-help"));
         }
       };
       field.input.addEventListener("change", apply);
       field.input.addEventListener("input", apply);
       apply();
+    }
+  }
+
+  // controlElement: what a control stands as in the form, its label or its group.
+  const controlElement = (field) => field.input.closest("label.control") || field.input;
+
+  // takePlaces: a field a choice shows from behind the disclosure, in place of one the choice hides from the form, takes
+  // that one's place: the builder's layout where the prompt was, a depth section's control where the picture was.
+  function takePlaces(shown, hidden) {
+    const replaced = hidden.find((field) => !controlElement(field).closest(".advanced-controls"));
+    if (!replaced) return;
+    for (const field of shown) {
+      if (controlElement(field).closest(".advanced-controls")) controlElement(replaced).before(controlElement(field));
     }
   }
 

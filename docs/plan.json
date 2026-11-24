@@ -7,18 +7,6 @@
       "title": "MOSS's Generate page leads with the workflow section by name, shows a run's progress and its result beside the form, takes pictures by choice, and shows only the controls the section runs",
       "steps": [
         {
-          "id": "groups",
-          "title": "Advanced options are grouped and show only the groups the chosen section runs, and builder mode puts the layout where the prompt was",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserMOSSShowsOnlyTheControlsTheSectionRuns$' -leg moss-section-controls",
-          "files": [
-            "internal/server/webui",
-            "internal/server",
-            "internal/mediacapability",
-            "internal/latentimage"
-          ],
-          "rationale": "The owner's review of 2026-11-24, point 4, checked against the code: valid. Advanced options is one list of every optional control (about 25 for MOSS); choiceShows already shows a control only under the prompt mode it belongs to. The change: the advanced controls are grouped (sampling, schedule, adapters, control, canvas, finishing), each group shown only when the chosen section runs it, as choiceShows does; in builder mode the layout takes the prompt's place. Check: TestWebUIBrowserMOSSShowsOnlyTheControlsTheSectionRuns picks each section and reads the groups shown, and in builder mode finds the layout where the prompt was."
-        },
-        {
           "id": "faults",
           "title": "MOSS's controls are named and typed as they are set: one-line aspect, a named scheduler, defaults shown, one Preset, a depth preview only with a depth picture",
           "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserMOSSControlsReadAsTheyAreSet$' -leg moss-control-faults",

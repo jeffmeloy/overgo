@@ -65,7 +65,13 @@ type Control struct {
 	// Names are the plain names a page offers a choice control's choices by (a MOSS Ultra section's, "Depth control
 	// (Turbo)"), each its value the choice; a choice with none is offered as written (moss-page/sections).
 	Names map[string]string
+	// Group is the group of tuning a page shows the control in behind its disclosure (the field's group tag: a MOSS
+	// request's steps, seed, guidance and schedule are its sampling), none where it stands alone (moss-page/groups).
+	Group string
 }
+
+// Grouped reports the group of tuning a page shows the control in, none where it stands alone.
+func (control Control) Grouped() string { return control.Group }
 
 // ChoiceShows reports the controls each of the control's choices shows, none where its choices hide nothing.
 func (control Control) ChoiceShows() map[string][]string { return control.Shows }
@@ -315,7 +321,7 @@ func describe(request reflect.Type) ([]Control, string) {
 			continue
 		}
 		optional := strings.Contains(options, "omitzero") || strings.Contains(options, "omitempty")
-		control := Control{Name: name, With: field.Tag.Get("with"), Role: field.Tag.Get("role")}
+		control := Control{Name: name, With: field.Tag.Get("with"), Role: field.Tag.Get("role"), Group: field.Tag.Get("group")}
 		// An artifact id names something the store holds (a clip a page
 		// attaches), which a page fills from a media card rather than types;
 		// so does a field of media a request may carry as its bytes, which a

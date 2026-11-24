@@ -131,7 +131,7 @@ func TestTheWorkbenchOffersTheUltraPresets(t *testing.T) {
   const panel=document.querySelector('#panel-generation');
   window.bench={
     panel,
-    field:(name)=>[...panel.querySelectorAll('label.control')].find(label=>label.querySelector('span').textContent===name).querySelector('input,select,textarea'),
+    field:(name)=>[...panel.querySelectorAll('label.control')].find(label=>label.querySelector('span').textContent===name && !label.closest('fieldset[data-control]')).querySelector('input,select,textarea'),
     group:(name)=>panel.querySelector('fieldset[data-control="'+name+'"]'),
     choose:(name)=>{const preset=bench.field('section');preset.value=name;preset.dispatchEvent(new Event('change',{bubbles:true}));},
   };

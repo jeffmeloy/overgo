@@ -87,6 +87,9 @@ type workflowControl struct {
 	// Names are the plain names a page offers a choice control's choices by (a MOSS Ultra section's), each its value the
 	// choice; a choice with none is offered as written (moss-page/sections).
 	Names map[string]string `json:"names,omitempty"`
+	// Group is the group of tuning a page shows the control in behind its disclosure (a MOSS request's sampling), none
+	// where it stands alone (moss-page/groups).
+	Group string `json:"group,omitzero"`
 }
 
 func audioFormatMessage(audio *speechrecognition.InputRequirements) string {

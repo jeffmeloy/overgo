@@ -1,12 +1,27 @@
 {
   "advisory_notice": "All SQA findings, rankings and assessments are recommendations. Master decides whether, when and how to act through docs/plan.json.",
   "priority_assessment": [
-    "Master has put the seven MOSS page steps first, starting with moss-page/sections. I would keep that order and cover SQA-485 in moss-page/groups. A saved builder request loses its layout on reload. Comparing the submitted request with the original in the existing browser check would catch the fault before a GPU draw.",
-    "After the page work, I would keep lanes-rotation/do ahead of longer GPU checks so packages skipped by a yield get a turn. Within card-checks-sound I would take floors first (SQA-410). The adapter comparison runs eight changed-input draws whose results do not affect its verdict, totaling 248 denoiser passes. That is a source count. The time saved has yet to be measured.",
-    "The last comparable six-section run at 1bae67d52 took 46.429 s cold against ComfyUI's 40.176 s and 33.629 s warm against 34.412 s. I would use served-parts/do (SQA-471) to locate the 6.253 s cold gap before changing decoder memory ownership. With no false checks left in the committed plan, the lead's proposed combined fix for SQA-482 and SQA-483 can follow the page work. I would address SQA-474 before resuming another interrupted measurement cycle."
+    "Master has landed the section chooser and result display. I would keep moss-page/pictures next and address SQA-486 in the current page work: with two active MOSS draws, reloading one tab can make its Cancel button stop the other draw. The existing resumed-source browser check can distinguish the two operation IDs without running a model. I would keep SQA-485 with moss-page/groups, where a restored builder layout should reach the submitted request.",
+    "After the page work, I agree with keeping the two verifier fixes in check-form-reads/do and with handling SQA-474 in own-record/do before the next interrupted cycle is resumed. I would keep lanes-rotation/do ahead of the long GPU checks, then take card-checks-sound/floors before sharpened. SQA-410 identifies eight unused control draws totaling 248 denoiser passes per adapter comparison. That is a source count. The wall-time saving is unmeasured.",
+    "The last comparable six-section run at 1bae67d52 took 46.429 s cold against ComfyUI's 40.176 s, and 33.629 s warm against 34.412 s. I would use served-parts/do (SQA-471) to locate the 6.253 s cold gap before changing decoder memory ownership."
   ],
   "branch": "master",
   "findings": [
+    {
+      "id": "SQA-486",
+      "severity": "P2",
+      "files": [
+        "internal/server/webui/workflow.js",
+        "internal/server/webui/boot.js",
+        "internal/server/generation_workspace.go",
+        "internal/server/runtime_activity.go",
+        "internal/operation/runtime.go",
+        "internal/server/webui_browser_moss_resumed_source_windows_test.go"
+      ],
+      "input": "Open two Generate tabs before either submits. Start MOSS draw A in the first tab and draw B with a different seed in the second. Reload the second tab after B is accepted while both operations are still active. Press Cancel there.",
+      "expected": "The reloaded tab should use B's accepted operation ID to show progress, display B's result or cancel B. Retain the existing single-match recovery for a page that has no saved ID. If multiple operations match and the page has no ID, let the user choose before enabling Cancel. The existing resumed-source check can use two held operations and verify which ID is cancelled.",
+      "actual": "Source counterexample at 88c59effc. The server returns a distinct operation ID for each draw. Generate keeps it only in the page's follow closure. On reload, liveOperation takes the first active operation whose recipe appears anywhere in the tab's capability list. Manager.List returns A before B in submission order. follow(A) then binds progress, result and Cancel to A. Pressing Cancel calls /operations/cancel with A's ID while B continues. The resumed-source browser check holds one operation. No wrong cancellation was observed in a run."
+    },
     {
       "id": "SQA-485",
       "severity": "P2",
@@ -271,13 +286,6 @@
     "at": "2026-11-24",
     "head": "5f5d4db92a753cb77473ff88db32e8ff38a02ba5",
     "findings": {
-      "SQA-481": {
-        "action": "implemented",
-        "rows": [
-          "contended-credit/settle"
-        ],
-        "note": "Answered by the lead on 2026-11-24 at 5f5d4db92: implemented at a25fa2246 (contended-credit/settle). executeMeasured no longer settles a cell whose two timings were both set aside as contended: it is listed apart, earns no credit, and a resumed cycle measures it again. TestAContendedCellIsMeasuredOnceMoreAfterTheOthers runs the finding's input with a persistent credit file and finds the twice-contended cell uncredited, the others credited."
-      },
       "SQA-477": {
         "action": "filed",
         "rows": [
@@ -383,15 +391,10 @@
           "check-form-reads/do"
         ],
         "note": "Answered by the lead on 2026-11-24 at 5f5d4db92: valid from source (ParseVerify refuses the segment s=$ that the shell runs as an assignment of a command's output). Filed as check-form-reads/do after moss-page: in a composite command, which the shell runs whole and no caller credits from cache, a segment of assignments alone is kept; in a plain && chain it is still refused, as there it exports nothing to the commands after it."
-      },
-      "SQA-484": {
-        "action": "declined",
-        "rows": [],
-        "note": "Answered by the lead on 2026-11-24 at 5f5d4db92: valid as described, declined. Both refusals name their one-edit fix (lowerCeilings: lower them there; TestIdempotentCommitHasOneOwner: lower noChangeTests), and lowerCeilings refuses to write over a held change by design (SQA-399). Neither is a served defect nor a check that passes without checking, so by the agreed severity rule it is a P3, and it cost one refusal (speech-hold/do) in the record."
       }
     }
   },
-  "next_finding_number": 486,
+  "next_finding_number": 487,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

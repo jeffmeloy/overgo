@@ -50,6 +50,17 @@ func TestMOSSImageGenerationContract(t *testing.T) {
 		len(section.Names) != len(section.Choices) || section.Names["comfy-tutorial"] != "ComfyUI tutorial settings" {
 		t.Fatal("MOSS's page does not lead with its section", controls[0])
 	}
+	// Each section shows the fields it runs that another does not, a text to image section none, and the sampling is a
+	// group of its own (moss-page/groups).
+	if shows := controls[0].Shows; shows["ultra-text-to-image"] == nil || len(shows["ultra-text-to-image"]) != 0 ||
+		!slices.Equal(shows["ultra-image-to-image-turbo"], []string{"image", "denoise"}) || !slices.Equal(shows["ultra-depth-control"], []string{"control"}) || shows["comfy-tutorial"] != nil {
+		t.Fatal("MOSS's sections show other than the fields they run", shows)
+	}
+	for _, name := range []string{"steps", "seed", "guidance_scale", "schedule"} {
+		if held[name].Group != "sampling" {
+			t.Errorf("MOSS's %s is in the group %q; want its sampling", name, held[name].Group)
+		}
+	}
 	for index, preset := range mossSectionPresets {
 		if held["preset"].Names[preset] != mossSectionNames[index] {
 			t.Errorf("the section %s is offered as %q; want %q", preset, held["preset"].Names[preset], mossSectionNames[index])

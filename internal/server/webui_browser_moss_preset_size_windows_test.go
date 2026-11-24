@@ -72,7 +72,7 @@ func TestWebUIBrowserMOSSPresetGivesBackTheSizeSetByHand(t *testing.T) {
   const panel=document.querySelector('#panel-generation');
   window.bench={
     panel,
-    field:(name)=>[...panel.querySelectorAll('label.control')].find(label=>label.querySelector('span').textContent===name).querySelector('input,select,textarea'),
+    field:(name)=>[...panel.querySelectorAll('label.control')].find(label=>label.querySelector('span').textContent===name && !label.closest('fieldset[data-control]')).querySelector('input,select,textarea'),
     choose:(name)=>{const preset=bench.field('section');preset.value=name;preset.dispatchEvent(new Event('change',{bubbles:true}));},
     set:(name,value)=>{const field=bench.field(name);field.value=value;field.dispatchEvent(new Event('input',{bubbles:true}));},
     size:()=>bench.field('width').value+' by '+bench.field('height').value,

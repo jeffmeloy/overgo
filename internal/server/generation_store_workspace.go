@@ -77,6 +77,8 @@ func BindGenerationCatalog[
 		// ChoiceNames reports the plain name a page offers each of a choice control's choices by, none where it offers
 		// them as written.
 		ChoiceNames() map[string]string
+		// Grouped reports the group of tuning a page shows the control in, none where it stands alone.
+		Grouped() string
 	},
 ](
 	catalog map[recipe.Task]Capability,
@@ -97,7 +99,7 @@ func BindGenerationCatalog[
 		for _, control := range declared {
 			name, kind, required, choices := control.Declared()
 			label, media := control.Slot()
-			wire := workflowControl{Name: name, Type: workflowControlType(kind), Required: required, Advanced: control.Secondary(), Choices: choices, Default: control.Defaulted(), With: control.Accompanies(), Label: label, Media: media, Help: control.Guidance(), Role: control.Labelled(), Settings: control.ChoiceSettings(), Shows: control.ChoiceShows(), Names: control.ChoiceNames()}
+			wire := workflowControl{Name: name, Type: workflowControlType(kind), Required: required, Advanced: control.Secondary(), Choices: choices, Default: control.Defaulted(), With: control.Accompanies(), Label: label, Media: media, Help: control.Guidance(), Role: control.Labelled(), Settings: control.ChoiceSettings(), Shows: control.ChoiceShows(), Names: control.ChoiceNames(), Group: control.Grouped()}
 			if defaultValue, step, rate, declared := control.Bounded(); declared {
 				wire.Bounds = &workflowControlBounds{Default: defaultValue, Step: step, Rate: rate}
 			}

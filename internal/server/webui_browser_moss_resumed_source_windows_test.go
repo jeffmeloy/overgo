@@ -57,7 +57,7 @@ func TestWebUIBrowserMOSSResumedRunComparesItsRecordedSource(t *testing.T) {
   const panel=document.querySelector('#panel-generation');
   window.bench={
     panel,
-    field:(name)=>[...panel.querySelectorAll('label.control')].find(label=>label.querySelector('span').textContent===name).querySelector('input,select,textarea'),
+    field:(name)=>[...panel.querySelectorAll('label.control')].find(label=>label.querySelector('span').textContent===name && !label.closest('fieldset[data-control]')).querySelector('input,select,textarea'),
     part:(group,name)=>[...panel.querySelector('fieldset[data-control="'+group+'"]').querySelectorAll('label.control')].find(label=>label.querySelector('span').textContent===name).querySelector('input,select,textarea'),
     set:(field,value)=>{field.value=value;field.dispatchEvent(new Event('input',{bubbles:true}));},
     status:()=>panel.querySelector('[aria-label="run status"]'),

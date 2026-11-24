@@ -215,7 +215,11 @@ func PersonSize(directory string) (int, error) {
 type imagePreset struct {
 	// Name is the plain name a page offers the preset by ("Depth control (Turbo)"), the request naming it by its key;
 	// none where a page shows the key. It fills no request field.
-	Name          string   `json:"name,omitempty"`
+	Name string `json:"name,omitempty"`
+	// Shows are, for a section of the model's workflow, the request's fields it runs that another section does not (an
+	// image to image section's picture and denoise, a depth section's control), which a page shows only while it is
+	// chosen (moss-page/groups). It fills no request field.
+	Shows         []string `json:"shows,omitempty"`
 	Steps         int      `json:"steps,omitzero"`
 	GuidanceScale *float32 `json:"guidance_scale,omitempty"`
 	// Guidance is how the guidance varies over the steps (sampling.Guidance), the key Wan's presets use.
@@ -276,6 +280,21 @@ func PresetPlainNames(directory string) (names map[string]string, sectioned bool
 		}
 	}
 	return names, len(catalog.Sections) > 0, nil
+}
+
+// SectionShows are, for each section of the workflow of the model in directory, the request's fields it runs that
+// another section does not, none for a section that runs only what every section runs; nothing for a model with no
+// sections.
+func SectionShows(directory string) (map[string][]string, error) {
+	catalog, err := catalogOf(directory)
+	if err != nil {
+		return nil, err
+	}
+	shows := make(map[string][]string, len(catalog.Sections))
+	for _, section := range catalog.Sections {
+		shows[section] = append([]string{}, catalog.Presets[section].Shows...)
+	}
+	return shows, nil
 }
 
 // NegativeGuided says the model in directory honours a negative prompt by normalized attention guidance

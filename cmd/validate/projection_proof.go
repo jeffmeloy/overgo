@@ -43,7 +43,10 @@ const (
 // projectionSuites are the committed exact projection suites, each byte for
 // byte the suite an exact verification of its recipe ran, with the media its
 // cases name beside it.
-var projectionSuites = []string{"docs/verification/fixtures/qwen27/suite.json"}
+var projectionSuites = []string{
+	"docs/verification/fixtures/qwen27/suite.json", "docs/verification/fixtures/unlimited-ocr/suite.json",
+	"docs/verification/fixtures/gemma-4-12b/suite.json",
+}
 
 // protocolProducer runs the E4B serving producer alone.
 var protocolProducer = []string{"test", "./internal/server", "-run", "^TestE4BHTTPModalities$", "-count=1"}

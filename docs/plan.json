@@ -9,7 +9,7 @@
         {
           "id": "run",
           "title": "The full measurement run measures every model's scorecard row at the slow run's commit, every image model's first output among them, and the README's tables are written from it",
-          "verify": "s=$(go run ./cmd/validate -scorecard) \u0026\u0026 for m in Krea-2-Turbo SenseNova-U1-8B-MoT-Infographic-V3 SimpleDiffusion-TensorProductAttentionRope Un-0 MOSS-Image-SFT-797fa8e678b4f; do printf '%s\\n' \"$s\" | grep -qE \"^\\| $m \\| image-gen \\| [0-9]\" || exit 1; done \u0026\u0026 go run ./cmd/validate -readme \u0026\u0026 grep -qE '^\\| Un-0 \\| [0-9]' README.md",
+          "verify": "go run ./cmd/validate -scorecard | grep -oE '^\\| (Krea-2-Turbo|SenseNova-U1-8B-MoT-Infographic-V3|SimpleDiffusion-TensorProductAttentionRope|Un-0|MOSS-Image-SFT-797fa8e678b4f) \\| image-gen \\| [0-9]' | sort -u | wc -l | grep -qx 5 \u0026\u0026 go run ./cmd/validate -readme \u0026\u0026 grep -qE '^\\| Un-0 \\| [0-9]' README.md",
           "files": [
             "README.md",
             "docs/plan.json",
@@ -53,6 +53,45 @@
             "cmd/validate"
           ],
           "rationale": "SQA-481 (P2), valid from source at b2de74cef: measureCell sets aside a serving attempt timed beside another build, and on the second, executeMeasured logs that the earlier times stand and settles the cell as acquired, writing its credit key; a resumed cycle then skips it, though it took no usable timing, and the scorecard keeps the earlier one as if measured again. TestAContendedCellIsMeasuredOnceMoreAfterTheOthers counts the twice-contended cell as acquired. The change: a cell whose attempts were all set aside keeps the two-attempt limit and the earlier quiet value, is reported as measured by none, and writes no credit, so a resume measures it; the other cells keep theirs. The check is written with the work: a twice-contended cell with a credit file is not credited, and a resume runs its producer.",
+          "depends_on": [
+            "full-measurement/run"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "user-size-inapplicable",
+      "title": "A model that states no size of its own has no cell at the size a person asks for, so the full measurement refuses none for it",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A model that states no size of its own has no cell at the size a person asks for, so the full measurement refuses none for it",
+          "verify": "false",
+          "files": [
+            "cmd/validate",
+            "cmd/recipe"
+          ],
+          "rationale": "Found by the full measurement's cells at b2de74cef: three cells at the size a person asks for failed. Un-0's picture and LiveEdit's clip were refused with 'serving attempt handoff: open ...attempt.json: The system cannot find the file specified', after recipe said 'the verification of ... states no size of its own, so there is no larger request to measure' and wrote no attempt. SimpleDiffusion's was refused with 'diffusionimage: positive steps, height, and width required', its request at that size carrying none. A model with no size of its own has no larger request to measure, so the cell is not one: the selection leaves it out (or the cell is inapplicable, as errInapplicable records), and a cell that runs and writes no attempt still fails. The check is written with the work: the dry run's plan holds no user-size cell for a model whose verification states no size, and a producer that writes no attempt is refused.",
+          "depends_on": [
+            "full-measurement/run"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "flash-next-projection",
+      "title": "Qwen3.8 Flash Next's projection answers its exact suite as its recipe's verification did",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Qwen3.8 Flash Next's projection answers its exact suite as its recipe's verification did",
+          "verify": "false",
+          "files": [
+            "internal/inference",
+            "internal/projector",
+            "cmd/recipe"
+          ],
+          "rationale": "Found by the full measurement's cells at b2de74cef: Qwen3.8-Flash-Next's projection-proof cell, grounded by Qwen3.8-27B's exact suite (docs/verification/fixtures/qwen27/suite.json) through a succeeded verification of its recipe, now fails it: case image-1-bottom answers ' D' where the suite holds 'D' (one token either way). Its recipe passed the suite before, so a change since moved its first token. The work: find the commit by the suite's own case on the card, cure the cause, and the cell passes in the next full run. The check is written with the work.",
           "depends_on": [
             "full-measurement/run"
           ]

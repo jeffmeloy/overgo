@@ -1,7 +1,7 @@
 {
   "advisory_notice": "SQA recommendations for master. Master decides which findings to accept, defer or decline, in what order, and how to address them. The ranking and assessment explain SQA's judgment. Only docs/plan.json directs work.",
   "priority_assessment": [
-    "I would keep shared-whole/lanes and full-measurement/run first, on one revision that includes both preflight fixes. The shared PNG writer has landed. The lane check still targets 3fe41bfa0, where a retired model name stopped preflight. Master fixed the list at b2b81e385 and reused the existing OCR suite at fedf6e422. SQA-474 ranks first because even a complete pass on the corrected code cannot satisfy the older target. SQA-478 would make a future bad model list fail before hashing model files.",
+    "I would keep the whole-lane check and full measurement on one revision that includes the model-list and OCR fixes. SQA-474 remains first because the committed lane check still requires 3fe41bfa0, where preflight refused the retired model name. I rank SQA-479 next because routine cleanup can erase a loose file sharing a completed row's name. Master has scheduled the earlier model-name check (SQA-478) after measurement. That order makes sense now that the list is valid.",
     "The latest MOSS run (1bae67d52) took 33.629 s warm against ComfyUI's 34.412 s, and 46.429 s on the first run against 40.176 s. I would use served-parts/do (SQA-471) to locate that 6.253 s first-run gap. SQA-473 identifies 92.5 MiB copied during load and at least 103.9 MiB of host weights kept after the decoder binds. Their cost in seconds is unknown, so I would keep the planned measurement ahead of this change.",
     "I would give SQA-410 first priority among the MOSS checks. The planned floors check can pass while the adapter comparison still performs 248 unnecessary denoiser passes. SQA-467 can use its two existing draws to verify the finished pixels. The own-size timing capture has all 50 progress events, so SQA-477 can be addressed with the reference clock work without holding up the scheduled measurement."
   ],
@@ -25,6 +25,19 @@
       "input": "At fedf6e422, complete every lane and package at a revision containing both preflight fixes, then measure and publish there. shared-whole/lanes still asks for 3fe41bfa0. Conversely, stop the target cycle before publication when five numeric image times already exist in the store and an earlier published README has an Un-0 speed row.",
       "expected": "Use one revision that admits the full measurement for shared-whole/lanes and full-measurement/run. Check the completed whole-lane phase, cells and published scorecard for that same run. Keep valid cell and package credit under its existing input checks. A completed lane phase should satisfy both steps without a second standalone sweep.",
       "actual": "The recorded preflight at 3fe41bfa0 refused the retired Gemma name. The list fix landed at b2b81e385 and the OCR projection-suite fix at fedf6e422. The committed lane verifier still compares every last pass with 3fe41bfa0. Its read-only query found 36 lane and package entries at other revisions or absent. A whole pass at fedf6e422 would still fail the older target. Separately, measurePhases runs all five lanes after a standalone sweep, and the final verifier reads the live scorecard and a README from the latest publication without checking their run or commit. The rejection of a future complete pass and acceptance of stale numbers are source counterexamples."
+    },
+    {
+      "id": "SQA-479",
+      "severity": "P2",
+      "files": [
+        "cmd/loop/land.go",
+        "cmd/loop/leftovers.go",
+        "cmd/loop/leftovers_test.go",
+        "internal/fsatomic/remove_windows.go"
+      ],
+      "input": "Land the last step of a row named sample-run. tmp/sample-run is a closed, untracked regular file containing the only copy of a note. Neither remaining plan names the row, no committed path cites the note, and the store has no registration under it.",
+      "expected": "A confirmed landing may automatically clear the completed row's scratch directory. Leave a loose file with the same name for the existing leftovers listing and explicit deletion command. The directory and regular-file cases should have different outcomes in the existing cleanup check.",
+      "actual": "Source counterexample at 25cd964a7. scratchEntries classifies the uncited entry as finished. clearFinished then matches only its basename to the landed row, discarding the file-versus-directory distinction. removeFinished passes the file to fsatomic.RemoveTree, which renames and removes it on Windows. TestCommitClearsWhatNothingHolds covers a matching directory and loose files with other names. The earlier scratch losses documented in the commit were observed under the previous rule. This remaining case was not run."
     },
     {
       "id": "SQA-410",
@@ -171,13 +184,14 @@
       "severity": "P2",
       "files": [
         "internal/latentimage/runtime_cuda_windows.go",
+        "internal/latentimage/generator_rotary_windows.go",
         "internal/latentimage/profile.go",
         "internal/mediacapability/image_cuda_windows.go",
         "internal/mediacapability/profile_reads_windows_test.go"
       ],
-      "input": "On a resident MOSS Ultra session, change only the seed of an ultra-image-to-image-turbo request. Keep its preset, source picture and 1024 by 576 dimensions.",
-      "expected": "Reuse the session's selected catalog when resetting and preparing the next draw. Preserve the real-load checks and the fallback for a missing profile. The remaining work belongs to served-parts/do.",
-      "actual": "At b17937206, Generator.Reset and Generator.prepare each pass a new CatalogIn(g.modelDir) to withPreset. Resolving the named preset opens model_index.json twice for the same draw. The earlier served-path fix covers plain repeats and shares the selected profile for request naming and sizing. The two generator reads follow from source. Their elapsed time is unmeasured."
+      "input": "First load a plain MOSS request with an explicit size, no preset or negative prompt, and a valid recipe profile. Separately, on a resident MOSS Ultra session, change only the seed of a 1024 by 576 ultra-image-to-image-turbo request and keep its source picture.",
+      "expected": "In served-parts/do, reuse the verified profile's catalog entry for grid finishing, preset application and subsequent draws. Keep the load-time check that the on-disk profile matches the recipe and the existing fallback when a request has no selected profile.",
+      "actual": "Source at 25cd964a7. On the plain cold load, the new catalogOf call opens model_index.json for the grid flag. loadRotaryGenerator immediately reads it again in ResolveProfile to compare the on-disk profile ID with the recipe. The validated pipeline already identifies the embedded catalog entry. On the resident preset draw, Reset and prepare each open the index through a fresh CatalogIn. The served-repeat test counts stored profile reads on a cache hit and does not count these file opens on a draw. No wall time was measured."
     },
     {
   "id": "SQA-283",
@@ -248,6 +262,13 @@
     "at": "2026-11-23",
     "head": "7fbcacc4cbdf0baa7bbafdbce6e34495ab1ec29b",
     "findings": {
+  "SQA-479": {
+        "action": "filed",
+        "rows": [
+          "scratch-dirs/do"
+        ],
+        "note": "Answered by the lead on 2026-11-23 at 25cd964a7: valid from source (clearFinished matched a scratch entry to the landed row by base name alone, so a loose file of the row's name went with the commit). Filed and fixed as scratch-dirs/do, at once since the cure is one check: a landed row's folder is a directory of its name."
+      },
   "SQA-478": {
         "action": "filed",
         "rows": [
@@ -350,7 +371,7 @@
       }
 }
   },
-  "next_finding_number": 479,
+  "next_finding_number": 480,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

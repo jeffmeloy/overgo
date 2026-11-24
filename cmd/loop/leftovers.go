@@ -1412,6 +1412,13 @@ func landedRows(reference string) []string {
 	return rows
 }
 
+// landedRowFolder says path is the scratch folder of one of the rows landed: a directory named for the row, in any
+// letter case. A loose file of the row's name is no row's folder, and stays for the deleting command (SQA-479).
+func landedRowFolder(path string, landed []string) bool {
+	info, err := os.Lstat(path)
+	return err == nil && info.IsDir() && slices.ContainsFunc(landed, func(row string) bool { return strings.EqualFold(filepath.Base(path), row) })
+}
+
 // clearFinished is what a confirmed commit does so that nothing accumulates:
 // the deleting command's own removal, with no token, of every place whose
 // finished entries are deleted. Under the removal lock, taken without
@@ -1439,8 +1446,7 @@ func clearFinished(h hygiene, landed []string) string {
 		found, failure := listLeftovers(h, true, line.name)
 		if line.name == scratchPlace {
 			found = slices.DeleteFunc(found, func(entry leftover) bool {
-				landedHere := slices.ContainsFunc(landed, func(row string) bool { return strings.EqualFold(filepath.Base(entry.path), row) })
-				if entry.state == stateFinished && !landedHere {
+				if entry.state == stateFinished && !landedRowFolder(entry.path, landed) {
 					unclaimed++
 					return true
 				}

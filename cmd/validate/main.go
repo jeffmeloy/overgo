@@ -327,7 +327,8 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	}
 	registered = compareContracts(registered, compared)
 	execution, _ := inferencesurface.Execution("overgo/internal/mediacapability")
-	if err := bindCells(ctx, *root, store, registered, execution); err != nil {
+	chosen, listed, err := chosenThenBound(ctx, *root, store, registered, execution, *inventory == "" && *smokeModel == "" && !*trained)
+	if err != nil {
 		return err
 	}
 	if *inventory != "" {
@@ -344,14 +345,8 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 
 	plan := SelectValidation(Inputs{Registered: registered, Scorecard: compared})
 	plan.Suites = cycleSuites()
-	if *smokeModel == "" && !*trained {
-		chosen, listed, err := chosenModels(ctx, store, *root, registered)
-		if err != nil {
-			return err
-		}
-		if listed {
-			plan = plan.Chosen(chosen, compared)
-		}
+	if listed {
+		plan = plan.Chosen(chosen, compared)
 	}
 	if *reached {
 		chosen, err := reachedCells(ctx, *root, compared, registered)

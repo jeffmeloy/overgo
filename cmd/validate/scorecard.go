@@ -134,6 +134,20 @@ func namedIn(rows []scorecard.Row, name, validation string) func(ModelValidation
 // chosenModels is the models measuredModelsFile beneath root names, each as -model names one, and whether the
 // checkout holds the list: without it a full run measures every model. A name no registered model answers to refuses,
 // so a misspelt name cannot leave a model out unseen.
+// chosenThenBound reads measuredModelsFile against the registered cells, where readList asks (a full run's selection,
+// neither -inventory nor -model nor -trained), and only then binds the cells (bindCells): a name no registered model
+// answers to is refused before a proof is grounded, a suite read or a model's bytes hashed, and a suite missing besides
+// cannot hide it behind its own read error (measured-names-first, SQA-478: the full measurement's preflight at 3fe41bfa0
+// refused a retired Gemma name about two minutes in). It gives the list's choice and whether the checkout holds one.
+func chosenThenBound(ctx context.Context, root string, store *overgodb.Store, registered []ModelValidation, execution string, readList bool) (chosen func(ModelValidation) bool, listed bool, err error) {
+	if readList {
+		if chosen, listed, err = chosenModels(ctx, store, root, registered); err != nil {
+			return nil, false, err
+		}
+	}
+	return chosen, listed, bindCells(ctx, root, store, registered, execution)
+}
+
 func chosenModels(ctx context.Context, store *overgodb.Store, root string, registered []ModelValidation) (func(ModelValidation) bool, bool, error) {
 	var list struct {
 		Models []struct {

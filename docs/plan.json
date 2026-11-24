@@ -3,24 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "measured-names-first",
-      "title": "A full run refuses a measured model's name no registered model answers to before it binds a proof or reads a model's bytes",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A full run refuses a measured model's name no registered model answers to before it binds a proof or reads a model's bytes",
-          "verify": "false",
-          "files": [
-            "cmd/validate"
-          ],
-          "rationale": "SQA-478 (P2), valid from source: cmd/validate's main binds every registered cell (groundProjection reads the projection suites, consumedFiles hashes declared model bytes on a cache miss) before chosenModels reads docs/verification/measured_models.json, so the full measurement's preflight at 3fe41bfa0 spent about 2 minutes before refusing gemma-4-12B-it-fp8-native, and a suite missing besides would have hidden the name behind its read error. measured-list's check (validate's dry run) now refuses such a name when a step changes the list. The change: chosenModels runs once the registered identities are read, before any proof is bound or file hashed, and returns the name it cannot resolve; the modes that bypass the list and the selection of cells never measured stay as they are. The check is written with the work: a stand-in store whose list names an unknown model and whose projection suite is absent is refused with the name, before any suite is read.",
-          "depends_on": [
-            "full-measurement/run"
-          ]
-        }
-      ]
-    },
-    {
       "id": "contended-credit",
       "title": "A cell whose timings were both set aside as contended earns no credit, so a resumed cycle measures it again on a quiet machine",
       "steps": [

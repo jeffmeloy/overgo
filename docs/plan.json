@@ -7,16 +7,6 @@
       "title": "MOSS's Generate page leads with the workflow section by name, shows a run's progress and its result beside the form, takes pictures by choice, and shows only the controls the section runs",
       "steps": [
         {
-          "id": "restored",
-          "title": "Remembered and reused settings show and send what choosing them by hand does: a builder's layout, a depth preset's control",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserMOSSRestoredSettingsRunAsChosen$' -leg moss-restored-settings",
-          "files": [
-            "internal/server/webui",
-            "internal/server"
-          ],
-          "rationale": "SQA-485, checked against the code at db04fec59: valid from source. rememberedControls.apply (internal/server/webui/workflow.js) sets each field's input.value and dispatches nothing, so choiceShows' apply does not run: a remembered builder run returns with its layout still hidden, which controlValues leaves out and admission refuses, and a saved depth preset reapplied under text to image leaves its control hidden, so the request drops its picture; a gallery reuse writes a layout object as \"[object Object]\", which partsValue clears. The change: apply sets each part with setPart (objects and lists as JSON) and, once every field is set, runs each choice's shows again, so a restored entry shows and sends what choosing it by hand does. Check: TestWebUIBrowserMOSSRestoredSettingsRunAsChosen saves a depth preset with a control picture, chooses text to image, reapplies the preset and finds the control shown and its picture in the request sent; and a remembered builder run reloaded sends its layout.\n\nNote: files set to internal/server/webui, internal/server: The page's own code and its browser checks."
-        },
-        {
           "id": "own-run",
           "title": "A reloaded Generate tab follows the run it submitted, never another tab's",
           "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserMOSSReloadFollowsItsOwnRun$' -leg moss-own-run",
@@ -35,6 +25,80 @@
             "internal/server"
           ],
           "rationale": "SQA-489, checked against the code at db04fec59: valid from source. pictureChooser's store (internal/server/webui/workflow.js, moss-page/pictures) chooses the uploaded picture whenever its upload ends, so a recent picture chosen while an upload was in flight is replaced by the upload, and Run sends the upload. The change: an upload chooses its picture only while it is still the slot's latest choice (a choice made after it began wins); the picture is stored either way and listed among the recent. Check: TestWebUIBrowserMOSSLastPictureChosenIsSent holds an upload's answer, chooses a recent picture meanwhile, releases the upload and finds the recent picture in the request sent.\n\nNote: files set to internal/server/webui, internal/server: The page's own code and its browser checks."
+        }
+      ]
+    },
+    {
+      "id": "turn-priority",
+      "title": "Where a turn is taken, work no one waits on starts nothing new while a commit attempt exists",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A background holder takes no new test or card turn while a commit attempt exists; it takes the next once the attempt ends",
+          "verify": "go test ./internal/processcontrol -count=1 -run '^TestBackgroundTakesNoTurnWhileAnAttemptExists$'",
+          "files": [
+            "internal/processcontrol",
+            "internal/landing",
+            "cmd/validate",
+            "cmd/loop"
+          ],
+          "rationale": "The owner's review of 2026-11-24 (third), cause 2, checked against the code: valid. A turn is first come (internal/processcontrol/turn.go:55), and the lanes run asks only whether a newer commit is due before each package (cmd/validate/run.go:276), so moss-page/names' attempt, begun 14:53:16, waited about 17 minutes behind a 21m38s cmd/evaluate test that took the test turn at 14:54:06; faults waited 20.8 minutes for the card, result 21.2 and 17.1, groups about 11.\n\nThe change: one rule where turns are taken. A turn is taken by a holder that someone waits on (a commit attempt, a check run by hand) or by background work (the lanes and slow-test runs a landing starts); background work takes no new turn, test or card, while a commit attempt exists, its record kept from the attempt's start, and takes it once the attempt ends; a turn it already holds runs to its end. This replaces attempt-first, filed from the second review for the lanes run alone.\n\nCheck: TestBackgroundTakesNoTurnWhileAnAttemptExists records an attempt, asks the test turn as background work and finds it not taken while the attempt exists, a foreground holder taking it meanwhile, and the background's taken once the attempt ends. It does not exist at the base, so the check fails there."
+        }
+      ]
+    },
+    {
+      "id": "idle-wait",
+      "title": "A browser wait that cannot come true fails when the page is idle, saying what the page shows, in every run",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A browser wait ends when the page is idle and its predicate false, with what the page shows; no clock ends it",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserAWaitThatCannotComeTrueFailsWhenIdle$' -leg idle-wait",
+          "files": [
+            "internal/webuilane",
+            "internal/server/webui",
+            "internal/server"
+          ],
+          "rationale": "The owner's review of 2026-11-24 (third), cause 3, checked against the code: valid. Browser.Eventually (internal/webuilane/browser.go:254) waits until its predicate holds, with no end but a budget the user sets, so a predicate a change makes unsatisfiable holds the lane: four hangs on 2026-11-24 (moss-page/pictures' undo run 32 min, a faults leg on a mutation loop, a restored-settings leg on a refused run, a full lane 20 min on TestWebUIBrowserArtifactLinks' changed title), and a verbose rerun was needed to learn which.\n\nPages do keep work open for good, which the rule must read: the activity stream (/runtime/activity/stream, workflow.js connect) stays open while subscribed, and intervals poll for the page's life (boot.js statusRefresh and the offline probe, requests.js refresh, runtime.js monitor). So idle is: no shell request in flight besides the stream (api.inFlight), no one-shot timer pending, and each interval fired since the page last changed; then a false predicate ends the wait as failed, with the page's ready state, panels and last error, as Eventually reports them now.\n\nCheck: TestWebUIBrowserAWaitThatCannotComeTrueFailsWhenIdle waits on a predicate that never holds on a page holding the stream and its intervals, and finds the wait failed with the page's state, while a wait on a predicate a pending request makes true still passes. It does not exist at the base, so the check fails there (the lane fails it as an unfinished leg)."
+        }
+      ]
+    },
+    {
+      "id": "observed-inputs",
+      "title": "A check's pass is kept while what it read is unchanged, its inputs observed, so a commit runs only the checks its change can alter",
+      "steps": [
+        {
+          "id": "measure",
+          "title": "Each commit's checks are measured for what they read and why go test's cache does not keep them",
+          "verify": "go test ./internal/testevidence -count=1 -run '^TestAPackageRunNamesWhatItRead$'",
+          "files": [
+            "internal/testevidence",
+            "docs/verification"
+          ],
+          "rationale": "The owner's review of 2026-11-24 (third), cause 1, checked against the code and a measurement: valid. The cycle lanes run go test -count=1 (internal/landing/lanes.go:150), since go test's cache keys a pass by what it opened only where it can see it, so a page commit reruns the 2,404 model tests; and internal/landing, untouched by any moss-page commit, ran in full (148 s) in each one's invariants stage. Measured: two runs of go test ./internal/landing with nothing changed between them both ran in full (110 s), the first's result unkept. The change: a package's test run (testevidence) records what its test binary opened, from the binary's own test log (-test.testlogfile), each file by its content, and names it; this step reports, for internal/landing and the lanes' packages, what they read and which input moves at each commit. Check: TestAPackageRunNamesWhatItRead runs a fixture package whose test opens one file and finds that file named with its content's digest."
+        },
+        {
+          "id": "rule",
+          "title": "The gate and the lanes keep a package's pass while its test binary and every file it read are unchanged by content",
+          "verify": "go test ./internal/landing -count=1 -run '^TestAPassIsKeptWhileWhatItReadIsUnchanged$'",
+          "files": [
+            "internal/testevidence",
+            "internal/landing",
+            "cmd/validate"
+          ],
+          "rationale": "Follows observed-inputs/measure. The change: one rule for every test the gate's stages and the lanes run. A package's pass is kept, by its test binary's identity and the digests of what it read, and a later run whose binary and inputs match takes the kept pass in place of running; any input that differs runs it. Declared inputs and -count=1 go. Check: TestAPassIsKeptWhileWhatItReadIsUnchanged runs a fixture package twice and finds the second taken from the kept pass, then changes the file it reads and finds it run. It does not exist at the base, so the check fails there."
+        },
+        {
+          "id": "retire",
+          "title": "The mechanisms the kept passes make redundant go: the yield to a newer commit, the lanes' rotation and the per-package turn handover",
+          "verify": "go test ./cmd/validate ./internal/landing -count=1 -run '^TestNoLaneYieldsOrRotatesWhatAKeptPassCovers$'",
+          "files": [
+            "cmd/validate",
+            "internal/landing",
+            "cmd/loop",
+            "internal/plan"
+          ],
+          "rationale": "Follows observed-inputs/rule. With passes kept by what they read, a run at an older commit spends nothing a newer one repeats, so the run's yield to a newer commit due (plan.Yields, cmd/validate/run.go:276) goes; the lanes need no rotation to reach packages long without a pass (lanes-rotation, which this step retires unworked); and the per-package handover of the test turn (testSteps, landing.HoldTestTurnEach) stays only where a package's own run outlasts a commit's patience, which turn-priority covers. Check: TestNoLaneYieldsOrRotatesWhatAKeptPassCovers finds no yield and no rotation in a lanes run whose packages' passes are kept. It does not exist at the base, so the check fails there."
         }
       ]
     },

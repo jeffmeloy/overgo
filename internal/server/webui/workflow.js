@@ -249,6 +249,8 @@
       };
       field.input.addEventListener("change", apply);
       field.input.addEventListener("input", apply);
+      // A value set with no event (a remembered entry restored) shows what it chooses through this (rememberedControls).
+      field.showChosen = apply;
       apply();
     }
   }
@@ -511,16 +513,20 @@
     savePreset(recipe, name, values) { const kept = readRemembered(recipe); kept.presets = { ...(kept.presets || {}), [name]: values }; writeRemembered(recipe, kept); },
     // values: the fields' settings as typed; an artifact slot holds one turn's input, not a setting.
     values: (fields) => Object.fromEntries([...fields].filter(([, field]) => field.control.type !== "artifact").map(([name, field]) => [name, field.input.value])),
-    // apply: values onto the fields; a value a choice no longer offers is left unset.
+    // apply: values onto the fields as a request holds them (an object or a list as JSON, a remembered entry's text as
+    // it is); a value a choice no longer offers is left unset. What each choice shows then follows the restored choice,
+    // as choosing it by hand does, so a remembered builder run shows and sends its layout and a depth preset its
+    // control (SQA-485).
     apply(fields, values) {
       if (!values) return;
       for (const [name, field] of fields) {
         if (!Object.hasOwn(values, name)) continue;
-        const value = String(values[name]);
+        const value = partText(values[name]);
         // A dataset's name may not have arrived yet: its identity stands in until it does.
         if (picksDataset(field.control) && value) offerDataset(field.input, value, window.overgo.fmt.shortID(value));
-        field.input.value = field.control.choices?.length && !field.control.choices.includes(value) ? "" : value;
+        setPart(field, values[name]);
       }
+      for (const [, field] of fields) if (field.showChosen) field.showChosen();
     },
   };
 
@@ -571,17 +577,31 @@
 
   // liveOperation: the first operation the stream's snapshot holds that
   // matches, or null when it holds none or the stream is down.
-  function liveOperation(match) {
+  function liveOperations(match) {
     return new Promise((resolve) => {
       let settled = false;
       const unsubscribe = subscribe((name, value) => {
         if (settled || !["operation.snapshot", "stream.idle", "stream.error"].includes(name)) return;
         settled = true;
-        resolve(name === "operation.snapshot" ? value.find(match) || null : null);
+        resolve(name === "operation.snapshot" ? value.filter(match) : []);
         queueMicrotask(unsubscribe);
       });
     });
   }
+
+  // keptOperation: the run a workflow tab submitted, kept for this browser tab alone (sessionStorage), so the tab
+  // reloaded follows its own run and not another tab's of the same model (SQA-486). A browser that keeps nothing
+  // answers none, and the tab follows by match.
+  const keptOperation = {
+    key: (tab) => "overgo.operation." + tab,
+    get(tab) { try { return sessionStorage.getItem(this.key(tab)) || ""; } catch (_) { return ""; } },
+    set(tab, id) {
+      try {
+        if (id) sessionStorage.setItem(this.key(tab), id);
+        else sessionStorage.removeItem(this.key(tab));
+      } catch (_) { /* a tab that keeps nothing follows its run by match after a reload */ }
+    },
+  };
 
   // waitOperation follows one operation on the runtime stream to its end: a
   // stream that falls behind takes a fresh snapshot in place of what it missed,
@@ -794,15 +814,26 @@
             accepted = await api.submit("/" + definition.scope + "/run", { task: capability.task, recipe: capability.recipe, input });
             overgo.rememberedControls.remember(capability.recipe, overgo.rememberedControls.values(fields));
           } catch (err) { status.replaceChildren(overgo.failure(err)); run.disabled = false; return; }
+          keptOperation.set(definition.id, accepted.operation);
           await follow(accepted.operation, input);
         });
-        // A run of this tab's recipes still going (the page was reloaded) is followed again.
-        liveOperation((item) => !terminal(item.state) && capabilities.some((capability) => capability.recipe === item.recipe)).then((live) => {
-          if (!live || operation || overgo.signal.aborted) return;
+        // resume: a run still going, followed again after the page was reloaded.
+        function resume(live) {
           capabilitySelect.value = live.recipe;
           renderControls();
           renderOperation(live);
           follow(live.id);
+        }
+        // The tab follows the run it submitted while it goes. A tab that kept none follows the only run of its models
+        // still going; with several it follows none, offering Cancel for none, until the person chooses one (SQA-486).
+        liveOperations((item) => !terminal(item.state) && capabilities.some((capability) => capability.recipe === item.recipe)).then((live) => {
+          if (!live.length || operation || overgo.signal.aborted) return;
+          const kept = keptOperation.get(definition.id);
+          const own = live.find((item) => item.id === kept);
+          if (own || (!kept && live.length === 1)) { resume(own || live[0]); return; }
+          if (kept) return;
+          status.replaceChildren(el("span", { text: live.length + " runs of these models are going; follow one: " }),
+            ...live.map((item) => el("button", { class: "btn alt", type: "button", text: "run " + fmt.shortID(item.id), onclick: () => resume(item) })));
         });
       },
     });

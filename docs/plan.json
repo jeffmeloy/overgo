@@ -3,21 +3,62 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "moss-close",
-      "title": "The MOSS campaign closes with a full measurement run, its scorecard, and the README written from it",
+      "id": "readme-timings",
+      "title": "The README's media times are the scorecard's tables alone, the size a person asks for first, and it shows no output a person cannot see",
       "steps": [
         {
-          "id": "run",
-          "title": "The full measurement run measures every model's scorecard row at the campaign's last commit, MOSS's image rows among them, and the README's tables are written from it",
-          "verify": "go run ./cmd/validate -scorecard | grep -oE '^\\| (Krea-2-Turbo|SenseNova-U1-8B-MoT-Infographic-V3|SimpleDiffusion-TensorProductAttentionRope|Un-0|MOSS-Image-SFT-797fa8e678b4f) \\| image-gen \\| [0-9]' | sort -u | wc -l | grep -qx 5 \u0026\u0026 go run ./cmd/validate -readme \u0026\u0026 grep -qE '^\\| MOSS-Image-SFT-797fa8e678b4f \\| [0-9]' README.md",
+          "id": "table",
+          "title": "GenerationTable leads each image and video row with its time at the size a person asks for, the scorecard's small timing request after it under its own name",
+          "verify": "go test ./internal/scorecard -count=1 -run '^TestTheGenerationTableLeadsWithTheSizeAPersonAsksFor$'",
+          "files": [
+            "internal/scorecard",
+            "README.md"
+          ],
+          "rationale": "The owner's review of 2026-11-25, point 2, checked by the lead at 7e417691c: valid. GenerationTable (internal/scorecard/speed_table.go) prints each image and video row's FirstOutput cell first, under \"time to the whole output\", and its time at the size a person asks for after it. For Wan and LiveEdit the first is the 32 x 16 request, which times loading and prompt reading: in the closing run of 2026-11-25 Wan's took 7.1 s, 3.74 s of it the session's lease and 2.86 s the prompt rows, 0.34 s the clip itself, beside 337.2 s for 81 frames at 832 x 480.\n\nThe change: the table's columns are the time at the size a person asks for, with its preset, then the scorecard's timing request, with its preset, named as such, then where the person's request went; a row with no reading at a person's size shows the dash first. validate -readme writes the README's table from the newest record with it.\n\nCheck: TestTheGenerationTableLeadsWithTheSizeAPersonAsksFor, a record with a row read at both sizes: the table's first time column is the one at a person's size, and its header names the other as the timing request; it uses only Record and GenerationTable, which the base holds, so it builds there and fails on its assertion.",
+          "depends_on": [
+            "moss-close/run"
+          ]
+        },
+        {
+          "id": "prose",
+          "title": "The README's sample paragraphs state no time or memory the generated tables print, and link no output too small to see",
+          "verify": "! grep -q 'The timing request the scorecard measures' README.md \u0026\u0026 test ! -e assets/e6e246d2f322356bf07a83e137a2c4341a97eed8dd45b3f188736ba92e248865.gif",
           "files": [
             "README.md",
-            "docs"
+            "assets"
           ],
-          "needs_card": true,
-          "rationale": "The owner's order of 2026-11-24: the MOSS rows first, then the campaign's closing measurement, scorecard and README, as the last campaign closed (full-measurement/run, whose check 5147c611f made one pipeline the gate runs). The MOSS rows are landed but served-parts/clock, which times the workflow on the new ledger. The work: a full measurement run of the cycle (validate -run), started outside the session as the last was, at the commit after served-parts/clock, measuring every model's scorecard row with MOSS's sections served as the campaign left them; then the README's tables written from the scorecard (validate -readme). Check: the scorecard holds a measured image-gen row for each of the five image models, MOSS-Image-SFT among them, and the README written from it holds MOSS's row. The check's form is the one the gate took for full-measurement/run, a pipeline with no shell assignment (SQA-483).",
+          "rationale": "The owner's review of 2026-11-25, point 1, checked by the lead at 7e417691c: valid, and wider than the two paragraphs it names. README.md:281-285 (Wan) and 306-307 (LiveEdit) end with a hand-written sentence about the scorecard's 32 x 16 timing request; the Wan one links a clip 32 x 16 pixels in size (assets/e6e246d2..., read from its GIF header, which only the README names) and repeats the 6.4 s the speed table prints at README.md:208, which the closing run measured at 7.1 s. Every sample paragraph of the section does the same: Krea's 13.9 s and 25.1 GiB beside the tables' 12.9 s and 25.2 GiB, MOSS's 95 s and 13.0 GiB beside 65.3 s, SimpleDiffusion's 0.92 s beside 0.8 s, SenseNova's 11.5 s and Self-Forcing's 30.0 s and 29.1 GiB, each a copy of what validate -readme writes into the speed and served-model tables, two of them stale already. I added LiveEdit's on 2026-11-25 (readme-liveedit/do).\n\nThe change: each sample paragraph keeps what it alone says, its request and, for a sample drawn by hand at its developer's settings, the date, commit and time of that drawing, and drops the timing request's time and memory; the section's opening says the times and memory are the tables'; the 32 x 16 clip's link and its asset go (git rm).\n\nCheck: the README no longer holds the timing-request sentence, and the 32 x 16 clip is gone.",
           "depends_on": [
-            "served-parts/clock"
+            "readme-timings/table"
+          ]
+        },
+        {
+          "id": "peak",
+          "title": "The served-model table's peak device memory is the most a measured serving attempt took, a request at a person's size among them",
+          "verify": "go test ./internal/scorecard -count=1 -run '^TestTheServedTablesPeakIsTheMostAMeasuredAttemptTook$'",
+          "files": [
+            "internal/scorecard",
+            "README.md"
+          ],
+          "rationale": "SQA-510 (P2), checked by the lead against the published record scorecard-20261125T170629Z and the README written from it at 7e417691c: valid, observed. The served-model table's peak device memory reads row.Cells[metric.PeakMemory] alone (internal/scorecard/served_table.go), so Wan2.1-T2V-1.3B shows 12.2 GiB, its 32 x 16 request's, while its request at the size a person asks for peaked at 18.08 GiB on the card in the closing run of 2026-11-25 (validate -run 32/105), the request the speed table times at 337 s. The README states the column as the most a measured serving attempt took.\n\nThe change: ServedTable takes a row's peak from Row.Measured(metric.PeakMemory), which already selects the measured cells across the headline, the user-size requests and the longer prompts, and validate -readme writes the table with it.\n\nCheck: TestTheServedTablesPeakIsTheMostAMeasuredAttemptTook, a record whose row holds a larger peak at a person's size than at its small request: the table shows the larger; it uses ServedTable and Record, which the base holds, so it builds there and fails on its assertion."
+        }
+      ]
+    },
+    {
+      "id": "moss-heldout",
+      "title": "MOSS's training route refuses a held-out picture whose model input equals a trained one's, and its test holds a genuinely different picture",
+      "steps": [
+        {
+          "id": "do",
+          "title": "refuseTrainedHeldOut compares the pictures the image processor gives, not their file bytes, and TestMOSSRoute's held-out example is another picture",
+          "verify": "go test ./cmd/train -count=1 -run '^TestMOSSRouteRefusesAHeldOutCopyOfATrainedPicture$'",
+          "files": [
+            "cmd/train",
+            "internal/trainingdata"
+          ],
+          "rationale": "SQA-506 (P2), checked by the lead against cmd/train/route_moss_windows.go at 7e417691c: valid from source, a check that passes without checking. refuseTrainedHeldOut hashes the encoded file bytes, so the fixture's held-out picture, the trained PNG with one zero byte appended, is a different file and the same model input, and TestMOSSRoute's held-out reading passes on it (the lanes log records the invocation passing in 4.7 s). The published 32-picture measurement used pictures from other videos, so no served number rests on it.\n\nThe change: the refusal compares what the existing image processor gives for each picture (decoded dimensions and RGB values) before either is prepared on the card; the route's passing case uses a genuinely different picture, and the padded copy becomes a refusal case.\n\nCheck: TestMOSSRouteRefusesAHeldOutCopyOfATrainedPicture, the padded copy refused before any preparation; it calls the route's refusal, which the base holds, so it builds there and fails on its assertion.",
+          "depends_on": [
+            "moss-close/run"
           ]
         }
       ]
@@ -29,11 +70,11 @@
         {
           "id": "do",
           "title": "cmd/loop runs a full measurement by hand through measurePhases, with the cycle's credit and execution identity",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestAMeasurementByHandKeepsItsCreditAcrossARestart$'",
+          "verify": "go test ./cmd/loop -count=1 -run '^TestAHandStartedRunWaitsForTheTrigger$'",
           "files": [
             "cmd/loop"
           ],
-          "rationale": "SQA-502 (P2), checked against cmd/loop/improve.go and the launcher of 2026-11-25 at c21345fd7: valid from source. The full measurement is started outside the session, where a tool call ends at two hours, by a .cmd that runs validate's four phases directly. It gives them neither the cycle's credit path nor the execution identity the loop links (validateTo, cycleCreditEnvironment), so cycleCellCredit keeps no cell and a cell's run takes a fresh identity. A run cut short and started again would measure the cells it had finished again: hours of the card. measurePhases and validateTo, which the unattended cycle runs, already keep both. The change: cmd/loop gains an entry that runs the cycle's phases at the trunk's commit by hand (measureScorecard in the cycle checkout, the run recorded), which a launcher outside the session calls in place of validate's phases. Check: TestAMeasurementByHandKeepsItsCreditAcrossARestart runs the entry with a stand-in validate that finishes one cell and is cut short, runs it again, and finds the finished cell credited and not measured again. It does not exist at the base, so the check fails there.",
+          "rationale": "SQA-502 (P2), checked against cmd/loop/improve.go and the launcher of 2026-11-25 at c21345fd7: valid from source. The full measurement is started outside the session, where a tool call ends at two hours, by a .cmd that runs validate's four phases directly. It gives them neither the cycle's credit path nor the execution identity the loop links (validateTo, cycleCreditEnvironment), so cycleCellCredit keeps no cell and a cell's run takes a fresh identity. A run cut short and started again would measure the cells it had finished again: hours of the card. measurePhases and validateTo, which the unattended cycle runs, already keep both. The change: cmd/loop gains an entry that runs the cycle's phases at the trunk's commit by hand (measureScorecard in the cycle checkout, the run recorded), which a launcher outside the session calls in place of validate's phases. Check: TestAMeasurementByHandKeepsItsCreditAcrossARestart runs the entry with a stand-in validate that finishes one cell and is cut short, runs it again, and finds the finished cell credited and not measured again. It does not exist at the base, so the check fails there.\n\nNote: The cause, checked against cmd/loop at 7e417691c: an entry exists, loop -improve, which runs the cycle's phases through measureScorecard in the cycle checkout with the credit, the execution identity and the run record. It refused the closing run because HandStartDue starts no cycle while a step is dispatched, and the closing step (moss-close/run) was dispatched, so the run was started by a launcher of validate's phases instead. The cure fixes what exists, adding no entry: HandStartDue is due, once what a cycle measures moved, when the dispatched step's check reads the whole scorecard (a command go run ./cmd/validate -scorecard naming no -gap and no -declare), which only a run of every model can pass; a fix and a decline stay refused. The launcher outside the session then runs go run ./cmd/loop -improve. Check: TestAHandStartedRunWaitsForTheTrigger, extended with a closing step refused while nothing moved and due once something did; at the base it is refused, so the check fails on that assertion.\n\nNote: A second cost of the launcher, found at the owner's review of 2026-11-25: validate's phases run directly take no lane turn for the run, which loop -improve holds for its phases (landing.HoldLaneTurn), so the cycle's lanes runner started by a landing ran beside the measurement. From 05:12 to 05:33 on 2026-11-25 the runner at 7e417691c ran the models lane test by test between the closing run's, slowing it and holding memory as the closing run neared TestFlashNextLongContextAcceptance, which failed on 2026-11-24 with the machine at its commit limit; the lead stopped it by hand. Through -improve the runner waits on the run's turn in code.",
           "depends_on": [
             "moss-close/run"
           ]
@@ -41,19 +82,104 @@
       ]
     },
     {
-      "id": "flashnext-memory",
-      "title": "Flash-Next's long-context acceptance has a cause for its failure at 16:44: what its server needs against what the machine had free",
+      "id": "lanes-record",
+      "title": "A slow test runs again only when what its package reads changed since its last result, and one runner at a time runs the lanes",
+      "class": "consolidation",
+      "budget": {
+        "nodes": -1100,
+        "reason": "Set from the row's removal list at the owner's review of 2026-11-25, counted as the landing counts (ast nodes of production Go, tmp/lanes-record/nodes.go at 7e417691c): lanes_first.go 973 less its yield to a newer commit, which stays (runnerYield, yieldTo, yields, lanesYield: 200), reachedLanes 363, changedSinceLastPass 79, leastRecentlyRunFirst 75, laneNames 38, keepLaneRun 184, and plan's LaneRun, LaneRecord, laneRunsFile, ReadLaneRuns, RecordLaneRun, RecordLanePackages, LanesYieldedFile and LanesYielded 218: 1,730 removed. Less at most 630 added: the record's result and its write as each test ends (about 100 over test_passes.go's 124, which becomes the one record), the rule (about 450, the size of the reach and diff code it replaces) and the status and -lanes-passed-at read from the test record (about 80). The row must shrink production by at least 1,100 nodes."
+      },
       "steps": [
         {
-          "id": "cause",
-          "title": "TestFlashNextLongContextAcceptance runs on a quiet machine, its server's peak recorded against the 71.4 GiB its tree was bound to",
-          "verify": "OVERGO_CUDA_TEST=1 go test -tags modeltest,integration ./internal/evaluation -count=1 -timeout=0 -run '^TestFlashNextLongContextAcceptance$'",
+          "id": "record",
+          "title": "Each slow test's last result is kept with its commit as it ends, and a close's run is the tests whose result is a failure, missing, or older than a change its package reads",
+          "verify": "go test ./cmd/validate -count=1 -run '^TestALaneTestRunsAgainOnlyWhenWhatItReadsChanged$'",
           "files": [
-            "internal/evaluation",
-            "internal/inference",
-            "cmd/server"
+            "cmd/validate",
+            "cmd/loop",
+            "internal/plan",
+            "internal/landing"
           ],
-          "rationale": "The owner's review of 2026-11-24 (fifth), point 2, checked against lanes.log: valid. The lanes at 5f5d4db92 did not pass: TestFlashNextLongContextAcceptance failed in the models lane at 16:44 after 9 s, its model swap's child server ending before it was ready because the process tree reached its memory limit of 71.4 GiB, the machine's free commit at its start (processcontrol's job bound), and no step named a cause since. Whether the server needs more than the machine holds at Flash-Next's long context, or other work held the memory then, is unmeasured. The step: run the test on a quiet machine (no landing, no lanes), read its server tree's peak commit, and cure what it shows: a context the model's host commit cannot hold is bound by what the machine has, or the test waits for the memory it needs, as the card's turn waits. Check: the test passes on the quiet machine."
+          "rationale": "The owner's review of 2026-11-25, point 1, checked by the lead against the code and the logs at 7e417691c: valid. A lane runs test by test (testSteps, 2,454 steps in the models lane) in an order that interleaves packages (rank sorts every package's steps together), but what a close reads its reach from is kept per lane (lane_runs.json Passed) and per package (Packages, written only when every step of the package ran: laneVerdict counts a yielded step as no pass), while the per-test pass (test_passes.json) feeds only passedSince. Measured: since 16:44 on 2026-11-24, 16 runs kept a new package pass for 2 of the models lane's 33 packages (latentvideo at 11336eb42, thoughtbank at c21345fd7); latentimage's last is 5f5d4db92's; TestMOSSGenerationCheckpoint passed in 7 of those runs (19:12 to 04:03, about 5.5 min each), and between three of them only docs, cmd/loop, internal/landing, internal/server, internal/webuilane and internal/audioparity changed, none of which latentimage's tests read. lanes_first.go's rank puts every changed package's checkpoint tests first at each run, read from the commits since the lane's last whole pass (3fe41bfa0, 2026-11-24 03:31), and passedSince filters only the landed checks' tests. Five rows have patched this mechanism (lanes-first, lanes-first-kept, lanes-package-pass, lanes-yield, lanes-order), each adding a record or an order beside the unit the run works in.\n\nThe change, in place of further patches: one record, each test's last result (pass or fail) with its commit and end, written as the test ends, so a yield or a run ended by hand loses nothing; the landings' passes (internal/landing, single-source/claim-record) and -passed-since read and write the same record. One rule: a close's run of a lane takes a test when its last result is not a pass, is missing, or is at a commit since which the changed paths enter its package's test closure (landing.CycleLanesReached, one diff per distinct commit); the tests are taken in the lane's own order. A measurement's lanes phase (validate -run -lanes without -reached) runs every test and writes the same record. Removed with it: lanes_first.go (readLanesFirst, rank, passedSince, testsOfCheck), leastRecentlyRunFirst and laneNames, LaneRecord with its Packages and RecordLanePackages, reachedLanes' package cut and changedSinceLastPass, and LanesYielded with lanes_yielded.json; the status and -lanes-passed-at read the test record (a lane passed whole at a commit when every test of it holds a pass there or one no change since reaches). First read every reader of lane_runs.json, test_passes.json and lanes_yielded.json.\n\nCheck: TestALaneTestRunsAgainOnlyWhenWhatItReadsChanged, over a repository fixture: a lane's test that passed at a commit is not taken when only paths outside its package's closure changed since, is taken when a path inside it changed, and a failed or unrecorded test is taken; written against code the base holds, so it builds there and fails on its assertion.",
+          "depends_on": [
+            "moss-close/run",
+            "close-launcher/do"
+          ]
+        },
+        {
+          "id": "one-runner",
+          "title": "A measurement's lanes phase holds the lanes lock the close's runner holds, so a close during it runs after it with only what later commits reach",
+          "verify": "go test ./cmd/loop -count=1 -run '^TestACloseDuringAMeasurementRunsWhenItLetsGo$'",
+          "files": [
+            "cmd/validate",
+            "cmd/loop",
+            "internal/landing"
+          ],
+          "rationale": "The owner's review of 2026-11-25, point 1, checked by the lead: valid. Only the close's runner takes lanesLock (cmd/loop/lanes_on_close.go:92, :163). The closing run of 2026-11-25, started by validate's phases directly, waited 130 times from 00:18 to 05:20, 92 of them for the card held by another validate.exe for a cycle lane (85 for models), and its models lane's own steps summed 1h48m of the 4h50m from 00:30 to 05:20. loop -improve holds the card's turn for a measurement's phases (landing.HoldLaneTurn), which makes a runner's card tests wait, but the runner still starts, lists and builds beside it, and a run by any other route holds nothing.\n\nThe change: validate -run -lanes takes the lanes lock in the trunk's state however it was started, a measurement's phases and the close's runner alike; a close during a measurement names its commit due (lanes_due.json), and the lanes run that lets the lock go starts the runner for a commit due that it did not run, as runLanesDue does after its own run, which then runs only the tests later commits reach (lanes-record/record). Read lanes_on_close.go's lock and due files first; no second lock.\n\nCheck: TestACloseDuringAMeasurementRunsWhenItLetsGo, with stand-in runs: a close while a measurement's lanes hold the lock starts no run, and the measurement's end starts the runner for the commit due.",
+          "depends_on": [
+            "lanes-record/record"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "flashnext-memory",
+      "title": "Flash-Next's server takes the commit it needs before it pins, waiting while overgo's own processes hold the shortfall and otherwise failing at once with the needed, free and limit figures",
+      "steps": [
+        {
+          "id": "reserve",
+          "title": "Flash-Next's server takes the commit it needs before it pins, waiting while overgo's own processes hold the shortfall and otherwise failing at once with the needed, free and limit figures",
+          "verify": "go test ./internal/processcontrol -count=1 -run '^TestACommitShortfallWaitsOrFailsOnTheMachinesFigures$'",
+          "files": [
+            "internal/processcontrol",
+            "internal/processmeasure",
+            "internal/cuda/driver",
+            "internal/modeldevice",
+            "internal/inference",
+            "cmd/server",
+            "internal/evaluation"
+          ],
+          "rationale": "Refiled on 2026-11-25 from flashnext-memory/pin at the owner's review of that day, checked by the lead: (1) valid, pin's check was the acceptance test, which passes on a quiet machine with no change: twice on record at 116.5 GiB, and seven Flash-Next tests peaking at 115.8 to 116.3 GiB passed in the closing run's internal/inference and cmd/evaluate on 2026-11-25 with the machine kept quiet; so the check passed with the change's production Go restored. (2) valid, pin's title promised a pass whatever else holds commit, which no change gives where the rest of the machine holds more than the limit leaves.\n\nThe evidence: on 2026-11-24 (the lanes at 5f5d4db92) the Strata round's pinning failed, cuMemHostAlloc out of memory with 54.6 GB pinned and 44.8 GB on the card, the machine at 0.0 GiB of commit left of 156.8, the tree at 116.2 GiB, the rest of the machine at 40.6 GiB. The library already takes an ordinary commit ahead of its pins (driver.ReserveCommit, which grows a system-managed page file at once where the driver's requests fail at the limit), so first read where the reservation is sized and given back for Flash-Next's open and Strata round, and why the pins met the limit with it: too small, given back early, or taken after the rest of the machine took the page file's growth.\n\nThe change: the server's tree takes the commit it needs before it pins, on a decision read from the machine's own figures, needed (the reservation's bytes), left and limit (processcontrol.MachineCommit after the ordinary commit's attempt), and the commit overgo's own processes hold: the reservation had, it goes on; short while overgo's own processes hold the shortfall, it waits for them as a card turn waits; short beyond that, it fails at once with an error naming needed, left and limit, before any pin. A shortfall is then said, not met as a pinning failure, and the bound is the machine's.\n\nCheck: TestACommitShortfallWaitsOrFailsOnTheMachinesFigures, the decision over stated figures: enough left goes on; a shortfall overgo's own processes hold waits; a shortfall beyond them fails naming the three figures. It lands in internal/processcontrol unless the decision belongs elsewhere, the check then moved with -setverify. The acceptance test stays in the models lane.\n\nNote: No boundary test: the decision the check tests is new code, so the check cannot build at the base and fails there by its absence; no test of code the base holds can state the decision's three outcomes, as the base has no decision, only a pin that fails at the limit.\n\nNote: files set to internal/processcontrol, internal/processmeasure, internal/cuda/driver, internal/modeldevice, internal/inference, cmd/server, internal/evaluation: The reservation the open makes is in internal/modeldevice (ReserveOpenCommit), and a process's own commit is read in internal/processmeasure, the owner of psapi's calls (ProcessCommit)"
+        }
+      ]
+    },
+    {
+      "id": "training-identity",
+      "title": "A training route's dataset, split and processor identities bind the examples and preprocessing it consumes, not the manifest's bytes alone",
+      "steps": [
+        {
+          "id": "do",
+          "title": "The MOSS route and the codec -frames route bind their training identity to the ordered media they read, so two corpora with one manifest text get two identities",
+          "verify": "go test ./cmd/train -count=1 -run '^TestTwoCorporaWithOneManifestTextAreTwoDatasets$'",
+          "files": [
+            "cmd/train",
+            "internal/trainingworkflow",
+            "cmd/validate"
+          ],
+          "rationale": "SQA-507 (P2), checked by the lead against cmd/train and internal/trainingworkflow at 7e417691c: valid from source, a proof that passes for a dataset it did not read. Both routes pass only the manifest path to openSessionAs; BootstrapRecipe takes TextAuthority of its bytes, so two directories with the same pictures.tsv and different pictures get one dataset, split, processor and recipe, and the validation proof (groundTraining) identifies the MOSS route by the TSV alone. No run with substituted media was observed.\n\nThe change: the dataset, split and processor identities bind the ordered examples and the preprocessing the route consumes, through the existing training workflow and artifact identities, so the same inputs keep their identity across directories and different media get another; the session, checkpoint and validation proof use it. First read every reader of the identity BootstrapRecipe gives.\n\nCheck: TestTwoCorporaWithOneManifestTextAreTwoDatasets, two directories with one pictures.tsv and red.png's contents differing: two dataset identities; the same media in two directories: one. It calls the route's bootstrap, which the base holds, so it builds there and fails on its assertion.",
+          "depends_on": [
+            "moss-close/run"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "agent-tool-errors",
+      "title": "A tool call whose result says isError fails the call: its mutation is recorded failed and a failed inspection earns no credit, after a restart too",
+      "steps": [
+        {
+          "id": "do",
+          "title": "decodeMCPResponse reads a tools/call result's isError, and the coordinator records an admitted mutation failed and a failed inspection uncredited",
+          "verify": "go test ./internal/agenttool ./internal/agentloop -count=1 -run '^TestAToolResultMarkedAnErrorFailsTheCall$'",
+          "files": [
+            "internal/agenttool",
+            "internal/agentloop",
+            "cmd/loop"
+          ],
+          "rationale": "SQA-508 (P2), checked by the lead against internal/agenttool/transport.go at 7e417691c: valid from source, a check that passes without checking. decodeMCPResponse returns a result unchanged when the envelope carries no error, so a tools/call result with isError=true, the shape serveTools emits when a worker tool fails, reads as success: closeMutationReceipt writes StageCompleted for the failed mutation, a failed inspection sets session.Inspection, and RestoreSession rebuilds that credit after a restart. No such run was observed.\n\nThe change: at tools/call the result's isError is read; the failed tool's text is kept as the call's diagnostic; an admitted mutation is recorded failed and a failed inspection earns no credit, after a restart too; the writer's replies reach the client with the client's request id. Fixtures check the flag true, false and omitted.\n\nCheck: TestAToolResultMarkedAnErrorFailsTheCall in both packages, each holding a test of the name; it uses the transport and coordinator the base holds, so it builds there and fails on its assertion.",
+          "depends_on": [
+            "moss-close/run"
+          ]
         }
       ]
     },
@@ -75,6 +201,28 @@
           "rationale": "The evidence: cuda-synthetic/tag moved every untagged CUDA test that reads the data root behind modeltest but one. TestSenseNovaVariableRequestResources runs SenseNova's 8B production generation in an isolated measurement process, and docs/image_video_capacity.json names its retained measurement by the bytes of its file (evidence:sha256:888854b5...), which the store holds; tagged, its bytes changed and TestImageVideoCapacityAcceptance found no evidence under the new identity. A measurement is taken again only on a card to itself, and the readings campaign holds the card until its Wan arms are drawn, so the file stays in the gate, named by the check as measuredInPlace, and this row follows the campaign.\n\nThe change: the test carries //go:build modeltest, it is measured again on a quiet card into the store, the capacity record and its protocol digest (imageVideoCapacitySHA256) name the new identity, and measuredInPlace goes, so internal/sensenovarecipe leaves the cuda lane.\n\nCheck: a whole-tree test with measuredInPlace gone, named afresh so it fails before the change: TestTheGateRunsNoRealModelTest.\n\nRefiled 2026-11-16 from cuda-resources/do, whose step carried no card need, so dispatch gave it while the readings campaign held the card: this step carries -needs-card and waits for a card to itself.",
           "depends_on": [
             "full-measurement/run"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "liveedit-size",
+      "title": "LiveEdit's scorecard row carries a time at the size a person asks for: an edit of a clip at 832 x 480",
+      "steps": [
+        {
+          "id": "do",
+          "title": "An edit's request at a person's size is its page's own size with a source clip at that size, and LiveEdit's page states its developers' size",
+          "verify": "go test ./internal/mediacapability -count=1 -run '^TestAnEditAtAPersonsSizeTakesASourceAtThatSize$'",
+          "files": [
+            "internal/mediacapability",
+            "internal/latentvideo",
+            "docs/verification",
+            "cmd/recipe"
+          ],
+          "needs_card": true,
+          "rationale": "The owner's review of 2026-11-25, point 3, checked by the lead against the closing run's log: valid. LiveEdit's video-user-size cell (22/105) measured nothing: \"the verification of ... LiveEdit states no size of its own, so there is no larger request to measure\" (mediacapability.PersonRequest found no default size on its page and a size its runtime does not fill), so its only time is the 32 x 16 request's, 12.0 s in that run. The model runs at 832 x 480, the size it was trained at: the README's sample, 33 frames of the Wan clip at that size, was drawn in 25 s on 2026-11-25.\n\nThe change: LiveEdit's page declares its developers' size and frames (read them from its model card and inference code), and an edit's request at a person's size takes its source clip at that size too, the stored Wan clip (file:sha256:aba27ea7...) or one the verification names, so the size timed is a size a person edits at. Then the cell is measured on the card (go run ./cmd/validate -run -model LiveEdit), and the scorecard row carries the time.\n\nCheck: TestAnEditAtAPersonsSizeTakesASourceAtThatSize, PersonRequest of LiveEdit's module: the request is lifted to the page's size with a source clip of that size; it calls PersonRequest, which the base holds, so it builds there and fails on its assertion.",
+          "depends_on": [
+            "moss-close/run"
           ]
         }
       ]

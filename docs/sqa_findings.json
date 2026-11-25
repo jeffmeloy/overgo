@@ -1,9 +1,9 @@
 {
   "advisory_notice": "All SQA findings, rankings and assessments are recommendations. Master decides whether, when and how to act through docs/plan.json.",
   "priority_assessment": [
-    "I agree with keeping moss-close/run first. Its run at dcf609ad6 passed preflight in 14m07s and the MOSS generation checkpoint in 5m39s. I would let that run finish and use its phase verdicts and exact scorecard for the close (SQA-474). Five image times are already present in the November 24 publication, before this run began.",
-    "I would address retry credit at the same measurement boundary (SQA-502). The closing launcher runs four phases itself. The existing cycle passes the execution identity and completed-cell record that a retry needs. Reusing that owner for the full campaign scope would remove the duplicate startup procedure. The recorded run has shown no repeated cell.",
-    "While the card is occupied, dispatch selects observed-inputs/rule. The 6da4c09e4 gate spent 23m16s in lanes. I would verify which bytes the landing publishes (SQA-494) and which inputs child processes read before reusing those passes. I would keep flashnext-memory/cause for a quiet machine. SQA-492 remains the highest product fix because the wrong picture can consume a full draw."
+    "I would let moss-close/run finish and use its own publication (SQA-474). The lanes at dcf609ad6 passed in 9 h 14 min 23 s. If publication alone fails, I would bring close-launcher/do forward to publish that completed run without repeating its lanes (SQA-502). For the closing README, I would use the full-size peak already in the record (SQA-510). That correction needs no card time.",
+    "I would fix SQA-506 before relying on the MOSS training route’s held-out check again. Its compact fixture already passes with a training picture in the held-out set. The published 32-picture result used pictures from other videos, so this finding gives me no reason to restart the current inference measurement.",
+    "For the next training proof, I would address SQA-507 in the shared session used by MOSS pictures and codec frames. Changing the media while keeping the manifest identical currently produces the same recorded dataset. I would keep SQA advice from holding a due measurement (SQA-504) and leave flashnext-memory/cause for a quiet machine. I would fix the MCP failure receipt (SQA-508) before HTTP interoperability (SQA-509). Neither affects the current MOSS measurement."
   ],
   "branch": "master",
   "findings": [
@@ -30,14 +30,77 @@
       "severity": "P2",
       "files": [
         "docs/plan.json",
+        "cmd/loop/main.go",
+        "cmd/loop/trigger.go",
+        "cmd/loop/trigger_test.go",
         "cmd/loop/improve.go",
         "cmd/validate/run.go",
+        "cmd/validate/reach.go",
         "cmd/validate/cell_credit.go",
-        "cmd/validate/cell_credit_test.go"
+        "cmd/validate/cell_credit_test.go",
+        "cmd/loop/improve_resume_test.go",
+        "internal/landing/lanes.go"
       ],
-      "input": "Start the MOSS closing measurement from the retained November 25 launcher with no inherited cycle-credit path or linked execution identity. Let the selected MOSS image-proof cell finish, interrupt before the next cell finishes, then resume the same measurement at dcf609ad6 with identical inputs and store.",
-      "expected": "On retry, skip the completed cell under its existing identity and run the unfinished cell. Have the full close use the cycle’s existing credit, execution identity and phase runner with the full selection the campaign requires. Keep fresh measurements separate from retries.",
-      "actual": "The retained launcher invokes four validate phases directly and supplies neither a cycle-credit path nor a linked execution identity. With that environment, cycleCellCredit opens an empty-path record and add returns without writing. For runnable cells, consumedFiles also returns a fresh random identifier when execution identity is absent. A restarted cells phase therefore launches the completed image proof again. The loop’s measurePhases and validateTo already pass both inputs. The launcher and its passing preflight are observed. The interruption and repeated acquisition follow from source."
+      "input": "Dispatch moss-close/run at a pinned commit with an earlier scorecard and changed measured code. Interrupt the full close after a completed MOSS cell. Separately, let preflight, all lanes and all cells pass in the same cycle, then let only publication fail before it writes the scorecard. Retry that cycle with the same inputs.",
+      "expected": "Admit the full close through the existing cycle runner. Use its execution identity and cell credit to resume at the first unfinished cell. When only publication failed, publish from the completed run's verified evidence. Keep fresh lane checks for a new measurement or when the completed evidence cannot be matched to the run.",
+      "actual": "HandStartDue refuses a fresh run while this step is open. The November 25 launcher runs four validate commands without cycle credit or a linked run identity. An interrupted cell sequence starts again. measurePhases selects only reached cells and invokes preflight and all lanes even on a publication-only retry, as TestInterruptedCycleResumesAtItsFirstUnpassedPhase expects. The real-model lane uses -count=1. The closing run's lanes passed in 9 h 14 min 23 s of wall time. The rerun follows from source. No retry cost was measured."
+    },
+    {
+      "id": "SQA-506",
+      "severity": "P2",
+      "files": [
+        "cmd/train/route_moss_windows.go",
+        "cmd/train/route_moss_windows_test.go",
+        "cmd/train/route_moss_heldout_windows_test.go",
+        "internal/trainingdata/image.go"
+      ],
+      "input": "Use TestMOSSRoute’s trained picture and caption as the held-out example. The fixture writes the same PNG under a new name with one zero byte appended after its end.",
+      "expected": "Reject a held-out picture whose decoded dimensions and RGB values equal a training picture, before preparing either on the GPU. Use the existing image processor for that comparison. Use a genuinely different picture for the successful route case and keep the padded copy as a rejection case.",
+      "actual": "refuseTrainedHeldOut hashes encoded file bytes. The extra byte changes that hash while ImageProcessor returns identical model input. TestMOSSRoute accepts a heldout.json reading for this example when the base and trained losses differ. The retained lanes log records the named invocation passing in 4.725s. This evidence concerns the compact fixture. The published 32-picture measurement used pictures from other videos."
+    },
+    {
+      "id": "SQA-507",
+      "severity": "P2",
+      "files": [
+        "cmd/train/route_moss_windows.go",
+        "cmd/train/route_codec.go",
+        "cmd/train/shared_run.go",
+        "internal/trainingworkflow/bootstrap_recipe.go",
+        "internal/trainingworkflow/data.go",
+        "cmd/validate/training_proof.go"
+      ],
+      "input": "Use the same model and identical copies of the committed pictures.tsv in two directories. In the second directory give red.png the contents of green.png. The captions, filenames and image dimensions stay the same. The codec -frames route has the equivalent case when a listed clip’s first frame changes.",
+      "expected": "Bind the training dataset, split and processor to the ordered examples and preprocessing the route actually consumes. Have the session, checkpoint and validation proof use that identity. Reuse the existing training workflow and artifact identities so the same inputs retain their identity across directories.",
+      "actual": "Both routes pass only the manifest path to openSessionAs. BootstrapRecipe calls TextAuthority on its bytes, so both corpora get the same dataset, split, processor and recipe. MOSS then decodes different RGB values and the codec route reads the listed clips separately. publishPlanned records the objective’s dataset and split, and groundTraining identifies the MOSS route by the TSV alone. This collision follows from committed source. No run with substituted media was observed."
+    },
+    {
+      "id": "SQA-504",
+      "severity": "P2",
+      "files": [
+        "internal/loop/driver.go",
+        "internal/loop/dispatch_wait_test.go",
+        "internal/plan/dispatch.go",
+        "internal/plan/findings_fall_through.go",
+        "cmd/loop/main.go",
+        "cmd/loop/improve.go"
+      ],
+      "input": "Finish the last plan row with a measurement due, budgets available, no stop or competing worker, and one open P2 recommendation that no row or triage action names.",
+      "expected": "Show the recommendation to master and let the existing cycle trigger judge the measurement. Remove the requirement to file or disposition the recommendation before the run. Keep explicit stops, resource limits and plan dependencies authoritative.",
+      "actual": "execWorld.Current reports the plan complete. Run then returns findings-waiting before it calls improve. The dispatch text asks master to file the finding as a row. TestARunEndsWaitingNeverCompleteWhileWorkIsHeldOrFindingsAwaitFiling explicitly requires zero measurements and zero worker calls in this case. This is a source counterexample to the advisory contract. The current MOSS close still has an open row."
+    },
+    {
+      "id": "SQA-510",
+      "severity": "P2",
+      "files": [
+        "internal/scorecard/served_table.go",
+        "internal/scorecard/scorecard.go",
+        "cmd/validate/readme.go",
+        "cmd/validate/readme_served_test.go",
+        "README.md"
+      ],
+      "input": "Render the served-model table from scorecard-20261124T115348Z.json. The Wan2.1-T2V-1.3B video row records 13,108,635,852 peak device bytes for 32 x 16 and 19,418,051,872 for 832 x 480, 81 frames and 50 steps.",
+      "expected": "Show 18.1 GiB under the README's stated maximum across measured serving attempts. ServedTable can take that maximum from Row.Measured(metric.PeakMemory), which already selects measured cells for the headline, user-size requests and longer prompts. The published record suffices to check the correction.",
+      "actual": "The committed README shows 12.2 GiB. ServedTable considers only row.Cells[metric.PeakMemory] and skips the recorded user-size peak. The larger peak was measured during the same full-size request timed at 336.3 s in the speed table. This 5.9 GiB understatement is visible in the published record and README."
     },
     {
       "id": "SQA-494",
@@ -92,19 +155,32 @@
       "actual": "Source trace at c71a1e230. The Git diff supplies the deleted path. TrackedDocuments lists only files still present, so documentReaders returns no entry. discover treats the missing entry as zero readers and omits the lane. Both checks fail on the missing file if selected. The retained gate verified selection for edits to both fixtures while they were present."
     },
     {
-      "id": "SQA-503",
+      "id": "SQA-508",
       "severity": "P2",
       "files": [
-        "cmd/validate/main.go",
-        "cmd/validate/scorecard.go",
-        "cmd/validate/bound_records.go",
-        "cmd/validate/projection_proof.go",
-        "cmd/validate/training_proof.go",
-        "cmd/validate/only_model_test.go"
+        "internal/agenttool/transport.go",
+        "internal/agentloop/coordinator.go",
+        "cmd/loop/tools.go",
+        "internal/agenttool/transport_test.go",
+        "cmd/loop/tools_test.go"
       ],
-      "input": "Request the dry-run plan for -model MOSS-Image-SFT-797fa8e678b4f -validation image-proof with an otherwise usable store and MOSS inputs. Make only docs/verification/fixtures/qwen27/suite.json unavailable in the supplied root. That Qwen projection suite is outside the selected MOSS operation.",
-      "expected": "Return the MOSS image-proof plan. Resolve the named model and validation before binding inputs, and load training or projection fixtures only for selected proofs that consume them. A selected Qwen projection with a missing required suite should still be refused.",
-      "actual": "At c21345fd7, runArgs calls chosenThenBound before modelNamed and OnlyModel. bindCells calls groundProjection on the registered set. groundProjection reads the Qwen suite before it examines any cell and returns its file error. The MOSS plan never reaches selection. The one-model case checks the filtered plan and uses the full repository for its CLI check. This refusal is demonstrated by the call order. No model was run."
+      "input": "An admitted MCP tool call receives HTTP 200 and a JSON-RPC response with the matching ID. The tools/call result carries isError=true and text explaining the tool failure. This is the result shape serveTools emits when a worker tool returns an error.",
+      "expected": "At tools/call, preserve a failed tool's diagnostic and record an admitted mutation as failed. A failed inspection must earn no inspection credit, including after restart. Feed the worker writer's replies to the client with the client's request ID. Check true, false and the existing success fixture with the flag omitted.",
+      "actual": "decodeMCPResponse returns result unchanged when the envelope has no error. With normal persistence, closeMutationReceipt writes StageCompleted for the failed mutation. A failed inspection also sets session.Inspection. RestoreSession reconstructs that credit from the recorded manual and arguments. The writer test checks the flag, while the HTTP client fixture returns only a success. These are source counterexamples."
+    },
+    {
+      "id": "SQA-505",
+      "severity": "P2",
+      "files": [
+        "internal/repoanalysis/production_repeats_test.go",
+        "internal/repoanalysis/test_repeats_test.go",
+        "internal/server/loop_status_test.go",
+        "cmd/loop/runner_commit_test.go",
+        "cmd/loop/clean_checker_test.go"
+      ],
+      "input": "Rename internal/server/loop_status_test.go to loop_status_api_test.go in the same package, preserving its contents. The mutex-protected fakeLoop.LoopStatus reader, its callers and all test assertions stay identical.",
+      "expected": "Accept the rename. Remove the two repository-wide pass/fail checks on repeated test bodies and their file-name exception. Keep useful shared fixtures such as runBuild and the tests that check runner identity and recovery.",
+      "actual": "The three mutex-protected fake readers match the same syntax pattern. The exception compares the sorted file names to testParameterHeld, so the rename both rejects the group and reports its exception missing. This follows from source. Separately, landing_refusals.json records the exact-body check rejecting runner-from-commit/do. Its failed attempt lasted 3m39s, including 3m13s in invariants. The later landing shared runBuild. The timing record covers the whole attempt and its invariants stage."
     },
     {
       "id": "SQA-388",
@@ -144,6 +220,17 @@
       "input": "A serving or training observation published by servingattempt.Record or trainingworkflow.Observer.finish when (a) the recipe-state read fails and the incoming Verification is empty, or (b) the same recipe is activated again, verified, after the recorded attempt executed it not verified.",
       "expected": "Publication carries the state the executed recipe and task had at execution. A failed state read is told apart from a historical absent state and earns no verified credit, and a later activation does not replace execution-time state. Legacy bytes, the own-verifying-run exception and partial or cancelled results keep their contract.",
       "actual": "The two remaining owners still read state at publication and drop the lookup error: servingattempt.Record (servingattempt.go:117-119) and Observer.finish (session_observation.go:271-273). A failed read leaves an empty Verification; scorecard.unverifiedAside rejects only explicit not-verified/broken and accepts that empty value as legacy. A later same-recipe activation is written as the attempt's state in place of its execution-time not-verified state. Shown from source at 8acbf71d17dfd3e1e35313b370f900b21f0fdf10; no SQA execution."
+    },
+    {
+      "id": "SQA-509",
+      "severity": "P2",
+      "files": [
+        "internal/agenttool/transport.go",
+        "internal/agenttool/transport_test.go"
+      ],
+      "input": "Use the 2025-06-18 MCP HTTP adapter with a server that requires both response media types in Accept, or one that returns a matching JSON-RPC reply as a server-sent event. Separately, use a stateful JSON server that retains each assigned session until the client requests termination.",
+      "expected": "Advertise and accept both JSON and event-stream on POST. Within existing size and time limits, finish on the matching reply even if a notification precedes it or the stream stays open. Accept an empty 202 for an accepted notification. Request DELETE for an assigned session on exit. A cleanup refusal (405 is permitted) must preserve the known tool outcome and never replay the call.",
+      "actual": "post advertises JSON alone. A strict server can reject initialization. On an event stream, post waits for EOF or its read bound, even after the matching reply arrives. If the stream closes normally, the JSON decoder rejects the event framing. Each invocation initializes again and drops the assigned session ID without DELETE. Two calls leave two sessions on the stated retaining server. These are source counterexamples. Live session retention was not measured."
     },
     {
       "id": "SQA-342",
@@ -198,12 +285,50 @@
   ],
   "master_lead_triage": {
     "at": "2026-11-25",
-    "head": "c21345fd7b610f8c7f74526091347836eb609ff9",
+    "head": "7e417691cf0eb9102cafbd1cca0a0472bb310c1f",
     "findings": {
-      "SQA-503": {
+      "SQA-510": {
+        "action": "filed",
+        "rows": [
+          "readme-timings/peak"
+        ],
+        "note": "Answered by the lead on 2026-11-25 at 7e417691c: valid, observed in the published record (ServedTable reads row.Cells[metric.PeakMemory] alone, so Wan shows 12.2 GiB while its request at a person's size peaked at 18.08 GiB in the closing run of 2026-11-25). Filed as readme-timings/peak, with the README's other media figures, after moss-close."
+      },
+      "SQA-509": {
         "action": "declined",
         "rows": [],
-        "note": "Answered by the lead on 2026-11-25 at c21345fd7: valid from the call order (runArgs binds every proof's inputs, the Qwen projection suite among them, before it narrows to the named model, so a missing Qwen suite refuses a MOSS-only dry run); not observed, as the suite is there and no run was refused. Declined under the owner's severity rule (P2 = a served defect on observed evidence or a check that passes without checking): a refusal of a tool on a file the repository holds, which a run it refuses makes a step."
+        "note": "Answered by the lead on 2026-11-25 at 7e417691c: valid from source (post advertises JSON alone, reads no event stream and leaves an assigned session undeleted); not observed. Declined under the owner's severity rule (P2 = a served defect on observed evidence or a check that passes without checking): an interoperability gap with outside MCP servers that no overgo path calls, to be taken up when one is."
+      },
+      "SQA-508": {
+        "action": "filed",
+        "rows": [
+          "agent-tool-errors/do"
+        ],
+        "note": "Answered by the lead on 2026-11-25 at 7e417691c: valid from source, a check that passes without checking (decodeMCPResponse reads no isError, so a failed mutation is recorded completed and a failed inspection earns credit, rebuilt after a restart); not observed. Filed as agent-tool-errors/do among the tooling rows."
+      },
+      "SQA-507": {
+        "action": "filed",
+        "rows": [
+          "training-identity/do"
+        ],
+        "note": "Answered by the lead on 2026-11-25 at 7e417691c: valid from source, a proof that passes for a dataset it did not read (BootstrapRecipe takes the manifest's bytes alone, so two corpora with one pictures.tsv share one dataset, split, processor and recipe); not observed. Filed as training-identity/do among the tooling rows."
+      },
+      "SQA-506": {
+        "action": "filed",
+        "rows": [
+          "moss-heldout/do"
+        ],
+        "note": "Answered by the lead on 2026-11-25 at 7e417691c: valid from source, a check that passes without checking (refuseTrainedHeldOut hashes file bytes, so the fixture's padded copy of a trained picture passes as held out); the published 32-picture measurement used other pictures. Filed as moss-heldout/do after readme-timings, before the tooling rows."
+      },
+      "SQA-505": {
+        "action": "declined",
+        "rows": [],
+        "note": "Answered by the lead on 2026-11-25 at 7e417691c: the rename case is valid from source but not observed; the observed refusal (runner-from-commit/do) was of bodies repeated in fact, which the landing then shared as runBuild, the check doing its work. Declined under the owner's severity rule: neither a served defect nor a check that passes without checking."
+      },
+      "SQA-504": {
+        "action": "declined",
+        "rows": [],
+        "note": "Answered by the lead on 2026-11-25 at 7e417691c: valid from source (an emptied plan waits for an unnamed P2 finding to be filed or answered before the cycle measures); not observed, as the MOSS close keeps rows open. Declined: every P1 and P2 finding is answered by the lead before work goes on (the owner's rule, held at each landing), and the fall-through is that rule for an emptied plan; the answer may be a decline, which takes no run."
       },
       "SQA-502": {
         "action": "filed",
@@ -284,7 +409,7 @@
       }
     }
   },
-  "next_finding_number": 504,
+  "next_finding_number": 511,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

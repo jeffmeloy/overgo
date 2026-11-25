@@ -125,11 +125,11 @@ setup steps, is `go run ./cmd/validate -scorecard`; beyond these models, 138
 architecture profiles are registered (`go run ./cmd/validate -models -repo <store>`).
 
 <!-- served-model table: go run ./cmd/validate -readme writes it from the newest scorecard record -->
-Read from the record `scorecard-20261124T115348Z`.
+Read from the record `scorecard-20261125T170629Z`.
 
 | Model | Modality | Input → output | Held-out quality | Peak device memory |
 | --- | --- | --- | --- | --- |
-| Qwen3.8 Flash-Next (80B MoE, UD-IQ4_XS) | text, vision-language | text → text; image → text | MMLU-Pro 0.686 ±0.013 on 1,209 cases; image questions 0.469 ±0.062 on 64 cases | 46.4 GiB |
+| Qwen3.8 Flash-Next (80B MoE, UD-IQ4_XS) | text, vision-language | text → text; image → text | MMLU-Pro 0.682 ±0.013 on 1,209 cases; image questions 0.469 ±0.062 on 64 cases | 46.4 GiB |
 | Qwen3.8-27B (Q6_K) | text, vision-language, video-language | text → text; image or video → text | MMLU-Pro 0.595 ±0.014 on 1,209 cases, 5 named no option (5 ran out of the answer's tokens), 257 of them development evidence; image questions 0.484 ±0.031 on 256 cases | 21.4 GiB |
 | Qwen3.5-9B (Q8_0) | text | text → text | BBH 0.624 ±0.02 on 577 cases | 9.0 GiB |
 | Qwen3.5-4B | text | text → text | MMLU-Pro 0.501 ±0.014 on 1,209 cases | 8.4 GiB |
@@ -180,32 +180,32 @@ tokens over decode time on a request again on the loaded model.
 <!-- speed table: go run ./cmd/validate -readme writes it from the newest scorecard record -->
 | Model | pp, about 4,096 tokens | pp, about 16,384 tokens | tg |
 | --- | --- | --- | --- |
-| Bonsai-27B-Q1_0 | 1,954 tok/s, 4,096 tokens in 2.10 s | 1,597 tok/s, 16,384 tokens in 10.26 s | 58 tok/s |
-| Carbon-500M | 58,215 tok/s, 4,096 tokens in 0.07 s | — | 504 tok/s |
-| MiniCPM5-1B | 40,282 tok/s, 4,097 tokens in 0.10 s | 18,517 tok/s, 16,385 tokens in 0.88 s | 354 tok/s |
-| Qwen2.5-0.5B | 62,589 tok/s, 4,096 tokens in 0.07 s | 36,533 tok/s, 16,384 tokens in 0.45 s | 528 tok/s |
-| Qwen3.5-4B | 10,426 tok/s, 4,096 tokens in 0.39 s | 6,106 tok/s, 16,384 tokens in 2.68 s | 99 tok/s |
+| Bonsai-27B-Q1_0 | 1,951 tok/s, 4,096 tokens in 2.10 s | 1,597 tok/s, 16,384 tokens in 10.26 s | 58 tok/s |
+| Carbon-500M | 58,215 tok/s, 4,096 tokens in 0.07 s | — | 498 tok/s |
+| MiniCPM5-1B | 40,103 tok/s, 4,097 tokens in 0.10 s | 18,499 tok/s, 16,385 tokens in 0.89 s | 350 tok/s |
+| Qwen2.5-0.5B | 64,366 tok/s, 4,096 tokens in 0.06 s | 36,356 tok/s, 16,384 tokens in 0.45 s | 527 tok/s |
+| Qwen3.5-4B | 10,426 tok/s, 4,096 tokens in 0.39 s | 6,093 tok/s, 16,384 tokens in 2.69 s | 99 tok/s |
 | Qwen3.5-9B | 5,854 tok/s, 4,096 tokens in 0.70 s | 4,310 tok/s, 16,384 tokens in 3.80 s | 98 tok/s |
-| Qwen3.8 Flash Next | 2,952 tok/s, 4,096 tokens in 1.39 s | 3,489 tok/s, 16,384 tokens in 4.70 s | 168 tok/s |
-| Qwen3.8-27B | 1,935 tok/s, 4,096 tokens in 2.12 s | 1,578 tok/s, 16,384 tokens in 10.38 s | 50 tok/s |
-| Unlimited-OCR-bf16 | 23,231 tok/s, 4,096 tokens in 0.18 s | 18,884 tok/s, 16,385 tokens in 0.87 s | 461 tok/s |
+| Qwen3.8 Flash Next | 2,952 tok/s, 4,096 tokens in 1.39 s | 3,489 tok/s, 16,384 tokens in 4.70 s | 170 tok/s |
+| Qwen3.8-27B | 1,937 tok/s, 4,096 tokens in 2.11 s | 1,578 tok/s, 16,384 tokens in 10.38 s | 49 tok/s |
+| Unlimited-OCR-bf16 | 23,171 tok/s, 4,096 tokens in 0.18 s | 18,733 tok/s, 16,385 tokens in 0.87 s | 454 tok/s |
 | gemma-4-12B-it | 3,110 tok/s, 4,097 tokens in 1.32 s | 2,780 tok/s, 16,385 tokens in 5.89 s | 36 tok/s |
-| gemma-4-12B-it-fp8 | 3,636 tok/s, 4,097 tokens in 1.13 s | 3,180 tok/s, 16,385 tokens in 5.15 s | 49 tok/s |
-| gemma-4-E4B-it | 9,040 tok/s, 4,097 tokens in 0.45 s | 7,496 tok/s, 16,385 tokens in 2.19 s | 69 tok/s |
+| gemma-4-12B-it-fp8 | 3,637 tok/s, 4,097 tokens in 1.13 s | 3,180 tok/s, 16,385 tokens in 5.15 s | 49 tok/s |
+| gemma-4-E4B-it | 9,040 tok/s, 4,097 tokens in 0.45 s | 7,496 tok/s, 16,385 tokens in 2.19 s | 68 tok/s |
 | qwen25-05b-judged-proof | 36,198 tok/s, 4,096 tokens in 0.11 s | 25,247 tok/s, 16,384 tokens in 0.65 s | 326 tok/s |
 | qwen25-05b-order-25 | 36,308 tok/s, 4,096 tokens in 0.11 s | 25,258 tok/s, 16,384 tokens in 0.65 s | 331 tok/s |
 
 | Model | time to the whole output | at the size a person asks for | where it went |
 | --- | --- | --- | --- |
-| Krea-2-Turbo | 12.9 s (512 x 512, 4 steps, flow Euler, shift 3.158) | 61.5 s (2048 x 2048, 8 steps, flow Euler, shift 3.158) | picture prompt encoded 10.1 s, picture denoised 48.1 s |
-| LiveEdit | 10.2 s (32 x 16, 21 frames, 4 steps, chunk-causal flow) | — | — |
-| MOSS-Image-SFT-797fa8e678b4f | 65.3 s (1024 x 1024, 50 steps, flow Euler, guidance 3, shift 5) | 58.0 s (1024 x 1024, 50 steps, flow Euler, guidance 3, shift 5) | picture prompt encoded 5.5 s, picture denoised 51.1 s |
+| Krea-2-Turbo | 14.3 s (512 x 512, 4 steps, flow Euler, shift 3.158) | 62.6 s (2048 x 2048, 8 steps, flow Euler, shift 3.158) | picture prompt encoded 11.3 s, picture denoised 48.0 s |
+| LiveEdit | 11.2 s (32 x 16, 21 frames, 4 steps, chunk-causal flow) | — | — |
+| MOSS-Image-SFT-797fa8e678b4f | 59.8 s (1024 x 1024, 50 steps, flow Euler, guidance 3, shift 5) | 58.4 s (1024 x 1024, 50 steps, flow Euler, guidance 3, shift 5) | picture prompt encoded 5.8 s, picture denoised 51.4 s |
 | Self-Forcing | 30.0 s (832 x 480, 81 frames, 4 steps, chunk-causal flow, guidance 1, shift 5) | 30.1 s (832 x 480, 81 frames, 4 steps, chunk-causal flow, guidance 1, shift 5) | model session leased 3.6 s, text encoder run 5.1 s, denoising pass 11.3 s, clip decoded 8.0 s |
-| SenseNova-U1-8B-MoT-Infographic-V3 | 11.5 s (512 x 512, 4 steps, flow Euler, guidance 4.5, shift 3) | 129.1 s (2048 x 2048, 50 steps, flow Euler, guidance 4.5, shift 3) | model session leased 9.9 s, model.routed-image-integrate 117.9 s |
+| SenseNova-U1-8B-MoT-Infographic-V3 | 12.3 s (512 x 512, 4 steps, flow Euler, guidance 4.5, shift 3) | 130.7 s (2048 x 2048, 50 steps, flow Euler, guidance 4.5, shift 3) | model session leased 10.9 s, model.routed-image-integrate 120.0 s |
 | SimpleDiffusion-TensorProductAttentionRope | 0.8 s (256 x 256, 8 steps, Euler) | — | — |
 | Un-0 | 0.0 s (8 x 8, 4 steps, Kuramoto Euler) | — | — |
-| Un-0 | 0.1 s (16 x 16, 12 frames, 4 steps, Kuramoto Euler) | 0.1 s (16 x 16, 8 frames, 4 steps, Kuramoto Euler) | model.oscillator-video-decode 0.0 s, (no part names) 0.0 s |
-| Wan2.1-T2V-1.3B | 6.4 s (32 x 16, 21 frames, 2 steps, flow UniPC, guidance 6, shift 5) | 336.3 s (832 x 480, 81 frames, 50 steps, flow UniPC, guidance 6, shift 5) | clip denoised 320.6 s |
+| Un-0 | 0.1 s (16 x 16, 12 frames, 4 steps, Kuramoto Euler) | 0.0 s (16 x 16, 8 frames, 4 steps, Kuramoto Euler) | model.oscillator-video-decode 0.0 s, (no part names) 0.0 s |
+| Wan2.1-T2V-1.3B | 6.7 s (32 x 16, 21 frames, 2 steps, flow UniPC, guidance 6, shift 5) | 336.8 s (832 x 480, 81 frames, 50 steps, flow UniPC, guidance 6, shift 5) | clip denoised 320.7 s |
 <!-- end of the speed table -->
 
 Strata, on the same PC and model, processes Flash-Next's 4,096-token prompt at

@@ -15,4 +15,13 @@ func TestAPlanEditRidesWithTheNextLanding(t *testing.T) {
 	if created := turnCreatedDirt(nil, []dirtyFact{planned, coded}); len(created) != 1 || created[0].Path != coded.Path {
 		t.Fatalf("a turn that edited the plan and code left %v orphaned; want the code alone", created)
 	}
+	// The findings register, which a review session writes beside the lead's turn, rides with the next landing too
+	// (SQA-491).
+	registered := dirtyFact{Path: "docs/sqa_findings.json", WorktreeStatus: "M", WorkIdentity: "after"}
+	if created := turnCreatedDirt(nil, []dirtyFact{registered}); len(created) != 0 {
+		t.Errorf("a turn beside an edit of the findings register alone left %v orphaned; want nothing", created)
+	}
+	if created := turnCreatedDirt(nil, []dirtyFact{registered, coded}); len(created) != 1 || created[0].Path != coded.Path {
+		t.Errorf("a turn beside a register edit and a code edit left %v orphaned; want the code alone", created)
+	}
 }

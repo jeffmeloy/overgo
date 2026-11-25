@@ -40,22 +40,6 @@
       ]
     },
     {
-      "id": "status-turn",
-      "title": "A turn that asks only for a status answer ends with it; a decision that changes a standing rule waits for the next turn that implements",
-      "steps": [
-        {
-          "id": "do",
-          "title": "The stop hook lets a clean, typed status turn end though a doctrine decision waits",
-          "verify": "go test ./cmd/loophook -count=1 -run '^TestAStatusTurnEndsThoughADecisionWaits$'",
-          "files": [
-            "cmd/loophook",
-            "internal/plan"
-          ],
-          "rationale": "SQA-490, checked against the code at db04fec59: valid from source. runStop (cmd/loophook/main.go) calls answerHold before it uses stopDecision's verdict, so a typed turn that asks only for status, with the tree clean and no landing running, is held to answer a doctrine decision first (exit 2). The hold came with doctrine-answer (528f40b3f) after an eight-hour wait on such a decision; the wait it cures is an unattended or implementing turn that ends on the decision, not a status answer. The change: answerHold holds a turn only where stopDecision would hold it for its work (an implementing turn, or one whose tree or landing is unfinished); a clean typed turn ends, the decision staying in Dispatch.Answer for the next. Check: TestAStatusTurnEndsThoughADecisionWaits runs the hook on a clean typed turn with a doctrine decision waiting and finds it let end, and on an implementing turn finds it held. It does not exist at the base, so the check fails there.\n\nNote: SQA-491 (P2), valid from source at b0dc71f35 (turnCreatedDirt in cmd/loophook/main.go): the stop hook's abandoned-work check exempts only the plan. A review session's edit to docs/sqa_findings.json during a master turn that made no edit therefore reads as the turn's orphan, and the first stop exits 2. The next landing carries the register by design (internal/landing scope). No blocked session was observed. With this step, since both reach the stop hook: the register is exempt beside the plan, named by plan.FindingsRegister. The plan_rides case passes with a register edit alone and still blocks a source edit beside it."
-        }
-      ]
-    },
-    {
       "id": "stop-request-session",
       "title": "A pause the owner asks for is recorded by the session it was asked of, and another session's prompt in the checkout neither grants nor withdraws it",
       "steps": [
@@ -99,6 +83,16 @@
           "depends_on": [
             "full-measurement/run"
           ]
+        },
+        {
+          "id": "overlong",
+          "title": "The rules stage counts no kernel header's length",
+          "verify": "go test ./internal/landing -count=1 -run '^TestTheRulesStageCountsNoHeaderLength$'",
+          "files": [
+            "internal/landing",
+            "cmd/kernel-manifest"
+          ],
+          "rationale": "SQA-500 (P2), checked against internal/landing/rules.go at 70394cb96: valid from source and observed. The rules stage counts a kernel family header's newline bytes and refuses one over 2,000 lines (overlongFamilies); its own fixture accepts 2,000 comment lines and refuses 2,001. It refused moss-checkpoint-regression/do at 2,065 lines after a 12-minute card check (94515cfc8 moved the veto earlier, not away), and its cure was to move kernels to another header included right after, the compiled PTX unchanged. A length that changes nothing the compiler makes is no rule. The change: overlongFamilies, its threshold, its refusal classifier entry and its threshold-only test go; the manifest and compiled-artifact checks, the include-once test and the numerical checks stand. Check: TestTheRulesStageCountsNoHeaderLength runs the rules over a change that grows a family header past 2,000 lines and finds no refusal of its length. It does not exist at the base, so the check fails there."
         }
       ]
     },

@@ -168,8 +168,9 @@ func runStop(hookJSON string) int {
 	// worktree back to the next implementing session; a turn a valve lets end,
 	// or one that leaves work uncommitted, keeps it.
 	rested := (operatorStopped || dispatch.Complete || dispatch.Waiting != "") && !dirtyWork
-	// A decision that changes a standing rule is the lead's to answer now: no turn, a typed one included, ends on it.
-	if hold := answerHold(dispatch, operatorStopped, gateCommitting()); hold != "" {
+	// A decision that changes a standing rule is the lead's to answer now: no turn ends on it but a typed one that leaves
+	// nothing uncommitted.
+	if hold := answerHold(dispatch, operatorStopped, gateCommitting(), base.Typed && !dirtyWork); hold != "" {
 		fmt.Fprint(os.Stderr, hold)
 		if err := recordStopBlock(session, "answer: "+dispatch.Line); err != nil {
 			fmt.Fprintf(os.Stderr, "stop: this block could not be kept, so the stop passes: %v\n", err)
@@ -208,11 +209,13 @@ func runStop(hookJSON string) int {
 
 // answerHold is the block a stop meets while dispatch names a decision that changes a standing rule (Dispatch.Answer):
 // the lead answers it now, at its recommendation unless an owner's rule calls for another option, and goes on; empty
-// when the operator stopped the plan, a gate is committing or no such decision waits. A typed turn is held too: on
-// 2026-11-23 a typed turn ended on "waits for the owner's answer", and the plan sat 8 hours on capacity-record-history,
-// which the lead then answered at its recommendation (doctrine-answer).
-func answerHold(dispatch plan.Dispatch, operatorStopped, gateRunning bool) string {
-	if len(dispatch.Answer) == 0 || operatorStopped || gateRunning {
+// when the operator stopped the plan, a gate is committing, no such decision waits, or the turn is a typed one that
+// leaves nothing uncommitted (status-turn, SQA-490): whoever typed it is present, and the decision stays in
+// Dispatch.Answer for the next turn. A turn no one typed, or one that leaves work, is held: on 2026-11-23 a turn ended
+// on "waits for the owner's answer", and the plan sat 8 hours on capacity-record-history, which the lead then answered
+// at its recommendation (doctrine-answer); a typed turn asking only for status had been held to the decision too.
+func answerHold(dispatch plan.Dispatch, operatorStopped, gateRunning, cleanTypedTurn bool) string {
+	if len(dispatch.Answer) == 0 || operatorStopped || gateRunning || cleanTypedTurn {
 		return ""
 	}
 	var b strings.Builder
@@ -696,6 +699,8 @@ func hasTurnCreatedDirt(session string) bool {
 // turnCreatedDirt returns new or further-modified dirty facts. An edit of the plan is none: a plan review rides with
 // the next landing by design, so a turn that edits the plan while no step can land (the card held, every host step
 // waiting on it) leaves nothing orphaned; on 2026-11-11 such turns were blocked again and again until a code step landed.
+// Nor is an edit of the findings register, which the next landing carries too (internal/landing scope): a review
+// session writes it beside a turn that made no edit, and the turn's stop had read it as the turn's orphan (SQA-491).
 func turnCreatedDirt(base, current []dirtyFact) []dirtyFact {
 	parked := make(map[dirtyFact]bool, len(base))
 	for _, fact := range base {
@@ -703,7 +708,7 @@ func turnCreatedDirt(base, current []dirtyFact) []dirtyFact {
 	}
 	var created []dirtyFact
 	for _, fact := range current {
-		if fact.Path != plan.Path && !parked[fact] {
+		if fact.Path != plan.Path && fact.Path != plan.FindingsRegister && !parked[fact] {
 			created = append(created, fact)
 		}
 	}

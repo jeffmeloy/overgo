@@ -8,23 +8,37 @@ import (
 )
 
 // TestAStopIsHeldToAnsweringARuleDecision holds doctrine-answer: while dispatch names a decision that changes a standing
-// rule, a stop is blocked with the command that answers it, a typed turn's too, since the stop gate's verdict is not
-// read for it; the operator's stop, a committing gate and a dispatch naming none let it pass. On 2026-11-23 a typed turn
-// ended on such a decision and the plan sat 8 hours.
+// rule, a stop is blocked with the command that answers it; the operator's stop, a committing gate and a dispatch naming
+// none let it pass. On 2026-11-23 a turn ended on such a decision and the plan sat 8 hours.
 func TestAStopIsHeldToAnsweringARuleDecision(t *testing.T) {
 	t.Parallel()
 	waiting := plan.Dispatch{Waiting: "first is held by decision choose", Answer: []string{"choose"}}
-	if hold := answerHold(waiting, false, false); !strings.Contains(hold, "go run ./cmd/plan -answer -title <option> choose") || !strings.Contains(hold, "the lead answers now") {
+	if hold := answerHold(waiting, false, false, false); !strings.Contains(hold, "go run ./cmd/plan -answer -title <option> choose") || !strings.Contains(hold, "the lead answers now") {
 		t.Fatalf("a stop on an unanswered rule decision is held with %q; want the lead's command to answer it", hold)
 	}
 	for name, hold := range map[string]string{
-		"the operator stopped the plan": answerHold(waiting, true, false),
-		"a gate is committing":          answerHold(waiting, false, true),
-		"no decision is the lead's":     answerHold(plan.Dispatch{Waiting: "first is held by decision push"}, false, false),
+		"the operator stopped the plan": answerHold(waiting, true, false, false),
+		"a gate is committing":          answerHold(waiting, false, true, false),
+		"no decision is the lead's":     answerHold(plan.Dispatch{Waiting: "first is held by decision push"}, false, false, false),
 	} {
 		if hold != "" {
 			t.Errorf("%s: the stop is held with %q; want it to pass", name, hold)
 		}
+	}
+}
+
+// TestAStatusTurnEndsThoughADecisionWaits holds status-turn/do (SQA-490): with a decision that changes a standing rule
+// waiting, a typed turn that leaves nothing uncommitted ends, the decision left for the next turn, while a turn no one
+// typed, and a typed one that leaves work, is held to answer it. runStop had held every turn to the decision before it
+// read the stop gate's verdict, so a typed question asking only for status was held.
+func TestAStatusTurnEndsThoughADecisionWaits(t *testing.T) {
+	t.Parallel()
+	waiting := plan.Dispatch{Waiting: "first is held by decision choose", Answer: []string{"choose"}}
+	if hold := answerHold(waiting, false, false, true); hold != "" || stopDecision(false, false, false, false, true) != stopAllow {
+		t.Errorf("a clean typed turn with a decision waiting is held with %q; want it to end", hold)
+	}
+	if hold := answerHold(waiting, false, false, false); !strings.Contains(hold, "the lead answers now") {
+		t.Errorf("an implementing turn with a decision waiting ended with %q; want it held to answer it", hold)
 	}
 }
 

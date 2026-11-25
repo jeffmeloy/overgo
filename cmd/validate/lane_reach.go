@@ -44,7 +44,8 @@ func reachedSuites(ctx context.Context, output io.Writer, root, kept string) ([]
 			fmt.Fprintf(output, "validate -run: cycle lane %s is reached by nothing changed since its pass at %.12s\n", all.Name, runs[all.Name].Passed.Commit)
 		}
 	}
-	suites := suitesOf(lanes)
+	suites := leastRecentlyRunFirst(suitesOf(lanes), runs)
+	fmt.Fprintf(output, "validate -run: the cycle's lanes run least recently run first: %s\n", strings.Join(laneNames(suites), ", "))
 	// A test passed since its row named it is not taken first again (lanesFirst.passedSince): a commit that git cannot
 	// read as the other or a descendant of it reads as no pass since.
 	passes, after := plan.ReadTestPasses(kept), gitSince(ctx, root)
@@ -68,6 +69,29 @@ func reachedSuites(ctx context.Context, output io.Writer, root, kept string) ([]
 		}
 	}
 	return suites, nil
+}
+
+// leastRecentlyRunFirst orders a close's lanes by when each last ran, passed, failed or yielded (runs' Last), the one
+// longest without a run first and one never run before all, the cycle's own order kept among equals (lanes-order).
+// A run yields to a newer commit as a lane turns to another package, and every run had begun at the cycle's first lane,
+// so the lanes after the models lane, needle-reference and sequences, ran last at 03:39 on 2026-11-24 and not again
+// through six closes that day: each run spent its time in the lanes before them and yielded before it reached them. A
+// lane that ran goes after the others, so each takes the first place in turn while commits arrive.
+func leastRecentlyRunFirst(suites []SelectedSuite, runs map[string]plan.LaneRecord) []SelectedSuite {
+	ordered := slices.Clone(suites)
+	slices.SortStableFunc(ordered, func(a, b SelectedSuite) int {
+		return runs[a.Lane].Last.Ended.Compare(runs[b.Lane].Last.Ended)
+	})
+	return ordered
+}
+
+// laneNames are the suites' lanes, in their order.
+func laneNames(suites []SelectedSuite) []string {
+	names := make([]string, len(suites))
+	for index, suite := range suites {
+		names[index] = suite.Lane
+	}
+	return names
 }
 
 // reachedLanes are the cycle's lanes at root a close runs: each cut to what the paths changed since its last pass reach

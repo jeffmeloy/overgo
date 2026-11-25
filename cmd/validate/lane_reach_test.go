@@ -5,12 +5,37 @@ import (
 	"maps"
 	"slices"
 	"testing"
+	"time"
 
 	"overgo/internal/landing"
 	"overgo/internal/plan"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
+
+// TestAClosesLanesRunLeastRecentlyRunFirst holds a close's lanes to an order that reaches every lane while commits
+// arrive (lanes-order). The lanes run by when each last ran, passed, failed or yielded: one never run first, then the
+// one longest without a run, the cycle's own order kept among equals. A run that yields to a newer commit records its
+// lane's run, so the lane goes last at the next close. Every run had begun at the cycle's first lane and yielded within
+// the models lane, so on 2026-11-24 needle-reference and sequences ran last at 03:39 and not again through six closes.
+func TestAClosesLanesRunLeastRecentlyRunFirst(t *testing.T) {
+	t.Parallel()
+	at := func(hour int) plan.LaneRecord {
+		return plan.LaneRecord{Last: plan.LaneRun{Commit: "c", Ended: time.Date(2026, 11, 24, hour, 0, 0, 0, time.UTC)}}
+	}
+	suites := []SelectedSuite{{Lane: "model-journey"}, {Lane: "audio"}, {Lane: "models"}, {Lane: "needle-reference"}, {Lane: "sequences"}, {Lane: "new"}}
+	runs := map[string]plan.LaneRecord{"model-journey": at(21), "audio": at(20), "models": at(21), "needle-reference": at(3), "sequences": at(3)}
+	want := []string{"new", "needle-reference", "sequences", "audio", "model-journey", "models"}
+	if got := laneNames(leastRecentlyRunFirst(suites, runs)); !slices.Equal(got, want) {
+		t.Errorf("the lanes run in the order %v; want %v, the least recently run first and the cycle's order among equals", got, want)
+	}
+	// The lanes that ran go last at the next close: the rotation reaches the lanes it put after them.
+	runs["new"], runs["needle-reference"], runs["sequences"] = at(22), at(22), at(23)
+	want = []string{"audio", "model-journey", "models", "needle-reference", "new", "sequences"}
+	if got := laneNames(leastRecentlyRunFirst(suites, runs)); !slices.Equal(got, want) {
+		t.Errorf("after the first three ran, the lanes run in the order %v; want %v", got, want)
+	}
+}
 
 // TestAClosesLanesRunWhatItsChangesReach holds a run of the cycle's lanes on a row's close (validate -run -lanes
 // -reached, lanes-reach) to running what the paths changed since each lane's last pass reach, read on the repository as

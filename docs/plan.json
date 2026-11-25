@@ -19,25 +19,6 @@
       ]
     },
     {
-      "id": "microphone-wait",
-      "title": "The microphone journey stops recording only once its source has played to its end",
-      "steps": [
-        {
-          "id": "do",
-          "title": "The Granite and Nemotron microphone legs wait on the source's own ended event before they stop recording",
-          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go run ./cmd/webui-lane -journeys -run '^TestModelJourneyNativeASRMicrophone$'",
-          "files": [
-            "internal/audioparity"
-          ],
-          "needs_card": true,
-          "rationale": "SQA-495 (P2), checked against internal/audioparity/webui_microphone_test.go and internal/webuilane/idle.go at b0dc71f35, observed in .overgo-runtime/lanes.log at ef89c3241: valid. The leg starts an AudioBufferSourceNode feeding the recorder and settles on micEnded. The source plays 14.53 s. The recorder takes its samples through an AudioWorkletNode, and the idle rule (idle-wait) counts neither a playing source nor the worklet's frames, so the page reads idle while the clip plays. The leg then failed as idle, the dialog showing Recording 9 s, before its transcript comparison. No other browser check waits on a source playing. The change: the leg awaits a promise its source's ended event resolves, or a capture error rejects, through Evaluate. The idle verdict stays for predicates that cannot come true. Check: the model journeys' microphone test, both legs reaching their transcript comparison. It needs the card and the Granite and Nemotron models. Placed before the campaign's closing measurement, whose lanes run it.",
-          "depends_on": [
-            "full-measurement/run"
-          ]
-        }
-      ]
-    },
-    {
       "id": "runner-from-commit",
       "title": "The lanes runner is built from the commit it runs, never from the checkout's uncommitted changes",
       "steps": [
@@ -48,7 +29,7 @@
           "files": [
             "cmd/loop"
           ],
-          "rationale": "The owner's review of 2026-11-24 (fifth), point 1, checked against the code: valid. startLanesRunner (cmd/loop/lanes_on_close.go) builds the runner with buildChecker in loopWorktree, the working checkout, so the runner carries whatever the checkout holds uncommitted, and lanes.log says so (\"under the runner built at 75f41a0d26ee with its tree's changes\"). At 16:44 that tree held turn-priority's cmd/loop change before it landed, unfinished code supervising the lanes. The change: the runner is built from the commit the lanes run (a tree of that commit alone), so its build stamps no tree changes. Check: TestTheLanesRunnerIsBuiltFromTheCommitItRuns starts a runner from a checkout with an uncommitted change to cmd/loop and finds the runner's build stamped with the commit and no changes. It does not exist at the base, so the check fails there.\n\nNote: SQA-496 (P2), valid from source at b0dc71f35 (runLanesDue in cmd/loop/lanes_on_close.go): runLanesDue writes the due commit to lanes_began.json before runLanesAt sets up its checkout. A setup error then, a missing local-models.json, returns before any lane runs. Once the setup is repaired, the due commit equals the begun one, so the next invocation releases the lock and returns success with no lane run and no verdict. No missed run was observed. With this step: a commit is recorded as begun only once its runner has started, so a commit whose setup failed runs once after the repair. The row-close check fails the setup, repairs it and retries the commit, and finds validation invoked only by the setup that succeeded."
+          "rationale": "The owner's review of 2026-11-24 (fifth), point 1, checked against the code: valid. startLanesRunner (cmd/loop/lanes_on_close.go) builds the runner with buildChecker in loopWorktree, the working checkout, so the runner carries whatever the checkout holds uncommitted, and lanes.log says so (\"under the runner built at 75f41a0d26ee with its tree's changes\"). At 16:44 that tree held turn-priority's cmd/loop change before it landed, unfinished code supervising the lanes. The change: the runner is built from the commit the lanes run (a tree of that commit alone), so its build stamps no tree changes. Check: TestTheLanesRunnerIsBuiltFromTheCommitItRuns starts a runner from a checkout with an uncommitted change to cmd/loop and finds the runner's build stamped with the commit and no changes. It does not exist at the base, so the check fails there.\n\nNote: SQA-496 (P2), valid from source at b0dc71f35 (runLanesDue in cmd/loop/lanes_on_close.go): runLanesDue writes the due commit to lanes_began.json before runLanesAt sets up its checkout. A setup error then, a missing local-models.json, returns before any lane runs. Once the setup is repaired, the due commit equals the begun one, so the next invocation releases the lock and returns success with no lane run and no verdict. No missed run was observed. With this step: a commit is recorded as begun only once its runner has started, so a commit whose setup failed runs once after the repair. The row-close check fails the setup, repairs it and retries the commit, and finds validation invoked only by the setup that succeeded.\n\nNote: Corrected by the lead on 2026-11-24 at 66aedcc40, checked against a build. The runner's code is already the commit's: buildChecker builds it in .overgo-runtime/checker, moved to the trunk's commit and cleaned (clean-checker/do). Built there with the checker worktree clean, a runner is still stamped vcs.modified=true. Go takes a git root only where .git is a directory (cmd/go/internal/vcs, isDir: true), and a worktree's .git is a file, so the build's stamp comes from the main checkout above it, its HEAD and its uncommitted changes. lanes.log's \"with its tree's changes\" was the main checkout's state, then turn-priority's unlanded edit. No uncommitted code supervised the lanes. The change is the runner's account of itself: buildChecker gives the build the commit it checked out, and lanesRunnerBuild says that commit, built clean, in place of the stamp. Check: TestTheLanesRunnerIsBuiltFromTheCommitItRuns, as filed, finds the runner built beside an uncommitted change to cmd/loop says its commit and no changes."
         }
       ]
     },

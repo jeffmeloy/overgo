@@ -63,8 +63,8 @@ func TestModelJourneyNativeASRMicrophone(t *testing.T) {
 			check(`document.querySelector('.task-model-selector select').value===` + strconv.Quote(f.definitions[index].ID.String()))
 			check(`(async()=>{
     const caps=await overgo.api.get('/generation/capabilities'),audio=caps.find(c=>c.recipe===document.querySelector('.task-model-selector select').value).controls.find(c=>c.name==='audio').audio;
-    window.micTracks=[];window.micContexts=[];window.micEnded=false;
-    navigator.mediaDevices.getUserMedia=async()=>{const context=new AudioContext({sampleRate:audio.format.sample_rate});micContexts.push(context);await context.resume();const bytes=Uint8Array.from(atob(` + strconv.Quote(base64.StdEncoding.EncodeToString(f.inputs[index])) + `),c=>c.charCodeAt(0));const decoded=await context.decodeAudioData(bytes.buffer),source=context.createBufferSource(),destination=context.createMediaStreamDestination();source.buffer=decoded;source.connect(destination);source.onended=()=>window.micEnded=true;window.micStart=()=>source.start();const track=destination.stream.getAudioTracks()[0],stop=track.stop.bind(track);track.stop=()=>{stop();context.close();};micTracks.push(track);return destination.stream;};
+    window.micTracks=[];window.micContexts=[];
+    navigator.mediaDevices.getUserMedia=async()=>{const context=new AudioContext({sampleRate:audio.format.sample_rate});micContexts.push(context);await context.resume();const bytes=Uint8Array.from(atob(` + strconv.Quote(base64.StdEncoding.EncodeToString(f.inputs[index])) + `),c=>c.charCodeAt(0));const decoded=await context.decodeAudioData(bytes.buffer),source=context.createBufferSource(),destination=context.createMediaStreamDestination();source.buffer=decoded;source.connect(destination);window.micLength=decoded.duration;window.micEnded=new Promise(resolve=>{source.onended=resolve;});window.micStart=()=>source.start();const track=destination.stream.getAudioTracks()[0],stop=track.stop.bind(track);track.stop=()=>{stop();context.close();};micTracks.push(track);return destination.stream;};
     navigator.mediaDevices.enumerateDevices=async()=>[];document.querySelector('.composer .attach-button').click();return true;
    })()`)
 			activate := func(label string) {
@@ -82,7 +82,10 @@ func TestModelJourneyNativeASRMicrophone(t *testing.T) {
 			activate("Record")
 			settle(`document.querySelector('.capture-dialog').dataset.state==='recording'`)
 			check(`(()=>{micStart();return true;})()`)
-			settle(`micEnded`)
+			// The source plays to its end before recording stops: the check awaits its ended event, bounded by twice
+			// its own length (microphone-wait, SQA-495). A settle on it had read the page idle while the source played,
+			// since the idle rule counts neither a playing source nor the recorder's worklet, and failed the leg.
+			check(`(async()=>{await Promise.race([window.micEnded,new Promise((_,reject)=>setTimeout(()=>reject(new Error('the source did not end within twice its '+window.micLength+' s')),2000*window.micLength))]);return true;})()`)
 			activate("Stop recording")
 			settle(`document.querySelector('.capture-dialog').dataset.state==='ready'`)
 			check(`micTracks.every(t=>t.readyState==='ended')&&micContexts.every(c=>c.state==='closed')`)

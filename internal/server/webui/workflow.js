@@ -452,15 +452,18 @@
       shown.replaceChildren(input.value ? el("img", { src: contentURL(input.value), alt: "The " + name + " chosen", class: "picture-thumb", title: input.value })
         : el("span", { class: "note", text: "None chosen: upload one, drop one here, or pick a recent one" }));
     };
-    // store keeps a picture file and chooses it, unless another was chosen while it was stored, which stays the choice
-    // (SQA-489); either way the recent pictures relist with it.
+    // store keeps a picture file and chooses it, unless a later choice was made in the slot while it was stored: a
+    // picture picked, which changes the slot, or another upload begun, which counts past it. The later choice stays
+    // (SQA-489: two uploads begun on one value had both read it unchanged, so the first to finish was chosen and the
+    // last dropped was not). Either way the recent pictures relist with it.
+    let uploads = 0;
     const store = async (picked) => {
       if (!picked || !picked.type.startsWith("image/")) { note.textContent = "Upload or drop a picture file"; return; }
       note.textContent = "Storing " + picked.name + "…";
-      const asked = input.value;
+      const asked = input.value, mine = ++uploads;
       try {
         const stored = await api.upload("/artifacts/intake", picked);
-        if (input.value === asked) {
+        if (input.value === asked && uploads === mine) {
           note.textContent = "";
           choose(stored.id);
         } else note.textContent = picked.name + " is stored, and the picture chosen meanwhile stays chosen";

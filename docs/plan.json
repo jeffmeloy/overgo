@@ -23,18 +23,6 @@
       "title": "A picture chosen on the MOSS page is the one read, sent and previewed",
       "steps": [
         {
-          "id": "last-of-two",
-          "title": "Of two pictures dropped into one MOSS slot while both upload, the one dropped last is sent",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserMOSSLastPictureChosenIsSent$' -leg moss-last-of-two",
-          "files": [
-            "internal/server"
-          ],
-          "rationale": "SQA-489 (P2), checked against pictureChooser's store (internal/server/webui/workflow.js) at b0dc71f35: valid from source. Each upload reads the slot's value as it starts. Two begun on an empty slot both read it empty, so the first to finish chooses its picture and the second, finding the slot changed, keeps the first: A is sent though B was dropped last. moss-page/last-picture held one upload against a stored thumbnail chosen meanwhile. The change: an upload chooses its picture only while no later choice was made in its slot since it began, an upload begun or a picture picked. Check: TestWebUIBrowserMOSSLastPictureChosenIsSent, extended to drop A and then B, let A finish first and B after it, press Run, and read the request sent, which must name B, recorded as the leg moss-last-of-two. The leg is new, so the check fails at the base.",
-          "depends_on": [
-            "full-measurement/run"
-          ]
-        },
-        {
           "id": "stale-preview",
           "title": "A MOSS depth preview shows only the map of the picture chosen now",
           "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserDepthPreview$' -leg depth-preview-current",

@@ -78,4 +78,51 @@ func TestWebUIBrowserMOSSLastPictureChosenIsSent(t *testing.T) {
 	}
 	check(`window.overgo.errors.length===0`)
 	webuilane.Leg(t, "moss-last-picture", "A recent picture chosen while a dropped one is stored stays chosen and is sent, and the dropped one is listed among the recent.")
+
+	// Two pictures dropped into the slot while both are stored: the first finishes first, and the last dropped is the
+	// choice and is sent (moss-pictures/last-of-two, SQA-489). Both uploads had read the slot unchanged, so the first
+	// to finish was chosen and the last dropped was not.
+	pictureBytes := func(green uint8) ([]byte, artifact.ID) {
+		drawn := image.NewRGBA(image.Rect(0, 0, 3, 3))
+		drawn.Set(2, 0, color.RGBA{R: 200, G: green, B: 40, A: 255})
+		var encoded bytes.Buffer
+		testcheck.NoError(t, png.Encode(&encoded, drawn))
+		return encoded.Bytes(), testcheck.Must(artifact.IdentifyBytes(artifact.KindFile, encoded.Bytes()))(t)
+	}
+	first, firstID := pictureBytes(10)
+	last, lastID := pictureBytes(220)
+	check(`(() => {
+  window.holds=[];
+  const original=window.fetch;
+  window.fetch=function (path) { const answer=original.apply(this, arguments); return typeof path==='string' && path.startsWith('/artifacts/intake') ? new Promise(resolve=>holds.push(resolve)).then(()=>answer) : answer; };
+  const drop=(encoded, name)=>{
+    const data=Uint8Array.from(atob(encoded), c=>c.charCodeAt(0));
+    const held=new DataTransfer(); held.items.add(new File([data], name, {type:'image/png'}));
+    source.querySelector('.picture-chooser').dispatchEvent(new DragEvent('drop', {dataTransfer:held, bubbles:true, cancelable:true}));
+  };
+  drop(` + strconv.Quote(base64.StdEncoding.EncodeToString(first)) + `, 'first.png');
+  drop(` + strconv.Quote(base64.StdEncoding.EncodeToString(last)) + `, 'last.png');
+  return true;
+})()`)
+	listed := func(id artifact.ID) string {
+		return `[...source.querySelectorAll('.intake-thumb')].some(button=>button.dataset.id===` + strconv.Quote(id.String()) + `)`
+	}
+	settle(`window.holds.length===2`)
+	check(`(() => { holds[0](); return true; })()`)
+	settle(listed(firstID))
+	check(`(() => { holds[1](); return true; })()`)
+	settle(listed(lastID))
+	check(`(() => {
+  const panel=document.querySelector('#panel-generation');
+  panel.querySelectorAll('.workbench-output').forEach(shown=>shown.remove());
+  panel.querySelector('[aria-label="run status"]').replaceChildren();
+  window.runButton.click();
+  return true;
+})()`)
+	settle(`(!!document.querySelector('#panel-generation .workbench-output') && !window.runButton.disabled) || (!window.runButton.disabled && document.querySelector('#panel-generation [aria-label="run status"]').textContent.trim()!=='')`)
+	if inputs := fixture.requests(); len(inputs) != 2 || inputs[1].Image != lastID.String() {
+		t.Fatalf("the runs asked %+v; want the second to send the picture dropped last, %s, not the one that finished first, %s", inputs, lastID, firstID)
+	}
+	check(`window.overgo.errors.length===0`)
+	webuilane.Leg(t, "moss-last-of-two", "Of two pictures dropped into one slot while both are stored, the one dropped last is chosen and sent, though the first finished first.")
 }

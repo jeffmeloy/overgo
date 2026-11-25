@@ -125,6 +125,16 @@ type landing struct {
 	card func() error
 	// candidate is the tree the checks validate and the commit publishes.
 	candidate string
+	// first is the tree the landing first captured, the source of its commit, and wrote the paths the gate's own
+	// stages wrote into the checkout since (gofmt, go fix, a rename's citations, a lowered ceiling), which a later
+	// capture takes onto it; later are the paths anything else changed since, left in the checkout for their own step
+	// (landing-snapshot, SQA-494: every capture had taken the checkout afresh, so an edit written for the next step
+	// entered this landing's commit, checked by fewer stages than the rest).
+	// firstOn is the commit the first capture was staged onto: where the landing builds on another, it captures afresh.
+	first, firstOn string
+	wrote          map[string]bool
+	later          []string
+	laterNamed     bool
 	// turn gives back the repository's commit turn while the run holds it (holdTurn); the card's wait gives it up and
 	// takes it again (holdCard).
 	turn func() error
@@ -470,14 +480,24 @@ func (l *landing) shipSet(ctx context.Context) error {
 		}
 		l.scoped = true
 	}
+	if l.first != "" && l.firstOn != l.builtOn() {
+		l.first, l.wrote = "", nil
+	}
+	recapture := l.first != ""
 	if l.candidate, err = l.capture(ctx); err != nil {
 		return err
+	}
+	if !recapture {
+		l.first, l.firstOn = l.candidate, l.builtOn()
 	}
 	changed, err := dirtyTree(ctx, l.Repo)
 	if err != nil {
 		return err
 	}
 	entries, left := l.held(changed)
+	if recapture {
+		entries = l.sinceFirst(entries)
+	}
 	l.nameLeft(left)
 	l.paths = nil
 	for _, entry := range entries {
@@ -524,9 +544,14 @@ func (l *landing) planOnly() bool {
 // as it stands and outside the commit. The index the checkout's own git
 // commands use is neither read nor written.
 func (l *landing) capture(ctx context.Context) (string, error) {
-	// Each capture stages onto the commit the landing builds on, not onto the one before: a path the change deletes
-	// is staged as gone once, and a later stage's capture naming it again would match nothing in the index or the tree.
-	if _, err := l.staged(ctx, "read-tree", l.builtOn()); err != nil {
+	// The first capture stages onto the commit the landing builds on: a path the change deletes is staged as gone once.
+	// A later capture stages onto the first, and takes from the checkout only what the gate's own stages wrote since
+	// (landing-snapshot, SQA-494).
+	base := l.builtOn()
+	if l.first != "" {
+		base = l.first
+	}
+	if _, err := l.staged(ctx, "read-tree", base); err != nil {
 		return "", err
 	}
 	// A generator's file the checkout holds is staged only as derive wrote it (held): a scoped landing names what it
@@ -537,7 +562,14 @@ func (l *landing) capture(ctx context.Context) (string, error) {
 		return "", err
 	}
 	held, left := l.held(changed)
-	if l.scope != nil {
+	if l.first != "" {
+		arguments = append(arguments, "--")
+		for _, entry := range held {
+			if l.gateWrote(entry.Path) {
+				arguments = append(arguments, entry.Path)
+			}
+		}
+	} else if l.scope != nil {
 		arguments = append(arguments, "--")
 		for _, entry := range held {
 			arguments = append(arguments, entry.Path)
@@ -759,8 +791,10 @@ func (l *landing) format(ctx context.Context) error {
 	if len(packages) == 0 {
 		return nil
 	}
-	_, err := l.run(ctx, nil, "go", append([]string{"fmt"}, packages...)...)
-	return err
+	return l.recordWrites(packages, func() error {
+		_, err := l.run(ctx, nil, "go", append([]string{"fmt"}, packages...)...)
+		return err
+	})
 }
 
 // fix applies go fix's modernizers to the changed packages, as format
@@ -781,7 +815,10 @@ func (l *landing) fix(ctx context.Context) error {
 			// key forgets the directory once a build is trimmed. Another checkout of the same bytes
 			// would then have the first checkout's files written and its own left as they were. So
 			// this one command is never trimmed, whatever the environment asks of the others.
-			if _, err := l.run(ctx, nil, "go", append([]string{"fix", "-trimpath=false", "-tags", checkedTags}, packages...)...); err != nil {
+			if err := l.recordWrites(directories, func() error {
+				_, err := l.run(ctx, nil, "go", append([]string{"fix", "-trimpath=false", "-tags", checkedTags}, packages...)...)
+				return err
+			}); err != nil {
 				return err
 			}
 		}

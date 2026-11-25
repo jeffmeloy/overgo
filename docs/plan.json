@@ -23,24 +23,6 @@
       ]
     },
     {
-      "id": "landing-snapshot",
-      "title": "A landing publishes the tree it first captured with the gate's own changes, never an edit written after",
-      "steps": [
-        {
-          "id": "do",
-          "title": "The fix and derive stages and a lowered ceiling change the landing's first candidate, not a fresh capture of the checkout",
-          "verify": "go test ./internal/landing -count=1 -run '^TestALandingPublishesTheTreeItFirstCaptured$'",
-          "files": [
-            "internal/landing"
-          ],
-          "rationale": "SQA-494 (P2), checked against shipSet (internal/landing) at b0dc71f35 and observed at b1d6e237a: valid. shipSet captures every changed file in scope afresh as the candidate. The fix and derive stages call it again, and a lowered ceiling calls it after the invariants have passed. So an edit written after the first capture enters the landing, checked by fewer stages than the rest: moss-page/restored published moss-page/own-run's edit, and own-run was retired. The change: the first capture is the landing's source. The gate's format, fix, generated-file and ceiling changes are applied to that candidate. A later edit stays in the checkout for its own step. Check: TestALandingPublishesTheTreeItFirstCaptured edits a file in scope after the first capture and before the fix stage ends. It finds the published commit holding the first capture with the gate's changes, and the checkout holding the edit. It does not exist at the base, so the check fails there. Placed ahead of observed-inputs/rule, which keeps a check's pass for what a candidate's tests read.",
-          "depends_on": [
-            "full-measurement/run"
-          ]
-        }
-      ]
-    },
-    {
       "id": "observed-inputs",
       "title": "A check's pass is kept while what it read is unchanged, its inputs observed, so a commit runs only the checks its change can alter",
       "steps": [

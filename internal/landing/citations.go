@@ -62,6 +62,7 @@ func (l *landing) followRenames(ctx context.Context) error {
 		if err := os.WriteFile(file, []byte(text), clioptions.OutputFileMode); err != nil {
 			return err
 		}
+		l.noteWrite(document)
 		fmt.Fprintf(l.Log, "land: %s cites the renamed tests by their new names, %d citations rewritten\n", document, rewrote)
 		if l.scope != nil && !plan.Lists(l.scope, document) {
 			l.scope = append(l.scope, document)

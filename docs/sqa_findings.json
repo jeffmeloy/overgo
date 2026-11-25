@@ -1,55 +1,36 @@
 {
   "advisory_notice": "All SQA findings, rankings and assessments are recommendations. Master decides whether, when and how to act through docs/plan.json.",
   "priority_assessment": [
-    "I would finish the MOSS section timings already first in the plan. Before the next full measurement, I would take check-form-reads/do (SQA-483). A valid scorecard check was refused after nine hours of measurement. The immediate cost we can substantiate is rewriting and landing the verifier. SQA-497 is the next completion rule I would remove. A recommendation can remain visible while master decides whether it warrants a plan row.",
-    "I would take the three sync.Once refusals and eight export-doc refusals as grounds to remove those landing vetoes when master next touches the rules (SQA-498 and SQA-499). The card-held/card-free dispatch refusals already have a fix in 9e5a67c32. The line-based UI veto already has ternary-veto/do. Neither needs another rule or plan row.",
-    "For MOSS, a directory passed as the timing destination still wastes both six-section runs (SQA-460). The adapter comparison still issues eight control draws whose scores it never uses (SQA-410). That is 248 denoiser passes across its two precisions. The time saved by removing them has yet to be measured."
+    "I would keep served-parts/clock first and use the completed timing from cb82910a6. Across six sections, Overgo took 45.940 s cold against ComfyUI’s 40.176 s and 33.644 s warm against 34.412 s. Cold text-to-image accounts for 4.969 s of the 5.764 s gap. Its prompt encoding took 4.771 s and read 6.50 GiB. Those are Overgo costs. A comparable ComfyUI stage reading would establish how much of the difference belongs there.",
+    "I would put SQA-492 first among the remaining fixes. Two clicks on stored picture cards can send the earlier picture to the model and spend a full draw on the wrong input. Both cards already carry the identity the model accepts. SQA-493 can leave the earlier depth map on screen. Both cases can be distinguished in the existing browser checks without a model run.",
+    "I agree with landing-snapshot/do before observed-inputs reuses more checks (SQA-494). A pass must belong to the tree that lands, and deleting a golden input must still select its reader (SQA-415). I would leave the PNG copy work below these. The workflow clock stops before the served output rewrites in SQA-468."
   ],
   "branch": "master",
   "findings": [
     {
-      "id": "SQA-483",
+      "id": "SQA-492",
       "severity": "P2",
       "files": [
-        "internal/runrecord/verify_command.go",
-        "internal/planverify/verify.go",
-        "internal/landing/form.go",
-        "cmd/plan/main.go",
-        "cmd/plan/check_form_test.go"
+        "internal/server/webui/composer.js",
+        "internal/server/webui/mod/chat.js",
+        "internal/server/webui_browser_generated_media_test.go",
+        "internal/latentimage/source_latent_windows.go"
       ],
-      "input": "Give the plan the original full-measurement/run check from 5147c611f's parent. It saves the scorecard output in a shell variable and then checks each required model row and the generated README.",
-      "expected": "Remove ParseVerify's veto on a shell assignment that captures command output for a later assertion. check-form-reads/do already owns this repair. Let the shell execute the full composite check, keep the Go test evidence requirements, and give no cached credit for a partial reading. A missing required model row must still fail the check.",
-      "actual": "Git Bash accepted the exact recorded command in syntax-only mode. ParseVerify splits at the opening parenthesis, consumes the assignment prefix and reports that the segment runs nothing. The landing refusal and commit 8e62553db record that this stopped full-measurement/run after nine hours of measurement. Commit 5147c611f rewrote the check before the step landed. The filing check now gives the same refusal earlier. The nine hours elapsed before the refusal. The record shows a verifier rewrite and a separate landing."
+      "input": "In the composer's MOSS image-to-image mode, open two stored PNG output cards, A and B, and use each as input for the same picture slot, A first. Let B's content request return first, then A's. Submit after both return.",
+      "expected": "Select B by its stored output ID and declared image type when its button is clicked. The picture slot needs no blob fetch to set that value. Keep the existing file download for the attachment path that actually consumes bytes. Extend the generated-media browser case to inspect the submitted ID after the two clicks.",
+      "actual": "Source counterexample at cb82910a6. The gallery supplies each card's artifact ID and MIME type. mediaCard waits for api.blob, constructs a File and calls reuse. The slot branch in chat.js uses the file type to choose the field, then assigns the ID. B is selected first and A overwrites it when the older fetch returns. Request.ReadPictures now accepts both output IDs, so the model can draw from A. The retained single-card check verifies one slot assignment. The two-click failure was not observed in a run."
     },
     {
-      "id": "SQA-497",
+      "id": "SQA-493",
       "severity": "P2",
       "files": [
-        "internal/loop/driver.go",
-        "cmd/loop/improve.go",
-        "internal/plan/dispatch.go",
-        "internal/plan/findings_fall_through.go",
-        "internal/loop/dispatch_wait_test.go",
-        "internal/plan/findings_dispatch_test.go"
+        "internal/server/webui/mod/generation.js",
+        "internal/server/webui/workflow.js",
+        "internal/server/generation_preview_windows_test.go"
       ],
-      "input": "Complete the last accepted plan step with an untriaged P2 recommendation in the register. No worker holds work and no stop or budget bars the scheduled measurement.",
-      "expected": "Report the open recommendation beside the plan outcome and let the existing cycle trigger decide whether measurement is due. Remove the requirement to file or disposition a recommendation before completion. Keep ownership waits, explicit stops, budgets and accepted plan dependencies binding. Keep urgent findings visible to master.",
-      "actual": "Source counterexample at 39ffd57e1. cmd/loop uses execWorld, whose FindingsToFile reads this register. With no open step, loop.Run returns findings-waiting before improve asks whether the cycle is due. The existing dispatch_wait_test explicitly expects zero measurements and zero worker calls for one P2. Dispatch tells master to file the finding as a row. The committed plan still has open steps, so this is a demonstrated branch in the code, not an observed stop of the current campaign."
-    },
-    {
-      "id": "SQA-495",
-      "severity": "P2",
-      "files": [
-        "internal/audioparity/webui_microphone_test.go",
-        "internal/audioparity/testdata/ctc_training_record.json",
-        "internal/server/webui/media_capture.js",
-        "internal/webuilane/idle.go",
-        "internal/webuilane/browser.go",
-        "internal/server/webui_browser_idle_wait_windows_test.go"
-      ],
-      "input": "Run TestModelJourneyNativeASRMicrophone/granite with its real clip. The test starts an AudioBufferSourceNode feeding the microphone and waits for micEnded before pressing Stop recording. Its finite source is still playing when the browser checks for idle.",
-      "expected": "Wait for the finite audio source's ended event or a capture error before deciding this step. The fixture already owns that event and Browser.Evaluate awaits promises. Keep the exact native transcript comparison and the idle verdict for genuinely impossible page predicates.",
-      "actual": "Observed in .overgo-runtime/lanes.log for ef89c3241, still explained by 11336eb42. At webui_microphone_test.go:85 the Granite leg failed as idle after the page reported “Recording · 9s · 281.25 KB” with no page error. Its source clip is 232,480 samples at 16 kHz (14.53 s). The leg took 17.73 s and never reached its browser transcript comparison. The recorder receives PCM through AudioWorkletNode. The lane counts AudioContext.resume and module loading, but neither tracks the playing source through its ended event. The held MOSS draw uses a different completion signal, overgo.awaiting, which the idle check does track."
+      "input": "In MOSS depth control, request the preview for picture A. While that response is pending, choose B and then A again. Let A's response display its map. Select B once more without requesting another preview.",
+      "expected": "On the last selection of B, clear A's map. Associate a displayed response with its picture and settings using the existing showing value, or discard a response once its original selection was invalidated. Keep preview generation on the button press. The held-response case can exercise this sequence with one estimate.",
+      "actual": "Source counterexample at cb82910a6. Selecting B clears showing. Returning to A leaves showing null. A's response passes madeFrom() === asked and inserts the image without restoring showing. The last switch to B cannot clear the map because offer requires showing !== null. The existing browser case covers changing away once and clearing an already displayed map. This return-to-A sequence was not run."
     },
     {
       "id": "SQA-494",
@@ -65,41 +46,45 @@
       "actual": "Observed in b1d6e237a and recorded in 75f41a0d2: moss-page/restored published the next step's per-tab operation handling. Master retired moss-page/own-run and checked its regression against 6357cf23e instead. At 75f41a0d2, shipSet replaces l.candidate with a fresh capture of every changed file in scope. fix and derive call it again. A lowered ceiling also calls it after invariants have passed, so a later edit can enter a tree different from the one the earlier stages checked. That last case follows from source. The existing checkout test edits the file after the checkout-free notice."
     },
     {
-      "id": "SQA-410",
+      "id": "SQA-415",
       "severity": "P2",
       "files": [
-        "internal/latentimage/golden_floor_windows_model_test.go",
-        "internal/latentimage/turbo_floor_windows_model_test.go",
-        "internal/latentimage/int8_merge_windows_model_test.go",
-        "internal/latentimage/image_to_image_windows_model_test.go"
+        "internal/landing/lanes.go",
+        "internal/repoanalysis/tracked_documents.go",
+        "cmd/validate/lane_reach.go",
+        "cmd/validate/lane_reach_test.go",
+        "internal/seq2seq/upstream_calls_model_test.go",
+        "internal/latentimage/moss_golden_test.go"
       ],
-      "input": "Run TestMOSSAdapterSectionsMultiplyAsComfyUI/sections on the four pinned sections. Compare the BF16 projections with the merged int8 projections.",
-      "expected": "Use the baseline draw for each section and precision in holdMergedSections. Keep the eight baseline readings, the separate bit-exact merge check, and the changed-input controls that decide the standard and Turbo floors. The adapter comparison should issue zero changed-input draws.",
-      "actual": "At 39ffd57e1, holdMergedSections calls readGoldenCases twice. For every baseline, readGoldenCase resets the generator and draws a changed input. The adapter assertion reads only after.latent and before.latent. Removing the eight control draws saves 248 denoiser passes per comparison, from (100 + 8 + 8 + 8) steps in each precision. This is a source count. The new floor check avoids decoding the controls and rejects a zero-signal reference. Its five standard cases passed. Adapter wall-time savings are unmeasured."
+      "input": "After a passing needle-reference run, delete only fixtures/needle_upstream_calls.json and select lanes with -reached. The reader still names the old path. The same case applies to the models lane when only fixtures/moss/checkpoint.json is deleted.",
+      "expected": "CycleLanesReached selects the reader of the removed fixture, so the Needle or MOSS check reports the missing input. Use the existing reader lookup for deleted paths, or run the lane when its readers are unknown. Keep the current package selection for edits to existing fixtures.",
+      "actual": "Source trace at c71a1e230. The Git diff supplies the deleted path. TrackedDocuments lists only files still present, so documentReaders returns no entry. discover treats the missing entry as zero readers and omits the lane. Both checks fail on the missing file if selected. The retained gate verified selection for edits to both fixtures while they were present."
     },
     {
-      "id": "SQA-460",
+      "id": "SQA-483",
       "severity": "P2",
       "files": [
-        "internal/latentimage/workflow_time_windows_model_test.go",
-        "internal/latentimage/workflow_source_test.go"
+        "internal/runrecord/verify_command.go",
+        "internal/planverify/verify.go",
+        "internal/landing/form.go",
+        "cmd/plan/main.go",
+        "cmd/plan/check_form_test.go"
       ],
-      "input": "Set OVERGO_WORKFLOW_RECORD to docs/verification, an existing directory inside the repository. Start the six-section cold and warm workflow clock on an otherwise valid checkout.",
-      "expected": "Have readWorkflowSource reject a directory destination before timedQuietly takes the machine and draws. Keep support for a new file in an existing directory and the commit recheck when appending. The destination check can exercise this case without taking the card.",
-      "actual": "Source counterexample at 39ffd57e1. The clock now rejects an absolute destination up front. filepath.IsLocal accepts docs/verification. Both six-section runs finish before appendWorkflowTiming tries to open the directory for appending and fails, leaving no timing record. The earlier absolute-path refusal was observed. This directory case was traced in source."
+      "input": "Give the plan the original full-measurement/run check from 5147c611f's parent. It saves the scorecard output in a shell variable and then checks each required model row and the generated README.",
+      "expected": "Remove ParseVerify's veto on a shell assignment that captures command output for a later assertion. check-form-reads/do already owns this repair. Let the shell execute the full composite check, keep the Go test evidence requirements, and give no cached credit for a partial reading. A missing required model row must still fail the check.",
+      "actual": "Git Bash accepted the exact recorded command in syntax-only mode. ParseVerify splits at the opening parenthesis, consumes the assignment prefix and reports that the segment runs nothing. The landing refusal and commit 8e62553db record that this stopped full-measurement/run after nine hours of measurement. Commit 5147c611f rewrote the check before the step landed. The filing check now gives the same refusal earlier. The nine hours elapsed before the refusal. The record shows a verifier rewrite and a separate landing."
     },
     {
-      "id": "SQA-496",
+      "id": "SQA-388",
       "severity": "P2",
       "files": [
-        "cmd/loop/lanes_on_close.go",
-        "cmd/loop/replay.go",
-        "cmd/loop/main.go",
-        "cmd/loop/lanes_on_close_test.go"
+        "cmd/comfy-reference/record.go",
+        "cmd/comfy-reference/record_test.go",
+        "cmd/comfy-reference/recordings_modeltest_test.go"
       ],
-      "input": "A row closes at commit C. The first lanes runner cannot read the checkout's local-models.json, so it returns a setup error before invoking validation. Restore the file and invoke the existing -lanes-due entry again with C still due and no runner holding the lock.",
-      "expected": "Run C once after setup is repaired. The existing runner lock already excludes a concurrent invocation. Record C as handled after a terminal lane outcome, preserving completed passes, reported test failures and yields. The existing row-close check can fail setup, restore it, retry C and verify that only the successful setup invokes validation.",
-      "actual": "Source counterexample at 11336eb42. runLanesDue writes C to lanes_began.json before runLanesAt calls moveWithRoots. A missing local-models.json returns an error before the run starts. After repair, due.Commit equals began.Commit, so the next invocation releases the lock and returns success without running a lane or reporting a verdict. The row-close check covers a finished failure and a concurrent runner. No missed run from this setup error was observed."
+      "input": "Record two different PNGs returned by node 449 with the same basename original.png in subfolders MOSS/a and MOSS-a of the same recording.",
+      "expected": "Keep each output under a distinct name and leave both recorded hashes verifiable. The recorder already computes the content hash and its existing two-output case can check both names and bytes.",
+      "actual": "Source counterexample at 39ffd57e1. keep replaces a slash with a hyphen. Both files are written as 449-MOSS-a-original.png. The second write replaces the first file. The recording can finish with two different hashes for that path, and its reader then rejects the earlier entry. Producer validation on resume, separate resumed memory reporting and distinct prompt IDs for paired runs are now in place."
     },
     {
       "id": "SQA-487",
@@ -116,32 +101,17 @@
       "actual": "Source counterexample at 30691fc67. runPrompt calls NoteStopRequest before checking who holds the worktree or whether the session is a reviewer. Both sessions write or remove the same stop_request file. The progress question removes it, so RequireStopRequest refuses the lead's authorized pause before RecordStop. Conversely, the word test accepts “don't stop” as evidence for a later requested pause. The words alone never pause a run. The existing checks exercise successive prompts in one session. No missed or unauthorized pause was observed in this review."
     },
     {
-      "id": "SQA-492",
+      "id": "SQA-474",
       "severity": "P2",
       "files": [
-        "internal/server/webui/mod/chat.js",
-        "internal/server/webui/composer.js",
-        "internal/server/generation_workspace.go",
-        "internal/mediacapability/image_cuda_windows.go",
-        "internal/latentimage/encoded_image.go",
-        "internal/latentimage/source_latent_windows.go",
-        "internal/server/webui_browser_generated_media_test.go"
+        "cmd/loop/improve.go",
+        "cmd/loop/improve_test.go",
+        "cmd/loop/improve_resume_test.go",
+        "internal/loop/driver.go"
       ],
-      "input": "In image generation, select MOSS image-to-image. Choose a MOSS-generated PNG using the media card's “use as input” button. Submit with a valid prompt and settings and no cached result. Compare with uploading the very same PNG.",
-      "expected": "Read the compatible stored PNG through Request.ReadPictures using its existing output ID. Keep the checks for missing content and invalid PNGs. The artifact slot already has the ID and media type and can skip the browser's full-file read. Check that the ID selected by the existing browser case reaches the real MOSS picture reader.",
-      "actual": "Source counterexample at b1d6e237a. MOSS publishes PNGs as KindOutput. The card reads the full blob, constructs a File and sets the slot to the original output ID. The workspace admits that ID, but on a cache miss ReadPictures rejects it as “not a stored file” before reading its bytes. Uploading those same bytes yields KindFile and passes that check. The browser case checks the output ID in the field and switches modes before submission. No failed draw was observed in this review."
-    },
-    {
-      "id": "SQA-489",
-      "severity": "P2",
-      "files": [
-        "internal/server/webui/workflow.js",
-        "internal/server/webui/mod/chat.js",
-        "internal/server/webui_browser_moss_last_picture_windows_test.go"
-      ],
-      "input": "Start with an empty MOSS image-to-image slot. Drop A, then drop B into the same slot before either upload completes. Let A finish first, then B. Press Run after both are listed.",
-      "expected": "Send B, the last file the user chose. Both uploads may finish and appear in recent pictures. The existing chooser can track the latest selection per slot, as the chat attachment path already tracks upload attempts. Extend the held-upload browser case to submit after two drops and inspect the actual request.",
-      "actual": "75f41a0d2 fixed the earlier case of clicking a stored thumbnail during an upload. Its browser check passes there and failed on the previous code. Two uploads still capture the same empty input.value. When A finishes it selects A. When B finishes it sees a different value and skips its own selection. Run sends A. The existing check waits on one upload. The two-upload result follows from source; this review did not run it."
+      "input": "Keep a published scorecard at commit C. Start another cycle at C with different obligations and credit for finished cells. Resume it and let a lane fail before this cycle publishes or earns credit for publication.",
+      "expected": "Return the lane error and preserve the current cycle's completed cells for retry. File gaps and run background fill only when the publication belongs to this cycle or was explicitly credited for the same obligations.",
+      "actual": "Source counterexample at 7d966c021. measurePhases returns on the lane failure, but improvement.Measure returns the newest scorecard on a commit match alone. Improve files gaps from the older scorecard and invokes Fill, whose cleanup removes cycle_state.json and cycle_credit.json before the caller gets the error. TestPublishedCycleCutShortIsStillWorthFinishing covers a different-commit case. No same-commit loss was observed."
     },
     {
       "id": "SQA-491",
@@ -225,116 +195,6 @@
       "actual": "At 39ffd57e1 validDoc checks the last character of the entire comment, although skill.md describes the first line. The documented example fails, while the same method with only its first sentence passes. Eight retained rules refusals name export-doc, including served-answers/absent for Error and Unwrap. The count establishes that the rule blocked landings. The example is source-demonstrated and the logs do not identify it as the cause of all eight."
     },
     {
-      "id": "SQA-474",
-      "severity": "P2",
-      "files": [
-        "cmd/loop/improve.go",
-        "cmd/loop/improve_test.go",
-        "cmd/loop/improve_resume_test.go",
-        "internal/loop/driver.go"
-      ],
-      "input": "Keep a published scorecard at commit C. Start another cycle at C with different obligations and credit for finished cells. Resume it and let a lane fail before this cycle publishes or earns credit for publication.",
-      "expected": "Return the lane error and preserve the current cycle's completed cells for retry. File gaps and run background fill only when the publication belongs to this cycle or was explicitly credited for the same obligations.",
-      "actual": "Source counterexample at 7d966c021. measurePhases returns on the lane failure, but improvement.Measure returns the newest scorecard on a commit match alone. Improve files gaps from the older scorecard and invokes Fill, whose cleanup removes cycle_state.json and cycle_credit.json before the caller gets the error. TestPublishedCycleCutShortIsStillWorthFinishing covers a different-commit case. No same-commit loss was observed."
-    },
-    {
-      "id": "SQA-493",
-      "severity": "P2",
-      "files": [
-        "internal/server/webui/mod/generation.js",
-        "internal/server/webui/workflow.js",
-        "internal/server/generation_preview_windows_test.go"
-      ],
-      "input": "Choose picture A in a MOSS depth control and request a preview. While the request is pending, select a different stored picture B in the same control. Let A's preview finish. The same mismatch occurs if B is selected after A's map is already visible.",
-      "expected": "Clear the old map when the inputs that determine it change. Display a completed preview only while those inputs still match the current form. Keep preview generation on the user's button press. The existing browser check can hold A's response, select B and confirm that A stays hidden and the change alone starts no second estimate.",
-      "actual": "Source counterexample at b1d6e237a. depthPreview captures the request on click and displays its response unconditionally. On form changes, offer only checks whether a picture is selected and its control visible. A's map therefore appears beside B, while submitting the form reads B. The browser check covers one picture through one response. No stale preview was observed in this review."
-    },
-    {
-      "id": "SQA-471",
-      "severity": "P2",
-      "files": [
-        "internal/latentimage/workflow_time_windows_model_test.go",
-        "internal/latentimage/workflow_source_test.go",
-        "internal/processmeasure/stages.go",
-        "internal/latentimage/generator_rotary_windows.go",
-        "internal/latentimage/resident_graph_cuda_windows.go",
-        "docs/verification/moss-workflow-time.jsonl"
-      ],
-      "input": "Read the six-section MOSS timing for d0ed24b1f. Compare the first text-to-image decode with its four subparts, then use the warm decoder figures to decide how much time graph compilation costs.",
-      "expected": "In served-parts/do, use the existing stage ledger for the enclosing interval and its exclusive parts. Their measured walls must fit inside the parent. Report CPU time and bytes read only where measured, retaining genuine zeros. Label compilation and static weight binding as a combined cost unless measured separately.",
-      "actual": "Observed in the retained record: the four parts of the first decode total 426 ms inside 418 ms. All 48 decode subparts across both runs report zero CPU and file reads. The clock measures the parent with time.Now, reads child walls from processmeasure.Stages and serializes unset counters as zero. The six warm stages labeled 'decoder compiled' total 468 ms. In source, compileResidentStatic also binds every static input and can upload weights. The record cannot attribute those 468 ms to compilation alone."
-    },
-    {
-      "id": "SQA-473",
-      "severity": "P2",
-      "files": [
-        "internal/latentimage/generator_rotary_windows.go",
-        "internal/latentimage/vae_program.go",
-        "internal/latentimage/vae_spatial.go",
-        "internal/graphruntime/resident.go",
-        "internal/latentimage/decoder_resident_windows_test.go",
-        "internal/modelrecipe/moss_ultra_import.json"
-      ],
-      "input": "Load the pinned MOSS Ultra decoder (flux2-vae_small.safetensors), draw once, then keep the generator open for another request of the same size. Inspect the host weights during graph construction and after all static inputs have bound successfully.",
-      "expected": "In the existing VAE graph builder, reuse the original weights when the temporal kernel has a single tap. In the rotary generator, release its host feeds once the resident decoder owns all static inputs. Keep the feeds on a failed bind, preserve extraction for multi-tap kernels and keep the fresh-versus-resident pixel comparison.",
-      "actual": "Source trace at 0776b4a53 with tensor shapes from the pinned checkpoint header. Of 33 decoder 3-by-3 weight tensors, 30 go through sliceLastTemporalTap with temporal extent 1. It allocates and copies 96,999,552 bytes of identical F32 data during load. The three upsamplers already use their input slices directly. After the first successful bind, VAEProgram.feeds still holds all 33 payloads (108,943,488 bytes before biases or other weights). Later decodes use state.decoding and never read those feeds. These are separate construction and retention counts, with no measured wall-time or process-memory delta."
-    },
-    {
-      "id": "SQA-388",
-      "severity": "P2",
-      "files": [
-        "cmd/comfy-reference/record.go",
-        "cmd/comfy-reference/record_test.go",
-        "cmd/comfy-reference/recordings_modeltest_test.go"
-      ],
-      "input": "Record two different PNGs returned by node 449 with the same basename original.png in subfolders MOSS/a and MOSS-a of the same recording.",
-      "expected": "Keep each output under a distinct name and leave both recorded hashes verifiable. The recorder already computes the content hash and its existing two-output case can check both names and bytes.",
-      "actual": "Source counterexample at 39ffd57e1. keep replaces a slash with a hyphen. Both files are written as 449-MOSS-a-original.png. The second write replaces the first file. The recording can finish with two different hashes for that path, and its reader then rejects the earlier entry. Producer validation on resume, separate resumed memory reporting and distinct prompt IDs for paired runs are now in place."
-    },
-    {
-      "id": "SQA-415",
-      "severity": "P2",
-      "files": [
-        "internal/landing/lanes.go",
-        "internal/repoanalysis/tracked_documents.go",
-        "cmd/validate/lane_reach.go",
-        "cmd/validate/lane_reach_test.go",
-        "internal/seq2seq/upstream_calls_model_test.go",
-        "internal/latentimage/moss_golden_test.go"
-      ],
-      "input": "After a passing needle-reference run, delete only fixtures/needle_upstream_calls.json and select lanes with -reached. The reader still names the old path. The same case applies to the models lane when only fixtures/moss/checkpoint.json is deleted.",
-      "expected": "CycleLanesReached selects the reader of the removed fixture, so the Needle or MOSS check reports the missing input. Use the existing reader lookup for deleted paths, or run the lane when its readers are unknown. Keep the current package selection for edits to existing fixtures.",
-      "actual": "Source trace at c71a1e230. The Git diff supplies the deleted path. TrackedDocuments lists only files still present, so documentReaders returns no entry. discover treats the missing entry as zero readers and omits the lane. Both checks fail on the missing file if selected. The retained gate verified selection for edits to both fixtures while they were present."
-    },
-    {
-      "id": "SQA-468",
-      "severity": "P3",
-      "files": [
-        "internal/latentimage/encoded_image.go",
-        "internal/latentimage/png_text.go",
-        "internal/latentimage/generator_rotary_windows.go",
-        "internal/mediacapability/image_cuda_windows.go",
-        "internal/server/generation_store_workspace.go"
-      ],
-      "input": "Serve a completed MOSS Workbench picture with nonempty recorded prompt text twice. Keep its pixels and metadata identical. Compare the calls that produce the final PNG on the fresh draw and on the stored answer.",
-      "expected": "In served-parts/do, retain the already encoded bytes when PNGContent receives the exact metadata it would emit. Preserve the artifact ID and the existing ability to replace or remove changed text.",
-      "actual": "At c65437048 the generator writes the texts once. The workflow output encoder, keptDrawn and the workspace's OutputContent each rebuild the same finished PNG again. On a stored hit the latter two still rebuild it. withPictureTexts allocates a full output buffer even when all chunks already match. That is three redundant full-image rewrites on a fresh page draw and two per repeat, excluding the separate drawn PNG. Source counts, wall time and peak memory unmeasured."
-    },
-    {
-      "id": "SQA-461",
-      "severity": "P2",
-      "files": [
-        "internal/latentimage/runtime_cuda_windows.go",
-        "internal/latentimage/generator_rotary_windows.go",
-        "internal/latentimage/profile.go",
-        "internal/mediacapability/image_cuda_windows.go",
-        "internal/mediacapability/profile_reads_windows_test.go"
-      ],
-      "input": "First load a plain MOSS request with an explicit size, no preset or negative prompt, and a valid recipe profile. Separately, on a resident MOSS Ultra session, change only the seed of a 1024 by 576 ultra-image-to-image-turbo request and keep its source picture.",
-      "expected": "In served-parts/do, reuse the verified profile's catalog entry for grid finishing, preset application and subsequent draws. Keep the load-time check that the on-disk profile matches the recipe and the existing fallback when a request has no selected profile.",
-      "actual": "Source at 25cd964a7. On the plain cold load, the new catalogOf call opens model_index.json for the grid flag. loadRotaryGenerator immediately reads it again in ResolveProfile to compare the on-disk profile ID with the recipe. The validated pipeline already identifies the embedded catalog entry. On the resident preset draw, Reset and prepare each open the index through a fresh CatalogIn. The served-repeat test counts stored profile reads on a cache hit and does not count these file opens on a draw. No wall time was measured."
-    },
-    {
       "id": "SQA-283",
       "severity": "P2",
       "files": [
@@ -397,6 +257,21 @@
       "input": "A retained ClipMotion observation of unchanged MP4 bytes, then a motion encoder checkpoint or FFmpeg/preprocessing configuration changes under the same encoder basename. The suite is compiled again with that old observation and the same matching clip-content digest.",
       "expected": "Motion readings identify the encoder/checkpoint and decoder/sampling contract that produced them, so changed instruments cannot silently reuse or be credited with an old metric. Keep the repaired OCR re-keying, content checks and whole-set exclusion in the existing media compiler and observation producers; the observation instrument is separate from the answering judge.",
       "actual": "The remaining motion instrument is not bound: writeMotion passes filepath.Base(encoderPath) to measureMotion; ClipMotion stores that Encoder string and clip/source content digests, with no encoder/checkpoint or FFmpeg/sampling identity. ClipMotion.validate requires only a nonempty encoder name, and bindObservations compares clip.Content alone before keeping the motion set. Changing an instrument while the clip bytes and encoder basename stay the same therefore leaves the old motion admissible and its actual producing instrument indistinguishable. Shown from source at ba0405e63d92653b84f617d8c332d5546529e444; no SQA execution."
+    },
+    {
+      "id": "SQA-468",
+      "severity": "P3",
+      "files": [
+        "internal/latentimage/encoded_image.go",
+        "internal/latentimage/png_text.go",
+        "internal/latentimage/generator_rotary_windows.go",
+        "internal/latentimage/workflow_time_windows_model_test.go",
+        "internal/mediacapability/image_cuda_windows.go",
+        "internal/server/generation_store_workspace.go"
+      ],
+      "input": "Serve a completed MOSS Workbench picture with nonempty recorded prompt text twice. Keep its pixels and metadata identical. Compare the calls that produce the final PNG on the fresh draw and on the stored answer.",
+      "expected": "For served-parts/clock, leave the cost of publishing the PNG open unless a reading goes through the served output path. If that cost warrants work, PNGContent can reuse bytes already carrying exactly the requested text chunks, retaining artifact identity and support for changed or removed text. The stored-answer case exercises the same owner without another model draw.",
+      "actual": "Source at cb82910a6. On a sharpened draw the generator embeds the texts, then the workflow output encoder, keptDrawn and workspace OutputContent each call PNGContent for the finished picture. withPictureTexts rebuilds nonempty matching metadata each time. A stored hit still takes the last two paths. The six-section clock stops immediately after generator.decode. Its 69 ms cold text-to-image finishing stage times finishedPNGs and ends before even the generator's text insertion. That measurement cannot price the three later rewrites or the two on a stored hit. Counts are from source. Their wall time and peak memory are unmeasured."
     }
   ],
   "master_lead_triage": {
@@ -417,31 +292,12 @@
         ],
         "note": "Answered by the lead on 2026-11-24 at a30831fd6: valid from source and observed (the rules stage refuses every sync.Once for OnceFunc or OnceValue, which panic again on every call after a recovered panic where a later Once.Do returns; it refused waiter-bound/do, moss-first-run/quiet and idle-wait/do). Filed as style-vetoes/once, beside ternary-veto: the count leaves the rules stage."
       },
-      "SQA-497": {
-        "action": "declined",
-        "rows": [],
-        "note": "Answered by the lead on 2026-11-24 at a30831fd6: valid from source (with no open step and an unanswered P2, loop.Run returns findings-waiting before improve asks whether a measurement is due); not observed. Declined: the wait holds a standing rule the owner set, that every open P1 and P2 is answered before the measurement run (2026-11-13, 2026-11-22), and the lead answers every one at each landing, so the branch is not met while the lead works. Removing the rule is the owner's decision, which the lead puts to the owner."
-      },
-      "SQA-496": {
-        "action": "implemented",
-        "rows": [
-          "runner-from-commit/do"
-        ],
-        "note": "Answered by the lead on 2026-11-24 at b0dc71f35: valid from source (runLanesDue writes lanes_began.json before runLanesAt sets up, so a setup error leaves the commit begun and the repaired retry returns success with no lane run); not observed. Filed with runner-from-commit/do, noted there, as the review asks: the same runner's start. Implemented 2026-11-24 by runner-from-commit/do, the landing that carries this answer: a commit is recorded as begun only once its lanes checkout is set up (TestACommitWhoseSetupFailedRunsOnceRepaired), for the review's recheck."
-      },
-      "SQA-495": {
-        "action": "implemented",
-        "rows": [
-          "microphone-wait/do"
-        ],
-        "note": "Answered by the lead on 2026-11-24 at b0dc71f35: valid, observed in lanes.log and from source (the leg settles on micEnded while a 14.53 s source plays, and the idle rule counts neither the playing source nor the worklet's frames, so the leg fails as idle; a regression of idle-wait). Filed as microphone-wait/do, ahead of the campaign's closing measurement, whose lanes run it: the leg awaits the source's ended event. Implemented 2026-11-24 by microphone-wait/do (5b2cc8ff6): the leg awaits its source's ended event, bounded by twice the clip's length; both microphone legs pass on the card, for the review's recheck."
-      },
       "SQA-494": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "landing-snapshot/do"
         ],
-        "note": "Answered by the lead on 2026-11-24 at b0dc71f35: valid, observed at b1d6e237a (moss-page/restored published own-run's edit) and from source (shipSet recaptures the checkout at fix, derive and a lowered ceiling, the last after invariants). Filed as landing-snapshot/do, ahead of observed-inputs/rule, which keeps passes for a candidate's inputs."
+        "note": "Answered by the lead on 2026-11-24 at b0dc71f35: valid, observed at b1d6e237a (moss-page/restored published own-run's edit) and from source (shipSet recaptures the checkout at fix, derive and a lowered ceiling, the last after invariants). Filed as landing-snapshot/do, ahead of observed-inputs/rule, which keeps passes for a candidate's inputs. Implemented 2026-11-25 by landing-snapshot/do, the landing that carries this answer: a later capture stages onto the first and takes only what the gate's own stages wrote; any other later edit stays in the checkout for its own step, named (TestALandingPublishesTheTreeItFirstCaptured), for the review's recheck."
       },
       "SQA-493": {
         "action": "implemented",
@@ -464,14 +320,6 @@
         ],
         "note": "Answered by the lead on 2026-11-24 at b0dc71f35: valid from source (turnCreatedDirt exempts only plan.Path, so a review's register edit reads as the turn's orphan); no blocked session observed. Filed with status-turn/do, noted there, as the review asks: both reach the stop hook."
       },
-      "SQA-489": {
-        "action": "implemented",
-        "rows": [
-          "moss-pictures/last-of-two",
-          "moss-page/last-picture"
-        ],
-        "note": "Answered by the lead on 2026-11-24 at db04fec59: valid from source (an upload's end chooses its picture over one chosen meanwhile), in code moss-page/pictures wrote. Filed as a step of moss-page.\n\nAnswered by the lead on 2026-11-24 at b0dc71f35: valid from source (two uploads begun on an empty slot both read it empty, so the first to finish is chosen and the last dropped is skipped). Filed as moss-pictures/last-of-two, before the campaign closes. Implemented 2026-11-24 by moss-pictures/last-of-two (4d464b4a4), for the review's recheck."
-      },
       "SQA-474": {
         "action": "filed",
         "rows": [
@@ -486,13 +334,6 @@
         ],
         "note": "Answered by the lead on 2026-11-23 at 0776b4a53: valid from source (sliceLastTemporalTap copies a kernel whose temporal extent is 1 whole, 97.0 MB at load; VAEProgram.feeds keeps 108.9 MB of host weights after the resident decoder binds them). No wall is measured. Moved 2026-11-24 from served-parts/do, which built the ledger, to served-parts/clock, the timing on it: the first run's parts there decide its step, as the finding itself ranks it. Declined 2026-11-24 on served-parts/clock's parts (the timing of cb82910a6): the cold text to image section's decoder compiled in 235 ms and bound its static inputs in 72 ms, and its load, where the kernel copy and the kept feeds sit, took 741 ms reading 0.15 GiB, while the first run's 5.8 s behind ComfyUI lies in the prompt encoded (4.77 s, 6.50 GiB read) and the sampling's 5.05 GiB placed on the card; the copy and the feeds earn no step, as the finding ranked them."
       },
-      "SQA-471": {
-        "action": "implemented",
-        "rows": [
-          "served-parts/do"
-        ],
-        "note": "Answered by the lead on 2026-11-23 at 7fbcacc4c: valid from the record and source; filed with served-parts/do. Implemented 2026-11-24 by served-parts/do, the landing that carries this answer: the clock reads each section on one ledger, its parts' walls, processor time and bytes read on one clock, each its own (processmeasure.Part.Use, none where unmeasured); compileResidentStatic names its compile and its static inputs' binding as two parts, for the review's recheck."
-      },
       "SQA-461": {
         "action": "implemented",
         "rows": [
@@ -500,20 +341,6 @@
           "served-parts/clock"
         ],
         "note": "Answered by the lead on 2026-11-22 at 47b3587c9: valid from source; the served path's two profile reads a request (pictureFiles, preparedFirst) filed as served-answers/profile, the generator's model_index.json reads on a changed seed with served-parts, whose ledger reads their time: moved 2026-11-24 to served-parts/clock, the timing on that ledger. The profile reads were implemented by served-answers/profile (08a0ad2c7). The generator's reads were measured on served-parts/clock's parts (cb82910a6): a warm section's load, its reset among it, took 4 to 5 ms and its prepare 0 ms, so they cost no time worth a step; nothing of the finding is left to do, for the review's recheck."
-      },
-      "SQA-410": {
-        "action": "declined",
-        "rows": [
-          "card-checks-sound/floors"
-        ],
-        "note": "Implemented 2026-11-24 by card-checks-sound/floors (39ffd57e1). Reopened by the review at 39ffd57e1 for holdMergedSections' changed-input draws, and answered by the lead on 2026-11-24 at a30831fd6: valid from source (the adapter comparison reads only each baseline's latent, so its eight control draws, 248 denoiser passes a comparison, read nothing). Declined under the owner's rule for a second round on a cure (2026-11-23): its cost is a test's card time, unmeasured, which no user meets. A reading of the merged-sections test's wall, as the lanes log each test, makes it a step."
-      },
-      "SQA-460": {
-        "action": "declined",
-        "rows": [
-          "reference-tools/clock"
-        ],
-        "note": "Implemented 2026-11-24 by reference-tools/clock (284509ade). Reopened by the review at 39ffd57e1 for a record path that names a directory inside the repository, and answered by the lead on 2026-11-24 at a30831fd6: valid from source (filepath.IsLocal admits docs/verification, and the append fails after both runs). Declined under the owner's rule for a second round on a cure (2026-11-23): the clock is the lead's tool, run with the record file its clock step's check names, and no such run has lost time; one that does makes it a step."
       },
       "SQA-388": {
         "action": "implemented",

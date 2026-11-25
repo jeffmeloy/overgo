@@ -77,6 +77,7 @@ func (l *landing) lowerCeilings(ctx context.Context, output string) error {
 		if err := os.WriteFile(filepath.Join(l.Repo, filepath.FromSlash(file)), lowered[file], clioptions.OutputFileMode); err != nil {
 			return err
 		}
+		l.noteWrite(file)
 		if l.scope != nil {
 			l.scope = append(l.scope, file)
 		}

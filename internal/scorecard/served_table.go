@@ -118,8 +118,12 @@ func (record Record) ServedTable(words ServedWords) (string, error) {
 				}
 				qualities = append(qualities, quality.Brief(measure))
 			}
-			if memory := row.Cells[metric.PeakMemory]; memory.Measured() && (!measured || memory.Value > peak) {
-				peak, measured = memory.Value, true
+			// The most a measured attempt took, a request at a person's size and a longer prompt among them (Row.Measured):
+			// Wan's 32 x 16 request peaked at 12.2 GiB and its 81 frames at 832 x 480 at 18.1 (SQA-510).
+			for _, memory := range row.Measured(metric.PeakMemory) {
+				if !measured || memory.Value > peak {
+					peak, measured = memory.Value, true
+				}
 			}
 		}
 		quality, memory := strings.Join(qualities, "; "), unreadSpeed

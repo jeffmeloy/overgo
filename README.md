@@ -130,28 +130,28 @@ Read from the record `scorecard-20261125T170629Z`.
 | Model | Modality | Input → output | Held-out quality | Peak device memory |
 | --- | --- | --- | --- | --- |
 | Qwen3.8 Flash-Next (80B MoE, UD-IQ4_XS) | text, vision-language | text → text; image → text | MMLU-Pro 0.682 ±0.013 on 1,209 cases; image questions 0.469 ±0.062 on 64 cases | 46.4 GiB |
-| Qwen3.8-27B (Q6_K) | text, vision-language, video-language | text → text; image or video → text | MMLU-Pro 0.595 ±0.014 on 1,209 cases, 5 named no option (5 ran out of the answer's tokens), 257 of them development evidence; image questions 0.484 ±0.031 on 256 cases | 21.4 GiB |
-| Qwen3.5-9B (Q8_0) | text | text → text | BBH 0.624 ±0.02 on 577 cases | 9.0 GiB |
-| Qwen3.5-4B | text | text → text | MMLU-Pro 0.501 ±0.014 on 1,209 cases | 8.4 GiB |
-| gemma-4-12B-it (fp8, its own files) | text | text → text | — | 14.3 GiB |
-| gemma-4-12B-it (bf16, its published files) | text, vision-language | text → text; image → text | — | 22.2 GiB |
-| gemma-4-E4B-it | text, vision-language, audio-language | text → text; audio or image → text | MMLU-Pro 0.413 ±0.014 on 1,209 cases; word error rate 0.0191 ±0.005 on 32 cases | 13.9 GiB |
-| Bonsai-27B (Q1_0) | text | text → text | MMLU-Pro 0.393 ±0.014 on 1,209 cases | 4.2 GiB |
-| MiniCPM5-1B | text | text → text | MMLU-Pro 0.285 ±0.013 on 1,209 cases | 2.0 GiB |
-| Qwen2.5-0.5B (f16) | text | text → text | MMLU-Pro 0.182 ±0.011 on 1,209 cases | 0.9 GiB |
-| qwen25-05b-judged-proof (trained from Qwen2.5-0.5B) | text | text → text | BBH 0.326 ±0.02 on 577 cases, within its noise of a constant answer | 1.8 GiB |
-| qwen25-05b-order-25 (trained from Qwen2.5-0.5B) | text | text → text | BBH 0.303 ±0.019 on 577 cases, within its noise of a constant answer | 1.8 GiB |
-| Unlimited-OCR (bf16) | text, vision-language | text → text; image → text, row by row | BBH 0.3 ±0.019 on 577 cases, within its noise of a constant answer | 5.5 GiB |
-| Carbon-500M (f16) | genomic | DNA sequence → DNA sequence | DNA perplexity 910 on 128 cases | 1.0 GiB |
+| Qwen3.8-27B (Q6_K) | text, vision-language, video-language | text → text; image or video → text | MMLU-Pro 0.595 ±0.014 on 1,209 cases, 5 named no option (5 ran out of the answer's tokens), 257 of them development evidence; image questions 0.484 ±0.031 on 256 cases | 25.4 GiB |
+| Qwen3.5-9B (Q8_0) | text | text → text | BBH 0.624 ±0.02 on 577 cases | 11.6 GiB |
+| Qwen3.5-4B | text | text → text | MMLU-Pro 0.501 ±0.014 on 1,209 cases | 10.3 GiB |
+| gemma-4-12B-it (fp8, its own files) | text | text → text | — | 18.2 GiB |
+| gemma-4-12B-it (bf16, its published files) | text, vision-language | text → text; image → text | — | 26.3 GiB |
+| gemma-4-E4B-it | text, vision-language, audio-language | text → text; audio or image → text | MMLU-Pro 0.413 ±0.014 on 1,209 cases; word error rate 0.0191 ±0.005 on 32 cases | 19.6 GiB |
+| Bonsai-27B (Q1_0) | text | text → text | MMLU-Pro 0.393 ±0.014 on 1,209 cases | 8.5 GiB |
+| MiniCPM5-1B | text | text → text | MMLU-Pro 0.285 ±0.013 on 1,209 cases | 3.5 GiB |
+| Qwen2.5-0.5B (f16) | text | text → text | MMLU-Pro 0.182 ±0.011 on 1,209 cases | 2.0 GiB |
+| qwen25-05b-judged-proof (trained from Qwen2.5-0.5B) | text | text → text | BBH 0.326 ±0.02 on 577 cases, within its noise of a constant answer | 2.9 GiB |
+| qwen25-05b-order-25 (trained from Qwen2.5-0.5B) | text | text → text | BBH 0.303 ±0.019 on 577 cases, within its noise of a constant answer | 2.9 GiB |
+| Unlimited-OCR (bf16) | text, vision-language | text → text; image → text, row by row | BBH 0.3 ±0.019 on 577 cases, within its noise of a constant answer | 8.9 GiB |
+| Carbon-500M (f16) | genomic | DNA sequence → DNA sequence | DNA perplexity 910 on 128 cases | 1.7 GiB |
 | Fractale-350M-base | text | text → text, carrying notes between chunks | carried gain (WikiText-2) 5.64 on 37 cases | host |
 | needle | function calling | text → function call | BFCL simple calls 0.255 ±0.022 on 400 cases | host |
 | Hy-Embodied-RxBrain-1.0 | vision-language | image + question → answer | image questions 0.625 ±0.061 on 64 cases, not a measure of what the model is for | 3.5 GiB |
-| Krea-2-Turbo | text-to-image | text → image | questions about the drawn picture 0.94 ±0.012 on 415 cases | 25.2 GiB |
-| SenseNova-U1-8B-MoT-Infographic-V3 | text-to-image | text → image (infographics) | drawn text 1 on 100 cases | 30.5 GiB |
+| Krea-2-Turbo | text-to-image | text → image | questions about the drawn picture 0.94 ±0.012 on 415 cases | 31.3 GiB |
+| SenseNova-U1-8B-MoT-Infographic-V3 | text-to-image | text → image (infographics) | drawn text 1 on 100 cases | 31.9 GiB |
 | SimpleDiffusion-TensorProductAttentionRope | image generation | noise → image, no caption | no held-out measure applies | 0.6 GiB |
 | MOSS-Image-SFT | text-to-image | text → image; [trains adapters](docs/MOSS_IMAGE.md) | questions about the drawn picture 0.922 ±0.012 on 524 cases | 14.0 GiB |
 | Un-0 | image generation, video generation | class → 8×8 picture or 12-frame clip (a 120 kB toy model) | no held-out measure applies | host |
-| Wan2.1-T2V 1.3B | text-to-video | text → video | questions about the caption 0.914 ±0.025 on 128 cases | 12.2 GiB |
+| Wan2.1-T2V 1.3B | text-to-video | text → video | questions about the caption 0.914 ±0.025 on 128 cases | 18.1 GiB |
 | Self-Forcing (Wan2.1-T2V 1.3B, distilled) | text-to-video | text → video | questions about the caption 0.814 ±0.025 on 237 cases | 29.1 GiB |
 | LiveEdit | video editing | video + instruction → video | questions about the edit 0.844 ±0.045 on 64 cases | 12.2 GiB |
 | Wan2.1 VAE | video autoencoder | video frame → frame (reconstruction) | PSNR (dB, 480 × 832) 41.4 on 128 cases | 2.8 GiB |

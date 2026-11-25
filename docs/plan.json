@@ -3,22 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "readme-timings",
-      "title": "The README's media times are the scorecard's tables alone, the size a person asks for first, and it shows no output a person cannot see",
-      "steps": [
-        {
-          "id": "peak",
-          "title": "The served-model table's peak device memory is the most a measured serving attempt took, a request at a person's size among them",
-          "verify": "go test ./internal/scorecard -count=1 -run '^TestTheServedTablesPeakIsTheMostAMeasuredAttemptTook$'",
-          "files": [
-            "internal/scorecard",
-            "README.md"
-          ],
-          "rationale": "SQA-510 (P2), checked by the lead against the published record scorecard-20261125T170629Z and the README written from it at 7e417691c: valid, observed. The served-model table's peak device memory reads row.Cells[metric.PeakMemory] alone (internal/scorecard/served_table.go), so Wan2.1-T2V-1.3B shows 12.2 GiB, its 32 x 16 request's, while its request at the size a person asks for peaked at 18.08 GiB on the card in the closing run of 2026-11-25 (validate -run 32/105), the request the speed table times at 337 s. The README states the column as the most a measured serving attempt took.\n\nThe change: ServedTable takes a row's peak from Row.Measured(metric.PeakMemory), which already selects the measured cells across the headline, the user-size requests and the longer prompts, and validate -readme writes the table with it.\n\nCheck: TestTheServedTablesPeakIsTheMostAMeasuredAttemptTook, a record whose row holds a larger peak at a person's size than at its small request: the table shows the larger; it uses ServedTable and Record, which the base holds, so it builds there and fails on its assertion."
-        }
-      ]
-    },
-    {
       "id": "moss-heldout",
       "title": "MOSS's training route refuses a held-out picture whose model input equals a trained one's, and its test holds a genuinely different picture",
       "steps": [

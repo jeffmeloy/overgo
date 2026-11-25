@@ -417,6 +417,34 @@ func TestADeclineBecomesTheRowTheLoopWorks(t *testing.T) {
 	}
 }
 
+// TestACycleCutShortAnswersWithNoScorecardItDidNotPublish holds own-record/do (SQA-474): a cycle answers with the
+// scorecard it published, none other. An earlier cycle published the commit's record; this cycle keeps a cell, as
+// validate -run does, and its lane fails before it publishes. It answers with no record and its lane's failure, and the
+// cell it kept stays for its resume. The newest record at the cycle's commit had answered whoever published it, so
+// Improve filed the earlier record's gaps and ran the fill, which removed this cycle's state and credit.
+func TestACycleCutShortAnswersWithNoScorecardItDidNotPublish(t *testing.T) {
+	t.Parallel()
+	repository, records := t.TempDir(), filepath.Join(t.TempDir(), "scorecards")
+	gitFixture(t, repository, "init", "-q", "-b", "master")
+	gitFixture(t, repository, "commit", "-q", "--allow-empty", "-m", "measured")
+	commit := gitFixture(t, repository, "rev-parse", "HEAD")
+	testcheck.Must(scorecard.Publish(records, time.Date(2026, time.November, 24, 12, 0, 0, 0, time.UTC), scorecard.Record{Commit: commit}))(t)
+	kept := filepath.Join(repository, processlock.StateDirectory, cycleCreditFile)
+	failed := errors.New("cycle lane models: test process exited with status 1")
+	world := improvement{root: repository, plan: emptyPlan(t), records: records, fill: func(string) error { return nil },
+		measure: func(checkout string, _ func() error) error {
+			credit := fmt.Sprintf(`{"commit": %q, "store": "store", "cells": ["a measured cell"]}`, commit)
+			return errors.Join(failed, os.WriteFile(kept, []byte(credit), cycleStateMode))
+		}}
+	record, _, err := world.Measure()
+	if record != nil || !errors.Is(err, failed) {
+		t.Errorf("a cycle whose lane failed before it published answered with %+v, %v; want no record and its lane's failure", record, err)
+	}
+	if _, err := os.Stat(kept); err != nil {
+		t.Errorf("the cell the cycle kept is gone (%v); want it kept for the resume", err)
+	}
+}
+
 // TestPublishedCycleCutShortIsStillWorthFinishing holds the trigger to a cycle that published its
 // scorecard and was cut short before its end. A run publishes at a commit, keeps a cell there as
 // validate -run does, and its process ends before the fill; nothing a cycle measures lands
@@ -444,11 +472,12 @@ func TestPublishedCycleCutShortIsStillWorthFinishing(t *testing.T) {
 		}}}
 	// A run publishes the commit's record and keeps a cell, as validate -run does; a run that
 	// finds the newest record is the commit's already stands for the credited publication.
-	world.measure = func(checkout string, _ func() error) error {
+	world.measure = func(checkout string, announce func() error) error {
 		ran = append(ran, "measure")
 		at := git(checkout, "rev-parse", "HEAD")
 		if held, err := scorecard.Records(records); err != nil || len(held) > 0 && held[len(held)-1].Commit == at {
-			return err
+			// The credited publication is announced, as measurePhases announces it (own-record).
+			return errors.Join(err, announce())
 		}
 		if publishes {
 			published = published.Add(time.Hour)

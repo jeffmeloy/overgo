@@ -229,11 +229,18 @@ func (w improvement) Measure() (*scorecard.Record, *scorecard.Record, error) {
 		commit = begun
 	}
 	w.run.begin(commit)
+	before, _ := scorecard.Records(w.records)
+	announced := false
 	measured := w.inCycle(commit, func(checkout string) error {
-		return w.measure(checkout, func() error { return w.file(commit) })
+		return w.measure(checkout, func() error { announced = true; return w.file(commit) })
 	})
 	records, err := scorecard.Records(w.records)
-	if err != nil || len(records) == 0 || records[len(records)-1].Commit != commit {
+	// The cycle answers with a record only it published: one it wrote, or the publication of its interrupted run it
+	// credited, which it announces (own-record, SQA-474). The newest record at the cycle's commit had answered whoever
+	// published it, so a cycle whose lane failed at a commit an earlier cycle published filed that one's gaps and ran
+	// the fill, which removed its own state and credit.
+	ours := announced || len(records) > len(before)
+	if err != nil || !ours || len(records) == 0 || records[len(records)-1].Commit != commit {
 		// A run that published nothing ends here: no fill follows it.
 		w.run.end()
 		return nil, nil, errors.Join(measured, err)

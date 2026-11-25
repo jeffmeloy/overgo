@@ -336,11 +336,11 @@
         "note": "Answered by the lead on 2026-11-24 at b0dc71f35: valid from source (turnCreatedDirt exempts only plan.Path, so a review's register edit reads as the turn's orphan); no blocked session observed. Filed with status-turn/do, noted there, as the review asks: both reach the stop hook. Implemented 2026-11-25 by status-turn/do, the landing that carries this answer: turnCreatedDirt exempts the findings register beside the plan (TestAPlanEditRidesWithTheNextLanding), for the review's recheck."
       },
       "SQA-474": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "own-record/do"
         ],
-        "note": "Answered by the lead on 2026-11-24 at 5f5d4db92, for the finding as rewritten at a25fa2246: valid from source (improvement.Measure answers with the newest record at the cycle's commit whoever published it, so Improve files an earlier cycle's gaps and Fill removes this cycle's state and credit). Not observed: the unattended cycle has not run since the measurements moved to validate -run phases. Filed as own-record/do after moss-page: Measure answers only with the record this cycle's publication wrote."
+        "note": "Answered by the lead on 2026-11-24 at 5f5d4db92, for the finding as rewritten at a25fa2246: valid from source (improvement.Measure answers with the newest record at the cycle's commit whoever published it, so Improve files an earlier cycle's gaps and Fill removes this cycle's state and credit). Not observed: the unattended cycle has not run since the measurements moved to validate -run phases. Filed as own-record/do after moss-page: Measure answers only with the record this cycle's publication wrote. Implemented 2026-11-25 by own-record/do, the landing that carries this answer (TestACycleCutShortAnswersWithNoScorecardItDidNotPublish), for the review's recheck."
       },
       "SQA-388": {
         "action": "implemented",

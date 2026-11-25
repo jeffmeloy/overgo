@@ -113,6 +113,9 @@ func TestTheUltraRecordingsAgreeAndParseStrictly(t *testing.T) {
 	// agree holds two recordings of one section and its inputs to one request, one install and the same output bytes.
 	agree := func(section string, first, second recorded) {
 		t.Helper()
+		if err := distinctRuns(first, second); err != nil {
+			t.Errorf("%s: %v", section, err)
+		}
 		if !maps.EqualFunc(first.Sigmas, second.Sigmas, slices.Equal) {
 			t.Errorf("%s: the two recordings sampled by %v and %v; want the same sigmas", section, first.Sigmas, second.Sigmas)
 		}

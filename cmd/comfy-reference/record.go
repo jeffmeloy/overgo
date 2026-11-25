@@ -30,17 +30,20 @@ import (
 // each node's steps as they came, the most of the card's memory in use while it ran, each sampler's sigmas, and each
 // output: a file by its node, kind, name and SHA-256, or a node's text.
 type recording struct {
-	Workflow      string               `json:"workflow_sha256"`
-	Section       string               `json:"section"`
-	Request       string               `json:"request_sha256"`
-	Set           map[string]any       `json:"set,omitzero"`
-	ComfyUI       string               `json:"comfyui_version"`
-	Commits       map[string]string    `json:"commits"`
-	Models        []recordedModel      `json:"models"`
-	Prompt        string               `json:"prompt_id"`
-	Milliseconds  int64                `json:"milliseconds"`
-	PeakCardBytes uint64               `json:"peak_card_bytes"`
-	Sigmas        map[string][]float64 `json:"sigmas"`
+	Workflow      string            `json:"workflow_sha256"`
+	Section       string            `json:"section"`
+	Request       string            `json:"request_sha256"`
+	Set           map[string]any    `json:"set,omitzero"`
+	ComfyUI       string            `json:"comfyui_version"`
+	Commits       map[string]string `json:"commits"`
+	Models        []recordedModel   `json:"models"`
+	Prompt        string            `json:"prompt_id"`
+	Milliseconds  int64             `json:"milliseconds"`
+	PeakCardBytes uint64            `json:"peak_card_bytes,omitzero"`
+	// ResumedPeakCardBytes is the most of the card's memory in use from a resume on, where the recording resumed a run
+	// (Resumed): its memory was read only from then, so it is not the run's peak, which stays unrecorded (SQA-388).
+	ResumedPeakCardBytes uint64               `json:"resumed_peak_card_bytes,omitzero"`
+	Sigmas               map[string][]float64 `json:"sigmas"`
 	// Progress are each node's progress events by node, as ComfyUI's websocket told them; none where the recording
 	// resumed a run the recorder posted before (Resumed), whose events it did not hear.
 	Progress map[string][]progressStamp `json:"progress,omitzero"`
@@ -52,10 +55,20 @@ type recording struct {
 }
 
 // accepted is the prompt ComfyUI accepted for a request, kept beside the recording it will make from the moment
-// ComfyUI accepts it until the recording is written, so a recording interrupted meanwhile resumes that prompt.
+// ComfyUI accepts it until the recording is written, so a recording interrupted meanwhile resumes that prompt; and what
+// produced it, ComfyUI's version, the install's commits and the model files, which a resume must still find (SQA-388).
 type accepted struct {
-	Prompt  string `json:"prompt_id"`
-	Request string `json:"request_sha256"`
+	Prompt  string            `json:"prompt_id"`
+	Request string            `json:"request_sha256"`
+	ComfyUI string            `json:"comfyui_version"`
+	Commits map[string]string `json:"commits"`
+	Models  []recordedModel   `json:"models"`
+}
+
+// producedBy says whether the prompt was accepted under the producer taken names, the version, commits and model
+// files read as this recording began.
+func (a accepted) producedBy(taken recording) bool {
+	return a.ComfyUI == taken.ComfyUI && maps.Equal(a.Commits, taken.Commits) && slices.Equal(a.Models, taken.Models)
 }
 
 // recordedFile is one file a run wrote, as ComfyUI's history names it, kept beside the recording.
@@ -152,6 +165,12 @@ func (r recorder) record(ctx context.Context, title string) (recording, error) {
 	taken.ComfyUI = stats.System.Version
 	var watch *progressWatch
 	if before.Request == taken.Request && before.Prompt != "" {
+		// A resumed prompt's outputs are its producer's: one accepted under another version, commit or model file is
+		// refused, not credited to the install as it stands (SQA-388).
+		if !before.producedBy(taken) {
+			return recording{}, fmt.Errorf("comfy-reference: %s holds prompt %s, accepted under ComfyUI %s, commits %v and models %v, which the install no longer holds (ComfyUI %s, commits %v, models %v); remove it to record afresh",
+				acceptedPath, before.Prompt, before.ComfyUI, before.Commits, before.Models, taken.ComfyUI, taken.Commits, taken.Models)
+		}
 		taken.Prompt, taken.Resumed = before.Prompt, true
 	} else {
 		// The socket is open before the request is posted, so it hears the run's every event.
@@ -170,7 +189,7 @@ func (r recorder) record(ctx context.Context, title string) (recording, error) {
 			return recording{}, fmt.Errorf("comfy-reference: ComfyUI refused the request of %q: %v", title, queued.Errors)
 		}
 		taken.Prompt = queued.Prompt
-		if err := jsonfile.Write(acceptedPath, accepted{Prompt: taken.Prompt, Request: taken.Request}, fixtureMode); err != nil {
+		if err := jsonfile.Write(acceptedPath, accepted{Prompt: taken.Prompt, Request: taken.Request, ComfyUI: taken.ComfyUI, Commits: taken.Commits, Models: taken.Models}, fixtureMode); err != nil {
 			return recording{}, err
 		}
 	}
@@ -183,7 +202,12 @@ func (r recorder) record(ctx context.Context, title string) (recording, error) {
 			return recording{}, err
 		}
 	}
-	taken.PeakCardBytes = peak
+	// A resumed run's memory was read from the resume on alone, so it is kept as that, not as the run's peak (SQA-388).
+	if taken.Resumed {
+		taken.ResumedPeakCardBytes = peak
+	} else {
+		taken.PeakCardBytes = peak
+	}
 	taken.Milliseconds, taken.Cached, err = run.events()
 	if err != nil {
 		return recording{}, err
@@ -323,7 +347,9 @@ func (r recorder) await(ctx context.Context, prompt string, before systemStats) 
 	}
 }
 
-// keep fetches one output file through ComfyUI's /view and writes it into folder, named by its node and file name.
+// keep fetches one output file through ComfyUI's /view and writes it into folder, named by its node, its subfolder and
+// its file name, so two files of one name a node wrote into two subfolders are kept apart (SQA-388: named by node and
+// base name alone, the second overwrote the first).
 func (r recorder) keep(ctx context.Context, folder, node, kind, name, subfolder, place string) (recordedFile, error) {
 	query := url.Values{"filename": {name}, "subfolder": {subfolder}, "type": {place}}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, r.server+"/view?"+query.Encode(), nil)
@@ -334,7 +360,11 @@ func (r recorder) keep(ctx context.Context, folder, node, kind, name, subfolder,
 	if err != nil {
 		return recordedFile{}, err
 	}
-	kept := recordedFile{Node: node, Kind: kind, Type: place, Name: strings.NewReplacer(":", "-", "/", "-").Replace(node) + "-" + filepath.Base(name), SHA256: hashOf(data), Bytes: len(data)}
+	flat := strings.NewReplacer(":", "-", "/", "-", `\`, "-")
+	kept := recordedFile{Node: node, Kind: kind, Type: place, Name: flat.Replace(node) + "-" + filepath.Base(name), SHA256: hashOf(data), Bytes: len(data)}
+	if subfolder != "" {
+		kept.Name = flat.Replace(node) + "-" + flat.Replace(subfolder) + "-" + filepath.Base(name)
+	}
 	return kept, os.WriteFile(filepath.Join(folder, kept.Name), data, fixtureMode)
 }
 

@@ -497,11 +497,11 @@
         "note": "Answered by the lead on 2026-11-22 at 47b3587c9: valid from source (an absolute record path is accepted at the start and fails only at the append, after both runs); filed as reference-tools/clock. Implemented 2026-11-24 by reference-tools/clock, the landing that carries this answer: readWorkflowSource refuses a record path that is not relative to the repository and inside it, as the timing starts, for the review's recheck."
       },
       "SQA-388": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "reference-tools/recorder"
         ],
-        "note": "Answered again by the lead on 2026-11-22 at 47b3587c9: valid from source at the recorder (resume on request hash and prompt ID alone, memory sampled from a retry, kept files named by node and base name, a pair's prompt IDs never compared); moss-real-prompt/do, where it had been carried, set the floors again but changed none of these; filed as reference-tools/recorder."
+        "note": "Answered again by the lead on 2026-11-22 at 47b3587c9: valid from source at the recorder (resume on request hash and prompt ID alone, memory sampled from a retry, kept files named by node and base name, a pair's prompt IDs never compared); filed as reference-tools/recorder. Implemented 2026-11-24 by reference-tools/recorder, the landing that carries this answer: the accepted prompt keeps its producer and a resume under another version, commit or model file is refused; a resumed run's memory is kept as resumed_peak_card_bytes, the run's peak unrecorded; a kept file's name holds its subfolder; the paired recordings' check requires two prompts (distinctRuns), for the review's recheck."
       },
       "SQA-415": {
         "action": "implemented",

@@ -21,25 +21,6 @@
       ]
     },
     {
-      "id": "reference-tools",
-      "title": "The workflow clock refuses a record it cannot write before it draws, and a ComfyUI recording binds each output to what made it",
-      "steps": [
-        {
-          "id": "recorder",
-          "title": "A ComfyUI recording binds a resumed output to the prompt that made it, keeps two files of one name apart, and credits a repeat only from two prompts",
-          "verify": "go test ./cmd/comfy-reference -count=1 -run '^TestARecordingBindsEachOutputToWhatMadeIt$'",
-          "files": [
-            "cmd/comfy-reference"
-          ],
-          "rationale": "SQA-388 (P2), checked against cmd/comfy-reference/record.go at 47b3587c9: valid. record resumes a prompt on its request hash and prompt ID alone after reading the current models and commits; await starts sampling memory at a retry; keep names a file by its node and base name, so two files of one name from one node in different subfolders overwrite each other; and the paired-recording check asks each run for a prompt ID but never compares them, so one capture given twice passes as two runs. The three pairs at 89cf0f0e3 have distinct prompt IDs. The change: a resumed output keeps the producer it was recorded under and is refused when the models or commits moved; memory sampling begun on a retry says so; a kept file's name holds its subfolder; and a pair's prompt IDs differ. Check: TestARecordingBindsEachOutputToWhatMadeIt drives record against a stand-in ComfyUI for each case.",
-          "depends_on": [
-            "pair-encode/clock",
-            "full-measurement/run"
-          ]
-        }
-      ]
-    },
-    {
       "id": "served-parts",
       "title": "Every served path's request is split into its parts, each with its wall, processor time and bytes read, as the MOSS workflow's clock reads them, so time outside the model shows on each",
       "steps": [

@@ -11,6 +11,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -32,7 +33,9 @@ import (
 // the models it lists by folder, and over the websocket the run's start, its sampler's two steps, a preview and a ping,
 // and its success. It keeps the request posted and counts the posts.
 type fakeComfyUI struct {
-	failed bool
+	// version is the ComfyUI version its stats name.
+	version string
+	failed  bool
 	// interrupted answers the history with a server error, as a ComfyUI that stops answering mid-run.
 	interrupted bool
 	mu          sync.Mutex
@@ -49,7 +52,7 @@ type fakeComfyUI struct {
 }
 
 func newFake(free ...uint64) *fakeComfyUI {
-	return &fakeComfyUI{free: free, accepted: make(chan struct{}), quit: make(chan struct{})}
+	return &fakeComfyUI{version: "0.3.fake", free: free, accepted: make(chan struct{}), quit: make(chan struct{})}
 }
 
 // answer writes value as a JSON answer.
@@ -58,8 +61,10 @@ func answer(w http.ResponseWriter, value any) {
 	_ = json.NewEncoder(w).Encode(value)
 }
 
-// served are the bytes of the files the fake's run wrote, by name.
-var served = map[string]string{"original.png": "picture bytes", "latent.latent": "latent bytes"}
+// served are the bytes of the files the fake's run wrote, by subfolder and name: node 449 wrote two pictures of one
+// name into two subfolders.
+var served = map[string]string{"MOSS/text_to_image/original.png": "picture bytes", "MOSS/sharpened/original.png": "sharpened picture bytes",
+	"overgo-recorder/latent.latent": "latent bytes"}
 
 // listed are the model files the fake's ComfyUI lists, by folder.
 var listed = map[string][]string{
@@ -75,18 +80,19 @@ const latentNode = "overgo-latent-598"
 // recorded is a recording as the command writes it, read here by its own fields, so the test builds where the command
 // writes none.
 type recorded struct {
-	Workflow      string               `json:"workflow_sha256"`
-	Section       string               `json:"section"`
-	Request       string               `json:"request_sha256"`
-	Set           map[string]any       `json:"set"`
-	ComfyUI       string               `json:"comfyui_version"`
-	Commits       map[string]string    `json:"commits"`
-	Models        []recordedModel      `json:"models"`
-	Prompt        string               `json:"prompt_id"`
-	Milliseconds  int64                `json:"milliseconds"`
-	PeakCardBytes uint64               `json:"peak_card_bytes"`
-	Sigmas        map[string][]float64 `json:"sigmas"`
-	Progress      map[string][]struct {
+	Workflow             string               `json:"workflow_sha256"`
+	Section              string               `json:"section"`
+	Request              string               `json:"request_sha256"`
+	Set                  map[string]any       `json:"set"`
+	ComfyUI              string               `json:"comfyui_version"`
+	Commits              map[string]string    `json:"commits"`
+	Models               []recordedModel      `json:"models"`
+	Prompt               string               `json:"prompt_id"`
+	Milliseconds         int64                `json:"milliseconds"`
+	PeakCardBytes        uint64               `json:"peak_card_bytes"`
+	ResumedPeakCardBytes uint64               `json:"resumed_peak_card_bytes"`
+	Sigmas               map[string][]float64 `json:"sigmas"`
+	Progress             map[string][]struct {
 		Value        int   `json:"value"`
 		Max          int   `json:"max"`
 		Microseconds int64 `json:"us"`
@@ -111,7 +117,7 @@ func (f *fakeComfyUI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case r.URL.Path == "/system_stats":
 		free := f.free[min(f.reads, len(f.free)-1)]
 		f.reads++
-		answer(w, map[string]any{"system": map[string]any{"comfyui_version": "0.3.fake"}, "devices": []any{map[string]any{"vram_total": 1000, "vram_free": free}}})
+		answer(w, map[string]any{"system": map[string]any{"comfyui_version": f.version}, "devices": []any{map[string]any{"vram_total": 1000, "vram_free": free}}})
 	case strings.HasPrefix(r.URL.Path, "/models/"):
 		answer(w, append([]string{}, listed[strings.TrimPrefix(r.URL.Path, "/models/")]...))
 	case r.URL.Path == "/prompt":
@@ -141,7 +147,8 @@ func (f *fakeComfyUI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				[]any{"execution_success", map[string]any{"timestamp": 3500}},
 			}},
 			"outputs": map[string]map[string]any{
-				"449":                   {"images": []any{map[string]any{"filename": "original.png", "subfolder": "MOSS/text_to_image", "type": "output"}}},
+				"449": {"images": []any{map[string]any{"filename": "original.png", "subfolder": "MOSS/text_to_image", "type": "output"},
+					map[string]any{"filename": "original.png", "subfolder": "MOSS/sharpened", "type": "output"}}},
 				latentNode:              {"latents": []any{map[string]any{"filename": "latent.latent", "subfolder": "overgo-recorder", "type": "output"}}},
 				"35":                    {"text": []any{"the final prompt"}},
 				"overgo-sigma-text-598": {"text": []any{"[\n    1.0,\n    0.6123046875,\n    0.0\n]"}},
@@ -150,8 +157,8 @@ func (f *fakeComfyUI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					"metadata": map[string]any{"type": "obj", "desc": "a café table"}}}},
 			},
 		}})
-	case r.URL.Path == "/view" && served[r.URL.Query().Get("filename")] != "":
-		_, _ = w.Write([]byte(served[r.URL.Query().Get("filename")]))
+	case r.URL.Path == "/view" && served[r.URL.Query().Get("subfolder")+"/"+r.URL.Query().Get("filename")] != "":
+		_, _ = w.Write([]byte(served[r.URL.Query().Get("subfolder")+"/"+r.URL.Query().Get("filename")]))
 	default:
 		http.NotFound(w, r)
 	}
@@ -229,44 +236,70 @@ func (f *fakeComfyUI) socket(w http.ResponseWriter, r *http.Request) {
 // fails in ComfyUI is refused with what ComfyUI said. A recording interrupted after ComfyUI accepted its prompt resumes
 // that prompt, posting nothing; and a folder that holds the recording is refused before anything is posted. It is not
 // parallel: the flags and arguments it sets are the process's.
+// commitIn makes folder a git checkout if it is not one, commits in it once more, and gives the commit.
+func commitIn(t *testing.T, folder string) string {
+	t.Helper()
+	testcheck.NoError(t, os.MkdirAll(folder, 0o755))
+	for _, arguments := range [][]string{{"init", "-q"}, {"-c", "user.name=fixture", "-c", "user.email=fixture@example.com", "commit", "-q", "--allow-empty", "-m", "fixture"}} {
+		testcheck.NoError(t, exec.CommandContext(t.Context(), "git", append([]string{"-C", folder}, arguments...)...).Run())
+	}
+	head := testcheck.Must(exec.CommandContext(t.Context(), "git", "-C", folder, "rev-parse", "HEAD").Output())(t)
+	return strings.TrimSpace(string(head))
+}
+
+// recipePath is the import recipe that pins the MOSS Ultra model files.
+func recipePath(t *testing.T) string {
+	t.Helper()
+	return filepath.Join(testutil.RepoRoot(t), "internal", "modelrecipe", "moss_ultra_import.json")
+}
+
+// recordWith runs the command as it records the text to image section against comfy, over install into out, with its
+// flags parsed afresh. The flags and arguments it sets are the process's, so a test that calls it is not parallel.
+func recordWith(t *testing.T, comfy *fakeComfyUI, install, out string) error {
+	t.Helper()
+	server := httptest.NewServer(comfy)
+	t.Cleanup(func() { close(comfy.quit) })
+	t.Cleanup(server.Close)
+	saved, arguments := flag.CommandLine, os.Args
+	t.Cleanup(func() { flag.CommandLine, os.Args = saved, arguments })
+	flag.CommandLine = flag.NewFlagSet("comfy-reference", flag.ContinueOnError)
+	os.Args = []string{"comfy-reference", "-fixture", filepath.Join(testutil.RepoRoot(t), ultraFixture), "-record", "TEXT TO IMAGE", "-server", server.URL,
+		"-install", install, "-out", out, "-recipe", recipePath(t), "-set", "598.seed=7", "-save-latent", "598"}
+	return run()
+}
+
+// readRecorded reads, strictly, the recording of the text to image section in out.
+func readRecorded(t *testing.T, out string) recorded {
+	t.Helper()
+	var taken recorded
+	testcheck.NoError(t, strictjson.DecodeBytes(testcheck.Must(os.ReadFile(filepath.Join(out, "text-to-image.json")))(t), &taken))
+	return taken
+}
+
+// distinctRuns refuses a pair of recordings that is one run of ComfyUI: two runs name two prompts (SQA-388: the paired
+// recordings' check asked each for a prompt and compared none, so one capture given twice passed as two runs).
+func distinctRuns(first, second recorded) error {
+	if first.Prompt == second.Prompt {
+		return fmt.Errorf("the two recordings name one prompt, %q, so they are one run", first.Prompt)
+	}
+	return nil
+}
+
 func TestARecordingIsTakenFromComfyUIsAnswers(t *testing.T) {
 	root := testutil.RepoRoot(t)
 	install := t.TempDir()
-	commit := func(folder string) string {
-		testcheck.NoError(t, os.MkdirAll(folder, 0o755))
-		for _, arguments := range [][]string{{"init", "-q"}, {"-c", "user.name=fixture", "-c", "user.email=fixture@example.com", "commit", "-q", "--allow-empty", "-m", "fixture"}} {
-			testcheck.NoError(t, exec.CommandContext(t.Context(), "git", append([]string{"-C", folder}, arguments...)...).Run())
-		}
-		head := testcheck.Must(exec.CommandContext(t.Context(), "git", "-C", folder, "rev-parse", "HEAD").Output())(t)
-		return strings.TrimSpace(string(head))
-	}
-	want := map[string]string{".": commit(install), "custom_nodes/pack": commit(filepath.Join(install, "custom_nodes", "pack"))}
+	want := map[string]string{".": commitIn(t, install), "custom_nodes/pack": commitIn(t, filepath.Join(install, "custom_nodes", "pack"))}
 	testcheck.NoError(t, os.MkdirAll(filepath.Join(install, "custom_nodes", "loose"), 0o755))
-	recipePath := filepath.Join(root, "internal", "modelrecipe", "moss_ultra_import.json")
-	recipe := testcheck.Must(modelartifact.ReadLocalImport(recipePath))(t)
+	recipe := testcheck.Must(modelartifact.ReadLocalImport(recipePath(t)))(t)
 	pins := map[string]string{}
 	for _, file := range recipe.Files {
 		pins[filepath.Base(file.Path)] = file.SHA256
 	}
-
 	record := func(t *testing.T, comfy *fakeComfyUI, out string) error {
 		t.Helper()
-		server := httptest.NewServer(comfy)
-		t.Cleanup(func() { close(comfy.quit) })
-		t.Cleanup(server.Close)
-		saved, arguments := flag.CommandLine, os.Args
-		t.Cleanup(func() { flag.CommandLine, os.Args = saved, arguments })
-		flag.CommandLine = flag.NewFlagSet("comfy-reference", flag.ContinueOnError)
-		os.Args = []string{"comfy-reference", "-fixture", filepath.Join(root, ultraFixture), "-record", "TEXT TO IMAGE", "-server", server.URL,
-			"-install", install, "-out", out, "-recipe", recipePath, "-set", "598.seed=7", "-save-latent", "598"}
-		return run()
+		return recordWith(t, comfy, install, out)
 	}
-	read := func(t *testing.T, out string) recorded {
-		t.Helper()
-		var taken recorded
-		testcheck.NoError(t, strictjson.DecodeBytes(testcheck.Must(os.ReadFile(filepath.Join(out, "text-to-image.json")))(t), &taken))
-		return taken
-	}
+	read := readRecorded
 
 	t.Run("a run that succeeds", func(t *testing.T) {
 		comfy, out := newFake(900, 700, 300, 800), t.TempDir()
@@ -331,7 +364,7 @@ func TestARecordingIsTakenFromComfyUIsAnswers(t *testing.T) {
 		}
 		for _, file := range taken.Files {
 			data := testcheck.Must(os.ReadFile(filepath.Join(out, "text-to-image", file.Name)))(t)
-			if file.SHA256 != fmt.Sprintf("%x", sha256.Sum256(data)) || file.Type != "output" || !slices.Contains([]string{served["original.png"], served["latent.latent"]}, string(data)) {
+			if file.SHA256 != fmt.Sprintf("%x", sha256.Sum256(data)) || file.Type != "output" || !slices.Contains(slices.Collect(maps.Values(served)), string(data)) {
 				t.Errorf("the recording keeps %+v holding %q; want a file the run wrote, by its SHA-256", file, data)
 			}
 		}
@@ -365,6 +398,81 @@ func TestARecordingIsTakenFromComfyUIsAnswers(t *testing.T) {
 			t.Errorf("the resumed recording names prompt %q, resumed %t, progress %v, sigmas %v; want p1 resumed, no steps it did not hear, and its sigmas",
 				taken.Prompt, taken.Resumed, taken.Progress, taken.Sigmas)
 		}
+	})
+}
+
+// TestARecordingBindsEachOutputToWhatMadeIt holds a recording to what made each output it keeps (SQA-388), the command
+// driven against a stand-in ComfyUI.
+//   - A prompt accepted and then interrupted resumes only under the producer it was accepted under. Once a custom-node
+//     pack's commit or ComfyUI's version has moved, the resume is refused, nothing is posted, and the accepted prompt
+//     stays.
+//   - A resumed recording keeps the card's memory read from the resume on as that alone; the run's peak stays
+//     unrecorded.
+//   - Two files of one name that a node wrote into two subfolders are kept as two, each with its own bytes.
+//   - A pair of recordings is two runs only where their prompts differ (distinctRuns).
+//
+// A resume had been taken on the request's hash and the prompt alone, under the models and commits read as it resumed;
+// its peak was read from the retry on and recorded as the run's; keep had named a file by its node and base name; and
+// the pair check had compared no prompts.
+func TestARecordingBindsEachOutputToWhatMadeIt(t *testing.T) {
+	// Serial: recordWith sets the process's flags and arguments.
+	install := t.TempDir()
+	commitIn(t, install)
+	pack := filepath.Join(install, "custom_nodes", "pack")
+	commitIn(t, pack)
+	interrupted := func(t *testing.T) string {
+		t.Helper()
+		out, cut := t.TempDir(), newFake(900)
+		cut.interrupted = true
+		if err := recordWith(t, cut, install, out); err == nil || cut.posts != 1 {
+			t.Fatalf("a recording whose ComfyUI stopped answering ended as %v after %d posts; want it to fail after posting once", err, cut.posts)
+		}
+		return out
+	}
+	t.Run("a resume after its producer moved", func(t *testing.T) {
+		for name, move := range map[string]func(*fakeComfyUI){
+			"a pack's commit":   func(*fakeComfyUI) { commitIn(t, pack) },
+			"ComfyUI's version": func(comfy *fakeComfyUI) { comfy.version = "0.4.fake" },
+		} {
+			out, resumed := interrupted(t), newFake(900, 700, 300, 800)
+			move(resumed)
+			err := recordWith(t, resumed, install, out)
+			if err == nil || !strings.Contains(err.Error(), "no longer holds") || resumed.posts != 0 {
+				t.Errorf("a resume after %s moved ended as %v after %d posts; want it refused, posting nothing", name, err, resumed.posts)
+			}
+			if _, err := os.Stat(filepath.Join(out, "text-to-image.accepted.json")); err != nil {
+				t.Errorf("a resume refused after %s moved left no accepted prompt (%v); want it kept", name, err)
+			}
+		}
+	})
+	t.Run("a resume's memory", func(t *testing.T) {
+		out := interrupted(t)
+		testcheck.NoError(t, recordWith(t, newFake(900, 700, 300, 800), install, out))
+		if taken := readRecorded(t, out); !taken.Resumed || taken.PeakCardBytes != 0 || taken.ResumedPeakCardBytes != 700 {
+			t.Errorf("a resumed recording keeps a peak of %d bytes and %d from the resume on (resumed %t); want none as the run's and 700 from the resume on",
+				taken.PeakCardBytes, taken.ResumedPeakCardBytes, taken.Resumed)
+		}
+	})
+	t.Run("two files of one name", func(t *testing.T) {
+		out := t.TempDir()
+		testcheck.NoError(t, recordWith(t, newFake(900, 700, 300, 800), install, out))
+		kept := map[string]string{}
+		for _, file := range readRecorded(t, out).Files {
+			if file.Node == "449" {
+				kept[file.Name] = string(testcheck.Must(os.ReadFile(filepath.Join(out, "text-to-image", file.Name)))(t))
+			}
+		}
+		if len(kept) != 2 || !slices.Contains(slices.Collect(maps.Values(kept)), served["MOSS/text_to_image/original.png"]) ||
+			!slices.Contains(slices.Collect(maps.Values(kept)), served["MOSS/sharpened/original.png"]) {
+			t.Errorf("node 449's two pictures of one name in two subfolders are kept as %v; want two files, each with its own bytes", kept)
+		}
+	})
+	t.Run("a pair of recordings", func(t *testing.T) {
+		first, second := recorded{Prompt: "p1"}, recorded{Prompt: "p2"}
+		if err := distinctRuns(first, first); err == nil {
+			t.Error("one recording given twice passed as two runs")
+		}
+		testcheck.NoError(t, distinctRuns(first, second))
 	})
 }
 

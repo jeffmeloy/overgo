@@ -7,6 +7,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/media"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/processmeasure"
 	"overgo/internal/recipecontract"
 	"overgo/internal/workflowruntime"
 )
@@ -47,7 +48,12 @@ func (s *Synthesizer) speakStream(ctx context.Context, request DocumentRequest, 
 	if emit == nil {
 		return Audio{}, errors.New("speechsynth: streaming requires a chunk consumer")
 	}
+	// The whole text's parts are named for a ledger that reads them (processmeasure.Stage, served-parts), as a clip's
+	// are: the text planned, and for each segment its text tokenized, its voice read and prompted, and its frames
+	// generated, each frame's decode and its handing on parts of their own inside that.
+	planning := processmeasure.Stage(ctx, "speech text planned")
 	plan, err := s.PlanDocument(ctx, request)
+	planning()
 	if err != nil {
 		return Audio{}, err
 	}
@@ -55,28 +61,39 @@ func (s *Synthesizer) speakStream(ctx context.Context, request DocumentRequest, 
 	spoken.Complete = true
 	samples := 0
 	for _, segment := range plan.Segments {
+		tokenizing := processmeasure.Stage(ctx, "speech text tokenized")
 		generation, err := s.tokenize(documentSegmentRequest(plan, segment))
+		tokenizing()
 		if err != nil {
 			return Audio{}, err
 		}
+		reading := processmeasure.Stage(ctx, "speech voice read")
 		voice, params, err := s.prepareGeneration(generation, noise(generation))
+		reading()
 		if err != nil {
 			return Audio{}, err
 		}
+		prompting := processmeasure.Stage(ctx, "speech voice prompted")
 		state, err := s.model.promptVoice(ctx, voice, generation.tokens, params)
+		prompting()
 		if err != nil {
 			return Audio{}, err
 		}
 		decoder := newCodecState(s.model.Codec)
 		spoken.SampleRate, spoken.Channels = s.model.Codec.SampleRate, 1
+		generating := processmeasure.Stage(ctx, "speech frames generated")
 		complete, err := s.model.walkFrames(ctx, state, params, func(frame []float32, _ float64) error {
+			decoding := processmeasure.Stage(ctx, "speech frame decoded")
 			pcm, err := s.model.decodeLatents(ctx, decoder, LatentBatch{Values: frame, Frames: 1, Width: s.model.Dims.LatentDim})
+			decoding()
 			if err != nil {
 				return err
 			}
 			samples += len(pcm)
+			defer processmeasure.Stage(ctx, "speech frame handed on")()
 			return emit(Audio{PCM: pcm, SampleRate: spoken.SampleRate, Channels: spoken.Channels})
 		})
+		generating()
 		if err != nil {
 			return Audio{}, err
 		}

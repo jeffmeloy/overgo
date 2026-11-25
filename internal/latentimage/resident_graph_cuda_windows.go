@@ -11,6 +11,7 @@ import (
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
 	"overgo/internal/graphruntime"
+	"overgo/internal/processmeasure"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
@@ -134,6 +135,9 @@ func bindResident(ctx context.Context, session *graphruntime.ResidentSession, pr
 	return nil
 }
 
+// compileResidentStatic compiles the graph labelled label on session and binds its static inputs. The two are timed as
+// two parts for a ledger that reads them (processmeasure.Stage), "<label> compiled" and "<label>'s static inputs bound",
+// what they are: the decoder's one part, "decoder compiled", had held both (SQA-471).
 func compileResidentStatic(
 	ctx context.Context,
 	session *graphruntime.ResidentSession,
@@ -142,10 +146,16 @@ func compileResidentStatic(
 	dynamic []*tensor.Tensor,
 	outputs ...*tensor.Tensor,
 ) (*graphruntime.ResidentProgram, error) {
+	compiling := processmeasure.Stage(ctx, label+" compiled")
 	program, err := session.Compile(ctx, label, dynamic, outputs...)
+	compiling()
 	if err != nil {
 		return nil, err
 	}
+	if len(inputs) == 0 {
+		return program, nil
+	}
+	defer processmeasure.Stage(ctx, label+"'s static inputs bound")()
 	for node, values := range inputs {
 		if err := session.BindF32(ctx, program, "static:"+label, node, values); err != nil {
 			return nil, errors.Join(fmt.Errorf("%s: tensor %s: %w", label, node.Name, err), session.Release(context.Background(), program))

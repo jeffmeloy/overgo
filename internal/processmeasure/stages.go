@@ -11,21 +11,27 @@ import (
 )
 
 // Part is one named part of a request: the wall that was its own, over the
-// number of times the request went through it, and, where its ledger reads the
-// device, the most device memory the process held while it was open, what was
-// begun inside it included.
+// number of times the request went through it; the processor time and the bytes
+// read from files that were its own, where the platform reads them (ReadUse),
+// none where it does not, so an unmeasured part never reads as one that spent
+// nothing; and, where its ledger reads the device, the most device memory the
+// process held while it was open, what was begun inside it included.
 type Part struct {
 	Name            string        `json:"name"`
 	Wall            time.Duration `json:"wall_ns"`
 	Times           int           `json:"times"`
+	Use             *Use          `json:"use,omitempty"`
 	PeakDeviceBytes uint64        `json:"peak_device_bytes,omitzero"`
 }
 
-// Stages is where one request's time went: the wall of each named part of it.
-// A part's wall is its own. What a part begun inside it took belongs to that
-// part and not also to the outer one, so no moment is counted twice, and the
-// parts' sum is the time the request spent inside a named part: what is left
-// of the request's wall is time nothing names.
+// Stages is where one request's time went: the wall of each named part of it,
+// and its processor time and bytes read, all read at the same moments on one
+// clock (SQA-471: the MOSS clock had read its parts by time.Now and the decode's
+// by the ledger, so four parts summed past their enclosing one). A part's wall
+// and use are its own. What a part begun inside it took belongs to that part
+// and not also to the outer one, so no moment is counted twice, and the parts'
+// sum is the time the request spent inside a named part: what is left of the
+// request's wall is time nothing names.
 type Stages struct {
 	mu    sync.Mutex
 	open  []openPart
@@ -39,7 +45,21 @@ type Stages struct {
 
 type openPart struct {
 	started, inner time.Duration
+	// used and innerUse are the process's use as the part began and what parts begun inside it spent; measured says
+	// the beginning's use was read.
+	used, innerUse Use
+	measured       bool
 	peak           uint64
+}
+
+// readMoment reads the clock and the process's use at one moment.
+func readMoment() (time.Duration, Use, bool, error) {
+	at, err := Counter()
+	if err != nil {
+		return 0, Use{}, false, err
+	}
+	use, measured, err := ReadUse()
+	return at, use, measured, err
 }
 
 type stagesKey struct{}
@@ -80,15 +100,15 @@ func Stage(ctx context.Context, name string) func() {
 	if stages == nil {
 		return func() {}
 	}
-	started, err := Counter()
+	started, used, measured, err := readMoment()
 	stages.mu.Lock()
 	defer stages.mu.Unlock()
 	stages.fail(err)
 	stages.held()
 	depth := len(stages.open)
-	stages.open = append(stages.open, openPart{started: started})
+	stages.open = append(stages.open, openPart{started: started, used: used, measured: measured})
 	return func() {
-		ended, err := Counter()
+		ended, spent, measured, err := readMoment()
 		stages.mu.Lock()
 		defer stages.mu.Unlock()
 		stages.fail(err)
@@ -102,19 +122,32 @@ func Stage(ctx context.Context, name string) func() {
 		wall := ended - opened.started
 		if depth > 0 {
 			stages.open[depth-1].inner += wall
-		}
-		if depth > 0 {
+			stages.open[depth-1].innerUse = stages.open[depth-1].innerUse.plus(spent.minus(opened.used, Use{}))
 			stages.open[depth-1].peak = max(stages.open[depth-1].peak, opened.peak)
 		}
+		// A part's use is its own where both its ends were read, and none where either was not, so a part never sums a
+		// measured span with an unmeasured one.
+		var own *Use
+		if measured && opened.measured {
+			mine := spent.minus(opened.used, opened.innerUse)
+			own = &mine
+		}
 		for index := range stages.parts {
-			if stages.parts[index].Name == name {
-				stages.parts[index].Wall += wall - opened.inner
-				stages.parts[index].Times++
-				stages.parts[index].PeakDeviceBytes = max(stages.parts[index].PeakDeviceBytes, opened.peak)
+			part := &stages.parts[index]
+			if part.Name == name {
+				part.Wall += wall - opened.inner
+				part.Times++
+				part.PeakDeviceBytes = max(part.PeakDeviceBytes, opened.peak)
+				if part.Use != nil && own != nil {
+					sum := part.Use.plus(*own)
+					part.Use = &sum
+				} else {
+					part.Use = nil
+				}
 				return
 			}
 		}
-		stages.parts = append(stages.parts, Part{Name: name, Wall: wall - opened.inner, Times: 1, PeakDeviceBytes: opened.peak})
+		stages.parts = append(stages.parts, Part{Name: name, Wall: wall - opened.inner, Times: 1, Use: own, PeakDeviceBytes: opened.peak})
 	}
 }
 
@@ -151,6 +184,9 @@ func (s *Stages) Report(w io.Writer, wall time.Duration) (time.Duration, error) 
 	for _, part := range parts {
 		unnamed -= part.Wall
 		fmt.Fprintf(w, "  %-32s %7.2f s %5.1f%%  x%d", part.Name, part.Wall.Seconds(), share(part.Wall, wall), part.Times)
+		if part.Use != nil {
+			fmt.Fprintf(w, "  %7.2f s processor  %8.1f MiB read", part.Use.CPU.Seconds(), float64(part.Use.ReadBytes)/bytesPerMiB)
+		}
 		if s.peak != nil {
 			fmt.Fprintf(w, "  %6.2f GiB at most", float64(part.PeakDeviceBytes)/bytesPerGiB)
 		}
@@ -171,6 +207,9 @@ func (s *Stages) Parts() ([]Part, error) {
 
 // bytesPerGiB is a gibibyte's bytes, the unit a part's peak is reported in.
 const bytesPerGiB = 1 << 30
+
+// bytesPerMiB is a mebibyte's bytes, the unit a part's bytes read are reported in.
+const bytesPerMiB = 1 << 20
 
 // hundredths is how many of a share make the whole.
 const hundredths = 100

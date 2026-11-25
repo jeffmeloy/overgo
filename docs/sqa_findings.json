@@ -463,24 +463,24 @@
       "SQA-473": {
         "action": "filed",
         "rows": [
-          "served-parts/do"
+          "served-parts/clock"
         ],
-        "note": "Answered by the lead on 2026-11-23 at 0776b4a53: valid from source (sliceLastTemporalTap copies a kernel whose temporal extent is 1 whole, 97.0 MB at load; VAEProgram.feeds keeps 108.9 MB of host weights after the resident decoder binds them). No wall is measured, so it is filed with served-parts/do, noted there: the first-run gap's parts measured there decide its step, as the finding itself ranks it."
+        "note": "Answered by the lead on 2026-11-23 at 0776b4a53: valid from source (sliceLastTemporalTap copies a kernel whose temporal extent is 1 whole, 97.0 MB at load; VAEProgram.feeds keeps 108.9 MB of host weights after the resident decoder binds them). No wall is measured. Moved 2026-11-24 from served-parts/do, which built the ledger, to served-parts/clock, the timing on it: the first run's parts there decide its step, as the finding itself ranks it."
       },
       "SQA-471": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "served-parts/do"
         ],
-        "note": "Answered by the lead on 2026-11-23 at 7fbcacc4c: valid from the record and source (the decode's own parts read on another clock than their parent's, summing to 426 ms inside 418; unmeasured processor time and bytes read written as zero; the decoder's static binding counted as its compile); it costs the next decision, the decoder's 0.47 s, so it is filed with served-parts/do, noted there, ahead of any cure of that part."
+        "note": "Answered by the lead on 2026-11-23 at 7fbcacc4c: valid from the record and source; filed with served-parts/do. Implemented 2026-11-24 by served-parts/do, the landing that carries this answer: the clock reads each section on one ledger, its parts' walls, processor time and bytes read on one clock, each its own (processmeasure.Part.Use, none where unmeasured); compileResidentStatic names its compile and its static inputs' binding as two parts, for the review's recheck."
       },
       "SQA-461": {
         "action": "filed",
         "rows": [
           "served-answers/profile",
-          "served-parts/do"
+          "served-parts/clock"
         ],
-        "note": "Answered by the lead on 2026-11-22 at 47b3587c9: valid from source; the served path's two profile reads a request (pictureFiles, preparedFirst) filed as served-answers/profile, the generator's model_index.json reads on a changed seed with served-parts/do, whose ledger reads their time."
+        "note": "Answered by the lead on 2026-11-22 at 47b3587c9: valid from source; the served path's two profile reads a request (pictureFiles, preparedFirst) filed as served-answers/profile, the generator's model_index.json reads on a changed seed with served-parts, whose ledger reads their time: moved 2026-11-24 to served-parts/clock, the timing on that ledger."
       },
       "SQA-410": {
         "action": "implemented",

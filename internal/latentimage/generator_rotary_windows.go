@@ -368,17 +368,15 @@ func (g *Generator) decodeRotary(ctx context.Context) (result EncodedImage, err 
 		state.latent = nil
 	}()
 	p := state.decoder
-	// The decode's parts are named for a ledger that reads them (processmeasure.Stage): the decoder compiled, at a
-	// session's first decode alone (decoding), the picture decoded on the card and copied out, and the picture finished
-	// (png-level).
+	// The decode's parts are named for a ledger that reads them (processmeasure.Stage): the decoder compiled and its
+	// static inputs bound, at a session's first decode alone (decoding, compileResidentStatic), the picture decoded on
+	// the card and copied out, and the picture finished (png-level).
 	if state.decoding == nil {
 		static := map[*tensor.Tensor][]float32{}
 		for _, feed := range p.feeds {
 			static[feed.node] = feed.data
 		}
-		compiling := processmeasure.Stage(ctx, "decoder compiled")
 		state.decoding, err = compileResidentStatic(ctx, state.runtime, "rotary image decoder", static, []*tensor.Tensor{p.Latent}, p.pixels)
-		compiling()
 		if err != nil {
 			return result, err
 		}

@@ -383,13 +383,23 @@ func observeInference(ctx context.Context, open func(context.Context) (servedMod
 	var result evaluation.ExactResult
 	released := error(nil)
 	if err == nil {
-		observation, result, err = observeRequest(ctx, model, request, said)
+		// The request is read on the load's ledger (served-parts): the attempt records the load's parts and the
+		// turn's, each with its wall, processor time and bytes read, as a picture's or a clip's attempt does, where it
+		// had recorded none and printed the load's alone.
+		observation, result, err = observeRequest(staged, model, request, said)
 		if err == nil && then != nil {
 			then(model)
 		}
 		released = model.Close()
 	}
 	observation.StartedUnixNS, observation.MeasuredNS = started, load+observation.MeasuredNS
+	observation.Stages = stagedParts(stages, time.Duration(observation.MeasuredNS))
+	if observation.MeasuredNS > load {
+		fmt.Fprintf(said, "recipe: the load and the request took %.3f s\n", time.Duration(observation.MeasuredNS).Seconds())
+		if _, reportErr := stages.Report(said, time.Duration(observation.MeasuredNS)); reportErr != nil {
+			fmt.Fprintf(said, "recipe: their parts are no division of them: %v\n", reportErr)
+		}
+	}
 	if load != 0 {
 		observation.Phases = append([]runrecord.PhaseMetric{{Phase: runrecord.PhaseLoad, DurationNS: load}}, observation.Phases...)
 	}
@@ -409,7 +419,9 @@ func observeRequest(ctx context.Context, model servedModel, request evaluation.E
 	}
 	generation := &observedGeneration{servedModel: model, clock: processmeasure.NewStopwatch()}
 	generation.sample(ctx, runrecord.ServingHardwareStart)
+	generating := processmeasure.Stage(ctx, "chat turn generated")
 	result, err := evaluation.Record(ctx, generation, request.Name, request.Prompt, request.MaxTokens)
+	generating()
 	generation.sample(ctx, runrecord.ServingHardwareFinish)
 	total := generation.walls.Elapsed(generation.clock)
 	fmt.Fprintf(said, "recipe: from the request's start, the prompt was evaluated at %s, device memory was sampled at %s and the first token came at %s\n",
@@ -492,6 +504,7 @@ func (generation *observedGeneration) sample(ctx context.Context, stage runrecor
 	if slices.ContainsFunc(generation.samples, func(sample runrecord.ServingHardwareSample) bool { return sample.Stage == stage }) {
 		return
 	}
+	defer processmeasure.Stage(ctx, "device memory sampled")()
 	stats, err := generation.DeviceMemoryStats(ctx)
 	if err != nil {
 		return

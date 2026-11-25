@@ -14,6 +14,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/jsonfile"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
 	"overgo/internal/tensor"
 	"overgo/internal/trainingprogram"
@@ -269,11 +270,17 @@ func (s *Synthesizer) generate(ctx context.Context, plan generationPlan) (Latent
 // generateFrom generates the plan's frames from the noise given: the voice's
 // stored state, then the text, then frames until the end of speech is seen and
 // the plan's frames after it.
+//
+// Speech's parts are named for a ledger that reads them (processmeasure.Stage, served-parts), as a clip's are: the voice
+// read, the latents generated, and, in decode, the latents decoded.
 func (s *Synthesizer) generateFrom(ctx context.Context, plan generationPlan, noise frameNoise) (LatentBatch, error) {
+	reading := processmeasure.Stage(ctx, "speech voice read")
 	voice, params, err := s.prepareGeneration(plan, noise)
+	reading()
 	if err != nil {
 		return LatentBatch{}, err
 	}
+	defer processmeasure.Stage(ctx, "speech latents generated")()
 	latents, _, err := s.model.GenerateLatentsWithVoice(ctx, voice, plan.tokens, params)
 	return latents, err
 }
@@ -298,7 +305,9 @@ func (s *Synthesizer) decode(ctx context.Context, latents LatentBatch) (Audio, e
 	if err := context.Cause(ctx); err != nil {
 		return Audio{}, err
 	}
+	decoding := processmeasure.Stage(ctx, "speech latents decoded")
 	pcm, err := s.model.LatentsToPCM(ctx, latents)
+	decoding()
 	if err != nil {
 		return Audio{}, err
 	}

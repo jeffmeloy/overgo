@@ -30,10 +30,13 @@ type workflowSectionTime struct {
 	Parts        []workflowPart `json:"parts,omitempty"`
 }
 
-// workflowPart is one part of a section's wall, in its order (the session's load or reset, the prompt's preparation,
-// the sampling, the decode): its wall, the process's processor time over it, and the bytes the process read from files
-// over it, so a first run's time is split where it goes, each file read and each program built in the part that did it.
-// A part named "decode: " and a stage lies within the decode part (png-level), its wall alone read.
+// workflowPart is one part of a section's wall, in the order the parts first ended: the session's load or reset, the
+// prompt's preparation, the sampling, the decode, and the parts the code names inside them (the decoder compiled and its
+// static inputs bound, the picture decoded on the card, the picture finished). Its wall, processor time and bytes read
+// from files are its own, what a part inside it spent excluded, all read on the section's one ledger
+// (processmeasure.Stages, served-parts), so a first run's time is split where it goes, each file read and each program
+// built in the part that did it. Before served-parts a timing's parts were the four outer parts, each with what its inner
+// parts spent, and the decode's own parts named "decode: " and a part, their walls alone read on another clock (SQA-471).
 type workflowPart struct {
 	Part         string `json:"part"`
 	Milliseconds int64  `json:"ms"`

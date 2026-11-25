@@ -37,7 +37,7 @@ func TestTheDecoderIsCompiledOnceASession(t *testing.T) {
 		picture := testcheck.Must(g.decode(staged, session))(t)
 		compiled := 0
 		for _, part := range testcheck.Must(stages.Parts())(t) {
-			if part.Name == "decoder compiled" {
+			if part.Name == "rotary image decoder compiled" {
 				compiled += part.Times
 			}
 		}

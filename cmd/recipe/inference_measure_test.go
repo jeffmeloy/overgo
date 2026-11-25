@@ -219,6 +219,22 @@ func TestInferenceMeasurementFillsTheServingCells(t *testing.T) {
 	if request < uint64(model.stalled) || phases[runrecord.PhaseDecode] > request-uint64(model.stalled) {
 		t.Fatalf("decode %d ns of a %d ns request that waited %d ns before prefill", phases[runrecord.PhaseDecode], request, model.stalled)
 	}
+	// The attempt records its parts as a picture's does (served-parts): the turn generated and each device memory
+	// sample, each with its processor time and bytes read where the platform reads them, and what none names, their
+	// walls within the attempt's.
+	_, measured, err := processmeasure.ReadUse()
+	testcheck.NoError(t, err)
+	named, walls := map[string]bool{}, time.Duration(0)
+	for _, part := range observed[0].Stages {
+		named[part.Name] = true
+		walls += part.Wall
+		if part.Name != unnamedPart && (part.Use != nil) != measured {
+			t.Errorf("the part %s carries use %+v; want it where the platform measures it (%t)", part.Name, part.Use, measured)
+		}
+	}
+	if !named["chat turn generated"] || !named["device memory sampled"] || !named[unnamedPart] || walls > time.Duration(observed[0].MeasuredNS) {
+		t.Errorf("the attempt records the parts %+v; want the turn generated, the device memory sampled and what none names, within its %d ns", observed[0].Stages, observed[0].MeasuredNS)
+	}
 }
 
 // TestInferenceMeasurementReadsLongerPrompts holds a measurement to the

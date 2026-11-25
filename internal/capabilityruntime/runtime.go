@@ -167,20 +167,30 @@ func JSONScalar[Input, Model, Output any](
 		execution modelrecipe.CapabilityEvidenceSelection,
 		raw string,
 	) (any, error) {
+		// The request's own parts are named for a ledger that reads them, as the session director names its
+		// (served-parts): the request read, the stored answer sought, the model loaded and closed; its stages are the
+		// workflow runtime's.
 		modelID, program := execution.Program.Definition().Model, execution.Program
+		reading := processmeasure.Stage(ctx, "request read")
 		input, content, err := decodeScalarInput(name, validate, modelID, program, raw)
+		reading()
 		if err != nil {
 			return nil, err
 		}
 		// A request the store already answers is answered from it: no model is loaded.
 		inputPort := program.Definition().Inputs[0]
-		if output, result, held, err := measuredRun[Output](ctx, store, modelID, program, RunKeyOf[Model](program.Definition(), content),
+		sought := processmeasure.Stage(ctx, "stored answer sought")
+		output, result, held, err := measuredRun[Output](ctx, store, modelID, program, RunKeyOf[Model](program.Definition(), content),
 			map[recipe.PortName]workflowruntime.Value{inputPort.Name: workflowruntime.ArtifactValue(inputPort.Data, input, content)}, nil,
-		); err != nil || held {
+		)
+		sought()
+		if err != nil || held {
 			return Measured{Output: output, Run: result.Run.ID, Input: content}, err
 		}
 		clock := processmeasure.NewStopwatch()
+		loading := processmeasure.Stage(ctx, "model loaded")
 		model, err := load(ctx, store, path, program, input)
+		loading()
 		if err != nil {
 			return nil, err
 		}
@@ -194,7 +204,9 @@ func JSONScalar[Input, Model, Output any](
 			measured = measure(output, model, result, time.Duration(loaded), program)
 		}
 		measured.Input = content
+		closing := processmeasure.Stage(ctx, "model closed")
 		executeErr = errors.Join(executeErr, closeModel(context.WithoutCancel(ctx), model))
+		closing()
 		return measured, executeErr
 	}
 }

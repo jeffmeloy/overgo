@@ -7,25 +7,14 @@
       "title": "Every served path's request is split into its parts, each with its wall, processor time and bytes read, as the MOSS workflow's clock reads them, so time outside the model shows on each",
       "steps": [
         {
-          "id": "do",
-          "title": "Every served path's request is split into its parts, each with its wall, processor time and bytes read, as the MOSS workflow's clock reads them, so time outside the model shows on each",
-          "verify": "go test ./internal/mediacapability -count=1 -run '^TestEachServedPathSplitsItsRequestIntoParts$'",
+          "id": "clock",
+          "title": "The MOSS workflow is timed on the ledger, each section's parts with their processor time and bytes read, and the timing appended to the record",
+          "verify": "git log --format=%s -n 50 | grep -qF 'served-parts/do:' \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF \"\\\"commit\\\":\\\"$(git rev-parse HEAD)\\\"\" \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF '\"committed\":true' \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF 'static inputs bound'",
           "files": [
-            "internal/processmeasure",
-            "internal/capabilityruntime",
-            "internal/mediacapability",
-            "internal/latentvideo",
-            "internal/speechsynth",
-            "internal/speechrecognition",
-            "internal/inference",
-            "internal/latentimage",
-            "cmd/recipe"
+            "docs/verification"
           ],
-          "rationale": "The owner's review of 2026-11-22 (second), point 3, checked against the code: partly valid. The parts ledger exists for every served path (processmeasure.Stages): the session director marks the request read, the stored answer sought, the named inputs read, the session leased and the run recorded, the workflow runtime marks each stage by its module, video marks its own (prompt rows, denoising, decoding, the clip written) and chat its load's (cmd/recipe inference_measure). But a part records its wall and the device's peak alone, speech marks none of its own, and only the MOSS workflow's clock reads a request's parts beside each one's processor time and bytes read (latentimage TestTheUltraWorkflowIsTimedInItsOrder, readProcessUse, written into that test), which is how adapter-hold's per-request hashing was found.\n\nThe change: a part records its processor time and the bytes the process read inside it (processmeasure.Part), so every ledger carries what the MOSS clock computed by hand; speech marks its parts as video does; and the recipe command's measure reports every served task's parts, not chat's load alone. The MOSS clock reads the ledger in place of its own counters.\n\nCheck: TestEachServedPathSplitsItsRequestIntoParts serves a picture, a clip, speech and a chat turn through their capabilities with stand-in sessions under a ledger: each request's parts name its load or lease, its stages and its recording, each with wall, processor time and bytes read, their walls inside the request's.\n\nNote: SQA-468 (P3) and the generator part of SQA-461 go with this step, as the parts they cost show in its ledger: the finished PNG is rebuilt with its texts by the workflow's output encoder, keptDrawn and the workspace's OutputContent though the generator wrote them once (three full rewrites a fresh draw, two a repeat, withPictureTexts allocating a whole buffer even where every chunk matches), and Generator.Reset and prepare each open model_index.json again on a changed seed. Where the ledger shows them, PNGContent keeps bytes already carrying the texts it would write, the artifact ID unchanged, and the catalog is read once a session.\n\nNote: SQA-471 (P2) goes with this step, checked against the clock's decode split at 7fbcacc4c: valid. The clock reads its parts by time.Now and the decode's own parts from processmeasure.Stages, two clocks, so the first decode's four parts summed to 426 ms inside its 418 ms; the decode's parts record zero processor time and bytes read, unmeasured, as if measured; and \"decoder compiled\" holds compileResidentStatic's binding of every static input as well as the compile. The parts are read on the ledger's one clock, enclosing interval and its exclusive parts, processor time and bytes read written only where measured, and the compile and the static binding named apart or together as what they are, before the decoder's 0.47 s is cured.\n\nNote: SQA-473 (P2), valid from source: sliceLastTemporalTap copies a VAE kernel whose temporal extent is 1 whole (97.0 MB at MOSS's decoder load), and VAEProgram.feeds keeps 108.9 MB of host weights after the resident decoder has bound them (decoder-resident). No wall is measured. This step's parts of the first run (46.4 s against ComfyUI's 40.2 s) decide whether the copy and the kept feeds earn a step: the copy can return the weight itself when the kernel has one temporal tap, and the generator can release its feeds once the decoder holds them, keeping them on a failed bind.",
-          "depends_on": [
-            "pair-encode/clock",
-            "full-measurement/run"
-          ]
+          "needs_card": true,
+          "rationale": "The workflow is timed whole on served-parts/do's ledger, the machine held quiet, and the timing appended to docs/verification/moss-workflow-time.jsonl (moss-workflow-clock).\n\nEach section's parts are then the ledger's, on one clock, each with its own processor time and bytes read. They include the rotary image decoder's compile and its static inputs' binding, named apart (SQA-471).\n\nThese parts decide three noted findings. Each earns a step only where its part shows the time it costs:\n- SQA-473: sliceLastTemporalTap's 97.0 MB copy at the decoder's load, and the 108.9 MB of feeds the generator keeps after the decoder binds them. The first run is 46.4 s against ComfyUI's 40.2 s.\n- SQA-468: the finished PNG rebuilt with its texts by the workflow's output encoder, keptDrawn and OutputContent.\n- SQA-461's generator part: model_index.json read again by Reset and prepare.\n\nCheck: the record's last timing names this commit, ran its code alone, and holds the parts the ledger names: the static inputs' binding among them, which only a timing on the ledger holds."
         }
       ]
     },

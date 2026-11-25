@@ -9,6 +9,7 @@ import (
 	"overgo/internal/checked"
 	"overgo/internal/hfbpe"
 	"overgo/internal/media"
+	"overgo/internal/processmeasure"
 	"overgo/internal/safetensors"
 )
 
@@ -145,7 +146,11 @@ func (r *Recognizer) Transcribe(ctx context.Context, request TranscriptionReques
 	if err := ValidateTranscriptionRequest(request); err != nil {
 		return "", err
 	}
+	// The transcription's parts are named for a ledger that reads them (processmeasure.Stage, served-parts), as a
+	// clip's are: the recording decoded, its features made, encoded, and the transcript read.
+	decoding := processmeasure.Stage(ctx, "recording decoded")
 	audio, _, err := media.DecodeAudio(ctx, request.Audio, request.MaximumSamples)
+	decoding()
 	if err != nil {
 		return "", err
 	}
@@ -157,19 +162,25 @@ func (r *Recognizer) Transcribe(ctx context.Context, request TranscriptionReques
 	if r.transducer != nil {
 		return r.transcribeRecurrent(ctx, audio.Samples, rate, &frontendWork)
 	}
+	featuring := processmeasure.Stage(ctx, "recording's features made")
 	features, frames, _, err := r.frontend.ProcessGrouped(ctx, audio.Samples, rate, &frontendWork, r.grouping)
+	featuring()
 	if err != nil {
 		return "", err
 	}
 	var encoderWork Workspace
+	encoding := processmeasure.Stage(ctx, "recording encoded")
 	hidden, encoded, err := r.encoder.Encode(ctx, features, frames, &encoderWork, nil)
 	if err != nil {
+		encoding()
 		return "", err
 	}
 	if encoded == 0 || len(hidden) == 0 {
+		encoding()
 		return "", errors.New("speechrecognition: the encoder produced no frames")
 	}
 	logits, err := r.encoder.Project(ctx, hidden, encoded, &encoderWork)
+	encoding()
 	if err != nil {
 		return "", err
 	}
@@ -177,6 +188,7 @@ func (r *Recognizer) Transcribe(ctx context.Context, request TranscriptionReques
 	if r.blank >= vocabulary {
 		return "", fmt.Errorf("speechrecognition: blank entry %d is beyond the %d-entry vocabulary", r.blank, vocabulary)
 	}
+	defer processmeasure.Stage(ctx, "transcript read")()
 	ids, err := GreedyCTC(ctx, make([]int, encoded), make([]int, encoded), logits, encoded, vocabulary, r.blank)
 	if err != nil {
 		return "", err
@@ -192,7 +204,9 @@ func (r *Recognizer) Transcribe(ctx context.Context, request TranscriptionReques
 // tokens it kept, and an encode that produced no frames is an error rather
 // than an empty transcript, as it is on the connectionist path.
 func (r *Recognizer) transcribeRecurrent(ctx context.Context, samples []float32, rate int, work *audiodsp.Workspace) (string, error) {
+	featuring := processmeasure.Stage(ctx, "recording's features made")
 	features, frames, err := r.frontend.Process(ctx, [][]float32{samples}, rate, work, audiodsp.ProcessOptions{})
+	featuring()
 	if err != nil {
 		return "", err
 	}
@@ -200,7 +214,9 @@ func (r *Recognizer) transcribeRecurrent(ctx context.Context, samples []float32,
 		return "", errors.New("speechrecognition: the frontend produced no frames")
 	}
 	var decoderWork TransducerWorkspace
+	recognizing := processmeasure.Stage(ctx, "recording encoded and its tokens decoded")
 	result, err := r.transducer.Recognize(ctx, features, frames, &decoderWork, nil)
+	recognizing()
 	if err != nil {
 		return "", err
 	}
@@ -210,5 +226,6 @@ func (r *Recognizer) transcribeRecurrent(ctx context.Context, samples []float32,
 	// The recurrent decoder emits the blank and the control entries its
 	// vocabulary marks special; the transcript is what remains once the
 	// artifact's own marking is honoured.
+	defer processmeasure.Stage(ctx, "transcript read")()
 	return r.tokenizer.DecodeText(result.Tokens)
 }

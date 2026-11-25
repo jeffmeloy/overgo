@@ -7,10 +7,8 @@ import (
 	"encoding/base64"
 	"os"
 	"slices"
-	"syscall"
 	"testing"
 	"time"
-	"unsafe"
 
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/landing"
@@ -81,31 +79,15 @@ func workflowSections(t *testing.T) []workflowSection {
 // one writes none.
 const workflowRecordVariable = "OVERGO_WORKFLOW_RECORD"
 
-// processUse is what this process has spent by a moment: its processor time, user and kernel, and the bytes it has
-// read through its files (GetProcessTimes, GetProcessIoCounters).
-type processUse struct {
-	cpu  time.Duration
-	read uint64
-}
-
-// processIOCounters is GetProcessIoCounters', in IO_COUNTERS' order.
-var processIOCounters = syscall.NewLazyDLL("kernel32.dll").NewProc("GetProcessIoCounters")
-
-// readProcessUse reads what this process has spent by now.
-func readProcessUse(t *testing.T) processUse {
+// sectionUse reads what this process has spent by now (processmeasure.ReadUse), failing the test where it is not
+// measured.
+func sectionUse(t *testing.T) processmeasure.Use {
 	t.Helper()
-	self := testcheck.Must(syscall.GetCurrentProcess())(t)
-	var creation, exit, kernel, user syscall.Filetime
-	testcheck.NoError(t, syscall.GetProcessTimes(self, &creation, &exit, &kernel, &user))
-	var counters struct{ readOperations, writeOperations, otherOperations, readBytes, writeBytes, otherBytes uint64 }
-	if ok, _, err := processIOCounters.Call(uintptr(self), uintptr(unsafe.Pointer(&counters))); ok == 0 {
-		t.Fatalf("GetProcessIoCounters: %v", err)
+	use, measured, err := processmeasure.ReadUse()
+	if err != nil || !measured {
+		t.Fatalf("the process's use read %+v (measured %t): %v; want it measured", use, measured, err)
 	}
-	// A FILETIME span counts 100-nanosecond intervals.
-	span := func(at syscall.Filetime) time.Duration {
-		return time.Duration(uint64(at.HighDateTime)<<32|uint64(at.LowDateTime)) * 100
-	}
-	return processUse{cpu: span(kernel) + span(user), read: counters.readBytes}
+	return use
 }
 
 // TestTheUltraWorkflowIsTimedInItsOrder reads the MOSS Ultra workflow's whole time on overgo against ComfyUI's
@@ -151,38 +133,40 @@ func TestTheUltraWorkflowIsTimedInItsOrder(t *testing.T) {
 				if section.slug == "depth-control" && (request.Control == nil || request.Control.Picture == "" || request.Control.Map != "") {
 					t.Fatal("depth control is asked with a map made before it; want it from its picture, as ComfyUI's run asked it")
 				}
-				var parts []workflowPart
-				start, use := time.Now(), readProcessUse(t)
-				began, used := start, use
-				part := func(name string) {
-					now, spent := time.Now(), readProcessUse(t)
-					parts = append(parts, workflowPart{Part: name, Milliseconds: now.Sub(began).Milliseconds(), CPUMs: (spent.cpu - used.cpu).Milliseconds(), ReadBytes: spent.read - used.read})
-					began, used = now, spent
-				}
-				if generator == nil || generator.Reset(ctx, request) != nil {
+				// A section is read on one ledger (served-parts, SQA-471): its parts, the load or reset, the prompt's
+				// preparation, the sampling and the decode, and the parts its code names inside them, each with its own
+				// wall, processor time and bytes read, all on one clock. The decode's own parts had been read on the
+				// ledger beside the others' by time.Now, so they summed past it.
+				staged, stages := processmeasure.WithStages(ctx)
+				clock, use := processmeasure.NewStopwatch(), sectionUse(t)
+				loading := processmeasure.Stage(staged, "load")
+				if generator == nil || generator.Reset(staged, request) != nil {
 					if generator != nil {
 						closeReporting(t, context.WithoutCancel(ctx), generator)
 					}
-					generator = testcheck.Must(LoadGenerator(ctx, root, profile, request))(t)
+					generator = testcheck.Must(LoadGenerator(staged, root, profile, request))(t)
 				}
-				part("load")
-				session := testcheck.Must(generator.prepare(ctx, request))(t)
-				part("prepare")
+				loading()
+				preparing := processmeasure.Stage(staged, "prepare")
+				session := testcheck.Must(generator.prepare(staged, request))(t)
+				preparing()
 				before := testcheck.Must(generator.rotary.runtime.Stats(ctx))(t).Execution.HostToDeviceBytes
-				sampling := time.Now()
-				testcheck.Must(generator.integrate(ctx, session))(t)
-				sampled := time.Since(sampling)
+				sampling, sampleClock := processmeasure.Stage(staged, "sampling"), processmeasure.NewStopwatch()
+				testcheck.Must(generator.integrate(staged, session))(t)
+				sampled := time.Duration(testcheck.Must(sampleClock.Elapsed())(t))
+				sampling()
 				copied := testcheck.Must(generator.rotary.runtime.Stats(ctx))(t).Execution.HostToDeviceBytes - before
-				part("sampling")
-				// The decode part is read as its own parts besides (png-level): "decode: decoder compiled", "decode: decoded
-				// on the card" and "decode: finished", each a wall within the decode part's, not beside it.
-				staged, stages := processmeasure.WithStages(ctx)
+				decoding := processmeasure.Stage(staged, "decode")
 				picture := testcheck.Must(generator.decode(staged, session))(t)
-				part("decode")
-				for _, within := range testcheck.Must(stages.Parts())(t) {
-					parts = append(parts, workflowPart{Part: "decode: " + within.Name, Milliseconds: within.Wall.Milliseconds()})
+				decoding()
+				wall, spent := time.Duration(testcheck.Must(clock.Elapsed())(t)), sectionUse(t)
+				var parts []workflowPart
+				for _, part := range testcheck.Must(stages.Parts())(t) {
+					if part.Use == nil {
+						t.Fatalf("the part %s read no processor time or bytes; want them measured", part.Name)
+					}
+					parts = append(parts, workflowPart{Part: part.Name, Milliseconds: part.Wall.Milliseconds(), CPUMs: part.Use.CPU.Milliseconds(), ReadBytes: part.Use.ReadBytes})
 				}
-				wall, spent := time.Since(start), readProcessUse(t)
 				if len(picture.Data) == 0 {
 					t.Fatalf("run %d: %s drew no picture", run+1, section.slug)
 				}
@@ -194,7 +178,7 @@ func TestTheUltraWorkflowIsTimedInItsOrder(t *testing.T) {
 				overgo, comfy = overgo+wall, comfy+recordedWall
 				times.Sections = append(times.Sections, workflowSectionTime{Section: section.slug, Milliseconds: wall.Milliseconds(),
 					SamplingMs: sampled.Milliseconds(), Passes: passes, PlacedBytes: copied, ComfyMs: recordedWall.Milliseconds(),
-					CPUMs: (spent.cpu - use.cpu).Milliseconds(), ReadBytes: spent.read - use.read, Parts: parts})
+					CPUMs: (spent.CPU - use.CPU).Milliseconds(), ReadBytes: spent.ReadBytes - use.ReadBytes, Parts: parts})
 				t.Logf("run %d, %s: %v from request to picture (sampling %v with %.2f GiB placed on the card, %d passes at %v a pass), ComfyUI's %s %v",
 					run+1, section.slug, wall.Round(time.Millisecond), sampled.Round(time.Millisecond), float64(copied)/(1<<30), passes,
 					(sampled / time.Duration(max(passes, 1))).Round(time.Millisecond), recorded, recordedWall)

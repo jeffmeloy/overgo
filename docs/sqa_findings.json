@@ -294,11 +294,11 @@
         "note": "Answered by the lead on 2026-11-25 at dbe87e8bd: valid from source and observed (the rules stage refuses a kernel family header over 2,000 lines; it refused moss-checkpoint-regression/do at 2,065 after a 12-minute card check, cured by moving kernels to a header included right after, the PTX unchanged). Filed as style-vetoes/overlong, beside the other vetoes of form."
       },
       "SQA-499": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "style-vetoes/doc-period"
         ],
-        "note": "Answered by the lead on 2026-11-24 at a30831fd6: valid from source and observed (validDoc requires the whole comment to end with a period where skill.md describes its first line, so a comment closing with an indented example is refused; eight rules refusals name export-doc). Filed as style-vetoes/doc-period, beside ternary-veto: the comment is held to begin with its name."
+        "note": "Answered by the lead on 2026-11-24 at a30831fd6: valid from source and observed (validDoc requires the whole comment to end with a period where skill.md describes its first line, so a comment closing with an indented example is refused; eight rules refusals name export-doc). Filed as style-vetoes/doc-period, beside ternary-veto: the comment is held to begin with its name. Implemented 2026-11-25 by style-vetoes/doc-period, the landing that carries this answer (TestAnExportedCommentMayEndWithItsExample), for the review's recheck."
       },
       "SQA-498": {
         "action": "implemented",

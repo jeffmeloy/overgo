@@ -84,7 +84,7 @@ func (f goStyleFinding) edit() string {
 	case goStylePackageDoc:
 		return "keep one comment opening `// Package " + f.Symbol[strings.LastIndex(f.Symbol, "#")+1:] + "` above a package clause of the package, in " + f.File + " or another of its files"
 	case goStyleExportDoc:
-		return "write a comment that opens with `// " + f.Symbol + " ` and ends with a period, above line " + strconv.Itoa(f.Line)
+		return "write a comment that opens with `// " + f.Symbol + " `, above line " + strconv.Itoa(f.Line)
 	case goStyleGetter:
 		return "rename " + f.Symbol + " to " + strings.TrimPrefix(f.Symbol, "Get")
 	case goStyleInitialism:
@@ -381,12 +381,14 @@ func receiverTypeName(expression ast.Expr) string {
 	}
 }
 
+// validDoc says an exported name's comment begins with the name, as go doc reads it. Its last character is not judged
+// (style-vetoes/doc-period, SQA-499): the whole comment had been held to end with a period, where skill.md describes
+// its first line, so a comment that closed with an indented example was refused while its first sentence alone passed.
 func validDoc(group *ast.CommentGroup, name string) bool {
 	if group == nil {
 		return false
 	}
-	text := strings.TrimSpace(group.Text())
-	return strings.HasPrefix(text, name+" ") && strings.HasSuffix(text, ".")
+	return strings.HasPrefix(strings.TrimSpace(group.Text()), name+" ")
 }
 
 func nonCanonicalInitialism(name string) string {

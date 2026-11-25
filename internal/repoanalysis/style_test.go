@@ -2,6 +2,7 @@ package repoanalysis
 
 import (
 	"fmt"
+	"go/ast"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -100,22 +101,21 @@ func TestGoStyleDeltaKeysPackageDocByPackage(t *testing.T) {
 	}
 }
 
-// TestAnExportDocFindingNamesWhatItLacks holds an exported declaration's finding to an edit that supplies all a
-// name-led sentence needs, the name that opens it and the period that ends it, so a comment that opens with the name
-// and lacks only its period is told what it lacks.
+// TestAnExportDocFindingNamesWhatItLacks holds an exported declaration's finding to an edit that supplies what a
+// name-led comment needs, the name that opens it; a comment that opens with the name and ends with no period is no
+// finding (style-vetoes/doc-period).
 func TestAnExportDocFindingNamesWhatItLacks(t *testing.T) {
 	t.Parallel()
 	prior := testcheck.Must((gosyntax.Snapshot{}).Overlay(map[string][]byte{"p/a.go": []byte("// Package p is a fixture.\npackage p\n")}))(t)
 	current := testcheck.Must((gosyntax.Snapshot{}).Overlay(map[string][]byte{"p/a.go": []byte(
 		"// Package p is a fixture.\npackage p\n\n// Named opens with its name and lacks its period\nfunc Named() {}\n\n// It opens with another word.\nfunc Unnamed() {}\n")}))(t)
 	err := ValidateGoStyleDelta(current, prior)
-	for _, want := range []string{
-		"export-doc:Named (exported function needs a name-led sentence; edit: write a comment that opens with `// Named ` and ends with a period, above line 5)",
-		"export-doc:Unnamed (exported function needs a name-led sentence; edit: write a comment that opens with `// Unnamed ` and ends with a period, above line 8)",
-	} {
-		if err == nil || !strings.Contains(err.Error(), want) {
-			t.Fatalf("the findings %v do not say %q", err, want)
-		}
+	const want = "export-doc:Unnamed (exported function needs a name-led sentence; edit: write a comment that opens with `// Unnamed `, above line 8)"
+	if err == nil || !strings.Contains(err.Error(), want) {
+		t.Fatalf("the findings %v do not say %q", err, want)
+	}
+	if strings.Contains(err.Error(), "export-doc:Named") {
+		t.Errorf("a comment opening with its name and lacking only a period was a finding: %v", err)
 	}
 }
 
@@ -161,4 +161,27 @@ func hasStyleFinding(report goStyleReport, kind goStyleKind) bool {
 		}
 	}
 	return false
+}
+
+// TestAnExportedCommentMayEndWithItsExample holds style-vetoes/doc-period (SQA-499): an exported name's comment is held
+// to begin with its name, not to end with a period. A method whose comment's first sentence ends with a period and
+// whose last line is an indented example call is valid; a comment that does not begin with its name stays refused.
+// The whole comment had been held to end with a period, so the documented example was refused while the same method
+// with its first sentence alone passed; eight rules refusals named export-doc, served-answers/absent's among them.
+func TestAnExportedCommentMayEndWithItsExample(t *testing.T) {
+	t.Parallel()
+	comment := func(lines ...string) *ast.CommentGroup {
+		group := &ast.CommentGroup{}
+		for _, line := range lines {
+			group.List = append(group.List, &ast.Comment{Text: "//" + line})
+		}
+		return group
+	}
+	example := comment(" Unwrap returns fs.ErrNotExist.", "", "\terrors.Is(err, fs.ErrNotExist)")
+	if !validDoc(example, "Unwrap") {
+		t.Error("a comment beginning with its name and closing with an indented example was refused")
+	}
+	if validDoc(comment(" Returns fs.ErrNotExist."), "Unwrap") {
+		t.Error("a comment that does not begin with its name was taken")
+	}
 }

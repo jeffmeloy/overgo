@@ -44,18 +44,6 @@
       "title": "The landing vetoes no form a reviewer can judge whose rewrite changes behaviour or whose wording is right",
       "steps": [
         {
-          "id": "doc-period",
-          "title": "An exported name's comment is held to begin with its name, not to end with a period",
-          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestAnExportedCommentMayEndWithItsExample$'",
-          "files": [
-            "internal/repoanalysis"
-          ],
-          "rationale": "SQA-499 (P2), checked against validDoc (internal/repoanalysis/style.go) at 39ffd57e1: valid from source and observed. validDoc requires the whole comment to end with a period, where skill.md describes the first line, so a comment whose first sentence ends with a period and that closes with an indented Go example is refused, and the same method with its first sentence alone passes. Eight rules refusals name export-doc, served-answers/absent's Error and Unwrap among them. The change: an exported name's comment is held to begin with its name, as go doc reads it, and its last character is not judged. Check: TestAnExportedCommentMayEndWithItsExample holds a method whose comment's first sentence ends with a period and whose last line is an indented example call, and finds it valid; a comment that does not begin with its name stays refused. It does not exist at the base, so the check fails there.",
-          "depends_on": [
-            "full-measurement/run"
-          ]
-        },
-        {
           "id": "overlong",
           "title": "The rules stage counts no kernel header's length",
           "verify": "go test ./internal/landing -count=1 -run '^TestTheRulesStageCountsNoHeaderLength$'",

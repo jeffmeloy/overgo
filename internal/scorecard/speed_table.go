@@ -74,9 +74,11 @@ func (record Record) SpeedTable() string {
 }
 
 // GenerationTable is the README's table of the record's generated pictures and clips, after its speed table: one line
-// for each image or video row whose time to the whole output names the preset it ran, that time with its preset, and
-// its time at the size a person asks for with that preset where one was read, and where that time went (Row.Stages).
-// A record measured before its attempts kept their presets gives no table.
+// for each image or video row whose time to the whole output names the preset it ran, its time at the size a person
+// asks for with that preset where one was read, first, since that is the time a person gets; then the time of the
+// scorecard's timing request with its preset, which for a video model is a small request that times its load and its
+// prompt more than a clip (Wan's 32 x 16 request took 7.1 s of which its clip 0.34 s, 2026-11-25); then where the
+// person's request went (Row.Stages). A record measured before its attempts kept their presets gives no table.
 func (record Record) GenerationTable() string {
 	timed := func(cell Cell) string {
 		return fmt.Sprintf("%.1f s (%s)", time.Duration(cell.Value*float64(time.Millisecond)).Seconds(), cell.Preset)
@@ -91,12 +93,12 @@ func (record Record) GenerationTable() string {
 		if at := slices.IndexFunc(row.Warm, func(cell Cell) bool { return cell.Contract.Metric == userSizeTimeMetric && cell.Preset.Ran() }); at >= 0 {
 			sized, went = timed(row.Warm[at]), stagesText(row.Stages)
 		}
-		fmt.Fprintf(&lines, "| %s | %s | %s | %s |\n", row.Name, timed(first), sized, went)
+		fmt.Fprintf(&lines, "| %s | %s | %s | %s |\n", row.Name, sized, timed(first), went)
 	}
 	if lines.Len() == 0 {
 		return ""
 	}
-	return "\n| Model | time to the whole output | at the size a person asks for | where it went |\n| --- | --- | --- | --- |\n" + lines.String()
+	return "\n| Model | time at the size a person asks for | time of the scorecard's timing request | where the person's request went |\n| --- | --- | --- | --- |\n" + lines.String()
 }
 
 // stageShare is the share of a request's wall, one part in stageShare, a part takes at least to be named where its

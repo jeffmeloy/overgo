@@ -53,7 +53,7 @@ func TestAMediaCellRecordsThePresetItRan(t *testing.T) {
 		t.Fatalf("a clip's time whose attempt recorded no preset reads %+v, want it unmeasured", unmarked)
 	}
 	row := Row{Name: "Wan", Task: recipe.TaskVideoGen, Cells: map[metric.Name]Cell{metric.FirstOutput: first}, Warm: userSizeCells(summaries[kept])}
-	want := "| Wan | 13.0 s (32 x 16, 21 frames, 2 steps, flow UniPC, guidance 5, shift 5) | 374.0 s (832 x 480, 81 frames, 50 steps, flow UniPC, guidance 5, shift 5) | — |\n"
+	want := "| Wan | 374.0 s (832 x 480, 81 frames, 50 steps, flow UniPC, guidance 5, shift 5) | 13.0 s (32 x 16, 21 frames, 2 steps, flow UniPC, guidance 5, shift 5) | — |\n"
 	if table := (Record{Rows: []Row{row}}).GenerationTable(); !strings.HasSuffix(table, want) {
 		t.Fatalf("the README's generation table reads\n%s\nwant it to end with\n%s", table, want)
 	}
@@ -98,5 +98,28 @@ func TestAGenerationRecordsItsStageTimes(t *testing.T) {
 	}
 	if table := (Record{Rows: []Row{row}}).GenerationTable(); !strings.Contains(table, "| text encoder run 62.0 s, source clip encoded 9.0 s, clip denoised 14.0 s |") {
 		t.Fatalf("the generation table reads\n%s\nwant the parts of a twentieth or more of the person's request named", table)
+	}
+}
+
+// TestTheGenerationTableLeadsWithTheSizeAPersonAsksFor holds the README's generation table to the time a person gets:
+// Wan's scorecard timing request is 21 frames at 32 x 16, which took 7.1 s in the closing run of 2026-11-25, 0.34 s of
+// it the clip, beside 337 s for the 81 frames at 832 x 480 a person asks for. The person's time is a row's first, the
+// timing request's follows under its own name, and a row with no reading at a person's size shows the dash first.
+func TestTheGenerationTableLeadsWithTheSizeAPersonAsksFor(t *testing.T) {
+	t.Parallel()
+	small := media.Preset{Width: 32, Height: 16, Frames: 21, Steps: 2, Sampler: "flow UniPC"}
+	sized := media.Preset{Width: 832, Height: 480, Frames: 81, Steps: 50, Sampler: "flow UniPC"}
+	wan := Row{Name: "Wan", Task: recipe.TaskVideoGen, Cells: map[metric.Name]Cell{metric.FirstOutput: {Value: 7_100, Preset: small}},
+		Warm: []Cell{{Value: 337_000, Preset: sized, Contract: Contract{Metric: userSizeTimeMetric}}}}
+	edit := Row{Name: "LiveEdit", Task: recipe.TaskVideoGen, Cells: map[metric.Name]Cell{metric.FirstOutput: {Value: 11_200, Preset: small}}}
+	table := (Record{Rows: []Row{wan, edit}}).GenerationTable()
+	for _, want := range []string{
+		"| Model | time at the size a person asks for | time of the scorecard's timing request |",
+		"| Wan | 337.0 s (832 x 480, 81 frames, 50 steps, flow UniPC) | 7.1 s (32 x 16, 21 frames, 2 steps, flow UniPC) |",
+		"| LiveEdit | — | 11.2 s (32 x 16, 21 frames, 2 steps, flow UniPC) |",
+	} {
+		if !strings.Contains(table, want) {
+			t.Fatalf("the generation table reads\n%s\nwant it to hold\n%s", table, want)
+		}
 	}
 }

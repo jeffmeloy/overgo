@@ -7,19 +7,6 @@
       "title": "The README's media times are the scorecard's tables alone, the size a person asks for first, and it shows no output a person cannot see",
       "steps": [
         {
-          "id": "table",
-          "title": "GenerationTable leads each image and video row with its time at the size a person asks for, the scorecard's small timing request after it under its own name",
-          "verify": "go test ./internal/scorecard -count=1 -run '^TestTheGenerationTableLeadsWithTheSizeAPersonAsksFor$'",
-          "files": [
-            "internal/scorecard",
-            "README.md"
-          ],
-          "rationale": "The owner's review of 2026-11-25, point 2, checked by the lead at 7e417691c: valid. GenerationTable (internal/scorecard/speed_table.go) prints each image and video row's FirstOutput cell first, under \"time to the whole output\", and its time at the size a person asks for after it. For Wan and LiveEdit the first is the 32 x 16 request, which times loading and prompt reading: in the closing run of 2026-11-25 Wan's took 7.1 s, 3.74 s of it the session's lease and 2.86 s the prompt rows, 0.34 s the clip itself, beside 337.2 s for 81 frames at 832 x 480.\n\nThe change: the table's columns are the time at the size a person asks for, with its preset, then the scorecard's timing request, with its preset, named as such, then where the person's request went; a row with no reading at a person's size shows the dash first. validate -readme writes the README's table from the newest record with it.\n\nCheck: TestTheGenerationTableLeadsWithTheSizeAPersonAsksFor, a record with a row read at both sizes: the table's first time column is the one at a person's size, and its header names the other as the timing request; it uses only Record and GenerationTable, which the base holds, so it builds there and fails on its assertion.",
-          "depends_on": [
-            "moss-close/run"
-          ]
-        },
-        {
           "id": "prose",
           "title": "The README's sample paragraphs state no time or memory the generated tables print, and link no output too small to see",
           "verify": "! grep -q 'The timing request the scorecard measures' README.md \u0026\u0026 test ! -e assets/e6e246d2f322356bf07a83e137a2c4341a97eed8dd45b3f188736ba92e248865.gif",

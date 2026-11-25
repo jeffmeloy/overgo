@@ -3,25 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "moss-heldout",
-      "title": "MOSS's training route refuses a held-out picture whose model input equals a trained one's, and its test holds a genuinely different picture",
-      "steps": [
-        {
-          "id": "do",
-          "title": "refuseTrainedHeldOut compares the pictures the image processor gives, not their file bytes, and TestMOSSRoute's held-out example is another picture",
-          "verify": "go test ./cmd/train -count=1 -run '^TestMOSSRouteRefusesAHeldOutCopyOfATrainedPicture$'",
-          "files": [
-            "cmd/train",
-            "internal/trainingdata"
-          ],
-          "rationale": "SQA-506 (P2), checked by the lead against cmd/train/route_moss_windows.go at 7e417691c: valid from source, a check that passes without checking. refuseTrainedHeldOut hashes the encoded file bytes, so the fixture's held-out picture, the trained PNG with one zero byte appended, is a different file and the same model input, and TestMOSSRoute's held-out reading passes on it (the lanes log records the invocation passing in 4.7 s). The published 32-picture measurement used pictures from other videos, so no served number rests on it.\n\nThe change: the refusal compares what the existing image processor gives for each picture (decoded dimensions and RGB values) before either is prepared on the card; the route's passing case uses a genuinely different picture, and the padded copy becomes a refusal case.\n\nCheck: TestMOSSRouteRefusesAHeldOutCopyOfATrainedPicture, the padded copy refused before any preparation; it calls the route's refusal, which the base holds, so it builds there and fails on its assertion.",
-          "depends_on": [
-            "moss-close/run"
-          ]
-        }
-      ]
-    },
-    {
       "id": "moss-encoder-plan",
       "title": "MOSS's text encoder plans its model once a load, not once a block and prompt",
       "steps": [
@@ -36,6 +17,37 @@
           "rationale": "SQA-511 (P2), checked by the lead against internal/latentimage at c34da2721: valid from source. encodeEach calls encodeBlock for each of the encoder's 32 blocks and for each prompt; each call compiles the block's graph through compileModelEncoder, which runs model.CompileModelPlanWithProfile over all 32 layers and their cache schemas from the same catalog and profile, so a guided request with two uncached prompts plans the model 64 times (2,048 layer plans) where one plan serves. The closing work measured the whole cold prompt encode at 4.771 s (cb82910a6) and the first request's gap to ComfyUI at 4.969 s; the planning's share is not isolated, so the step first times it.\n\nThe change: the loaded encoder plans its model once and keeps the plan; each prompt's token-length-specific block graph is built from it, with one block resident on the card at a time and the hidden states held to ComfyUI's recording as before. Then the cold encode is timed against the recording.\n\nCheck: TestAPromptEncodePlansTheModelOnceALoad, a count of the model plans an encode of two prompts makes: one; if the count needs a hook the base lacks, the hook lands first in its own step so the check builds at the base and fails on its count.",
           "depends_on": [
             "readme-timings/prose"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "generation-rows",
+      "title": "The generation table says whose time its stages are and keeps a row whose person-size reading stands alone",
+      "steps": [
+        {
+          "id": "stages",
+          "title": "Where a person's request went is said as its newest attempt's, with that attempt's own total beside the median",
+          "verify": "go test ./internal/scorecard -count=1 -run '^TestTheStagesAreTheNewestAttemptsWithItsOwnTotal$'",
+          "files": [
+            "internal/scorecard",
+            "README.md"
+          ],
+          "rationale": "SQA-512 (P2), checked by the lead against the README written from scorecard-20261125T170629Z at 96841066: valid, observed. SenseNova's row shows its person-size median, 130.7 s, beside the stages of its newest attempt, model session leased 10.9 s and model.routed-image-integrate 120.0 s, which together pass the time shown, its attempt having taken 132.3 s: servingSummary.timed takes the median, readUserSize keeps the newest attempt's stages, and GenerationTable presents them as where the shown time went.\n\nThe change: the column names the newest attempt and its own total before its stages (where the newest attempt's 132.3 s went: ...), the median kept as the row's time.\n\nCheck: TestTheStagesAreTheNewestAttemptsWithItsOwnTotal, a row whose median and newest attempt differ: the stages are said with the attempt's own total; it uses Record and GenerationTable, which the base holds, so it builds there and fails on its assertion.",
+          "depends_on": [
+            "moss-close/run"
+          ]
+        },
+        {
+          "id": "alone",
+          "title": "A row with a measured reading at a person's size is shown though its timing request recorded no preset",
+          "verify": "go test ./internal/scorecard -count=1 -run '^TestAPersonSizeReadingStandsWithoutTheTimingRequestsPreset$'",
+          "files": [
+            "internal/scorecard"
+          ],
+          "rationale": "SQA-513 (P2), checked by the lead against internal/scorecard/speed_table.go at 96841066: valid from source, not observed (the published rows hold both presets). GenerationTable skips a row on !first.Preset.Ran() before it reads the person-size cell, so a row whose small request recorded no preset hides a measured 374 s reading with its preset, and TestAMediaCellRecordsThePresetItRan's last case expects the empty table.\n\nThe change: a row is shown when either reading names its preset, the dash standing for the one that names none; a row with neither is left out. The fixture's last case expects the person-size reading.\n\nCheck: TestAPersonSizeReadingStandsWithoutTheTimingRequestsPreset; it uses Record and GenerationTable, so it builds at the base and fails on its assertion.",
+          "depends_on": [
+            "generation-rows/stages"
           ]
         }
       ]

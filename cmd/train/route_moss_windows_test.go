@@ -91,9 +91,17 @@ func TestMOSSRoute(t *testing.T) {
 	arguments := []string{"moss", "-model", root, "-pictures", manifest, "-size", fmt.Sprint(mossRouteSize), "-rank", "2", "-alpha", "2", "-steps", "6", "-store", store, "-out", out, "-adapter", adapterOut, "-served", served}
 	heldout, report := filepath.Join(filepath.Dir(manifest), "heldout.tsv"), filepath.Join(scratch, "heldout.json")
 	testcheck.NoError(t, os.WriteFile(heldout, []byte("held-0.png\ta red square\n"), 0o600))
-	picture := testcheck.Must(os.ReadFile(filepath.Join(filepath.Dir(manifest), "picture-0.png")))(t)
-	// A byte past its end leaves the pixels the reading is pinned to and makes it another file: a copy is refused.
-	testcheck.NoError(t, os.WriteFile(filepath.Join(filepath.Dir(manifest), "held-0.png"), append(picture, 0), 0o600))
+	// The held-out picture is another red square, its gradient running the other way, which no trained picture is: a
+	// trained one with a byte appended had stood here and passed, the refusal reading files' bytes (SQA-506).
+	held := image.NewRGBA(image.Rect(0, 0, mossRouteSize, mossRouteSize))
+	for y := range mossRouteSize {
+		for x := range mossRouteSize {
+			held.SetRGBA(x, y, color.RGBA{240, uint8(4 * (mossRouteSize - 1 - x)), uint8(4 * (mossRouteSize - 1 - y)), 255})
+		}
+	}
+	var encoded bytes.Buffer
+	testcheck.NoError(t, png.Encode(&encoded, held))
+	testcheck.NoError(t, os.WriteFile(filepath.Join(filepath.Dir(manifest), "held-0.png"), encoded.Bytes(), 0o600))
 	arguments = append(arguments, "-heldout", heldout, "-report", report)
 	testcheck.NoError(t, runRoute(t.Context(), arguments))
 	adapter := testcheck.Must(peft.Load(adapterOut))(t)

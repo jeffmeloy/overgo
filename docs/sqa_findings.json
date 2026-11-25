@@ -1,8 +1,8 @@
 {
   "advisory_notice": "All SQA findings, rankings and assessments are recommendations. Master decides whether, when and how to act through docs/plan.json.",
   "priority_assessment": [
-    "MOSS close published its scorecard for dcf609ad6. I would keep readme-timings and the planned held-out and recovery fixes ahead of new speed work. Before the next MOSS training proof I would use different held-out pixels (SQA-506) and bind dataset identity to the actual media (SQA-507).",
-    "For MOSS Ultra text-to-image the last recorded gap is 4.969 s on the first request and 0.323 s on the second. On the next ordinary timing I would compare request to first completed sampler step, then first to last, using the existing step observer and both ComfyUI recordings. Match or disclose the model files' cache conditions. SQA-511 removes a countable repetition inside prompt encoding; the seconds attributable to it are still unknown."
+    "The full-size times now lead the README. I would finish readme-timings/peak (SQA-510) and correct the two generation-table readings next time master touches that table. SQA-512 pairs a median with another duration's stages; SQA-513 hides a valid full-size result when only the small preset is missing. Both can be checked with the published record or an existing fixture, without another model run.",
+    "I would keep moss-heldout/do (SQA-506) before moss-encoder-plan/do (SQA-511). The first protects the training verdict. The second now has a plan to time the cost of rebuilding an identical encoder plan 64 times. The last first-request gap was 4.969 s, with 0.323 s remaining warm. I would credit only the change measured under comparable file-cache conditions and keep close-launcher/do (SQA-502) ahead of another full measurement."
   ],
   "branch": "master",
   "findings": [
@@ -73,21 +73,6 @@
       "actual": "Both routes pass only the manifest path to openSessionAs. BootstrapRecipe calls TextAuthority on its bytes, so both corpora get the same dataset, split, processor and recipe. MOSS then decodes different RGB values and the codec route reads the listed clips separately. publishPlanned records the objective’s dataset and split, and groundTraining identifies the MOSS route by the TSV alone. This collision follows from committed source. No run with substituted media was observed."
     },
     {
-      "id": "SQA-504",
-      "severity": "P2",
-      "files": [
-        "internal/loop/driver.go",
-        "internal/loop/dispatch_wait_test.go",
-        "internal/plan/dispatch.go",
-        "internal/plan/findings_fall_through.go",
-        "cmd/loop/main.go",
-        "cmd/loop/improve.go"
-      ],
-      "input": "Finish the last plan row with a measurement due, budgets available, no stop or competing worker, and one open P2 recommendation that no row or triage action names.",
-      "expected": "Show the recommendation to master and let the existing cycle trigger judge the measurement. Remove the requirement to file or disposition the recommendation before the run. Keep explicit stops, resource limits and plan dependencies authoritative.",
-      "actual": "execWorld.Current reports the plan complete. Run then returns findings-waiting before it calls improve. The dispatch text asks master to file the finding as a row. TestARunEndsWaitingNeverCompleteWhileWorkIsHeldOrFindingsAwaitFiling explicitly requires zero measurements and zero worker calls in this case. This is a source counterexample to the advisory contract. The current MOSS close still has an open row."
-    },
-    {
       "id": "SQA-510",
       "severity": "P2",
       "files": [
@@ -100,6 +85,31 @@
       "input": "Render the served-model table from scorecard-20261124T115348Z.json. The Wan2.1-T2V-1.3B video row records 13,108,635,852 peak device bytes for 32 x 16 and 19,418,051,872 for 832 x 480, 81 frames and 50 steps.",
       "expected": "Show 18.1 GiB under the README's stated maximum across measured serving attempts. ServedTable can take that maximum from Row.Measured(metric.PeakMemory), which already selects measured cells for the headline, user-size requests and longer prompts. The published record suffices to check the correction.",
       "actual": "The committed README shows 12.2 GiB. ServedTable considers only row.Cells[metric.PeakMemory] and skips the recorded user-size peak. The larger peak was measured during the same full-size request timed at 336.3 s in the speed table. This 5.9 GiB understatement is visible in the published record and README."
+    },
+    {
+      "id": "SQA-512",
+      "severity": "P2",
+      "files": [
+        "internal/scorecard/scorecard.go",
+        "internal/scorecard/speed_table.go",
+        "internal/scorecard/media_preset_test.go",
+        "cmd/validate/readme.go"
+      ],
+      "input": "Render the SenseNova image row of scorecard-20261125T170629Z.json. The full-size median is 130.669889 s. The newest attempt's recorded stages total 132.256317 s.",
+      "expected": "Keep the full-size median. Attribute the stage breakdown to the run it describes. The existing record can label the newest attempt and show its own total, including when the median falls between two runs.",
+      "actual": "The committed README shows 130.7 s beside model session leased 10.9 s and model.routed-image-integrate 120.0 s. Even these two stages alone exceed the displayed total. servingSummary.timed takes the median, readUserSize keeps the newest attempt's stages, and GenerationTable presents them as where the displayed time went. Observed in the published scorecard and its generated README; the same record has a 336.768 s Wan median and 337.243 s of stages."
+    },
+    {
+      "id": "SQA-513",
+      "severity": "P2",
+      "files": [
+        "internal/scorecard/speed_table.go",
+        "internal/scorecard/media_preset_test.go",
+        "internal/scorecard/scorecard.go"
+      ],
+      "input": "Use the last case of TestAMediaCellRecordsThePresetItRan. Its Wan row still holds a 374 s full-size reading with an 832 x 480, 81-frame preset. Only the small request's preset has been cleared. The same combination is possible when only a successful full-size attempt has recorded its preset.",
+      "expected": "GenerationTable should show the 374 s reading with its preset and a dash for the small request. Omit the row if neither request has a usable measurement. The existing fixture already holds both cases' inputs.",
+      "actual": "GenerationTable skips the entire row on !first.Preset.Ran() before it looks for the full-size cell. The fixture explicitly expects an empty table despite keeping the measured full-size cell. Source-demonstrated at 1e2648a4c. The published Wan row has both presets and is visible."
     },
     {
       "id": "SQA-494",
@@ -182,20 +192,6 @@
       "actual": "On committed master, encodeEach calls encodeBlock for each of 32 blocks and both prompts. Each call to compileModelEncoder runs CompileModelPlanWithProfile over all 32 layers and their cache schemas, using only the same catalog and profile. That gives 64 identical model plans (2,048 base layer plans) for this request; one suffices. This count follows from source. The cb82910a6 run measured 4.771 s for the entire cold prompt encode and 0 ms rounded on a cache hit. The record does not isolate planning time."
     },
     {
-      "id": "SQA-505",
-      "severity": "P2",
-      "files": [
-        "internal/repoanalysis/production_repeats_test.go",
-        "internal/repoanalysis/test_repeats_test.go",
-        "internal/server/loop_status_test.go",
-        "cmd/loop/runner_commit_test.go",
-        "cmd/loop/clean_checker_test.go"
-      ],
-      "input": "Rename internal/server/loop_status_test.go to loop_status_api_test.go in the same package, preserving its contents. The mutex-protected fakeLoop.LoopStatus reader, its callers and all test assertions stay identical.",
-      "expected": "Accept the rename. Remove the two repository-wide pass/fail checks on repeated test bodies and their file-name exception. Keep useful shared fixtures such as runBuild and the tests that check runner identity and recovery.",
-      "actual": "The three mutex-protected fake readers match the same syntax pattern. The exception compares the sorted file names to testParameterHeld, so the rename both rejects the group and reports its exception missing. This follows from source. Separately, landing_refusals.json records the exact-body check rejecting runner-from-commit/do. Its failed attempt lasted 3m39s, including 3m13s in invariants. The later landing shared runBuild. The timing record covers the whole attempt and its invariants stage."
-    },
-    {
       "id": "SQA-388",
       "severity": "P2",
       "files": [
@@ -233,17 +229,6 @@
       "input": "A serving or training observation published by servingattempt.Record or trainingworkflow.Observer.finish when (a) the recipe-state read fails and the incoming Verification is empty, or (b) the same recipe is activated again, verified, after the recorded attempt executed it not verified.",
       "expected": "Publication carries the state the executed recipe and task had at execution. A failed state read is told apart from a historical absent state and earns no verified credit, and a later activation does not replace execution-time state. Legacy bytes, the own-verifying-run exception and partial or cancelled results keep their contract.",
       "actual": "The two remaining owners still read state at publication and drop the lookup error: servingattempt.Record (servingattempt.go:117-119) and Observer.finish (session_observation.go:271-273). A failed read leaves an empty Verification; scorecard.unverifiedAside rejects only explicit not-verified/broken and accepts that empty value as legacy. A later same-recipe activation is written as the attempt's state in place of its execution-time not-verified state. Shown from source at 8acbf71d17dfd3e1e35313b370f900b21f0fdf10; no SQA execution."
-    },
-    {
-      "id": "SQA-509",
-      "severity": "P2",
-      "files": [
-        "internal/agenttool/transport.go",
-        "internal/agenttool/transport_test.go"
-      ],
-      "input": "Use the 2025-06-18 MCP HTTP adapter with a server that requires both response media types in Accept, or one that returns a matching JSON-RPC reply as a server-sent event. Separately, use a stateful JSON server that retains each assigned session until the client requests termination.",
-      "expected": "Advertise and accept both JSON and event-stream on POST. Within existing size and time limits, finish on the matching reply even if a notification precedes it or the stream stays open. Accept an empty 202 for an accepted notification. Request DELETE for an assigned session on exit. A cleanup refusal (405 is permitted) must preserve the known tool outcome and never replay the call.",
-      "actual": "post advertises JSON alone. A strict server can reject initialization. On an event stream, post waits for EOF or its read bound, even after the matching reply arrives. If the stream closes normally, the JSON decoder rejects the event framing. Each invocation initializes again and drops the assigned session ID without DELETE. Two calls leave two sessions on the stated retaining server. These are source counterexamples. Live session retention was not measured."
     },
     {
       "id": "SQA-342",
@@ -298,8 +283,22 @@
   ],
   "master_lead_triage": {
     "at": "2026-11-25",
-    "head": "c34da2721326db6cb3307456f91430cf2c2d1cdc",
+    "head": "96841066485c46da331d3dafe08deea6e26d77f5",
     "findings": {
+      "SQA-513": {
+        "action": "filed",
+        "rows": [
+          "generation-rows/alone"
+        ],
+        "note": "Answered by the lead on 2026-11-25 at 96841066: valid from source (GenerationTable leaves a row out on the timing request's missing preset before it reads the person-size cell, and the fixture expects that); not observed, the published rows holding both presets. Filed as generation-rows/alone after the MOSS rows."
+      },
+      "SQA-512": {
+        "action": "filed",
+        "rows": [
+          "generation-rows/stages"
+        ],
+        "note": "Answered by the lead on 2026-11-25 at 96841066: valid, observed in the README written from scorecard-20261125T170629Z (SenseNova's 130.7 s median beside its newest attempt's stages, 10.9 s and 120.0 s, of an attempt of 132.3 s). Filed as generation-rows/stages after the MOSS rows."
+      },
       "SQA-511": {
         "action": "filed",
         "rows": [
@@ -313,11 +312,6 @@
           "readme-timings/peak"
         ],
         "note": "Answered by the lead on 2026-11-25 at 7e417691c: valid, observed in the published record (ServedTable reads row.Cells[metric.PeakMemory] alone, so Wan shows 12.2 GiB while its request at a person's size peaked at 18.08 GiB in the closing run of 2026-11-25). Filed as readme-timings/peak, with the README's other media figures, after moss-close."
-      },
-      "SQA-509": {
-        "action": "declined",
-        "rows": [],
-        "note": "Answered by the lead on 2026-11-25 at 7e417691c: valid from source (post advertises JSON alone, reads no event stream and leaves an assigned session undeleted); not observed. Declined under the owner's severity rule (P2 = a served defect on observed evidence or a check that passes without checking): an interoperability gap with outside MCP servers that no overgo path calls, to be taken up when one is."
       },
       "SQA-508": {
         "action": "filed",
@@ -339,16 +333,6 @@
           "moss-heldout/do"
         ],
         "note": "Answered by the lead on 2026-11-25 at 7e417691c: valid from source, a check that passes without checking (refuseTrainedHeldOut hashes file bytes, so the fixture's padded copy of a trained picture passes as held out); the published 32-picture measurement used other pictures. Filed as moss-heldout/do after readme-timings, before the tooling rows."
-      },
-      "SQA-505": {
-        "action": "declined",
-        "rows": [],
-        "note": "Answered by the lead on 2026-11-25 at 7e417691c: the rename case is valid from source but not observed; the observed refusal (runner-from-commit/do) was of bodies repeated in fact, which the landing then shared as runBuild, the check doing its work. Declined under the owner's severity rule: neither a served defect nor a check that passes without checking."
-      },
-      "SQA-504": {
-        "action": "declined",
-        "rows": [],
-        "note": "Answered by the lead on 2026-11-25 at 7e417691c: valid from source (an emptied plan waits for an unnamed P2 finding to be filed or answered before the cycle measures); not observed, as the MOSS close keeps rows open. Declined: every P1 and P2 finding is answered by the lead before work goes on (the owner's rule, held at each landing), and the fall-through is that rule for an emptied plan; the answer may be a decline, which takes no run."
       },
       "SQA-502": {
         "action": "filed",
@@ -429,7 +413,7 @@
       }
     }
   },
-  "next_finding_number": 512,
+  "next_finding_number": 514,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

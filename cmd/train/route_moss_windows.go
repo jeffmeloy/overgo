@@ -87,12 +87,24 @@ func mossManifest(manifest string) ([]mossPicture, error) {
 	return pictures, nil
 }
 
-// refuseTrainedHeldOut refuses a held-out picture the run also trains on, by the bytes of both: a copy under another name, or
-// a path that differs only in case, is the same picture, and a held-out reading of it would judge what was trained.
+// refuseTrainedHeldOut refuses a held-out picture the run also trains on, by what the image processor gives for each,
+// its decoded size and values, which is what the encoder reads: a copy under another name, a path that differs only in
+// case, a file padded past its end or the same pixels encoded again is the same picture, and a held-out reading of it
+// would judge what was trained. By the files' bytes, a trained picture with one byte appended had passed as held out
+// (SQA-506). A picture that does not decode is refused here, before any is prepared on the device.
 func refuseTrainedHeldOut(trained, held []mossPicture) error {
+	process := trainingdata.ImageProcessor(trainingdata.RoleTarget)
 	digest := func(picture mossPicture) ([sha256.Size]byte, error) {
 		data, err := os.ReadFile(picture.path)
-		return sha256.Sum256(data), err
+		if err != nil {
+			return [sha256.Size]byte{}, err
+		}
+		example, err := process(context.Background(), trainingdata.RawRecord{ID: picture.path, Group: picture.path, Data: data})
+		if err != nil {
+			return [sha256.Size]byte{}, fmt.Errorf("picture %s: %w", picture.path, err)
+		}
+		value := example.Values[0]
+		return sha256.Sum256(fmt.Appendf(nil, "%v\x00%s", value.Shape, value.Data)), nil
 	}
 	seen := make(map[[sha256.Size]byte]string, len(trained))
 	for _, picture := range trained {
@@ -108,7 +120,7 @@ func refuseTrainedHeldOut(trained, held []mossPicture) error {
 			return err
 		}
 		if path, found := seen[sum]; found {
-			return fmt.Errorf("%s is held out and holds the bytes of %s, which is trained on", picture.path, path)
+			return fmt.Errorf("%s is held out and holds the picture of %s, which is trained on", picture.path, path)
 		}
 	}
 	return nil

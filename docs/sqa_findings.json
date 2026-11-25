@@ -399,11 +399,11 @@
         "note": "Answered by the lead on 2026-11-24 at db04fec59: valid from source (runStop calls answerHold before using stopDecision's verdict, so a clean typed status turn is held to a doctrine decision). Filed as status-turn after moss-page and overrun-every-check: the hold stays for a turn that implements. Implemented 2026-11-25 by status-turn/do, the landing that carries this answer: a typed turn that leaves nothing uncommitted ends though a decision waits (TestAStatusTurnEndsThoughADecisionWaits), for the review's recheck."
       },
       "SQA-487": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "stop-request-session/do"
         ],
-        "note": "Answered by the lead on 2026-11-24 at db04fec59: valid from source (every session's prompt writes or removes the one stop_request file, and stop words are matched by containment). Filed as stop-request-session."
+        "note": "Answered by the lead on 2026-11-24 at db04fec59: valid from source (every session's prompt writes or removes the one stop_request file, and stop words are matched by containment). Filed as stop-request-session. Implemented 2026-11-25 by stop-request-session/do, the landing that carries this answer: only the session that holds the worktree notes or clears a stop request, and a negated stop word asks for none (TestAStopRequestIsTheAskingSessions in cmd/loophook and internal/plan), for the review's recheck."
       }
     }
   },

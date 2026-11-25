@@ -208,3 +208,25 @@ func TestAStopAfterWorkSinceItsBlockIsBlockedAgain(t *testing.T) {
 		t.Fatalf("a stop whose block cannot be kept = %d, want it let through", got)
 	}
 }
+
+// TestAStopRequestIsTheAskingSessions holds stop-request-session/do's session rule (SQA-487): a requested stop rests on
+// the latest prompt of the session that holds the worktree. The lead's prompt asks to stop; a review session's progress
+// question, and a prompt of a session sent away, leave the request standing; the lead's next prompt, which asks for
+// none, clears it. Every session's prompt had written or removed the one request, so a review's question removed the
+// lead's before RecordStop read it. Its word rule is held by the test of this name in internal/plan.
+func TestAStopRequestIsTheAskingSessions(t *testing.T) {
+	sessionCheckout(t)
+	beginTurn(hookInput{Session: "lead", Prompt: "Take over this worktree, and stop the loop after this row"})
+	if err := plan.RequireStopRequest("."); err != nil {
+		t.Fatalf("the holding session's request to stop was not kept: %v", err)
+	}
+	beginTurn(hookInput{Session: "reviewer", Prompt: "Review session: how is the campaign going?"})
+	beginTurn(hookInput{Session: "visitor", Prompt: "how is it going?"})
+	if err := plan.RequireStopRequest("."); err != nil {
+		t.Errorf("a review session's and a sent-away session's prompts removed the lead's request: %v", err)
+	}
+	beginTurn(hookInput{Session: "lead", Prompt: "carry on with the next row"})
+	if err := plan.RequireStopRequest("."); err == nil {
+		t.Error("the lead's later prompt, which asks for no stop, left its request standing")
+	}
+}

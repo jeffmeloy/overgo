@@ -33,3 +33,20 @@ func TestARequestedStopNeedsARequest(t *testing.T) {
 		}
 	}
 }
+
+// TestAStopRequestIsTheAskingSessions holds stop-request-session/do's word rule (SQA-487): a stop word the word before
+// it negates asks for no stop. "don't stop", "do not pause", "never halt" and "won't stop" are no request, kept or
+// noted, while "stop now" and "please pause" are. Its session rule is held by the test of this name in cmd/loophook.
+func TestAStopRequestIsTheAskingSessions(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	for prompt, asks := range map[string]bool{
+		"don't stop, keep going": false, "do not pause the loop": false, "never halt": false, "it won't stop": false,
+		"stop now": true, "please pause": true,
+	} {
+		testcheck.NoError(t, NoteStopRequest(root, prompt))
+		if err := RequireStopRequest(root); (err == nil) != asks {
+			t.Errorf("after the prompt %q a requested stop was admitted=%t; want %t", prompt, err == nil, asks)
+		}
+	}
+}

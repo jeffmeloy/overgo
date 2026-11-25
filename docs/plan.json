@@ -40,23 +40,6 @@
       ]
     },
     {
-      "id": "stop-request-session",
-      "title": "A pause the owner asks for is recorded by the session it was asked of, and another session's prompt in the checkout neither grants nor withdraws it",
-      "steps": [
-        {
-          "id": "do",
-          "title": "The stop request is the asking session's, not the checkout's latest prompt",
-          "verify": "go test ./cmd/loophook ./internal/plan -count=1 -run '^TestAStopRequestIsTheAskingSessions$'",
-          "files": [
-            "cmd/loophook",
-            "internal/plan",
-            "cmd/plan"
-          ],
-          "rationale": "SQA-487, checked against the code at 30691fc67: valid from source. runPrompt (cmd/loophook/main.go) calls NoteStopRequest for every session's prompt before it reads who holds the worktree, and both sessions write or remove the one stop_request file, so a review session's progress question removes the lead's request before RecordStop reads it; and the stop words are tested by containment, so \"don't stop\" reads as a request. The change: the request is kept per session (its session id), only the worktree holder's session records it, and a negated stop word is no request. Check: TestAStopRequestIsTheAskingSessions notes a request in one session, a progress prompt in another, and finds the first's request standing for its RecordStop and \"don't stop\" no request. It does not exist at the base, so the check fails there."
-        }
-      ]
-    },
-    {
       "id": "style-vetoes",
       "title": "The landing vetoes no form a reviewer can judge whose rewrite changes behaviour or whose wording is right",
       "steps": [

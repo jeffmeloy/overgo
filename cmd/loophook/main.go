@@ -532,6 +532,14 @@ func beginTurn(input hookInput) (review bool) {
 		holder = holdWorktree(input.Session, strings.HasPrefix(opening, takeoverDeclaration))
 	}
 	writeTurnBase(input.Session, turnBase{Review: review, Holder: holder, Typed: typedPrompt(input.Prompt)})
+	// A requested stop rests on the latest prompt of the session that holds the worktree (plan.RequireStopRequest): a
+	// review session's prompt, or one sent away, neither asks nor clears it (SQA-487: every session's prompt had written
+	// or removed the one request, so a review's progress question removed the lead's before RecordStop read it).
+	if !review && holder == "" {
+		if err := plan.NoteStopRequest(".", input.Prompt); err != nil {
+			fmt.Printf("OVERGO: this prompt's request to stop could not be kept: %v\n", err)
+		}
+	}
 	return review
 }
 
@@ -548,10 +556,6 @@ func measurementRun() string {
 
 func runPrompt(hookJSON string) {
 	input := parseHook(hookJSON)
-	// A requested stop rests on the latest prompt asking for one (plan.RequireStopRequest).
-	if err := plan.NoteStopRequest(".", input.Prompt); err != nil {
-		fmt.Printf("OVERGO: this prompt's request to stop could not be kept: %v\n", err)
-	}
 	if reason := takePassedBlock(input.Session); reason != "" {
 		fmt.Printf("OVERGO STOP PASSED: the last turn ended through the Stop gate's retry valve with its block unresolved (%s); continue that work.\n", reason)
 	}

@@ -16,14 +16,24 @@ import (
 // The prompt hook writes it for such a prompt and removes it for any other, so a requested stop rests on the latest.
 const stopRequestFile = "stop_request"
 
-// stopWords are the words a prompt asks the loop to stop with. The match is crude and deterministic: a prompt that
-// says "don't stop" counts too, and the session still decides.
+// stopWords are the words a prompt asks the loop to stop with. The match is deterministic: a stop word the word before
+// it negates ("don't stop", "never pause", "can't halt") asks for none, and the session still decides.
 var stopWords = []string{"halt", "pause", "stop"}
 
-// asksToStop says a prompt asks the loop to stop: one of its words, read without case or punctuation, is a stop word.
+// negations are the words that, just before a stop word, say not to stop: "not", "never", "no", "dont", and the t a
+// contraction ends with once its apostrophe parts it from its stem ("don't", "won't", "can't").
+var negations = []string{"not", "never", "no", "dont", "t"}
+
+// asksToStop says a prompt asks the loop to stop: one of its words, read without case or punctuation, is a stop word
+// the word before it does not negate (SQA-487: "don't stop" had read as a request).
 func asksToStop(prompt string) bool {
 	words := strings.FieldsFunc(strings.ToLower(prompt), func(r rune) bool { return !unicode.IsLetter(r) })
-	return slices.ContainsFunc(words, func(word string) bool { return slices.Contains(stopWords, word) })
+	for index, word := range words {
+		if slices.Contains(stopWords, word) && (index == 0 || !slices.Contains(negations, words[index-1])) {
+			return true
+		}
+	}
+	return false
 }
 
 // NoteStopRequest keeps prompt in root's process state when it asks to stop, and clears what an earlier prompt left

@@ -37,6 +37,8 @@ func TestWhereAMossStepsTimeGoes(t *testing.T) {
 	request := textSection(t, recording, "598", "436", "592", "599")
 	request.Width, request.Height, request.Canvas = 0, 0, &media.Canvas{Aspect: "16:9", Megapixels: 3, Multiple: 32}
 	request = testcheck.Must(request.Sized(CatalogIn(root)))(t)
+	// ComfyUI's step is read before the generator loads, so a recording that cannot give one costs no draw (SQA-477).
+	comfy := recording.stepTime(t, "598")
 	asking := func(steps int, guidance *float32) Request {
 		asked := request
 		asked.Steps = steps
@@ -70,11 +72,6 @@ func TestWhereAMossStepsTimeGoes(t *testing.T) {
 	step := (six.wall - two.wall) / 4
 	own := two.wall - 2*step
 	pass := (six.wall - alone.wall) / 6
-	stamps := recording.Progress["598"]
-	if len(stamps) < 2 {
-		t.Fatalf("the own-size recording stamps %d of its sampler's steps", len(stamps))
-	}
-	comfy := time.Duration(stamps[len(stamps)-1].Microseconds-stamps[0].Microseconds) * time.Microsecond / time.Duration(len(stamps)-1)
 	t.Logf("%dx%d: a request's own part %v, copying %.2f GiB to the card (%.2f GiB in 6 steps); a guided step %v, %d kernel launches; a pass %v, and beside a guided step's two passes %v; ComfyUI's guided step %v",
 		request.Width, request.Height, own.Round(time.Millisecond), float64(two.hostToCard)/(1<<30), float64(six.hostToCard)/(1<<30), step.Round(time.Millisecond),
 		(six.launches-two.launches)/4, pass.Round(time.Millisecond), (step - 2*pass).Round(time.Millisecond), comfy.Round(time.Millisecond))

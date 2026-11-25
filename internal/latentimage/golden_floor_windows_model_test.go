@@ -241,6 +241,8 @@ func ownSizeReading(t *testing.T, root string, profile Profile) {
 	}
 	request := textSection(t, recording, "598", "436", "592", "599")
 	request.Width, request.Height, request.Canvas = 0, 0, &media.Canvas{Aspect: "16:9", Megapixels: 3, Multiple: 32}
+	// ComfyUI's step is read before the generator loads, so a recording that cannot give one costs no draw (SQA-477).
+	comfyStep := recording.stepTime(t, "598")
 	generator := testcheck.Must(LoadGenerator(ctx, root, profile, request))(t)
 	defer closeReporting(t, context.WithoutCancel(ctx), generator)
 	// The card's use is read as ComfyUI's recorder reads it, its total less its free memory (comfy-reference's await,
@@ -277,11 +279,9 @@ func ownSizeReading(t *testing.T, root string, profile Profile) {
 		return wall
 	}
 	step := (sampled(6) - sampled(2)) / 4
-	stamps := recording.Progress["598"]
-	if len(stamps) < 2 || picture.Width == 0 || step <= 0 {
-		t.Fatalf("the recording stamps %d of the sampler's steps, overgo drew %dx%d and read a step of %v; want the steps, a picture and a step", len(stamps), picture.Width, picture.Height, step)
+	if picture.Width == 0 || step <= 0 {
+		t.Fatalf("overgo drew %dx%d and read a step of %v; want a picture and a step", picture.Width, picture.Height, step)
 	}
-	comfyStep := time.Duration(stamps[len(stamps)-1].Microseconds-stamps[0].Microseconds) * time.Microsecond / time.Duration(len(stamps)-1)
 	t.Logf("at %dx%d: overgo %v a step, %v from the prompt to the picture, %.2f GiB of the card in use at most; ComfyUI %v a step, %v, %.2f GiB",
 		picture.Width, picture.Height, step.Round(time.Millisecond), total.Round(time.Millisecond), float64(used)/(1<<30),
 		comfyStep, time.Duration(recording.Milliseconds)*time.Millisecond, float64(recording.PeakCardBytes)/(1<<30))

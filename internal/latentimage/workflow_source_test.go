@@ -77,8 +77,13 @@ func (s workflowSource) committed() bool {
 }
 
 // readWorkflowSource reads the source of the checkout at repository, the record's path, relative to it, left out of
-// its changed paths.
+// its changed paths. A record path that is not relative to the repository and inside it is refused here, as the timing
+// starts, before it holds the machine or draws a section (SQA-460): an absolute path had been taken and joined under
+// the repository only as the timing was appended, after both runs, so twelve sections drawn saved nothing.
 func readWorkflowSource(repository, record string) (workflowSource, error) {
+	if !filepath.IsLocal(filepath.FromSlash(record)) {
+		return workflowSource{}, fmt.Errorf("the workflow record %s is not a path relative to the repository and inside it (as docs/verification/moss-workflow-time.jsonl is)", record)
+	}
 	git := func(arguments ...string) (string, error) {
 		command := exec.Command("git", arguments...)
 		command.Dir = repository
@@ -188,6 +193,25 @@ func TestAWorkflowTimingRefusesASourceThatMovedWhileItRan(t *testing.T) {
 	if after := testcheck.Must(os.ReadFile(filepath.Join(root, record)))(t); !slices.Equal(after, written) {
 		t.Error("a refused timing changed the record")
 	}
+}
+
+// TestTheWorkflowClockRefusesARecordItCannotWrite holds the workflow clock to refusing, as its timing starts, a record
+// it cannot write (SQA-460): over a scratch repository, the source check refuses an absolute record path, with either
+// separator, and one leaving the repository, each named, and reads a path inside it. The timing reads its source
+// before it holds the machine or draws a section (TestTheUltraWorkflowIsTimedInItsOrder). An absolute path had been
+// taken there and joined under the repository only when the timing was appended, after both runs, so a timing drew
+// twelve sections (81 s measured) and saved nothing.
+func TestTheWorkflowClockRefusesARecordItCannotWrite(t *testing.T) {
+	t.Parallel()
+	const record = "docs/record.jsonl"
+	root, _ := scratchRepository(t, map[string]string{record: ""})
+	absolute := filepath.Join(root, filepath.FromSlash(record))
+	for _, path := range []string{absolute, filepath.ToSlash(absolute), "../record.jsonl", "docs/../../record.jsonl"} {
+		if _, err := readWorkflowSource(root, path); err == nil || !strings.Contains(err.Error(), path) {
+			t.Errorf("the source check took the record %s (%v); want it refused, naming it", path, err)
+		}
+	}
+	testcheck.Must(readWorkflowSource(root, record))(t)
 }
 
 // TestAWorkflowTimingSaysWhetherItRanItsCommitsCode holds the record to telling a timing of its commit's code from one

@@ -1,12 +1,27 @@
 {
   "advisory_notice": "All SQA findings, rankings and assessments are recommendations. Master decides whether, when and how to act through docs/plan.json.",
   "priority_assessment": [
-    "I agree with turn-priority/do first. A background test took the turn after moss-page/names had begun and delayed the landing about 17 minutes. idle-wait/do also targets documented waits, including a 32-minute browser undo. I would take SQA-494 before observed-inputs/rule starts reusing passes: master already had to retire a step because another landing picked up its edit. The gate has a candidate checkout in which to keep the work and the checks together.",
-    "The MOSS page now passes the retained two-tab cancellation check and the upload-versus-thumbnail check. I would fix the generated PNG rejected by image-to-image (SQA-492) and the remaining two-upload race (SQA-489) together at the next picture change. The existing browser cases reach the relevant slots. For time on the card, I would include the adapter comparison in card-checks-sound/floors: its eight discarded control draws account for 248 denoiser passes (SQA-410). Their wall time is unmeasured.",
-    "Of the stop rules, I would move stop-request-session/do ahead of status-turn/do because another chat can erase an explicit owner pause (SQA-487). I would handle the reviewer's register edit (SQA-491) with the unrelated decision that holds a status answer (SQA-490). Both reach the same stop hook."
+    "I agree with runner-from-commit/do. The model-journey log names a runner built with uncommitted changes. I would include the repaired-setup retry in that step (SQA-496) and fix the landing's own snapshot before observed-inputs/rule reuses passes (SQA-494). A runner built from the right commit still owes that commit a verdict.",
+    "I would fix SQA-495 before spending another real-model run on the microphone check. journey-attach/do fixed the VQA file selector. The same recorded run also failed the Granite microphone leg while it was still recording. Its existing audio completion event can decide when to stop. The MOSS held-draw check already waits for the operation to finish.",
+    "For MOSS parity, I would bring served-parts/do forward once the checks give reliable verdicts. The last comparable record at 1bae67d52 put Overgo 6.253 s behind cold and 0.783 s ahead warm. I would include the adapter comparison in card-checks-sound/floors (SQA-410): eight discarded control draws add 248 denoiser passes per comparison. The wall time those passes cost is unmeasured."
   ],
   "branch": "master",
   "findings": [
+    {
+      "id": "SQA-495",
+      "severity": "P2",
+      "files": [
+        "internal/audioparity/webui_microphone_test.go",
+        "internal/audioparity/testdata/ctc_training_record.json",
+        "internal/server/webui/media_capture.js",
+        "internal/webuilane/idle.go",
+        "internal/webuilane/browser.go",
+        "internal/server/webui_browser_idle_wait_windows_test.go"
+      ],
+      "input": "Run TestModelJourneyNativeASRMicrophone/granite with its real clip. The test starts an AudioBufferSourceNode feeding the microphone and waits for micEnded before pressing Stop recording. Its finite source is still playing when the browser checks for idle.",
+      "expected": "Wait for the finite audio source's ended event or a capture error before deciding this step. The fixture already owns that event and Browser.Evaluate awaits promises. Keep the exact native transcript comparison and the idle verdict for genuinely impossible page predicates.",
+      "actual": "Observed in .overgo-runtime/lanes.log for ef89c3241, still explained by 11336eb42. At webui_microphone_test.go:85 the Granite leg failed as idle after the page reported “Recording · 9s · 281.25 KB” with no page error. Its source clip is 232,480 samples at 16 kHz (14.53 s). The leg took 17.73 s and never reached its browser transcript comparison. The recorder receives PCM through AudioWorkletNode. The lane counts AudioContext.resume and module loading, but neither tracks the playing source through its ended event. The held MOSS draw uses a different completion signal, overgo.awaiting, which the idle check does track."
+    },
     {
       "id": "SQA-494",
       "severity": "P2",
@@ -19,6 +34,19 @@
       "input": "Two plan steps edit the same source file. Start landing the first, then write the second step's edit after the first snapshot but before the landing next captures the checkout. On MOSS, both steps edited internal/server/webui/workflow.js.",
       "expected": "Keep the first snapshot as the source of that landing. Apply the gate's own format, fix, generated-file and ceiling changes to its existing candidate. Leave later human or worker edits available for their own step and check. Extend the checkout-is-free case to change the same file before the fix stage finishes and inspect both the published and working copies.",
       "actual": "Observed in b1d6e237a and recorded in 75f41a0d2: moss-page/restored published the next step's per-tab operation handling. Master retired moss-page/own-run and checked its regression against 6357cf23e instead. At 75f41a0d2, shipSet replaces l.candidate with a fresh capture of every changed file in scope. fix and derive call it again. A lowered ceiling also calls it after invariants have passed, so a later edit can enter a tree different from the one the earlier stages checked. That last case follows from source. The existing checkout test edits the file after the checkout-free notice."
+    },
+    {
+      "id": "SQA-496",
+      "severity": "P2",
+      "files": [
+        "cmd/loop/lanes_on_close.go",
+        "cmd/loop/replay.go",
+        "cmd/loop/main.go",
+        "cmd/loop/lanes_on_close_test.go"
+      ],
+      "input": "A row closes at commit C. The first lanes runner cannot read the checkout's local-models.json, so it returns a setup error before invoking validation. Restore the file and invoke the existing -lanes-due entry again with C still due and no runner holding the lock.",
+      "expected": "Run C once after setup is repaired. The existing runner lock already excludes a concurrent invocation. Record C as handled after a terminal lane outcome, preserving completed passes, reported test failures and yields. The existing row-close check can fail setup, restore it, retry C and verify that only the successful setup invokes validation.",
+      "actual": "Source counterexample at 11336eb42. runLanesDue writes C to lanes_began.json before runLanesAt calls moveWithRoots. A missing local-models.json returns an error before the run starts. After repair, due.Commit equals began.Commit, so the next invocation releases the lock and returns success without running a lane or reporting a verdict. The row-close check covers a finished failure and a concurrent runner. No missed run from this setup error was observed."
     },
     {
       "id": "SQA-487",
@@ -360,14 +388,70 @@
   ],
   "master_lead_triage": {
     "at": "2026-11-24",
-    "head": "db04fec59a648526910502a027541256d0cc2996",
+    "head": "b0dc71f35c7054485110301dbcae42a3a66da6fc",
     "findings": {
-      "SQA-477": {
+      "SQA-496": {
         "action": "filed",
+        "rows": [
+          "runner-from-commit/do"
+        ],
+        "note": "Answered by the lead on 2026-11-24 at b0dc71f35: valid from source (runLanesDue writes lanes_began.json before runLanesAt sets up, so a setup error leaves the commit begun and the repaired retry returns success with no lane run); not observed. Filed with runner-from-commit/do, noted there, as the review asks: the same runner's start."
+      },
+      "SQA-495": {
+        "action": "filed",
+        "rows": [
+          "microphone-wait/do"
+        ],
+        "note": "Answered by the lead on 2026-11-24 at b0dc71f35: valid, observed in lanes.log and from source (the leg settles on micEnded while a 14.53 s source plays, and the idle rule counts neither the playing source nor the worklet's frames, so the leg fails as idle; a regression of idle-wait). Filed as microphone-wait/do, ahead of the campaign's closing measurement, whose lanes run it: the leg awaits the source's ended event."
+      },
+      "SQA-494": {
+        "action": "filed",
+        "rows": [
+          "landing-snapshot/do"
+        ],
+        "note": "Answered by the lead on 2026-11-24 at b0dc71f35: valid, observed at b1d6e237a (moss-page/restored published own-run's edit) and from source (shipSet recaptures the checkout at fix, derive and a lowered ceiling, the last after invariants). Filed as landing-snapshot/do, ahead of observed-inputs/rule, which keeps passes for a candidate's inputs."
+      },
+      "SQA-493": {
+        "action": "filed",
+        "rows": [
+          "moss-pictures/stale-preview"
+        ],
+        "note": "Answered by the lead on 2026-11-24 at b0dc71f35: valid from source (depthPreview shows its answer whatever the form holds when it comes, and offer hides it only with no picture chosen); not observed. Filed as moss-pictures/stale-preview, with the page's other picture defects, before the campaign closes."
+      },
+      "SQA-492": {
+        "action": "filed",
+        "rows": [
+          "moss-pictures/output-input"
+        ],
+        "note": "Answered by the lead on 2026-11-24 at b0dc71f35: valid from source (Request.ReadPictures refuses every identity that is not KindFile, so a MOSS output used as input is refused before it is read); no failed draw observed. Filed as moss-pictures/output-input, before the campaign closes."
+      },
+      "SQA-491": {
+        "action": "filed",
+        "rows": [
+          "status-turn/do"
+        ],
+        "note": "Answered by the lead on 2026-11-24 at b0dc71f35: valid from source (turnCreatedDirt exempts only plan.Path, so a review's register edit reads as the turn's orphan); no blocked session observed. Filed with status-turn/do, noted there, as the review asks: both reach the stop hook."
+      },
+      "SQA-489": {
+        "action": "filed",
+        "rows": [
+          "moss-pictures/last-of-two"
+        ],
+        "note": "Answered by the lead on 2026-11-24 at b0dc71f35: valid from source (two uploads begun on an empty slot both read it empty, so the first to finish is chosen and the last dropped is skipped). Filed as moss-pictures/last-of-two, before the campaign closes."
+      },
+      "SQA-467": {
+        "action": "implemented",
+        "rows": [
+          "card-checks-sound/sharpened"
+        ],
+        "note": "Answered by the lead on 2026-11-22 at 47b3587c9: valid from source, a check that passes without checking. Implemented 2026-11-24 by card-checks-sound/sharpened (b0dc71f35): the sharpened picture is held apart from the drawn one by decoded pixels, and the test passes on the card, for the review's recheck."
+      },
+      "SQA-477": {
+        "action": "implemented",
         "rows": [
           "reference-tools/clock"
         ],
-        "note": "Answered by the lead on 2026-11-23 at b096b650c: valid from source (the readers divide elapsed time by event intervals, not by the steps between the first and last event); the intact own-size recording has all 50 events, so no reading so far is wrong, and it costs a wrong reading only on a recording with a gap. Filed with reference-tools/clock, noted there, the reference clock work it belongs to, after the measurement."
+        "note": "Answered by the lead on 2026-11-23 at b096b650c: valid from source (the readers divide elapsed time by event intervals, not by the steps between the first and last event); the intact own-size recording has all 50 events, so no reading so far is wrong. Filed with reference-tools/clock, noted there. Implemented 2026-11-24 by reference-tools/clock, the landing that carries this answer: comfyStepTime reads a step over the first and last stamps' step numbers and refuses a span of fewer than two, and both timing checks read it before the generator loads, for the review's recheck."
       },
       "SQA-474": {
         "action": "filed",
@@ -398,13 +482,6 @@
         ],
         "note": "Answered by the lead on 2026-11-22 at 47b3587c9: valid from source; the served path's two profile reads a request (pictureFiles, preparedFirst) filed as served-answers/profile, the generator's model_index.json reads on a changed seed with served-parts/do, whose ledger reads their time."
       },
-      "SQA-467": {
-        "action": "filed",
-        "rows": [
-          "card-checks-sound/sharpened"
-        ],
-        "note": "Answered by the lead on 2026-11-22 at 47b3587c9: valid from source, a check that passes without checking (the finished PNG alone carries Finishing=sharpened, so its bytes differ from the unsharpened one's with equal pixels); filed as card-checks-sound/sharpened, after the owner's review rows."
-      },
       "SQA-410": {
         "action": "filed",
         "rows": [
@@ -413,11 +490,11 @@
         "note": "Reopened by the review after moss-real-prompt/do (89cf0f0e3) and answered by the lead on 2026-11-22 at 47b3587c9: valid from source (holdGoldenFloors draws every case before it reads the floors; a later case's size error ends the test before an earlier failure is reported; a reference of no signal scores -Inf in both modes and is accepted as equal); filed as card-checks-sound/floors."
       },
       "SQA-460": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "reference-tools/clock"
         ],
-        "note": "Answered by the lead on 2026-11-22 at 47b3587c9: valid from source (an absolute record path is accepted at the start and fails only at the append, after both runs); filed as reference-tools/clock."
+        "note": "Answered by the lead on 2026-11-22 at 47b3587c9: valid from source (an absolute record path is accepted at the start and fails only at the append, after both runs); filed as reference-tools/clock. Implemented 2026-11-24 by reference-tools/clock, the landing that carries this answer: readWorkflowSource refuses a record path that is not relative to the repository and inside it, as the timing starts, for the review's recheck."
       },
       "SQA-388": {
         "action": "filed",
@@ -498,7 +575,7 @@
       }
     }
   },
-  "next_finding_number": 495,
+  "next_finding_number": 497,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

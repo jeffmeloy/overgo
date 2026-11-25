@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"overgo/internal/dataroot"
 	"overgo/internal/safetensors"
@@ -21,16 +22,13 @@ import (
 // the sigmas each sampler ran, its nodes' texts, its saved files, and its request's nodes' inputs; and the run's time,
 // the card's peak and each sampler's progress stamps, its step and the microseconds since the run began.
 type comfySection struct {
-	Set           map[string]any       `json:"set"`
-	Sigmas        map[string][]float64 `json:"sigmas"`
-	Texts         map[string][]string  `json:"texts"`
-	Milliseconds  int64                `json:"milliseconds"`
-	PeakCardBytes uint64               `json:"peak_card_bytes"`
-	Progress      map[string][]struct {
-		Value        int   `json:"value"`
-		Microseconds int64 `json:"us"`
-	} `json:"progress"`
-	Files []struct {
+	Set           map[string]any          `json:"set"`
+	Sigmas        map[string][]float64    `json:"sigmas"`
+	Texts         map[string][]string     `json:"texts"`
+	Milliseconds  int64                   `json:"milliseconds"`
+	PeakCardBytes uint64                  `json:"peak_card_bytes"`
+	Progress      map[string][]comfyStamp `json:"progress"`
+	Files         []struct {
 		Node   string `json:"node"`
 		Name   string `json:"name"`
 		SHA256 string `json:"sha256"`
@@ -63,6 +61,13 @@ func readComfySection(t *testing.T, run, slug string) comfySection {
 	}
 	section.folder = filepath.Join(testcheck.Must(dataroot.Resolve(repo))(t).References(), "comfy", "moss-ultra", run, slug)
 	return section
+}
+
+// stepTime is the time sampler node took per completed step as the recording stamps it (comfyStepTime), a span it
+// cannot read failing the test.
+func (s comfySection) stepTime(t *testing.T, node string) time.Duration {
+	t.Helper()
+	return testcheck.Must(comfyStepTime(s.Progress[node]))(t)
 }
 
 // inputs are a node's inputs as the section's request gives them.

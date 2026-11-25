@@ -25,19 +25,6 @@
       "title": "The workflow clock refuses a record it cannot write before it draws, and a ComfyUI recording binds each output to what made it",
       "steps": [
         {
-          "id": "clock",
-          "title": "The workflow clock refuses a record path that is not relative to the repository before it holds the machine or draws a section",
-          "verify": "go test ./internal/latentimage -count=1 -run '^TestTheWorkflowClockRefusesARecordItCannotWrite$'",
-          "files": [
-            "internal/latentimage"
-          ],
-          "rationale": "SQA-460 (P2), checked against readWorkflowSource and appendWorkflowTiming at 47b3587c9: valid. An absolute OVERGO_WORKFLOW_RECORD is accepted at the start and joined under the repository only when the timing is appended, after both runs, so the attempt reported in d28ab1e84 drew twelve sections (81 s measured) and saved nothing. The change: the record path is checked, relative and inside the repository, before the quiet machine is asked for. Check: TestTheWorkflowClockRefusesARecordItCannotWrite gives the source check an absolute path and one leaving the repository: each is refused before any draw.\n\nNote: SQA-477 (P2), valid from source: ownSizeReading and TestWhereAMossStepsTimeGoes divide a recording's elapsed time by its count of progress-event intervals, not by the steps between its first and last event, so a recording with a gap in its step numbers reads slow (1.113 against 1.136 s/step with one interior event dropped; node 48 of a Turbo capture records steps 1 to 8 in five events, 129.75 against 74.14 ms/step). The intact own-size recording has all 50 events, so no reading taken so far is wrong. With this step: the MOSS recording reader computes time per completed step from the first and last timestamps and their step numbers, both timing checks read it before loading the generator, and a span of fewer than two events is refused there.",
-          "depends_on": [
-            "pair-encode/clock",
-            "full-measurement/run"
-          ]
-        },
-        {
           "id": "recorder",
           "title": "A ComfyUI recording binds a resumed output to the prompt that made it, keeps two files of one name apart, and credits a repeat only from two prompts",
           "verify": "go test ./cmd/comfy-reference -count=1 -run '^TestARecordingBindsEachOutputToWhatMadeIt$'",
@@ -80,6 +67,86 @@
       ]
     },
     {
+      "id": "moss-pictures",
+      "title": "A picture chosen on the MOSS page is the one read, sent and previewed",
+      "steps": [
+        {
+          "id": "output-input",
+          "title": "A MOSS picture used as an input from a run's outputs is read by its output's identity",
+          "verify": "go test ./internal/latentimage -count=1 -run '^TestAStoredOutputPictureIsReadAsAPicture$'",
+          "files": [
+            "internal/latentimage",
+            "internal/server"
+          ],
+          "rationale": "SQA-492 (P2), checked against Request.ReadPictures (internal/latentimage/source_latent_windows.go) at b0dc71f35: valid from source. A MOSS run stores its pictures as outputs (KindOutput). The media card's use as input sets the slot to the output's identity. ReadPictures refuses every identity that is not KindFile (not a stored file) before it reads one, where the same bytes uploaded pass. No failed draw was observed. The change: ReadPictures reads a stored output picture by its identity as it reads a stored file; a missing or unreadable one is still refused. Check: TestAStoredOutputPictureIsReadAsAPicture stores one PNG as an output and as a file and reads each through ReadPictures to the same bytes. It does not exist at the base, so the check fails there.",
+          "depends_on": [
+            "full-measurement/run"
+          ]
+        },
+        {
+          "id": "last-of-two",
+          "title": "Of two pictures dropped into one MOSS slot while both upload, the one dropped last is sent",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserMOSSLastPictureChosenIsSent$' -leg moss-last-of-two",
+          "files": [
+            "internal/server"
+          ],
+          "rationale": "SQA-489 (P2), checked against pictureChooser's store (internal/server/webui/workflow.js) at b0dc71f35: valid from source. Each upload reads the slot's value as it starts. Two begun on an empty slot both read it empty, so the first to finish chooses its picture and the second, finding the slot changed, keeps the first: A is sent though B was dropped last. moss-page/last-picture held one upload against a stored thumbnail chosen meanwhile. The change: an upload chooses its picture only while no later choice was made in its slot since it began, an upload begun or a picture picked. Check: TestWebUIBrowserMOSSLastPictureChosenIsSent, extended to drop A and then B, let A finish first and B after it, press Run, and read the request sent, which must name B, recorded as the leg moss-last-of-two. The leg is new, so the check fails at the base.",
+          "depends_on": [
+            "full-measurement/run"
+          ]
+        },
+        {
+          "id": "stale-preview",
+          "title": "A MOSS depth preview shows only the map of the picture chosen now",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserDepthPreview$' -leg depth-preview-current",
+          "files": [
+            "internal/server"
+          ],
+          "rationale": "SQA-493 (P2), checked against depthPreview (internal/server/webui/mod/generation.js) at b0dc71f35: valid from source. The preview posts the form as the press found it and shows the answer whatever the form holds when it comes. offer hides the preview only when no picture is chosen, so A's map stays shown beside a B the run will read. The change: a change to the inputs the map is made from clears the map, and an answer is shown only while the form still asks what it was made for. The estimate still runs only on a press. Check: TestWebUIBrowserDepthPreview, extended to hold A's answer, choose B, let A's answer come, and find A's map never shown and no second estimate begun, recorded as the leg depth-preview-current. The leg is new, so the check fails at the base.",
+          "depends_on": [
+            "full-measurement/run"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "microphone-wait",
+      "title": "The microphone journey stops recording only once its source has played to its end",
+      "steps": [
+        {
+          "id": "do",
+          "title": "The Granite and Nemotron microphone legs wait on the source's own ended event before they stop recording",
+          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go run ./cmd/webui-lane -journeys -run '^TestModelJourneyNativeASRMicrophone$'",
+          "files": [
+            "internal/audioparity"
+          ],
+          "needs_card": true,
+          "rationale": "SQA-495 (P2), checked against internal/audioparity/webui_microphone_test.go and internal/webuilane/idle.go at b0dc71f35, observed in .overgo-runtime/lanes.log at ef89c3241: valid. The leg starts an AudioBufferSourceNode feeding the recorder and settles on micEnded. The source plays 14.53 s. The recorder takes its samples through an AudioWorkletNode, and the idle rule (idle-wait) counts neither a playing source nor the worklet's frames, so the page reads idle while the clip plays. The leg then failed as idle, the dialog showing Recording 9 s, before its transcript comparison. No other browser check waits on a source playing. The change: the leg awaits a promise its source's ended event resolves, or a capture error rejects, through Evaluate. The idle verdict stays for predicates that cannot come true. Check: the model journeys' microphone test, both legs reaching their transcript comparison. It needs the card and the Granite and Nemotron models. Placed before the campaign's closing measurement, whose lanes run it.",
+          "depends_on": [
+            "full-measurement/run"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "dispatch-steady",
+      "title": "A landing accepts the step dispatch gave its worker whoever holds the card when it lands",
+      "steps": [
+        {
+          "id": "do",
+          "title": "admits accepts a worker's step that dispatch gives with the card held or free",
+          "verify": "go test ./internal/plan -count=1 -run '^TestALandingAcceptsTheStepEitherCardReadingGives$'",
+          "files": [
+            "internal/plan"
+          ],
+          "rationale": "Observed 2026-11-24 at b0dc71f35. card-checks-sound/floors, whose check is on the card, was refused at the landing's start because the lanes runner held a card turn, so dispatch gave reference-tools/clock. Minutes later clock was refused because the runner, between packages, held none, so dispatch gave floors. cardHolder (internal/plan/card.go) reads who holds a card turn at that instant, and admits (internal/plan/dispatch.go) holds a worker to the one step that reading gives. The lanes runner takes the card turn package by package, so the reading flips, and two steps of one package both refuse. The card's holder orders what a worker is offered, so it waits less. It does not make a step wrong to land: a card step's landing waits for its turn, which the lanes yield to a commit. The change: admits accepts a worker's step that dispatch gives under either reading, the card held or free, and refuses every other step as now. Check: TestALandingAcceptsTheStepEitherCardReadingGives, over a plan whose first step's check is on the card and whose second is not, with a card turn held by another process and then free. Each of the two is admitted, and a third step is refused. It does not exist at the base, so the check fails there.",
+          "depends_on": [
+            "full-measurement/run"
+          ]
+        }
+      ]
+    },
+    {
       "id": "runner-from-commit",
       "title": "The lanes runner is built from the commit it runs, never from the checkout's uncommitted changes",
       "steps": [
@@ -90,7 +157,25 @@
           "files": [
             "cmd/loop"
           ],
-          "rationale": "The owner's review of 2026-11-24 (fifth), point 1, checked against the code: valid. startLanesRunner (cmd/loop/lanes_on_close.go) builds the runner with buildChecker in loopWorktree, the working checkout, so the runner carries whatever the checkout holds uncommitted, and lanes.log says so (\"under the runner built at 75f41a0d26ee with its tree's changes\"). At 16:44 that tree held turn-priority's cmd/loop change before it landed, unfinished code supervising the lanes. The change: the runner is built from the commit the lanes run (a tree of that commit alone), so its build stamps no tree changes. Check: TestTheLanesRunnerIsBuiltFromTheCommitItRuns starts a runner from a checkout with an uncommitted change to cmd/loop and finds the runner's build stamped with the commit and no changes. It does not exist at the base, so the check fails there."
+          "rationale": "The owner's review of 2026-11-24 (fifth), point 1, checked against the code: valid. startLanesRunner (cmd/loop/lanes_on_close.go) builds the runner with buildChecker in loopWorktree, the working checkout, so the runner carries whatever the checkout holds uncommitted, and lanes.log says so (\"under the runner built at 75f41a0d26ee with its tree's changes\"). At 16:44 that tree held turn-priority's cmd/loop change before it landed, unfinished code supervising the lanes. The change: the runner is built from the commit the lanes run (a tree of that commit alone), so its build stamps no tree changes. Check: TestTheLanesRunnerIsBuiltFromTheCommitItRuns starts a runner from a checkout with an uncommitted change to cmd/loop and finds the runner's build stamped with the commit and no changes. It does not exist at the base, so the check fails there.\n\nNote: SQA-496 (P2), valid from source at b0dc71f35 (runLanesDue in cmd/loop/lanes_on_close.go): runLanesDue writes the due commit to lanes_began.json before runLanesAt sets up its checkout. A setup error then, a missing local-models.json, returns before any lane runs. Once the setup is repaired, the due commit equals the begun one, so the next invocation releases the lock and returns success with no lane run and no verdict. No missed run was observed. With this step: a commit is recorded as begun only once its runner has started, so a commit whose setup failed runs once after the repair. The row-close check fails the setup, repairs it and retries the commit, and finds validation invoked only by the setup that succeeded."
+        }
+      ]
+    },
+    {
+      "id": "landing-snapshot",
+      "title": "A landing publishes the tree it first captured with the gate's own changes, never an edit written after",
+      "steps": [
+        {
+          "id": "do",
+          "title": "The fix and derive stages and a lowered ceiling change the landing's first candidate, not a fresh capture of the checkout",
+          "verify": "go test ./internal/landing -count=1 -run '^TestALandingPublishesTheTreeItFirstCaptured$'",
+          "files": [
+            "internal/landing"
+          ],
+          "rationale": "SQA-494 (P2), checked against shipSet (internal/landing) at b0dc71f35 and observed at b1d6e237a: valid. shipSet captures every changed file in scope afresh as the candidate. The fix and derive stages call it again, and a lowered ceiling calls it after the invariants have passed. So an edit written after the first capture enters the landing, checked by fewer stages than the rest: moss-page/restored published moss-page/own-run's edit, and own-run was retired. The change: the first capture is the landing's source. The gate's format, fix, generated-file and ceiling changes are applied to that candidate. A later edit stays in the checkout for its own step. Check: TestALandingPublishesTheTreeItFirstCaptured edits a file in scope after the first capture and before the fix stage ends. It finds the published commit holding the first capture with the gate's changes, and the checkout holding the edit. It does not exist at the base, so the check fails there. Placed ahead of observed-inputs/rule, which keeps a check's pass for what a candidate's tests read.",
+          "depends_on": [
+            "full-measurement/run"
+          ]
         }
       ]
     },
@@ -178,7 +263,7 @@
             "cmd/loophook",
             "internal/plan"
           ],
-          "rationale": "SQA-490, checked against the code at db04fec59: valid from source. runStop (cmd/loophook/main.go) calls answerHold before it uses stopDecision's verdict, so a typed turn that asks only for status, with the tree clean and no landing running, is held to answer a doctrine decision first (exit 2). The hold came with doctrine-answer (528f40b3f) after an eight-hour wait on such a decision; the wait it cures is an unattended or implementing turn that ends on the decision, not a status answer. The change: answerHold holds a turn only where stopDecision would hold it for its work (an implementing turn, or one whose tree or landing is unfinished); a clean typed turn ends, the decision staying in Dispatch.Answer for the next. Check: TestAStatusTurnEndsThoughADecisionWaits runs the hook on a clean typed turn with a doctrine decision waiting and finds it let end, and on an implementing turn finds it held. It does not exist at the base, so the check fails there."
+          "rationale": "SQA-490, checked against the code at db04fec59: valid from source. runStop (cmd/loophook/main.go) calls answerHold before it uses stopDecision's verdict, so a typed turn that asks only for status, with the tree clean and no landing running, is held to answer a doctrine decision first (exit 2). The hold came with doctrine-answer (528f40b3f) after an eight-hour wait on such a decision; the wait it cures is an unattended or implementing turn that ends on the decision, not a status answer. The change: answerHold holds a turn only where stopDecision would hold it for its work (an implementing turn, or one whose tree or landing is unfinished); a clean typed turn ends, the decision staying in Dispatch.Answer for the next. Check: TestAStatusTurnEndsThoughADecisionWaits runs the hook on a clean typed turn with a doctrine decision waiting and finds it let end, and on an implementing turn finds it held. It does not exist at the base, so the check fails there.\n\nNote: SQA-491 (P2), valid from source at b0dc71f35 (turnCreatedDirt in cmd/loophook/main.go): the stop hook's abandoned-work check exempts only the plan. A review session's edit to docs/sqa_findings.json during a master turn that made no edit therefore reads as the turn's orphan, and the first stop exits 2. The next landing carries the register by design (internal/landing scope). No blocked session was observed. With this step, since both reach the stop hook: the register is exempt beside the plan, named by plan.FindingsRegister. The plan_rides case passes with a register edit alone and still blocks a source edit beside it."
         }
       ]
     },

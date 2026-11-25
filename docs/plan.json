@@ -27,16 +27,6 @@
       "title": "A check's pass is kept while what it read is unchanged, its inputs observed, so a commit runs only the checks its change can alter",
       "steps": [
         {
-          "id": "measure",
-          "title": "Each commit's checks are measured for what they read and why go test's cache does not keep them",
-          "verify": "go test ./internal/testevidence -count=1 -run '^TestAPackageRunNamesWhatItRead$'",
-          "files": [
-            "internal/testevidence",
-            "docs/verification"
-          ],
-          "rationale": "The owner's review of 2026-11-24 (third), cause 1, checked against the code and a measurement: valid. The cycle lanes run go test -count=1 (internal/landing/lanes.go:150), since go test's cache keys a pass by what it opened only where it can see it, so a page commit reruns the 2,404 model tests; and internal/landing, untouched by any moss-page commit, ran in full (148 s) in each one's invariants stage. Measured: two runs of go test ./internal/landing with nothing changed between them both ran in full (110 s), the first's result unkept. The change: a package's test run (testevidence) records what its test binary opened, from the binary's own test log (-test.testlogfile), each file by its content, and names it; this step reports, for internal/landing and the lanes' packages, what they read and which input moves at each commit. Check: TestAPackageRunNamesWhatItRead runs a fixture package whose test opens one file and finds that file named with its content's digest."
-        },
-        {
           "id": "rule",
           "title": "The gate and the lanes keep a package's pass while its test binary and every file it read are unchanged by content",
           "verify": "go test ./internal/landing -count=1 -run '^TestAPassIsKeptWhileWhatItReadIsUnchanged$'",
@@ -45,7 +35,7 @@
             "internal/landing",
             "cmd/validate"
           ],
-          "rationale": "Follows observed-inputs/measure. The change: one rule for every test the gate's stages and the lanes run. A package's pass is kept, by its test binary's identity and the digests of what it read, and a later run whose binary and inputs match takes the kept pass in place of running; any input that differs runs it. Declared inputs and -count=1 go. Check: TestAPassIsKeptWhileWhatItReadIsUnchanged runs a fixture package twice and finds the second taken from the kept pass, then changes the file it reads and finds it run. It does not exist at the base, so the check fails there."
+          "rationale": "Follows observed-inputs/measure. The change: one rule for every test the gate's stages and the lanes run. A package's pass is kept, by its test binary's identity and the digests of what it read, and a later run whose binary and inputs match takes the kept pass in place of running; any input that differs runs it. Declared inputs and -count=1 go. Check: TestAPassIsKeptWhileWhatItReadIsUnchanged runs a fixture package twice and finds the second taken from the kept pass, then changes the file it reads and finds it run. It does not exist at the base, so the check fails there.\n\nNote: The cause, measured by observed-inputs/measure: go test keeps no pass of a package whose tests start a child process with its stdio unset. os/exec opens the null device for it, the test log records the relative path NUL, go test resolves it inside the package, Windows reports it modified in 2185, and cmd/go refuses an input modified under 2 s ago (errFileTooNew). All 11 host packages surveyed do so. The temporary paths a run reads lie outside the module, which go test never rechecks. So the kept pass this step keeps, keyed by the test binary and the content of what it read, takes NUL for the device it is, not a file, and leaves out what lies outside the repository's module, as go test does. Without that, no package the gate runs would be kept."
         },
         {
           "id": "retire",

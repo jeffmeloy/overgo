@@ -82,6 +82,7 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	bought := flags.String("bought", "", "with -declare: what the worsening bought, and the change that declares it")
 	passedSince := flags.String("passed-since", "", "answer from the passes the lanes and the landings keep whether each test named after the flags, <package>.<Test>, last passed at this commit or one descending from it: a step whose evidence is the slow tests' asks this, never their log (passes-query)")
 	lanesPassed := flags.String("lanes-passed-at", "", "answer from the lanes' records the trunk keeps whether one whole slow run passed at this commit: every cycle lane's last pass, and every package's of a lane run package by package, is of it; a run cut to what changed passes no package it cut (slow-whole)")
+	testReads := flags.String("reads", "", "run the tests of this package (./dir) once, with no kept pass, and say what their test binary read and how often the trunk's last commits moved each input outside the package, which reruns it under go test's cache (observed-inputs/measure)")
 	claims := flags.Bool("claims", false, "check compatibility.json's claims and the training specifications against the files they name and the matrices published from them, and say where each claim's test last passed, as the trunk's record keeps it, and which file the claim names moved since")
 	writeMatrices := flags.Bool("write", false, "with -claims: write the matrices again from the claims, running no test")
 	models := flags.Bool("models", false, "print the nested model compatibility report: the docs/verification typed specifications joined against the store")
@@ -137,6 +138,8 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 		return runTests(flags.Args(), output, func(packages []string) (testevidence.GoTestReport, error) { return runGoTest(ctx, packages) })
 	case *passedSince != "":
 		return answerPassedSince(ctx, output, *root, *passedSince, flags.Args())
+	case *testReads != "":
+		return answerReads(ctx, output, *root, *testReads)
 	case *lanesPassed != "":
 		return answerLanesPassedAt(ctx, output, *root, *lanesPassed)
 	case *receipt:

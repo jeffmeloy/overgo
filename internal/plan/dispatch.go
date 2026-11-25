@@ -373,7 +373,7 @@ func admitLanding(ctx context.Context, root string, document Plan, request Dispa
 }
 
 // admits refuses ref unless dispatch gives it to role: for a worker, or a rung with no steps, the one step dispatch
-// names, and otherwise any step it would give.
+// names with the card held or free, and otherwise any step it would give.
 func admits(document Plan, role string, worker bool, ref Ref) error {
 	if other := otherLane(document, role); other != "" {
 		return errors.New("plan: " + other)
@@ -388,10 +388,29 @@ func admits(document Plan, role string, worker bool, ref Ref) error {
 		return err
 	case dispatch.Item == ref.Item && dispatch.Step == ref.Step:
 		return nil
+	case worker && givenAtOtherReading(document, reference, ref):
+		return nil
 	case worker:
 		return fmt.Errorf("plan: a worker lands only the step dispatch gives it (%s), never %s", dispatch.Line, ref)
 	}
 	return fmt.Errorf("plan: dispatch would not give %s to %s: %s", ref, role, dispatch.Line)
+}
+
+// givenAtOtherReading says dispatch gives ref with the card read the other way, free where it is held and held where
+// it is free (dispatch-steady/do). Who holds the card orders what a worker is offered, so it waits less, and does not
+// make a step wrong to land: a card step's landing waits for its turn, which the lanes yield to a commit. The lanes
+// runner takes the card's turn package by package, so the reading flips: on 2026-11-24 a step whose check is on the
+// card was refused while the runner held the turn, and the step dispatch had then given was refused minutes later
+// while it held none.
+func givenAtOtherReading(document Plan, reference string, ref Ref) bool {
+	other := document
+	if other.cardHolder == "" {
+		other.cardHolder = "another process"
+	} else {
+		other.cardHolder = ""
+	}
+	dispatch, err := selectDispatch(other, reference)
+	return err == nil && dispatch.Item == ref.Item && dispatch.Step == ref.Step
 }
 
 // otherLane says why role takes no row of the plan, which is its lane's alone: a role named that is another lane's

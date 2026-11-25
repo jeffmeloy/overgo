@@ -110,24 +110,6 @@
       ]
     },
     {
-      "id": "dispatch-steady",
-      "title": "A landing accepts the step dispatch gave its worker whoever holds the card when it lands",
-      "steps": [
-        {
-          "id": "do",
-          "title": "admits accepts a worker's step that dispatch gives with the card held or free",
-          "verify": "go test ./internal/plan -count=1 -run '^TestALandingAcceptsTheStepEitherCardReadingGives$'",
-          "files": [
-            "internal/plan"
-          ],
-          "rationale": "Observed 2026-11-24 at b0dc71f35. card-checks-sound/floors, whose check is on the card, was refused at the landing's start because the lanes runner held a card turn, so dispatch gave reference-tools/clock. Minutes later clock was refused because the runner, between packages, held none, so dispatch gave floors. cardHolder (internal/plan/card.go) reads who holds a card turn at that instant, and admits (internal/plan/dispatch.go) holds a worker to the one step that reading gives. The lanes runner takes the card turn package by package, so the reading flips, and two steps of one package both refuse. The card's holder orders what a worker is offered, so it waits less. It does not make a step wrong to land: a card step's landing waits for its turn, which the lanes yield to a commit. The change: admits accepts a worker's step that dispatch gives under either reading, the card held or free, and refuses every other step as now. Check: TestALandingAcceptsTheStepEitherCardReadingGives, over a plan whose first step's check is on the card and whose second is not, with a card turn held by another process and then free. Each of the two is admitted, and a third step is refused. It does not exist at the base, so the check fails there.",
-          "depends_on": [
-            "full-measurement/run"
-          ]
-        }
-      ]
-    },
-    {
       "id": "runner-from-commit",
       "title": "The lanes runner is built from the commit it runs, never from the checkout's uncommitted changes",
       "steps": [

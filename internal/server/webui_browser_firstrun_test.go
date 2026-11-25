@@ -170,7 +170,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
 	attachTinyPNG := func() {
 		t.Helper()
 		assertBrowserPredicate(t, ctx, browser, `(() => {
-      const picker = document.querySelector(".composer input[type=file]");
+      const picker = document.querySelector(".composer input[type=file][aria-label=attach]");
       const transfer = new DataTransfer();
       transfer.items.add(new File([Uint8Array.from(atob(`+strconv.Quote(tinyPNGBase64(t))+`), (char) => char.charCodeAt(0))], "tiny.png", { type: "image/png" }));
       picker.files = transfer.files;
@@ -669,7 +669,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
 	// Taken only when the lane store holds an active transcription recipe.
 	if generationMode("transcription", "model.transcribe-audio") {
 		assertBrowserPredicate(t, ctx, browser, `(() => {
-      const picker = document.querySelector(".composer input[type=file]");
+      const picker = document.querySelector(".composer input[type=file][aria-label=attach]");
       const transfer = new DataTransfer();
       transfer.items.add(new File([Uint8Array.from(atob(`+strconv.Quote(toneWAVBase64())+`), (char) => char.charCodeAt(0))], "tone.wav", { type: "audio/wav" }));
       picker.files = transfer.files;

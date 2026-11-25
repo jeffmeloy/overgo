@@ -501,7 +501,7 @@
     // from a list typed into a surface; a surface may narrow it to kinds.
     const media = (overgo.capabilities() || {}).media || { accept: [] };
     const accept = (media.accept || []).filter((mime) => !options.kinds || options.kinds.includes(mediaKind(mime)) || (options.kinds.includes("video") && mime === "image/gif"));
-    const picker = el("input", { type: "file", hidden: true, multiple: options.multiple !== false, accept: accept.join(",") });
+    const picker = el("input", { type: "file", hidden: true, "aria-label": "attach", multiple: options.multiple !== false, accept: accept.join(",") });
     const send = el("button", { class: "btn" }, options.sendLabel || "send");
     const stop = el("button", { class: "btn alt", hidden: true }, "stop");
     // openPicker: the dialog filters to the served model's types unless the surface takes any file (options.takesAny).

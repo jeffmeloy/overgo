@@ -28,7 +28,7 @@ func TestWebUIBrowserAttachmentWorkflow(t *testing.T) {
   window.fileRows=()=>[...document.querySelectorAll('.attachment-row')];
   window.fileRow=name=>fileRows().find(row=>row.querySelector('.attachment-name').textContent===name);
   window.fileButton=(name,action)=>fileRow(name).querySelector('[aria-label="'+action+' '+name+'"]');
-  window.pickFiles=files=>{const transfer=new DataTransfer();files.forEach(file=>transfer.items.add(file));const picker=document.querySelector('.composer input[type=file]');picker.files=transfer.files;picker.dispatchEvent(new Event('change'));};
+  window.pickFiles=files=>{const transfer=new DataTransfer();files.forEach(file=>transfer.items.add(file));const picker=document.querySelector('.composer input[type=file][aria-label=attach]');picker.files=transfer.files;picker.dispatchEvent(new Event('change'));};
   window.nativeFileReader=FileReader;let fail=true;
   window.FileReader=class extends nativeFileReader {readAsDataURL(file){if(file.name==='retry.txt'&&fail){fail=false;this.dispatchEvent(new ProgressEvent('error'));return;}if(file.name==='held.txt'){window.heldFileReader=this;this.onprogress(new ProgressEvent('progress',{lengthComputable:true,loaded:2,total:file.size}));return;}super.readAsDataURL(file);}};
   pickFiles([new File(['one'],'one.txt',{type:'text/plain'}),new File(['two'],'two.txt',{type:'text/plain'}),new File(['retry'],'retry.txt',{type:'text/plain'}),new File(['unknown'],'bad.exe',{type:'application/x-msdownload'})]);return true;

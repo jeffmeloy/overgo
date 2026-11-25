@@ -50,8 +50,8 @@ func TestWebUIBrowserAudioWhileModelsLoad(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal(ctx.Err())
 	}
-	settle(`!!document.querySelector('.composer input[type=file]') && /Loading models/.test(document.querySelector('.composer').textContent)`)
-	check(`(()=>{const bytes=Uint8Array.from(atob(` + strconv.Quote(base64.StdEncoding.EncodeToString(fixture.wave)) + `),c=>c.charCodeAt(0)),file=new File([bytes],'recording.wav',{type:'audio/wav'}),transfer=new DataTransfer();transfer.items.add(file);const picker=document.querySelector('.composer input[type=file]');picker.files=transfer.files;picker.dispatchEvent(new Event('change'));return true;})()`)
+	settle(`!!document.querySelector('.composer input[type=file][aria-label=attach]') && /Loading models/.test(document.querySelector('.composer').textContent)`)
+	check(`(()=>{const bytes=Uint8Array.from(atob(` + strconv.Quote(base64.StdEncoding.EncodeToString(fixture.wave)) + `),c=>c.charCodeAt(0)),file=new File([bytes],'recording.wav',{type:'audio/wav'}),transfer=new DataTransfer();transfer.items.add(file);const picker=document.querySelector('.composer input[type=file][aria-label=attach]');picker.files=transfer.files;picker.dispatchEvent(new Event('change'));return true;})()`)
 	// The models have not come, and the recording is neither refused nor stored.
 	check(`(()=>{
   const rows = document.querySelectorAll('.attachment-row'), composer = document.querySelector('.composer').textContent;

@@ -3,6 +3,21 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "runner-from-commit",
+      "title": "The lanes runner is built from the commit it runs, never from the checkout's uncommitted changes",
+      "steps": [
+        {
+          "id": "do",
+          "title": "startLanesRunner builds the runner from the landed commit's tree, not the working checkout",
+          "verify": "go test ./cmd/loop -count=1 -run '^TestTheLanesRunnerIsBuiltFromTheCommitItRuns$'",
+          "files": [
+            "cmd/loop"
+          ],
+          "rationale": "The owner's review of 2026-11-24 (fifth), point 1, checked against the code: valid. startLanesRunner (cmd/loop/lanes_on_close.go) builds the runner with buildChecker in loopWorktree, the working checkout, so the runner carries whatever the checkout holds uncommitted, and lanes.log says so (\"under the runner built at 75f41a0d26ee with its tree's changes\"). At 16:44 that tree held turn-priority's cmd/loop change before it landed, unfinished code supervising the lanes. The change: the runner is built from the commit the lanes run (a tree of that commit alone), so its build stamps no tree changes. Check: TestTheLanesRunnerIsBuiltFromTheCommitItRuns starts a runner from a checkout with an uncommitted change to cmd/loop and finds the runner's build stamped with the commit and no changes. It does not exist at the base, so the check fails there."
+        }
+      ]
+    },
+    {
       "id": "observed-inputs",
       "title": "A check's pass is kept while what it read is unchanged, its inputs observed, so a commit runs only the checks its change can alter",
       "steps": [
@@ -54,6 +69,23 @@
             "internal/landing"
           ],
           "rationale": "The owner's review of 2026-11-24, point 1, checked against the code: valid. The undo run's overrun notice (internal/landing/undo.go overrunClock) starts when began is called, and planverify calls began only on a go test JSON start event (progressLines.show). A check run through cmd/webui-lane prints its own lines, so for a browser check the notice never starts: moss-page/pictures' first attempt hung 32 minutes in its undo run on 2026-11-24, and nothing said so; the same hang went unsaid on 2026-11-22. TestACheckShowsItsProgress asserts the gap: a command running no test binary is said to begin none.\n\nThe change: ExecuteShowing calls began as it starts a check whose parse names no go test of its own (a browser lane, a pipeline over validate), so its overrun is timed from its start, its build included, as its wall with the change was; a go test check keeps its clock from its first test binary's start (undo-overrun/do). TestACheckShowsItsProgress's last case is replaced.\n\nCheck: TestACheckRunningNoGoTestIsTimedFromItsStart runs a command that runs no go test (go version) and finds began called once, as it starts, and a go test check's began still called as each test binary starts. It does not exist at the base, so the check fails there."
+        }
+      ]
+    },
+    {
+      "id": "flashnext-memory",
+      "title": "Flash-Next's long-context acceptance has a cause for its failure at 16:44: what its server needs against what the machine had free",
+      "steps": [
+        {
+          "id": "cause",
+          "title": "TestFlashNextLongContextAcceptance runs on a quiet machine, its server's peak recorded against the 71.4 GiB its tree was bound to",
+          "verify": "OVERGO_CUDA_TEST=1 go test -tags modeltest,integration ./internal/evaluation -count=1 -timeout=0 -run '^TestFlashNextLongContextAcceptance$'",
+          "files": [
+            "internal/evaluation",
+            "internal/inference",
+            "cmd/server"
+          ],
+          "rationale": "The owner's review of 2026-11-24 (fifth), point 2, checked against lanes.log: valid. The lanes at 5f5d4db92 did not pass: TestFlashNextLongContextAcceptance failed in the models lane at 16:44 after 9 s, its model swap's child server ending before it was ready because the process tree reached its memory limit of 71.4 GiB, the machine's free commit at its start (processcontrol's job bound), and no step named a cause since. Whether the server needs more than the machine holds at Flash-Next's long context, or other work held the memory then, is unmeasured. The step: run the test on a quiet machine (no landing, no lanes), read its server tree's peak commit, and cure what it shows: a context the model's host commit cannot hold is bound by what the machine has, or the test waits for the memory it needs, as the card's turn waits. Check: the test passes on the quiet machine."
         }
       ]
     },
@@ -134,27 +166,6 @@
             "internal/loop"
           ],
           "rationale": "SQA-474 (as the review wrote it at a25fa2246), checked against the code at 5f5d4db92: valid from source. improvement.Measure (cmd/loop/improve.go) returns the newest scorecard record when its commit is the cycle's, whoever published it; a cycle whose lane fails before it publishes, at a commit an earlier cycle published, so answers with the earlier record. Improve (internal/loop/driver.go) then files that record's gaps and runs Fill, whose deferred removals take cycle_state.json and cycle_credit.json, so the cells this cycle finished are measured again by the next. Not observed: the unattended cycle has not run since the measurements moved to validate -run phases.\n\nThe change: Measure answers with a record only when this cycle's publication ran (the published callback measureScorecard calls); otherwise it returns the lane's error with no record, and the state and credit stay for the resume.\n\nCheck: TestACycleCutShortAnswersWithNoScorecardItDidNotPublish holds a published record at the commit, fails a lane before publication, and finds no record answered, no gaps filed and the credit file kept. It does not exist at the base, so the check fails there."
-        }
-      ]
-    },
-    {
-      "id": "lanes-rotation",
-      "title": "A lanes run that yields to a newer commit keeps its place: the next takes first the packages longest without a pass that still holds, so every lane runs whole within one rotation while commits arrive",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A lanes run that yields to a newer commit keeps its place: the next takes first the packages longest without a pass that still holds, so every lane runs whole within one rotation while commits arrive",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestAYieldedLanesRunResumesItsRotation$'",
-          "files": [
-            "cmd/validate",
-            "cmd/loop",
-            "internal/landing",
-            "internal/plan"
-          ],
-          "rationale": "The owner's review of 2026-11-23, point 3, checked against cmd/validate/run.go and .overgo-runtime/lanes.log: valid. A cycle's lanes run in one order (model-journey, audio, models, needle-reference, sequences); as a lane turns to another package the run yields to a newer commit due (lanes-first/yield), and every lane after the one yielding does not run. A row closes every 30 to 40 minutes and models takes hours, so each run yields inside models (lanes.log: 635db11e9, aaba3c348, 08a0ad2c7, e30533414, b17937206 each 'yields to ... as it turns to another package'), needle-reference and sequences have not run since 22 Nov 07:15, and the models lane has not passed whole for 28 commits; a run starts each time at the first lane again, so the packages it never reaches are the same ones. The change: a package's pass is kept with the commit it ran at, and holds at a later commit whose changes do not reach it (the lanes' readers by path, CycleLanesReached); a run, after the checks the commit's change names (lanes-first), takes the packages longest without a pass that holds, across lanes, so a yield loses nothing and the next run goes on where it stopped; a lane is whole where every package has a pass that holds at the commit read, and validate says the oldest pass any lane relies on. Check: TestAYieldedLanesRunResumesItsRotation runs stand-in lanes yielding after each package as commits arrive: every package of every lane runs within one rotation, a package a later commit reaches runs again, and the lanes read whole once each has a pass that holds.",
-          "depends_on": [
-            "full-measurement/run"
-          ]
         }
       ]
     },
@@ -282,22 +293,6 @@
             "assets"
           ],
           "rationale": "The owner's review of 2026-11-24 (fourth), checked against the README and the code: valid. The README's LiveEdit line links a 32 x 16 clip of 21 frames, states no instruction, shows no source clip, and says 9.5 s where the scorecard table says 10.2 s (the line's own run, not the scorecard's). The editor was trained at 832 x 480 (internal/latentvideo/edit_profiles.json source_width and source_height), and EditSourceSize (edit_form.go:103) says that at a quarter of that size it changes texture, not what the instruction asks; readme-media redid SenseNova, Un-0 and Wan and left LiveEdit. The change: a source clip at 832 x 480 (one of the VidGen clips the edit suite reads) edited by an instruction through go run ./cmd/recipe run -fresh, the source and the edit drawn side by side in one GIF, its caption naming the instruction, the seed, the frames and steps and the run's own time and memory, as the other models' samples are; the earlier clip and its file go. Check: the earlier clip is no longer linked, and the README's tests (repoanalysis, commanddoc) pass, among them TestReadmeNamesEveryModelAndItsSamples."
-        }
-      ]
-    },
-    {
-      "id": "un0-pictures",
-      "title": "Un-0 learns pictures: its trainer fits each class's pictures, a checkpoint trained on 8x8 handwritten digits stands beside the bootstrap one, and the README shows what it draws",
-      "steps": [
-        {
-          "id": "objective",
-          "title": "The Un-0 trainer fits each class's pictures: each step draws one picture per class and takes its squared error against a picture of that class from a dataset",
-          "verify": "go test ./internal/oscillatorimage -count=1 -run '^TestUn0LearnsItsClassesPictures$'",
-          "files": [
-            "internal/oscillatorimage",
-            "cmd/train"
-          ],
-          "rationale": "The owner, 2026-11-24: the README's Un-0 card suggests Un-0 is not working. Checked: the port is right (its operators and its four-step generator match the reference within 1e-4 and 1e-3, the un0 goldens), but the checkpoint never learned a picture. Its weights are spread like a fresh start (conv weights with a standard deviation of 0.08 to 0.11, biases within 0.82), and the only objective its trainer has, classTargetLoss (internal/oscillatorimage/trainer.go), pulls every pixel of class c to the flat level 0.1 + 0.2c, which tanh and the 0-255 mapping show as three near-greys, the card's colourless noise. So no draw of it can be a better picture; a trained one can.\n\nThe change: the trainer takes a picture objective beside the class target. Each step draws one picture per class from random phases and takes the squared error against a picture of that class drawn from a dataset (its pixels in [-1, 1] as tanh gives them), so the generator learns each class's mean picture, a legible one at 8 x 8. cmd/train's oscillatorimage route takes the dataset and writes the trained weights beside a config, as a new model directory; the bootstrap Un-0 is kept.\n\nCheck: TestUn0LearnsItsClassesPictures trains a bootstrap model on three synthetic 8 x 8 classes (a ring, a bar, a cross): the loss falls by half or more, and each class's draws are nearer their own class's mean than another's. It does not exist at the base, so the check fails there.\n\nNext, once the owner allows the download of the UCI optdigits data (8 x 8 handwritten digits, about 0.5 MB, from archive.ics.uci.edu): a step that trains Un-0 on the digits 0, 1 and 2, and the README's card of the trained checkpoint, which serves as Un-0 only on the owner's answer (activating a model)."
         }
       ]
     }

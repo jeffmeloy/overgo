@@ -36,7 +36,7 @@ func TestWebUIBrowserFrontSurfaces(t *testing.T) {
 	check(`(() => {
   window.frontButton = (label, root) => [...(root || document).querySelectorAll('button')].find(button => button.textContent === label && !button.hidden);
   window.frontPickerOpened = false;
-  document.querySelector('.composer input[type=file]').addEventListener('click', event => { frontPickerOpened = true; event.preventDefault(); });
+  document.querySelector('.composer input[type=file][aria-label=attach]').addEventListener('click', event => { frontPickerOpened = true; event.preventDefault(); });
   return true;
 })()`)
 
@@ -89,7 +89,7 @@ func TestWebUIBrowserFrontSurfaces(t *testing.T) {
   overgo.capabilities().media.max_image_dimension = 1;
   const transfer = new DataTransfer();
   transfer.items.add(new File([Uint8Array.from(atob(` + strconv.Quote(base64.StdEncoding.EncodeToString(wide.Bytes())) + `), char => char.charCodeAt(0))], 'wide.png', { type: 'image/png' }));
-  const picker = document.querySelector('.composer input[type=file]');
+  const picker = document.querySelector('.composer input[type=file][aria-label=attach]');
   picker.files = transfer.files; picker.dispatchEvent(new Event('change'));
   return true;
 })()`)

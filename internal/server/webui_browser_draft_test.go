@@ -33,7 +33,7 @@ func TestWebUIBrowserDraftLifecycle(t *testing.T) {
    window.draftType=(field,value)=>{field.value=value;field.dispatchEvent(new Event('input',{bubbles:true}));};
    draftType(draftInput(),'Keep the new conversation draft');draftType(draftField('system'),'Be concise');draftType(draftField('temperature'),'0.25');draftType(draftField('tokens'),'4');
    const files=new DataTransfer();files.items.add(new File(['private file contents'], 'notes.txt',{type:'text/plain'}));
-   const picker=document.querySelector('.composer input[type=file]');picker.files=files.files;picker.dispatchEvent(new Event('change'));
+   const picker=document.querySelector('.composer input[type=file][aria-label=attach]');picker.files=files.files;picker.dispatchEvent(new Event('change'));
    return !!cap.recipe && !!cap.model && cap.max_output_tokens===8 && Number(draftField('tokens').max)===8;
  })()`)
 	settle(`document.querySelector('.attachment-strip').textContent.includes('notes.txt') && !!document.querySelector('.attachment-row[data-state=ready]')`)
@@ -49,7 +49,7 @@ func TestWebUIBrowserDraftLifecycle(t *testing.T) {
 	settle(`document.querySelector('.composer')!==previousDraftComposer && draftInput().value==='Keep the new conversation draft'`)
 	check(`(() => {
     const files=new DataTransfer();files.items.add(new File(['private file contents'],'notes.txt',{type:'text/plain'}));
-    const picker=document.querySelector('.composer input[type=file]');picker.files=files.files;picker.dispatchEvent(new Event('change'));return true;
+    const picker=document.querySelector('.composer input[type=file][aria-label=attach]');picker.files=files.files;picker.dispatchEvent(new Event('change'));return true;
   })()`)
 	settle(`!document.querySelector('.send-button').disabled && document.querySelectorAll('.attachment-strip > span').length===1`)
 	check(`(() => {window.previousDraftComposer=document.querySelector('.composer');overgo.openConversation(null);return true;})()`)

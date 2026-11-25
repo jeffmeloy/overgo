@@ -218,7 +218,7 @@ func assertChatAttachmentModeReset(t *testing.T, ctx context.Context, browser *w
 	assertBrowserPredicate(t, ctx, browser, `(() => {
       const mode = document.querySelector('.composer select[aria-label="mode"]');
       mode.value = "chat"; mode.dispatchEvent(new Event("change"));
-      const picker = document.querySelector('.composer input[type="file"]'), files = new DataTransfer();
+      const picker = document.querySelector('.composer input[type=file][aria-label=attach]'), files = new DataTransfer();
       files.items.add(new File(["mode reset"], "mode-reset.txt", {type:"text/plain"}));
       picker.files = files.files; picker.dispatchEvent(new Event("change"));
       return window.modeResetProbe.uploads === 0;

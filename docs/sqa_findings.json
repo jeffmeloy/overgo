@@ -301,11 +301,11 @@
         "note": "Answered by the lead on 2026-11-24 at a30831fd6: valid from source and observed (validDoc requires the whole comment to end with a period where skill.md describes its first line, so a comment closing with an indented example is refused; eight rules refusals name export-doc). Filed as style-vetoes/doc-period, beside ternary-veto: the comment is held to begin with its name."
       },
       "SQA-498": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "style-vetoes/once"
         ],
-        "note": "Answered by the lead on 2026-11-24 at a30831fd6: valid from source and observed (the rules stage refuses every sync.Once for OnceFunc or OnceValue, which panic again on every call after a recovered panic where a later Once.Do returns; it refused waiter-bound/do, moss-first-run/quiet and idle-wait/do). Filed as style-vetoes/once, beside ternary-veto: the count leaves the rules stage."
+        "note": "Answered by the lead on 2026-11-24 at a30831fd6: valid from source and observed (the rules stage refuses every sync.Once for OnceFunc or OnceValue, which panic again on every call after a recovered panic where a later Once.Do returns; it refused waiter-bound/do, moss-first-run/quiet and idle-wait/do). Filed as style-vetoes/once, beside ternary-veto: the count leaves the rules stage. Implemented 2026-11-25 by style-vetoes/once, the landing that carries this answer (TestTheRulesStageCountsNoSyncOnce), for the review's recheck."
       },
       "SQA-494": {
         "action": "implemented",

@@ -44,18 +44,6 @@
       "title": "The landing vetoes no form a reviewer can judge whose rewrite changes behaviour or whose wording is right",
       "steps": [
         {
-          "id": "once",
-          "title": "The rules stage counts no sync.Once",
-          "verify": "go test ./internal/landing -count=1 -run '^TestTheRulesStageCountsNoSyncOnce$'",
-          "files": [
-            "internal/landing"
-          ],
-          "rationale": "SQA-498 (P2), checked against internal/landing/rules.go at 39ffd57e1: valid from source and observed. The rules stage counts every sync.Once a file gains and refuses it for sync.OnceFunc or sync.OnceValue, which differ in behaviour: after a panic recovered by its caller, a later Once.Do returns, where the function OnceFunc returns panics again on every call. The veto refused waiter-bound/do, moss-first-run/quiet and idle-wait/do. A rewrite the rule demands can change what the code does, so it is no rule. The change: the sync.Once count leaves the rules stage, its refusal classifier and its fixture expectation; the sort.Slice count and the rest stand. Check: TestTheRulesStageCountsNoSyncOnce runs the rules over a change that gains a sync.Once and finds no count of it. It does not exist at the base, so the check fails there.",
-          "depends_on": [
-            "full-measurement/run"
-          ]
-        },
-        {
           "id": "doc-period",
           "title": "An exported name's comment is held to begin with its name, not to end with a period",
           "verify": "go test ./internal/repoanalysis -count=1 -run '^TestAnExportedCommentMayEndWithItsExample$'",

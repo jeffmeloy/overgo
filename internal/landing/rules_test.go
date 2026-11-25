@@ -91,8 +91,21 @@ var twice sync.Once
 		scopes = append(scopes, finding[strings.LastIndex(finding, " ")+1:])
 	}
 	slices.Sort(scopes)
-	if want := []string{"Stable", "package"}; !slices.Equal(scopes, want) {
+	if want := []string{"Stable"}; !slices.Equal(scopes, want) {
 		t.Fatalf("findings = %q, want one each in %v", findings, want)
+	}
+}
+
+// TestTheRulesStageCountsNoSyncOnce holds style-vetoes/once (SQA-498): a change that gains a sync.Once is refused no
+// legacy form for it. The rules stage had refused every sync.Once for sync.OnceFunc or sync.OnceValue, which differ in
+// behaviour: after a panic its caller recovers, a later Once.Do returns, where the function OnceFunc returns panics
+// again on every call. It refused waiter-bound/do, moss-first-run/quiet and idle-wait/do.
+func TestTheRulesStageCountsNoSyncOnce(t *testing.T) {
+	t.Parallel()
+	const before = "package p\n\nimport \"sync\"\n\nvar mu sync.Mutex\n"
+	const after = before + "\nvar once sync.Once\n\nfunc Start(f func()) { once.Do(f) }\n"
+	if findings := newLegacyForms(packageSnapshot(t, before), packageSnapshot(t, after)); len(findings) != 0 {
+		t.Errorf("a change that gains a sync.Once was refused %q; want no legacy form", findings)
 	}
 }
 

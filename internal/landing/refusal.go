@@ -45,7 +45,6 @@ var stageRules = []struct{ name, phrase string }{
 	{"pins", "changes bytes a record pins"},
 	{"style", "new Go style findings"},
 	{"legacy-forms", "new sort.Slice"},
-	{"legacy-forms", "new sync.Once"},
 	{"count", "production syntax nodes, and the consolidation"},
 	{"kernel-family", "a kernel family over its lines"},
 }

@@ -229,8 +229,8 @@ func (l *landing) changedSource(ctx context.Context) (gosyntax.Snapshot, gosynta
 }
 
 // newLegacyForms names the forms go fix does not rewrite that a changed
-// file gained: sort.Slice where slices.SortFunc serves, and sync.Once where
-// sync.OnceFunc or sync.OnceValue serves. An if that falls back from an
+// file gained: sort.Slice where slices.SortFunc serves. sync.Once is none: sync.OnceFunc and sync.OnceValue panic
+// again on every call after a recovered panic, where a later Once.Do returns (SQA-498). An if that falls back from an
 // empty value is not one: cmp.Or evaluates its fallback even when it is not
 // needed, and a fallback that indexes or dereferences can panic there.
 func newLegacyForms(base, candidate gosyntax.Snapshot) []string {
@@ -291,8 +291,6 @@ func legacyForm(node ast.Node, imports map[string]string) string {
 	switch imports[qualifier.Name] + "." + selector.Sel.Name {
 	case "sort.Slice", "sort.SliceStable":
 		return "sort." + selector.Sel.Name + " (use slices.SortFunc or slices.SortStableFunc)"
-	case "sync.Once":
-		return "sync.Once (use sync.OnceFunc, sync.OnceValue or sync.OnceValues)"
 	}
 	return ""
 }

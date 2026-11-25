@@ -29,7 +29,7 @@ func TestALanesRunNamesTheBuildThatSupervisedIt(t *testing.T) {
 	checkout := filepath.Join(root, processlock.StateDirectory, lanesCheckout)
 	var output bytes.Buffer
 	testcheck.NoError(t, runLanesAt(root, checkout, lanesDue{Commit: commit, Rows: []string{"fixture"}}, "28390a169bcf", &output,
-		func(string) error { return nil }))
+		func(string) error { return nil }, nil))
 	first, _, _ := strings.Cut(output.String(), "\n")
 	if !strings.Contains(first, "the cycle's lanes run at "+commit[:12]) || !strings.HasSuffix(first, "under the runner built at 28390a169bcf") {
 		t.Errorf("a run's first line reads %q; want its commit and the build of the runner that supervised it", first)

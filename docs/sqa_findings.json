@@ -423,18 +423,18 @@
         "note": "Answered by the lead on 2026-11-24 at a30831fd6: valid from source (with no open step and an unanswered P2, loop.Run returns findings-waiting before improve asks whether a measurement is due); not observed. Declined: the wait holds a standing rule the owner set, that every open P1 and P2 is answered before the measurement run (2026-11-13, 2026-11-22), and the lead answers every one at each landing, so the branch is not met while the lead works. Removing the rule is the owner's decision, which the lead puts to the owner."
       },
       "SQA-496": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "runner-from-commit/do"
         ],
-        "note": "Answered by the lead on 2026-11-24 at b0dc71f35: valid from source (runLanesDue writes lanes_began.json before runLanesAt sets up, so a setup error leaves the commit begun and the repaired retry returns success with no lane run); not observed. Filed with runner-from-commit/do, noted there, as the review asks: the same runner's start."
+        "note": "Answered by the lead on 2026-11-24 at b0dc71f35: valid from source (runLanesDue writes lanes_began.json before runLanesAt sets up, so a setup error leaves the commit begun and the repaired retry returns success with no lane run); not observed. Filed with runner-from-commit/do, noted there, as the review asks: the same runner's start. Implemented 2026-11-24 by runner-from-commit/do, the landing that carries this answer: a commit is recorded as begun only once its lanes checkout is set up (TestACommitWhoseSetupFailedRunsOnceRepaired), for the review's recheck."
       },
       "SQA-495": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "microphone-wait/do"
         ],
-        "note": "Answered by the lead on 2026-11-24 at b0dc71f35: valid, observed in lanes.log and from source (the leg settles on micEnded while a 14.53 s source plays, and the idle rule counts neither the playing source nor the worklet's frames, so the leg fails as idle; a regression of idle-wait). Filed as microphone-wait/do, ahead of the campaign's closing measurement, whose lanes run it: the leg awaits the source's ended event."
+        "note": "Answered by the lead on 2026-11-24 at b0dc71f35: valid, observed in lanes.log and from source (the leg settles on micEnded while a 14.53 s source plays, and the idle rule counts neither the playing source nor the worklet's frames, so the leg fails as idle; a regression of idle-wait). Filed as microphone-wait/do, ahead of the campaign's closing measurement, whose lanes run it: the leg awaits the source's ended event. Implemented 2026-11-24 by microphone-wait/do (5b2cc8ff6): the leg awaits its source's ended event, bounded by twice the clip's length; both microphone legs pass on the card, for the review's recheck."
       },
       "SQA-494": {
         "action": "filed",
@@ -444,18 +444,18 @@
         "note": "Answered by the lead on 2026-11-24 at b0dc71f35: valid, observed at b1d6e237a (moss-page/restored published own-run's edit) and from source (shipSet recaptures the checkout at fix, derive and a lowered ceiling, the last after invariants). Filed as landing-snapshot/do, ahead of observed-inputs/rule, which keeps passes for a candidate's inputs."
       },
       "SQA-493": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "moss-pictures/stale-preview"
         ],
-        "note": "Answered by the lead on 2026-11-24 at b0dc71f35: valid from source (depthPreview shows its answer whatever the form holds when it comes, and offer hides it only with no picture chosen); not observed. Filed as moss-pictures/stale-preview, with the page's other picture defects, before the campaign closes."
+        "note": "Answered by the lead on 2026-11-24 at b0dc71f35: valid from source (depthPreview shows its answer whatever the form holds when it comes, and offer hides it only with no picture chosen); not observed. Filed as moss-pictures/stale-preview, with the page's other picture defects, before the campaign closes. Implemented 2026-11-24 by moss-pictures/stale-preview (e4e257ffc), for the review's recheck."
       },
       "SQA-492": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "moss-pictures/output-input"
         ],
-        "note": "Answered by the lead on 2026-11-24 at b0dc71f35: valid from source (Request.ReadPictures refuses every identity that is not KindFile, so a MOSS output used as input is refused before it is read); no failed draw observed. Filed as moss-pictures/output-input, before the campaign closes."
+        "note": "Answered by the lead on 2026-11-24 at b0dc71f35: valid from source (Request.ReadPictures refuses every identity that is not KindFile, so a MOSS output used as input is refused before it is read); no failed draw observed. Filed as moss-pictures/output-input, before the campaign closes. Implemented 2026-11-24 by moss-pictures/output-input (63c8edbc5), for the review's recheck."
       },
       "SQA-491": {
         "action": "filed",
@@ -465,12 +465,12 @@
         "note": "Answered by the lead on 2026-11-24 at b0dc71f35: valid from source (turnCreatedDirt exempts only plan.Path, so a review's register edit reads as the turn's orphan); no blocked session observed. Filed with status-turn/do, noted there, as the review asks: both reach the stop hook."
       },
       "SQA-489": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "moss-pictures/last-of-two",
           "moss-page/last-picture"
         ],
-        "note": "Answered by the lead on 2026-11-24 at db04fec59: valid from source (an upload's end chooses its picture over one chosen meanwhile), in code moss-page/pictures wrote. Filed as a step of moss-page.\n\nAnswered by the lead on 2026-11-24 at b0dc71f35: valid from source (two uploads begun on an empty slot both read it empty, so the first to finish is chosen and the last dropped is skipped). Filed as moss-pictures/last-of-two, before the campaign closes."
+        "note": "Answered by the lead on 2026-11-24 at db04fec59: valid from source (an upload's end chooses its picture over one chosen meanwhile), in code moss-page/pictures wrote. Filed as a step of moss-page.\n\nAnswered by the lead on 2026-11-24 at b0dc71f35: valid from source (two uploads begun on an empty slot both read it empty, so the first to finish is chosen and the last dropped is skipped). Filed as moss-pictures/last-of-two, before the campaign closes. Implemented 2026-11-24 by moss-pictures/last-of-two (4d464b4a4), for the review's recheck."
       },
       "SQA-474": {
         "action": "filed",

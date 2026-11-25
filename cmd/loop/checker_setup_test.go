@@ -2,7 +2,6 @@ package main
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -25,15 +24,11 @@ func TestACheckerThatCannotBeBuiltRefusesWithWhatStoppedIt(t *testing.T) {
 	for _, arguments := range [][]string{{"init", "-q"}, {"add", "."}, {"-c", "user.name=fixture", "-c", "user.email=fixture@example.invalid", "commit", "-q", "-m", "fixture"}} {
 		testcheck.NoError(t, gitWrite(root, arguments...))
 	}
-	build := func(arguments ...string) (string, error) {
-		output, err := exec.Command(arguments[0], arguments[1:]...).CombinedOutput()
-		return string(output), err
-	}
 	checker := filepath.Join(t.TempDir(), "gate.exe")
-	if refusal, err := buildChecker(root, checker, "./cmd/gate", build); err != nil {
+	if refusal, err := buildChecker(root, checker, "./cmd/gate", runBuild); err != nil {
 		t.Fatalf("in a checkout with no data-root file the checker was not built: %v: %s", err, refusal)
 	}
-	refusal, err := buildChecker(t.TempDir(), checker, "./cmd/gate", build)
+	refusal, err := buildChecker(t.TempDir(), checker, "./cmd/gate", runBuild)
 	if err == nil || refusal == "" || !strings.Contains(refusal, err.Error()) {
 		t.Fatalf("a checker git could not set up refused with %q (%v), want the error that stopped it", refusal, err)
 	}

@@ -10,6 +10,12 @@ import (
 	"overgo/internal/testcheck"
 )
 
+// runBuild runs a checker's build command as buildChecker gives it, and gives what it said.
+func runBuild(arguments ...string) (string, error) {
+	output, err := exec.Command(arguments[0], arguments[1:]...).CombinedOutput()
+	return string(output), err
+}
+
 // TestALandingsCheckerIsBuiltFromCommittedCode holds the checker a landing runs to the trunk's commit: in a fixture
 // repository whose gate prints "committed" and whose checkout holds an uncommitted edit printing "uncommitted", the
 // checker built prints "committed", and the edit stays in the checkout as it was. The gate had been built in the
@@ -31,11 +37,7 @@ func TestALandingsCheckerIsBuiltFromCommittedCode(t *testing.T) {
 	}
 	testcheck.NoError(t, os.WriteFile(filepath.Join(root, "cmd/gate/main.go"), []byte(gate("uncommitted")), 0o644))
 	checker := filepath.Join(t.TempDir(), "gate.exe")
-	build := func(arguments ...string) (string, error) {
-		output, err := exec.Command(arguments[0], arguments[1:]...).CombinedOutput()
-		return string(output), err
-	}
-	if refusal, err := buildChecker(root, checker, "./cmd/gate", build); err != nil {
+	if refusal, err := buildChecker(root, checker, "./cmd/gate", runBuild); err != nil {
 		t.Fatalf("the checker was not built: %v: %s", err, refusal)
 	}
 	if said := testcheck.Must(exec.Command(checker).Output())(t); string(said) != "committed" {

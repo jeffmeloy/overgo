@@ -183,10 +183,15 @@ func buildChecker(root, output, command string, build func(arguments ...string) 
 	if err != nil {
 		return "", err
 	}
-	if err := moveTree(root, tree, strings.TrimSpace(string(head))); err != nil {
+	commit := strings.TrimSpace(string(head))
+	if err := moveTree(root, tree, commit); err != nil {
 		return "", err
 	}
-	return build("go", "-C", tree, "build", "-o", output, command)
+	// The build is told the commit it was built from (builtCommit): go stamps a build from the git root it finds above
+	// its module, and takes only a directory named .git for one, so in this worktree, whose .git is a file, it stamped
+	// the main checkout's HEAD and uncommitted changes, and the runner said "with its tree's changes" of a clean build
+	// (runner-from-commit).
+	return build("go", "-C", tree, "build", "-ldflags=-X main.builtCommit="+commit, "-o", output, command)
 }
 
 // Gate lands the row through the small gate, built from the tree it lands

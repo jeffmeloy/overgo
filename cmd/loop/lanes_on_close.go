@@ -170,9 +170,12 @@ func runLanesDue(root string, output io.Writer, run func(checkout string) error,
 	}
 	due, began, err := lanesRecords(state)
 	if err == nil && due.Commit != began.Commit {
-		if err = jsonfile.Write(filepath.Join(state, lanesBeganFile), due, clioptions.PrivateFileMode); err == nil {
-			err = runLanesAt(root, checkout, due, lanesRunnerBuild(), output, run)
-		}
+		// The commit is begun once its checkout is set up, so a setup that fails leaves it due for the next runner
+		// (SQA-496: begun before its setup, a commit whose local-models.json was missing read as run once repaired, and
+		// no lane ran it).
+		err = runLanesAt(root, checkout, due, lanesRunnerBuild(), output, run, func() error {
+			return jsonfile.Write(filepath.Join(state, lanesBeganFile), due, clioptions.PrivateFileMode)
+		})
 	}
 	if err = errors.Join(err, lock.Close()); err != nil {
 		return err
@@ -200,8 +203,23 @@ func lanesRecords(state string) (due, began lanesDue, err error) {
 // code changed runs that code still, so a run's verdict is its runner's build's (lanes-trunk: the runner built at
 // 28390a169 ran three later commits under the hand-off and bound they had replaced).
 func lanesRunnerBuild() string {
+	info, _ := debug.ReadBuildInfo()
+	return describeBuild(builtCommit, info)
+}
+
+// builtCommit is the commit buildChecker built this program from, in a checkout of that commit alone; empty for a build
+// made otherwise.
+var builtCommit string
+
+// describeBuild names a build: the commit buildChecker built it from, clean, where built names one; otherwise the
+// commit go stamped and whether the tree it found held changes; otherwise an unstamped build. A build buildChecker made
+// is named by its commit alone, since go stamps it from the main checkout above its worktree (runner-from-commit).
+func describeBuild(built string, info *debug.BuildInfo) string {
+	if built != "" {
+		return fmt.Sprintf("%.12s", built)
+	}
 	revision, modified := "", false
-	if info, ok := debug.ReadBuildInfo(); ok {
+	if info != nil {
 		for _, setting := range info.Settings {
 			switch setting.Key {
 			case "vcs.revision":
@@ -223,10 +241,16 @@ func lanesRunnerBuild() string {
 // runLanesAt moves checkout to the commit due with the data roots (moveWithRoots) and runs the lanes there with run,
 // saying when they began, under the runner's build (lanesRunnerBuild), and how they ended; only a checkout that cannot
 // be moved fails it. A run that yielded to a newer commit due between packages, as its record beside the commit due
-// says, is said to have yielded, its passed packages kept, rather than to have failed (lanes-first/yield).
-func runLanesAt(root, checkout string, due lanesDue, runner string, output io.Writer, run func(checkout string) error) error {
+// says, is said to have yielded, its passed packages kept, rather than to have failed (lanes-first/yield). begun, where
+// given, records the run begun once the checkout is set up, before the lanes run.
+func runLanesAt(root, checkout string, due lanesDue, runner string, output io.Writer, run func(checkout string) error, begun func() error) error {
 	if err := moveWithRoots(root, checkout, due.Commit); err != nil {
 		return err
+	}
+	if begun != nil {
+		if err := begun(); err != nil {
+			return err
+		}
 	}
 	yieldedRecord := filepath.Join(root, processlock.StateDirectory, plan.LanesYieldedFile)
 	if err := os.Remove(yieldedRecord); err != nil && !errors.Is(err, fs.ErrNotExist) {

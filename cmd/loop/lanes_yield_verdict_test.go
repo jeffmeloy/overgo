@@ -37,7 +37,7 @@ func TestAYieldedRunSaysItsFailures(t *testing.T) {
 		testcheck.NoError(t, runLanesAt(root, checkout, lanesDue{Commit: commit, Rows: []string{"fixture"}}, "a fixture build", &output, func(string) error {
 			testcheck.NoError(t, jsonfile.Write(record, plan.LanesYielded{Commit: commit, To: "a-newer-close", Failures: failures}, clioptions.PrivateFileMode))
 			return errors.New("exit status 1")
-		}))
+		}, nil))
 		return output.String()
 	}
 	if said := ended("cycle lane models: TestMOSSSamplingCheckpoint failed"); !strings.Contains(said, "did not pass: cycle lane models: TestMOSSSamplingCheckpoint failed") || !strings.Contains(said, "then yielded to a-newer-clos") {

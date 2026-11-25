@@ -11,6 +11,7 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/media"
@@ -206,17 +207,21 @@ func (s *pictureSections) controlLatent(ctx context.Context, control DepthContro
 }
 
 // ReadPictures is the request with the pictures it names by their stored identity, as a page attaches them, read into
-// the bytes its session takes: its picture to sample from and its depth control's map or picture, each a stored file,
-// in base64.
+// the bytes its session takes: its picture to sample from and its depth control's map or picture, each a stored file
+// or a stored output picture, in base64.
 // A picture the request gives as its bytes stays as it came, and so does a request naming none.
+//
+// An output is read as a file is where it is a picture: a MOSS run stores its pictures as outputs, and a page's use as
+// input names the output (SQA-492: it had been refused as not a stored file, where the same bytes uploaded passed). An
+// output that is no picture is refused, as an identity of any other kind is.
 func (r Request) ReadPictures(ctx context.Context, store artifact.Reader) (Request, error) {
 	read := func(named, which string) (string, error) {
 		id, err := artifact.ParseID(named)
 		if err != nil {
 			return named, nil
 		}
-		if id.Kind() != artifact.KindFile {
-			return "", fmt.Errorf("latent image: the request's %s names %s, not a stored file", which, id)
+		if id.Kind() != artifact.KindFile && id.Kind() != artifact.KindOutput {
+			return "", fmt.Errorf("latent image: the request's %s names %s, not a stored file or output", which, id)
 		}
 		content, present, err := artifact.ReadContent(ctx, store, id)
 		if err != nil {
@@ -224,6 +229,9 @@ func (r Request) ReadPictures(ctx context.Context, store artifact.Reader) (Reque
 		}
 		if !present {
 			return "", fmt.Errorf("latent image: the request's %s, %s, is not stored", which, id)
+		}
+		if id.Kind() == artifact.KindOutput && !strings.HasPrefix(content.Descriptor.MediaType, "image/") {
+			return "", fmt.Errorf("latent image: the request's %s, %s, is an output of %s, not a picture", which, id, content.Descriptor.MediaType)
 		}
 		return base64.StdEncoding.EncodeToString(content.Data), nil
 	}

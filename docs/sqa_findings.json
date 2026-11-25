@@ -1,12 +1,41 @@
 {
   "advisory_notice": "All SQA findings, rankings and assessments are recommendations. Master decides whether, when and how to act through docs/plan.json.",
   "priority_assessment": [
-    "I agree with runner-from-commit/do. The model-journey log names a runner built with uncommitted changes. I would include the repaired-setup retry in that step (SQA-496) and fix the landing's own snapshot before observed-inputs/rule reuses passes (SQA-494). A runner built from the right commit still owes that commit a verdict.",
-    "I would fix SQA-495 before spending another real-model run on the microphone check. journey-attach/do fixed the VQA file selector. The same recorded run also failed the Granite microphone leg while it was still recording. Its existing audio completion event can decide when to stop. The MOSS held-draw check already waits for the operation to finish.",
-    "For MOSS parity, I would bring served-parts/do forward once the checks give reliable verdicts. The last comparable record at 1bae67d52 put Overgo 6.253 s behind cold and 0.783 s ahead warm. I would include the adapter comparison in card-checks-sound/floors (SQA-410): eight discarded control draws add 248 denoiser passes per comparison. The wall time those passes cost is unmeasured."
+    "I would finish the MOSS section timings already first in the plan. Before the next full measurement, I would take check-form-reads/do (SQA-483). A valid scorecard check was refused after nine hours of measurement. The immediate cost we can substantiate is rewriting and landing the verifier. SQA-497 is the next completion rule I would remove. A recommendation can remain visible while master decides whether it warrants a plan row.",
+    "I would take the three sync.Once refusals and eight export-doc refusals as grounds to remove those landing vetoes when master next touches the rules (SQA-498 and SQA-499). The card-held/card-free dispatch refusals already have a fix in 9e5a67c32. The line-based UI veto already has ternary-veto/do. Neither needs another rule or plan row.",
+    "For MOSS, a directory passed as the timing destination still wastes both six-section runs (SQA-460). The adapter comparison still issues eight control draws whose scores it never uses (SQA-410). That is 248 denoiser passes across its two precisions. The time saved by removing them has yet to be measured."
   ],
   "branch": "master",
   "findings": [
+    {
+      "id": "SQA-483",
+      "severity": "P2",
+      "files": [
+        "internal/runrecord/verify_command.go",
+        "internal/planverify/verify.go",
+        "internal/landing/form.go",
+        "cmd/plan/main.go",
+        "cmd/plan/check_form_test.go"
+      ],
+      "input": "Give the plan the original full-measurement/run check from 5147c611f's parent. It saves the scorecard output in a shell variable and then checks each required model row and the generated README.",
+      "expected": "Remove ParseVerify's veto on a shell assignment that captures command output for a later assertion. check-form-reads/do already owns this repair. Let the shell execute the full composite check, keep the Go test evidence requirements, and give no cached credit for a partial reading. A missing required model row must still fail the check.",
+      "actual": "Git Bash accepted the exact recorded command in syntax-only mode. ParseVerify splits at the opening parenthesis, consumes the assignment prefix and reports that the segment runs nothing. The landing refusal and commit 8e62553db record that this stopped full-measurement/run after nine hours of measurement. Commit 5147c611f rewrote the check before the step landed. The filing check now gives the same refusal earlier. The nine hours elapsed before the refusal. The record shows a verifier rewrite and a separate landing."
+    },
+    {
+      "id": "SQA-497",
+      "severity": "P2",
+      "files": [
+        "internal/loop/driver.go",
+        "cmd/loop/improve.go",
+        "internal/plan/dispatch.go",
+        "internal/plan/findings_fall_through.go",
+        "internal/loop/dispatch_wait_test.go",
+        "internal/plan/findings_dispatch_test.go"
+      ],
+      "input": "Complete the last accepted plan step with an untriaged P2 recommendation in the register. No worker holds work and no stop or budget bars the scheduled measurement.",
+      "expected": "Report the open recommendation beside the plan outcome and let the existing cycle trigger decide whether measurement is due. Remove the requirement to file or disposition a recommendation before completion. Keep ownership waits, explicit stops, budgets and accepted plan dependencies binding. Keep urgent findings visible to master.",
+      "actual": "Source counterexample at 39ffd57e1. cmd/loop uses execWorld, whose FindingsToFile reads this register. With no open step, loop.Run returns findings-waiting before improve asks whether the cycle is due. The existing dispatch_wait_test explicitly expects zero measurements and zero worker calls for one P2. Dispatch tells master to file the finding as a row. The committed plan still has open steps, so this is a demonstrated branch in the code, not an observed stop of the current campaign."
+    },
     {
       "id": "SQA-495",
       "severity": "P2",
@@ -34,6 +63,30 @@
       "input": "Two plan steps edit the same source file. Start landing the first, then write the second step's edit after the first snapshot but before the landing next captures the checkout. On MOSS, both steps edited internal/server/webui/workflow.js.",
       "expected": "Keep the first snapshot as the source of that landing. Apply the gate's own format, fix, generated-file and ceiling changes to its existing candidate. Leave later human or worker edits available for their own step and check. Extend the checkout-is-free case to change the same file before the fix stage finishes and inspect both the published and working copies.",
       "actual": "Observed in b1d6e237a and recorded in 75f41a0d2: moss-page/restored published the next step's per-tab operation handling. Master retired moss-page/own-run and checked its regression against 6357cf23e instead. At 75f41a0d2, shipSet replaces l.candidate with a fresh capture of every changed file in scope. fix and derive call it again. A lowered ceiling also calls it after invariants have passed, so a later edit can enter a tree different from the one the earlier stages checked. That last case follows from source. The existing checkout test edits the file after the checkout-free notice."
+    },
+    {
+      "id": "SQA-410",
+      "severity": "P2",
+      "files": [
+        "internal/latentimage/golden_floor_windows_model_test.go",
+        "internal/latentimage/turbo_floor_windows_model_test.go",
+        "internal/latentimage/int8_merge_windows_model_test.go",
+        "internal/latentimage/image_to_image_windows_model_test.go"
+      ],
+      "input": "Run TestMOSSAdapterSectionsMultiplyAsComfyUI/sections on the four pinned sections. Compare the BF16 projections with the merged int8 projections.",
+      "expected": "Use the baseline draw for each section and precision in holdMergedSections. Keep the eight baseline readings, the separate bit-exact merge check, and the changed-input controls that decide the standard and Turbo floors. The adapter comparison should issue zero changed-input draws.",
+      "actual": "At 39ffd57e1, holdMergedSections calls readGoldenCases twice. For every baseline, readGoldenCase resets the generator and draws a changed input. The adapter assertion reads only after.latent and before.latent. Removing the eight control draws saves 248 denoiser passes per comparison, from (100 + 8 + 8 + 8) steps in each precision. This is a source count. The new floor check avoids decoding the controls and rejects a zero-signal reference. Its five standard cases passed. Adapter wall-time savings are unmeasured."
+    },
+    {
+      "id": "SQA-460",
+      "severity": "P2",
+      "files": [
+        "internal/latentimage/workflow_time_windows_model_test.go",
+        "internal/latentimage/workflow_source_test.go"
+      ],
+      "input": "Set OVERGO_WORKFLOW_RECORD to docs/verification, an existing directory inside the repository. Start the six-section cold and warm workflow clock on an otherwise valid checkout.",
+      "expected": "Have readWorkflowSource reject a directory destination before timedQuietly takes the machine and draws. Keep support for a new file in an existing directory and the commit recheck when appending. The destination check can exercise this case without taking the card.",
+      "actual": "Source counterexample at 39ffd57e1. The clock now rejects an absolute destination up front. filepath.IsLocal accepts docs/verification. Both six-section runs finish before appendWorkflowTiming tries to open the directory for appending and fails, leaving no timing record. The earlier absolute-path refusal was observed. This directory case was traced in source."
     },
     {
       "id": "SQA-496",
@@ -91,19 +144,6 @@
       "actual": "75f41a0d2 fixed the earlier case of clicking a stored thumbnail during an upload. Its browser check passes there and failed on the previous code. Two uploads still capture the same empty input.value. When A finishes it selects A. When B finishes it sees a different value and skips its own selection. Run sends A. The existing check waits on one upload. The two-upload result follows from source; this review did not run it."
     },
     {
-      "id": "SQA-410",
-      "severity": "P2",
-      "files": [
-        "internal/latentimage/golden_floor_windows_model_test.go",
-        "internal/latentimage/turbo_floor_windows_model_test.go",
-        "internal/latentimage/int8_merge_windows_model_test.go",
-        "internal/latentimage/image_to_image_windows_model_test.go"
-      ],
-      "input": "Run the adapter sections check on the four pinned MOSS sections in BF16 and merged int8. For the floor checks, omit a standard threshold, put a wrong-width recording after a failed draw, or supply an all-zero reference with nonzero latents in both precision modes.",
-      "expected": "In card-checks-sound/floors, keep all eight adapter baselines, the bit-exact merge check and the changed-input controls used by the standard and Turbo floors. The adapter comparison needs only its baselines. Validate thresholds and reference signal before drawing, report each failed score and release its generator. Exact matches on nonzero signal remain valid. Have the check for this step count eight adapter baselines and zero adapter controls through the adapter comparison. The draw count can be checked without another model run.",
-      "actual": "At c87add70e, holdMergedSections calls readGoldenCases for four sections in each of two precision modes. Each call draws a baseline and a changed input per section. Only the baseline latent scores decide the comparison. The eight extra controls are decoded, their PNGs discarded and their scores only logged. The pinned requests imply 248 extra denoiser passes: (100 + 8 + 8 + 8) per mode. This is a source count. Wall-time savings are unmeasured. In the separate floor checks, a missing standard threshold is reported after ten draws, a later size error hides an earlier failure and skips generator cleanup, and the five standard and three Turbo control pictures are decoded and discarded. The adapter verdict also accepts two negative-infinity scores on a zero reference. At 638e0be1a the step selects only TestUltraSectionsHoldTheirGoldenFloors. Only TestMOSSAdapterSectionsMultiplyAsComfyUI/sections calls holdMergedSections. Leaving all eight adapter controls in place cannot fail the selected check on that account."
-    },
-    {
       "id": "SQA-491",
       "severity": "P2",
       "files": [
@@ -129,20 +169,6 @@
       "input": "In the implementing chat, ask for a status answer only and explicitly end the turn there. The checkout is clean, no landing is running, and the only remaining row needs the lead's decision about a standing rule. The campaign itself has no recorded pause.",
       "expected": "Let the lead answer the question and end that turn. Keep the pending decision visible for the next implementation turn. Dispatch and landing already hold the affected row until the lead answers. Remove the requirement to decide unrelated policy before returning a status answer. Ordinary implementation turns should still take the authorized decision without waiting for the owner.",
       "actual": "Source counterexample at db04fec59. stopDecision permits the clean, typed turn to end. Before using that verdict, runStop calls answerHold. A nonempty Dispatch.Answer makes the hook return exit 2 and tell the lead to answer the decision now. The unchanged-state retry can subsequently let the turn end. The eight-hour capacity-record-history wait recorded in 528f40b3f preceded this hook change. The current refusal follows from the call order and the existing owner-turn cases. No repeat of the eight-hour wait was observed."
-    },
-    {
-      "id": "SQA-483",
-      "severity": "P2",
-      "files": [
-        "internal/runrecord/verify_command.go",
-        "internal/planverify/verify.go",
-        "internal/landing/form.go",
-        "cmd/plan/main.go",
-        "cmd/plan/check_form_test.go"
-      ],
-      "input": "Give the plan the original full-measurement/run check from 5147c611f's parent. It saves the scorecard output in a shell variable and then checks each required model row and the generated README.",
-      "expected": "Remove the shared parser's rejection of an assignment that captures command output and feeds a later assertion. Recognize this form as a composite command. Use the existing shell and its exit status, preserve evidence checks for any Go tests, and grant no cached credit from a partial reading of the command. The check must still fail if a required row is missing.",
-      "actual": "Git Bash accepted the exact recorded command in syntax-only mode. ParseVerify splits at the opening parenthesis, consumes the assignment prefix and reports that the segment runs nothing. The landing refusal and commit 8e62553db record that this stopped full-measurement/run after nine hours of measurement. Commit 5147c611f rewrote the check before the step landed. The filing check now gives the same refusal earlier. The nine hours elapsed before the refusal. The record shows a verifier rewrite and a separate landing."
     },
     {
       "id": "SQA-482",
@@ -172,6 +198,33 @@
       "actual": "The retained landing refusals name moss-sharpened-pair/do,moss-sharpened-pair/page and moss-page/pictures. In each, NestedTernaries was 1 and every other review count was zero. At 30691fc67, nestedTernaries resets at every physical line. The one-line expression exceeds the zero ceiling, while the line break clears the count without changing what the browser does. The two refusals were recorded. The line-break comparison follows from source, and the time lost to these refusals was not measured."
     },
     {
+      "id": "SQA-498",
+      "severity": "P2",
+      "files": [
+        "internal/landing/rules.go",
+        "internal/landing/refusal.go",
+        "internal/landing/rules_test.go",
+        "internal/landing/refusal_rule_test.go"
+      ],
+      "input": "Add a sync.Once to protect a one-time operation. For a case where the suggested rewrite changes behavior, let the first call panic, recover at its caller, then call Do again on the same instance.",
+      "expected": "Remove the sync.Once selector from the landing veto and its refusal classifier and fixture expectation. Let the caller choose the primitive that preserves its retry and panic behavior. Keep the behavior check for the operation it protects.",
+      "actual": "The retained log records sync.Once rules refusals for waiter-bound/do, moss-first-run/quiet and idle-wait/do. At 39ffd57e1 legacyFormCounts counts the selector without inspecting the callback. In the source counterexample, a later Once.Do returns after the recovered panic. The recommended OnceFunc panics again on every call. The installed Go implementation defines both behaviors. The refusals were observed. No panic regression or lost wall time was measured."
+    },
+    {
+      "id": "SQA-499",
+      "severity": "P2",
+      "files": [
+        "internal/repoanalysis/style.go",
+        "internal/repoanalysis/style_test.go",
+        "internal/landing/rules.go",
+        "internal/capabilityruntime/runtime.go",
+        "skill.md"
+      ],
+      "input": "Give Unwrap the first comment line “Unwrap returns fs.ErrNotExist.” Add a blank line and an indented Go example whose last line is errors.Is(err, fs.ErrNotExist). The comment ends with the closing parenthesis of the call.",
+      "expected": "Remove the name-and-terminal-period test as a reason to refuse a landing. Keep documentation of the error contract and let review judge its wording. The usage example should remain valid Go as printed. A punctuation change should have no bearing on acceptance of the method.",
+      "actual": "At 39ffd57e1 validDoc checks the last character of the entire comment, although skill.md describes the first line. The documented example fails, while the same method with only its first sentence passes. Eight retained rules refusals name export-doc, including served-answers/absent for Error and Unwrap. The count establishes that the rule blocked landings. The example is source-demonstrated and the logs do not identify it as the cause of all eight."
+    },
+    {
       "id": "SQA-474",
       "severity": "P2",
       "files": [
@@ -197,19 +250,6 @@
       "actual": "Source counterexample at b1d6e237a. depthPreview captures the request on click and displays its response unconditionally. On form changes, offer only checks whether a picture is selected and its control visible. A's map therefore appears beside B, while submitting the form reads B. The browser check covers one picture through one response. No stale preview was observed in this review."
     },
     {
-      "id": "SQA-467",
-      "severity": "P2",
-      "files": [
-        "internal/latentimage/sharpened_pair_windows_test.go",
-        "internal/latentimage/generator_rotary_windows.go",
-        "internal/latentimage/pair_encode_test.go",
-        "internal/latentimage/png_text.go"
-      ],
-      "input": "Consider the compact sharpening check (seed 42, radius 1, sigma 0.6, alpha 0.7). If decodeRotary publishes the drawn PNG as the finished raster after finishedPNGs returns, while marking it sharpened, evaluate both pair checks.",
-      "expected": "In card-checks-sound/sharpened, compare the decoded pixels from the two existing draws. Require the drawn picture to match the plain one and the finished picture to differ from it. A change in PNG metadata or compression alone must fail the sharpening check.",
-      "actual": "At d0ed24b1f, the compact generator check still compares finished PNG bytes, so the Finishing=sharpened tag passes the inequality even if the caller publishes the drawn pixels twice. The pair encoder check covers finishedPNGs directly. The new PNG level check verifies quantization and compression on synthetic pixels. Neither exercises the generator's choice of which raster to publish. Source counterexample."
-    },
-    {
       "id": "SQA-471",
       "severity": "P2",
       "files": [
@@ -223,17 +263,6 @@
       "input": "Read the six-section MOSS timing for d0ed24b1f. Compare the first text-to-image decode with its four subparts, then use the warm decoder figures to decide how much time graph compilation costs.",
       "expected": "In served-parts/do, use the existing stage ledger for the enclosing interval and its exclusive parts. Their measured walls must fit inside the parent. Report CPU time and bytes read only where measured, retaining genuine zeros. Label compilation and static weight binding as a combined cost unless measured separately.",
       "actual": "Observed in the retained record: the four parts of the first decode total 426 ms inside 418 ms. All 48 decode subparts across both runs report zero CPU and file reads. The clock measures the parent with time.Now, reads child walls from processmeasure.Stages and serializes unset counters as zero. The six warm stages labeled 'decoder compiled' total 468 ms. In source, compileResidentStatic also binds every static input and can upload weights. The record cannot attribute those 468 ms to compilation alone."
-    },
-    {
-      "id": "SQA-460",
-      "severity": "P2",
-      "files": [
-        "internal/latentimage/workflow_time_windows_model_test.go",
-        "internal/latentimage/workflow_source_test.go"
-      ],
-      "input": "Run the Windows MOSS workflow clock with OVERGO_WORKFLOW_RECORD set to the absolute path of the repository timing record.",
-      "expected": "Reject the absolute destination before reserving the machine. Keep the existing commit check and append for valid relative paths.",
-      "actual": "The attempt documented in d28ab1e84 measured 46.738 s cold and 34.430 s warm before appendWorkflowTiming failed on the destination. All twelve section draws were repeated to save the record."
     },
     {
       "id": "SQA-473",
@@ -251,22 +280,6 @@
       "actual": "Source trace at 0776b4a53 with tensor shapes from the pinned checkpoint header. Of 33 decoder 3-by-3 weight tensors, 30 go through sliceLastTemporalTap with temporal extent 1. It allocates and copies 96,999,552 bytes of identical F32 data during load. The three upsamplers already use their input slices directly. After the first successful bind, VAEProgram.feeds still holds all 33 payloads (108,943,488 bytes before biases or other weights). Later decodes use state.decoding and never read those feeds. These are separate construction and retention counts, with no measured wall-time or process-memory delta."
     },
     {
-      "id": "SQA-477",
-      "severity": "P2",
-      "files": [
-        "internal/latentimage/comfy_section_windows_model_test.go",
-        "internal/latentimage/golden_floor_windows_model_test.go",
-        "internal/latentimage/step_time_windows_model_test.go",
-        "cmd/comfy-reference/progress.go",
-        "cmd/comfy-reference/recordings_modeltest_test.go",
-        "fixtures/comfy/moss-ultra/recordings/pass-1/depth-control-turbo.json",
-        "fixtures/comfy/moss-ultra/recordings/own-size/text-to-image.json"
-      ],
-      "input": "Read node 598 of the 50-step own-size recording with one interior progress event omitted and both endpoints intact. The recorder accepts gaps in the reported step numbers. Separately, consider the same request with just one progress event and otherwise valid inputs.",
-      "expected": "In the existing MOSS recording reader, compute elapsed time per completed step from the first and last timestamps and their step numbers. Have both timing checks use that reading before loading the generator. Reject an unusable span at that point. The retained endpoints suffice to check the arithmetic without a GPU run.",
-      "actual": "At 638e0be1a, ownSizeReading and TestWhereAMossStepsTimeGoes divide elapsed time by the number of event intervals. Dropping one interior event from the own-size recording changes their result from 1.113 to 1.136 s/step for identical work and elapsed time. The intact own-size recording has all 50 events. A separate real Turbo capture shows why gaps matter: node 48 records five events from step 1 to 8 in 519006 microseconds. The two formulas give 129.75 and 74.14 ms/step respectively. Neither timing check ran on that Turbo capture. With one event, the own-size reader checks the count after three draws and the step profiler after five. These outcomes follow from source."
-    },
-    {
       "id": "SQA-388",
       "severity": "P2",
       "files": [
@@ -274,9 +287,9 @@
         "cmd/comfy-reference/record_test.go",
         "cmd/comfy-reference/recordings_modeltest_test.go"
       ],
-      "input": "Resume a ComfyUI recording after its installation or model changes, keep two outputs with the same node and basename in different subfolders, or give the paired check one real capture twice.",
-      "expected": "Bind a resumed result to its original producer, identify retry-only memory samples, retain both output files and require two distinct prompt executions for a pair.",
-      "actual": "The recorder resumes on request hash and prompt ID, labels with the current producer and starts memory sampling at retry. Its node/basename key overwrites the first output. The paired check accepts one capture twice because it never compares prompt IDs. Source counterexamples."
+      "input": "Record two different PNGs returned by node 449 with the same basename original.png in subfolders MOSS/a and MOSS-a of the same recording.",
+      "expected": "Keep each output under a distinct name and leave both recorded hashes verifiable. The recorder already computes the content hash and its existing two-output case can check both names and bytes.",
+      "actual": "Source counterexample at 39ffd57e1. keep replaces a slash with a hyphen. Both files are written as 449-MOSS-a-original.png. The second write replaces the first file. The recording can finish with two different hashes for that path, and its reader then rejects the earlier entry. Producer validation on resume, separate resumed memory reporting and distinct prompt IDs for paired runs are now in place."
     },
     {
       "id": "SQA-415",
@@ -388,8 +401,27 @@
   ],
   "master_lead_triage": {
     "at": "2026-11-24",
-    "head": "b0dc71f35c7054485110301dbcae42a3a66da6fc",
+    "head": "a30831fd6266a46ff01259d896b2b4bc8816585b",
     "findings": {
+      "SQA-499": {
+        "action": "filed",
+        "rows": [
+          "style-vetoes/doc-period"
+        ],
+        "note": "Answered by the lead on 2026-11-24 at a30831fd6: valid from source and observed (validDoc requires the whole comment to end with a period where skill.md describes its first line, so a comment closing with an indented example is refused; eight rules refusals name export-doc). Filed as style-vetoes/doc-period, beside ternary-veto: the comment is held to begin with its name."
+      },
+      "SQA-498": {
+        "action": "filed",
+        "rows": [
+          "style-vetoes/once"
+        ],
+        "note": "Answered by the lead on 2026-11-24 at a30831fd6: valid from source and observed (the rules stage refuses every sync.Once for OnceFunc or OnceValue, which panic again on every call after a recovered panic where a later Once.Do returns; it refused waiter-bound/do, moss-first-run/quiet and idle-wait/do). Filed as style-vetoes/once, beside ternary-veto: the count leaves the rules stage."
+      },
+      "SQA-497": {
+        "action": "declined",
+        "rows": [],
+        "note": "Answered by the lead on 2026-11-24 at a30831fd6: valid from source (with no open step and an unanswered P2, loop.Run returns findings-waiting before improve asks whether a measurement is due); not observed. Declined: the wait holds a standing rule the owner set, that every open P1 and P2 is answered before the measurement run (2026-11-13, 2026-11-22), and the lead answers every one at each landing, so the branch is not met while the lead works. Removing the rule is the owner's decision, which the lead puts to the owner."
+      },
       "SQA-496": {
         "action": "filed",
         "rows": [
@@ -435,23 +467,10 @@
       "SQA-489": {
         "action": "filed",
         "rows": [
-          "moss-pictures/last-of-two"
+          "moss-pictures/last-of-two",
+          "moss-page/last-picture"
         ],
-        "note": "Answered by the lead on 2026-11-24 at b0dc71f35: valid from source (two uploads begun on an empty slot both read it empty, so the first to finish is chosen and the last dropped is skipped). Filed as moss-pictures/last-of-two, before the campaign closes."
-      },
-      "SQA-467": {
-        "action": "implemented",
-        "rows": [
-          "card-checks-sound/sharpened"
-        ],
-        "note": "Answered by the lead on 2026-11-22 at 47b3587c9: valid from source, a check that passes without checking. Implemented 2026-11-24 by card-checks-sound/sharpened (b0dc71f35): the sharpened picture is held apart from the drawn one by decoded pixels, and the test passes on the card, for the review's recheck."
-      },
-      "SQA-477": {
-        "action": "implemented",
-        "rows": [
-          "reference-tools/clock"
-        ],
-        "note": "Answered by the lead on 2026-11-23 at b096b650c: valid from source (the readers divide elapsed time by event intervals, not by the steps between the first and last event); the intact own-size recording has all 50 events, so no reading so far is wrong. Filed with reference-tools/clock, noted there. Implemented 2026-11-24 by reference-tools/clock, the landing that carries this answer: comfyStepTime reads a step over the first and last stamps' step numbers and refuses a span of fewer than two, and both timing checks read it before the generator loads, for the review's recheck."
+        "note": "Answered by the lead on 2026-11-24 at db04fec59: valid from source (an upload's end chooses its picture over one chosen meanwhile), in code moss-page/pictures wrote. Filed as a step of moss-page.\n\nAnswered by the lead on 2026-11-24 at b0dc71f35: valid from source (two uploads begun on an empty slot both read it empty, so the first to finish is chosen and the last dropped is skipped). Filed as moss-pictures/last-of-two, before the campaign closes."
       },
       "SQA-474": {
         "action": "filed",
@@ -483,18 +502,18 @@
         "note": "Answered by the lead on 2026-11-22 at 47b3587c9: valid from source; the served path's two profile reads a request (pictureFiles, preparedFirst) filed as served-answers/profile, the generator's model_index.json reads on a changed seed with served-parts, whose ledger reads their time: moved 2026-11-24 to served-parts/clock, the timing on that ledger."
       },
       "SQA-410": {
-        "action": "implemented",
+        "action": "declined",
         "rows": [
           "card-checks-sound/floors"
         ],
-        "note": "Reopened by the review after moss-real-prompt/do (89cf0f0e3) and answered by the lead on 2026-11-22 at 47b3587c9: valid from source; filed as card-checks-sound/floors. Implemented 2026-11-24 by card-checks-sound/floors, the landing that carries this answer: floors are read before any draw, each case is held as it is read and its generator closed as its reading returns, a control decodes no picture, and a reference of no signal is refused; the floors test passes on the card, for the review's recheck."
+        "note": "Implemented 2026-11-24 by card-checks-sound/floors (39ffd57e1). Reopened by the review at 39ffd57e1 for holdMergedSections' changed-input draws, and answered by the lead on 2026-11-24 at a30831fd6: valid from source (the adapter comparison reads only each baseline's latent, so its eight control draws, 248 denoiser passes a comparison, read nothing). Declined under the owner's rule for a second round on a cure (2026-11-23): its cost is a test's card time, unmeasured, which no user meets. A reading of the merged-sections test's wall, as the lanes log each test, makes it a step."
       },
       "SQA-460": {
-        "action": "implemented",
+        "action": "declined",
         "rows": [
           "reference-tools/clock"
         ],
-        "note": "Answered by the lead on 2026-11-22 at 47b3587c9: valid from source (an absolute record path is accepted at the start and fails only at the append, after both runs); filed as reference-tools/clock. Implemented 2026-11-24 by reference-tools/clock, the landing that carries this answer: readWorkflowSource refuses a record path that is not relative to the repository and inside it, as the timing starts, for the review's recheck."
+        "note": "Implemented 2026-11-24 by reference-tools/clock (284509ade). Reopened by the review at 39ffd57e1 for a record path that names a directory inside the repository, and answered by the lead on 2026-11-24 at a30831fd6: valid from source (filepath.IsLocal admits docs/verification, and the append fails after both runs). Declined under the owner's rule for a second round on a cure (2026-11-23): the clock is the lead's tool, run with the record file its clock step's check names, and no such run has lost time; one that does makes it a step."
       },
       "SQA-388": {
         "action": "implemented",
@@ -545,13 +564,6 @@
         ],
         "note": "Answered by the lead on 2026-11-24 at 5f5d4db92: valid from source (ParseVerify refuses the segment s=$ that the shell runs as an assignment of a command's output). Filed as check-form-reads/do after moss-page: in a composite command, which the shell runs whole and no caller credits from cache, a segment of assignments alone is kept; in a plain && chain it is still refused, as there it exports nothing to the commands after it."
       },
-      "SQA-489": {
-        "action": "filed",
-        "rows": [
-          "moss-page/last-picture"
-        ],
-        "note": "Answered by the lead on 2026-11-24 at db04fec59: valid from source (an upload's end chooses its picture over one chosen meanwhile), in code moss-page/pictures wrote. Filed as a step of moss-page."
-      },
       "SQA-490": {
         "action": "filed",
         "rows": [
@@ -575,7 +587,7 @@
       }
     }
   },
-  "next_finding_number": 497,
+  "next_finding_number": 500,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

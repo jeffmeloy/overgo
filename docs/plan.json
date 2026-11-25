@@ -23,19 +23,6 @@
       "title": "A picture chosen on the MOSS page is the one read, sent and previewed",
       "steps": [
         {
-          "id": "output-input",
-          "title": "A MOSS picture used as an input from a run's outputs is read by its output's identity",
-          "verify": "go test ./internal/latentimage -count=1 -run '^TestAStoredOutputPictureIsReadAsAPicture$'",
-          "files": [
-            "internal/latentimage",
-            "internal/server"
-          ],
-          "rationale": "SQA-492 (P2), checked against Request.ReadPictures (internal/latentimage/source_latent_windows.go) at b0dc71f35: valid from source. A MOSS run stores its pictures as outputs (KindOutput). The media card's use as input sets the slot to the output's identity. ReadPictures refuses every identity that is not KindFile (not a stored file) before it reads one, where the same bytes uploaded pass. No failed draw was observed. The change: ReadPictures reads a stored output picture by its identity as it reads a stored file; a missing or unreadable one is still refused. Check: TestAStoredOutputPictureIsReadAsAPicture stores one PNG as an output and as a file and reads each through ReadPictures to the same bytes. It does not exist at the base, so the check fails there.",
-          "depends_on": [
-            "full-measurement/run"
-          ]
-        },
-        {
           "id": "last-of-two",
           "title": "Of two pictures dropped into one MOSS slot while both upload, the one dropped last is sent",
           "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserMOSSLastPictureChosenIsSent$' -leg moss-last-of-two",
@@ -230,6 +217,36 @@
             "internal/webuilane"
           ],
           "rationale": "SQA-488, checked against the code at 30691fc67: valid. The review ratchet (internal/webuilane review_test.go) counts a nested ternary only within one physical line, so a line break after the outer question mark passes the same expression; it refused three landings (moss-sharpened-pair/do, moss-sharpened-pair/page, moss-page/pictures) whose other counts were zero, each cured by reflowing or naming the inner choice. A count a line break defeats is no rule. The change: removing the nested-ternary counter, its ceiling and its fixture expectation; readability stays with review, and the ratchet's other counts stand. Check: TestTheReviewRatchetCountsNoNestedTernary reviews a fixture holding a one-line nested ternary and finds the ratchet's report holds no such count. It does not exist at the base, so the check fails there."
+        }
+      ]
+    },
+    {
+      "id": "style-vetoes",
+      "title": "The landing vetoes no form a reviewer can judge whose rewrite changes behaviour or whose wording is right",
+      "steps": [
+        {
+          "id": "once",
+          "title": "The rules stage counts no sync.Once",
+          "verify": "go test ./internal/landing -count=1 -run '^TestTheRulesStageCountsNoSyncOnce$'",
+          "files": [
+            "internal/landing"
+          ],
+          "rationale": "SQA-498 (P2), checked against internal/landing/rules.go at 39ffd57e1: valid from source and observed. The rules stage counts every sync.Once a file gains and refuses it for sync.OnceFunc or sync.OnceValue, which differ in behaviour: after a panic recovered by its caller, a later Once.Do returns, where the function OnceFunc returns panics again on every call. The veto refused waiter-bound/do, moss-first-run/quiet and idle-wait/do. A rewrite the rule demands can change what the code does, so it is no rule. The change: the sync.Once count leaves the rules stage, its refusal classifier and its fixture expectation; the sort.Slice count and the rest stand. Check: TestTheRulesStageCountsNoSyncOnce runs the rules over a change that gains a sync.Once and finds no count of it. It does not exist at the base, so the check fails there.",
+          "depends_on": [
+            "full-measurement/run"
+          ]
+        },
+        {
+          "id": "doc-period",
+          "title": "An exported name's comment is held to begin with its name, not to end with a period",
+          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestAnExportedCommentMayEndWithItsExample$'",
+          "files": [
+            "internal/repoanalysis"
+          ],
+          "rationale": "SQA-499 (P2), checked against validDoc (internal/repoanalysis/style.go) at 39ffd57e1: valid from source and observed. validDoc requires the whole comment to end with a period, where skill.md describes the first line, so a comment whose first sentence ends with a period and that closes with an indented Go example is refused, and the same method with its first sentence alone passes. Eight rules refusals name export-doc, served-answers/absent's Error and Unwrap among them. The change: an exported name's comment is held to begin with its name, as go doc reads it, and its last character is not judged. Check: TestAnExportedCommentMayEndWithItsExample holds a method whose comment's first sentence ends with a period and whose last line is an indented example call, and finds it valid; a comment that does not begin with its name stays refused. It does not exist at the base, so the check fails there.",
+          "depends_on": [
+            "full-measurement/run"
+          ]
         }
       ]
     },

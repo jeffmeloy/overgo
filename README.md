@@ -220,20 +220,19 @@ from the context already read, in about 1.3 s.
 Each sample is named by the SHA-256 of its bytes, so it is checkable against
 the run that produced it. A timing request is an output of the attempts the
 scorecard reads, exported from the store into [assets](assets) by
-`go run ./cmd/validate -export-samples -media-scope measured -repo <store>`; the
-time and memory beside it are the scorecard's: the time is the median of the
-newest attempts at a whole request and the memory the newest's peak on the
-card, so neither need be that output's own. A sample drawn at its developer's
-recommended settings says so, with its whole request, and was drawn by
-`go run ./cmd/recipe run -fresh` on the date and commit it names.
+`go run ./cmd/validate -export-samples -media-scope measured -repo <store>`; its
+time and memory are in the tables above, written from the scorecard. A sample
+drawn at its developer's recommended settings says so, with its whole request,
+and was drawn by `go run ./cmd/recipe run -fresh` on the date and commit it
+names, in the time it gives.
 
 **Krea-2-Turbo, text → image.** "a red fox licking a vanilla ice cream cone in
-snow", 512 × 512, 4 steps, seed 2026: 13.9 s, 25.1 GiB.
+snow", 512 × 512, 4 steps, seed 2026.
 
 ![Krea-2-Turbo: a red fox licking a vanilla ice cream cone in snow](assets/4f08c0fe12295fba0593c4932420b9d49defe20ce73a00b3b59c223f4f1840c3.png)
 
 **MOSS-Image-SFT, text → image.** "A small red sailboat on a quiet lake at
-sunrise.", 1024 × 1024, 50 steps, guidance 3, seed 42: 95 s, 13.0 GiB.
+sunrise.", 1024 × 1024, 50 steps, guidance 3, seed 42.
 
 ![MOSS-Image-SFT: a small red sailboat on a quiet lake at sunrise](assets/cfab6e10e0551187ce87aec12beab4f438ad063b2b202def0d6e8bf5856903d8.png)
 
@@ -246,10 +245,9 @@ grid. Below, three key facts in rounded boxes: "Panels last 25+ years", "Zero
 emissions while running", "Excess power goes back to the grid". Clean layout,
 blue and orange palette, white background.', 2048 × 2048, 50 steps, guidance
 4.0, timestep shift 3.0, seed 2026, drawn on 2026-11-24 at 7c6bef92f through
-`go run ./cmd/recipe run -fresh` in 2 min 34 s. The timing request the
-scorecard measures is "a minimal infographic of three rising bars labeled
-A B C" at 512 × 512 in 4 steps, guidance 4.5, seed 2026: 11.5 s in the full
-measurement of 2026-11-24
+`go run ./cmd/recipe run -fresh` in 2 min 34 s. The scorecard's timing
+request is "a minimal infographic of three rising bars labeled A B C" at
+512 × 512 in 4 steps, guidance 4.5, seed 2026
 ([picture](assets/2ff397c2af4142c28e0de7b09e510422e2bcd6a09731f3659d76055bb8d3e9fd.png)).
 A 1536 × 2720 infographic in 50 steps from the frozen visual-review case:
 [image](assets/5f3a56dff6b7a4a9e96d3d129082fdc349717357ff48d54454ff9535fb0cce68.png).
@@ -266,8 +264,8 @@ in 37 s. Each agrees with the author's sampler from the same noise at 49 to
 was trained on batches of 16 to 128, so a picture drawn alone comes out pale
 and noisy. The author's saved sheets look darker because its script writes the
 model's -1 to 1 range straight to a picture that clips below 0; this sheet maps
-the range as the model was trained. The timing request the scorecard measures
-is one picture drawn alone in 8 steps at seed 2026: 0.92 s, 0.6 GiB
+the range as the model was trained. The scorecard's timing request is one
+picture drawn alone in 8 steps at seed 2026
 ([picture](assets/cd3f5feb951d9413f07060683035b12baaa909f67dead4b698c0fac24a629220.png)).
 
 ![SimpleDiffusion at its author's settings: sixteen 256 by 256 pixel-art characters in 50 steps](assets/e4efeb2e0744419f7e2102d60f62eeb6a107be5b2e14445e78dd9d19e584c6a1.png)
@@ -278,11 +276,7 @@ splashing through shallow waves, sea spray glittering in the warm light, the
 camera tracking alongside it.", 81 frames at 832 × 480, 50 steps, guidance 6,
 shift 8, seed 2026, drawn on 2026-11-24 at 7c6bef92f through
 `go run ./cmd/recipe run -fresh` in 6 min 11 s. It is not yet compared with a
-ComfyUI recording of the same request. The timing request the scorecard
-measures is a small one: "a red fox licking a vanilla ice cream cone on a snowy
-pine forest trail", 21 frames at 32 × 16, 2 steps: 6.4 s in the full
-measurement of 2026-11-24
-([clip](assets/e6e246d2f322356bf07a83e137a2c4341a97eed8dd45b3f188736ba92e248865.gif)).
+ComfyUI recording of the same request.
 
 ![Wan2.1-T2V at the model card's settings: a golden retriever runs through the shallow waves of a beach at sunset, 81 frames at 832 by 480](assets/736dfd8a379b5bf70111bad8ab7ed45dc03ddb0ced6aa92cfaa2adb40da1e536.gif)
 
@@ -290,8 +284,8 @@ measurement of 2026-11-24
 developers' settings, with Wan's own model-card example prompt, "Two
 anthropomorphic cats in comfy boxing gear and bright gloves fight intensely on
 a spotlighted stage.", and seed 2026: 81 frames at 832 × 480, 4 steps, chunk-causal flow, guidance 1,
-shift 5, seed 2026, drawn on 2026-11-13 at eb197def6 in 36 s. The timing
-request the scorecard measures has the same settings: 30.0 s, 29.1 GiB.
+shift 5, seed 2026, drawn on 2026-11-13 at eb197def6 in 36 s. The scorecard's
+timing request has the same settings.
 
 ![Self-Forcing at its developers' settings: two cats in boxing gear fight on a spotlighted stage, 81 frames at 832 by 480 in 4 steps](assets/ac25d26eaddd2097b828047aafe04ffebd87231fb87532faf36734d9ee2ef519.gif)
 
@@ -303,8 +297,7 @@ is on the left and the edit on the right. The editor makes the change and more:
 the collar turns red and a red coat comes with it, as the model's own code does
 when told to recolour one thing (TestServedEditMatchesTheModelsOwnEdit). Told
 instead to make it snow, to make it night or to turn it into a cartoon, it gave
-the clip back nearly as it was. The timing request the scorecard measures is
-smaller: 32 × 16, 21 frames.
+the clip back nearly as it was.
 
 ![LiveEdit at its own size: on the left a golden retriever runs through the surf at sunset; on the right the same clip after "Change the dark blue collar to a red collar.", the dog in a red collar and a red coat](assets/5d486644e2fe4e5c2a53a1337e6c5579ed63ba0422a24652d0ab36163168f1ec.gif)
 
@@ -313,7 +306,7 @@ fox learned to sing.", voice alba: 5.4 s of 24 kHz audio in 2.6 s on the host
 ([WAV](assets/e845e24c17cae1270136a1aac2feb680c79e81c842a243ef2e69def47db8bc4a.wav)).
 
 **granite-speech 470M and nemotron, speech → text.** The same held-out
-LibriSpeech clip. granite, 2.8 s and 1.1 GiB: "my 1st and principal reason was
+LibriSpeech clip. granite, 2.8 s: "my 1st and principal reason was
 that they enforced beyond all resistance on any student who might attempt to
 copy them this method of laying portions of distinct hue side by side".
 nemotron, 4.3 s on the host: "My first and principal reason was that they
@@ -323,15 +316,13 @@ this method of laying portions of distinct hue side by side."
 **Hy-Embodied-RxBrain-1.0, image + question → answer.** On the model's own
 demonstration picture, "What objects are on the stovetop, and where is the
 green toy?" → "The stovetop holds a metal pot on the left burner", the
-request's 12-token budget, in 9.8 s and 3.5 GiB.
+request's 12-token budget, in 9.8 s.
 
 **Un-0, class → picture or clip.** A 120 kB toy model of 8 × 8 pictures:
 its three classes (a row each) by seeds 1 to 8 (a column each), each picture
 drawn through `go run ./cmd/recipe run -fresh` on 2026-11-24 at 7c6bef92f and
 scaled 16 times by whole pixels into one card, so each of its pixels stays
-square. A picture takes 36.6 ms and a 12-frame 16 × 16
-[clip](assets/db326dae32fc3850abcf31985b0516513f3a59ca27276de82eccbb66806da36d.gif)
-65.3 ms on the host, in the full measurement of 2026-11-24.
+square.
 
 ![Un-0: its three classes by seeds 1 to 8, each 8 × 8 picture scaled 16 times](assets/1a7f4dd35638d70cb0545fdad266d557c4de21e19c6fc995a70ab3a6a4949686.png)
 

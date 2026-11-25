@@ -7,19 +7,6 @@
       "title": "The README's media times are the scorecard's tables alone, the size a person asks for first, and it shows no output a person cannot see",
       "steps": [
         {
-          "id": "prose",
-          "title": "The README's sample paragraphs state no time or memory the generated tables print, and link no output too small to see",
-          "verify": "! grep -q 'The timing request the scorecard measures' README.md \u0026\u0026 test ! -e assets/e6e246d2f322356bf07a83e137a2c4341a97eed8dd45b3f188736ba92e248865.gif",
-          "files": [
-            "README.md",
-            "assets"
-          ],
-          "rationale": "The owner's review of 2026-11-25, point 1, checked by the lead at 7e417691c: valid, and wider than the two paragraphs it names. README.md:281-285 (Wan) and 306-307 (LiveEdit) end with a hand-written sentence about the scorecard's 32 x 16 timing request; the Wan one links a clip 32 x 16 pixels in size (assets/e6e246d2..., read from its GIF header, which only the README names) and repeats the 6.4 s the speed table prints at README.md:208, which the closing run measured at 7.1 s. Every sample paragraph of the section does the same: Krea's 13.9 s and 25.1 GiB beside the tables' 12.9 s and 25.2 GiB, MOSS's 95 s and 13.0 GiB beside 65.3 s, SimpleDiffusion's 0.92 s beside 0.8 s, SenseNova's 11.5 s and Self-Forcing's 30.0 s and 29.1 GiB, each a copy of what validate -readme writes into the speed and served-model tables, two of them stale already. I added LiveEdit's on 2026-11-25 (readme-liveedit/do).\n\nThe change: each sample paragraph keeps what it alone says, its request and, for a sample drawn by hand at its developer's settings, the date, commit and time of that drawing, and drops the timing request's time and memory; the section's opening says the times and memory are the tables'; the 32 x 16 clip's link and its asset go (git rm).\n\nCheck: the README no longer holds the timing-request sentence, and the 32 x 16 clip is gone.",
-          "depends_on": [
-            "readme-timings/table"
-          ]
-        },
-        {
           "id": "peak",
           "title": "The served-model table's peak device memory is the most a measured serving attempt took, a request at a person's size among them",
           "verify": "go test ./internal/scorecard -count=1 -run '^TestTheServedTablesPeakIsTheMostAMeasuredAttemptTook$'",
@@ -46,6 +33,25 @@
           "rationale": "SQA-506 (P2), checked by the lead against cmd/train/route_moss_windows.go at 7e417691c: valid from source, a check that passes without checking. refuseTrainedHeldOut hashes the encoded file bytes, so the fixture's held-out picture, the trained PNG with one zero byte appended, is a different file and the same model input, and TestMOSSRoute's held-out reading passes on it (the lanes log records the invocation passing in 4.7 s). The published 32-picture measurement used pictures from other videos, so no served number rests on it.\n\nThe change: the refusal compares what the existing image processor gives for each picture (decoded dimensions and RGB values) before either is prepared on the card; the route's passing case uses a genuinely different picture, and the padded copy becomes a refusal case.\n\nCheck: TestMOSSRouteRefusesAHeldOutCopyOfATrainedPicture, the padded copy refused before any preparation; it calls the route's refusal, which the base holds, so it builds there and fails on its assertion.",
           "depends_on": [
             "moss-close/run"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "moss-encoder-plan",
+      "title": "MOSS's text encoder plans its model once a load, not once a block and prompt",
+      "steps": [
+        {
+          "id": "do",
+          "title": "The loaded encoder keeps the model-wide layer and cache plan, and each prompt's block graph is built from it",
+          "verify": "go test ./internal/latentimage -count=1 -run '^TestAPromptEncodePlansTheModelOnceALoad$'",
+          "files": [
+            "internal/latentimage",
+            "internal/model"
+          ],
+          "rationale": "SQA-511 (P2), checked by the lead against internal/latentimage at c34da2721: valid from source. encodeEach calls encodeBlock for each of the encoder's 32 blocks and for each prompt; each call compiles the block's graph through compileModelEncoder, which runs model.CompileModelPlanWithProfile over all 32 layers and their cache schemas from the same catalog and profile, so a guided request with two uncached prompts plans the model 64 times (2,048 layer plans) where one plan serves. The closing work measured the whole cold prompt encode at 4.771 s (cb82910a6) and the first request's gap to ComfyUI at 4.969 s; the planning's share is not isolated, so the step first times it.\n\nThe change: the loaded encoder plans its model once and keeps the plan; each prompt's token-length-specific block graph is built from it, with one block resident on the card at a time and the hidden states held to ComfyUI's recording as before. Then the cold encode is timed against the recording.\n\nCheck: TestAPromptEncodePlansTheModelOnceALoad, a count of the model plans an encode of two prompts makes: one; if the count needs a hook the base lacks, the hook lands first in its own step so the check builds at the base and fails on its count.",
+          "depends_on": [
+            "readme-timings/prose"
           ]
         }
       ]

@@ -1,9 +1,8 @@
 {
   "advisory_notice": "All SQA findings, rankings and assessments are recommendations. Master decides whether, when and how to act through docs/plan.json.",
   "priority_assessment": [
-    "I would let moss-close/run finish and use its own publication (SQA-474). The lanes at dcf609ad6 passed in 9 h 14 min 23 s. If publication alone fails, I would bring close-launcher/do forward to publish that completed run without repeating its lanes (SQA-502). For the closing README, I would use the full-size peak already in the record (SQA-510). That correction needs no card time.",
-    "I would fix SQA-506 before relying on the MOSS training route’s held-out check again. Its compact fixture already passes with a training picture in the held-out set. The published 32-picture result used pictures from other videos, so this finding gives me no reason to restart the current inference measurement.",
-    "For the next training proof, I would address SQA-507 in the shared session used by MOSS pictures and codec frames. Changing the media while keeping the manifest identical currently produces the same recorded dataset. I would keep SQA advice from holding a due measurement (SQA-504) and leave flashnext-memory/cause for a quiet machine. I would fix the MCP failure receipt (SQA-508) before HTTP interoperability (SQA-509). Neither affects the current MOSS measurement."
+    "MOSS close published its scorecard for dcf609ad6. I would keep readme-timings and the planned held-out and recovery fixes ahead of new speed work. Before the next MOSS training proof I would use different held-out pixels (SQA-506) and bind dataset identity to the actual media (SQA-507).",
+    "For MOSS Ultra text-to-image the last recorded gap is 4.969 s on the first request and 0.323 s on the second. On the next ordinary timing I would compare request to first completed sampler step, then first to last, using the existing step observer and both ComfyUI recordings. Match or disclose the model files' cache conditions. SQA-511 removes a countable repetition inside prompt encoding; the seconds attributable to it are still unknown."
   ],
   "branch": "master",
   "findings": [
@@ -169,6 +168,20 @@
       "actual": "decodeMCPResponse returns result unchanged when the envelope has no error. With normal persistence, closeMutationReceipt writes StageCompleted for the failed mutation. A failed inspection also sets session.Inspection. RestoreSession reconstructs that credit from the recorded manual and arguments. The writer test checks the flag, while the HTTP client fixture returns only a success. These are source counterexamples."
     },
     {
+      "id": "SQA-511",
+      "severity": "P2",
+      "files": [
+        "internal/latentimage/model_encoder_windows.go",
+        "internal/latentimage/model_encoder.go",
+        "internal/model/layer_plan.go",
+        "internal/latentimage/generator_rotary_windows.go",
+        "docs/verification/moss-workflow-time.jsonl"
+      ],
+      "input": "Start a fresh MOSS Ultra session with its 32-block text encoder. Ask for the recorded guided text-to-image section with distinct positive and negative conditioning, both missing from the prompt cache.",
+      "expected": "Build the model-wide layer and cache plan once for the loaded encoder. Use it to construct each prompt's token-length-specific block graph. Preserve one-block device residency and the existing ComfyUI hidden-state comparison.",
+      "actual": "On committed master, encodeEach calls encodeBlock for each of 32 blocks and both prompts. Each call to compileModelEncoder runs CompileModelPlanWithProfile over all 32 layers and their cache schemas, using only the same catalog and profile. That gives 64 identical model plans (2,048 base layer plans) for this request; one suffices. This count follows from source. The cb82910a6 run measured 4.771 s for the entire cold prompt encode and 0 ms rounded on a cache hit. The record does not isolate planning time."
+    },
+    {
       "id": "SQA-505",
       "severity": "P2",
       "files": [
@@ -285,8 +298,15 @@
   ],
   "master_lead_triage": {
     "at": "2026-11-25",
-    "head": "7e417691cf0eb9102cafbd1cca0a0472bb310c1f",
+    "head": "c34da2721326db6cb3307456f91430cf2c2d1cdc",
     "findings": {
+      "SQA-511": {
+        "action": "filed",
+        "rows": [
+          "moss-encoder-plan/do"
+        ],
+        "note": "Answered by the lead on 2026-11-25 at c34da2721: valid from source (encodeEach compiles each block's graph through compileModelEncoder, which plans all 32 layers each time, so two uncached prompts plan the model 64 times); the planning's share of the 4.771 s cold encode is not isolated, so the step times it first. Within the campaign's aim, the first request's gap to ComfyUI: filed as moss-encoder-plan/do after moss-heldout."
+      },
       "SQA-510": {
         "action": "filed",
         "rows": [
@@ -409,7 +429,7 @@
       }
     }
   },
-  "next_finding_number": 511,
+  "next_finding_number": 512,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

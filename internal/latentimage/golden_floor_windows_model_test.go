@@ -13,6 +13,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -159,6 +160,19 @@ var goldenCases = []goldenCase{
 // from noise and the picture or map mirrored for one drawn from them, keeps its final latent below, so each floor
 // holds the input's part.
 func TestUltraSectionsHoldTheirGoldenFloors(t *testing.T) {
+	// What needs no draw is held first, on any machine (SQA-410): a reference of no signal is no reading, and a case
+	// that declares no floor is refused before any case is drawn.
+	t.Run("refusals", func(t *testing.T) {
+		if _, err := decibels([]float32{0.5, -0.25}, []float32{0, 0}); err == nil {
+			t.Error("a reference of no signal was read as an agreement")
+		}
+		if agreement, err := decibels([]float32{0.5, -0.25}, []float32{0.5, -0.25}); err != nil || !math.IsInf(agreement, 1) {
+			t.Errorf("agreement with a reference that has signal read %v (%v); want +Inf where nothing differs", agreement, err)
+		}
+		if missing := undeclaredFloors(append(slices.Clone(goldenCases), goldenCase{name: "a case with no floor"}), goldenFloors); !slices.Equal(missing, []string{"a case with no floor"}) {
+			t.Errorf("the cases with no floor read %v; want the one added", missing)
+		}
+	})
 	cudatest.Require(t)
 	root := ultraModelRoot(t)
 	profile := testcheck.Must(ResolveProfile(root))(t)
@@ -166,18 +180,28 @@ func TestUltraSectionsHoldTheirGoldenFloors(t *testing.T) {
 	t.Run("own size", func(t *testing.T) { ownSizeReading(t, root, profile) })
 }
 
+// undeclaredFloors names each case that declares no floor.
+func undeclaredFloors(cases []goldenCase, floors map[string]goldenFloor) []string {
+	var missing []string
+	for _, golden := range cases {
+		if _, declared := floors[golden.name]; !declared {
+			missing = append(missing, golden.name)
+		}
+	}
+	return missing
+}
+
 // holdGoldenFloors draws each case as its recording asks it, and with its input changed, on the root, and holds its
-// final latent and finished picture to its floors, its changed draw's latent below.
+// final latent and finished picture to its floors, its changed draw's latent below. Every case's floor is read before
+// any case is drawn, and each case is held as soon as it is read (SQA-410: a missing floor had cost five draws, and a
+// later case's failure had hidden an earlier case's reading).
 func holdGoldenFloors(t *testing.T, root string, profile Profile, cases []goldenCase, floors map[string]goldenFloor) {
 	t.Helper()
-	readings := readGoldenCases(t, root, profile, cases)
+	if missing := undeclaredFloors(cases, floors); len(missing) > 0 {
+		t.Fatalf("%v declare no floor", missing)
+	}
 	for _, golden := range cases {
-		reading := readings[golden.name]
-		floor, declared := floors[golden.name]
-		if !declared {
-			t.Errorf("%s declares no floor", golden.name)
-			continue
-		}
+		reading, floor := readGoldenCase(t, root, profile, golden), floors[golden.name]
 		if !(reading.latent >= floor.latent) || !(reading.picture >= floor.picture) {
 			t.Errorf("%s keeps %.2f dB in its latent and %.2f dB in its picture; want at least its floors, %.2f and %.2f dB",
 				golden.name, reading.latent, reading.picture, floor.latent, floor.picture)
@@ -193,37 +217,46 @@ func holdGoldenFloors(t *testing.T, root string, profile Profile, cases []golden
 // final latent's with its input changed.
 type goldenReading struct{ latent, picture, control float64 }
 
-// readGoldenCases draws each case as its recording asks it, and with its input changed, on the root, and reads its
-// agreement with its recording.
+// readGoldenCases reads each case in turn (readGoldenCase).
 func readGoldenCases(t *testing.T, root string, profile Profile, cases []goldenCase) map[string]goldenReading {
 	t.Helper()
-	ctx := t.Context()
 	readings := map[string]goldenReading{}
 	for _, golden := range cases {
-		recording := readComfySection(t, golden.run, golden.slug)
-		request := golden.request(t, recording)
-		wantLatent, wantPicture := recording.latent(t, golden.sampler), recording.picture(t, golden.finished)
-		generator := testcheck.Must(LoadGenerator(ctx, root, profile, request))(t)
-		drawn := func(request Request) ([]float32, []byte) {
-			t.Helper()
-			session := testcheck.Must(generator.prepare(ctx, request))(t)
-			testcheck.Must(generator.integrate(ctx, session))(t)
-			final := testcheck.Must(generator.rotary.latent.outputs.CopyToHost(ctx, generator.rotary.latent.node))(t)
-			picture := testcheck.Must(generator.decode(ctx, session))(t)
-			return final.Data, picture.Data
-		}
-		latent, picture := drawn(request)
-		latentAgreement, pictureAgreement := decibelsOverSquares(t, latent, wantLatent), pictureDecibels(t, picture, wantPicture)
-		changed := golden.control(t, request)
-		testcheck.NoError(t, generator.Reset(ctx, changed))
-		controlLatent, _ := drawn(changed)
-		controlAgreement := decibelsOverSquares(t, controlLatent, wantLatent)
-		closeReporting(t, context.WithoutCancel(ctx), generator)
-		t.Logf("%s: the final latent keeps %.2f dB, the finished picture %.2f dB over %d-pixel squares; with its input changed the latent keeps %.2f dB",
-			golden.name, latentAgreement, pictureAgreement, pictureSquare, controlAgreement)
-		readings[golden.name] = goldenReading{latent: latentAgreement, picture: pictureAgreement, control: controlAgreement}
+		readings[golden.name] = readGoldenCase(t, root, profile, golden)
 	}
 	return readings
+}
+
+// readGoldenCase draws a case as its recording asks it, and with its input changed, on the root, and reads its
+// agreement with its recording. Its generator is closed as it returns, whatever stops it, and the changed draw keeps
+// its final latent alone, its picture never decoded (SQA-410).
+func readGoldenCase(t *testing.T, root string, profile Profile, golden goldenCase) goldenReading {
+	t.Helper()
+	ctx := t.Context()
+	recording := readComfySection(t, golden.run, golden.slug)
+	request := golden.request(t, recording)
+	wantLatent, wantPicture := recording.latent(t, golden.sampler), recording.picture(t, golden.finished)
+	generator := testcheck.Must(LoadGenerator(ctx, root, profile, request))(t)
+	defer closeReporting(t, context.WithoutCancel(ctx), generator)
+	drawn := func(request Request, decode bool) (latent []float32, picture []byte) {
+		t.Helper()
+		session := testcheck.Must(generator.prepare(ctx, request))(t)
+		testcheck.Must(generator.integrate(ctx, session))(t)
+		latent = testcheck.Must(generator.rotary.latent.outputs.CopyToHost(ctx, generator.rotary.latent.node))(t).Data
+		if decode {
+			picture = testcheck.Must(generator.decode(ctx, session))(t).Data
+		}
+		return latent, picture
+	}
+	latent, picture := drawn(request, true)
+	reading := goldenReading{latent: decibelsOverSquares(t, latent, wantLatent), picture: pictureDecibels(t, picture, wantPicture)}
+	changed := golden.control(t, request)
+	testcheck.NoError(t, generator.Reset(ctx, changed))
+	controlLatent, _ := drawn(changed, false)
+	reading.control = decibelsOverSquares(t, controlLatent, wantLatent)
+	t.Logf("%s: the final latent keeps %.2f dB, the finished picture %.2f dB over %d-pixel squares; with its input changed the latent keeps %.2f dB",
+		golden.name, reading.latent, reading.picture, pictureSquare, reading.control)
+	return reading
 }
 
 // ownSizeReading reads the workflow's text to image section at its own size (the own-size recording: its canvas 16:9

@@ -483,11 +483,11 @@
         "note": "Answered by the lead on 2026-11-22 at 47b3587c9: valid from source; the served path's two profile reads a request (pictureFiles, preparedFirst) filed as served-answers/profile, the generator's model_index.json reads on a changed seed with served-parts/do, whose ledger reads their time."
       },
       "SQA-410": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "card-checks-sound/floors"
         ],
-        "note": "Reopened by the review after moss-real-prompt/do (89cf0f0e3) and answered by the lead on 2026-11-22 at 47b3587c9: valid from source (holdGoldenFloors draws every case before it reads the floors; a later case's size error ends the test before an earlier failure is reported; a reference of no signal scores -Inf in both modes and is accepted as equal); filed as card-checks-sound/floors."
+        "note": "Reopened by the review after moss-real-prompt/do (89cf0f0e3) and answered by the lead on 2026-11-22 at 47b3587c9: valid from source; filed as card-checks-sound/floors. Implemented 2026-11-24 by card-checks-sound/floors, the landing that carries this answer: floors are read before any draw, each case is held as it is read and its generator closed as its reading returns, a control decodes no picture, and a reference of no signal is refused; the floors test passes on the card, for the review's recheck."
       },
       "SQA-460": {
         "action": "implemented",

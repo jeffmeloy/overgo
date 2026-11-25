@@ -6,6 +6,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"errors"
+	"fmt"
 	"image"
 	"image/png"
 	"math"
@@ -134,24 +136,35 @@ func latentAgreement(got, want []float32) (cosine, relative float64) {
 	return dot / math.Sqrt(gotSquares*wantSquares), math.Sqrt(differenceSquares / wantSquares)
 }
 
-// decibelsOverSquares is how far got agrees with want in dB: want's sum of squares over the sum of the differences'.
+// decibelsOverSquares is how far got agrees with want in dB: want's sum of squares over the sum of the differences',
+// a reading it cannot make failing the test (decibels).
 func decibelsOverSquares(t testing.TB, got, want []float32) float64 {
 	t.Helper()
-	// Two latents of different lengths, or a value that is not finite, are refused before they are scored (SQA-410): a
-	// length apart had scored -Inf and a NaN sample NaN, each of which a control held only under its floor passed.
+	return testcheck.Must(decibels(got, want))(t)
+}
+
+// decibels is how far got agrees with want in dB. Two latents of different lengths, or a value that is not finite,
+// are refused before they are scored (SQA-410): a length apart had scored -Inf and a NaN sample NaN, each of which a
+// control held only under its floor passed. A reference with no signal is refused too: all zeros scored -Inf against
+// any latent, which a control's floor took as below it, and +Inf against itself, which merged sections took as equal.
+// Agreement with a reference that has signal stays +Inf where nothing differs.
+func decibels(got, want []float32) (float64, error) {
 	if len(got) != len(want) || len(want) == 0 {
-		t.Fatalf("the latents hold %d and %d values; want one length", len(got), len(want))
+		return 0, fmt.Errorf("the latents hold %d and %d values; want one length", len(got), len(want))
 	}
 	var signal, noise float64
 	for index, value := range got {
 		w := float64(want[index])
 		if math.IsNaN(float64(value)) || math.IsInf(float64(value), 0) || math.IsNaN(w) || math.IsInf(w, 0) {
-			t.Fatalf("the latents hold %g and %g at %d; want finite values", value, w, index)
+			return 0, fmt.Errorf("the latents hold %g and %g at %d; want finite values", value, w, index)
 		}
 		signal += w * w
 		noise += (float64(value) - w) * (float64(value) - w)
 	}
-	return 10 * math.Log10(signal/noise)
+	if signal == 0 {
+		return 0, errors.New("the reference holds no signal, so no agreement with it can be read")
+	}
+	return 10 * math.Log10(signal/noise), nil
 }
 
 // denoiseSection is the image to image section's request as the denoise run's recording asks it: at a denoise below 1,

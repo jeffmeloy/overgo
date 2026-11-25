@@ -3,24 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "card-checks-sound",
-      "title": "The MOSS golden floors are read before a section is drawn and refuse a reference of no signal, and the sharpened pair's check compares pixels",
-      "steps": [
-        {
-          "id": "floors",
-          "title": "The MOSS golden floors are declared before a section is drawn, each failed comparison is reported and its generator closed, and a reference of no signal is refused",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^TestUltraSectionsHoldTheirGoldenFloors$'",
-          "files": [
-            "internal/latentimage"
-          ],
-          "rationale": "SQA-410 (P2), checked against golden_floor_windows_model_test.go and decibelsOverSquares at 47b3587c9: valid. holdGoldenFloors draws every case (readGoldenCases) before it asks whether each declares a floor, so a missing declaration costs five baseline draws and five controls; a later case's size error stops the test before an earlier failure is reported or the open generator closed; each control encodes a PNG it throws away; and a reference of all zeros scores -Inf in both precision modes, which holdMergedSections accepts as equal. The change: floors are checked before any draw, a comparison's failure is reported as it is scored and its generator closed by Cleanup, a control keeps its latent alone, and decibelsOverSquares refuses a reference with no signal while agreement with a nonzero one stays +Inf. Check: the floors test itself, with card-free cases for the refusals where they need no draw.",
-          "depends_on": [
-            "full-measurement/run"
-          ]
-        }
-      ]
-    },
-    {
       "id": "served-parts",
       "title": "Every served path's request is split into its parts, each with its wall, processor time and bytes read, as the MOSS workflow's clock reads them, so time outside the model shows on each",
       "steps": [

@@ -61,6 +61,11 @@ func verifyMOSSConditioningModel(ctx context.Context, runtime *graphruntime.Resi
 	if err != nil {
 		return err
 	}
+	// The plan is the catalog's, made once for every layer of every case (SQA-511).
+	plan, err := planModelEncoder(catalog)
+	if err != nil {
+		return err
+	}
 	for _, name := range []string{"english.0", "english.1", "chinese.0", "chinese.1", "layout.0", "layout.1"} {
 		hidden, err := safetensors.ReadF32(embeddings.Tensors[name+".embedding"])
 		if err != nil {
@@ -69,7 +74,7 @@ func verifyMOSSConditioningModel(ctx context.Context, runtime *graphruntime.Resi
 		tokens := len(hidden) / int(catalog.Spec.EmbeddingLength)
 		for layer := range int(catalog.Spec.BlockCount) {
 			err := func() error {
-				p, err := compileModelEncoder(catalog, tokens, layer, layer+1)
+				p, err := compileModelEncoderFrom(plan, catalog, tokens, layer, layer+1)
 				if err != nil {
 					return err
 				}

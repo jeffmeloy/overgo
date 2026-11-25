@@ -20,15 +20,21 @@ type modelEncoderProgram struct {
 	feeds         map[*tensor.Tensor]reference.Value
 }
 
-func compileModelEncoder(catalog hfgguf.LanguageCatalog, tokens, first, end int) (*modelEncoderProgram, error) {
+// planModelEncoder is the encoder's model-wide layer and cache plan, which depends on its catalog alone: an encoder
+// keeps it once made (modelConditioner.plan), where each block of each prompt had planned all its layers again, 64
+// plans of 32 layers for a guided request's two prompts through MOSS Ultra's encoder (SQA-511).
+func planModelEncoder(catalog hfgguf.LanguageCatalog) (model.ModelPlan, error) {
 	comfy := catalog.Output == hfgguf.LanguageHiddenComfyUI && catalog.Spec.Arithmetic == model.ArithmeticComfyUIF32
 	if !comfy && (catalog.Output != hfgguf.LanguageHidden || catalog.Spec.Arithmetic != model.ArithmeticTransformersBF16) {
-		return nil, fmt.Errorf("model encoder requires a native hidden-state catalog")
+		return model.ModelPlan{}, fmt.Errorf("model encoder requires a native hidden-state catalog")
 	}
-	plan, err := model.CompileModelPlanWithProfile(catalog.Spec, catalog.Weights, catalog.Spec.Profile())
-	if err != nil {
-		return nil, err
-	}
+	return model.CompileModelPlanWithProfile(catalog.Spec, catalog.Weights, catalog.Spec.Profile())
+}
+
+// compileModelEncoderFrom builds the program of the encoder's layers from first to end for a prompt of tokens, from
+// the encoder's plan (planModelEncoder).
+func compileModelEncoderFrom(plan model.ModelPlan, catalog hfgguf.LanguageCatalog, tokens, first, end int) (*modelEncoderProgram, error) {
+	comfy := catalog.Output == hfgguf.LanguageHiddenComfyUI && catalog.Spec.Arithmetic == model.ArithmeticComfyUIF32
 	if tokens <= 0 || first < 0 || end < first || end > plan.LayerCount() || first == end && end != plan.LayerCount() {
 		return nil, fmt.Errorf("model encoder refuses tokens=%d range=[%d,%d) for %d layers", tokens, first, end, plan.LayerCount())
 	}

@@ -1,28 +1,37 @@
 {
   "advisory_notice": "All SQA findings, rankings and assessments are recommendations. Master decides whether, when and how to act through docs/plan.json.",
   "priority_assessment": [
-    "The full-size times now lead the README. I would finish readme-timings/peak (SQA-510) and correct the two generation-table readings next time master touches that table. SQA-512 pairs a median with another duration's stages; SQA-513 hides a valid full-size result when only the small preset is missing. Both can be checked with the published record or an existing fixture, without another model run.",
-    "I would keep moss-heldout/do (SQA-506) before moss-encoder-plan/do (SQA-511). The first protects the training verdict. The second now has a plan to time the cost of rebuilding an identical encoder plan 64 times. The last first-request gap was 4.969 s, with 0.323 s remaining warm. I would credit only the change measured under comparable file-cache conditions and keep close-launcher/do (SQA-502) ahead of another full measurement."
+    "I would take moss-heldout/do (SQA-506) first. The current fixture accepts a training picture as held out when its file encoding changes. Next I would measure SQA-511 under moss-encoder-plan/do. The 64 identical plans are countable, but their share of the 4.969 s first-request gap is unknown. A comparable cold timing should decide how much more time to spend there.",
+    "Before the next full measurement I would address restart credit (SQA-502) and publication identity (SQA-474) together in the existing cycle. The last closing run spent 9 h 14 min in lanes. A publication-only retry should keep that work, and the cycle should claim only its own scorecard. I would keep the two README timing findings together for the next table change. Both can be checked from a published record or an existing fixture."
   ],
   "branch": "master",
   "findings": [
     {
-      "id": "SQA-474",
+      "id": "SQA-506",
       "severity": "P2",
       "files": [
-        "cmd/loop/improve.go",
-        "cmd/loop/improve_test.go",
-        "cmd/loop/improve_resume_test.go",
-        "internal/loop/driver.go",
-        "docs/plan.json",
-        "cmd/validate/main.go",
-        "cmd/validate/scorecard.go",
-        "cmd/validate/readme.go",
-        "internal/scorecard/record.go"
+        "cmd/train/route_moss_windows.go",
+        "cmd/train/route_moss_windows_test.go",
+        "cmd/train/route_moss_heldout_windows_test.go",
+        "internal/trainingdata/image.go"
       ],
-      "input": "While a cycle at commit C is running its lanes, independently publish a scorecard for C to the same store on a later clock second. Let the cycle fail a required lane before it publishes. Separately, check moss-close/run with five numeric image rows already present and an older publication carrying a numeric MOSS row.",
-      "expected": "Use the specific publication produced or explicitly credited by this cycle. A failed lane returns its error with completed cells kept for retry. For moss-close/run, match the intended commit and required phase outcomes and render the README from that publication. The existing publisher already returns its path.",
-      "actual": "c21345fd7 fixes the earlier-record case when the directory stays unchanged. Measure still treats a growing record count as proof it published and returns the newest record at C. A separate validate -scorecard -publish can grow the directory without this cycle’s lock. Improve then files the other record’s gaps and Fill clears retry state despite the lane error. The close itself counts live rows and writeReadme takes the newest publication. The retained 5c9092545 record already has all five numeric image rows. These are source counterexamples. No wrong close or lost credit was observed."
+      "input": "Use TestMOSSRoute’s trained picture and caption as the held-out example. The fixture writes the same PNG under a new name with one zero byte appended after its end.",
+      "expected": "Reject a held-out picture whose decoded dimensions and RGB values equal a training picture, before preparing either on the GPU. Use the existing image processor for that comparison. Use a genuinely different picture for the successful route case and keep the padded copy as a rejection case.",
+      "actual": "refuseTrainedHeldOut hashes encoded file bytes. The extra byte changes that hash while ImageProcessor returns identical model input. TestMOSSRoute accepts a heldout.json reading for this example when the base and trained losses differ. The retained lanes log records the named invocation passing in 4.725s. This evidence concerns the compact fixture. The published 32-picture measurement used pictures from other videos."
+    },
+    {
+      "id": "SQA-511",
+      "severity": "P2",
+      "files": [
+        "internal/latentimage/model_encoder_windows.go",
+        "internal/latentimage/model_encoder.go",
+        "internal/model/layer_plan.go",
+        "internal/latentimage/generator_rotary_windows.go",
+        "docs/verification/moss-workflow-time.jsonl"
+      ],
+      "input": "Start a fresh MOSS Ultra session with its 32-block text encoder. Ask for the recorded guided text-to-image section with distinct positive and negative conditioning, both missing from the prompt cache.",
+      "expected": "Build the model-wide layer and cache plan once for the loaded encoder. Use it to construct each prompt's token-length-specific block graph. Preserve one-block device residency and the existing ComfyUI hidden-state comparison.",
+      "actual": "On committed master, encodeEach calls encodeBlock for each of 32 blocks and both prompts. Each call to compileModelEncoder runs CompileModelPlanWithProfile over all 32 layers and their cache schemas, using only the same catalog and profile. That gives 64 identical model plans (2,048 base layer plans) for this request; one suffices. This count follows from source. The cb82910a6 run measured 4.771 s for the entire cold prompt encode and 0 ms rounded on a cache hit. The record does not isolate planning time."
     },
     {
       "id": "SQA-502",
@@ -45,17 +54,22 @@
       "actual": "HandStartDue refuses a fresh run while this step is open. The November 25 launcher runs four validate commands without cycle credit or a linked run identity. An interrupted cell sequence starts again. measurePhases selects only reached cells and invokes preflight and all lanes even on a publication-only retry, as TestInterruptedCycleResumesAtItsFirstUnpassedPhase expects. The real-model lane uses -count=1. The closing run's lanes passed in 9 h 14 min 23 s of wall time. The rerun follows from source. No retry cost was measured."
     },
     {
-      "id": "SQA-506",
+      "id": "SQA-474",
       "severity": "P2",
       "files": [
-        "cmd/train/route_moss_windows.go",
-        "cmd/train/route_moss_windows_test.go",
-        "cmd/train/route_moss_heldout_windows_test.go",
-        "internal/trainingdata/image.go"
+        "cmd/loop/improve.go",
+        "cmd/loop/improve_test.go",
+        "cmd/loop/improve_resume_test.go",
+        "internal/loop/driver.go",
+        "docs/plan.json",
+        "cmd/validate/main.go",
+        "cmd/validate/scorecard.go",
+        "cmd/validate/readme.go",
+        "internal/scorecard/record.go"
       ],
-      "input": "Use TestMOSSRoute’s trained picture and caption as the held-out example. The fixture writes the same PNG under a new name with one zero byte appended after its end.",
-      "expected": "Reject a held-out picture whose decoded dimensions and RGB values equal a training picture, before preparing either on the GPU. Use the existing image processor for that comparison. Use a genuinely different picture for the successful route case and keep the padded copy as a rejection case.",
-      "actual": "refuseTrainedHeldOut hashes encoded file bytes. The extra byte changes that hash while ImageProcessor returns identical model input. TestMOSSRoute accepts a heldout.json reading for this example when the base and trained losses differ. The retained lanes log records the named invocation passing in 4.725s. This evidence concerns the compact fixture. The published 32-picture measurement used pictures from other videos."
+      "input": "While a cycle at commit C is running its lanes, independently publish a scorecard for C to the same store on a later clock second. Let the cycle fail a required lane before it publishes. Separately, check moss-close/run with five numeric image rows already present and an older publication carrying a numeric MOSS row.",
+      "expected": "Use the specific publication produced or explicitly credited by this cycle. A failed lane returns its error with completed cells kept for retry. For moss-close/run, match the intended commit and required phase outcomes and render the README from that publication. The existing publisher already returns its path.",
+      "actual": "c21345fd7 fixes the earlier-record case when the directory stays unchanged. Measure still treats a growing record count as proof it published and returns the newest record at C. A separate validate -scorecard -publish can grow the directory without this cycle’s lock. Improve then files the other record’s gaps and Fill clears retry state despite the lane error. The close itself counts live rows and writeReadme takes the newest publication. The retained 5c9092545 record already has all five numeric image rows. These are source counterexamples. No wrong close or lost credit was observed."
     },
     {
       "id": "SQA-507",
@@ -73,18 +87,30 @@
       "actual": "Both routes pass only the manifest path to openSessionAs. BootstrapRecipe calls TextAuthority on its bytes, so both corpora get the same dataset, split, processor and recipe. MOSS then decodes different RGB values and the codec route reads the listed clips separately. publishPlanned records the objective’s dataset and split, and groundTraining identifies the MOSS route by the TSV alone. This collision follows from committed source. No run with substituted media was observed."
     },
     {
-      "id": "SQA-510",
+      "id": "SQA-494",
       "severity": "P2",
       "files": [
-        "internal/scorecard/served_table.go",
-        "internal/scorecard/scorecard.go",
-        "cmd/validate/readme.go",
-        "cmd/validate/readme_served_test.go",
-        "README.md"
+        "internal/landing/landing.go",
+        "internal/landing/snapshot.go",
+        "internal/landing/snapshot_test.go"
       ],
-      "input": "Render the served-model table from scorecard-20261124T115348Z.json. The Wan2.1-T2V-1.3B video row records 13,108,635,852 peak device bytes for 32 x 16 and 19,418,051,872 for 832 x 480, 81 frames and 50 steps.",
-      "expected": "Show 18.1 GiB under the README's stated maximum across measured serving attempts. ServedTable can take that maximum from Row.Measured(metric.PeakMemory), which already selects measured cells for the headline, user-size requests and longer prompts. The published record suffices to check the correction.",
-      "actual": "The committed README shows 12.2 GiB. ServedTable considers only row.Cells[metric.PeakMemory] and skips the recorded user-size peak. The larger peak was measured during the same full-size request timed at 336.3 s in the speed table. This 5.9 GiB understatement is visible in the published record and README."
+      "input": "Start the landing fixture with unformatted internal/p/p.go. After gofmt writes it and recordWrites records that path, append a separate, valid function for the next step to the same file before fix calls shipSet. The first step’s assertion on the original function still passes.",
+      "expected": "Publish only the first candidate and the gate’s edits to those bytes. Leave the later function in the checkout for its own step. Use the existing candidate or keep the exact output of the transformation. The snapshot fixture can distinguish both copies with this same-file edit.",
+      "actual": "b9bac4955 protects other paths, including later.go and notes.txt in the existing fixture. recordWrites keeps a boolean for p.go after comparing its hashes. A later capture starts at the first tree but stages the current checkout bytes of every gateWrote path, including the later function in p.go. The earlier cross-step landing was observed at b1d6e237a. This remaining case was established from source at 70394cb96."
+    },
+    {
+      "id": "SQA-508",
+      "severity": "P2",
+      "files": [
+        "internal/agenttool/transport.go",
+        "internal/agentloop/coordinator.go",
+        "cmd/loop/tools.go",
+        "internal/agenttool/transport_test.go",
+        "cmd/loop/tools_test.go"
+      ],
+      "input": "An admitted MCP tool call receives HTTP 200 and a JSON-RPC response with the matching ID. The tools/call result carries isError=true and text explaining the tool failure. This is the result shape serveTools emits when a worker tool returns an error.",
+      "expected": "At tools/call, preserve a failed tool's diagnostic and record an admitted mutation as failed. A failed inspection must earn no inspection credit, including after restart. Feed the worker writer's replies to the client with the client's request ID. Check true, false and the existing success fixture with the flag omitted.",
+      "actual": "decodeMCPResponse returns result unchanged when the envelope has no error. With normal persistence, closeMutationReceipt writes StageCompleted for the failed mutation. A failed inspection also sets session.Inspection. RestoreSession reconstructs that credit from the recorded manual and arguments. The writer test checks the flag, while the HTTP client fixture returns only a success. These are source counterexamples."
     },
     {
       "id": "SQA-512",
@@ -110,18 +136,6 @@
       "input": "Use the last case of TestAMediaCellRecordsThePresetItRan. Its Wan row still holds a 374 s full-size reading with an 832 x 480, 81-frame preset. Only the small request's preset has been cleared. The same combination is possible when only a successful full-size attempt has recorded its preset.",
       "expected": "GenerationTable should show the 374 s reading with its preset and a dash for the small request. Omit the row if neither request has a usable measurement. The existing fixture already holds both cases' inputs.",
       "actual": "GenerationTable skips the entire row on !first.Preset.Ran() before it looks for the full-size cell. The fixture explicitly expects an empty table despite keeping the measured full-size cell. Source-demonstrated at 1e2648a4c. The published Wan row has both presets and is visible."
-    },
-    {
-      "id": "SQA-494",
-      "severity": "P2",
-      "files": [
-        "internal/landing/landing.go",
-        "internal/landing/snapshot.go",
-        "internal/landing/snapshot_test.go"
-      ],
-      "input": "Start the landing fixture with unformatted internal/p/p.go. After gofmt writes it and recordWrites records that path, append a separate, valid function for the next step to the same file before fix calls shipSet. The first step’s assertion on the original function still passes.",
-      "expected": "Publish only the first candidate and the gate’s edits to those bytes. Leave the later function in the checkout for its own step. Use the existing candidate or keep the exact output of the transformation. The snapshot fixture can distinguish both copies with this same-file edit.",
-      "actual": "b9bac4955 protects other paths, including later.go and notes.txt in the existing fixture. recordWrites keeps a boolean for p.go after comparing its hashes. A later capture starts at the first tree but stages the current checkout bytes of every gateWrote path, including the later function in p.go. The earlier cross-step landing was observed at b1d6e237a. This remaining case was established from source at 70394cb96."
     },
     {
       "id": "SQA-492",
@@ -162,34 +176,6 @@
       "input": "After a passing needle-reference run, delete only fixtures/needle_upstream_calls.json and select lanes with -reached. The reader still names the old path. The same case applies to the models lane when only fixtures/moss/checkpoint.json is deleted.",
       "expected": "CycleLanesReached selects the reader of the removed fixture, so the Needle or MOSS check reports the missing input. Use the existing reader lookup for deleted paths, or run the lane when its readers are unknown. Keep the current package selection for edits to existing fixtures.",
       "actual": "Source trace at c71a1e230. The Git diff supplies the deleted path. TrackedDocuments lists only files still present, so documentReaders returns no entry. discover treats the missing entry as zero readers and omits the lane. Both checks fail on the missing file if selected. The retained gate verified selection for edits to both fixtures while they were present."
-    },
-    {
-      "id": "SQA-508",
-      "severity": "P2",
-      "files": [
-        "internal/agenttool/transport.go",
-        "internal/agentloop/coordinator.go",
-        "cmd/loop/tools.go",
-        "internal/agenttool/transport_test.go",
-        "cmd/loop/tools_test.go"
-      ],
-      "input": "An admitted MCP tool call receives HTTP 200 and a JSON-RPC response with the matching ID. The tools/call result carries isError=true and text explaining the tool failure. This is the result shape serveTools emits when a worker tool returns an error.",
-      "expected": "At tools/call, preserve a failed tool's diagnostic and record an admitted mutation as failed. A failed inspection must earn no inspection credit, including after restart. Feed the worker writer's replies to the client with the client's request ID. Check true, false and the existing success fixture with the flag omitted.",
-      "actual": "decodeMCPResponse returns result unchanged when the envelope has no error. With normal persistence, closeMutationReceipt writes StageCompleted for the failed mutation. A failed inspection also sets session.Inspection. RestoreSession reconstructs that credit from the recorded manual and arguments. The writer test checks the flag, while the HTTP client fixture returns only a success. These are source counterexamples."
-    },
-    {
-      "id": "SQA-511",
-      "severity": "P2",
-      "files": [
-        "internal/latentimage/model_encoder_windows.go",
-        "internal/latentimage/model_encoder.go",
-        "internal/model/layer_plan.go",
-        "internal/latentimage/generator_rotary_windows.go",
-        "docs/verification/moss-workflow-time.jsonl"
-      ],
-      "input": "Start a fresh MOSS Ultra session with its 32-block text encoder. Ask for the recorded guided text-to-image section with distinct positive and negative conditioning, both missing from the prompt cache.",
-      "expected": "Build the model-wide layer and cache plan once for the loaded encoder. Use it to construct each prompt's token-length-specific block graph. Preserve one-block device residency and the existing ComfyUI hidden-state comparison.",
-      "actual": "On committed master, encodeEach calls encodeBlock for each of 32 blocks and both prompts. Each call to compileModelEncoder runs CompileModelPlanWithProfile over all 32 layers and their cache schemas, using only the same catalog and profile. That gives 64 identical model plans (2,048 base layer plans) for this request; one suffices. This count follows from source. The cb82910a6 run measured 4.771 s for the entire cold prompt encode and 0 ms rounded on a cache hit. The record does not isolate planning time."
     },
     {
       "id": "SQA-388",
@@ -305,13 +291,6 @@
           "moss-encoder-plan/do"
         ],
         "note": "Answered by the lead on 2026-11-25 at c34da2721: valid from source (encodeEach compiles each block's graph through compileModelEncoder, which plans all 32 layers each time, so two uncached prompts plan the model 64 times); the planning's share of the 4.771 s cold encode is not isolated, so the step times it first. Within the campaign's aim, the first request's gap to ComfyUI: filed as moss-encoder-plan/do after moss-heldout."
-      },
-      "SQA-510": {
-        "action": "filed",
-        "rows": [
-          "readme-timings/peak"
-        ],
-        "note": "Answered by the lead on 2026-11-25 at 7e417691c: valid, observed in the published record (ServedTable reads row.Cells[metric.PeakMemory] alone, so Wan shows 12.2 GiB while its request at a person's size peaked at 18.08 GiB in the closing run of 2026-11-25). Filed as readme-timings/peak, with the README's other media figures, after moss-close."
       },
       "SQA-508": {
         "action": "filed",

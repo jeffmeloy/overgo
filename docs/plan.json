@@ -3,25 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "moss-encoder-plan",
-      "title": "MOSS's text encoder plans its model once a load, not once a block and prompt",
-      "steps": [
-        {
-          "id": "do",
-          "title": "The loaded encoder keeps the model-wide layer and cache plan, and each prompt's block graph is built from it",
-          "verify": "go test ./internal/latentimage -count=1 -run '^TestAPromptEncodePlansTheModelOnceALoad$'",
-          "files": [
-            "internal/latentimage",
-            "internal/model"
-          ],
-          "rationale": "SQA-511 (P2), checked by the lead against internal/latentimage at c34da2721: valid from source. encodeEach calls encodeBlock for each of the encoder's 32 blocks and for each prompt; each call compiles the block's graph through compileModelEncoder, which runs model.CompileModelPlanWithProfile over all 32 layers and their cache schemas from the same catalog and profile, so a guided request with two uncached prompts plans the model 64 times (2,048 layer plans) where one plan serves. The closing work measured the whole cold prompt encode at 4.771 s (cb82910a6) and the first request's gap to ComfyUI at 4.969 s; the planning's share is not isolated, so the step first times it.\n\nThe change: the loaded encoder plans its model once and keeps the plan; each prompt's token-length-specific block graph is built from it, with one block resident on the card at a time and the hidden states held to ComfyUI's recording as before. Then the cold encode is timed against the recording.\n\nCheck: TestAPromptEncodePlansTheModelOnceALoad, a count of the model plans an encode of two prompts makes: one; if the count needs a hook the base lacks, the hook lands first in its own step so the check builds at the base and fails on its count.",
-          "depends_on": [
-            "readme-timings/prose"
-          ]
-        }
-      ]
-    },
-    {
       "id": "generation-rows",
       "title": "The generation table says whose time its stages are and keeps a row whose person-size reading stands alone",
       "steps": [

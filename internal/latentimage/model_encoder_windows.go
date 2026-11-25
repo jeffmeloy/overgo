@@ -17,12 +17,14 @@ import (
 	"overgo/internal/hfbpe"
 	"overgo/internal/hfgguf"
 	"overgo/internal/hfrepo"
+	"overgo/internal/model"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
 	"path/filepath"
 	"slices"
+	"sync"
 )
 
 type modelConditioner struct {
@@ -36,6 +38,34 @@ type modelConditioner struct {
 	// card decodes them from their int8 rows (convRot, moss-first-run).
 	stored  *safetensors.Source
 	decoded map[string]string
+	// planning guards kept, the encoder's plan once made (plan), and plans, how many times it was made.
+	planning sync.Mutex
+	kept     *model.ModelPlan
+	plans    int
+}
+
+// plan is the encoder's model-wide layer and cache plan, made the first time it is asked for and kept for the loaded
+// encoder: each block of each prompt had planned all its layers again (SQA-511).
+func (c *modelConditioner) plan() (model.ModelPlan, error) {
+	c.planning.Lock()
+	defer c.planning.Unlock()
+	if c.kept == nil {
+		plan, err := planModelEncoder(c.catalog)
+		if err != nil {
+			return model.ModelPlan{}, err
+		}
+		c.kept, c.plans = &plan, c.plans+1
+	}
+	return *c.kept, nil
+}
+
+// program builds the encoder's layers from first to end for a prompt of tokens from its kept plan.
+func (c *modelConditioner) program(tokens, first, end int) (*modelEncoderProgram, error) {
+	plan, err := c.plan()
+	if err != nil {
+		return nil, err
+	}
+	return compileModelEncoderFrom(plan, c.catalog, tokens, first, end)
 }
 
 func loadModelConditioner(root string, template textTemplate) (_ *modelConditioner, err error) {
@@ -174,7 +204,7 @@ func (c *modelConditioner) encodeHolding(ctx context.Context, session *graphrunt
 	if err := unpadded(text); err != nil {
 		return nil, err
 	}
-	p, err := compileModelEncoder(c.catalog, len(text.IDs), 0, int(c.catalog.Spec.BlockCount))
+	p, err := c.program(len(text.IDs), 0, int(c.catalog.Spec.BlockCount))
 	if err != nil {
 		return nil, err
 	}
@@ -271,7 +301,7 @@ func (c *modelConditioner) encodeEach(ctx context.Context, session *graphruntime
 // the device after it, which it replaces with its own. The block's program
 // joins programs, which hold its weights until the caller releases them.
 func (c *modelConditioner) encodeBlock(ctx context.Context, session *graphruntime.ResidentSession, block int, text textInput, embedding []float32, rows **executor.RetainedOutputs, output **tensor.Tensor, programs *[]*graphruntime.ResidentProgram) error {
-	p, err := compileModelEncoder(c.catalog, len(text.IDs), block, block+1)
+	p, err := c.program(len(text.IDs), block, block+1)
 	if err != nil {
 		return err
 	}

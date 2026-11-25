@@ -3,23 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "idle-wait",
-      "title": "A browser wait that cannot come true fails when the page is idle, saying what the page shows, in every run",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A browser wait ends when the page is idle and its predicate false, with what the page shows; no clock ends it",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserAWaitThatCannotComeTrueFailsWhenIdle$' -leg idle-wait",
-          "files": [
-            "internal/webuilane",
-            "internal/server/webui",
-            "internal/server"
-          ],
-          "rationale": "The owner's review of 2026-11-24 (third), cause 3, checked against the code: valid. Browser.Eventually (internal/webuilane/browser.go:254) waits until its predicate holds, with no end but a budget the user sets, so a predicate a change makes unsatisfiable holds the lane: four hangs on 2026-11-24 (moss-page/pictures' undo run 32 min, a faults leg on a mutation loop, a restored-settings leg on a refused run, a full lane 20 min on TestWebUIBrowserArtifactLinks' changed title), and a verbose rerun was needed to learn which.\n\nPages do keep work open for good, which the rule must read: the activity stream (/runtime/activity/stream, workflow.js connect) stays open while subscribed, and intervals poll for the page's life (boot.js statusRefresh and the offline probe, requests.js refresh, runtime.js monitor). So idle is: no shell request in flight besides the stream (api.inFlight), no one-shot timer pending, and each interval fired since the page last changed; then a false predicate ends the wait as failed, with the page's ready state, panels and last error, as Eventually reports them now.\n\nCheck: TestWebUIBrowserAWaitThatCannotComeTrueFailsWhenIdle waits on a predicate that never holds on a page holding the stream and its intervals, and finds the wait failed with the page's state, while a wait on a predicate a pending request makes true still passes. It does not exist at the base, so the check fails there (the lane fails it as an unfinished leg)."
-        }
-      ]
-    },
-    {
       "id": "observed-inputs",
       "title": "A check's pass is kept while what it read is unchanged, its inputs observed, so a commit runs only the checks its change can alter",
       "steps": [

@@ -612,10 +612,14 @@
   // terminal transitions included, so a snapshot that no longer holds an
   // operation means the server retired it: after a reconnect, or once this wait
   // has seen it. A snapshot from before the wait's operation existed means nothing.
+  // awaiting counts the runs the page follows to their end, work the page awaits though no request of its own is open
+  // (a browser wait reads it so: idle-wait).
+  window.overgo.awaiting = 0;
   window.overgo.waitOperation = function (id, observe, signal) {
     return new Promise((resolve, reject) => {
       let unsubscribe = function () {}, finished = false, live = false, reconnected = false, seen = false;
-      function cleanup() { finished = true; unsubscribe(); if (signal) signal.removeEventListener('abort', abort); }
+      window.overgo.awaiting++;
+      function cleanup() { if (!finished) window.overgo.awaiting--; finished = true; unsubscribe(); if (signal) signal.removeEventListener('abort', abort); }
       function abort() { if (finished) return; cleanup(); reject(new DOMException('aborted', 'AbortError')); }
       function finish(current) { if (finished) return; seen = true; if (observe) observe(current); if (!terminal(current.state)) return; cleanup(); resolve(current); }
       if (signal && signal.aborted) { abort(); return; }

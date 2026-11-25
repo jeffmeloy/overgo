@@ -171,6 +171,11 @@ func Open(ctx context.Context, executable, pageURL string) (*Browser, error) {
 			return nil, errors.Join(err, browser.Close())
 		}
 	}
+	// Every document the target loads keeps, from before its own scripts run, what it is still doing, by which a wait
+	// that cannot come true ends once the page is idle (idleScript).
+	if err := browser.Call(ctx, "Page.addScriptToEvaluateOnNewDocument", map[string]any{"source": idleScript}, nil); err != nil {
+		return nil, errors.Join(err, browser.Close())
+	}
 	// Every document the target loads gets the binding a wait reports the
 	// page's state through.
 	if err := browser.Call(ctx, "Runtime.addBinding", map[string]any{"name": pageStateBinding}, nil); err != nil {
@@ -263,6 +268,10 @@ func (browser *Browser) Eventually(ctx context.Context, expression string) error
 		if err == nil && json.Unmarshal(answer, &shown) == nil {
 			return fmt.Errorf("webui lane: the page's shell failed to start, so the predicate cannot hold: %s%s", shown, browser.loadsFailed())
 		}
+		var idle struct{ Idle string }
+		if err == nil && json.Unmarshal(answer, &idle) == nil && idle.Idle != "" {
+			return fmt.Errorf("webui lane: the page is idle and the predicate does not hold, so it cannot come true: %s%s", idle.Idle, browser.loadsFailed())
+		}
 		switch cause := context.Cause(ctx); {
 		case cause != nil:
 			err = errors.Join(errors.New("webui lane: browser predicate did not become true"), cause)
@@ -327,13 +336,16 @@ func predicateWait(expression string) string {
 		return Promise.resolve(answer).then((ready) => ready, () => false);
 	};
 	const failed = () => [...document.querySelectorAll("#panels button")].some((button) => button.textContent === "Reload the page");
-	const report = () => {
-		if (typeof window.` + pageStateBinding + ` !== "function") return;
+	const shown = () => {
 		const bound = ` + strconv.Itoa(pageStateCharacters) + `;
 		const text = (document.getElementById("panels") || {innerText: ""}).innerText.trim();
 		const errors = (window.overgo && window.overgo.errors) || [];
-		const state = "readyState " + document.readyState + ", panels " + JSON.stringify(text.length > 2 * bound ? text.slice(0, bound) + " ... " + text.slice(-bound) : text) +
+		return "readyState " + document.readyState + ", panels " + JSON.stringify(text.length > 2 * bound ? text.slice(0, bound) + " ... " + text.slice(-bound) : text) +
 			", last error " + JSON.stringify(errors.at(-1) ?? null);
+	};` + idleWait + `
+	const report = () => {
+		if (typeof window.` + pageStateBinding + ` !== "function") return;
+		const state = shown();
 		if (state === window.webuiLaneReported) return;
 		window.webuiLaneReported = state;
 		window.` + pageStateBinding + `(state);
@@ -356,7 +368,9 @@ func predicateWait(expression string) string {
 		if (done) return;
 		holds().then((ready) => {
 			if (settle(ready)) return;
-			if (document.visibilityState === "visible") requestAnimationFrame(loop); else setTimeout(loop);
+			// A page with nothing left to do will not make the predicate true: the wait ends, saying what it shows.
+			if (idle()) { finish({idle: shown()}); return; }
+			if (document.visibilityState === "visible") requestAnimationFrame(loop); else later(loop);
 		});
 	};
 	observer.observe(document, {childList: true, subtree: true, attributes: true, characterData: true});

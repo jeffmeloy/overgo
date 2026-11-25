@@ -96,7 +96,7 @@ func TestAGenerationRecordsItsStageTimes(t *testing.T) {
 	if len(row.Stages) != len(stages) || sum != 88*time.Second {
 		t.Fatalf("the row holds parts %+v summing to %s, want the five summing to the 88 s request", row.Stages, sum)
 	}
-	if table := (Record{Rows: []Row{row}}).GenerationTable(); !strings.Contains(table, "| text encoder run 62.0 s, source clip encoded 9.0 s, clip denoised 14.0 s |") {
+	if table := (Record{Rows: []Row{row}}).GenerationTable(); !strings.Contains(table, "| 88.0 s: text encoder run 62.0 s, source clip encoded 9.0 s, clip denoised 14.0 s |") {
 		t.Fatalf("the generation table reads\n%s\nwant the parts of a twentieth or more of the person's request named", table)
 	}
 }

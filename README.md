@@ -195,17 +195,17 @@ tokens over decode time on a request again on the loaded model.
 | qwen25-05b-judged-proof | 36,198 tok/s, 4,096 tokens in 0.11 s | 25,247 tok/s, 16,384 tokens in 0.65 s | 326 tok/s |
 | qwen25-05b-order-25 | 36,308 tok/s, 4,096 tokens in 0.11 s | 25,258 tok/s, 16,384 tokens in 0.65 s | 331 tok/s |
 
-| Model | time at the size a person asks for | time of the scorecard's timing request | where the person's request went |
+| Model | time at the size a person asks for | time of the scorecard's timing request | where its newest attempt at a person's size went |
 | --- | --- | --- | --- |
-| Krea-2-Turbo | 62.6 s (2048 x 2048, 8 steps, flow Euler, shift 3.158) | 14.3 s (512 x 512, 4 steps, flow Euler, shift 3.158) | picture prompt encoded 11.3 s, picture denoised 48.0 s |
+| Krea-2-Turbo | 62.6 s (2048 x 2048, 8 steps, flow Euler, shift 3.158) | 14.3 s (512 x 512, 4 steps, flow Euler, shift 3.158) | 62.6 s: picture prompt encoded 11.3 s, picture denoised 48.0 s |
 | LiveEdit | — | 11.2 s (32 x 16, 21 frames, 4 steps, chunk-causal flow) | — |
-| MOSS-Image-SFT-797fa8e678b4f | 58.4 s (1024 x 1024, 50 steps, flow Euler, guidance 3, shift 5) | 59.8 s (1024 x 1024, 50 steps, flow Euler, guidance 3, shift 5) | picture prompt encoded 5.8 s, picture denoised 51.4 s |
-| Self-Forcing | 30.1 s (832 x 480, 81 frames, 4 steps, chunk-causal flow, guidance 1, shift 5) | 30.0 s (832 x 480, 81 frames, 4 steps, chunk-causal flow, guidance 1, shift 5) | model session leased 3.6 s, text encoder run 5.1 s, denoising pass 11.3 s, clip decoded 8.0 s |
-| SenseNova-U1-8B-MoT-Infographic-V3 | 130.7 s (2048 x 2048, 50 steps, flow Euler, guidance 4.5, shift 3) | 12.3 s (512 x 512, 4 steps, flow Euler, guidance 4.5, shift 3) | model session leased 10.9 s, model.routed-image-integrate 120.0 s |
+| MOSS-Image-SFT-797fa8e678b4f | 58.4 s (1024 x 1024, 50 steps, flow Euler, guidance 3, shift 5) | 59.8 s (1024 x 1024, 50 steps, flow Euler, guidance 3, shift 5) | 58.7 s: picture prompt encoded 5.8 s, picture denoised 51.4 s |
+| Self-Forcing | 30.1 s (832 x 480, 81 frames, 4 steps, chunk-causal flow, guidance 1, shift 5) | 30.0 s (832 x 480, 81 frames, 4 steps, chunk-causal flow, guidance 1, shift 5) | 30.1 s: model session leased 3.6 s, text encoder run 5.1 s, denoising pass 11.3 s, clip decoded 8.0 s |
+| SenseNova-U1-8B-MoT-Infographic-V3 | 130.7 s (2048 x 2048, 50 steps, flow Euler, guidance 4.5, shift 3) | 12.3 s (512 x 512, 4 steps, flow Euler, guidance 4.5, shift 3) | 132.3 s: model session leased 10.9 s, model.routed-image-integrate 120.0 s |
 | SimpleDiffusion-TensorProductAttentionRope | — | 0.8 s (256 x 256, 8 steps, Euler) | — |
 | Un-0 | — | 0.0 s (8 x 8, 4 steps, Kuramoto Euler) | — |
-| Un-0 | 0.0 s (16 x 16, 8 frames, 4 steps, Kuramoto Euler) | 0.1 s (16 x 16, 12 frames, 4 steps, Kuramoto Euler) | model.oscillator-video-decode 0.0 s, (no part names) 0.0 s |
-| Wan2.1-T2V-1.3B | 336.8 s (832 x 480, 81 frames, 50 steps, flow UniPC, guidance 6, shift 5) | 6.7 s (32 x 16, 21 frames, 2 steps, flow UniPC, guidance 6, shift 5) | clip denoised 320.7 s |
+| Un-0 | 0.0 s (16 x 16, 8 frames, 4 steps, Kuramoto Euler) | 0.1 s (16 x 16, 12 frames, 4 steps, Kuramoto Euler) | 0.0 s: model.oscillator-video-decode 0.0 s, (no part names) 0.0 s |
+| Wan2.1-T2V-1.3B | 336.8 s (832 x 480, 81 frames, 50 steps, flow UniPC, guidance 6, shift 5) | 6.7 s (32 x 16, 21 frames, 2 steps, flow UniPC, guidance 6, shift 5) | 337.2 s: clip denoised 320.7 s |
 <!-- end of the speed table -->
 
 Strata, on the same PC and model, processes Flash-Next's 4,096-token prompt at

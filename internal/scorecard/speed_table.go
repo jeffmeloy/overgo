@@ -78,7 +78,9 @@ func (record Record) SpeedTable() string {
 // asks for with that preset where one was read, first, since that is the time a person gets; then the time of the
 // scorecard's timing request with its preset, which for a video model is a small request that times its load and its
 // prompt more than a clip (Wan's 32 x 16 request took 7.1 s of which its clip 0.34 s, 2026-11-25); then where the
-// person's request went (Row.Stages). A record measured before its attempts kept their presets gives no table.
+// newest attempt at a person's size went (Row.Stages), with that attempt's own time, since the row's time is the median
+// of the newest attempts and its parts are one attempt's (SenseNova's 130.7 s median beside parts of 10.9 s and
+// 120.0 s, of an attempt of 132.3 s, SQA-512). A record measured before its attempts kept their presets gives no table.
 func (record Record) GenerationTable() string {
 	timed := func(cell Cell) string {
 		return fmt.Sprintf("%.1f s (%s)", time.Duration(cell.Value*float64(time.Millisecond)).Seconds(), cell.Preset)
@@ -98,14 +100,15 @@ func (record Record) GenerationTable() string {
 	if lines.Len() == 0 {
 		return ""
 	}
-	return "\n| Model | time at the size a person asks for | time of the scorecard's timing request | where the person's request went |\n| --- | --- | --- | --- |\n" + lines.String()
+	return "\n| Model | time at the size a person asks for | time of the scorecard's timing request | where its newest attempt at a person's size went |\n| --- | --- | --- | --- |\n" + lines.String()
 }
 
 // stageShare is the share of a request's wall, one part in stageShare, a part takes at least to be named where its
 // time went.
 const stageShare = 20
 
-// stagesText is where a request's wall went: its parts of a stageShare-th of it or more, in the order they ended.
+// stagesText is where an attempt's wall went: the attempt's own time, its parts' sum, then its parts of a stageShare-th
+// of it or more, in the order they ended.
 func stagesText(stages []processmeasure.Part) string {
 	var wall time.Duration
 	for _, part := range stages {
@@ -120,7 +123,7 @@ func stagesText(stages []processmeasure.Part) string {
 	if len(named) == 0 {
 		return unreadSpeed
 	}
-	return strings.Join(named, ", ")
+	return fmt.Sprintf("%.1f s: %s", wall.Seconds(), strings.Join(named, ", "))
 }
 
 // thousands writes a count with a comma between each group of three digits.

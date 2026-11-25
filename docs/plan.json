@@ -7,19 +7,6 @@
       "title": "The generation table says whose time its stages are and keeps a row whose person-size reading stands alone",
       "steps": [
         {
-          "id": "stages",
-          "title": "Where a person's request went is said as its newest attempt's, with that attempt's own total beside the median",
-          "verify": "go test ./internal/scorecard -count=1 -run '^TestTheStagesAreTheNewestAttemptsWithItsOwnTotal$'",
-          "files": [
-            "internal/scorecard",
-            "README.md"
-          ],
-          "rationale": "SQA-512 (P2), checked by the lead against the README written from scorecard-20261125T170629Z at 96841066: valid, observed. SenseNova's row shows its person-size median, 130.7 s, beside the stages of its newest attempt, model session leased 10.9 s and model.routed-image-integrate 120.0 s, which together pass the time shown, its attempt having taken 132.3 s: servingSummary.timed takes the median, readUserSize keeps the newest attempt's stages, and GenerationTable presents them as where the shown time went.\n\nThe change: the column names the newest attempt and its own total before its stages (where the newest attempt's 132.3 s went: ...), the median kept as the row's time.\n\nCheck: TestTheStagesAreTheNewestAttemptsWithItsOwnTotal, a row whose median and newest attempt differ: the stages are said with the attempt's own total; it uses Record and GenerationTable, which the base holds, so it builds there and fails on its assertion.",
-          "depends_on": [
-            "moss-close/run"
-          ]
-        },
-        {
           "id": "alone",
           "title": "A row with a measured reading at a person's size is shown though its timing request recorded no preset",
           "verify": "go test ./internal/scorecard -count=1 -run '^TestAPersonSizeReadingStandsWithoutTheTimingRequestsPreset$'",

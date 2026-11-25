@@ -3,18 +3,22 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "served-parts",
-      "title": "Every served path's request is split into its parts, each with its wall, processor time and bytes read, as the MOSS workflow's clock reads them, so time outside the model shows on each",
+      "id": "moss-close",
+      "title": "The MOSS campaign closes with a full measurement run, its scorecard, and the README written from it",
       "steps": [
         {
-          "id": "clock",
-          "title": "The MOSS workflow is timed on the ledger, each section's parts with their processor time and bytes read, and the timing appended to the record",
-          "verify": "git log --format=%s -n 50 | grep -qF 'served-parts/do:' \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF \"\\\"commit\\\":\\\"$(git rev-parse HEAD)\\\"\" \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF '\"committed\":true' \u0026\u0026 tail -n 1 docs/verification/moss-workflow-time.jsonl | grep -qF 'static inputs bound'",
+          "id": "run",
+          "title": "The full measurement run measures every model's scorecard row at the campaign's last commit, MOSS's image rows among them, and the README's tables are written from it",
+          "verify": "go run ./cmd/validate -scorecard | grep -oE '^\\| (Krea-2-Turbo|SenseNova-U1-8B-MoT-Infographic-V3|SimpleDiffusion-TensorProductAttentionRope|Un-0|MOSS-Image-SFT-797fa8e678b4f) \\| image-gen \\| [0-9]' | sort -u | wc -l | grep -qx 5 \u0026\u0026 go run ./cmd/validate -readme \u0026\u0026 grep -qE '^\\| MOSS-Image-SFT-797fa8e678b4f \\| [0-9]' README.md",
           "files": [
-            "docs/verification"
+            "README.md",
+            "docs"
           ],
           "needs_card": true,
-          "rationale": "The workflow is timed whole on served-parts/do's ledger, the machine held quiet, and the timing appended to docs/verification/moss-workflow-time.jsonl (moss-workflow-clock).\n\nEach section's parts are then the ledger's, on one clock, each with its own processor time and bytes read. They include the rotary image decoder's compile and its static inputs' binding, named apart (SQA-471).\n\nThese parts decide three noted findings. Each earns a step only where its part shows the time it costs:\n- SQA-473: sliceLastTemporalTap's 97.0 MB copy at the decoder's load, and the 108.9 MB of feeds the generator keeps after the decoder binds them. The first run is 46.4 s against ComfyUI's 40.2 s.\n- SQA-468: the finished PNG rebuilt with its texts by the workflow's output encoder, keptDrawn and OutputContent.\n- SQA-461's generator part: model_index.json read again by Reset and prepare.\n\nCheck: the record's last timing names this commit, ran its code alone, and holds the parts the ledger names: the static inputs' binding among them, which only a timing on the ledger holds."
+          "rationale": "The owner's order of 2026-11-24: the MOSS rows first, then the campaign's closing measurement, scorecard and README, as the last campaign closed (full-measurement/run, whose check 5147c611f made one pipeline the gate runs). The MOSS rows are landed but served-parts/clock, which times the workflow on the new ledger. The work: a full measurement run of the cycle (validate -run), started outside the session as the last was, at the commit after served-parts/clock, measuring every model's scorecard row with MOSS's sections served as the campaign left them; then the README's tables written from the scorecard (validate -readme). Check: the scorecard holds a measured image-gen row for each of the five image models, MOSS-Image-SFT among them, and the README written from it holds MOSS's row. The check's form is the one the gate took for full-measurement/run, a pipeline with no shell assignment (SQA-483).",
+          "depends_on": [
+            "served-parts/clock"
+          ]
         }
       ]
     },

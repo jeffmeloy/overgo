@@ -480,11 +480,11 @@
         "note": "Answered by the lead on 2026-11-24 at 5f5d4db92, for the finding as rewritten at a25fa2246: valid from source (improvement.Measure answers with the newest record at the cycle's commit whoever published it, so Improve files an earlier cycle's gaps and Fill removes this cycle's state and credit). Not observed: the unattended cycle has not run since the measurements moved to validate -run phases. Filed as own-record/do after moss-page: Measure answers only with the record this cycle's publication wrote."
       },
       "SQA-473": {
-        "action": "filed",
+        "action": "declined",
         "rows": [
           "served-parts/clock"
         ],
-        "note": "Answered by the lead on 2026-11-23 at 0776b4a53: valid from source (sliceLastTemporalTap copies a kernel whose temporal extent is 1 whole, 97.0 MB at load; VAEProgram.feeds keeps 108.9 MB of host weights after the resident decoder binds them). No wall is measured. Moved 2026-11-24 from served-parts/do, which built the ledger, to served-parts/clock, the timing on it: the first run's parts there decide its step, as the finding itself ranks it."
+        "note": "Answered by the lead on 2026-11-23 at 0776b4a53: valid from source (sliceLastTemporalTap copies a kernel whose temporal extent is 1 whole, 97.0 MB at load; VAEProgram.feeds keeps 108.9 MB of host weights after the resident decoder binds them). No wall is measured. Moved 2026-11-24 from served-parts/do, which built the ledger, to served-parts/clock, the timing on it: the first run's parts there decide its step, as the finding itself ranks it. Declined 2026-11-24 on served-parts/clock's parts (the timing of cb82910a6): the cold text to image section's decoder compiled in 235 ms and bound its static inputs in 72 ms, and its load, where the kernel copy and the kept feeds sit, took 741 ms reading 0.15 GiB, while the first run's 5.8 s behind ComfyUI lies in the prompt encoded (4.77 s, 6.50 GiB read) and the sampling's 5.05 GiB placed on the card; the copy and the feeds earn no step, as the finding ranked them."
       },
       "SQA-471": {
         "action": "implemented",
@@ -494,12 +494,12 @@
         "note": "Answered by the lead on 2026-11-23 at 7fbcacc4c: valid from the record and source; filed with served-parts/do. Implemented 2026-11-24 by served-parts/do, the landing that carries this answer: the clock reads each section on one ledger, its parts' walls, processor time and bytes read on one clock, each its own (processmeasure.Part.Use, none where unmeasured); compileResidentStatic names its compile and its static inputs' binding as two parts, for the review's recheck."
       },
       "SQA-461": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "served-answers/profile",
           "served-parts/clock"
         ],
-        "note": "Answered by the lead on 2026-11-22 at 47b3587c9: valid from source; the served path's two profile reads a request (pictureFiles, preparedFirst) filed as served-answers/profile, the generator's model_index.json reads on a changed seed with served-parts, whose ledger reads their time: moved 2026-11-24 to served-parts/clock, the timing on that ledger."
+        "note": "Answered by the lead on 2026-11-22 at 47b3587c9: valid from source; the served path's two profile reads a request (pictureFiles, preparedFirst) filed as served-answers/profile, the generator's model_index.json reads on a changed seed with served-parts, whose ledger reads their time: moved 2026-11-24 to served-parts/clock, the timing on that ledger. The profile reads were implemented by served-answers/profile (08a0ad2c7). The generator's reads were measured on served-parts/clock's parts (cb82910a6): a warm section's load, its reset among it, took 4 to 5 ms and its prepare 0 ms, so they cost no time worth a step; nothing of the finding is left to do, for the review's recheck."
       },
       "SQA-410": {
         "action": "declined",

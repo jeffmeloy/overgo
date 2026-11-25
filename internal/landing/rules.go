@@ -47,7 +47,7 @@ func (l *landing) rules(ctx context.Context) error {
 	if err := repoanalysis.ValidateGoStyleDelta(candidate, base); err != nil {
 		return err
 	}
-	findings := append(newLegacyForms(base, candidate), l.overlongFamilies()...)
+	findings := newLegacyForms(base, candidate)
 	strays, err := strayDocuments(ctx, l.Repo)
 	if err != nil {
 		return err
@@ -132,30 +132,7 @@ const (
 	generatedKernel = "_generated"
 	// rootFixtures is the repository's own fixture directory, counted as a package's testdata is.
 	rootFixtures = "fixtures/"
-	// kernelFamily opens the family headers ops_f32.cu includes (cmd/kernel-manifest), and kernelFamilyLines is the
-	// most lines one holds, so each reads as a review.
-	kernelFamily      = kernelSources + "ops_f32_"
-	kernelFamilyLines = 2000
 )
-
-// overlongFamilies refuses each family header the change leaves over kernelFamilyLines, with the edit that clears it
-// (rules-family): the ceiling had been held by cmd/kernel-manifest's tests in the test stage, after the card's checks,
-// and moss-checkpoint-regression's first attempt was refused there for 2065 lines after a 12-minute verify
-// (2026-11-20), where this stage takes a commit attempt's first seconds.
-func (l *landing) overlongFamilies() []string {
-	var refused []string
-	for _, entry := range l.entries {
-		if !strings.HasPrefix(entry.Path, kernelFamily) || path.Ext(entry.Path) != ".cuh" {
-			continue
-		}
-		source, err := os.ReadFile(filepath.Join(l.stageRoot(), filepath.FromSlash(entry.Path)))
-		if lines := bytes.Count(source, []byte("\n")); err == nil && lines > kernelFamilyLines {
-			refused = append(refused, fmt.Sprintf("a kernel family over its lines: %s holds %d, over %d; edit: move its last kernels into a new %s<family>.cuh that ops_f32.cu includes right after it, so the module's text and PTX stay the same",
-				entry.Path, lines, kernelFamilyLines, kernelFamily))
-		}
-	}
-	return refused
-}
 
 // outsideGo says what a change adds outside Go source: lines of device kernel
 // source and kernel entry points, and fixture files with their bytes, the

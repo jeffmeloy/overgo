@@ -40,22 +40,6 @@
       ]
     },
     {
-      "id": "style-vetoes",
-      "title": "The landing vetoes no form a reviewer can judge whose rewrite changes behaviour or whose wording is right",
-      "steps": [
-        {
-          "id": "overlong",
-          "title": "The rules stage counts no kernel header's length",
-          "verify": "go test ./internal/landing -count=1 -run '^TestTheRulesStageCountsNoHeaderLength$'",
-          "files": [
-            "internal/landing",
-            "cmd/kernel-manifest"
-          ],
-          "rationale": "SQA-500 (P2), checked against internal/landing/rules.go at 70394cb96: valid from source and observed. The rules stage counts a kernel family header's newline bytes and refuses one over 2,000 lines (overlongFamilies); its own fixture accepts 2,000 comment lines and refuses 2,001. It refused moss-checkpoint-regression/do at 2,065 lines after a 12-minute card check (94515cfc8 moved the veto earlier, not away), and its cure was to move kernels to another header included right after, the compiled PTX unchanged. A length that changes nothing the compiler makes is no rule. The change: overlongFamilies, its threshold, its refusal classifier entry and its threshold-only test go; the manifest and compiled-artifact checks, the include-once test and the numerical checks stand. Check: TestTheRulesStageCountsNoHeaderLength runs the rules over a change that grows a family header past 2,000 lines and finds no refusal of its length. It does not exist at the base, so the check fails there."
-        }
-      ]
-    },
-    {
       "id": "check-form-reads",
       "title": "A check is filed as the shell runs it: an assignment of a command's output runs that command, and the literal false, which no work can pass, is refused",
       "steps": [

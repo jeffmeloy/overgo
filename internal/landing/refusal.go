@@ -46,7 +46,6 @@ var stageRules = []struct{ name, phrase string }{
 	{"style", "new Go style findings"},
 	{"legacy-forms", "new sort.Slice"},
 	{"count", "production syntax nodes, and the consolidation"},
-	{"kernel-family", "a kernel family over its lines"},
 }
 
 // pinsRefusal and shrinkRefusal are what the rules stage refuses a change with

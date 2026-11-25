@@ -12,8 +12,8 @@ import (
 // TestOpsF32IsSplitByFamily holds kernels/cuda/ops_f32.cu to what its compiler flags need it for: its declarations and
 // its includes, no kernel or device code of its own, the kernels lying in family headers, ops_f32_*.cuh, that it
 // includes once each and no other source includes. The module's PTX, which the kernel manifest pins, is the same bytes
-// the one file compiled to. How long a family header may be is the landing's rules stage's to hold (rules-family), in a
-// commit attempt's first seconds.
+// the one file compiled to. How long a family header is, no rule holds: a split changes nothing the compiler makes
+// (style-vetoes/overlong), and a reviewer asks for one where a family needs its own file.
 func TestOpsF32IsSplitByFamily(t *testing.T) {
 	t.Parallel()
 	directory := filepath.Join("..", "..", "kernels", "cuda")

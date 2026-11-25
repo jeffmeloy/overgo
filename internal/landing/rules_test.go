@@ -192,18 +192,14 @@ func TestLandingSaysWhatAChangeAddsOfEachKind(t *testing.T) {
 	}
 }
 
-// TestAnOverlongKernelFamilyIsRefusedByTheRules holds a family header of the ops_f32 module to its line ceiling in the
-// rules stage, a commit attempt's first seconds (rules-family): moss-checkpoint-regression's first attempt was refused
-// for a 2065-line header in the test stage, after a 12-minute verify on the card. A header of 2001 lines is refused with
-// the edit that splits it, one of 2000 passes, and a kernel source that is no family header is no business of the rule.
-func TestAnOverlongKernelFamilyIsRefusedByTheRules(t *testing.T) {
+// TestTheRulesStageCountsNoHeaderLength holds style-vetoes/overlong (SQA-500): the rules stage refuses no kernel family
+// header for its length. A header of the ops_f32 module grown to 2,065 lines goes through the stage. It had refused a
+// header over 2,000 lines, moss-checkpoint-regression/do's at 2,065 after a 12-minute card check, and its cure, moving
+// kernels to another header included right after, left the compiled PTX the same: a length that changes nothing the
+// compiler makes is no rule.
+func TestTheRulesStageCountsNoHeaderLength(t *testing.T) {
 	t.Parallel()
-	fixture := newRowFixture(t, map[string]string{"kernels/cuda/ops_f32_fixture.cuh": "// a family\n", "kernels/cuda/other.cu": "// other\n"})
-	fixture.write("kernels/cuda/ops_f32_fixture.cuh", strings.Repeat("// line\n", 2001))
-	fixture.write("kernels/cuda/other.cu", strings.Repeat("// line\n", 3000))
-	if err := fixture.candidate().rules(t.Context()); err == nil || !strings.Contains(err.Error(), "ops_f32_fixture.cuh holds 2001") || !strings.Contains(err.Error(), "edit: ") {
-		t.Fatalf("a family header of 2001 lines went through the rules stage as %v; want it refused with its edit", err)
-	}
-	fixture.write("kernels/cuda/ops_f32_fixture.cuh", strings.Repeat("// line\n", 2000))
+	fixture := newRowFixture(t, map[string]string{"kernels/cuda/ops_f32_fixture.cuh": "// a family\n"})
+	fixture.write("kernels/cuda/ops_f32_fixture.cuh", strings.Repeat("// line\n", 2065))
 	testcheck.NoError(t, fixture.candidate().rules(t.Context()))
 }
